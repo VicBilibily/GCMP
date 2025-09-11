@@ -2,8 +2,8 @@
   "name": "gcmp",
   "publisher": "vicanent",
   "displayName": "AI Chat Models",
-  "description": "为 GitHub Copilot Chat 提供 智谱AI、月之暗面、DeepSeek、魔搭社区、iFlow心流 模型支持的扩展",
-  "version": "0.1.1",
+  "description": "为 GitHub Copilot Chat 提供 智谱AI、MoonshotAI、DeepSeek、魔搭社区、iFlow心流 模型支持的扩展",
+  "version": "0.1.2",
   "license": "MIT",
   "keywords": [
     "ai",
@@ -39,6 +39,33 @@
   ],
   "activationEvents": [],
   "contributes": {
+    "commands": [
+      {
+        "command": "gcmp.zhipu.setApiKey",
+        "title": "设置 智谱AI API密钥",
+        "category": "GCMP"
+      },
+      {
+        "command": "gcmp.moonshot.setApiKey",
+        "title": "设置 MoonshotAI API密钥",
+        "category": "GCMP"
+      },
+      {
+        "command": "gcmp.deepseek.setApiKey",
+        "title": "设置 DeepSeek API密钥",
+        "category": "GCMP"
+      },
+      {
+        "command": "gcmp.modelscope.setApiKey",
+        "title": "设置 魔搭社区 API密钥",
+        "category": "GCMP"
+      },
+      {
+        "command": "gcmp.iflow.setApiKey",
+        "title": "设置 iFlow API密钥",
+        "category": "GCMP"
+      }
+    ],
     "configuration": {
       "title": "GCMP - AI Chat Models",
       "properties": {
@@ -71,27 +98,27 @@
     "languageModelChatProviders": [
       {
         "vendor": "gcmp.zhipu",
-        "displayName": "[GCMP]智谱AI",
+        "displayName": "[GCMP] 智谱AI",
         "managementCommand": "gcmp.zhipu.setApiKey"
       },
       {
         "vendor": "gcmp.moonshot",
-        "displayName": "[GCMP]月之暗面",
+        "displayName": "[GCMP] MoonshotAI",
         "managementCommand": "gcmp.moonshot.setApiKey"
       },
       {
         "vendor": "gcmp.deepseek",
-        "displayName": "[GCMP]DeepSeek",
+        "displayName": "[GCMP] DeepSeek",
         "managementCommand": "gcmp.deepseek.setApiKey"
       },
       {
         "vendor": "gcmp.modelscope",
-        "displayName": "[GCMP]魔搭社区",
+        "displayName": "[GCMP] 魔搭社区",
         "managementCommand": "gcmp.modelscope.setApiKey"
       },
       {
         "vendor": "gcmp.iflow",
-        "displayName": "[GCMP]iFlow心流",
+        "displayName": "[GCMP] iFlow心流",
         "managementCommand": "gcmp.iflow.setApiKey"
       }
     ]

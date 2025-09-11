@@ -13,7 +13,6 @@
 ## 🤖 支持的AI供应商
 
 ### 🧠 智谱AI - GLM-4.5系列
-领先的中文大语言模型，强大的推理和生成能力
 
 - **GLM-4.5** (订阅)：最强推理模型（3550亿参数，使用 Anthropic SDK）
 - **GLM-4.5-Air** (订阅)：高性价比轻量级模型（使用 Anthropic SDK）
@@ -22,21 +21,18 @@
 - **GLM-4.5-Flash** (免费)：免费高效多功能模型（开发者友好）
 - **GLM-4.5V** (视觉)：旗舰视觉推理模型（106B参数，支持图像理解）
 
-### 🌙 月之暗面 - Kimi K2系列
-长上下文理解的领军者，强大的Agentic能力
+### 🌙 MoonshotAI - Kimi K2系列
 
 - **Kimi-K2-0905-Preview**：最强 Agentic Coding 能力（256K上下文）
 - **Kimi-K2-Turbo-Preview**：高速版本（60-100 tokens/秒）
 - **Kimi-K2-0711-Preview**：K2系列基础版（128K上下文）
 
 ### 🔥 DeepSeek - 深度求索
-专注于推理和思维链的先进 AI 模型
 
 - **DeepSeek V3.1** (官方)：全面升级的对话和推理能力
 - **DeepSeek V3.1** (思考模式)：基于V3.1架构的思维链推理能力
 
 ### 🌟 魔搭社区 - ModelScope
-阿里巴巴开源的AI模型社区，提供丰富的预训练模型
 
 - **Qwen3-235B-A22B-Instruct-2507**：最新一代超大规模模型
 - **Qwen3-30B-A3B-Instruct-2507**：高效轻量级版本
@@ -44,7 +40,6 @@
 - **Qwen3-Coder-30B-A3B-Instruct**：轻量代码推理模型
 
 ### 💫 iFlow心流 - AI 开发者平台
-用 AI 重塑研发范式，提供免费的前沿模型服务
 
 - **Qwen3-Max-Preview** 🔥：通义千问3系列Max预览版
 - **Qwen3-Coder-480B-A35B**：专业代码生成和推理
@@ -64,7 +59,7 @@
 | 供应商 | 命令 | 说明 |
 |--------|------|------|
 | 智谱AI | `gcmp.zhipu.setApiKey` | 配置智谱AI的API密钥 |
-| 月之暗面 | `gcmp.moonshot.setApiKey` | 配置月之暗面的API密钥 |
+| MoonshotAI | `gcmp.moonshot.setApiKey` | 配置月之暗面的API密钥 |
 | DeepSeek | `gcmp.deepseek.setApiKey` | 配置DeepSeek的API密钥 |
 | 魔搭社区 | `gcmp.modelscope.setApiKey` | 配置魔搭社区的API密钥 |
 | iFlow心流 | `gcmp.iflow.setApiKey` | 配置iFlow心流的API密钥 |
@@ -97,35 +92,6 @@ GCMP支持通过VS Code设置来自定义AI模型的行为参数，让您获得�
 | `gcmp.topP` | number | 1.0 | 0.0-1.0 | **输出多样性**：使用较小值会减少输出随机性，提高一致性 |
 | `gcmp.maxTokens` | number | 4096 | 1-32768 | **最大输出长度**：控制AI单次响应的最大token数量 |
 
-### 使用建议
-
-#### 🎯 代码生成场景
-```json
-{
-  "gcmp.temperature": 0.1,  // 低随机性，确保代码准确性
-  "gcmp.topP": 0.9,         // 适度多样性
-  "gcmp.maxTokens": 2048    // 中等长度，适合代码片段
-}
-```
-
-#### 💡 创意写作场景  
-```json
-{
-  "gcmp.temperature": 0.8,  // 高随机性，激发创意
-  "gcmp.topP": 1.0,         // 最大多样性
-  "gcmp.maxTokens": 8192    // 长输出，适合详细内容
-}
-```
-
-#### 📝 技术文档场景
-```json
-{
-  "gcmp.temperature": 0.3,  // 平衡准确性和表达
-  "gcmp.topP": 0.95,        // 轻微限制多样性
-  "gcmp.maxTokens": 4096    // 标准长度
-}
-```
-
 > 💡 **提示**：配置修改后会立即生效，无需重启VS Code。不同的模型供应商都会使用这些统一的配置参数。
 
 ## 🔑 获取API密钥
@@ -134,7 +100,7 @@ GCMP支持通过VS Code设置来自定义AI模型的行为参数，让您获得�
 | 供应商 | 官方平台 | 特色 |
 |--------|----------|------|
 | 智谱AI | [开放平台](https://open.bigmodel.cn/) | 强大的中文理解能力，支持多模态 |
-| 月之暗面 | [开放平台](https://api.moonshot.cn/) | 超长上下文，Agentic能力 |
+| MoonshotAI | [开放平台](https://api.moonshot.cn/) | 超长上下文，Agentic能力 |
 | DeepSeek | [开放平台](https://api.deepseek.com/) | 深度推理能力，思维链技术 |
 | 魔搭社区 | [ModelScope](https://www.modelscope.cn/) | 开源AI模型社区平台 |
 | iFlow心流 | [心流平台](https://platform.iflow.cn/) | AI开发者平台，免费前沿模型 |
@@ -173,7 +139,7 @@ cd GCMP
 npm install
 
 # 启动开发模式
-npm run watch
+npm run watch # 按下 F5 开始扩展调试
 
 # 运行测试
 npm run test
