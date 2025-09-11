@@ -10,9 +10,11 @@
 ## 🚀 快速开始
 
 ### 1. 安装扩展
-在VS Code扩展市场搜索`GCMP`并安装，或使用扩展标识符：`vicanent.gcmp`
+
+在VS Code扩展市场搜索 `GCMP` 并安装，或使用扩展标识符：`vicanent.gcmp`
 
 ### 2. 配置API密钥
+
 使用VS Code命令面板（`Ctrl+Shift+P`）执行以下命令来配置相应供应商的API密钥：
 
 | 供应商 | 命令 | 说明 |
@@ -24,18 +26,10 @@
 | iFlow心流 | `gcmp.iflow.setApiKey` | 配置iFlow心流的API密钥 |
 
 ### 3. 开始使用
-1. 打开VS Code的GitHub Copilot Chat面板
-2. 在模型选择器中选择您想要使用的AI模型
-3. 开始与AI助手对话，享受强大的编程辅助功能
 
-## ✨ 功能亮点
-
-- 🔄 **双SDK架构**：集成 Anthropic SDK 和 OpenAI SDK
-- 🚀 **流式响应**：支持实时对话流，提供流畅的交互体验
-- 🔧 **工具调用**：支持函数执行和高级工具调用功能
-- 👁️ **多模态支持**：部分模型支持图像理解和分析
-- 🔐 **安全管理**：独立的API密钥管理，确保数据安全
-- 🎯 **即插即用**：集成到 VS Code GitHub Copilot 模型选择器
+1. 打开 `VS Code` 的 `GitHub Copilot Chat` 面板
+2. 在模型选择器中选择您想要使用的 `AI模型`
+3. 开始与 `AI助手` 对话，享受强大的编程辅助功能
 
 ## 🤖 支持的AI供应商
 
@@ -80,13 +74,14 @@
 GCMP支持通过VS Code设置来自定义AI模型的行为参数，让您获得更个性化的AI助手体验。
 
 ### 配置AI模型参数
-在VS Code设置中搜索"gcmp"或直接编辑settings.json：
+
+在 VS Code 设置中搜索 `"gcmp"` 或直接编辑 `settings.json`：
 
 ```json
 {
-  "gcmp.temperature": 0.1,    // 控制AI输出随机性 (0.0-2.0)
-  "gcmp.topP": 1.0,           // 控制AI输出多样性 (0.0-1.0)  
-  "gcmp.maxTokens": 4096      // 控制AI最大输出长度 (1-32768)
+  "gcmp.temperature": 0.1,
+  "gcmp.topP": 1.0,  
+  "gcmp.maxTokens": 4096
 }
 ```
 
@@ -103,6 +98,7 @@ GCMP支持通过VS Code设置来自定义AI模型的行为参数，让您获得�
 ## 🔑 获取API密钥
 
 ### 官方平台链接
+
 | 供应商 | 官方平台 | 特色 |
 |--------|----------|------|
 | 智谱AI | [开放平台](https://open.bigmodel.cn/) | 强大的中文理解能力，支持多模态 |
@@ -118,6 +114,7 @@ GCMP支持通过VS Code设置来自定义AI模型的行为参数，让您获得�
 我们欢迎社区贡献！无论是报告bug、提出功能建议还是提交代码，都能帮助这个项目变得更好。
 
 ### 开发环境设置
+
 ```bash
 # 克隆项目
 git clone https://github.com/VicBilibily/GCMP.git
@@ -136,13 +133,3 @@ npm run test
 ## 📄 许可证
 
 本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
----
-
-<div align="center">
-
-**为开发者提供更多AI模型选择** ✨
-
-[🐛 报告问题](https://github.com/VicBilibily/GCMP/issues) · [💡 功能建议](https://github.com/VicBilibily/GCMP/issues) · [📖 文档](https://github.com/VicBilibily/GCMP/wiki)
-
-</div>
