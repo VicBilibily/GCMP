@@ -13,19 +13,7 @@
 
 在VS Code扩展市场搜索 `GCMP` 并安装，或使用扩展标识符：`vicanent.gcmp`
 
-### 2. 配置API密钥
-
-使用VS Code命令面板（`Ctrl+Shift+P`）执行以下命令来配置相应供应商的API密钥：
-
-| 供应商 | 命令 | 说明 |
-|--------|------|------|
-| 智谱AI | `gcmp.zhipu.setApiKey` | 配置智谱AI的API密钥 |
-| MoonshotAI | `gcmp.moonshot.setApiKey` | 配置月之暗面的API密钥 |
-| DeepSeek | `gcmp.deepseek.setApiKey` | 配置DeepSeek的API密钥 |
-| 魔搭社区 | `gcmp.modelscope.setApiKey` | 配置魔搭社区的API密钥 |
-| iFlow心流 | `gcmp.iflow.setApiKey` | 配置iFlow心流的API密钥 |
-
-### 3. 开始使用
+### 2. 开始使用
 
 1. 打开 `VS Code` 的 `GitHub Copilot Chat` 面板
 2. 在模型选择器中选择您想要使用的 `AI模型`

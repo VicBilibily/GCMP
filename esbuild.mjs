@@ -35,7 +35,7 @@ async function main() {
     sourcemap: !production,
     sourcesContent: false,
     platform: 'node',
-    outfile: 'out/extension.js',
+    outfile: 'extension.js',
     external: ['vscode'],
     logLevel: 'silent',
     plugins: [esbuildProblemMatcherPlugin],

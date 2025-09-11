@@ -9,8 +9,10 @@ export default defineConfig (
 		ignores: [
 			'.vscode-test',
 			'out',
+			'dist',
 			'node_modules',
-			'**/*.d.ts'
+			'**/*.d.ts',
+			'extension.js'
 		]
 	},
 	{

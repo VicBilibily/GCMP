@@ -15,55 +15,56 @@ import { ApiKeyManager, Logger, ConfigManager } from '../utils';
  */
 export class AnthropicHandler implements ModelHandler {
     readonly sdkType = SDKType.ANTHROPIC;
-    
+
     private clients = new Map<string, Anthropic>();
     private cachedApiKeys = new Map<string, string>();
-    
+
     constructor(
         public readonly provider: string,
+        public readonly displayName: string,
         private readonly baseURL: string
     ) {
-        // provider 和 baseURL 由调用方传入
+        // provider、displayName 和 baseURL 由调用方传入
     }
-    
+
     /**
      * 获取或创建Anthropic客户端
      * 使用构造时传入的配置
      */
     private async getAnthropicClient(): Promise<Anthropic> {
         const currentApiKey = await ApiKeyManager.getApiKey(this.provider);
-        
+
         if (!currentApiKey) {
-            throw new Error(`缺少${this.provider}API密钥`);
+            throw new Error(`缺少 ${this.displayName} API密钥`);
         }
-        
+
         const clientKey = `${this.provider}_${this.baseURL}`;
         const cachedKey = this.cachedApiKeys.get(clientKey);
-        
+
         // 如果API密钥变更了，重置客户端
         if (!this.clients.has(clientKey) || cachedKey !== currentApiKey) {
             const client = new Anthropic({
                 apiKey: currentApiKey,
                 baseURL: this.baseURL
             });
-            
+
             this.clients.set(clientKey, client);
             this.cachedApiKeys.set(clientKey, currentApiKey);
-            Logger.info(`${this.provider} Anthropic兼容客户端已重新创建（API密钥更新）`);
+            Logger.info(`${this.displayName} Anthropic兼容客户端已重新创建（API密钥更新）`);
         }
-        
+
         return this.clients.get(clientKey)!;
     }
-    
+
     /**
      * 重置客户端
      */
     resetClient(): void {
         this.clients.clear();
         this.cachedApiKeys.clear();
-        Logger.debug('Anthropic兼容客户端已重置');
+        Logger.info(`${this.displayName} Anthropic兼容客户端已重置`);
     }
-    
+
     /**
      * 处理Anthropic SDK请求
      */
@@ -74,13 +75,15 @@ export class AnthropicHandler implements ModelHandler {
         progress: vscode.Progress<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>,
         token: vscode.CancellationToken
     ): Promise<void> {
+        Logger.info(`[${model.name}] 开始处理 ${this.displayName} Anthropic 请求`);
+
         try {
             const client = await this.getAnthropicClient();
             const { messages: anthropicMessages, system } = apiMessageToAnthropicMessage(messages as vscode.LanguageModelChatMessage[]);
-            
+
             // 准备工具定义
             const tools: Anthropic.Messages.Tool[] = options.tools ? convertToAnthropicTools([...options.tools]) : [];
-            
+
             const createParams: Anthropic.MessageCreateParamsStreaming = {
                 model: model.id,
                 max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
@@ -89,27 +92,27 @@ export class AnthropicHandler implements ModelHandler {
                 temperature: ConfigManager.getTemperature(),
                 top_p: ConfigManager.getTopP()
             };
-            
+
             // 添加系统消息（如果有）
             if (system.text) {
                 createParams.system = [system];
             }
-            
+
             // 添加工具（如果有）
             if (tools.length > 0) {
                 createParams.tools = tools;
             }
-            
-            Logger.debug(`[${model.name}] 发送 Anthropic API 请求，包含 ${anthropicMessages.length} 条消息`);
+
+            Logger.info(`[${model.name}] 发送 ${messages.length} 条消息，使用 ${this.displayName} Anthropic API 请求`);
             const stream = await client.messages.create(createParams);
+
             
             // 使用完整的流处理函数
-            const result = await handleAnthropicStream(stream, progress, token);
-            Logger.debug(`[${model.name}] Anthropic 请求完成`, result.usage);
-            
-        } catch (error) {
-            console.error(`[${model.name}] Anthropic SDK error:`, error);
-            
+            await handleAnthropicStream(stream, progress, token);
+            Logger.info(`[${model.name}] ${this.displayName} Anthropic 请求完成`);
+                    } catch (error) {
+            Logger.error(`[${model.name}] Anthropic SDK error:`, error);
+
             // 提供详细的错误信息
             let errorMessage = `[${model.name}] Anthropic API调用失败`;
             if (error instanceof Error) {
@@ -123,16 +126,17 @@ export class AnthropicHandler implements ModelHandler {
                     errorMessage += `: ${error.message}`;
                 }
             }
-            
+
+            Logger.error(errorMessage);
             progress.report(new vscode.LanguageModelTextPart(errorMessage));
         }
     }
-    
+
     /**
      * 清理资源
      */
     dispose(): void {
         this.resetClient();
-        Logger.debug('AnthropicHandler 已清理');
+        Logger.info(`${this.displayName} AnthropicHandler 已清理`);
     }
 }

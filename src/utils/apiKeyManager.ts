@@ -76,7 +76,7 @@ export class ApiKeyManager {
     /**
      * 确保有API密钥，如果没有则提示用户输入
      */
-    static async ensureApiKey(vendor: string): Promise<void> {
+    static async ensureApiKey(vendor: string, displayName: string): Promise<void> {
         if (await this.hasValidApiKey(vendor)) {
             return;
         }
@@ -87,7 +87,7 @@ export class ApiKeyManager {
         
         // 验证设置后是否有效
         if (!(await this.hasValidApiKey(vendor))) {
-            throw new Error(`需要API密钥才能使用${vendor}模型`);
+            throw new Error(`需要 API密钥 才能使用 ${displayName} 模型`);
         }
     }
 
@@ -96,7 +96,7 @@ export class ApiKeyManager {
      */
     static async promptAndSetApiKey(vendor: string, displayName: string, placeHolder: string): Promise<void> {
         const apiKey = await vscode.window.showInputBox({
-            prompt: `请输入您的${displayName} API密钥（留空则清除密钥）`,
+            prompt: `请输入您的 ${displayName} API密钥（留空则清除密钥）`,
             password: true,
             placeHolder: placeHolder
         });

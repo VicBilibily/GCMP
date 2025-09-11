@@ -3,7 +3,7 @@
   "publisher": "vicanent",
   "displayName": "AI Chat Models",
   "description": "为 GitHub Copilot Chat 提供 智谱AI、MoonshotAI、DeepSeek、魔搭社区、iFlow心流 模型支持的扩展",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "license": "MIT",
   "keywords": [
     "ai",
@@ -33,7 +33,8 @@
     "AI",
     "Chat"
   ],
-  "main": "./out/extension.js",
+  "icon": "./gcmp-logo.png",
+  "main": "./extension.js",
   "enabledApiProposals": [
     "chatProvider"
   ],
@@ -72,16 +73,16 @@
         "gcmp.temperature": {
           "type": "number",
           "default": 0.1,
-          "minimum": 0.0,
-          "maximum": 2.0,
+          "minimum": 0,
+          "maximum": 2,
           "description": "控制AI模型输出的随机性。较低的值（如0.1）产生更确定性的输出，较高的值（如1.0）产生更有创意的输出。",
           "scope": "application"
         },
         "gcmp.topP": {
           "type": "number",
-          "default": 1.0,
-          "minimum": 0.0,
-          "maximum": 1.0,
+          "default": 1,
+          "minimum": 0,
+          "maximum": 1,
           "description": "控制AI模型输出的多样性。使用较小的值（如0.9）会减少输出的随机性。",
           "scope": "application"
         },
@@ -124,14 +125,13 @@
     ]
   },
   "scripts": {
-    "clean": "rimraf out",
-    "vscode:prepublish": "npm run clean && npm run esbuild-base -- --minify",
-    "esbuild-base": "npm run clean && node esbuild.mjs",
+    "vscode:prepublish": "npm run esbuild-base -- --minify",
+    "esbuild-base": "node esbuild.mjs",
     "esbuild": "npm run esbuild-base -- --sourcemap",
     "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
-    "compile": "npm run clean && tsc -p ./",
+    "compile": "tsc -p ./",
     "lint": "eslint",
-    "watch": "npm run clean && tsc -watch -p ./",
+    "watch": "tsc -watch -p ./",
     "package": "vsce package",
     "publish": "vsce publish --allow-proposed-apis chatProvider",
     "pretest": "npm run compile",
@@ -146,11 +146,10 @@
     "@eslint/js": "^9.13.0",
     "@stylistic/eslint-plugin": "^2.9.0",
     "@types/node": "^22",
-		"@types/vscode": "^1.104.0",
+    "@types/vscode": "^1.104.0",
     "@vscode/vsce": "^3.6.0",
     "esbuild": "^0.25.9",
     "eslint": "^9.13.0",
-    "rimraf": "^6.0.1",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.39.0"
   },

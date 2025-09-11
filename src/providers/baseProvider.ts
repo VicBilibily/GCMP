@@ -12,7 +12,6 @@ import {
   LanguageModelTextPart,
   Progress,
   ProvideLanguageModelChatResponseOptions,
-  ProviderResult,
 } from "vscode";
 import { ProviderConfig, ModelHandler } from "../types/sharedTypes";
 import { ApiKeyManager, Logger } from "../utils";
@@ -65,6 +64,7 @@ export abstract class BaseModelProvider implements LanguageModelChatProvider {
     if (this.providerConfig.openAiUrl) {
       const openaiHandler = new OpenAIHandler(
         this.providerConfig.name,
+        this.providerConfig.displayName,
         this.providerConfig.openAiUrl
       );
       this.handlers.set("openai", openaiHandler);
@@ -73,6 +73,7 @@ export abstract class BaseModelProvider implements LanguageModelChatProvider {
     if (this.providerConfig.anthropicUrl) {
       const anthropicHandler = new AnthropicHandler(
         this.providerConfig.name,
+        this.providerConfig.displayName,
         this.providerConfig.anthropicUrl
       );
       this.handlers.set("anthropic", anthropicHandler);
@@ -132,10 +133,27 @@ export abstract class BaseModelProvider implements LanguageModelChatProvider {
     );
   }
 
-  provideLanguageModelChatInformation(
-    _options: { silent: boolean },
+  async provideLanguageModelChatInformation(
+    options: { silent: boolean },
     _token: CancellationToken
-  ): ProviderResult<LanguageModelChatInformation[]> {
+  ): Promise<LanguageModelChatInformation[]> {
+    // 检查是否有API密钥
+    const hasApiKey = await ApiKeyManager.hasValidApiKey(this.providerConfig.name);
+    if (!hasApiKey) {
+      // 如果是静默模式（如扩展启动时），不触发用户交互，直接返回空列表
+      if (options.silent) {
+        return [];
+      }
+      // 非静默模式下，直接触发API密钥设置
+      await vscode.commands.executeCommand(`gcmp.${this.providerConfig.name}.setApiKey`);
+      // 重新检查API密钥
+      const hasApiKeyAfterSet = await ApiKeyManager.hasValidApiKey(this.providerConfig.name);
+      if (!hasApiKeyAfterSet) {
+        // 如果用户取消设置或设置失败，返回空列表
+        return [];
+      }
+    }
+
     return this.models.map((model) => ({
       ...model,
       name: `[GCMP] ${model.name}`,
@@ -161,11 +179,11 @@ export abstract class BaseModelProvider implements LanguageModelChatProvider {
       return;
     }
 
-    // 确保有API密钥
-    await ApiKeyManager.ensureApiKey(this.providerConfig.name);
+    // 确保有API密钥（最后的保险检查）
+    await ApiKeyManager.ensureApiKey(this.providerConfig.name, this.providerConfig.displayName);
 
     Logger.info(
-      `${this.providerConfig.displayName} Provider 开始处理模型: ${modelInfo.name}`
+      `${this.providerConfig.displayName} Provider 开始处理请求: ${modelInfo.name}`
     );
 
     try {
@@ -177,9 +195,8 @@ export abstract class BaseModelProvider implements LanguageModelChatProvider {
         token
       );
     } catch (error) {
-      const errorMessage = `错误: ${
-        error instanceof Error ? error.message : "未知错误"
-      }`;
+      const errorMessage = `错误: ${error instanceof Error ? error.message : "未知错误"
+        }`;
       Logger.error(errorMessage);
       progress.report(new LanguageModelTextPart(errorMessage));
     }
@@ -219,9 +236,8 @@ export abstract class BaseModelProvider implements LanguageModelChatProvider {
 
       await handler.handleRequest(model, messages, options, progress, token);
     } catch (error) {
-      const errorMessage = `错误: ${
-        error instanceof Error ? error.message : "未知错误"
-      }`;
+      const errorMessage = `错误: ${error instanceof Error ? error.message : "未知错误"
+        }`;
       progress.report(new LanguageModelTextPart(errorMessage));
     }
   }

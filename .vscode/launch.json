@@ -13,7 +13,7 @@
 				"--extensionDevelopmentPath=${workspaceFolder}"
 			],
 			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
+				"${workspaceFolder}/extension.js"
 			],
 			"preLaunchTask": "${defaultBuildTask}"
 		},
@@ -23,10 +23,10 @@
 			"request": "launch",
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
-				"--extensionTestsPath=${workspaceFolder}/out/test/suite/index"
+				"--extensionTestsPath=${workspaceFolder}/test/suite/index"
 			],
 			"outFiles": [
-				"${workspaceFolder}/out/**/*.js",
+				"${workspaceFolder}/**/*.js",
 				"${workspaceFolder}/dist/**/*.js"
 			],
 			"preLaunchTask": "tasks: watch-tests"
