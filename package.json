@@ -1,0 +1,104 @@
+{
+  "name": "gcmp",
+  "publisher": "vicanent",
+  "displayName": "AI Chat Models (智谱AI/月之暗面/DeepSeek/魔搭社区/iFlow心流)",
+  "description": "为 GitHub Copilot Chat 提供 智谱AI、月之暗面、DeepSeek、魔搭社区、iFlow心流 模型支持的扩展",
+  "version": "0.1.0",
+  "license": "MIT",
+  "keywords": [
+    "ai",
+    "chat",
+    "copilot",
+    "github-copilot",
+    "language-model",
+    "zhipu",
+    "moonshot",
+    "deepseek",
+    "modelscope",
+    "iflow",
+    "智谱",
+    "月之暗面",
+    "魔搭",
+    "心流"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vicanent/gcmp.git"
+  },
+  "engines": {
+    "node": "^20.19.5",
+    "vscode": "^1.104.0"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "main": "./out/extension.js",
+  "enabledApiProposals": [
+    "chatProvider"
+  ],
+  "activationEvents": [],
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "gcmp.zhipu",
+        "displayName": "[GCMP]智谱AI",
+        "managementCommand": "gcmp.zhipu.setApiKey"
+      },
+      {
+        "vendor": "gcmp.moonshot",
+        "displayName": "[GCMP]月之暗面",
+        "managementCommand": "gcmp.moonshot.setApiKey"
+      },
+      {
+        "vendor": "gcmp.deepseek",
+        "displayName": "[GCMP]DeepSeek",
+        "managementCommand": "gcmp.deepseek.setApiKey"
+      },
+      {
+        "vendor": "gcmp.modelscope",
+        "displayName": "[GCMP]魔搭社区",
+        "managementCommand": "gcmp.modelscope.setApiKey"
+      },
+      {
+        "vendor": "gcmp.iflow",
+        "displayName": "[GCMP]iFlow心流",
+        "managementCommand": "gcmp.iflow.setApiKey"
+      }
+    ]
+  },
+  "scripts": {
+    "clean": "rimraf out",
+    "vscode:prepublish": "npm run clean && npm run esbuild-base -- --minify",
+    "esbuild-base": "npm run clean && node esbuild.mjs",
+    "esbuild": "npm run esbuild-base -- --sourcemap",
+    "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
+    "compile": "npm run clean && tsc -p ./",
+    "lint": "eslint",
+    "watch": "npm run clean && tsc -watch -p ./",
+    "package": "vsce package",
+    "publish": "vsce publish --allow-proposed-apis chatProvider",
+    "pretest": "npm run compile",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.61.0",
+    "@vscode/prompt-tsx": "^0.4.0-alpha.5",
+    "openai": "^5.20.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "@stylistic/eslint-plugin": "^2.9.0",
+    "@types/node": "^22",
+    "@types/vscode": "^1.103.0",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.25.9",
+    "eslint": "^9.13.0",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.39.0"
+  },
+  "volta": {
+    "node": "20.19.5"
+  }
+}
