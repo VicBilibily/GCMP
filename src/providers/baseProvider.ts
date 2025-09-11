@@ -139,7 +139,9 @@ export abstract class BaseModelProvider implements LanguageModelChatProvider {
     return this.models.map((model) => ({
       ...model,
       name: `[GCMP] ${model.name}`,
-    })); // 返回模型的浅拷贝，防止外部修改
+      // 高效编辑工具 GHC 用 family 前缀判断
+      family: `claude_${model.family}`,
+    }));
   }
 
   async provideLanguageModelChatResponse(

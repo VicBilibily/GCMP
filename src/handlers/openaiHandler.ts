@@ -467,10 +467,10 @@ export class OpenAIHandler implements ModelHandler {
             )
           );
           
-          Logger.info(`成功处理工具调用: ${bufferedTool.name}, args: ${bufferedTool.arguments}`);
+          Logger.info(`成功处理工具调用: ${bufferedTool.name}`);
           hasProcessed = true;
         } catch (error) {
-          Logger.error(`无法解析工具调用参数: ${bufferedTool.name}, args: ${bufferedTool.arguments}, error: ${error}`);
+          Logger.error(`无法解析工具调用参数: ${bufferedTool.name}, error: ${error}`);
         }
       } else {
         Logger.warn(`不完整的工具调用 [${toolIndex}]: name=${bufferedTool.name}, args_length=${bufferedTool.arguments.length}`);
