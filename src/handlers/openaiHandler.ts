@@ -7,7 +7,7 @@
 import * as vscode from "vscode";
 import OpenAI from "openai";
 import { ModelHandler, SDKType } from "../types/sharedTypes";
-import { ApiKeyManager, Logger } from "../utils";
+import { ApiKeyManager, Logger, ConfigManager } from "../utils";
 
 /**
  * 通用OpenAI兼容处理器类
@@ -18,6 +18,13 @@ export class OpenAIHandler implements ModelHandler {
 
   private clients = new Map<string, OpenAI>();
   private cachedApiKeys = new Map<string, string>();
+  
+  // 工具调用缓存 - 用于处理分块的工具调用数据
+  private toolCallsBuffer = new Map<number, {
+    id?: string;
+    name?: string;
+    arguments: string;
+  }>();
 
   constructor(
     public readonly provider: string,
@@ -76,6 +83,9 @@ export class OpenAIHandler implements ModelHandler {
     >,
     token: vscode.CancellationToken
   ): Promise<void> {
+    // 清理工具调用缓存
+    this.toolCallsBuffer.clear();
+    
     try {
       const client = await this.getOpenAIClient();
 
@@ -86,10 +96,10 @@ export class OpenAIHandler implements ModelHandler {
       const createParams: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
         model: model.id,
         messages: this.convertMessagesToOpenAI(messages),
-        max_tokens: Math.min(model.maxOutputTokens, 4096),
+        max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
         stream: true,
-        temperature: 0.7,
-        top_p: 1,
+        temperature: ConfigManager.getTemperature(),
+        top_p: ConfigManager.getTopP(),
       };
 
       // 添加工具支持（如果有）
@@ -106,17 +116,24 @@ export class OpenAIHandler implements ModelHandler {
       const stream = await client.chat.completions.create(createParams);
 
       let hasReceivedContent = false;
+      let chunkCount = 0;
       for await (const chunk of stream) {
+        chunkCount++;
+        
         if (token.isCancellationRequested) {
           Logger.warn(`[${model.name}] 用户取消了请求`);
           break;
         }
 
         const hasContent = this.handleOpenAIStreamChunk(chunk, progress);
+        
+        // 更新内容接收状态 - 包括usage chunk也算作有效处理
         if (hasContent) {
           hasReceivedContent = true;
         }
       }
+
+      Logger.debug(`[${model.name}] 流处理完成，共处理 ${chunkCount} 个chunk`);
 
       if (!hasReceivedContent) {
         Logger.warn(`[${model.name}] 没有接收到任何内容`);
@@ -136,6 +153,9 @@ export class OpenAIHandler implements ModelHandler {
 
       // 通用错误处理
       this.handleError(error, model, progress);
+    } finally {
+      // 清理工具调用缓存
+      this.toolCallsBuffer.clear();
     }
   }
 
@@ -348,7 +368,7 @@ export class OpenAIHandler implements ModelHandler {
   }
 
   /**
-   * 修复的流处理 - 避免工具调用无限重复
+   * 增强的流处理 - 正确处理包含usage信息的最终chunk
    */
   private handleOpenAIStreamChunk(
     chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
@@ -358,6 +378,14 @@ export class OpenAIHandler implements ModelHandler {
   ): boolean {
     let hasContent = false;
 
+    // 检查是否是包含usage信息的最终chunk
+    if (chunk.usage && (!chunk.choices || chunk.choices.length === 0)) {
+      Logger.debug(`收到使用统计信息: ${JSON.stringify(chunk.usage)}`);
+      // 这是最终的usage chunk，返回true表示已处理，但不报告内容
+      return true;
+    }
+
+    // 处理正常的choices
     for (const choice of chunk.choices || []) {
       const delta = choice.delta;
 
@@ -371,30 +399,30 @@ export class OpenAIHandler implements ModelHandler {
         hasContent = true;
       }
 
-      // 处理工具调用 - 关键修复：只在完整工具调用时报告
+      // 处理工具调用 - 支持分块数据的累积处理
       if (delta.tool_calls && Array.isArray(delta.tool_calls)) {
         for (const toolCall of delta.tool_calls) {
-          // 只有当工具调用完整时才报告（有名称和参数）
-          if (toolCall.function?.name && toolCall.function?.arguments) {
-            try {
-              const args = JSON.parse(toolCall.function.arguments);
-              const toolCallId =
-                toolCall.id ||
-                `tool_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-              progress.report(
-                new vscode.LanguageModelToolCallPart(
-                  toolCallId,
-                  toolCall.function.name,
-                  args
-                )
-              );
-              hasContent = true;
-            } catch (error) {
-              console.error("Error parsing tool call arguments:", error);
-              // 解析失败时不报告工具调用，避免无限重复
-            }
+          const toolIndex = toolCall.index ?? 0;
+          
+          // 获取或创建工具调用缓存
+          let bufferedTool = this.toolCallsBuffer.get(toolIndex);
+          if (!bufferedTool) {
+            bufferedTool = { arguments: '' };
+            this.toolCallsBuffer.set(toolIndex, bufferedTool);
           }
+          
+          // 累积工具调用数据
+          if (toolCall.id) {
+            bufferedTool.id = toolCall.id;
+          }
+          if (toolCall.function?.name) {
+            bufferedTool.name = toolCall.function.name;
+          }
+          if (toolCall.function?.arguments) {
+            bufferedTool.arguments += toolCall.function.arguments;
+          }
+          
+          Logger.debug(`累积工具调用数据 [${toolIndex}]: name=${bufferedTool.name}, args_length=${bufferedTool.arguments.length}`);
         }
       }
 
@@ -404,10 +432,52 @@ export class OpenAIHandler implements ModelHandler {
         choice.finish_reason === "stop"
       ) {
         Logger.debug(`流已结束，原因: ${choice.finish_reason}`);
+        
+        // 如果是工具调用结束，处理缓存中的工具调用
+        if (choice.finish_reason === "tool_calls") {
+          hasContent = this.processBufferedToolCalls(progress) || hasContent;
+        }
       }
     }
 
     return hasContent;
+  }
+
+  /**
+   * 处理缓存中的工具调用
+   */
+  private processBufferedToolCalls(
+    progress: vscode.Progress<
+      vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart
+    >
+  ): boolean {
+    let hasProcessed = false;
+    
+    for (const [toolIndex, bufferedTool] of this.toolCallsBuffer.entries()) {
+      if (bufferedTool.name && bufferedTool.arguments) {
+        try {
+          const args = JSON.parse(bufferedTool.arguments);
+          const toolCallId = bufferedTool.id || `tool_${Date.now()}_${toolIndex}`;
+          
+          progress.report(
+            new vscode.LanguageModelToolCallPart(
+              toolCallId,
+              bufferedTool.name,
+              args
+            )
+          );
+          
+          Logger.info(`成功处理工具调用: ${bufferedTool.name}, args: ${bufferedTool.arguments}`);
+          hasProcessed = true;
+        } catch (error) {
+          Logger.error(`无法解析工具调用参数: ${bufferedTool.name}, args: ${bufferedTool.arguments}, error: ${error}`);
+        }
+      } else {
+        Logger.warn(`不完整的工具调用 [${toolIndex}]: name=${bufferedTool.name}, args_length=${bufferedTool.arguments.length}`);
+      }
+    }
+    
+    return hasProcessed;
   }
 
   /**

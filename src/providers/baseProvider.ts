@@ -138,7 +138,7 @@ export abstract class BaseModelProvider implements LanguageModelChatProvider {
   ): ProviderResult<LanguageModelChatInformation[]> {
     return this.models.map((model) => ({
       ...model,
-      name: `[GCMP]${model.name}`,
+      name: `[GCMP] ${model.name}`,
     })); // 返回模型的浅拷贝，防止外部修改
   }
 

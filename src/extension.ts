@@ -8,13 +8,18 @@ import { IFlowChatModelProvider } from "./providers/iflowProvider";
 import { MoonshotChatModelProvider } from "./providers/moonshotProvider";
 import { BaseModelProvider } from "./providers/baseProvider";
 import { Logger } from "./utils/logger";
-import { ApiKeyManager } from "./utils";
+import { ApiKeyManager, ConfigManager } from "./utils";
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
   Logger.initialize("GitHub Copilot Models Provider (GCMP)"); // 初始化日志管理器
   ApiKeyManager.initialize(context); // 初始化API密钥管理器
+  
+  // 初始化配置管理器并注册到context
+  const configDisposable = ConfigManager.initialize();
+  context.subscriptions.push(configDisposable);
+  
   BaseModelProvider.activate(context, ZhipuChatModelProvider); // 智谱AI
   BaseModelProvider.activate(context, MoonshotChatModelProvider); // 月之暗面
   BaseModelProvider.activate(context, DeepSeekChatModelProvider); // DeepSeek
@@ -24,5 +29,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 // This method is called when your extension is deactivated
 export function deactivate() {
+  ConfigManager.dispose(); // 清理配置管理器
   Logger.dispose(); // 在扩展销毁时才 dispose Logger
 }

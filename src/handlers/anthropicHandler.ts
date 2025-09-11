@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
 import { apiMessageToAnthropicMessage, handleAnthropicStream, convertToAnthropicTools } from '../converters/anthropicConverter';
 import { ModelHandler, SDKType } from '../types/sharedTypes';
-import { ApiKeyManager, Logger } from '../utils';
+import { ApiKeyManager, Logger, ConfigManager } from '../utils';
 
 /**
  * 通用Anthropic兼容处理器类
@@ -83,9 +83,11 @@ export class AnthropicHandler implements ModelHandler {
             
             const createParams: Anthropic.MessageCreateParamsStreaming = {
                 model: model.id,
-                max_tokens: model.maxOutputTokens,
+                max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
                 messages: anthropicMessages,
-                stream: true
+                stream: true,
+                temperature: ConfigManager.getTemperature(),
+                top_p: ConfigManager.getTopP()
             };
             
             // 添加系统消息（如果有）

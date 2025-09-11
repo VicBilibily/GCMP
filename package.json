@@ -1,9 +1,9 @@
 {
   "name": "gcmp",
   "publisher": "vicanent",
-  "displayName": "AI Chat Models (智谱AI/月之暗面/DeepSeek/魔搭社区/iFlow心流)",
+  "displayName": "AI Chat Models",
   "description": "为 GitHub Copilot Chat 提供 智谱AI、月之暗面、DeepSeek、魔搭社区、iFlow心流 模型支持的扩展",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
   "keywords": [
     "ai",
@@ -39,6 +39,35 @@
   ],
   "activationEvents": [],
   "contributes": {
+    "configuration": {
+      "title": "GCMP - AI Chat Models",
+      "properties": {
+        "gcmp.temperature": {
+          "type": "number",
+          "default": 0.1,
+          "minimum": 0.0,
+          "maximum": 2.0,
+          "description": "控制AI模型输出的随机性。较低的值（如0.1）产生更确定性的输出，较高的值（如1.0）产生更有创意的输出。",
+          "scope": "application"
+        },
+        "gcmp.topP": {
+          "type": "number",
+          "default": 1.0,
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "控制AI模型输出的多样性。使用较小的值（如0.9）会减少输出的随机性。",
+          "scope": "application"
+        },
+        "gcmp.maxTokens": {
+          "type": "number",
+          "default": 4096,
+          "minimum": 1,
+          "maximum": 32768,
+          "description": "控制AI模型输出的最大token数量。较大的值允许更长的响应。",
+          "scope": "application"
+        }
+      }
+    },
     "languageModelChatProviders": [
       {
         "vendor": "gcmp.zhipu",
