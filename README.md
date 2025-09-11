@@ -5,7 +5,28 @@
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/vicanent.gcmp?color=green&label=Downloads)](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp)
 [![License](https://img.shields.io/github/license/VicBilibily/GCMP?color=orange&label=License)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
-通过集成国内外顶尖的AI模型，为开发者提供更丰富、更适合的AI编程助手选择。
+通过集成国内顶尖的AI模型，为开发者提供更丰富、更适合的AI编程助手选择。
+
+## 🚀 快速开始
+
+### 1. 安装扩展
+在VS Code扩展市场搜索`GCMP`并安装，或使用扩展标识符：`vicanent.gcmp`
+
+### 2. 配置API密钥
+使用VS Code命令面板（`Ctrl+Shift+P`）执行以下命令来配置相应供应商的API密钥：
+
+| 供应商 | 命令 | 说明 |
+|--------|------|------|
+| 智谱AI | `gcmp.zhipu.setApiKey` | 配置智谱AI的API密钥 |
+| MoonshotAI | `gcmp.moonshot.setApiKey` | 配置月之暗面的API密钥 |
+| DeepSeek | `gcmp.deepseek.setApiKey` | 配置DeepSeek的API密钥 |
+| 魔搭社区 | `gcmp.modelscope.setApiKey` | 配置魔搭社区的API密钥 |
+| iFlow心流 | `gcmp.iflow.setApiKey` | 配置iFlow心流的API密钥 |
+
+### 3. 开始使用
+1. 打开VS Code的GitHub Copilot Chat面板
+2. 在模型选择器中选择您想要使用的AI模型
+3. 开始与AI助手对话，享受强大的编程辅助功能
 
 ## ✨ 功能亮点
 
@@ -20,12 +41,12 @@
 
 ### 🧠 智谱AI - GLM-4.5系列
 
-- **GLM-4.5** (订阅)：最强推理模型（3550亿参数，使用 Anthropic SDK）
+- **GLM-4.5** (订阅)：最强推理模型（使用 Anthropic SDK）
 - **GLM-4.5-Air** (订阅)：高性价比轻量级模型（使用 Anthropic SDK）
-- **GLM-4.5-X**：高性能强推理模型（企业级应用首选）
-- **GLM-4.5-AirX**：轻量级极速响应模型（极速响应需求）
-- **GLM-4.5-Flash** (免费)：免费高效多功能模型（开发者友好）
-- **GLM-4.5V** (视觉)：旗舰视觉推理模型（106B参数，支持图像理解）
+- **GLM-4.5-X**：高性能强推理模型
+- **GLM-4.5-AirX**：轻量级极速响应模型
+- **GLM-4.5-Flash** (免费)：免费高效多功能模型
+- **GLM-4.5V** (视觉)：旗舰视觉推理模型（支持图像理解）
 
 ### 🌙 MoonshotAI - Kimi K2系列
 
@@ -49,31 +70,10 @@
 
 - **Qwen3-Max-Preview** 🔥：通义千问3系列Max预览版
 - **Qwen3-Coder-480B-A35B**：专业代码生成和推理
-- **GLM-4.5** (iFlow)：智谱AI多模态模型
-- **Kimi-K2** (iFlow)：月之暗面K2模型
-- **Kimi-K2-Instruct-0905** (iFlow)：万亿参数MoE模型
-- **DeepSeek-V3.1** (iFlow)：深度求索推理模型
-
-## 🚀 快速开始
-
-### 1. 安装扩展
-在VS Code扩展市场搜索`GCMP`并安装，或使用扩展标识符：`vicanent.gcmp`
-
-### 2. 配置API密钥
-使用VS Code命令面板（`Ctrl+Shift+P`）执行以下命令来配置相应供应商的API密钥：
-
-| 供应商 | 命令 | 说明 |
-|--------|------|------|
-| 智谱AI | `gcmp.zhipu.setApiKey` | 配置智谱AI的API密钥 |
-| MoonshotAI | `gcmp.moonshot.setApiKey` | 配置月之暗面的API密钥 |
-| DeepSeek | `gcmp.deepseek.setApiKey` | 配置DeepSeek的API密钥 |
-| 魔搭社区 | `gcmp.modelscope.setApiKey` | 配置魔搭社区的API密钥 |
-| iFlow心流 | `gcmp.iflow.setApiKey` | 配置iFlow心流的API密钥 |
-
-### 3. 开始使用
-1. 打开VS Code的GitHub Copilot Chat面板
-2. 在模型选择器中选择您想要使用的AI模型
-3. 开始与AI助手对话，享受强大的编程辅助功能
+- **GLM-4.5**：智谱AI多模态模型
+- **Kimi-K2**：月之暗面K2模型
+- **Kimi-K2-Instruct-0905**：万亿参数MoE模型
+- **DeepSeek-V3.1**：深度求索推理模型
 
 ## ⚙️ 高级配置
 
@@ -112,24 +112,6 @@ GCMP支持通过VS Code设置来自定义AI模型的行为参数，让您获得�
 | iFlow心流 | [心流平台](https://platform.iflow.cn/) | AI开发者平台，免费前沿模型 |
 
 > 💡 **提示**：各平台通常提供免费额度用于测试和开发，建议先注册体验后选择最适合的模型。
-
-## 🛠️ 技术架构
-
-### 核心特性
-- **📦 模块化设计**：每个供应商独立实现，易于扩展和维护
-- **🔒 安全存储**：API密钥使用 VS Code 安全存储机制
-- **⚡ 异步处理**：支持高并发请求和流式响应
-- **📊 错误处理**：完善的错误捕获和用户友好的错误提示
-
-### 项目结构
-```
-src/
-├── extension.ts          # 扩展主入口
-├── providers/            # 各供应商实现
-├── handlers/             # SDK处理器
-├── types/               # 类型定义
-└── utils/               # 工具函数
-```
 
 ## 🤝 贡献指南
 

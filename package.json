@@ -3,7 +3,7 @@
   "publisher": "vicanent",
   "displayName": "AI Chat Models",
   "description": "为 GitHub Copilot Chat 提供 智谱AI、MoonshotAI、DeepSeek、魔搭社区、iFlow心流 模型支持的扩展",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "license": "MIT",
   "keywords": [
     "ai",
@@ -26,7 +26,7 @@
     "url": "https://github.com/VicBilibily/gcmp.git"
   },
   "engines": {
-    "node": "^20.19.5",
+    "node": "^20.19.0",
     "vscode": "^1.104.0"
   },
   "categories": [
@@ -146,7 +146,7 @@
     "@eslint/js": "^9.13.0",
     "@stylistic/eslint-plugin": "^2.9.0",
     "@types/node": "^22",
-    "@types/vscode": "^1.103.0",
+		"@types/vscode": "^1.104.0",
     "@vscode/vsce": "^3.6.0",
     "esbuild": "^0.25.9",
     "eslint": "^9.13.0",
