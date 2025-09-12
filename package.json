@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、MoonshotAI、心流AI 模型支持的扩展",
-    "version": "0.2.2",
+    "version": "0.2.3",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -35,7 +35,12 @@
     "enabledApiProposals": [
         "chatProvider"
     ],
-    "activationEvents": [],
+    "activationEvents": [
+        "onStartupFinished",
+        "onLanguageModelProvider:gcmp.zhipu",
+        "onLanguageModelProvider:gcmp.moonshot",
+        "onLanguageModelProvider:gcmp.iflow"
+    ],
     "contributes": {
         "commands": [
             {
