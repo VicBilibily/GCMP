@@ -13,7 +13,7 @@ import {
     ProvideLanguageModelChatResponseOptions
 } from 'vscode';
 import { ProviderConfig } from '../types/sharedTypes';
-import { ApiKeyManager, Logger } from '../utils';
+import { ApiKeyManager, Logger, ConfigManager } from '../utils';
 import { OpenAIHandler } from '../handlers/openaiHandler';
 
 /**
@@ -123,6 +123,8 @@ export abstract class BaseModelProvider implements LanguageModelChatProvider {
         return this.models.map(model => ({
             ...model,
             name: `[GCMP] ${model.name}`,
+            // 根据用户的上下文缩减设置调整maxInputTokens
+            maxInputTokens: ConfigManager.getReducedInputTokenLimit(model.maxInputTokens),
             // 高效编辑工具 GHC 用 family 前缀判断
             family: `claude_${model.family}`
         }));
