@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { ApiKeyValidation } from '../types/sharedTypes';
+import { Logger } from './logger';
 
 /**
  * API密钥安全存储管理器
@@ -84,7 +85,7 @@ export class ApiKeyManager {
         // 直接触发对应的设置命令，让Provider处理具体配置
         const commandId = `gcmp.${vendor}.setApiKey`;
         await vscode.commands.executeCommand(commandId);
-        
+
         // 验证设置后是否有效
         if (!(await this.hasValidApiKey(vendor))) {
             throw new Error(`需要 API密钥 才能使用 ${displayName} 模型`);
@@ -110,9 +111,9 @@ export class ApiKeyManager {
                 await this.setApiKey(vendor, apiKey.trim());
                 vscode.window.showInformationMessage(`已设置 ${displayName} API密钥`);
             }
-            
-            // 发送API密钥更改事件，通知相关组件更新
-            vscode.commands.executeCommand('gcmp.apiKeyChanged', vendor);
+
+            // API密钥更改后，相关组件会通过ConfigManager的配置监听器自动更新
+            Logger.debug(`API密钥已更新: ${vendor}`);
         }
     }
 }

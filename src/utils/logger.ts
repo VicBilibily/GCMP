@@ -41,7 +41,7 @@ export class Logger {
      */
     private static getTimestamp(): string {
         const now = new Date();
-        return now.toLocaleTimeString('zh-CN', { 
+        return now.toLocaleTimeString('zh-CN', {
             hour12: false,
             hour: '2-digit',
             minute: '2-digit',
@@ -59,18 +59,19 @@ export class Logger {
         }
 
         const timestamp = this.getTimestamp();
-        const formattedMessage = args.length > 0 
-            ? `${message} ${args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')}`
-            : message;
+        const formattedMessage =
+            args.length > 0
+                ? `${message} ${args.map(arg => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg))).join(' ')}`
+                : message;
 
         const logEntry = `[${timestamp}] [${levelName}] ${formattedMessage}`;
-        
+
         // 输出到 VS Code 输出窗口
         this.outputChannel.appendLine(logEntry);
-        
+
         // 同时输出到控制台
         console.log(logEntry);
-        
+
         // 对于错误级别，同时显示输出窗口
         if (level === LogLevel.ERROR) {
             this.outputChannel.show(true);

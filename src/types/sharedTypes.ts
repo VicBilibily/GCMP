@@ -3,62 +3,50 @@
  *  支持多供应商的通用类型定义
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from "vscode";
-
-/**
- * SDK类型枚举
- */
-export enum SDKType {
-  ANTHROPIC = "anthropic",
-  OPENAI = "openai",
-}
+import * as vscode from 'vscode';
 
 /**
  * 供应商配置接口
  */
 export interface ProviderConfig {
-  name: string;
-  displayName: string;
-  apiKeyTemplate: string;
-  openAiUrl: string;
-  anthropicUrl?: string;
+    name: string;
+    displayName: string;
+    apiKeyTemplate: string;
+    baseUrl: string;
 }
 
 /**
  * Handler接口定义
  */
 export interface ModelHandler {
-  readonly provider: string;
-  readonly sdkType: SDKType;
+    readonly provider: string;
 
-  handleRequest(
-    model: vscode.LanguageModelChatInformation,
-    messages: readonly vscode.LanguageModelChatMessage[],
-    options: vscode.ProvideLanguageModelChatResponseOptions,
-    progress: vscode.Progress<
-      vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart
-    >,
-    token: vscode.CancellationToken
-  ): Promise<void>;
+    handleRequest(
+        model: vscode.LanguageModelChatInformation,
+        messages: readonly vscode.LanguageModelChatMessage[],
+        options: vscode.ProvideLanguageModelChatResponseOptions,
+        progress: vscode.Progress<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>,
+        token: vscode.CancellationToken
+    ): Promise<void>;
 
-  dispose(): void;
+    dispose(): void;
 }
 
 /**
  * API密钥验证结果
  */
 export interface ApiKeyValidation {
-  isValid: boolean;
-  error?: string;
-  isEmpty?: boolean;
+    isValid: boolean;
+    error?: string;
+    isEmpty?: boolean;
 }
 
 /**
- * 扩展VS Code原生LanguageModelChatInformation，添加SDK类型支持
+ * 扩展VS Code原生LanguageModelChatInformation，添加自定义headers支持
  */
-declare module "vscode" {
-  interface LanguageModelChatInformation {
-    /** 使用的 SDK 类型 */
-    sdkType: SDKType;
-  }
+declare module 'vscode' {
+    interface LanguageModelChatInformation {
+        /** 模型特定的自定义请求头 */
+        customHeaders?: Record<string, string>;
+    }
 }

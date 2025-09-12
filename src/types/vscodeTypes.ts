@@ -97,9 +97,9 @@ export import SnippetTextEdit = vscode.SnippetTextEdit;
 export import FileType = vscode.FileType;
 
 export const l10n = {
-	/**
-	 * @deprecated Only use this import in tests. For the actual extension,
-	 * use `import { l10n } from 'vscode'` or `import * as l10n from '@vscode/l10n'`.
-	 */
-	t: vscode.l10n.t
+    /**
+     * @deprecated Only use this import in tests. For the actual extension,
+     * use `import { l10n } from 'vscode'` or `import * as l10n from '@vscode/l10n'`.
+     */
+    t: vscode.l10n.t
 };

@@ -23,39 +23,30 @@
 
 ### 🧠 智谱AI - GLM-4.5系列
 
-- **GLM-4.5** (订阅)：最强推理模型（使用 Anthropic SDK）
-- **GLM-4.5-Air** (订阅)：高性价比轻量级模型（使用 Anthropic SDK）
-- **GLM-4.5-X**：高性能强推理模型
-- **GLM-4.5-AirX**：轻量级极速响应模型
+- **GLM-4.5** (订阅)：最强推理模型，3550亿参数（128K上下文）
+- **GLM-4.5-Air** (订阅)：高性价比轻量级模型（128K上下文）
+- **GLM-4.5-X** (极速)：高性能强推理模型，极速响应
+- **GLM-4.5-AirX** (极速)：轻量级高性能模型，极速响应
 - **GLM-4.5-Flash** (免费)：免费高效多功能模型
-- **GLM-4.5V** (视觉)：旗舰视觉推理模型（支持图像理解）
-
-### 🌙 MoonshotAI - Kimi K2系列
-
-- **Kimi-K2-0905-Preview**：最强 Agentic Coding 能力（256K上下文）
-- **Kimi-K2-Turbo-Preview**：高速版本（60-100 tokens/秒）
-- **Kimi-K2-0711-Preview**：K2系列基础版（128K上下文）
+- **GLM-4.5V** (视觉)：旗舰视觉推理模型，106B参数（支持图像理解）
 
 ### 🔥 DeepSeek - 深度求索
 
 - **DeepSeek V3.1** (官方)：全面升级的对话和推理能力
 - **DeepSeek V3.1** (思考模式)：基于V3.1架构的思维链推理能力
 
-### 🌟 魔搭社区 - ModelScope
+### 🌙 MoonshotAI - Kimi K2系列
 
-- **Qwen3-235B-A22B-Instruct-2507**：最新一代超大规模模型
-- **Qwen3-30B-A3B-Instruct-2507**：高效轻量级版本
-- **Qwen3-Coder-480B-A35B-Instruct**：专业代码生成模型
-- **Qwen3-Coder-30B-A3B-Instruct**：轻量代码推理模型
+- **Kimi-K2-0905-Preview**：更强 Agentic Coding 能力，优化前端代码美观度（256K上下文）
+- **Kimi-K2-Turbo-Preview**：高速版本模型，60-100 tokens/秒输出速度（256K上下文）
+- **Kimi-K2-0711-Preview**：K2系列基础版本（128K上下文）
 
-### 💫 iFlow心流 - AI 开发者平台
+### 💫 iFlow - 心流AI
 
-- **Qwen3-Max-Preview** 🔥：通义千问3系列Max预览版
-- **Qwen3-Coder-480B-A35B**：专业代码生成和推理
-- **GLM-4.5**：智谱AI多模态模型
-- **Kimi-K2**：月之暗面K2模型
-- **Kimi-K2-Instruct-0905**：万亿参数MoE模型
-- **DeepSeek-V3.1**：深度求索推理模型
+- **Qwen3-Coder-480B-A35B**：专业代码生成和推理模型（256K上下文）
+- **Kimi-K2-Instruct-0905**：月之暗面万亿参数MoE模型，320亿激活参数
+- **GLM-4.5**：智谱AI多模态模型，支持图像理解（128K上下文）
+- **DeepSeek-V3.1**：深度求索V3.1模型，强大的推理能力
 
 ## ⚙️ 高级配置
 
@@ -69,17 +60,17 @@ GCMP支持通过VS Code设置来自定义AI模型的行为参数，让您获得�
 {
   "gcmp.temperature": 0.1,
   "gcmp.topP": 1.0,  
-  "gcmp.maxTokens": 4096
+  "gcmp.maxTokens": 8192
 }
 ```
 
 ### 参数说明
 
-| 参数 | 类型 | 默认值 | 范围 | 说明 |
-|------|------|-------|------|------|
-| `gcmp.temperature` | number | 0.1 | 0.0-2.0 | **输出随机性**：较低值产生更确定性输出，较高值产生更有创意的输出 |
-| `gcmp.topP` | number | 1.0 | 0.0-1.0 | **输出多样性**：使用较小值会减少输出随机性，提高一致性 |
-| `gcmp.maxTokens` | number | 4096 | 1-32768 | **最大输出长度**：控制AI单次响应的最大token数量 |
+| 参数               | 类型   | 默认值 | 范围    | 说明                                                             |
+| ------------------ | ------ | ------ | ------- | ---------------------------------------------------------------- |
+| `gcmp.temperature` | number | 0.1    | 0.0-2.0 | **输出随机性**：较低值产生更确定性输出，较高值产生更有创意的输出 |
+| `gcmp.topP`        | number | 1.0    | 0.0-1.0 | **输出多样性**：使用较小值会减少输出随机性，提高一致性           |
+| `gcmp.maxTokens`   | number | 8192   | 1-32768 | **最大输出长度**：控制AI单次响应的最大token数量                  |
 
 > 💡 **提示**：配置修改后会立即生效，无需重启VS Code。不同的模型供应商都会使用这些统一的配置参数。
 
@@ -87,13 +78,12 @@ GCMP支持通过VS Code设置来自定义AI模型的行为参数，让您获得�
 
 ### 官方平台链接
 
-| 供应商 | 官方平台 | 特色 |
-|--------|----------|------|
-| 智谱AI | [开放平台](https://open.bigmodel.cn/) | 强大的中文理解能力，支持多模态 |
-| MoonshotAI | [开放平台](https://api.moonshot.cn/) | 超长上下文，Agentic能力 |
-| DeepSeek | [开放平台](https://api.deepseek.com/) | 深度推理能力，思维链技术 |
-| 魔搭社区 | [ModelScope](https://www.modelscope.cn/) | 开源AI模型社区平台 |
-| iFlow心流 | [心流平台](https://platform.iflow.cn/) | AI开发者平台，免费前沿模型 |
+| 供应商     | 官方平台                               | 特色                           |
+| ---------- | -------------------------------------- | ------------------------------ |
+| 智谱AI     | [开放平台](https://open.bigmodel.cn/)  | 强大的中文理解能力，支持多模态 |
+| DeepSeek   | [开放平台](https://api.deepseek.com/)  | 深度推理能力，思维链技术       |
+| MoonshotAI | [开放平台](https://api.moonshot.cn/)   | 超长上下文，Agentic能力        |
+| 心流AI     | [开放平台](https://platform.iflow.cn/) | AI开发者平台，免费前沿模型     |
 
 > 💡 **提示**：各平台通常提供免费额度用于测试和开发，建议先注册体验后选择最适合的模型。
 
