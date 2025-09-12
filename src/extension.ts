@@ -2,7 +2,6 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { ZhipuChatModelProvider } from './providers/zhipuProvider';
-import { DeepSeekChatModelProvider } from './providers/deepseekProvider';
 import { IFlowChatModelProvider } from './providers/iflowProvider';
 import { MoonshotChatModelProvider } from './providers/moonshotProvider';
 import { BaseModelProvider } from './providers/baseProvider';
@@ -24,7 +23,6 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(configDisposable);
 
     BaseModelProvider.activate(context, ZhipuChatModelProvider); // 智谱AI
-    BaseModelProvider.activate(context, DeepSeekChatModelProvider); // DeepSeek
     BaseModelProvider.activate(context, MoonshotChatModelProvider); // MoonshotAI
     BaseModelProvider.activate(context, IFlowChatModelProvider); // 心流AI
 }

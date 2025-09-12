@@ -55,7 +55,7 @@ export class OpenAIHandler {
             // 添加工具支持（如果有）
             if (options.tools && options.tools.length > 0 && model.capabilities?.toolCalling) {
                 if (options.tools.length > 128) {
-                    throw new Error('Cannot have more than 128 tools per request.');
+                    throw new Error('请求不能有超过 128 个工具');
                 }
                 createParams.tools = this.messageConverter.convertToolsToOpenAI([...options.tools]);
                 createParams.tool_choice = 'auto';
@@ -67,6 +67,7 @@ export class OpenAIHandler {
             const runner = client.chat.completions.stream(createParams);
 
             let hasReceivedContent = false;
+            let streamError: Error | null = null;
 
             // 监听内容块事件 - 用于流式文本输出
             runner.on('content', (contentDelta) => {
@@ -75,7 +76,6 @@ export class OpenAIHandler {
                     hasReceivedContent = true;
                 }
             });
-
             // 监听消息事件 - 仅处理工具调用，不处理文本内容
             runner.on('message', (message) => {
                 try {
@@ -108,7 +108,9 @@ export class OpenAIHandler {
             // 监听错误事件
             runner.on('error', (error) => {
                 Logger.error(`[${model.name}] ${this.displayName} 流处理错误`, error);
-                this.errorHandler.handleError(error, model, progress);
+                // 保存错误，稍后在await时处理
+                streamError = error instanceof Error ? error : new Error(String(error));
+                runner.abort(); // 停止流处理
             });
 
             // 监听取消事件
@@ -127,6 +129,12 @@ export class OpenAIHandler {
             try {
                 // 等待流处理完成并获取最终的completion信息
                 const finalMessage = await runner.finalChatCompletion();
+
+                // 检查是否有流处理错误
+                if (streamError) {
+                    throw streamError;
+                }
+
                 Logger.debug(`[${model.name}] ${this.displayName} 流处理完成`);
 
                 // 输出token使用情况（仅在调试模式下详细记录）
@@ -138,8 +146,9 @@ export class OpenAIHandler {
                 }
 
                 if (!hasReceivedContent) {
-                    Logger.warn(`[${model.name}] 没有接收到任何内容`);
-                    progress.report(new vscode.LanguageModelTextPart(`[${model.name}] 响应完成，但未收到内容。`));
+                    const errorMessage = `[${model.name}] 没有接收到任何内容`;
+                    Logger.warn(errorMessage);
+                    throw new Error(errorMessage);
                 }
 
                 Logger.debug(`[${model.name}] ${this.displayName} API请求完成`);
@@ -151,8 +160,8 @@ export class OpenAIHandler {
             const errorMessage = error instanceof Error ? error.message : '未知错误';
             Logger.error(`[${model.name}] ${this.displayName} API请求失败: ${errorMessage}`);
 
-            // 通用错误处理
-            this.errorHandler.handleError(error, model, progress);
+            // 直接抛出错误，让VS Code的重试机制处理
+            throw error;
         }
     }
 

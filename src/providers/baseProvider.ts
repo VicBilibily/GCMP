@@ -9,7 +9,6 @@ import {
     LanguageModelChatInformation,
     LanguageModelChatMessage,
     LanguageModelChatProvider,
-    LanguageModelTextPart,
     Progress,
     ProvideLanguageModelChatResponseOptions
 } from 'vscode';
@@ -140,8 +139,7 @@ export abstract class BaseModelProvider implements LanguageModelChatProvider {
         if (!modelInfo) {
             const errorMessage = `未找到模型: ${model.id}`;
             Logger.error(errorMessage);
-            progress.report(new LanguageModelTextPart(errorMessage));
-            return;
+            throw new Error(errorMessage);
         }
 
         // 确保有API密钥（最后的保险检查）
@@ -154,7 +152,8 @@ export abstract class BaseModelProvider implements LanguageModelChatProvider {
         } catch (error) {
             const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
             Logger.error(errorMessage);
-            progress.report(new LanguageModelTextPart(errorMessage));
+            // 直接抛出错误，让VS Code处理重试
+            throw error;
         }
     }
 
@@ -179,12 +178,8 @@ export abstract class BaseModelProvider implements LanguageModelChatProvider {
         progress: Progress<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>,
         token: CancellationToken
     ): Promise<void> {
-        try {
-            await this.openaiHandler.handleRequest(model, messages, options, progress, token);
-        } catch (error) {
-            const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
-            progress.report(new LanguageModelTextPart(errorMessage));
-        }
+        // 直接调用openaiHandler，让错误向上抛出
+        await this.openaiHandler.handleRequest(model, messages, options, progress, token);
     }
 
     /**

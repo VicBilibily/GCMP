@@ -19,6 +19,11 @@ export class MessageConverter {
         const result: OpenAI.Chat.ChatCompletionMessageParam[] = [];
 
         for (const message of messages) {
+            // 跳过空消息或异常消息
+            if (!message.content || message.content.length === 0) {
+                continue;
+            }
+
             if (message.role === vscode.LanguageModelChatMessageRole.User) {
                 // 检查是否有多模态内容（文本+图片）
                 const textParts = message.content.filter(part => part instanceof vscode.LanguageModelTextPart);

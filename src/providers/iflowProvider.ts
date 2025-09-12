@@ -7,14 +7,14 @@ import { ProviderConfig } from '../types/sharedTypes';
  */
 const IFLOW_PROVIDER_CONFIG: ProviderConfig = {
     name: 'iflow',
-    displayName: 'iFlow心流',
+    displayName: '心流AI',
     apiKeyTemplate: 'sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
     baseUrl: 'https://apis.iflow.cn/v1'
 };
 
 /**
  * iFlow模型定义
- * 基于iFlow心流平台官方API模型配置
+ * 基于iFlow心流AI平台官方API模型配置
  */
 const IFLOW_MODELS: vscode.LanguageModelChatInformation[] = [
     // Qwen3-Coder 代码模型
@@ -57,20 +57,6 @@ const IFLOW_MODELS: vscode.LanguageModelChatInformation[] = [
         capabilities: {
             toolCalling: true,
             imageInput: true
-        }
-    },
-    // DeepSeek-V3.1 推理模型
-    {
-        id: 'deepseek-v3.1',
-        name: 'DeepSeek-V3.1 (iFlow)',
-        tooltip: 'iFlow DeepSeek-V3.1 - 深度求索V3.1模型，强大的推理能力',
-        family: 'deepseek',
-        maxInputTokens: 128000,
-        maxOutputTokens: 64000,
-        version: 'deepseek-v3.1',
-        capabilities: {
-            toolCalling: true,
-            imageInput: false
         }
     }
 ];

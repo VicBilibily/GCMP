@@ -2,8 +2,8 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、DeepSeek、MoonshotAI、心流AI 模型支持的扩展",
-    "version": "0.2.0",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、MoonshotAI、心流AI 模型支持的扩展",
+    "version": "0.2.1",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -13,7 +13,6 @@
         "language-model",
         "zhipu",
         "moonshot",
-        "deepseek",
         "iflow",
         "智谱",
         "月之暗面",
@@ -42,11 +41,6 @@
             {
                 "command": "gcmp.zhipu.setApiKey",
                 "title": "设置 智谱AI API密钥",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.deepseek.setApiKey",
-                "title": "设置 DeepSeek API密钥",
                 "category": "GCMP"
             },
             {
@@ -94,11 +88,6 @@
                 "vendor": "gcmp.zhipu",
                 "displayName": "[GCMP] 智谱AI",
                 "managementCommand": "gcmp.zhipu.setApiKey"
-            },
-            {
-                "vendor": "gcmp.deepseek",
-                "displayName": "[GCMP] DeepSeek",
-                "managementCommand": "gcmp.deepseek.setApiKey"
             },
             {
                 "vendor": "gcmp.moonshot",

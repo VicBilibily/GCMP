@@ -22,7 +22,7 @@ export class OpenAIResponseError extends Error {
 }
 
 /**
- * 错误处理器类 - 简化版本，专注于标准API错误
+ * 错误处理器类 - 直接抛出异常让VS Code处理重试
  */
 export class ErrorHandler {
     constructor(
@@ -31,12 +31,11 @@ export class ErrorHandler {
     ) { }
 
     /**
-     * 简化的错误处理 - 基于官方SDK的标准错误处理
+     * 简化的错误处理 - 直接抛出异常让VS Code处理
      */
     handleError(
         error: unknown,
-        model: vscode.LanguageModelChatInformation,
-        progress: vscode.Progress<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>
+        model: vscode.LanguageModelChatInformation
     ): void {
         let errorMessage = `[${model.name}] ${this.displayName} API调用失败`;
 
@@ -98,7 +97,8 @@ export class ErrorHandler {
             });
         }
 
-        progress.report(new vscode.LanguageModelTextPart(errorMessage));
+        // 直接抛出异常，让VS Code处理重试
+        throw error instanceof Error ? error : new Error(errorMessage);
     }
 
     /**
