@@ -3,7 +3,6 @@
 /* eslint no-console: "off" */
 import esbuild from 'esbuild';
 
-const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
 
 /**
@@ -31,8 +30,8 @@ async function main() {
         entryPoints: ['src/extension.ts'],
         bundle: true,
         format: 'cjs',
-        minify: production,
-        sourcemap: !production,
+        minify: false,
+        sourcemap: true,
         sourcesContent: false,
         platform: 'node',
         outfile: 'extension.js',

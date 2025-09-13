@@ -143,6 +143,14 @@ export class ConfigManager {
     }
 
     /**
+     * 获取MoonshotAI联网搜索配置
+     */
+    static getMoonshotWebSearchEnabled(): boolean {
+        const config = vscode.workspace.getConfiguration(this.CONFIG_SECTION);
+        return config.get<boolean>('moonshot.webSearch', false);
+    }
+
+    /**
      * 验证温度参数
      */
     private static validateTemperature(value: number): number {
@@ -244,7 +252,7 @@ export class ConfigManager {
                 kiloCodeHeaders: packageJson.kiloCodeHeaders
             };
 
-            Logger.debug('Package.json配置已加载', this.packageJsonCache);
+            Logger.trace('Package.json配置已加载', this.packageJsonCache);
             return this.packageJsonCache;
         } catch (error) {
             Logger.error('读取package.json配置失败', error);
@@ -273,7 +281,7 @@ export class ConfigManager {
      */
     static clearPackageJsonCache(): void {
         this.packageJsonCache = null;
-        Logger.debug('Package.json缓存已清除');
+        Logger.trace('Package.json缓存已清除');
     }
 
     /**
@@ -286,6 +294,6 @@ export class ConfigManager {
         }
         this.cache = null;
         this.packageJsonCache = null;
-        Logger.debug('配置管理器已清理');
+        Logger.trace('配置管理器已清理');
     }
 }

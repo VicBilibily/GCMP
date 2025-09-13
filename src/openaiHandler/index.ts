@@ -8,3 +8,4 @@ export {
     ErrorHandler
 } from './errors';
 export { MessageConverter } from './messageConverter';
+export { ToolCallProcessor } from './toolCallProcessor';

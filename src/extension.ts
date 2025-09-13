@@ -2,7 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { GenericModelProvider } from './providers/genericModelProvider';
-import { Logger, LogLevel } from './utils/logger';
+import { Logger } from './utils/logger';
 import { ApiKeyManager, ConfigManager } from './utils';
 
 /**
@@ -42,13 +42,13 @@ function activateProviders(context: vscode.ExtensionContext): void {
 export function activate(context: vscode.ExtensionContext) {
     try {
         Logger.initialize('GitHub Copilot Models Provider (GCMP)'); // 初始化日志管理器
-        // 根据是否为调试模式设置日志级别
+
         const isDevelopment = context.extensionMode === vscode.ExtensionMode.Development;
-        Logger.setLevel(isDevelopment ? LogLevel.DEBUG : LogLevel.INFO);
+        Logger.info(`🔧 GCMP 扩展模式: ${isDevelopment ? 'Development' : 'Production'}`);
+        // 检查和提示VS Code的日志级别设置
+        if (isDevelopment) { Logger.checkAndPromptLogLevel(); }
 
-        Logger.info('开始激活 GCMP 扩展...');
-
-        ApiKeyManager.initialize(context); // 初始化API密钥管理器
+        Logger.info('开始激活 GCMP 扩展...'); ApiKeyManager.initialize(context); // 初始化API密钥管理器
 
         // 初始化配置管理器并注册到context
         const configDisposable = ConfigManager.initialize();
@@ -59,7 +59,6 @@ export function activate(context: vscode.ExtensionContext) {
         activateProviders(context);
 
         Logger.info('GCMP 扩展激活完成');
-
     } catch (error) {
         const errorMessage = `GCMP 扩展激活失败: ${error instanceof Error ? error.message : '未知错误'}`;
         Logger.error(errorMessage, error instanceof Error ? error : undefined);
@@ -80,6 +79,6 @@ export function deactivate() {
         Logger.info('GCMP 扩展停用完成');
         Logger.dispose(); // 在扩展销毁时才 dispose Logger
     } catch (error) {
-        console.error('GCMP 扩展停用时出错:', error);
+        Logger.error('GCMP 扩展停用时出错:', error);
     }
 }

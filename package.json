@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、MoonshotAI、心流AI 模型支持的扩展",
-    "version": "0.2.4",
+    "version": "0.3.0",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -103,6 +103,12 @@
                     ],
                     "description": "控制AI模型可接受的上下文长度。缩减上下文可以提升处理效率，专注于更相关的信息，但可能影响模型对长对话历史的理解能力。修改此设置需要重启 VS Code 生效。",
                     "scope": "window"
+                },
+                "gcmp.moonshot.webSearch": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "为 MoonshotAI 模型启用 Kimi 内置的 $web_search 联网搜索工具。开启后，AI 将能够通过官方内置工具获取实时信息来回答问题。注意：搜索结果会计入 prompt_tokens，每次搜索额外收费 ¥0.03。",
+                    "scope": "application"
                 }
             }
         },
@@ -261,6 +267,19 @@
                         "toolCalling": true,
                         "imageInput": false
                     }
+                },
+                {
+                    "id": "kimi-latest",
+                    "name": "Kimi-Latest (视觉)",
+                    "tooltip": "月之暗面 Kimi-Latest - 最新一代视觉模型，128K上下文，支持图片理解，自动上下文缓存，智能选择8K/32K/128K计费模型",
+                    "family": "kimi",
+                    "maxInputTokens": 128000,
+                    "maxOutputTokens": 8192,
+                    "version": "kimi-latest",
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": true
+                    }
                 }
             ]
         },
@@ -328,8 +347,7 @@
         "test": "echo \"No tests specified\" && exit 0"
     },
     "dependencies": {
-        "@vscode/prompt-tsx": "^0.4.0-alpha.5",
-        "openai": "^5.20.0"
+        "@vscode/prompt-tsx": "^0.4.0-alpha.5"
     },
     "devDependencies": {
         "@eslint/js": "^9.13.0",

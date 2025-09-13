@@ -6,104 +6,99 @@
 import * as vscode from 'vscode';
 
 /**
- * 日志级别
- */
-export enum LogLevel {
-    DEBUG = 0,
-    INFO = 1,
-    WARN = 2,
-    ERROR = 3
-}
-
-/**
- * 日志管理器类
+ * 日志管理器类 - 直接使用VS Code的LogLevel和LogOutputChannel
  */
 export class Logger {
-    private static outputChannel: vscode.OutputChannel;
-    private static currentLevel: LogLevel = LogLevel.INFO;
+    private static outputChannel: vscode.LogOutputChannel;
 
     /**
      * 初始化日志管理器
      */
     static initialize(channelName = 'GCMP'): void {
-        this.outputChannel = vscode.window.createOutputChannel(channelName);
+        // 使用LogOutputChannel (VS Code 1.74+)，支持原生的日志级别和格式化
+        this.outputChannel = vscode.window.createOutputChannel(channelName, { log: true });
     }
 
     /**
-     * 设置日志级别
+     * 检查和提示VS Code日志级别设置
      */
-    static setLevel(level: LogLevel): void {
-        this.currentLevel = level;
-    }
-
-    /**
-     * 格式化时间戳
-     */
-    private static getTimestamp(): string {
-        const now = new Date();
-        return now.toLocaleTimeString('zh-CN', {
-            hour12: false,
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            fractionalSecondDigits: 3
-        });
-    }
-
-    /**
-     * 输出日志
-     */
-    private static log(level: LogLevel, levelName: string, message: string, ...args: unknown[]): void {
-        if (level < this.currentLevel || !this.outputChannel) {
+    static checkAndPromptLogLevel(): void {
+        if (!this.outputChannel) {
             return;
         }
 
-        const timestamp = this.getTimestamp();
-        const formattedMessage =
-            args.length > 0
-                ? `${message} ${args.map(arg => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg))).join(' ')}`
-                : message;
+        const channelLevel = this.outputChannel.logLevel;
+        const envLevel = vscode.env.logLevel;
 
-        const logEntry = `[${timestamp}] [${levelName}] ${formattedMessage}`;
+        Logger.info('📊 VS Code日志级别状态:');
+        Logger.info(`  - 输出通道级别: ${vscode.LogLevel[channelLevel]} (${channelLevel})`);
+        Logger.info(`  - 编辑器环境级别: ${vscode.LogLevel[envLevel]} (${envLevel})`);
 
-        // 输出到 VS Code 输出窗口
-        this.outputChannel.appendLine(logEntry);
+        // 如果日志级别高于Debug，提示用户
+        if (channelLevel > vscode.LogLevel.Debug) {
+            Logger.warn(`⚠️ 当前VS Code日志级别为 ${vscode.LogLevel[channelLevel]}，可能不会显示详细调试信息`);
+            Logger.info('💡 如需查看详细调试日志，请执行命令: "Developer: Set Log Level" → 选择 "Debug"');
 
-        // 同时输出到控制台
-        console.log(logEntry);
-
-        // 对于错误级别，同时显示输出窗口
-        if (level === LogLevel.ERROR) {
-            this.outputChannel.show(true);
+            // 显示通知
+            vscode.window.showInformationMessage(
+                `GCMP: 当前VS Code日志级别为 ${vscode.LogLevel[channelLevel]}`,
+                '设置日志级别',
+                '忽略'
+            ).then(selection => {
+                if (selection === '设置日志级别') {
+                    vscode.commands.executeCommand('workbench.action.setLogLevel');
+                }
+            });
+        } else {
+            Logger.info(`✅ VS Code日志级别已设置为 ${vscode.LogLevel[channelLevel]}，可以查看详细调试信息`);
         }
     }
 
     /**
-     * Debug级别日志
+     * Trace级别日志 (VS Code LogLevel.Trace = 1)
+     */
+    static trace(message: string, ...args: unknown[]): void {
+        if (this.outputChannel) {
+            this.outputChannel.trace(message, ...args);
+        }
+    }
+
+    /**
+     * Debug级别日志 (VS Code LogLevel.Debug = 2)
      */
     static debug(message: string, ...args: unknown[]): void {
-        this.log(LogLevel.DEBUG, 'DEBUG', message, ...args);
+        if (this.outputChannel) {
+            this.outputChannel.debug(message, ...args);
+        }
     }
 
     /**
-     * Info级别日志
+     * Info级别日志 (VS Code LogLevel.Info = 3)
      */
     static info(message: string, ...args: unknown[]): void {
-        this.log(LogLevel.INFO, 'INFO', message, ...args);
+        if (this.outputChannel) {
+            this.outputChannel.info(message, ...args);
+        }
     }
 
     /**
-     * Warning级别日志
+     * Warning级别日志 (VS Code LogLevel.Warning = 4)
      */
     static warn(message: string, ...args: unknown[]): void {
-        this.log(LogLevel.WARN, 'WARN', message, ...args);
+        if (this.outputChannel) {
+            this.outputChannel.warn(message, ...args);
+        }
     }
 
     /**
-     * Error级别日志
+     * Error级别日志 (VS Code LogLevel.Error = 5)
      */
-    static error(message: string, ...args: unknown[]): void {
-        this.log(LogLevel.ERROR, 'ERROR', message, ...args);
+    static error(message: string | Error, ...args: unknown[]): void {
+        if (this.outputChannel) {
+            this.outputChannel.error(message, ...args);
+            // 对于错误级别，显示输出窗口
+            this.outputChannel.show(true);
+        }
     }
 
     /**
