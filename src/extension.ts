@@ -1,7 +1,7 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
-import { GenericModelProvider } from './providers/genericProvider';
+import { GenericModelProvider } from './providers/genericModelProvider';
 import { Logger, LogLevel } from './utils/logger';
 import { ApiKeyManager, ConfigManager } from './utils';
 

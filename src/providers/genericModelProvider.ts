@@ -14,7 +14,7 @@ import {
 } from 'vscode';
 import { ProviderConfig, ModelConfig, KiloCodeHeaders } from '../types/sharedTypes';
 import { ApiKeyManager, Logger, ConfigManager } from '../utils';
-import { OpenAIHandler } from '../handlers/openaiHandler';
+import { OpenAIHandler } from '../openaiHandler/openaiHandler';
 
 /**
  * 通用模型供应商类
