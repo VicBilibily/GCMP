@@ -34,13 +34,13 @@ export class OpenAIHandler {
         progress: vscode.Progress<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>,
         token: vscode.CancellationToken
     ): Promise<void> {
-        Logger.info(`[${model.name}] 开始处理 ${this.displayName} OpenAI 请求`);
+        Logger.info(`${model.name} 开始处理 ${this.displayName} OpenAI 请求`);
 
         try {
             // 传递模型的自定义headers到客户端
             const client = await this.getOpenAIClient(model.customHeaders);
 
-            Logger.info(`[${model.name}] 发送 ${messages.length} 条消息，使用 ${this.displayName}`);
+            Logger.info(`${model.name} 发送 ${messages.length} 条消息，使用 ${this.displayName}`);
 
             const createParams: OpenAI.Chat.ChatCompletionCreateParams = {
                 model: model.id,
@@ -61,7 +61,7 @@ export class OpenAIHandler {
                 createParams.tool_choice = 'auto';
             }
 
-            Logger.debug(`[${model.name}] 发送 ${this.displayName} OpenAI API 请求`);
+            Logger.debug(`${model.name} 发送 ${this.displayName} OpenAI API 请求`);
 
             // 使用官方 SDK 的 stream() 方法
             const runner = client.chat.completions.stream(createParams);
@@ -92,7 +92,7 @@ export class OpenAIHandler {
                                     progress.report(new vscode.LanguageModelToolCallPart(toolCallId, toolName, parsedArgs));
                                     hasReceivedContent = true;
                                 } catch (error) {
-                                    Logger.error(`[${model.name}] 无法解析工具调用参数: ${toolName}`, error);
+                                    Logger.error(`${model.name} 无法解析工具调用参数: ${toolName}`, error);
                                     // 使用空对象作为后备
                                     progress.report(new vscode.LanguageModelToolCallPart(toolCallId, toolName, {}));
                                     hasReceivedContent = true;
@@ -101,13 +101,13 @@ export class OpenAIHandler {
                         }
                     }
                 } catch (error) {
-                    Logger.error(`[${model.name}] 处理消息事件时出错:`, error);
+                    Logger.error(`${model.name} 处理消息事件时出错:`, error);
                 }
             });
 
             // 监听错误事件
             runner.on('error', (error) => {
-                Logger.error(`[${model.name}] ${this.displayName} 流处理错误`, error);
+                Logger.error(`${model.name} ${this.displayName} 流处理错误`, error);
                 // 保存错误，稍后在await时处理
                 streamError = error instanceof Error ? error : new Error(String(error));
                 runner.abort(); // 停止流处理
@@ -116,7 +116,7 @@ export class OpenAIHandler {
             // 监听取消事件
             const cancelHandler = () => {
                 if (token.isCancellationRequested) {
-                    Logger.warn(`[${model.name}] 用户取消了请求`);
+                    Logger.warn(`${model.name} 用户取消了请求`);
                     runner.abort();
                     return true;
                 }
@@ -135,30 +135,30 @@ export class OpenAIHandler {
                     throw streamError;
                 }
 
-                Logger.debug(`[${model.name}] ${this.displayName} 流处理完成`);
+                Logger.debug(`${model.name} ${this.displayName} 流处理完成`);
 
                 // 输出token使用情况（仅在调试模式下详细记录）
                 if (finalMessage.usage) {
                     const usage = finalMessage.usage;
-                    Logger.info(`[${model.name}] Token使用: ${usage.prompt_tokens}+${usage.completion_tokens}=${usage.total_tokens}`);
+                    Logger.info(`${model.name} Token使用: ${usage.prompt_tokens}+${usage.completion_tokens}=${usage.total_tokens}`);
                 } else {
-                    Logger.debug(`[${model.name}] 未收到token使用信息`);
+                    Logger.debug(`${model.name} 未收到token使用信息`);
                 }
 
                 if (!hasReceivedContent) {
-                    const errorMessage = `[${model.name}] 没有接收到任何内容`;
+                    const errorMessage = `${model.name} 没有接收到任何内容`;
                     Logger.warn(errorMessage);
                     throw new Error(errorMessage);
                 }
 
-                Logger.debug(`[${model.name}] ${this.displayName} API请求完成`);
+                Logger.debug(`${model.name} ${this.displayName} API请求完成`);
             } finally {
                 clearInterval(cancelInterval);
             }
 
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : '未知错误';
-            Logger.error(`[${model.name}] ${this.displayName} API请求失败: ${errorMessage}`);
+            Logger.error(`${model.name} ${this.displayName} API请求失败: ${errorMessage}`);
 
             // 直接抛出错误，让VS Code的重试机制处理
             throw error;

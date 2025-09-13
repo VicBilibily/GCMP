@@ -1,12 +1,41 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
-import { ZhipuChatModelProvider } from './providers/zhipuProvider';
-import { IFlowChatModelProvider } from './providers/iflowProvider';
-import { MoonshotChatModelProvider } from './providers/moonshotProvider';
-import { BaseModelProvider } from './providers/baseProvider';
+import { GenericModelProvider } from './providers/genericProvider';
 import { Logger, LogLevel } from './utils/logger';
 import { ApiKeyManager, ConfigManager } from './utils';
+
+/**
+ * 激活供应商 - 基于配置文件动态注册
+ */
+function activateProviders(context: vscode.ExtensionContext): void {
+    const configProvider = ConfigManager.getConfigProvider();
+    const kiloCodeHeaders = ConfigManager.getKiloCodeHeaders();
+
+    if (!configProvider) {
+        Logger.warn('未找到供应商配置，跳过供应商注册');
+        return;
+    }
+
+    // 遍历配置中的每个供应商
+    for (const [providerKey, providerConfig] of Object.entries(configProvider)) {
+        try {
+            Logger.info(`正在注册供应商: ${providerConfig.displayName} (${providerKey})`);
+
+            // 使用通用供应商创建实例
+            GenericModelProvider.createAndActivate(
+                context,
+                providerKey,
+                providerConfig,
+                kiloCodeHeaders
+            );
+
+            Logger.info(`${providerConfig.displayName} 供应商注册成功`);
+        } catch (error) {
+            Logger.error(`注册供应商 ${providerKey} 失败:`, error);
+        }
+    }
+}
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -25,11 +54,9 @@ export function activate(context: vscode.ExtensionContext) {
         const configDisposable = ConfigManager.initialize();
         context.subscriptions.push(configDisposable);
 
-        // 激活各个模型提供者
+        // 激活供应商
         Logger.info('正在注册模型提供者...');
-        BaseModelProvider.activate(context, ZhipuChatModelProvider); // 智谱AI
-        BaseModelProvider.activate(context, MoonshotChatModelProvider); // MoonshotAI
-        BaseModelProvider.activate(context, IFlowChatModelProvider); // 心流AI
+        activateProviders(context);
 
         Logger.info('GCMP 扩展激活完成');
 

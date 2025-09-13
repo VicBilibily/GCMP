@@ -1,10 +1,13 @@
 /*---------------------------------------------------------------------------------------------
  *  配置管理器
- *  用于管理GCMP扩展的全局配置设置
+ *  用于管理GCMP扩展的全局配置设置和供应商配置
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as path from 'path';
+import * as fs from 'fs';
 import { Logger } from './logger';
+import { ConfigProvider, KiloCodeHeaders } from '../types/sharedTypes';
 
 /**
  * 上下文缩减选项
@@ -27,12 +30,13 @@ export interface GCMPConfig {
 
 /**
  * 配置管理器类
- * 负责读取和管理 VS Code 设置中的 GCMP 配置
+ * 负责读取和管理 VS Code 设置中的 GCMP 配置以及package.json中的供应商配置
  */
 export class ConfigManager {
     private static readonly CONFIG_SECTION = 'gcmp';
     private static cache: GCMPConfig | null = null;
     private static configListener: vscode.Disposable | null = null;
+    private static packageJsonCache: { configProvider?: ConfigProvider; kiloCodeHeaders?: KiloCodeHeaders } | null = null;
 
     /**
      * 初始化配置管理器
@@ -216,6 +220,63 @@ export class ConfigManager {
     }
 
     /**
+     * 读取package.json中的供应商配置
+     */
+    private static readPackageJson(): { configProvider?: ConfigProvider; kiloCodeHeaders?: KiloCodeHeaders } {
+        if (this.packageJsonCache) {
+            return this.packageJsonCache;
+        }
+
+        try {
+            // 获取扩展的package.json路径
+            const extension = vscode.extensions.getExtension('vicanent.gcmp');
+            if (!extension) {
+                Logger.warn('无法找到GCMP扩展，使用空的配置');
+                return {};
+            }
+
+            const packageJsonPath = path.join(extension.extensionPath, 'package.json');
+            const packageJsonContent = fs.readFileSync(packageJsonPath, 'utf8');
+            const packageJson = JSON.parse(packageJsonContent);
+
+            this.packageJsonCache = {
+                configProvider: packageJson.configProvider,
+                kiloCodeHeaders: packageJson.kiloCodeHeaders
+            };
+
+            Logger.debug('Package.json配置已加载', this.packageJsonCache);
+            return this.packageJsonCache;
+        } catch (error) {
+            Logger.error('读取package.json配置失败', error);
+            return {};
+        }
+    }
+
+    /**
+     * 获取供应商配置
+     */
+    static getConfigProvider(): ConfigProvider | undefined {
+        const packageConfig = this.readPackageJson();
+        return packageConfig.configProvider;
+    }
+
+    /**
+     * 获取kiloCode头部配置
+     */
+    static getKiloCodeHeaders(): KiloCodeHeaders | undefined {
+        const packageConfig = this.readPackageJson();
+        return packageConfig.kiloCodeHeaders;
+    }
+
+    /**
+     * 清理package.json缓存
+     */
+    static clearPackageJsonCache(): void {
+        this.packageJsonCache = null;
+        Logger.debug('Package.json缓存已清除');
+    }
+
+    /**
      * 清理资源
      */
     static dispose(): void {
@@ -224,6 +285,7 @@ export class ConfigManager {
             this.configListener = null;
         }
         this.cache = null;
+        this.packageJsonCache = null;
         Logger.debug('配置管理器已清理');
     }
 }

@@ -1,0 +1,187 @@
+﻿/*---------------------------------------------------------------------------------------------
+ *  通用Provider类
+ *  基于配置文件动态创建供应商实现
+ *--------------------------------------------------------------------------------------------*/
+
+import * as vscode from 'vscode';
+import {
+    CancellationToken,
+    LanguageModelChatInformation,
+    LanguageModelChatMessage,
+    LanguageModelChatProvider,
+    Progress,
+    ProvideLanguageModelChatResponseOptions
+} from 'vscode';
+import { ProviderConfig, ModelConfig, KiloCodeHeaders } from '../types/sharedTypes';
+import { ApiKeyManager, Logger, ConfigManager } from '../utils';
+import { OpenAIHandler } from '../handlers/openaiHandler';
+
+/**
+ * 通用模型供应商类
+ * 基于配置文件动态创建供应商实现，支持kiloCode头部注入
+ */
+export class GenericModelProvider implements LanguageModelChatProvider {
+    private readonly openaiHandler: OpenAIHandler;
+    private readonly providerKey: string;
+    private readonly providerConfig: ProviderConfig;
+    private readonly kiloCodeHeaders?: KiloCodeHeaders;
+
+    constructor(
+        providerKey: string,
+        providerConfig: ProviderConfig,
+        kiloCodeHeaders?: KiloCodeHeaders
+    ) {
+        this.providerKey = providerKey;
+        this.providerConfig = providerConfig;
+        this.kiloCodeHeaders = kiloCodeHeaders;
+
+        // 创建OpenAI SDK处理器
+        this.openaiHandler = new OpenAIHandler(
+            providerKey,
+            providerConfig.displayName,
+            providerConfig.baseUrl
+        );
+    }
+
+    /**
+     * 静态工厂方法 - 根据配置创建并激活供应商
+     */
+    static createAndActivate(
+        context: vscode.ExtensionContext,
+        providerKey: string,
+        providerConfig: ProviderConfig,
+        kiloCodeHeaders?: KiloCodeHeaders
+    ): GenericModelProvider {
+        Logger.info(`${providerConfig.displayName} 模型扩展已激活!`);
+
+        // 创建供应商实例
+        const provider = new GenericModelProvider(providerKey, providerConfig, kiloCodeHeaders);
+
+        // 注册语言模型聊天供应商
+        const providerDisposable = vscode.lm.registerLanguageModelChatProvider(
+            `gcmp.${providerKey}`,
+            provider
+        );
+        context.subscriptions.push(providerDisposable);
+
+        // 注册设置API密钥命令
+        const setApiKeyCommand = vscode.commands.registerCommand(
+            `gcmp.${providerKey}.setApiKey`,
+            async () => {
+                await ApiKeyManager.promptAndSetApiKey(
+                    providerKey,
+                    providerConfig.displayName,
+                    providerConfig.apiKeyTemplate
+                );
+            }
+        );
+        context.subscriptions.push(setApiKeyCommand);
+
+        return provider;
+    }
+
+    /**
+     * 将ModelConfig转换为LanguageModelChatInformation
+     */
+    private modelConfigToInfo(model: ModelConfig): LanguageModelChatInformation {
+        const info: LanguageModelChatInformation = {
+            id: model.id,
+            name: `[GCMP] ${model.name}`,
+            tooltip: model.tooltip,
+            family: `claude_${model.family}`, // 高效编辑工具 GHC 用 family 前缀判断
+            maxInputTokens: ConfigManager.getReducedInputTokenLimit(model.maxInputTokens),
+            maxOutputTokens: model.maxOutputTokens,
+            version: model.version,
+            capabilities: model.capabilities
+        };
+
+        // 如果模型启用了kiloCode且有配置的headers，添加自定义头部
+        if (model.kiloCode && this.kiloCodeHeaders) {
+            // 使用类型断言来添加customHeaders属性
+            (info as LanguageModelChatInformation & { customHeaders?: Record<string, string> }).customHeaders = this.kiloCodeHeaders;
+        }
+
+        return info;
+    }
+
+    async provideLanguageModelChatInformation(
+        options: { silent: boolean },
+        _token: CancellationToken
+    ): Promise<LanguageModelChatInformation[]> {
+        // 检查是否有API密钥
+        const hasApiKey = await ApiKeyManager.hasValidApiKey(this.providerKey);
+        if (!hasApiKey) {
+            // 如果是静默模式（如扩展启动时），不触发用户交互，直接返回空列表
+            if (options.silent) {
+                return [];
+            }
+            // 非静默模式下，直接触发API密钥设置
+            await vscode.commands.executeCommand(`gcmp.${this.providerKey}.setApiKey`);
+            // 重新检查API密钥
+            const hasApiKeyAfterSet = await ApiKeyManager.hasValidApiKey(this.providerKey);
+            if (!hasApiKeyAfterSet) {
+                // 如果用户取消设置或设置失败，返回空列表
+                return [];
+            }
+        }
+
+        // 将配置中的模型转换为VS Code所需的格式
+        return this.providerConfig.models.map(model => this.modelConfigToInfo(model));
+    }
+
+    async provideLanguageModelChatResponse(
+        model: LanguageModelChatInformation,
+        messages: Array<LanguageModelChatMessage>,
+        options: ProvideLanguageModelChatResponseOptions,
+        progress: Progress<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>,
+        token: CancellationToken
+    ): Promise<void> {
+        // 查找对应的模型配置
+        const modelConfig = this.providerConfig.models.find(m => m.id === model.id);
+        if (!modelConfig) {
+            const errorMessage = `未找到模型: ${model.id}`;
+            Logger.error(errorMessage);
+            throw new Error(errorMessage);
+        }
+
+        // 确保有API密钥（最后的保险检查）
+        await ApiKeyManager.ensureApiKey(this.providerKey, this.providerConfig.displayName);
+
+        Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求: ${modelConfig.name}`);
+
+        try {
+            await this.openaiHandler.handleRequest(model, messages, options, progress, token);
+        } catch (error) {
+            const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
+            Logger.error(errorMessage);
+            // 直接抛出错误，让VS Code处理重试
+            throw error;
+        }
+    }
+
+    async provideTokenCount(
+        _model: LanguageModelChatInformation,
+        text: string | LanguageModelChatMessage,
+        _token: CancellationToken
+    ): Promise<number> {
+        // 粗略估算，1个token ≈ 4个字符
+        if (typeof text === 'string') {
+            return Math.ceil(text.length / 4);
+        } else {
+            let totalTokens = 0;
+            for (const part of text.content) {
+                if (part instanceof vscode.LanguageModelTextPart) {
+                    totalTokens += Math.ceil(part.value.length / 4);
+                }
+            }
+            return totalTokens;
+        }
+    }
+
+    /**
+     * 清理资源
+     */
+    dispose(): void {
+        // OpenAI handler会自动处理清理
+    }
+}

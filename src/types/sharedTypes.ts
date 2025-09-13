@@ -6,14 +6,43 @@
 import * as vscode from 'vscode';
 
 /**
- * 供应商配置接口
+ * 模型配置接口 - 来自package.json
+ */
+export interface ModelConfig {
+    id: string;
+    name: string;
+    tooltip: string;
+    family: string;
+    maxInputTokens: number;
+    maxOutputTokens: number;
+    version: string;
+    capabilities: {
+        toolCalling: boolean;
+        imageInput: boolean;
+    };
+    /** 是否启用kiloCode支持 */
+    kiloCode?: boolean;
+}
+
+/**
+ * 供应商配置接口 - 来自package.json
  */
 export interface ProviderConfig {
-    name: string;
     displayName: string;
-    apiKeyTemplate: string;
     baseUrl: string;
+    apiKeyTemplate: string;
+    models: ModelConfig[];
 }
+
+/**
+ * 完整的配置提供者结构 - 来自package.json
+ */
+export type ConfigProvider = Record<string, ProviderConfig>;
+
+/**
+ * kiloCode请求头配置 - 来自package.json
+ */
+export type KiloCodeHeaders = Record<string, string>;
 
 /**
  * Handler接口定义

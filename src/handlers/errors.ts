@@ -37,10 +37,10 @@ export class ErrorHandler {
         error: unknown,
         model: vscode.LanguageModelChatInformation
     ): void {
-        let errorMessage = `[${model.name}] ${this.displayName} API调用失败`;
+        let errorMessage = `${model.name} ${this.displayName} API调用失败`;
 
         if (error instanceof OpenAIResponseError) {
-            errorMessage = `[${model.name}] API响应错误`;
+            errorMessage = `${model.name} API响应错误`;
             if (error.statusCode) {
                 errorMessage += ` (${error.statusCode})`;
             }
@@ -67,7 +67,7 @@ export class ErrorHandler {
                 const status = openaiError.status;
                 const code = openaiError.code || openaiError.type;
 
-                errorMessage = `[${model.name}] ${this.displayName} API错误 (${status})`;
+                errorMessage = `${model.name} ${this.displayName} API错误 (${status})`;
                 if (code) {
                     errorMessage += ` [${code}]`;
                 }

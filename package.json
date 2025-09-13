@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、MoonshotAI、心流AI 模型支持的扩展",
-    "version": "0.2.3",
+    "version": "0.2.4",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -123,6 +123,193 @@
                 "managementCommand": "gcmp.iflow.setApiKey"
             }
         ]
+    },
+    "kiloCodeHeaders": {
+        "HTTP-Referer": "https://kilocode.ai",
+        "X-Title": "Kilo Code",
+        "X-KiloCode-Version": "4.93.2",
+        "User-Agent": "Kilo-Code/4.93.2"
+    },
+    "configProvider": {
+        "zhipu": {
+            "displayName": "智谱AI",
+            "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+            "apiKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxx",
+            "models": [
+                {
+                    "id": "glm-4.5",
+                    "name": "GLM-4.5 (订阅)",
+                    "tooltip": "ZHIPU GLM-4.5 - 最强大的推理模型，3550亿参数，专为复杂推理任务优化",
+                    "family": "glm-4.5",
+                    "maxInputTokens": 128000,
+                    "maxOutputTokens": 96000,
+                    "version": "glm-4.5",
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    },
+                    "kiloCode": true
+                },
+                {
+                    "id": "glm-4.5-air",
+                    "name": "GLM-4.5-Air (订阅)",
+                    "tooltip": "ZHIPU GLM-4.5-Air - 高性价比模型，轻量级设计，强性能表现",
+                    "family": "glm-4.5",
+                    "maxInputTokens": 128000,
+                    "maxOutputTokens": 96000,
+                    "version": "glm-4.5-air",
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    },
+                    "kiloCode": true
+                },
+                {
+                    "id": "glm-4.5-x",
+                    "name": "GLM-4.5-X (极速)",
+                    "tooltip": "ZHIPU GLM-4.5-X - 高性能模型，强推理能力，极速响应",
+                    "family": "glm-4.5",
+                    "maxInputTokens": 128000,
+                    "maxOutputTokens": 96000,
+                    "version": "glm-4.5-x",
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    }
+                },
+                {
+                    "id": "glm-4.5-airx",
+                    "name": "GLM-4.5-AirX (极速)",
+                    "tooltip": "ZHIPU GLM-4.5-AirX - 轻量级高性能，强性能，极速响应",
+                    "family": "glm-4.5",
+                    "maxInputTokens": 128000,
+                    "maxOutputTokens": 96000,
+                    "version": "glm-4.5-airx",
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    }
+                },
+                {
+                    "id": "glm-4.5-flash",
+                    "name": "GLM-4.5-Flash (免费)",
+                    "tooltip": "ZHIPU GLM-4.5-Flash - 免费模型，高效多功能，快速响应",
+                    "family": "glm-4.5",
+                    "maxInputTokens": 128000,
+                    "maxOutputTokens": 96000,
+                    "version": "glm-4.5",
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    }
+                },
+                {
+                    "id": "glm-4.5v",
+                    "name": "GLM-4.5V (视觉)",
+                    "tooltip": "ZHIPU GLM-4.5V - 旗舰视觉推理模型，106B参数，支持视频/图像/文档理解",
+                    "family": "glm-4.5v",
+                    "maxInputTokens": 64000,
+                    "maxOutputTokens": 96000,
+                    "version": "glm-4.5v",
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": true
+                    }
+                }
+            ]
+        },
+        "moonshot": {
+            "displayName": "MoonshotAI",
+            "baseUrl": "https://api.moonshot.cn/v1",
+            "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "models": [
+                {
+                    "id": "kimi-k2-0905-preview",
+                    "name": "Kimi-K2-0905-Preview",
+                    "tooltip": "月之暗面 Kimi-K2-0905-Preview - 更强的Agentic Coding能力，更突出的前端代码美观度和实用性，256K上下文",
+                    "family": "kimi-k2",
+                    "maxInputTokens": 256000,
+                    "maxOutputTokens": 8192,
+                    "version": "kimi-k2-0905-preview",
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    }
+                },
+                {
+                    "id": "kimi-k2-turbo-preview",
+                    "name": "Kimi-K2-Turbo-Preview",
+                    "tooltip": "月之暗面 Kimi-K2-Turbo-Preview - 高速版本模型，输出速度60-100 tokens/秒，256K上下文",
+                    "family": "kimi-k2",
+                    "maxInputTokens": 256000,
+                    "maxOutputTokens": 8192,
+                    "version": "kimi-k2-turbo-preview",
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    }
+                },
+                {
+                    "id": "kimi-k2-0711-preview",
+                    "name": "Kimi-K2-0711-Preview",
+                    "tooltip": "月之暗面 Kimi-K2-0711-Preview - K2系列基础版本，128K上下文",
+                    "family": "kimi-k2",
+                    "maxInputTokens": 128000,
+                    "maxOutputTokens": 8192,
+                    "version": "kimi-k2-0711-preview",
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    }
+                }
+            ]
+        },
+        "iflow": {
+            "displayName": "心流AI",
+            "baseUrl": "https://apis.iflow.cn/v1",
+            "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "models": [
+                {
+                    "id": "qwen3-coder",
+                    "name": "Qwen3-Coder-480B-A35B (iFlow)",
+                    "tooltip": "iFlow Qwen3-Coder-480B-A35B - 专业代码生成和推理模型",
+                    "family": "qwen",
+                    "maxInputTokens": 256000,
+                    "maxOutputTokens": 64000,
+                    "version": "qwen3-coder",
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    }
+                },
+                {
+                    "id": "kimi-k2-0905",
+                    "name": "Kimi-K2-Instruct-0905 (iFlow)",
+                    "tooltip": "iFlow Kimi-K2-Instruct-0905 - 月之暗面开源万亿参数MoE模型，320亿激活参数，卓越编码智能与工具调用能力",
+                    "family": "kimi",
+                    "maxInputTokens": 256000,
+                    "maxOutputTokens": 64000,
+                    "version": "kimi-k2-0905",
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    }
+                },
+                {
+                    "id": "glm-4.5",
+                    "name": "GLM-4.5 (iFlow)",
+                    "tooltip": "iFlow GLM-4.5 - 智谱AI多模态模型，支持图像理解",
+                    "family": "glm",
+                    "maxInputTokens": 128000,
+                    "maxOutputTokens": 64000,
+                    "version": "glm-4.5",
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": true
+                    }
+                }
+            ]
+        }
     },
     "scripts": {
         "vscode:prepublish": "npm run esbuild-base -- --minify",
