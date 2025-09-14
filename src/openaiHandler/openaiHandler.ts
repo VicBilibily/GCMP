@@ -5,6 +5,7 @@ import { URL } from 'url';
 
 import { Logger } from '../utils';
 import { ConfigManager } from '../utils/configManager';
+import { ApiKeyManager } from '../utils/apiKeyManager';
 import { MessageConverter } from './messageConverter';
 import { ErrorHandler } from './errors';
 import { ToolCallProcessor } from './toolCallProcessor';
@@ -163,7 +164,6 @@ export class OpenAIHandler {
         }
 
         try {
-            const { ApiKeyManager } = await import('../utils/apiKeyManager');
             const apiKey = await ApiKeyManager.getApiKey(this.provider);
             this.apiKey = apiKey || null;
             if (!this.apiKey) {

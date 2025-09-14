@@ -3,7 +3,6 @@
 .vscode-test/**
 node_modules/**
 out/**
-dist/**
 src/**
 .gitignore
 .eslintignore
@@ -12,3 +11,6 @@ esbuild.mjs
 **/eslint.config.mjs
 **/*.ts
 **/.vscode-test.*
+# Exclude JS and map files from root directory
+/*.js
+/*.map

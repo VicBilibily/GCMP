@@ -23,15 +23,16 @@
         "url": "https://github.com/VicBilibily/gcmp.git"
     },
     "engines": {
-        "node": "^20.19.0",
-        "vscode": "^1.104.0"
+        "vscode": "^1.104.0",
+        "node": ">=20.0.0",
+        "npm": ">=9.0.0"
     },
     "categories": [
         "AI",
         "Chat"
     ],
     "icon": "./gcmp-logo.png",
-    "main": "./extension.js",
+    "main": "./dist/extension.js",
     "enabledApiProposals": [
         "chatProvider"
     ],
@@ -39,7 +40,8 @@
         "onStartupFinished",
         "onLanguageModelProvider:gcmp.zhipu",
         "onLanguageModelProvider:gcmp.moonshot",
-        "onLanguageModelProvider:gcmp.iflow"
+        "onLanguageModelProvider:gcmp.iflow",
+        "onLanguageModelTool:gcmp_zhipuWebSearch"
     ],
     "contributes": {
         "commands": [
@@ -127,6 +129,77 @@
                 "vendor": "gcmp.iflow",
                 "displayName": "[GCMP] 心流AI",
                 "managementCommand": "gcmp.iflow.setApiKey"
+            }
+        ],
+        "languageModelTools": [
+            {
+                "name": "gcmp_zhipuWebSearch",
+                "displayName": "智谱AI网络搜索",
+                "toolReferenceName": "zhipuWebSearch",
+                "modelDescription": "使用智谱AI提供的网络搜索功能获取实时信息。支持多种搜索引擎：search_std（标准搜索，¥0.01）、search_pro（高级搜索，¥0.03）、search_pro_sogou（搜狗搜索，¥0.05）、search_pro_quark（夸克搜索，¥0.05）。",
+                "userDescription": "通过智谱AI搜索网络获取最新信息",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "search_query": {
+                            "type": "string",
+                            "description": "搜索查询字符串"
+                        },
+                        "search_engine": {
+                            "type": "string",
+                            "enum": [
+                                "search_std",
+                                "search_pro",
+                                "search_pro_sogou",
+                                "search_pro_quark"
+                            ],
+                            "description": "搜索引擎类型：search_std（标准，¥0.01）、search_pro（高级，¥0.03）、search_pro_sogou（搜狗，¥0.05）、search_pro_quark（夸克，¥0.05）",
+                            "default": "search_std"
+                        },
+                        "search_intent": {
+                            "type": "boolean",
+                            "description": "是否进行搜索意图分析",
+                            "default": false
+                        },
+                        "count": {
+                            "type": "integer",
+                            "description": "返回搜索结果数量",
+                            "minimum": 1,
+                            "maximum": 20,
+                            "default": 10
+                        },
+                        "search_domain_filter": {
+                            "type": "string",
+                            "description": "域名过滤器，限制搜索特定网站"
+                        },
+                        "search_recency_filter": {
+                            "type": "string",
+                            "enum": [
+                                "noLimit",
+                                "day",
+                                "week",
+                                "month",
+                                "year"
+                            ],
+                            "description": "时间过滤器：noLimit（无限制）、day（一天内）、week（一周内）、month（一月内）、year（一年内）",
+                            "default": "noLimit"
+                        },
+                        "content_size": {
+                            "type": "string",
+                            "enum": [
+                                "low",
+                                "medium",
+                                "high"
+                            ],
+                            "description": "内容详细程度：low（低）、medium（中）、high（高）",
+                            "default": "medium"
+                        }
+                    },
+                    "required": [
+                        "search_query"
+                    ]
+                },
+                "canBeReferencedInPrompt": true
             }
         ]
     },
@@ -331,11 +404,9 @@
         }
     },
     "scripts": {
-        "vscode:prepublish": "npm run esbuild-base -- --minify",
-        "esbuild-base": "node esbuild.mjs",
-        "esbuild": "npm run esbuild-base -- --sourcemap",
-        "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
+        "vscode:prepublish": "npm run clean && npm run compile",
         "compile": "tsc -p ./",
+        "clean": "rimraf dist",
         "lint": "eslint",
         "lint:fix": "eslint --fix",
         "format": "prettier --write \"src/**/*.{ts,js,json}\"",
@@ -346,18 +417,15 @@
         "pretest": "npm run compile",
         "test": "echo \"No tests specified\" && exit 0"
     },
-    "dependencies": {
-        "@vscode/prompt-tsx": "^0.4.0-alpha.5"
-    },
     "devDependencies": {
         "@eslint/js": "^9.13.0",
         "@stylistic/eslint-plugin": "^2.9.0",
         "@types/node": "^22",
         "@types/vscode": "^1.104.0",
         "@vscode/vsce": "^3.6.0",
-        "esbuild": "^0.25.9",
         "eslint": "^9.13.0",
         "prettier": "^3.6.2",
+        "rimraf": "^6.0.1",
         "typescript": "^5.9.2",
         "typescript-eslint": "^8.39.0"
     },

@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { GenericModelProvider } from './providers/genericModelProvider';
 import { Logger } from './utils/logger';
 import { ApiKeyManager, ConfigManager } from './utils';
+import { registerAllTools } from './tools';
 
 /**
  * 激活供应商 - 基于配置文件动态注册
@@ -48,7 +49,9 @@ export function activate(context: vscode.ExtensionContext) {
         // 检查和提示VS Code的日志级别设置
         if (isDevelopment) { Logger.checkAndPromptLogLevel(); }
 
-        Logger.info('开始激活 GCMP 扩展...'); ApiKeyManager.initialize(context); // 初始化API密钥管理器
+        Logger.info('开始激活 GCMP 扩展...');
+
+        ApiKeyManager.initialize(context); // 初始化API密钥管理器
 
         // 初始化配置管理器并注册到context
         const configDisposable = ConfigManager.initialize();
@@ -57,6 +60,10 @@ export function activate(context: vscode.ExtensionContext) {
         // 激活供应商
         Logger.info('正在注册模型提供者...');
         activateProviders(context);
+
+        // 注册工具
+        Logger.info('正在注册工具...');
+        registerAllTools(context);
 
         Logger.info('GCMP 扩展激活完成');
     } catch (error) {

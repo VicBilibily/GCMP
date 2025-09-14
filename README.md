@@ -44,6 +44,22 @@
 - **Kimi-K2-Instruct-0905**：月之暗面万亿参数MoE模型，320亿激活参数
 - **GLM-4.5**：智谱AI多模态模型，支持图像理解（128K上下文）
 
+## 🔍 智谱AI搜索工具
+
+GCMP 集成了智谱AI官方的 Web Search API，为AI助手提供实时联网搜索能力。
+
+### 工具特性
+
+- ✅ **多引擎支持**：基础版(¥0.01/次)、高级版(¥0.03/次)、搜狗(¥0.05/次)、夸克(¥0.05/次)
+- 🎯 **精确控制**：支持域名过滤、时间范围、结果数量等参数
+- 📊 **结构化结果**：提供标题、摘要、链接、发布时间等完整信息
+
+### 使用方法
+
+1. **设置 API 密钥**：运行命令 `GCMP: 设置 智谱AI API密钥`
+2. **在 AI 对话中使用**：在 GitHub Copilot Chat 中直接请求搜索最新信息，模型会自动调用搜索工具
+3. **手动引用**：在提示中使用 `#zhipuWebSearch` 来明确引用搜索工具
+
 ## ⚙️ 高级配置
 
 GCMP支持通过VS Code设置来自定义AI模型的行为参数，让您获得更个性化的AI助手体验。
@@ -70,7 +86,7 @@ GCMP支持通过VS Code设置来自定义AI模型的行为参数，让您获得�
 | `gcmp.topP`                 | number  | 1.0     | 0.0-1.0                   | **输出多样性**：使用较小值会减少输出随机性，提高一致性               |
 | `gcmp.maxTokens`            | number  | 8192    | 32-32768                  | **最大输出长度**：控制AI单次响应的最大token数量                      |
 | `gcmp.contextReduction`     | string  | "1x"    | "1x", "1/2", "1/4", "1/8" | **上下文缩减**：控制模型可接受的输入上下文长度，缩减可提升响应速度 ⚠️ |
-| `gcmp.moonshot.webSearch`   | boolean | false   | true, false               | **MoonshotAI联网搜索**：启用后AI可通过Kimi内置的 $web_search 工具获取实时信息 💡         |
+| `gcmp.moonshot.webSearch`   | boolean | false   | true, false               | **MoonshotAI联网搜索**：启用后MoonshotAI可通过Kimi内置的 $web_search 工具获取实时信息 💡         |
 
 > ⚠️ **重要提示**：`gcmp.contextReduction` 参数修改后需要重启 VS Code 才能生效。其他参数修改会立即生效。
 
