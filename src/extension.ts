@@ -5,6 +5,7 @@ import { GenericModelProvider } from './providers/genericModelProvider';
 import { Logger } from './utils/logger';
 import { ApiKeyManager, ConfigManager } from './utils';
 import { registerAllTools } from './tools';
+import { ApplyDiffCommands } from './tools/apply-diff-commands';
 
 /**
  * 激活供应商 - 基于配置文件动态注册
@@ -64,6 +65,11 @@ export function activate(context: vscode.ExtensionContext) {
         // 注册工具
         Logger.info('正在注册工具...');
         registerAllTools(context);
+
+        // 注册Apply Diff命令
+        Logger.info('正在注册Apply Diff命令...');
+        const applyDiffCommands = new ApplyDiffCommands();
+        applyDiffCommands.registerCommands(context);
 
         Logger.info('GCMP 扩展激活完成');
     } catch (error) {

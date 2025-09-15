@@ -34,7 +34,8 @@
     "icon": "./gcmp-logo.png",
     "main": "./dist/extension.js",
     "enabledApiProposals": [
-        "chatProvider"
+        "chatProvider",
+        "textDocumentChangeReason"
     ],
     "activationEvents": [
         "onStartupFinished",
@@ -59,6 +60,30 @@
                 "command": "gcmp.iflow.setApiKey",
                 "title": "设置 心流AI API密钥",
                 "category": "GCMP"
+            },
+            {
+                "command": "gcmp.applyDiff",
+                "title": "应用 Diff",
+                "category": "GCMP",
+                "icon": "$(diff)"
+            },
+            {
+                "command": "gcmp.previewDiff",
+                "title": "预览 Diff",
+                "category": "GCMP",
+                "icon": "$(preview)"
+            },
+            {
+                "command": "gcmp.applyDiffFromClipboard",
+                "title": "从剪贴板应用 Diff",
+                "category": "GCMP",
+                "icon": "$(clippy)"
+            },
+            {
+                "command": "gcmp.test.vsCodeIntegration",
+                "title": "运行 VS Code 集成测试",
+                "category": "GCMP",
+                "icon": "$(beaker)"
             }
         ],
         "configuration": {
@@ -110,6 +135,12 @@
                     "type": "boolean",
                     "default": false,
                     "description": "为 MoonshotAI 模型启用 Kimi 内置的 $web_search 联网搜索工具。开启后，AI 将能够通过官方内置工具获取实时信息来回答问题。注意：搜索结果会计入 prompt_tokens，每次搜索额外收费 ¥0.03。",
+                    "scope": "application"
+                },
+                "gcmp.applyDiff.enabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "启用 Apply Diff 工具。此工具允许 AI 模型精准应用 diff 格式的文件修改，包含文件备份和回滚机制。出于安全考虑，默认禁用。",
                     "scope": "application"
                 }
             }
@@ -197,6 +228,41 @@
                     },
                     "required": [
                         "search_query"
+                    ]
+                },
+                "canBeReferencedInPrompt": true
+            },
+            {
+                "name": "gcmp_applyDiff",
+                "displayName": "应用 Diff 修改",
+                "toolReferenceName": "applyDiff",
+                "modelDescription": "**精准文件修改工具** - 当需要对现有文件进行精确修改时使用。支持基于行号的精准编辑，包含安全备份机制。\n\n**何时使用**：\n- 用户明确要求修改特定文件的内容\n- 需要对代码进行局部调整或bug修复\n- 添加新功能或修改现有功能的实现\n- 用户提供了具体的修改要求和目标文件\n\n**使用原则**：\n1. 必须先读取目标文件内容确认当前状态\n2. 确保SEARCH内容与文件实际内容完全匹配\n3. 行号必须准确（从1开始计数）\n4. 对于重要修改建议先使用preview模式\n5. 支持单个diff中包含多个SEARCH/REPLACE块\n\n**格式要求**：严格遵循SEARCH/REPLACE格式，包含准确的行号和完整的原始内容匹配。",
+                "userDescription": "智能应用代码差异修改，支持精准的文件编辑和安全回滚",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "目标文件路径（绝对路径或相对于工作区的路径）。示例：'src/components/Button.vue' 或 'C:\\\\project\\\\file.ts'"
+                        },
+                        "diff": {
+                            "type": "string",
+                            "description": "diff修改内容，使用严格的SEARCH/REPLACE格式：\n\n格式模板：\n<<<<<<< SEARCH\n:start_line:起始行号\n:end_line:结束行号\n-------\n要查找和替换的原始内容（必须与文件内容完全匹配）\n=======\n替换后的新内容\n>>>>>>> REPLACE\n\n支持多个块：可以在同一个diff中包含多个SEARCH/REPLACE块来同时修改多个地方。\n\n重要提示：\n- 行号从1开始计数\n- 原始内容必须与文件中的内容完全匹配（包括空格、缩进）\n- 如果是单行修改，start_line和end_line使用相同数字\n- 确保语法正确，特别是代码文件的修改"
+                        },
+                        "preview": {
+                            "type": "boolean",
+                            "description": "预览模式：设为true时只显示将要进行的修改，不实际修改文件。建议对重要文件或大幅修改先启用预览。",
+                            "default": false
+                        },
+                        "requireConfirmation": {
+                            "type": "boolean",
+                            "description": "是否需要用户确认：设为true时会弹出确认对话框。对于重要文件修改建议启用此选项。",
+                            "default": true
+                        }
+                    },
+                    "required": [
+                        "path",
+                        "diff"
                     ]
                 },
                 "canBeReferencedInPrompt": true
