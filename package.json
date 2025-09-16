@@ -266,41 +266,6 @@
                 "canBeReferencedInPrompt": true
             },
             {
-                "name": "gcmp_applyDiff",
-                "displayName": "应用 Diff 修改",
-                "toolReferenceName": "applyDiff",
-                "modelDescription": "**精准文件修改工具** - 当需要对现有文件进行精确修改时使用。支持基于行号的精准编辑，包含安全备份机制。\n\n**何时使用**：\n- 用户明确要求修改特定文件的内容\n- 需要对代码进行局部调整或bug修复\n- 添加新功能或修改现有功能的实现\n- 用户提供了具体的修改要求和目标文件\n\n**使用原则**：\n1. 必须先读取目标文件内容确认当前状态\n2. 确保SEARCH内容与文件实际内容完全匹配\n3. 行号必须准确（从1开始计数）\n4. 对于重要修改建议先使用preview模式\n5. 支持单个diff中包含多个SEARCH/REPLACE块\n\n**格式要求**：严格遵循SEARCH/REPLACE格式，包含准确的行号和完整的原始内容匹配。",
-                "userDescription": "智能应用代码差异修改，支持精准的文件编辑和安全回滚",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "目标文件路径（绝对路径或相对于工作区的路径）。示例：'src/components/Button.vue' 或 'C:\\\\project\\\\file.ts'"
-                        },
-                        "diff": {
-                            "type": "string",
-                            "description": "diff修改内容，使用严格的SEARCH/REPLACE格式：\n\n格式模板：\n<<<<<<< SEARCH\n:start_line:起始行号\n:end_line:结束行号\n-------\n要查找和替换的原始内容（必须与文件内容完全匹配）\n=======\n替换后的新内容\n>>>>>>> REPLACE\n\n支持多个块：可以在同一个diff中包含多个SEARCH/REPLACE块来同时修改多个地方。\n\n重要提示：\n- 行号从1开始计数\n- 原始内容必须与文件中的内容完全匹配（包括空格、缩进）\n- 如果是单行修改，start_line和end_line使用相同数字\n- 确保语法正确，特别是代码文件的修改"
-                        },
-                        "preview": {
-                            "type": "boolean",
-                            "description": "预览模式：设为true时只显示将要进行的修改，不实际修改文件。建议对重要文件或大幅修改先启用预览。",
-                            "default": false
-                        },
-                        "requireConfirmation": {
-                            "type": "boolean",
-                            "description": "是否需要用户确认：设为true时会弹出确认对话框。对于重要文件修改建议启用此选项。",
-                            "default": true
-                        }
-                    },
-                    "required": [
-                        "path",
-                        "diff"
-                    ]
-                },
-                "canBeReferencedInPrompt": true
-            },
-            {
                 "name": "gcmp_applyDiffV2",
                 "displayName": "应用 Diff 修改 V2",
                 "toolReferenceName": "applyDiffV2",
@@ -317,19 +282,9 @@
                             "type": "string",
                             "description": "diff修改内容，使用增强的SEARCH/REPLACE格式：\n\n基本格式：\n<<<<<<< SEARCH\n:start_line:起始行号\n:end_line:结束行号\n-------\n要查找的原始内容（支持智能匹配）\n=======\n替换后的新内容\n>>>>>>> REPLACE\n\n增强特性：\n- **智能匹配**：自动处理空格、缩进差异\n- **置信度评估**：自动评估匹配可靠性\n- **语言检测**：自动识别编程语言\n- **多块支持**：单个 diff 中支持多个 SEARCH/REPLACE 块\n- **插入操作**：支持在文件开头或指定位置插入内容\n\n重要提示：\n- 行号从1开始，支持智能行号调整\n- 原始内容支持模糊匹配和精确匹配\n- 自动语法验证和错误恢复"
                         },
-                        "preview": {
-                            "type": "boolean",
-                            "description": "预览模式：启用时使用 VS Code 内置 diff 查看器显示修改预览，不实际修改文件。强烈建议对重要修改启用预览。",
-                            "default": false
-                        },
                         "batch": {
                             "type": "boolean",
                             "description": "批量模式：优化多文件或大量修改的处理性能。适用于重构或批量更新场景。",
-                            "default": false
-                        },
-                        "suggest": {
-                            "type": "boolean",
-                            "description": "建议模式：返回编辑建议而不是直接应用，显示 Apply/Discard 按钮。从聊天调用时默认启用此模式以提供最佳用户体验。",
                             "default": false
                         }
                     },

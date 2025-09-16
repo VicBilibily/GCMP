@@ -95,131 +95,6 @@ export interface ApplyDiffResponseV2 {
 }
 
 /**
- * 聊天修改历史集成器
- */
-class ChatHistoryIntegrator {
-    private static instance: ChatHistoryIntegrator;
-    private editSessions = new Map<string, vscode.Uri[]>();
-    private actionEventDisposable?: vscode.Disposable;
-
-    private constructor() {
-        this.setupUserActionTracking();
-    }
-
-    static getInstance(): ChatHistoryIntegrator {
-        if (!ChatHistoryIntegrator.instance) {
-            ChatHistoryIntegrator.instance = new ChatHistoryIntegrator();
-        }
-        return ChatHistoryIntegrator.instance;
-    }
-
-    /**
-     * 设置用户操作跟踪
-     */
-    private setupUserActionTracking(): void {
-        // 监听聊天用户操作事件
-        if (vscode.chat && 'onDidPerformAction' in vscode.chat) {
-            // 这是一个 proposed API，可能不在所有环境中可用
-            try {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                this.actionEventDisposable = (vscode.chat as any).onDidPerformAction(
-                    (event: vscode.ChatUserActionEvent) => {
-                        this.handleUserAction(event);
-                    }
-                );
-                Logger.debug('✅ [Chat History] 用户操作跟踪已启用');
-            } catch {
-                Logger.debug('ℹ️ [Chat History] 用户操作跟踪API不可用（这是正常的）');
-            }
-        }
-    }
-
-    /**
-     * 处理用户操作事件
-     */
-    private handleUserAction(event: vscode.ChatUserActionEvent): void {
-        Logger.debug(`🎯 [Chat History] 检测到用户操作: ${event.action.kind}`);
-
-        if (event.action.kind === 'apply') {
-            const applyAction = event.action as vscode.ChatApplyAction;
-            Logger.info(`📝 [Chat History] 用户应用了代码块: 索引${applyAction.codeBlockIndex}, 字符数${applyAction.totalCharacters}`);
-        } else if (event.action.kind === 'chatEditingSessionAction') {
-            const editAction = event.action as vscode.ChatEditingSessionAction;
-            Logger.info(`🔧 [Chat History] 编辑会话操作: ${editAction.uri.fsPath}, 结果${editAction.outcome}`);
-        }
-    }
-
-    /**
-     * 开始编辑会话
-     */
-    startEditSession(sessionId: string, files: vscode.Uri[]): void {
-        this.editSessions.set(sessionId, files);
-        Logger.debug(`🚀 [Chat History] 开始编辑会话: ${sessionId}, 文件数: ${files.length}`);
-    }
-
-    /**
-     * 结束编辑会话
-     */
-    endEditSession(sessionId: string): void {
-        const files = this.editSessions.get(sessionId);
-        if (files) {
-            Logger.debug(`🏁 [Chat History] 结束编辑会话: ${sessionId}, 已编辑文件数: ${files.length}`);
-            this.editSessions.delete(sessionId);
-        }
-    }
-
-    /**
-     * 记录文件编辑到聊天历史 - 简化版本
-     */
-    recordFileEdit(uri: vscode.Uri, edits: vscode.TextEdit[], description: string): void {
-        Logger.info(`📝 [Chat History] 记录文件编辑: ${uri.fsPath}, 编辑数: ${edits.length}, 描述: ${description}`);
-
-        try {
-            // 记录详细的编辑信息到内部状态
-            const editInfo = {
-                timestamp: Date.now(),
-                uri: uri.toString(),
-                editsCount: edits.length,
-                description,
-                edits: edits.map(edit => ({
-                    startLine: edit.range.start.line + 1,
-                    endLine: edit.range.end.line + 1,
-                    newText: edit.newText,
-                    operation: edit.range.isEmpty ? 'insert' : (edit.newText === '' ? 'delete' : 'replace')
-                }))
-            };
-
-            Logger.debug('🗂️ [Chat History] 编辑信息已记录:', JSON.stringify(editInfo, null, 2));
-
-        } catch (error) {
-            Logger.error(`❌ [Chat History] 记录文件编辑失败: ${error instanceof Error ? error.message : error}`);
-        }
-    }
-    /**
-    * 标记编辑为已跟踪
-    */
-    private markEditsAsTracked(sessionId: string, uri: vscode.Uri, edits: vscode.TextEdit[]): void {
-        // 在实际的聊天历史中，这些信息会通过 responseStream.textEdit() 自动记录
-        // 这里我们主要用于内部状态管理和调试
-        const trackedInfo = {
-            sessionId,
-            uri: uri.toString(),
-            editCount: edits.length,
-            trackedAt: Date.now()
-        };
-
-        Logger.debug(`🏷️ [Chat History] 编辑已标记为跟踪: ${JSON.stringify(trackedInfo)}`);
-    }
-
-    dispose(): void {
-        if (this.actionEventDisposable) {
-            this.actionEventDisposable.dispose();
-        }
-        this.editSessions.clear();
-    }
-}
-
-/**
  * 智能 Diff 解析器 V2
  */
 export class DiffParserV2 {
@@ -415,15 +290,13 @@ export class DiffParserV2 {
  * 智能编辑引擎 V2
  */
 export class EditEngineV2 {
-    private chatIntegrator = ChatHistoryIntegrator.getInstance();
-
     /**
      * 应用多个 diff 块到文件 - 参考官方的流式反馈和诊断集成
      */
     async applyDiffBlocks(
         uri: vscode.Uri,
         blocks: DiffBlockV2[],
-        options: {
+        _options: {
             sessionId?: string;
             inChatContext?: boolean;
             diagnosticsTimeout?: number; // 诊断超时时间
@@ -454,29 +327,10 @@ export class EditEngineV2 {
             // 转换为 TextEdit 数组
             const textEdits = this.convertBlocksToTextEdits(document, validatedBlocks);
 
-            // 聊天上下文集成 - 参考官方的实时流式反馈
-            if (options.inChatContext) {
-                Logger.info(`📝 [Chat Integration] 在聊天上下文中执行编辑: ${uri.fsPath}`);
-
-                try {
-                    // 记录编辑到聊天历史 - 在应用之前预先记录
-                    this.chatIntegrator.recordFileEdit(
-                        uri,
-                        textEdits,
-                        `Chat context edit: ${textEdits.length} changes applied via ${validatedBlocks.length} diff blocks`
-                    );
-
-                    Logger.info('✅ [Chat Integration] 聊天上下文编辑已预先记录');
-                } catch (error) {
-                    Logger.error(`❌ [Chat Integration] 聊天上下文编辑记录失败: ${error instanceof Error ? error.message : error}`);
-                }
-            }            // 应用编辑
+            // 应用编辑
             const success = await this.applyTextEdits(uri, textEdits);
 
             if (success) {
-                // 记录到聊天历史
-                this.chatIntegrator.recordFileEdit(uri, textEdits, `Applied ${validatedBlocks.length} diff blocks`);
-
                 // 在应用模式下自动打开修改的文件
                 // 延迟打开文件，给工具调用结束一些时间
                 setTimeout(async () => {
@@ -963,7 +817,6 @@ export class EditEngineV2 {
  */
 export class ApplyDiffToolV2 {
     private editEngine = new EditEngineV2();
-    private chatIntegrator = ChatHistoryIntegrator.getInstance();
     private sessionCounter = 0;
 
     /**
@@ -983,17 +836,11 @@ export class ApplyDiffToolV2 {
             // 解析文件路径
             const uri = this.resolveFileUri(request.path);
 
-            // 开始编辑会话
-            this.chatIntegrator.startEditSession(sessionId, [uri]);
-
             // 应用模式
             const result = await this.editEngine.applyDiffBlocks(uri, diffBlocks, {
                 inChatContext: request._inChatContext, // 使用传递的聊天上下文参数
                 sessionId
             });
-
-            // 结束编辑会话
-            this.chatIntegrator.endEditSession(sessionId);
 
             Logger.info(`✅ [Apply Diff V2] 会话 ${sessionId} 完成`);
 
@@ -1006,8 +853,6 @@ export class ApplyDiffToolV2 {
             };
 
         } catch (error) {
-            this.chatIntegrator.endEditSession(sessionId);
-
             const errorMessage = error instanceof Error ? error.message : '未知错误';
             Logger.error(`❌ [Apply Diff V2] 会话 ${sessionId} 失败: ${errorMessage}`, error instanceof Error ? error : undefined);
 
@@ -1212,10 +1057,6 @@ export class ApplyDiffToolV2 {
      * 释放资源
      */
     dispose(): void {
-        this.chatIntegrator.dispose();
         Logger.debug('🧹 [Apply Diff V2] 工具资源已清理');
     }
 }
-
-// 导出用于测试和验证
-export { ChatHistoryIntegrator };
