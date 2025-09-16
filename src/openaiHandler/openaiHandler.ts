@@ -9,11 +9,8 @@ import { ApiKeyManager } from '../utils/apiKeyManager';
 import { MessageConverter } from './messageConverter';
 import { ErrorHandler } from './errors';
 import { ToolCallProcessor } from './toolCallProcessor';
-import {
-    ChatCompletionRequest,
-    StreamResponse,
-    Tool
-} from './types';
+import { ToolManager } from './toolManager';
+import { ChatCompletionRequest, StreamResponse } from './types';
 
 /**
  * HTTP API处理器
@@ -101,86 +98,32 @@ export class OpenAIHandler {
                         ? `multimodal(${msg.content.length}parts)`
                         : 'no_content';
 
-                Logger.debug(`💬 消息 ${index}: role=${msg.role}, content=${contentInfo}, tool_calls=${msg.tool_calls?.length || 0}, tool_call_id=${msg.tool_call_id || 'none'}`);
+                Logger.trace(`💬 消息 ${index}: role=${msg.role}, content=${contentInfo}, tool_calls=${msg.tool_calls?.length || 0}, tool_call_id=${msg.tool_call_id || 'none'}`);
 
                 if (msg.tool_calls) {
                     msg.tool_calls.forEach(tc => {
                         const argsLength = tc.function.arguments ? tc.function.arguments.length : 0;
-                        Logger.debug(`  🔧 工具调用: ${tc.id} -> ${tc.function.name}(${argsLength}chars)`);
+                        Logger.trace(`  🔧 工具调用: ${tc.id} -> ${tc.function.name}(${argsLength}chars)`);
                     });
                 }
             });
 
-            // 添加工具支持（如果有）
-            if (options.tools && options.tools.length > 0 && model.capabilities?.toolCalling) {
-                if (options.tools.length > 128) {
-                    throw new Error('请求不能有超过 128 个工具');
-                }
-                requestBody.tools = this.messageConverter.convertToolsToOpenAI([...options.tools]);
-                requestBody.tool_choice = 'auto';
-            }
-
-            // 为启用的模型添加Apply Diff工具支持
-            if (model.capabilities?.toolCalling && ConfigManager.getApplyDiffEnabled()) {
-                // 构造Apply Diff工具定义
-                const applyDiffTool: Tool = {
-                    type: 'function',
-                    function: {
-                        name: 'gcmp_applyDiff',
-                        description: '**精准文件修改工具** - 基于 VS Code 深度集成的文件修改工具，具有聊天修改历史追踪、智能内容匹配和增强预览功能。使用标准的 SEARCH/REPLACE 格式，支持行号指定和智能匹配。',
-                        parameters: {
-                            type: 'object',
-                            properties: {
-                                path: {
-                                    type: 'string',
-                                    description: '目标文件路径（绝对路径或相对于工作区的路径）'
-                                },
-                                diff: {
-                                    type: 'string',
-                                    description: 'diff修改内容，使用增强的SEARCH/REPLACE格式'
-                                },
-                                batch: {
-                                    type: 'boolean',
-                                    description: '批量模式：优化多文件或大量修改的处理性能',
-                                    default: false
-                                }
-                            },
-                            required: ['path', 'diff']
-                        }
-                    }
-                };
-
-                if (!requestBody.tools) {
-                    requestBody.tools = [];
-                }
-                requestBody.tools.push(applyDiffTool);
-
-                if (!requestBody.tool_choice) {
+            // 添加工具支持
+            if (model.capabilities?.toolCalling) {
+                // 首先添加现有工具（来自options）
+                if (options.tools && options.tools.length > 0) {
+                    requestBody.tools = this.messageConverter.convertToolsToOpenAI([...options.tools]);
                     requestBody.tool_choice = 'auto';
                 }
 
-                Logger.debug(`🔧 ${model.name} 已启用Apply Diff工具 gcmp_applyDiff`);
-            }
+                // 使用ToolManager添加其他工具
+                ToolManager.addToolsToRequest(requestBody, model, options, this.provider);
 
-            // 为MoonshotAI添加联网搜索工具支持
-            if (this.provider === 'moonshot' && ConfigManager.getMoonshotWebSearchEnabled()) {
-                const webSearchTool: Tool = {
-                    type: 'builtin_function',
-                    function: {
-                        name: '$web_search'
-                    }
-                };
-
-                if (!requestBody.tools) {
-                    requestBody.tools = [];
+                // 输出工具统计信息
+                const toolsStats = ToolManager.getToolsStats(requestBody.tools);
+                if (toolsStats.count > 0) {
+                    Logger.info(`🔧 ${model.name} 已添加 ${toolsStats.count} 个工具: ${toolsStats.types.join(', ')}`);
                 }
-                requestBody.tools.push(webSearchTool);
-
-                if (!requestBody.tool_choice) {
-                    requestBody.tool_choice = 'auto';
-                }
-
-                Logger.debug(`🚀 ${model.name} 已启用Kimi内置联网搜索工具 $web_search`);
             }
 
             Logger.info(`🚀 ${model.name} 发送 ${this.displayName} HTTP API 请求`);
@@ -353,9 +296,7 @@ export class OpenAIHandler {
                     }
 
                     try {
-                        Logger.trace(`${model.name} 准备解析JSON数据: "${data.substring(0, 100)}..."`);
                         const parsed: StreamResponse = JSON.parse(data);
-                        Logger.trace(`${model.name} JSON解析成功`);
 
                         Logger.debug(`${model.name} 接收到数据块:`, {
                             hasChoices: !!(parsed.choices && parsed.choices.length > 0),
@@ -364,10 +305,7 @@ export class OpenAIHandler {
                             rawData: data.substring(0, 200) + (data.length > 200 ? '...' : '')
                         });
 
-                        Logger.trace(`${model.name} 准备调用processStreamChunk`);
                         const hasContent = this.processStreamChunk(parsed, model, progress, toolCallProcessor);
-                        Logger.trace(`${model.name} processStreamChunk调用完成，返回: ${hasContent}`);
-
                         // 更新内容接收状态 - 包括usage chunk也算作有效处理
                         if (hasContent) {
                             hasReceivedContent = true;
