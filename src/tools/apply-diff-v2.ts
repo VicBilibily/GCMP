@@ -20,7 +20,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { Logger } from '../utils';
-import { ChatResponseFileModifier } from '../chat/chat-response-integrator';
 
 /**
  * 增强的 Diff 块接口
@@ -40,7 +39,7 @@ export interface DiffBlockV2 {
 }
 
 /**
- * 编辑结果接口
+ * 编辑结果接口 - 参考官方 IEditedFile 结构
  */
 export interface EditResult {
     success: boolean;
@@ -48,6 +47,22 @@ export interface EditResult {
     edits: vscode.TextEdit[];
     blocksApplied: number;
     message: string;
+    operation?: 'UPDATE' | 'CREATE' | 'DELETE';
+    existingDiagnostics?: vscode.Diagnostic[];
+    error?: string;
+}
+
+/**
+ * 工具结果文件信息 - 参考官方 EditFileResult 结构
+ */
+export interface ToolResultFile {
+    operation: 'UPDATE' | 'CREATE' | 'DELETE';
+    uri: vscode.Uri;
+    isNotebook: boolean;
+    existingDiagnostics: vscode.Diagnostic[];
+    error?: string;
+    edits?: vscode.TextEdit[];
+    blocksApplied?: number;
 }
 
 /**
@@ -58,12 +73,8 @@ export interface ApplyDiffRequestV2 {
     path: string;
     /** diff内容字符串 */
     diff: string;
-    /** 是否预览模式 */
-    preview?: boolean;
     /** 是否批量模式 */
     batch?: boolean;
-    /** 是否建议模式（返回编辑建议而不是直接应用） */
-    suggest?: boolean;
     /** 内部参数：是否在聊天上下文中（由工具调用时自动设置） */
     _inChatContext?: boolean;
     /** 聊天响应流（用于集成到聊天中） */
@@ -81,7 +92,6 @@ export interface ApplyDiffResponseV2 {
     results: EditResult[];
     totalBlocksApplied: number;
     chatIntegrated: boolean;
-    previewUri?: vscode.Uri;
 }
 
 /**
@@ -159,33 +169,35 @@ class ChatHistoryIntegrator {
     }
 
     /**
-     * 记录文件编辑到聊天历史（使用新的聊天响应集成器）
+     * 记录文件编辑到聊天历史 - 简化版本
      */
     recordFileEdit(uri: vscode.Uri, edits: vscode.TextEdit[], description: string): void {
         Logger.info(`📝 [Chat History] 记录文件编辑: ${uri.fsPath}, 编辑数: ${edits.length}, 描述: ${description}`);
 
         try {
-            // 使用新的聊天响应集成器
-            const chatResponseModifier = ChatResponseFileModifier.getInstance();
+            // 记录详细的编辑信息到内部状态
+            const editInfo = {
+                timestamp: Date.now(),
+                uri: uri.toString(),
+                editsCount: edits.length,
+                description,
+                edits: edits.map(edit => ({
+                    startLine: edit.range.start.line + 1,
+                    endLine: edit.range.end.line + 1,
+                    newText: edit.newText,
+                    operation: edit.range.isEmpty ? 'insert' : (edit.newText === '' ? 'delete' : 'replace')
+                }))
+            };
 
-            // 生成会话ID
-            const sessionId = `edit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-            // 异步在聊天窗口中显示文件修改（不阻塞当前流程）
-            chatResponseModifier.displayFileModificationInChat(uri, edits, description, sessionId)
-                .then(() => {
-                    Logger.info('💬 [Chat History] 文件修改已显示在聊天窗口');
-                })
-                .catch((error: Error) => {
-                    Logger.warn(`⚠️ [Chat History] 显示文件修改失败: ${error.message}`);
-                });
+            Logger.debug('🗂️ [Chat History] 编辑信息已记录:', JSON.stringify(editInfo, null, 2));
 
         } catch (error) {
             Logger.error(`❌ [Chat History] 记录文件编辑失败: ${error instanceof Error ? error.message : error}`);
         }
-    }    /**
-     * 标记编辑为已跟踪
-     */
+    }
+    /**
+    * 标记编辑为已跟踪
+    */
     private markEditsAsTracked(sessionId: string, uri: vscode.Uri, edits: vscode.TextEdit[]): void {
         // 在实际的聊天历史中，这些信息会通过 responseStream.textEdit() 自动记录
         // 这里我们主要用于内部状态管理和调试
@@ -204,30 +216,6 @@ class ChatHistoryIntegrator {
             this.actionEventDisposable.dispose();
         }
         this.editSessions.clear();
-    }
-}
-
-/**
- * VS Code 内置功能集成器
- */
-class VSCodeIntegrator {
-    /**
-     * 显示差异预览
-     */
-    static async showDiffPreview(originalUri: vscode.Uri, modifiedUri: vscode.Uri, title: string): Promise<void> {
-        await vscode.commands.executeCommand('vscode.diff', originalUri, modifiedUri, title);
-    }
-
-    /**
-     * 创建临时文件用于预览
-     */
-    static async createTempFileForPreview(content: string, extension: string): Promise<vscode.Uri> {
-        const tempUri = vscode.Uri.parse(`untitled:preview-${Date.now()}.${extension}`);
-        const doc = await vscode.workspace.openTextDocument(tempUri);
-        const edit = new vscode.WorkspaceEdit();
-        edit.replace(tempUri, new vscode.Range(0, 0, doc.lineCount, 0), content);
-        await vscode.workspace.applyEdit(edit);
-        return tempUri;
     }
 }
 
@@ -430,86 +418,55 @@ export class EditEngineV2 {
     private chatIntegrator = ChatHistoryIntegrator.getInstance();
 
     /**
-     * 生成编辑建议（不应用）
-     */
-    async generateEditSuggestions(uri: vscode.Uri, blocks: DiffBlockV2[]): Promise<EditResult> {
-        try {
-            const document = await vscode.workspace.openTextDocument(uri);
-
-            // 验证和预处理块
-            const validatedBlocks = await this.validateAndProcessBlocks(document, blocks);
-            if (validatedBlocks.length === 0) {
-                throw new Error('没有有效的 diff 块可以应用');
-            }
-
-            // 转换为 TextEdit 数组但不应用
-            const textEdits = this.convertBlocksToTextEdits(document, validatedBlocks);
-
-            Logger.info(`💡 [Edit Engine V2] 生成了 ${validatedBlocks.length} 个编辑建议到 ${uri.fsPath}`);
-
-            return {
-                success: true,
-                uri,
-                edits: textEdits,
-                blocksApplied: validatedBlocks.length,
-                message: `生成了 ${validatedBlocks.length} 个编辑建议`
-            };
-
-        } catch (error) {
-            Logger.error('❌ [Edit Engine V2] 生成编辑建议失败', error instanceof Error ? error : undefined);
-
-            return {
-                success: false,
-                uri,
-                edits: [],
-                blocksApplied: 0,
-                message: `生成编辑建议失败: ${error instanceof Error ? error.message : '未知错误'}`
-            };
-        }
-    }
-
-    /**
-     * 应用多个 diff 块到文件
+     * 应用多个 diff 块到文件 - 参考官方的流式反馈和诊断集成
      */
     async applyDiffBlocks(
         uri: vscode.Uri,
         blocks: DiffBlockV2[],
         options: {
-            preview?: boolean;
             sessionId?: string;
-            inChatContext?: boolean; // 是否在聊天上下文中
+            inChatContext?: boolean;
+            diagnosticsTimeout?: number; // 诊断超时时间
         } = {}
     ): Promise<EditResult> {
         try {
             const document = await vscode.workspace.openTextDocument(uri);
 
+            // 获取现有诊断信息 - 参考官方模式
+            const existingDiagnostics = vscode.languages.getDiagnostics(uri);
+            Logger.debug(`📊 [Edit Engine V2] 现有诊断数: ${existingDiagnostics.length}`);
+
             // 验证和预处理块
             const validatedBlocks = await this.validateAndProcessBlocks(document, blocks);
             if (validatedBlocks.length === 0) {
-                throw new Error('没有有效的 diff 块可以应用');
+                return {
+                    success: false,
+                    uri,
+                    edits: [],
+                    blocksApplied: 0,
+                    message: '没有有效的 diff 块可以应用',
+                    operation: 'UPDATE',
+                    existingDiagnostics,
+                    error: '验证失败：所有 diff 块都无法匹配文件内容'
+                };
             }
 
             // 转换为 TextEdit 数组
             const textEdits = this.convertBlocksToTextEdits(document, validatedBlocks);
 
-            // 预览模式
-            if (options.preview) {
-                return this.createPreviewResult(uri, textEdits, validatedBlocks.length);
-            }
-
-            // 使用更实际的聊天集成方式（通过内部记录和 VS Code 历史）
+            // 聊天上下文集成 - 参考官方的实时流式反馈
             if (options.inChatContext) {
                 Logger.info(`📝 [Chat Integration] 在聊天上下文中执行编辑: ${uri.fsPath}`);
 
                 try {
-                    // 使用内部聊天集成器记录编辑
+                    // 记录编辑到聊天历史 - 在应用之前预先记录
                     this.chatIntegrator.recordFileEdit(
                         uri,
                         textEdits,
-                        `Chat context edit: ${textEdits.length} changes applied`
+                        `Chat context edit: ${textEdits.length} changes applied via ${validatedBlocks.length} diff blocks`
                     );
 
-                    Logger.info('✅ [Chat Integration] 聊天上下文编辑记录完成');
+                    Logger.info('✅ [Chat Integration] 聊天上下文编辑已预先记录');
                 } catch (error) {
                     Logger.error(`❌ [Chat Integration] 聊天上下文编辑记录失败: ${error instanceof Error ? error.message : error}`);
                 }
@@ -521,21 +478,19 @@ export class EditEngineV2 {
                 this.chatIntegrator.recordFileEdit(uri, textEdits, `Applied ${validatedBlocks.length} diff blocks`);
 
                 // 在应用模式下自动打开修改的文件
-                if (!options.preview) {
-                    // 延迟打开文件，给工具调用结束一些时间
-                    setTimeout(async () => {
-                        try {
-                            const document = await vscode.workspace.openTextDocument(uri);
-                            await vscode.window.showTextDocument(document, {
-                                preview: false,
-                                preserveFocus: false
-                            });
-                            Logger.info(`🗺️ [File Display] 已打开修改的文件: ${vscode.workspace.asRelativePath(uri)}`);
-                        } catch (error) {
-                            Logger.warn(`ℹ️ [File Display] 无法打开文件 ${uri.fsPath}:`, error);
-                        }
-                    }, 500); // 500ms 延迟
-                }
+                // 延迟打开文件，给工具调用结束一些时间
+                setTimeout(async () => {
+                    try {
+                        const document = await vscode.workspace.openTextDocument(uri);
+                        await vscode.window.showTextDocument(document, {
+                            preview: false,
+                            preserveFocus: false
+                        });
+                        Logger.info(`🗺️ [File Display] 已打开修改的文件: ${vscode.workspace.asRelativePath(uri)}`);
+                    } catch (error) {
+                        Logger.warn(`ℹ️ [File Display] 无法打开文件 ${uri.fsPath}:`, error);
+                    }
+                }, 500); // 500ms 延迟
 
                 Logger.info(`✅ [Edit Engine V2] 成功应用 ${validatedBlocks.length} 个diff块到 ${uri.fsPath}`);
 
@@ -932,22 +887,7 @@ export class EditEngineV2 {
         }
     }
 
-    /**
-     * 创建预览结果
-     */
-    private async createPreviewResult(uri: vscode.Uri, edits: vscode.TextEdit[], blocksCount: number): Promise<EditResult> {
-        // 创建预览内容 - 应用编辑到内存中的副本来生成预览
-        const workspaceEdit = new vscode.WorkspaceEdit();
-        edits.forEach(edit => workspaceEdit.replace(uri, edit.range, edit.newText));
 
-        return {
-            success: true,
-            uri,
-            edits,
-            blocksApplied: blocksCount,
-            message: `预览模式：将应用 ${blocksCount} 个diff块`
-        };
-    }
 
     /**
      * 应用文本编辑
@@ -1031,7 +971,7 @@ export class ApplyDiffToolV2 {
      */
     async applyDiff(request: ApplyDiffRequestV2): Promise<ApplyDiffResponseV2> {
         const sessionId = `diff-session-${++this.sessionCounter}-${Date.now()}`;
-        Logger.info(`🚀 [Apply Diff V2] 开始会话 ${sessionId}: ${request.path}, 模式: ${request.suggest ? '建议' : '应用'}`);
+        Logger.info(`🚀 [Apply Diff V2] 开始会话 ${sessionId}: ${request.path}`);
 
         try {
             // 解析 diff 内容
@@ -1046,43 +986,11 @@ export class ApplyDiffToolV2 {
             // 开始编辑会话
             this.chatIntegrator.startEditSession(sessionId, [uri]);
 
-            // 在建议模式下，我们生成编辑但不应用
-            if (request.suggest) {
-                Logger.info('💡 [Apply Diff V2] 建议模式：生成编辑建议而不应用');
-
-                // 使用新的公共方法生成编辑建议
-                const result = await this.editEngine.generateEditSuggestions(uri, diffBlocks);
-
-                this.chatIntegrator.endEditSession(sessionId);
-
-                return {
-                    success: result.success,
-                    message: result.message,
-                    results: [result],
-                    totalBlocksApplied: result.blocksApplied,
-                    chatIntegrated: !!request.responseStream
-                };
-            }
-
-            // 正常应用模式
+            // 应用模式
             const result = await this.editEngine.applyDiffBlocks(uri, diffBlocks, {
-                preview: request.preview,
                 inChatContext: request._inChatContext, // 使用传递的聊天上下文参数
                 sessionId
             });
-
-            // 处理预览模式
-            if (request.preview && result.success) {
-                const previewUri = await this.createDiffPreview(uri, result.edits);
-                return {
-                    success: true,
-                    message: result.message,
-                    results: [result],
-                    totalBlocksApplied: result.blocksApplied,
-                    chatIntegrated: !!request.responseStream,
-                    previewUri
-                };
-            }
 
             // 结束编辑会话
             this.chatIntegrator.endEditSession(sessionId);
@@ -1113,46 +1021,7 @@ export class ApplyDiffToolV2 {
         }
     }
 
-    /**
-     * 创建 diff 预览
-     */
-    private async createDiffPreview(originalUri: vscode.Uri, edits: vscode.TextEdit[]): Promise<vscode.Uri> {
-        try {
-            const document = await vscode.workspace.openTextDocument(originalUri);
-            const originalContent = document.getText();
 
-            // 应用编辑到内存副本
-            let modifiedContent = originalContent;
-
-            // 按倒序应用编辑（避免位置偏移）
-            const sortedEdits = [...edits].sort((a, b) => b.range.start.line - a.range.start.line);
-
-            for (const edit of sortedEdits) {
-                const startOffset = document.offsetAt(edit.range.start);
-                const endOffset = document.offsetAt(edit.range.end);
-                modifiedContent = modifiedContent.substring(0, startOffset) +
-                    edit.newText +
-                    modifiedContent.substring(endOffset);
-            }
-
-            // 创建临时文件用于预览
-            const extension = path.extname(originalUri.fsPath).substring(1) || 'txt';
-            const modifiedUri = await VSCodeIntegrator.createTempFileForPreview(modifiedContent, extension);
-
-            // 显示 diff 预览
-            await VSCodeIntegrator.showDiffPreview(
-                originalUri,
-                modifiedUri,
-                `Diff Preview: ${path.basename(originalUri.fsPath)}`
-            );
-
-            return modifiedUri;
-
-        } catch (error) {
-            Logger.error('❌ [Apply Diff V2] 创建预览失败', error instanceof Error ? error : undefined);
-            throw error;
-        }
-    }
 
     /**
      * 解析文件路径为 URI
@@ -1205,172 +1074,123 @@ export class ApplyDiffToolV2 {
                 throw new Error('diff格式不正确，必须包含 SEARCH 和 REPLACE 标记');
             }
 
-            // 当从聊天调用时，默认使用建议模式以显示 Apply/Discard UI
-            const useSuggestMode = hasToolToken && !Object.prototype.hasOwnProperty.call(params, 'suggest') ? true : (params.suggest ?? false);
-
             const result = await this.applyDiff({
                 ...params,
-                suggest: useSuggestMode,
                 _inChatContext: hasToolToken // 传递聊天上下文信息
             });
 
-            // 构建返回结果 - 只使用 LanguageModelTextPart 避免 "Unknown part type" 错误
+            // 构建返回结果 - 参考官方的结构化响应模式
             const resultParts: vscode.LanguageModelTextPart[] = [];
+            const fileResults: ToolResultFile[] = [];
+
+            // 构建文件结果列表 - 参考官方 EditFileResult 组件结构
+            for (const editResult of result.results) {
+                const fileResult: ToolResultFile = {
+                    operation: editResult.operation || 'UPDATE',
+                    uri: editResult.uri,
+                    isNotebook: editResult.uri.path.endsWith('.ipynb'),
+                    existingDiagnostics: editResult.existingDiagnostics || [],
+                    error: editResult.error,
+                    edits: editResult.edits,
+                    blocksApplied: editResult.blocksApplied
+                };
+                fileResults.push(fileResult);
+            }
+
+            Logger.info(`📊 [Tool Invoke V2 ${invocationId}] 处理结果: 成功${result.success}, 文件数${fileResults.length}, 总块数${result.totalBlocksApplied}`);
 
             if (result.success) {
+                // 构建主要响应文本 - 参考官方的简洁格式
                 let responseText = `✅ ${result.message}`;
                 if (result.totalBlocksApplied > 0) {
-                    responseText += '\n\n📊 处理统计：';
-                    responseText += `\n- 总块数：${result.totalBlocksApplied}`;
-                    responseText += `\n- 修改文件数：${result.results.length}`;
-                    responseText += `\n- 聊天集成：${hasToolToken ? '已连接' : '独立模式'}`;
-                    responseText += `\n- 执行模式：${useSuggestMode ? '建议模式' : '直接应用'}`;
+                    responseText += '\n\n📊 **处理统计**：';
+                    responseText += `\n• **总块数**: ${result.totalBlocksApplied}`;
+                    responseText += `\n• **修改文件数**: ${result.results.length}`;
+                    responseText += `\n• **聊天集成**: ${hasToolToken ? '✅ 已连接' : '⚪ 独立模式'}`;
+
+                    // 添加诊断统计
+                    const totalDiagnostics = fileResults.reduce((sum, f) => sum + f.existingDiagnostics.length, 0);
+                    if (totalDiagnostics > 0) {
+                        responseText += `\n• **现有诊断**: ${totalDiagnostics} 项`;
+                    }
                 }
 
-                if (result.previewUri) {
-                    responseText += '\n\n🔍 已生成差异预览，请查看编辑器中的对比视图。';
-                    responseText += '\n💡 如需应用修改，请将 preview 参数设为 false 重新调用。';
+                // 直接应用模式：返回简洁的应用结果
+                if (result.results.length > 0) {
+                    const successfulEdits = result.results.filter(r => r.success);
+                    const totalEdits = successfulEdits.reduce((sum, r) => sum + r.edits.length, 0);
+
+                    if (successfulEdits.length > 0) {
+                        // 创建简洁的成功消息
+                        const modifiedFiles = successfulEdits.map(r => {
+                            const relativePath = vscode.workspace.asRelativePath(r.uri);
+                            return `• ${relativePath} (✅ ${r.edits.length} 处修改)`;
+                        });
+
+                        responseText = `✅ 文件修改已成功应用\n\n📁 已修改的文件 (${totalEdits} 处总修改):\n${modifiedFiles.join('\n')}\n\n🔄 所有修改已集成到 VS Code 编辑历史中，可以使用 Ctrl+Z 撤销。`;
+                    } else {
+                        responseText = '❌ 没有成功应用任何修改';
+                    }
 
                     resultParts.push(new vscode.LanguageModelTextPart(responseText));
-                } else if (useSuggestMode) {
-                    // 建议模式：返回详细的编辑信息而不是 ChatResponseTextEditPart
-                    responseText += '\n\n🎯 以下是建议的文件修改（详细diff格式）：';
-                    resultParts.push(new vscode.LanguageModelTextPart(responseText));
 
-                    // 为每个编辑生成详细的文本描述
-                    if (result.results.length > 0) {
-                        for (const editResult of result.results) {
-                            if (editResult.success && editResult.edits.length > 0) {
+                    // 在聊天记录中附加详细的文件修改记录 - 参考官方的 EditFileResult 格式
+                    if (successfulEdits && successfulEdits.length > 0) {
+                        for (const editResult of successfulEdits) {
+                            if (editResult.edits && editResult.edits.length > 0) {
                                 const relativePath = vscode.workspace.asRelativePath(editResult.uri);
+                                const timestamp = new Date().toLocaleTimeString();
 
-                                // 生成详细的编辑描述，包含完整的 diff 信息
-                                let editDescription = `\n## 📄 ${relativePath}\n\n`;
-                                editDescription += `**建议的修改**：${editResult.edits.length} 处变更\n\n`;
+                                // 文件修改记录头部 - 参考官方结构
+                                let fileModificationRecord = '\n---\n\n## 📝 文件修改记录\n\n';
+                                fileModificationRecord += `**📄 文件**: \`${relativePath}\`\n`;
+                                fileModificationRecord += `**⏰ 时间**: ${timestamp}\n`;
+                                fileModificationRecord += '**🔄 操作**: UPDATE (Text)\n';
+                                fileModificationRecord += `**📊 修改数**: ${editResult.edits.length} 处更改\n`;
+                                fileModificationRecord += `**🎯 diff 块数**: ${editResult.blocksApplied || 0}\n`;
+                                fileModificationRecord += '**🔧 工具**: gcmp_applyDiffV2\n';
 
-                                // 为每个编辑生成详细的 diff 格式
-                                for (let i = 0; i < editResult.edits.length; i++) {
-                                    const edit = editResult.edits[i];
+
+
+                                // 详细的编辑信息 - 参考官方的编辑详情格式
+                                fileModificationRecord += '### 📋 **修改详情**\n\n';
+                                editResult.edits.forEach((edit: vscode.TextEdit, index: number) => {
                                     const startLine = edit.range.start.line + 1;
                                     const endLine = edit.range.end.line + 1;
+                                    const lineInfo = startLine === endLine ? `行 ${startLine}` : `行 ${startLine}-${endLine}`;
 
-                                    editDescription += `### 修改 ${i + 1}: 行 ${startLine}`;
-                                    if (startLine !== endLine) {
-                                        editDescription += `-${endLine}`;
+                                    let operationType = '🔄 替换';
+                                    if (edit.newText.trim() === '') {
+                                        operationType = '🗑️ 删除';
+                                    } else if (edit.range.isEmpty) {
+                                        operationType = '➕ 插入';
                                     }
-                                    editDescription += '\n\n';
 
-                                    // 显示原始内容和新内容
-                                    try {
-                                        const document = await vscode.workspace.openTextDocument(editResult.uri);
-                                        const originalText = document.getText(edit.range);
+                                    fileModificationRecord += `**${index + 1}.** ${operationType} @ ${lineInfo}\n`;
 
-                                        editDescription += '```diff\n';
-                                        if (originalText.trim()) {
-                                            const originalLines = originalText.split('\n');
-                                            for (const line of originalLines) {
-                                                editDescription += `- ${line}\n`;
-                                            }
-                                        }
-
-                                        if (edit.newText.trim()) {
-                                            const newLines = edit.newText.split('\n');
-                                            for (const line of newLines) {
-                                                editDescription += `+ ${line}\n`;
-                                            }
-                                        }
-                                        editDescription += '```\n\n';
-
-                                    } catch {
-                                        // 如果无法读取文档，显示简化信息
-                                        editDescription += `新内容：\n\`\`\`\n${edit.newText}\n\`\`\`\n\n`;
+                                    // 显示内容摘要
+                                    if (edit.newText.length > 100) {
+                                        const summary = edit.newText.substring(0, 97) + '...';
+                                        fileModificationRecord += `   \`${summary}\`\n`;
+                                    } else if (edit.newText.trim()) {
+                                        fileModificationRecord += `   \`${edit.newText.trim()}\`\n`;
                                     }
-                                }
+                                    fileModificationRecord += '\n';
+                                });
 
-                                resultParts.push(new vscode.LanguageModelTextPart(editDescription));
+                                fileModificationRecord += '💡 **提示**: 此文件的修改已应用到编辑器，可以使用 **Ctrl+Z** 撤销。\n';
+                                fileModificationRecord += '🔗 **状态**: 已集成到 VS Code 编辑历史和聊天记录中。';
 
-                                // 记录到聊天历史
-                                if (hasToolToken) {
-                                    this.chatIntegrator.recordFileEdit(
-                                        editResult.uri,
-                                        editResult.edits,
-                                        `Edit suggestion via gcmp_applyDiffV2: ${editResult.blocksApplied} blocks`
-                                    );
-                                }
+                                // 将详细的文件修改记录添加到聊天记录中
+                                resultParts.push(new vscode.LanguageModelTextPart(fileModificationRecord));
 
-                                Logger.info(`📝 [工具调用 V2 ${invocationId}] 生成了编辑建议: ${editResult.uri.fsPath}, 编辑数: ${editResult.edits.length}`);
+                                Logger.info(`💬 [Chat Record] 详细文件修改记录已添加到聊天: ${relativePath}`);
                             }
                         }
-
-                        // 添加应用说明
-                        const instructionText = '\n💡 **如何应用这些修改**：\n' +
-                            '• 要直接应用修改，请重新调用工具并设置 `suggest: false`\n' +
-                            '• 或者复制上面的修改内容手动应用到对应文件\n' +
-                            '• 使用 VS Code 的 Git 功能查看和管理更改';
-                        resultParts.push(new vscode.LanguageModelTextPart(instructionText));
                     }
                 } else {
-                    // 直接应用模式：返回简洁的应用结果
-                    if (result.results.length > 0) {
-                        const successfulEdits = result.results.filter(r => r.success);
-                        const totalEdits = successfulEdits.reduce((sum, r) => sum + r.edits.length, 0);
-
-                        if (successfulEdits.length > 0) {
-                            // 创建简洁的成功消息
-                            const modifiedFiles = successfulEdits.map(r => {
-                                const relativePath = vscode.workspace.asRelativePath(r.uri);
-                                return `• ${relativePath} (✅ ${r.edits.length} 处修改)`;
-                            });
-
-                            responseText = `✅ 文件修改已成功应用\n\n� 已修改的文件 (${totalEdits} 处总修改):\n${modifiedFiles.join('\n')}\n\n🔄 所有修改已集成到 VS Code 编辑历史中，可以使用 Ctrl+Z 撤销。`;
-                        } else {
-                            responseText = '❌ 没有成功应用任何修改';
-                        }
-
-                        resultParts.push(new vscode.LanguageModelTextPart(responseText));
-
-                        // 🔥 关键新增：在聊天记录中附加每个文件的修改详情
-                        if (successfulEdits && successfulEdits.length > 0) {
-                            for (const editResult of successfulEdits) {
-                                if (editResult.edits.length > 0) {
-                                    const relativePath = vscode.workspace.asRelativePath(editResult.uri);
-                                    const timestamp = new Date().toLocaleTimeString();
-
-                                    let fileModificationRecord = '\n---\n\n## 📝 文件修改记录\n\n';
-                                    fileModificationRecord += `**文件**: \`${relativePath}\`  \n`;
-                                    fileModificationRecord += `**时间**: ${timestamp}  \n`;
-                                    fileModificationRecord += `**修改数**: ${editResult.edits.length} 处更改  \n`;
-                                    fileModificationRecord += '**描述**: Apply diff blocks via gcmp_applyDiffV2  \n\n';
-
-                                    // 添加每个编辑的详情
-                                    fileModificationRecord += '### 📋 修改详情\n\n';
-                                    editResult.edits.forEach((edit, index) => {
-                                        const startLine = edit.range.start.line + 1;
-                                        const endLine = edit.range.end.line + 1;
-                                        const lineInfo = startLine === endLine ? `行 ${startLine}` : `行 ${startLine}-${endLine}`;
-
-                                        fileModificationRecord += `**${index + 1}. ${lineInfo}**: `;
-                                        if (edit.newText.trim() === '') {
-                                            fileModificationRecord += '删除内容\n';
-                                        } else if (edit.range.isEmpty) {
-                                            fileModificationRecord += '插入内容\n';
-                                        } else {
-                                            fileModificationRecord += '替换内容\n';
-                                        }
-                                    });
-
-                                    fileModificationRecord += '\n💡 此文件的修改已应用，可以使用 **Ctrl+Z** 撤销。';
-
-                                    // 将文件修改记录添加到聊天记录中
-                                    resultParts.push(new vscode.LanguageModelTextPart(fileModificationRecord));
-
-                                    Logger.info(`💬 [Chat Record] 文件修改记录已添加到聊天: ${relativePath}`);
-                                }
-                            }
-                        }
-                    } else {
-                        responseText = 'ℹ️ 没有找到需要修改的内容';
-                        resultParts.push(new vscode.LanguageModelTextPart(responseText));
-                    }
+                    responseText = 'ℹ️ 没有找到需要修改的内容';
+                    resultParts.push(new vscode.LanguageModelTextPart(responseText));
                 }
             } else {
                 resultParts.push(new vscode.LanguageModelTextPart(`❌ ${result.message}`));
