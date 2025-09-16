@@ -36,8 +36,6 @@
 - **Kimi-K2-Turbo-Preview**：高速版本模型，60-100 tokens/秒输出速度（256K上下文）
 - **Kimi-K2-0711-Preview**：K2系列基础版本（128K上下文）
 
-> 🔍 **联网搜索功能**：MoonshotAI 支持 Kimi 官方内置的 `$web_search` 联网搜索工具，可以在 GCMP 设置中开启 `gcmp.moonshot.webSearch` 来获取实时信息。
-
 ### 💫 iFlow - 心流AI
 
 - **Qwen3-Coder-480B-A35B**：专业代码生成和推理模型（256K上下文）
@@ -73,8 +71,7 @@ GCMP支持通过VS Code设置来自定义AI模型的行为参数，让您获得�
   "gcmp.temperature": 0.1,
   "gcmp.topP": 1.0,  
   "gcmp.maxTokens": 8192,
-  "gcmp.contextReduction": "1x",
-  "gcmp.moonshot.webSearch": false
+  "gcmp.contextReduction": "1x"
 }
 ```
 
@@ -86,11 +83,8 @@ GCMP支持通过VS Code设置来自定义AI模型的行为参数，让您获得�
 | `gcmp.topP`                 | number  | 1.0     | 0.0-1.0                   | **输出多样性**：使用较小值会减少输出随机性，提高一致性               |
 | `gcmp.maxTokens`            | number  | 8192    | 32-32768                  | **最大输出长度**：控制AI单次响应的最大token数量                      |
 | `gcmp.contextReduction`     | string  | "1x"    | "1x", "1/2", "1/4", "1/8" | **上下文缩减**：控制模型可接受的输入上下文长度，缩减可提升响应速度 ⚠️ |
-| `gcmp.moonshot.webSearch`   | boolean | false   | true, false               | **MoonshotAI联网搜索**：启用后MoonshotAI可通过Kimi内置的 $web_search 工具获取实时信息 💡         |
 
 > ⚠️ **重要提示**：`gcmp.contextReduction` 参数修改后需要重启 VS Code 才能生效。其他参数修改会立即生效。
-
-> 💡 **联网搜索说明**：启用 `gcmp.moonshot.webSearch` 后，MoonshotAI 模型将能够自动使用 Kimi 内置的 `$web_search` 工具获取最新信息来回答问题。这是 Kimi 官方提供的内置联网搜索功能，搜索结果会计入 prompt_tokens，每次搜索额外收费 ¥0.03。
 
 ### 上下文缩减级别说明
 
@@ -115,17 +109,10 @@ GCMP支持通过VS Code设置来自定义AI模型的行为参数，让您获得�
 
 ## 🚫 未列入支持的模型供应商说明
 
-### DeepSeek
-
-DeepSeek 的 API 输出格式不完全遵循 OpenAI 标准，导致与 GitHub Copilot 集成存在兼容性问题。
-
-### 魔搭社区（ModelScope）
-
-魔搭社区平台仅适用于测试环境，不适合生产环境的长期稳定使用。
-
-### 各大云厂商（阿里云、腾讯云、百度云等）
-
-各大云厂商的AI服务费用成本较高，按量计费不适合长期频繁使用，目前优先支持有月套餐的服务商。
+- **DeepSeek** 的 API 输出格式不完全遵循 OpenAI 标准，导致与 GitHub Copilot 集成存在兼容性问题。
+- **魔搭社区（ModelScope）** 仅适用于测试环境，长期使用不太稳定。
+- **各大云厂商（阿里云、腾讯云、百度云等）** 按量计费不适合长期使用。
+> 目前优先支持有月套餐的服务商。
 
 ## 🤝 贡献指南
 

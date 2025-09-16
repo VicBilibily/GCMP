@@ -8,11 +8,23 @@ import * as vscode from 'vscode';
 /**
  * 模型配置接口 - 来自package.json
  */
+/**
+ * 自动模型配置
+ */
+export interface AutoModelConfig {
+    /** 默认模型（纯文本时使用） */
+    default: string;
+    /** 视觉模型（包含多模态数据时使用） */
+    vision: string;
+}
+
+/**
+ * 模型配置接口 - 来自package.json
+ */
 export interface ModelConfig {
     id: string;
     name: string;
     tooltip: string;
-    family: string;
     maxInputTokens: number;
     maxOutputTokens: number;
     version: string;
@@ -22,6 +34,8 @@ export interface ModelConfig {
     };
     /** 是否启用kiloCode支持 */
     kiloCode?: boolean;
+    /** 自动模式配置 - 当模型为自动模式时，根据内容自动选择目标模型 */
+    autoModel?: AutoModelConfig;
 }
 
 /**

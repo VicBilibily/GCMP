@@ -13,7 +13,7 @@ import {
     ProvideLanguageModelChatResponseOptions
 } from 'vscode';
 import { ProviderConfig, ModelConfig, KiloCodeHeaders } from '../types/sharedTypes';
-import { ApiKeyManager, Logger, ConfigManager } from '../utils';
+import { ApiKeyManager, Logger, ConfigManager, MultiModalDetector } from '../utils';
 import { OpenAIHandler } from '../openaiHandler/openaiHandler';
 
 /**
@@ -88,10 +88,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             id: model.id,
             name: `[GCMP] ${model.name}`,
             tooltip: model.tooltip,
-            family: `claude_${model.family}`, // 高效编辑工具 GHC 用 family 前缀判断
+            family: 'claude', // 高效编辑工具 GHC 用 claude 判断
             maxInputTokens: ConfigManager.getReducedInputTokenLimit(model.maxInputTokens),
             maxOutputTokens: model.maxOutputTokens,
-            version: model.version,
+            version: model.id,
             capabilities: model.capabilities
         };
 
@@ -129,6 +129,62 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         return this.providerConfig.models.map(model => this.modelConfigToInfo(model));
     }
 
+    /**
+     * 根据消息内容选择实际使用的模型
+     * 为自动模式模型提供智能选择功能
+     */
+    private selectActualModel(modelConfig: ModelConfig, messages: readonly LanguageModelChatMessage[]): ModelConfig {
+        // 检查是否为自动模式模型
+        if (!this.isAutoModeModel(modelConfig)) {
+            return modelConfig;
+        }
+
+        // 检测消息中是否包含多模态数据
+        const detectionResult = MultiModalDetector.detectInMessages(messages);
+
+        Logger.trace(`自动模式检测结果: ${JSON.stringify(detectionResult)}`);
+
+        // 根据模型配置和检测结果选择合适的模型
+        const selectedModel = this.getTargetModelForAutoMode(modelConfig, detectionResult.hasImages || detectionResult.hasMultiModal);
+
+        if (selectedModel) {
+            Logger.info(`自动模式: 由 ${modelConfig.name} 定向到 ${selectedModel.name} (检测到${detectionResult.hasImages ? '图片' : '多模态'}数据: ${detectionResult.hasImages})`);
+            return selectedModel;
+        }
+
+        Logger.warn(`自动模式: 无法为 ${modelConfig.name} 找到合适的目标模型，继续使用原模型`);
+        return modelConfig;
+    }
+
+    /**
+     * 检查是否为自动模式模型
+     * 通过配置文件中的 autoModel 字段判断
+     */
+    private isAutoModeModel(modelConfig: ModelConfig): boolean {
+        return modelConfig.autoModel !== undefined;
+    }
+
+    /**
+     * 根据自动模式模型配置和是否包含多模态数据，获取目标模型
+     */
+    private getTargetModelForAutoMode(autoModelConfig: ModelConfig, hasMultiModal: boolean): ModelConfig | null {
+        if (!autoModelConfig.autoModel) {
+            Logger.warn(`模型 ${autoModelConfig.id} 缺少 autoModel 配置`);
+            return null;
+        }
+
+        const targetId = hasMultiModal ? autoModelConfig.autoModel.vision : autoModelConfig.autoModel.default;
+        const targetModel = this.providerConfig.models.find(m => m.id === targetId);
+
+        if (!targetModel) {
+            Logger.warn(`自动模式: 未找到目标模型 ${targetId}`);
+            return null;
+        }
+
+        Logger.debug(`自动模式: ${autoModelConfig.id} -> ${targetId} (多模态: ${hasMultiModal})`);
+        return targetModel;
+    }
+
     async provideLanguageModelChatResponse(
         model: LanguageModelChatInformation,
         messages: Array<LanguageModelChatMessage>,
@@ -137,11 +193,27 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         token: CancellationToken
     ): Promise<void> {
         // 查找对应的模型配置
-        const modelConfig = this.providerConfig.models.find(m => m.id === model.id);
+        let modelConfig = this.providerConfig.models.find(m => m.id === model.id);
         if (!modelConfig) {
             const errorMessage = `未找到模型: ${model.id}`;
             Logger.error(errorMessage);
             throw new Error(errorMessage);
+        }
+
+        // 检查是否为自动模式模型，需要根据消息内容选择实际模型
+        const actualModel = this.selectActualModel(modelConfig, messages);
+        if (actualModel.id !== modelConfig.id) {
+            modelConfig = actualModel;
+            // 更新model信息以反映实际使用的模型
+            model = {
+                ...model,
+                id: actualModel.id,
+                name: `[GCMP] ${actualModel.name}`,
+                tooltip: actualModel.tooltip,
+                maxInputTokens: ConfigManager.getReducedInputTokenLimit(actualModel.maxInputTokens),
+                maxOutputTokens: actualModel.maxOutputTokens,
+                capabilities: actualModel.capabilities
+            };
         }
 
         // 确保有API密钥（最后的保险检查）
@@ -209,12 +281,5 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
             return totalTokens;
         }
-    }
-
-    /**
-     * 清理资源
-     */
-    dispose(): void {
-        // OpenAI handler会自动处理清理
     }
 }

@@ -6,3 +6,4 @@
 export { ApiKeyManager } from './apiKeyManager';
 export { Logger } from './logger';
 export { ConfigManager, type GCMPConfig } from './configManager';
+export { MultiModalDetector, type MultiModalDetectionResult } from './multiModalDetector';

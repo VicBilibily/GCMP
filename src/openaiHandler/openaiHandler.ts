@@ -7,12 +7,10 @@ import { Logger } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { MessageConverter } from './messageConverter';
-import { ErrorHandler } from './errors';
 import { ToolCallProcessor } from './toolCallProcessor';
 import {
     ChatCompletionRequest,
-    StreamResponse,
-    Tool
+    StreamResponse
 } from './types';
 
 /**
@@ -22,7 +20,6 @@ import {
 export class OpenAIHandler {
     private apiKey: string | null = null;
     private messageConverter: MessageConverter;
-    private errorHandler: ErrorHandler;
 
     constructor(
         private provider: string,
@@ -30,7 +27,6 @@ export class OpenAIHandler {
         private baseURL?: string
     ) {
         this.messageConverter = new MessageConverter();
-        this.errorHandler = new ErrorHandler(this.provider, this.displayName);
     }
 
     /**
@@ -120,27 +116,6 @@ export class OpenAIHandler {
                 requestBody.tool_choice = 'auto';
             }
 
-            // 为MoonshotAI添加联网搜索工具支持
-            if (this.provider === 'moonshot' && ConfigManager.getMoonshotWebSearchEnabled()) {
-                const webSearchTool: Tool = {
-                    type: 'builtin_function',
-                    function: {
-                        name: '$web_search'
-                    }
-                };
-
-                if (!requestBody.tools) {
-                    requestBody.tools = [];
-                }
-                requestBody.tools.push(webSearchTool);
-
-                if (!requestBody.tool_choice) {
-                    requestBody.tool_choice = 'auto';
-                }
-
-                Logger.debug(`🚀 ${model.name} 已启用Kimi内置联网搜索工具 $web_search`);
-            }
-
             Logger.info(`🚀 ${model.name} 发送 ${this.displayName} HTTP API 请求`);
 
             // 发送流式请求
@@ -210,7 +185,7 @@ export class OpenAIHandler {
             Logger.debug(`${model.name} 发送请求到: ${url.href}`);
             Logger.trace(`${model.name} 请求头:`, headers);
             Logger.trace(`${model.name} 请求体大小: ${postData.length} 字节`);
-            Logger.trace(`${model.name} 请求体内容: ${postData.substring(0, 1000)}${postData.length > 1000 ? '...' : ''}`);
+            // Logger.trace(`${model.name} 请求体内容: ${postData.substring(0, 1000)}${postData.length > 1000 ? '...' : ''}`);
 
             const options = {
                 hostname: url.hostname,
@@ -287,7 +262,7 @@ export class OpenAIHandler {
 
             const chunkStr = chunk.toString();
             Logger.debug(`${model.name} 接收到数据块: ${chunkStr.length} 字节`);
-            Logger.trace(`${model.name} 原始数据: ${chunkStr.substring(0, 500)}${chunkStr.length > 500 ? '...' : ''}`);
+            // Logger.trace(`${model.name} 原始数据: ${chunkStr.substring(0, 500)}${chunkStr.length > 500 ? '...' : ''}`);
 
             buffer += chunkStr;
             const lines = buffer.split('\n');
@@ -311,20 +286,20 @@ export class OpenAIHandler {
                     }
 
                     try {
-                        Logger.trace(`${model.name} 准备解析JSON数据: "${data.substring(0, 100)}..."`);
+                        // Logger.trace(`${model.name} 准备解析JSON数据: "${data.substring(0, 100)}..."`);
                         const parsed: StreamResponse = JSON.parse(data);
                         Logger.trace(`${model.name} JSON解析成功`);
 
                         Logger.debug(`${model.name} 接收到数据块:`, {
                             hasChoices: !!(parsed.choices && parsed.choices.length > 0),
                             choicesCount: parsed.choices?.length || 0,
-                            hasUsage: !!parsed.usage,
-                            rawData: data.substring(0, 200) + (data.length > 200 ? '...' : '')
+                            hasUsage: !!parsed.usage
+                            // rawData: data.substring(0, 200) + (data.length > 200 ? '...' : '')
                         });
 
-                        Logger.trace(`${model.name} 准备调用processStreamChunk`);
+                        // Logger.trace(`${model.name} 准备调用processStreamChunk`);
                         const hasContent = this.processStreamChunk(parsed, model, progress, toolCallProcessor);
-                        Logger.trace(`${model.name} processStreamChunk调用完成，返回: ${hasContent}`);
+                        // Logger.trace(`${model.name} processStreamChunk调用完成，返回: ${hasContent}`);
 
                         // 更新内容接收状态 - 包括usage chunk也算作有效处理
                         if (hasContent) {

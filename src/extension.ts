@@ -58,11 +58,8 @@ export function activate(context: vscode.ExtensionContext) {
         context.subscriptions.push(configDisposable);
 
         // 激活供应商
-        Logger.info('正在注册模型提供者...');
         activateProviders(context);
-
         // 注册工具
-        Logger.info('正在注册工具...');
         registerAllTools(context);
 
         Logger.info('GCMP 扩展激活完成');

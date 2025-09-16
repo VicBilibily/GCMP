@@ -143,14 +143,6 @@ export class ConfigManager {
     }
 
     /**
-     * 获取MoonshotAI联网搜索配置
-     */
-    static getMoonshotWebSearchEnabled(): boolean {
-        const config = vscode.workspace.getConfiguration(this.CONFIG_SECTION);
-        return config.get<boolean>('moonshot.webSearch', false);
-    }
-
-    /**
      * 验证温度参数
      */
     private static validateTemperature(value: number): number {
@@ -193,38 +185,6 @@ export class ConfigManager {
             return '1x';
         }
         return value as ContextReduction;
-    }
-
-    /**
-     * 设置配置值
-     * 用于程序化修改配置
-     */
-    static async setTemperature(value: number): Promise<void> {
-        const validValue = this.validateTemperature(value);
-        const config = vscode.workspace.getConfiguration(this.CONFIG_SECTION);
-        await config.update('temperature', validValue, vscode.ConfigurationTarget.Global);
-        Logger.info(`Temperature已设置为: ${validValue}`);
-    }
-
-    static async setTopP(value: number): Promise<void> {
-        const validValue = this.validateTopP(value);
-        const config = vscode.workspace.getConfiguration(this.CONFIG_SECTION);
-        await config.update('topP', validValue, vscode.ConfigurationTarget.Global);
-        Logger.info(`TopP已设置为: ${validValue}`);
-    }
-
-    static async setMaxTokens(value: number): Promise<void> {
-        const validValue = this.validateMaxTokens(value);
-        const config = vscode.workspace.getConfiguration(this.CONFIG_SECTION);
-        await config.update('maxTokens', validValue, vscode.ConfigurationTarget.Global);
-        Logger.info(`MaxTokens已设置为: ${validValue}`);
-    }
-
-    static async setContextReduction(value: ContextReduction): Promise<void> {
-        const validValue = this.validateContextReduction(value);
-        const config = vscode.workspace.getConfiguration(this.CONFIG_SECTION);
-        await config.update('contextReduction', validValue, vscode.ConfigurationTarget.Global);
-        Logger.info(`ContextReduction已设置为: ${validValue}`);
     }
 
     /**
@@ -274,14 +234,6 @@ export class ConfigManager {
     static getKiloCodeHeaders(): KiloCodeHeaders | undefined {
         const packageConfig = this.readPackageJson();
         return packageConfig.kiloCodeHeaders;
-    }
-
-    /**
-     * 清理package.json缓存
-     */
-    static clearPackageJsonCache(): void {
-        this.packageJsonCache = null;
-        Logger.trace('Package.json缓存已清除');
     }
 
     /**
