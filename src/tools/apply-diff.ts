@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Apply Diff 工具 V2
+ *  Apply Diff 工具
  *  完全重构版本 - 充分利用 VS Code 内置功能并接入聊天修改历史
  * 
  *  核心架构：
@@ -24,7 +24,7 @@ import { Logger } from '../utils';
 /**
  * 增强的 Diff 块接口
  */
-export interface DiffBlockV2 {
+export interface DiffBlock {
     id: string;
     startLine: number;
     endLine: number;
@@ -66,9 +66,9 @@ export interface ToolResultFile {
 }
 
 /**
- * Apply Diff 请求参数 V2
+ * Apply Diff 请求参数
  */
-export interface ApplyDiffRequestV2 {
+export interface ApplyDiffRequest {
     /** 目标文件路径 */
     path: string;
     /** diff内容字符串 */
@@ -84,9 +84,9 @@ export interface ApplyDiffRequestV2 {
 }
 
 /**
- * Apply Diff 响应 V2
+ * Apply Diff 响应
  */
-export interface ApplyDiffResponseV2 {
+export interface ApplyDiffResponse {
     success: boolean;
     message: string;
     results: EditResult[];
@@ -95,14 +95,14 @@ export interface ApplyDiffResponseV2 {
 }
 
 /**
- * 智能 Diff 解析器 V2
+ * 智能 Diff 解析器
  */
-export class DiffParserV2 {
+export class DiffParser {
     /**
      * 解析 diff 内容为结构化块
      */
-    static parseDiff(diffContent: string): DiffBlockV2[] {
-        const blocks: DiffBlockV2[] = [];
+    static parseDiff(diffContent: string): DiffBlock[] {
+        const blocks: DiffBlock[] = [];
 
         try {
             const lines = diffContent.split('\n');
@@ -125,11 +125,11 @@ export class DiffParserV2 {
                 }
             }
 
-            Logger.info(`📊 [Diff Parser V2] 解析完成，共 ${blocks.length} 个diff块`);
+            Logger.info(`📊 [Diff Parser] 解析完成，共 ${blocks.length} 个diff块`);
             return blocks;
 
         } catch (error) {
-            Logger.error('❌ [Diff Parser V2] 解析失败', error instanceof Error ? error : undefined);
+            Logger.error('❌ [Diff Parser] 解析失败', error instanceof Error ? error : undefined);
             return [];
         }
     }
@@ -137,7 +137,7 @@ export class DiffParserV2 {
     /**
      * 解析单个 diff 块
      */
-    private static parseDiffBlock(lines: string[], startIndex: number, blockIndex: number): { block: DiffBlockV2; endIndex: number } | null {
+    private static parseDiffBlock(lines: string[], startIndex: number, blockIndex: number): { block: DiffBlock; endIndex: number } | null {
         try {
             const blockId = `diff-block-${blockIndex}-${Date.now()}`;
             let i = startIndex + 1;
@@ -198,7 +198,7 @@ export class DiffParserV2 {
                 }
             }
 
-            const block: DiffBlockV2 = {
+            const block: DiffBlock = {
                 id: blockId,
                 startLine,
                 endLine,
@@ -208,11 +208,11 @@ export class DiffParserV2 {
                 metadata
             };
 
-            Logger.debug(`✅ [Diff Parser V2] 解析块 ${blockId}: 行${startLine}-${endLine}, 置信度${confidence}`);
+            Logger.debug(`✅ [Diff Parser] 解析块 ${blockId}: 行${startLine}-${endLine}, 置信度${confidence}`);
             return { block, endIndex: i };
 
         } catch (error) {
-            Logger.error('❌ [Diff Parser V2] 解析块失败', error instanceof Error ? error : undefined);
+            Logger.error('❌ [Diff Parser] 解析块失败', error instanceof Error ? error : undefined);
             return null;
         }
     }
@@ -220,7 +220,7 @@ export class DiffParserV2 {
     /**
      * 分析块元数据
      */
-    private static analyzeBlockMetadata(searchLines: string[], replaceLines: string[], _startLine: number, _endLine: number): DiffBlockV2['metadata'] {
+    private static analyzeBlockMetadata(searchLines: string[], replaceLines: string[], _startLine: number, _endLine: number): DiffBlock['metadata'] {
         let operation: 'replace' | 'insert' | 'delete';
 
         if (searchLines.length === 0) {
@@ -287,15 +287,15 @@ export class DiffParserV2 {
 }
 
 /**
- * 智能编辑引擎 V2
+ * 智能编辑引擎
  */
-export class EditEngineV2 {
+export class EditEngine {
     /**
      * 应用多个 diff 块到文件 - 参考官方的流式反馈和诊断集成
      */
     async applyDiffBlocks(
         uri: vscode.Uri,
-        blocks: DiffBlockV2[],
+        blocks: DiffBlock[],
         _options: {
             sessionId?: string;
             inChatContext?: boolean;
@@ -307,7 +307,7 @@ export class EditEngineV2 {
 
             // 获取现有诊断信息 - 参考官方模式
             const existingDiagnostics = vscode.languages.getDiagnostics(uri);
-            Logger.debug(`📊 [Edit Engine V2] 现有诊断数: ${existingDiagnostics.length}`);
+            Logger.debug(`📊 [Edit Engine] 现有诊断数: ${existingDiagnostics.length}`);
 
             // 验证和预处理块
             const validatedBlocks = await this.validateAndProcessBlocks(document, blocks);
@@ -346,7 +346,7 @@ export class EditEngineV2 {
                     }
                 }, 500); // 500ms 延迟
 
-                Logger.info(`✅ [Edit Engine V2] 成功应用 ${validatedBlocks.length} 个diff块到 ${uri.fsPath}`);
+                Logger.info(`✅ [Edit Engine] 成功应用 ${validatedBlocks.length} 个diff块到 ${uri.fsPath}`);
 
                 return {
                     success: true,
@@ -361,7 +361,7 @@ export class EditEngineV2 {
 
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : '未知错误';
-            Logger.error(`❌ [Edit Engine V2] 编辑失败: ${errorMessage}`, error instanceof Error ? error : undefined);
+            Logger.error(`❌ [Edit Engine] 编辑失败: ${errorMessage}`, error instanceof Error ? error : undefined);
 
             return {
                 success: false,
@@ -376,8 +376,8 @@ export class EditEngineV2 {
     /**
      * 验证和预处理 diff 块
      */
-    private async validateAndProcessBlocks(document: vscode.TextDocument, blocks: DiffBlockV2[]): Promise<DiffBlockV2[]> {
-        const validBlocks: DiffBlockV2[] = [];
+    private async validateAndProcessBlocks(document: vscode.TextDocument, blocks: DiffBlock[]): Promise<DiffBlock[]> {
+        const validBlocks: DiffBlock[] = [];
         const fileLines = document.getText().split('\n');
 
         for (const block of blocks) {
@@ -386,12 +386,12 @@ export class EditEngineV2 {
                 const adjustedBlock = await this.performSmartMatching(fileLines, block);
                 if (adjustedBlock) {
                     validBlocks.push(adjustedBlock);
-                    Logger.debug(`✅ [Edit Engine V2] 验证通过: ${block.id}`);
+                    Logger.debug(`✅ [Edit Engine] 验证通过: ${block.id}`);
                 } else {
-                    Logger.warn(`⚠️ [Edit Engine V2] 验证失败: ${block.id}`);
+                    Logger.warn(`⚠️ [Edit Engine] 验证失败: ${block.id}`);
                 }
             } catch (error) {
-                Logger.error(`❌ [Edit Engine V2] 验证块 ${block.id} 时出错`, error instanceof Error ? error : undefined);
+                Logger.error(`❌ [Edit Engine] 验证块 ${block.id} 时出错`, error instanceof Error ? error : undefined);
             }
         }
 
@@ -401,7 +401,7 @@ export class EditEngineV2 {
     /**
      * 智能内容匹配（参考官方 findAndReplaceOne 逻辑）
      */
-    private async performSmartMatching(fileLines: string[], block: DiffBlockV2): Promise<DiffBlockV2 | null> {
+    private async performSmartMatching(fileLines: string[], block: DiffBlock): Promise<DiffBlock | null> {
         // 如果是插入操作，直接返回
         if (block.searchLines.length === 0) {
             return block;
@@ -445,14 +445,14 @@ export class EditEngineV2 {
             };
         }
 
-        Logger.warn(`⚠️ [Edit Engine V2] 无法找到匹配内容: ${block.id}, 搜索内容前3行: ${block.searchLines.slice(0, 3).join('\\n')}`);
+        Logger.warn(`⚠️ [Edit Engine] 无法找到匹配内容: ${block.id}, 搜索内容前3行: ${block.searchLines.slice(0, 3).join('\\n')}`);
         return null;
     }
 
     /**
      * 基于内容的智能匹配（不依赖行号）
      */
-    private findContentMatch(fileLines: string[], block: DiffBlockV2): { startLine: number; endLine: number } | null {
+    private findContentMatch(fileLines: string[], block: DiffBlock): { startLine: number; endLine: number } | null {
         if (block.searchLines.length === 0) {
             return null;
         }
@@ -469,7 +469,7 @@ export class EditEngineV2 {
             }
 
             if (allMatch) {
-                Logger.debug(`🎯 [Edit Engine V2] 内容匹配找到位置: 行${i + 1}-${i + block.searchLines.length}`);
+                Logger.debug(`🎯 [Edit Engine] 内容匹配找到位置: 行${i + 1}-${i + block.searchLines.length}`);
                 return {
                     startLine: i + 1,
                     endLine: i + block.searchLines.length
@@ -483,7 +483,7 @@ export class EditEngineV2 {
     /**
      * 部分内容匹配（用于处理部分匹配的情况）
      */
-    private findPartialMatch(fileLines: string[], block: DiffBlockV2): { startLine: number; endLine: number } | null {
+    private findPartialMatch(fileLines: string[], block: DiffBlock): { startLine: number; endLine: number } | null {
         if (block.searchLines.length === 0) {
             return null;
         }
@@ -512,7 +512,7 @@ export class EditEngineV2 {
         }
 
         if (bestMatch.startLine > 0) {
-            Logger.debug(`🎯 [Edit Engine V2] 部分匹配找到位置: 行${bestMatch.startLine}-${bestMatch.endLine}, 匹配度${bestMatch.score}`);
+            Logger.debug(`🎯 [Edit Engine] 部分匹配找到位置: 行${bestMatch.startLine}-${bestMatch.endLine}, 匹配度${bestMatch.score}`);
             return {
                 startLine: bestMatch.startLine,
                 endLine: bestMatch.endLine
@@ -525,18 +525,18 @@ export class EditEngineV2 {
     /**
      * 精确匹配验证（改进版本，正确处理空行）
      */
-    private validateExactMatch(fileLines: string[], block: DiffBlockV2): boolean {
+    private validateExactMatch(fileLines: string[], block: DiffBlock): boolean {
         const startIdx = block.startLine - 1;
         const endIdx = block.endLine - 1;
 
         if (startIdx < 0 || endIdx >= fileLines.length || startIdx > endIdx) {
-            Logger.debug(`❌ [Edit Engine V2] 行号范围无效: ${block.startLine}-${block.endLine}, 文件行数: ${fileLines.length}`);
+            Logger.debug(`❌ [Edit Engine] 行号范围无效: ${block.startLine}-${block.endLine}, 文件行数: ${fileLines.length}`);
             return false;
         }
 
         const fileSection = fileLines.slice(startIdx, endIdx + 1);
         if (fileSection.length !== block.searchLines.length) {
-            Logger.debug(`❌ [Edit Engine V2] 行数不匹配: 文件${fileSection.length}行 vs 搜索${block.searchLines.length}行`);
+            Logger.debug(`❌ [Edit Engine] 行数不匹配: 文件${fileSection.length}行 vs 搜索${block.searchLines.length}行`);
             return false;
         }
 
@@ -546,14 +546,14 @@ export class EditEngineV2 {
             const searchLine = block.searchLines[i];
 
             if (!this.linesMatch(fileLine, searchLine)) {
-                Logger.debug(`❌ [Edit Engine V2] 第${i + 1}行不匹配:`);
+                Logger.debug(`❌ [Edit Engine] 第${i + 1}行不匹配:`);
                 Logger.debug(`   文件行: "${fileLine}" (长度${fileLine.length}, 空行:${fileLine.trim() === ''})`);
                 Logger.debug(`   搜索行: "${searchLine}" (长度${searchLine.length}, 空行:${searchLine.trim() === ''})`);
                 return false;
             }
         }
 
-        Logger.debug(`✅ [Edit Engine V2] 精确匹配成功: 行${block.startLine}-${block.endLine}`);
+        Logger.debug(`✅ [Edit Engine] 精确匹配成功: 行${block.startLine}-${block.endLine}`);
         return true;
     }
 
@@ -602,7 +602,7 @@ export class EditEngineV2 {
     /**
      * 模糊匹配查找
      */
-    private findFuzzyMatch(fileLines: string[], block: DiffBlockV2): { startLine: number; endLine: number } | null {
+    private findFuzzyMatch(fileLines: string[], block: DiffBlock): { startLine: number; endLine: number } | null {
         if (block.searchLines.length === 0) {
             return null;
         }
@@ -620,7 +620,7 @@ export class EditEngineV2 {
             // 如果匹配度超过阈值
             const matchRatio = matchScore / block.searchLines.length;
             if (matchRatio >= 0.8) {
-                Logger.debug(`🎯 [Edit Engine V2] 模糊匹配找到位置: 行${i + 1}-${i + block.searchLines.length}, 匹配度${matchRatio}`);
+                Logger.debug(`🎯 [Edit Engine] 模糊匹配找到位置: 行${i + 1}-${i + block.searchLines.length}, 匹配度${matchRatio}`);
                 return {
                     startLine: i + 1,
                     endLine: i + block.searchLines.length
@@ -634,7 +634,7 @@ export class EditEngineV2 {
     /**
      * 转换 diff 块为 TextEdit 数组（改进的实现，正确处理空行和边界情况）
      */
-    private convertBlocksToTextEdits(document: vscode.TextDocument, blocks: DiffBlockV2[]): vscode.TextEdit[] {
+    private convertBlocksToTextEdits(document: vscode.TextDocument, blocks: DiffBlock[]): vscode.TextEdit[] {
         const edits: vscode.TextEdit[] = [];
 
         // 按行号从后往前排序（避免位置偏移问题）
@@ -652,14 +652,14 @@ export class EditEngineV2 {
                         insertText
                     ));
 
-                    Logger.debug(`📝 [Edit Engine V2] 创建插入编辑: 行${block.startLine}, 内容长度${insertText.length}`);
+                    Logger.debug(`📝 [Edit Engine] 创建插入编辑: 行${block.startLine}, 内容长度${insertText.length}`);
                 } else {
                     // 替换或删除操作
                     const startLine = Math.max(0, block.startLine - 1);
                     const endLine = Math.min(block.endLine - 1, document.lineCount - 1);
 
                     if (startLine > endLine) {
-                        Logger.warn(`⚠️ [Edit Engine V2] 跳过无效行范围: ${startLine}-${endLine}`);
+                        Logger.warn(`⚠️ [Edit Engine] 跳过无效行范围: ${startLine}-${endLine}`);
                         continue;
                     }
 
@@ -673,14 +673,14 @@ export class EditEngineV2 {
                         replaceText
                     ));
 
-                    Logger.debug(`📝 [Edit Engine V2] 创建替换编辑: 行${startLine + 1}-${endLine + 1}, 替换为${replaceText.length}字符`);
+                    Logger.debug(`📝 [Edit Engine] 创建替换编辑: 行${startLine + 1}-${endLine + 1}, 替换为${replaceText.length}字符`);
                 }
             } catch (error) {
-                Logger.error(`❌ [Edit Engine V2] 处理块 ${block.id} 失败`, error instanceof Error ? error : undefined);
+                Logger.error(`❌ [Edit Engine] 处理块 ${block.id} 失败`, error instanceof Error ? error : undefined);
             }
         }
 
-        Logger.info(`📝 [Edit Engine V2] 总共创建了 ${edits.length} 个文本编辑`);
+        Logger.info(`📝 [Edit Engine] 总共创建了 ${edits.length} 个文本编辑`);
         return edits;
     }
 
@@ -722,7 +722,7 @@ export class EditEngineV2 {
     /**
      * 获取准确的结束位置（处理边界情况）
      */
-    private getEndPosition(document: vscode.TextDocument, endLine: number, _block: DiffBlockV2): vscode.Position {
+    private getEndPosition(document: vscode.TextDocument, endLine: number, _block: DiffBlock): vscode.Position {
         if (endLine >= document.lineCount) {
             // 如果超出文档范围，使用文档末尾
             const lastLine = document.lineCount - 1;
@@ -773,7 +773,7 @@ export class EditEngineV2 {
             }
 
             if (success) {
-                Logger.debug(`✅ [Edit Engine V2] 编辑成功应用到 ${uri.fsPath}`);
+                Logger.debug(`✅ [Edit Engine] 编辑成功应用到 ${uri.fsPath}`);
 
                 // 重要：确保文档状态被正确刷新，让 Copilot 能感知到变化
                 setTimeout(async () => {
@@ -791,44 +791,44 @@ export class EditEngineV2 {
                         const document = await vscode.workspace.openTextDocument(uri);
                         if (document.isDirty) {
                             await document.save();
-                            Logger.info(`💾 [Edit Engine V2] 文档已保存: ${uri.fsPath}`);
+                            Logger.info(`💾 [Edit Engine] 文档已保存: ${uri.fsPath}`);
                         }
 
                     } catch (refreshError) {
-                        Logger.warn(`⚠️ [Edit Engine V2] 文档后处理失败: ${refreshError instanceof Error ? refreshError.message : refreshError}`);
+                        Logger.warn(`⚠️ [Edit Engine] 文档后处理失败: ${refreshError instanceof Error ? refreshError.message : refreshError}`);
                     }
                 }, 100);
 
                 return true;
             } else {
-                Logger.error(`❌ [Edit Engine V2] 编辑应用失败到 ${uri.fsPath}`);
+                Logger.error(`❌ [Edit Engine] 编辑应用失败到 ${uri.fsPath}`);
                 return false;
             }
 
         } catch (error) {
-            Logger.error('❌ [Edit Engine V2] 应用编辑失败', error instanceof Error ? error : undefined);
+            Logger.error('❌ [Edit Engine] 应用编辑失败', error instanceof Error ? error : undefined);
             return false;
         }
     }
 }
 
 /**
- * Apply Diff 工具 V2 主类
+ * Apply Diff 工具 主类
  */
-export class ApplyDiffToolV2 {
-    private editEngine = new EditEngineV2();
+export class ApplyDiffTool {
+    private editEngine = new EditEngine();
     private sessionCounter = 0;
 
     /**
      * 应用 diff
      */
-    async applyDiff(request: ApplyDiffRequestV2): Promise<ApplyDiffResponseV2> {
+    async applyDiff(request: ApplyDiffRequest): Promise<ApplyDiffResponse> {
         const sessionId = `diff-session-${++this.sessionCounter}-${Date.now()}`;
-        Logger.info(`🚀 [Apply Diff V2] 开始会话 ${sessionId}: ${request.path}`);
+        Logger.info(`🚀 [Apply Diff] 开始会话 ${sessionId}: ${request.path}`);
 
         try {
             // 解析 diff 内容
-            const diffBlocks = DiffParserV2.parseDiff(request.diff);
+            const diffBlocks = DiffParser.parseDiff(request.diff);
             if (diffBlocks.length === 0) {
                 throw new Error('未找到有效的diff块');
             }
@@ -842,7 +842,7 @@ export class ApplyDiffToolV2 {
                 sessionId
             });
 
-            Logger.info(`✅ [Apply Diff V2] 会话 ${sessionId} 完成`);
+            Logger.info(`✅ [Apply Diff] 会话 ${sessionId} 完成`);
 
             return {
                 success: result.success,
@@ -854,7 +854,7 @@ export class ApplyDiffToolV2 {
 
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : '未知错误';
-            Logger.error(`❌ [Apply Diff V2] 会话 ${sessionId} 失败: ${errorMessage}`, error instanceof Error ? error : undefined);
+            Logger.error(`❌ [Apply Diff] 会话 ${sessionId} 失败: ${errorMessage}`, error instanceof Error ? error : undefined);
 
             return {
                 success: false,
@@ -887,24 +887,24 @@ export class ApplyDiffToolV2 {
     /**
      * 工具调用处理器
      */
-    async invoke(request: vscode.LanguageModelToolInvocationOptions<ApplyDiffRequestV2>): Promise<vscode.LanguageModelToolResult> {
+    async invoke(request: vscode.LanguageModelToolInvocationOptions<ApplyDiffRequest>): Promise<vscode.LanguageModelToolResult> {
         const invocationId = Math.random().toString(36).substr(2, 9);
-        Logger.info(`🚀 [Tool Invoke V2 ${invocationId}] Apply Diff V2 工具被调用`);
+        Logger.info(`🚀 [Tool Invoke ${invocationId}] Apply Diff 工具被调用`);
 
         // 检查是否在聊天上下文中（通过 toolInvocationToken 检查）
         const hasToolToken = !!request.toolInvocationToken;
-        Logger.info(`🔗 [Tool Invoke V2 ${invocationId}] 聊天上下文: ${hasToolToken}`);
+        Logger.info(`🔗 [Tool Invoke ${invocationId}] 聊天上下文: ${hasToolToken}`);
 
         // Language Model Tools 不能直接访问 ChatResponseStream
         // 但我们可以通过其他方式实现聊天集成
         if (hasToolToken) {
-            Logger.info('✅ [Tool Invoke V2] 在聊天上下文中执行，将启用内部聊天集成');
+            Logger.info('✅ [Tool Invoke] 在聊天上下文中执行，将启用内部聊天集成');
         } else {
-            Logger.info('💻 [Tool Invoke V2] 在独立上下文中执行');
+            Logger.info('💻 [Tool Invoke] 在独立上下文中执行');
         }
 
         try {
-            const params = request.input as ApplyDiffRequestV2;
+            const params = request.input as ApplyDiffRequest;
 
             // 参数验证
             if (!params.path) {
@@ -942,7 +942,7 @@ export class ApplyDiffToolV2 {
                 fileResults.push(fileResult);
             }
 
-            Logger.info(`📊 [Tool Invoke V2 ${invocationId}] 处理结果: 成功${result.success}, 文件数${fileResults.length}, 总块数${result.totalBlocksApplied}`);
+            Logger.info(`📊 [Tool Invoke ${invocationId}] 处理结果: 成功${result.success}, 文件数${fileResults.length}, 总块数${result.totalBlocksApplied}`);
 
             if (result.success) {
                 // 构建主要响应文本 - 参考官方的简洁格式
@@ -993,7 +993,7 @@ export class ApplyDiffToolV2 {
                                 fileModificationRecord += '**🔄 操作**: UPDATE (Text)\n';
                                 fileModificationRecord += `**📊 修改数**: ${editResult.edits.length} 处更改\n`;
                                 fileModificationRecord += `**🎯 diff 块数**: ${editResult.blocksApplied || 0}\n`;
-                                fileModificationRecord += '**🔧 工具**: gcmp_applyDiffV2\n';
+                                fileModificationRecord += '**🔧 工具**: gcmp_applyDiff\n';
 
 
 
@@ -1041,15 +1041,15 @@ export class ApplyDiffToolV2 {
                 resultParts.push(new vscode.LanguageModelTextPart(`❌ ${result.message}`));
             }
 
-            Logger.info(`✅ [Tool Invoke V2 ${invocationId}] Apply Diff V2 工具调用成功, 返回部分数: ${resultParts.length}`);
+            Logger.info(`✅ [Tool Invoke ${invocationId}] Apply Diff 工具调用成功, 返回部分数: ${resultParts.length}`);
 
             // 使用正确的类型声明
             return new vscode.LanguageModelToolResult(resultParts);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : '未知错误';
-            Logger.error(`❌ [Tool Invoke V2 ${invocationId}] Apply Diff V2 工具调用失败: ${errorMessage}`, error instanceof Error ? error : undefined);
+            Logger.error(`❌ [Tool Invoke ${invocationId}] Apply Diff 工具调用失败: ${errorMessage}`, error instanceof Error ? error : undefined);
 
-            throw new vscode.LanguageModelError(`Apply Diff V2 失败: ${errorMessage}`);
+            throw new vscode.LanguageModelError(`Apply Diff 失败: ${errorMessage}`);
         }
     }
 
@@ -1057,6 +1057,12 @@ export class ApplyDiffToolV2 {
      * 释放资源
      */
     dispose(): void {
-        Logger.debug('🧹 [Apply Diff V2] 工具资源已清理');
+        Logger.debug('🧹 [Apply Diff] 工具资源已清理');
     }
 }
+
+
+
+
+
+

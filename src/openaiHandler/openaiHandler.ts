@@ -120,6 +120,48 @@ export class OpenAIHandler {
                 requestBody.tool_choice = 'auto';
             }
 
+            // 为启用的模型添加Apply Diff工具支持
+            if (model.capabilities?.toolCalling && ConfigManager.getApplyDiffEnabled()) {
+                // 构造Apply Diff工具定义
+                const applyDiffTool: Tool = {
+                    type: 'function',
+                    function: {
+                        name: 'gcmp_applyDiff',
+                        description: '**精准文件修改工具** - 基于 VS Code 深度集成的文件修改工具，具有聊天修改历史追踪、智能内容匹配和增强预览功能。使用标准的 SEARCH/REPLACE 格式，支持行号指定和智能匹配。',
+                        parameters: {
+                            type: 'object',
+                            properties: {
+                                path: {
+                                    type: 'string',
+                                    description: '目标文件路径（绝对路径或相对于工作区的路径）'
+                                },
+                                diff: {
+                                    type: 'string',
+                                    description: 'diff修改内容，使用增强的SEARCH/REPLACE格式'
+                                },
+                                batch: {
+                                    type: 'boolean',
+                                    description: '批量模式：优化多文件或大量修改的处理性能',
+                                    default: false
+                                }
+                            },
+                            required: ['path', 'diff']
+                        }
+                    }
+                };
+
+                if (!requestBody.tools) {
+                    requestBody.tools = [];
+                }
+                requestBody.tools.push(applyDiffTool);
+
+                if (!requestBody.tool_choice) {
+                    requestBody.tool_choice = 'auto';
+                }
+
+                Logger.debug(`🔧 ${model.name} 已启用Apply Diff工具 gcmp_applyDiff`);
+            }
+
             // 为MoonshotAI添加联网搜索工具支持
             if (this.provider === 'moonshot' && ConfigManager.getMoonshotWebSearchEnabled()) {
                 const webSearchTool: Tool = {

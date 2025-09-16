@@ -34,8 +34,7 @@
     "icon": "./gcmp-logo.png",
     "main": "./dist/extension.js",
     "enabledApiProposals": [
-        "chatProvider",
-        "textDocumentChangeReason"
+        "chatProvider"
     ],
     "activationEvents": [
         "onStartupFinished",
@@ -43,7 +42,7 @@
         "onLanguageModelProvider:gcmp.moonshot",
         "onLanguageModelProvider:gcmp.iflow",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
-        "onLanguageModelTool:gcmp_applyDiffV2"
+        "onLanguageModelTool:gcmp_applyDiff"
     ],
     "contributes": {
         "commands": [
@@ -61,56 +60,6 @@
                 "command": "gcmp.iflow.setApiKey",
                 "title": "设置 心流AI API密钥",
                 "category": "GCMP"
-            },
-            {
-                "command": "gcmp.applyDiff",
-                "title": "应用 Diff",
-                "category": "GCMP",
-                "icon": "$(diff)"
-            },
-            {
-                "command": "gcmp.previewDiff",
-                "title": "预览 Diff",
-                "category": "GCMP",
-                "icon": "$(preview)"
-            },
-            {
-                "command": "gcmp.applyDiffV2.demo",
-                "title": "Apply Diff V2 演示",
-                "category": "GCMP",
-                "icon": "$(rocket)"
-            },
-            {
-                "command": "gcmp.applyDiffV2.createTest",
-                "title": "创建测试 Diff",
-                "category": "GCMP",
-                "icon": "$(diff-added)"
-            },
-            {
-                "command": "gcmp.tools.diagnostic",
-                "title": "工具诊断",
-                "category": "GCMP",
-                "icon": "$(pulse)"
-            },
-            {
-                "command": "gcmp.applyDiffV2.createEmptyLineTest",
-                "title": "创建空行测试文件",
-                "category": "GCMP",
-                "icon": "$(test-view-icon)"
-            },
-            {
-                "command": "gcmp.applyDiffFromClipboard",
-                "title": "从剪贴板应用 Diff",
-                "category": "GCMP",
-                "icon": "$(clippy)"
-            },
-            {
-                "command": "gcmp.showChatModificationHistory",
-                "title": "GCMP: 显示聊天修改历史"
-            },
-            {
-                "command": "gcmp.clearChatModificationHistory",
-                "title": "GCMP: 清理聊天修改历史"
             }
         ],
         "configuration": {
@@ -167,13 +116,7 @@
                 "gcmp.applyDiff.enabled": {
                     "type": "boolean",
                     "default": false,
-                    "description": "启用 Apply Diff 工具 (V1)。此工具允许 AI 模型精准应用 diff 格式的文件修改，包含文件备份和回滚机制。出于安全考虑，默认禁用。",
-                    "scope": "application"
-                },
-                "gcmp.applyDiff.v2Enabled": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "启用 Apply Diff V2 工具。全新重构版本，具有更好的 VS Code 集成、聊天修改历史跟踪、智能预览等功能。推荐使用。",
+                    "description": "启用 Apply Diff 工具。此工具允许 AI 模型精准应用 diff 格式的文件修改，具有 VS Code 深度集成、聊天修改历史跟踪、智能预览等功能。出于安全考虑，此功能默认关闭。",
                     "scope": "application"
                 }
             }
@@ -266,11 +209,11 @@
                 "canBeReferencedInPrompt": true
             },
             {
-                "name": "gcmp_applyDiffV2",
-                "displayName": "应用 Diff 修改 V2",
-                "toolReferenceName": "applyDiffV2",
-                "modelDescription": "**新一代精准文件修改工具** - 基于 VS Code 深度集成重构的文件修改工具，具有聊天修改历史追踪、智能内容匹配和增强预览功能。\n\n**主要优势**：\n- **VS Code 原生集成**：完美融入编辑器，支持撤销/重做\n- **聊天历史追踪**：自动记录到聊天修改历史\n- **智能匹配**：支持精确匹配和模糊匹配\n- **实时预览**：使用 VS Code 内置 diff 查看器\n- **批量操作**：高效处理多个修改块\n- **安全机制**：增强的错误处理和恢复\n\n**何时使用**：\n- 需要对代码进行精确修改和重构\n- 要求修改历史可追踪和可撤销\n- 处理复杂的多块文件修改\n- 需要智能内容匹配的场景\n\n**格式要求**：使用标准的 SEARCH/REPLACE 格式，支持行号指定和智能匹配。推荐使用此 V2 版本以获得最佳体验。",
-                "userDescription": "新一代智能文件修改工具，具有 VS Code 深度集成、聊天历史追踪和智能预览功能",
+                "name": "gcmp_applyDiff",
+                "displayName": "应用 Diff 修改",
+                "toolReferenceName": "applyDiff",
+                "modelDescription": "**精准文件修改工具** - 基于 VS Code 深度集成的文件修改工具，具有聊天修改历史追踪、智能内容匹配和增强预览功能。\n\n**主要优势**：\n- **VS Code 原生集成**：完美融入编辑器，支持撤销/重做\n- **聊天历史追踪**：自动记录到聊天修改历史\n- **智能匹配**：支持精确匹配和模糊匹配\n- **实时预览**：使用 VS Code 内置 diff 查看器\n- **批量操作**：高效处理多个修改块\n- **安全机制**：增强的错误处理和恢复\n\n**何时使用**：\n- 需要对代码进行精确修改和重构\n- 要求修改历史可追踪和可撤销\n- 处理复杂的多块文件修改\n- 需要智能内容匹配的场景\n\n**格式要求**：使用标准的 SEARCH/REPLACE 格式，支持行号指定和智能匹配。",
+                "userDescription": "智能文件修改工具，具有 VS Code 深度集成、聊天历史追踪和智能预览功能",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -293,7 +236,7 @@
                         "diff"
                     ]
                 },
-                "canBeReferencedInPrompt": true
+                "canBeReferencedInPrompt": false
             }
         ]
     },

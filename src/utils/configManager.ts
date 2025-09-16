@@ -151,6 +151,14 @@ export class ConfigManager {
     }
 
     /**
+     * 获取Apply Diff工具启用状态
+     */
+    static getApplyDiffEnabled(): boolean {
+        const config = vscode.workspace.getConfiguration(this.CONFIG_SECTION);
+        return config.get<boolean>('applyDiff.enabled', true);
+    }
+
+    /**
      * 验证温度参数
      */
     private static validateTemperature(value: number): number {
