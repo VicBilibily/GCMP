@@ -7,7 +7,6 @@ import { Logger } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { MessageConverter } from './messageConverter';
-import { ErrorHandler } from './errors';
 import { ToolCallProcessor } from './toolCallProcessor';
 import { ChatCompletionRequest, StreamResponse } from './types';
 
@@ -18,7 +17,6 @@ import { ChatCompletionRequest, StreamResponse } from './types';
 export class OpenAIHandler {
     private apiKey: string | null = null;
     private messageConverter: MessageConverter;
-    private errorHandler: ErrorHandler;
 
     constructor(
         private provider: string,
@@ -26,7 +24,6 @@ export class OpenAIHandler {
         private baseURL?: string
     ) {
         this.messageConverter = new MessageConverter();
-        this.errorHandler = new ErrorHandler(this.provider, this.displayName);
     }
 
     /**

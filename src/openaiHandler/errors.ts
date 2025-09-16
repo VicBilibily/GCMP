@@ -100,14 +100,4 @@ export class ErrorHandler {
         // 直接抛出异常，让VS Code处理重试
         throw error instanceof Error ? error : new Error(errorMessage);
     }
-
-    /**
-     * 创建标准的OpenAI响应错误
-     */
-    static createOpenAIError(error: unknown): Error {
-        if (error instanceof Error) {
-            return error;
-        }
-        return new Error(String(error));
-    }
 }
