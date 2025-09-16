@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { Logger } from '../utils';
 import { ZhipuSearchTool } from './zhipu-search';
-import { ApplyDiffTool } from './apply-diff';
+import { DiffExtendedTool } from './diff-extended-tool';
 
 /**
  * 注册所有工具
@@ -23,13 +23,13 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
         context.subscriptions.push(zhipuToolDisposable);
         Logger.info('✅ [工具注册] 智谱AI搜索工具已注册: gcmp_zhipuWebSearch');
 
-        // 注册Apply Diff工具
-        const applyDiffTool = new ApplyDiffTool();
-        const applyDiffDisposable = vscode.lm.registerTool('gcmp_applyDiff', {
-            invoke: applyDiffTool.invoke.bind(applyDiffTool)
+        // 注册Diff Extended工具
+        const diffExtendedTool = new DiffExtendedTool();
+        const diffExtendedDisposable = vscode.lm.registerTool('gcmp_diffExtended', {
+            invoke: diffExtendedTool.invoke.bind(diffExtendedTool)
         });
-        context.subscriptions.push(applyDiffDisposable);
-        Logger.info('✅ [工具注册] Apply Diff 工具已注册: gcmp_applyDiff');
+        context.subscriptions.push(diffExtendedDisposable);
+        Logger.info('✅ [工具注册] Diff Extended 工具已注册: gcmp_diffExtended');
 
         Logger.info('🎉 [工具注册] 所有工具注册完成');
     } catch (error) {

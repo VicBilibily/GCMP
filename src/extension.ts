@@ -5,6 +5,7 @@ import { GenericModelProvider } from './providers/genericModelProvider';
 import { Logger } from './utils/logger';
 import { ApiKeyManager, ConfigManager } from './utils';
 import { registerAllTools } from './tools';
+import { ChatDiffIntegration, activateChatDiffIntegration } from './tools/chat-diff-integration';
 
 /**
  * 激活供应商 - 基于配置文件动态注册
@@ -64,6 +65,11 @@ export function activate(context: vscode.ExtensionContext) {
         // 注册工具
         Logger.info('正在注册工具...');
         registerAllTools(context);
+
+        // 注册聊天 diff 扩展处理器
+        Logger.info('正在注册聊天 diff 扩展处理器...');
+        const chatDiffIntegration = activateChatDiffIntegration(context);
+        context.subscriptions.push({ dispose: () => chatDiffIntegration.dispose() });
 
         Logger.info('✅ GCMP 扩展激活完成');
     } catch (error) {

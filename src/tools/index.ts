@@ -3,5 +3,5 @@
  *--------------------------------------------------------------------------------------------*/
 
 export { ZhipuSearchTool } from './zhipu-search';
-export { ApplyDiffTool } from './apply-diff';
+export { DiffExtendedTool } from './diff-extended-tool';
 export { registerAllTools } from './registry';
