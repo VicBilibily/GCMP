@@ -9,7 +9,6 @@ import { ApiKeyManager } from '../utils/apiKeyManager';
 import { MessageConverter } from './messageConverter';
 import { ErrorHandler } from './errors';
 import { ToolCallProcessor } from './toolCallProcessor';
-import { ToolManager } from './toolManager';
 import { ChatCompletionRequest, StreamResponse } from './types';
 
 /**
@@ -114,15 +113,6 @@ export class OpenAIHandler {
                 if (options.tools && options.tools.length > 0) {
                     requestBody.tools = this.messageConverter.convertToolsToOpenAI([...options.tools]);
                     requestBody.tool_choice = 'auto';
-                }
-
-                // 使用ToolManager添加其他工具
-                ToolManager.addToolsToRequest(requestBody, model, options, this.provider);
-
-                // 输出工具统计信息
-                const toolsStats = ToolManager.getToolsStats(requestBody.tools);
-                if (toolsStats.count > 0) {
-                    Logger.info(`🔧 ${model.name} 已添加 ${toolsStats.count} 个工具: ${toolsStats.types.join(', ')}`);
                 }
             }
 

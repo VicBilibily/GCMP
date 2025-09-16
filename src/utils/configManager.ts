@@ -142,21 +142,9 @@ export class ConfigManager {
         return Math.floor(modelMaxInputTokens * reductionRatio);
     }
 
-    /**
-     * 获取MoonshotAI联网搜索配置
-     */
-    static getMoonshotWebSearchEnabled(): boolean {
-        const config = vscode.workspace.getConfiguration(this.CONFIG_SECTION);
-        return config.get<boolean>('moonshot.webSearch', false);
-    }
 
-    /**
-     * 获取Apply Diff工具启用状态
-     */
-    static getApplyDiffEnabled(): boolean {
-        const config = vscode.workspace.getConfiguration(this.CONFIG_SECTION);
-        return config.get<boolean>('applyDiff.enabled', true);
-    }
+
+
 
     /**
      * 验证温度参数

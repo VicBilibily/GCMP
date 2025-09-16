@@ -8,53 +8,6 @@ import { Logger } from '../utils';
 import { ZhipuSearchTool } from './zhipu-search';
 import { ApplyDiffTool } from './apply-diff';
 
-// 保存工具注册的 disposable 引用
-let applyDiffDisposable: vscode.Disposable | undefined;
-let applyDiffToolInstance: ApplyDiffTool | undefined;
-
-
-
-/**
- * 注册或注销 Apply Diff 工具
- */
-function toggleApplyDiffTool(context: vscode.ExtensionContext, enabled: boolean): void {
-    Logger.info(`🔧 [工具注册] toggleApplyDiffTool 被调用，enabled=${enabled}, 当前状态: ${applyDiffDisposable ? '已注册' : '未注册'}`);
-
-    if (enabled && !applyDiffDisposable) {
-        try {
-            // 注册工具
-            Logger.info('🔧 [工具注册] 开始创建 ApplyDiffTool 实例...');
-            applyDiffToolInstance = new ApplyDiffTool();
-            Logger.info('✅ [工具注册] ApplyDiffTool 实例创建成功');
-
-            Logger.info('🔧 [工具注册] 开始注册 gcmp_applyDiff 工具...');
-            applyDiffDisposable = vscode.lm.registerTool('gcmp_applyDiff', {
-                invoke: applyDiffToolInstance.invoke.bind(applyDiffToolInstance)
-            });
-
-            context.subscriptions.push(applyDiffDisposable);
-            Logger.info('✅ [工具注册] Apply Diff 工具已注册: gcmp_applyDiff');
-        } catch (error) {
-            Logger.error('❌ [工具注册] Apply Diff 工具注册失败', error instanceof Error ? error : undefined);
-            throw error;
-        }
-    } else if (!enabled && applyDiffDisposable) {
-        // 注销工具
-        applyDiffDisposable.dispose();
-        applyDiffDisposable = undefined;
-
-        // 清理工具实例资源
-        if (applyDiffToolInstance) {
-            applyDiffToolInstance.dispose();
-            applyDiffToolInstance = undefined;
-        }
-
-        Logger.info('❌ [工具注册] Apply Diff 工具已注销: gcmp_applyDiff');
-    } else {
-        Logger.info(`ℹ️ [工具注册] toggleApplyDiffTool 无操作: enabled=${enabled}, 当前状态=${applyDiffDisposable ? '已注册' : '未注册'}`);
-    }
-}
-
 /**
  * 注册所有工具
  */
@@ -62,51 +15,23 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
     Logger.info('🔧 [工具注册] 开始注册所有工具');
 
     try {
-        // 检查 vscode.lm.registerTool 是否可用
-        if (!vscode.lm || !vscode.lm.registerTool) {
-            Logger.error('❌ [工具注册] vscode.lm.registerTool API 不可用，请检查 VS Code 版本和 API 提案配置');
-            throw new Error('vscode.lm.registerTool API 不可用');
-        }
-
-        Logger.info('✅ [工具注册] vscode.lm.registerTool API 可用');
-
         // 注册智谱AI搜索工具
         const zhipuSearchTool = new ZhipuSearchTool();
-
         const zhipuToolDisposable = vscode.lm.registerTool('gcmp_zhipuWebSearch', {
             invoke: zhipuSearchTool.invoke.bind(zhipuSearchTool)
         });
-
         context.subscriptions.push(zhipuToolDisposable);
         Logger.info('✅ [工具注册] 智谱AI搜索工具已注册: gcmp_zhipuWebSearch');
 
-        // 检查是否启用Apply Diff工具
-        const config = vscode.workspace.getConfiguration('gcmp');
-        const isApplyDiffEnabled = config.get<boolean>('applyDiff.enabled', true); // 默认启用
-
-        Logger.info(`🔧 [工具注册] Apply Diff工具配置状态: ${isApplyDiffEnabled ? '启用' : '禁用'}`);
-
-        // 初始注册状态
-        if (isApplyDiffEnabled) {
-            toggleApplyDiffTool(context, true);
-        } else {
-            Logger.info('ℹ️ [工具注册] Apply Diff工具已禁用，跳过注册 (可在设置中启用: gcmp.applyDiff.enabled)');
-        }
-
-        // 监听配置变更
-        const configChangeDisposable = vscode.workspace.onDidChangeConfiguration(event => {
-            if (event.affectsConfiguration('gcmp.applyDiff.enabled')) {
-                const newConfig = vscode.workspace.getConfiguration('gcmp');
-                const newEnabled = newConfig.get<boolean>('applyDiff.enabled', true);
-                Logger.info(`🔄 [工具注册] Apply Diff工具配置变更: ${newEnabled ? '启用' : '禁用'}`);
-                toggleApplyDiffTool(context, newEnabled);
-            }
+        // 注册Apply Diff工具
+        const applyDiffTool = new ApplyDiffTool();
+        const applyDiffDisposable = vscode.lm.registerTool('gcmp_applyDiff', {
+            invoke: applyDiffTool.invoke.bind(applyDiffTool)
         });
-
-        context.subscriptions.push(configChangeDisposable);
+        context.subscriptions.push(applyDiffDisposable);
+        Logger.info('✅ [工具注册] Apply Diff 工具已注册: gcmp_applyDiff');
 
         Logger.info('🎉 [工具注册] 所有工具注册完成');
-
     } catch (error) {
         Logger.error('❌ [工具注册] 工具注册失败', error instanceof Error ? error : undefined);
         throw error;

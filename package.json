@@ -106,18 +106,6 @@
                     ],
                     "description": "控制AI模型可接受的上下文长度。缩减上下文可以提升处理效率，专注于更相关的信息，但可能影响模型对长对话历史的理解能力。修改此设置需要重启 VS Code 生效。",
                     "scope": "window"
-                },
-                "gcmp.moonshot.webSearch": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "为 MoonshotAI 模型启用 Kimi 内置的 $web_search 联网搜索工具。开启后，AI 将能够通过官方内置工具获取实时信息来回答问题。注意：搜索结果会计入 prompt_tokens，每次搜索额外收费 ¥0.03。",
-                    "scope": "application"
-                },
-                "gcmp.applyDiff.enabled": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "启用 Apply Diff 工具。此工具允许 AI 模型精准应用 diff 格式的文件修改，具有 VS Code 深度集成、聊天修改历史跟踪、智能预览等功能。出于安全考虑，此功能默认关闭。",
-                    "scope": "application"
                 }
             }
         },
@@ -204,6 +192,36 @@
                     },
                     "required": [
                         "search_query"
+                    ]
+                },
+                "canBeReferencedInPrompt": true
+            },
+            {
+                "name": "gcmp_applyDiff",
+                "displayName": "应用 Diff 修改",
+                "toolReferenceName": "applyDiff",
+                "modelDescription": "**精准文件修改工具** - 基于 VS Code 深度集成的文件修改工具，具有聊天修改历史追踪、智能内容匹配和增强预览功能。\n\n**主要优势**：\n- **VS Code 原生集成**：完美融入编辑器，支持撤销/重做\n- **聊天历史追踪**：自动记录到聊天修改历史\n- **智能匹配**：支持精确匹配和模糊匹配\n- **实时预览**：使用 VS Code 内置 diff 查看器\n- **批量操作**：高效处理多个修改块\n- **安全机制**：增强的错误处理和恢复\n\n**何时使用**：\n- 需要对代码进行精确修改和重构\n- 要求修改历史可追踪和可撤销\n- 处理复杂的多块文件修改\n- 需要智能内容匹配的场景\n\n**格式要求**：使用标准的 SEARCH/REPLACE 格式，支持行号指定和智能匹配。",
+                "userDescription": "智能文件修改工具，具有 VS Code 深度集成、聊天历史追踪和智能预览功能",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "目标文件路径（绝对路径或相对于工作区的路径）。支持智能路径解析和自动工作区检测。"
+                        },
+                        "diff": {
+                            "type": "string",
+                            "description": "diff修改内容，使用增强的SEARCH/REPLACE格式：\n\n基本格式：\n<<<<<<< SEARCH\n:start_line:起始行号\n:end_line:结束行号\n-------\n要查找的原始内容（支持智能匹配）\n=======\n替换后的新内容\n>>>>>>> REPLACE\n\n增强特性：\n- **智能匹配**：自动处理空格、缩进差异\n- **置信度评估**：自动评估匹配可靠性\n- **语言检测**：自动识别编程语言\n- **多块支持**：单个 diff 中支持多个 SEARCH/REPLACE 块\n- **插入操作**：支持在文件开头或指定位置插入内容\n\n重要提示：\n- 行号从1开始，支持智能行号调整\n- 原始内容支持模糊匹配和精确匹配\n- 自动语法验证和错误恢复"
+                        },
+                        "batch": {
+                            "type": "boolean",
+                            "description": "批量模式：优化多文件或大量修改的处理性能。适用于重构或批量更新场景。",
+                            "default": false
+                        }
+                    },
+                    "required": [
+                        "path",
+                        "diff"
                     ]
                 },
                 "canBeReferencedInPrompt": true
