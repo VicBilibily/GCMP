@@ -13,9 +13,14 @@
 				"--extensionDevelopmentPath=${workspaceFolder}"
 			],
 			"outFiles": [
-				"${workspaceFolder}/extension.js"
+				"${workspaceFolder}/dist/**/*.js"
 			],
-			"preLaunchTask": "${defaultBuildTask}"
+			"preLaunchTask": "${defaultBuildTask}",
+			"sourceMaps": true,
+			"smartStep": true,
+			"skipFiles": [
+				"<node_internals>/**"
+			]
 		},
 		{
 			"name": "Extension Tests",
@@ -23,13 +28,17 @@
 			"request": "launch",
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
-				"--extensionTestsPath=${workspaceFolder}/test/suite/index"
+				"--extensionTestsPath=${workspaceFolder}/dist/test/suite/index"
 			],
 			"outFiles": [
-				"${workspaceFolder}/**/*.js",
 				"${workspaceFolder}/dist/**/*.js"
 			],
-			"preLaunchTask": "tasks: watch-tests"
+			"preLaunchTask": "tasks: watch-tests",
+			"sourceMaps": true,
+			"smartStep": true,
+			"skipFiles": [
+				"<node_internals>/**"
+			]
 		}
 	]
 }

@@ -6,6 +6,13 @@ import { Logger } from './utils/logger';
 import { ApiKeyManager, ConfigManager } from './utils';
 import { registerAllTools } from './tools';
 import { ApplyDiffCommands } from './tools/apply-diff-commands';
+import { registerApplyDiffV2Demo, registerCreateTestDiff } from './tools/apply-diff-v2-demo';
+import { registerDiagnosticCommands } from './tools/diagnostic';
+import { registerEmptyLineTestCommand } from './tools/empty-line-test';
+import { registerChatIntegrationTestCommands } from './tools/chat-integration-test';
+import { registerChatIntegrationVerificationCommands } from './tools/chat-verification';
+import { registerEditTrackingDebugCommands } from './tools/edit-tracking-debug';
+import { registerChatResponseCommands } from './chat/chat-response-integrator';
 
 /**
  * 激活供应商 - 基于配置文件动态注册
@@ -71,7 +78,36 @@ export function activate(context: vscode.ExtensionContext) {
         const applyDiffCommands = new ApplyDiffCommands();
         applyDiffCommands.registerCommands(context);
 
-        Logger.info('GCMP 扩展激活完成');
+        // 注册Apply Diff V2演示命令
+        Logger.info('正在注册Apply Diff V2演示命令...');
+        registerApplyDiffV2Demo(context);
+        registerCreateTestDiff(context);
+
+        // 注册诊断命令
+        Logger.info('正在注册诊断命令...');
+        registerDiagnosticCommands(context);
+
+        // 注册空行测试命令
+        Logger.info('正在注册空行测试命令...');
+        registerEmptyLineTestCommand(context);
+
+        // 注册聊天集成测试命令
+        Logger.info('正在注册聊天集成测试命令...');
+        registerChatIntegrationTestCommands(context);
+
+        // 注册聊天集成验证命令
+        Logger.info('正在注册聊天集成验证命令...');
+        registerChatIntegrationVerificationCommands(context);
+
+        // 注册聊天响应命令
+        Logger.info('正在注册聊天响应命令...');
+        registerChatResponseCommands(context);
+
+        // 注册编辑跟踪调试命令
+        Logger.info('正在注册编辑跟踪调试命令...');
+        registerEditTrackingDebugCommands(context);
+
+        Logger.info('✅ GCMP 扩展激活完成 - 聊天响应文件修改跟踪已启用');
     } catch (error) {
         const errorMessage = `GCMP 扩展激活失败: ${error instanceof Error ? error.message : '未知错误'}`;
         Logger.error(errorMessage, error instanceof Error ? error : undefined);

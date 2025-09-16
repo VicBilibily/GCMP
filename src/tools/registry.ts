@@ -7,14 +7,16 @@ import * as vscode from 'vscode';
 import { Logger } from '../utils';
 import { ZhipuSearchTool } from './zhipu-search';
 import { ApplyDiffTool } from './apply-diff';
-import { runVSCodeIntegrationTests } from '../test/apply-diff-vscode-integration.test';
+import { ApplyDiffToolV2 } from './apply-diff-v2';
 
 // 保存工具注册的 disposable 引用
 let applyDiffDisposable: vscode.Disposable | undefined;
 let applyDiffToolInstance: ApplyDiffTool | undefined;
+let applyDiffV2Disposable: vscode.Disposable | undefined;
+let applyDiffV2ToolInstance: ApplyDiffToolV2 | undefined;
 
 /**
- * 注册或注销 Apply Diff 工具
+ * 注册或注销 Apply Diff 工具 (V1)
  */
 function toggleApplyDiffTool(context: vscode.ExtensionContext, enabled: boolean): void {
     if (enabled && !applyDiffDisposable) {
@@ -37,6 +39,33 @@ function toggleApplyDiffTool(context: vscode.ExtensionContext, enabled: boolean)
         }
 
         Logger.info('❌ [工具注册] Apply Diff工具已注销: gcmp_applyDiff');
+    }
+}
+
+/**
+ * 注册或注销 Apply Diff 工具 V2
+ */
+function toggleApplyDiffV2Tool(context: vscode.ExtensionContext, enabled: boolean): void {
+    if (enabled && !applyDiffV2Disposable) {
+        // 注册 V2 工具
+        applyDiffV2ToolInstance = new ApplyDiffToolV2();
+        applyDiffV2Disposable = vscode.lm.registerTool('gcmp_applyDiffV2', {
+            invoke: applyDiffV2ToolInstance.invoke.bind(applyDiffV2ToolInstance)
+        });
+        context.subscriptions.push(applyDiffV2Disposable);
+        Logger.info('✅ [工具注册] Apply Diff V2 工具已注册: gcmp_applyDiffV2');
+    } else if (!enabled && applyDiffV2Disposable) {
+        // 注销工具
+        applyDiffV2Disposable.dispose();
+        applyDiffV2Disposable = undefined;
+
+        // 清理工具实例资源
+        if (applyDiffV2ToolInstance) {
+            applyDiffV2ToolInstance.dispose();
+            applyDiffV2ToolInstance = undefined;
+        }
+
+        Logger.info('❌ [工具注册] Apply Diff V2 工具已注销: gcmp_applyDiffV2');
     }
 }
 
@@ -66,12 +95,19 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
         // 检查是否启用Apply Diff工具
         const config = vscode.workspace.getConfiguration('gcmp');
         const isApplyDiffEnabled = config.get<boolean>('applyDiff.enabled', false);
+        const isApplyDiffV2Enabled = config.get<boolean>('applyDiff.v2Enabled', true); // V2默认启用
 
         // 初始注册状态
         if (isApplyDiffEnabled) {
             toggleApplyDiffTool(context, true);
         } else {
             Logger.info('ℹ️ [工具注册] Apply Diff工具已禁用，跳过注册 (可在设置中启用: gcmp.applyDiff.enabled)');
+        }
+
+        if (isApplyDiffV2Enabled) {
+            toggleApplyDiffV2Tool(context, true);
+        } else {
+            Logger.info('ℹ️ [工具注册] Apply Diff V2工具已禁用，跳过注册 (可在设置中启用: gcmp.applyDiff.v2Enabled)');
         }
 
         // 监听配置变更
@@ -82,24 +118,16 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
                 Logger.info(`🔄 [工具注册] Apply Diff工具配置变更: ${newEnabled ? '启用' : '禁用'}`);
                 toggleApplyDiffTool(context, newEnabled);
             }
+
+            if (event.affectsConfiguration('gcmp.applyDiff.v2Enabled')) {
+                const newConfig = vscode.workspace.getConfiguration('gcmp');
+                const newV2Enabled = newConfig.get<boolean>('applyDiff.v2Enabled', true);
+                Logger.info(`🔄 [工具注册] Apply Diff V2工具配置变更: ${newV2Enabled ? '启用' : '禁用'}`);
+                toggleApplyDiffV2Tool(context, newV2Enabled);
+            }
         });
 
         context.subscriptions.push(configChangeDisposable);
-
-        // 注册VS Code集成测试命令（仅在开发模式下）
-        if (context.extensionMode === vscode.ExtensionMode.Development) {
-            const testCommand = vscode.commands.registerCommand('gcmp.test.vsCodeIntegration', async () => {
-                try {
-                    await runVSCodeIntegrationTests();
-                } catch (error) {
-                    const errorMessage = error instanceof Error ? error.message : '未知错误';
-                    Logger.error(`❌ [集成测试] VS Code集成测试失败: ${errorMessage}`);
-                    vscode.window.showErrorMessage(`集成测试失败: ${errorMessage}`);
-                }
-            });
-            context.subscriptions.push(testCommand);
-            Logger.info('🧪 [工具注册] VS Code集成测试命令已注册 (开发模式)');
-        }
 
         Logger.info('🎉 [工具注册] 所有工具注册完成');
 

@@ -105,8 +105,6 @@ export interface ApplyDiffRequest {
     diff: string;
     /** 是否预览模式（不实际应用修改） */
     preview?: boolean;
-    /** 是否需要用户确认 */
-    requireConfirmation?: boolean;
 }
 
 /**
@@ -166,12 +164,12 @@ export class ApplyDiffTool {
         // 可以在这里添加变更元数据处理
         // 注意：TextDocumentDetailedChangeReason是proposed API
         if ('detailedReason' in event && event.detailedReason) {
-            const reason = event.detailedReason as any;
+            const reason = event.detailedReason as { source?: string; metadata?: unknown };
             Logger.debug(`📋 [Apply Diff] 变更原因: source=${reason.source}, metadata=${JSON.stringify(reason.metadata)}`);
 
             // 验证这是我们的变更
             if (reason.source === 'gcmp-apply-diff') {
-                Logger.debug(`✅ [Apply Diff] 确认变更来自GCMP扩展`);
+                Logger.debug('✅ [Apply Diff] 确认变更来自GCMP扩展');
             }
         }
 
@@ -225,8 +223,8 @@ export class ApplyDiffTool {
                         ]);
 
                         return result === '继续应用';
-                    } catch (error) {
-                        Logger.warn(`⚠️ [Apply Diff] 用户确认超时，默认取消操作`);
+                    } catch {
+                        Logger.warn('⚠️ [Apply Diff] 用户确认超时，默认取消操作');
                         return false;
                     }
                 }
@@ -301,12 +299,6 @@ export class ApplyDiffTool {
                 edits.forEach(edit => {
                     workspaceEdit.replace(document.uri, edit.range, edit.newText);
                 });
-
-                // 设置编辑操作的元数据
-                const editOptions: vscode.WorkspaceEditEntryMetadata = {
-                    label: 'GCMP Apply Diff',
-                    needsConfirmation: false
-                };
 
                 // 创建变更原因元数据
                 const changeReason = {
@@ -420,7 +412,7 @@ export class ApplyDiffTool {
 
         this.isDisposed = true;
 
-        for (const [path, disposable] of this.documentChangeDisposables) {
+        for (const [, disposable] of this.documentChangeDisposables) {
             disposable.dispose();
         }
         this.documentChangeDisposables.clear();
@@ -436,36 +428,56 @@ export class ApplyDiffTool {
      */
     parseDiff(diffContent: string): DiffBlock[] {
         const blocks: DiffBlock[] = [];
-        const lines = diffContent.split('\n');
 
-        Logger.debug(`🔍 [Apply Diff] 开始解析diff内容，总行数: ${lines.length}`);
-        Logger.debug(`📄 [Apply Diff] diff内容:\n${diffContent}`);
-
-        let i = 0;
-        while (i < lines.length) {
-            const line = lines[i].trim();
-
-            // 查找 <<<<<<< SEARCH 标记
-            if (line === '<<<<<<< SEARCH') {
-                Logger.debug(`🎯 [Apply Diff] 找到SEARCH标记，行号: ${i + 1}`);
-                const result = this.parseDiffBlock(lines, i);
-                if (result) {
-                    blocks.push(result);
-                    Logger.debug(`✅ [Apply Diff] 成功解析第${blocks.length}个diff块`);
-                    i = result.endIndex;
-                } else {
-                    Logger.warn(`⚠️ [Apply Diff] 解析diff块失败，行号: ${i + 1}`);
-                    // 尝试找到下一个SEARCH或跳过当前行
-                    const nextSearchIndex = this.findNextSearchBlock(lines, i + 1);
-                    i = nextSearchIndex > 0 ? nextSearchIndex : i + 1;
-                }
-            } else {
-                i++;
+        try {
+            // 参数验证
+            if (!diffContent || typeof diffContent !== 'string') {
+                Logger.error('❌ [Apply Diff] diff内容无效或为空');
+                return [];
             }
-        }
 
-        Logger.info(`📊 [Apply Diff] 解析完成，共找到 ${blocks.length} 个有效diff块`);
-        return blocks;
+            const lines = diffContent.split('\n');
+            Logger.debug(`🔍 [Apply Diff] 开始解析diff内容，总行数: ${lines.length}`);
+            Logger.debug(`📄 [Apply Diff] diff内容:\n${diffContent}`);
+
+            let i = 0;
+            while (i < lines.length) {
+                const line = lines[i].trim();
+
+                // 查找 <<<<<<< SEARCH 标记
+                if (line === '<<<<<<< SEARCH') {
+                    Logger.debug(`🎯 [Apply Diff] 找到SEARCH标记，行号: ${i + 1}`);
+                    try {
+                        const result = this.parseDiffBlock(lines, i);
+                        if (result) {
+                            blocks.push(result);
+                            Logger.debug(`✅ [Apply Diff] 成功解析第${blocks.length}个diff块`);
+                            i = result.endIndex;
+                        } else {
+                            Logger.warn(`⚠️ [Apply Diff] 解析diff块失败，行号: ${i + 1}`);
+                            // 尝试找到下一个SEARCH或跳过当前行
+                            const nextSearchIndex = this.findNextSearchBlock(lines, i + 1);
+                            i = nextSearchIndex > 0 ? nextSearchIndex : i + 1;
+                        }
+                    } catch (blockError) {
+                        Logger.error(`❌ [Apply Diff] 解析第${blocks.length + 1}个diff块时发生错误: ${blockError instanceof Error ? blockError.message : '未知错误'}`);
+                        // 尝试继续解析下一个块
+                        const nextSearchIndex = this.findNextSearchBlock(lines, i + 1);
+                        i = nextSearchIndex > 0 ? nextSearchIndex : i + 1;
+                    }
+                } else {
+                    i++;
+                }
+            }
+
+            Logger.info(`📊 [Apply Diff] 解析完成，共找到 ${blocks.length} 个有效diff块`);
+            return blocks;
+
+        } catch (error) {
+            Logger.error('❌ [Apply Diff] parseDiff方法执行失败', error instanceof Error ? error : undefined);
+            Logger.debug(`📄 [Apply Diff] 导致错误的diff内容:\n${diffContent}`);
+            return [];
+        }
     }
 
     /**
@@ -484,130 +496,147 @@ export class ApplyDiffTool {
      * 解析单个diff块
      */
     private parseDiffBlock(lines: string[], startIndex: number): (DiffBlock & { endIndex: number }) | null {
-        let i = startIndex + 1;
-        let startLine = -1;
-        let endLine = -1;
-        const searchLines: string[] = [];
-        const replaceLines: string[] = [];
-        let foundSeparator = false;
-        let foundReplaceSeparator = false;
+        try {
+            let i = startIndex + 1;
+            let startLine = -1;
+            let endLine = -1;
+            const searchLines: string[] = [];
+            const replaceLines: string[] = [];
+            let foundReplaceSeparator = false;
 
-        Logger.debug(`🔍 [Apply Diff] 开始解析diff块，起始行: ${startIndex + 1}`);
+            Logger.debug(`🔍 [Apply Diff] 开始解析diff块，起始行: ${startIndex + 1}`);
 
-        // 第一阶段：查找行号信息和可选的分隔符
-        while (i < lines.length) {
-            const line = lines[i].trim();
-
-            if (line.startsWith(':start_line:')) {
-                startLine = parseInt(line.replace(':start_line:', ''));
-                Logger.debug(`📍 [Apply Diff] 找到起始行号: ${startLine}`);
-            } else if (line.startsWith(':end_line:')) {
-                endLine = parseInt(line.replace(':end_line:', ''));
-                Logger.debug(`📍 [Apply Diff] 找到结束行号: ${endLine}`);
-            } else if (line.startsWith('-------')) {
-                foundSeparator = true;
-                Logger.debug(`🔗 [Apply Diff] 找到分隔符，行号: ${i + 1}`);
-                i++;
-                break;
-            } else if (line.startsWith('=======')) {
-                // 直接遇到 ======= 表示没有 ------- 分隔符，这是可以接受的
-                foundReplaceSeparator = true;
-                Logger.debug(`🔗 [Apply Diff] 直接找到替换分隔符（跳过可选的---分隔符），行号: ${i + 1}`);
-                i++;
-                break;
-            } else if (line === '' || line.startsWith(' ') || line.length === 0) {
-                // 跳过空行和纯空格行
-                i++;
-            } else {
-                // 如果遇到非特殊标记的内容，可能是SEARCH内容开始了
-                // 先检查是否是 ======= 分隔符
-                break;
-            }
-        }
-
-        if (!foundSeparator && !foundReplaceSeparator) {
-            Logger.debug('ℹ️ [Apply Diff] 未找到 ------- 分隔符，继续寻找 ======= 分隔符');
-        }
-
-        // 第二阶段：解析SEARCH内容（如果还没有找到 ======= 分隔符）
-        if (!foundReplaceSeparator) {
+            // 第一阶段：查找行号信息和可选的分隔符
             while (i < lines.length) {
                 const line = lines[i];
                 const trimmedLine = line.trim();
 
-                if (trimmedLine.startsWith('=======')) {
-                    foundReplaceSeparator = true;
-                    Logger.debug(`🔗 [Apply Diff] 找到替换分隔符，行号: ${i + 1}`);
+                if (trimmedLine.startsWith(':start_line:')) {
+                    const lineNumStr = trimmedLine.replace(':start_line:', '');
+                    startLine = parseInt(lineNumStr);
+                    if (isNaN(startLine)) {
+                        Logger.warn(`⚠️ [Apply Diff] 无效的起始行号: ${lineNumStr}`);
+                        return null;
+                    }
+                    Logger.debug(`📍 [Apply Diff] 找到起始行号: ${startLine}`);
                     i++;
+                } else if (trimmedLine.startsWith(':end_line:')) {
+                    const lineNumStr = trimmedLine.replace(':end_line:', '');
+                    endLine = parseInt(lineNumStr);
+                    if (isNaN(endLine)) {
+                        Logger.warn(`⚠️ [Apply Diff] 无效的结束行号: ${lineNumStr}`);
+                        return null;
+                    }
+                    Logger.debug(`📍 [Apply Diff] 找到结束行号: ${endLine}`);
+                    i++;
+                } else if (trimmedLine.startsWith('-------')) {
+                    Logger.debug(`🔗 [Apply Diff] 找到可选分隔符，行号: ${i + 1}`);
+                    i++;
+                    break; // 找到分隔符后进入SEARCH内容解析阶段
+                } else if (trimmedLine.startsWith('=======')) {
+                    // 直接遇到 ======= 表示没有 ------- 分隔符和SEARCH内容，直接进入REPLACE阶段
+                    foundReplaceSeparator = true;
+                    Logger.debug(`🔗 [Apply Diff] 直接找到替换分隔符（无SEARCH内容），行号: ${i + 1}`);
+                    i++;
+                    break;
+                } else if (trimmedLine === '' || trimmedLine.length === 0) {
+                    // 跳过空行
+                    i++;
+                } else {
+                    // 遇到非特殊标记的内容，可能是SEARCH内容开始了（没有---分隔符的情况）
+                    Logger.debug(`ℹ️ [Apply Diff] 遇到内容行，可能是SEARCH开始: "${trimmedLine}"`);
+                    break;
+                }
+            }
+
+            // 第二阶段：解析SEARCH内容（如果还没有找到 ======= 分隔符）
+            if (!foundReplaceSeparator) {
+                Logger.debug(`ℹ️ [Apply Diff] 开始解析SEARCH内容，当前行号: ${i + 1}`);
+                while (i < lines.length) {
+                    const line = lines[i];
+                    const trimmedLine = line.trim();
+
+                    if (trimmedLine.startsWith('=======')) {
+                        foundReplaceSeparator = true;
+                        Logger.debug(`🔗 [Apply Diff] 找到替换分隔符，行号: ${i + 1}`);
+                        i++;
+                        break;
+                    }
+
+                    // 收集SEARCH内容（不包括行号标记）
+                    if (!trimmedLine.startsWith(':start_line:') && !trimmedLine.startsWith(':end_line:')) {
+                        searchLines.push(line);
+                        Logger.debug(`📝 [Apply Diff] SEARCH内容: "${line}"`);
+                    }
+                    i++;
+                }
+            }
+
+            if (!foundReplaceSeparator) {
+                Logger.warn('⚠️ [Apply Diff] 未找到 ======= 分隔符');
+                return null;
+            }
+
+            // 第三阶段：解析REPLACE内容
+            Logger.debug(`ℹ️ [Apply Diff] 开始解析REPLACE内容，当前行号: ${i + 1}`);
+            while (i < lines.length) {
+                const line = lines[i];
+                const trimmedLine = line.trim();
+
+                if (trimmedLine.startsWith('>>>>>>> REPLACE')) {
+                    Logger.debug(`🔗 [Apply Diff] 找到结束标记，行号: ${i + 1}`);
+                    i++; // 移动到下一行
                     break;
                 }
 
-                // 跳过行号标记（如果在SEARCH内容中出现）
-                if (!trimmedLine.startsWith(':start_line:') && !trimmedLine.startsWith(':end_line:')) {
-                    searchLines.push(line);
-                }
+                replaceLines.push(line);
+                Logger.debug(`📝 [Apply Diff] REPLACE内容: "${line}"`);
                 i++;
             }
-        }
 
-        if (!foundReplaceSeparator) {
-            Logger.warn('⚠️ [Apply Diff] 未找到 ======= 分隔符');
-            return null;
-        }
-
-        // 第三阶段：解析REPLACE内容
-        while (i < lines.length) {
-            const line = lines[i];
-            const trimmedLine = line.trim();
-
-            if (trimmedLine.startsWith('>>>>>>> REPLACE')) {
-                Logger.debug(`🔗 [Apply Diff] 找到结束标记，行号: ${i + 1}`);
-                i++; // 移动到下一行
-                break;
+            // 检查是否找到了结束标记
+            if (i > lines.length || !lines[i - 1]?.trim().startsWith('>>>>>>> REPLACE')) {
+                Logger.warn('⚠️ [Apply Diff] diff块格式不正确，缺少结束标记');
+                return null;
             }
 
-            replaceLines.push(line);
-            i++;
-        }
-
-        // 检查是否找到了结束标记
-        if (i > lines.length || !lines[i - 1]?.trim().startsWith('>>>>>>> REPLACE')) {
-            Logger.warn('⚠️ [Apply Diff] diff块格式不正确，缺少结束标记');
-            return null;
-        }
-
-        // 如果没有明确的行号，尝试从内容推断或使用智能匹配
-        if (startLine === -1 || endLine === -1) {
-            Logger.debug('ℹ️ [Apply Diff] diff块缺少行号信息，将使用智能内容匹配模式');
-            // 对于添加到文件开头的情况，使用特殊处理
-            if (searchLines.length === 0 && replaceLines.length > 0) {
-                // 这是一个插入操作，在文件开头插入内容
-                startLine = 1;
-                endLine = 0; // 表示在第1行之前插入
-                Logger.debug('🆕 [Apply Diff] 检测到插入操作，目标位置：文件开头');
-            } else {
-                // 常规内容匹配
-                startLine = 1;
-                endLine = Math.max(1, searchLines.length);
+            // 如果没有明确的行号，尝试从内容推断或使用智能匹配
+            if (startLine === -1 || endLine === -1) {
+                Logger.debug('ℹ️ [Apply Diff] diff块缺少行号信息，将使用智能内容匹配模式');
+                // 对于添加到文件开头的情况，使用特殊处理
+                if (searchLines.length === 0 && replaceLines.length > 0) {
+                    // 这是一个插入操作，在文件开头插入内容
+                    startLine = 1;
+                    endLine = 0; // 表示在第1行之前插入
+                    Logger.debug('🆕 [Apply Diff] 检测到插入操作，目标位置：文件开头');
+                } else {
+                    // 常规内容匹配
+                    startLine = 1;
+                    endLine = Math.max(1, searchLines.length);
+                }
             }
-        }
 
-        // 验证解析结果 - 对于插入操作，searchLines可以为空
-        if (searchLines.length === 0 && replaceLines.length === 0) {
-            Logger.warn('⚠️ [Apply Diff] SEARCH和REPLACE内容都为空');
+            // 验证解析结果 - 对于插入操作，searchLines可以为空
+            if (searchLines.length === 0 && replaceLines.length === 0) {
+                Logger.warn('⚠️ [Apply Diff] SEARCH和REPLACE内容都为空');
+                return null;
+            }
+
+            Logger.debug(`🔍 [Apply Diff] 解析diff块完成: 行${startLine}-${endLine}, 搜索${searchLines.length}行, 替换${replaceLines.length}行`);
+            Logger.debug(`📄 [Apply Diff] 搜索内容预览: ${searchLines.slice(0, 3).join('\\n')}${searchLines.length > 3 ? '...' : ''}`);
+
+            return {
+                startLine,
+                endLine,
+                searchLines,
+                replaceLines,
+                endIndex: i
+            };
+
+        } catch (error) {
+            Logger.error(`❌ [Apply Diff] parseDiffBlock执行失败，起始行: ${startIndex + 1}`, error instanceof Error ? error : undefined);
             return null;
         }
-
-        Logger.debug(`🔍 [Apply Diff] 解析diff块完成: 行${startLine}-${endLine}, 搜索${searchLines.length}行, 替换${replaceLines.length}行`);
-        Logger.debug(`📄 [Apply Diff] 搜索内容预览: ${searchLines.slice(0, 3).join('\\n')}${searchLines.length > 3 ? '...' : ''}`);
-
-        return {
-            startLine,
-            endLine,
-            searchLines,
-            replaceLines,
-            endIndex: i
-        };
     }    /**
      * 读取文件内容
      */
@@ -657,13 +686,13 @@ export class ApplyDiffTool {
     private validateSearchMatch(fileLines: string[], block: DiffBlock): boolean {
         // 特殊处理：如果searchLines为空，这是一个插入操作
         if (block.searchLines.length === 0) {
-            Logger.debug(`✅ [Apply Diff] 检测到插入操作，跳过内容匹配验证`);
+            Logger.debug('✅ [Apply Diff] 检测到插入操作，跳过内容匹配验证');
             return true;
         }
 
         // 如果没有明确的行号，尝试在整个文件中搜索匹配的内容
         if (block.startLine === 1 && block.endLine === block.searchLines.length) {
-            Logger.debug(`🔍 [Apply Diff] 尝试智能内容匹配模式`);
+            Logger.debug('🔍 [Apply Diff] 尝试智能内容匹配模式');
             const match = this.findContentMatch(fileLines, block.searchLines);
             if (match) {
                 // 更新block的行号（通过类型断言）
@@ -680,7 +709,7 @@ export class ApplyDiffTool {
 
         // 对于插入操作，允许endIdx为-1（表示在第1行之前插入）
         if (block.searchLines.length === 0 && block.endLine === 0) {
-            Logger.debug(`✅ [Apply Diff] 文件开头插入操作验证通过`);
+            Logger.debug('✅ [Apply Diff] 文件开头插入操作验证通过');
             return true;
         }
 
@@ -757,7 +786,7 @@ export class ApplyDiffTool {
             }
         }
 
-        Logger.debug(`❌ [Apply Diff] 未找到匹配的内容块`);
+        Logger.debug('❌ [Apply Diff] 未找到匹配的内容块');
         return null;
     }
 
@@ -924,7 +953,7 @@ export class ApplyDiffTool {
                             Logger.debug(`  ${startIdx + idx + 1}: "${line}"`);
                         });
                         Logger.debug('🔍 [Apply Diff] diff中期望的内容:');
-                        block.searchLines.forEach((line, idx) => {
+                        block.searchLines.forEach((line) => {
                             Logger.debug(`  期望: "${line}"`);
                         });
                     }
@@ -953,56 +982,8 @@ export class ApplyDiffTool {
                 };
             }
 
-            // 如果需要用户确认
-            if (request.requireConfirmation) {
-                // 生成预览
-                let previewLines = [...originalLines];
-                for (const block of sortedBlocks) {
-                    previewLines = this.applyDiffBlock(previewLines, block);
-                }
-                const modifiedContent = previewLines.join('\n');
-                const preview = this.generatePreview(originalContent, modifiedContent);
-
-                try {
-                    const userChoice = await Promise.race([
-                        vscode.window.showInformationMessage(
-                            `即将应用 ${diffBlocks.length} 个diff块到文件 ${request.path}`,
-                            { modal: false }, // 改为非模态以避免卡住
-                            '应用修改',
-                            '查看预览'
-                        ),
-                        new Promise<undefined>((_, reject) =>
-                            setTimeout(() => reject(new Error('用户确认超时')), 15000)
-                        )
-                    ]);
-
-                    if (userChoice === '查看预览') {
-                        return {
-                            success: true,
-                            message: '用户选择查看预览',
-                            blocksApplied: 0,
-                            preview,
-                            originalContent,
-                            modifiedContent
-                        };
-                    } else if (userChoice !== '应用修改') {
-                        this.backupMap.delete(request.path); // 清理备份
-                        return {
-                            success: false,
-                            message: '用户取消了修改',
-                            blocksApplied: 0
-                        };
-                    }
-                } catch (error) {
-                    Logger.warn(`⚠️ [Apply Diff] 用户确认超时，默认取消操作`);
-                    this.backupMap.delete(request.path); // 清理备份
-                    return {
-                        success: false,
-                        message: '用户确认超时，操作已取消',
-                        blocksApplied: 0
-                    };
-                }
-            }            // 尝试使用VS Code API应用变更（如果可能）
+            // 工具直接执行，无需用户确认（已接入VS Code历史修改机制）
+            Logger.debug('� [Apply Diff] 直接执行diff应用（支持撤销/重做）');            // 尝试使用VS Code API应用变更（如果可能）
             const useVSCodeAPI = vscode.workspace.workspaceFolders &&
                 this.resolveFilePath(request.path).startsWith(vscode.workspace.workspaceFolders[0].uri.fsPath);
 
@@ -1095,7 +1076,7 @@ export class ApplyDiffTool {
                 throw new Error('缺少必需参数: path\n\n使用示例：\n"path": "src/components/Button.vue"');
             }
             if (!params.diff) {
-                throw new Error(`缺少必需参数: diff\n\n使用示例格式：\n<<<<<<< SEARCH\n:start_line:1\n:end_line:1\n-------\n原始内容\n=======\n新内容\n>>>>>>> REPLACE`);
+                throw new Error('缺少必需参数: diff\n\n使用示例格式：\n<<<<<<< SEARCH\n:start_line:1\n:end_line:1\n-------\n原始内容\n=======\n新内容\n>>>>>>> REPLACE');
             }
 
             // 格式验证

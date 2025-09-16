@@ -69,7 +69,7 @@ export class ApplyDiffCommands {
             const request: ApplyDiffRequest = {
                 path: filePath,
                 diff: diffContent,
-                requireConfirmation: true
+                preview: false
             };
 
             // 应用diff
@@ -157,7 +157,7 @@ export class ApplyDiffCommands {
             const request: ApplyDiffRequest = {
                 path: filePath,
                 diff: diffContent,
-                requireConfirmation: true
+                preview: false
             };
 
             // 应用diff

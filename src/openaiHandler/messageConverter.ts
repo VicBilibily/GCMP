@@ -288,19 +288,19 @@ export class MessageConverter {
      * 转换工具格式 - 增强的工具转换，确保参数格式正确
      */
     convertToolsToOpenAI(tools: vscode.LanguageModelChatTool[]): Tool[] {
-        Logger.info(`🔧 开始转换 ${tools.length} 个工具定义`);
+        Logger.debug(`🔧 开始转换 ${tools.length} 个工具定义`);
 
         const result = tools.map((tool, index) => {
             const paramCount = tool.inputSchema && typeof tool.inputSchema === 'object' && tool.inputSchema !== null
                 ? Object.keys((tool.inputSchema as Record<string, unknown>).properties || {}).length
                 : 0;
 
-            Logger.debug(`🔧 工具 ${index}: ${tool.name}, 参数数量: ${paramCount}, 描述长度: ${(tool.description || '').length}`);
+            Logger.trace(`🔧 工具 ${index}: ${tool.name}, 参数数量: ${paramCount}, 描述长度: ${(tool.description || '').length}`);
 
             return this.convertSingleTool(tool);
         });
 
-        Logger.info(`✅ 工具转换完成，共 ${result.length} 个工具`);
+        Logger.debug(`✅ 工具转换完成，共 ${result.length} 个工具`);
         return result;
     }
 
