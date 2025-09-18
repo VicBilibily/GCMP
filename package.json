@@ -111,17 +111,17 @@
         "languageModelChatProviders": [
             {
                 "vendor": "gcmp.zhipu",
-                "displayName": "[GCMP] 智谱AI",
+                "displayName": "智谱AI",
                 "managementCommand": "gcmp.zhipu.setApiKey"
             },
             {
                 "vendor": "gcmp.moonshot",
-                "displayName": "[GCMP] MoonshotAI",
+                "displayName": "MoonshotAI",
                 "managementCommand": "gcmp.moonshot.setApiKey"
             },
             {
                 "vendor": "gcmp.iflow",
-                "displayName": "[GCMP] 心流AI",
+                "displayName": "心流AI",
                 "managementCommand": "gcmp.iflow.setApiKey"
             }
         ],
@@ -200,8 +200,8 @@
     "kiloCodeHeaders": {
         "HTTP-Referer": "https://kilocode.ai",
         "X-Title": "Kilo Code",
-        "X-KiloCode-Version": "4.94.0",
-        "User-Agent": "Kilo-Code/4.94.0"
+        "X-KiloCode-Version": "4.95.0",
+        "User-Agent": "Kilo-Code/4.95.0"
     },
     "configProvider": {
         "zhipu": {

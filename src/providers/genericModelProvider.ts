@@ -86,7 +86,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     private modelConfigToInfo(model: ModelConfig): LanguageModelChatInformation {
         const info: LanguageModelChatInformation = {
             id: model.id,
-            name: `[GCMP] ${model.name}`,
+            name: model.name,
             tooltip: model.tooltip,
             family: 'claude', // 高效编辑工具 GHC 用 claude 判断
             maxInputTokens: ConfigManager.getReducedInputTokenLimit(model.maxInputTokens),

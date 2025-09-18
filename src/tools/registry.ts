@@ -18,9 +18,9 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
             invoke: zhipuSearchTool.invoke.bind(zhipuSearchTool)
         });
         context.subscriptions.push(zhipuToolDisposable);
-        Logger.info('🔧 [工具注册] 智谱AI搜索工具已注册: gcmp_zhipuWebSearch');
+        Logger.info('智谱AI搜索工具已注册: gcmp_zhipuWebSearch');
     } catch (error) {
-        Logger.error('❌ [工具注册] 工具注册失败', error instanceof Error ? error : undefined);
+        Logger.error('工具注册失败', error instanceof Error ? error : undefined);
         throw error;
     }
 }

@@ -6,4 +6,5 @@
 export { ApiKeyManager } from './apiKeyManager';
 export { Logger } from './logger';
 export { ConfigManager, type GCMPConfig } from './configManager';
+export { KiloCodeVersionManager } from './kiloCodeVersionManager';
 export { MultiModalDetector, type MultiModalDetectionResult } from './multiModalDetector';

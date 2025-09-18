@@ -47,6 +47,30 @@ export type ConfigProvider = Record<string, ProviderConfig>;
 export type KiloCodeHeaders = Record<string, string>;
 
 /**
+ * Kilo Code 扩展版本信息
+ */
+export interface KiloCodeVersionInfo {
+    /** 扩展版本号 */
+    version: string;
+    /** 显示名称 */
+    displayName?: string;
+    /** 最后更新时间戳 */
+    lastUpdated: number;
+    /** 数据来源 */
+    source: 'marketplace' | 'fallback';
+}
+
+/**
+ * 版本缓存配置
+ */
+export interface VersionCacheConfig {
+    /** 缓存过期时间（毫秒），默认24小时 */
+    expiration: number;
+    /** 缓存键名 */
+    cacheKey: string;
+}
+
+/**
  * Handler接口定义
  */
 export interface ModelHandler {

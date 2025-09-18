@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { Logger } from './logger';
+import { KiloCodeVersionManager } from './kiloCodeVersionManager';
 import { ConfigProvider, KiloCodeHeaders } from '../types/sharedTypes';
 
 /**
@@ -234,6 +235,19 @@ export class ConfigManager {
     static getKiloCodeHeaders(): KiloCodeHeaders | undefined {
         const packageConfig = this.readPackageJson();
         return packageConfig.kiloCodeHeaders;
+    }
+
+    /**
+     * 获取动态的 kiloCode 头部配置
+     * 使用 VersionManager 来获取最新版本并生成动态头部
+     */
+    static async getDynamicKiloCodeHeaders(): Promise<KiloCodeHeaders | undefined> {
+        const baseHeaders = this.getKiloCodeHeaders();
+        if (!baseHeaders) {
+            return undefined;
+        }
+
+        return await KiloCodeVersionManager.generateDynamicHeaders(baseHeaders);
     }
 
     /**
