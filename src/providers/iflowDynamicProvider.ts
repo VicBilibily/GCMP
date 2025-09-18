@@ -156,11 +156,13 @@ export class IFlowDynamicProvider {
      */
     async provideLanguageModelChatResponse(
         model: LanguageModelChatInformation,
-        messages: Array<vscode.LanguageModelChatMessage>,
+        messages: readonly vscode.LanguageModelChatMessage[],
         options: vscode.ProvideLanguageModelChatResponseOptions,
         progress: vscode.Progress<vscode.LanguageModelResponsePart>,
         token: CancellationToken
     ): Promise<void> {
+        Logger.debug(`${model.name} iflowDynamicProvider 开始处理请求，取消状态: ${token.isCancellationRequested}`);
+        
         const originalConfig = this.genericProvider.getProviderConfig();
         try {
             // 更新内部提供商的配置为动态配置
@@ -168,7 +170,9 @@ export class IFlowDynamicProvider {
             this.genericProvider.updateProviderConfig(dynamicConfig);
 
             // 委托给内部提供商
+            Logger.debug(`${model.name} iflowDynamicProvider 委托给内部提供商，取消状态: ${token.isCancellationRequested}`);
             await this.genericProvider.provideLanguageModelChatResponse(model, messages, options, progress, token);
+            Logger.debug(`${model.name} iflowDynamicProvider 委托完成，取消状态: ${token.isCancellationRequested}`);
 
             // 恢复原始配置
             this.genericProvider.updateProviderConfig(originalConfig);

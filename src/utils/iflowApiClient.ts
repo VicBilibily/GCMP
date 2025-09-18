@@ -101,8 +101,7 @@ export class IFlowApiClient {
                 if (Array.isArray(category)) {
                     allModels.push(...category.filter(model =>
                         model.isVisible === 1 &&
-                        model.modelStatus === 'offline' && // 只包含离线模型（可用模型）
-                        !model.modelName.includes('deepseek-r1') // 屏蔽 DeepSeek R1 模型
+                        model.modelStatus === 'offline' // 只包含离线模型（可用模型）
                     ));
                 }
             }
@@ -114,7 +113,7 @@ export class IFlowApiClient {
             this.modelCache = models;
             this.lastFetchTime = now;
 
-            Logger.info(`成功从 心流AI API 获取到 ${models.length} 个模型`);
+            Logger.info(`成功从 心流AI API 获取到 ${allModels.length} 个模型`);
             return models;
 
         } catch (error) {
@@ -137,7 +136,12 @@ export class IFlowApiClient {
      */
     private static convertToModelConfigs(iflowModels: IFlowModel[]): ModelConfig[] {
         return iflowModels
-            .filter(model => model.id && model.showName && model.modelName) // 过滤掉无效模型
+            .filter(model =>
+                model.id &&
+                model.showName &&
+                model.modelName &&
+                !model.modelName.includes('deepseek-r1') // 在转换阶段屏蔽 DeepSeek R1 模型
+            )
             .map(model => this.convertSingleModel(model))
             .filter(model => model !== null) as ModelConfig[];
     }

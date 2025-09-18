@@ -144,11 +144,13 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     }
     async provideLanguageModelChatResponse(
         model: LanguageModelChatInformation,
-        messages: Array<LanguageModelChatMessage>,
+        messages: readonly LanguageModelChatMessage[],
         options: ProvideLanguageModelChatResponseOptions,
         progress: Progress<vscode.LanguageModelResponsePart>,
         token: CancellationToken
     ): Promise<void> {
+        Logger.debug(`${model.name} genericModelProvider 开始处理请求，取消状态: ${token.isCancellationRequested}`);
+        
         // 查找对应的模型配置
         const modelConfig = this.providerConfig.models.find(m => m.id === model.id);
         if (!modelConfig) {
@@ -163,7 +165,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求: ${modelConfig.name}`);
 
         try {
+            Logger.debug(`${model.name} genericModelProvider 调用 openaiHandler，取消状态: ${token.isCancellationRequested}`);
             await this.openaiHandler.handleRequest(model, messages, options, progress, token);
+            Logger.debug(`${model.name} genericModelProvider openaiHandler 调用完成，取消状态: ${token.isCancellationRequested}`);
         } catch (error) {
             const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
             Logger.error(errorMessage);

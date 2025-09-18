@@ -51,17 +51,30 @@ export class ToolCallProcessor {
      * 处理缓存中的工具调用 - 在流结束时调用
      */
     processBufferedToolCalls(
-        progress: vscode.Progress<vscode.LanguageModelResponsePart>
+        progress: vscode.Progress<vscode.LanguageModelResponsePart>,
+        token: vscode.CancellationToken
     ): boolean {
         let hasProcessed = false;
         const processedCalls: string[] = [];
         const failedCalls: string[] = [];
 
         for (const [toolIndex, bufferedTool] of this.toolCallsBuffer.entries()) {
+            // 在处理每个工具调用前检查取消状态
+            if (token.isCancellationRequested) {
+                Logger.warn(`${this.modelName} 工具调用处理被取消，剩余 ${this.toolCallsBuffer.size - processedCalls.length} 个调用未处理`);
+                break;
+            }
+
             if (bufferedTool.function?.name && bufferedTool.function?.arguments) {
                 try {
                     const args = JSON.parse(bufferedTool.function.arguments);
                     const toolCallId = bufferedTool.id || `tool_${Date.now()}_${toolIndex}`;
+
+                    // 在报告进度前再次检查取消状态
+                    if (token.isCancellationRequested) {
+                        Logger.warn(`${this.modelName} 工具调用报告时被取消: ${bufferedTool.function.name}(${toolCallId})`);
+                        break;
+                    }
 
                     progress.report(
                         new vscode.LanguageModelToolCallPart(
@@ -80,6 +93,12 @@ export class ToolCallProcessor {
 
                     // 使用空对象作为后备
                     if (bufferedTool.id && bufferedTool.function?.name) {
+                        // 在报告进度前检查取消状态
+                        if (token.isCancellationRequested) {
+                            Logger.warn(`${this.modelName} 工具调用后备报告时被取消: ${bufferedTool.function.name}(${bufferedTool.id})`);
+                            break;
+                        }
+
                         progress.report(new vscode.LanguageModelToolCallPart(
                             bufferedTool.id,
                             bufferedTool.function.name,
@@ -103,6 +122,12 @@ export class ToolCallProcessor {
         }
         if (failedCalls.length > 0) {
             Logger.warn(`❌ ${this.modelName} 工具调用处理失败: ${failedCalls.join(', ')}`);
+        }
+
+        // 如果被取消，记录未处理的调用
+        if (token.isCancellationRequested && this.toolCallsBuffer.size > processedCalls.length) {
+            const unprocessedCount = this.toolCallsBuffer.size - processedCalls.length;
+            Logger.warn(`⚠️ ${this.modelName} 由于取消，${unprocessedCount} 个工具调用未处理`);
         }
 
         // 清理已处理的缓存
