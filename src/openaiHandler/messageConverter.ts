@@ -199,7 +199,7 @@ export class MessageConverter {
                 }
             }
 
-            // 特殊处理：system 消息必须是字符串格式（特别是为了 MoonshotAI 兼容性）
+            // 特殊处理：system 消息必须是字符串格式
             if (role === 'system') {
                 if (Array.isArray(converted.content)) {
                     // 将多模态 system 消息转换为纯文本

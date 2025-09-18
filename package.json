@@ -2,8 +2,8 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、MoonshotAI、心流AI 模型支持的扩展",
-    "version": "0.3.3",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI 模型支持的扩展",
+    "version": "0.4.0",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -12,10 +12,8 @@
         "github-copilot",
         "language-model",
         "zhipu",
-        "moonshot",
         "iflow",
         "智谱",
-        "月之暗面",
         "心流"
     ],
     "repository": {
@@ -39,7 +37,6 @@
     "activationEvents": [
         "onStartupFinished",
         "onLanguageModelProvider:gcmp.zhipu",
-        "onLanguageModelProvider:gcmp.moonshot",
         "onLanguageModelProvider:gcmp.iflow",
         "onLanguageModelTool:gcmp_zhipuWebSearch"
     ],
@@ -48,11 +45,6 @@
             {
                 "command": "gcmp.zhipu.setApiKey",
                 "title": "设置 智谱AI API密钥",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.moonshot.setApiKey",
-                "title": "设置 MoonshotAI API密钥",
                 "category": "GCMP"
             },
             {
@@ -118,11 +110,6 @@
                 "vendor": "gcmp.zhipu",
                 "displayName": "智谱AI",
                 "managementCommand": "gcmp.zhipu.setApiKey"
-            },
-            {
-                "vendor": "gcmp.moonshot",
-                "displayName": "MoonshotAI",
-                "managementCommand": "gcmp.moonshot.setApiKey"
             },
             {
                 "vendor": "gcmp.iflow",
@@ -275,58 +262,6 @@
                 }
             ]
         },
-        "moonshot": {
-            "displayName": "MoonshotAI",
-            "baseUrl": "https://api.moonshot.cn/v1",
-            "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-            "models": [
-                {
-                    "id": "kimi-k2-0905-preview",
-                    "name": "Kimi-K2-0905-Preview",
-                    "tooltip": "月之暗面 Kimi-K2-0905-Preview - 更强的Agentic Coding能力，更突出的前端代码美观度和实用性，256K上下文",
-                    "maxInputTokens": 256000,
-                    "maxOutputTokens": 8192,
-                    "capabilities": {
-                        "toolCalling": true,
-                        "imageInput": false
-                    }
-                },
-                {
-                    "id": "kimi-k2-turbo-preview",
-                    "name": "Kimi-K2-Turbo-Preview",
-                    "tooltip": "月之暗面 Kimi-K2-Turbo-Preview - 高速版本模型，输出速度60-100 tokens/秒，256K上下文",
-                    "maxInputTokens": 256000,
-                    "maxOutputTokens": 8192,
-                    "capabilities": {
-                        "toolCalling": true,
-                        "imageInput": false
-                    }
-                },
-                {
-                    "id": "kimi-k2-0711-preview",
-                    "name": "Kimi-K2-0711-Preview",
-                    "tooltip": "月之暗面 Kimi-K2-0711-Preview - K2系列基础版本，128K上下文",
-                    "maxInputTokens": 128000,
-                    "maxOutputTokens": 8192,
-                    "version": "kimi-k2-0711-previw",
-                    "capabilities": {
-                        "toolCalling": true,
-                        "imageInput": false
-                    }
-                },
-                {
-                    "id": "kimi-latest",
-                    "name": "Kimi-Latest (视觉)",
-                    "tooltip": "月之暗面 Kimi-Latest - 最新一代视觉模型，128K上下文，支持图片理解，自动上下文缓存，智能选择8K/32K/128K计费模型",
-                    "maxInputTokens": 128000,
-                    "maxOutputTokens": 8192,
-                    "capabilities": {
-                        "toolCalling": true,
-                        "imageInput": true
-                    }
-                }
-            ]
-        },
         "iflow": {
             "displayName": "心流AI",
             "baseUrl": "https://apis.iflow.cn/v1",
@@ -336,17 +271,6 @@
                     "id": "qwen3-coder",
                     "name": "Qwen3-Coder-480B-A35B (iFlow)",
                     "tooltip": "iFlow Qwen3-Coder-480B-A35B - 专业代码生成和推理模型",
-                    "maxInputTokens": 256000,
-                    "maxOutputTokens": 64000,
-                    "capabilities": {
-                        "toolCalling": true,
-                        "imageInput": false
-                    }
-                },
-                {
-                    "id": "kimi-k2-0905",
-                    "name": "Kimi-K2-Instruct-0905 (iFlow)",
-                    "tooltip": "iFlow Kimi-K2-Instruct-0905 - 月之暗面开源万亿参数MoE模型，320亿激活参数，卓越编码智能与工具调用能力",
                     "maxInputTokens": 256000,
                     "maxOutputTokens": 64000,
                     "capabilities": {
