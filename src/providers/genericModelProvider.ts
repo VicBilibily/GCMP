@@ -23,7 +23,7 @@ import { OpenAIHandler } from '../openaiHandler/openaiHandler';
 export class GenericModelProvider implements LanguageModelChatProvider {
     private readonly openaiHandler: OpenAIHandler;
     private readonly providerKey: string;
-    private readonly providerConfig: ProviderConfig;
+    private providerConfig: ProviderConfig; // 移除 readonly 以支持动态配置
     private readonly kiloCodeHeaders?: KiloCodeHeaders;
 
     constructor(
@@ -130,8 +130,18 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     }
 
     /**
-     * 处理聊天请求的主要方法
+     * 更新模型配置（用于动态模型支持）
      */
+    updateProviderConfig(newConfig: ProviderConfig): void {
+        this.providerConfig = newConfig;
+    }
+
+    /**
+     * 获取当前模型配置
+     */
+    getProviderConfig(): ProviderConfig {
+        return this.providerConfig;
+    }
     async provideLanguageModelChatResponse(
         model: LanguageModelChatInformation,
         messages: Array<LanguageModelChatMessage>,

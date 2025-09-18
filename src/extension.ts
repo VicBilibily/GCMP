@@ -1,7 +1,6 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { GenericModelProvider } from './providers/genericModelProvider';
+import { IFlowDynamicProvider } from './providers/iflowDynamicProvider';
 import { Logger } from './utils/logger';
 import { ApiKeyManager, ConfigManager, KiloCodeVersionManager } from './utils';
 import { registerAllTools } from './tools';
@@ -28,13 +27,23 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
         try {
             Logger.trace(`正在注册供应商: ${providerConfig.displayName} (${providerKey})`);
 
-            // 使用通用供应商创建实例
-            GenericModelProvider.createAndActivate(
-                context,
-                providerKey,
-                providerConfig,
-                kiloCodeHeaders
-            );
+            // 特殊处理 iFlow 心流AI 提供商，使用动态模型注册
+            if (providerKey === 'iflow') {
+                IFlowDynamicProvider.createAndActivate(
+                    context,
+                    providerKey,
+                    providerConfig,
+                    kiloCodeHeaders
+                );
+            } else {
+                // 使用通用供应商创建实例
+                GenericModelProvider.createAndActivate(
+                    context,
+                    providerKey,
+                    providerConfig,
+                    kiloCodeHeaders
+                );
+            }
 
             Logger.info(`${providerConfig.displayName} 供应商注册成功`);
         } catch (error) {

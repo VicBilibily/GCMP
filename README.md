@@ -35,11 +35,12 @@
 - **Kimi-K2-Turbo-Preview**：高速版本模型，60-100 tokens/秒输出速度（256K上下文）
 - **Kimi-K2-0711-Preview**：K2系列基础版本（128K上下文）
 
-### 💫 iFlow - 心流AI
+### 💫 心流AI - iFlow
 
-- **Qwen3-Coder-480B-A35B**：专业代码生成和推理模型（256K上下文）
-- **Kimi-K2-Instruct-0905**：月之暗面万亿参数MoE模型，320亿激活参数
-- **GLM-4.5**：智谱AI多模态模型，支持图像理解（128K上下文）
+阿里巴巴旗下的的AI平台，当前[API调用](https://platform.iflow.cn/docs/)服务**免费使用**，目前[限流规则](https://platform.iflow.cn/docs/limitSpeed)为每个用户最多只能**同时发起一个**请求。
+
+- 心流AI的模型列表会根据官方[模型列表API](https://platform.iflow.cn/models)定时更新。
+- 目前已屏蔽不兼容 OpenAI API 规则的 `DeepSeek-R1` 模型。
 
 ## 🔍 智谱AI搜索工具
 
@@ -90,15 +91,15 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 
 ### 官方平台链接
 
-| 供应商     | 官方平台                               | 特色                           |
-| ---------- | -------------------------------------- | ------------------------------ |
-| 智谱AI     | [开放平台](https://open.bigmodel.cn/)  | 强大的中文理解能力，支持多模态 |
-| MoonshotAI | [开放平台](https://api.moonshot.cn/)   | 超长上下文，Agentic能力        |
-| 心流AI     | [开放平台](https://platform.iflow.cn/) | AI开发者平台，免费前沿模型     |
+| 供应商     | 官方平台                               | 特色                                               |
+| ---------- | -------------------------------------- | -------------------------------------------------- |
+| 智谱AI     | [开放平台](https://open.bigmodel.cn/)  | 强大的中文理解能力，支持多模态                     |
+| MoonshotAI | [开放平台](https://api.moonshot.cn/)   | 超长上下文，Agentic能力                            |
+| 心流AI     | [开放平台](https://platform.iflow.cn/) | 智能动态模型更新，免费前沿模型，自动屏蔽不稳定模型 |
 
 ## 🚫 未列入支持的模型供应商说明
 
-- **DeepSeek** 的 API 输出格式不完全遵循 OpenAI 标准，导致与 GitHub Copilot 集成存在兼容性问题。
+- **DeepSeek** 的 API 输出数据格式与 GitHub Copilot 集成存在兼容性问题。
 - **魔搭社区（ModelScope）** 仅适用于测试环境，长期使用不太稳定。
 - **各大云厂商（阿里云、腾讯云、百度云等）** 按量计费不适合长期使用。
     > 目前优先支持有月套餐的服务商。
