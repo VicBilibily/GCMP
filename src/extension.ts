@@ -21,7 +21,7 @@ function activateProviders(context: vscode.ExtensionContext): void {
     // 遍历配置中的每个供应商
     for (const [providerKey, providerConfig] of Object.entries(configProvider)) {
         try {
-            Logger.info(`正在注册供应商: ${providerConfig.displayName} (${providerKey})`);
+            Logger.debug(`正在注册供应商: ${providerConfig.displayName} (${providerKey})`);
 
             // 使用通用供应商创建实例
             GenericModelProvider.createAndActivate(

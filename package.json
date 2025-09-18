@@ -210,22 +210,6 @@
             "apiKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxx",
             "models": [
                 {
-                    "id": "glm-4.5-auto",
-                    "name": "GLM-4.5 (自动)",
-                    "tooltip": "ZHIPU GLM-4.5 自动模式 - 根据消息内容自动选择标准推理模型或视觉推理模型",
-                    "maxInputTokens": 64000,
-                    "maxOutputTokens": 16000,
-                    "capabilities": {
-                        "toolCalling": true,
-                        "imageInput": true
-                    },
-                    "autoModel": {
-                        "default": "glm-4.5",
-                        "vision": "glm-4.5v"
-                    },
-                    "kiloCode": true
-                },
-                {
                     "id": "glm-4.5",
                     "name": "GLM-4.5 (订阅)",
                     "tooltip": "ZHIPU GLM-4.5 - 最强大的推理模型，3550亿参数，专为复杂推理任务优化",
@@ -274,17 +258,6 @@
                     }
                 },
                 {
-                    "id": "glm-4.5-flash",
-                    "name": "GLM-4.5-Flash (免费)",
-                    "tooltip": "ZHIPU GLM-4.5-Flash - 免费模型，高效多功能，快速响应",
-                    "maxInputTokens": 128000,
-                    "maxOutputTokens": 96000,
-                    "capabilities": {
-                        "toolCalling": true,
-                        "imageInput": false
-                    }
-                },
-                {
                     "id": "glm-4.5v",
                     "name": "GLM-4.5V (视觉)",
                     "tooltip": "ZHIPU GLM-4.5V - 旗舰视觉推理模型，106B参数，支持视频/图像/文档理解",
@@ -302,21 +275,6 @@
             "baseUrl": "https://api.moonshot.cn/v1",
             "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
             "models": [
-                {
-                    "id": "kimi-k2-auto",
-                    "name": "Kimi-K2 (自动)",
-                    "tooltip": "月之暗面 Kimi-K2 自动模式 - 根据消息内容自动选择标准推理模型或视觉推理模型",
-                    "maxInputTokens": 128000,
-                    "maxOutputTokens": 8192,
-                    "capabilities": {
-                        "toolCalling": true,
-                        "imageInput": true
-                    },
-                    "autoModel": {
-                        "default": "kimi-k2-0905-preview",
-                        "vision": "kimi-latest"
-                    }
-                },
                 {
                     "id": "kimi-k2-0905-preview",
                     "name": "Kimi-K2-0905-Preview",
