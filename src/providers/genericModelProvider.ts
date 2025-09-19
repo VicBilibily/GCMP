@@ -12,6 +12,7 @@ import {
     Progress,
     ProvideLanguageModelChatResponseOptions
 } from 'vscode';
+import { createByEncoderName, TikTokenizer } from '@microsoft/tiktokenizer';
 import { ProviderConfig, ModelConfig, KiloCodeHeaders } from '../types/sharedTypes';
 import { ApiKeyManager, Logger, ConfigManager } from '../utils';
 import { OpenAIHandler } from '../openaiHandler/openaiHandler';
@@ -25,6 +26,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     private readonly providerKey: string;
     private providerConfig: ProviderConfig; // 移除 readonly 以支持动态配置
     private readonly kiloCodeHeaders?: KiloCodeHeaders;
+    private o200kTokenizerPromise?: Promise<TikTokenizer>;
 
     constructor(
         providerKey: string,
@@ -41,6 +43,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             providerConfig.displayName,
             providerConfig.baseUrl
         );
+
+        // 初始化 o200k_base tokenizer
+        this.o200kTokenizerPromise = createByEncoderName('o200k_base');
     }
 
     /**
@@ -173,54 +178,83 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     }
 
     async provideTokenCount(
-        _model: LanguageModelChatInformation,
+        model: LanguageModelChatInformation,
         text: string | LanguageModelChatMessage,
         _token: CancellationToken
     ): Promise<number> {
-        // 增强的Token计数实现
-        if (typeof text === 'string') {
-            // 对于纯文本，使用改进的估算算法
-            // 考虑中英文混合的情况
-            const chineseChars = (text.match(/[\u4e00-\u9fff]/g) || []).length;
-            const englishWords = (text.match(/\b\w+\b/g) || []).length;
-            const symbols = text.length - chineseChars - englishWords;
-
-            // 中文字符约1.5个token，英文单词约1个token，符号约0.5个token
-            return Math.ceil(chineseChars * 1.5 + englishWords + symbols * 0.5);
-        } else {
-            // 对于复杂消息，分别计算各部分的token
-            let totalTokens = 0;
-
-            if (Array.isArray(text.content)) {
-                for (const part of text.content) {
-                    if (part instanceof vscode.LanguageModelTextPart) {
-                        const partTokens = await this.provideTokenCount(_model, part.value, _token);
-                        totalTokens += partTokens;
-                    } else if (part instanceof vscode.LanguageModelDataPart) {
-                        // 图片或数据部分根据类型估算token
-                        if (part.mimeType.startsWith('image/')) {
-                            totalTokens += 170; // 图片大约170个token
-                        } else {
-                            totalTokens += Math.ceil(part.data.length / 10); // 其他数据估算
-                        }
-                    } else if (part instanceof vscode.LanguageModelToolCallPart) {
-                        // 工具调用的token计算
-                        const toolCallText = `${part.name}(${JSON.stringify(part.input)})`;
-                        const toolTokens = await this.provideTokenCount(_model, toolCallText, _token);
-                        totalTokens += toolTokens;
-                    } else if (part instanceof vscode.LanguageModelToolResultPart) {
-                        // 工具结果的token计算
-                        const resultText = typeof part.content === 'string' ? part.content : JSON.stringify(part.content);
-                        const resultTokens = await this.provideTokenCount(_model, resultText, _token);
-                        totalTokens += resultTokens;
-                    }
-                }
+        Logger.info(`🔢 provideTokenCount 被调用 - 模型: ${model.id}, 输入类型: ${typeof text}`);
+        try {
+            const tokenizer = await this.o200kTokenizerPromise;
+            if (!tokenizer) {
+                throw new Error('Tokenizer 初始化失败');
             }
 
-            // 添加角色和结构的固定开销
-            totalTokens += 4; // 角色和结构开销
+            if (typeof text === 'string') {
+                return tokenizer.encode(text).length;
+            } else {
+                let fullText = '';
+                if (Array.isArray(text.content)) {
+                    for (const part of text.content) {
+                        if (part instanceof vscode.LanguageModelTextPart) {
+                            fullText += part.value;
+                        } else if (part instanceof vscode.LanguageModelDataPart) {
+                            fullText += '[data]';
+                        } else if (part instanceof vscode.LanguageModelToolCallPart) {
+                            fullText += `[toolcall:${part.name}]`;
+                        } else if (part instanceof vscode.LanguageModelToolResultPart) {
+                            fullText += `[toolresult:${typeof part.content === 'string' ? part.content : JSON.stringify(part.content)}]`;
+                        }
+                    }
+                }
+                return tokenizer.encode(fullText).length;
+            }
+        } catch (error) {
+            Logger.warn(`Tokenizer 计数失败，回退到估算方式: ${error}`);
+            // Fallback 到原有估算方式
+            if (typeof text === 'string') {
+                // 对于纯文本，使用改进的估算算法
+                // 考虑中英文混合的情况
+                const chineseChars = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+                const englishWords = (text.match(/\b\w+\b/g) || []).length;
+                const symbols = text.length - chineseChars - englishWords;
 
-            return totalTokens;
+                // 中文字符约1.5个token，英文单词约1个token，符号约0.5个token
+                return Math.ceil(chineseChars * 1.5 + englishWords + symbols * 0.5);
+            } else {
+                // 对于复杂消息，分别计算各部分的token
+                let totalTokens = 0;
+
+                if (Array.isArray(text.content)) {
+                    for (const part of text.content) {
+                        if (part instanceof vscode.LanguageModelTextPart) {
+                            const partTokens = await this.provideTokenCount(model, part.value, _token);
+                            totalTokens += partTokens;
+                        } else if (part instanceof vscode.LanguageModelDataPart) {
+                            // 图片或数据部分根据类型估算token
+                            if (part.mimeType.startsWith('image/')) {
+                                totalTokens += 170; // 图片大约170个token
+                            } else {
+                                totalTokens += Math.ceil(part.data.length / 10); // 其他数据估算
+                            }
+                        } else if (part instanceof vscode.LanguageModelToolCallPart) {
+                            // 工具调用的token计算
+                            const toolCallText = `${part.name}(${JSON.stringify(part.input)})`;
+                            const toolTokens = await this.provideTokenCount(model, toolCallText, _token);
+                            totalTokens += toolTokens;
+                        } else if (part instanceof vscode.LanguageModelToolResultPart) {
+                            // 工具结果的token计算
+                            const resultText = typeof part.content === 'string' ? part.content : JSON.stringify(part.content);
+                            const resultTokens = await this.provideTokenCount(model, resultText, _token);
+                            totalTokens += resultTokens;
+                        }
+                    }
+                }
+
+                // 添加角色和结构的固定开销
+                totalTokens += 4; // 角色和结构开销
+
+                return totalTokens;
+            }
         }
     }
 }

@@ -306,6 +306,9 @@
         "pretest": "npm run compile",
         "test": "echo \"No tests specified\" && exit 0"
     },
+    "dependencies": {
+        "@microsoft/tiktokenizer": "^1.0.10"
+    },
     "devDependencies": {
         "@eslint/js": "^9.13.0",
         "@stylistic/eslint-plugin": "^2.9.0",
