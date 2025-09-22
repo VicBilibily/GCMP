@@ -7,8 +7,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { Logger } from './logger';
-import { KiloCodeVersionManager } from './kiloCodeVersionManager';
-import { ConfigProvider, KiloCodeHeaders } from '../types/sharedTypes';
+import { ConfigProvider } from '../types/sharedTypes';
 
 /**
  * 上下文缩减选项
@@ -37,7 +36,7 @@ export class ConfigManager {
     private static readonly CONFIG_SECTION = 'gcmp';
     private static cache: GCMPConfig | null = null;
     private static configListener: vscode.Disposable | null = null;
-    private static packageJsonCache: { configProvider?: ConfigProvider; kiloCodeHeaders?: KiloCodeHeaders } | null = null;
+    private static packageJsonCache: { configProvider?: ConfigProvider } | null = null;
 
     /**
      * 初始化配置管理器
@@ -191,7 +190,7 @@ export class ConfigManager {
     /**
      * 读取package.json中的供应商配置
      */
-    private static readPackageJson(): { configProvider?: ConfigProvider; kiloCodeHeaders?: KiloCodeHeaders } {
+    private static readPackageJson(): { configProvider?: ConfigProvider } {
         if (this.packageJsonCache) {
             return this.packageJsonCache;
         }
@@ -209,8 +208,7 @@ export class ConfigManager {
             const packageJson = JSON.parse(packageJsonContent);
 
             this.packageJsonCache = {
-                configProvider: packageJson.configProvider,
-                kiloCodeHeaders: packageJson.kiloCodeHeaders
+                configProvider: packageJson.configProvider
             };
 
             Logger.trace('Package.json配置已加载', this.packageJsonCache);
@@ -230,26 +228,9 @@ export class ConfigManager {
     }
 
     /**
-     * 获取kiloCode头部配置
-     */
-    static getKiloCodeHeaders(): KiloCodeHeaders | undefined {
-        const packageConfig = this.readPackageJson();
-        return packageConfig.kiloCodeHeaders;
-    }
-
-    /**
      * 获取动态的 kiloCode 头部配置
-     * 使用 VersionManager 来获取最新版本并生成动态头部
+     * 由于已调整为使用专用 coding API 接口，不再需要模拟工具
      */
-    static async getDynamicKiloCodeHeaders(): Promise<KiloCodeHeaders | undefined> {
-        const baseHeaders = this.getKiloCodeHeaders();
-        if (!baseHeaders) {
-            return undefined;
-        }
-
-        return await KiloCodeVersionManager.generateDynamicHeaders(baseHeaders);
-    }
-
     /**
      * 清理资源
      */

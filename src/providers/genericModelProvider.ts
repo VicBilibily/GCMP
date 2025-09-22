@@ -13,29 +13,25 @@ import {
     ProvideLanguageModelChatResponseOptions
 } from 'vscode';
 import { createByEncoderName, TikTokenizer } from '@microsoft/tiktokenizer';
-import { ProviderConfig, ModelConfig, KiloCodeHeaders } from '../types/sharedTypes';
-import { ApiKeyManager, Logger, ConfigManager } from '../utils';
-import { OpenAIHandler } from '../openaiHandler/openaiHandler';
+import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
+import { ApiKeyManager, Logger, ConfigManager, OpenAIHandler } from '../utils';
 
 /**
  * 通用模型供应商类
- * 基于配置文件动态创建供应商实现，支持kiloCode头部注入
+ * 基于配置文件动态创建供应商实现
  */
 export class GenericModelProvider implements LanguageModelChatProvider {
     private readonly openaiHandler: OpenAIHandler;
     private readonly providerKey: string;
     private providerConfig: ProviderConfig; // 移除 readonly 以支持动态配置
-    private readonly kiloCodeHeaders?: KiloCodeHeaders;
     private o200kTokenizerPromise?: Promise<TikTokenizer>;
 
     constructor(
         providerKey: string,
-        providerConfig: ProviderConfig,
-        kiloCodeHeaders?: KiloCodeHeaders
+        providerConfig: ProviderConfig
     ) {
         this.providerKey = providerKey;
         this.providerConfig = providerConfig;
-        this.kiloCodeHeaders = kiloCodeHeaders;
 
         // 创建OpenAI SDK处理器
         this.openaiHandler = new OpenAIHandler(
@@ -54,13 +50,12 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     static createAndActivate(
         context: vscode.ExtensionContext,
         providerKey: string,
-        providerConfig: ProviderConfig,
-        kiloCodeHeaders?: KiloCodeHeaders
+        providerConfig: ProviderConfig
     ): GenericModelProvider {
         Logger.trace(`${providerConfig.displayName} 模型扩展已激活!`);
 
         // 创建供应商实例
-        const provider = new GenericModelProvider(providerKey, providerConfig, kiloCodeHeaders);
+        const provider = new GenericModelProvider(providerKey, providerConfig);
 
         // 注册语言模型聊天供应商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(
@@ -99,12 +94,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             version: model.id,
             capabilities: model.capabilities
         };
-
-        // 如果模型启用了kiloCode且有配置的headers，添加自定义头部
-        if (model.kiloCode && this.kiloCodeHeaders) {
-            // 使用类型断言来添加customHeaders属性
-            (info as LanguageModelChatInformation & { customHeaders?: Record<string, string> }).customHeaders = this.kiloCodeHeaders;
-        }
 
         return info;
     }

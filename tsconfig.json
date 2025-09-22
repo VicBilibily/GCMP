@@ -1,18 +1,24 @@
 {
     "compilerOptions": {
         "module": "Node16",
-        "target": "ES2024",
-        "lib": [
-            "ES2024"
-        ],
+        "target": "ES2022",
+        "lib": ["ES2022"],
         "sourceMap": true,
         "rootDir": "src",
         "strict": true /* enable all strict type-checking options */,
         "outDir": "dist",
-        "skipLibCheck": true /* Skip type checking of declaration files */
+        "skipLibCheck": true /* Skip type checking of declaration files */,
+        "moduleResolution": "Node16",
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "forceConsistentCasingInFileNames": true,
+        "declaration": false /* esbuild doesn't generate declarations */,
+        "noEmit": false /* Let TypeScript emit for type checking, esbuild handles the actual bundling */
         /* Additional Checks */
         // "noImplicitReturns": true, /* Report error when not all code paths in function return a value. */
         // "noFallthroughCasesInSwitch": true, /* Report errors for fallthrough cases in switch statement. */
         // "noUnusedParameters": true,  /* Report errors on unused parameters. */
-    }
+    },
+    "include": ["src/**/*"],
+    "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }

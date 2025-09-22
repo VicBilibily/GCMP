@@ -1,14 +1,15 @@
 // Place your settings in this file to overwrite default and user settings.
 {
     "files.exclude": {
-        "out": false, // set this to true to hide the "out" folder with the compiled JS files
-        "dist": false // set this to true to hide the "dist" folder with the compiled JS files
+        "out": true, // hide the old "out" folder since we use esbuild now
+        "dist": false // show the "dist" folder with esbuild compiled JS files
     },
     "search.exclude": {
-        "out": true, // set this to false to include "out" folder in search results
-        "dist": true // set this to false to include "dist" folder in search results
+        "out": true, // exclude old "out" folder from search
+        "dist": true, // exclude "dist" folder from search results
+        "node_modules": true
     },
-    // Turn off tsc task auto detection since we have the necessary tasks as npm scripts
+    // Turn off tsc task auto detection since we use esbuild
     "typescript.tsc.autoDetect": "off",
     // Enable proposed APIs for extension development
     "extensions.experimental.affinity": {
@@ -37,5 +38,11 @@
     "[jsonc]": {
         "editor.tabSize": 4,
         "editor.insertSpaces": true
-    }
+    },
+    // 调试配置优化
+    "debug.javascript.usePreview": true,
+    "debug.openDebug": "openOnDebugBreak",
+    // esbuild 相关优化
+    "eslint.validate": ["javascript", "typescript"],
+    "typescript.preferences.includePackageJsonAutoImports": "auto"
 }

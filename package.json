@@ -189,46 +189,16 @@
             }
         ]
     },
-    "kiloCodeHeaders": {
-        "HTTP-Referer": "https://kilocode.ai",
-        "X-Title": "Kilo Code",
-        "X-KiloCode-Version": "4.95.0",
-        "User-Agent": "Kilo-Code/4.95.0"
-    },
     "configProvider": {
         "zhipu": {
             "displayName": "智谱AI",
-            "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+            "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
             "apiKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxx",
             "models": [
                 {
                     "id": "glm-4.5",
-                    "name": "GLM-4.5 (订阅)",
+                    "name": "GLM-4.5",
                     "tooltip": "ZHIPU GLM-4.5 - 最强大的推理模型，3550亿参数，专为复杂推理任务优化",
-                    "maxInputTokens": 128000,
-                    "maxOutputTokens": 96000,
-                    "capabilities": {
-                        "toolCalling": true,
-                        "imageInput": false
-                    },
-                    "kiloCode": true
-                },
-                {
-                    "id": "glm-4.5-air",
-                    "name": "GLM-4.5-Air (订阅)",
-                    "tooltip": "ZHIPU GLM-4.5-Air - 高性价比模型，轻量级设计，强性能表现",
-                    "maxInputTokens": 128000,
-                    "maxOutputTokens": 96000,
-                    "capabilities": {
-                        "toolCalling": true,
-                        "imageInput": false
-                    },
-                    "kiloCode": true
-                },
-                {
-                    "id": "glm-4.5-x",
-                    "name": "GLM-4.5-X (极速)",
-                    "tooltip": "ZHIPU GLM-4.5-X - 高性能模型，强推理能力，极速响应",
                     "maxInputTokens": 128000,
                     "maxOutputTokens": 96000,
                     "capabilities": {
@@ -237,13 +207,11 @@
                     }
                 },
                 {
-                    "id": "glm-4.5-airx",
-                    "name": "GLM-4.5-AirX (极速)",
-                    "tooltip": "ZHIPU GLM-4.5-AirX - 轻量级高性能，强性能，极速响应",
-                    "family": "glm-4.5",
+                    "id": "glm-4.5-air",
+                    "name": "GLM-4.5-Air",
+                    "tooltip": "ZHIPU GLM-4.5-Air - 高性价比模型，轻量级设计，强性能表现",
                     "maxInputTokens": 128000,
                     "maxOutputTokens": 96000,
-                    "version": "glm-4.5-airx",
                     "capabilities": {
                         "toolCalling": true,
                         "imageInput": false
@@ -251,7 +219,7 @@
                 },
                 {
                     "id": "glm-4.5v",
-                    "name": "GLM-4.5V (视觉)",
+                    "name": "GLM-4.5V",
                     "tooltip": "ZHIPU GLM-4.5V - 旗舰视觉推理模型，106B参数，支持视频/图像/文档理解",
                     "maxInputTokens": 64000,
                     "maxOutputTokens": 16000,
@@ -294,20 +262,22 @@
     },
     "scripts": {
         "vscode:prepublish": "npm run clean && npm run compile",
-        "compile": "tsc -p ./",
+        "compile": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify",
+        "compile:dev": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
         "clean": "rimraf dist",
         "lint": "eslint",
         "lint:fix": "eslint --fix",
         "format": "prettier --write \"src/**/*.{ts,js,json}\"",
         "format:check": "prettier --check \"src/**/*.{ts,js,json}\"",
-        "watch": "tsc -watch -p ./",
+        "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
         "package": "vsce package",
         "publish": "vsce publish --allow-proposed-apis chatProvider",
-        "pretest": "npm run compile",
+        "pretest": "npm run compile:dev",
         "test": "echo \"No tests specified\" && exit 0"
     },
     "dependencies": {
-        "@microsoft/tiktokenizer": "^1.0.10"
+        "@microsoft/tiktokenizer": "^1.0.10",
+        "openai": "^5.22.0"
     },
     "devDependencies": {
         "@eslint/js": "^9.13.0",
@@ -315,6 +285,7 @@
         "@types/node": "^22",
         "@types/vscode": "^1.104.0",
         "@vscode/vsce": "^3.6.0",
+        "esbuild": "^0.25.10",
         "eslint": "^9.13.0",
         "prettier": "^3.6.2",
         "rimraf": "^6.0.1",

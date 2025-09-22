@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { GenericModelProvider } from './providers/genericModelProvider';
 import { IFlowDynamicProvider } from './providers/iflowDynamicProvider';
 import { Logger } from './utils/logger';
-import { ApiKeyManager, ConfigManager, KiloCodeVersionManager } from './utils';
+import { ApiKeyManager, ConfigManager } from './utils';
 import { registerAllTools } from './tools';
 
 /**
@@ -10,12 +10,6 @@ import { registerAllTools } from './tools';
  */
 async function activateProviders(context: vscode.ExtensionContext): Promise<void> {
     const configProvider = ConfigManager.getConfigProvider();
-
-    // 更新 Kilo Code 版本缓存
-    await KiloCodeVersionManager.updateVersionCache();
-
-    // 获取动态的 kiloCode 头部配置
-    const kiloCodeHeaders = await ConfigManager.getDynamicKiloCodeHeaders();
 
     if (!configProvider) {
         Logger.warn('未找到供应商配置，跳过供应商注册');
@@ -32,16 +26,14 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
                 IFlowDynamicProvider.createAndActivate(
                     context,
                     providerKey,
-                    providerConfig,
-                    kiloCodeHeaders
+                    providerConfig
                 );
             } else {
                 // 使用通用供应商创建实例
                 GenericModelProvider.createAndActivate(
                     context,
                     providerKey,
-                    providerConfig,
-                    kiloCodeHeaders
+                    providerConfig
                 );
             }
 
@@ -71,9 +63,6 @@ export async function activate(context: vscode.ExtensionContext) {
         const configDisposable = ConfigManager.initialize();
         context.subscriptions.push(configDisposable);
 
-        // 初始化版本管理器
-        KiloCodeVersionManager.initialize(context);
-
         // 激活供应商
         Logger.trace('正在注册模型提供者...');
         await activateProviders(context);
@@ -100,7 +89,6 @@ export function deactivate() {
     try {
         Logger.info('开始停用 GCMP 扩展...');
         ConfigManager.dispose(); // 清理配置管理器
-        KiloCodeVersionManager.dispose(); // 清理版本管理器
         Logger.info('GCMP 扩展停用完成');
         Logger.dispose(); // 在扩展销毁时才 dispose Logger
     } catch (error) {

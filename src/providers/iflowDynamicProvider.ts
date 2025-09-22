@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { CancellationToken, LanguageModelChatInformation } from 'vscode';
-import { ProviderConfig, ModelConfig, KiloCodeHeaders } from '../types/sharedTypes';
+import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { Logger, IFlowApiClient, ApiKeyManager } from '../utils';
 import { GenericModelProvider } from './genericModelProvider';
 
@@ -22,12 +22,11 @@ export class IFlowDynamicProvider {
 
     constructor(
         providerKey: string,
-        staticProviderConfig: ProviderConfig,
-        kiloCodeHeaders?: KiloCodeHeaders
+        staticProviderConfig: ProviderConfig
     ) {
         this.originalProviderConfig = staticProviderConfig;
         // 创建内部的通用提供商实例
-        this.genericProvider = new GenericModelProvider(providerKey, staticProviderConfig, kiloCodeHeaders);
+        this.genericProvider = new GenericModelProvider(providerKey, staticProviderConfig);
         Logger.trace(`动态提供商已初始化: ${staticProviderConfig.displayName}`);
     }
 
@@ -37,13 +36,12 @@ export class IFlowDynamicProvider {
     static createAndActivate(
         context: vscode.ExtensionContext,
         providerKey: string,
-        staticProviderConfig: ProviderConfig,
-        kiloCodeHeaders?: KiloCodeHeaders
+        staticProviderConfig: ProviderConfig
     ): IFlowDynamicProvider {
         Logger.trace(`${staticProviderConfig.displayName} 动态模型扩展已激活!`);
 
         // 创建供应商实例
-        const provider = new IFlowDynamicProvider(providerKey, staticProviderConfig, kiloCodeHeaders);
+        const provider = new IFlowDynamicProvider(providerKey, staticProviderConfig);
 
         // 注册语言模型聊天供应商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(

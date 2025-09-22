@@ -11,7 +11,19 @@
             "request": "launch",
             "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
             "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-            "preLaunchTask": "${defaultBuildTask}"
+            "preLaunchTask": "npm: compile:dev",
+            "sourceMaps": true,
+            "resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"]
+        },
+        {
+            "name": "Run Extension (Watch Mode)",
+            "type": "extensionHost",
+            "request": "launch",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+            "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+            "preLaunchTask": "esbuild: watch-dev",
+            "sourceMaps": true,
+            "resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"]
         },
         {
             "name": "Extension Tests",
@@ -21,8 +33,9 @@
                 "--extensionDevelopmentPath=${workspaceFolder}",
                 "--extensionTestsPath=${workspaceFolder}/test/suite/index"
             ],
-            "outFiles": ["${workspaceFolder}/**/*.js", "${workspaceFolder}/dist/**/*.js"],
-            "preLaunchTask": "tasks: watch-tests"
+            "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+            "preLaunchTask": "npm: compile:dev",
+            "sourceMaps": true
         }
     ]
 }

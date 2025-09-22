@@ -6,7 +6,23 @@
         {
             "type": "npm",
             "script": "watch",
-            "problemMatcher": "$tsc-watch",
+            "problemMatcher": {
+                "owner": "esbuild",
+                "fileLocation": "relative",
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+): (error|warning|info): (.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": ".*esbuild.*",
+                    "endsPattern": ".*watching for changes.*"
+                }
+            },
             "isBackground": true,
             "presentation": {
                 "reveal": "never",
@@ -19,28 +35,64 @@
         },
         {
             "type": "npm",
-            "script": "compile",
-            "problemMatcher": "$tsc",
-            "group": "build"
-        },
-        {
-            "type": "npm",
-            "script": "watch-tests",
-            "problemMatcher": "$tsc-watch",
-            "isBackground": true,
-            "presentation": {
-                "reveal": "never",
-                "group": "watchers"
+            "script": "compile:dev",
+            "problemMatcher": {
+                "owner": "esbuild",
+                "fileLocation": "relative",
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+): (error|warning|info): (.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                }
             },
             "group": "build"
         },
         {
-            "label": "tasks: watch-tests",
-            "dependsOn": [
-                "npm: watch",
-                "npm: watch-tests"
-            ],
-            "problemMatcher": []
+            "type": "npm",
+            "script": "compile",
+            "problemMatcher": {
+                "owner": "esbuild",
+                "fileLocation": "relative",
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+): (error|warning|info): (.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                }
+            },
+            "group": "build"
+        },
+        {
+            "label": "esbuild: watch-dev",
+            "type": "npm",
+            "script": "watch",
+            "problemMatcher": {
+                "owner": "esbuild",
+                "fileLocation": "relative",
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(\\d+): (error|warning|info): (.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": ".*esbuild.*",
+                    "endsPattern": ".*watching for changes.*"
+                }
+            },
+            "isBackground": true,
+            "presentation": {
+                "reveal": "silent",
+                "group": "watchers"
+            }
         }
     ]
 }
