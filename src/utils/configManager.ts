@@ -10,11 +10,6 @@ import { Logger } from './logger';
 import { ConfigProvider } from '../types/sharedTypes';
 
 /**
- * 上下文缩减选项
- */
-export type ContextReduction = '1x' | '1/2' | '1/4' | '1/8';
-
-/**
  * 智谱AI搜索配置
  */
 export interface ZhipuSearchConfig {
@@ -32,8 +27,6 @@ export interface GCMPConfig {
     topP: number;
     /** 最大输出token数量 */
     maxTokens: number;
-    /** 模型上下文缩减比例 */
-    contextReduction: ContextReduction;
     /** 智谱AI搜索配置 */
     zhipuSearch: ZhipuSearchConfig;
 }
@@ -85,7 +78,6 @@ export class ConfigManager {
             temperature: this.validateTemperature(config.get<number>('temperature', 0.1)),
             topP: this.validateTopP(config.get<number>('topP', 1.0)),
             maxTokens: this.validateMaxTokens(config.get<number>('maxTokens', 8192)),
-            contextReduction: this.validateContextReduction(config.get<string>('contextReduction', '1x')),
             zhipuSearch: {
                 enableMCP: config.get<boolean>('zhipu.search.enableMCP', true) // 默认启用SSE模式（仅Pro+套餐支持）
             }
@@ -117,13 +109,6 @@ export class ConfigManager {
     }
 
     /**
-     * 获取上下文缩减参数
-     */
-    static getContextReduction(): ContextReduction {
-        return this.getConfig().contextReduction;
-    }
-
-    /**
      * 获取智谱AI搜索配置
      */
     static getZhipuSearchConfig(): ZhipuSearchConfig {
@@ -145,35 +130,12 @@ export class ConfigManager {
     }
 
     /**
-     * 获取上下文缩减比例数值
-     */
-    static getContextReductionRatio(): number {
-        const reduction = this.getContextReduction();
-        switch (reduction) {
-            case '1x': return 1;
-            case '1/2': return 0.5;
-            case '1/4': return 0.25;
-            case '1/8': return 0.125;
-            default: return 1;
-        }
-    }
-
-    /**
      * 获取适合模型的最大token数量
      * 考虑模型限制和用户配置
      */
     static getMaxTokensForModel(modelMaxTokens: number): number {
         const configMaxTokens = this.getMaxTokens();
         return Math.min(modelMaxTokens, configMaxTokens);
-    }
-
-    /**
-     * 获取上下文缩减后的输入限制
-     * 根据用户设置缩减模型的输入上下文长度
-     */
-    static getReducedInputTokenLimit(modelMaxInputTokens: number): number {
-        const reductionRatio = this.getContextReductionRatio();
-        return Math.floor(modelMaxInputTokens * reductionRatio);
     }
 
     /**
@@ -207,18 +169,6 @@ export class ConfigManager {
             return 8192;
         }
         return Math.floor(value);
-    }
-
-    /**
-     * 验证上下文缩减参数
-     */
-    private static validateContextReduction(value: string): ContextReduction {
-        const validValues: ContextReduction[] = ['1x', '1/2', '1/4', '1/8'];
-        if (!validValues.includes(value as ContextReduction)) {
-            Logger.warn(`无效的contextReduction值: ${value}，使用默认值1x`);
-            return '1x';
-        }
-        return value as ContextReduction;
     }
 
     /**

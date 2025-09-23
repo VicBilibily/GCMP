@@ -14,7 +14,7 @@ import {
 } from 'vscode';
 import { createByEncoderName, TikTokenizer } from '@microsoft/tiktokenizer';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { ApiKeyManager, Logger, ConfigManager, OpenAIHandler } from '../utils';
+import { ApiKeyManager, Logger, OpenAIHandler } from '../utils';
 
 /**
  * 通用模型供应商类
@@ -89,7 +89,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             name: model.name,
             tooltip: model.tooltip,
             family: 'claude', // 高效编辑工具 GHC 用 claude 判断
-            maxInputTokens: ConfigManager.getReducedInputTokenLimit(model.maxInputTokens),
+            maxInputTokens: model.maxInputTokens,
             maxOutputTokens: model.maxOutputTokens,
             version: model.id,
             capabilities: model.capabilities

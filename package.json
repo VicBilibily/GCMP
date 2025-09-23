@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、DeepSeek 模型支持的扩展",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -92,24 +92,6 @@
                     "maximum": 32768,
                     "description": "控制AI模型输出的最大token数量。较大的值允许更长的响应。",
                     "scope": "application"
-                },
-                "gcmp.contextReduction": {
-                    "type": "string",
-                    "default": "1x",
-                    "enum": [
-                        "1x",
-                        "1/2",
-                        "1/4",
-                        "1/8"
-                    ],
-                    "enumDescriptions": [
-                        "完整上下文（128K/256K）- 保持完整理解能力",
-                        "缩减至1/2（64K/128K）- 平衡理解能力与处理效率",
-                        "缩减至1/4（32K/64K）- 专注于近期对话内容",
-                        "缩减至1/8（16K/32K）- 仅保留最关键信息"
-                    ],
-                    "description": "控制AI模型可接受的上下文长度。缩减上下文可以提升处理效率，专注于更相关的信息，但可能影响模型对长对话历史的理解能力。修改此设置需要重启 VS Code 生效。",
-                    "scope": "window"
                 },
                 "gcmp.zhipu.search.enableMCP": {
                     "type": "boolean",

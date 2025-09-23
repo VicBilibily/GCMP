@@ -23,8 +23,8 @@
 
 ### 🧠 智谱AI - GLM-4.5系列
 
-> - [**订阅套餐**](https://bigmodel.cn/claude-code)：2个项目以内Lite套餐够用，1个项目使用基本不会超限。若需要使用视觉模型识别图片，直接订阅Pro套餐。
-> - **搜索功能**：集成官方 Web Search API，支持实时联网搜索，仅Pro+套餐支持通过本插件提供工具的 MCP SSE 调用模式。
+> - [**订阅套餐**](https://bigmodel.cn/claude-code)：2个项目以内Lite套餐够用，1个项目使用基本不会超限。若需要使用截图识别图片，可直接订阅Pro套餐。
+> - **搜索功能**：集成官方 Web Search API，支持实时联网搜索，仅Pro+套餐支持通过 MCP SSE 模式调用。
 
 - **GLM-4.5**：最强推理模型，3550亿参数
 - **GLM-4.5-Air**：高性价比轻量级模型
@@ -35,14 +35,14 @@
 阿里巴巴旗下的的AI平台，当前[API调用](https://platform.iflow.cn/docs/)服务**免费使用**，目前[限流规则](https://platform.iflow.cn/docs/limitSpeed)为每个用户最多只能**同时发起一个**请求。
 
 > - 心流AI的模型列表会根据官方[模型列表API](https://platform.iflow.cn/models)定时更新。
-> - 目前已屏蔽不兼容 OpenAI API 规则的 `DeepSeek-R1` 模型。
+> - 目前已屏蔽不兼容 OpenAI API 消息规则的 `DeepSeek-R1` 模型。
 
 ### 🔥 DeepSeek - 深度求索
 
 深度求索旗下的高性能推理模型，支持强大的代码生成和复杂推理任务。
 
-- **DeepSeek V3.1 (官方)**：全面升级的对话和推理能力，支持工具调用
-- **DeepSeek V3.1 (思考模式)**：基于V3.1架构的思维链推理能力，专注于复杂推理
+- **DeepSeek V3.1 Terminus**：全面升级的对话和推理能力，支持工具调用
+- **DeepSeek V3.1 Terminus (思考模式)**：基于V3.1架构的思维链推理能力，专注于复杂推理
 
 ## 🔍 智谱AI联网搜索工具
 
@@ -51,7 +51,7 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 ### 🚀 MCP SSE 模式（默认启用）
 
 - **默认启用**：新版本默认使用 MCP SSE 模式
-- **仅Pro+套餐支持**：非订阅套餐需关闭此开关
+- **仅Pro+套餐支持**：非Pro+订阅套餐需将 `gcmp.zhipuSearch.enableMCP` 设为 `false`
 
 ### 💰 标准计费模式
 
@@ -85,8 +85,7 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 {
     "gcmp.temperature": 0.1,
     "gcmp.topP": 1.0,
-    "gcmp.maxTokens": 8192,
-    "gcmp.contextReduction": "1x"
+    "gcmp.maxTokens": 8192
 }
 ```
 
@@ -97,9 +96,8 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 | `gcmp.temperature`      | number | 0.1    | 0.0-2.0                   | **输出随机性**：较低值产生更确定性输出，较高值产生更有创意的输出      |
 | `gcmp.topP`             | number | 1.0    | 0.0-1.0                   | **输出多样性**：使用较小值会减少输出随机性，提高一致性                |
 | `gcmp.maxTokens`        | number | 8192   | 32-32768                  | **最大输出长度**：控制AI单次响应的最大token数量                       |
-| `gcmp.contextReduction` | string | "1x"   | "1x", "1/2", "1/4", "1/8" | **上下文缩减**：控制模型可接受的输入上下文长度，缩减可提升响应速度 ⚠️ |
 
-> ⚠️ **重要提示**：`gcmp.contextReduction` 参数修改后需要重启 VS Code 才能生效。其他参数修改会立即生效。
+> 📝 **提示**：所有参数修改会立即生效。
 
 ## 🔑 获取API密钥
 
@@ -113,9 +111,9 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 
 ## 🚫 未列入支持的模型供应商说明
 
-- **MoonshotAI** 目前不适合与 GitHub Copilot 集成，缓存命中较低，Agent调用成本太高。
-- **魔搭社区（ModelScope）** 仅适用于测试环境，每模型500RPD，长期使用不太稳定。
-- **各大云厂商（阿里云、腾讯云、百度云等）** 按量计费不适合长期使用。
+- **MoonshotAI** 目前不适合与 GitHub Copilot 集成，缓存命中率较低，Agent调用成本较高。
+- **魔搭社区（ModelScope）** 仅适用于测试环境，每模型500RPD，偶尔服务不太稳定。
+- **各大云厂商（阿里云、腾讯云、百度云等）** 调用按量计费不适合长期使用。
 
 > 目前优先支持有月套餐的服务商。
 
