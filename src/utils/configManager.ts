@@ -18,7 +18,7 @@ export type ContextReduction = '1x' | '1/2' | '1/4' | '1/8';
  * 智谱AI搜索配置
  */
 export interface ZhipuSearchConfig {
-    /** 是否启用SSE通讯模式（订阅套餐后免费） */
+    /** 是否启用SSE通讯模式（订阅Pro套餐后免费） */
     enableMCP: boolean;
 }
 
@@ -87,7 +87,7 @@ export class ConfigManager {
             maxTokens: this.validateMaxTokens(config.get<number>('maxTokens', 8192)),
             contextReduction: this.validateContextReduction(config.get<string>('contextReduction', '1x')),
             zhipuSearch: {
-                enableMCP: config.get<boolean>('zhipu.search.enableMCP', true) // 默认启用SSE模式（订阅套餐后免费）
+                enableMCP: config.get<boolean>('zhipu.search.enableMCP', true) // 默认启用SSE模式（订阅Pro套餐后免费）
             }
         };
 

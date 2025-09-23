@@ -2,7 +2,7 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI 模型支持的扩展",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、DeepSeek 模型支持的扩展",
     "version": "0.4.0",
     "license": "MIT",
     "keywords": [
@@ -13,8 +13,10 @@
         "language-model",
         "zhipu",
         "iflow",
+        "deepseek",
         "智谱",
-        "心流"
+        "心流",
+        "深度求索"
     ],
     "repository": {
         "type": "git",
@@ -38,6 +40,7 @@
         "onStartupFinished",
         "onLanguageModelProvider:gcmp.zhipu",
         "onLanguageModelProvider:gcmp.iflow",
+        "onLanguageModelProvider:gcmp.deepseek",
         "onLanguageModelTool:gcmp_zhipuWebSearch"
     ],
     "contributes": {
@@ -55,6 +58,11 @@
             {
                 "command": "gcmp.iflow.refreshModels",
                 "title": "刷新 心流AI 模型列表",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.deepseek.setApiKey",
+                "title": "设置 DeepSeek API密钥",
                 "category": "GCMP"
             }
         ],
@@ -106,7 +114,7 @@
                 "gcmp.zhipu.search.enableMCP": {
                     "type": "boolean",
                     "default": true,
-                    "description": "启用智谱AI搜索的SSE通讯模式。启用后将使用SSE方式进行搜索（订阅套餐后免费），禁用后将使用标准计费接口（按次计费）。需要有效的智谱AI API密钥。",
+                    "description": "启用智谱AI搜索的SSE通讯模式。启用后将使用SSE方式进行搜索（订阅Pro套餐后免费），禁用后将使用标准计费接口（按次计费）。需要有效的智谱AI API密钥。",
                     "scope": "application"
                 }
             }
@@ -121,6 +129,11 @@
                 "vendor": "gcmp.iflow",
                 "displayName": "心流AI",
                 "managementCommand": "gcmp.iflow.setApiKey"
+            },
+            {
+                "vendor": "gcmp.deepseek",
+                "displayName": "DeepSeek",
+                "managementCommand": "gcmp.deepseek.setApiKey"
             }
         ],
         "languageModelTools": [
@@ -260,6 +273,35 @@
                     "maxOutputTokens": 64000,
                     "capabilities": {
                         "toolCalling": true,
+                        "imageInput": false
+                    }
+                }
+            ]
+        },
+        "deepseek": {
+            "displayName": "DeepSeek",
+            "baseUrl": "https://api.deepseek.com/v1",
+            "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "models": [
+                {
+                    "id": "deepseek-chat",
+                    "name": "DeepSeek-V3.1-Terminus",
+                    "tooltip": "DeepSeek V3.1-Terminus 官方模型 - 全面升级的对话和推理能力",
+                    "maxInputTokens": 128000,
+                    "maxOutputTokens": 8192,
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    }
+                },
+                {
+                    "id": "deepseek-reasoner",
+                    "name": "DeepSeek-V3.1-Terminus (思考模式)",
+                    "tooltip": "DeepSeek V3.1-Terminus 思考模式 - 具备思维链推理能力的高级模型",
+                    "maxInputTokens": 128000,
+                    "maxOutputTokens": 8192,
+                    "capabilities": {
+                        "toolCalling": false,
                         "imageInput": false
                     }
                 }

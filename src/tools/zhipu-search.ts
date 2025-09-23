@@ -75,7 +75,7 @@ export class ZhipuSearchTool {
     }
 
     /**
-     * 通过 SSE 搜索（订阅套餐后免费）
+     * 通过 SSE 搜索（订阅Pro套餐后免费）
      */
     private async searchViaSSE(params: ZhipuSearchRequest): Promise<string> {
         Logger.info(`🔄 [智谱搜索] 使用SSE模式搜索: "${params.search_query}"`);
@@ -220,7 +220,7 @@ export class ZhipuSearchTool {
 
             // 根据配置选择搜索模式
             if (this.isSSEEnabled()) {
-                Logger.info('🔄 [智谱搜索] 使用SSE模式搜索（订阅套餐后免费）');
+                Logger.info('🔄 [智谱搜索] 使用SSE模式搜索（订阅Pro套餐后免费）');
                 searchResults = await this.searchViaSSE(params);
             } else {
                 Logger.info('🔄 [智谱搜索] 使用标准计费接口搜索（按次计费）');
@@ -251,7 +251,7 @@ export class ZhipuSearchTool {
         const isSSE = this.isSSEEnabled();
         return {
             mode: isSSE ? 'SSE' : 'Standard',
-            description: isSSE ? 'SSE通讯模式（订阅套餐后免费）' : '标准计费接口模式（按次计费）'
+            description: isSSE ? 'SSE通讯模式（订阅Pro套餐后免费）' : '标准计费接口模式（按次计费）'
         };
     }
 
