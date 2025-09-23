@@ -114,7 +114,7 @@
                 "gcmp.zhipu.search.enableMCP": {
                     "type": "boolean",
                     "default": true,
-                    "description": "启用智谱AI搜索的SSE通讯模式。启用后将使用SSE方式进行搜索（订阅Pro套餐后免费），禁用后将使用标准计费接口（按次计费）。需要有效的智谱AI API密钥。",
+                    "description": "启用智谱AI搜索的SSE通讯模式。仅 Pro+ 套餐支持通过 MCP SSE 方式调用搜索，非订阅套餐请关闭此开关以使用标准计费接口（按次计费）。需要有效的智谱AI API密钥。",
                     "scope": "application"
                 }
             }
@@ -139,10 +139,10 @@
         "languageModelTools": [
             {
                 "name": "gcmp_zhipuWebSearch",
-                "displayName": "智谱AI网络搜索",
+                "displayName": "智谱AI联网搜索",
                 "toolReferenceName": "zhipuWebSearch",
-                "modelDescription": "使用智谱AI提供的网络搜索功能获取实时信息。支持多种搜索引擎：search_std（标准搜索，¥0.01）、search_pro（高级搜索，¥0.03）、search_pro_sogou（搜狗搜索，¥0.05）、search_pro_quark（夸克搜索，¥0.05）。",
-                "userDescription": "通过智谱AI搜索网络获取最新信息",
+                "modelDescription": "使用智谱AI提供的联网搜索功能获取实时信息。支持多种搜索引擎：search_std（标准搜索，¥0.01）、search_pro（高级搜索，¥0.03）、search_pro_sogou（搜狗搜索，¥0.05）、search_pro_quark（夸克搜索，¥0.05）。注意：Pro+ 套餐可通过 MCP SSE 调用，非订阅套餐使用标准计费接口。",
+                "userDescription": "通过智谱AI联网搜索获取最新信息",
                 "inputSchema": {
                     "type": "object",
                     "properties": {

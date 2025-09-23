@@ -15,7 +15,7 @@ let zhipuSearchTool: ZhipuSearchTool | undefined;
  */
 export function registerAllTools(context: vscode.ExtensionContext): void {
     try {
-        // 注册智谱AI搜索工具
+        // 注册智谱AI联网搜索工具
         zhipuSearchTool = new ZhipuSearchTool();
         const zhipuToolDisposable = vscode.lm.registerTool('gcmp_zhipuWebSearch', {
             invoke: zhipuSearchTool.invoke.bind(zhipuSearchTool)
@@ -29,7 +29,7 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
             }
         });
 
-        Logger.info('智谱AI搜索工具已注册: gcmp_zhipuWebSearch');
+        Logger.info('智谱AI联网搜索工具已注册: gcmp_zhipuWebSearch');
     } catch (error) {
         Logger.error('工具注册失败', error instanceof Error ? error : undefined);
         throw error;
@@ -44,7 +44,7 @@ export async function cleanupAllTools(): Promise<void> {
         if (zhipuSearchTool) {
             await zhipuSearchTool.cleanup();
             zhipuSearchTool = undefined;
-            Logger.info('✅ 智谱AI搜索工具资源已清理');
+            Logger.info('✅ 智谱AI联网搜索工具资源已清理');
         }
     } catch (error) {
         Logger.error('❌ 工具清理失败', error instanceof Error ? error : undefined);

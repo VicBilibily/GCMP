@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  智谱AI搜索工具
+ *  智谱AI联网搜索工具
  *  支持SSE通讯和标准计费接口的切换
  *--------------------------------------------------------------------------------------------*/
 
@@ -60,7 +60,7 @@ export interface ZhipuSearchResponse {
 }
 
 /**
- * 智谱AI搜索工具
+ * 智谱AI联网搜索工具
  */
 export class ZhipuSearchTool {
     private readonly baseURL = 'https://open.bigmodel.cn/api/paas/v4';
@@ -75,7 +75,7 @@ export class ZhipuSearchTool {
     }
 
     /**
-     * 通过 SSE 搜索（订阅Pro套餐后免费）
+     * 通过 SSE 搜索（仅Pro+套餐支持）
      */
     private async searchViaSSE(params: ZhipuSearchRequest): Promise<string> {
         Logger.info(`🔄 [智谱搜索] 使用SSE模式搜索: "${params.search_query}"`);
@@ -209,7 +209,7 @@ export class ZhipuSearchTool {
      */
     async invoke(request: vscode.LanguageModelToolInvocationOptions<ZhipuSearchRequest>): Promise<vscode.LanguageModelToolResult> {
         try {
-            Logger.info(`🚀 [工具调用] 智谱AI搜索工具被调用: ${JSON.stringify(request.input)}`);
+            Logger.info(`🚀 [工具调用] 智谱AI联网搜索工具被调用: ${JSON.stringify(request.input)}`);
 
             const params = request.input as ZhipuSearchRequest;
             if (!params.search_query) {
@@ -220,7 +220,7 @@ export class ZhipuSearchTool {
 
             // 根据配置选择搜索模式
             if (this.isSSEEnabled()) {
-                Logger.info('🔄 [智谱搜索] 使用SSE模式搜索（订阅Pro套餐后免费）');
+                Logger.info('🔄 [智谱搜索] 使用SSE模式搜索（仅Pro+套餐支持）');
                 searchResults = await this.searchViaSSE(params);
             } else {
                 Logger.info('🔄 [智谱搜索] 使用标准计费接口搜索（按次计费）');
@@ -228,7 +228,7 @@ export class ZhipuSearchTool {
                 searchResults = this.formatResults(response);
             }
 
-            Logger.info('✅ [工具调用] 智谱AI搜索工具调用成功');
+            Logger.info('✅ [工具调用] 智谱AI联网搜索工具调用成功');
 
             return new vscode.LanguageModelToolResult([
                 new vscode.LanguageModelTextPart(searchResults)
@@ -236,7 +236,7 @@ export class ZhipuSearchTool {
 
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : '未知错误';
-            Logger.error('❌ [工具调用] 智谱AI搜索工具调用失败', error instanceof Error ? error : undefined);
+            Logger.error('❌ [工具调用] 智谱AI联网搜索工具调用失败', error instanceof Error ? error : undefined);
 
             throw new vscode.LanguageModelError(
                 `智谱AI搜索失败: ${errorMessage}`
@@ -251,7 +251,7 @@ export class ZhipuSearchTool {
         const isSSE = this.isSSEEnabled();
         return {
             mode: isSSE ? 'SSE' : 'Standard',
-            description: isSSE ? 'SSE通讯模式（订阅Pro套餐后免费）' : '标准计费接口模式（按次计费）'
+            description: isSSE ? 'SSE通讯模式（仅Pro+套餐支持）' : '标准计费接口模式（按次计费）'
         };
     }
 
