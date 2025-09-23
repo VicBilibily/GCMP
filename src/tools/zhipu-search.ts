@@ -216,9 +216,8 @@ export class ZhipuSearchTool {
                 throw new Error('缺少必需参数: search_query');
             }
 
-            let searchResults: string;
-
             // 根据配置选择搜索模式
+            let searchResults: string;
             if (this.isSSEEnabled()) {
                 Logger.info('🔄 [智谱搜索] 使用SSE模式搜索（仅Pro+套餐支持）');
                 searchResults = await this.searchViaSSE(params);

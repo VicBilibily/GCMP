@@ -3,6 +3,7 @@
  *  注意：SSE通讯模式需要订阅智谱AI套餐后才能免费调用
  *--------------------------------------------------------------------------------------------*/
 
+import * as vscode from 'vscode';
 import * as https from 'https';
 import { IncomingMessage, ClientRequest } from 'http';
 import { Logger } from '../utils';
@@ -608,6 +609,18 @@ export class ZhipuSSEClient {
             const jsonData = JSON.parse(data);
             Logger.debug(`📨 [智谱SSE] 响应数据: ${JSON.stringify(jsonData).substring(0, 200)}...`);
 
+            // 检查是否有错误
+            if (jsonData.result && jsonData.result.isError) {
+                const errorContent = this.extractContent(jsonData.result);
+                Logger.error(`❌ [智谱SSE] 搜索返回错误: ${errorContent}`);
+
+                // 处理错误响应
+                this.handleErrorResponse(errorContent).catch(error => {
+                    Logger.error('❌ [智谱SSE] 错误处理失败', error instanceof Error ? error : undefined);
+                });
+                return;
+            }
+
             // 检查工具调用结果
             if (jsonData.result && jsonData.result.content) {
                 const content = this.extractContent(jsonData.result);
@@ -653,6 +666,59 @@ export class ZhipuSSEClient {
                     oldestRequest.resolve(data);
                     Logger.debug(`📝 [智谱SSE] 文本数据返回: ${data.length}字符 (ID: ${oldestRequest.id})`);
                 }
+            }
+        }
+    }
+
+    /**
+     * 处理错误响应
+     */
+    private async handleErrorResponse(errorContent: string): Promise<void> {
+        let errorMessage = errorContent;
+
+        // 检查是否是403权限错误
+        if (errorContent.includes('403') && errorContent.includes('您无权访问')) {
+            // 特殊处理MCP SSE 403权限错误
+            if (errorContent.includes('search-prime-claude')) {
+                Logger.warn(`⚠️ [智谱SSE] 检测到联网搜索 MCP 权限不足: ${errorContent}`);
+
+                // 弹出用户对话框询问是否停用MCP模式
+                const shouldDisableMCP = await this.showMCPDisableDialog();
+
+                if (shouldDisableMCP) {
+                    // 用户选择停用MCP模式，更新配置
+                    await this.disableMCPMode();
+                    errorMessage = '智谱AI搜索权限不足：MCP模式已禁用，请重新尝试搜索。';
+                } else {
+                    errorMessage = '智谱AI搜索权限不足：您的账户无权访问联网搜索 MCP 功能。请检查您的智谱AI套餐订阅状态。';
+                }
+            } else {
+                errorMessage = '智谱AI搜索权限不足：403错误。请检查您的API密钥权限或套餐订阅状态。';
+            }
+        } else if (errorContent.includes('MCP error')) {
+            // 提取MCP错误信息
+            const mcpErrorMatch = errorContent.match(/MCP error (\d+): (.+)/);
+            if (mcpErrorMatch) {
+                const [, errorCode, errorDesc] = mcpErrorMatch;
+                errorMessage = `智谱AI MCP协议错误 ${errorCode}: ${errorDesc}`;
+            }
+        }
+
+        // 将错误传递给所有等待的搜索请求
+        if (this.currentSearchId && this.pendingSearches.has(this.currentSearchId)) {
+            const searchRequest = this.pendingSearches.get(this.currentSearchId)!;
+            this.pendingSearches.delete(this.currentSearchId);
+            searchRequest.reject(new Error(errorMessage));
+            Logger.debug(`❌ [智谱SSE] 当前搜索失败 (ID: ${this.currentSearchId}): ${errorMessage}`);
+        } else {
+            // 如果没有当前搜索，则失败最早的请求
+            const oldestRequest = Array.from(this.pendingSearches.values())
+                .sort((a, b) => a.timestamp - b.timestamp)[0];
+
+            if (oldestRequest) {
+                this.pendingSearches.delete(oldestRequest.id);
+                oldestRequest.reject(new Error(errorMessage));
+                Logger.debug(`❌ [智谱SSE] 搜索失败 (ID: ${oldestRequest.id}): ${errorMessage}`);
             }
         }
     }
@@ -802,6 +868,50 @@ export class ZhipuSSEClient {
         }
         this.pendingSearches.clear();
         this.searchQueue.length = 0;
+    }
+
+    /**
+     * 显示MCP禁用对话框
+     */
+    private async showMCPDisableDialog(): Promise<boolean> {
+        const message = '智谱AI搜索权限不足：您的账户无权访问联网搜索 MCP 功能。\n\n是否要停用MCP订阅服务模式，改为使用标准计费服务？\n\n• MCP模式：需要Pro+套餐订阅，免费使用\n• 标准模式：按次计费，适合所有用户';
+
+        const action = await vscode.window.showWarningMessage(
+            message,
+            { modal: true },
+            '切换到标准模式',
+            '保持MCP模式'
+        );
+
+        Logger.info(`🔧 [智谱SSE] 用户选择: ${action || '取消'}`);
+        return action === '切换到标准模式';
+    }
+
+    /**
+     * 禁用MCP模式
+     */
+    private async disableMCPMode(): Promise<void> {
+        try {
+            // 更新配置，禁用MCP模式
+            const config = vscode.workspace.getConfiguration('gcmp');
+            await config.update('zhipu.search.enableMCP', false, vscode.ConfigurationTarget.Global);
+
+            Logger.info('✅ [智谱SSE] MCP模式已禁用，将使用标准计费模式');
+
+            // 断开当前SSE连接
+            await this.disconnect();
+
+            // 显示成功消息
+            vscode.window.showInformationMessage(
+                '已切换到标准计费模式。请重新尝试搜索。',
+                '确定'
+            );
+        } catch (error) {
+            Logger.error('❌ [智谱SSE] 禁用MCP模式失败', error instanceof Error ? error : undefined);
+            vscode.window.showErrorMessage(
+                `切换模式失败: ${error instanceof Error ? error.message : '未知错误'}`
+            );
+        }
     }
 
     /**

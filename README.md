@@ -51,7 +51,7 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 ### 🚀 MCP SSE 模式（默认启用）
 
 - **默认启用**：新版本默认使用 MCP SSE 模式
-- **仅Pro+套餐支持**：非Pro+订阅套餐需将 `gcmp.zhipuSearch.enableMCP` 设为 `false`
+- **仅Pro+套餐支持**：非Pro+订阅套餐需将 `gcmp.zhipu.search.enableMCP` 设为 `false`
 
 ### 💰 标准计费模式
 
@@ -67,7 +67,7 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 ### 使用方法
 
 1. **设置 智谱AI API 密钥**：运行命令 `GCMP: 设置 智谱AI API密钥`
-2. **模式设置**：MCP SSE 模式默认启用，可在 VS Code 设置中将 `gcmp.zhipuSearch.enableMCP` 设为 `false` 切换至标准计费模式
+2. **模式设置**：MCP SSE 模式默认启用，可在 VS Code 设置中将 `gcmp.zhipu.search.enableMCP` 设为 `false` 切换至标准计费模式
 3. **在 AI 对话中使用**：在 GitHub Copilot Chat 中直接请求搜索最新信息，模型会自动调用搜索工具
 4. **手动引用**：在提示中使用 `#zhipuWebSearch` 来明确引用搜索工具
 
