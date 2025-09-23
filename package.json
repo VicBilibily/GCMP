@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、DeepSeek 模型支持的扩展",
-    "version": "0.4.0",
+    "version": "0.5.0",
     "license": "MIT",
     "keywords": [
         "ai",
