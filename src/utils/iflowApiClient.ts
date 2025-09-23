@@ -90,8 +90,8 @@ export class IFlowApiClient {
             for (const category of Object.values(data.data)) {
                 if (Array.isArray(category)) {
                     allModels.push(...category.filter(model =>
-                        model.isVisible === 1 &&
-                        model.modelStatus === 'offline' // 只包含离线模型（可用模型）
+                        model.isVisible === 1
+                        // 移除 modelStatus 过滤，因为该数据不可靠
                     ));
                 }
             }
