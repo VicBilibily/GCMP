@@ -15,6 +15,14 @@ import { ConfigProvider } from '../types/sharedTypes';
 export type ContextReduction = '1x' | '1/2' | '1/4' | '1/8';
 
 /**
+ * 智谱AI搜索配置
+ */
+export interface ZhipuSearchConfig {
+    /** 是否启用SSE通讯模式（订阅套餐后免费） */
+    enableMCP: boolean;
+}
+
+/**
  * GCMP配置接口
  */
 export interface GCMPConfig {
@@ -26,6 +34,8 @@ export interface GCMPConfig {
     maxTokens: number;
     /** 模型上下文缩减比例 */
     contextReduction: ContextReduction;
+    /** 智谱AI搜索配置 */
+    zhipuSearch: ZhipuSearchConfig;
 }
 
 /**
@@ -75,7 +85,10 @@ export class ConfigManager {
             temperature: this.validateTemperature(config.get<number>('temperature', 0.1)),
             topP: this.validateTopP(config.get<number>('topP', 1.0)),
             maxTokens: this.validateMaxTokens(config.get<number>('maxTokens', 8192)),
-            contextReduction: this.validateContextReduction(config.get<string>('contextReduction', '1x'))
+            contextReduction: this.validateContextReduction(config.get<string>('contextReduction', '1x')),
+            zhipuSearch: {
+                enableMCP: config.get<boolean>('zhipu.search.enableMCP', true) // 默认启用SSE模式（订阅套餐后免费）
+            }
         };
 
         Logger.debug('配置已加载', this.cache);
@@ -108,6 +121,27 @@ export class ConfigManager {
      */
     static getContextReduction(): ContextReduction {
         return this.getConfig().contextReduction;
+    }
+
+    /**
+     * 获取智谱AI搜索配置
+     */
+    static getZhipuSearchConfig(): ZhipuSearchConfig {
+        return this.getConfig().zhipuSearch;
+    }
+
+    /**
+     * 监听智谱搜索配置变化
+     */
+    static onZhipuSearchConfigChanged(callback: (searchConfig: ZhipuSearchConfig) => void): vscode.Disposable {
+        return vscode.workspace.onDidChangeConfiguration((event) => {
+            if (event.affectsConfiguration(`${this.CONFIG_SECTION}.zhipu.search`)) {
+                this.cache = null; // 清除缓存
+                const newConfig = this.getZhipuSearchConfig();
+                Logger.info('🔄 [配置管理] 智谱搜索配置已更新');
+                callback(newConfig);
+            }
+        });
     }
 
     /**

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Logger } from './logger';
+import { VersionManager } from './versionManager';
 import { ModelConfig } from '../types/sharedTypes';
 
 /**
@@ -59,19 +60,8 @@ export class IFlowApiClient {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), this.REQUEST_TIMEOUT);
 
-            // 动态获取扩展信息作为 User-Agent
-            let userAgent = 'GCMP-Extension/1.0';
-            try {
-                const { extensions } = await import('vscode');
-                const extension = extensions.getExtension('vicanent.gcmp');
-                if (extension?.packageJSON) {
-                    const name = extension.packageJSON.name || 'gcmp';
-                    const version = extension.packageJSON.version || '1.0.0';
-                    userAgent = `${name}/${version}`;
-                }
-            } catch {
-                // 获取失败时使用默认值
-            }
+            // 使用版本管理器获取 User-Agent
+            const userAgent = VersionManager.getUserAgent('Extension');
 
             const response = await fetch(this.API_URL, {
                 method: 'POST',

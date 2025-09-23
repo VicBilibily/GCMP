@@ -102,6 +102,12 @@
                     ],
                     "description": "控制AI模型可接受的上下文长度。缩减上下文可以提升处理效率，专注于更相关的信息，但可能影响模型对长对话历史的理解能力。修改此设置需要重启 VS Code 生效。",
                     "scope": "window"
+                },
+                "gcmp.zhipu.search.enableMCP": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "启用智谱AI搜索的SSE通讯模式。启用后将使用SSE方式进行搜索（订阅套餐后免费），禁用后将使用标准计费接口（按次计费）。需要有效的智谱AI API密钥。",
+                    "scope": "application"
                 }
             }
         },

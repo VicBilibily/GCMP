@@ -8,3 +8,4 @@ export { Logger } from './logger';
 export { ConfigManager, type GCMPConfig } from './configManager';
 export { IFlowApiClient } from './iflowApiClient';
 export { OpenAIHandler } from './openaiHandler';
+export { VersionManager } from './versionManager';

@@ -1,12 +1,15 @@
 /*---------------------------------------------------------------------------------------------
  *  智谱AI搜索工具
- *  基于智谱AI官方文档实现
+ *  支持SSE通讯和标准计费接口的切换
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
 import * as https from 'https';
 import { Logger } from '../utils';
 import { ApiKeyManager } from '../utils/apiKeyManager';
+import { ConfigManager } from '../utils/configManager';
+import { VersionManager } from '../utils/versionManager';
+import { ZhipuSSEClient } from './zhipu-sse-client';
 
 /**
  * 智谱AI搜索引擎类型
@@ -61,9 +64,34 @@ export interface ZhipuSearchResponse {
  */
 export class ZhipuSearchTool {
     private readonly baseURL = 'https://open.bigmodel.cn/api/paas/v4';
+    private readonly sseClient = new ZhipuSSEClient();
 
     /**
-     * 执行搜索
+     * 检查是否启用 SSE 模式
+     */
+    private isSSEEnabled(): boolean {
+        const config = ConfigManager.getZhipuSearchConfig();
+        return config.enableMCP; // 复用 enableMCP 配置项来控制 SSE 模式
+    }
+
+    /**
+     * 通过 SSE 搜索（订阅套餐后免费）
+     */
+    private async searchViaSSE(params: ZhipuSearchRequest): Promise<string> {
+        Logger.info(`🔄 [智谱搜索] 使用SSE模式搜索: "${params.search_query}"`);
+
+        const searchOptions = {
+            count: params.count || 10,
+            domainFilter: params.search_domain_filter,
+            recencyFilter: params.search_recency_filter || 'noLimit',
+            contentSize: params.content_size || 'medium'
+        };
+
+        return this.sseClient.search(params.search_query, searchOptions);
+    }
+
+    /**
+     * 执行搜索（支持SSE和标准计费接口）
      */
     async search(params: ZhipuSearchRequest): Promise<ZhipuSearchResponse> {
         const apiKey = await ApiKeyManager.getApiKey('zhipu');
@@ -91,7 +119,7 @@ export class ZhipuSearchTool {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${apiKey}`,
                 'Content-Length': Buffer.byteLength(requestData),
-                'User-Agent': 'GCMP-ZhipuSearch/1.0.0'
+                'User-Agent': VersionManager.getUserAgent('ZhipuSearch')
             }
         };
 
@@ -126,7 +154,6 @@ export class ZhipuSearchTool {
 
                         const response = JSON.parse(data) as ZhipuSearchResponse;
                         Logger.info(`✅ [智谱搜索] 搜索完成: 找到 ${response.search_result?.length || 0} 个结果`);
-
                         resolve(response);
                     } catch (error) {
                         Logger.error('❌ [智谱搜索] 解析响应失败', error instanceof Error ? error : undefined);
@@ -189,13 +216,22 @@ export class ZhipuSearchTool {
                 throw new Error('缺少必需参数: search_query');
             }
 
-            const searchResponse = await this.search(params);
-            const formattedResults = this.formatResults(searchResponse);
+            let searchResults: string;
+
+            // 根据配置选择搜索模式
+            if (this.isSSEEnabled()) {
+                Logger.info('🔄 [智谱搜索] 使用SSE模式搜索（订阅套餐后免费）');
+                searchResults = await this.searchViaSSE(params);
+            } else {
+                Logger.info('🔄 [智谱搜索] 使用标准计费接口搜索（按次计费）');
+                const response = await this.search(params);
+                searchResults = this.formatResults(response);
+            }
 
             Logger.info('✅ [工具调用] 智谱AI搜索工具调用成功');
 
             return new vscode.LanguageModelToolResult([
-                new vscode.LanguageModelTextPart(formattedResults)
+                new vscode.LanguageModelTextPart(searchResults)
             ]);
 
         } catch (error) {
@@ -207,4 +243,28 @@ export class ZhipuSearchTool {
             );
         }
     }
+
+    /**
+     * 获取搜索模式状态
+     */
+    getSearchModeStatus(): { mode: 'SSE' | 'Standard'; description: string } {
+        const isSSE = this.isSSEEnabled();
+        return {
+            mode: isSSE ? 'SSE' : 'Standard',
+            description: isSSE ? 'SSE通讯模式（订阅套餐后免费）' : '标准计费接口模式（按次计费）'
+        };
+    }
+
+    /**
+     * 清理工具资源
+     */
+    async cleanup(): Promise<void> {
+        try {
+            await this.sseClient.disconnect();
+            Logger.info('✅ [智谱搜索] 工具资源已清理');
+        } catch (error) {
+            Logger.error('❌ [智谱搜索] 资源清理失败', error instanceof Error ? error : undefined);
+        }
+    }
 }
+
