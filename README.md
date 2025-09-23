@@ -113,7 +113,6 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 
 ## 🚫 未列入支持的模型供应商说明
 
-- **DeepSeek** 的 API 输出数据格式与 GitHub Copilot 集成存在兼容性问题。
 - **MoonshotAI** 目前不适合与 GitHub Copilot 集成，缓存命中较低，Agent调用成本太高。
 - **魔搭社区（ModelScope）** 仅适用于测试环境，每模型500RPD，长期使用不太稳定。
 - **各大云厂商（阿里云、腾讯云、百度云等）** 按量计费不适合长期使用。
