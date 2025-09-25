@@ -67,6 +67,7 @@ export class OpenAIHandler {
 
     /**
      * 预处理 SSE 响应，修复非标准格式
+     * 修复部分模型输出 "data:" 后不带空格的问题
      */
     private preprocessSSEResponse(response: Response): Response {
         if (!response.body) {
@@ -89,7 +90,7 @@ export class OpenAIHandler {
                         // 修复 SSE 格式：确保 "data:" 后面有空格
                         // 处理 "data:{json}" -> "data: {json}" 
                         chunk = chunk.replace(/^data:([^\s])/gm, 'data: $1');
-                        // 重新编码并传递
+                        // 重新编码并传递有效内容
                         controller.enqueue(encoder.encode(chunk));
                     }
                 } catch (error) {
@@ -114,7 +115,7 @@ export class OpenAIHandler {
         model: vscode.LanguageModelChatInformation,
         messages: readonly vscode.LanguageModelChatMessage[],
         options: vscode.ProvideLanguageModelChatResponseOptions,
-        progress: vscode.Progress<vscode.LanguageModelResponsePart>,
+        progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
         token: vscode.CancellationToken
     ): Promise<void> {
         Logger.debug(`${model.name} 开始处理 ${this.displayName} 请求`);
@@ -175,110 +176,121 @@ export class OpenAIHandler {
                 Logger.trace(`${model.name} 添加了 ${options.tools.length} 个工具`);
             }
 
-            // 输出转换后的消息统计信息
-            const openaiMessages = createParams.messages;
-            const totalContentLength = openaiMessages.reduce((sum, msg) => {
-                if (typeof msg.content === 'string') {
-                    return sum + msg.content.length;
-                } else if (Array.isArray(msg.content)) {
-                    return sum + msg.content.reduce((contentSum, item) => {
-                        return contentSum + (('text' in item && item.text) ? item.text.length : 0);
-                    }, 0);
-                }
-                return sum;
-            }, 0);
-            const totalToolCalls = openaiMessages.reduce((sum, msg) => {
-                return sum + (('tool_calls' in msg && msg.tool_calls) ? msg.tool_calls.length : 0);
-            }, 0);
-            Logger.debug(`📊 ${model.name} 消息统计: ${openaiMessages.length}条消息, ${totalContentLength}字符, ${totalToolCalls}个工具调用`);
+            // #region 调试：检查输入消息中的工具调用
+            // // 输出转换后的消息统计信息
+            // const openaiMessages = createParams.messages;
+            // const totalContentLength = openaiMessages.reduce((sum, msg) => {
+            //     if (typeof msg.content === 'string') {
+            //         return sum + msg.content.length;
+            //     } else if (Array.isArray(msg.content)) {
+            //         return sum + msg.content.reduce((contentSum, item) => {
+            //             return contentSum + (('text' in item && item.text) ? item.text.length : 0);
+            //         }, 0);
+            //     }
+            //     return sum;
+            // }, 0);
+            // const totalToolCalls = openaiMessages.reduce((sum, msg) => {
+            //     return sum + (('tool_calls' in msg && msg.tool_calls) ? msg.tool_calls.length : 0);
+            // }, 0);
+            // Logger.debug(`📊 ${model.name} 消息统计: ${openaiMessages.length}条消息, ${totalContentLength}字符, ${totalToolCalls}个工具调用`);
 
-            // 详细消息调试信息
-            openaiMessages.forEach((msg, index) => {
-                const contentInfo = typeof msg.content === 'string'
-                    ? `text(${msg.content.length}chars)`
-                    : Array.isArray(msg.content)
-                        ? `multimodal(${msg.content.length}parts)`
-                        : 'no_content';
-                const toolCallsInfo = ('tool_calls' in msg && msg.tool_calls) ? msg.tool_calls.length : 0;
-                const toolCallId = ('tool_call_id' in msg && msg.tool_call_id) ? msg.tool_call_id : 'none';
-                Logger.trace(`💬 消息 ${index}: role=${msg.role}, content=${contentInfo}, tool_calls=${toolCallsInfo}, tool_call_id=${toolCallId}`);
-                if ('tool_calls' in msg && msg.tool_calls) {
-                    msg.tool_calls.forEach(tc => {
-                        if (tc.type === 'function' && tc.function) {
-                            const argsLength = tc.function.arguments ? tc.function.arguments.length : 0;
-                            Logger.trace(`🔧 工具调用: ${tc.id} -> ${tc.function.name}(${argsLength}chars)`);
-                        }
-                    });
-                }
-            });
+            // // 详细消息调试信息
+            // openaiMessages.forEach((msg, index) => {
+            //     const contentInfo = typeof msg.content === 'string'
+            //         ? `text(${msg.content.length}chars)`
+            //         : Array.isArray(msg.content)
+            //             ? `multimodal(${msg.content.length}parts)`
+            //             : 'no_content';
+            //     const toolCallsInfo = ('tool_calls' in msg && msg.tool_calls) ? msg.tool_calls.length : 0;
+            //     const toolCallId = ('tool_call_id' in msg && msg.tool_call_id) ? msg.tool_call_id : 'none';
+            //     Logger.trace(`💬 消息 ${index}: role=${msg.role}, content=${contentInfo}, tool_calls=${toolCallsInfo}, tool_call_id=${toolCallId}`);
+            //     if ('tool_calls' in msg && msg.tool_calls) {
+            //         msg.tool_calls.forEach(tc => {
+            //             if (tc.type === 'function' && tc.function) {
+            //                 const argsLength = tc.function.arguments ? tc.function.arguments.length : 0;
+            //                 Logger.trace(`🔧 工具调用: ${tc.id} -> ${tc.function.name}(${argsLength}chars)`);
+            //             }
+            //         });
+            //     }
+            // });
+            // #endregion
             Logger.info(`🚀 ${model.name} 发送 ${this.displayName} 请求`);
 
-            // 使用 OpenAI SDK 的事件驱动流式方法，利用内置工具调用处理
-            const stream = client.chat.completions.stream(createParams);
             let hasReceivedContent = false;
-            // 利用 SDK 内置的事件系统处理工具调用和内容
-            stream
-                .on('content', (delta: string, _snapshot: string) => {
-                    // 检查取消请求
-                    if (token.isCancellationRequested) {
-                        Logger.warn(`${model.name} 用户取消了请求`);
-                        throw new vscode.CancellationError();
-                    }
-                    if (delta && delta.length > 0) {
-                        progress.report(new vscode.LanguageModelTextPart(delta));
-                        hasReceivedContent = true;
-                    }
-                })
-                .on('tool_calls.function.arguments.done', (event: {
-                    name: string;
-                    index: number;
-                    arguments: string;
-                    parsed_arguments: unknown;
-                }) => {
-                    // SDK 自动累积完成后触发的完整工具调用事件
-                    if (token.isCancellationRequested) {
-                        return;
-                    }
-                    // 基于事件索引和名称生成去重标识
-                    const eventKey = `tool_call_${event.name}_${event.index}_${event.arguments.length}`;
-                    if (this.currentRequestProcessedEvents.has(eventKey)) {
-                        Logger.trace(`跳过重复的工具调用事件: ${event.name} (索引: ${event.index})`);
-                        return;
-                    }
-                    this.currentRequestProcessedEvents.add(eventKey);
-                    // 使用 SDK 解析的参数（优先）或解析 arguments 字符串
-                    const parsedArgs = event.parsed_arguments || JSON.parse(event.arguments || '{}');
-                    // SDK 会自动生成唯一的工具调用ID，这里使用简单的索引标识
-                    const toolCallId = `tool_call_${event.index}_${Date.now()}`;
-                    Logger.debug(`✅ SDK工具调用完成: ${event.name} (索引: ${event.index})`);
-                    progress.report(
-                        new vscode.LanguageModelToolCallPart(toolCallId, event.name, parsedArgs)
-                    );
-                    hasReceivedContent = true;
-                })
-                .on('tool_calls.function.arguments.delta', (event: {
-                    name: string;
-                    index: number;
-                    arguments_delta: string;
-                }) => {
-                    // 工具调用参数增量事件（用于调试）
-                    Logger.trace(`🔧 工具调用参数增量: ${event.name} (索引: ${event.index}) - ${event.arguments_delta}`);
-                })
-                .on('chunk', (chunk: OpenAI.Chat.Completions.ChatCompletionChunk, _snapshot: unknown) => {
-                    // 处理token使用统计（始终输出Info日志）
-                    if (chunk.usage) {
-                        const usage = chunk.usage;
-                        Logger.info(`📊 ${model.name} Token使用: ${usage.prompt_tokens}+${usage.completion_tokens}=${usage.total_tokens}`);
-                    }
-                })
-                .on('error', (error: Error) => {
-                    Logger.error(`${model.name} SDK流处理错误: ${error}`);
-                    throw error;
-                });
+            // 使用 OpenAI SDK 的事件驱动流式方法，利用内置工具调用处理
+            // 将 vscode.CancellationToken 转换为 AbortSignal
+            const abortController = new AbortController();
+            const cancellationListener = token.onCancellationRequested(() => abortController.abort());
+            let streamError: Error | null = null; // 用于捕获流错误
 
             try {
+                const stream = client.chat.completions.stream(createParams, { signal: abortController.signal });
+                // 利用 SDK 内置的事件系统处理工具调用和内容
+                stream
+                    .on('content', (delta: string, _snapshot: string) => {
+                        // 检查取消请求
+                        if (token.isCancellationRequested) {
+                            Logger.warn(`${model.name} 用户取消了请求`);
+                            throw new vscode.CancellationError();
+                        }
+                        // 直接输出常规内容
+                        progress.report(new vscode.LanguageModelTextPart(delta));
+                        hasReceivedContent = true;
+                    })
+                    .on('tool_calls.function.arguments.done', (event: {
+                        name: string;
+                        index: number;
+                        arguments: string;
+                        parsed_arguments: unknown;
+                    }) => {
+                        // SDK 自动累积完成后触发的完整工具调用事件
+                        if (token.isCancellationRequested) {
+                            return;
+                        }
+                        // 基于事件索引和名称生成去重标识
+                        const eventKey = `tool_call_${event.name}_${event.index}_${event.arguments.length}`;
+                        if (this.currentRequestProcessedEvents.has(eventKey)) {
+                            Logger.trace(`跳过重复的工具调用事件: ${event.name} (索引: ${event.index})`);
+                            return;
+                        }
+                        this.currentRequestProcessedEvents.add(eventKey);
+                        // 使用 SDK 解析的参数（优先）或解析 arguments 字符串
+                        const parsedArgs = event.parsed_arguments || JSON.parse(event.arguments || '{}');
+                        // SDK 会自动生成唯一的工具调用ID，这里使用简单的索引标识
+                        const toolCallId = `tool_call_${event.index}_${Date.now()}`;
+                        Logger.debug(`✅ SDK工具调用完成: ${event.name} (索引: ${event.index})`);
+                        progress.report(
+                            new vscode.LanguageModelToolCallPart(toolCallId, event.name, parsedArgs)
+                        );
+                        hasReceivedContent = true;
+                    })
+                    .on('tool_calls.function.arguments.delta', (event: {
+                        name: string;
+                        index: number;
+                        arguments_delta: string;
+                    }) => {
+                        // 工具调用参数增量事件（用于调试）
+                        Logger.trace(`🔧 工具调用参数增量: ${event.name} (索引: ${event.index}) - ${event.arguments_delta}`);
+                    })
+                    .on('chunk', (chunk: OpenAI.Chat.Completions.ChatCompletionChunk, _snapshot: unknown) => {
+                        // 处理token使用统计（始终输出Info日志）
+                        if (chunk.usage) {
+                            const usage = chunk.usage;
+                            Logger.info(`📊 ${model.name} Token使用: ${usage.prompt_tokens}+${usage.completion_tokens}=${usage.total_tokens}`);
+                        }
+                    })
+                    .on('error', (error: Error) => {
+                        Logger.error(`${model.name} SDK流处理错误: ${error}`);
+                        // 保存错误，并中止请求
+                        streamError = error;
+                        abortController.abort();
+                    });
                 // 等待流处理完成
                 await stream.done();
+                // 检查是否有流错误
+                if (streamError) {
+                    throw streamError;
+                }
                 Logger.debug(`${model.name} ${this.displayName} SDK流处理完成`);
             } catch (streamError) {
                 // 改进错误处理，区分取消和其他错误
@@ -289,6 +301,8 @@ export class OpenAIHandler {
                     Logger.error(`${model.name} SDK流处理错误: ${streamError}`);
                     throw streamError;
                 }
+            } finally {
+                cancellationListener.dispose();
             }
             if (!hasReceivedContent) {
                 Logger.warn(`${model.name} 没有接收到任何内容`);
@@ -622,7 +636,6 @@ export class OpenAIHandler {
     }
 
 
-
     /**
      * 检查是否为图片MIME类型
      */
@@ -663,6 +676,7 @@ export class OpenAIHandler {
             throw error;
         }
     }
+
 
     /**
      * 重置客户端

@@ -18,6 +18,14 @@ export interface ZhipuSearchConfig {
 }
 
 /**
+ * 智谱AI统一配置
+ */
+export interface ZhipuConfig {
+    /** 搜索功能配置 */
+    search: ZhipuSearchConfig;
+}
+
+/**
  * GCMP配置接口
  */
 export interface GCMPConfig {
@@ -27,8 +35,8 @@ export interface GCMPConfig {
     topP: number;
     /** 最大输出token数量 */
     maxTokens: number;
-    /** 智谱AI搜索配置 */
-    zhipuSearch: ZhipuSearchConfig;
+    /** 智谱AI配置 */
+    zhipu: ZhipuConfig;
 }
 
 /**
@@ -78,8 +86,10 @@ export class ConfigManager {
             temperature: this.validateTemperature(config.get<number>('temperature', 0.1)),
             topP: this.validateTopP(config.get<number>('topP', 1.0)),
             maxTokens: this.validateMaxTokens(config.get<number>('maxTokens', 8192)),
-            zhipuSearch: {
-                enableMCP: config.get<boolean>('zhipu.search.enableMCP', true) // 默认启用SSE模式（仅Pro+套餐支持）
+            zhipu: {
+                search: {
+                    enableMCP: config.get<boolean>('zhipu.search.enableMCP', true) // 默认启用SSE模式（仅Pro+套餐支持）
+                }
             }
         };
 
@@ -112,7 +122,12 @@ export class ConfigManager {
      * 获取智谱AI搜索配置
      */
     static getZhipuSearchConfig(): ZhipuSearchConfig {
-        return this.getConfig().zhipuSearch;
+        return this.getConfig().zhipu.search;
+    }    /**
+     * 获取智谱AI统一配置
+     */
+    static getZhipuConfig(): ZhipuConfig {
+        return this.getConfig().zhipu;
     }
 
     /**
