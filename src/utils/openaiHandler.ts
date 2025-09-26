@@ -462,26 +462,70 @@ export class OpenAIHandler {
         modelName: string
     ): void {
         try {
+            Logger.trace(`${modelName} 收到数据流: ${JSON.stringify(data)}`);
             const chunk = JSON.parse(data);
 
-            // 处理使用量统计
+            // 处理使用量统计，但不返回，继续处理其他内容
             if (chunk.usage) {
                 const usage: Usage = chunk.usage;
-                Logger.info(`📊 ${modelName} Token使用: ${usage.prompt_tokens}+${usage.completion_tokens}=${usage.total_tokens}`);
-                return;
+                // 只在token使用量不为0时记录日志，避免大量无用的0+0=0日志
+                if (usage.total_tokens > 0 || usage.prompt_tokens > 0 || usage.completion_tokens > 0) {
+                    Logger.info(`📊 ${modelName} Token使用: ${usage.prompt_tokens}+${usage.completion_tokens}=${usage.total_tokens}`);
+                }
+                // 不要在这里return，继续处理可能存在的delta内容
             }
 
             if (!chunk.choices || chunk.choices.length === 0) {
                 Logger.trace(`${modelName} 收到无choices的数据块`);
+                // 检查是否有其他可能包含内容的字段
+                const otherFields = Object.keys(chunk).filter(key =>
+                    !['id', 'object', 'created', 'model', 'system_fingerprint', 'choices', 'usage'].includes(key)
+                );
+                if (otherFields.length > 0) {
+                    Logger.debug(`${modelName} 检测到其他字段: ${otherFields.join(', ')}`);
+                    for (const field of otherFields) {
+                        Logger.trace(`${modelName} ${field}: ${JSON.stringify(chunk[field])}`);
+                    }
+                }
                 return;
             }
 
             const choice = chunk.choices[0];
             const delta: StreamDelta = choice.delta || {};
 
+            // 详细记录choice信息，特别是当有finish_reason但没有内容时
+            if (choice.finish_reason && (!delta.content || delta.content === '')) {
+                Logger.debug(`${modelName} 🔚 收到finish_reason: ${choice.finish_reason}，但无文本内容`);
+                // 检查是否有message字段包含内容
+                if (choice.message && typeof choice.message === 'object') {
+                    const messageKeys = Object.keys(choice.message).filter(key => choice.message[key] !== null && choice.message[key] !== '');
+                    if (messageKeys.length > 0) {
+                        Logger.debug(`${modelName} 📝 choice.message中发现内容: ${messageKeys.join(', ')}`);
+                        if (choice.message.content && choice.message.content !== '') {
+                            Logger.warn(`${modelName} ⚠️ 内容在message.content中而不是delta.content中: "${choice.message.content}"`);
+                            // 尝试报告message中的内容
+                            progress.report(new vscode.LanguageModelTextPart(choice.message.content));
+                        }
+                    }
+                }
+            }
+
             // 处理文本内容
             if (delta.content) {
                 progress.report(new vscode.LanguageModelTextPart(delta.content));
+                Logger.trace(`${modelName} 📝 输出文本: "${delta.content}"`);
+            } else if (Object.keys(delta).length > 0) {
+                // 记录非文本内容的delta，但过滤掉无效值
+                const validDeltaKeys = Object.keys(delta).filter(key => {
+                    if (key === 'content') return false; // 已经处理过content
+                    const value = (delta as any)[key];
+                    // 过滤掉null、undefined、空字符串、空数组的字段
+                    return value !== null && value !== undefined && value !== '' &&
+                        !(Array.isArray(value) && value.length === 0);
+                });
+                if (validDeltaKeys.length > 0) {
+                    Logger.trace(`${modelName} 🔧 非文本Delta: ${validDeltaKeys.join(', ')}`);
+                }
             }
 
             // 处理工具调用
@@ -634,29 +678,26 @@ export class OpenAIHandler {
                 let parsedArgs;
                 const trimmedArgs = accumulator.arguments.trim();
 
-                // 检查JSON的完整性
-                if (!trimmedArgs.startsWith('{') || !trimmedArgs.endsWith('}')) {
-                    Logger.warn(`⚠️ 工具调用 [${index}] JSON不完整: "${trimmedArgs.substring(0, 50)}${trimmedArgs.length > 50 ? '...' : ''}"`);
+                // 尝试解析JSON，如果失败则尝试智能修复
+                try {
+                    parsedArgs = JSON.parse(trimmedArgs);
+                    Logger.debug(`✅ JSON解析成功 [${index}]: ${accumulator.name}`);
+                } catch (parseError) {
+                    Logger.warn(`⚠️ 工具调用 [${index}] JSON解析失败: "${trimmedArgs.substring(0, 50)}${trimmedArgs.length > 50 ? '...' : ''}"`);
 
-                    // 尝试修复JSON
-                    let fixedArgs = trimmedArgs;
-                    if (!fixedArgs.startsWith('{')) {
-                        fixedArgs = '{' + fixedArgs;
-                    }
-                    if (!fixedArgs.endsWith('}')) {
-                        fixedArgs = fixedArgs + '}';
-                    }
+                    // 智能JSON修复
+                    const fixedArgs = this.repairIncompleteJSON(trimmedArgs);
 
                     try {
                         parsedArgs = JSON.parse(fixedArgs);
                         Logger.info(`🔧 JSON修复成功 [${index}]: ${accumulator.name}`);
+                        Logger.trace(`修复后JSON: "${fixedArgs.substring(0, 100)}${fixedArgs.length > 100 ? '...' : ''}"`);
                     } catch (fixError) {
                         // 修复失败，使用空对象
                         parsedArgs = {};
                         Logger.warn(`🔄 JSON修复失败，使用空对象 [${index}]: ${accumulator.name}`);
+                        Logger.trace(`修复失败的JSON: "${fixedArgs.substring(0, 100)}${fixedArgs.length > 100 ? '...' : ''}"`);
                     }
-                } else {
-                    parsedArgs = JSON.parse(trimmedArgs);
                 }
 
                 progress.report(
@@ -1049,6 +1090,83 @@ export class OpenAIHandler {
             Logger.error(`❌ 创建图像DataURL失败: ${error}`);
             throw error;
         }
+    }
+
+    /**
+     * 智能修复不完整的JSON字符串
+     */
+    private repairIncompleteJSON(incompleteJSON: string): string {
+        let json = incompleteJSON.trim();
+
+        // 确保以 { 开头
+        if (!json.startsWith('{')) {
+            json = '{' + json;
+        }
+
+        // 分析JSON结构，智能补全
+        let braceCount = 0;
+        let bracketCount = 0;
+        let inString = false;
+        let escapeNext = false;
+
+        for (let i = 0; i < json.length; i++) {
+            const char = json[i];
+
+            if (escapeNext) {
+                escapeNext = false;
+                continue;
+            }
+
+            if (char === '\\') {
+                escapeNext = true;
+                continue;
+            }
+
+            if (char === '"' && !escapeNext) {
+                inString = !inString;
+                continue;
+            }
+
+            if (inString) {
+                continue;
+            }
+
+            if (char === '{') {
+                braceCount++;
+            } else if (char === '}') {
+                braceCount--;
+            } else if (char === '[') {
+                bracketCount++;
+            } else if (char === ']') {
+                bracketCount--;
+            }
+        }
+
+        // 修复未闭合的字符串
+        if (inString) {
+            json += '"';
+        }
+
+        // 修复未闭合的数组
+        while (bracketCount > 0) {
+            json += ']';
+            bracketCount--;
+        }
+
+        // 修复未闭合的对象
+        while (braceCount > 0) {
+            json += '}';
+            braceCount--;
+        }
+
+        // 处理trailing comma问题
+        json = json.replace(/,(\s*[}\]])/g, '$1');
+
+        // 处理可能的不完整字段
+        json = json.replace(/:\s*$/, ': ""');
+        json = json.replace(/,\s*$/, '');
+
+        return json;
     }
 
     /**

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { GenericModelProvider } from './providers/genericModelProvider';
 import { IFlowDynamicProvider } from './providers/iflowDynamicProvider';
+import { ModelScopeDynamicProvider } from './providers/modelScopeDynamicProvider';
 import { Logger } from './utils/logger';
 import { ApiKeyManager, ConfigManager } from './utils';
 import { registerAllTools } from './tools';
@@ -21,13 +22,17 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
         try {
             Logger.trace(`正在注册供应商: ${providerConfig.displayName} (${providerKey})`);
 
-            // 特殊处理 iFlow 心流AI 提供商，使用动态模型注册
+            // 特殊处理动态模型提供商
             if (providerKey === 'iflow') {
+                // iFlow 心流AI 提供商，使用动态模型注册
                 IFlowDynamicProvider.createAndActivate(
                     context,
                     providerKey,
                     providerConfig
                 );
+            } else if (providerKey === 'modelscope') {
+                // ModelScope 魔搭社区 提供商，使用动态模型注册
+                ModelScopeDynamicProvider.createAndActivate(context);
             } else {
                 // 使用通用供应商创建实例
                 GenericModelProvider.createAndActivate(
