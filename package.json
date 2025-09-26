@@ -2,7 +2,7 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek 模型支持的扩展",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、ModelScope 模型支持的扩展",
     "version": "0.5.4",
     "license": "MIT",
     "keywords": [
@@ -15,10 +15,12 @@
         "iflow",
         "moonshot",
         "deepseek",
+        "modelscope",
         "智谱",
         "心流",
         "月之暗面",
-        "深度求索"
+        "深度求索",
+        "魔搭社区"
     ],
     "repository": {
         "type": "git",
@@ -44,6 +46,7 @@
         "onLanguageModelProvider:gcmp.iflow",
         "onLanguageModelProvider:gcmp.moonshot",
         "onLanguageModelProvider:gcmp.deepseek",
+        "onLanguageModelProvider:gcmp.modelscope",
         "onLanguageModelTool:gcmp_zhipuWebSearch"
     ],
     "contributes": {
@@ -71,6 +74,16 @@
             {
                 "command": "gcmp.deepseek.setApiKey",
                 "title": "设置 DeepSeek API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.modelscope.setApiKey",
+                "title": "设置 ModelScope API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.modelscope.refreshModels",
+                "title": "刷新 ModelScope 模型列表",
                 "category": "GCMP"
             }
         ],
@@ -129,6 +142,11 @@
                 "vendor": "gcmp.deepseek",
                 "displayName": "DeepSeek",
                 "managementCommand": "gcmp.deepseek.setApiKey"
+            },
+            {
+                "vendor": "gcmp.modelscope",
+                "displayName": "ModelScope.cn",
+                "managementCommand": "gcmp.modelscope.setApiKey"
             }
         ],
         "languageModelTools": [
@@ -353,6 +371,12 @@
                     }
                 }
             ]
+        },
+        "modelscope": {
+            "displayName": "ModelScope.cn",
+            "baseUrl": "https://api-inference.modelscope.cn/v1",
+            "apiKeyTemplate": "ms-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+            "models": []
         }
     },
     "scripts": {
