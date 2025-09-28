@@ -10,6 +10,13 @@ import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 
 /**
+ * 扩展Delta类型以支持reasoning_content字段
+ */
+interface ExtendedDelta extends OpenAI.Chat.ChatCompletionChunk.Choice.Delta {
+    reasoning_content?: string;
+}
+
+/**
  * OpenAI SDK 处理器
  * 使用 OpenAI SDK 实现流式聊天完成，支持工具调用
  */
@@ -267,6 +274,16 @@ export class OpenAIHandler {
                             Logger.info(
                                 `📊 ${model.name} Token使用: ${usage.prompt_tokens}+${usage.completion_tokens}=${usage.total_tokens}`
                             );
+                        }
+
+                        // 处理思考内容（reasoning_content）
+                        if (chunk.choices && chunk.choices[0]?.delta && (chunk.choices[0].delta as ExtendedDelta).reasoning_content) {
+                            const reasoningContent = (chunk.choices[0].delta as ExtendedDelta).reasoning_content;
+                            if (reasoningContent) {
+                                Logger.trace(`🧠 接收到思考内容: ${reasoningContent.length}字符`);
+                                progress.report(new vscode.LanguageModelThinkingPart(reasoningContent));
+                                hasReceivedContent = true;
+                            }
                         }
                     })
                     .on('error', (error: Error) => {
