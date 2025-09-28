@@ -50,4 +50,3 @@ export async function cleanupAllTools(): Promise<void> {
         Logger.error('❌ 工具清理失败', error instanceof Error ? error : undefined);
     }
 }
-

@@ -228,46 +228,45 @@ export class OpenAIHandler {
                         progress.report(new vscode.LanguageModelTextPart(delta));
                         hasReceivedContent = true;
                     })
-                    .on('tool_calls.function.arguments.done', (event: {
-                        name: string;
-                        index: number;
-                        arguments: string;
-                        parsed_arguments: unknown;
-                    }) => {
-                        // SDK 自动累积完成后触发的完整工具调用事件
-                        if (token.isCancellationRequested) {
-                            return;
+                    .on(
+                        'tool_calls.function.arguments.done',
+                        (event: { name: string; index: number; arguments: string; parsed_arguments: unknown }) => {
+                            // SDK 自动累积完成后触发的完整工具调用事件
+                            if (token.isCancellationRequested) {
+                                return;
+                            }
+                            // 基于事件索引和名称生成去重标识
+                            const eventKey = `tool_call_${event.name}_${event.index}_${event.arguments.length}`;
+                            if (this.currentRequestProcessedEvents.has(eventKey)) {
+                                Logger.trace(`跳过重复的工具调用事件: ${event.name} (索引: ${event.index})`);
+                                return;
+                            }
+                            this.currentRequestProcessedEvents.add(eventKey);
+                            // 使用 SDK 解析的参数（优先）或解析 arguments 字符串
+                            const parsedArgs = event.parsed_arguments || JSON.parse(event.arguments || '{}');
+                            // SDK 会自动生成唯一的工具调用ID，这里使用简单的索引标识
+                            const toolCallId = `tool_call_${event.index}_${Date.now()}`;
+                            Logger.debug(`✅ SDK工具调用完成: ${event.name} (索引: ${event.index})`);
+                            progress.report(new vscode.LanguageModelToolCallPart(toolCallId, event.name, parsedArgs));
+                            hasReceivedContent = true;
                         }
-                        // 基于事件索引和名称生成去重标识
-                        const eventKey = `tool_call_${event.name}_${event.index}_${event.arguments.length}`;
-                        if (this.currentRequestProcessedEvents.has(eventKey)) {
-                            Logger.trace(`跳过重复的工具调用事件: ${event.name} (索引: ${event.index})`);
-                            return;
+                    )
+                    .on(
+                        'tool_calls.function.arguments.delta',
+                        (event: { name: string; index: number; arguments_delta: string }) => {
+                            // 工具调用参数增量事件（用于调试）
+                            Logger.trace(
+                                `🔧 工具调用参数增量: ${event.name} (索引: ${event.index}) - ${event.arguments_delta}`
+                            );
                         }
-                        this.currentRequestProcessedEvents.add(eventKey);
-                        // 使用 SDK 解析的参数（优先）或解析 arguments 字符串
-                        const parsedArgs = event.parsed_arguments || JSON.parse(event.arguments || '{}');
-                        // SDK 会自动生成唯一的工具调用ID，这里使用简单的索引标识
-                        const toolCallId = `tool_call_${event.index}_${Date.now()}`;
-                        Logger.debug(`✅ SDK工具调用完成: ${event.name} (索引: ${event.index})`);
-                        progress.report(
-                            new vscode.LanguageModelToolCallPart(toolCallId, event.name, parsedArgs)
-                        );
-                        hasReceivedContent = true;
-                    })
-                    .on('tool_calls.function.arguments.delta', (event: {
-                        name: string;
-                        index: number;
-                        arguments_delta: string;
-                    }) => {
-                        // 工具调用参数增量事件（用于调试）
-                        Logger.trace(`🔧 工具调用参数增量: ${event.name} (索引: ${event.index}) - ${event.arguments_delta}`);
-                    })
+                    )
                     .on('chunk', (chunk: OpenAI.Chat.Completions.ChatCompletionChunk, _snapshot: unknown) => {
                         // 处理token使用统计（始终输出Info日志）
                         if (chunk.usage) {
                             const usage = chunk.usage;
-                            Logger.info(`📊 ${model.name} Token使用: ${usage.prompt_tokens}+${usage.completion_tokens}=${usage.total_tokens}`);
+                            Logger.info(
+                                `📊 ${model.name} Token使用: ${usage.prompt_tokens}+${usage.completion_tokens}=${usage.total_tokens}`
+                            );
                         }
                     })
                     .on('error', (error: Error) => {
@@ -299,7 +298,6 @@ export class OpenAIHandler {
                 Logger.warn(`${model.name} 没有接收到任何内容`);
             }
             Logger.debug(`✅ ${model.name} ${this.displayName} 请求完成`);
-
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : '未知错误';
             Logger.error(`${model.name} ${this.displayName} 请求失败: ${errorMessage}`);
@@ -415,7 +413,7 @@ export class OpenAIHandler {
         capabilities?: { toolCalling?: boolean | number; imageInput?: boolean }
     ): OpenAI.Chat.ChatCompletionUserMessageParam | null {
         const textParts = message.content.filter(
-            (part) => part instanceof vscode.LanguageModelTextPart
+            part => part instanceof vscode.LanguageModelTextPart
         ) as vscode.LanguageModelTextPart[];
         const imageParts: vscode.LanguageModelDataPart[] = [];
         // 收集图片（如果支持）
@@ -448,7 +446,9 @@ export class OpenAIHandler {
                 return dataPart.mimeType !== 'cache_control';
             });
             if (nonCacheDataParts.length > 0 && imageParts.length === 0) {
-                Logger.warn(`⚠️ 发现 ${nonCacheDataParts.length} 个非cache_control数据部分但没有有效图像，请检查图像附件格式`);
+                Logger.warn(
+                    `⚠️ 发现 ${nonCacheDataParts.length} 个非cache_control数据部分但没有有效图像，请检查图像附件格式`
+                );
             }
         }
         // 如果没有文本和图片内容，返回 null
@@ -554,26 +554,31 @@ export class OpenAIHandler {
     /**
      * 提取文本内容
      */
-    private extractTextContent(content: readonly (vscode.LanguageModelTextPart | vscode.LanguageModelDataPart | vscode.LanguageModelToolCallPart | vscode.LanguageModelToolResultPart)[]): string | null {
+    private extractTextContent(
+        content: readonly (
+            | vscode.LanguageModelTextPart
+            | vscode.LanguageModelDataPart
+            | vscode.LanguageModelToolCallPart
+            | vscode.LanguageModelToolResultPart
+        )[]
+    ): string | null {
         const textParts = content
-            .filter((part) => part instanceof vscode.LanguageModelTextPart)
-            .map((part) => (part as vscode.LanguageModelTextPart).value);
+            .filter(part => part instanceof vscode.LanguageModelTextPart)
+            .map(part => (part as vscode.LanguageModelTextPart).value);
         return textParts.length > 0 ? textParts.join('\n') : null;
     }
 
     /**
      * 转换工具结果内容
      */
-    private convertToolResultContent(
-        content: unknown
-    ): string {
+    private convertToolResultContent(content: unknown): string {
         if (typeof content === 'string') {
             return content;
         }
 
         if (Array.isArray(content)) {
             return content
-                .map((resultPart) => {
+                .map(resultPart => {
                     if (resultPart instanceof vscode.LanguageModelTextPart) {
                         return resultPart.value;
                     }
@@ -588,10 +593,8 @@ export class OpenAIHandler {
     /**
      * 工具转换 - 确保参数格式正确
      */
-    private convertToolsToOpenAI(
-        tools: vscode.LanguageModelChatTool[]
-    ): OpenAI.Chat.ChatCompletionTool[] {
-        return tools.map((tool) => {
+    private convertToolsToOpenAI(tools: vscode.LanguageModelChatTool[]): OpenAI.Chat.ChatCompletionTool[] {
+        return tools.map(tool => {
             const functionDef: OpenAI.Chat.ChatCompletionTool = {
                 type: 'function',
                 function: {
@@ -625,7 +628,6 @@ export class OpenAIHandler {
         });
     }
 
-
     /**
      * 检查是否为图片MIME类型
      */
@@ -652,19 +654,20 @@ export class OpenAIHandler {
             Logger.trace(`📄 非图像数据类型: ${mimeType}`);
         }
         return isImageCategory && isSupported;
-    }    /**
+    } /**
      * 创建图片的data URL
      */
     private createDataUrl(dataPart: vscode.LanguageModelDataPart): string {
         try {
             const base64Data = Buffer.from(dataPart.data).toString('base64');
             const dataUrl = `data:${dataPart.mimeType};base64,${base64Data}`;
-            Logger.debug(`🔗 创建图像DataURL: MIME=${dataPart.mimeType}, 原始大小=${dataPart.data.length}字节, Base64大小=${base64Data.length}字符`);
+            Logger.debug(
+                `🔗 创建图像DataURL: MIME=${dataPart.mimeType}, 原始大小=${dataPart.data.length}字节, Base64大小=${base64Data.length}字符`
+            );
             return dataUrl;
         } catch (error) {
             Logger.error(`❌ 创建图像DataURL失败: ${error}`);
             throw error;
         }
     }
-
 }

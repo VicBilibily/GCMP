@@ -26,19 +26,12 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     private providerConfig: ProviderConfig; // 移除 readonly 以支持动态配置
     private o200kTokenizerPromise?: Promise<TikTokenizer>;
 
-    constructor(
-        providerKey: string,
-        providerConfig: ProviderConfig
-    ) {
+    constructor(providerKey: string, providerConfig: ProviderConfig) {
         this.providerKey = providerKey;
         this.providerConfig = providerConfig;
 
         // 创建OpenAI SDK处理器
-        this.openaiHandler = new OpenAIHandler(
-            providerKey,
-            providerConfig.displayName,
-            providerConfig.baseUrl
-        );
+        this.openaiHandler = new OpenAIHandler(providerKey, providerConfig.displayName, providerConfig.baseUrl);
 
         // 初始化 o200k_base tokenizer
         this.o200kTokenizerPromise = createByEncoderName('o200k_base');
@@ -58,23 +51,17 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const provider = new GenericModelProvider(providerKey, providerConfig);
 
         // 注册语言模型聊天供应商
-        const providerDisposable = vscode.lm.registerLanguageModelChatProvider(
-            `gcmp.${providerKey}`,
-            provider
-        );
+        const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
         context.subscriptions.push(providerDisposable);
 
         // 注册设置API密钥命令
-        const setApiKeyCommand = vscode.commands.registerCommand(
-            `gcmp.${providerKey}.setApiKey`,
-            async () => {
-                await ApiKeyManager.promptAndSetApiKey(
-                    providerKey,
-                    providerConfig.displayName,
-                    providerConfig.apiKeyTemplate
-                );
-            }
-        );
+        const setApiKeyCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.setApiKey`, async () => {
+            await ApiKeyManager.promptAndSetApiKey(
+                providerKey,
+                providerConfig.displayName,
+                providerConfig.apiKeyTemplate
+            );
+        });
         context.subscriptions.push(setApiKeyCommand);
 
         return provider;
@@ -233,7 +220,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             totalTokens += toolTokens;
                         } else if (part instanceof vscode.LanguageModelToolResultPart) {
                             // 工具结果的token计算
-                            const resultText = typeof part.content === 'string' ? part.content : JSON.stringify(part.content);
+                            const resultText =
+                                typeof part.content === 'string' ? part.content : JSON.stringify(part.content);
                             const resultTokens = await this.provideTokenCount(model, resultText, _token);
                             totalTokens += resultTokens;
                         }

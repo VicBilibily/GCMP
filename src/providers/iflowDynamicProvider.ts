@@ -20,10 +20,7 @@ export class IFlowDynamicProvider {
     private lastModelFetch = 0;
     private readonly MODEL_CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
 
-    constructor(
-        providerKey: string,
-        staticProviderConfig: ProviderConfig
-    ) {
+    constructor(providerKey: string, staticProviderConfig: ProviderConfig) {
         this.originalProviderConfig = staticProviderConfig;
         // 创建内部的通用提供商实例
         this.genericProvider = new GenericModelProvider(providerKey, staticProviderConfig);
@@ -44,33 +41,24 @@ export class IFlowDynamicProvider {
         const provider = new IFlowDynamicProvider(providerKey, staticProviderConfig);
 
         // 注册语言模型聊天供应商
-        const providerDisposable = vscode.lm.registerLanguageModelChatProvider(
-            `gcmp.${providerKey}`,
-            provider
-        );
+        const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
         context.subscriptions.push(providerDisposable);
 
         // 注册设置API密钥命令
-        const setApiKeyCommand = vscode.commands.registerCommand(
-            `gcmp.${providerKey}.setApiKey`,
-            async () => {
-                await ApiKeyManager.promptAndSetApiKey(
-                    providerKey,
-                    staticProviderConfig.displayName,
-                    staticProviderConfig.apiKeyTemplate
-                );
-            }
-        );
+        const setApiKeyCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.setApiKey`, async () => {
+            await ApiKeyManager.promptAndSetApiKey(
+                providerKey,
+                staticProviderConfig.displayName,
+                staticProviderConfig.apiKeyTemplate
+            );
+        });
         context.subscriptions.push(setApiKeyCommand);
 
         // 注册刷新模型列表命令
-        const refreshModelsCommand = vscode.commands.registerCommand(
-            `gcmp.${providerKey}.refreshModels`,
-            async () => {
-                await provider.refreshModels();
-                vscode.window.showInformationMessage('心流AI 模型列表已刷新');
-            }
-        );
+        const refreshModelsCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.refreshModels`, async () => {
+            await provider.refreshModels();
+            vscode.window.showInformationMessage('心流AI 模型列表已刷新');
+        });
         context.subscriptions.push(refreshModelsCommand);
 
         return provider;

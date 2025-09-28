@@ -117,17 +117,19 @@ export class ZhipuSearchTool {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
+                Authorization: `Bearer ${apiKey}`,
                 'Content-Length': Buffer.byteLength(requestData),
                 'User-Agent': VersionManager.getUserAgent('ZhipuSearch')
             }
         };
 
-        Logger.info(`🔍 [智谱搜索] 开始搜索: "${params.search_query}" 使用引擎 ${params.search_engine || 'search_std'}`);
+        Logger.info(
+            `🔍 [智谱搜索] 开始搜索: "${params.search_query}" 使用引擎 ${params.search_engine || 'search_std'}`
+        );
         Logger.debug(`📝 [智谱搜索] 请求数据: ${requestData}`);
 
         return new Promise((resolve, reject) => {
-            const req = https.request(url, options, (res) => {
+            const req = https.request(url, options, res => {
                 let data = '';
 
                 res.on('data', chunk => {
@@ -157,12 +159,14 @@ export class ZhipuSearchTool {
                         resolve(response);
                     } catch (error) {
                         Logger.error('❌ [智谱搜索] 解析响应失败', error instanceof Error ? error : undefined);
-                        reject(new Error(`解析智谱AI搜索响应失败: ${error instanceof Error ? error.message : '未知错误'}`));
+                        reject(
+                            new Error(`解析智谱AI搜索响应失败: ${error instanceof Error ? error.message : '未知错误'}`)
+                        );
                     }
                 });
             });
 
-            req.on('error', (error) => {
+            req.on('error', error => {
                 Logger.error('❌ [智谱搜索] 请求失败', error);
                 reject(new Error(`智谱AI搜索请求失败: ${error.message}`));
             });
@@ -207,7 +211,9 @@ export class ZhipuSearchTool {
     /**
      * 工具调用处理器
      */
-    async invoke(request: vscode.LanguageModelToolInvocationOptions<ZhipuSearchRequest>): Promise<vscode.LanguageModelToolResult> {
+    async invoke(
+        request: vscode.LanguageModelToolInvocationOptions<ZhipuSearchRequest>
+    ): Promise<vscode.LanguageModelToolResult> {
         try {
             Logger.info(`🚀 [工具调用] 智谱AI联网搜索工具被调用: ${JSON.stringify(request.input)}`);
 
@@ -229,17 +235,12 @@ export class ZhipuSearchTool {
 
             Logger.info('✅ [工具调用] 智谱AI联网搜索工具调用成功');
 
-            return new vscode.LanguageModelToolResult([
-                new vscode.LanguageModelTextPart(searchResults)
-            ]);
-
+            return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(searchResults)]);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : '未知错误';
             Logger.error('❌ [工具调用] 智谱AI联网搜索工具调用失败', error instanceof Error ? error : undefined);
 
-            throw new vscode.LanguageModelError(
-                `智谱AI搜索失败: ${errorMessage}`
-            );
+            throw new vscode.LanguageModelError(`智谱AI搜索失败: ${errorMessage}`);
         }
     }
 
@@ -266,4 +267,3 @@ export class ZhipuSearchTool {
         }
     }
 }
-

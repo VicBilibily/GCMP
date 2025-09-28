@@ -40,15 +40,17 @@ export class Logger {
             Logger.info('💡 如需查看详细调试日志，请执行命令: "Developer: Set Log Level" → 选择 "Debug"');
 
             // 显示通知
-            vscode.window.showInformationMessage(
-                `GCMP: 当前VS Code日志级别为 ${vscode.LogLevel[channelLevel]}`,
-                '设置日志级别',
-                '忽略'
-            ).then(selection => {
-                if (selection === '设置日志级别') {
-                    vscode.commands.executeCommand('workbench.action.setLogLevel');
-                }
-            });
+            vscode.window
+                .showInformationMessage(
+                    `GCMP: 当前VS Code日志级别为 ${vscode.LogLevel[channelLevel]}`,
+                    '设置日志级别',
+                    '忽略'
+                )
+                .then(selection => {
+                    if (selection === '设置日志级别') {
+                        vscode.commands.executeCommand('workbench.action.setLogLevel');
+                    }
+                });
         } else {
             Logger.info(`✅ VS Code日志级别已设置为 ${vscode.LogLevel[channelLevel]}，可以查看详细调试信息`);
         }

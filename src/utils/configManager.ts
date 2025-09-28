@@ -123,7 +123,7 @@ export class ConfigManager {
      */
     static getZhipuSearchConfig(): ZhipuSearchConfig {
         return this.getConfig().zhipu.search;
-    }    /**
+    } /**
      * 获取智谱AI统一配置
      */
     static getZhipuConfig(): ZhipuConfig {
@@ -134,7 +134,7 @@ export class ConfigManager {
      * 监听智谱搜索配置变化
      */
     static onZhipuSearchConfigChanged(callback: (searchConfig: ZhipuSearchConfig) => void): vscode.Disposable {
-        return vscode.workspace.onDidChangeConfiguration((event) => {
+        return vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration(`${this.CONFIG_SECTION}.zhipu.search`)) {
                 this.cache = null; // 清除缓存
                 const newConfig = this.getZhipuSearchConfig();

@@ -49,7 +49,7 @@ export class IFlowApiClient {
     static async fetchModels(): Promise<ModelConfig[]> {
         // 检查缓存是否有效
         const now = Date.now();
-        if (this.modelCache && (now - this.lastFetchTime < this.CACHE_DURATION)) {
+        if (this.modelCache && now - this.lastFetchTime < this.CACHE_DURATION) {
             Logger.trace('使用缓存的 心流AI 模型列表');
             return this.modelCache;
         }
@@ -79,7 +79,7 @@ export class IFlowApiClient {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
-            const data = await response.json() as IFlowApiResponse;
+            const data = (await response.json()) as IFlowApiResponse;
 
             if (!data.success || data.code !== '200' || !data.data) {
                 throw new Error(`API 响应错误: ${data.message || '未知错误'}`);
@@ -89,10 +89,12 @@ export class IFlowApiClient {
             const allModels: IFlowModel[] = [];
             for (const category of Object.values(data.data)) {
                 if (Array.isArray(category)) {
-                    allModels.push(...category.filter(model =>
-                        model.isVisible === 1
-                        // 移除 modelStatus 过滤，因为该数据不可靠
-                    ));
+                    allModels.push(
+                        ...category.filter(
+                            model => model.isVisible === 1
+                            // 移除 modelStatus 过滤，因为该数据不可靠
+                        )
+                    );
                 }
             }
 
@@ -105,7 +107,6 @@ export class IFlowApiClient {
 
             Logger.info(`成功从 心流AI API 获取到 ${allModels.length} 个模型`);
             return models;
-
         } catch (error) {
             Logger.error('从 心流AI API 获取模型列表失败:', error);
 
@@ -126,11 +127,8 @@ export class IFlowApiClient {
      */
     private static convertToModelConfigs(iflowModels: IFlowModel[]): ModelConfig[] {
         return iflowModels
-            .filter(model =>
-                model.id &&
-                model.showName &&
-                model.modelName &&
-                !model.modelName.includes('deepseek-r1') // 在转换阶段屏蔽 DeepSeek R1 模型
+            .filter(
+                model => model.id && model.showName && model.modelName && !model.modelName.includes('deepseek-r1') // 在转换阶段屏蔽 DeepSeek R1 模型
             )
             .map(model => this.convertSingleModel(model))
             .filter(model => model !== null) as ModelConfig[];
@@ -176,9 +174,12 @@ export class IFlowApiClient {
     /**
      * 解析模型标签获取上下文信息
      */
-    private static parseModelTags(modelTags: string, modelName: string): { maxInputTokens: number; maxOutputTokens: number } {
+    private static parseModelTags(
+        modelTags: string,
+        modelName: string
+    ): { maxInputTokens: number; maxOutputTokens: number } {
         let maxInputTokens = 128000; // 默认值
-        let maxOutputTokens = 8192;  // 默认值
+        let maxOutputTokens = 8192; // 默认值
 
         try {
             const tags = JSON.parse(modelTags);
@@ -257,6 +258,6 @@ export class IFlowApiClient {
      */
     static isCacheValid(): boolean {
         const now = Date.now();
-        return this.modelCache !== null && (now - this.lastFetchTime < this.CACHE_DURATION);
+        return this.modelCache !== null && now - this.lastFetchTime < this.CACHE_DURATION;
     }
 }

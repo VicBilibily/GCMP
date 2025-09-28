@@ -182,7 +182,10 @@ export class ZhipuSSEClient {
                         // 等待当前搜索完成或超时
                         await this.waitForSearchCompletion(searchRequest.id);
                     } catch (error) {
-                        Logger.error(`❌ [智谱SSE] 搜索处理失败: ${searchRequest.query}`, error instanceof Error ? error : undefined);
+                        Logger.error(
+                            `❌ [智谱SSE] 搜索处理失败: ${searchRequest.query}`,
+                            error instanceof Error ? error : undefined
+                        );
                         if (this.pendingSearches.has(searchRequest.id)) {
                             this.pendingSearches.delete(searchRequest.id);
                             searchRequest.reject(error instanceof Error ? error : new Error(String(error)));
@@ -236,8 +239,10 @@ export class ZhipuSSEClient {
             Logger.debug('⏳ [智谱SSE] 等待连接建立');
             // 等待连接建立或超时
             const startTime = Date.now();
-            while (this.connectionState === ConnectionState.CONNECTING &&
-                Date.now() - startTime < this.connectionTimeout) {
+            while (
+                this.connectionState === ConnectionState.CONNECTING &&
+                Date.now() - startTime < this.connectionTimeout
+            ) {
                 await new Promise(resolve => setTimeout(resolve, 100));
             }
             return;
@@ -266,20 +271,24 @@ export class ZhipuSSEClient {
 
             try {
                 const sseUrl = `${this.sseEndpoint}?Authorization=${this.currentApiKey}`;
-                this.establishSSEConnection(sseUrl, () => {
-                    clearTimeout(timeout);
-                    this.connectionState = ConnectionState.CONNECTED;
-                    this.retryCount = 0;
-                    this.startHeartbeat();
-                    Logger.info('✅ [智谱SSE] 连接建立成功');
-                    resolve();
-                }, (error: Error) => {
-                    clearTimeout(timeout);
-                    this.connectionState = ConnectionState.ERROR;
-                    Logger.error('❌ [智谱SSE] 连接失败', error);
-                    this.scheduleReconnect();
-                    reject(error);
-                });
+                this.establishSSEConnection(
+                    sseUrl,
+                    () => {
+                        clearTimeout(timeout);
+                        this.connectionState = ConnectionState.CONNECTED;
+                        this.retryCount = 0;
+                        this.startHeartbeat();
+                        Logger.info('✅ [智谱SSE] 连接建立成功');
+                        resolve();
+                    },
+                    (error: Error) => {
+                        clearTimeout(timeout);
+                        this.connectionState = ConnectionState.ERROR;
+                        Logger.error('❌ [智谱SSE] 连接失败', error);
+                        this.scheduleReconnect();
+                        reject(error);
+                    }
+                );
             } catch (error) {
                 clearTimeout(timeout);
                 this.connectionState = ConnectionState.ERROR;
@@ -291,11 +300,7 @@ export class ZhipuSSEClient {
     /**
      * 建立持久 SSE 连接
      */
-    private establishSSEConnection(
-        sseUrl: string,
-        onConnected: () => void,
-        onError: (error: Error) => void
-    ): void {
+    private establishSSEConnection(sseUrl: string, onConnected: () => void, onError: (error: Error) => void): void {
         const urlObj = new URL(sseUrl);
 
         const requestOptions = {
@@ -304,16 +309,16 @@ export class ZhipuSSEClient {
             path: urlObj.pathname + urlObj.search,
             method: 'GET',
             headers: {
-                'Accept': 'text/event-stream',
+                Accept: 'text/event-stream',
                 'Cache-Control': 'no-cache',
-                'Connection': 'keep-alive',
+                Connection: 'keep-alive',
                 'User-Agent': this.userAgent
             }
         };
 
         Logger.debug(`🔗 [智谱SSE] 建立SSE连接: ${sseUrl.replace(/Authorization=[^&]+/, 'Authorization=***')}`);
 
-        const req = https.request(requestOptions, (res) => {
+        const req = https.request(requestOptions, res => {
             if (res.statusCode !== 200) {
                 onError(new Error(`SSE连接失败: ${res.statusCode}`));
                 return;
@@ -325,7 +330,7 @@ export class ZhipuSSEClient {
             let buffer = '';
             let endpointReceived = false;
 
-            res.on('data', (chunk) => {
+            res.on('data', chunk => {
                 buffer += chunk.toString();
                 const events = this.parseSSEEvents(buffer);
 
@@ -370,14 +375,14 @@ export class ZhipuSSEClient {
                 this.cleanup();
             });
 
-            res.on('error', (error) => {
+            res.on('error', error => {
                 Logger.error('❌ [智谱SSE] 响应错误', error);
                 this.connectionState = ConnectionState.ERROR;
                 onError(error);
             });
         });
 
-        req.on('error', (error) => {
+        req.on('error', error => {
             Logger.error('❌ [智谱SSE] 请求错误', error);
             this.connectionState = ConnectionState.ERROR;
             onError(error);
@@ -490,7 +495,10 @@ export class ZhipuSSEClient {
     /**
      * 发送单个消息
      */
-    private async sendMessage(url: string, request: JSONRPCRequest | { jsonrpc: string; method: string }): Promise<void> {
+    private async sendMessage(
+        url: string,
+        request: JSONRPCRequest | { jsonrpc: string; method: string }
+    ): Promise<void> {
         return new Promise((resolve, reject) => {
             const urlObj = new URL(url);
             const requestData = JSON.stringify(request);
@@ -507,7 +515,7 @@ export class ZhipuSSEClient {
                 }
             };
 
-            const req = https.request(options, (res) => {
+            const req = https.request(options, res => {
                 // 消耗响应数据但不存储（避免内存泄漏）
                 res.on('data', () => {
                     // 数据已接收
@@ -587,13 +595,15 @@ export class ZhipuSSEClient {
         } else if (result && typeof result === 'object' && 'content' in result) {
             const content = (result as { content: unknown }).content;
             if (Array.isArray(content)) {
-                return content.map(item => {
-                    if (item && typeof item === 'object') {
-                        const obj = item as { text?: string; content?: string };
-                        return obj.text || obj.content || JSON.stringify(item);
-                    }
-                    return String(item);
-                }).join('\n');
+                return content
+                    .map(item => {
+                        if (item && typeof item === 'object') {
+                            const obj = item as { text?: string; content?: string };
+                            return obj.text || obj.content || JSON.stringify(item);
+                        }
+                        return String(item);
+                    })
+                    .join('\n');
             } else if (typeof content === 'string') {
                 return content;
             }
@@ -658,8 +668,9 @@ export class ZhipuSSEClient {
                 }
 
                 // 如果没有当前搜索，尝试返回给最早的请求
-                const oldestRequest = Array.from(this.pendingSearches.values())
-                    .sort((a, b) => a.timestamp - b.timestamp)[0];
+                const oldestRequest = Array.from(this.pendingSearches.values()).sort(
+                    (a, b) => a.timestamp - b.timestamp
+                )[0];
 
                 if (oldestRequest) {
                     this.pendingSearches.delete(oldestRequest.id);
@@ -690,7 +701,8 @@ export class ZhipuSSEClient {
                     await this.disableMCPMode();
                     errorMessage = '智谱AI搜索权限不足：MCP模式已禁用，请重新尝试搜索。';
                 } else {
-                    errorMessage = '智谱AI搜索权限不足：您的账户无权访问联网搜索 MCP 功能。请检查您的智谱AI套餐订阅状态。';
+                    errorMessage =
+                        '智谱AI搜索权限不足：您的账户无权访问联网搜索 MCP 功能。请检查您的智谱AI套餐订阅状态。';
                 }
             } else {
                 errorMessage = '智谱AI搜索权限不足：403错误。请检查您的API密钥权限或套餐订阅状态。';
@@ -712,8 +724,9 @@ export class ZhipuSSEClient {
             Logger.debug(`❌ [智谱SSE] 当前搜索失败 (ID: ${this.currentSearchId}): ${errorMessage}`);
         } else {
             // 如果没有当前搜索，则失败最早的请求
-            const oldestRequest = Array.from(this.pendingSearches.values())
-                .sort((a, b) => a.timestamp - b.timestamp)[0];
+            const oldestRequest = Array.from(this.pendingSearches.values()).sort(
+                (a, b) => a.timestamp - b.timestamp
+            )[0];
 
             if (oldestRequest) {
                 this.pendingSearches.delete(oldestRequest.id);
@@ -775,10 +788,7 @@ export class ZhipuSSEClient {
 
         try {
             Logger.debug(`🎯 [智谱SSE] 执行搜索: ${searchRequest.query}`);
-            await this.sendSearchToolCall(
-                searchRequest.query,
-                searchRequest.options
-            );
+            await this.sendSearchToolCall(searchRequest.query, searchRequest.options);
         } catch (error) {
             this.pendingSearches.delete(searchRequest.id);
             searchRequest.reject(error instanceof Error ? error : new Error(String(error)));
@@ -874,7 +884,8 @@ export class ZhipuSSEClient {
      * 显示MCP禁用对话框
      */
     private async showMCPDisableDialog(): Promise<boolean> {
-        const message = '智谱AI搜索权限不足：您的账户无权访问联网搜索 MCP 功能。\n\n是否要停用MCP订阅服务模式，改为使用标准计费服务？\n\n• MCP模式：需要Pro+套餐订阅，免费使用\n• 标准模式：按次计费，适合所有用户';
+        const message =
+            '智谱AI搜索权限不足：您的账户无权访问联网搜索 MCP 功能。\n\n是否要停用MCP订阅服务模式，改为使用标准计费服务？\n\n• MCP模式：需要Pro+套餐订阅，免费使用\n• 标准模式：按次计费，适合所有用户';
 
         const action = await vscode.window.showWarningMessage(
             message,
@@ -902,15 +913,10 @@ export class ZhipuSSEClient {
             await this.disconnect();
 
             // 显示成功消息
-            vscode.window.showInformationMessage(
-                '已切换到标准计费模式。请重新尝试搜索。',
-                '确定'
-            );
+            vscode.window.showInformationMessage('已切换到标准计费模式。请重新尝试搜索。', '确定');
         } catch (error) {
             Logger.error('❌ [智谱SSE] 禁用MCP模式失败', error instanceof Error ? error : undefined);
-            vscode.window.showErrorMessage(
-                `切换模式失败: ${error instanceof Error ? error.message : '未知错误'}`
-            );
+            vscode.window.showErrorMessage(`切换模式失败: ${error instanceof Error ? error.message : '未知错误'}`);
         }
     }
 

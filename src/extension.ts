@@ -23,18 +23,10 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
 
             // 特殊处理 iFlow 心流AI 提供商，使用动态模型注册
             if (providerKey === 'iflow') {
-                IFlowDynamicProvider.createAndActivate(
-                    context,
-                    providerKey,
-                    providerConfig
-                );
+                IFlowDynamicProvider.createAndActivate(context, providerKey, providerConfig);
             } else {
                 // 使用通用供应商创建实例
-                GenericModelProvider.createAndActivate(
-                    context,
-                    providerKey,
-                    providerConfig
-                );
+                GenericModelProvider.createAndActivate(context, providerKey, providerConfig);
             }
 
             Logger.info(`${providerConfig.displayName} 供应商注册成功`);
@@ -53,7 +45,9 @@ export async function activate(context: vscode.ExtensionContext) {
         const isDevelopment = context.extensionMode === vscode.ExtensionMode.Development;
         Logger.info(`🔧 GCMP 扩展模式: ${isDevelopment ? 'Development' : 'Production'}`);
         // 检查和提示VS Code的日志级别设置
-        if (isDevelopment) { Logger.checkAndPromptLogLevel(); }
+        if (isDevelopment) {
+            Logger.checkAndPromptLogLevel();
+        }
 
         Logger.info('开始激活 GCMP 扩展...');
 
