@@ -504,7 +504,7 @@ export class OpenAIHandler {
                     tool_call_id: part.callId
                 };
                 toolMessages.push(toolMessage);
-                Logger.debug(`添加工具结果: callId=${part.callId}, 内容长度=${toolContent.length}`);
+                // Logger.debug(`添加工具结果: callId=${part.callId}, 内容长度=${toolContent.length}`);
             }
         }
 
@@ -531,8 +531,7 @@ export class OpenAIHandler {
                         arguments: JSON.stringify(part.input)
                     }
                 });
-
-                Logger.debug(`添加工具调用: ${part.name} (ID: ${part.callId})`);
+                // Logger.debug(`添加工具调用: ${part.name} (ID: ${part.callId})`);
             }
         }
 
@@ -547,7 +546,7 @@ export class OpenAIHandler {
         };
         if (toolCalls.length > 0) {
             assistantMessage.tool_calls = toolCalls;
-            Logger.debug(`Assistant消息包含 ${toolCalls.length} 个工具调用`);
+            // Logger.debug(`Assistant消息包含 ${toolCalls.length} 个工具调用`);
         }
         return assistantMessage;
     }
