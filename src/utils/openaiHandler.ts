@@ -14,9 +14,6 @@ import { ApiKeyManager } from '../utils/apiKeyManager';
  * 使用 OpenAI SDK 实现流式聊天完成，支持工具调用
  */
 export class OpenAIHandler {
-    private clients = new Map<string, OpenAI>();
-    private cachedApiKeys = new Map<string, string>();
-
     // SDK事件去重跟踪器（基于请求级别）
     private currentRequestProcessedEvents = new Set<string>();
 
@@ -29,27 +26,21 @@ export class OpenAIHandler {
     }
 
     /**
-     * 获取或创建 OpenAI 客户端
+     * 创建新的 OpenAI 客户端
      */
-    private async getOpenAIClient(): Promise<OpenAI> {
+    private async createOpenAIClient(): Promise<OpenAI> {
         const currentApiKey = await ApiKeyManager.getApiKey(this.provider);
         if (!currentApiKey) {
             throw new Error(`缺少 ${this.displayName} API密钥`);
         }
-        const clientKey = `${this.provider}_${this.baseURL}`;
-        const cachedKey = this.cachedApiKeys.get(clientKey);
-        // 如果API密钥变更了，重置客户端
-        if (!this.clients.has(clientKey) || cachedKey !== currentApiKey) {
-            const client = new OpenAI({
-                apiKey: currentApiKey,
-                baseURL: this.baseURL,
-                fetch: this.createCustomFetch() // 使用自定义 fetch 解决 SSE 格式问题
-            });
-            this.clients.set(clientKey, client);
-            this.cachedApiKeys.set(clientKey, currentApiKey);
-            Logger.info(`${this.displayName} OpenAI SDK 客户端已创建`);
-        }
-        return this.clients.get(clientKey)!;
+
+        const client = new OpenAI({
+            apiKey: currentApiKey,
+            baseURL: this.baseURL,
+            fetch: this.createCustomFetch() // 使用自定义 fetch 解决 SSE 格式问题
+        });
+        Logger.debug(`${this.displayName} OpenAI SDK 客户端已创建`);
+        return client;
     }
 
     /**
@@ -88,7 +79,7 @@ export class OpenAIHandler {
                         // 解码 chunk
                         let chunk = decoder.decode(value, { stream: true });
                         // 修复 SSE 格式：确保 "data:" 后面有空格
-                        // 处理 "data:{json}" -> "data: {json}" 
+                        // 处理 "data:{json}" -> "data: {json}"
                         chunk = chunk.replace(/^data:([^\s])/gm, 'data: $1');
                         // 重新编码并传递有效内容
                         controller.enqueue(encoder.encode(chunk));
@@ -122,7 +113,7 @@ export class OpenAIHandler {
         // 清理当前请求的事件去重跟踪器
         this.currentRequestProcessedEvents.clear();
         try {
-            const client = await this.getOpenAIClient();
+            const client = await this.createOpenAIClient();
             Logger.debug(`${model.name} 发送 ${messages.length} 条消息，使用 ${this.displayName}`);
             const createParams: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
                 model: model.id,
@@ -677,21 +668,4 @@ export class OpenAIHandler {
         }
     }
 
-
-    /**
-     * 重置客户端
-     */
-    resetClient(): void {
-        this.clients.clear();
-        this.cachedApiKeys.clear();
-        Logger.trace(`${this.displayName} OpenAI SDK 客户端已重置`);
-    }
-
-    /**
-     * 清理资源
-     */
-    dispose(): void {
-        this.resetClient();
-        Logger.trace(`${this.displayName} OpenAIHandler 已清理`);
-    }
 }

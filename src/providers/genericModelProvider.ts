@@ -88,7 +88,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             id: model.id,
             name: model.name,
             tooltip: model.tooltip,
-            family: 'claude', // 高效编辑工具 GHC 用 claude 判断
+            // family: 'claude', // 高效编辑工具 GHC 用 claude 判断
+            family: `gpt-${model.id}`, // 批量编辑工具 GHC 用 gpt 判断
             maxInputTokens: model.maxInputTokens,
             maxOutputTokens: model.maxOutputTokens,
             version: model.id,
