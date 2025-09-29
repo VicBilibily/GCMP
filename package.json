@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek 模型支持的扩展",
-    "version": "0.5.7",
+    "version": "0.5.8",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -112,15 +112,17 @@
                     "enum": [
                         "claude",
                         "gpt-5",
+                        "grok-code",
                         "none"
                     ],
                     "enumDescriptions": [
-                        "使用 Claude 风格的编辑工具 (ReplaceString) - 高效精确的替换",
-                        "使用 GPT-5 风格的编辑工具 (ApplyPatch) - 批量差异应用",
+                        "使用 Claude 风格的编辑工具 (ReplaceString) - 高效精确的单次替换",
+                        "使用 GPT-5 风格的编辑工具 (ApplyPatch) - 批量差异应用，支持复杂重构",
+                        "使用 Grok 风格的编辑工具 - 实验性设置，根据配置使用ReplaceString或EditFile",
                         "不使用特定优化工具，直接文件编辑 - 效率较低，适合处理编辑异常情况"
                     ],
                     "default": "claude",
-                    "description": "选择编辑工具模式。Claude 使用高效替换，GPT-5 使用批量差异，None 直接文件编辑（效率较低）。",
+                    "description": "选择编辑工具模式。Claude 使用高效的ReplaceString，GPT-5 使用ApplyPatch进行批量编辑，Grok 根据实验配置选择工具，None 直接使用基础文件编辑。",
                     "scope": "application"
                 }
             }
