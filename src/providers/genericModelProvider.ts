@@ -44,7 +44,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         context: vscode.ExtensionContext,
         providerKey: string,
         providerConfig: ProviderConfig
-    ): GenericModelProvider {
+    ): { provider: GenericModelProvider; disposables: vscode.Disposable[] } {
         Logger.trace(`${providerConfig.displayName} 模型扩展已激活!`);
 
         // 创建供应商实例
@@ -52,7 +52,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
         // 注册语言模型聊天供应商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
-        context.subscriptions.push(providerDisposable);
 
         // 注册设置API密钥命令
         const setApiKeyCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.setApiKey`, async () => {
@@ -62,21 +61,34 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 providerConfig.apiKeyTemplate
             );
         });
-        context.subscriptions.push(setApiKeyCommand);
 
-        return provider;
+        const disposables = [providerDisposable, setApiKeyCommand];
+        disposables.forEach(disposable => context.subscriptions.push(disposable));
+
+        return { provider, disposables };
     }
 
     /**
      * 将ModelConfig转换为LanguageModelChatInformation
      */
     private modelConfigToInfo(model: ModelConfig): LanguageModelChatInformation {
+        // 读取编辑工具模式设置
+        const editToolMode = vscode.workspace.getConfiguration('gcmp').get('editToolMode', 'claude') as string;
+
+        let family: string;
+        if (editToolMode && editToolMode !== 'none') {
+            family = editToolMode;
+        } else if (editToolMode === 'none') {
+            family = model.id;
+        } else {
+            family = model.id; // 回退到使用模型ID
+        }
+
         const info: LanguageModelChatInformation = {
             id: model.id,
             name: model.name,
             tooltip: model.tooltip,
-            // family: 'claude', // 高效编辑工具 GHC 用 claude 判断
-            family: `gpt-${model.id}`, // 批量编辑工具 GHC 用 gpt 判断
+            family: family,
             maxInputTokens: model.maxInputTokens,
             maxOutputTokens: model.maxOutputTokens,
             version: model.id,

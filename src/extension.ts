@@ -6,6 +6,12 @@ import { ApiKeyManager, ConfigManager } from './utils';
 import { registerAllTools } from './tools';
 
 /**
+ * 全局变量 - 存储已注册的供应商实例，用于配置变更时的重新注册
+ */
+let registeredProviders: Record<string, GenericModelProvider> = {};
+let registeredDisposables: vscode.Disposable[] = [];
+
+/**
  * 激活供应商 - 基于配置文件动态注册
  */
 async function activateProviders(context: vscode.ExtensionContext): Promise<void> {
@@ -26,7 +32,9 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
                 IFlowDynamicProvider.createAndActivate(context, providerKey, providerConfig);
             } else {
                 // 使用通用供应商创建实例
-                GenericModelProvider.createAndActivate(context, providerKey, providerConfig);
+                const { provider, disposables } = GenericModelProvider.createAndActivate(context, providerKey, providerConfig);
+                registeredProviders[providerKey] = provider;
+                registeredDisposables.push(...disposables);
             }
 
             Logger.info(`${providerConfig.displayName} 供应商注册成功`);
@@ -34,6 +42,23 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
             Logger.error(`注册供应商 ${providerKey} 失败:`, error);
         }
     }
+}
+
+/**
+ * 重新注册所有供应商 - 用于配置变更后的刷新
+ */
+async function reRegisterProviders(context: vscode.ExtensionContext): Promise<void> {
+    Logger.info('开始重新注册所有供应商...');
+
+    // 清理现有的 disposables
+    registeredDisposables.forEach(disposable => disposable.dispose());
+    registeredDisposables = [];
+    registeredProviders = {};
+
+    // 重新激活供应商
+    await activateProviders(context);
+
+    Logger.info('供应商重新注册完成');
 }
 
 // This method is called when your extension is activated
@@ -64,6 +89,26 @@ export async function activate(context: vscode.ExtensionContext) {
         // 注册工具
         Logger.trace('正在注册工具...');
         registerAllTools(context);
+
+        // 监听配置变更，特别是 editToolMode
+        const configChangeDisposable = vscode.workspace.onDidChangeConfiguration(async (event) => {
+            if (event.affectsConfiguration('gcmp.editToolMode')) {
+                Logger.info('检测到 editToolMode 配置变更，正在重新注册所有供应商...');
+
+                try {
+                    // 重新注册所有供应商以应用新的配置
+                    await reRegisterProviders(context);
+                    Logger.info('供应商重新注册成功');
+
+                    // 显示成功通知
+                    vscode.window.showInformationMessage('编辑工具模式已更新，所有模型提供商已刷新。');
+                } catch (error) {
+                    Logger.error('重新注册供应商失败:', error);
+                    vscode.window.showErrorMessage('编辑工具模式更新失败，请重新加载窗口。');
+                }
+            }
+        });
+        context.subscriptions.push(configChangeDisposable);
 
         Logger.info('GCMP 扩展激活完成');
     } catch (error) {
