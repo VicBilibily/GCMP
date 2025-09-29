@@ -231,6 +231,13 @@ export class OpenAIHandler {
                             Logger.warn(`${model.name} 用户取消了请求`);
                             throw new vscode.CancellationError();
                         }
+                        // 输出 trace 日志：记录增量长度和片段预览，便于排查偶发没有完整chunk的问题
+                        try {
+                            const preview = delta && delta.length > 0 ? delta.slice(0, 200) : '';
+                            Logger.trace(`${model.name} 收到 content 增量: ${delta ? delta.length : 0} 字符, preview=${JSON.stringify(preview)}`);
+                        } catch {
+                            // 日志不应中断流处理
+                        }
                         // 直接输出常规内容
                         progress.report(new vscode.LanguageModelTextPart(delta));
                         hasReceivedContent = true;

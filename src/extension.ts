@@ -10,6 +10,7 @@ import { registerAllTools } from './tools';
  */
 let registeredProviders: Record<string, GenericModelProvider> = {};
 let registeredDisposables: vscode.Disposable[] = [];
+let iflowProvider: IFlowDynamicProvider | null = null; // 特别跟踪心流AI提供商实例
 
 /**
  * 激活供应商 - 基于配置文件动态注册
@@ -29,7 +30,7 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
 
             // 特殊处理 iFlow 心流AI 提供商，使用动态模型注册
             if (providerKey === 'iflow') {
-                IFlowDynamicProvider.createAndActivate(context, providerKey, providerConfig);
+                iflowProvider = IFlowDynamicProvider.createAndActivate(context, providerKey, providerConfig);
             } else {
                 // 使用通用供应商创建实例
                 const { provider, disposables } = GenericModelProvider.createAndActivate(context, providerKey, providerConfig);
@@ -54,6 +55,12 @@ async function reRegisterProviders(context: vscode.ExtensionContext): Promise<vo
     registeredDisposables.forEach(disposable => disposable.dispose());
     registeredDisposables = [];
     registeredProviders = {};
+
+    // 清理心流AI提供商
+    if (iflowProvider) {
+        iflowProvider.dispose();
+        iflowProvider = null;
+    }
 
     // 重新激活供应商
     await activateProviders(context);
@@ -127,6 +134,13 @@ export async function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
     try {
         Logger.info('开始停用 GCMP 扩展...');
+
+        // 清理心流AI提供商
+        if (iflowProvider) {
+            iflowProvider.dispose();
+            iflowProvider = null;
+        }
+
         ConfigManager.dispose(); // 清理配置管理器
         Logger.info('GCMP 扩展停用完成');
         Logger.dispose(); // 在扩展销毁时才 dispose Logger

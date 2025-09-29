@@ -160,7 +160,8 @@ export class IFlowApiClient {
                 maxOutputTokens,
                 capabilities: {
                     toolCalling: true,
-                    imageInput: false
+                    // 如果模型名包含 "-vl"（视觉语言），启用图像输入能力（不区分大小写）
+                    imageInput: typeof iflowModel.modelName === 'string' && /-vl/i.test(iflowModel.modelName)
                 }
             };
 
