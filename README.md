@@ -26,16 +26,15 @@
 > - [**订阅套餐**](https://bigmodel.cn/claude-code)：推荐订阅Pro套餐。
 > - **搜索功能**：集成官方 Web Search API，支持实时联网搜索，仅Pro及以上套餐支持通过 MCP SSE 模式调用。
 
-- 编程套餐：**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
-- 标准计费：**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5-X**、**GLM-4.5-AirX**、**GLM-4.5V**
+- 编程套餐：**GLM-4.6**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
+- 标准计费：**GLM-4.6**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5-X**、**GLM-4.5-AirX**、**GLM-4.5V**
 - 免费版本：**GLM-4.5-Flash**
 
 ### 💫 心流AI - iFlow
 
 阿里巴巴旗下的的AI平台，当前[API调用](https://platform.iflow.cn/docs/)服务**免费使用**，目前[限流规则](https://platform.iflow.cn/docs/limitSpeed)为每个用户最多只能**同时发起一个**请求。
 
-> - 心流AI的模型列表会根据官方[模型列表API](https://platform.iflow.cn/models)定时更新。
-> - 目前已屏蔽不兼容 OpenAI API 消息规则的 `DeepSeek-R1` 模型。
+> - 心流AI的模型列表会根据心流[模型列表API](https://platform.iflow.cn/models)定时更新。目前已屏蔽不兼容 OpenAI API 消息规则的 `DeepSeek-R1` 模型。
 
 ### 🌙 MoonshotAI - Kimi K2系列
 
@@ -45,8 +44,8 @@
 
 深度求索旗下的高性能推理模型，支持强大的代码生成和复杂推理任务。
 
-- 支持模型：**DeepSeek-V3.2-Exp**，包含思考模式模型选项。
-- 保留模型：**DeepSeek V3.1 Terminus**，包含思考模式模型选项。保留到北京时间 2025 年 10 月 15 日 23:59。
+- 支持模型：**DeepSeek-V3.2-Exp**，包含思考模式聊天模型。
+- 保留模型：**DeepSeek-V3.1-Terminus**，包含思考模式聊天模型。保留到北京时间 2025 年 10 月 15 日 23:59。
 
 ## 🔍 智谱AI联网搜索工具
 
@@ -59,14 +58,7 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 
 ### 💰 标准计费模式
 
-适用于非订阅套餐或需要使用高级引擎的用户：
-
-#### 引擎支持
-
-- **search_std** 基础版(¥0.01/次)
-- **search_pro** 高级版(¥0.03/次)
-- **search_pro_sogou** 搜狗(¥0.05/次)
-- **search_pro_quark** 夸克(¥0.05/次)
+适用于非订阅套餐或需要使用高级引擎的用户：[搜索引擎说明](https://docs.bigmodel.cn/cn/guide/tools/web-search#%E6%90%9C%E7%B4%A2%E5%BC%95%E6%93%8E%E8%AF%B4%E6%98%8E)
 
 ### 使用方法
 
@@ -127,10 +119,11 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 
 ## 🚫 未列入支持的模型供应商说明
 
-- **魔搭社区（ModelScope）** 仅适用于测试环境，每模型500RPD，偶尔服务不太稳定。
+> 目前优先支持有月套餐的服务商，云服务厂商及接口输出速度低于 `30token/s` 的模型供应商暂不考虑支持。
+
+- **魔搭社区（ModelScope）** 仅适用于测试环境，每模型500RPD，共享服务不太稳定。各个模型的OpenAI兼容模式都有各自的实现，输出格式不是平台统一，适配工作量较大，故此插件不提供此服务商。若有需要可使用官方的 `OpenAI Compatible` 模式（预计2025年10月版本正式发布支持，目前正式版可使用 [`OAI Compatible Provider for Copilot`](https://marketplace.visualstudio.com/items?itemName=johnny-zhao.oai-compatible-copilot) ）。
 - **各大云厂商（阿里云、腾讯云、百度云等）** 调用按量计费不适合长期使用。
 
-> 目前优先支持有月套餐的服务商。
 
 ## 🤝 贡献指南
 
