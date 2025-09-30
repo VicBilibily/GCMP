@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek 模型支持的扩展",
-    "version": "0.5.10",
+    "version": "0.5.11",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -228,6 +228,18 @@
             "apiKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxx",
             "models": [
                 {
+                    "id": "glm-4.6",
+                    "name": "GLM-4.6 (编程套餐)",
+                    "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+                    "tooltip": "ZHIPU GLM-4.6 - GLM-4.6的代码能力对齐Claude Sonnet 4，是国内已知的最好的Coding模型",
+                    "maxInputTokens": 200000,
+                    "maxOutputTokens": 128000,
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    }
+                },
+                {
                     "id": "glm-4.5",
                     "name": "GLM-4.5 (编程套餐)",
                     "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
@@ -261,6 +273,18 @@
                     "capabilities": {
                         "toolCalling": true,
                         "imageInput": true
+                    }
+                },
+                {
+                    "id": "glm-4.6-billing",
+                    "model": "glm-4.6",
+                    "name": "GLM-4.6 (标准计费)",
+                    "tooltip": "ZHIPU GLM-4.6 - GLM-4.6的代码能力对齐Claude Sonnet 4，是国内已知的最好的Coding模型",
+                    "maxInputTokens": 200000,
+                    "maxOutputTokens": 128000,
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
                     }
                 },
                 {
