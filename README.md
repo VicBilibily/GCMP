@@ -23,12 +23,12 @@
 
 ### 🧠 智谱AI - GLM-4.5系列
 
-> - [**订阅套餐**](https://bigmodel.cn/claude-code)：2个项目以内Lite套餐够用，1个项目使用基本不会超限。若需要使用截图识别图片，可直接订阅Pro套餐。
-> - **搜索功能**：集成官方 Web Search API，支持实时联网搜索，仅Pro+套餐支持通过 MCP SSE 模式调用。
+> - [**订阅套餐**](https://bigmodel.cn/claude-code)：推荐订阅Pro套餐。
+> - **搜索功能**：集成官方 Web Search API，支持实时联网搜索，仅Pro及以上套餐支持通过 MCP SSE 模式调用。
 
-- **GLM-4.5**：最强推理模型，3550亿参数
-- **GLM-4.5-Air**：高性价比轻量级模型
-- **GLM-4.5V**：旗舰视觉推理模型，106B参数（支持图像理解）
+- 编程套餐：**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
+- 标准计费：**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5-X**、**GLM-4.5-AirX**、**GLM-4.5V**
+- 免费版本：**GLM-4.5-Flash**
 
 ### 💫 心流AI - iFlow
 
@@ -39,17 +39,14 @@
 
 ### 🌙 MoonshotAI - Kimi K2系列
 
-- **Kimi-K2-0905-Preview**：更强 Agentic Coding 能力，优化前端代码美观度（256K上下文）
-- **Kimi-K2-Turbo-Preview**：高速版本模型，60-100 tokens/秒输出速度（256K上下文）
-- **Kimi-K2-0711-Preview**：K2系列基础版本（128K上下文）
-- **Kimi-Latest**：最新一代视觉模型，支持图片理解，智能选择8K/32K/128K计费模型（128K上下文）
+- 支持模型：**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-K2-0711-Preview**、**Kimi-Latest**
 
 ### 🔥 DeepSeek - 深度求索
 
 深度求索旗下的高性能推理模型，支持强大的代码生成和复杂推理任务。
 
-- **DeepSeek V3.1 Terminus**：全面升级的对话和推理能力，支持工具调用
-- **DeepSeek V3.1 Terminus (思考模式)**：基于V3.1架构的思维链推理能力，专注于复杂推理
+- 支持模型：**DeepSeek-V3.2-Exp**，包含思考模式模型选项。
+- 保留模型：**DeepSeek V3.1 Terminus**，包含思考模式模型选项。保留到北京时间 2025 年 10 月 15 日 23:59。
 
 ## 🔍 智谱AI联网搜索工具
 
@@ -58,7 +55,7 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 ### 🚀 MCP SSE 模式（默认启用）
 
 - **默认启用**：新版本默认使用 MCP SSE 模式
-- **仅Pro+套餐支持**：非Pro+订阅套餐需将 `gcmp.zhipu.search.enableMCP` 设为 `false`
+- **Pro及以上套餐支持**：其他情况需将 `gcmp.zhipu.search.enableMCP` 设为 `false`
 
 ### 💰 标准计费模式
 
@@ -74,11 +71,11 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 ### 使用方法
 
 1. **设置 智谱AI API 密钥**：运行命令 `GCMP: 设置 智谱AI API密钥`
-2. **模式设置**：MCP SSE 模式默认启用，可在 VS Code 设置中将 `gcmp.zhipu.search.enableMCP` 设为 `false` 切换至标准计费模式
+2. **模式设置**：MCP SSE 模式默认启用（仅Pro及以上套餐支持），可在 VS Code 设置中将 `gcmp.zhipu.search.enableMCP` 设为 `false` 切换至标准计费模式。
 3. **在 AI 对话中使用**：在 GitHub Copilot Chat 中直接请求搜索最新信息，模型会自动调用搜索工具
 4. **手动引用**：在提示中使用 `#zhipuWebSearch` 来明确引用搜索工具
 
-> 💡 **提示**：MCP SSE 模式默认启用，仅Pro+套餐支持。非订阅套餐请关闭此开关使用标准计费模式。如需使用高级搜索引擎，可切换至标准计费模式。
+> 💡 **提示**：MCP SSE 模式默认启用，仅Pro及以上套餐支持。非订阅套餐请关闭此开关使用标准计费模式。如需使用高级搜索引擎，可切换至标准计费模式。
 
 ## ⚙️ 高级配置
 
@@ -93,7 +90,8 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
     "gcmp.temperature": 0.1,
     "gcmp.topP": 1.0,
     "gcmp.maxTokens": 8192,
-    "gcmp.zhipu.search.enableMCP": true
+    "gcmp.zhipu.search.enableMCP": true,
+    "gcmp.editToolMode": "claude"
 }
 ```
 
@@ -101,17 +99,18 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 
 #### 通用AI模型参数
 
-| 参数               | 类型   | 默认值 | 范围/选项 | 说明                                                             |
-| ------------------ | ------ | ------ | --------- | ---------------------------------------------------------------- |
-| `gcmp.temperature` | number | 0.1    | 0.0-2.0   | **输出随机性**：较低值产生更确定性输出，较高值产生更有创意的输出 |
-| `gcmp.topP`        | number | 1.0    | 0.0-1.0   | **输出多样性**：使用较小值会减少输出随机性，提高一致性           |
-| `gcmp.maxTokens`   | number | 8192   | 32-32768  | **最大输出长度**：控制AI单次响应的最大token数量                  |
+| 参数                | 类型   | 默认值 | 范围/选项                   | 说明                                                             |
+| ------------------- | ------ | ------ | --------------------------- | ---------------------------------------------------------------- |
+| `gcmp.temperature`  | number | 0.1    | 0.0-2.0                     | **输出随机性**：较低值产生更确定性输出，较高值产生更有创意的输出 |
+| `gcmp.topP`         | number | 1.0    | 0.0-1.0                     | **输出多样性**：使用较小值会减少输出随机性，提高一致性           |
+| `gcmp.maxTokens`    | number | 8192   | 32-32768                    | **最大输出长度**：控制AI单次响应的最大token数量                  |
+| `gcmp.editToolMode` | string | claude | claude/gpt-5/grok-code/none | **编辑工具模式**：选择AI编辑代码时使用的工具风格                 |
 
 #### 智谱AI专用配置
 
-| 参数                          | 类型    | 默认值 | 说明                                                                    |
-| ----------------------------- | ------- | ------ | ----------------------------------------------------------------------- |
-| `gcmp.zhipu.search.enableMCP` | boolean | true   | **搜索模式**：启用SSE通讯模式（仅Pro+套餐支持），关闭则使用标准计费接口 |
+| 参数                          | 类型    | 默认值 | 说明                                                                         |
+| ----------------------------- | ------- | ------ | ---------------------------------------------------------------------------- |
+| `gcmp.zhipu.search.enableMCP` | boolean | true   | **搜索模式**：启用SSE通讯模式（仅Pro及以上套餐支持），关闭则使用标准计费接口 |
 
 > 📝 **提示**：所有参数修改会立即生效。
 

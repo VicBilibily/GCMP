@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek 模型支持的扩展",
-    "version": "0.5.9",
+    "version": "0.5.10",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -224,12 +224,13 @@
     "configProvider": {
         "zhipu": {
             "displayName": "智谱AI",
-            "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+            "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
             "apiKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxx",
             "models": [
                 {
                     "id": "glm-4.5",
-                    "name": "GLM-4.5",
+                    "name": "GLM-4.5 (编程套餐)",
+                    "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
                     "tooltip": "ZHIPU GLM-4.5 - 最强大的推理模型，3550亿参数，专为复杂推理任务优化",
                     "maxInputTokens": 128000,
                     "maxOutputTokens": 96000,
@@ -240,7 +241,8 @@
                 },
                 {
                     "id": "glm-4.5-air",
-                    "name": "GLM-4.5-Air",
+                    "name": "GLM-4.5-Air (编程套餐)",
+                    "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
                     "tooltip": "ZHIPU GLM-4.5-Air - 高性价比模型，轻量级设计，强性能表现",
                     "maxInputTokens": 128000,
                     "maxOutputTokens": 96000,
@@ -251,10 +253,82 @@
                 },
                 {
                     "id": "glm-4.5v",
-                    "name": "GLM-4.5V",
+                    "name": "GLM-4.5V (编程套餐)",
+                    "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
                     "tooltip": "ZHIPU GLM-4.5V - 旗舰视觉推理模型，106B参数，支持视频/图像/文档理解",
                     "maxInputTokens": 64000,
                     "maxOutputTokens": 16000,
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": true
+                    }
+                },
+                {
+                    "id": "glm-4.5-billing",
+                    "model": "glm-4.5",
+                    "name": "GLM-4.5 (标准计费)",
+                    "tooltip": "ZHIPU GLM-4.5 - 最强大的推理模型，3550亿参数，专为复杂推理任务优化",
+                    "maxInputTokens": 128000,
+                    "maxOutputTokens": 96000,
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    }
+                },
+                {
+                    "id": "glm-4.5-air-billing",
+                    "model": "glm-4.5-air",
+                    "name": "GLM-4.5-Air (标准计费)",
+                    "tooltip": "ZHIPU GLM-4.5-Air - 高性价比模型，轻量级设计，强性能表现",
+                    "maxInputTokens": 128000,
+                    "maxOutputTokens": 96000,
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    }
+                },
+                {
+                    "id": "glm-4.5-x-billing",
+                    "model": "glm-4.5-x",
+                    "name": "GLM-4.5-X (标准计费)",
+                    "tooltip": "ZHIPU GLM-4.5 - 最强大的推理模型，3550亿参数，专为复杂推理任务优化",
+                    "maxInputTokens": 128000,
+                    "maxOutputTokens": 96000,
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    }
+                },
+                {
+                    "id": "glm-4.5-airx-billing",
+                    "model": "glm-4.5-airx",
+                    "name": "GLM-4.5-AirX (标准计费)",
+                    "tooltip": "ZHIPU GLM-4.5-Air - 高性价比模型，轻量级设计，强性能表现",
+                    "maxInputTokens": 128000,
+                    "maxOutputTokens": 96000,
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    }
+                },
+                {
+                    "id": "glm-4.5v-billing",
+                    "model": "glm-4.5v",
+                    "name": "GLM-4.5V (标准计费)",
+                    "tooltip": "ZHIPU GLM-4.5V - 旗舰视觉推理模型，106B参数，支持视频/图像/文档理解",
+                    "maxInputTokens": 64000,
+                    "maxOutputTokens": 16000,
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": true
+                    }
+                },
+                {
+                    "id": "glm-4.5-flash",
+                    "name": "GLM-4.5-Flash (免费版本)",
+                    "tooltip": "ZHIPU GLM-4.5-Flash - 全新免费模型，128K上下文，支持深度思考、工具调用和流式输出，具备强大推理能力和稳定代码生成。",
+                    "maxInputTokens": 128000,
+                    "maxOutputTokens": 96000,
                     "capabilities": {
                         "toolCalling": true,
                         "imageInput": true
@@ -350,8 +424,8 @@
             "models": [
                 {
                     "id": "deepseek-chat",
-                    "name": "DeepSeek-V3.1-Terminus",
-                    "tooltip": "DeepSeek V3.1-Terminus 官方模型 - 全面升级的对话和推理能力",
+                    "name": "DeepSeek-V3.2-Exp",
+                    "tooltip": "DeepSeek V3.2-Exp 官方模型，探索性优化版本，针对长文本训练和推理效率进行深度优化，支持工具调用和复杂任务处理。",
                     "maxInputTokens": 128000,
                     "maxOutputTokens": 8192,
                     "capabilities": {
@@ -361,8 +435,34 @@
                 },
                 {
                     "id": "deepseek-reasoner",
+                    "name": "DeepSeek-V3.2-Exp (思考模式)",
+                    "tooltip": "DeepSeek V3.2-Exp 思考模式，增强推理能力，提供更详细的思考过程，适合复杂逻辑分析和问题解决。",
+                    "maxInputTokens": 128000,
+                    "maxOutputTokens": 8192,
+                    "capabilities": {
+                        "toolCalling": false,
+                        "imageInput": false
+                    }
+                },
+                {
+                    "id": "deepseek-chat-v3.1_terminus_expires_on_20251015",
+                    "baseUrl": "https://api.deepseek.com/v3.1_terminus_expires_on_20251015",
+                    "model": "deepseek-chat",
+                    "name": "DeepSeek-V3.1-Terminus",
+                    "tooltip": "DeepSeek V3.1-Terminus 官方模型，进一步优化了 Code Agent 与 Search Agent 的表现。保留到北京时间 2025 年 10 月 15 日 23:59。",
+                    "maxInputTokens": 128000,
+                    "maxOutputTokens": 8192,
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    }
+                },
+                {
+                    "id": "deepseek-reasoner-v3.1_terminus_expires_on_20251015",
+                    "baseUrl": "https://api.deepseek.com/v3.1_terminus_expires_on_20251015",
+                    "model": "deepseek-reasoner",
                     "name": "DeepSeek-V3.1-Terminus (思考模式)",
-                    "tooltip": "DeepSeek V3.1-Terminus 思考模式 - 具备思维链推理能力的高级模型",
+                    "tooltip": "DeepSeek V3.1-Terminus 思考模式，缓解了中英文混杂、偶发异常字符等情况。保留到北京时间 2025 年 10 月 15 日 23:59。",
                     "maxInputTokens": 128000,
                     "maxOutputTokens": 8192,
                     "capabilities": {

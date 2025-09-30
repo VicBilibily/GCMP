@@ -157,7 +157,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求: ${modelConfig.name}`);
 
         try {
-            await this.openaiHandler.handleRequest(model, messages, options, progress, token);
+            await this.openaiHandler.handleRequest(model, modelConfig, messages, options, progress, token);
         } catch (error) {
             const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
             Logger.error(errorMessage);

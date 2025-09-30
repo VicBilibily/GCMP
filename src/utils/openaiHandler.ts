@@ -8,6 +8,7 @@ import OpenAI from 'openai';
 import { Logger } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
+import { ModelConfig } from '../types/sharedTypes';
 
 /**
  * 扩展Delta类型以支持reasoning_content字段
@@ -35,18 +36,19 @@ export class OpenAIHandler {
     /**
      * 创建新的 OpenAI 客户端
      */
-    private async createOpenAIClient(): Promise<OpenAI> {
+    private async createOpenAIClient(modelConfig?: ModelConfig): Promise<OpenAI> {
         const currentApiKey = await ApiKeyManager.getApiKey(this.provider);
         if (!currentApiKey) {
             throw new Error(`缺少 ${this.displayName} API密钥`);
         }
-
+        // 优先使用模型特定的baseUrl，如果没有则使用供应商级别的baseUrl
+        const baseURL = modelConfig?.baseUrl || this.baseURL;
         const client = new OpenAI({
             apiKey: currentApiKey,
-            baseURL: this.baseURL,
+            baseURL: baseURL,
             fetch: this.createCustomFetch() // 使用自定义 fetch 解决 SSE 格式问题
         });
-        Logger.debug(`${this.displayName} OpenAI SDK 客户端已创建`);
+        Logger.debug(`${this.displayName} OpenAI SDK 客户端已创建，使用baseURL: ${baseURL}`);
         return client;
     }
 
@@ -111,6 +113,7 @@ export class OpenAIHandler {
      */
     async handleRequest(
         model: vscode.LanguageModelChatInformation,
+        modelConfig: ModelConfig,
         messages: readonly vscode.LanguageModelChatMessage[],
         options: vscode.ProvideLanguageModelChatResponseOptions,
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
@@ -120,10 +123,12 @@ export class OpenAIHandler {
         // 清理当前请求的事件去重跟踪器
         this.currentRequestProcessedEvents.clear();
         try {
-            const client = await this.createOpenAIClient();
+            const client = await this.createOpenAIClient(modelConfig);
             Logger.debug(`${model.name} 发送 ${messages.length} 条消息，使用 ${this.displayName}`);
+            // 优先使用模型特定的请求模型名称，如果没有则使用模型ID
+            const requestModel = modelConfig.model || model.id;
             const createParams: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
-                model: model.id,
+                model: requestModel,
                 messages: this.convertMessagesToOpenAI(messages, model.capabilities || undefined),
                 max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
                 stream: true,

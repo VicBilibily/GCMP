@@ -17,6 +17,16 @@ export interface ModelConfig {
         toolCalling: boolean;
         imageInput: boolean;
     };
+    /**
+     * 模型特定的baseUrl（可选）
+     * 如果提供，将覆盖供应商级别的baseUrl
+     */
+    baseUrl?: string;
+    /**
+     * 模型特定的请求模型名称（可选）
+     * 如果提供，将使用此模型名称而不是模型ID发起请求
+     */
+    model?: string;
 }
 
 /**
