@@ -283,6 +283,8 @@ export class OpenAIHandler {
             const abortController = new AbortController();
             const cancellationListener = token.onCancellationRequested(() => abortController.abort());
             let streamError: Error | null = null; // 用于捕获流错误
+            // 保存最后一个 chunk 的 usage 信息（若有），部分供应商会在每个 chunk 返回 usage
+            let finalUsage: OpenAI.Completions.CompletionUsage | undefined = undefined;
 
             try {
                 const stream = client.chat.completions.stream(createParams, { signal: abortController.signal });
@@ -350,13 +352,13 @@ export class OpenAIHandler {
                             );
                         }
                     )
+                    // 保存最后一个 chunk 的 usage 信息，部分供应商会在每个 chunk 都返回 usage，
+                    // 我们只在流成功完成后输出一次统计，避免重复日志
                     .on('chunk', (chunk: OpenAI.Chat.Completions.ChatCompletionChunk, _snapshot: unknown) => {
-                        // 处理token使用统计（始终输出Info日志）
+                        // 处理token使用统计：仅保存到 finalUsage，最后再统一输出
                         if (chunk.usage) {
-                            const usage = chunk.usage;
-                            Logger.info(
-                                `📊 ${model.name} Token使用: ${usage.prompt_tokens}+${usage.completion_tokens}=${usage.total_tokens}`
-                            );
+                            // 直接保存 SDK 返回的 usage 对象（类型为 CompletionUsage）
+                            finalUsage = chunk.usage;
                         }
 
                         // 处理思考内容（reasoning_content）和兼容旧格式：有些模型把最终结果放在 choice.message
@@ -416,6 +418,15 @@ export class OpenAIHandler {
                 // 检查是否有流错误
                 if (streamError) {
                     throw streamError;
+                }
+                // 只在流成功完成后输出一次 usage 信息，避免多次重复打印
+                if (finalUsage) {
+                    try {
+                        const usage = finalUsage as OpenAI.Completions.CompletionUsage;
+                        Logger.info(`📊 ${model.name} Token使用: ${usage.prompt_tokens}+${usage.completion_tokens}=${usage.total_tokens}`);
+                    } catch (e) {
+                        Logger.trace(`${model.name} 打印 finalUsage 失败: ${String(e)}`);
+                    }
                 }
                 Logger.debug(`${model.name} ${this.displayName} SDK流处理完成`);
             } catch (streamError) {
