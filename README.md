@@ -75,6 +75,9 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 
 - [**MiniMax**](https://platform.minimaxi.com/login) [支持模型](https://platform.minimaxi.com/document/text_api_intro?key=68abd86ad08627aad9673eaa)
 
+> 暂不适配的供应商：
+- [**SenseCore (商汤大装置)**](https://console.sensecore.cn/aistudio)：暂无权限，需与日日新团队申请？
+
 
 ## ⚙️ 高级配置
 

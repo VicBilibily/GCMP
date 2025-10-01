@@ -44,6 +44,7 @@
         "onLanguageModelProvider:gcmp.iflow",
         "onLanguageModelProvider:gcmp.moonshot",
         "onLanguageModelProvider:gcmp.deepseek",
+        "onLanguageModelProvider:gcmp.minimax",
         "onLanguageModelTool:gcmp_zhipuWebSearch"
     ],
     "contributes": {

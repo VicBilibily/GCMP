@@ -1,7 +1,7 @@
 {
     "displayName": "MiniMax",
     "baseUrl": "https://api.minimaxi.com/v1",
-    "apiKeyTemplate": "这个ApiKey密钥是一个很长一串的类JWT字符串",
+    "apiKeyTemplate": "这个 ApiKey密钥 是一个很长一串的类似JWT结构字符串",
     "models": [
         {
             "id": "MiniMax-M1",
