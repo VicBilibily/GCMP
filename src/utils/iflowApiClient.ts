@@ -229,17 +229,15 @@ export class IFlowApiClient {
      */
     private static async getDefaultModels(): Promise<ModelConfig[]> {
         try {
-            // 直接从 VS Code 扩展 API 读取 package.json 配置
-            const { extensions } = await import('vscode');
-            const extension = extensions.getExtension('vicanent.gcmp');
-            if (extension?.packageJSON?.configProvider?.iflow?.models) {
-                Logger.trace('使用 package.json 中的 心流AI 默认模型列表');
-                return extension.packageJSON.configProvider.iflow.models;
+            // 新模式：直接从 configProviders 读取
+            const { configProviders } = await import('../providers/config/index.js');
+            if (configProviders.iflow?.models) {
+                Logger.trace('使用 configProviders 中的 心流AI 默认模型列表');
+                return configProviders.iflow.models;
             }
         } catch (error) {
-            Logger.warn('读取 package.json 中的 心流AI 模型失败:', error);
+            Logger.warn('读取 configProviders 中的 心流AI 模型失败:', error);
         }
-
         // 无法读取配置时返回空数组
         Logger.trace('无法获取默认模型配置，返回空列表');
         return [];

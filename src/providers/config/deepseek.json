@@ -1,0 +1,55 @@
+{
+    "displayName": "DeepSeek",
+    "baseUrl": "https://api.deepseek.com/v1",
+    "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "models": [
+        {
+            "id": "deepseek-chat",
+            "name": "DeepSeek-V3.2-Exp",
+            "tooltip": "DeepSeek V3.2-Exp 官方模型，探索性优化版本，针对长文本训练和推理效率进行深度优化，支持工具调用和复杂任务处理。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "deepseek-reasoner",
+            "name": "DeepSeek-V3.2-Exp (思考模式)",
+            "tooltip": "DeepSeek V3.2-Exp 思考模式，增强推理能力，提供更详细的思考过程，适合复杂逻辑分析和问题解决。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "deepseek-chat-v3.1_terminus_expires_on_20251015",
+            "baseUrl": "https://api.deepseek.com/v3.1_terminus_expires_on_20251015",
+            "model": "deepseek-chat",
+            "name": "DeepSeek-V3.1-Terminus",
+            "tooltip": "DeepSeek V3.1-Terminus 官方模型，进一步优化了 Code Agent 与 Search Agent 的表现。保留到北京时间 2025 年 10 月 15 日 23:59。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "deepseek-reasoner-v3.1_terminus_expires_on_20251015",
+            "baseUrl": "https://api.deepseek.com/v3.1_terminus_expires_on_20251015",
+            "model": "deepseek-reasoner",
+            "name": "DeepSeek-V3.1-Terminus (思考模式)",
+            "tooltip": "DeepSeek V3.1-Terminus 思考模式，缓解了中英文混杂、偶发异常字符等情况。保留到北京时间 2025 年 10 月 15 日 23:59。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": false
+            }
+        }
+    ]
+}

@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
 import { Logger } from './logger';
 import { ConfigProvider } from '../types/sharedTypes';
+import { configProviders } from '../providers/config';
 
 /**
  * 智谱AI搜索配置
@@ -47,7 +46,7 @@ export class ConfigManager {
     private static readonly CONFIG_SECTION = 'gcmp';
     private static cache: GCMPConfig | null = null;
     private static configListener: vscode.Disposable | null = null;
-    private static packageJsonCache: { configProvider?: ConfigProvider } | null = null;
+    // 配置已迁移至 src/providers/config，不再需要 packageJsonCache
 
     /**
      * 初始化配置管理器
@@ -187,43 +186,10 @@ export class ConfigManager {
     }
 
     /**
-     * 读取package.json中的供应商配置
+     * 获取供应商配置（新模式：直接 import configProviders）
      */
-    private static readPackageJson(): { configProvider?: ConfigProvider } {
-        if (this.packageJsonCache) {
-            return this.packageJsonCache;
-        }
-
-        try {
-            // 获取扩展的package.json路径
-            const extension = vscode.extensions.getExtension('vicanent.gcmp');
-            if (!extension) {
-                Logger.warn('无法找到GCMP扩展，使用空的配置');
-                return {};
-            }
-
-            const packageJsonPath = path.join(extension.extensionPath, 'package.json');
-            const packageJsonContent = fs.readFileSync(packageJsonPath, 'utf8');
-            const packageJson = JSON.parse(packageJsonContent);
-
-            this.packageJsonCache = {
-                configProvider: packageJson.configProvider
-            };
-
-            Logger.trace('Package.json配置已加载', this.packageJsonCache);
-            return this.packageJsonCache;
-        } catch (error) {
-            Logger.error('读取package.json配置失败', error);
-            return {};
-        }
-    }
-
-    /**
-     * 获取供应商配置
-     */
-    static getConfigProvider(): ConfigProvider | undefined {
-        const packageConfig = this.readPackageJson();
-        return packageConfig.configProvider;
+    static getConfigProvider(): ConfigProvider {
+        return configProviders;
     }
 
     /**
@@ -239,7 +205,6 @@ export class ConfigManager {
             this.configListener = null;
         }
         this.cache = null;
-        this.packageJsonCache = null;
         Logger.trace('配置管理器已清理');
     }
 }

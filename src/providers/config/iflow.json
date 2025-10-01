@@ -1,0 +1,29 @@
+{
+    "displayName": "心流AI",
+    "baseUrl": "https://apis.iflow.cn/v1",
+    "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "models": [
+        {
+            "id": "qwen3-coder",
+            "name": "Qwen3-Coder-480B-A35B (iFlow)",
+            "tooltip": "Qwen3-Coder-480B-A35B，这是一个总参数量 480B，激活 35B 的 MoE 模型，原生支持 256K token 的上下文并可通过 YaRN 扩展到 1M token，拥有卓越的代码和 Agent 能力。Qwen3-Coder-480B-A35B-Instruct 在 Agentic Coding、Agentic Browser-Use 和 Agentic Tool-Use 上取得了开源模型的 SOTA 效果，可以与 Claude Sonnet4 媲美",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "glm-4.5",
+            "name": "GLM-4.5 (iFlow)",
+            "tooltip": "GLM-4.5 是基于智谱新一代旗舰文本模型 GLM-4.5-Air 开发的，延续了 GLM-4.1V-Thinking 的技术路线，在 41 个公开视觉多模态任务中取得了同级别开源模型中的最佳表现，覆盖图像、视频、文档理解以及 GUI Agent 等多种典型应用场景。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        }
+    ]
+}

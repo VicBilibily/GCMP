@@ -1,0 +1,52 @@
+{
+    "displayName": "MoonshotAI",
+    "baseUrl": "https://api.moonshot.cn/v1",
+    "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "models": [
+        {
+            "id": "kimi-k2-0905-preview",
+            "name": "Kimi-K2-0905-Preview",
+            "tooltip": "月之暗面 Kimi-K2-0905-Preview - 更强的Agentic Coding能力，更突出的前端代码美观度和实用性，256K上下文",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "kimi-k2-turbo-preview",
+            "name": "Kimi-K2-Turbo-Preview",
+            "tooltip": "月之暗面 Kimi-K2-Turbo-Preview - 高速版本模型，输出速度60-100 tokens/秒，256K上下文",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "kimi-k2-0711-preview",
+            "name": "Kimi-K2-0711-Preview",
+            "tooltip": "月之暗面 Kimi-K2-0711-Preview - K2系列基础版本，128K上下文",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "version": "kimi-k2-0711-previw",
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "kimi-latest",
+            "name": "Kimi-Latest",
+            "tooltip": "月之暗面 Kimi-Latest - 最新一代视觉模型，128K上下文，支持图片理解，自动上下文缓存，智能选择8K/32K/128K计费模型",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        }
+    ]
+}
