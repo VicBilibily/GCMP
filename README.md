@@ -73,10 +73,8 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 
 > 正在根据 [AiPing.cn](https://aiping.cn/supplierList) 进行逐一适配。由于各供应商 OpenAI SDK 的兼容性都是部分兼容，部分情况下可能会报错或卡住不动，建议先查看本地输出的日志后提交 Issue 进一步处理。
 
+- [**SenseCore (商汤大装置)**](https://console.sensecore.cn/aistudio) [开通模型](https://console.sensecore.cn/aistudio/management/service-manage)
 - [**MiniMax**](https://platform.minimaxi.com/login) [支持模型](https://platform.minimaxi.com/document/text_api_intro?key=68abd86ad08627aad9673eaa)
-
-> 暂不适配的供应商：
-- [**SenseCore (商汤大装置)**](https://console.sensecore.cn/aistudio)：暂无权限，需与日日新团队申请？
 
 
 ## ⚙️ 高级配置

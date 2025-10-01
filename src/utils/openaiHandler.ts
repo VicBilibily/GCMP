@@ -736,29 +736,134 @@ export class OpenAIHandler {
     }
 
     /**
+     * 为 sendecode 类型的工具提取首句块：保留到最后一个阈值的整句（支持中英文标点）。
+     * 如果找不到整句边界，则在阈值处回退截断。
+     */
+    private extractSendecodeSentence(text: string, maxLen = 500): string {
+        if (!text) return '';
+        // 清理控制字符并归一化空白
+        const cleaned = text.replace(/[\x00-\x1F\x7F]+/g, ' ').replace(/\s+/g, ' ').trim();
+        if (cleaned.length <= maxLen) return cleaned;
+
+        // 使用正则提取以中英文句号、问号、感叹号、分号结尾的句子
+        const sentenceRegex = /.*?[。？！!?；;\.]+/g;
+        const sentences: string[] = [];
+        let match: RegExpExecArray | null;
+        while ((match = sentenceRegex.exec(cleaned)) !== null) {
+            sentences.push(match[0]);
+        }
+
+        // 累积整句直到接近但不超过 maxLen
+        let acc = '';
+        for (const s of sentences) {
+            if ((acc + s).length <= maxLen) {
+                acc += s;
+            } else {
+                break;
+            }
+        }
+        if (acc) return acc.trim();
+
+        // 若没有任何整句能被完整包含（例如第一句超长），尝试在阈值内寻找最后一个句子结束符
+        const sub = cleaned.slice(0, maxLen);
+        const punc = ['。', '？', '！', '!', '?', '；', ';', '.'];
+        let lastPos = -1;
+        for (const ch of punc) {
+            const pos = sub.lastIndexOf(ch);
+            if (pos > lastPos) lastPos = pos;
+        }
+        if (lastPos >= 0) {
+            return cleaned.slice(0, lastPos + 1).trim();
+        }
+
+        // 最后回退到直接截断
+        return cleaned.slice(0, maxLen).trim();
+    }
+
+    /**
+     * 清理并截断 schema 中各属性的 description 字段，返回新的 schema 副本。
+     * - 对 name === 'code' 且 providerIsSense 时使用 extractSendecodeSentence 提取保留句
+     * - 对其他 description 去除控制字符、归一化空白并截断到 maxLen
+     */
+    private sanitizeSchemaDescriptions(schema: any, maxLen = 500, providerIsSense = false): any {
+        if (!schema || typeof schema !== 'object') return schema;
+
+        // 深拷贝以避免修改原始对象
+        const clone = JSON.parse(JSON.stringify(schema));
+
+        const sanitizeDesc = (desc: any, propName?: string) => {
+            if (typeof desc !== 'string') return undefined;
+            const raw = desc;
+            if (providerIsSense && propName === 'code') {
+                // 使用针对 sendecode 的句子提取策略
+                const s = this.extractSendecodeSentence(raw, maxLen);
+                return s && s.length > 0 ? s : undefined;
+            }
+            // 普通截断与清理
+            const cleaned = String(raw).replace(/[\x00-\x1F\x7F]+/g, ' ').replace(/\s+/g, ' ').trim();
+            if (!cleaned) return undefined;
+            return cleaned.length > maxLen ? cleaned.slice(0, maxLen) : cleaned;
+        };
+
+        const walk = (node: any) => {
+            if (!node || typeof node !== 'object') return;
+            // sanitize description at this node if present
+            if (node.description) {
+                const newDesc = sanitizeDesc(node.description, node.name || undefined);
+                if (newDesc) node.description = newDesc;
+                else delete node.description;
+            }
+            // properties
+            if (node.properties && typeof node.properties === 'object') {
+                for (const [k, v] of Object.entries(node.properties)) {
+                    // pass property name to sanitizer for special handling
+                    if (v && typeof v === 'object') {
+                        const prop: any = v;
+                        if (prop.description) {
+                            const newDesc = sanitizeDesc(prop.description, k);
+                            if (newDesc) prop.description = newDesc;
+                            else delete prop.description;
+                        }
+                        walk(prop);
+                    }
+                }
+            }
+            // items
+            if (node.items) walk(node.items);
+            // additionalProperties
+            if (node.additionalProperties && typeof node.additionalProperties === 'object') walk(node.additionalProperties);
+        };
+
+        walk(clone);
+        return clone;
+    }
+
+    /**
      * 工具转换 - 确保参数格式正确
      */
     private convertToolsToOpenAI(tools: vscode.LanguageModelChatTool[]): OpenAI.Chat.ChatCompletionTool[] {
         return tools.map(tool => {
+            let descToSend = tool.description;
+            if (tool.description && this.provider === "sensecore") {
+                descToSend = this.extractSendecodeSentence(String(tool.description), 500);
+            }
+
             const functionDef: OpenAI.Chat.ChatCompletionTool = {
                 type: 'function',
                 function: {
                     name: tool.name,
-                    description: tool.description || ''
+                    description: descToSend
                 }
             };
 
-            // 处理参数schema
-            if (tool.inputSchema) {
-                if (typeof tool.inputSchema === 'object' && tool.inputSchema !== null) {
+            // 处理参数schema：对所有参数的 description 做清理/截断
+            const providerIsSense = /sensecore|sensecode/i.test(String(this.provider));
+            if (tool.inputSchema && typeof tool.inputSchema === 'object' && tool.inputSchema !== null) {
+                try {
+                    functionDef.function.parameters = this.sanitizeSchemaDescriptions(tool.inputSchema, 500, providerIsSense) as Record<string, unknown>;
+                } catch (e) {
+                    Logger.warn(`sanitizeSchemaDescriptions 失败，使用原始 schema: ${String(e)}`);
                     functionDef.function.parameters = tool.inputSchema as Record<string, unknown>;
-                } else {
-                    // 如果不是对象，提供默认schema
-                    functionDef.function.parameters = {
-                        type: 'object',
-                        properties: {},
-                        required: []
-                    };
                 }
             } else {
                 // 默认schema
@@ -767,6 +872,11 @@ export class OpenAIHandler {
                     properties: {},
                     required: []
                 };
+            }
+
+            // 仅在 description 非空时包含到 function 定义（避免发送空字符串）
+            if (functionDef.function.description == null || String(functionDef.function.description).trim().length === 0) {
+                delete functionDef.function.description;
             }
 
             return functionDef;

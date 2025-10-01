@@ -1,0 +1,115 @@
+{
+    "displayName": "SenseCore (商汤大装置)",
+    "baseUrl": "https://api.sensenova.cn/compatible-mode/v1",
+    "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "models": [
+        {
+            "id": "sensecore-qwen2-5-coder",
+            "model": "Qwen2-5-Coder",
+            "name": "Qwen2-5-Coder (SenseCore)",
+            "tooltip": "Qwen2-5-Coder - 高性能代码模型，适合代码生成与重构，兼容 OpenAI 请求格式。",
+            "maxInputTokens": 131072,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "sensecore-qwen3-coder",
+            "model": "Qwen3-Coder",
+            "name": "Qwen3-Coder (SenseCore)",
+            "tooltip": "Qwen3-Coder - 领先的代码与Agent模型，支持更大上下文与强工具调用能力。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 65536,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "sensecore-kimi-k2",
+            "model": "Kimi-K2",
+            "name": "Kimi-K2 (SenseCore)",
+            "tooltip": "Kimi-K2 - 高速多任务模型，适合自然语言理解和代码任务，支持长上下文。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "sensecore-deepseek-v3-1",
+            "model": "DeepSeek-V3-1",
+            "name": "DeepSeek-V3-1 (SenseCore)",
+            "tooltip": "DeepSeek V3.1 - 思考模式与强推理能力，适合复杂逻辑和代码推理任务。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "sensecore-deepseek-v3",
+            "model": "DeepSeek-V3",
+            "name": "DeepSeek-V3 (SenseCore)",
+            "tooltip": "DeepSeek V3 - 通用推理模型，稳定且输出风格适合分析与生成任务。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "sensecore-sensenova-v6-5-turbo",
+            "model": "SenseNova-V6-5-Turbo",
+            "name": "SenseNova-V6-5-Turbo (SenseCore)",
+            "tooltip": "SenseNova V6.5 Turbo - 高速版本，适合实时交互与低延迟场景，兼容 OpenAI API。",
+            "maxInputTokens": 131072,
+            "maxOutputTokens": 16384,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "sensecore-sensenova-v6-5-pro",
+            "model": "SenseNova-V6-5-Pro",
+            "name": "SenseNova-V6-5-Pro (SenseCore)",
+            "tooltip": "SenseNova V6.5 Pro - 高质量模型，适合复杂推理与高准确度场景，支持更多高级能力。",
+            "maxInputTokens": 131072,
+            "maxOutputTokens": 16384,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "sensecore-qwen3-32b",
+            "model": "Qwen3-32B",
+            "name": "Qwen3-32B (SenseCore)",
+            "tooltip": "Qwen3-32B - 32B 参数版本，适合需要高语义理解的任务。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "sensecore-qwen3-235b",
+            "model": "Qwen3-235B",
+            "name": "Qwen3-235B (SenseCore)",
+            "tooltip": "Qwen3-235B - 大规模模型，适合最高端的推理与长期上下文任务。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 65536,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        }
+    ]
+}
