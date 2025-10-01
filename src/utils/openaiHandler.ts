@@ -110,22 +110,46 @@ export class OpenAIHandler {
                         chunk = chunk.replace(/^data:([^\s])/gm, 'data: $1');
                         Logger.trace(`接收到 SSE chunk: ${chunk.length} 字符，chunk=${chunk}`);
 
-                        // 判断 chunk 是否为仅有 finish_reason 且无 delta 的无效 chunk（MiniMax特殊情况）
+                        // 判断并处理 chunk 中所有的 data: {json} 对象，兼容部分模型使用旧格式把内容放在 choice.message
                         try {
-                            // 只处理 data: {json} 格式
-                            const match = chunk.match(/^data: (\{.*\})$/m);
-                            if (match) {
-                                const jsonStr = match[1];
-                                const obj = JSON.parse(jsonStr);
-                                const choice = obj.choices?.[0];
-                                if (
-                                    choice?.finish_reason &&
-                                    (!choice.delta || Object.keys(choice.delta).length === 0)
-                                ) {
-                                    Logger.trace('preprocessSSEResponse 跳过仅有 finish_reason 且无 delta 的无效 chunk');
+                            const dataRegex = /^data: (.*)$/gm;
+                            let transformed = chunk;
+                            const matches = Array.from(chunk.matchAll(dataRegex));
+                            for (const m of matches) {
+                                const jsonStr = m[1];
+                                try {
+                                    const obj = JSON.parse(jsonStr);
+                                    // 转换旧格式: 如果 choice 中含有 message 而无 delta，则将 message 转为 delta
+                                    if (obj && Array.isArray(obj.choices)) {
+                                        for (const ch of obj.choices) {
+                                            if (ch && ch.message && (!ch.delta || Object.keys(ch.delta).length === 0)) {
+                                                ch.delta = ch.message;
+                                                delete ch.message;
+                                            }
+                                        }
+                                    }
+
+                                    // 仍然保留对仅有 finish_reason 且无 delta 的过滤
+                                    const choice = obj.choices?.[0];
+                                    if (
+                                        choice?.finish_reason &&
+                                        (!choice.delta || Object.keys(choice.delta).length === 0)
+                                    ) {
+                                        Logger.trace('preprocessSSEResponse 跳过仅有 finish_reason 且无 delta 的无效 chunk');
+                                        // 从 transformed 中移除该 data 行
+                                        transformed = transformed.replace(m[0], '');
+                                        continue;
+                                    }
+
+                                    // 将可能被修改的对象重新序列化回 chunk
+                                    const newJson = JSON.stringify(obj);
+                                    transformed = transformed.replace(m[0], `data: ${newJson}`);
+                                } catch {
+                                    // 单个 data JSON 解析失败，不影响整个 chunk
                                     continue;
                                 }
                             }
+                            chunk = transformed;
                         } catch {
                             // 解析失败不影响正常流
                         }
@@ -344,10 +368,15 @@ export class OpenAIHandler {
                             );
                         }
 
-                        // 处理思考内容（reasoning_content）
+                        // 处理思考内容（reasoning_content）和兼容旧格式：有些模型把最终结果放在 choice.message
                         // 思维链是可重入的：遇到时输出；在后续第一次可见 content 输出前，需要结束当前思维链（done）
-                        if (chunk.choices && chunk.choices[0]?.delta) {
-                            const reasoningContent = (chunk.choices[0].delta as ExtendedDelta).reasoning_content;
+                        if (chunk.choices && chunk.choices[0]) {
+                            const choice = chunk.choices[0] as any;
+                            const delta = choice.delta as ExtendedDelta | undefined;
+                            const message = choice.message as any | undefined;
+
+                            // 兼容：优先使用 delta 中的 reasoning_content，否则尝试从 message 中读取
+                            const reasoningContent = delta?.reasoning_content ?? message?.reasoning_content;
                             if (reasoningContent) {
                                 try {
                                     Logger.trace(`🧠 接收到思考内容: ${reasoningContent.length}字符`);
@@ -360,6 +389,28 @@ export class OpenAIHandler {
                                     hasReceivedContent = true;
                                 } catch (e) {
                                     Logger.trace(`${model.name} report 思维链失败: ${String(e)}`);
+                                }
+                            }
+
+                            // 另外兼容：如果服务端把最终文本放在 message.content（旧/混合格式），当作 content 增量处理
+                            const messageContent = message?.content;
+                            if (typeof messageContent === 'string' && messageContent.replace(/[\s\uFEFF\xA0]+/g, '').length > 0) {
+                                // 遇到可见 content 前，如果有未结束的 thinking，则先结束之
+                                if (currentThinkingId) {
+                                    try {
+                                        Logger.trace(`${model.name} 在输出message.content前结束当前思维链 id=${currentThinkingId}`);
+                                        progress.report(new vscode.LanguageModelThinkingPart('', currentThinkingId));
+                                    } catch (e) {
+                                        Logger.trace(`${model.name} 发送 thinking done(id=${currentThinkingId}) 失败: ${String(e)}`);
+                                    }
+                                    currentThinkingId = null;
+                                }
+                                // 然后报告文本内容
+                                try {
+                                    progress.report(new vscode.LanguageModelTextPart(messageContent));
+                                    hasReceivedContent = true;
+                                } catch (e) {
+                                    Logger.trace(`${model.name} report message content 失败: ${String(e)}`);
                                 }
                             }
                         }

@@ -22,7 +22,7 @@
             "maxOutputTokens": 8192,
             "capabilities": {
                 "toolCalling": true,
-                "imageInput": false
+                "imageInput": true
             }
         }
     ]
