@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { CancellationToken, LanguageModelChatInformation } from 'vscode';
+import { CancellationToken, LanguageModelChatInformation, Progress, ProvideLanguageModelChatResponseOptions, LanguageModelChatMessage, LanguageModelResponsePart } from 'vscode';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { Logger, IFlowApiClient, ApiKeyManager } from '../utils';
 import { GenericModelProvider } from './genericModelProvider';
@@ -40,20 +40,19 @@ export class IFlowDynamicProvider {
      * 静态工厂方法 - 创建并激活 心流AI 动态供应商
      */
     static createAndActivate(
+        // 不再直接向 context.subscriptions push disposables，改为返回 disposables 由调用方统一管理
         context: vscode.ExtensionContext,
         providerKey: string,
         staticProviderConfig: ProviderConfig
-    ): IFlowDynamicProvider {
+    ): { provider: IFlowDynamicProvider; disposables: vscode.Disposable[] } {
         Logger.trace(`${staticProviderConfig.displayName} 动态模型扩展已激活!`);
 
         // 创建供应商实例
         const provider = new IFlowDynamicProvider(providerKey, staticProviderConfig);
 
-        // 注册语言模型聊天供应商
+        // 注册语言模型聊天供应商和命令，但不直接 push 到 context.subscriptions，由调用方统一管理
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
-        context.subscriptions.push(providerDisposable);
 
-        // 注册设置API密钥命令
         const setApiKeyCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.setApiKey`, async () => {
             await ApiKeyManager.promptAndSetApiKey(
                 providerKey,
@@ -61,16 +60,15 @@ export class IFlowDynamicProvider {
                 staticProviderConfig.apiKeyTemplate
             );
         });
-        context.subscriptions.push(setApiKeyCommand);
 
-        // 注册刷新模型列表命令
         const refreshModelsCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.refreshModels`, async () => {
             await provider.refreshModels();
             vscode.window.showInformationMessage('心流AI 模型列表已刷新');
         });
-        context.subscriptions.push(refreshModelsCommand);
 
-        return provider;
+        const disposables: vscode.Disposable[] = [providerDisposable, setApiKeyCommand, refreshModelsCommand];
+
+        return { provider, disposables };
     }
 
     /**
@@ -132,7 +130,6 @@ export class IFlowDynamicProvider {
 
             this.genericProvider.updateProviderConfig(dynamicConfig);
 
-            // 委托给内部提供商
             const result = await this.genericProvider.provideLanguageModelChatInformation(options, _token);
 
             // 恢复原始配置
@@ -147,16 +144,16 @@ export class IFlowDynamicProvider {
     }
 
     /**
-     * 实现 LanguageModelChatProvider 接口 - 处理聊天请求
+     * 实现 LanguageModelChatProvider 接口 - 处理聊天响应（将请求委托给内部 GenericModelProvider，并处理请求中断）
      */
     async provideLanguageModelChatResponse(
         model: LanguageModelChatInformation,
-        messages: Array<vscode.LanguageModelChatMessage>,
-        options: vscode.ProvideLanguageModelChatResponseOptions,
-        progress: vscode.Progress<vscode.LanguageModelResponsePart>,
+        messages: Array<LanguageModelChatMessage>,
+        options: ProvideLanguageModelChatResponseOptions,
+        progress: Progress<LanguageModelResponsePart>,
         token: CancellationToken
     ): Promise<void> {
-        // 开始新请求，这会自动中断之前的请求
+        // 开始新请求前中断当前请求
         const requestId = this.startNewRequest();
         const requestController = this.currentRequestController!; // 此时一定存在
 

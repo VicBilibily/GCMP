@@ -30,7 +30,9 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
 
             // 特殊处理 iFlow 心流AI 提供商，使用动态模型注册
             if (providerKey === 'iflow') {
-                iflowProvider = IFlowDynamicProvider.createAndActivate(context, providerKey, providerConfig);
+                const { provider, disposables } = IFlowDynamicProvider.createAndActivate(context, providerKey, providerConfig);
+                iflowProvider = provider;
+                registeredDisposables.push(...disposables);
             } else {
                 // 使用通用供应商创建实例
                 const { provider, disposables } = GenericModelProvider.createAndActivate(context, providerKey, providerConfig);
