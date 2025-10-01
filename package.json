@@ -514,12 +514,12 @@
     },
     "dependencies": {
         "@microsoft/tiktokenizer": "^1.0.10",
-        "openai": "^5.22.0"
+        "openai": "^6.0.0"
     },
     "devDependencies": {
         "@eslint/js": "^9.13.0",
-        "@stylistic/eslint-plugin": "^2.9.0",
-        "@types/node": "^22",
+        "@stylistic/eslint-plugin": "^5.4.0",
+        "@types/node": "^20.0.0",
         "@types/vscode": "^1.104.0",
         "@vscode/vsce": "^3.6.2",
         "esbuild": "^0.25.10",

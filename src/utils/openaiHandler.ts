@@ -70,7 +70,25 @@ export class OpenAIHandler {
      * 修复部分模型输出 "data:" 后不带空格的问题
      */
     private preprocessSSEResponse(response: Response): Response {
-        if (!response.body) {
+        const contentType = response.headers.get('Content-Type');
+        // 如果返回 application/json，直接抛出错误（心流AI存在此类返回）
+        if (contentType && contentType.includes('application/json')) {
+            return new Response(
+                new ReadableStream({
+                    async start(controller) {
+                        const json = await response.text();
+                        controller.error(new Error(json));
+                    }
+                }),
+                {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: response.headers
+                }
+            );
+        }
+        // 只处理 SSE 响应，其他类型直接返回原始 response
+        if (!contentType || !contentType.includes('text/event-stream') || !response.body) {
             return response;
         }
         const reader = response.body.getReader();
@@ -299,7 +317,6 @@ export class OpenAIHandler {
                         }
                     })
                     .on('error', (error: Error) => {
-                        Logger.error(`${model.name} SDK流处理错误: ${error}`);
                         // 保存错误，并中止请求
                         streamError = error;
                         abortController.abort();
