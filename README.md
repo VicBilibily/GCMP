@@ -69,6 +69,13 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 
 > 💡 **提示**：MCP SSE 模式默认启用，仅Pro及以上套餐支持。非订阅套餐请关闭此开关使用标准计费模式。如需使用高级搜索引擎，可切换至标准计费模式。
 
+## 仅供测试体验的供应商
+
+> 正在根据 [AiPing.cn](https://aiping.cn/supplierList) 进行逐一适配。由于各供应商 OpenAI SDK 的兼容性都是部分兼容，部分情况下可能会报错或卡住不动，建议先查看本地输出的日志后提交 Issue 进一步处理。
+
+- [**MiniMax**](https://platform.minimaxi.com/login) [支持模型](https://platform.minimaxi.com/document/text_api_intro?key=68abd86ad08627aad9673eaa)
+
+
 ## ⚙️ 高级配置
 
 GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获得更个性化的AI助手体验。
