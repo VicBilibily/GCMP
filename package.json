@@ -72,6 +72,11 @@
                 "command": "gcmp.deepseek.setApiKey",
                 "title": "设置 DeepSeek API密钥",
                 "category": "GCMP"
+            },
+            {
+                "command": "gcmp.minimax.setApiKey",
+                "title": "设置 MiniMax API密钥",
+                "category": "GCMP"
             }
         ],
         "configuration": {
@@ -147,6 +152,11 @@
                 "vendor": "gcmp.deepseek",
                 "displayName": "DeepSeek",
                 "managementCommand": "gcmp.deepseek.setApiKey"
+            },
+            {
+                "vendor": "gcmp.minimax",
+                "displayName": "MiniMax",
+                "managementCommand": "gcmp.minimax.setApiKey"
             }
         ],
         "languageModelTools": [

@@ -108,6 +108,28 @@ export class OpenAIHandler {
                         // 修复 SSE 格式：确保 "data:" 后面有空格
                         // 处理 "data:{json}" -> "data: {json}"
                         chunk = chunk.replace(/^data:([^\s])/gm, 'data: $1');
+                        Logger.trace(`接收到 SSE chunk: ${chunk.length} 字符，chunk=${chunk}`);
+
+                        // 判断 chunk 是否为仅有 finish_reason 且无 delta 的无效 chunk（MiniMax特殊情况）
+                        try {
+                            // 只处理 data: {json} 格式
+                            const match = chunk.match(/^data: (\{.*\})$/m);
+                            if (match) {
+                                const jsonStr = match[1];
+                                const obj = JSON.parse(jsonStr);
+                                const choice = obj.choices?.[0];
+                                if (
+                                    choice?.finish_reason &&
+                                    (!choice.delta || Object.keys(choice.delta).length === 0)
+                                ) {
+                                    Logger.trace('preprocessSSEResponse 跳过仅有 finish_reason 且无 delta 的无效 chunk');
+                                    continue;
+                                }
+                            }
+                        } catch {
+                            // 解析失败不影响正常流
+                        }
+
                         // 重新编码并传递有效内容
                         controller.enqueue(encoder.encode(chunk));
                     }

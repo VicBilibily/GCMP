@@ -1,0 +1,29 @@
+{
+    "displayName": "MiniMax",
+    "baseUrl": "https://api.minimaxi.com/v1",
+    "apiKeyTemplate": "这个ApiKey密钥是一个很长一串的类JWT字符串",
+    "models": [
+        {
+            "id": "MiniMax-M1",
+            "name": "MiniMax-M1",
+            "tooltip": "MiniMax-M1 - 通用文本生成模型，支持1M超长上下文（输入+输出总token≤1000000），支持流式响应、Function Calling、OpenAI参数风格，QPM≤60，TPM≤100000。适合多场景应用。",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "MiniMax-Text-01",
+            "name": "MiniMax-Text-01",
+            "tooltip": "MiniMax-Text-01 - 高效文本生成模型，支持1M超长上下文（输入+输出总token≤1000000），支持流式响应、Function Calling、OpenAI参数风格，QPM≤60，TPM≤100000。适合代码和内容创作。",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        }
+    ]
+}

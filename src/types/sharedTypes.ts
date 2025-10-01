@@ -12,7 +12,7 @@ export interface ModelConfig {
     tooltip: string;
     maxInputTokens: number;
     maxOutputTokens: number;
-    version: string;
+    version?: string;
     capabilities: {
         toolCalling: boolean;
         imageInput: boolean;
