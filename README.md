@@ -58,7 +58,7 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 
 ### 💰 标准计费模式
 
-适用于非订阅套餐或需要使用高级引擎的用户：[搜索引擎说明](https://docs.bigmodel.cn/cn/guide/tools/web-search#%E6%90%9C%E7%B4%A2%E5%BC%95%E6%93%8E%E8%AF%B4%E6%98%8E)
+适用于非订阅套餐或需要使用高级引擎的用户：[搜索引擎说明](https://docs.bigmodel.cn/cn/guide/tools/web-search#搜索引擎说明)
 
 ### 使用方法
 
@@ -73,11 +73,14 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 
 > 正在根据 [AiPing.cn](https://aiping.cn/supplierList) 进行逐一适配。由于各供应商 OpenAI SDK 的兼容性都是部分兼容，部分情况下可能会报错或卡住不动，建议先查看本地输出的日志后提交 Issue 进一步处理。
 
-- [**MiniMax**](https://platform.minimaxi.com/login) [支持模型](https://platform.minimaxi.com/document/text_api_intro?key=68abd86ad08627aad9673eaa)
+- [**MiniMax**](https://platform.minimaxi.com/login) [支持模型](https://platform.minimaxi.com/document/text_api_intro?key=68abd86ad08627aad9673eaa)：`MiniMax-M1`、`MiniMax-Text-01`
+- [**华为云**](https://www.huaweicloud.com/product/modelarts/studio.html) 
+仅DeepSeek系列模型支持工具调用Agent模式。
+Kimi存在工具调用限制，Qwen系列模型不支持工具调用。
 
-> 暂不适配的供应商：
-- [**SenseCore (商汤大装置)**](https://console.sensecore.cn/aistudio)：暂无权限，需与日日新团队申请？
-
+> 暂不适配的供应商（2025年10月）：
+- [**SenseCore (商汤大装置)**](https://console.sensecore.cn/aistudio)：经测试，所有模型的Tools工具调用返回格式不兼容。
+- [**金山云星流**](https://www.ksyun.com/nv/product/KSP)：企业独立部署模式，暂不支持个人用户认证注册使用。
 
 ## ⚙️ 高级配置
 
@@ -129,11 +132,7 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 
 ## 🚫 未列入支持的模型供应商说明
 
-> 目前优先支持有月套餐的服务商，云服务厂商及接口输出速度低于 `30token/s` 的模型供应商暂不考虑支持。
-
 - **魔搭社区（ModelScope）** 仅适用于测试环境，每模型500RPD，共享服务不太稳定。各个模型的OpenAI兼容模式都有各自的实现，输出格式不是平台统一，适配工作量较大，故此插件不提供此服务商。若有需要可使用官方的 `OpenAI Compatible` 模式（预计2025年10月版本正式发布支持，目前正式版可使用 [`OAI Compatible Provider for Copilot`](https://marketplace.visualstudio.com/items?itemName=johnny-zhao.oai-compatible-copilot) ）。
-- **各大云厂商（阿里云、腾讯云、百度云等）** 调用按量计费不适合长期使用。
-
 
 ## 🤝 贡献指南
 

@@ -45,6 +45,7 @@
         "onLanguageModelProvider:gcmp.moonshot",
         "onLanguageModelProvider:gcmp.deepseek",
         "onLanguageModelProvider:gcmp.minimax",
+        "onLanguageModelProvider:gcmp.huaweicloud",
         "onLanguageModelTool:gcmp_zhipuWebSearch"
     ],
     "contributes": {
@@ -77,6 +78,11 @@
             {
                 "command": "gcmp.minimax.setApiKey",
                 "title": "设置 MiniMax API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.huaweicloud.setApiKey",
+                "title": "设置 华为云 ModelArts API密钥",
                 "category": "GCMP"
             }
         ],
@@ -158,6 +164,11 @@
                 "vendor": "gcmp.minimax",
                 "displayName": "MiniMax",
                 "managementCommand": "gcmp.minimax.setApiKey"
+            },
+            {
+                "vendor": "gcmp.huaweicloud",
+                "displayName": "华为云 ModelArts",
+                "managementCommand": "gcmp.huaweicloud.setApiKey"
             }
         ],
         "languageModelTools": [

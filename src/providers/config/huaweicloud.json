@@ -1,0 +1,103 @@
+{
+    "displayName": "华为云 ModelArts",
+    "baseUrl": "https://api.modelarts-maas.com/v1",
+    "apiKeyTemplate": "ModelArts Studio ApiKey",
+    "models": [
+        {
+            "id": "huaweicloud-deepseek-v3.2-exp",
+            "model": "deepseek-v3.2-exp",
+            "name": "DeepSeek V3.2-Exp (ModelArts)",
+            "tooltip": "通过华为 ModelArts 调用 DeepSeek V3.2-Exp，适合长文本与复杂推理场景。",
+            "maxInputTokens": 64000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "huaweicloud-deepseek-v3.1",
+            "model": "deepseek-v3.1",
+            "name": "DeepSeek-V3.1-128K (ModelArts)",
+            "tooltip": "通过华为 ModelArts 调用 DeepSeek V3.1，兼顾生成质量与成本。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "huaweicloud-deepseek-v3",
+            "model": "deepseek-v3",
+            "name": "DeepSeek-V3-64K (ModelArts)",
+            "tooltip": "通过华为 ModelArts 调用 DeepSeek V3，适用于标准对话与文本生成任务。",
+            "maxInputTokens": 64000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "huaweicloud-kimi-k2",
+            "model": "Kimi-K2",
+            "name": "Kimi-K2-128K (ModelArts)",
+            "tooltip": "通过华为 ModelArts 调用 Kimi-K2，面向高效对话与代码类任务。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "huaweicloud-qwen3-30b-a3b",
+            "model": "qwen3-30b-a3b",
+            "name": "Qwen3-30B-A3B-128K (ModelArts)",
+            "tooltip": "通过华为 ModelArts 调用 Qwen3-30B-A3B-128K，适合通用生成与对话。",
+            "maxInputTokens": 32768,
+            "maxOutputTokens": 4096,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "huaweicloud-qwen3-235b-a22b",
+            "model": "qwen3-235b-a22b",
+            "name": "Qwen3-235B-A22B-32K (ModelArts)",
+            "tooltip": "通过华为 ModelArts 调用 Qwen3-235B-A22B-32K，超大模型，支持更长上下文。",
+            "maxInputTokens": 32768,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "huaweicloud-qwen2.5-vl-72b",
+            "model": "qwen2.5-vl-72b",
+            "name": "Qwen2.5-VL-72B (ModelArts)",
+            "tooltip": "通过华为 ModelArts 调用 Qwen2.5-VL-72B，多模态大模型。",
+            "maxInputTokens": 65536,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "huaweicloud-qwen3-32b",
+            "model": "qwen3-32b",
+            "name": "Qwen3-32B-32K (ModelArts)",
+            "tooltip": "通过华为 ModelArts 调用 Qwen3-32B-32K，支持32k上下文。",
+            "maxInputTokens": 32768,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": false
+            }
+        }
+    ]
+}

@@ -61,7 +61,8 @@ export class OpenAIHandler {
             // 调用原始 fetch
             const response = await fetch(url, init);
             // 当前插件的所有调用都是流请求，直接预处理所有响应
-            return this.preprocessSSEResponse(response);
+            // preprocessSSEResponse 现在是异步的，可能会抛出错误以便上层捕获
+            return await this.preprocessSSEResponse(response);
         };
     }
 
@@ -69,23 +70,13 @@ export class OpenAIHandler {
      * 预处理 SSE 响应，修复非标准格式
      * 修复部分模型输出 "data:" 后不带空格的问题
      */
-    private preprocessSSEResponse(response: Response): Response {
+    private async preprocessSSEResponse(response: Response): Promise<Response> {
         const contentType = response.headers.get('Content-Type');
-        // 如果返回 application/json，直接抛出错误（心流AI存在此类返回）
+        // 如果返回 application/json，读取 body 并直接抛出 Error，让上层 chat 接收到异常
         if (contentType && contentType.includes('application/json')) {
-            return new Response(
-                new ReadableStream({
-                    async start(controller) {
-                        const json = await response.text();
-                        controller.error(new Error(json));
-                    }
-                }),
-                {
-                    status: response.status,
-                    statusText: response.statusText,
-                    headers: response.headers
-                }
-            );
+            const text = await response.text();
+            // 直接抛出 Error（上层会捕获并显示），不要自己吞掉或构造假 Response
+            throw new Error(text || `HTTP ${response.status} ${response.statusText}`);
         }
         // 只处理 SSE 响应，其他类型直接返回原始 response
         if (!contentType || !contentType.includes('text/event-stream') || !response.body) {
@@ -444,8 +435,17 @@ export class OpenAIHandler {
             }
             Logger.debug(`✅ ${model.name} ${this.displayName} 请求完成`);
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : '未知错误';
-            Logger.error(`${model.name} ${this.displayName} 请求失败: ${errorMessage}`);
+            if (error instanceof Error) {
+                if (error.cause instanceof Error) {
+                    const errorMessage = error.cause.message || '未知错误';
+                    Logger.error(`${model.name} ${this.displayName} 请求失败: ${errorMessage}`);
+                    throw error.cause;
+                }
+                else {
+                    const errorMessage = error.message || '未知错误';
+                    Logger.error(`${model.name} ${this.displayName} 请求失败: ${errorMessage}`);
+                }
+            }
 
             // 改进的错误处理，参照官方示例
             if (error instanceof vscode.CancellationError) {

@@ -4,13 +4,15 @@ import iflow from './iflow.json';
 import moonshot from './moonshot.json';
 import deepseek from './deepseek.json';
 import minimax from './minimax.json';
+import huaweicloud from './huaweicloud.json';
 
 export const configProviders = {
     zhipu,
     iflow,
     moonshot,
     deepseek,
-    minimax
+    minimax,
+    huaweicloud
 };
 
 export type ProviderName = keyof typeof configProviders;
