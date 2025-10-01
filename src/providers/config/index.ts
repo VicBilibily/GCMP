@@ -5,6 +5,7 @@ import moonshot from './moonshot.json';
 import deepseek from './deepseek.json';
 import minimax from './minimax.json';
 import huaweicloud from './huaweicloud.json';
+import tencentcloud from './tencentcloud.json';
 
 export const configProviders = {
     zhipu,
@@ -12,7 +13,8 @@ export const configProviders = {
     moonshot,
     deepseek,
     minimax,
-    huaweicloud
+    huaweicloud,
+    tencentcloud
 };
 
 export type ProviderName = keyof typeof configProviders;

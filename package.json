@@ -46,6 +46,7 @@
         "onLanguageModelProvider:gcmp.deepseek",
         "onLanguageModelProvider:gcmp.minimax",
         "onLanguageModelProvider:gcmp.huaweicloud",
+        "onLanguageModelProvider:gcmp.tencentcloud",
         "onLanguageModelTool:gcmp_zhipuWebSearch"
     ],
     "contributes": {
@@ -83,6 +84,11 @@
             {
                 "command": "gcmp.huaweicloud.setApiKey",
                 "title": "设置 华为云 ModelArts API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.tencentcloud.setApiKey",
+                "title": "设置 腾讯云 DeepSeek API密钥",
                 "category": "GCMP"
             }
         ],
@@ -169,6 +175,11 @@
                 "vendor": "gcmp.huaweicloud",
                 "displayName": "华为云 ModelArts",
                 "managementCommand": "gcmp.huaweicloud.setApiKey"
+            },
+            {
+                "vendor": "gcmp.tencentcloud",
+                "displayName": "腾讯云 DeepSeek",
+                "managementCommand": "gcmp.tencentcloud.setApiKey"
             }
         ],
         "languageModelTools": [
