@@ -260,6 +260,9 @@ export class OpenAIHandler {
             Logger.info(`🚀 ${model.name} 发送 ${this.displayName} 请求`);
 
             let hasReceivedContent = false;
+            // 当前正在输出的思维链 ID（可重复开始/结束）
+            // 当不为 null 时表示有一个未结束的思维链，遇到第一个可见 content delta 时需要先用相同 id 发送一个空 value 来结束该思维链
+            let currentThinkingId: string | null = null;
             // 使用 OpenAI SDK 的事件驱动流式方法，利用内置工具调用处理
             // 将 vscode.CancellationToken 转换为 AbortSignal
             const abortController = new AbortController();
@@ -278,11 +281,24 @@ export class OpenAIHandler {
                         }
                         // 输出 trace 日志：记录增量长度和片段预览，便于排查偶发没有完整chunk的问题
                         try {
-                            const preview = delta && delta.length > 0 ? delta.slice(0, 200) : '';
-                            Logger.trace(`${model.name} 收到 content 增量: ${delta ? delta.length : 0} 字符, preview=${JSON.stringify(preview)}`);
+                            Logger.trace(`${model.name} 收到 content 增量: ${delta ? delta.length : 0} 字符, preview=${delta}`);
                         } catch {
                             // 日志不应中断流处理
                         }
+                        // 判断 delta 是否包含可见字符（去除所有空白、不可见空格后长度 > 0）
+                        const deltaVisible = typeof delta === 'string' && delta.replace(/[\s\uFEFF\xA0]+/g, '').length > 0;
+                        if (deltaVisible && currentThinkingId) {
+                            // 在输出第一个可见 content 前，显式结束当前思维链：使用相同的 thinking id 发送一个空 value
+                            try {
+                                Logger.trace(`${model.name} 在输出content前结束当前思维链 id=${currentThinkingId}`);
+                                progress.report(new vscode.LanguageModelThinkingPart('', currentThinkingId));
+                            } catch (e) {
+                                // 报告失败不应该中断主流
+                                Logger.trace(`${model.name} 发送 thinking done(id=${currentThinkingId}) 失败: ${String(e)}`);
+                            }
+                            currentThinkingId = null;
+                        }
+
                         // 直接输出常规内容
                         progress.report(new vscode.LanguageModelTextPart(delta));
                         hasReceivedContent = true;
@@ -329,12 +345,22 @@ export class OpenAIHandler {
                         }
 
                         // 处理思考内容（reasoning_content）
-                        if (chunk.choices && chunk.choices[0]?.delta && (chunk.choices[0].delta as ExtendedDelta).reasoning_content) {
+                        // 思维链是可重入的：遇到时输出；在后续第一次可见 content 输出前，需要结束当前思维链（done）
+                        if (chunk.choices && chunk.choices[0]?.delta) {
                             const reasoningContent = (chunk.choices[0].delta as ExtendedDelta).reasoning_content;
                             if (reasoningContent) {
-                                Logger.trace(`🧠 接收到思考内容: ${reasoningContent.length}字符`);
-                                progress.report(new vscode.LanguageModelThinkingPart(reasoningContent));
-                                hasReceivedContent = true;
+                                try {
+                                    Logger.trace(`🧠 接收到思考内容: ${reasoningContent.length}字符`);
+                                    // 如果当前没有 active id，则生成一个用于本次思维链
+                                    if (!currentThinkingId) {
+                                        currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                                    }
+                                    progress.report(new vscode.LanguageModelThinkingPart(reasoningContent, currentThinkingId));
+                                    // 标记已接收内容
+                                    hasReceivedContent = true;
+                                } catch (e) {
+                                    Logger.trace(`${model.name} report 思维链失败: ${String(e)}`);
+                                }
                             }
                         }
                     })
