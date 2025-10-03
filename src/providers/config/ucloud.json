@@ -1,0 +1,6 @@
+{
+    "displayName": "UCloud",
+    "baseUrl": "https://api.modelverse.cn/v1",
+    "apiKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxx",
+    "models": []
+}

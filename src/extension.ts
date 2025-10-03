@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { GenericModelProvider } from './providers/genericModelProvider';
 import { IFlowDynamicProvider } from './providers/iflowDynamicProvider';
+import { UCloudDynamicProvider } from './providers/ucloudDynamicProvider';
 import { Logger } from './utils/logger';
 import { ApiKeyManager, ConfigManager } from './utils';
 import { registerAllTools } from './tools';
@@ -11,6 +12,7 @@ import { registerAllTools } from './tools';
 let registeredProviders: Record<string, GenericModelProvider> = {};
 let registeredDisposables: vscode.Disposable[] = [];
 let iflowProvider: IFlowDynamicProvider | null = null; // 特别跟踪心流AI提供商实例
+let ucloudProvider: UCloudDynamicProvider | null = null; // 特别跟踪 UCloud 提供商实例
 
 /**
  * 激活供应商 - 基于配置文件动态注册
@@ -28,10 +30,15 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
         try {
             Logger.trace(`正在注册供应商: ${providerConfig.displayName} (${providerKey})`);
 
-            // 特殊处理 iFlow 心流AI 提供商，使用动态模型注册
             if (providerKey === 'iflow') {
+                // 特殊处理 iFlow 心流AI 提供商，使用动态模型注册
                 const { provider, disposables } = IFlowDynamicProvider.createAndActivate(context, providerKey, providerConfig);
                 iflowProvider = provider;
+                registeredDisposables.push(...disposables);
+            } else if (providerKey === 'ucloud') {
+                // UCloud 需要特殊的动态注册
+                const { provider, disposables } = UCloudDynamicProvider.createAndActivate(context, providerKey, providerConfig);
+                ucloudProvider = provider;
                 registeredDisposables.push(...disposables);
             } else {
                 // 使用通用供应商创建实例

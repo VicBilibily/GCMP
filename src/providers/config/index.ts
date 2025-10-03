@@ -7,6 +7,7 @@ import minimax from './minimax.json';
 import huaweicloud from './huaweicloud.json';
 import tencentcloud from './tencentcloud.json';
 import jdcloud from './jdcloud.json';
+import ucloud from './ucloud.json';
 
 export const configProviders = {
     zhipu,
@@ -15,8 +16,9 @@ export const configProviders = {
     deepseek,
     minimax,
     huaweicloud,
-    tencentcloud
-    , jdcloud
+    tencentcloud,
+    jdcloud,
+    ucloud
 };
 
 export type ProviderName = keyof typeof configProviders;
