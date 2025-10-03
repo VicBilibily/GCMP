@@ -40,18 +40,6 @@
             }
         },
         {
-            "id": "huaweicloud-kimi-k2",
-            "model": "Kimi-K2",
-            "name": "Kimi-K2-128K (华为云)",
-            "tooltip": "通过华为 ModelArts 调用 Kimi-K2，面向高效对话与代码类任务。",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
             "id": "huaweicloud-qwen3-30b-a3b",
             "model": "qwen3-30b-a3b",
             "name": "Qwen3-30B-A3B-128K (华为云)",
