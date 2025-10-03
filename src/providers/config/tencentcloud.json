@@ -1,5 +1,5 @@
 {
-    "displayName": "腾讯云 DeepSeek",
+    "displayName": "腾讯云",
     "baseUrl": "https://api.lkeap.cloud.tencent.com/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [

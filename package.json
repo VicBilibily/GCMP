@@ -47,6 +47,7 @@
         "onLanguageModelProvider:gcmp.minimax",
         "onLanguageModelProvider:gcmp.huaweicloud",
         "onLanguageModelProvider:gcmp.tencentcloud",
+        "onLanguageModelProvider:gcmp.jdcloud",
         "onLanguageModelTool:gcmp_zhipuWebSearch"
     ],
     "contributes": {
@@ -83,12 +84,17 @@
             },
             {
                 "command": "gcmp.huaweicloud.setApiKey",
-                "title": "设置 华为云 ModelArts API密钥",
+                "title": "设置 华为云 API密钥",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.tencentcloud.setApiKey",
-                "title": "设置 腾讯云 DeepSeek API密钥",
+                "title": "设置 腾讯云 API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.jdcloud.setApiKey",
+                "title": "设置 京东云 API密钥",
                 "category": "GCMP"
             }
         ],
@@ -173,13 +179,18 @@
             },
             {
                 "vendor": "gcmp.huaweicloud",
-                "displayName": "华为云 ModelArts",
+                "displayName": "华为云",
                 "managementCommand": "gcmp.huaweicloud.setApiKey"
             },
             {
                 "vendor": "gcmp.tencentcloud",
-                "displayName": "腾讯云 DeepSeek",
+                "displayName": "腾讯云",
                 "managementCommand": "gcmp.tencentcloud.setApiKey"
+            },
+            {
+                "vendor": "gcmp.jdcloud",
+                "displayName": "京东云",
+                "managementCommand": "gcmp.jdcloud.setApiKey"
             }
         ],
         "languageModelTools": [

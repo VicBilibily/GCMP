@@ -1,0 +1,247 @@
+{
+    "displayName": "京东云",
+    "baseUrl": "https://modelservice.jdcloud.com/v1",
+    "apiKeyTemplate": "pk-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "models": [
+        {
+            "id": "jdcloud-deepseek-v3",
+            "model": "deepseek-v3",
+            "name": "DeepSeek-V3 (京东云)",
+            "tooltip": "DeepSeek-V3是一个强大的混合专家（MoE）语言模型，总参数量为671B，采用了创新注意力机制（MLA）和DeepSeekMoE架构，这些架构在DeepSeek-V2中得到了充分验证。",
+            "maxInputTokens": 64000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "jdcloud-deepseek-v3-0324",
+            "model": "DeepSeek-V3-0324",
+            "name": "DeepSeek-V3-0324 (京东云)",
+            "tooltip": "参数量从6710亿增加到6850亿，在数学推理、代码生成能力以及长上下文理解能力方面有显著提升。",
+            "maxInputTokens": 64000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "jdcloud-deepseek-v3.1",
+            "model": "deepseek-v3-1-250821",
+            "name": "DeepSeek-V3.1 (京东云)",
+            "tooltip": "DeepSeek-V3.1 是深度求索全新推出的混合推理模型，支持思考与非思考2种推理模式，较 DeepSeek-R1-0528 思考效率更高。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "jdcloud-deepseek-v3.2-exp",
+            "model": "DeepSeek-V3.2-Exp",
+            "name": "DeepSeek-V3.2-Exp (京东云)",
+            "tooltip": "DeepSeek-V3.2-Exp是DeepSeek于2025年9月29日发布并开源的实验性版本，作为迈向新一代架构的中间步骤探索长文本处理效率优化。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "jdcloud-qwen2.5-vl-7b",
+            "model": "Qwen2.5-VL-7B",
+            "name": "Qwen2.5-VL-7B (京东云)",
+            "tooltip": "Qwen2.5-VL-7B是阿里通义千问团队发布的旗舰视觉语言模型，拥有约70亿参数的多模态指令遵循大语言模型，擅长处理图像与文本信息，支持跨模态应用场景。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "jdcloud-qwen2.5-vl-72b",
+            "model": "Qwen2.5-VL-72B",
+            "name": "Qwen2.5-VL-72B (京东云)",
+            "tooltip": "Qwen2.5-VL-72B是阿里通义千问团队发布的旗舰视觉语言模型，在图像解析、内容识别以及视觉逻辑推导等任务中，表现出更强的准确性和细粒度分析能力。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "jdcloud-qwen3-235b-a22b",
+            "model": "Qwen3-235B-A22B",
+            "name": "Qwen3-235B-A22B (京东云)",
+            "tooltip": "基于丰富的训练经验，在推理、指令遵循、代理能力和多语言支持方面取得了突破性进展",
+            "maxInputTokens": 64000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "jdcloud-qwen3-coder",
+            "model": "Qwen3-Coder",
+            "name": "Qwen3-Coder (京东云)",
+            "tooltip": "隆重推出Qwen3-Coder，这是Qwen系列迄今为止最具代理性的代码模型。",
+            "maxInputTokens": 64000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "jdcloud-qwen3-8b",
+            "model": "Qwen3-8B",
+            "name": "Qwen3-8B (京东云)",
+            "tooltip": "推理能力达到同规模业界SOTA水平、通用能力显著超过Qwen2.5-7B。",
+            "maxInputTokens": 32000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "jdcloud-qwen3-30b-a3b-instuct-2507",
+            "model": "qwen3-30b-a3b-instuct-2507",
+            "name": "qwen3-30b-a3b-instuct-2507 (京东云)",
+            "tooltip": "qwen3-30b-a3b-instuct-2507相较上一版本（qwen3-30b-a3b）中英文和多语言整体通用能力有大幅提升，主观开放类任务专项优化，显著更加符合用户偏好，能够提供更有帮助性的回复。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "jdcloud-kimi-k2",
+            "model": "Kimi-K2",
+            "name": "Kimi-K2 (京东云)",
+            "tooltip": "Kimi K2 是月之暗面推出的超大参数 MoE 架构基础模型，总参数高达 1T，激活参数为 32B。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "jdcloud-kimi-k2-250905",
+            "model": "kimi-k2-250905",
+            "name": "Kimi-K2-250905 (京东云)",
+            "tooltip": "Kimi K2 模型的最新版本 0905，进一步提升其在真实编程任务中的表现",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "jdcloud-doubao-1-5-vision-lite",
+            "model": "doubao-1-5-vision-lite-250315",
+            "name": "Doubao-1.5-vision-lite (京东云)",
+            "tooltip": "Doubao-1.5-vision-lite是字节豆包推出的极具性价比的多模态大模型，支持任意分辨率和极端长宽比图像识别，增强视觉推理、文档识别、细节信息理解和指令遵循能力。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 4096,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "jdcloud-doubao-1-5-thinking-vision-pro",
+            "model": "doubao-1-5-thinking-vision-pro-250428",
+            "name": "Doubao-1.5-thinking-vision-pro (京东云)",
+            "tooltip": "Doubao-1.5-thinking-vision-pro是字节豆包推出的全新视觉深度思考模型，具备更强的通用多模态理解和推理能力，在 59 个公开评测基准中的 37 个上取得 SOTA 表现。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "jdcloud-doubao-seed-1-6",
+            "model": "doubao-seed-1.6-250615",
+            "name": "Doubao-Seed-1.6 (京东云)",
+            "tooltip": "全新多模态深度思考模型，同时支持 thinking、non-thinking、auto三种思考模式。其中 non-thinking 模型对比 doubao-1-5-pro-32k-250115 模型大幅提升。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "jdcloud-doubao-seed-1-6-thinking",
+            "model": "doubao-seed-1-6-thinking-250715",
+            "name": "Doubao-Seed-1.6-thinking (京东云)",
+            "tooltip": "Doubao-Seed-1.6-thinking 模型思考能力大幅强化， 对比 Doubao-1.5-thinking-pro，在 Coding、Math、 逻辑推理等基础能力上进一步提升， 支持视觉理解。 支持 256k 上下文窗口，0715版本最大输出长度64k tokens。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 65536,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "jdcloud-gemini-2-5-flash-image-preview",
+            "model": "Gemini-2.5-flash-image-preview",
+            "name": "Gemini-2.5-flash-image-preview (京东云)",
+            "tooltip": "通过文字、图片或两者结合的方式向 Gemini 发出提示，从而以前所未有的控制力来创建、修改和迭代视觉内容",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "jdcloud-glm-4.5",
+            "model": "GLM-4.5",
+            "name": "GLM-4.5 (京东云)",
+            "tooltip": "GLM-4.5智谱 AI 推出的专为智能体设计的基础模型，使用混合专家架构，具有思考/非思考的混合推理能力。在代理任务和复杂编码任务上具有显著优势。",
+            "maxInputTokens": 64000,
+            "maxOutputTokens": 4096,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "jdcloud-ernie-4.5-turbo-128k",
+            "model": "ernie-4.5-turbo-128k",
+            "name": "ERNIE-4.5-turbo-128k (京东云)",
+            "tooltip": "ERNIE-4.5-turbo-128k与百度文心新一代基础大模型文心4.5相比在去幻觉、逻辑推理和代码能力等方面有明显增强。",
+            "maxInputTokens": 123000,
+            "maxOutputTokens": 4096,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "jdcloud-ernie-4.5-21b-a3b",
+            "model": "ernie-4.5-21b-a3b-pt",
+            "name": "ERNIE-4.5-21B-A3B (京东云)",
+            "tooltip": "ERNIE-4.5-21B-A3B 是百度文心推出的文本 MoE 后训练开源模型，总共包含 21B 个参数，每个 token 包含 3B 个激活参数。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 4096,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        }
+    ]
+}
