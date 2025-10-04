@@ -48,6 +48,7 @@
         "onLanguageModelProvider:gcmp.huaweicloud",
         "onLanguageModelProvider:gcmp.tencentcloud",
         "onLanguageModelProvider:gcmp.jdcloud",
+        "onLanguageModelProvider:gcmp.volcengine",
         "onLanguageModelProvider:gcmp.ucloud",
         "onLanguageModelTool:gcmp_zhipuWebSearch"
     ],
@@ -91,6 +92,11 @@
             {
                 "command": "gcmp.tencentcloud.setApiKey",
                 "title": "设置 腾讯云 API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.volcengine.setApiKey",
+                "title": "设置 火山方舟 API密钥",
                 "category": "GCMP"
             },
             {
@@ -197,6 +203,11 @@
                 "vendor": "gcmp.jdcloud",
                 "displayName": "京东云",
                 "managementCommand": "gcmp.jdcloud.setApiKey"
+            },
+            {
+                "vendor": "gcmp.volcengine",
+                "displayName": "火山方舟",
+                "managementCommand": "gcmp.volcengine.setApiKey"
             },
             {
                 "vendor": "gcmp.ucloud",
