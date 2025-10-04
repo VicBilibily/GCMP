@@ -9,6 +9,7 @@ import tencentcloud from './tencentcloud.json';
 import jdcloud from './jdcloud.json';
 import volcengine from './volcengine.json';
 import ucloud from './ucloud.json';
+import coreshub from './coreshub.json';
 
 export const configProviders = {
     zhipu,
@@ -21,6 +22,7 @@ export const configProviders = {
     jdcloud,
     volcengine,
     ucloud,
+    coreshub,
 };
 
 export type ProviderName = keyof typeof configProviders;

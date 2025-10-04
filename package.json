@@ -2,7 +2,7 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek 模型支持的扩展",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、基石智算 模型支持的扩展",
     "version": "0.5.11",
     "license": "MIT",
     "keywords": [
@@ -15,10 +15,12 @@
         "iflow",
         "moonshot",
         "deepseek",
+        "coreshub",
         "智谱",
         "心流",
         "月之暗面",
-        "深度求索"
+        "深度求索",
+        "基石智算"
     ],
     "repository": {
         "type": "git",
@@ -50,6 +52,7 @@
         "onLanguageModelProvider:gcmp.jdcloud",
         "onLanguageModelProvider:gcmp.volcengine",
         "onLanguageModelProvider:gcmp.ucloud",
+        "onLanguageModelProvider:gcmp.coreshub",
         "onLanguageModelTool:gcmp_zhipuWebSearch"
     ],
     "contributes": {
@@ -107,6 +110,11 @@
             {
                 "command": "gcmp.ucloud.setApiKey",
                 "title": "设置 UCloud API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.coreshub.setApiKey",
+                "title": "设置 基石智算 API密钥",
                 "category": "GCMP"
             }
         ],
@@ -213,6 +221,11 @@
                 "vendor": "gcmp.ucloud",
                 "displayName": "UCloud",
                 "managementCommand": "gcmp.ucloud.setApiKey"
+            },
+            {
+                "vendor": "gcmp.coreshub",
+                "displayName": "基石智算",
+                "managementCommand": "gcmp.coreshub.setApiKey"
             }
         ],
         "languageModelTools": [

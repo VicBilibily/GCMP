@@ -1,0 +1,79 @@
+{
+    "displayName": "基石智算",
+    "baseUrl": "https://openapi.coreshub.cn/v1",
+    "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "models": [
+        {
+            "id": "coreshub-deepseek-v3-1-terminus",
+            "model": "DeepSeek-V3.1-Terminus",
+            "name": "DeepSeek-V3.1-Terminus (基石智算)",
+            "tooltip": "DeepSeek-V3.1-Terminus 的模型结构与 DeepSeek-V3 相同，在V3.1基础上解决了语言区分问题，能够更准确地区分中文与英文，从而避免出现随机特殊字符等低级错误。同时，Deepseek对内置的代码和搜索代理进行了调整，这让模型在调用外部工具时的稳定性更高，结果也更可靠。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "coreshub-deepseek-v3-1",
+            "model": "DeepSeek-V3.1",
+            "name": "DeepSeek-V3.1 (基石智算)",
+            "tooltip": "DeepSeek-V3.1 基于全新的 V3.1-Base 模型开发，该基础模型采用「两阶段长上下文扩展方法」，在原有 V3 模型检查点基础上进行大规模扩展训练。整个训练过程新增了 8400 亿个 tokens，其中 32K 上下文扩展阶段的训练量增加了 10 倍，达到 6300 亿 tokens，而 128K 扩展阶段则增加了 3.3 倍，达到 2090 亿 tokens。通过采集更多长文档，DeepSeek 研究团队显著扩展了两阶段训练的数据规模。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "coreshub-deepseek-v3",
+            "model": "DeepSeek-V3",
+            "name": "DeepSeek-V3 (基石智算)",
+            "tooltip": "DeepSeek-V3 是一款拥有 6710 亿参数的混合专家（MoE）语言模型，采用多头潜在注意力（MLA）和 DeepSeekMoE 架构，结合无辅助损失的负载均衡策略，优化推理和训练效率。通过在 14.8 万亿高质tokens上预训练，并进行监督微调和强化学习，DeepSeek-V3 在性能上超越了其他开源模型，接近领先的闭源模型。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "coreshub-qwq-32b",
+            "model": "QwQ-32B",
+            "name": "QwQ-32B (基石智算)",
+            "tooltip": "QwQ 是 Qwen 系列的推理模型。与传统的指令调优模型相比，QwQ 具备思考和推理的能力，可以实现显著增强的性能，尤其是在解决难题方面。QwQ-32B 是中型的推理模型，能够与最先进的推理模型（例如 DeepSeek-R1、o1-mini）实现竞争力。",
+            "maxInputTokens": 32000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "coreshub-qwen3-30b-a3b",
+            "model": "Qwen3-30B-A3B",
+            "name": "Qwen3-30B-A3B (基石智算)",
+            "tooltip": "Qwen3-30B-A3B-Instruct-2507 是 Qwen3-30B-A3B 非思考模式的更新版本。这是一个拥有 305 亿总参数和 33 亿激活参数的混合专家（MoE）模型。该模型在多个方面进行了关键增强，包括显著提升指令遵循、逻辑推理、文本理解、数学、科学、编码和工具使用等通用能力。",
+            "maxInputTokens": 32000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "coreshub-ernie-4-5-turbo-128k",
+            "model": "ernie-4.5-turbo-128k",
+            "name": "ernie-4.5-turbo-128k (基石智算)",
+            "tooltip": "文心大模型4.5是百度自主研发的新一代原生多模态基础大模型，通过多个模态结合实现协同优化，多模态理解能力优秀；具备更精进的语言能力，理解、生成、逻辑、记忆能力全面提升，去幻觉、逻辑推理、代码能力显著提升。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        }
+    ]
+}
