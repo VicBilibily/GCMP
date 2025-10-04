@@ -42,13 +42,13 @@
         "onStartupFinished",
         "onLanguageModelProvider:gcmp.zhipu",
         "onLanguageModelProvider:gcmp.iflow",
-        "onLanguageModelProvider:gcmp.ucloud",
         "onLanguageModelProvider:gcmp.moonshot",
         "onLanguageModelProvider:gcmp.deepseek",
         "onLanguageModelProvider:gcmp.minimax",
         "onLanguageModelProvider:gcmp.huaweicloud",
         "onLanguageModelProvider:gcmp.tencentcloud",
         "onLanguageModelProvider:gcmp.jdcloud",
+        "onLanguageModelProvider:gcmp.ucloud",
         "onLanguageModelTool:gcmp_zhipuWebSearch"
     ],
     "contributes": {
@@ -101,11 +101,6 @@
             {
                 "command": "gcmp.ucloud.setApiKey",
                 "title": "设置 UCloud API密钥",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.ucloud.refreshModels",
-                "title": "刷新 UCloud 模型列表",
                 "category": "GCMP"
             }
         ],
