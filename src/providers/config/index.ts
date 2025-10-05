@@ -14,6 +14,7 @@ import paratera from './paratera.json';
 import lanyun from './lanyun.json';
 import qiniu from './qiniu.json';
 import sophnet from './sophnet.json';
+import baidu from './baidu.json';
 
 export const configProviders = {
     zhipu,
@@ -30,7 +31,8 @@ export const configProviders = {
     paratera,
     lanyun,
     qiniu,
-    sophnet
+    sophnet,
+    baidu
 };
 
 export type ProviderName = keyof typeof configProviders;

@@ -1,0 +1,370 @@
+{
+    "displayName": "百度智能云",
+    "baseUrl": "https://qianfan.baidubce.com/v2",
+    "apiKeyTemplate": "bce-v3/ALTAK-xxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "models": [
+        {
+            "id": "ernie-4.5-turbo-vl",
+            "name": "ERNIE 4.5 Turbo VL (128k)",
+            "tooltip": "ERNIE 4.5 Turbo VL 视觉版，支持128k上下文长度，最大输入123k tokens，支持图像输入。",
+            "maxInputTokens": 123000,
+            "maxOutputTokens": 16384,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "ernie-4.5-turbo-128k",
+            "name": "ERNIE 4.5 Turbo (128k)",
+            "tooltip": "ERNIE 4.5 Turbo 旗舰模型，支持128k上下文长度，最大输入123k tokens。",
+            "maxInputTokens": 123000,
+            "maxOutputTokens": 12288,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "ernie-4.5-turbo-32k",
+            "name": "ERNIE 4.5 Turbo (32k)",
+            "tooltip": "ERNIE 4.5 Turbo，支持32k上下文长度，最大输入27k tokens。",
+            "maxInputTokens": 27000,
+            "maxOutputTokens": 12288,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "ernie-4.5-turbo-vl-32k",
+            "name": "ERNIE 4.5 Turbo VL (32k)",
+            "tooltip": "ERNIE 4.5 Turbo VL 视觉版，支持32k上下文长度，最大输入27k tokens，支持图像输入。",
+            "maxInputTokens": 27000,
+            "maxOutputTokens": 12288,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "ernie-4.5-21b-a3b",
+            "name": "ERNIE 4.5 (21B-A3B)",
+            "tooltip": "ERNIE 4.5 开源模型，支持128k上下文长度，最大输入120k tokens。",
+            "maxInputTokens": 120000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "ernie-4.5-21b-a3b-thinking",
+            "name": "ERNIE 4.5 21B A3B Thinking",
+            "tooltip": "ERNIE 4.5 21B A3B Thinking 深度思考模型，支持128k上下文长度，最大输入96k tokens。",
+            "maxInputTokens": 96000,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "ernie-4.5-vl-28b-a3b",
+            "name": "ERNIE 4.5 VL (28B-A3B)",
+            "tooltip": "ERNIE 4.5 VL 开源视觉模型，支持32k上下文长度，最大输入30k tokens，支持图像输入。",
+            "maxInputTokens": 30000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "ernie-4.5-0.3b",
+            "name": "ERNIE 4.5 (0.3B)",
+            "tooltip": "ERNIE 4.5 开源模型，支持128k上下文长度，最大输入120k tokens。",
+            "maxInputTokens": 120000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-next-80b-a3b-instruct",
+            "name": "Qwen3-Next-80B-A3B-Instruct (百度智能云)",
+            "tooltip": "Qwen3 Next 80B A3B Instruct 模型，支持128k上下文长度，最大输入126k tokens。",
+            "maxInputTokens": 126000,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-next-80b-a3b-thinking",
+            "name": "Qwen3-Next-80B-A3B-Thinking (百度智能云)",
+            "tooltip": "Qwen3 Next 80B A3B Thinking 深度思考模型，支持128k上下文长度，最大输入124k tokens。",
+            "maxInputTokens": 124000,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-vl-235b-a22b-instruct",
+            "name": "Qwen3-VL-235B-A22B-Instruct (百度智能云)",
+            "tooltip": "Qwen3 VL 235B A22B Instruct 视觉模型，支持128k上下文长度，最大输入126k tokens，支持图像输入。",
+            "maxInputTokens": 126000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qwen3-vl-235b-a22b-thinking",
+            "name": "Qwen3-VL-235B-A22B-Thinking (百度智能云)",
+            "tooltip": "Qwen3 VL 235B A22B Thinking 视觉模型，支持128k上下文长度，最大输入96k tokens，支持图像输入。",
+            "maxInputTokens": 96000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qwen3-coder-480b-a35b-instruct",
+            "name": "Qwen3-Coder-480B-A35B-Instruct (百度智能云)",
+            "tooltip": "Qwen3 Coder 480B A35B Instruct 模型，支持128k上下文长度，最大输入128k tokens。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 65536,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-coder-30b-a3b-instruct",
+            "name": "Qwen3-Coder-30B-A3B-Instruct (百度智能云)",
+            "tooltip": "Qwen3 Coder 30B A3B Instruct 模型，支持128k上下文长度，最大输入128k tokens。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-235b-a22b-instruct-2507",
+            "name": "Qwen3-235B-A22B-Instruct-2507 (百度智能云)",
+            "tooltip": "Qwen3 235B A22B Instruct 2507 模型，支持128k上下文长度，最大输入126k tokens。",
+            "maxInputTokens": 126000,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-235b-a22b-thinking-2507",
+            "name": "Qwen3-235B-A22B-Thinking-2507 (百度智能云)",
+            "tooltip": "Qwen3 235B A22B Thinking 2507 深度思考模型，支持128k上下文长度，最大输入124k tokens。",
+            "maxInputTokens": 124000,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-30b-a3b-instruct-2507",
+            "name": "Qwen3-30B-A3B-Instruct-2507 (百度智能云)",
+            "tooltip": "Qwen3 30B A3B Instruct 2507 模型，支持128k上下文长度，最大输入126k tokens。",
+            "maxInputTokens": 126000,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-30b-a3b-thinking-2507",
+            "name": "Qwen3-30B-A3B-Thinking-2507 (百度智能云)",
+            "tooltip": "Qwen3 30B A3B Thinking 2507 深度思考模型，支持128k上下文长度，最大输入124k tokens。",
+            "maxInputTokens": 124000,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-235b-a22b",
+            "name": "Qwen3-235B-A22B (百度智能云)",
+            "tooltip": "Qwen3 235B A22B 模型，支持32k上下文长度，最大输入30k tokens。",
+            "maxInputTokens": 30000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-30b-a3b",
+            "name": "Qwen3-30B-A3B (百度智能云)",
+            "tooltip": "Qwen3 30B A3B 模型，支持32k上下文长度，最大输入30k tokens。",
+            "maxInputTokens": 30000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-32b",
+            "name": "Qwen3-32B (百度智能云)",
+            "tooltip": "Qwen3 32B 模型，支持32k上下文长度，最大输入30k tokens。",
+            "maxInputTokens": 30000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-14b",
+            "name": "Qwen3-14B (百度智能云)",
+            "tooltip": "Qwen3 14B 模型，支持32k上下文长度，最大输入30k tokens。",
+            "maxInputTokens": 30000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-8b",
+            "name": "Qwen3-8B (百度智能云)",
+            "tooltip": "Qwen3 8B 模型，支持32k上下文长度，最大输入30k tokens。",
+            "maxInputTokens": 30000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-4b",
+            "name": "Qwen3-4B (百度智能云)",
+            "tooltip": "Qwen3 4B 模型，支持32k上下文长度，最大输入30k tokens。",
+            "maxInputTokens": 30000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-1.7b",
+            "name": "Qwen3-1.7B (百度智能云)",
+            "tooltip": "Qwen3 1.7B 模型，支持32k上下文长度，最大输入30k tokens。",
+            "maxInputTokens": 30000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-0.6b",
+            "name": "Qwen3-0.6B (百度智能云)",
+            "tooltip": "Qwen3 0.6B 模型，支持32k上下文长度，最大输入30k tokens。",
+            "maxInputTokens": 30000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwq-32b",
+            "name": "QWQ-32B (百度智能云)",
+            "tooltip": "QWQ 32B 深度思考模型，支持32k上下文长度。",
+            "maxInputTokens": 16384,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "deepseek-v3.1-think-250821",
+            "name": "DeepSeek-V3.1-Think-250821 (百度智能云)",
+            "tooltip": "DeepSeek V3.1 Think 深度思考模型，支持128k上下文长度，最大输入96k tokens。",
+            "maxInputTokens": 96000,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "deepseek-v3.1-250821",
+            "name": "DeepSeek-V3.1-250821 (百度智能云)",
+            "tooltip": "DeepSeek V3.1 模型，支持128k上下文长度，最大输入128k tokens。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "deepseek-v3",
+            "name": "DeepSeek-V3-250324 (百度智能云)",
+            "tooltip": "DeepSeek V3 模型，支持128k上下文长度，最大输入128k tokens。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "kimi-k2-instruct",
+            "name": "Kimi-K2-Instruct (百度智能云)",
+            "tooltip": "Kimi K2 Instruct 模型，支持128k上下文长度，最大输入128k tokens。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "gpt-oss-120b",
+            "name": "GPT-OSS-120B (百度智能云)",
+            "tooltip": "GPT OSS 120B 深度思考模型，支持128k上下文长度，最大输入124k tokens。",
+            "maxInputTokens": 124000,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "gpt-oss-20b",
+            "name": "GPT-OSS-20B (百度智能云)",
+            "tooltip": "GPT OSS 20B 深度思考模型，支持128k上下文长度，最大输入124k tokens。",
+            "maxInputTokens": 124000,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        }
+    ]
+}
