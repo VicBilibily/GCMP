@@ -13,6 +13,7 @@ import coreshub from './coreshub.json';
 import paratera from './paratera.json';
 import lanyun from './lanyun.json';
 import qiniu from './qiniu.json';
+import sophnet from './sophnet.json';
 
 export const configProviders = {
     zhipu,
@@ -28,7 +29,8 @@ export const configProviders = {
     coreshub,
     paratera,
     lanyun,
-    qiniu
+    qiniu,
+    sophnet
 };
 
 export type ProviderName = keyof typeof configProviders;

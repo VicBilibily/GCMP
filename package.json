@@ -2,7 +2,7 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、基石智算、并行智算云、蓝耘元生代、七牛云 模型支持的扩展",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、基石智算、并行智算云、蓝耘元生代、七牛云、SophNet 模型支持的扩展",
     "version": "0.5.11",
     "license": "MIT",
     "keywords": [
@@ -19,6 +19,7 @@
         "paratera",
         "lanyun",
         "qiniu",
+        "sophnet",
         "智谱",
         "心流",
         "月之暗面",
@@ -26,7 +27,8 @@
         "基石智算",
         "并行智算云",
         "蓝耘元生代",
-        "七牛云"
+        "七牛云",
+        "SophNet"
     ],
     "repository": {
         "type": "git",
@@ -62,6 +64,7 @@
         "onLanguageModelProvider:gcmp.paratera",
         "onLanguageModelProvider:gcmp.lanyun",
         "onLanguageModelProvider:gcmp.qiniu",
+        "onLanguageModelProvider:gcmp.sophnet",
         "onLanguageModelTool:gcmp_zhipuWebSearch"
     ],
     "contributes": {
@@ -139,6 +142,11 @@
             {
                 "command": "gcmp.qiniu.setApiKey",
                 "title": "设置 七牛云 API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.sophnet.setApiKey",
+                "title": "设置 SophNet API密钥",
                 "category": "GCMP"
             }
         ],
@@ -265,6 +273,11 @@
                 "vendor": "gcmp.qiniu",
                 "displayName": "七牛云",
                 "managementCommand": "gcmp.qiniu.setApiKey"
+            },
+            {
+                "vendor": "gcmp.sophnet",
+                "displayName": "SophNet",
+                "managementCommand": "gcmp.sophnet.setApiKey"
             }
         ],
         "languageModelTools": [

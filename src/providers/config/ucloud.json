@@ -4,8 +4,7 @@
     "apiKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxx",
     "models": [
         {
-            "id": "ucloud/deepseek-ai/DeepSeek-V3.2-Exp-Think",
-            "model": "deepseek-ai/DeepSeek-V3.2-Exp-Think",
+            "id": "deepseek-ai/DeepSeek-V3.2-Exp-Think",
             "name": "deepseek-ai/DeepSeek-V3.2-Exp-Think (UCloud)",
             "tooltip": "DeepSeek 3.2在 V3.1-Terminus 的基础上引入了 DeepSeek 稀疏注意力机制——一种稀疏注意力机制，旨在探索和验证在长上下文场景下训练和推理效率的优化。",
             "maxInputTokens": 128000,
@@ -16,8 +15,7 @@
             }
         },
         {
-            "id": "ucloud/deepseek-ai/DeepSeek-V3.2-Exp",
-            "model": "deepseek-ai/DeepSeek-V3.2-Exp",
+            "id": "deepseek-ai/DeepSeek-V3.2-Exp",
             "name": "deepseek-ai/DeepSeek-V3.2-Exp (UCloud)",
             "tooltip": "DeepSeek 3.2在 V3.1-Terminus 的基础上引入了 DeepSeek 稀疏注意力机制——一种稀疏注意力机制，旨在探索和验证在长上下文场景下训练和推理效率的优化。",
             "maxInputTokens": 128000,
@@ -28,68 +26,7 @@
             }
         },
         {
-            "id": "ucloud/Qwen/Qwen3-32B",
-            "model": "Qwen/Qwen3-32B",
-            "name": "Qwen/Qwen3-32B (UCloud)",
-            "tooltip": "Qwen3-32B 是 Qwen3 系列中一个拥有 328 亿参数的密集因果语言模型，针对复杂推理和高效对话进行了优化。它支持在“思考”模式（用于数学、编程和逻辑推理等任务）和“非思考”模式（用于更快的通用对话）之间无缝切换。",
-            "maxInputTokens": 32000,
-            "maxOutputTokens": 8192,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "ucloud/Qwen/Qwen3-30B-A3B",
-            "model": "Qwen/Qwen3-30B-A3B",
-            "name": "Qwen/Qwen3-30B-A3B (UCloud)",
-            "tooltip": "Qwen3-30B-A3B是 Qwen 开发的 305 亿参数混合专家语言模型，每次推理有 33 亿个有效参数。该模型以非思考模式运行，旨在实现高质量的指令跟进、多语言理解和代理工具的使用。",
-            "maxInputTokens": 32000,
-            "maxOutputTokens": 8192,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "ucloud/ByteDance/doubao-seed-1.6",
-            "model": "ByteDance/doubao-seed-1.6",
-            "name": "ByteDance/doubao-seed-1.6 (UCloud)",
-            "tooltip": "Seed1.6模型在参数规模相当的情况下，凭借其模型架构、训练算法和基础设施的持续优化，展现出显著的性能提升。",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 8192,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "ucloud/ByteDance/doubao-seed-1.6-thinking",
-            "model": "ByteDance/doubao-seed-1.6-thinking",
-            "name": "ByteDance/doubao-seed-1.6-thinking (UCloud)",
-            "tooltip": "Seed1.6模型在参数规模相当的情况下，凭借其模型架构、训练算法和基础设施的持续优化，展现出显著的性能提升。",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 8192,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "ucloud/ByteDance/doubao-1.5-thinking-vision-pro",
-            "model": "ByteDance/doubao-1.5-thinking-vision-pro",
-            "name": "ByteDance/doubao-1.5-thinking-vision-pro (UCloud)",
-            "tooltip": "带Deep Thinking模式的多模态视觉大模型，增强推理能力并具有视觉理解优势，对标 GPT-4o 与 Claude 3.5 Sonnet，且成本显著更低。",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 8192,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "ucloud/deepseek-ai/DeepSeek-V3.1",
-            "model": "deepseek-ai/DeepSeek-V3.1",
+            "id": "deepseek-ai/DeepSeek-V3.1",
             "name": "deepseek-ai/DeepSeek-V3.1 (UCloud)",
             "tooltip": "DeepSeek-V3.1 是在 DeepSeek-V3.1-Base 的基础上进行后训练的，后者是通过两阶段长上下文扩展方法构建的，遵循原始 DeepSeek-V3 报告中概述的方法。",
             "maxInputTokens": 128000,
@@ -100,10 +37,19 @@
             }
         },
         {
-            "id": "ucloud/Qwen/Qwen3-Coder",
-            "model": "Qwen/Qwen3-Coder",
-            "name": "Qwen/Qwen3-Coder (UCloud)",
-            "tooltip": "Qwen3-Coder-480B-A35B-Instruct 是由 Qwen 团队开发的混合专家 (MoE) 代码生成模型。",
+            "id": "deepseek-ai/DeepSeek-V3-0324",
+            "name": "deepseek-ai/DeepSeek-V3-0324 (UCloud)",
+            "tooltip": "由杭州深度求索人工智能基础技术研究有限公司自研的MoE 模型，在百科知识、数学推理等多项任务上优势突出。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true
+            }
+        },
+        {
+            "id": "ByteDance/doubao-seed-1.6",
+            "name": "ByteDance/doubao-seed-1.6 (UCloud)",
+            "tooltip": "Seed1.6模型在参数规模相当的情况下，凭借其模型架构、训练算法和基础设施的持续优化，展现出显著的性能提升。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 8192,
             "capabilities": {
@@ -112,8 +58,29 @@
             }
         },
         {
-            "id": "ucloud/zai-org/glm-4.5",
-            "model": "zai-org/glm-4.5",
+            "id": "ByteDance/doubao-seed-1.6-thinking",
+            "name": "ByteDance/doubao-seed-1.6-thinking (UCloud)",
+            "tooltip": "Seed1.6模型在参数规模相当的情况下，凭借其模型架构、训练算法和基础设施的持续优化，展现出显著的性能提升。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "ByteDance/doubao-1.5-thinking-vision-pro",
+            "name": "ByteDance/doubao-1.5-thinking-vision-pro (UCloud)",
+            "tooltip": "带Deep Thinking模式的多模态视觉大模型，增强推理能力并具有视觉理解优势，对标 GPT-4o 与 Claude 3.5 Sonnet，且成本显著更低。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "zai-org/glm-4.5",
             "name": "zai-org/glm-4.5 (UCloud)",
             "tooltip": "GLM-4.5 是Z.AI最新的旗舰基础模型，专为基于代理的应用构建。",
             "maxInputTokens": 128000,
@@ -124,8 +91,7 @@
             }
         },
         {
-            "id": "ucloud/zai-org/glm-4.5v",
-            "model": "zai-org/glm-4.5v",
+            "id": "zai-org/glm-4.5v",
             "name": "zai-org/glm-4.5v (UCloud)",
             "tooltip": "GLM-4.5V 是一个面向多模态代理应用的视觉语言基础模型。",
             "maxInputTokens": 128000,
@@ -136,8 +102,7 @@
             }
         },
         {
-            "id": "ucloud/moonshotai/Kimi-K2-Instruct",
-            "model": "moonshotai/Kimi-K2-Instruct",
+            "id": "moonshotai/Kimi-K2-Instruct",
             "name": "moonshotai/Kimi-K2-Instruct (UCloud)",
             "tooltip": "Kimi K2 是一款具备超强代码和 Agent 能力的 MoE 架构基础模型。",
             "maxInputTokens": 128000,
@@ -147,8 +112,7 @@
             }
         },
         {
-            "id": "ucloud/baidu/ernie-x1-turbo-32k",
-            "model": "baidu/ernie-x1-turbo-32k",
+            "id": "baidu/ernie-x1-turbo-32k",
             "name": "baidu/ernie-x1-turbo-32k (UCloud)",
             "tooltip": "具备更强的理解、规划、反思与进化能力，适用于中文问答、写作、文案等场景。",
             "maxInputTokens": 16000,
@@ -158,8 +122,7 @@
             }
         },
         {
-            "id": "ucloud/baidu/ernie-4.5-turbo-vl-32k",
-            "model": "baidu/ernie-4.5-turbo-vl-32k",
+            "id": "baidu/ernie-4.5-turbo-vl-32k",
             "name": "baidu/ernie-4.5-turbo-vl-32k (UCloud)",
             "tooltip": "具备更强的理解、规划、反思与进化能力，适用于中文问答、写作、文案等场景。",
             "maxInputTokens": 16000,
@@ -170,8 +133,7 @@
             }
         },
         {
-            "id": "ucloud/baidu/ernie-4.5-turbo-128k",
-            "model": "baidu/ernie-4.5-turbo-128k",
+            "id": "baidu/ernie-4.5-turbo-128k",
             "name": "baidu/ernie-4.5-turbo-128k (UCloud)",
             "tooltip": "推理与代码能力提升，较ERNIE 4.5速度更快，价格更低，适合通用文本生成任务。",
             "maxInputTokens": 16000,
@@ -181,32 +143,52 @@
             }
         },
         {
-            "id": "ucloud/deepseek-ai/DeepSeek-V3-0324",
-            "model": "deepseek-ai/DeepSeek-V3-0324",
-            "name": "deepseek-ai/DeepSeek-V3-0324 (UCloud)",
-            "tooltip": "由杭州深度求索人工智能基础技术研究有限公司自研的MoE 模型，在百科知识、数学推理等多项任务上优势突出。",
-            "maxInputTokens": 128000,
+            "id": "Qwen/Qwen3-Coder",
+            "name": "Qwen/Qwen3-Coder (UCloud)",
+            "tooltip": "Qwen3-Coder-480B-A35B-Instruct 是由 Qwen 团队开发的混合专家 (MoE) 代码生成模型。",
+            "maxInputTokens": 256000,
             "maxOutputTokens": 8192,
             "capabilities": {
-                "toolCalling": true
+                "toolCalling": true,
+                "imageInput": false
             }
         },
         {
-            "id": "ucloud/Qwen/QwQ-32B",
-            "model": "Qwen/QwQ-32B",
-            "name": "Qwen/QwQ-32B (UCloud)",
-            "tooltip": "QwQ 是 Qwen 系列的推理模型。",
-            "maxInputTokens": 128000,
+            "id": "Qwen/Qwen3-32B",
+            "name": "Qwen/Qwen3-32B (UCloud)",
+            "tooltip": "Qwen3-32B 是 Qwen3 系列中一个拥有 328 亿参数的密集因果语言模型，针对复杂推理和高效对话进行了优化。它支持在“思考”模式（用于数学、编程和逻辑推理等任务）和“非思考”模式（用于更快的通用对话）之间无缝切换。",
+            "maxInputTokens": 32000,
             "maxOutputTokens": 8192,
             "capabilities": {
-                "toolCalling": true
+                "toolCalling": true,
+                "imageInput": false
             }
         },
         {
-            "id": "ucloud/Qwen/Qwen3-235B-A22B",
-            "model": "Qwen/Qwen3-235B-A22B",
+            "id": "Qwen/Qwen3-30B-A3B",
+            "name": "Qwen/Qwen3-30B-A3B (UCloud)",
+            "tooltip": "Qwen3-30B-A3B是 Qwen 开发的 305 亿参数混合专家语言模型，每次推理有 33 亿个有效参数。该模型以非思考模式运行，旨在实现高质量的指令跟进、多语言理解和代理工具的使用。",
+            "maxInputTokens": 32000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "Qwen/Qwen3-235B-A22B",
             "name": "Qwen/Qwen3-235B-A22B (UCloud)",
             "tooltip": "实现思考模式和非思考模式的有效融合，可在对话中切换模式。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true
+            }
+        },
+        {
+            "id": "Qwen/QwQ-32B",
+            "name": "Qwen/QwQ-32B (UCloud)",
+            "tooltip": "QwQ 是 Qwen 系列的推理模型。",
             "maxInputTokens": 128000,
             "maxOutputTokens": 8192,
             "capabilities": {

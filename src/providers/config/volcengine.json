@@ -5,7 +5,6 @@
     "models": [
         {
             "id": "doubao-seed-1-6-250615",
-            "model": "doubao-seed-1-6-250615",
             "name": "Doubao-Seed-1.6-250615",
             "tooltip": "Doubao-Seed-1.6全新多模态深度思考模型，同时支持auto/thinking/non-thinking三种思考模式。 non-thinking模式下，模型效果对比Doubao-1.5-pro/250115大幅提升。支持 256k 上下文窗口，输出长度支持最大 32k tokens。",
             "maxInputTokens": 256000,
@@ -17,7 +16,6 @@
         },
         {
             "id": "doubao-seed-1-6-flash-250828",
-            "model": "doubao-seed-1-6-flash-250828",
             "name": "Doubao-Seed-1.6-Flash-250828",
             "tooltip": "Doubao-Seed-1.6-flash推理速度极致的多模态深度思考模型，TPOT低至10ms； 同时支持文本和视觉理解，文本理解能力超过上一代lite，视觉理解比肩友商pro系列模型。支持 256k 上下文窗口，输出长度支持最大 16k tokens。综合能力最强flash版本！相比0615/0715版本，文本&视觉能力显著大幅提升近10%！",
             "maxInputTokens": 256000,
@@ -29,7 +27,6 @@
         },
         {
             "id": "doubao-seed-1-6-flash-250715",
-            "model": "doubao-seed-1-6-flash-250715",
             "name": "Doubao-Seed-1.6-Flash-250715",
             "tooltip": "相比flash-0615版本，0715版本思考与非思考模式的纯文本任务效果大幅提升近10%",
             "maxInputTokens": 256000,
@@ -41,7 +38,6 @@
         },
         {
             "id": "doubao-seed-1-6-flash-250615",
-            "model": "doubao-seed-1-6-flash-250615",
             "name": "Doubao-Seed-1.6-Flash-250615",
             "tooltip": "Doubao-Seed-1.6-flash推理速度极致的多模态深度思考模型，TPOT低至10ms； 同时支持文本和视觉理解，文本理解能力超过上一代lite，视觉理解比肩友商pro系列模型。支持 256k 上下文窗口，输出长度支持最大 16k tokens。",
             "maxInputTokens": 256000,
@@ -53,7 +49,6 @@
         },
         {
             "id": "doubao-seed-1-6-thinking-250615",
-            "model": "doubao-seed-1-6-thinking-250615",
             "name": "Doubao-Seed-1.6-Thinking-250615",
             "tooltip": "Doubao-Seed-1.6-thinking 模型思考能力大幅强化， 对比 Doubao-1.5-thinking-pro，在 Coding、Math、 逻辑推理等基础能力上进一步提升， 支持视觉理解。 支持 256k 上下文窗口，0715版本最大输出长度64k tokens。",
             "maxInputTokens": 256000,
@@ -65,7 +60,6 @@
         },
         {
             "id": "doubao-seed-1-6-thinking-250715",
-            "model": "doubao-seed-1-6-thinking-250715",
             "name": "Doubao-Seed-1.6-Thinking-250715",
             "tooltip": "深度思考能力更强化！相比Doubao-Seed-1.6-thinking/250615版本文本&视觉能力显著提升，综合能力领先Doubao-Seed-1.6/250615开启thinking模式",
             "maxInputTokens": 256000,
@@ -77,7 +71,6 @@
         },
         {
             "id": "doubao-seed-1-6-vision-250815",
-            "model": "doubao-seed-1-6-vision-250815",
             "name": "Doubao-Seed-1.6-Vision-250815",
             "tooltip": "Doubao-Seed-1.6-Vision 250815版本，深度思考模型，支持可手动关闭的深度思考、文本生成、图片理解、视频理解、GUI任务、工具调用、结构化输出。支持256k上下文窗口。",
             "maxInputTokens": 256000,
@@ -88,8 +81,7 @@
             }
         },
         {
-            "id": "volcengine/deepseek-v3-250324",
-            "model": "deepseek-v3-250324",
+            "id": "deepseek-v3-250324",
             "name": "DeepSeek-V3-250324 (火山方舟)",
             "tooltip": "DeepSeek-V3-0324 模型升级，推理能力显著提升，数学、代码评测超越 GPT-4.5；HTML 前端任务的代码可用性更高，视觉效果更美观、富有设计感；中文写作质量优化，长文本创作能力增强；搜索场景报告生成更精准。",
             "maxInputTokens": 128000,
@@ -100,8 +92,7 @@
             }
         },
         {
-            "id": "volcengine/deepseek-v3-1-250821",
-            "model": "deepseek-v3-1-250821",
+            "id": "deepseek-v3-1-250821",
             "name": "DeepSeek-V3.1-250821 (火山方舟)",
             "tooltip": "DeepSeek-V3.1 是深度求索全新推出的混合推理模型，支持思考与非思考2种推理模式，较 DeepSeek-R1-0528 思考效率更高。",
             "maxInputTokens": 128000,
@@ -112,8 +103,7 @@
             }
         },
         {
-            "id": "volcengine/deepseek-v3-1-terminus",
-            "model": "deepseek-v3-1-terminus",
+            "id": "deepseek-v3-1-terminus",
             "name": "DeepSeek-V3.1-Terminus (火山方舟)",
             "tooltip": "相比上一版解决了一系列问题，主要包含：语言一致性： 缓解了中英文混杂、偶发异常字符等情况；Agent 能力： 进一步优化了 Code Agent 与 Search Agent 的表现。",
             "maxInputTokens": 128000,
@@ -124,8 +114,7 @@
             }
         },
         {
-            "id": "volcengine/kimi-k2-250905",
-            "model": "kimi-k2-250905",
+            "id": "kimi-k2-250905",
             "name": "Kimi-K2-250905 (火山方舟)",
             "tooltip": "在公共基准测试与真实编码智能体任务中，0905版本性能提升显著，同时优化了前端编程的美观性与实用性。上下文窗口提升至256k。",
             "maxInputTokens": 256000,
