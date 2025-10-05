@@ -82,6 +82,7 @@ Kimi存在工具调用限制，Qwen系列模型不支持工具调用。
 - [**SenseCore (商汤大装置)**](https://console.sensecore.cn/aistudio)：经测试，所有模型的Tools工具调用返回格式不兼容。
 - [**金山云星流**](https://www.ksyun.com/nv/product/KSP)：企业独立部署模式，暂不支持个人用户认证注册使用。
 - [**天翼云**](https://www.ctyun.cn/products/huiju)：运营商云，都是旧版本模型，模型更新并不给力。
+- [**移动云**](https://ecloud.10086.cn/portal/product/MaaS)：运营商云，都是旧版本模型，模型更新并不给力。
 - [**讯飞星辰**](https://xinghuo.xfyun.cn/maas-home)：定制服务，暂不支持公有云通用服务调用。
 
 ## ⚙️ 高级配置

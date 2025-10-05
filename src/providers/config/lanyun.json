@@ -1,0 +1,43 @@
+{
+    "displayName": "蓝耘元生代",
+    "baseUrl": "https://maas-api.lanyun.net/v1",
+    "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "models": [
+        {
+            "id": "lanyun/maas/deepseek-ai/DeepSeek-V3.2-Exp",
+            "model": "/maas/deepseek-ai/DeepSeek-V3.2-Exp",
+            "name": "DeepSeek-V3.2-Exp (蓝耘元生代)",
+            "tooltip": "DeepSeek-V3.2-Exp 模型，这是一个实验性（Experimental）的版本。作为迈向新一代架构的中间步骤，V3.2-Exp 在 V3.1-Terminus 的基础上引入了 DeepSeek Sparse Attention（一种稀疏注意力机制），针对长文本的训练和推理效率进行了探索性的优化和验证",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "lanyun/maas/deepseek-ai/DeepSeek-V3.1-Terminus",
+            "model": "/maas/deepseek-ai/DeepSeek-V3.1-Terminus",
+            "name": "DeepSeek-V3.1-Terminus (蓝耘元生代)",
+            "tooltip": "DeepSeek-V3.1是深度求索最新推出的高性能大语言模型基座版本，在多项核心能力上实现突破性创新。该模型具备业界领先的128K长上下文处理能力，可稳定解析和生成超长文本，在复杂语义理解、逻辑推理与知识整合方面表现尤为出色。同时，模型在代码生成与自动化任务领域性能显著提升，能够高效协助开发、调试和技术文档撰写。DeepSeek-V3.1 通过万亿级别高质量多源语料训练，结合更优化的模型架构与训练策略，在主流评测基准中全面达到同规模模型的领先水平，尤其擅长处理多轮对话、创意写作、数据分析等多样化任务，为企业与开发者提供更强可靠性、更高响应一致性的AI底座支持，赋能智能化应用快速落地。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "lanyun/maas/deepseek-ai/DeepSeek-V3-0324",
+            "model": "/maas/deepseek-ai/DeepSeek-V3-0324",
+            "name": "DeepSeek-V3-0324 (蓝耘元生代)",
+            "tooltip": "DeepSeek-V3-0324 是 DeepSeek 于 2025 年 3 月 24 日发布的升级版大模型，采用混合专家（MoE）架构，总参数量达 6850 亿，支持 128K 上下文。相比前代，它在代码生成（尤其前端开发）、数学推理（超越 GPT-4.5）和中文写作方面表现更优，并在 KCORES 评测中超越 Claude 3.7 Sonnet。模型优化了响应速度，同时保持 API 兼容性。采用 MIT 开源协议，允许商用和自由修改，性价比优于同类产品。",
+            "maxInputTokens": 64000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        }
+    ]
+}
