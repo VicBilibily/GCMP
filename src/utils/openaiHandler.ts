@@ -101,6 +101,11 @@ export class OpenAIHandler {
                         chunk = chunk.replace(/^data:([^\s])/gm, 'data: $1');
                         Logger.trace(`接收到 SSE chunk: ${chunk.length} 字符，chunk=${chunk}`);
 
+                        if (chunk === '[DONE]') {
+                            controller.close();
+                            break;
+                        }
+
                         // 判断并处理 chunk 中所有的 data: {json} 对象，兼容部分模型使用旧格式把内容放在 choice.message
                         try {
                             const dataRegex = /^data: (.*)$/gm;
@@ -126,7 +131,11 @@ export class OpenAIHandler {
                                         choice?.finish_reason &&
                                         (!choice.delta || Object.keys(choice.delta).length === 0)
                                     ) {
-                                        Logger.trace('preprocessSSEResponse 跳过仅有 finish_reason 且无 delta 的无效 chunk');
+                                        Logger.trace('preprocessSSEResponse 仅有 finish_reason，为 delta 添加空 content');
+                                        choice.delta = { content: '' };
+                                    }
+                                    if (choice?.delta && Object.keys(choice.delta).length === 0) {
+                                        Logger.trace('preprocessSSEResponse 跳过仅有 delta 的无效 chunk');
                                         // 从 transformed 中移除该 data 行
                                         transformed = transformed.replace(m[0], '');
                                         continue;

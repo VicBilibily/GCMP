@@ -2,7 +2,7 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、基石智算 模型支持的扩展",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、基石智算、并行智算云 模型支持的扩展",
     "version": "0.5.11",
     "license": "MIT",
     "keywords": [
@@ -16,11 +16,13 @@
         "moonshot",
         "deepseek",
         "coreshub",
+        "paratera",
         "智谱",
         "心流",
         "月之暗面",
         "深度求索",
-        "基石智算"
+        "基石智算",
+        "并行智算云"
     ],
     "repository": {
         "type": "git",
@@ -53,6 +55,7 @@
         "onLanguageModelProvider:gcmp.volcengine",
         "onLanguageModelProvider:gcmp.ucloud",
         "onLanguageModelProvider:gcmp.coreshub",
+        "onLanguageModelProvider:gcmp.paratera",
         "onLanguageModelTool:gcmp_zhipuWebSearch"
     ],
     "contributes": {
@@ -115,6 +118,11 @@
             {
                 "command": "gcmp.coreshub.setApiKey",
                 "title": "设置 基石智算 API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.paratera.setApiKey",
+                "title": "设置 并行智算云 API密钥",
                 "category": "GCMP"
             }
         ],
@@ -226,6 +234,11 @@
                 "vendor": "gcmp.coreshub",
                 "displayName": "基石智算",
                 "managementCommand": "gcmp.coreshub.setApiKey"
+            },
+            {
+                "vendor": "gcmp.paratera",
+                "displayName": "并行智算云",
+                "managementCommand": "gcmp.paratera.setApiKey"
             }
         ],
         "languageModelTools": [

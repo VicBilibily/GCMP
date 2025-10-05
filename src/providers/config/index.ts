@@ -10,6 +10,7 @@ import jdcloud from './jdcloud.json';
 import volcengine from './volcengine.json';
 import ucloud from './ucloud.json';
 import coreshub from './coreshub.json';
+import paratera from './paratera.json';
 
 export const configProviders = {
     zhipu,
@@ -23,6 +24,7 @@ export const configProviders = {
     volcengine,
     ucloud,
     coreshub,
+    paratera,
 };
 
 export type ProviderName = keyof typeof configProviders;

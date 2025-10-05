@@ -1,0 +1,391 @@
+{
+    "displayName": "并行智算云",
+    "baseUrl": "https://llmapi.paratera.com/v1",
+    "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxx",
+    "models": [
+        {
+            "id": "paratera/DeepSeek-V3.2-Exp",
+            "model": "DeepSeek-V3.2-Exp",
+            "name": "DeepSeek-V3.2-Exp (并行智算云)",
+            "tooltip": "V3.2-Exp 在 V3.1-Terminus 的基础上引入了 DeepSeek Sparse Attention（一种稀疏注意力机制），针对长文本的训练和推理效率进行了探索性的优化和验证。",
+            "maxInputTokens": 64000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/DeepSeek-V3.1-Terminus",
+            "model": "DeepSeek-V3.1-Terminus",
+            "name": "DeepSeek-V3.1-Terminus (并行智算云)",
+            "tooltip": "DeepSeek-V3.1-Terminus在保持deepseek v3.1 模型原有全部能力的同时，解决了用户反馈的关键问题，包括： - 语言一致性：显著减少中英文混合输出，消除异常字符出现 - 智能体性能：进一步优化代码智能体和搜索智能体的功能表现",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/DeepSeek-V3.1",
+            "model": "DeepSeek-V3.1",
+            "name": "DeepSeek-V3.1 (并行智算云)",
+            "tooltip": "DeepSeek-V3.1是深度求索全新推出的混合推理模型，支持思考与非思考两种推理模式，支持更高的思考效率和更强的Agent能力。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/DeepSeek-V3-250324",
+            "model": "DeepSeek-V3-250324",
+            "name": "DeepSeek-V3-250324 (并行智算云)",
+            "tooltip": "DeepSeek-V3-0324 模型升级，推理能力显著提升，数学、代码评测超越 GPT-4.5；HTML 前端任务的代码可用性更高，视觉效果更美观、富有设计感；中文写作质量优化，长文本创作能力增强；搜索场景报告生成更精准。",
+            "maxInputTokens": 64000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/MiniMax-M1-80k",
+            "model": "MiniMax-M1-80k",
+            "name": "MiniMax-M1-80k (并行智算云)",
+            "tooltip": "MiniMax-M1，世界上首个开源的大规模混合架构的推理模型，支持目前业内最高的100万上下文的输入，以及业内最长的8万Token的推理输出。",
+            "maxInputTokens": 10000000,
+            "maxOutputTokens": 80000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/MiniMax-Text-01",
+            "model": "MiniMax-Text-01",
+            "name": "MiniMax-Text-01 (并行智算云)",
+            "tooltip": "MiniMax的文本模型，支持超长文本处理，上下文长度1000K。",
+            "maxInputTokens": 10000000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/GLM-4.5",
+            "model": "GLM-4.5",
+            "name": "GLM-4.5 (并行智算云)",
+            "tooltip": "GLM-4.5 是一款专为智能体应用打造的基础模型，使用了混合专家（Mixture-of-Experts）架构。在工具调用、网页浏览、软件工程、前端编程领域进行了深度优化，支持无缝接入 Claude。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/GLM-4.5-Air",
+            "model": "GLM-4.5-Air",
+            "name": "GLM-4.5-Air (并行智算云)",
+            "tooltip": "GLM-4.5-Air 为 GLM-4.5 的轻量版，兼顾性能与性价比，可灵活切换混合思考模型。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/GLM-4.5-X",
+            "model": "GLM-4.5-X",
+            "name": "GLM-4.5-X (并行智算云)",
+            "tooltip": "GLM-4.5-X 为 GLM-4.5 的极速版，在性能强劲的同时，生成速度可达 100 tokens/秒。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/GLM-4.5-AirX",
+            "model": "GLM-4.5-AirX",
+            "name": "GLM-4.5-AirX (并行智算云)",
+            "tooltip": "GLM-4.5-AirX 为 GLM-4.5-Air 的极速版，响应速度更快，专为大规模高速度需求打造。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/GLM-4.5-Flash",
+            "model": "GLM-4.5-Flash",
+            "name": "GLM-4.5-Flash (并行智算云)",
+            "tooltip": "GLM-4.5-Flash为GLM-4.5 的免费版本，推理、代码、智能体等任务表现出色。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/GLM-4.5V",
+            "model": "GLM-4.5V",
+            "name": "GLM-4.5V (并行智算云)",
+            "tooltip": "GLM-4.5V 是智谱新一代基于 MOE 架构的视觉推理模型，以106B的总参数量和12B激活参数量，在各类基准测试中达到全球同级别开源多模态模型 SOTA，涵盖图像、视频、文档理解及 GUI 任务等常见任务。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "paratera/GLM-4-Air",
+            "model": "GLM-4-Air",
+            "name": "GLM-4-Air (并行智算云)",
+            "tooltip": "GLM-4-Air作为在推理能力和价格之间最平衡的模型，是性价比最高的模型版本。综合性能接近GLM-4，速度快，价格实惠。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/GLM-4-AirX",
+            "model": "GLM-4-AirX",
+            "name": "GLM-4-AirX (并行智算云)",
+            "tooltip": "GLM-4-AirX具有超快的推理速度和强大的推理效果,和GLM-4-Air相比效果不变，推理速度达到其2.6倍，是GLM-4-Air的高性能版本。该模型适用于对推理速度有高要求的场景。",
+            "maxInputTokens": 8000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/GLM-4-Plus",
+            "model": "GLM-4-Plus",
+            "name": "GLM-4-Plus (并行智算云)",
+            "tooltip": "GLM-4-Plus 使用了大量模型辅助构造高质量合成数据以提升模型性能，利用PPO有效提升模型推理（数学、代码算法题等）表现，更好反映人类偏好。在各项性能指标上，GLM-4-Plus 已达到与 GPT-4o 等第一梯队模型持平的水平。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/GLM-4-Flash",
+            "model": "GLM-4-Flash",
+            "name": "GLM-4-Flash (并行智算云)",
+            "tooltip": "GLM-4-Flash是一款免费且好用的语言模型，适用于智能问答、摘要生成和文本数据处理等多种应用场景。该模型适用简单任务，速度快且价格0负担。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/GLM-4-FlashX",
+            "model": "GLM-4-FlashX",
+            "name": "GLM-4-FlashX (并行智算云)",
+            "tooltip": "GLM-4-Flash模型的增强版本，具有超快推理速度和实惠的价格。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/ERNIE-4.5-Turbo-32K",
+            "model": "ERNIE-4.5-Turbo-32K",
+            "name": "ERNIE-4.5-Turbo-32K (并行智算云)",
+            "tooltip": "文心4.5 Turbo在去幻觉、逻辑推理和代码能力等方面有着明显增强。",
+            "maxInputTokens": 32000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/ERNIE-4.5-Turbo-128K",
+            "model": "ERNIE-4.5-Turbo-128K",
+            "name": "ERNIE-4.5-Turbo-128K (并行智算云)",
+            "tooltip": "更好的满足多轮长历史对话处理、长文档理解问答任务。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/ERNIE-4.5-Turbo-VL-32K",
+            "model": "ERNIE-4.5-Turbo-VL-32K",
+            "name": "ERNIE-4.5-Turbo-VL-32K (并行智算云)",
+            "tooltip": "文心一言大模型全新版本，图片理解、创作、翻译、代码等能力显著提升，首次支持32K上下文长度，首Token时延显著降低。",
+            "maxInputTokens": 32000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "paratera/Qwen3-Next-80B-A3B-Instruct",
+            "model": "Qwen3-Next-80B-A3B-Instruct",
+            "name": "Qwen3-Next-80B-A3B-Instruct (并行智算云)",
+            "tooltip": "基于Qwen3的新一代非思考模式开源模型，相较上一版本（通义千问3-235B-A22B-Instruct-2507）中文文本理解能力更佳、逻辑推理能力有增强、文本生成类任务表现更好。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/Qwen3-Next-80B-A3B-Thinking",
+            "model": "Qwen3-Next-80B-A3B-Thinking",
+            "name": "Qwen3-Next-80B-A3B-Thinking (并行智算云)",
+            "tooltip": "基于Qwen3的新一代思考模式开源模型，相较上一版本（通义千问3-235B-A22B-Instruct-2507）指令遵循能力有提升、模型总结回复更加精简。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/Qwen3-30B-A3B-Instruct-2507",
+            "model": "Qwen3-30B-A3B-Instruct-2507",
+            "name": "Qwen3-30B-A3B-Instruct-2507 (并行智算云)",
+            "tooltip": "基于Qwen3的非思考模式开源模型，相较上一版本（通义千问3-30B-A3B）中英文和多语言整体通用能力有大幅提升。主观开放类任务专项优化，显著更加符合用户偏好，能够提供更有帮助性的回复。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/Qwen3-30B-A3B-Thinking-2507",
+            "model": "Qwen3-30B-A3B-Thinking-2507",
+            "name": "Qwen3-30B-A3B-Thinking-2507 (并行智算云)",
+            "tooltip": "基于Qwen3的思考模式开源模型，相较上一版本（通义千问3-30B-A3B）复杂推理类任务性能优秀，包括逻辑推理、数学、科学、代码类等具有一定难度的任务场景，指令遵循、文本理解、多语言翻译等能力显著提高。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/Qwen3-235B-A22B-Instruct-2507",
+            "model": "Qwen3-235B-A22B-Instruct-2507",
+            "name": "Qwen3-235B-A22B-Instruct-2507 (并行智算云)",
+            "tooltip": "基于Qwen3的非思考模式开源模型，相较上一版本（通义千问3-235B-A22B）主观创作能力与模型安全性均有小幅度提升。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/Qwen3-235B-A22B-Thinking-2507",
+            "model": "Qwen3-235B-A22B-Thinking-2507",
+            "name": "Qwen3-235B-A22B-Thinking-2507 (并行智算云)",
+            "tooltip": "基于Qwen3的思考模式开源模型，相较上一版本（通义千问3-235B-A22B）逻辑能力、通用能力、知识增强及创作能力均有大幅提升，适用于高难度强推理场景。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/Qwen3-Coder-Plus",
+            "model": "Qwen3-Coder-Plus",
+            "name": "Qwen3-Coder-Plus (并行智算云)",
+            "tooltip": "Qwen3-Coder-Plus 系列模型是基于 Qwen3 的代码生成模型，具有强大的Coding Agent能力，擅长工具调用和环境交互，能够实现自主编程，代码能力卓越的同时兼具通用能力。",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/Qwen3-Coder-480B-A35B-Instruct",
+            "model": "Qwen3-Coder-480B-A35B-Instruct",
+            "name": "Qwen3-Coder-480B-A35B-Instruct (并行智算云)",
+            "tooltip": "基于Qwen3的代码生成模型，具有强大的Coding Agent能力，代码能力达到开源模型 SOTA。MoE架构，总参数480B，每次推理激活35B",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/Qwen3-32B",
+            "model": "Qwen3-32B",
+            "name": "Qwen3-32B (并行智算云)",
+            "tooltip": "实现思考模式和非思考模式的有效融合，可在对话中切换模式。推理能力显著超过QwQ、通用能力显著超过Qwen2.5-32B-Instruct",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/Qwen3-235B-A22B",
+            "model": "Qwen3-235B-A22B",
+            "name": "Qwen3-235B-A22B (并行智算云)",
+            "tooltip": "实现思考模式和非思考模式的有效融合，可在对话中切换模式。推理能力显著超过QwQ、通用能力显著超过Qwen2.5-72B-Instruct，达到同规模业界SOTA水平。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "paratera/Qwen2.5-VL-32B-Instruct",
+            "model": "Qwen2.5-VL-32B-Instruct",
+            "name": "Qwen2.5-VL-32B-Instruct (并行智算云)",
+            "tooltip": "在math和学科问题解答达到了接近Qwen2.5VL-72B的水平，回复风格面向人类偏好进行大幅调整，尤其是数学、逻辑推理、知识问答等客观类query，模型回复详实程度和格式清晰度明显改善。此版本为32B版本。",
+            "maxInputTokens": 131000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "paratera/Qwen2.5-VL-72B-Instruct",
+            "model": "Qwen2.5-VL-72B-Instruct",
+            "name": "Qwen2.5-VL-72B-Instruct (并行智算云)",
+            "tooltip": "指令跟随、数学、解题、代码整体提升，万物识别能力提升，支持多样格式直接精准定位视觉元素，支持对长视频文件（最长10分钟）进行理解和秒级别的事件时刻定位，能理解时间先后和快慢，基于解析和定位能力支持操控OS或Mobile的Agent，关键信息抽取能力和Json格式输出能力强，此版本为72B版本，本系列能力最强的版本。",
+            "maxInputTokens": 131000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        }
+    ]
+}
