@@ -2,7 +2,7 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、基石智算、并行智算云、蓝耘元生代 模型支持的扩展",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、基石智算、并行智算云、蓝耘元生代、七牛云 模型支持的扩展",
     "version": "0.5.11",
     "license": "MIT",
     "keywords": [
@@ -18,13 +18,15 @@
         "coreshub",
         "paratera",
         "lanyun",
+        "qiniu",
         "智谱",
         "心流",
         "月之暗面",
         "深度求索",
         "基石智算",
         "并行智算云",
-        "蓝耘元生代"
+        "蓝耘元生代",
+        "七牛云"
     ],
     "repository": {
         "type": "git",
@@ -59,6 +61,7 @@
         "onLanguageModelProvider:gcmp.coreshub",
         "onLanguageModelProvider:gcmp.paratera",
         "onLanguageModelProvider:gcmp.lanyun",
+        "onLanguageModelProvider:gcmp.qiniu",
         "onLanguageModelTool:gcmp_zhipuWebSearch"
     ],
     "contributes": {
@@ -131,6 +134,11 @@
             {
                 "command": "gcmp.lanyun.setApiKey",
                 "title": "设置 蓝耘元生代 API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.qiniu.setApiKey",
+                "title": "设置 七牛云 API密钥",
                 "category": "GCMP"
             }
         ],
@@ -252,6 +260,11 @@
                 "vendor": "gcmp.lanyun",
                 "displayName": "蓝耘元生代",
                 "managementCommand": "gcmp.lanyun.setApiKey"
+            },
+            {
+                "vendor": "gcmp.qiniu",
+                "displayName": "七牛云",
+                "managementCommand": "gcmp.qiniu.setApiKey"
             }
         ],
         "languageModelTools": [

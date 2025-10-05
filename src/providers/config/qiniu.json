@@ -1,0 +1,475 @@
+{
+    "displayName": "七牛云",
+    "baseUrl": "https://openai.qiniu.com/v1",
+    "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "models": [
+        {
+            "id": "qiniu/deepseek/deepseek-v3.2-exp",
+            "model": "deepseek/deepseek-v3.2-exp",
+            "name": "Deepseek/Deepseek V3.2 Exp (七牛云)",
+            "tooltip": "DeepSeek-V3.2-Exp 模型，是一个实验性（Experimental）的版本。作为迈向新一代架构的中间步骤，V3.2-Exp 在 V3.1-Terminus 的基础上引入了 DeepSeek Sparse Attention（一种稀疏注意力机制），针对长文本的训练和推理效率进行了探索性的优化和验证。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/deepseek/deepseek-v3.2-exp-thinking",
+            "model": "deepseek/deepseek-v3.2-exp-thinking",
+            "name": "Deepseek/Deepseek V3.2 Exp Thinking (七牛云)",
+            "tooltip": "DeepSeek-V3.2-Exp 模型，是一个实验性（Experimental）的版本。作为迈向新一代架构的中间步骤，V3.2-Exp 在 V3.1-Terminus 的基础上引入了 DeepSeek Sparse Attention（一种稀疏注意力机制），针对长文本的训练和推理效率进行了探索性的优化和验证。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/deepseek/deepseek-v3.1-terminus",
+            "model": "deepseek/deepseek-v3.1-terminus",
+            "name": "Deepseek/Deepseek V3.1 Terminus (七牛云)",
+            "tooltip": "此次更新在保持模型原有能力的基础上，针对用户反馈的问题进行了改进，包括：\n语言一致性：缓解了中英文混杂、偶发异常字符等情况；\nAgent 能力：进一步优化了 Code Agent 与 Search Agent 的表现。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/deepseek/deepseek-v3.1-terminus-thinking",
+            "model": "deepseek/deepseek-v3.1-terminus-thinking",
+            "name": "Deepseek/Deepseek V3.1 Terminus Thinking (七牛云)",
+            "tooltip": "此次更新在保持模型原有能力的基础上，针对用户反馈的问题进行了改进，包括：\n语言一致性：缓解了中英文混杂、偶发异常字符等情况；\nAgent 能力：进一步优化了 Code Agent 与 Search Agent 的表现。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/deepseek-v3.1",
+            "model": "deepseek-v3.1",
+            "name": "DeepSeek V3.1 (七牛云)",
+            "tooltip": "DeepSeek V3.1 通过显式推理（Think）、动态搜索（Search）、高效工具调用（Tool） 这三驾马车，清晰地瞄准了下一代 AI 智能体的核心能力，清晰地勾勒出一条技术演进路线：一个更自主、更可靠、更能与外部世界交互的智能体（Agent）正在成型。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/deepseek-v3-0324",
+            "model": "deepseek-v3-0324",
+            "name": "DeepSeek V3 0324 (七牛云)",
+            "tooltip": "推理速度大幅提升，位居开源模型之首，媲美顶尖闭源模型。采用负载均衡辅助策略和多标记预测训练，性能显著增强。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 4096,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/deepseek-v3",
+            "model": "deepseek-v3",
+            "name": "DeepSeek V3 (七牛云)",
+            "tooltip": "推理速度大幅提升，位居开源模型之首，媲美顶尖闭源模型。采用负载均衡辅助策略和多标记预测训练，性能显著增强。",
+            "maxInputTokens": 8192,
+            "maxOutputTokens": 2048,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/kimi-k2",
+            "model": "kimi-k2",
+            "name": "Kimi K2 (七牛云)",
+            "tooltip": "Kimi K2 是一款先进的混合专家 (MoE) 语言模型，拥有 320 亿个激活参数和 1 万亿个总参数。Kimi K2 采用 Muon 优化器进行训练，在前沿知识、推理和编码任务中表现出色，同时针对代理能力进行了精心优化。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/moonshotai/kimi-k2-0905",
+            "model": "moonshotai/kimi-k2-0905",
+            "name": "Kimi K2 0905 (七牛云)",
+            "tooltip": "Kimi K2 0905 是 Kimi K2 0711 的九月更新版本。该模型由月之暗面（Moonshot AI）研发，是一款大规模混合专家（MoE）语言模型，总参数量达1万亿，前向传播激活参数量为320亿。其上下文支持长度从之前的128K令牌扩展至256K令牌。\n本次更新提升了智能体编程能力，在各类框架中实现更高精度和更强泛化性，并增强了前端编程表现，能够为网页、3D等任务生成更具美学价值和功能性的输出。Kimi K2 专门针对智能体能力进行优化，涵盖高级工具使用、逻辑推理和代码合成三大核心领域。其在编程（LiveCodeBench、SWE-bench）、推理（ZebraLogic、GPQA）和工具使用（Tau2、AceBench）等基准测试中表现卓越。该模型采用创新训练架构，集成MuonClip优化器以实现大规模MoE模型的稳定训练。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/glm-4.5",
+            "model": "glm-4.5",
+            "name": "GLM 4.5 (七牛云)",
+            "tooltip": "GLM-4.5 是 GLM 系列的旗舰新模型，拥有 3550 亿个总参数和 320 亿个活动参数。作为混合推理模型，它整合了推理、编码和代理功能，提供用于复杂推理和工具运用的思维模式，以及用于即时响应的非思维模式，可满足快速发展的代理应用日益复杂的需求。",
+            "maxInputTokens": 131000,
+            "maxOutputTokens": 4096,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/glm-4.5-air",
+            "model": "glm-4.5-air",
+            "name": "GLM 4.5 Air (七牛云)",
+            "tooltip": "GLM-4.5-Air 是 GLM 系列的另一款旗舰新模型，具备 1060 亿个总参数和 120 亿个活动参数。同样作为混合推理模型，它将推理、编码和代理功能统一，提供思维模式（用于复杂推理和工具运用）与非思维模式（用于即时响应），以适配代理应用的复杂需求。",
+            "maxInputTokens": 131000,
+            "maxOutputTokens": 4096,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/MiniMax-M1",
+            "model": "MiniMax-M1",
+            "name": "MiniMax M1 (七牛云)",
+            "tooltip": "MiniMax-M1，世界上第一个开源的大规模混合架构的推理模型。M1在面向生产力的复杂场景中能力是开源模型中的最好一档，超过国内的闭源模型，接近海外的最领先模型，同时又有业内最高的性价比。M1有一个显著的优势是支持目前业内最高的100万上下文的输入，跟闭源模型里面的 Google Gemini 2.5 Pro 一样，是 DeepSeek R1 的 8 倍，以及业内最长的8万Token的推理输出。",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 80000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/doubao-1.5-pro-32k",
+            "model": "doubao-1.5-pro-32k",
+            "name": "Doubao 1.5 Pro 32k (七牛云)",
+            "tooltip": "全新升级的多模态大模型，视觉理解、分类、信息抽取等能力显著提升，并重点增强了解题、视频理解等场景的任务效果。支持 128k 上下文窗口，输出长度支持最大 16K。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 12000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/doubao-1.5-thinking-pro",
+            "model": "doubao-1.5-thinking-pro",
+            "name": "Doubao 1.5 Thinking Pro (七牛云)",
+            "tooltip": "仅支持文本输入。在数学、编程、科学推理等专业领域及创意写作等通用任务中表现突出，在AIME 2024、Codeforces、GPQA等多项权威基准上达到或接近业界第一梯队水平。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/doubao-1.5-vision-pro",
+            "model": "doubao-1.5-vision-pro",
+            "name": "Doubao 1.5 Vision Pro (七牛云)",
+            "tooltip": "全新升级的多模态大模型，视觉理解、分类、信息抽取等能力显著提升，并重点增强了解题、视频理解等场景的任务效果。支持 128k 上下文窗口，输出长度支持最大 16K。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qiniu/doubao-seed-1.6",
+            "model": "doubao-seed-1.6",
+            "name": "Doubao-Seed 1.6 (七牛云)",
+            "tooltip": "Doubao Seed 1.6全新多模态深度思考模型，同时支持auto/thinking/non-thinking三种思考模式。 non-thinking模式下，模型效果对比Doubao-1.5-pro/250115大幅提升。支持 256k 上下文窗口，输出长度支持最大 16k tokens。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qiniu/doubao-seed-1.6-thinking",
+            "model": "doubao-seed-1.6-thinking",
+            "name": "Doubao-Seed 1.6 Thinking (七牛云)",
+            "tooltip": "Doubao-Seed-1.6-thinking 模型思考能力大幅强化， 对比 Doubao-1.5-thinking-pro，在 Coding、Math、 逻辑推理等基础能力上进一步提升， 支持视觉理解。 支持 256k 上下文窗口，",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qiniu/doubao-seed-1.6-flash",
+            "model": "doubao-seed-1.6-flash",
+            "name": "Doubao-Seed 1.6 Flash (七牛云)",
+            "tooltip": "Doubao-Seed-1.6-flash 推理速度极致的多模态深度思考模型，TPOT低至10ms； 同时支持文本和视觉理解，文本理解能力超过上一代lite，视觉理解比肩友商pro系列模型。支持 256k 上下文窗口，输出长度支持最大 16k tokens。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qiniu/qwen-vl-max-2025-01-25",
+            "model": "qwen-vl-max-2025-01-25",
+            "name": "通义千问 VL-MAX-2025-01-25 (七牛云)",
+            "tooltip": "在图像解析、内容识别以及视觉逻辑推导等任务中，表现出更强的准确性和细粒度分析能力。\n",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qiniu/qwen2.5-vl-7b-instruct",
+            "model": "qwen2.5-vl-7b-instruct",
+            "name": "通义千问2.5 VL 7B Instruct (七牛云)",
+            "tooltip": "拥有约 70 亿参数的多模态指令遵循大语言模型，擅长处理图像与文本信息，支持跨模态应用场景。\n",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qiniu/qwen2.5-vl-72b-instruct",
+            "model": "qwen2.5-vl-72b-instruct",
+            "name": "通义千问2.5 VL 72B Instruct (七牛云)",
+            "tooltip": "拥有约70亿参数的多模态指令遵循大语言模型，擅长处理图像与文本信息，支持跨模态应用场景。\n",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qiniu/qwen3-32b",
+            "model": "qwen3-32b",
+            "name": "通义千问3 32B (七牛云)",
+            "tooltip": "Qwen3 系列，性能介于 Qwen3-235B-A22B 与 Qwen3-30B-A3B 之间，全系列针对 MCP 调用进行了针对性的优化和增强。",
+            "maxInputTokens": 40000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/qwen-turbo",
+            "model": "qwen-turbo",
+            "name": "通义千问-Turbo (七牛云)",
+            "tooltip": "Qwen3系列Turbo模型，实现思考模式和非思考模式的有效融合，可在对话中切换模式。推理能力以更小参数规模比肩QwQ-32B、通用能力显著超过Qwen2.5-Turbo，达到同规模业界SOTA水平。",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/qwen3-max",
+            "model": "qwen3-max",
+            "name": "通义千问3 Max (七牛云)",
+            "tooltip": "通义千问3系列Max模型，相较preview版本在智能体编程与工具调用方向进行了专项升级。本次发布的正式版模型达到领域SOTA水平，适配场景更加复杂的智能体需求。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/qwen-max-2025-01-25",
+            "model": "qwen-max-2025-01-25",
+            "name": "通义千问2.5-Max-2025-01-25 (七牛云)",
+            "tooltip": "一个大规模 MoE 模型，已在超过 20 万亿个 token 上进行了预训练，并使用精选的监督微调 (SFT) 和从人类反馈中强化学习 (RLHF) 方法进行了进一步的后训练。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 4096,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/qwen3-max-preview",
+            "model": "qwen3-max-preview",
+            "name": "通义千问3 Max Preview (七牛云)",
+            "tooltip": "通义千问 3 系列 Max 模型 Preview 版本，相较 2.5 系列整体通用能力有大幅度提升。参数量达 1T，大幅减少知识幻觉，模型更智能。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/qwen3-coder-480b-a35b-instruct",
+            "model": "qwen3-coder-480b-a35b-instruct",
+            "name": "通义千问3 Coder 480b A35b Instruct (七牛云)",
+            "tooltip": "Qwen3-Coder-480B-A35B-Instruct是由Qwen团队开发的混合专家（MoE）代码生成模型。该模型专为智能编码任务优化，涵盖函数调用、工具使用及代码库长上下文推理等场景。其总参数量达4800亿，每次前向传播激活350亿参数（动态激活160个专家中的8个）。",
+            "maxInputTokens": 262000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/qwen3-30b-a3b",
+            "model": "qwen3-30b-a3b",
+            "name": "通义千问3 30B A3B (七牛云)",
+            "tooltip": "Qwen3 系列，总参数量达 300 亿，激活参数量达 30 亿，全系列针对 MCP 调用进行了针对性的优化和增强。",
+            "maxInputTokens": 40000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/qwen3-235b-a22b",
+            "model": "qwen3-235b-a22b",
+            "name": "通义千问3 235B A22B (七牛云)",
+            "tooltip": "Qwen3 系列的旗舰模型，在编码、数学、通用能力等基准测试中，与 DeepSeek-R1、o1、o3-mini、Grok-3 和 Gemini-2.5-Pro 等其他顶级模型相比，取得了极具竞争力的成绩。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/qwen3-235b-a22b-instruct-2507",
+            "model": "qwen3-235b-a22b-instruct-2507",
+            "name": "通义千问3 235b A22b Instruct 2507 (七牛云)",
+            "tooltip": "基于Qwen3的非思考模式开源模型，相较上一版本（通义千问3-235B-A22B）主观创作能力与模型安全性均有小幅度提升。",
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/qwen3-235b-a22b-thinking-2507",
+            "model": "qwen3-235b-a22b-thinking-2507",
+            "name": "通义千问3 235b A22b Thinking 2507 (七牛云)",
+            "tooltip": "基于Qwen3的思考模式开源模型，相较上一版本（通义千问3-235B-A22B）逻辑能力、通用能力、知识增强及创作能力均有大幅提升，适用于高难度强推理场景。",
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/qwen3-next-80b-a3b-instruct",
+            "model": "qwen3-next-80b-a3b-instruct",
+            "name": "通义千问3 Next 80b A3b Instruct (七牛云)",
+            "tooltip": "通义千问3 Next 80B A3B Instruct是Qwen3 Next系列中经过指令微调的对话模型，专为快速稳定的响应而优化，不输出\"思考\"轨迹。该模型面向推理、代码生成、知识问答和多语言应用等复杂任务，同时在对齐性和格式遵循方面保持稳健性能。相较于先前Qwen3指令微调版本，该模型显著提升了超长输入和多轮对话场景下的吞吐量与稳定性，特别适合需要最终答案而非显式思维链的RAG检索增强、工具调用和智能体工作流。",
+            "maxInputTokens": 131072,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/qwen3-next-80b-a3b-thinking",
+            "model": "qwen3-next-80b-a3b-thinking",
+            "name": "通义千问3 Next 80b A3b Thinking (七牛云)",
+            "tooltip": "通义千问3 Next 80B A3B Thinking是Qwen3 Next系列中优先进行推理的对话模型，默认输出结构化的\"思考\"轨迹。该模型专为复杂多步骤问题设计，涵盖数学证明、代码合成/调试、逻辑推理和智能体规划等领域，在知识处理、推理能力、编程辅助、对齐性及多语言评估方面表现卓越。相较于先前Qwen3版本，该模型着重提升了长链思维下的稳定性与推理时的高效扩展性，并通过调优实现了对复杂指令的精准遵循，同时减少重复或偏离任务的行为。",
+            "maxInputTokens": 131072,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/nvidia/llama-3.3-nemotron-super-49b-v1.5",
+            "model": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+            "name": "Llama 3.3 Nemotron Super 49b V1.5 (七牛云)",
+            "tooltip": "基于 Meta Llama-3.3 的推理模型，专注于推理能力和人类聊天偏好，适用于 RAG 和工具调用等任务。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 4096,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qiniu/nvidia/nvidia-nemotron-nano-9b-v2",
+            "model": "nvidia/nvidia-nemotron-nano-9b-v2",
+            "name": "Nvidia Nemotron Nano 9b V2 (七牛云)",
+            "tooltip": "NVIDIA-Nemotron-Nano-9B-v2是由英伟达公司从头训练的大型语言模型（LLM），其设计定位为兼顾推理与非推理任务的统一模型。该模型通过首先生成推理轨迹，最终得出结论性回答的方式来响应用户查询与任务。模型的推理能力可通过系统提示词进行控制：若用户希望模型直接给出最终答案而省略中间推理过程，可通过配置实现此模式，但对于需要复杂推理的提示词，准确率会略有下降；反之，允许模型首先生成推理轨迹通常能为查询和任务提供更高质量的最终解决方案。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 4096,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qiniu/gpt-oss-20b",
+            "model": "gpt-oss-20b",
+            "name": "GPT OSS 20b (七牛云)",
+            "tooltip": "GPT-OSS-20b 是由 OpenAI 基于 Apache 2.0 许可证发布的开源 210 亿参数模型。该模型采用混合专家（MoE）架构，每次前向传播仅激活 36 亿参数，专为低延迟推理及消费级/单 GPU 硬件部署优化设计。模型经 OpenAI Harmony 响应格式训练，具备三大核心能力：可配置的推理等级、微调扩展性，以及包含函数调用、工具使用和结构化输出的 Agent 功能。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 4096,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qiniu/gpt-oss-120b",
+            "model": "gpt-oss-120b",
+            "name": "GPT OSS 120b (七牛云)",
+            "tooltip": "GPT-OSS-120b 是由 OpenAI 推出的开放权重、1170亿参数混合专家（MoE）语言模型，专为高推理能力、智能体应用及通用生产环境场景设计。该模型每次前向传播仅激活51亿参数，并通过原生 MXFP4 量化技术优化，可在单张 H100 GPU 上高效运行。该模型具备三大核心功能：可配置的推理深度、完整思维链访问机制，以及原生工具调用能力（包括函数调用、网络浏览及结构化输出生成）。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 4096,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qiniu/x-ai/grok-4-fast",
+            "model": "x-ai/grok-4-fast",
+            "name": "X-Ai/Grok 4 Fast (七牛云)",
+            "tooltip": "Grok 4 Fast是xAI推出的最新多模态模型，具备SOTA级成本效益与200万token上下文窗口。",
+            "maxInputTokens": 2000000,
+            "maxOutputTokens": 2000000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qiniu/x-ai/grok-code-fast-1",
+            "model": "x-ai/grok-code-fast-1",
+            "name": "Grok Code Fast 1 (七牛云)",
+            "tooltip": "Grok Code Fast 1是一款高效经济型推理模型，专为智能编码场景打造。该模型通过响应中可见的推理轨迹，让开发者能够精准引导Grok Code实现高质量的工作流程。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 10000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        }
+    ]
+}
