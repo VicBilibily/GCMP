@@ -1,0 +1,125 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://gcmp.dev/schemas/provider-config.schema.json",
+    "title": "GCMP Provider Configuration",
+    "type": "object",
+    "required": [
+        "displayName",
+        "baseUrl",
+        "apiKeyTemplate",
+        "models"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "description": "在供应商选择器中显示的用户友好名称。"
+        },
+        "baseUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "OpenAI 兼容请求的基础 URL。"
+        },
+        "apiKeyTemplate": {
+            "type": "string",
+            "minLength": 16,
+            "description": "指导用户预期 API 密钥格式的占位符模式。"
+        },
+        "models": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "$ref": "#/$defs/model"
+            },
+            "description": "供应商公开的模型列表。"
+        }
+    },
+    "$defs": {
+        "capabilities": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "toolCalling",
+                "imageInput"
+            ],
+            "properties": {
+                "toolCalling": {
+                    "type": "boolean",
+                    "description": "模型是否可以执行工具/函数调用。"
+                },
+                "imageInput": {
+                    "type": "boolean",
+                    "description": "模型是否接受图像输入。"
+                }
+            }
+        },
+        "headers": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
+            },
+            "description": "为此模型每个请求添加的可选自定义标头。"
+        },
+        "model": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "id",
+                "name",
+                "tooltip",
+                "maxInputTokens",
+                "maxOutputTokens",
+                "capabilities"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "发送给供应商 API 的标识符。"
+                },
+                "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "在模型选择器中显示的名称。"
+                },
+                "tooltip": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "作为悬停工具提示显示的详细描述。"
+                },
+                "maxInputTokens": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "供应商接受的最大输入令牌数。"
+                },
+                "maxOutputTokens": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "供应商在单个响应中可以生成的最大令牌数。"
+                },
+                "version": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "可选的供应商特定版本标签。"
+                },
+                "capabilities": {
+                    "$ref": "#/$defs/capabilities"
+                },
+                "baseUrl": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "覆盖供应商默认的可选模型特定基础 URL。"
+                },
+                "model": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "当与 ID 不同时的可选请求模型名称。"
+                },
+                "customHeaders": {
+                    "$ref": "#/$defs/headers"
+                }
+            }
+        }
+    }
+}

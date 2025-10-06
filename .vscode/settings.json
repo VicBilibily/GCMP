@@ -43,6 +43,18 @@
     "debug.javascript.usePreview": true,
     "debug.openDebug": "openOnDebugBreak",
     // esbuild 相关优化
-    "eslint.validate": ["javascript", "typescript"],
-    "typescript.preferences.includePackageJsonAutoImports": "auto"
+    "eslint.validate": [
+        "javascript",
+        "typescript"
+    ],
+    "typescript.preferences.includePackageJsonAutoImports": "auto",
+    // 为供应商配置提供 JSON Schema 校验和提示
+    "json.schemas": [
+        {
+            "fileMatch": [
+                "src/providers/config/*.json"
+            ],
+            "url": "./.vscode/providerConfig.schema.json"
+        }
+    ]
 }
