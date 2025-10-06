@@ -2,7 +2,7 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、基石智算、并行智算云、蓝耘元生代、七牛云、SophNet、百度智能云 模型支持的扩展",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、基石智算、并行智算云、蓝耘元生代、七牛云、SophNet、百度智能云、PPIO派欧云 模型支持的扩展",
     "version": "0.5.11",
     "license": "MIT",
     "keywords": [
@@ -21,6 +21,8 @@
         "qiniu",
         "sophnet",
         "baidu",
+        "ppio",
+        "派欧云",
         "智谱",
         "心流",
         "月之暗面",
@@ -64,6 +66,7 @@
         "onLanguageModelProvider:gcmp.ucloud",
         "onLanguageModelProvider:gcmp.coreshub",
         "onLanguageModelProvider:gcmp.paratera",
+        "onLanguageModelProvider:gcmp.ppio",
         "onLanguageModelProvider:gcmp.lanyun",
         "onLanguageModelProvider:gcmp.qiniu",
         "onLanguageModelProvider:gcmp.sophnet",
@@ -135,6 +138,11 @@
             {
                 "command": "gcmp.paratera.setApiKey",
                 "title": "设置 并行智算云 API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.ppio.setApiKey",
+                "title": "设置 PPIO派欧云 API密钥",
                 "category": "GCMP"
             },
             {
@@ -271,6 +279,11 @@
                 "vendor": "gcmp.paratera",
                 "displayName": "并行智算云",
                 "managementCommand": "gcmp.paratera.setApiKey"
+            },
+            {
+                "vendor": "gcmp.ppio",
+                "displayName": "PPIO派欧云",
+                "managementCommand": "gcmp.ppio.setApiKey"
             },
             {
                 "vendor": "gcmp.lanyun",

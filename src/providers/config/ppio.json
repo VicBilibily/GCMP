@@ -1,0 +1,348 @@
+{
+    "displayName": "PPIO派欧云",
+    "baseUrl": "https://api.ppinfra.com/openai/v1",
+    "apiKeyTemplate": "sk_xxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "models": [
+        {
+            "id": "deepseek/deepseek-v3.2-exp",
+            "name": "DeepSeek V3.2 Exp (PPIO派欧云)",
+            "tooltip": "DeepSeek-V3.2-Exp是DeepSeek前沿AI模型的实验版本，引入了突破性的DeepSeek稀疏注意力（DSA）机制，支持Function Calling、结构化输出、vision和reasoning能力。",
+            "maxInputTokens": 163840,
+            "maxOutputTokens": 65536,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "deepseek/deepseek-v3.1-terminus",
+            "name": "Deepseek V3.1 Terminus (PPIO派欧云)",
+            "tooltip": "DeepSeek-V3.1-Terminus在保持deepseek v3.1 模型原有全部能力的同时，解决了用户反馈的关键问题，包括语言一致性和智能体性能优化。",
+            "maxInputTokens": 98304,
+            "maxOutputTokens": 65536,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "deepseek/deepseek-v3.1",
+            "name": "Deepseek V3.1 (PPIO派欧云)",
+            "tooltip": "DeepSeek-V3.1 是 DeepSeek最新的模型，支持思考和非思考混合模式。通过两阶段长上下文扩展方法从原始 V3 基础检查点发展而来。",
+            "maxInputTokens": 131072,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "deepseek/deepseek-v3-0324",
+            "name": "DeepSeek V3 0324 (PPIO派欧云)",
+            "tooltip": "DeepSeek V3 0324 是深度求索团队旗舰级对话模型系列的最新版本，采用混合专家（Mixture-of-Experts, MoE）架构，参数量达685B参数。",
+            "maxInputTokens": 163840,
+            "maxOutputTokens": 163840,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "deepseek/deepseek-v3/community",
+            "name": "DeepSeek V3 (Community) (PPIO派欧云)",
+            "tooltip": "DeepSeek-V3在推理速度方面实现了比之前模型的重大突破。在开源模型中排名第一，并可与全球最先进的闭源模型相媲美。",
+            "maxInputTokens": 64000,
+            "maxOutputTokens": 4000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "deepseek/deepseek-v3-turbo",
+            "name": "DeepSeek V3 (Turbo) (PPIO派欧云)",
+            "tooltip": "DeepSeek V3 (Turbo) 是派欧算力云平台提供的最新高性能DeepSeek V3 模型。在推理速度方面实现了重大突破，在开源模型中排名第一。",
+            "maxInputTokens": 64000,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "deepseek/deepseek-prover-v2-671b",
+            "name": "Deepseek Prover V2 671B (PPIO派欧云)",
+            "tooltip": "Deepseek 全新开源模型 DeepSeek-Prover-V2-671B，专注于数学定理证明任务。基于混合专家架构，利用Lean 4框架进行形式化推理训练。",
+            "maxInputTokens": 160000,
+            "maxOutputTokens": 160000,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "zai-org/glm-4.6",
+            "name": "GLM 4.6 (PPIO派欧云)",
+            "tooltip": "GLM-4.6 是智谱最新的旗舰模型，总参数量 355B，激活参数 32B，上下文提升至 200K，在编程、推理、搜索、写作、智能体应用等核心能力均完成对 GLM-4.5 的超越。",
+            "maxInputTokens": 204800,
+            "maxOutputTokens": 131072,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "zai-org/glm-4.5",
+            "name": "GLM-4.5 (PPIO派欧云)",
+            "tooltip": "GLM-4.5系列模型是专为智能体（Agent）研发的基座模型，提供思考模式和即时响应模式，满足复杂场景需求。",
+            "maxInputTokens": 131072,
+            "maxOutputTokens": 98304,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "zai-org/glm-4.5v",
+            "name": "GLM 4.5V (PPIO派欧云)",
+            "tooltip": "GLM-4.5V视觉推理模型树立了行业新标杆，在42项基准测试中均达到同规模开源模型的最高水平，具备全方位的视觉理解能力。",
+            "maxInputTokens": 65536,
+            "maxOutputTokens": 16384,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "moonshotai/kimi-k2-0905",
+            "name": "Kimi K2 0905 (PPIO派欧云)",
+            "tooltip": "Kimi K2 0905 是 Kimi K2 0711 的九月更新版本。支持长上下文推理，最高可达25.6万tokens，改进了智能体编程能力和前端编程能力。",
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 262144,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "moonshotai/kimi-k2-instruct",
+            "name": "Kimi K2 Instruct (PPIO派欧云)",
+            "tooltip": "Kimi K2 是一种最先进的专家混合语言模型，具有 320 亿个激活参数和 1 万亿个总参数。针对代理功能进行了精心优化，专为工具使用、推理和自主解决问题而设计。",
+            "maxInputTokens": 131072,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "minimaxai/minimax-m1-80k",
+            "name": "MiniMaxAI/MiniMax-M1-80k (PPIO派欧云)",
+            "tooltip": "MiniMax-M1世界上第一个开放权重、大规模混合注意力推理模型。采用混合专家架构，原生支持100万token的上下文长度。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 40000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen/qwen3-vl-235b-a22b-instruct",
+            "name": "Qwen3 VL 235B A22B Instruct (PPIO派欧云)",
+            "tooltip": "Qwen3-VL Instruct版本——迄今为止Qwen系列中最强大的视觉-语言模型。配备Instruct版本以实现灵活的按需部署，支持Function Calling、结构化输出、vision和reasoning能力。",
+            "maxInputTokens": 131072,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qwen/qwen3-vl-235b-a22b-thinking",
+            "name": "Qwen3 VL 235B A22B Thinking (PPIO派欧云)",
+            "tooltip": "Qwen3-VL——迄今为止Qwen系列中最强大的视觉-语言模型。提供Dense和MoE两种架构，支持Function Calling、结构化输出、vision和reasoning能力。",
+            "maxInputTokens": 131072,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qwen/qwen3-next-80b-a3b-instruct",
+            "name": "Qwen3 Next 80B A3B Instruct (PPIO派欧云)",
+            "tooltip": "Qwen3-Next采用高度稀疏的混合专家(MoE)架构设计，总参数量达800亿。性能接近旗舰模型Qwen3-235B-A22B-Instruct-2507。",
+            "maxInputTokens": 65536,
+            "maxOutputTokens": 65536,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen/qwen3-next-80b-a3b-thinking",
+            "name": "Qwen3 Next 80B A3B Thinking (PPIO派欧云)",
+            "tooltip": "Qwen3-Next采用高度稀疏的混合专家（MoE）架构设计，总参数量达800亿。在复杂推理任务中表现卓越，逼近旗舰模型性能。",
+            "maxInputTokens": 65536,
+            "maxOutputTokens": 65536,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen/qwen3-coder-480b-a35b-instruct",
+            "name": "Qwen3 Coder 480B A35B Instruct (PPIO派欧云)",
+            "tooltip": "Qwen3-Coder-480B-A35B-Instruct 是尖端开源编程模型，在智能体编程、浏览器自动化及核心开发任务中达到与Claude Sonnet同等的性能水平。",
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 65536,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen/qwen3-235b-a22b-thinking-2507",
+            "name": "Qwen3 235B A22b Thinking 2507 (PPIO派欧云)",
+            "tooltip": "Qwen3-235B-A22B-Thinking-2507是Qwen3系列最新推出的具备思维能力的突破性模型，在推理能力方面实现了跨越式提升，在开源思维模型中树立了全新的性能标杆。",
+            "maxInputTokens": 131072,
+            "maxOutputTokens": 114688,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen/qwen3-235b-a22b-instruct-2507",
+            "name": "Qwen3 235B A22B Instruct 2507 (PPIO派欧云)",
+            "tooltip": "Qwen3-235B-A22B-Instruct-2507 是基于 Qwen3-235B 架构的多语言指令微调混合专家语言模型，针对通用文本生成任务优化，擅长多语言理解、数学推理等能力。",
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 260000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen/qwen3-235b-a22b-fp8",
+            "name": "Qwen3-235B-A22B (PPIO派欧云)",
+            "tooltip": "Qwen3-235B-A22B实现推理模式和非推理模式的有效融合，推理能力显著超过QwQ，通用能力显著超过Qwen2.5-72B-Instruct。",
+            "maxInputTokens": 40960,
+            "maxOutputTokens": 20000,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen/qwen3-32b-fp8",
+            "name": "Qwen3 32B (PPIO派欧云)",
+            "tooltip": "Qwen3 32B实现推理模式和非推理模式的有效融合，推理能力显著超过QwQ，通用能力显著超过Qwen2.5-32B-Instruct。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 20000,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen/qwen3-30b-a3b-fp8",
+            "name": "Qwen3-30B-A3B (PPIO派欧云)",
+            "tooltip": "Qwen3-30B-A3B实现推理模式和非推理模式的有效融合，推理能力以更小参数规模比肩QwQ-32B，通用能力显著超过Qwen2.5-14B。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 20000,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen/qwen3-8b-fp8",
+            "name": "Qwen3 8B (PPIO派欧云)",
+            "tooltip": "Qwen3 8B实现思考模式和非思考模式的有效融合，推理能力达到同规模业界SOTA水平，通用能力显著超过Qwen2.5-7B。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 20000,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen/qwen3-4b-fp8",
+            "name": "Qwen3 4B (PPIO派欧云)",
+            "tooltip": "Qwen3 4B实现思考模式和非思考模式的有效融合，推理能力达到同规模业界SOTA水平，人类偏好能力显著增强。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 20000,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen/qwen-2.5-72b-instruct",
+            "name": "Qwen2.5 72B Instruct (PPIO派欧云)",
+            "tooltip": "Qwen2.5-72B-Instruct 是阿里云发布的最新大语言模型系列之一，在编码和数学等领域具有显著改进的能力，提供多语言支持。",
+            "maxInputTokens": 32000,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen/qwen2.5-vl-72b-instruct",
+            "name": "Qwen2.5 VL 72B Instruct (PPIO派欧云)",
+            "tooltip": "Qwen2.5-VL 是 Qwen2.5 系列最新推出的视觉语言模型，具备更强的视觉理解能力，能够识别物体、分析文本、图表和布局。",
+            "maxInputTokens": 32768,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qwen/qwen2.5-32b-instruct",
+            "name": "Qwen2.5 32B Instruct (PPIO派欧云)",
+            "tooltip": "Qwen2.5-32B-Instruct 是阿里云发布的最新大语言模型系列之一，在编码和数学等领域具有显著改进的能力，提供多语言支持。",
+            "maxInputTokens": 32000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen/qwen2.5-7b-instruct",
+            "name": "Qwen 2.5 7B Instruct (PPIO派欧云)",
+            "tooltip": "Qwen2.5 是 Qwen 大语言模型的最新系列，在编程和数学能力上有大幅增强，支持长上下文和多语言。",
+            "maxInputTokens": 32000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "kwaipilot/kat-dev",
+            "name": "Kwaipilot-Kat-Dev (PPIO派欧云)",
+            "tooltip": "KAT-Dev-32B 是一个开源的320亿参数模型，专门用于软件工程任务。在 SWE-Bench Verified 测试中实现了 62.4% 的解决率。",
+            "maxInputTokens": 65536,
+            "maxOutputTokens": 65536,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "kat-coder",
+            "name": "KAT-Coder (PPIO派欧云)",
+            "tooltip": "KAT-Coder 是专门为编程任务优化的模型，具备强大的代码生成和理解能力。",
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 65536,
+            "capabilities": {
+                "toolCalling": false,
+                "imageInput": false
+            }
+        }
+    ]
+}

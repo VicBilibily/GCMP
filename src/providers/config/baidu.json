@@ -92,6 +92,50 @@
             }
         },
         {
+            "id": "deepseek-v3.1-think-250821",
+            "name": "DeepSeek-V3.1-Think-250821 (百度智能云)",
+            "tooltip": "DeepSeek V3.1 Think 深度思考模型，支持128k上下文长度，最大输入96k tokens。",
+            "maxInputTokens": 96000,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "deepseek-v3.1-250821",
+            "name": "DeepSeek-V3.1-250821 (百度智能云)",
+            "tooltip": "DeepSeek V3.1 模型，支持128k上下文长度，最大输入128k tokens。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "deepseek-v3",
+            "name": "DeepSeek-V3-250324 (百度智能云)",
+            "tooltip": "DeepSeek V3 模型，支持128k上下文长度，最大输入128k tokens。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "kimi-k2-instruct",
+            "name": "Kimi-K2-Instruct (百度智能云)",
+            "tooltip": "Kimi K2 Instruct 模型，支持128k上下文长度，最大输入128k tokens。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
             "id": "qwen3-next-80b-a3b-instruct",
             "name": "Qwen3-Next-80B-A3B-Instruct (百度智能云)",
             "tooltip": "Qwen3 Next 80B A3B Instruct 模型，支持128k上下文长度，最大输入126k tokens。",
@@ -295,50 +339,6 @@
             "tooltip": "QWQ 32B 深度思考模型，支持32k上下文长度。",
             "maxInputTokens": 16384,
             "maxOutputTokens": 8192,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "deepseek-v3.1-think-250821",
-            "name": "DeepSeek-V3.1-Think-250821 (百度智能云)",
-            "tooltip": "DeepSeek V3.1 Think 深度思考模型，支持128k上下文长度，最大输入96k tokens。",
-            "maxInputTokens": 96000,
-            "maxOutputTokens": 32768,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "deepseek-v3.1-250821",
-            "name": "DeepSeek-V3.1-250821 (百度智能云)",
-            "tooltip": "DeepSeek V3.1 模型，支持128k上下文长度，最大输入128k tokens。",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 16000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "deepseek-v3",
-            "name": "DeepSeek-V3-250324 (百度智能云)",
-            "tooltip": "DeepSeek V3 模型，支持128k上下文长度，最大输入128k tokens。",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 16000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "kimi-k2-instruct",
-            "name": "Kimi-K2-Instruct (百度智能云)",
-            "tooltip": "Kimi K2 Instruct 模型，支持128k上下文长度，最大输入128k tokens。",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 32768,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false

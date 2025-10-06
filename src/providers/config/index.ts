@@ -11,6 +11,7 @@ import volcengine from './volcengine.json';
 import ucloud from './ucloud.json';
 import coreshub from './coreshub.json';
 import paratera from './paratera.json';
+import ppio from './ppio.json';
 import lanyun from './lanyun.json';
 import qiniu from './qiniu.json';
 import sophnet from './sophnet.json';
@@ -29,6 +30,7 @@ export const configProviders = {
     ucloud,
     coreshub,
     paratera,
+    ppio,
     lanyun,
     qiniu,
     sophnet,
