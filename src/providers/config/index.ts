@@ -3,6 +3,7 @@ import zhipu from './zhipu.json';
 import iflow from './iflow.json';
 import moonshot from './moonshot.json';
 import deepseek from './deepseek.json';
+import dashscope from './dashscope.json';
 import minimax from './minimax.json';
 import huaweicloud from './huaweicloud.json';
 import tencentcloud from './tencentcloud.json';
@@ -23,6 +24,7 @@ export const configProviders = {
     iflow,
     moonshot,
     deepseek,
+    dashscope,
     minimax,
     huaweicloud,
     tencentcloud,

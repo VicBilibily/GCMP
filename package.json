@@ -2,7 +2,7 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、基石智算、并行智算云、蓝耘元生代、七牛云、SophNet、百度智能云、PPIO派欧云、无问芯穹 模型支持的扩展",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、阿里云百炼、基石智算、并行智算云、蓝耘元生代、七牛云、SophNet、百度智能云、PPIO派欧云、无问芯穹 模型支持的扩展",
     "version": "0.5.11",
     "license": "MIT",
     "keywords": [
@@ -15,6 +15,7 @@
         "iflow",
         "moonshot",
         "deepseek",
+        "dashscope",
         "coreshub",
         "paratera",
         "lanyun",
@@ -28,6 +29,7 @@
         "心流",
         "月之暗面",
         "深度求索",
+        "阿里云百炼",
         "基石智算",
         "并行智算云",
         "蓝耘元生代",
@@ -60,6 +62,7 @@
         "onLanguageModelProvider:gcmp.iflow",
         "onLanguageModelProvider:gcmp.moonshot",
         "onLanguageModelProvider:gcmp.deepseek",
+        "onLanguageModelProvider:gcmp.dashscope",
         "onLanguageModelProvider:gcmp.minimax",
         "onLanguageModelProvider:gcmp.huaweicloud",
         "onLanguageModelProvider:gcmp.tencentcloud",
@@ -101,6 +104,11 @@
             {
                 "command": "gcmp.deepseek.setApiKey",
                 "title": "设置 DeepSeek API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.dashscope.setApiKey",
+                "title": "设置 阿里云百炼 API密钥",
                 "category": "GCMP"
             },
             {
@@ -247,6 +255,11 @@
                 "vendor": "gcmp.deepseek",
                 "displayName": "DeepSeek",
                 "managementCommand": "gcmp.deepseek.setApiKey"
+            },
+            {
+                "vendor": "gcmp.dashscope",
+                "displayName": "阿里云百炼",
+                "managementCommand": "gcmp.dashscope.setApiKey"
             },
             {
                 "vendor": "gcmp.minimax",
