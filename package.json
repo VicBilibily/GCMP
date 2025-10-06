@@ -2,7 +2,7 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、基石智算、并行智算云、蓝耘元生代、七牛云、SophNet、百度智能云、PPIO派欧云 模型支持的扩展",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、基石智算、并行智算云、蓝耘元生代、七牛云、SophNet、百度智能云、PPIO派欧云、无问芯穹 模型支持的扩展",
     "version": "0.5.11",
     "license": "MIT",
     "keywords": [
@@ -22,6 +22,7 @@
         "sophnet",
         "baidu",
         "ppio",
+        "infini",
         "派欧云",
         "智谱",
         "心流",
@@ -32,7 +33,8 @@
         "蓝耘元生代",
         "七牛云",
         "SophNet",
-        "百度智能云"
+        "百度智能云",
+        "无问芯穹"
     ],
     "repository": {
         "type": "git",
@@ -71,6 +73,7 @@
         "onLanguageModelProvider:gcmp.qiniu",
         "onLanguageModelProvider:gcmp.sophnet",
         "onLanguageModelProvider:gcmp.baidu",
+        "onLanguageModelProvider:gcmp.infini",
         "onLanguageModelTool:gcmp_zhipuWebSearch"
     ],
     "contributes": {
@@ -163,6 +166,11 @@
             {
                 "command": "gcmp.baidu.setApiKey",
                 "title": "设置 百度智能云 API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.infini.setApiKey",
+                "title": "设置 无问芯穹 API密钥",
                 "category": "GCMP"
             }
         ],
@@ -304,6 +312,11 @@
                 "vendor": "gcmp.baidu",
                 "displayName": "百度智能云",
                 "managementCommand": "gcmp.baidu.setApiKey"
+            },
+            {
+                "vendor": "gcmp.infini",
+                "displayName": "无问芯穹",
+                "managementCommand": "gcmp.infini.setApiKey"
             }
         ],
         "languageModelTools": [

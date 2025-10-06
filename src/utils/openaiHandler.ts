@@ -100,12 +100,6 @@ export class OpenAIHandler {
                         // 处理 "data:{json}" -> "data: {json}"
                         chunk = chunk.replace(/^data:([^\s])/gm, 'data: $1');
                         Logger.trace(`接收到 SSE chunk: ${chunk.length} 字符，chunk=${chunk}`);
-
-                        if (chunk === '[DONE]') {
-                            controller.close();
-                            break;
-                        }
-
                         // 判断并处理 chunk 中所有的 data: {json} 对象，兼容部分模型使用旧格式把内容放在 choice.message
                         try {
                             const dataRegex = /^data: (.*)$/gm;

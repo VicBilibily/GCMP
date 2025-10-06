@@ -16,6 +16,7 @@ import lanyun from './lanyun.json';
 import qiniu from './qiniu.json';
 import sophnet from './sophnet.json';
 import baidu from './baidu.json';
+import infini from './infini.json';
 
 export const configProviders = {
     zhipu,
@@ -34,7 +35,8 @@ export const configProviders = {
     lanyun,
     qiniu,
     sophnet,
-    baidu
+    baidu,
+    infini
 };
 
 export type ProviderName = keyof typeof configProviders;
