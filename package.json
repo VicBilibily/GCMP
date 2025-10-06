@@ -95,11 +95,6 @@
                 "category": "GCMP"
             },
             {
-                "command": "gcmp.iflow.refreshModels",
-                "title": "刷新 心流AI 模型列表",
-                "category": "GCMP"
-            },
-            {
                 "command": "gcmp.moonshot.setApiKey",
                 "title": "设置 MoonshotAI API密钥",
                 "category": "GCMP"

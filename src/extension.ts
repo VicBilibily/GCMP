@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { GenericModelProvider } from './providers/genericModelProvider';
-import { IFlowDynamicProvider } from './providers/iflowDynamicProvider';
 import { Logger } from './utils/logger';
 import { ApiKeyManager, ConfigManager } from './utils';
 import { registerAllTools } from './tools';
@@ -10,7 +9,6 @@ import { registerAllTools } from './tools';
  */
 let registeredProviders: Record<string, GenericModelProvider> = {};
 let registeredDisposables: vscode.Disposable[] = [];
-let iflowProvider: IFlowDynamicProvider | null = null; // 特别跟踪心流AI提供商实例
 
 /**
  * 激活供应商 - 基于配置文件动态注册
@@ -28,17 +26,14 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
         try {
             Logger.trace(`正在注册供应商: ${providerConfig.displayName} (${providerKey})`);
 
-            if (providerKey === 'iflow') {
-                // 特殊处理 iFlow 心流AI 提供商，使用动态模型注册
-                const { provider, disposables } = IFlowDynamicProvider.createAndActivate(context, providerKey, providerConfig);
-                iflowProvider = provider;
-                registeredDisposables.push(...disposables);
-            } else {
-                // 使用通用供应商创建实例（包括 ucloud）
-                const { provider, disposables } = GenericModelProvider.createAndActivate(context, providerKey, providerConfig);
-                registeredProviders[providerKey] = provider;
-                registeredDisposables.push(...disposables);
-            }
+            // 使用通用供应商创建实例
+            const { provider, disposables } = GenericModelProvider.createAndActivate(
+                context,
+                providerKey,
+                providerConfig
+            );
+            registeredProviders[providerKey] = provider;
+            registeredDisposables.push(...disposables);
 
             Logger.info(`${providerConfig.displayName} 供应商注册成功`);
         } catch (error) {
@@ -57,12 +52,6 @@ async function reRegisterProviders(context: vscode.ExtensionContext): Promise<vo
     registeredDisposables.forEach(disposable => disposable.dispose());
     registeredDisposables = [];
     registeredProviders = {};
-
-    // 清理心流AI提供商
-    if (iflowProvider) {
-        iflowProvider.dispose();
-        iflowProvider = null;
-    }
 
     // 重新激活供应商
     await activateProviders(context);
@@ -100,7 +89,7 @@ export async function activate(context: vscode.ExtensionContext) {
         registerAllTools(context);
 
         // 监听配置变更，特别是 editToolMode
-        const configChangeDisposable = vscode.workspace.onDidChangeConfiguration(async (event) => {
+        const configChangeDisposable = vscode.workspace.onDidChangeConfiguration(async event => {
             if (event.affectsConfiguration('gcmp.editToolMode')) {
                 Logger.info('检测到 editToolMode 配置变更，正在重新注册所有供应商...');
 
@@ -136,12 +125,6 @@ export async function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
     try {
         Logger.info('开始停用 GCMP 扩展...');
-
-        // 清理心流AI提供商
-        if (iflowProvider) {
-            iflowProvider.dispose();
-            iflowProvider = null;
-        }
 
         ConfigManager.dispose(); // 清理配置管理器
         Logger.info('GCMP 扩展停用完成');

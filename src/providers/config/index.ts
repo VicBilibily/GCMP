@@ -1,3 +1,4 @@
+import { ProviderConfig } from '../../types/sharedTypes';
 // 统一导出所有模型配置，便于代码 import
 import zhipu from './zhipu.json';
 import iflow from './iflow.json';
@@ -20,7 +21,7 @@ import baidu from './baidu.json';
 import infini from './infini.json';
 import siliconflow from './siliconflow.json';
 
-export const configProviders = {
+const providers = {
     zhipu,
     iflow,
     moonshot,
@@ -43,4 +44,6 @@ export const configProviders = {
     siliconflow
 };
 
-export type ProviderName = keyof typeof configProviders;
+export type ProviderName = keyof typeof providers;
+
+export const configProviders = providers as Record<ProviderName, ProviderConfig>;
