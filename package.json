@@ -265,29 +265,9 @@
                 "managementCommand": "gcmp.deepseek.setApiKey"
             },
             {
-                "vendor": "gcmp.dashscope",
-                "displayName": "阿里云百炼",
-                "managementCommand": "gcmp.dashscope.setApiKey"
-            },
-            {
                 "vendor": "gcmp.minimax",
                 "displayName": "MiniMax",
                 "managementCommand": "gcmp.minimax.setApiKey"
-            },
-            {
-                "vendor": "gcmp.huaweicloud",
-                "displayName": "华为云",
-                "managementCommand": "gcmp.huaweicloud.setApiKey"
-            },
-            {
-                "vendor": "gcmp.tencentcloud",
-                "displayName": "腾讯云",
-                "managementCommand": "gcmp.tencentcloud.setApiKey"
-            },
-            {
-                "vendor": "gcmp.jdcloud",
-                "displayName": "京东云",
-                "managementCommand": "gcmp.jdcloud.setApiKey"
             },
             {
                 "vendor": "gcmp.volcengine",
@@ -295,54 +275,74 @@
                 "managementCommand": "gcmp.volcengine.setApiKey"
             },
             {
-                "vendor": "gcmp.ucloud",
-                "displayName": "UCloud",
-                "managementCommand": "gcmp.ucloud.setApiKey"
+                "vendor": "gcmp.dashscope",
+                "displayName": "阿里云百炼",
+                "managementCommand": "gcmp.dashscope.setApiKey"
+            },
+            {
+                "vendor": "gcmp.siliconflow",
+                "displayName": "硅基流动 (Beta)",
+                "managementCommand": "gcmp.siliconflow.setApiKey"
+            },
+            {
+                "vendor": "gcmp.infini",
+                "displayName": "无问芯穹 (Beta)",
+                "managementCommand": "gcmp.infini.setApiKey"
             },
             {
                 "vendor": "gcmp.coreshub",
-                "displayName": "基石智算",
+                "displayName": "基石智算 (Beta)",
                 "managementCommand": "gcmp.coreshub.setApiKey"
             },
             {
+                "vendor": "gcmp.tencentcloud",
+                "displayName": "腾讯云 (Beta)",
+                "managementCommand": "gcmp.tencentcloud.setApiKey"
+            },
+            {
+                "vendor": "gcmp.huaweicloud",
+                "displayName": "华为云 (Beta)",
+                "managementCommand": "gcmp.huaweicloud.setApiKey"
+            },
+            {
+                "vendor": "gcmp.jdcloud",
+                "displayName": "京东云 (Beta)",
+                "managementCommand": "gcmp.jdcloud.setApiKey"
+            },
+            {
+                "vendor": "gcmp.qiniu",
+                "displayName": "七牛云 (Beta)",
+                "managementCommand": "gcmp.qiniu.setApiKey"
+            },
+            {
+                "vendor": "gcmp.ucloud",
+                "displayName": "UCloud (Beta)",
+                "managementCommand": "gcmp.ucloud.setApiKey"
+            },
+            {
+                "vendor": "gcmp.sophnet",
+                "displayName": "SophNet (Beta)",
+                "managementCommand": "gcmp.sophnet.setApiKey"
+            },
+            {
                 "vendor": "gcmp.paratera",
-                "displayName": "并行智算云",
+                "displayName": "并行智算云 (Beta)",
                 "managementCommand": "gcmp.paratera.setApiKey"
             },
             {
                 "vendor": "gcmp.ppio",
-                "displayName": "PPIO派欧云",
+                "displayName": "PPIO派欧云 (Beta)",
                 "managementCommand": "gcmp.ppio.setApiKey"
             },
             {
                 "vendor": "gcmp.lanyun",
-                "displayName": "蓝耘元生代",
+                "displayName": "蓝耘元生代 (Beta)",
                 "managementCommand": "gcmp.lanyun.setApiKey"
             },
             {
-                "vendor": "gcmp.qiniu",
-                "displayName": "七牛云",
-                "managementCommand": "gcmp.qiniu.setApiKey"
-            },
-            {
-                "vendor": "gcmp.sophnet",
-                "displayName": "SophNet",
-                "managementCommand": "gcmp.sophnet.setApiKey"
-            },
-            {
                 "vendor": "gcmp.baidu",
-                "displayName": "百度智能云",
+                "displayName": "百度智能云 (Beta)",
                 "managementCommand": "gcmp.baidu.setApiKey"
-            },
-            {
-                "vendor": "gcmp.infini",
-                "displayName": "无问芯穹",
-                "managementCommand": "gcmp.infini.setApiKey"
-            },
-            {
-                "vendor": "gcmp.siliconflow",
-                "displayName": "硅基流动",
-                "managementCommand": "gcmp.siliconflow.setApiKey"
             }
         ],
         "languageModelTools": [
