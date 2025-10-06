@@ -266,6 +266,17 @@
                 "toolCalling": true,
                 "imageInput": false
             }
+        },
+        {
+            "id": "step3",
+            "name": "Step3 (无问芯穹)",
+            "tooltip": "Step3 是尖端的多模态推理模型，基于专家混合架构构建，拥有 3210 亿总参数量，其中 380 亿活跃参数。该模型从端到端设计，旨在最小化解码成本，同时在视觉-语言推理任务中提供顶级性能。",
+            "maxInputTokens": 64000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
         }
     ]
 }

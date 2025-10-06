@@ -2,7 +2,7 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、阿里云百炼、基石智算、并行智算云、蓝耘元生代、七牛云、SophNet、百度智能云、PPIO派欧云、无问芯穹 模型支持的扩展",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、阿里云百炼、基石智算、并行智算云、蓝耘元生代、七牛云、SophNet、百度智能云、PPIO派欧云、无问芯穹、硅基流动 模型支持的扩展",
     "version": "0.5.11",
     "license": "MIT",
     "keywords": [
@@ -24,6 +24,7 @@
         "baidu",
         "ppio",
         "infini",
+        "siliconflow",
         "派欧云",
         "智谱",
         "心流",
@@ -36,7 +37,8 @@
         "七牛云",
         "SophNet",
         "百度智能云",
-        "无问芯穹"
+        "无问芯穹",
+        "硅基流动"
     ],
     "repository": {
         "type": "git",
@@ -77,6 +79,7 @@
         "onLanguageModelProvider:gcmp.sophnet",
         "onLanguageModelProvider:gcmp.baidu",
         "onLanguageModelProvider:gcmp.infini",
+        "onLanguageModelProvider:gcmp.siliconflow",
         "onLanguageModelTool:gcmp_zhipuWebSearch"
     ],
     "contributes": {
@@ -179,6 +182,11 @@
             {
                 "command": "gcmp.infini.setApiKey",
                 "title": "设置 无问芯穹 API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.siliconflow.setApiKey",
+                "title": "设置 硅基流动 API密钥",
                 "category": "GCMP"
             }
         ],
@@ -330,6 +338,11 @@
                 "vendor": "gcmp.infini",
                 "displayName": "无问芯穹",
                 "managementCommand": "gcmp.infini.setApiKey"
+            },
+            {
+                "vendor": "gcmp.siliconflow",
+                "displayName": "硅基流动",
+                "managementCommand": "gcmp.siliconflow.setApiKey"
             }
         ],
         "languageModelTools": [

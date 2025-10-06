@@ -18,6 +18,7 @@ import qiniu from './qiniu.json';
 import sophnet from './sophnet.json';
 import baidu from './baidu.json';
 import infini from './infini.json';
+import siliconflow from './siliconflow.json';
 
 export const configProviders = {
     zhipu,
@@ -38,7 +39,8 @@ export const configProviders = {
     qiniu,
     sophnet,
     baidu,
-    infini
+    infini,
+    siliconflow
 };
 
 export type ProviderName = keyof typeof configProviders;
