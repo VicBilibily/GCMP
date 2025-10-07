@@ -7,7 +7,6 @@ import deepseek from './deepseek.json';
 import volcengine from './volcengine.json';
 import dashscope from './dashscope.json';
 import minimax from './minimax.json';
-import modelscope from './modelscope.json';
 import siliconflow from './siliconflow.json';
 import infini from './infini.json';
 import coreshub from './coreshub.json';
@@ -30,7 +29,6 @@ const providers = {
     volcengine,
     dashscope,
     minimax,
-    modelscope,
     siliconflow,
     infini,
     coreshub,

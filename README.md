@@ -84,7 +84,6 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 > 由于各供应商 OpenAI 的兼容性问题，部分情况下可能会报错或卡住不动，建议先查看本地输出的日志后提交 Issue 进一步处理。
 
 [**MiniMax**](https://platform.minimaxi.com/login)、
-[**ModelScope**](https://www.modelscope.cn/)、
 [**硅基流动**](https://siliconflow.cn/)、
 [**无问芯穹**](https://cloud.infini-ai.com/)、
 [**基石智算**](https://www.coreshub.cn/)、

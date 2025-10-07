@@ -126,6 +126,18 @@ export function deactivate() {
     try {
         Logger.info('开始停用 GCMP 扩展...');
 
+        // 清理所有已注册供应商的资源
+        for (const [providerKey, provider] of Object.entries(registeredProviders)) {
+            try {
+                if (typeof provider.dispose === 'function') {
+                    provider.dispose();
+                    Logger.trace(`已清理供应商 ${providerKey} 的资源`);
+                }
+            } catch (error) {
+                Logger.warn(`清理供应商 ${providerKey} 资源时出错:`, error);
+            }
+        }
+
         ConfigManager.dispose(); // 清理配置管理器
         Logger.info('GCMP 扩展停用完成');
         Logger.dispose(); // 在扩展销毁时才 dispose Logger

@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、火山方舟、阿里云百炼 模型支持的扩展",
-    "version": "0.6.1",
+    "version": "0.6.2",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -17,7 +17,6 @@
         "deepseek",
         "volcengine",
         "dashscope",
-        "modelscope",
         "minimax",
         "siliconflow",
         "infini",
@@ -38,7 +37,6 @@
         "深度求索",
         "火山方舟",
         "阿里云百炼",
-        "魔搭社区",
         "硅基流动",
         "无问芯穹",
         "基石智算",
@@ -78,7 +76,6 @@
         "onLanguageModelProvider:gcmp.volcengine",
         "onLanguageModelProvider:gcmp.dashscope",
         "onLanguageModelProvider:gcmp.minimax",
-        "onLanguageModelProvider:gcmp.modelscope",
         "onLanguageModelProvider:gcmp.siliconflow",
         "onLanguageModelProvider:gcmp.infini",
         "onLanguageModelProvider:gcmp.coreshub",
@@ -129,11 +126,6 @@
             {
                 "command": "gcmp.minimax.setApiKey",
                 "title": "设置 MiniMax API密钥",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.modelscope.setApiKey",
-                "title": "设置 ModelScope API密钥",
                 "category": "GCMP"
             },
             {
@@ -292,11 +284,6 @@
                 "managementCommand": "gcmp.minimax.setApiKey"
             },
             {
-                "vendor": "gcmp.modelscope",
-                "displayName": "ModelScope (Beta)",
-                "managementCommand": "gcmp.modelscope.setApiKey"
-            },
-            {
                 "vendor": "gcmp.siliconflow",
                 "displayName": "硅基流动 (Beta)",
                 "managementCommand": "gcmp.siliconflow.setApiKey"
@@ -451,7 +438,7 @@
     },
     "dependencies": {
         "@microsoft/tiktokenizer": "^1.0.10",
-        "openai": "^5.23.2"
+        "openai": "6.2"
     },
     "devDependencies": {
         "@eslint/js": "^9.13.0",

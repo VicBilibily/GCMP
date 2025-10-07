@@ -150,12 +150,7 @@ export class OpenAIHandler {
                                                     objModified = true;
                                                 }
                                             }
-                                            if (choice && (Object.keys(choice).includes('finish_reason') && !choice.finish_reason)) {
-                                                Logger.trace(`preprocessSSEResponse 移除无效的 finish_reason 值 (choice ${choiceIndex})`);
-                                                delete choice.delta.finish_reason;
-                                                objModified = true;
-                                            }
-                                            if (choice?.delta && (Object.keys(choice.delta).length === 0 || Object.values(choice.delta).every(value => !!value === false))) {
+                                            if (choice?.delta && Object.keys(choice.delta).length === 0) {
                                                 if (choice?.finish_reason) { continue; } // 避免移除有效的空 delta
                                                 Logger.trace(`preprocessSSEResponse 移除无效的 delta (choice ${choiceIndex})`);
                                                 // 直接从数组中移除无效choice
@@ -163,13 +158,6 @@ export class OpenAIHandler {
                                                 objModified = true;
                                             }
                                         }
-                                    }
-
-                                    // 如果所有choices都被移除，则跳过整个chunk
-                                    if (obj.choices.length === 0) {
-                                        Logger.trace('preprocessSSEResponse 所有choices都被移除，跳过该chunk');
-                                        transformed = transformed.replace(m[0], '');
-                                        continue;
                                     }
 
                                     // 只有在对象被修改时才重新序列化
