@@ -536,8 +536,9 @@ export class OpenAIHandler {
     /**
      * 参照官方实现的消息转换 - 使用 OpenAI SDK 标准模式
      * 支持文本、图片和工具调用
+     * 公共方法，可被其他 Provider 复用
      */
-    private convertMessagesToOpenAI(
+    convertMessagesToOpenAI(
         messages: readonly vscode.LanguageModelChatMessage[],
         capabilities?: { toolCalling?: boolean | number; imageInput?: boolean }
     ): OpenAI.Chat.ChatCompletionMessageParam[] {
@@ -558,7 +559,7 @@ export class OpenAIHandler {
     /**
      * 转换单个消息 - 参照 OpenAI SDK 官方模式
      */
-    private convertSingleMessage(
+    public convertSingleMessage(
         message: vscode.LanguageModelChatMessage,
         capabilities?: { toolCalling?: boolean | number; imageInput?: boolean }
     ): OpenAI.Chat.ChatCompletionMessageParam | OpenAI.Chat.ChatCompletionMessageParam[] | null {
@@ -797,8 +798,9 @@ export class OpenAIHandler {
 
     /**
      * 工具转换 - 确保参数格式正确
+     * 公共方法，可被其他 Provider 复用
      */
-    private convertToolsToOpenAI(tools: vscode.LanguageModelChatTool[]): OpenAI.Chat.ChatCompletionTool[] {
+    public convertToolsToOpenAI(tools: vscode.LanguageModelChatTool[]): OpenAI.Chat.ChatCompletionTool[] {
         return tools.map(tool => {
             const functionDef: OpenAI.Chat.ChatCompletionTool = {
                 type: 'function',
@@ -836,7 +838,7 @@ export class OpenAIHandler {
     /**
      * 检查是否为图片MIME类型
      */
-    private isImageMimeType(mimeType: string): boolean {
+    public isImageMimeType(mimeType: string): boolean {
         // 标准化MIME类型
         const normalizedMime = mimeType.toLowerCase().trim();
         // 支持的图像类型
@@ -859,10 +861,12 @@ export class OpenAIHandler {
             Logger.trace(`📄 非图像数据类型: ${mimeType}`);
         }
         return isImageCategory && isSupported;
-    } /**
+    }
+
+    /**
      * 创建图片的data URL
      */
-    private createDataUrl(dataPart: vscode.LanguageModelDataPart): string {
+    public createDataUrl(dataPart: vscode.LanguageModelDataPart): string {
         try {
             const base64Data = Buffer.from(dataPart.data).toString('base64');
             const dataUrl = `data:${dataPart.mimeType};base64,${base64Data}`;

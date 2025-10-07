@@ -20,6 +20,7 @@ import ppio from './ppio.json';
 import lanyun from './lanyun.json';
 import sophnet from './sophnet.json';
 import baidu from './baidu.json';
+import modelscope from './modelscope.json';
 
 const providers = {
     zhipu,
@@ -29,6 +30,7 @@ const providers = {
     volcengine,
     dashscope,
     minimax,
+    modelscope,
     siliconflow,
     infini,
     coreshub,

@@ -86,6 +86,7 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 > 由于各供应商 OpenAI 的兼容性问题，部分情况下可能会报错或卡住不动，建议先查看本地输出的日志后提交 Issue 进一步处理。
 
 [**MiniMax**](https://platform.minimaxi.com/login)、
+[**ModelScope**](https://www.modelscope.cn/)、
 [**硅基流动**](https://siliconflow.cn/)、
 [**无问芯穹**](https://cloud.infini-ai.com/)、
 [**基石智算**](https://www.coreshub.cn/)、
@@ -102,7 +103,6 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 
 > 暂不适配的供应商（2025年10月）：
 
-- **魔搭社区（ModelScope）**：魔搭社区平台OpenAI接口输出格式不兼容新版本的 `OpenAI SDK`，存在大量兼容问题，故不作适配。
 - [**SenseCore (商汤大装置)**](https://console.sensecore.cn/aistudio)：经测试，所有模型的Tools工具调用返回格式不兼容。
 - [**金山云星流**](https://www.ksyun.com/nv/product/KSP)：企业独立部署模式，暂不支持个人用户认证注册使用。
 - [**天翼云**](https://www.ctyun.cn/products/huiju)：运营商云，都是旧版本模型，模型更新并不给力。

@@ -23,8 +23,8 @@ import { ApiKeyManager, Logger, OpenAIHandler } from '../utils';
 export class GenericModelProvider implements LanguageModelChatProvider {
     protected readonly openaiHandler: OpenAIHandler;
     protected readonly providerKey: string;
-    private providerConfig: ProviderConfig; // 移除 readonly 以支持动态配置
-    private o200kTokenizerPromise?: Promise<TikTokenizer>;
+    protected providerConfig: ProviderConfig; // 移除 readonly 以支持动态配置
+    protected o200kTokenizerPromise?: Promise<TikTokenizer>;
 
     constructor(providerKey: string, providerConfig: ProviderConfig) {
         this.providerKey = providerKey;
@@ -71,7 +71,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     /**
      * 将ModelConfig转换为LanguageModelChatInformation
      */
-    private modelConfigToInfo(model: ModelConfig): LanguageModelChatInformation {
+    protected modelConfigToInfo(model: ModelConfig): LanguageModelChatInformation {
         // 读取编辑工具模式设置
         const editToolMode = vscode.workspace.getConfiguration('gcmp').get('editToolMode', 'claude') as string;
 
