@@ -20,6 +20,7 @@ import sophnet from './sophnet.json';
 import baidu from './baidu.json';
 import infini from './infini.json';
 import siliconflow from './siliconflow.json';
+import modelscope from './modelscope.json';
 
 const providers = {
     zhipu,
@@ -41,7 +42,8 @@ const providers = {
     sophnet,
     baidu,
     infini,
-    siliconflow
+    siliconflow,
+    modelscope
 };
 
 export type ProviderName = keyof typeof providers;

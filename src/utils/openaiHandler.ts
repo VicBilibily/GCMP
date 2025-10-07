@@ -119,37 +119,64 @@ export class OpenAIHandler {
                                 const jsonStr = m[1];
                                 try {
                                     const obj = JSON.parse(jsonStr);
+                                    let objModified = false;
+
                                     // 转换旧格式: 如果 choice 中含有 message 而无 delta，则将 message 转为 delta
                                     if (obj && Array.isArray(obj.choices)) {
                                         for (const ch of obj.choices) {
                                             if (ch && ch.message && (!ch.delta || Object.keys(ch.delta).length === 0)) {
                                                 ch.delta = ch.message;
                                                 delete ch.message;
+                                                objModified = true;
                                             }
                                         }
                                     }
 
-                                    // 仍然保留对仅有 finish_reason 且无 delta 的过滤
-                                    const choice = obj.choices?.[0];
-                                    if (
-                                        choice?.finish_reason &&
-                                        (!choice.delta || Object.keys(choice.delta).length === 0)
-                                    ) {
-                                        Logger.trace(
-                                            'preprocessSSEResponse 仅有 finish_reason，为 delta 添加空 content'
-                                        );
-                                        choice.delta = { content: '' };
+                                    // 仍然保留对仅有 finish_reason 且无 delta 的过滤，处理所有choices
+                                    if (obj.choices && obj.choices.length > 0) {
+                                        // 倒序处理choices，避免索引变化影响后续处理
+                                        for (let choiceIndex = obj.choices.length - 1; choiceIndex >= 0; choiceIndex--) {
+                                            const choice = obj.choices[choiceIndex];
+                                            if (choice?.finish_reason) {
+                                                if (!choice.delta || Object.keys(choice.delta).length === 0) {
+                                                    Logger.trace(
+                                                        `preprocessSSEResponse 仅有 finish_reason (choice ${choiceIndex})，为 delta 添加空 content`
+                                                    );
+                                                    choice.delta = { role: 'assistant', content: '' };
+                                                    objModified = true;
+                                                }
+                                                if (!choice.delta.role) {
+                                                    choice.delta.role = 'assistant';
+                                                    objModified = true;
+                                                }
+                                            }
+                                            if (choice && (Object.keys(choice).includes('finish_reason') && !choice.finish_reason)) {
+                                                Logger.trace(`preprocessSSEResponse 移除无效的 finish_reason 值 (choice ${choiceIndex})`);
+                                                delete choice.delta.finish_reason;
+                                                objModified = true;
+                                            }
+                                            if (choice?.delta && (Object.keys(choice.delta).length === 0 || Object.values(choice.delta).every(value => !!value === false))) {
+                                                if (choice?.finish_reason) { continue; } // 避免移除有效的空 delta
+                                                Logger.trace(`preprocessSSEResponse 移除无效的 delta (choice ${choiceIndex})`);
+                                                // 直接从数组中移除无效choice
+                                                obj.choices.splice(choiceIndex, 1);
+                                                objModified = true;
+                                            }
+                                        }
                                     }
-                                    if (choice?.delta && Object.keys(choice.delta).length === 0) {
-                                        Logger.trace('preprocessSSEResponse 跳过仅有 delta 的无效 chunk');
-                                        // 从 transformed 中移除该 data 行
+
+                                    // 如果所有choices都被移除，则跳过整个chunk
+                                    if (obj.choices.length === 0) {
+                                        Logger.trace('preprocessSSEResponse 所有choices都被移除，跳过该chunk');
                                         transformed = transformed.replace(m[0], '');
                                         continue;
                                     }
 
-                                    // 将可能被修改的对象重新序列化回 chunk
-                                    const newJson = JSON.stringify(obj);
-                                    transformed = transformed.replace(m[0], `data: ${newJson}`);
+                                    // 只有在对象被修改时才重新序列化
+                                    if (objModified) {
+                                        const newJson = JSON.stringify(obj);
+                                        transformed = transformed.replace(m[0], `data: ${newJson}`);
+                                    }
                                 } catch {
                                     // 单个 data JSON 解析失败，不影响整个 chunk
                                     continue;
@@ -160,8 +187,11 @@ export class OpenAIHandler {
                             // 解析失败不影响正常流
                         }
 
-                        // 重新编码并传递有效内容
-                        controller.enqueue(encoder.encode(chunk));
+                        if (chunk?.trim()) {
+                            Logger.trace(`预处理后的 SSE chunk: ${chunk.length} 字符，chunk=${chunk}`);
+                            // 重新编码并传递有效内容
+                            controller.enqueue(encoder.encode(chunk));
+                        }
                     }
                 } catch (error) {
                     controller.error(error);
@@ -383,56 +413,59 @@ export class OpenAIHandler {
 
                         // 处理思考内容（reasoning_content）和兼容旧格式：有些模型把最终结果放在 choice.message
                         // 思维链是可重入的：遇到时输出；在后续第一次可见 content 输出前，需要结束当前思维链（done）
-                        if (chunk.choices && chunk.choices[0]) {
-                            const choice = chunk.choices[0] as ExtendedChoice;
-                            const delta = choice.delta as ExtendedDelta | undefined;
-                            const message = choice.message;
+                        if (chunk.choices && chunk.choices.length > 0) {
+                            // 遍历所有choices，处理每个choice的reasoning_content和message.content
+                            for (let choiceIndex = 0; choiceIndex < chunk.choices.length; choiceIndex++) {
+                                const choice = chunk.choices[choiceIndex] as ExtendedChoice;
+                                const delta = choice.delta as ExtendedDelta | undefined;
+                                const message = choice.message;
 
-                            // 兼容：优先使用 delta 中的 reasoning_content，否则尝试从 message 中读取
-                            const reasoningContent = delta?.reasoning_content ?? message?.reasoning_content;
-                            if (reasoningContent) {
-                                try {
-                                    Logger.trace(`🧠 接收到思考内容: ${reasoningContent.length}字符`);
-                                    // 如果当前没有 active id，则生成一个用于本次思维链
-                                    if (!currentThinkingId) {
-                                        currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                                    }
-                                    progress.report(
-                                        new vscode.LanguageModelThinkingPart(reasoningContent, currentThinkingId)
-                                    );
-                                    // 标记已接收内容
-                                    hasReceivedContent = true;
-                                } catch (e) {
-                                    Logger.trace(`${model.name} report 思维链失败: ${String(e)}`);
-                                }
-                            }
-
-                            // 另外兼容：如果服务端把最终文本放在 message.content（旧/混合格式），当作 content 增量处理
-                            const messageContent = message?.content;
-                            if (
-                                typeof messageContent === 'string' &&
-                                messageContent.replace(/[\s\uFEFF\xA0]+/g, '').length > 0
-                            ) {
-                                // 遇到可见 content 前，如果有未结束的 thinking，则先结束之
-                                if (currentThinkingId) {
+                                // 兼容：优先使用 delta 中的 reasoning_content，否则尝试从 message 中读取
+                                const reasoningContent = delta?.reasoning_content ?? message?.reasoning_content;
+                                if (reasoningContent) {
                                     try {
-                                        Logger.trace(
-                                            `${model.name} 在输出message.content前结束当前思维链 id=${currentThinkingId}`
+                                        Logger.trace(`🧠 接收到思考内容 (choice ${choiceIndex}): ${reasoningContent.length}字符`);
+                                        // 如果当前没有 active id，则生成一个用于本次思维链
+                                        if (!currentThinkingId) {
+                                            currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                                        }
+                                        progress.report(
+                                            new vscode.LanguageModelThinkingPart(reasoningContent, currentThinkingId)
                                         );
-                                        progress.report(new vscode.LanguageModelThinkingPart('', currentThinkingId));
+                                        // 标记已接收内容
+                                        hasReceivedContent = true;
                                     } catch (e) {
-                                        Logger.trace(
-                                            `${model.name} 发送 thinking done(id=${currentThinkingId}) 失败: ${String(e)}`
-                                        );
+                                        Logger.trace(`${model.name} report 思维链失败 (choice ${choiceIndex}): ${String(e)}`);
                                     }
-                                    currentThinkingId = null;
                                 }
-                                // 然后报告文本内容
-                                try {
-                                    progress.report(new vscode.LanguageModelTextPart(messageContent));
-                                    hasReceivedContent = true;
-                                } catch (e) {
-                                    Logger.trace(`${model.name} report message content 失败: ${String(e)}`);
+
+                                // 另外兼容：如果服务端把最终文本放在 message.content（旧/混合格式），当作 content 增量处理
+                                const messageContent = message?.content;
+                                if (
+                                    typeof messageContent === 'string' &&
+                                    messageContent.replace(/[\s\uFEFF\xA0]+/g, '').length > 0
+                                ) {
+                                    // 遇到可见 content 前，如果有未结束的 thinking，则先结束之
+                                    if (currentThinkingId) {
+                                        try {
+                                            Logger.trace(
+                                                `${model.name} 在输出message.content前结束当前思维链 id=${currentThinkingId} (choice ${choiceIndex})`
+                                            );
+                                            progress.report(new vscode.LanguageModelThinkingPart('', currentThinkingId));
+                                        } catch (e) {
+                                            Logger.trace(
+                                                `${model.name} 发送 thinking done(id=${currentThinkingId}) 失败 (choice ${choiceIndex}): ${String(e)}`
+                                            );
+                                        }
+                                        currentThinkingId = null;
+                                    }
+                                    // 然后报告文本内容
+                                    try {
+                                        progress.report(new vscode.LanguageModelTextPart(messageContent));
+                                        hasReceivedContent = true;
+                                    } catch (e) {
+                                        Logger.trace(`${model.name} report message content 失败 (choice ${choiceIndex}): ${String(e)}`);
+                                    }
                                 }
                             }
                         }

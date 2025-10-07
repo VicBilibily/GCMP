@@ -2,7 +2,7 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、阿里云百炼、基石智算、并行智算云、蓝耘元生代、七牛云、SophNet、百度智能云、PPIO派欧云、无问芯穹、硅基流动 模型支持的扩展",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、阿里云百炼、基石智算、并行智算云、蓝耘元生代、七牛云、SophNet、百度智能云、PPIO派欧云、无问芯穹、硅基流动、ModelScope 模型支持的扩展",
     "version": "0.5.11",
     "license": "MIT",
     "keywords": [
@@ -38,7 +38,9 @@
         "SophNet",
         "百度智能云",
         "无问芯穹",
-        "硅基流动"
+        "硅基流动",
+        "modelscope",
+        "魔搭社区"
     ],
     "repository": {
         "type": "git",
@@ -80,6 +82,7 @@
         "onLanguageModelProvider:gcmp.baidu",
         "onLanguageModelProvider:gcmp.infini",
         "onLanguageModelProvider:gcmp.siliconflow",
+        "onLanguageModelProvider:gcmp.modelscope",
         "onLanguageModelTool:gcmp_zhipuWebSearch"
     ],
     "contributes": {
@@ -183,6 +186,11 @@
                 "command": "gcmp.siliconflow.setApiKey",
                 "title": "设置 硅基流动 API密钥",
                 "category": "GCMP"
+            },
+            {
+                "command": "gcmp.modelscope.setApiKey",
+                "title": "设置 ModelScope API密钥",
+                "category": "GCMP"
             }
         ],
         "configuration": {
@@ -273,6 +281,11 @@
                 "vendor": "gcmp.dashscope",
                 "displayName": "阿里云百炼",
                 "managementCommand": "gcmp.dashscope.setApiKey"
+            },
+            {
+                "vendor": "gcmp.modelscope",
+                "displayName": "ModelScope (Beta)",
+                "managementCommand": "gcmp.modelscope.setApiKey"
             },
             {
                 "vendor": "gcmp.siliconflow",
