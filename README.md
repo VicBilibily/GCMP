@@ -5,7 +5,7 @@
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/vicanent.gcmp?color=green&label=Downloads)](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp)
 [![License](https://img.shields.io/github/license/VicBilibily/GCMP?color=orange&label=License)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
-通过集成国内顶尖的AI模型，为开发者提供更丰富、更适合的AI编程助手选择。
+通过集成国内顶尖的AI模型，为开发者提供更丰富、更适合的AI编程助手选择。目前支持智谱AI、心流AI、MoonshotAI、DeepSeek、火山方舟、阿里云百炼等20+家主流AI供应商。
 
 ## 🚀 快速开始
 
@@ -21,7 +21,7 @@
 
 ## 🤖 支持的AI供应商
 
-### 🧠 智谱AI - GLM-4.5系列
+### 🧠 [**智谱AI**](https://bigmodel.cn/) - GLM-4.5系列
 
 > - [**订阅套餐**](https://bigmodel.cn/claude-code)：推荐订阅Pro套餐。
 > - **搜索功能**：集成官方 Web Search API，支持实时联网搜索，仅Pro及以上套餐支持通过 MCP SSE 模式调用。
@@ -30,22 +30,32 @@
 - 标准计费：**GLM-4.6**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5-X**、**GLM-4.5-AirX**、**GLM-4.5V**
 - 免费版本：**GLM-4.5-Flash**
 
-### 💫 心流AI - iFlow
+### 💫 [**心流AI**](https://platform.iflow.cn/) - iFlow
 
 阿里巴巴旗下的的AI平台，当前[API调用](https://platform.iflow.cn/docs/)服务**免费使用**，目前[限流规则](https://platform.iflow.cn/docs/limitSpeed)为每个用户最多只能**同时发起一个**请求。
 
-> - 心流AI的模型列表会根据心流[模型列表API](https://platform.iflow.cn/models)定时更新。目前已屏蔽不兼容 OpenAI API 消息规则的 `DeepSeek-R1` 模型。
-
-### 🌙 MoonshotAI - Kimi K2系列
+### 🌙 [**MoonshotAI**](https://platform.moonshot.cn/) - Kimi K2系列
 
 - 支持模型：**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-K2-0711-Preview**、**Kimi-Latest**
 
-### 🔥 DeepSeek - 深度求索
+### 🔥 [**DeepSeek**](https://platform.deepseek.com/) - 深度求索
 
 深度求索旗下的高性能推理模型，支持强大的代码生成和复杂推理任务。
 
 - 支持模型：**DeepSeek-V3.2-Exp**，包含思考模式聊天模型。
 - 保留模型：**DeepSeek-V3.1-Terminus**，包含思考模式聊天模型。保留到北京时间 2025 年 10 月 15 日 23:59。
+
+### 🏔️ [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
+
+- **豆包系列**：**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
+- **DeepSeek系列**：**DeepSeek-V3**、**DeepSeek-V3.1**、**DeepSeek-V3.1-Terminus**
+- **Kimi系列**：**Kimi-K2**
+
+### 🏭 [**阿里云百炼**](https://bailian.console.aliyun.com/) - 一站式AI开发平台
+
+- **通义千问系列**：**Qwen-Flash**、**Qwen-Plus**、**Qwen-Max**、**Qwen3-VL-Plus**、**Qwen3-Next**、**Qwen3**（多种参数规模）
+- **DeepSeek系列**：**DeepSeek-V3**、**DeepSeek-V3.1**、**DeepSeek-V3.2-Exp**
+- **智谱系列**：**GLM-4.5**、**GLM-4.5-Air**
 
 ## 🔍 智谱AI联网搜索工具
 
@@ -71,14 +81,26 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 
 ## 仅供测试体验的供应商
 
-> 正在根据 [AiPing.cn](https://aiping.cn/supplierList) 进行逐一适配。由于各供应商 OpenAI SDK 的兼容性都是部分兼容，部分情况下可能会报错或卡住不动，建议先查看本地输出的日志后提交 Issue 进一步处理。
+> 由于各供应商 OpenAI 的兼容性问题，部分情况下可能会报错或卡住不动，建议先查看本地输出的日志后提交 Issue 进一步处理。
 
-- [**MiniMax**](https://platform.minimaxi.com/login) [支持模型](https://platform.minimaxi.com/document/text_api_intro?key=68abd86ad08627aad9673eaa)：`MiniMax-M1`、`MiniMax-Text-01`
-- [**华为云**](https://www.huaweicloud.com/product/modelarts/studio.html) 
-仅DeepSeek系列模型支持工具调用Agent模式。
-Kimi存在工具调用限制，Qwen系列模型不支持工具调用。
+[**MiniMax**](https://platform.minimaxi.com/login)、
+[**ModelScope**](https://www.modelscope.cn/)、
+[**硅基流动**](https://siliconflow.cn/)、
+[**无问芯穹**](https://cloud.infini-ai.com/)、
+[**基石智算**](https://www.coreshub.cn/)、
+[**腾讯云**](https://cloud.tencent.com/)、
+[**华为云**](https://www.huaweicloud.com/product/modelarts/studio.html)、
+[**京东云**](https://www.jdcloud.com/)、
+[**UCloud**](https://www.ucloud.cn/)、
+[**七牛云**](https://www.qiniu.com/)、
+[**SophNet**](https://sophnet.com/)、
+[**并行智算云**](https://www.paratera.com/)、
+[**PPIO派欧云**](https://ppio.com/)、
+[**蓝耘元生代**](https://www.lanyunai.com/)、
+[**百度智能云**](https://cloud.baidu.com/)
 
 > 暂不适配的供应商（2025年10月）：
+
 - [**SenseCore (商汤大装置)**](https://console.sensecore.cn/aistudio)：经测试，所有模型的Tools工具调用返回格式不兼容。
 - [**金山云星流**](https://www.ksyun.com/nv/product/KSP)：企业独立部署模式，暂不支持个人用户认证注册使用。
 - [**天翼云**](https://www.ctyun.cn/products/huiju)：运营商云，都是旧版本模型，模型更新并不给力。
@@ -121,21 +143,6 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 | `gcmp.zhipu.search.enableMCP` | boolean | true   | **搜索模式**：启用SSE通讯模式（仅Pro及以上套餐支持），关闭则使用标准计费接口 |
 
 > 📝 **提示**：所有参数修改会立即生效。
-
-## 🔑 获取API密钥
-
-### 官方平台链接
-
-| 供应商     | 官方平台                                   | 特色                                               |
-| ---------- | ------------------------------------------ | -------------------------------------------------- |
-| 智谱AI     | [开放平台](https://open.bigmodel.cn/)      | 强大的中文理解能力，支持多模态，集成高性能搜索工具 |
-| 心流AI     | [开放平台](https://platform.iflow.cn/)     | 智能动态模型更新，免费前沿模型，自动屏蔽不稳定模型 |
-| MoonshotAI | [开放平台](https://api.moonshot.cn/)       | 超长上下文，Agentic能力                            |
-| DeepSeek   | [开放平台](https://platform.deepseek.com/) | 强大的推理能力，支持思维链技术，专业代码生成       |
-
-## 🚫 未列入支持的模型供应商说明
-
-- **魔搭社区（ModelScope）** 仅适用于测试环境，每模型500RPD，共享服务不太稳定。各个模型的OpenAI兼容模式都有各自的实现，输出格式不是平台统一，适配工作量较大，故此插件不提供此服务商。若有需要可使用官方的 `OpenAI Compatible` 模式（预计2025年10月版本正式发布支持，目前正式版可使用 [`OAI Compatible Provider for Copilot`](https://marketplace.visualstudio.com/items?itemName=johnny-zhao.oai-compatible-copilot) ）。
 
 ## 🤝 贡献指南
 

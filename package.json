@@ -2,8 +2,8 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、阿里云百炼、基石智算、并行智算云、蓝耘元生代、七牛云、SophNet、百度智能云、PPIO派欧云、无问芯穹、硅基流动、ModelScope 模型支持的扩展",
-    "version": "0.5.11",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、火山方舟、阿里云百炼 模型支持的扩展",
+    "version": "0.6.0",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -15,32 +15,41 @@
         "iflow",
         "moonshot",
         "deepseek",
+        "volcengine",
         "dashscope",
-        "coreshub",
-        "paratera",
-        "lanyun",
-        "qiniu",
-        "sophnet",
-        "baidu",
-        "ppio",
-        "infini",
+        "modelscope",
+        "minimax",
         "siliconflow",
-        "派欧云",
-        "智谱",
-        "心流",
+        "infini",
+        "coreshub",
+        "tencentcloud",
+        "huaweicloud",
+        "jdcloud",
+        "qiniu",
+        "ucloud",
+        "sophnet",
+        "paratera",
+        "ppio",
+        "lanyun",
+        "baidu",
+        "智谱AI",
+        "心流AI",
         "月之暗面",
         "深度求索",
+        "火山方舟",
         "阿里云百炼",
-        "基石智算",
-        "并行智算云",
-        "蓝耘元生代",
-        "七牛云",
-        "SophNet",
-        "百度智能云",
-        "无问芯穹",
+        "魔搭社区",
         "硅基流动",
-        "modelscope",
-        "魔搭社区"
+        "无问芯穹",
+        "基石智算",
+        "腾讯云",
+        "华为云",
+        "京东云",
+        "七牛云",
+        "并行智算云",
+        "PPIO派欧云",
+        "蓝耘元生代",
+        "百度智能云"
     ],
     "repository": {
         "type": "git",
@@ -66,23 +75,23 @@
         "onLanguageModelProvider:gcmp.iflow",
         "onLanguageModelProvider:gcmp.moonshot",
         "onLanguageModelProvider:gcmp.deepseek",
+        "onLanguageModelProvider:gcmp.volcengine",
         "onLanguageModelProvider:gcmp.dashscope",
         "onLanguageModelProvider:gcmp.minimax",
-        "onLanguageModelProvider:gcmp.huaweicloud",
-        "onLanguageModelProvider:gcmp.tencentcloud",
-        "onLanguageModelProvider:gcmp.jdcloud",
-        "onLanguageModelProvider:gcmp.volcengine",
-        "onLanguageModelProvider:gcmp.ucloud",
+        "onLanguageModelProvider:gcmp.modelscope",
+        "onLanguageModelProvider:gcmp.siliconflow",
+        "onLanguageModelProvider:gcmp.infini",
         "onLanguageModelProvider:gcmp.coreshub",
+        "onLanguageModelProvider:gcmp.tencentcloud",
+        "onLanguageModelProvider:gcmp.huaweicloud",
+        "onLanguageModelProvider:gcmp.jdcloud",
+        "onLanguageModelProvider:gcmp.qiniu",
+        "onLanguageModelProvider:gcmp.ucloud",
+        "onLanguageModelProvider:gcmp.sophnet",
         "onLanguageModelProvider:gcmp.paratera",
         "onLanguageModelProvider:gcmp.ppio",
         "onLanguageModelProvider:gcmp.lanyun",
-        "onLanguageModelProvider:gcmp.qiniu",
-        "onLanguageModelProvider:gcmp.sophnet",
         "onLanguageModelProvider:gcmp.baidu",
-        "onLanguageModelProvider:gcmp.infini",
-        "onLanguageModelProvider:gcmp.siliconflow",
-        "onLanguageModelProvider:gcmp.modelscope",
         "onLanguageModelTool:gcmp_zhipuWebSearch"
     ],
     "contributes": {
@@ -108,6 +117,11 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.volcengine.setApiKey",
+                "title": "设置 火山方舟 API密钥",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.dashscope.setApiKey",
                 "title": "设置 阿里云百炼 API密钥",
                 "category": "GCMP"
@@ -118,8 +132,23 @@
                 "category": "GCMP"
             },
             {
-                "command": "gcmp.huaweicloud.setApiKey",
-                "title": "设置 华为云 API密钥",
+                "command": "gcmp.modelscope.setApiKey",
+                "title": "设置 ModelScope API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.siliconflow.setApiKey",
+                "title": "设置 硅基流动 API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.infini.setApiKey",
+                "title": "设置 无问芯穹 API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.coreshub.setApiKey",
+                "title": "设置 基石智算 API密钥",
                 "category": "GCMP"
             },
             {
@@ -128,8 +157,8 @@
                 "category": "GCMP"
             },
             {
-                "command": "gcmp.volcengine.setApiKey",
-                "title": "设置 火山方舟 API密钥",
+                "command": "gcmp.huaweicloud.setApiKey",
+                "title": "设置 华为云 API密钥",
                 "category": "GCMP"
             },
             {
@@ -138,13 +167,18 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.qiniu.setApiKey",
+                "title": "设置 七牛云 API密钥",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.ucloud.setApiKey",
                 "title": "设置 UCloud API密钥",
                 "category": "GCMP"
             },
             {
-                "command": "gcmp.coreshub.setApiKey",
-                "title": "设置 基石智算 API密钥",
+                "command": "gcmp.sophnet.setApiKey",
+                "title": "设置 SophNet API密钥",
                 "category": "GCMP"
             },
             {
@@ -163,33 +197,8 @@
                 "category": "GCMP"
             },
             {
-                "command": "gcmp.qiniu.setApiKey",
-                "title": "设置 七牛云 API密钥",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.sophnet.setApiKey",
-                "title": "设置 SophNet API密钥",
-                "category": "GCMP"
-            },
-            {
                 "command": "gcmp.baidu.setApiKey",
                 "title": "设置 百度智能云 API密钥",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.infini.setApiKey",
-                "title": "设置 无问芯穹 API密钥",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.siliconflow.setApiKey",
-                "title": "设置 硅基流动 API密钥",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.modelscope.setApiKey",
-                "title": "设置 ModelScope API密钥",
                 "category": "GCMP"
             }
         ],
@@ -268,11 +277,6 @@
                 "managementCommand": "gcmp.deepseek.setApiKey"
             },
             {
-                "vendor": "gcmp.minimax",
-                "displayName": "MiniMax",
-                "managementCommand": "gcmp.minimax.setApiKey"
-            },
-            {
                 "vendor": "gcmp.volcengine",
                 "displayName": "火山方舟",
                 "managementCommand": "gcmp.volcengine.setApiKey"
@@ -281,6 +285,11 @@
                 "vendor": "gcmp.dashscope",
                 "displayName": "阿里云百炼",
                 "managementCommand": "gcmp.dashscope.setApiKey"
+            },
+            {
+                "vendor": "gcmp.minimax",
+                "displayName": "MiniMax (Beta)",
+                "managementCommand": "gcmp.minimax.setApiKey"
             },
             {
                 "vendor": "gcmp.modelscope",
