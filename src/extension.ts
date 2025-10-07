@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { GenericModelProvider } from './providers/genericModelProvider';
 import { IFlowProvider } from './providers/iflowProvider';
 import { ModelScopeProvider } from './providers/modelscopeProvider';
+import { ZhipuInlineCompletionProvider } from './providers/zhipuInlineCompletionProvider';
 import { Logger } from './utils/logger';
 import { ApiKeyManager, ConfigManager } from './utils';
 import { registerAllTools } from './tools';
@@ -11,6 +12,8 @@ import { registerAllTools } from './tools';
  */
 let registeredProviders: Record<string, GenericModelProvider | IFlowProvider | ModelScopeProvider> = {};
 let registeredDisposables: vscode.Disposable[] = [];
+// 单独跟踪内联补全提供者的 disposable，便于动态注册/注销
+let inlineCompletionDisposable: vscode.Disposable | null = null;
 
 /**
  * 激活供应商 - 基于配置文件动态注册
@@ -104,11 +107,50 @@ export async function activate(context: vscode.ExtensionContext) {
         Logger.trace('正在注册工具...');
         registerAllTools(context);
 
-        // 监听配置变更，特别是 editToolMode
+        // 注册智谱AI内联代码补全提供者（可动态开关）
+        Logger.trace('准备注册智谱AI内联代码补全提供者（按配置）...');
+        const initInlineProvider = () => {
+            // 先清理已有的
+            if (inlineCompletionDisposable) {
+                try { inlineCompletionDisposable.dispose(); } catch (e) { /* ignore */ }
+                inlineCompletionDisposable = null;
+            }
+            const enabled = vscode.workspace.getConfiguration('gcmp').get<boolean>('inlineCompletion.enabled', false);
+            if (enabled) {
+                inlineCompletionDisposable = ZhipuInlineCompletionProvider.createAndActivate(context);
+                if (inlineCompletionDisposable) {
+                    context.subscriptions.push(inlineCompletionDisposable);
+                }
+            }
+        };
+        initInlineProvider();
+
+        // 状态栏控件：内联补全开关与设置快捷入口
+        const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+        const updateStatusBar = () => {
+            const enabled = vscode.workspace.getConfiguration('gcmp').get<boolean>('inlineCompletion.enabled', false);
+            statusBarItem.text = enabled ? '$(keybindings-sort) GCMP' : '$(keyboard) GCMP';
+            statusBarItem.tooltip = enabled ? '智谱AI 内联建议：已启用' : '智谱AI 内联建议：已禁用';
+            statusBarItem.command = 'gcmp.inlineCompletion.toggle';
+            // 当禁用时使用灰色 logo，启用时恢复默认颜色（由主题决定）
+            statusBarItem.color = enabled ? undefined : '#888888';
+            statusBarItem.show();
+        };
+        updateStatusBar();
+        context.subscriptions.push(statusBarItem);
+        // 命令：切换内联补全
+        const toggleCmd = vscode.commands.registerCommand('gcmp.inlineCompletion.toggle', async () => {
+            const config = vscode.workspace.getConfiguration('gcmp');
+            const current = config.get<boolean>('inlineCompletion.enabled', false);
+            await config.update('inlineCompletion.enabled', !current, vscode.ConfigurationTarget.Global);
+            updateStatusBar();
+        });
+        context.subscriptions.push(toggleCmd);
+
+        // 监听配置变更，特别是 editToolMode 和 inlineCompletion.enabled
         const configChangeDisposable = vscode.workspace.onDidChangeConfiguration(async event => {
             if (event.affectsConfiguration('gcmp.editToolMode')) {
                 Logger.info('检测到 editToolMode 配置变更，正在重新注册所有供应商...');
-
                 try {
                     // 重新注册所有供应商以应用新的配置
                     await reRegisterProviders(context);
@@ -119,6 +161,16 @@ export async function activate(context: vscode.ExtensionContext) {
                 } catch (error) {
                     Logger.error('重新注册供应商失败:', error);
                     vscode.window.showErrorMessage('编辑工具模式更新失败，请重新加载窗口。');
+                }
+            }
+
+            // 动态处理内联补全开关
+            if (event.affectsConfiguration('gcmp.inlineCompletion.enabled')) {
+                Logger.info('检测到 inlineCompletion.enabled 配置变更');
+                try {
+                    initInlineProvider();
+                } catch (error) {
+                    Logger.error('更新内联补全提供者失败:', error);
                 }
             }
         });
