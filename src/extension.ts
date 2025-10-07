@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { GenericModelProvider } from './providers/genericModelProvider';
+import { IFlowProvider } from './providers/iflowProvider';
 import { Logger } from './utils/logger';
 import { ApiKeyManager, ConfigManager } from './utils';
 import { registerAllTools } from './tools';
@@ -7,7 +8,7 @@ import { registerAllTools } from './tools';
 /**
  * 全局变量 - 存储已注册的供应商实例，用于配置变更时的重新注册
  */
-let registeredProviders: Record<string, GenericModelProvider> = {};
+let registeredProviders: Record<string, GenericModelProvider | IFlowProvider> = {};
 let registeredDisposables: vscode.Disposable[] = [];
 
 /**
@@ -26,12 +27,21 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
         try {
             Logger.trace(`正在注册供应商: ${providerConfig.displayName} (${providerKey})`);
 
-            // 使用通用供应商创建实例
-            const { provider, disposables } = GenericModelProvider.createAndActivate(
-                context,
-                providerKey,
-                providerConfig
-            );
+            let provider: GenericModelProvider | IFlowProvider;
+            let disposables: vscode.Disposable[];
+
+            // 对 iflow 使用专门的 provider
+            if (providerKey === 'iflow') {
+                const result = IFlowProvider.createAndActivate(context, providerKey, providerConfig);
+                provider = result.provider;
+                disposables = result.disposables;
+            } else {
+                // 其他供应商使用通用 provider
+                const result = GenericModelProvider.createAndActivate(context, providerKey, providerConfig);
+                provider = result.provider;
+                disposables = result.disposables;
+            }
+
             registeredProviders[providerKey] = provider;
             registeredDisposables.push(...disposables);
 

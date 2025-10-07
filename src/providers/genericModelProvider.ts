@@ -21,14 +21,10 @@ import { ApiKeyManager, Logger, OpenAIHandler } from '../utils';
  * 基于配置文件动态创建供应商实现
  */
 export class GenericModelProvider implements LanguageModelChatProvider {
-    private readonly openaiHandler: OpenAIHandler;
-    private readonly providerKey: string;
+    protected readonly openaiHandler: OpenAIHandler;
+    protected readonly providerKey: string;
     private providerConfig: ProviderConfig; // 移除 readonly 以支持动态配置
     private o200kTokenizerPromise?: Promise<TikTokenizer>;
-
-    // 请求中断管理（仅对特定供应商启用，如 iflow）
-    private currentRequestController: AbortController | null = null;
-    private requestCounter = 0; // 用于生成唯一的请求ID
 
     constructor(providerKey: string, providerConfig: ProviderConfig) {
         this.providerKey = providerKey;
@@ -160,37 +156,15 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
         Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求: ${modelConfig.name}`);
 
-        // 请求中断管理（仅对 iflow 供应商启用）
-        let combinedToken = token;
-        const requestId = ++this.requestCounter;
-        if (this.providerKey === 'iflow') {
-            // 如果有正在进行的请求，先中断它
-            if (this.currentRequestController && !this.currentRequestController.signal.aborted) {
-                Logger.info(`❌ ${this.providerConfig.displayName}: 检测到新请求，中断当前正在进行的请求`);
-                this.currentRequestController.abort();
-            }
-            // 创建新的AbortController
-            this.currentRequestController = new AbortController();
-            const requestController = this.currentRequestController!;
-            combinedToken = this.createCombinedCancellationToken(token, requestController);
-        }
-        Logger.info(`🔄 ${this.providerConfig.displayName}: 开始新请求 #${requestId}`);
-
         try {
-            await this.openaiHandler.handleRequest(model, modelConfig, messages, options, progress, combinedToken);
+            await this.openaiHandler.handleRequest(model, modelConfig, messages, options, progress, token);
         } catch (error) {
             const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
             Logger.error(errorMessage);
             // 直接抛出错误，让VS Code处理重试
             throw error;
         } finally {
-            // 请求完成后，清除中断控制器（仅对 iflow）
-            if (this.providerKey === 'iflow' && requestId !== undefined) {
-                if (this.currentRequestController && this.requestCounter === requestId) {
-                    this.currentRequestController = null;
-                }
-            }
-            Logger.info(`✅ ${this.providerConfig.displayName}: 请求 #${requestId} 已完成`);
+            Logger.info(`✅ ${this.providerConfig.displayName}: 请求已完成`);
         }
     }
 
@@ -277,46 +251,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     }
 
     /**
-     * 创建组合的CancellationToken，结合用户取消和内部中断（仅对特定供应商启用）
-     * @param originalToken 原始的CancellationToken
-     * @param abortController 内部的AbortController
-     * @returns 新的CancellationToken
-     */
-    private createCombinedCancellationToken(
-        originalToken: CancellationToken,
-        abortController: AbortController
-    ): CancellationToken {
-        const combinedToken = new vscode.CancellationTokenSource();
-
-        // 监听原始token的取消
-        const originalListener = originalToken.onCancellationRequested(() => {
-            combinedToken.cancel();
-        });
-
-        // 监听AbortController的取消
-        const abortListener = () => {
-            combinedToken.cancel();
-        };
-        abortController.signal.addEventListener('abort', abortListener);
-
-        // 清理监听器
-        combinedToken.token.onCancellationRequested(() => {
-            originalListener.dispose();
-            abortController.signal.removeEventListener('abort', abortListener);
-        });
-
-        return combinedToken.token;
-    }
-
-    /**
      * 清理资源，中断任何正在进行的请求（仅对特定供应商启用）
      * 当扩展被销毁时应该调用此方法
      */
     dispose(): void {
-        if (this.currentRequestController && !this.currentRequestController.signal.aborted) {
-            Logger.info(`🧹 ${this.providerConfig.displayName}: 扩展销毁，中断正在进行的请求`);
-            this.currentRequestController.abort();
-            this.currentRequestController = null;
-        }
+        Logger.info(`🧹 ${this.providerConfig.displayName}: 扩展销毁`);
     }
 }
