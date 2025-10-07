@@ -34,6 +34,8 @@
 
 阿里巴巴旗下的的AI平台，当前[API调用](https://platform.iflow.cn/docs/)服务**免费使用**，目前[限流规则](https://platform.iflow.cn/docs/limitSpeed)为每个用户最多只能**同时发起一个**请求。
 
+- **支持模型**：**DeepSeek-V3.2-Exp**、**DeepSeek-V3.1-Terminus**、**DeepSeek-V3-671B**、**Qwen3-Coder-Plus**、**Qwen3-Coder-480B-A35B**、**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-Max-Preview**、**Qwen3-32B**、**Qwen3-235B-A22B**、**Qwen3-235B-A22B-Instruct**、**Qwen3-235B-A22B-Thinking**、**GLM-4.5**、**Kimi-K2-Instruct-0905**、**Kimi-K2**
+
 ### 🌙 [**MoonshotAI**](https://platform.moonshot.cn/) - Kimi K2系列
 
 - 支持模型：**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-K2-0711-Preview**、**Kimi-Latest**
@@ -100,6 +102,7 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 
 > 暂不适配的供应商（2025年10月）：
 
+- **魔搭社区（ModelScope）**：魔搭社区平台OpenAI接口输出格式不兼容新版本的 `OpenAI SDK`，存在大量兼容问题，故不作适配。
 - [**SenseCore (商汤大装置)**](https://console.sensecore.cn/aistudio)：经测试，所有模型的Tools工具调用返回格式不兼容。
 - [**金山云星流**](https://www.ksyun.com/nv/product/KSP)：企业独立部署模式，暂不支持个人用户认证注册使用。
 - [**天翼云**](https://www.ctyun.cn/products/huiju)：运营商云，都是旧版本模型，模型更新并不给力。
