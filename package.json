@@ -211,7 +211,7 @@
                     "minimum": 0,
                     "maximum": 2,
                     "description": "控制AI模型输出的随机性。较低的值（如0.1）产生更确定性的输出，较高的值（如1.0）产生更有创意的输出。",
-                    "scope": "application"
+                    "scope": "machine-overridable"
                 },
                 "gcmp.topP": {
                     "type": "number",
@@ -219,7 +219,7 @@
                     "minimum": 0,
                     "maximum": 1,
                     "description": "控制AI模型输出的多样性。使用较小的值（如0.9）会减少输出的随机性。",
-                    "scope": "application"
+                    "scope": "machine-overridable"
                 },
                 "gcmp.maxTokens": {
                     "type": "number",
@@ -227,7 +227,7 @@
                     "minimum": 32,
                     "maximum": 32768,
                     "description": "控制AI模型输出的最大token数量。较大的值允许更长的响应。",
-                    "scope": "application"
+                    "scope": "resource"
                 },
                 "gcmp.zhipu.search.enableMCP": {
                     "type": "boolean",
@@ -451,6 +451,7 @@
     },
     "dependencies": {
         "@microsoft/tiktokenizer": "^1.0.10",
+        "https-proxy-agent": "^7.0.4",
         "openai": "6.2"
     },
     "devDependencies": {
