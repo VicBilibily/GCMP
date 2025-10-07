@@ -187,11 +187,9 @@ export class OpenAIHandler {
                             // 解析失败不影响正常流
                         }
 
-                        if (chunk?.trim()) {
-                            Logger.trace(`预处理后的 SSE chunk: ${chunk.length} 字符，chunk=${chunk}`);
-                            // 重新编码并传递有效内容
-                            controller.enqueue(encoder.encode(chunk));
-                        }
+                        Logger.trace(`预处理后的 SSE chunk: ${chunk.length} 字符，chunk=${chunk}`);
+                        // 重新编码并传递有效内容
+                        controller.enqueue(encoder.encode(chunk));
                     }
                 } catch (error) {
                     controller.error(error);

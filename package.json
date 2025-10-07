@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、火山方舟、阿里云百炼 模型支持的扩展",
-    "version": "0.6.0",
+    "version": "0.6.1",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -451,7 +451,7 @@
     },
     "dependencies": {
         "@microsoft/tiktokenizer": "^1.0.10",
-        "openai": "^6.0.0"
+        "openai": "^5.23.2"
     },
     "devDependencies": {
         "@eslint/js": "^9.13.0",
