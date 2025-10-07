@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、火山方舟、阿里云百炼 模型支持的扩展",
-    "version": "0.6.3",
+    "version": "0.6.4",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -292,6 +292,11 @@
                 "managementCommand": "gcmp.minimax.setApiKey"
             },
             {
+                "vendor": "gcmp.modelscope",
+                "displayName": "ModelScope (Alpha)",
+                "managementCommand": "gcmp.modelscope.setApiKey"
+            },
+            {
                 "vendor": "gcmp.siliconflow",
                 "displayName": "硅基流动 (Beta)",
                 "managementCommand": "gcmp.siliconflow.setApiKey"
@@ -355,11 +360,6 @@
                 "vendor": "gcmp.baidu",
                 "displayName": "百度智能云 (Beta)",
                 "managementCommand": "gcmp.baidu.setApiKey"
-            },
-            {
-                "vendor": "gcmp.modelscope",
-                "displayName": "ModelScope",
-                "managementCommand": "gcmp.modelscope.setApiKey"
             }
         ],
         "languageModelTools": [

@@ -18,8 +18,8 @@
             "id": "ZhipuAI/GLM-4.6",
             "name": "GLM-4.6 (ModelScope)",
             "tooltip": "GLM-4.6 文本生成模型，支持文本生成和理解。",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -30,7 +30,7 @@
             "name": "GLM-4.5 (ModelScope)",
             "tooltip": "GLM-4.5 文本生成模型，支持文本生成和理解。",
             "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 96000,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -52,7 +52,7 @@
             "name": "通义千问3-VL-235B-A22B-Instruct (ModelScope)",
             "tooltip": "通义千问3-VL-235B-A22B-Instruct - Qwen3-VL-235B-A22B-Instruct 视觉多模态模型，支持图像和文本理解。",
             "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 16384,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -63,7 +63,7 @@
             "name": "通义千问3-VL-30B-A3B-Instruct (ModelScope)",
             "tooltip": "通义千问3-VL-30B-A3B-Instruct - Qwen3-VL-30B-A3B-Instruct 视觉多模态模型，支持图像和文本理解。",
             "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 16384,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -74,7 +74,7 @@
             "name": "通义千问3-VL-30B-A3B-Thinking (ModelScope)",
             "tooltip": "通义千问3-VL-30B-A3B-Thinking - Qwen3-VL-30B-A3B-Thinking 视觉多模态模型，支持图像和文本理解。",
             "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 38912,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -84,8 +84,8 @@
             "id": "Qwen/Qwen3-Next-80B-A3B-Instruct",
             "name": "通义千问3-Next-80B-A3B-Instruct (ModelScope)",
             "tooltip": "通义千问3-Next-80B-A3B-Instruct - Qwen3-Next-80B-A3B-Instruct 文本生成模型，支持文本生成和理解。",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 16384,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -95,8 +95,8 @@
             "id": "Qwen/Qwen3-Next-80B-A3B-Thinking",
             "name": "通义千问3-Next-80B-A3B-Thinking (ModelScope)",
             "tooltip": "通义千问3-Next-80B-A3B-Thinking - Qwen3-Next-80B-A3B-Thinking 文本生成模型，支持文本生成和理解。",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 81920,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -129,7 +129,7 @@
             "name": "通义千问3-235B-A22B (ModelScope)",
             "tooltip": "通义千问3-235B-A22B - Qwen3-235B-A22B 文本生成模型，支持文本生成和理解。",
             "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 16384,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -139,8 +139,8 @@
             "id": "Qwen/Qwen3-235B-A22B-Instruct-2507",
             "name": "通义千问3-235B-A22B-Instruct-2507 (ModelScope)",
             "tooltip": "通义千问3-235B-A22B-Instruct-2507 - Qwen3-235B-A22B-Instruct-2507 文本生成模型，支持文本生成和理解。",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 16384,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -150,8 +150,8 @@
             "id": "Qwen/Qwen3-235B-A22B-Thinking-2507",
             "name": "通义千问3-235B-A22B-Thinking-2507 (ModelScope)",
             "tooltip": "通义千问3-235B-A22B-Thinking-2507 - Qwen3-235B-A22B-Thinking-2507 文本生成模型，支持文本生成和理解。",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 81920,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -172,8 +172,8 @@
             "id": "Qwen/Qwen3-30B-A3B-Instruct-2507",
             "name": "通义千问3-30B-A3B-Instruct-2507 (ModelScope)",
             "tooltip": "通义千问3-30B-A3B-Instruct-2507 - Qwen3-30B-A3B-Instruct-2507 文本生成模型，支持文本生成和理解。",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 16384,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -183,8 +183,8 @@
             "id": "Qwen/Qwen3-30B-A3B-Thinking-2507",
             "name": "通义千问3-30B-A3B-Thinking-2507 (ModelScope)",
             "tooltip": "通义千问3-30B-A3B-Thinking-2507 - Qwen3-30B-A3B-Thinking-2507 文本生成模型，支持文本生成和理解。",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 81920,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -195,7 +195,7 @@
             "name": "通义千问3-32B (ModelScope)",
             "tooltip": "通义千问3-32B - Qwen3-32B 文本生成模型，支持文本生成和理解。",
             "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 16384,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -206,7 +206,7 @@
             "name": "通义千问3-14B (ModelScope)",
             "tooltip": "通义千问3-14B - Qwen3-14B 文本生成模型，支持文本生成和理解。",
             "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 16384,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -217,7 +217,7 @@
             "name": "通义千问3-8B (ModelScope)",
             "tooltip": "通义千问3-8B - Qwen3-8B 文本生成模型，支持文本生成和理解。",
             "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 16384,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -228,7 +228,7 @@
             "name": "通义千问3-4B (ModelScope)",
             "tooltip": "通义千问3-4B - Qwen3-4B 文本生成模型，支持文本生成和理解。",
             "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 16384,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -239,7 +239,7 @@
             "name": "通义千问3-1.7B (ModelScope)",
             "tooltip": "通义千问3-1.7B - Qwen3-1.7B 文本生成模型，支持文本生成和理解。",
             "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 16384,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -250,7 +250,7 @@
             "name": "通义千问3-0.6B (ModelScope)",
             "tooltip": "通义千问3-0.6B - Qwen3-0.6B 文本生成模型，支持文本生成和理解。",
             "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 16384,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -261,7 +261,7 @@
             "name": "通义千问 QwQ-32B (ModelScope)",
             "tooltip": "通义千问 QwQ-32B - QwQ-32B 文本生成模型，支持文本生成和理解。",
             "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 16384,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -272,7 +272,7 @@
             "name": "QwQ-32B-Preview (ModelScope)",
             "tooltip": "QwQ-32B-Preview 文本生成模型，支持文本生成和理解。",
             "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 16384,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -284,7 +284,7 @@
             "name": "Intern-S1 (ModelScope)",
             "tooltip": "Intern-S1 视觉多模态模型，支持图像和文本理解。",
             "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 16384,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -295,7 +295,7 @@
             "name": "Intern-S1-mini (ModelScope)",
             "tooltip": "Intern-S1-mini 视觉多模态模型，支持图像和文本理解。",
             "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 16384,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -306,7 +306,7 @@
             "name": "InternVL3_5-241B-A28B (ModelScope)",
             "tooltip": "InternVL3_5-241B-A28B 视觉多模态模型，支持图像和文本理解。",
             "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 16384,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
