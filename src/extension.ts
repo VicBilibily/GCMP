@@ -5,12 +5,16 @@ import { ModelScopeProvider } from './providers/modelscopeProvider';
 import { Logger } from './utils/logger';
 import { ApiKeyManager, ConfigManager } from './utils';
 import { registerAllTools } from './tools';
+import { GhostInlineProvider } from './providers/ghost';
 
 /**
  * 全局变量 - 存储已注册的供应商实例，用于配置变更时的重新注册
  */
 let registeredProviders: Record<string, GenericModelProvider | IFlowProvider | ModelScopeProvider> = {};
 let registeredDisposables: vscode.Disposable[] = [];
+
+// Ghost Inline Provider 实例
+let ghostProvider: GhostInlineProvider | undefined;
 
 /**
  * 激活供应商 - 基于配置文件动态注册
@@ -104,6 +108,25 @@ export async function activate(context: vscode.ExtensionContext) {
         Logger.trace('正在注册工具...');
         registerAllTools(context);
 
+        // 初始化 Ghost 代码补全服务
+        Logger.trace('正在初始化 Ghost 代码补全服务...');
+        try {
+            ghostProvider = new GhostInlineProvider(context);
+
+            // 注册 Ghost 为 InlineCompletionItemProvider
+            // 支持所有编程语言文件
+            const ghostInlineProvider = vscode.languages.registerInlineCompletionItemProvider(
+                { pattern: '**' }, // 支持所有文件
+                ghostProvider
+            );
+
+            context.subscriptions.push(ghostInlineProvider);
+
+            Logger.info('Ghost 代码补全服务已注册为 InlineCompletionItemProvider');
+        } catch (error) {
+            Logger.error('初始化 Ghost 服务失败:', error);
+        }
+
         // 监听配置变更，特别是 editToolMode
         const configChangeDisposable = vscode.workspace.onDidChangeConfiguration(async event => {
             if (event.affectsConfiguration('gcmp.editToolMode')) {
@@ -141,6 +164,17 @@ export async function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
     try {
         Logger.info('开始停用 GCMP 扩展...');
+
+        // 清理 Ghost Provider
+        if (ghostProvider) {
+            try {
+                ghostProvider.dispose();
+                ghostProvider = undefined;
+                Logger.trace('Ghost Provider 已清理');
+            } catch (error) {
+                Logger.warn('清理 Ghost Provider 时出错:', error);
+            }
+        }
 
         // 清理所有已注册供应商的资源
         for (const [providerKey, provider] of Object.entries(registeredProviders)) {

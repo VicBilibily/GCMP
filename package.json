@@ -255,9 +255,36 @@
                     "default": "claude",
                     "description": "选择编辑工具模式。Claude 使用高效的ReplaceString，GPT-5 使用ApplyPatch进行批量编辑，Grok 根据实验配置选择工具，None 直接使用基础文件编辑。",
                     "scope": "application"
+                },
+                "gcmp.ghost.enableAutoTrigger": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "启用自动触发代码补全。当停止输入一段时间后，Ghost 会自动生成代码建议。",
+                    "scope": "application"
+                },
+                "gcmp.ghost.autoTriggerDelay": {
+                    "type": "number",
+                    "default": 3,
+                    "minimum": 1,
+                    "maximum": 10,
+                    "description": "自动触发代码补全的延迟时间（秒）。停止输入多久后触发自动补全。",
+                    "scope": "application"
+                },
+                "gcmp.ghost.modelId": {
+                    "type": "string",
+                    "default": "glm-4.5-air",
+                    "description": "Ghost 代码补全使用的模型 ID。默认使用智谱 GLM-4.5-air 编程套餐模型。",
+                    "scope": "application"
+                },
+                "gcmp.ghost.showStatusBar": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "在状态栏显示 Ghost 代码补全的状态信息。",
+                    "scope": "application"
                 }
             }
         },
+        "keybindings": [],
         "languageModelChatProviders": [
             {
                 "vendor": "gcmp.zhipu",
@@ -454,6 +481,8 @@
     },
     "dependencies": {
         "@microsoft/tiktokenizer": "^1.0.10",
+        "@types/diff": "^7.0.2",
+        "diff": "^8.0.2",
         "openai": "6.2"
     },
     "devDependencies": {
