@@ -3,6 +3,7 @@ import { GenericModelProvider } from './providers/genericModelProvider';
 import { IFlowProvider } from './providers/iflowProvider';
 import { ModelScopeProvider } from './providers/modelscopeProvider';
 import { ZhipuInlineCompletionProvider } from './providers/zhipuInlineCompletionProvider';
+import { InlineCompletionFactory } from './providers/inlineCompletionFactory';
 import { Logger } from './utils/logger';
 import { ApiKeyManager, ConfigManager } from './utils';
 import { registerAllTools } from './tools';
@@ -112,12 +113,22 @@ export async function activate(context: vscode.ExtensionContext) {
         const initInlineProvider = () => {
             // 先清理已有的
             if (inlineCompletionDisposable) {
-                try { inlineCompletionDisposable.dispose(); } catch (e) { /* ignore */ }
+                try {
+                    inlineCompletionDisposable.dispose();
+                } catch {
+                    /* ignore */
+                }
                 inlineCompletionDisposable = null;
             }
             const enabled = vscode.workspace.getConfiguration('gcmp').get<boolean>('inlineCompletion.enabled', false);
             if (enabled) {
-                inlineCompletionDisposable = ZhipuInlineCompletionProvider.createAndActivate(context);
+                // 使用新的通用内联补全工厂
+                inlineCompletionDisposable = InlineCompletionFactory.createAndActivate(context);
+                // 如果新的工厂失败，回退到旧的智谱实现
+                if (!inlineCompletionDisposable) {
+                    Logger.warn('通用内联补全创建失败，回退到智谱AI实现');
+                    inlineCompletionDisposable = ZhipuInlineCompletionProvider.createAndActivate(context);
+                }
                 if (inlineCompletionDisposable) {
                     context.subscriptions.push(inlineCompletionDisposable);
                 }

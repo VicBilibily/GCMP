@@ -262,7 +262,31 @@
                 "gcmp.inlineCompletion.enabled": {
                     "type": "boolean",
                     "default": false,
-                    "description": "启用智谱AI内联代码补全功能。使用 GLM-4.5-air 模型提供智能代码建议。",
+                    "description": "启用AI内联代码补全功能。提供智能代码建议。",
+                    "scope": "application"
+                },
+                "gcmp.inlineCompletion.provider": {
+                    "type": "string",
+                    "enum": [
+                        "zhipu",
+                        "baidu",
+                        "dashscope",
+                        "deepseek"
+                    ],
+                    "enumDescriptions": [
+                        "智谱AI - 使用 GLM-4-Flash 模型",
+                        "百度文心 - 使用 ERNIE 模型",
+                        "阿里通义 - 使用 Qwen 模型",
+                        "DeepSeek - 使用 DeepSeek-Coder 模型"
+                    ],
+                    "default": "zhipu",
+                    "description": "选择内联补全使用的AI提供商。",
+                    "scope": "application"
+                },
+                "gcmp.inlineCompletion.model": {
+                    "type": "string",
+                    "default": "",
+                    "description": "指定内联补全使用的模型名称（留空则使用提供商默认模型）。",
                     "scope": "application"
                 },
                 "gcmp.inlineCompletion.debounceDelay": {
@@ -295,6 +319,26 @@
                     "minimum": 0,
                     "maximum": 1,
                     "description": "内联补全的温度参数。较低的值产生更确定性的补全。",
+                    "scope": "application"
+                },
+                "gcmp.inlineCompletion.minRequestInterval": {
+                    "type": "number",
+                    "default": 200,
+                    "minimum": 50,
+                    "maximum": 1000,
+                    "description": "两次补全请求之间的最小间隔（毫秒），用于防止过于频繁的API调用。",
+                    "scope": "application"
+                },
+                "gcmp.inlineCompletion.enableSmartTrigger": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "启用智能触发检测。根据编辑模式（输入、粘贴、撤销等）智能调整触发策略。",
+                    "scope": "application"
+                },
+                "gcmp.inlineCompletion.enableMultiFileContext": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "启用多文件上下文分析（实验性功能）。",
                     "scope": "application"
                 }
             }
@@ -495,7 +539,7 @@
     },
     "dependencies": {
         "@microsoft/tiktokenizer": "^1.0.10",
-        "https-proxy-agent": "^7.0.4",
+        "@vscode/chat-lib": "^0.0.4",
         "openai": "6.2"
     },
     "devDependencies": {
