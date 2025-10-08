@@ -1,0 +1,4 @@
+# Track tiktoken BPE files with Git LFS
+*.tiktoken filter=lfs diff=lfs merge=lfs -text
+# Also track any in model/ explicitly
+model/*.tiktoken filter=lfs diff=lfs merge=lfs -text
