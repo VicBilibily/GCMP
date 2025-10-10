@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  智谱AI联网搜索工具
- *  支持SSE通讯和标准计费接口的切换
+ *  支持MCP和标准计费接口的切换
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -9,7 +9,7 @@ import { Logger } from '../utils';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { ConfigManager } from '../utils/configManager';
 import { VersionManager } from '../utils/versionManager';
-import { ZhipuSSEClient } from './zhipu-sse-client';
+import { MCPWebSearchClient, type WebSearchRequest } from '../utils/mcpWebSearchClient';
 
 /**
  * 智谱AI搜索引擎类型
@@ -64,34 +64,40 @@ export interface ZhipuSearchResponse {
  */
 export class ZhipuSearchTool {
     private readonly baseURL = 'https://open.bigmodel.cn/api/paas/v4';
-    private readonly sseClient = new ZhipuSSEClient();
+    // MCP 客户端使用单例模式，不在这里直接实例化
 
     /**
-     * 检查是否启用 SSE 模式
+     * 检查是否启用 MCP 模式
      */
-    private isSSEEnabled(): boolean {
+    private isMCPEnabled(): boolean {
         const config = ConfigManager.getZhipuSearchConfig();
-        return config.enableMCP; // 复用 enableMCP 配置项来控制 SSE 模式
+        return config.enableMCP;
     }
 
     /**
-     * 通过 SSE 搜索（仅Pro+套餐支持）
+     * 通过 MCP 搜索（仅Pro及以上套餐支持）
      */
-    private async searchViaSSE(params: ZhipuSearchRequest): Promise<string> {
-        Logger.info(`🔄 [智谱搜索] 使用SSE模式搜索: "${params.search_query}"`);
+    private async searchViaMCP(params: ZhipuSearchRequest): Promise<ZhipuSearchResult[]> {
+        Logger.info(`🔄 [智谱搜索] 使用MCP模式搜索: "${params.search_query}"`);
 
-        const searchOptions = {
-            count: params.count || 10,
-            domainFilter: params.search_domain_filter,
-            recencyFilter: params.search_recency_filter || 'noLimit',
-            contentSize: params.content_size || 'medium'
+        // 获取 MCP 客户端实例（单例模式，带缓存）
+        const mcpClient = await MCPWebSearchClient.getInstance();
+
+        const searchRequest: WebSearchRequest = {
+            search_query: params.search_query,
+            search_engine: params.search_engine,
+            search_intent: params.search_intent,
+            count: params.count,
+            search_domain_filter: params.search_domain_filter,
+            search_recency_filter: params.search_recency_filter,
+            content_size: params.content_size
         };
 
-        return this.sseClient.search(params.search_query, searchOptions);
+        return await mcpClient.search(searchRequest);
     }
 
     /**
-     * 执行搜索（支持SSE和标准计费接口）
+     * 执行搜索（标准计费接口）
      */
     async search(params: ZhipuSearchRequest): Promise<ZhipuSearchResponse> {
         const apiKey = await ApiKeyManager.getApiKey('zhipu');
@@ -177,38 +183,6 @@ export class ZhipuSearchTool {
     }
 
     /**
-     * 格式化搜索结果为文本
-     */
-    formatResults(response: ZhipuSearchResponse): string {
-        Logger.debug(`📋 [智谱搜索] 格式化搜索结果: ${JSON.stringify(response)}`);
-
-        if (!response.search_result || response.search_result.length === 0) {
-            return '没有找到相关搜索结果。';
-        }
-
-        let formatted = `找到 ${response.search_result.length} 个搜索结果：\n\n`;
-
-        response.search_result.forEach((result, index) => {
-            formatted += `${index + 1}. **${result.title}**\n`;
-            formatted += `   ${result.content}\n`;
-            formatted += `   🔗 ${result.link}\n`;
-            if (result.refer) {
-                formatted += `   📰 ${result.refer}`;
-            }
-            if (result.publish_date) {
-                formatted += ` • 📅 ${result.publish_date}`;
-            }
-            formatted += '\n\n';
-        });
-
-        if (response.search_intent && response.search_intent.length > 0) {
-            formatted += `---\n搜索意图: ${response.search_intent[0].intent} | 关键词: ${response.search_intent[0].keywords}`;
-        }
-
-        return formatted;
-    }
-
-    /**
      * 工具调用处理器
      */
     async invoke(
@@ -223,19 +197,19 @@ export class ZhipuSearchTool {
             }
 
             // 根据配置选择搜索模式
-            let searchResults: string;
-            if (this.isSSEEnabled()) {
-                Logger.info('🔄 [智谱搜索] 使用SSE模式搜索（仅Pro+套餐支持）');
-                searchResults = await this.searchViaSSE(params);
+            let searchResults: ZhipuSearchResult[];
+            if (this.isMCPEnabled()) {
+                Logger.info('🔄 [智谱搜索] 使用MCP模式搜索（仅Pro及以上套餐支持）');
+                searchResults = await this.searchViaMCP(params);
             } else {
                 Logger.info('🔄 [智谱搜索] 使用标准计费接口搜索（按次计费）');
                 const response = await this.search(params);
-                searchResults = this.formatResults(response);
+                searchResults = response.search_result || [];
             }
 
             Logger.info('✅ [工具调用] 智谱AI联网搜索工具调用成功');
 
-            return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(searchResults)]);
+            return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(JSON.stringify(searchResults))]);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : '未知错误';
             Logger.error('❌ [工具调用] 智谱AI联网搜索工具调用失败', error instanceof Error ? error : undefined);
@@ -247,11 +221,11 @@ export class ZhipuSearchTool {
     /**
      * 获取搜索模式状态
      */
-    getSearchModeStatus(): { mode: 'SSE' | 'Standard'; description: string } {
-        const isSSE = this.isSSEEnabled();
+    getSearchModeStatus(): { mode: 'MCP' | 'Standard'; description: string } {
+        const isMCP = this.isMCPEnabled();
         return {
-            mode: isSSE ? 'SSE' : 'Standard',
-            description: isSSE ? 'SSE通讯模式（仅Pro+套餐支持）' : '标准计费接口模式（按次计费）'
+            mode: isMCP ? 'MCP' : 'Standard',
+            description: isMCP ? 'MCP模式（仅Pro及以上套餐支持）' : '标准计费接口模式（按次计费）'
         };
     }
 
@@ -260,10 +234,25 @@ export class ZhipuSearchTool {
      */
     async cleanup(): Promise<void> {
         try {
-            await this.sseClient.disconnect();
+            // MCP 客户端使用单例模式，不需要在这里清理
+            // 如果需要清理所有 MCP 客户端缓存，可以调用 MCPWebSearchClient.clearCache()
             Logger.info('✅ [智谱搜索] 工具资源已清理');
         } catch (error) {
             Logger.error('❌ [智谱搜索] 资源清理失败', error instanceof Error ? error : undefined);
         }
+    }
+
+    /**
+     * 获取 MCP 客户端缓存统计信息
+     */
+    getMCPCacheStats() {
+        return MCPWebSearchClient.getCacheStats();
+    }
+
+    /**
+     * 清除 MCP 客户端缓存
+     */
+    async clearMCPCache(apiKey?: string): Promise<void> {
+        await MCPWebSearchClient.clearCache(apiKey);
     }
 }
