@@ -135,7 +135,11 @@ export class OpenAIHandler {
                                     // 仍然保留对仅有 finish_reason 且无 delta 的过滤，处理所有choices
                                     if (obj.choices && obj.choices.length > 0) {
                                         // 倒序处理choices，避免索引变化影响后续处理
-                                        for (let choiceIndex = obj.choices.length - 1; choiceIndex >= 0; choiceIndex--) {
+                                        for (
+                                            let choiceIndex = obj.choices.length - 1;
+                                            choiceIndex >= 0;
+                                            choiceIndex--
+                                        ) {
                                             const choice = obj.choices[choiceIndex];
                                             if (choice?.finish_reason) {
                                                 if (!choice.delta || Object.keys(choice.delta).length === 0) {
@@ -151,8 +155,12 @@ export class OpenAIHandler {
                                                 }
                                             }
                                             if (choice?.delta && Object.keys(choice.delta).length === 0) {
-                                                if (choice?.finish_reason) { continue; } // 避免移除有效的空 delta
-                                                Logger.trace(`preprocessSSEResponse 移除无效的 delta (choice ${choiceIndex})`);
+                                                if (choice?.finish_reason) {
+                                                    continue;
+                                                } // 避免移除有效的空 delta
+                                                Logger.trace(
+                                                    `preprocessSSEResponse 移除无效的 delta (choice ${choiceIndex})`
+                                                );
                                                 // 直接从数组中移除无效choice
                                                 obj.choices.splice(choiceIndex, 1);
                                                 objModified = true;
@@ -410,7 +418,9 @@ export class OpenAIHandler {
                                 const reasoningContent = delta?.reasoning_content ?? message?.reasoning_content;
                                 if (reasoningContent) {
                                     try {
-                                        Logger.trace(`🧠 接收到思考内容 (choice ${choiceIndex}): ${reasoningContent.length}字符`);
+                                        Logger.trace(
+                                            `🧠 接收到思考内容 (choice ${choiceIndex}): ${reasoningContent.length}字符`
+                                        );
                                         // 如果当前没有 active id，则生成一个用于本次思维链
                                         if (!currentThinkingId) {
                                             currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -421,7 +431,9 @@ export class OpenAIHandler {
                                         // 标记已接收内容
                                         hasReceivedContent = true;
                                     } catch (e) {
-                                        Logger.trace(`${model.name} report 思维链失败 (choice ${choiceIndex}): ${String(e)}`);
+                                        Logger.trace(
+                                            `${model.name} report 思维链失败 (choice ${choiceIndex}): ${String(e)}`
+                                        );
                                     }
                                 }
 
@@ -437,7 +449,9 @@ export class OpenAIHandler {
                                             Logger.trace(
                                                 `${model.name} 在输出message.content前结束当前思维链 id=${currentThinkingId} (choice ${choiceIndex})`
                                             );
-                                            progress.report(new vscode.LanguageModelThinkingPart('', currentThinkingId));
+                                            progress.report(
+                                                new vscode.LanguageModelThinkingPart('', currentThinkingId)
+                                            );
                                         } catch (e) {
                                             Logger.trace(
                                                 `${model.name} 发送 thinking done(id=${currentThinkingId}) 失败 (choice ${choiceIndex}): ${String(e)}`
@@ -450,7 +464,9 @@ export class OpenAIHandler {
                                         progress.report(new vscode.LanguageModelTextPart(messageContent));
                                         hasReceivedContent = true;
                                     } catch (e) {
-                                        Logger.trace(`${model.name} report message content 失败 (choice ${choiceIndex}): ${String(e)}`);
+                                        Logger.trace(
+                                            `${model.name} report message content 失败 (choice ${choiceIndex}): ${String(e)}`
+                                        );
                                     }
                                 }
                             }

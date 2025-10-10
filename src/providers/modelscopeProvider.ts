@@ -278,7 +278,24 @@ export class ModelScopeProvider extends GenericModelProvider {
     /**
      * 处理流式响应块
      */
-    private handleStreamChunk(chunk: { usage?: unknown; choices?: Array<{ delta?: { content?: string; tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }> }; finish_reason?: string }> }, progress: vscode.Progress<vscode.LanguageModelResponsePart>, modelName: string): boolean {
+    private handleStreamChunk(
+        chunk: {
+            usage?: unknown;
+            choices?: Array<{
+                delta?: {
+                    content?: string;
+                    tool_calls?: Array<{
+                        index?: number;
+                        id?: string;
+                        function?: { name?: string; arguments?: string };
+                    }>;
+                };
+                finish_reason?: string;
+            }>;
+        },
+        progress: vscode.Progress<vscode.LanguageModelResponsePart>,
+        modelName: string
+    ): boolean {
         let hasContent = false;
 
         // 检查是否是包含usage信息的最终chunk
@@ -356,7 +373,10 @@ export class ModelScopeProvider extends GenericModelProvider {
     /**
      * 处理缓存中的工具调用
      */
-    private processBufferedToolCalls(progress: vscode.Progress<vscode.LanguageModelResponsePart>, modelName: string): boolean {
+    private processBufferedToolCalls(
+        progress: vscode.Progress<vscode.LanguageModelResponsePart>,
+        modelName: string
+    ): boolean {
         let hasProcessed = false;
 
         for (const [toolIndex, bufferedTool] of this.toolCallsBuffer.entries()) {
@@ -367,7 +387,9 @@ export class ModelScopeProvider extends GenericModelProvider {
 
                     progress.report(new vscode.LanguageModelToolCallPart(toolCallId, bufferedTool.name, args));
 
-                    Logger.info(`[${modelName}] 成功处理工具调用: ${bufferedTool.name}, args: ${bufferedTool.arguments}`);
+                    Logger.info(
+                        `[${modelName}] 成功处理工具调用: ${bufferedTool.name}, args: ${bufferedTool.arguments}`
+                    );
                     hasProcessed = true;
                 } catch (error) {
                     Logger.error(
