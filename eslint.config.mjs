@@ -12,7 +12,9 @@ export default defineConfig(
             'dist',
             'node_modules',
             '**/*.d.ts',
-            'extension.js'
+            'extension.js',
+            'webpack.config.cjs',
+            'scripts/**/*'
         ]
     },
     {

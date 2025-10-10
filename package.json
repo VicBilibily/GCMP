@@ -439,14 +439,15 @@
     },
     "scripts": {
         "vscode:prepublish": "npm run clean && npm run compile",
-        "compile": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify",
-        "compile:dev": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+        "compile": "tsc && npm run copy-node-modules",
+        "compile:dev": "tsc --sourceMap && npm run copy-node-modules",
         "clean": "rimraf dist",
         "lint": "eslint",
         "lint:fix": "eslint --fix",
         "format": "prettier --write \"src/**/*.{ts,js,json}\"",
         "format:check": "prettier --check \"src/**/*.{ts,js,json}\"",
-        "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
+        "watch": "tsc --watch",
+        "copy-node-modules": "node scripts/copy-deps.cjs",
         "package": "vsce package",
         "publish": "vsce publish --allow-proposed-apis chatProvider",
         "pretest": "npm run compile:dev",
@@ -463,12 +464,14 @@
         "@types/node": "^20.0.0",
         "@types/vscode": "^1.104.0",
         "@vscode/vsce": "^3.6.2",
-        "esbuild": "^0.25.10",
         "eslint": "^9.13.0",
         "prettier": "^3.6.2",
         "rimraf": "^6.0.1",
+        "ts-loader": "^9.5.4",
         "typescript": "^5.9.2",
-        "typescript-eslint": "^8.39.0"
+        "typescript-eslint": "^8.39.0",
+        "webpack": "^5.102.1",
+        "webpack-cli": "^6.0.1"
     },
     "volta": {
         "node": "20.19.5"

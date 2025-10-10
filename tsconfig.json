@@ -1,33 +1,38 @@
 {
     "compilerOptions": {
-        "module": "Node16",
-        "target": "ES2022",
-        "lib": [
-            "ES2022"
-        ],
+        "module": "CommonJS",
+        "target": "ES2020",
+        "lib": ["ES2022"],
         "sourceMap": true,
         "rootDir": "src",
         "strict": true /* enable all strict type-checking options */,
         "outDir": "dist",
         "skipLibCheck": true /* Skip type checking of declaration files */,
-        "moduleResolution": "Node16",
+        "moduleResolution": "node",
         "esModuleInterop": true,
         "allowSyntheticDefaultImports": true,
         "forceConsistentCasingInFileNames": true,
-        "declaration": false /* esbuild doesn't generate declarations */,
-        "noEmit": false /* Let TypeScript emit for type checking, esbuild handles the actual bundling */,
-        "resolveJsonModule": true
-        /* Additional Checks */
-        // "noImplicitReturns": true, /* Report error when not all code paths in function return a value. */
-        // "noFallthroughCasesInSwitch": true, /* Report errors for fallthrough cases in switch statement. */
-        // "noUnusedParameters": true,  /* Report errors on unused parameters. */
+        "declaration": true,
+        "declarationMap": true,
+        "noEmit": false,
+        "resolveJsonModule": true,
+        "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true,
+        "noUnusedLocals": false,
+        "noUnusedParameters": false,
+        "removeComments": false,
+        "preserveConstEnums": true,
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true,
+        "inlineSourceMap": false,
+        "inlineSources": false,
+        "importHelpers": true,
+        "downlevelIteration": true,
+        "baseUrl": "./src",
+        "paths": {
+            "*": ["node_modules/*"]
+        }
     },
-    "include": [
-        "src/**/*"
-    ],
-    "exclude": [
-        "node_modules",
-        "dist",
-        "**/*.test.ts"
-    ]
+    "include": ["src/**/*"],
+    "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
 }
