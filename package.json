@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、火山方舟、阿里云百炼 模型支持的扩展",
-    "version": "0.6.5",
+    "version": "0.6.6",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -56,7 +56,7 @@
         "url": "https://github.com/VicBilibily/gcmp.git"
     },
     "engines": {
-        "vscode": "^1.104.0",
+        "vscode": ">=1.104.0",
         "node": ">=20.0.0",
         "npm": ">=9.0.0"
     },
@@ -235,7 +235,7 @@
                 "gcmp.zhipu.search.enableMCP": {
                     "type": "boolean",
                     "default": true,
-                    "description": "启用智谱AI搜索的SSE通讯模式。仅 Pro+ 套餐支持通过 MCP SSE 方式调用搜索，非订阅套餐请关闭此开关以使用标准计费接口（按次计费）。需要有效的智谱AI API密钥。",
+                    "description": "启用智谱AI搜索的MCP SDK模式。使用标准 MCP 协议和官方 SDK 实现搜索功能，提供更稳定的连接和更好的错误处理。非订阅套餐请关闭此开关以使用标准计费接口（按次计费）。需要有效的智谱AI API密钥。",
                     "scope": "application"
                 },
                 "gcmp.editToolMode": {
@@ -454,13 +454,14 @@
     },
     "dependencies": {
         "@microsoft/tiktokenizer": "^1.0.10",
+        "@modelcontextprotocol/sdk": "^1.20.0",
         "openai": "6.2"
     },
     "devDependencies": {
         "@eslint/js": "^9.13.0",
         "@stylistic/eslint-plugin": "^5.4.0",
         "@types/node": "^20.0.0",
-        "@types/vscode": "^1.105.0",
+        "@types/vscode": "^1.104.0",
         "@vscode/vsce": "^3.6.2",
         "esbuild": "^0.25.10",
         "eslint": "^9.13.0",
