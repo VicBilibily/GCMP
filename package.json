@@ -70,7 +70,8 @@
     "icon": "./gcmp-logo.png",
     "main": "./dist/extension.js",
     "enabledApiProposals": [
-        "chatProvider"
+        "chatProvider",
+        "inlineCompletionsAdditions"
     ],
     "activationEvents": [
         "onStartupFinished",
@@ -203,6 +204,11 @@
                 "command": "gcmp.baidu.setApiKey",
                 "title": "设置 百度智能云 API密钥",
                 "category": "GCMP"
+            },
+            {
+                "command": "gcmp.inlineCompletion.toggle",
+                "title": "切换内联代码补全",
+                "category": "GCMP"
             }
         ],
         "configuration": {
@@ -254,6 +260,12 @@
                     ],
                     "default": "claude",
                     "description": "选择编辑工具模式。Claude 使用高效的ReplaceString，GPT-5 使用ApplyPatch进行批量编辑，Grok 根据实验配置选择工具，None 直接使用基础文件编辑。",
+                    "scope": "application"
+                },
+                "gcmp.inlineCompletion.enabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "启用智能代码补全功能（使用智谱 GLM-4.5-Air 模型）。需要配置智谱 API Key。",
                     "scope": "application"
                 }
             }
