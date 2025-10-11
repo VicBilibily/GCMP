@@ -96,9 +96,9 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 [**UCloud**](https://www.ucloud.cn/)、
 [**七牛云**](https://www.qiniu.com/)、
 [**SophNet**](https://sophnet.com/)、
-[**并行智算云**](https://www.paratera.com/)、
+[**并行智算云**](https://ai.paratera.com/)、
 [**PPIO派欧云**](https://ppio.com/)、
-[**蓝耘元生代**](https://www.lanyunai.com/)、
+[**蓝耘元生代**](https://maas.lanyun.net/)、
 [**百度智能云**](https://cloud.baidu.com/)
 
 > 暂不适配的供应商（2025年10月）：

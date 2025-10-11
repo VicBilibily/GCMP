@@ -103,11 +103,22 @@
             }
         },
         {
+            "id": "z-ai/glm-4.6",
+            "name": "Z-Ai/GLM 4.6 (七牛云)",
+            "tooltip": "与GLM-4.5相比，这一代模型实现了多项关键提升： 更长的上下文窗口：上下文长度从128K令牌扩展至200K令牌，使模型能够处理更复杂的智能体任务。 卓越的编程性能：在代码基准测试中得分更高，并在Claude Code、Cline、Roo Code及Kilo Code等应用中展现出更优的实际表现，包括生成视觉效果精致的前端页面能力提升。 进阶推理能力：GLM-4.6在推理性能上取得显著进步，支持推理过程中的工具调用，综合能力进一步增强。 更强大的智能体：在工具调用和基于搜索的智能体任务中表现更出色，并能更高效地集成至智能体框架。 精细化写作：更贴合人类对文风与可读性的偏好，在角色扮演场景中的表现也更为自然流畅。",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
             "id": "glm-4.5",
             "name": "GLM 4.5 (七牛云)",
             "tooltip": "GLM-4.5 是 GLM 系列的旗舰新模型，拥有 3550 亿个总参数和 320 亿个活动参数。作为混合推理模型，它整合了推理、编码和代理功能，提供用于复杂推理和工具运用的思维模式，以及用于即时响应的非思维模式，可满足快速发展的代理应用日益复杂的需求。",
             "maxInputTokens": 131000,
-            "maxOutputTokens": 4096,
+            "maxOutputTokens": 8192,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -118,7 +129,7 @@
             "name": "GLM 4.5 Air (七牛云)",
             "tooltip": "GLM-4.5-Air 是 GLM 系列的另一款旗舰新模型，具备 1060 亿个总参数和 120 亿个活动参数。同样作为混合推理模型，它将推理、编码和代理功能统一，提供思维模式（用于复杂推理和工具运用）与非思维模式（用于即时响应），以适配代理应用的复杂需求。",
             "maxInputTokens": 131000,
-            "maxOutputTokens": 4096,
+            "maxOutputTokens": 8192,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
