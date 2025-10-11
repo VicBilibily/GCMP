@@ -13,9 +13,10 @@ let registeredProviders: Record<string, GenericModelProvider | IFlowProvider | M
 let registeredDisposables: vscode.Disposable[] = [];
 
 /**
- * 激活供应商 - 基于配置文件动态注册
+ * 激活供应商 - 基于配置文件动态注册（并行优化版本）
  */
 async function activateProviders(context: vscode.ExtensionContext): Promise<void> {
+    const startTime = Date.now();
     const configProvider = ConfigManager.getConfigProvider();
 
     if (!configProvider) {
@@ -23,10 +24,13 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
         return;
     }
 
-    // 遍历配置中的每个供应商
-    for (const [providerKey, providerConfig] of Object.entries(configProvider)) {
+    Logger.info(`⏱️ 开始并行注册 ${Object.keys(configProvider).length} 个供应商...`);
+
+    // 并行注册所有供应商以提升性能
+    const registrationPromises = Object.entries(configProvider).map(async ([providerKey, providerConfig]) => {
         try {
             Logger.trace(`正在注册供应商: ${providerConfig.displayName} (${providerKey})`);
+            const providerStartTime = Date.now();
 
             let provider: GenericModelProvider | IFlowProvider | ModelScopeProvider;
             let disposables: vscode.Disposable[];
@@ -48,14 +52,30 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
                 disposables = result.disposables;
             }
 
-            registeredProviders[providerKey] = provider;
-            registeredDisposables.push(...disposables);
+            const providerTime = Date.now() - providerStartTime;
+            Logger.info(`✅ ${providerConfig.displayName} 供应商注册成功 (耗时: ${providerTime}ms)`);
 
-            Logger.info(`${providerConfig.displayName} 供应商注册成功`);
+            return { providerKey, provider, disposables };
         } catch (error) {
-            Logger.error(`注册供应商 ${providerKey} 失败:`, error);
+            Logger.error(`❌ 注册供应商 ${providerKey} 失败:`, error);
+            return null;
+        }
+    });
+
+    // 等待所有供应商注册完成
+    const results = await Promise.all(registrationPromises);
+
+    // 收集成功注册的供应商
+    for (const result of results) {
+        if (result) {
+            registeredProviders[result.providerKey] = result.provider;
+            registeredDisposables.push(...result.disposables);
         }
     }
+
+    const totalTime = Date.now() - startTime;
+    const successCount = results.filter(r => r !== null).length;
+    Logger.info(`⏱️ 供应商注册完成: ${successCount}/${Object.keys(configProvider).length} 个成功 (总耗时: ${totalTime}ms)`);
 }
 
 /**
@@ -78,6 +98,8 @@ async function reRegisterProviders(context: vscode.ExtensionContext): Promise<vo
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
+    const activationStartTime = Date.now();
+
     try {
         Logger.initialize('GitHub Copilot Models Provider (GCMP)'); // 初始化日志管理器
 
@@ -88,21 +110,28 @@ export async function activate(context: vscode.ExtensionContext) {
             Logger.checkAndPromptLogLevel();
         }
 
-        Logger.info('开始激活 GCMP 扩展...');
+        Logger.info('⏱️ 开始激活 GCMP 扩展...');
 
-        ApiKeyManager.initialize(context); // 初始化API密钥管理器
+        // 步骤1: 初始化API密钥管理器
+        let stepStartTime = Date.now();
+        ApiKeyManager.initialize(context);
+        Logger.trace(`⏱️ API密钥管理器初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
-        // 初始化配置管理器并注册到context
+        // 步骤2: 初始化配置管理器
+        stepStartTime = Date.now();
         const configDisposable = ConfigManager.initialize();
         context.subscriptions.push(configDisposable);
+        Logger.trace(`⏱️ 配置管理器初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
-        // 激活供应商
-        Logger.trace('正在注册模型提供者...');
+        // 步骤3: 激活供应商（并行优化）
+        stepStartTime = Date.now();
         await activateProviders(context);
+        Logger.trace(`⏱️ 模型提供者注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
-        // 注册工具
-        Logger.trace('正在注册工具...');
+        // 步骤4: 注册工具
+        stepStartTime = Date.now();
         registerAllTools(context);
+        Logger.trace(`⏱️ 工具注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
         // 监听配置变更，特别是 editToolMode
         const configChangeDisposable = vscode.workspace.onDidChangeConfiguration(async event => {
@@ -124,7 +153,8 @@ export async function activate(context: vscode.ExtensionContext) {
         });
         context.subscriptions.push(configChangeDisposable);
 
-        Logger.info('GCMP 扩展激活完成');
+        const totalActivationTime = Date.now() - activationStartTime;
+        Logger.info(`✅ GCMP 扩展激活完成 (总耗时: ${totalActivationTime}ms)`);
     } catch (error) {
         const errorMessage = `GCMP 扩展激活失败: ${error instanceof Error ? error.message : '未知错误'}`;
         Logger.error(errorMessage, error instanceof Error ? error : undefined);

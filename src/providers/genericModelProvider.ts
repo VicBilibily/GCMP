@@ -17,6 +17,23 @@ import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { ApiKeyManager, Logger, OpenAIHandler } from '../utils';
 
 /**
+ * 全局共享的 tokenizer 实例
+ * 所有供应商共享同一个 tokenizer，节省内存和初始化时间
+ */
+let sharedTokenizerPromise: Promise<TikTokenizer> | null = null;
+
+/**
+ * 获取共享的 tokenizer 实例（懒加载，全局单例）
+ */
+function getSharedTokenizer(): Promise<TikTokenizer> {
+    if (!sharedTokenizerPromise) {
+        Logger.trace('🔧 首次请求 tokenizer，正在初始化全局共享实例...');
+        sharedTokenizerPromise = createByEncoderName('o200k_base');
+    }
+    return sharedTokenizerPromise;
+}
+
+/**
  * 通用模型供应商类
  * 基于配置文件动态创建供应商实现
  */
@@ -24,7 +41,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     protected readonly openaiHandler: OpenAIHandler;
     protected readonly providerKey: string;
     protected providerConfig: ProviderConfig; // 移除 readonly 以支持动态配置
-    protected o200kTokenizerPromise?: Promise<TikTokenizer>;
 
     constructor(providerKey: string, providerConfig: ProviderConfig) {
         this.providerKey = providerKey;
@@ -33,8 +49,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 创建OpenAI SDK处理器
         this.openaiHandler = new OpenAIHandler(providerKey, providerConfig.displayName, providerConfig.baseUrl);
 
-        // 初始化 o200k_base tokenizer
-        this.o200kTokenizerPromise = createByEncoderName('o200k_base');
+        // 不再需要实例级别的 tokenizer，使用全局共享实例
     }
 
     /**
@@ -175,7 +190,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     ): Promise<number> {
         Logger.info(`🔢 provideTokenCount 被调用 - 模型: ${model.id}, 输入类型: ${typeof text}`);
         try {
-            const tokenizer = await this.o200kTokenizerPromise;
+            const tokenizer = await getSharedTokenizer();
             if (!tokenizer) {
                 throw new Error('Tokenizer 初始化失败');
             }
