@@ -147,6 +147,17 @@
             }
         },
         {
+            "id": "glm-4.6",
+            "name": "GLM-4.6 (iFlow)",
+            "tooltip": "GLM-4.6 是基于智谱新一代旗舰文本模型开发的，在 41 个公开视觉多模态任务中取得了同级别开源模型中的最佳表现，覆盖图像、视频、文档理解以及 GUI Agent 等多种典型应用场景。",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
             "id": "kimi-k2-0905",
             "name": "Kimi-K2-Instruct-0905 (iFlow)",
             "tooltip": "Kimi K2-Instruct-0905，由月之暗面研发的开源万亿参数MoE模型。激活参数达320亿，采用混合专家架构，支持256K超长上下文，具备卓越的编码智能与工具调用能力，尤其在前端开发与多语言编程任务中表现突出。",
