@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、火山方舟、阿里云百炼 模型支持的扩展",
-    "version": "0.6.8",
+    "version": "0.6.9",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -32,6 +32,8 @@
         "ppio",
         "lanyun",
         "baidu",
+        "aiping",
+        "AI Ping",
         "智谱AI",
         "心流AI",
         "月之暗面",
@@ -80,6 +82,7 @@
         "onLanguageModelProvider:gcmp.deepseek",
         "onLanguageModelProvider:gcmp.volcengine",
         "onLanguageModelProvider:gcmp.dashscope",
+        "onLanguageModelProvider:gcmp.aiping",
         "onLanguageModelProvider:gcmp.minimax",
         "onLanguageModelProvider:gcmp.modelscope",
         "onLanguageModelProvider:gcmp.siliconflow",
@@ -127,6 +130,11 @@
             {
                 "command": "gcmp.dashscope.setApiKey",
                 "title": "设置 阿里云百炼 API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.aiping.setApiKey",
+                "title": "设置 AI Ping API密钥",
                 "category": "GCMP"
             },
             {
@@ -288,6 +296,11 @@
                 "vendor": "gcmp.dashscope",
                 "displayName": "阿里云百炼",
                 "managementCommand": "gcmp.dashscope.setApiKey"
+            },
+            {
+                "vendor": "gcmp.aiping",
+                "displayName": "AI Ping (Alpha)",
+                "managementCommand": "gcmp.aiping.setApiKey"
             },
             {
                 "vendor": "gcmp.minimax",
@@ -455,7 +468,7 @@
     "dependencies": {
         "@microsoft/tiktokenizer": "^1.0.10",
         "@modelcontextprotocol/sdk": "^1.20.0",
-        "openai": "6.2"
+        "openai": "^6.3.0"
     },
     "devDependencies": {
         "@eslint/js": "^9.13.0",

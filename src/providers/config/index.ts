@@ -6,7 +6,9 @@ import moonshot from './moonshot.json';
 import deepseek from './deepseek.json';
 import volcengine from './volcengine.json';
 import dashscope from './dashscope.json';
+import aiping from './aiping.json';
 import minimax from './minimax.json';
+import modelscope from './modelscope.json';
 import siliconflow from './siliconflow.json';
 import infini from './infini.json';
 import coreshub from './coreshub.json';
@@ -20,7 +22,6 @@ import ppio from './ppio.json';
 import lanyun from './lanyun.json';
 import sophnet from './sophnet.json';
 import baidu from './baidu.json';
-import modelscope from './modelscope.json';
 
 const providers = {
     zhipu,
@@ -29,6 +30,7 @@ const providers = {
     deepseek,
     volcengine,
     dashscope,
+    aiping,
     minimax,
     modelscope,
     siliconflow,
