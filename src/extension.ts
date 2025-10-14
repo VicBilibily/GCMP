@@ -5,6 +5,9 @@ import { ModelScopeProvider } from './providers/modelscopeProvider';
 import { Logger } from './utils/logger';
 import { ApiKeyManager, ConfigManager } from './utils';
 import { registerAllTools } from './tools';
+import { registerInlineCompletionProvider } from './inlineCompletion/inlineCompletionProvider';
+import { toggleEnabled } from './inlineCompletion/configuration';
+import { StatusBarManager } from './inlineCompletion/statusBarManager';
 
 /**
  * 全局变量 - 存储已注册的供应商实例，用于配置变更时的重新注册
@@ -133,6 +136,29 @@ export async function activate(context: vscode.ExtensionContext) {
         registerAllTools(context);
         Logger.trace(`⏱️ 工具注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
+        try {
+            // 步骤5: 注册内联代码补全功能
+            stepStartTime = Date.now();
+            Logger.info('context', JSON.stringify(context.extension));
+            registerInlineCompletionProvider(context);
+            Logger.trace(`⏱️ 内联代码补全功能注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+
+            // 步骤6: 初始化状态栏管理器
+            stepStartTime = Date.now();
+            const statusBarManager = StatusBarManager.getInstance();
+            const configListener = statusBarManager.registerConfigChangeListener();
+            context.subscriptions.push(statusBarManager, configListener);
+            Logger.trace(`⏱️ 状态栏管理器初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+
+            // 注册内联补全切换命令
+            context.subscriptions.push(
+                vscode.commands.registerCommand('gcmp.inlineCompletion.toggle', toggleEnabled),
+                vscode.commands.registerCommand('gcmp.toggleInlineCompletion', () => {
+                    statusBarManager.toggleStatus();
+                })
+            );
+        } catch (ex) { Logger.error('注册 inlineCompletion 时发生错误', ex); }
+
         // 监听配置变更，特别是 editToolMode
         const configChangeDisposable = vscode.workspace.onDidChangeConfiguration(async event => {
             if (event.affectsConfiguration('gcmp.editToolMode')) {
@@ -185,6 +211,7 @@ export function deactivate() {
         }
 
         ConfigManager.dispose(); // 清理配置管理器
+        StatusBarManager.getInstance()?.dispose(); // 清理状态栏管理器
         Logger.info('GCMP 扩展停用完成');
         Logger.dispose(); // 在扩展销毁时才 dispose Logger
     } catch (error) {
