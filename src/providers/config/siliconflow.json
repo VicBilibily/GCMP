@@ -4,6 +4,28 @@
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "deepseek-ai/DeepSeek-V3.2-Exp",
+            "name": "DeepSeek-V3.2-Exp (硅基流动)",
+            "tooltip": "DeepSeek-V3.2-Exp 是一个实验性模型版本，作为迈向下一代架构的中间步骤。它在 V3.1-Terminus 的基础上引入了 DeepSeek 稀疏注意力（DeepSeek Sparse Attention，DSA）机制，这是一种旨在探索和验证长上下文场景下训练和推理效率优化的稀疏注意力机制。该实验性版本代表了团队在更高效 Transformer 架构方面的持续研究，特别关注于提升处理长文本序列时的计算效率。DSA 首次实现了细粒度的稀疏注意力，在保持模型输出质量几乎不变的同时，显著提升了长上下文训练和推理的效率",
+            "maxInputTokens": 160000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "Pro/deepseek-ai/DeepSeek-V3.2-Exp",
+            "name": "DeepSeek-V3.2-Exp (Pro) (硅基流动)",
+            "tooltip": "DeepSeek-V3.2-Exp 是一个实验性模型版本，作为迈向下一代架构的中间步骤。它在 V3.1-Terminus 的基础上引入了 DeepSeek 稀疏注意力（DeepSeek Sparse Attention，DSA）机制，这是一种旨在探索和验证长上下文场景下训练和推理效率优化的稀疏注意力机制。该实验性版本代表了团队在更高效 Transformer 架构方面的持续研究，特别关注于提升处理长文本序列时的计算效率。DSA 首次实现了细粒度的稀疏注意力，在保持模型输出质量几乎不变的同时，显著提升了长上下文训练和推理的效率",
+            "maxInputTokens": 160000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
             "id": "deepseek-ai/DeepSeek-V3.1-Terminus",
             "name": "DeepSeek-V3.1-Terminus (硅基流动)",
             "tooltip": "DeepSeek-V3.1-Terminus 是由深度求索（DeepSeek）发布的 V3.1 模型的更新版本，定位为混合智能体大语言模型。此次更新在保持模型原有能力的基础上，专注于修复用户反馈的问题并提升稳定性。它显著改善了语言一致性，减少了中英文混用和异常字符的出现。模型集成了\"思考模式\"（Thinking Mode）和\"非思考模式\"（Non-thinking Mode），用户可通过聊天模板灵活切换以适应不同任务。作为一个重要的优化，V3.1-Terminus 增强了代码智能体（Code Agent）和搜索智能体（Search Agent）的性能，使其在工具调用和执行多步复杂任务方面更加可靠。",
@@ -122,6 +144,50 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
+            }
+        },
+        {
+            "id": "Qwen/Qwen3-VL-30B-A3B-Instruct",
+            "name": "Qwen3-VL-30B-A3B-Instruct (硅基流动)",
+            "tooltip": "Qwen3-VL 是 Qwen 系列迄今为止最强大的视觉语言模型。该模型进行了全面升级，包括卓越的文本理解与生成、更深层次的视觉感知与推理、更长的上下文长度、增强的空间和视频动态理解，以及更强的智能体交互能力。作为基于混合专家（MoE）架构的指令微调（Instruct）版本，它专为灵活、按需部署而设计，具备强大的视觉智能体、视觉编码和视频理解能力，并原生支持 256K 上下文",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "Qwen/Qwen3-VL-30B-A3B-Thinking",
+            "name": "Qwen3-VL-30B-A3B-Thinking (硅基流动)",
+            "tooltip": "Qwen3-VL 是 Qwen 系列迄今为止最强大的视觉语言模型。该模型进行了全面升级，包括卓越的文本理解与生成、更深层次的视觉感知与推理、更长的上下文长度、增强的空间和视频动态理解，以及更强的智能体交互能力。这个推理增强的 “Thinking” 版本基于混合专家（MoE）架构构建，擅长执行操作 PC/移动设备图形用户界面、从图像生成代码以及在 STEM 领域进行高级多模态推理等任务。它原生支持 256K 上下文长度，并拥有支持 32 种语言的扩展 OCR 能力",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "Qwen/Qwen3-VL-235B-A22B-Instruct",
+            "name": "Qwen3-VL-235B-A22B-Instruct (硅基流动)",
+            "tooltip": "Qwen3-VL-235B-A22B-Instruct 是一个拥有 2350 亿参数的混合专家（MoE）视觉语言模型，其中激活的参数量为 220 亿。它是 Qwen3-VL-235B-A22B 的指令微调版本，专为聊天应用进行了优化。Qwen3-VL 是一系列接受文本和图像输入的多模态模型，经过大量数据训练。它在理解和推理文本与图像方面表现出先进的能力",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "Qwen/Qwen3-VL-235B-A22B-Thinking",
+            "name": "Qwen3-VL-235B-A22B-Thinking (硅基流动)",
+            "tooltip": "Qwen3-VL 是通义千问系列迄今最强大的视觉语言模型。该系列在文本理解与生成、视觉感知与推理、上下文长度、空间关系和视频动态理解以及 AI Agent 交互方面均实现了全面升级。Qwen3-VL-235B-A22B-Thinking 是该系列的旗舰模型之一，为推理增强的“思考”版本，在数学、因果分析和逻辑推理等多个多模态推理基准测试中取得了业界顶尖（SOTA）的表现。该模型是一个混合专家（MoE）架构，总参数量为 235B，激活参数量为 22B。它原生支持 256K 的上下文长度，并可扩展至 100 万，能够处理整本教科书或数小时的视频内容。此外，该模型具备强大的视觉 Agent 能力，可以操作桌面及移动端图形界面（GUI）、将草图转换为代码，并支持 3D 接地，为复杂的空间推理和具身智能应用奠定了基础",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
             }
         },
         {
@@ -304,6 +370,17 @@
             "id": "inclusionAI/Ling-mini-2.0",
             "name": "Ling-mini-2.0 (硅基流动)",
             "tooltip": "Ling-mini-2.0 是一款基于 MoE 架构 的小尺寸高性能大语言模型。它拥有 16B 总参数，但每个 token 仅激活 1.4B（non-embedding 789M），从而实现了极高的生成速度。得益于高效的 MoE 设计与大规模高质量训练数据，尽管激活参数仅为 1.4B，Ling-mini-2.0 依然在下游任务中展现出可媲美 10B 以下 dense LLM 及更大规模 MoE 模型的顶尖性能。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "inclusionAI/Ling-1T",
+            "name": "Ling-1T (硅基流动)",
+            "tooltip": "Ling-1T 是\"灵 2.0\"系列的首款旗舰级 non-thinking 模型，拥有 1 万亿总参数和每 token 约 500 亿个活动参数。基于灵 2.0 架构构建，Ling-1T 旨在突破高效推理和可扩展认知的极限。Ling-1T-base 在超过 20 万亿个高质量、推理密集的 token 上进行了预训练，支持高达 128K 的上下文长度，并在中段训练和后训练中采用了进化思维链（Evo-CoT）过程。这一训练课程极大地提升了模型的效率和推理深度，使 Ling-1T 能够在多个复杂推理基准上实现顶尖性能，平衡了准确性与效率",
             "maxInputTokens": 128000,
             "maxOutputTokens": 8192,
             "capabilities": {

@@ -147,6 +147,28 @@
             }
         },
         {
+            "id": "qwen3-vl-8b-instruct",
+            "name": "通义千问3-VL-8B-Instruct (阿里云百炼)",
+            "tooltip": "Qwen3-VL系列8B Dense模型的Instruct版本，占用显存更低，全面升级图像/视频理解、长视频长文档等超长上下文支持、空间感知与万物识别能力，胜任复杂现实任务。",
+            "maxInputTokens": 126000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qwen3-vl-8b-thinking",
+            "name": "通义千问3-VL-8B-Thinking (阿里云百炼)",
+            "tooltip": "Qwen3-VL系列8B Dense模型的Thinking版本，占用显存更低，能够完成多模态理解与推理；支持长视频长文档等超长上下文、视觉2D/3D定位；全面升级图像/视频理解、空间感知与万物识别能力。",
+            "maxInputTokens": 124000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
             "id": "qwen3-vl-30b-a3b-instruct",
             "name": "通义千问3-VL-30B-A3B-Instruct (阿里云百炼)",
             "tooltip": "Qwen3-VL系列第二大MoE模型的Instruct版本，响应速度快，支持长视频长文档等超长上下文；全面升级图像/视频理解、空间感知与万物识别能力；具备视觉2D/3D定位能力，胜任复杂现实任务。",
