@@ -49,7 +49,7 @@
 
 ### 🏔️ [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
 
-- **豆包系列**：**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
+- **豆包系列**：**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
 - **DeepSeek系列**：**DeepSeek-V3**、**DeepSeek-V3.1**、**DeepSeek-V3.1-Terminus**
 - **Kimi系列**：**Kimi-K2**
 
