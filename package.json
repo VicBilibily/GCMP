@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、火山方舟、阿里云百炼 模型支持的扩展",
-    "version": "0.6.11",
+    "version": "0.6.12",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -26,8 +26,10 @@
         "huaweicloud",
         "jdcloud",
         "qiniu",
+        "gpulink",
         "ucloud",
         "sophnet",
+        "tbox",
         "paratera",
         "ppio",
         "lanyun",
@@ -48,6 +50,8 @@
         "华为云",
         "京东云",
         "七牛云",
+        "零克云",
+        "百灵大模型",
         "并行智算云",
         "PPIO派欧云",
         "蓝耘元生代",
@@ -92,8 +96,10 @@
         "onLanguageModelProvider:gcmp.huaweicloud",
         "onLanguageModelProvider:gcmp.jdcloud",
         "onLanguageModelProvider:gcmp.qiniu",
+        "onLanguageModelProvider:gcmp.gpulink",
         "onLanguageModelProvider:gcmp.ucloud",
         "onLanguageModelProvider:gcmp.sophnet",
+        "onLanguageModelProvider:gcmp.tbox",
         "onLanguageModelProvider:gcmp.paratera",
         "onLanguageModelProvider:gcmp.ppio",
         "onLanguageModelProvider:gcmp.lanyun",
@@ -183,6 +189,11 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.gpulink.setApiKey",
+                "title": "设置 零克云 API密钥",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.ucloud.setApiKey",
                 "title": "设置 UCloud API密钥",
                 "category": "GCMP"
@@ -190,6 +201,11 @@
             {
                 "command": "gcmp.sophnet.setApiKey",
                 "title": "设置 SophNet API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.tbox.setApiKey",
+                "title": "设置 百灵大模型 API密钥",
                 "category": "GCMP"
             },
             {
@@ -348,6 +364,11 @@
                 "managementCommand": "gcmp.qiniu.setApiKey"
             },
             {
+                "vendor": "gcmp.gpulink",
+                "displayName": "零克云 (Beta)",
+                "managementCommand": "gcmp.gpulink.setApiKey"
+            },
+            {
                 "vendor": "gcmp.ucloud",
                 "displayName": "UCloud (Beta)",
                 "managementCommand": "gcmp.ucloud.setApiKey"
@@ -356,6 +377,11 @@
                 "vendor": "gcmp.sophnet",
                 "displayName": "SophNet (Beta)",
                 "managementCommand": "gcmp.sophnet.setApiKey"
+            },
+            {
+                "vendor": "gcmp.tbox",
+                "displayName": "百灵大模型 (Beta)",
+                "managementCommand": "gcmp.tbox.setApiKey"
             },
             {
                 "vendor": "gcmp.paratera",

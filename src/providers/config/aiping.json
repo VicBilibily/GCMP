@@ -4,6 +4,28 @@
     "apiKeyTemplate": "QC-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "DeepSeek-V3.2-Exp",
+            "name": "DeepSeek-V3.2-Exp (AI Ping)",
+            "tooltip": "DeepSeek-V3.2-Exp 模型，这是一个实验性（Experimental）的版本。作为迈向新一代架构的中间步骤，V3.2-Exp 在 V3.1-Terminus 的基础上引入了 DeepSeek Sparse Attention（一种稀疏注意力机制），针对长文本的训练和推理效率进行了探索性的优化和验证。",
+            "maxInputTokens": 163840,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "DeepSeek-V3.1-Terminus",
+            "name": "DeepSeek-V3.1-Terminus (AI Ping)",
+            "tooltip": "此次更新在保持模型原有能力的基础上，针对用户反馈的问题进行了改进，包括： 语言一致性： 缓解了中英文混杂、偶发异常字符等情况； Agent 能力： 进一步优化了 Code Agent 与 Search Agent 的表现。 DeepSeek-V3.1-Terminus 的输出效果相比前一版本更加稳定",
+            "maxInputTokens": 163840,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
             "id": "DeepSeek-V3.1",
             "name": "DeepSeek-V3.1 (AI Ping)",
             "tooltip": "DeepSeek-V3.1本次升级包含混合推理架构：一个模型同时支持思考模式与非思考模式；更高的思考效率；更强的 Agent 能力。",
@@ -165,6 +187,29 @@
             "maxOutputTokens": 8192,
             "capabilities": {
                 "toolCalling": true,
+                "imageInput": false
+            }
+        },
+
+        {
+            "id": "Ling-1T",
+            "name": "Ling-1T (AI Ping)",
+            "tooltip": "Ling-1T 是百灵混合专家（MoE）架构系列的，万亿参数量旗舰版自然语言大模型，在 20T+ 高质量语料上完成了预训练。本模型是最新发布的万亿参数级别开源模型，在各项评测集中都有上佳表现，适合作为下一代开放模型中最易用，使用体验最好的开源基础模型的选择",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "Ring-1T",
+            "name": "Ring-1T (AI Ping)",
+            "tooltip": "Ring-1T 是全球首个开源的万亿参数推理大模型，也是百灵混合专家（MoE）推理模型 Ring 系列中尺寸最大，推理能力最强的旗舰版模型。本模型基于 icepop 方法进行 RLVR 训练，有卓越的自然语言推理能力，在 AIME 25，CodeForces，HMMT25、LiveCodeBench，ARC-AGI- v1 等测试中均有 SOTA 表现，多项指标位列开源模型首位。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": false,
                 "imageInput": false
             }
         },

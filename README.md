@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/VicBilibily/GCMP/actions/workflows/ci.yml/badge.svg)](https://github.com/VicBilibily/GCMP/actions)
 [![Version](https://img.shields.io/visual-studio-marketplace/v/vicanent.gcmp?color=blue&label=Version)](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/vicanent.gcmp?color=yellow&label=Installs)](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp)
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/vicanent.gcmp?color=green&label=Downloads)](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp)
 [![License](https://img.shields.io/github/license/VicBilibily/GCMP?color=orange&label=License)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
@@ -94,9 +95,11 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 [**腾讯云**](https://cloud.tencent.com/)、
 [**华为云**](https://www.huaweicloud.com/product/modelarts/studio.html)、
 [**京东云**](https://www.jdcloud.com/)、
-[**UCloud**](https://www.ucloud.cn/)、
 [**七牛云**](https://www.qiniu.com/)、
+[**零克云**](https://gpulink.cc/model-market/model-center/modelCenter)、
+[**UCloud**](https://www.ucloud.cn/)、
 [**SophNet**](https://sophnet.com/)、
+[**百灵大模型**](https://ling.tbox.cn/open)、
 [**并行智算云**](https://ai.paratera.com/)、
 [**PPIO派欧云**](https://ppio.com/)、
 [**蓝耘元生代**](https://maas.lanyun.net/)、

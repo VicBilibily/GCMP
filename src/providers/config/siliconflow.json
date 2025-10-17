@@ -147,6 +147,28 @@
             }
         },
         {
+            "id": "Qwen/Qwen3-VL-8B-Instruct",
+            "name": "Qwen3-VL-8B-Instruct (硅基流动)",
+            "tooltip": "Qwen3-VL-8B-Instruct 是 Qwen3 系列的视觉语言模型。它基于 Qwen3-8B-Instruct 模型开发，并经过大量图文数据的训练。该模型在通用视觉理解、以视觉为中心的对话以及图像中的多语言文本识别方面表现出强大的能力。Qwen3-VL 在细粒度识别、文本理解和多图像比较方面表现出色，并支持高达 1024x1024 分辨率的高清图像",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "Qwen/Qwen3-VL-8B-Thinking",
+            "name": "Qwen3-VL-8B-Thinking (硅基流动)",
+            "tooltip": "Qwen3-VL-8B-Thinking 是 Qwen3 系列的视觉语言模型，专为需要复杂推理的场景优化。它基于 Qwen3-8B-Instruct 模型，并支持“思考模式”（Thinking Mode）。在该模式下，模型会在给出最终答案前进行一步步的思考和推理，从而显著提升在复杂视觉问答、多步指令遵循和逻辑推理任务上的表现。该模型在通用视觉理解、图文对话和多语言文字识别方面同样表现出色，并支持高达 1024x1024 分辨率的高清图像",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
             "id": "Qwen/Qwen3-VL-30B-A3B-Instruct",
             "name": "Qwen3-VL-30B-A3B-Instruct (硅基流动)",
             "tooltip": "Qwen3-VL 是 Qwen 系列迄今为止最强大的视觉语言模型。该模型进行了全面升级，包括卓越的文本理解与生成、更深层次的视觉感知与推理、更长的上下文长度、增强的空间和视频动态理解，以及更强的智能体交互能力。作为基于混合专家（MoE）架构的指令微调（Instruct）版本，它专为灵活、按需部署而设计，具备强大的视觉智能体、视觉编码和视频理解能力，并原生支持 256K 上下文",
@@ -381,6 +403,17 @@
             "id": "inclusionAI/Ling-1T",
             "name": "Ling-1T (硅基流动)",
             "tooltip": "Ling-1T 是\"灵 2.0\"系列的首款旗舰级 non-thinking 模型，拥有 1 万亿总参数和每 token 约 500 亿个活动参数。基于灵 2.0 架构构建，Ling-1T 旨在突破高效推理和可扩展认知的极限。Ling-1T-base 在超过 20 万亿个高质量、推理密集的 token 上进行了预训练，支持高达 128K 的上下文长度，并在中段训练和后训练中采用了进化思维链（Evo-CoT）过程。这一训练课程极大地提升了模型的效率和推理深度，使 Ling-1T 能够在多个复杂推理基准上实现顶尖性能，平衡了准确性与效率",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "inclusionAI/Ring-1T",
+            "name": "Ring-1T (硅基流动)",
+            "tooltip": "Ring-1T 是一款由百灵（Bailing）团队发布的万亿参数规模的开源思想模型。它基于 Ling 2.0 架构和 Ling-1T-base 基础模型训练，总参数量达 1 万亿，激活参数量为 500 亿，并支持高达 128K 的上下文窗口。该模型通过大规模可验证奖励强化学习（RLVR）训练，并结合自研的 Icepop 强化学习稳定化方法和高效的 ASystem 强化学习系统，显著提升了模型的深度推理和自然语言推理能力。Ring-1T 在数学竞赛（如 IMO 2025）、代码生成（如 ICPC World Finals 2025）和逻辑推理等高难度推理基准上取得了领先的开源模型表现",
             "maxInputTokens": 128000,
             "maxOutputTokens": 8192,
             "capabilities": {

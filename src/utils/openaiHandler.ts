@@ -520,6 +520,18 @@ export class OpenAIHandler {
                 } else {
                     const errorMessage = error.message || '未知错误';
                     Logger.error(`${model.name} ${this.displayName} 请求失败: ${errorMessage}`);
+
+                    // 检查是否为statusCode错误，如果是则确保同步抛出
+                    if (errorMessage.includes('502') || errorMessage.includes('Bad Gateway') ||
+                        errorMessage.includes('500') || errorMessage.includes('Internal Server Error') ||
+                        errorMessage.includes('503') || errorMessage.includes('Service Unavailable') ||
+                        errorMessage.includes('504') || errorMessage.includes('Gateway Timeout')) {
+                        // 对于服务器错误，直接抛出原始错误以终止对话
+                        throw new vscode.LanguageModelError(errorMessage);
+                    }
+
+                    // 对于普通错误，也需要重新抛出
+                    throw error;
                 }
             }
 

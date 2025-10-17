@@ -1,0 +1,73 @@
+{
+    "displayName": "零克云",
+    "baseUrl": "https://gpulink.cc/v1",
+    "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "models": [
+        {
+            "id": "deepseek-v3-1",
+            "name": "DeepSeek-V3.1 (GPULink)",
+            "tooltip": "DeepSeek-V3.1 是一个支持思考模式和非思考模式的混合模型。与之前的版本相比，这次升级在多个方面带来了改进：混合思考模式、更智能的工具调用、更高的思考效率",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "Kimi-K2-Instruct",
+            "name": "Kimi-K2-Instruct (GPULink)",
+            "tooltip": "Kimi K2 是一种最先进的混合专家（MoE）语言模型，具有 320 亿个激活参数和 1 万亿个总参数。通过 Muon 优化器训练，Kimi K2 在前沿知识、推理和编码任务上表现出色，同时在代理能力方面进行了精心优化",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "kimi-k2-instruct-0905",
+            "name": "Kimi-K2-Instruct-0905 (GPULink)",
+            "tooltip": "Kimi K2-Instruct-0905 是 Kimi K2 的最新、最强大的版本。它是一个最先进的混合专家（MoE）语言模型，具有 320 亿激活参数和总共 1 万亿参数",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "Qwen/Qwen3-Next-80B-A3B-Instruct",
+            "name": "Qwen3-Next-80B-A3B-Instruct (GPULink)",
+            "tooltip": "Qwen3-Next-80B-A3B 是 Qwen3-Next 系列的第一个版本，具有以下关键改进：混合注意力、高稀疏度混合专家系统（MoE）、稳定性优化和多 token 预测（MTP）",
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "Qwen/Qwen3-32B",
+            "name": "Qwen3-32B (GPULink)",
+            "tooltip": "实现思考模式和非思考模式的有效融合，可在对话中切换模式。推理能力显著超过QwQ、通用能力显著超过Qwen2.5-32B-Instruct，达到同规模业界SOTA水平",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "Qwen/QwQ-32B",
+            "name": "QwQ-32B (GPULink)",
+            "tooltip": "Qwen/QwQ-32B，文本生成，适合教育、医疗、金融等多行业场景",
+            "maxInputTokens": 131000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        }
+    ]
+}

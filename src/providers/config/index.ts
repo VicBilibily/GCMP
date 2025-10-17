@@ -16,12 +16,14 @@ import tencentcloud from './tencentcloud.json';
 import huaweicloud from './huaweicloud.json';
 import jdcloud from './jdcloud.json';
 import qiniu from './qiniu.json';
+import gpulink from './gpulink.json';
 import ucloud from './ucloud.json';
 import paratera from './paratera.json';
 import ppio from './ppio.json';
 import lanyun from './lanyun.json';
 import sophnet from './sophnet.json';
 import baidu from './baidu.json';
+import tbox from './tbox.json';
 
 const providers = {
     zhipu,
@@ -40,12 +42,14 @@ const providers = {
     huaweicloud,
     jdcloud,
     qiniu,
+    gpulink,
     ucloud,
     paratera,
     ppio,
     lanyun,
     sophnet,
-    baidu
+    baidu,
+    tbox
 };
 
 export type ProviderName = keyof typeof providers;
