@@ -169,6 +169,28 @@
             }
         },
         {
+            "id": "Qwen/Qwen3-VL-32B-Instruct",
+            "name": "Qwen3-VL-32B-Instruct (硅基流动)",
+            "tooltip": "Qwen3-VL 是 Qwen3 系列中的视觉语言模型，在多个视觉语言（VL）基准测试中取得了领先（SOTA）性能。该模型支持百万像素级别的高分辨率图像输入，并具备强大的通用视觉理解、多语言 OCR、细粒度视觉定位和视觉对话能力。作为 Qwen3 系列的一部分，它继承了强大的语言基础，能够理解和执行复杂的指令",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "Qwen/Qwen3-VL-32B-Thinking",
+            "name": "Qwen3-VL-32B-Thinking (硅基流动)",
+            "tooltip": "Qwen3-VL-Thinking 是 Qwen3-VL 系列中一个为复杂视觉推理任务特别优化的版本。该模型内置了“思考模式”（Thinking Mode），使其在回答问题前能够生成详细的中间推理步骤（Chain-of-Thought），从而显著增强其在需要多步逻辑、规划和深入分析的视觉问答及其他视觉语言任务上的表现。与 Instruct 版本一样，它支持百万像素级的高分辨率图像，并具备强大的通用视觉理解和多语言能力",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
             "id": "Qwen/Qwen3-VL-30B-A3B-Instruct",
             "name": "Qwen3-VL-30B-A3B-Instruct (硅基流动)",
             "tooltip": "Qwen3-VL 是 Qwen 系列迄今为止最强大的视觉语言模型。该模型进行了全面升级，包括卓越的文本理解与生成、更深层次的视觉感知与推理、更长的上下文长度、增强的空间和视频动态理解，以及更强的智能体交互能力。作为基于混合专家（MoE）架构的指令微调（Instruct）版本，它专为灵活、按需部署而设计，具备强大的视觉智能体、视觉编码和视频理解能力，并原生支持 256K 上下文",

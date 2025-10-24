@@ -46,7 +46,6 @@
 深度求索旗下的高性能推理模型，支持强大的代码生成和复杂推理任务。
 
 - 支持模型：**DeepSeek-V3.2-Exp**，包含思考模式聊天模型。
-- 保留模型：**DeepSeek-V3.1-Terminus**，包含思考模式聊天模型。保留到北京时间 2025 年 10 月 15 日 23:59。
 
 ### 🏔️ [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
 
@@ -65,7 +64,7 @@
 
 ### 🏭 [**阿里云百炼**](https://bailian.console.aliyun.com/) - 一站式AI开发平台
 
-- **通义千问系列**：**Qwen-Flash**、**Qwen-Plus**、**Qwen-Max**、**Qwen3-VL-Plus**、**Qwen3-Next**、**Qwen3**（多种参数规模）
+- **通义千问系列**：**Qwen-Flash**、**Qwen-Plus**、**Qwen-Max**、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen3-Next**、**Qwen3**（开源系列多种参数规模）
 - **DeepSeek系列**：**DeepSeek-V3**、**DeepSeek-V3.1**、**DeepSeek-V3.2-Exp**
 - **智谱系列**：**GLM-4.5**、**GLM-4.5-Air**
 

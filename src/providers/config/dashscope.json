@@ -92,6 +92,28 @@
             }
         },
         {
+            "id": "qwen3-vl-flash",
+            "name": "通义千问3-VL-Flash (阿里云百炼)",
+            "tooltip": "Qwen3系列小尺寸视觉理解模型，实现思考模式和非思考模式的有效融合，效果优于开源版Qwen3-VL-30B-A3B，响应速度快。全面升级图像/视频理解，支持长视频长文档等超长上下文、空间感知与万物识别；具备视觉2D/3D定位能力，胜任复杂现实任务。",
+            "maxInputTokens": 254000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qwen3-vl-flash-2025-10-15",
+            "name": "通义千问3-VL-Flash-2025-10-15 (阿里云百炼)",
+            "tooltip": "Qwen3系列小尺寸视觉理解模型，实现思考模式和非思考模式的有效融合，效果优于开源版Qwen3-VL-30B-A3B，响应速度快。全面升级图像/视频理解，支持长视频长文档等超长上下文、空间感知与万物识别；具备视觉2D/3D定位能力，胜任复杂现实任务。此版本为2025年10月15日快照版本。",
+            "maxInputTokens": 254000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
             "id": "qwen3-vl-plus",
             "name": "通义千问3-VL-Plus (阿里云百炼)",
             "tooltip": "Qwen3系列视觉理解模型，实现思考模式和非思考模式的有效融合，视觉智能体能力在OS World等公开测试集上达到世界顶尖水平。此版本在视觉coding、空间感知、多模态思考等方向全面升级；视觉感知与识别能力大幅提升，支持超长视频理解。",
@@ -184,6 +206,28 @@
             "name": "通义千问3-VL-30B-A3B-Thinking (阿里云百炼)",
             "tooltip": "Qwen3-VL系列第二大MoE模型的Thinking版本，响应速度快，具备更强多模态理解与推理、视觉智能体、长视频长文档等超长上下文支持能力；全面升级图像/视频理解、空间感知与万物识别能力，胜任复杂现实任务。",
             "maxInputTokens": 124000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qwen3-vl-32b-instruct",
+            "name": "Qwen3-VL-32B-Instruct (阿里云百炼)",
+            "tooltip": "Qwen3-VL系列最大尺寸Dense模型的非推理版本，综合表现仅次于Qwen3-VL-235B-Instruct，文档识别和理解能力出色，空间感知与万物识别能力强，视觉2D检测/空间推理能力达到SOTA，适合通用场景下的复杂感知任务。",
+            "maxInputTokens": 126000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qwen3-vl-32b-thinking",
+            "name": "Qwen3-VL-32B-Thinking (阿里云百炼)",
+            "tooltip": "Qwen3-VL系列最大尺寸Dense模型的推理版本，多模态推理能力仅次于Qwen3-VL-235B-Thinking，STEM&数学类解题能力、通用图像和视频理解能力出众，多模态Agent能力达到SOTA，适合做复杂多模态推理任务。",
+            "maxInputTokens": 128000,
             "maxOutputTokens": 32000,
             "capabilities": {
                 "toolCalling": true,
