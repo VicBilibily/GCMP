@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Logger } from './logger';
-import { ConfigProvider } from '../types/sharedTypes';
+import { ConfigProvider, UserConfigOverrides, ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { configProviders } from '../providers/config';
 
 /**
@@ -36,6 +36,8 @@ export interface GCMPConfig {
     maxTokens: number;
     /** 智谱AI配置 */
     zhipu: ZhipuConfig;
+    /** 供应商配置覆盖 */
+    providerOverrides: UserConfigOverrides;
 }
 
 /**
@@ -89,7 +91,8 @@ export class ConfigManager {
                 search: {
                     enableMCP: config.get<boolean>('zhipu.search.enableMCP', true) // 默认启用SSE模式（仅Pro+套餐支持）
                 }
-            }
+            },
+            providerOverrides: config.get<UserConfigOverrides>('providerOverrides', {})
         };
 
         Logger.debug('配置已加载', this.cache);
@@ -190,6 +193,97 @@ export class ConfigManager {
      */
     static getConfigProvider(): ConfigProvider {
         return configProviders;
+    }
+
+    /**
+     * 获取配置覆盖设置
+     */
+    static getProviderOverrides(): UserConfigOverrides {
+        return this.getConfig().providerOverrides;
+    }
+
+    /**
+     * 应用配置覆盖到原始供应商配置
+     */
+    static applyProviderOverrides(providerKey: string, originalConfig: ProviderConfig): ProviderConfig {
+        const overrides = this.getProviderOverrides();
+        const override = overrides[providerKey];
+
+        if (!override) {
+            return originalConfig;
+        }
+
+        Logger.info(`🔧 应用供应商 ${providerKey} 的配置覆盖`);
+
+        // 创建配置的深拷贝
+        const config: ProviderConfig = JSON.parse(JSON.stringify(originalConfig));
+
+        // 应用供应商级别的覆盖
+        if (override.baseUrl) {
+            config.baseUrl = override.baseUrl;
+            Logger.debug(`  覆盖 baseUrl: ${override.baseUrl}`);
+        }
+
+        // 应用模型级别的覆盖
+        if (override.models && override.models.length > 0) {
+            for (const modelOverride of override.models) {
+                const existingModelIndex = config.models.findIndex(m => m.id === modelOverride.id);
+
+                if (existingModelIndex >= 0) {
+                    // 覆盖现有模型
+                    const existingModel = config.models[existingModelIndex];
+                    if (modelOverride.model !== undefined) {
+                        existingModel.model = modelOverride.model;
+                        Logger.debug(`  模型 ${modelOverride.id}: 覆盖 model = ${modelOverride.model}`);
+                    }
+                    if (modelOverride.maxInputTokens !== undefined) {
+                        existingModel.maxInputTokens = modelOverride.maxInputTokens;
+                        Logger.debug(
+                            `  模型 ${modelOverride.id}: 覆盖 maxInputTokens = ${modelOverride.maxInputTokens}`
+                        );
+                    }
+                    if (modelOverride.maxOutputTokens !== undefined) {
+                        existingModel.maxOutputTokens = modelOverride.maxOutputTokens;
+                        Logger.debug(
+                            `  模型 ${modelOverride.id}: 覆盖 maxOutputTokens = ${modelOverride.maxOutputTokens}`
+                        );
+                    }
+                    if (modelOverride.baseUrl !== undefined) {
+                        existingModel.baseUrl = modelOverride.baseUrl;
+                        Logger.debug(`  模型 ${modelOverride.id}: 覆盖 baseUrl = ${modelOverride.baseUrl}`);
+                    }
+                    // 合并 capabilities
+                    if (modelOverride.capabilities) {
+                        existingModel.capabilities = {
+                            ...existingModel.capabilities,
+                            ...modelOverride.capabilities
+                        };
+                        Logger.debug(
+                            `  模型 ${modelOverride.id}: 合并 capabilities = ${JSON.stringify(existingModel.capabilities)}`
+                        );
+                    }
+                } else {
+                    // 添加新模型
+                    const newModel: ModelConfig = {
+                        id: modelOverride.id,
+                        name: modelOverride.id, // 默认使用ID作为名称
+                        tooltip: `用户自定义模型: ${modelOverride.id}`,
+                        maxInputTokens: modelOverride.maxInputTokens || 128000,
+                        maxOutputTokens: modelOverride.maxOutputTokens || 8192,
+                        capabilities: {
+                            toolCalling: modelOverride.capabilities?.toolCalling ?? false,
+                            imageInput: modelOverride.capabilities?.imageInput ?? false
+                        },
+                        ...(modelOverride.model && { model: modelOverride.model }),
+                        ...(modelOverride.baseUrl && { baseUrl: modelOverride.baseUrl })
+                    };
+                    config.models.push(newModel);
+                    Logger.info(`  添加新模型: ${modelOverride.id}`);
+                }
+            }
+        }
+
+        return config;
     }
 
     /**

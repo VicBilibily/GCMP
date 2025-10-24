@@ -3,12 +3,7 @@
     "$id": "https://gcmp.dev/schemas/provider-config.schema.json",
     "title": "GCMP Provider Configuration",
     "type": "object",
-    "required": [
-        "displayName",
-        "baseUrl",
-        "apiKeyTemplate",
-        "models"
-    ],
+    "required": ["displayName", "baseUrl", "apiKeyTemplate", "models"],
     "additionalProperties": false,
     "properties": {
         "displayName": {
@@ -39,10 +34,7 @@
         "capabilities": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-                "toolCalling",
-                "imageInput"
-            ],
+            "required": ["toolCalling", "imageInput"],
             "properties": {
                 "toolCalling": {
                     "type": "boolean",
@@ -54,24 +46,10 @@
                 }
             }
         },
-        "headers": {
-            "type": "object",
-            "additionalProperties": {
-                "type": "string"
-            },
-            "description": "为此模型每个请求添加的可选自定义标头。"
-        },
         "model": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-                "id",
-                "name",
-                "tooltip",
-                "maxInputTokens",
-                "maxOutputTokens",
-                "capabilities"
-            ],
+            "required": ["id", "name", "tooltip", "maxInputTokens", "maxOutputTokens", "capabilities"],
             "properties": {
                 "id": {
                     "type": "string",
@@ -115,9 +93,6 @@
                     "type": "string",
                     "minLength": 1,
                     "description": "当与 ID 不同时的可选请求模型名称。"
-                },
-                "customHeaders": {
-                    "$ref": "#/$defs/headers"
                 }
             }
         }

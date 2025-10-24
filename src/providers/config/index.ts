@@ -5,6 +5,7 @@ import iflow from './iflow.json';
 import moonshot from './moonshot.json';
 import deepseek from './deepseek.json';
 import volcengine from './volcengine.json';
+import streamlake from './streamlake.json';
 import dashscope from './dashscope.json';
 import aiping from './aiping.json';
 import minimax from './minimax.json';
@@ -31,6 +32,7 @@ const providers = {
     moonshot,
     deepseek,
     volcengine,
+    streamlake,
     dashscope,
     aiping,
     minimax,

@@ -46,7 +46,7 @@ export class MCPWebSearchClient {
      * 获取或创建客户端实例（单例模式，基于 API key）
      */
     static async getInstance(apiKey?: string): Promise<MCPWebSearchClient> {
-        const key = apiKey || await ApiKeyManager.getApiKey('zhipu');
+        const key = apiKey || (await ApiKeyManager.getApiKey('zhipu'));
         if (!key) {
             throw new Error('智谱AI API密钥未设置');
         }
@@ -131,7 +131,9 @@ export class MCPWebSearchClient {
                     await this.disableMCPMode();
                     throw new Error('智谱AI搜索权限不足：MCP模式已禁用，请重新尝试搜索。');
                 } else {
-                    throw new Error('智谱AI搜索权限不足：您的账户无权访问联网搜索 MCP 功能。请检查您的智谱AI套餐订阅状态。');
+                    throw new Error(
+                        '智谱AI搜索权限不足：您的账户无权访问联网搜索 MCP 功能。请检查您的智谱AI套餐订阅状态。'
+                    );
                 }
             } else {
                 throw new Error('智谱AI搜索权限不足：403错误。请检查您的API密钥权限或套餐订阅状态。');
@@ -226,11 +228,10 @@ export class MCPWebSearchClient {
 
         // 开始新的连接
         this.isConnecting = true;
-        this.connectionPromise = this.initializeClient()
-            .finally(() => {
-                this.isConnecting = false;
-                this.connectionPromise = null;
-            });
+        this.connectionPromise = this.initializeClient().finally(() => {
+            this.isConnecting = false;
+            this.connectionPromise = null;
+        });
 
         return this.connectionPromise;
     }
@@ -244,7 +245,7 @@ export class MCPWebSearchClient {
             return;
         }
 
-        const apiKey = this.currentApiKey || await ApiKeyManager.getApiKey('zhipu');
+        const apiKey = this.currentApiKey || (await ApiKeyManager.getApiKey('zhipu'));
         if (!apiKey) {
             throw new Error('智谱AI API密钥未设置');
         }
@@ -258,21 +259,24 @@ export class MCPWebSearchClient {
             // 使用 StreamableHTTP 传输，通过 requestInit.headers 传递 Authorization token
             const httpUrl = 'https://open.bigmodel.cn/api/mcp/web_search_prime/mcp';
 
-            this.client = new Client({
-                name: 'GCMP-WebSearch-Client',
-                version: VersionManager.getVersion()
-            }, {
-                capabilities: {
-                    tools: {}
+            this.client = new Client(
+                {
+                    name: 'GCMP-WebSearch-Client',
+                    version: VersionManager.getVersion()
+                },
+                {
+                    capabilities: {
+                        tools: {}
+                    }
                 }
-            });
+            );
 
             // 使用 StreamableHTTP 传输，通过 requestInit 传递认证 headers
             // 这是 MCP SDK 推荐的方式：通过 requestInit.headers 传递自定义 headers
             this.transport = new StreamableHTTPClientTransport(new URL(httpUrl), {
                 requestInit: {
                     headers: {
-                        'Authorization': `Bearer ${apiKey}`,
+                        Authorization: `Bearer ${apiKey}`,
                         'User-Agent': this.userAgent
                     }
                 }
@@ -280,7 +284,6 @@ export class MCPWebSearchClient {
 
             await this.client.connect(this.transport);
             Logger.info('✅ [MCP WebSearch] 使用 StreamableHTTP 传输连接成功（通过 Authorization header 认证）');
-
         } catch (error) {
             Logger.error('❌ [MCP WebSearch] 客户端初始化失败', error instanceof Error ? error : undefined);
             await this.internalCleanup();
@@ -327,8 +330,10 @@ export class MCPWebSearchClient {
             });
 
             if (Array.isArray(result.content)) {
-                const [{ text }] = result.content as { type: 'text', text: string }[];
-                if (text.startsWith('MCP error')) { throw new Error(text); }
+                const [{ text }] = result.content as { type: 'text'; text: string }[];
+                if (text.startsWith('MCP error')) {
+                    throw new Error(text);
+                }
                 const searchResults = JSON.parse(JSON.parse(text) as string) as ZhipuSearchResult[];
                 Logger.debug(`📊 [MCP WebSearch] 工具调用成功: ${searchResults?.length || 0}个结果`);
                 return searchResults;
@@ -398,7 +403,9 @@ export class MCPWebSearchClient {
             // 从缓存中移除
             if (this.currentApiKey) {
                 MCPWebSearchClient.clientCache.delete(this.currentApiKey);
-                Logger.info(`🗑️ [MCP WebSearch] 已从缓存中移除客户端 (API key: ${this.currentApiKey.substring(0, 8)}...)`);
+                Logger.info(
+                    `🗑️ [MCP WebSearch] 已从缓存中移除客户端 (API key: ${this.currentApiKey.substring(0, 8)}...)`
+                );
             }
 
             Logger.info('✅ [MCP WebSearch] 客户端资源已清理');

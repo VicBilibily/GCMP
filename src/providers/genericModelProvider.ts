@@ -14,7 +14,7 @@ import {
 } from 'vscode';
 import { createByEncoderName, TikTokenizer } from '@microsoft/tiktokenizer';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { ApiKeyManager, Logger, OpenAIHandler } from '../utils';
+import { ApiKeyManager, ConfigManager, Logger, OpenAIHandler } from '../utils';
 
 /**
  * 全局共享的 tokenizer 实例
@@ -44,10 +44,15 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
     constructor(providerKey: string, providerConfig: ProviderConfig) {
         this.providerKey = providerKey;
-        this.providerConfig = providerConfig;
+        // 应用配置覆盖
+        this.providerConfig = ConfigManager.applyProviderOverrides(providerKey, providerConfig);
 
         // 创建OpenAI SDK处理器
-        this.openaiHandler = new OpenAIHandler(providerKey, providerConfig.displayName, providerConfig.baseUrl);
+        this.openaiHandler = new OpenAIHandler(
+            providerKey,
+            this.providerConfig.displayName,
+            this.providerConfig.baseUrl
+        );
 
         // 不再需要实例级别的 tokenizer，使用全局共享实例
     }
@@ -136,13 +141,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
         // 将配置中的模型转换为VS Code所需的格式
         return this.providerConfig.models.map(model => this.modelConfigToInfo(model));
-    }
-
-    /**
-     * 更新模型配置（用于动态模型支持）
-     */
-    updateProviderConfig(newConfig: ProviderConfig): void {
-        this.providerConfig = newConfig;
     }
 
     /**

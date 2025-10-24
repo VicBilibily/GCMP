@@ -6,7 +6,7 @@
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/vicanent.gcmp?color=green&label=Downloads)](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp)
 [![License](https://img.shields.io/github/license/VicBilibily/GCMP?color=orange&label=License)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
-通过集成国内顶尖的AI模型，为开发者提供更丰富、更适合的AI编程助手选择。目前支持智谱AI、心流AI、MoonshotAI、DeepSeek、火山方舟、阿里云百炼等20+家主流AI供应商。
+通过集成国内顶尖的AI模型，为开发者提供更丰富、更适合的AI编程助手选择。目前支持智谱AI、心流AI、MoonshotAI、DeepSeek、火山方舟、快手万擎、阿里云百炼等20+家主流AI供应商。
 
 ## 🚀 快速开始
 
@@ -53,6 +53,15 @@
 - **豆包系列**：**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
 - **DeepSeek系列**：**DeepSeek-V3**、**DeepSeek-V3.1**、**DeepSeek-V3.1-Terminus**
 - **Kimi系列**：**Kimi-K2**
+
+### 🎬 [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake KAT-Coder
+
+- **KAT-Coder系列**：**KAT-Coder-Pro-V1**、**KAT-Coder-Exp-72B-1010**、**KAT-Coder-Air-V1**
+- **DeepSeek系列**：**DeepSeek-V3.2-Exp**、**DeepSeek-V3.1**、**DeepSeek-V3**
+- **Kimi系列**：**Kimi-K2-Instruct**
+- **Qwen系列**：**Qwen3-32B**、**Qwen3-30B-A3B**、**Qwen3-8B**、**Qwen2.5-7B-Instruct**
+
+> 快手万擎 (KAT) StreamLake 需要手动创建 [`在线推理服务`](https://www.streamlake.com/document/WANQING/mdsosw46egl9m9lfbg) 后，在 GCMP插件 `gcmp.providerOverrides` 配置项 进行模型定义覆盖设置后使用，最小设置可参考文档末尾的[示例](#供应商配置覆盖)。
 
 ### 🏭 [**阿里云百炼**](https://bailian.console.aliyun.com/) - 一站式AI开发平台
 
@@ -117,6 +126,8 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 
 GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获得更个性化的AI助手体验。
 
+> 📝 **提示**：所有参数修改会立即生效。
+
 ### 配置AI模型参数
 
 在 VS Code 设置中搜索 `"gcmp"` 或直接编辑 `settings.json`：
@@ -148,7 +159,49 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 | ----------------------------- | ------- | ------ | ---------------------------------------------------------------------------- |
 | `gcmp.zhipu.search.enableMCP` | boolean | true   | **搜索模式**：启用MCP通讯模式（仅Pro及以上套餐支持），关闭则使用标准计费接口 |
 
-> 📝 **提示**：所有参数修改会立即生效。
+#### 供应商配置覆盖
+
+GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖供应商的默认设置，包括：
+
+- **baseUrl 覆盖**：覆盖供应商级别的API基础URL
+- **模型配置覆盖**：覆盖现有模型或添加新模型的配置
+- **能力配置**：设置模型是否支持工具调用和图像输入
+- **Token限制**：自定义模型的输入输出token限制
+
+**配置示例**：
+
+```json
+{
+    "gcmp.providerOverrides": {
+        "zhipu": {
+            "baseUrl": "https://api.z.ai/api/paas/v4",
+            "models": [
+                {
+                    "id": "glm-4.6",
+                    "model": "glm-4.6",
+                    "baseUrl": "https://api.z.ai/api/coding/paas/v4",
+                    "maxInputTokens": 200000,
+                    "maxOutputTokens": 64000,
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    }
+                }
+            ]
+        },
+        "streamlake": [
+            {
+                "id": "KAT-Coder-Pro-V1",
+                "model": "your-kat-coder-pro-endpoint-id"
+            },
+            {
+                "id": "KAT-Coder-Air-V1",
+                "model": "your-kat-coder-air-endpoint-id"
+            }
+        ]
+    }
+}
+```
 
 ## 🤝 贡献指南
 

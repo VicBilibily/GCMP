@@ -75,7 +75,9 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
 
     const totalTime = Date.now() - startTime;
     const successCount = results.filter(r => r !== null).length;
-    Logger.info(`⏱️ 供应商注册完成: ${successCount}/${Object.keys(configProvider).length} 个成功 (总耗时: ${totalTime}ms)`);
+    Logger.info(
+        `⏱️ 供应商注册完成: ${successCount}/${Object.keys(configProvider).length} 个成功 (总耗时: ${totalTime}ms)`
+    );
 }
 
 /**
@@ -133,21 +135,21 @@ export async function activate(context: vscode.ExtensionContext) {
         registerAllTools(context);
         Logger.trace(`⏱️ 工具注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
-        // 监听配置变更，特别是 editToolMode
+        // 监听配置变更，特别是 editToolMode 和 providerOverrides
         const configChangeDisposable = vscode.workspace.onDidChangeConfiguration(async event => {
-            if (event.affectsConfiguration('gcmp.editToolMode')) {
-                Logger.info('检测到 editToolMode 配置变更，正在重新注册所有供应商...');
-
+            if (
+                event.affectsConfiguration('gcmp.editToolMode') ||
+                event.affectsConfiguration('gcmp.providerOverrides')
+            ) {
+                const configType = event.affectsConfiguration('gcmp.editToolMode') ? '编辑工具模式' : '供应商配置覆盖';
+                Logger.info(`检测到 ${configType} 配置变更，正在重新注册所有供应商...`);
                 try {
                     // 重新注册所有供应商以应用新的配置
                     await reRegisterProviders(context);
                     Logger.info('供应商重新注册成功');
-
-                    // 显示成功通知
-                    vscode.window.showInformationMessage('编辑工具模式已更新，所有模型提供商已刷新。');
                 } catch (error) {
                     Logger.error('重新注册供应商失败:', error);
-                    vscode.window.showErrorMessage('编辑工具模式更新失败，请重新加载窗口。');
+                    vscode.window.showErrorMessage(`${configType}更新失败，请重新加载窗口。`);
                 }
             }
         });

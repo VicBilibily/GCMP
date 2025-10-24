@@ -209,7 +209,9 @@ export class ZhipuSearchTool {
 
             Logger.info('✅ [工具调用] 智谱AI联网搜索工具调用成功');
 
-            return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(JSON.stringify(searchResults))]);
+            return new vscode.LanguageModelToolResult([
+                new vscode.LanguageModelTextPart(JSON.stringify(searchResults))
+            ]);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : '未知错误';
             Logger.error('❌ [工具调用] 智谱AI联网搜索工具调用失败', error instanceof Error ? error : undefined);
