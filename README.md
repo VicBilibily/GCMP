@@ -6,7 +6,7 @@
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/vicanent.gcmp?color=green&label=Downloads)](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp)
 [![License](https://img.shields.io/github/license/VicBilibily/GCMP?color=orange&label=License)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
-通过集成国内顶尖的AI模型，为开发者提供更丰富、更适合的AI编程助手选择。目前支持智谱AI、心流AI、MoonshotAI、DeepSeek、火山方舟、快手万擎、阿里云百炼等20+家主流AI供应商。
+通过集成国内顶尖的AI模型，为开发者提供更丰富、更适合的AI编程助手选择。目前支持智谱AI、Kimi、心流AI、MoonshotAI、DeepSeek、火山方舟、快手万擎、阿里云百炼等20+家主流AI供应商。
 
 ## 🚀 快速开始
 
@@ -30,6 +30,10 @@
 - 编程套餐：**GLM-4.6**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
 - 标准计费：**GLM-4.6**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5-X**、**GLM-4.5-AirX**、**GLM-4.5V**
 - 免费版本：**GLM-4.5-Flash**
+
+### 🌙 [**Kimi**](https://www.kimi.com/) - Kimi For Coding
+
+Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前模拟为 Roo Code 请求。
 
 ### 💫 [**心流AI**](https://platform.iflow.cn/) - iFlow
 

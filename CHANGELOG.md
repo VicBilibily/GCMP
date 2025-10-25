@@ -5,18 +5,24 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.7.2] - 2025-10-25
+
+### 新增
+
+- 新增 `Kimi会员计划` 的 `Kimi For Coding` 支持
+
 ## [0.7.1] - 2025-10-24
 
 ### 新增
 
-- 阿里云百炼 新增 通义千问3-VL-Flash、Qwen3-VL-32B 系列模型
-- 硅基流动 新增 Qwen3-VL-32B 系列模型
+- 阿里云百炼 新增 `通义千问3-VL-Flash`、`Qwen3-VL-32B` 系列模型
+- 硅基流动 新增 `Qwen3-VL-32B` 系列模型
 
 ## [0.7.0] - 2025-10-24
 
 ### 新增
 
-- 新增 快手万擎 (StreamLake) 供应商支持，可使用 KAT-Coder 系列模型
+- 新增 快手万擎 (StreamLake) 供应商支持，可使用 `KAT-Coder` 系列模型
 - 新增配置覆盖策略，允许覆盖供应商的baseUrl和模型基本配置
 
 ## [0.6.12] - 2025-10-22

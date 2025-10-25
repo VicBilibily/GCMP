@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
-import { Logger } from '../utils';
+import { Logger, VersionManager } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { ModelConfig } from '../types/sharedTypes';
@@ -53,9 +53,21 @@ export class OpenAIHandler {
         }
         // 优先使用模型特定的baseUrl，如果没有则使用供应商级别的baseUrl
         const baseURL = modelConfig?.baseUrl || this.baseURL;
+
+        // 构建默认头部，包含自定义头部
+        const defaultHeaders: Record<string, string> = {
+            'User-Agent': VersionManager.getUserAgent('OpenAI')
+        };
+        // 如果模型配置中有自定义头部，添加到默认头部中
+        if (modelConfig?.customHeader) {
+            Object.assign(defaultHeaders, modelConfig.customHeader);
+            Logger.debug(`${this.displayName} 应用自定义头部: ${JSON.stringify(modelConfig.customHeader)}`);
+        }
+
         const client = new OpenAI({
             apiKey: currentApiKey,
             baseURL: baseURL,
+            defaultHeaders: defaultHeaders,
             fetch: this.createCustomFetch() // 使用自定义 fetch 解决 SSE 格式问题
         });
         Logger.debug(`${this.displayName} OpenAI SDK 客户端已创建，使用baseURL: ${baseURL}`);

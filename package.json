@@ -2,8 +2,8 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、心流AI、MoonshotAI、DeepSeek、火山方舟、快手万擎、阿里云百炼 模型支持的扩展",
-    "version": "0.7.1",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、心流AI、MoonshotAI、DeepSeek、火山方舟、快手万擎、阿里云百炼 模型支持的扩展",
+    "version": "0.7.2",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -12,6 +12,7 @@
         "github-copilot",
         "language-model",
         "zhipu",
+        "kimi",
         "iflow",
         "moonshot",
         "deepseek",
@@ -83,6 +84,7 @@
     "activationEvents": [
         "onStartupFinished",
         "onLanguageModelProvider:gcmp.zhipu",
+        "onLanguageModelProvider:gcmp.kimi",
         "onLanguageModelProvider:gcmp.iflow",
         "onLanguageModelProvider:gcmp.moonshot",
         "onLanguageModelProvider:gcmp.deepseek",
@@ -114,6 +116,11 @@
             {
                 "command": "gcmp.zhipu.setApiKey",
                 "title": "设置 智谱AI API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.kimi.setApiKey",
+                "title": "设置 Kimi API密钥",
                 "category": "GCMP"
             },
             {
@@ -365,6 +372,7 @@
                         "description": "供应商标识符",
                         "enum": [
                             "zhipu",
+                            "kimi",
                             "iflow",
                             "moonshot",
                             "deepseek",
@@ -399,6 +407,11 @@
                 "vendor": "gcmp.zhipu",
                 "displayName": "智谱AI",
                 "managementCommand": "gcmp.zhipu.setApiKey"
+            },
+            {
+                "vendor": "gcmp.kimi",
+                "displayName": "Kimi",
+                "managementCommand": "gcmp.kimi.setApiKey"
             },
             {
                 "vendor": "gcmp.iflow",

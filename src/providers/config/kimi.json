@@ -1,0 +1,23 @@
+﻿{
+    "displayName": "Kimi",
+    "baseUrl": "https://api.kimi.com/coding/v1",
+    "apiKeyTemplate": "sk-kimi-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "models": [
+        {
+            "id": "kimi-for-coding",
+            "name": "Kimi For Coding",
+            "tooltip": "Kimi For Coding - 月之暗面推出的专业编程模型，提供强大的代码生成和理解能力",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "customHeader": {
+                "HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
+                "X-Title": "Roo Code",
+                "User-Agent": "RooCode/3.29.0"
+            }
+        }
+    ]
+}

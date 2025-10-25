@@ -1,6 +1,7 @@
 import { ProviderConfig } from '../../types/sharedTypes';
 // 统一导出所有模型配置，便于代码 import
 import zhipu from './zhipu.json';
+import kimi from './kimi.json';
 import iflow from './iflow.json';
 import moonshot from './moonshot.json';
 import deepseek from './deepseek.json';
@@ -28,6 +29,7 @@ import tbox from './tbox.json';
 
 const providers = {
     zhipu,
+    kimi,
     iflow,
     moonshot,
     deepseek,

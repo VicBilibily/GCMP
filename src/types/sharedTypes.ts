@@ -27,6 +27,11 @@ export interface ModelConfig {
      * 如果提供，将使用此模型名称而不是模型ID发起请求
      */
     model?: string;
+    /**
+     * 模型特定的自定义HTTP头部（可选）
+     * 如果提供，将在API请求中附加这些自定义头部
+     */
+    customHeader?: Record<string, string>;
 }
 
 /**
