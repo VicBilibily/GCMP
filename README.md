@@ -33,7 +33,7 @@
 
 ### 🌙 [**Kimi**](https://www.kimi.com/) - Kimi For Coding
 
-Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前模拟为 Roo Code 请求。
+Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic SDK 模拟为 Roo Code 请求。
 
 ### 💫 [**心流AI**](https://platform.iflow.cn/) - iFlow
 

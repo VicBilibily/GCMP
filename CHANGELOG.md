@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.1] - 2025-10-27
+
+### 修复
+
+- 修复 Anthropic SDK 调用结束后的 `inputTokens`、`totalTokens` 的统计输出
+
 ## [0.8.0] - 2025-10-27
 
 ### 新增

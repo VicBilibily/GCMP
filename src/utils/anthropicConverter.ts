@@ -190,6 +190,8 @@ export async function handleAnthropicStream(
 
     let usage: { inputTokens: number; outputTokens: number; totalTokens: number } | undefined;
 
+    Logger.debug('开始处理 Anthropic 流式响应');
+
     try {
         for await (const chunk of stream) {
             if (token.isCancellationRequested) {
@@ -203,13 +205,13 @@ export async function handleAnthropicStream(
                     // 消息开始 - 收集初始使用统计
                     usage = {
                         inputTokens:
-                            chunk.message.usage.input_tokens +
+                            (chunk.message.usage.input_tokens ?? 0) +
                             (chunk.message.usage.cache_creation_input_tokens ?? 0) +
                             (chunk.message.usage.cache_read_input_tokens ?? 0),
                         outputTokens: 1,
                         totalTokens: -1
                     };
-                    Logger.trace('消息流开始');
+                    Logger.trace(`消息流开始 - 初始输入tokens: ${usage.inputTokens}`);
                     break;
 
                 case 'content_block_start':
@@ -270,10 +272,22 @@ export async function handleAnthropicStream(
                     break;
 
                 case 'message_delta':
-                    // 消息增量 - 更新输出 token 统计
-                    if (usage && chunk.usage?.output_tokens) {
-                        usage.outputTokens = chunk.usage.output_tokens;
-                        usage.totalTokens = usage.inputTokens + chunk.usage.output_tokens;
+                    // 消息增量 - 更新使用统计
+                    if (usage && chunk.usage) {
+                        // 更新输入 tokens（如果有更新）
+                        if (chunk.usage.input_tokens !== undefined && chunk.usage.input_tokens !== null) {
+                            usage.inputTokens = chunk.usage.input_tokens +
+                                (chunk.usage.cache_creation_input_tokens ?? 0) +
+                                (chunk.usage.cache_read_input_tokens ?? 0);
+                        }
+                        // 更新输出 tokens（如果有更新）
+                        if (chunk.usage.output_tokens !== undefined && chunk.usage.output_tokens !== null) {
+                            usage.outputTokens = chunk.usage.output_tokens;
+                        }
+                        // 重新计算总数
+                        usage.totalTokens = usage.inputTokens + usage.outputTokens;
+
+                        Logger.trace(`Token使用更新 - 输入: ${usage.inputTokens}, 输出: ${usage.outputTokens}, 总计: ${usage.totalTokens}`);
                     }
                     // 记录停止原因
                     if (chunk.delta.stop_reason) {
@@ -296,6 +310,12 @@ export async function handleAnthropicStream(
     } catch (error) {
         Logger.error('处理 Anthropic 流时出错:', error);
         throw error;
+    }
+
+    if (usage) {
+        Logger.debug(`流处理完成 - 最终使用统计: 输入=${usage.inputTokens}, 输出=${usage.outputTokens}, 总计=${usage.totalTokens}`);
+    } else {
+        Logger.warn('流处理完成但未获取到使用统计信息');
     }
 
     return { usage };
