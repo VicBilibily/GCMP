@@ -6,6 +6,8 @@
         {
             "id": "MiniMax-M2",
             "name": "MiniMax-M2",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "MiniMax-M2 - 专为高效编码与Agent工作流而生",
             "maxInputTokens": 204800,
             "maxOutputTokens": 8192,

@@ -6,25 +6,21 @@
         {
             "id": "glm-4.6",
             "name": "GLM-4.6 (编程套餐)",
-            "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://open.bigmodel.cn/api/anthropic",
             "tooltip": "ZHIPU GLM-4.6 - GLM-4.6的代码能力对齐Claude Sonnet 4，是国内已知的最好的Coding模型",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
-            },
-            "customHeader": {
-                "HTTP-Referer": "https://kilocode.ai",
-                "X-Title": "Kilo Code",
-                "X-KiloCode-Version": "4.110.0",
-                "User-Agent": "Kilo-Code/4.110.0"
             }
         },
         {
             "id": "glm-4.5",
             "name": "GLM-4.5 (编程套餐)",
-            "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://open.bigmodel.cn/api/anthropic",
             "tooltip": "ZHIPU GLM-4.5 - 最强大的推理模型，3550亿参数，专为复杂推理任务优化",
             "maxInputTokens": 128000,
             "maxOutputTokens": 96000,
@@ -36,7 +32,8 @@
         {
             "id": "glm-4.5-air",
             "name": "GLM-4.5-Air (编程套餐)",
-            "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://open.bigmodel.cn/api/anthropic",
             "tooltip": "ZHIPU GLM-4.5-Air - 高性价比模型，轻量级设计，强性能表现",
             "maxInputTokens": 128000,
             "maxOutputTokens": 96000,
@@ -55,6 +52,12 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
+            },
+            "customHeader": {
+                "HTTP-Referer": "https://kilocode.ai",
+                "X-Title": "Kilo Code",
+                "X-KiloCode-Version": "4.110.0",
+                "User-Agent": "Kilo-Code/4.110.0"
             }
         },
         {

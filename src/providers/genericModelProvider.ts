@@ -14,7 +14,7 @@ import {
 } from 'vscode';
 import { createByEncoderName, TikTokenizer } from '@microsoft/tiktokenizer';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { ApiKeyManager, ConfigManager, Logger, OpenAIHandler } from '../utils';
+import { ApiKeyManager, ConfigManager, Logger, OpenAIHandler, AnthropicHandler } from '../utils';
 
 /**
  * 全局共享的 tokenizer 实例
@@ -39,6 +39,7 @@ function getSharedTokenizer(): Promise<TikTokenizer> {
  */
 export class GenericModelProvider implements LanguageModelChatProvider {
     protected readonly openaiHandler: OpenAIHandler;
+    protected readonly anthropicHandler: AnthropicHandler;
     protected readonly providerKey: string;
     protected providerConfig: ProviderConfig; // 移除 readonly 以支持动态配置
 
@@ -47,8 +48,15 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 应用配置覆盖
         this.providerConfig = ConfigManager.applyProviderOverrides(providerKey, providerConfig);
 
-        // 创建OpenAI SDK处理器
+        // 创建 OpenAI SDK 处理器
         this.openaiHandler = new OpenAIHandler(
+            providerKey,
+            this.providerConfig.displayName,
+            this.providerConfig.baseUrl
+        );
+
+        // 创建 Anthropic SDK 处理器
+        this.anthropicHandler = new AnthropicHandler(
             providerKey,
             this.providerConfig.displayName,
             this.providerConfig.baseUrl
@@ -167,10 +175,18 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 确保有API密钥（最后的保险检查）
         await ApiKeyManager.ensureApiKey(this.providerKey, this.providerConfig.displayName);
 
-        Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求: ${modelConfig.name}`);
+        // 根据模型的 sdkMode 选择使用的 handler
+        const sdkMode = modelConfig.sdkMode || 'openai';
+        const sdkName = sdkMode === 'anthropic' ? 'Anthropic SDK' : 'OpenAI SDK';
+
+        Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
 
         try {
-            await this.openaiHandler.handleRequest(model, modelConfig, messages, options, progress, token);
+            if (sdkMode === 'anthropic') {
+                await this.anthropicHandler.handleRequest(model, modelConfig, messages, options, progress, token);
+            } else {
+                await this.openaiHandler.handleRequest(model, modelConfig, messages, options, progress, token);
+            }
         } catch (error) {
             const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
             Logger.error(errorMessage);
@@ -268,6 +284,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
      * 当扩展被销毁时应该调用此方法
      */
     dispose(): void {
+        this.anthropicHandler.dispose();
         Logger.info(`🧹 ${this.providerConfig.displayName}: 扩展销毁`);
     }
 }

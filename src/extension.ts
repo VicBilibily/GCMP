@@ -46,7 +46,7 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
                 provider = result.provider;
                 disposables = result.disposables;
             } else {
-                // 其他供应商使用通用 provider
+                // 其他供应商使用通用 provider（支持基于 sdkMode 的自动选择）
                 const result = GenericModelProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;

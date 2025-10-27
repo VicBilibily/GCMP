@@ -5,6 +5,18 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.0] - 2025-10-27
+
+### 新增
+
+- 新增 `@anthropic-ai/sdk` 依赖（v0.67.0）
+
+### 重大变更
+
+- 智谱AI 订阅套餐语言模型（`GLM-4.6`、`GLM-4.5`、`GLM-4.5-Air`） 现在通过 Anthropic SDK 调用
+- MiniMax 供应商的 `MiniMax-M2` 现在通过 Anthropic SDK 调用
+- Kimi 供应商胡 `Kimi For Coding` 现在通过 Anthropic SDK 调用
+
 ## [0.7.3] - 2025-10-27
 
 ### 新增

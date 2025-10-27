@@ -1,0 +1,155 @@
+/*---------------------------------------------------------------------------------------------
+ *  Anthropic SDK Handler
+ *  处理使用 Claude SDK 的智谱AI模型请求
+ *--------------------------------------------------------------------------------------------*/
+
+import * as vscode from 'vscode';
+import Anthropic from '@anthropic-ai/sdk';
+import { apiMessageToAnthropicMessage, handleAnthropicStream, convertToAnthropicTools } from './anthropicConverter';
+import { ApiKeyManager } from './apiKeyManager';
+import { Logger } from './logger';
+import { ConfigManager } from './configManager';
+import { VersionManager } from './versionManager';
+import type { ModelConfig } from '../types/sharedTypes';
+
+/**
+ * Anthropic 兼容处理器类
+ * 接收完整的供应商配置，使用 Anthropic SDK 处理流式聊天完成
+ */
+export class AnthropicHandler {
+    private clients = new Map<string, Anthropic>();
+    private cachedApiKeys = new Map<string, string>();
+
+    constructor(
+        public readonly provider: string,
+        public readonly displayName: string,
+        private readonly baseURL?: string
+    ) {
+        // provider、displayName 和 baseURL 由调用方传入
+    }
+
+    /**
+     * 获取或创建 Anthropic 客户端
+     * 使用构造时传入的配置
+     */
+    private async getAnthropicClient(modelConfig?: ModelConfig): Promise<Anthropic> {
+        const currentApiKey = await ApiKeyManager.getApiKey(this.provider);
+
+        if (!currentApiKey) {
+            throw new Error(`缺少 ${this.displayName} API密钥`);
+        }
+
+        // 使用模型配置的 baseUrl 或提供商默认的 baseURL
+        const baseUrl = modelConfig?.baseUrl || this.baseURL;
+        const clientKey = `${this.provider}_${baseUrl}`;
+        const cachedKey = this.cachedApiKeys.get(clientKey);
+
+        // 如果 API 密钥变更了，重置客户端
+        if (!this.clients.has(clientKey) || cachedKey !== currentApiKey) {
+            Logger.debug(`[${this.displayName}] 创建新的 Anthropic 客户端 (baseUrl: ${baseUrl})`);
+
+            const client = new Anthropic({
+                apiKey: currentApiKey,
+                baseURL: baseUrl,
+                defaultHeaders: {
+                    'User-Agent': VersionManager.getUserAgent(this.provider),
+                    ...(modelConfig?.customHeader || {})
+                }
+            });
+
+            this.clients.set(clientKey, client);
+            this.cachedApiKeys.set(clientKey, currentApiKey);
+            Logger.info(`${this.displayName} Anthropic 兼容客户端已创建 (API密钥已更新)`);
+        }
+
+        return this.clients.get(clientKey)!;
+    }
+
+    /**
+     * 重置客户端
+     */
+    resetClient(): void {
+        this.clients.clear();
+        this.cachedApiKeys.clear();
+        Logger.debug(`${this.displayName} Anthropic 兼容客户端已重置`);
+    }
+
+    /**
+     * 处理 Anthropic SDK 请求
+     */
+    async handleRequest(
+        model: vscode.LanguageModelChatInformation,
+        modelConfig: ModelConfig,
+        messages: readonly vscode.LanguageModelChatMessage[],
+        options: vscode.ProvideLanguageModelChatResponseOptions,
+        progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
+        token: vscode.CancellationToken
+    ): Promise<void> {
+        try {
+            const client = await this.getAnthropicClient(modelConfig);
+            const { messages: anthropicMessages, system } = apiMessageToAnthropicMessage(messages);
+
+            // 准备工具定义
+            const tools: Anthropic.Messages.Tool[] = options.tools ? convertToAnthropicTools([...options.tools]) : [];
+
+            // 使用模型配置中的 model 字段，如果没有则使用 model.id
+            const modelId = modelConfig.model || model.id;
+
+            const createParams: Anthropic.MessageCreateParamsStreaming = {
+                model: modelId,
+                max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
+                messages: anthropicMessages,
+                stream: true,
+                temperature: ConfigManager.getTemperature(),
+                top_p: ConfigManager.getTopP()
+            };
+
+            // 添加系统消息（如果有）
+            if (system.text) {
+                createParams.system = [system];
+            }
+
+            // 添加工具（如果有）
+            if (tools.length > 0) {
+                createParams.tools = tools;
+            }
+
+            Logger.debug(
+                `[${model.name}] 发送 Anthropic API 请求，包含 ${anthropicMessages.length} 条消息，使用模型: ${modelId}`
+            );
+
+            const stream = await client.messages.create(createParams);
+
+            // 使用完整的流处理函数
+            const result = await handleAnthropicStream(stream, progress, token);
+            Logger.info(`[${model.name}] Anthropic 请求完成`, result.usage);
+        } catch (error) {
+            Logger.error(`[${model.name}] Anthropic SDK error:`, error);
+
+            // 提供详细的错误信息
+            let errorMessage = `[${model.name}] Anthropic API调用失败`;
+            if (error instanceof Error) {
+                if (error.message.includes('401')) {
+                    errorMessage += ': API密钥无效，请检查配置';
+                } else if (error.message.includes('429')) {
+                    errorMessage += ': 请求频率限制，请稍后重试';
+                } else if (error.message.includes('500')) {
+                    errorMessage += ': 服务器错误，请稍后重试';
+                } else {
+                    errorMessage += `: ${error.message}`;
+                }
+            }
+
+            progress.report(new vscode.LanguageModelTextPart(errorMessage));
+            throw error;
+        }
+    }
+
+    /**
+     * 清理资源
+     */
+    dispose(): void {
+        this.resetClient();
+        Logger.debug(`${this.displayName} AnthropicHandler 已清理`);
+    }
+}

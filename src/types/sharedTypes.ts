@@ -18,6 +18,12 @@ export interface ModelConfig {
         imageInput: boolean;
     };
     /**
+     * SDK模式选择（可选）
+     * - "anthropic": 使用 Anthropic SDK
+     * - "openai": 使用 OpenAI SDK（默认）
+     */
+    sdkMode?: 'anthropic' | 'openai';
+    /**
      * 模型特定的baseUrl（可选）
      * 如果提供，将覆盖供应商级别的baseUrl
      */
