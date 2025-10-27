@@ -4,6 +4,17 @@
     "apiKeyTemplate": "这个 ApiKey密钥 是一个很长一串的类似JWT结构字符串",
     "models": [
         {
+            "id": "MiniMax-M2",
+            "name": "MiniMax-M2",
+            "tooltip": "MiniMax-M2 - 专为高效编码与Agent工作流而生",
+            "maxInputTokens": 204800,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
             "id": "MiniMax-M1",
             "name": "MiniMax-M1",
             "tooltip": "MiniMax-M1 - 通用文本生成模型，支持1M超长上下文（输入+输出总token≤1000000），支持流式响应、Function Calling、OpenAI参数风格，QPM≤60，TPM≤100000。适合多场景应用。",
