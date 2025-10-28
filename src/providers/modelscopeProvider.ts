@@ -8,6 +8,7 @@ import {
     CancellationToken,
     LanguageModelChatInformation,
     LanguageModelChatMessage,
+    LanguageModelChatProvider,
     Progress,
     ProvideLanguageModelChatResponseOptions
 } from 'vscode';
@@ -47,7 +48,7 @@ interface OpenAIRequestBody {
  * ModelScope 专用模型供应商类
  * 继承 GenericModelProvider，只重写流处理部分以使用自定义 SSE 解析
  */
-export class ModelScopeProvider extends GenericModelProvider {
+export class ModelScopeProvider extends GenericModelProvider implements LanguageModelChatProvider {
     // 工具调用缓存 - 用于处理分块的工具调用数据
     private toolCallsBuffer = new Map<number, ToolCallBuffer>();
 
@@ -87,7 +88,7 @@ export class ModelScopeProvider extends GenericModelProvider {
     }
 
     /**
-     * 重写请求处理方法，使用自定义的 SSE 流处理
+     * 重写请求处理方法，根据 sdkMode 选择不同的处理策略
      */
     async provideLanguageModelChatResponse(
         model: LanguageModelChatInformation,
@@ -107,10 +108,19 @@ export class ModelScopeProvider extends GenericModelProvider {
         // 确保有API密钥
         await ApiKeyManager.ensureApiKey(this.providerKey, this.getProviderConfig().displayName);
 
-        Logger.info(`${this.getProviderConfig().displayName} Provider 开始处理请求: ${modelConfig.name}`);
+        // 根据模型的 sdkMode 选择使用的 handler
+        const sdkMode = modelConfig.sdkMode || 'openai';
+
+        Logger.info(`${this.getProviderConfig().displayName} Provider 开始处理请求: ${modelConfig.name} (SDK: ${sdkMode})`);
 
         try {
-            await this.handleRequestWithCustomSSE(model, modelConfig, messages, options, progress, token);
+            if (sdkMode === 'anthropic') {
+                // 使用 Anthropic SDK
+                await this.anthropicHandler.handleRequest(model, modelConfig, messages, options, progress, token);
+            } else {
+                // 使用自定义的 SSE 流处理（OpenAI 兼容）
+                await this.handleRequestWithCustomSSE(model, modelConfig, messages, options, progress, token);
+            }
         } catch (error) {
             const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
             Logger.error(errorMessage);

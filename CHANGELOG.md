@@ -11,6 +11,10 @@
 
 - 修复 Anthropic SDK 调用结束后的 `inputTokens`、`totalTokens` 的统计输出
 
+### 变更
+
+- ModelScope 供应商的 `DeepSeek`、`ZhipuAI` 系列模型 现在通过 Anthropic SDK 调用
+
 ## [0.8.0] - 2025-10-27
 
 ### 新增

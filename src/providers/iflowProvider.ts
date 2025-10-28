@@ -12,7 +12,7 @@ import {
     Progress,
     ProvideLanguageModelChatResponseOptions
 } from 'vscode';
-import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
+import { ProviderConfig } from '../types/sharedTypes';
 import { ApiKeyManager, Logger } from '../utils';
 import { GenericModelProvider } from './genericModelProvider';
 
@@ -78,7 +78,11 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
         // 确保有API密钥
         await ApiKeyManager.ensureApiKey(this.providerKey, this.getProviderConfig().displayName);
 
-        Logger.info(`${this.getProviderConfig().displayName} Provider 开始处理请求: ${modelConfig.name}`);
+        // 根据模型的 sdkMode 选择使用的 handler
+        const sdkMode = modelConfig.sdkMode || 'openai';
+        const sdkName = sdkMode === 'anthropic' ? 'Anthropic SDK' : 'OpenAI SDK';
+
+        Logger.info(`${this.getProviderConfig().displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
 
         // 节流控制：开始新请求前中断当前请求
         const requestId = this.startNewRequest();
@@ -90,8 +94,12 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
         Logger.info(`🔄 ${this.getProviderConfig().displayName}: 开始新请求 #${requestId}`);
 
         try {
-            // 调用父类的处理方法，但使用组合的token
-            await this.handleRequestWithToken(model, modelConfig, messages, options, progress, combinedToken);
+            // 根据 sdkMode 选择对应的处理器
+            if (sdkMode === 'anthropic') {
+                await this.anthropicHandler.handleRequest(model, modelConfig, messages, options, progress, combinedToken);
+            } else {
+                await this.openaiHandler.handleRequest(model, modelConfig, messages, options, progress, combinedToken);
+            }
         } catch (error) {
             const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
             Logger.error(errorMessage);
@@ -100,21 +108,6 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
             // 请求完成后清理
             this.finishRequest(requestId);
         }
-    }
-
-    /**
-     * 包装父类的请求处理方法，使其可以使用自定义的token
-     */
-    private async handleRequestWithToken(
-        model: LanguageModelChatInformation,
-        modelConfig: ModelConfig,
-        messages: readonly LanguageModelChatMessage[],
-        options: ProvideLanguageModelChatResponseOptions,
-        progress: Progress<vscode.LanguageModelResponsePart>,
-        token: CancellationToken
-    ): Promise<void> {
-        // 直接调用父类的 openaiHandler
-        await this.openaiHandler.handleRequest(model, modelConfig, messages, options, progress, token);
     }
 
     /**
