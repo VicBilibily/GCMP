@@ -144,7 +144,7 @@ export class OpenAIHandler {
                                         }
                                     }
 
-                                    // 仍然保留对仅有 finish_reason 且无 delta 的过滤，处理所有choices
+                                    // 处理 choices，确保每个 choice 都有正确的结构
                                     if (obj.choices && obj.choices.length > 0) {
                                         // 倒序处理choices，避免索引变化影响后续处理
                                         for (
@@ -176,6 +176,17 @@ export class OpenAIHandler {
                                                 // 直接从数组中移除无效choice
                                                 obj.choices.splice(choiceIndex, 1);
                                                 objModified = true;
+                                            }
+                                        }
+
+                                        // 修复 choice index，部分模型会返回错误的 index，造成 OpenAI SDK 解析失败
+                                        if (obj.choices.length == 1) {
+                                            // 将 choice 的 index 改为 0
+                                            for (const choice of obj.choices) {
+                                                if (choice.index !== undefined || choice.index !== 0) {
+                                                    choice.index = 0;
+                                                    objModified = true;
+                                                }
                                             }
                                         }
                                     }

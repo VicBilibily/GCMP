@@ -2,8 +2,17 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的所有重要更改。
 
-格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
-并且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+## [0.8.2] - 2025-10-28
+
+### 修复
+
+- 修复部分模型返回错误 choice index 导致 OpenAI SDK 解析失败的问题
+- 优化 OpenAI 处理器对流式响应中 choice 结构的处理逻辑
+
+### 更新
+
+- 升级 `@modelcontextprotocol/sdk` 依赖至 v1.20.2
+- 升级 `openai` 依赖至 v6.7.0
 
 ## [0.8.1] - 2025-10-27
 
