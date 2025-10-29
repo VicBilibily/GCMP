@@ -115,6 +115,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const info: LanguageModelChatInformation = {
             id: model.id,
             name: model.name,
+            detail: this.providerConfig.displayName,
             tooltip: model.tooltip,
             family: family,
             maxInputTokens: model.maxInputTokens,

@@ -1,5 +1,5 @@
 {
-    "displayName": "华为云",
+    "displayName": "华为云 (EOL)",
     "baseUrl": "https://api.modelarts-maas.com/v1",
     "apiKeyTemplate": "ModelArts Studio ApiKey",
     "models": [

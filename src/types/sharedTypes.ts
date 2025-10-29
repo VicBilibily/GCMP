@@ -38,6 +38,12 @@ export interface ModelConfig {
      * 如果提供，将在API请求中附加这些自定义头部
      */
     customHeader?: Record<string, string>;
+    /**
+     * 模型特定的供应商标识符（可选）
+     * 用于自定义模型，指定该模型使用的供应商进行API密钥查找
+     * 如果提供，Handler将优先从此供应商获取API密钥
+     */
+    provider?: string;
 }
 
 /**

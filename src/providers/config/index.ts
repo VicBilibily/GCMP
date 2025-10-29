@@ -8,9 +8,12 @@ import deepseek from './deepseek.json';
 import volcengine from './volcengine.json';
 import streamlake from './streamlake.json';
 import dashscope from './dashscope.json';
-import aiping from './aiping.json';
 import minimax from './minimax.json';
 import modelscope from './modelscope.json';
+import baidu from './baidu.json';
+import tbox from './tbox.json';
+// EOL providers
+import aiping from './aiping.json';
 import siliconflow from './siliconflow.json';
 import infini from './infini.json';
 import coreshub from './coreshub.json';
@@ -24,8 +27,6 @@ import paratera from './paratera.json';
 import ppio from './ppio.json';
 import lanyun from './lanyun.json';
 import sophnet from './sophnet.json';
-import baidu from './baidu.json';
-import tbox from './tbox.json';
 
 const providers = {
     zhipu,
@@ -36,9 +37,12 @@ const providers = {
     volcengine,
     streamlake,
     dashscope,
-    aiping,
     minimax,
     modelscope,
+    baidu,
+    tbox,
+    // EOL providers
+    aiping,
     siliconflow,
     infini,
     coreshub,
@@ -51,9 +55,7 @@ const providers = {
     paratera,
     ppio,
     lanyun,
-    sophnet,
-    baidu,
-    tbox
+    sophnet
 };
 
 export type ProviderName = keyof typeof providers;

@@ -1,5 +1,5 @@
 {
-    "displayName": "七牛云",
+    "displayName": "七牛云 (EOL)",
     "baseUrl": "https://openai.qiniu.com/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [

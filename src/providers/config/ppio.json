@@ -1,5 +1,5 @@
 {
-    "displayName": "PPIO派欧云",
+    "displayName": "PPIO派欧云 (EOL)",
     "baseUrl": "https://api.ppinfra.com/openai/v1",
     "apiKeyTemplate": "sk_xxxxxx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [

@@ -33,7 +33,8 @@ export class AnthropicHandler {
      * 使用构造时传入的配置
      */
     private async getAnthropicClient(modelConfig?: ModelConfig): Promise<Anthropic> {
-        const currentApiKey = await ApiKeyManager.getApiKey(this.provider);
+        const providerKey = modelConfig?.provider || this.provider;
+        const currentApiKey = await ApiKeyManager.getApiKey(providerKey);
 
         if (!currentApiKey) {
             throw new Error(`缺少 ${this.displayName} API密钥`);

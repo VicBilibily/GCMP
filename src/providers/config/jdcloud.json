@@ -1,5 +1,5 @@
 {
-    "displayName": "京东云",
+    "displayName": "京东云 (EOL)",
     "baseUrl": "https://modelservice.jdcloud.com/v1",
     "apiKeyTemplate": "pk-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
     "models": [

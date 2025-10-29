@@ -47,7 +47,9 @@ export class OpenAIHandler {
      * 创建新的 OpenAI 客户端
      */
     private async createOpenAIClient(modelConfig?: ModelConfig): Promise<OpenAI> {
-        const currentApiKey = await ApiKeyManager.getApiKey(this.provider);
+        // 优先级：model.provider -> this.provider
+        const providerKey = modelConfig?.provider || this.provider;
+        const currentApiKey = await ApiKeyManager.getApiKey(providerKey);
         if (!currentApiKey) {
             throw new Error(`缺少 ${this.displayName} API密钥`);
         }

@@ -1,5 +1,5 @@
 {
-    "displayName": "并行智算云",
+    "displayName": "并行智算云 (EOL)",
     "baseUrl": "https://llmapi.paratera.com/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxx",
     "models": [

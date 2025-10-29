@@ -1,5 +1,5 @@
 {
-    "displayName": "蓝耘元生代",
+    "displayName": "蓝耘元生代 (EOL)",
     "baseUrl": "https://maas-api.lanyun.net/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [

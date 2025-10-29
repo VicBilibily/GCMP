@@ -1,5 +1,5 @@
 {
-    "displayName": "基石智算",
+    "displayName": "基石智算 (EOL)",
     "baseUrl": "https://openapi.coreshub.cn/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [

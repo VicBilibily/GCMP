@@ -2,8 +2,8 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、心流AI、MoonshotAI、DeepSeek、火山方舟、快手万擎、阿里云百炼 模型支持的扩展",
-    "version": "0.8.2",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、心流AI、MoonshotAI、DeepSeek、火山方舟、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
+    "version": "0.9.0",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -21,23 +21,10 @@
         "dashscope",
         "minimax",
         "modelscope",
-        "siliconflow",
-        "infini",
-        "coreshub",
-        "tencentcloud",
-        "huaweicloud",
-        "jdcloud",
-        "qiniu",
-        "gpulink",
-        "ucloud",
-        "sophnet",
-        "tbox",
-        "paratera",
-        "ppio",
-        "lanyun",
         "baidu",
-        "aiping",
-        "AI Ping",
+        "tbox",
+        "OpenAI Compatible",
+        "Anthropic Compatible",
         "智谱AI",
         "心流AI",
         "月之暗面",
@@ -46,19 +33,8 @@
         "快手万擎",
         "阿里云百炼",
         "魔搭社区",
-        "硅基流动",
-        "无问芯穹",
-        "基石智算",
-        "腾讯云",
-        "华为云",
-        "京东云",
-        "七牛云",
-        "零克云",
-        "百灵大模型",
-        "并行智算云",
-        "PPIO派欧云",
-        "蓝耘元生代",
-        "百度智能云"
+        "百度智能云",
+        "百灵大模型"
     ],
     "repository": {
         "type": "git",
@@ -91,9 +67,12 @@
         "onLanguageModelProvider:gcmp.volcengine",
         "onLanguageModelProvider:gcmp.streamlake",
         "onLanguageModelProvider:gcmp.dashscope",
-        "onLanguageModelProvider:gcmp.aiping",
         "onLanguageModelProvider:gcmp.minimax",
         "onLanguageModelProvider:gcmp.modelscope",
+        "onLanguageModelProvider:gcmp.baidu",
+        "onLanguageModelProvider:gcmp.tbox",
+        "onLanguageModelProvider:gcmp.compatible",
+        "onLanguageModelProvider:gcmp.aiping",
         "onLanguageModelProvider:gcmp.siliconflow",
         "onLanguageModelProvider:gcmp.infini",
         "onLanguageModelProvider:gcmp.coreshub",
@@ -104,11 +83,9 @@
         "onLanguageModelProvider:gcmp.gpulink",
         "onLanguageModelProvider:gcmp.ucloud",
         "onLanguageModelProvider:gcmp.sophnet",
-        "onLanguageModelProvider:gcmp.tbox",
         "onLanguageModelProvider:gcmp.paratera",
         "onLanguageModelProvider:gcmp.ppio",
         "onLanguageModelProvider:gcmp.lanyun",
-        "onLanguageModelProvider:gcmp.baidu",
         "onLanguageModelTool:gcmp_zhipuWebSearch"
     ],
     "contributes": {
@@ -154,11 +131,6 @@
                 "category": "GCMP"
             },
             {
-                "command": "gcmp.aiping.setApiKey",
-                "title": "设置 AI Ping API密钥",
-                "category": "GCMP"
-            },
-            {
                 "command": "gcmp.minimax.setApiKey",
                 "title": "设置 MiniMax API密钥",
                 "category": "GCMP"
@@ -166,6 +138,26 @@
             {
                 "command": "gcmp.modelscope.setApiKey",
                 "title": "设置 ModelScope API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.baidu.setApiKey",
+                "title": "设置 百度智能云 API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.tbox.setApiKey",
+                "title": "设置 百灵大模型 API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.compatible.manageModels",
+                "title": "Compatible Provider 设置",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.aiping.setApiKey",
+                "title": "设置 AI Ping API密钥",
                 "category": "GCMP"
             },
             {
@@ -219,11 +211,6 @@
                 "category": "GCMP"
             },
             {
-                "command": "gcmp.tbox.setApiKey",
-                "title": "设置 百灵大模型 API密钥",
-                "category": "GCMP"
-            },
-            {
                 "command": "gcmp.paratera.setApiKey",
                 "title": "设置 并行智算云 API密钥",
                 "category": "GCMP"
@@ -236,11 +223,6 @@
             {
                 "command": "gcmp.lanyun.setApiKey",
                 "title": "设置 蓝耘元生代 API密钥",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.baidu.setApiKey",
-                "title": "设置 百度智能云 API密钥",
                 "category": "GCMP"
             }
         ],
@@ -379,9 +361,11 @@
                             "volcengine",
                             "streamlake",
                             "dashscope",
-                            "aiping",
                             "minimax",
                             "modelscope",
+                            "baidu",
+                            "tbox",
+                            "aiping",
                             "siliconflow",
                             "infini",
                             "coreshub",
@@ -394,9 +378,84 @@
                             "paratera",
                             "ppio",
                             "lanyun",
-                            "sophnet",
-                            "baidu",
-                            "tbox"
+                            "sophnet"
+                        ]
+                    }
+                },
+                "gcmp.compatibleModels": {
+                    "type": "array",
+                    "default": [],
+                    "description": "Compatible Provider 的自定义模型配置。完全由用户配置的 OpenAI / Anthropic 兼容模型列表。",
+                    "scope": "application",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "模型ID",
+                                "minLength": 1
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "模型显示名称",
+                                "minLength": 1
+                            },
+                            "tooltip": {
+                                "type": "string",
+                                "description": "模型描述"
+                            },
+                            "baseUrl": {
+                                "type": "string",
+                                "description": "API基础URL",
+                                "format": "uri"
+                            },
+                            "model": {
+                                "type": "string",
+                                "description": "API请求时使用的模型名称（可选，默认使用模型ID）"
+                            },
+                            "maxInputTokens": {
+                                "type": "number",
+                                "description": "最大输入token数量",
+                                "minimum": 1
+                            },
+                            "maxOutputTokens": {
+                                "type": "number",
+                                "description": "最大输出token数量",
+                                "minimum": 1
+                            },
+                            "sdkMode": {
+                                "type": "string",
+                                "enum": [
+                                    "openai",
+                                    "anthropic"
+                                ],
+                                "description": "SDK模式：openai（OpenAI兼容格式）或 anthropic（Anthropic兼容格式）",
+                                "default": "openai"
+                            },
+                            "capabilities": {
+                                "type": "object",
+                                "properties": {
+                                    "toolCalling": {
+                                        "type": "boolean",
+                                        "description": "是否支持工具调用"
+                                    },
+                                    "imageInput": {
+                                        "type": "boolean",
+                                        "description": "是否支持图像输入"
+                                    }
+                                },
+                                "required": [
+                                    "toolCalling",
+                                    "imageInput"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "id",
+                            "name",
+                            "maxInputTokens",
+                            "maxOutputTokens",
+                            "capabilities"
                         ]
                     }
                 }
@@ -444,13 +503,8 @@
                 "managementCommand": "gcmp.dashscope.setApiKey"
             },
             {
-                "vendor": "gcmp.aiping",
-                "displayName": "AI Ping (Alpha)",
-                "managementCommand": "gcmp.aiping.setApiKey"
-            },
-            {
                 "vendor": "gcmp.minimax",
-                "displayName": "MiniMax (Beta)",
+                "displayName": "MiniMax",
                 "managementCommand": "gcmp.minimax.setApiKey"
             },
             {
@@ -459,54 +513,9 @@
                 "managementCommand": "gcmp.modelscope.setApiKey"
             },
             {
-                "vendor": "gcmp.siliconflow",
-                "displayName": "硅基流动 (Beta)",
-                "managementCommand": "gcmp.siliconflow.setApiKey"
-            },
-            {
-                "vendor": "gcmp.infini",
-                "displayName": "无问芯穹 (Beta)",
-                "managementCommand": "gcmp.infini.setApiKey"
-            },
-            {
-                "vendor": "gcmp.coreshub",
-                "displayName": "基石智算 (Beta)",
-                "managementCommand": "gcmp.coreshub.setApiKey"
-            },
-            {
-                "vendor": "gcmp.tencentcloud",
-                "displayName": "腾讯云 (Beta)",
-                "managementCommand": "gcmp.tencentcloud.setApiKey"
-            },
-            {
-                "vendor": "gcmp.huaweicloud",
-                "displayName": "华为云 (Beta)",
-                "managementCommand": "gcmp.huaweicloud.setApiKey"
-            },
-            {
-                "vendor": "gcmp.jdcloud",
-                "displayName": "京东云 (Beta)",
-                "managementCommand": "gcmp.jdcloud.setApiKey"
-            },
-            {
-                "vendor": "gcmp.qiniu",
-                "displayName": "七牛云 (Beta)",
-                "managementCommand": "gcmp.qiniu.setApiKey"
-            },
-            {
-                "vendor": "gcmp.gpulink",
-                "displayName": "零克云 (Beta)",
-                "managementCommand": "gcmp.gpulink.setApiKey"
-            },
-            {
-                "vendor": "gcmp.ucloud",
-                "displayName": "UCloud (Beta)",
-                "managementCommand": "gcmp.ucloud.setApiKey"
-            },
-            {
-                "vendor": "gcmp.sophnet",
-                "displayName": "SophNet (Beta)",
-                "managementCommand": "gcmp.sophnet.setApiKey"
+                "vendor": "gcmp.baidu",
+                "displayName": "百度智能云 (Beta)",
+                "managementCommand": "gcmp.baidu.setApiKey"
             },
             {
                 "vendor": "gcmp.tbox",
@@ -514,24 +523,79 @@
                 "managementCommand": "gcmp.tbox.setApiKey"
             },
             {
+                "vendor": "gcmp.compatible",
+                "displayName": "OpenAI / Anthropic Compatible (Beta)",
+                "managementCommand": "gcmp.compatible.manageModels"
+            },
+            {
+                "vendor": "gcmp.aiping",
+                "displayName": "AI Ping (EOL on 2025-11-11)",
+                "managementCommand": "gcmp.aiping.setApiKey"
+            },
+            {
+                "vendor": "gcmp.siliconflow",
+                "displayName": "硅基流动 (EOL on 2025-11-11)",
+                "managementCommand": "gcmp.siliconflow.setApiKey"
+            },
+            {
+                "vendor": "gcmp.infini",
+                "displayName": "无问芯穹 (EOL on 2025-11-11)",
+                "managementCommand": "gcmp.infini.setApiKey"
+            },
+            {
+                "vendor": "gcmp.coreshub",
+                "displayName": "基石智算 (EOL on 2025-11-11)",
+                "managementCommand": "gcmp.coreshub.setApiKey"
+            },
+            {
+                "vendor": "gcmp.tencentcloud",
+                "displayName": "腾讯云 (EOL on 2025-11-11)",
+                "managementCommand": "gcmp.tencentcloud.setApiKey"
+            },
+            {
+                "vendor": "gcmp.huaweicloud",
+                "displayName": "华为云 (EOL on 2025-11-11)",
+                "managementCommand": "gcmp.huaweicloud.setApiKey"
+            },
+            {
+                "vendor": "gcmp.jdcloud",
+                "displayName": "京东云 (EOL on 2025-11-11)",
+                "managementCommand": "gcmp.jdcloud.setApiKey"
+            },
+            {
+                "vendor": "gcmp.qiniu",
+                "displayName": "七牛云 (EOL on 2025-11-11)",
+                "managementCommand": "gcmp.qiniu.setApiKey"
+            },
+            {
+                "vendor": "gcmp.gpulink",
+                "displayName": "零克云 (EOL on 2025-11-11)",
+                "managementCommand": "gcmp.gpulink.setApiKey"
+            },
+            {
+                "vendor": "gcmp.ucloud",
+                "displayName": "UCloud (EOL on 2025-11-11)",
+                "managementCommand": "gcmp.ucloud.setApiKey"
+            },
+            {
+                "vendor": "gcmp.sophnet",
+                "displayName": "SophNet (EOL on 2025-11-11)",
+                "managementCommand": "gcmp.sophnet.setApiKey"
+            },
+            {
                 "vendor": "gcmp.paratera",
-                "displayName": "并行智算云 (Beta)",
+                "displayName": "并行智算云 (EOL on 2025-11-11)",
                 "managementCommand": "gcmp.paratera.setApiKey"
             },
             {
                 "vendor": "gcmp.ppio",
-                "displayName": "PPIO派欧云 (Beta)",
+                "displayName": "PPIO派欧云 (EOL on 2025-11-11)",
                 "managementCommand": "gcmp.ppio.setApiKey"
             },
             {
                 "vendor": "gcmp.lanyun",
-                "displayName": "蓝耘元生代 (Beta)",
+                "displayName": "蓝耘元生代 (EOL on 2025-11-11)",
                 "managementCommand": "gcmp.lanyun.setApiKey"
-            },
-            {
-                "vendor": "gcmp.baidu",
-                "displayName": "百度智能云 (Beta)",
-                "managementCommand": "gcmp.baidu.setApiKey"
             }
         ],
         "languageModelTools": [

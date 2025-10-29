@@ -1,5 +1,5 @@
 {
-    "displayName": "硅基流动",
+    "displayName": "硅基流动 (EOL)",
     "baseUrl": "https://api.siliconflow.cn/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [

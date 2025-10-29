@@ -6,7 +6,7 @@
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/vicanent.gcmp?color=green&label=Downloads)](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp)
 [![License](https://img.shields.io/github/license/VicBilibily/GCMP?color=orange&label=License)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
-通过集成国内顶尖的AI模型，为开发者提供更丰富、更适合的AI编程助手选择。目前支持智谱AI、Kimi、心流AI、MoonshotAI、DeepSeek、火山方舟、快手万擎、阿里云百炼等20+家主流AI供应商。
+通过集成国内的AI模型，为开发者提供更丰富、更适合的AI编程助手选择。目前支持智谱AI、Kimi、心流AI、MoonshotAI、DeepSeek、火山方舟、快手万擎、阿里云百炼、MiniMax等多家主流AI供应商，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。
 
 ## 🚀 快速开始
 
@@ -47,8 +47,6 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 
 ### 🔥 [**DeepSeek**](https://platform.deepseek.com/) - 深度求索
 
-深度求索旗下的高性能推理模型，支持强大的代码生成和复杂推理任务。
-
 - 支持模型：**DeepSeek-V3.2-Exp**，包含思考模式聊天模型。
 
 ### 🏔️ [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
@@ -71,6 +69,10 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 - **通义千问系列**：**Qwen-Flash**、**Qwen-Plus**、**Qwen-Max**、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen3-Next**、**Qwen3**（开源系列多种参数规模）
 - **DeepSeek系列**：**DeepSeek-V3**、**DeepSeek-V3.1**、**DeepSeek-V3.2-Exp**
 - **智谱系列**：**GLM-4.5**、**GLM-4.5-Air**
+
+### 🎨 [**MiniMax**](https://platform.minimaxi.com/login)
+
+- **支持模型**：**MiniMax-M2**、**MiniMax-M1**、**MiniMax-Text-01**
 
 ## 🔍 智谱AI联网搜索工具
 
@@ -98,9 +100,13 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 
 > 由于各供应商 OpenAI 的兼容性问题，部分情况下可能会报错或卡住不动，建议先查看本地输出的日志后提交 Issue 进一步处理。
 
-[**AI Ping**](https://aiping.cn/user/user-center)、
-[**MiniMax**](https://platform.minimaxi.com/login)、
 [**ModelScope**](https://www.modelscope.cn/)、
+[**百灵大模型**](https://ling.tbox.cn/open)、
+[**百度智能云**](https://cloud.baidu.com/)
+
+> 以下供应商已结束支持，将于 `2025年11月11日` 移除，如需使用可通过自定义模型方式接入：
+
+[**AI Ping**](https://aiping.cn/user/user-center)、
 [**硅基流动**](https://siliconflow.cn/)、
 [**无问芯穹**](https://cloud.infini-ai.com/)、
 [**基石智算**](https://www.coreshub.cn/)、
@@ -111,19 +117,9 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 [**零克云**](https://gpulink.cc/model-market/model-center/modelCenter)、
 [**UCloud**](https://www.ucloud.cn/)、
 [**SophNet**](https://sophnet.com/)、
-[**百灵大模型**](https://ling.tbox.cn/open)、
 [**并行智算云**](https://ai.paratera.com/)、
 [**PPIO派欧云**](https://ppio.com/)、
-[**蓝耘元生代**](https://maas.lanyun.net/)、
-[**百度智能云**](https://cloud.baidu.com/)
-
-> 暂不适配的供应商（2025年10月）：
-
-- [**SenseCore (商汤大装置)**](https://console.sensecore.cn/aistudio)：经测试，所有模型的Tools工具调用返回格式不兼容。
-- [**金山云星流**](https://www.ksyun.com/nv/product/KSP)：企业独立部署模式，暂不支持个人用户认证注册使用。
-- [**天翼云**](https://www.ctyun.cn/products/huiju)：运营商云，都是旧版本模型，模型更新并不给力。
-- [**移动云**](https://ecloud.10086.cn/portal/product/MaaS)：运营商云，都是旧版本模型，模型更新并不给力。
-- [**讯飞星辰**](https://xinghuo.xfyun.cn/maas-home)：定制服务，暂不支持公有云通用服务调用。
+[**蓝耘元生代**](https://maas.lanyun.net/)
 
 ## ⚙️ 高级配置
 
@@ -203,6 +199,54 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖供应商的默认�
             }
         ]
     }
+}
+```
+
+#### 🔌 OpenAI / Anthropic Compatible 自定义模型支持
+
+GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 OpenAI 或 Anthropic 兼容的 API。通过 `gcmp.compatibleModels` 配置，您可以完全自定义模型参数。
+
+##### 支持的 SDK 模式
+
+- **OpenAI SDK 兼容**：支持 OpenAI API 标准格式
+- **Anthropic SDK 兼容**：支持 Anthropic Messages API 格式
+
+##### 配置自定义模型
+
+在 VS Code 设置中编辑 `gcmp.compatibleModels` 配置项（或通过 `GCMP: Compatible Provider 设置` 命令）：
+
+```json
+{
+    "gcmp.compatibleModels": [
+        {
+            "id": "glm-4.6:openai",
+            "name": "GLM-4.6 (OAI)",
+            "provider": "zhipu",
+            "sdkMode": "openai",
+            "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+            "model": "glm-4.6",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 4096,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "glm-4.6:claude",
+            "name": "GLM-4.6 (Claude)",
+            "provider": "zhipu",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://open.bigmodel.cn/api/anthropic",
+            "model": "glm-4.6",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 4096,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        }
+    ]
 }
 ```
 

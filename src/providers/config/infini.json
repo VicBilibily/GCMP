@@ -1,5 +1,5 @@
 {
-    "displayName": "无问芯穹",
+    "displayName": "无问芯穹 (EOL)",
     "baseUrl": "https://cloud.infini-ai.com/maas/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxx",
     "models": [

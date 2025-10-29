@@ -2,14 +2,19 @@ import * as vscode from 'vscode';
 import { GenericModelProvider } from './providers/genericModelProvider';
 import { IFlowProvider } from './providers/iflowProvider';
 import { ModelScopeProvider } from './providers/modelscopeProvider';
+import { CompatibleProvider } from './providers/compatibleProvider';
 import { Logger } from './utils/logger';
 import { ApiKeyManager, ConfigManager } from './utils';
+import { CompatibleModelManager } from './utils/compatibleModelManager';
 import { registerAllTools } from './tools';
 
 /**
  * 全局变量 - 存储已注册的供应商实例，用于配置变更时的重新注册
  */
-let registeredProviders: Record<string, GenericModelProvider | IFlowProvider | ModelScopeProvider> = {};
+let registeredProviders: Record<
+    string,
+    GenericModelProvider | IFlowProvider | ModelScopeProvider | CompatibleProvider
+> = {};
 let registeredDisposables: vscode.Disposable[] = [];
 
 /**
@@ -81,6 +86,30 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
 }
 
 /**
+ * 激活兼容供应商
+ */
+async function activateCompatibleProvider(context: vscode.ExtensionContext): Promise<void> {
+    try {
+        Logger.trace('正在注册兼容供应商...');
+        const providerStartTime = Date.now();
+
+        // 创建并激活兼容供应商
+        const result = CompatibleProvider.createAndActivate(context);
+        const provider = result.provider;
+        const disposables = result.disposables;
+
+        // 存储注册的供应商和 disposables
+        registeredProviders['compatible'] = provider;
+        registeredDisposables.push(...disposables);
+
+        const providerTime = Date.now() - providerStartTime;
+        Logger.info(`✅ Compatible Provider 供应商注册成功 (耗时: ${providerTime}ms)`);
+    } catch (error) {
+        Logger.error('❌ 注册兼容供应商失败:', error);
+    }
+}
+
+/**
  * 重新注册所有供应商 - 用于配置变更后的刷新
  */
 async function reRegisterProviders(context: vscode.ExtensionContext): Promise<void> {
@@ -93,6 +122,7 @@ async function reRegisterProviders(context: vscode.ExtensionContext): Promise<vo
 
     // 重新激活供应商
     await activateProviders(context);
+    await activateCompatibleProvider(context);
 
     Logger.info('供应商重新注册完成');
 }
@@ -125,10 +155,20 @@ export async function activate(context: vscode.ExtensionContext) {
         context.subscriptions.push(configDisposable);
         Logger.trace(`⏱️ 配置管理器初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
+        // 步骤2.5: 初始化兼容模型管理器
+        stepStartTime = Date.now();
+        CompatibleModelManager.initialize();
+        Logger.trace(`⏱️ 兼容模型管理器初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+
         // 步骤3: 激活供应商（并行优化）
         stepStartTime = Date.now();
         await activateProviders(context);
         Logger.trace(`⏱️ 模型提供者注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+
+        // 步骤3.5: 激活兼容供应商
+        stepStartTime = Date.now();
+        await activateCompatibleProvider(context);
+        Logger.trace(`⏱️ 兼容供应商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
         // 步骤4: 注册工具
         stepStartTime = Date.now();

@@ -1,5 +1,5 @@
 {
-    "displayName": "腾讯云",
+    "displayName": "腾讯云 (EOL)",
     "baseUrl": "https://api.lkeap.cloud.tencent.com/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [

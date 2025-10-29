@@ -1,5 +1,5 @@
 {
-    "displayName": "SophNet",
+    "displayName": "SophNet (EOL)",
     "baseUrl": "https://www.sophnet.com/api/open-apis/v1",
     "apiKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
