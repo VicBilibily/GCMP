@@ -194,7 +194,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             // 直接抛出错误，让VS Code处理重试
             throw error;
         } finally {
-            Logger.info(`✅ ${this.providerConfig.displayName}: 请求已完成`);
+            Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} 请求已完成`);
         }
     }
 

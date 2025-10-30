@@ -106,12 +106,12 @@ export class ModelScopeProvider extends GenericModelProvider implements Language
         }
 
         // 确保有API密钥
-        await ApiKeyManager.ensureApiKey(this.providerKey, this.getProviderConfig().displayName);
+        await ApiKeyManager.ensureApiKey(this.providerKey, this.providerConfig.displayName);
 
         // 根据模型的 sdkMode 选择使用的 handler
         const sdkMode = modelConfig.sdkMode || 'openai';
 
-        Logger.info(`${this.getProviderConfig().displayName} Provider 开始处理请求: ${modelConfig.name} (SDK: ${sdkMode})`);
+        Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求: ${modelConfig.name} (SDK: ${sdkMode})`);
 
         try {
             if (sdkMode === 'anthropic') {
@@ -126,7 +126,7 @@ export class ModelScopeProvider extends GenericModelProvider implements Language
             Logger.error(errorMessage);
             throw error;
         } finally {
-            Logger.info(`✅ ${this.getProviderConfig().displayName}: 请求已完成`);
+            Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} 请求已完成`);
         }
     }
 
@@ -146,13 +146,13 @@ export class ModelScopeProvider extends GenericModelProvider implements Language
 
         const apiKey = await ApiKeyManager.getApiKey(this.providerKey);
         if (!apiKey) {
-            throw new Error(`缺少 ${this.getProviderConfig().displayName} API密钥`);
+            throw new Error(`缺少 ${this.providerConfig.displayName} API密钥`);
         }
 
-        const baseURL = modelConfig.baseUrl || this.getProviderConfig().baseUrl;
+        const baseURL = modelConfig.baseUrl || this.providerConfig.baseUrl;
         const url = `${baseURL}/chat/completions`;
 
-        Logger.info(`[${model.name}] 处理 ${messages.length} 条消息，使用 ${this.getProviderConfig().displayName}`);
+        Logger.info(`[${model.name}] 处理 ${messages.length} 条消息，使用 ${this.providerConfig.displayName}`);
 
         // 构建请求参数
         const requestBody: OpenAIRequestBody = {
@@ -170,7 +170,7 @@ export class ModelScopeProvider extends GenericModelProvider implements Language
             requestBody.tool_choice = 'auto';
         }
 
-        Logger.debug(`[${model.name}] 发送 ${this.getProviderConfig().displayName} API 请求`);
+        Logger.debug(`[${model.name}] 发送 ${this.providerConfig.displayName} API 请求`);
 
         const abortController = new AbortController();
         const cancellationListener = token.onCancellationRequested(() => abortController.abort());
@@ -204,7 +204,7 @@ export class ModelScopeProvider extends GenericModelProvider implements Language
                 Logger.debug(`[${model.name}] 流结束但未收到文本内容（可能是纯工具调用响应）`);
             }
 
-            Logger.debug(`[${model.name}] ${this.getProviderConfig().displayName} API请求完成`);
+            Logger.debug(`[${model.name}] ${this.providerConfig.displayName} API请求完成`);
         } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') {
                 Logger.warn(`[${model.name}] 用户取消了请求`);

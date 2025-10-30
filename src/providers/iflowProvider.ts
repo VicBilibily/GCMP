@@ -68,7 +68,7 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
         token: CancellationToken
     ): Promise<void> {
         // 查找对应的模型配置
-        const modelConfig = this.getProviderConfig().models.find(m => m.id === model.id);
+        const modelConfig = this.providerConfig.models.find(m => m.id === model.id);
         if (!modelConfig) {
             const errorMessage = `未找到模型: ${model.id}`;
             Logger.error(errorMessage);
@@ -76,13 +76,13 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
         }
 
         // 确保有API密钥
-        await ApiKeyManager.ensureApiKey(this.providerKey, this.getProviderConfig().displayName);
+        await ApiKeyManager.ensureApiKey(this.providerKey, this.providerConfig.displayName);
 
         // 根据模型的 sdkMode 选择使用的 handler
         const sdkMode = modelConfig.sdkMode || 'openai';
         const sdkName = sdkMode === 'anthropic' ? 'Anthropic SDK' : 'OpenAI SDK';
 
-        Logger.info(`${this.getProviderConfig().displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
+        Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
 
         // 节流控制：开始新请求前中断当前请求
         const requestId = this.startNewRequest();
@@ -91,12 +91,19 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
         // 创建组合的CancellationToken
         const combinedToken = this.createCombinedCancellationToken(token, requestController);
 
-        Logger.info(`🔄 ${this.getProviderConfig().displayName}: 开始新请求 #${requestId}`);
+        Logger.info(`🔄 ${this.providerConfig.displayName}: 开始新请求 #${requestId}`);
 
         try {
             // 根据 sdkMode 选择对应的处理器
             if (sdkMode === 'anthropic') {
-                await this.anthropicHandler.handleRequest(model, modelConfig, messages, options, progress, combinedToken);
+                await this.anthropicHandler.handleRequest(
+                    model,
+                    modelConfig,
+                    messages,
+                    options,
+                    progress,
+                    combinedToken
+                );
             } else {
                 await this.openaiHandler.handleRequest(model, modelConfig, messages, options, progress, combinedToken);
             }
@@ -116,7 +123,7 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
     private startNewRequest(): number {
         // 如果有正在进行的请求，先中断它
         if (this.currentRequestController && !this.currentRequestController.signal.aborted) {
-            Logger.info(`❌ ${this.getProviderConfig().displayName}: 检测到新请求，中断当前正在进行的请求`);
+            Logger.info(`❌ ${this.providerConfig.displayName}: 检测到新请求，中断当前正在进行的请求`);
             this.currentRequestController.abort();
         }
 
@@ -133,7 +140,7 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
     private finishRequest(requestId: number): void {
         if (this.currentRequestController && this.requestCounter === requestId) {
             this.currentRequestController = null;
-            Logger.info(`✅ ${this.getProviderConfig().displayName}: 请求 #${requestId} 已完成`);
+            Logger.info(`✅ ${this.providerConfig.displayName}: 请求 #${requestId} 已完成`);
         }
     }
 
@@ -168,7 +175,7 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
      */
     dispose(): void {
         if (this.currentRequestController && !this.currentRequestController.signal.aborted) {
-            Logger.info(`🧹 ${this.getProviderConfig().displayName}: 扩展销毁，中断正在进行的请求`);
+            Logger.info(`🧹 ${this.providerConfig.displayName}: 扩展销毁，中断正在进行的请求`);
             this.currentRequestController.abort();
             this.currentRequestController = null;
         }

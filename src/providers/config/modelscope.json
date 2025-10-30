@@ -56,8 +56,23 @@
             }
         },
         {
+            "id": "MiniMax/MiniMax-M2",
+            "name": "MiniMax-M2 (ModelScope)",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api-inference.modelscope.cn",
+            "tooltip": "MiniMax-M2 文本生成模型，支持文本生成和理解。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
             "id": "MiniMax/MiniMax-M1-80k",
             "name": "MiniMax-M1-80k (ModelScope)",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api-inference.modelscope.cn",
             "tooltip": "MiniMax-M1-80k 文本生成模型，支持文本生成和理解。",
             "maxInputTokens": 128000,
             "maxOutputTokens": 8192,

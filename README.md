@@ -39,7 +39,10 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 
 阿里巴巴旗下的的AI平台，当前[API调用](https://platform.iflow.cn/docs/)服务**免费使用**，目前[限流规则](https://platform.iflow.cn/docs/limitSpeed)为每个用户最多只能**同时发起一个**请求。
 
-- **支持模型**：**DeepSeek-V3.2-Exp**、**DeepSeek-V3.1-Terminus**、**DeepSeek-V3-671B**、**Qwen3-Coder-Plus**、**Qwen3-Coder-480B-A35B**、**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-Max-Preview**、**Qwen3-32B**、**Qwen3-235B-A22B**、**Qwen3-235B-A22B-Instruct**、**Qwen3-235B-A22B-Thinking**、**GLM-4.5**、**GLM-4.6**、**Kimi-K2-Instruct-0905**、**Kimi-K2**
+- **DeepSeek系列**：**DeepSeek-V3.2-Exp**、**DeepSeek-V3.1-Terminus**、**DeepSeek-V3-671B**
+- **Qwen3系列**：**Qwen3-Coder-Plus**、**Qwen3-Coder-480B-A35B**、**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-Max-Preview**、**Qwen3-32B**、**Qwen3-235B-A22B**、**Qwen3-235B-A22B-Instruct**、**Qwen3-235B-A22B-Thinking**
+- **Kimi系列**：**Kimi-K2-Instruct-0905**、**Kimi-K2**
+- **智谱AI系列**：**GLM-4.6**、
 
 ### 🌙 [**MoonshotAI**](https://platform.moonshot.cn/) - Kimi K2系列
 
@@ -52,15 +55,15 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 ### 🏔️ [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
 
 - **豆包系列**：**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
-- **DeepSeek系列**：**DeepSeek-V3**、**DeepSeek-V3.1**、**DeepSeek-V3.1-Terminus**
-- **Kimi系列**：**Kimi-K2**
+- **DeepSeek系列**：**DeepSeek-V3-250324**、**DeepSeek-V3.1-250821**、**DeepSeek-V3.1-Terminus**
+- **Kimi系列**：**Kimi-K2-250905**
 
 ### 🎬 [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake KAT-Coder
 
 - **KAT-Coder系列**：**KAT-Coder-Pro-V1**、**KAT-Coder-Exp-72B-1010**、**KAT-Coder-Air-V1**
 - **DeepSeek系列**：**DeepSeek-V3.2-Exp**、**DeepSeek-V3.1**、**DeepSeek-V3**
 - **Kimi系列**：**Kimi-K2-Instruct**
-- **Qwen系列**：**Qwen3-32B**、**Qwen3-30B-A3B**、**Qwen3-8B**、**Qwen2.5-7B-Instruct**
+- **Qwen系列**：**Qwen3-VL-235B-A22B-Instruct**、**Qwen3-VL-235B-A22B-Thinking**、**Qwen3-32B**、**Qwen3-30B-A3B**、**Qwen3-8B**、**Qwen2.5-7B-Instruct**
 
 > 快手万擎 (KAT) StreamLake 需要手动创建 [`在线推理服务`](https://www.streamlake.com/document/WANQING/mdsosw46egl9m9lfbg) 后，在 GCMP插件 `gcmp.providerOverrides` 配置项 进行模型定义覆盖设置后使用，最小设置可参考文档末尾的[示例](#供应商配置覆盖)。
 
@@ -101,8 +104,8 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 > 由于各供应商 OpenAI 的兼容性问题，部分情况下可能会报错或卡住不动，建议先查看本地输出的日志后提交 Issue 进一步处理。
 
 [**ModelScope**](https://www.modelscope.cn/)、
-[**百灵大模型**](https://ling.tbox.cn/open)、
-[**百度智能云**](https://cloud.baidu.com/)
+[**百度智能云**](https://cloud.baidu.com/)、
+[**百灵大模型**](https://ling.tbox.cn/open)
 
 > 以下供应商已结束支持，将于 `2025年11月11日` 移除，如需使用可通过自定义模型方式接入：
 

@@ -1,5 +1,5 @@
 ﻿{
-    "displayName": "StreamLake 快手万擎",
+    "displayName": "快手万擎",
     "baseUrl": "https://wanqing.streamlakeapi.com/api/gateway/v1/endpoints",
     "apiKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
@@ -78,6 +78,29 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
+            }
+        },
+        {
+            "id": "Qwen3-VL-235B-A22B-Instruct",
+            "name": "Qwen3-VL-235B-A22B-Instruct (快手万擎)",
+            "tooltip": "Qwen3系列视觉理解模型，在视觉coding、空间感知等方向全面升级；视觉感知与识别能力大幅提升，支持超长视频理解，OCR能力迎来重大升级。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+
+        {
+            "id": "Qwen3-VL-235B-A22B-Thinking",
+            "name": "Qwen3-VL-235B-A22B-Thinking (快手万擎)",
+            "tooltip": "Qwen3系列视觉理解模型，多模态思考能力显著增强，模型在STEM与数学推理方面进行了重点优化；视觉感知与识别能力全面提升、OCR能力迎来重大升级。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
             }
         },
         {

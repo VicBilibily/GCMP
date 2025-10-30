@@ -186,7 +186,7 @@ export class CompatibleProvider extends GenericModelProvider {
                 Logger.error(errorMessage);
                 throw error;
             } finally {
-                Logger.info('✅ Compatible Provider: 请求已完成');
+                Logger.info(`✅ Compatible Provider: ${model.name} 请求已完成`);
             }
         } catch (error) {
             Logger.error('Compatible Provider 处理请求失败:', error);
