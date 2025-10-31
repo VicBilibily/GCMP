@@ -12,8 +12,8 @@ import {
     ProvideLanguageModelChatResponseOptions
 } from 'vscode';
 import { GenericModelProvider } from './genericModelProvider';
-import { ProviderConfig, ModelConfig, UserConfigOverrides, ModelOverride } from '../types/sharedTypes';
-import { Logger, ApiKeyManager, ConfigManager } from '../utils';
+import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
+import { Logger, ApiKeyManager, ConfigManager, StreamlakeWizard } from '../utils';
 
 /**
  * 快手万擎供应商类
@@ -37,6 +37,7 @@ export class StreamlakeProvider extends GenericModelProvider {
         const provider = new StreamlakeProvider(providerKey, providerConfig);
         // 注册语言模型聊天供应商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
+
         // 注册设置API密钥命令
         const setApiKeyCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.setApiKey`, async () => {
             await ApiKeyManager.promptAndSetApiKey(
@@ -45,7 +46,14 @@ export class StreamlakeProvider extends GenericModelProvider {
                 providerConfig.apiKeyTemplate
             );
         });
-        const disposables = [providerDisposable, setApiKeyCommand];
+
+        // 注册配置向导命令
+        const configWizardCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.configWizard`, async () => {
+            Logger.info(`启动 ${providerConfig.displayName} 配置向导`);
+            await StreamlakeWizard.startWizard(providerConfig, providerConfig.displayName);
+        });
+
+        const disposables = [providerDisposable, setApiKeyCommand, configWizardCommand];
         disposables.forEach(disposable => context.subscriptions.push(disposable));
         return { provider, disposables };
     }
@@ -101,52 +109,12 @@ export class StreamlakeProvider extends GenericModelProvider {
             throw new Error(errorMessage);
         }
 
-        const modelValue = userInput.trim();
-        Logger.info(`用户为模型 ${modelId} 设置推理点ID: ${modelValue}`);
+        const endpointId = userInput.trim();
+        Logger.info(`用户为模型 ${modelId} 设置推理点ID: ${endpointId}`);
 
         // 保存用户输入到配置中
-        await this.saveModelOverrideToConfig(modelId, modelValue);
-        return modelValue;
-    }
-
-    /**
-     * 保存 推理点ID 到 VS Code 配置
-     */
-    private async saveModelOverrideToConfig(modelId: string, modelValue: string): Promise<void> {
-        try {
-            const config = vscode.workspace.getConfiguration('gcmp');
-            const overrides = config.get<UserConfigOverrides>('providerOverrides', {});
-            // 初始化 streamlake 覆盖配置
-            if (!overrides['streamlake']) {
-                overrides['streamlake'] = { models: [] };
-            }
-            // 初始化 models 数组
-            if (!overrides['streamlake'].models) {
-                overrides['streamlake'].models = [];
-            }
-
-            // 查找是否已存在该模型的推理点ID配置
-            const existingIndex = overrides['streamlake'].models!.findIndex((m: ModelOverride) => m.id === modelId);
-            if (existingIndex >= 0) {
-                // 更新现有配置
-                overrides['streamlake'].models![existingIndex].model = modelValue;
-            } else {
-                // 添加新配置
-                overrides['streamlake'].models!.push({
-                    id: modelId,
-                    model: modelValue
-                });
-            }
-
-            // 保存到 VS Code 配置
-            await config.update('providerOverrides', overrides, vscode.ConfigurationTarget.Global);
-            Logger.info(`已保存模型 ${modelId} 的推理点ID: ${modelValue}`);
-        } catch (error) {
-            const errorMessage = `保存推理点ID失败: ${error instanceof Error ? error.message : '未知错误'}`;
-            Logger.error(errorMessage);
-            vscode.window.showErrorMessage(`❌ 保存推理点ID失败: ${errorMessage}`);
-            throw error;
-        }
+        await StreamlakeWizard.saveModelEndpointId(modelId, endpointId);
+        return endpointId;
     }
 
     /**

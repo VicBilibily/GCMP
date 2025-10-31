@@ -65,7 +65,7 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 - **Kimi系列**：**Kimi-K2-Instruct**
 - **Qwen系列**：**Qwen3-VL-235B-A22B-Instruct**、**Qwen3-VL-235B-A22B-Thinking**、**Qwen3-32B**、**Qwen3-30B-A3B**、**Qwen3-8B**、**Qwen2.5-7B-Instruct**
 
-> 快手万擎 (KAT) StreamLake 需要手动创建 [`在线推理服务`](https://www.streamlake.com/document/WANQING/mdsosw46egl9m9lfbg) 后，在 GCMP插件 `gcmp.providerOverrides` 配置项 进行模型定义覆盖设置后使用，最小设置可参考文档末尾的[示例](#供应商配置覆盖)。
+> 快手万擎 (KAT) StreamLake 需要手动创建 [`在线推理服务`](https://www.streamlake.com/document/WANQING/mdsosw46egl9m9lfbg) 后，在模型选择的快手万擎供应商设置中配置在线推理预置模型服务推理点ID方可使用。
 
 ### 🏭 [**阿里云百炼**](https://bailian.console.aliyun.com/) - 一站式AI开发平台
 

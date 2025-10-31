@@ -126,6 +126,11 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.streamlake.configWizard",
+                "title": "快手万擎 配置向导（API密钥 & 推理点ID）",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.dashscope.setApiKey",
                 "title": "设置 阿里云百炼 API密钥",
                 "category": "GCMP"
@@ -493,7 +498,7 @@
             {
                 "vendor": "gcmp.streamlake",
                 "displayName": "快手万擎 (KAT-Coder)",
-                "managementCommand": "gcmp.streamlake.setApiKey"
+                "managementCommand": "gcmp.streamlake.configWizard"
             },
             {
                 "vendor": "gcmp.dashscope",
