@@ -248,7 +248,6 @@ export class StreamlakeWizard {
             // 保存到 VS Code 全局配置
             await config.update('providerOverrides', overrides, vscode.ConfigurationTarget.Global);
             Logger.info(`已保存模型 ${modelId} 的推理点ID: ${endpointId}`);
-            vscode.window.showInformationMessage(`✅ 模型 ${modelId} 推理点ID 已保存`);
         } catch (error) {
             const errorMessage = `保存推理点ID失败: ${error instanceof Error ? error.message : '未知错误'}`;
             Logger.error(errorMessage);
@@ -283,7 +282,6 @@ export class StreamlakeWizard {
                     // 保存到 VS Code 全局配置
                     await config.update('providerOverrides', overrides, vscode.ConfigurationTarget.Global);
                     Logger.info(`已清除模型 ${modelId} 的推理点ID`);
-                    vscode.window.showInformationMessage(`✅ 模型 ${modelId} 推理点ID 已清除`);
                 }
             }
         } catch (error) {
