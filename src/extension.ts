@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { GenericModelProvider } from './providers/genericModelProvider';
 import { IFlowProvider } from './providers/iflowProvider';
 import { ModelScopeProvider } from './providers/modelscopeProvider';
+import { StreamlakeProvider } from './providers/streamlakeProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
 import { Logger } from './utils/logger';
 import { ApiKeyManager, ConfigManager } from './utils';
@@ -9,13 +10,13 @@ import { CompatibleModelManager } from './utils/compatibleModelManager';
 import { registerAllTools } from './tools';
 
 /**
- * 全局变量 - 存储已注册的供应商实例，用于配置变更时的重新注册
+ * 全局变量 - 存储已注册的供应商实例，用于扩展卸载时的清理
  */
-let registeredProviders: Record<
+const registeredProviders: Record<
     string,
-    GenericModelProvider | IFlowProvider | ModelScopeProvider | CompatibleProvider
+    GenericModelProvider | IFlowProvider | ModelScopeProvider | StreamlakeProvider | CompatibleProvider
 > = {};
-let registeredDisposables: vscode.Disposable[] = [];
+const registeredDisposables: vscode.Disposable[] = [];
 
 /**
  * 激活供应商 - 基于配置文件动态注册（并行优化版本）
@@ -37,7 +38,7 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
             Logger.trace(`正在注册供应商: ${providerConfig.displayName} (${providerKey})`);
             const providerStartTime = Date.now();
 
-            let provider: GenericModelProvider | IFlowProvider | ModelScopeProvider;
+            let provider: GenericModelProvider | IFlowProvider | ModelScopeProvider | StreamlakeProvider;
             let disposables: vscode.Disposable[];
 
             // 对 iflow 使用专门的 provider
@@ -48,6 +49,11 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
             } else if (providerKey === 'modelscope') {
                 // 对 modelscope 使用专门的 provider（自定义流处理）
                 const result = ModelScopeProvider.createAndActivate(context, providerKey, providerConfig);
+                provider = result.provider;
+                disposables = result.disposables;
+            } else if (providerKey === 'streamlake') {
+                // 对 streamlake 使用专门的 provider（模型覆盖检查）
+                const result = StreamlakeProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
             } else {
@@ -109,24 +115,6 @@ async function activateCompatibleProvider(context: vscode.ExtensionContext): Pro
     }
 }
 
-/**
- * 重新注册所有供应商 - 用于配置变更后的刷新
- */
-async function reRegisterProviders(context: vscode.ExtensionContext): Promise<void> {
-    Logger.info('开始重新注册所有供应商...');
-
-    // 清理现有的 disposables
-    registeredDisposables.forEach(disposable => disposable.dispose());
-    registeredDisposables = [];
-    registeredProviders = {};
-
-    // 重新激活供应商
-    await activateProviders(context);
-    await activateCompatibleProvider(context);
-
-    Logger.info('供应商重新注册完成');
-}
-
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
@@ -175,26 +163,6 @@ export async function activate(context: vscode.ExtensionContext) {
         registerAllTools(context);
         Logger.trace(`⏱️ 工具注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
-        // 监听配置变更，特别是 editToolMode 和 providerOverrides
-        const configChangeDisposable = vscode.workspace.onDidChangeConfiguration(async event => {
-            if (
-                event.affectsConfiguration('gcmp.editToolMode') ||
-                event.affectsConfiguration('gcmp.providerOverrides')
-            ) {
-                const configType = event.affectsConfiguration('gcmp.editToolMode') ? '编辑工具模式' : '供应商配置覆盖';
-                Logger.info(`检测到 ${configType} 配置变更，正在重新注册所有供应商...`);
-                try {
-                    // 重新注册所有供应商以应用新的配置
-                    await reRegisterProviders(context);
-                    Logger.info('供应商重新注册成功');
-                } catch (error) {
-                    Logger.error('重新注册供应商失败:', error);
-                    vscode.window.showErrorMessage(`${configType}更新失败，请重新加载窗口。`);
-                }
-            }
-        });
-        context.subscriptions.push(configChangeDisposable);
-
         const totalActivationTime = Date.now() - activationStartTime;
         Logger.info(`✅ GCMP 扩展激活完成 (总耗时: ${totalActivationTime}ms)`);
     } catch (error) {
@@ -203,7 +171,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // 尝试显示用户友好的错误消息
         vscode.window.showErrorMessage('GCMP 扩展启动失败。请检查输出窗口获取详细信息。');
-
         // 重新抛出错误，让VS Code知道扩展启动失败
         throw error;
     }

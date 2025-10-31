@@ -38,13 +38,10 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
         providerConfig: ProviderConfig
     ): { provider: IFlowProvider; disposables: vscode.Disposable[] } {
         Logger.trace(`${providerConfig.displayName} 专用模型扩展已激活!`);
-
         // 创建供应商实例
         const provider = new IFlowProvider(providerKey, providerConfig);
-
         // 注册语言模型聊天供应商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
-
         // 注册设置API密钥命令
         const setApiKeyCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.setApiKey`, async () => {
             await ApiKeyManager.promptAndSetApiKey(
@@ -53,10 +50,8 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
                 providerConfig.apiKeyTemplate
             );
         });
-
         const disposables = [providerDisposable, setApiKeyCommand];
         disposables.forEach(disposable => context.subscriptions.push(disposable));
-
         return { provider, disposables };
     }
 
@@ -81,16 +76,13 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
         // 根据模型的 sdkMode 选择使用的 handler
         const sdkMode = modelConfig.sdkMode || 'openai';
         const sdkName = sdkMode === 'anthropic' ? 'Anthropic SDK' : 'OpenAI SDK';
-
         Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
 
         // 节流控制：开始新请求前中断当前请求
         const requestId = this.startNewRequest();
         const requestController = this.currentRequestController!;
-
         // 创建组合的CancellationToken
         const combinedToken = this.createCombinedCancellationToken(token, requestController);
-
         Logger.info(`🔄 ${this.providerConfig.displayName}: 开始新请求 #${requestId}`);
 
         try {
@@ -126,11 +118,9 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
             Logger.info(`❌ ${this.providerConfig.displayName}: 检测到新请求，中断当前正在进行的请求`);
             this.currentRequestController.abort();
         }
-
         // 创建新的AbortController
         this.currentRequestController = new AbortController();
         const requestId = ++this.requestCounter;
-
         return requestId;
     }
 
@@ -152,21 +142,17 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
         abortController: AbortController
     ): CancellationToken {
         const combinedToken = new vscode.CancellationTokenSource();
-
         const originalListener = originalToken.onCancellationRequested(() => {
             combinedToken.cancel();
         });
-
         const abortListener = () => {
             combinedToken.cancel();
         };
         abortController.signal.addEventListener('abort', abortListener);
-
         combinedToken.token.onCancellationRequested(() => {
             originalListener.dispose();
             abortController.signal.removeEventListener('abort', abortListener);
         });
-
         return combinedToken.token;
     }
 

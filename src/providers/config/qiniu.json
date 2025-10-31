@@ -387,28 +387,6 @@
                 "toolCalling": true,
                 "imageInput": true
             }
-        },
-        {
-            "id": "x-ai/grok-4-fast",
-            "name": "X-Ai/Grok 4 Fast (七牛云)",
-            "tooltip": "Grok 4 Fast是xAI推出的最新多模态模型，具备SOTA级成本效益与200万token上下文窗口。",
-            "maxInputTokens": 2000000,
-            "maxOutputTokens": 2000000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "x-ai/grok-code-fast-1",
-            "name": "Grok Code Fast 1 (七牛云)",
-            "tooltip": "Grok Code Fast 1是一款高效经济型推理模型，专为智能编码场景打造。该模型通过响应中可见的推理轨迹，让开发者能够精准引导Grok Code实现高质量的工作流程。",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 10000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
         }
     ]
 }

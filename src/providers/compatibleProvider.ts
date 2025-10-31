@@ -22,6 +22,7 @@ import { GenericModelProvider } from './genericModelProvider';
  */
 export class CompatibleProvider extends GenericModelProvider {
     private static readonly PROVIDER_KEY = 'compatible';
+    private modelsChangeListener?: vscode.Disposable;
 
     constructor() {
         // 创建一个虚拟的 ProviderConfig，实际模型配置从 CompatibleModelManager 获取
@@ -32,6 +33,18 @@ export class CompatibleProvider extends GenericModelProvider {
             models: [] // 空模型列表，实际从 CompatibleModelManager 获取
         };
         super(CompatibleProvider.PROVIDER_KEY, virtualConfig);
+
+        this.getProviderConfig(); // 初始化配置缓存
+        // 监听 CompatibleModelManager 的变更事件
+        this.modelsChangeListener = CompatibleModelManager.onDidChangeModels(() => {
+            this.getProviderConfig(); // 刷新配置缓存
+            this._onDidChangeLanguageModelChatInformation.fire();
+        });
+    }
+
+    override dispose(): void {
+        this.modelsChangeListener?.dispose();
+        super.dispose();
     }
 
     /**
@@ -57,7 +70,7 @@ export class CompatibleProvider extends GenericModelProvider {
 
             Logger.debug(`Compatible Provider 加载了 ${modelConfigs.length} 个用户配置的模型`);
 
-            this.providerConfig = {
+            this.cachedProviderConfig = {
                 displayName: 'Compatible',
                 baseUrl: 'https://api.openai.com/v1', // 默认值，模型级别的配置会覆盖
                 apiKeyTemplate: 'sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
@@ -66,14 +79,14 @@ export class CompatibleProvider extends GenericModelProvider {
         } catch (error) {
             Logger.error('获取 Compatible Provider 配置失败:', error);
             // 返回基础配置作为后备
-            this.providerConfig = {
+            this.cachedProviderConfig = {
                 displayName: 'Compatible',
                 baseUrl: 'https://api.openai.com/v1',
                 apiKeyTemplate: 'sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
                 models: []
             };
         }
-        return this.providerConfig;
+        return this.cachedProviderConfig;
     }
 
     /**
@@ -87,7 +100,7 @@ export class CompatibleProvider extends GenericModelProvider {
     ): Promise<LanguageModelChatInformation[]> {
         try {
             // 获取最新的动态配置
-            const currentConfig = this.getProviderConfig();
+            const currentConfig = this.providerConfig;
             // 如果没有模型，直接返回空列表
             if (currentConfig.models.length === 0) {
                 // 异步触发新增模型流程，但不阻塞配置获取
@@ -149,7 +162,7 @@ export class CompatibleProvider extends GenericModelProvider {
     ): Promise<void> {
         try {
             // 获取最新的动态配置
-            const currentConfig = this.getProviderConfig();
+            const currentConfig = this.providerConfig;
 
             // 查找对应的模型配置
             const modelConfig = currentConfig.models.find(m => m.id === model.id);

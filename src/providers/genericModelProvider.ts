@@ -41,28 +41,62 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     protected readonly openaiHandler: OpenAIHandler;
     protected readonly anthropicHandler: AnthropicHandler;
     protected readonly providerKey: string;
-    protected providerConfig: ProviderConfig; // 移除 readonly 以支持动态配置
+    protected baseProviderConfig: ProviderConfig; // protected 以支持子类访问
+    protected cachedProviderConfig: ProviderConfig; // 缓存的配置
+    protected configListener?: vscode.Disposable; // 配置监听器
+
+    // 模型信息变更事件
+    protected _onDidChangeLanguageModelChatInformation = new vscode.EventEmitter<void>();
+    readonly onDidChangeLanguageModelChatInformation = this._onDidChangeLanguageModelChatInformation.event;
 
     constructor(providerKey: string, providerConfig: ProviderConfig) {
         this.providerKey = providerKey;
-        // 应用配置覆盖
-        this.providerConfig = ConfigManager.applyProviderOverrides(providerKey, providerConfig);
+        // 保存原始配置（不应用覆盖）
+        this.baseProviderConfig = providerConfig;
+        // 初始化缓存配置（应用覆盖）
+        this.cachedProviderConfig = ConfigManager.applyProviderOverrides(this.providerKey, this.baseProviderConfig);
+        // 监听配置变更
+        this.configListener = vscode.workspace.onDidChangeConfiguration(e => {
+            // 检查是否是 providerOverrides 的变更
+            if (e.affectsConfiguration(`gcmp.providerOverrides.${this.providerKey}`)) {
+                // 重新计算配置
+                this.cachedProviderConfig = ConfigManager.applyProviderOverrides(
+                    this.providerKey,
+                    this.baseProviderConfig
+                );
+                Logger.trace(`${this.providerKey} 配置已更新`);
+                this._onDidChangeLanguageModelChatInformation.fire();
+            }
+            if (e.affectsConfiguration('gcmp.editToolMode')) {
+                Logger.trace(`${this.providerKey} 检测到 editToolMode 变更`);
+                this._onDidChangeLanguageModelChatInformation.fire();
+            }
+        });
 
         // 创建 OpenAI SDK 处理器
-        this.openaiHandler = new OpenAIHandler(
-            providerKey,
-            this.providerConfig.displayName,
-            this.providerConfig.baseUrl
-        );
-
+        this.openaiHandler = new OpenAIHandler(providerKey, providerConfig.displayName, providerConfig.baseUrl);
         // 创建 Anthropic SDK 处理器
-        this.anthropicHandler = new AnthropicHandler(
-            providerKey,
-            this.providerConfig.displayName,
-            this.providerConfig.baseUrl
-        );
+        this.anthropicHandler = new AnthropicHandler(providerKey, providerConfig.displayName, providerConfig.baseUrl);
+    }
 
-        // 不再需要实例级别的 tokenizer，使用全局共享实例
+    /**
+     * 释放资源
+     */
+    dispose(): void {
+        // 释放配置监听器
+        this.configListener?.dispose();
+        // 释放事件发射器
+        this._onDidChangeLanguageModelChatInformation.dispose();
+        // 释放 Anthropic Handler
+        this.anthropicHandler.dispose();
+        Logger.info(`🧹 ${this.providerConfig.displayName}: 扩展销毁`);
+    }
+
+    /**
+     * 获取当前有效的 provider 配置
+     */
+    get providerConfig(): ProviderConfig {
+        return this.cachedProviderConfig;
     }
 
     /**
@@ -74,13 +108,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         providerConfig: ProviderConfig
     ): { provider: GenericModelProvider; disposables: vscode.Disposable[] } {
         Logger.trace(`${providerConfig.displayName} 模型扩展已激活!`);
-
         // 创建供应商实例
         const provider = new GenericModelProvider(providerKey, providerConfig);
-
         // 注册语言模型聊天供应商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
-
         // 注册设置API密钥命令
         const setApiKeyCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.setApiKey`, async () => {
             await ApiKeyManager.promptAndSetApiKey(
@@ -89,10 +120,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 providerConfig.apiKeyTemplate
             );
         });
-
         const disposables = [providerDisposable, setApiKeyCommand];
         disposables.forEach(disposable => context.subscriptions.push(disposable));
-
         return { provider, disposables };
     }
 
@@ -147,17 +176,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 return [];
             }
         }
-
         // 将配置中的模型转换为VS Code所需的格式
         return this.providerConfig.models.map(model => this.modelConfigToInfo(model));
     }
 
-    /**
-     * 获取当前模型配置
-     */
-    getProviderConfig(): ProviderConfig {
-        return this.providerConfig;
-    }
     async provideLanguageModelChatResponse(
         model: LanguageModelChatInformation,
         messages: Array<LanguageModelChatMessage>,
@@ -166,21 +188,23 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         token: CancellationToken
     ): Promise<void> {
         // 查找对应的模型配置
-        const modelConfig = this.providerConfig.models.find(m => m.id === model.id);
+        const modelConfig = this.providerConfig.models.find((m: ModelConfig) => m.id === model.id);
         if (!modelConfig) {
             const errorMessage = `未找到模型: ${model.id}`;
             Logger.error(errorMessage);
             throw new Error(errorMessage);
         }
 
-        // 确保有API密钥（最后的保险检查）
+        // 确保有API密钥
         await ApiKeyManager.ensureApiKey(this.providerKey, this.providerConfig.displayName);
 
         // 根据模型的 sdkMode 选择使用的 handler
         const sdkMode = modelConfig.sdkMode || 'openai';
         const sdkName = sdkMode === 'anthropic' ? 'Anthropic SDK' : 'OpenAI SDK';
-
-        Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
+        Logger.info(
+            `${this.providerConfig.displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`,
+            model
+        );
 
         try {
             if (sdkMode === 'anthropic') {
@@ -238,13 +262,11 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 const chineseChars = (text.match(/[\u4e00-\u9fff]/g) || []).length;
                 const englishWords = (text.match(/\b\w+\b/g) || []).length;
                 const symbols = text.length - chineseChars - englishWords;
-
                 // 中文字符约1.5个token，英文单词约1个token，符号约0.5个token
                 return Math.ceil(chineseChars * 1.5 + englishWords + symbols * 0.5);
             } else {
                 // 对于复杂消息，分别计算各部分的token
                 let totalTokens = 0;
-
                 if (Array.isArray(text.content)) {
                     for (const part of text.content) {
                         if (part instanceof vscode.LanguageModelTextPart) {
@@ -271,21 +293,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         }
                     }
                 }
-
                 // 添加角色和结构的固定开销
                 totalTokens += 4; // 角色和结构开销
-
                 return totalTokens;
             }
         }
-    }
-
-    /**
-     * 清理资源，中断任何正在进行的请求（仅对特定供应商启用）
-     * 当扩展被销毁时应该调用此方法
-     */
-    dispose(): void {
-        this.anthropicHandler.dispose();
-        Logger.info(`🧹 ${this.providerConfig.displayName}: 扩展销毁`);
     }
 }

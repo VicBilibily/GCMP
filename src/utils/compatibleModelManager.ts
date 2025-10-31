@@ -60,6 +60,8 @@ export interface CompatibleModelConfig {
 export class CompatibleModelManager {
     private static models: CompatibleModelConfig[] = [];
     private static configListener: vscode.Disposable | null = null;
+    private static _onDidChangeModels = new vscode.EventEmitter<void>();
+    static readonly onDidChangeModels = CompatibleModelManager._onDidChangeModels.event;
 
     /**
      * 初始化模型管理器
@@ -78,6 +80,7 @@ export class CompatibleModelManager {
             this.configListener.dispose();
             this.configListener = null;
         }
+        this._onDidChangeModels.dispose();
         Logger.trace('自定义模型管理器已清理');
     }
 
@@ -94,6 +97,7 @@ export class CompatibleModelManager {
             if (event.affectsConfiguration('gcmp.compatibleModels')) {
                 Logger.info('检测到自定义模型配置变化，正在重新加载...');
                 this.loadModels();
+                this._onDidChangeModels.fire();
             }
         });
     }

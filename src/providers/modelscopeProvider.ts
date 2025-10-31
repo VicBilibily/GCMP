@@ -65,13 +65,10 @@ export class ModelScopeProvider extends GenericModelProvider implements Language
         providerConfig: ProviderConfig
     ): { provider: ModelScopeProvider; disposables: vscode.Disposable[] } {
         Logger.trace(`${providerConfig.displayName} 专用模型扩展已激活!`);
-
         // 创建供应商实例
         const provider = new ModelScopeProvider(providerKey, providerConfig);
-
         // 注册语言模型聊天供应商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
-
         // 注册设置API密钥命令
         const setApiKeyCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.setApiKey`, async () => {
             await ApiKeyManager.promptAndSetApiKey(
@@ -80,10 +77,8 @@ export class ModelScopeProvider extends GenericModelProvider implements Language
                 providerConfig.apiKeyTemplate
             );
         });
-
         const disposables = [providerDisposable, setApiKeyCommand];
         disposables.forEach(disposable => context.subscriptions.push(disposable));
-
         return { provider, disposables };
     }
 
@@ -110,8 +105,8 @@ export class ModelScopeProvider extends GenericModelProvider implements Language
 
         // 根据模型的 sdkMode 选择使用的 handler
         const sdkMode = modelConfig.sdkMode || 'openai';
-
-        Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求: ${modelConfig.name} (SDK: ${sdkMode})`);
+        const sdkName = sdkMode === 'anthropic' ? 'Anthropic SDK' : 'OpenAI SDK';
+        Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
 
         try {
             if (sdkMode === 'anthropic') {
