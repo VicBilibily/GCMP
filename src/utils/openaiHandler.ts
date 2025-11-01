@@ -60,10 +60,12 @@ export class OpenAIHandler {
         const defaultHeaders: Record<string, string> = {
             'User-Agent': VersionManager.getUserAgent('OpenAI')
         };
+        // 处理 customHeader 中的 API 密钥替换
+        const processedCustomHeader = ApiKeyManager.processCustomHeader(modelConfig?.customHeader, currentApiKey);
         // 如果模型配置中有自定义头部，添加到默认头部中
-        if (modelConfig?.customHeader) {
-            Object.assign(defaultHeaders, modelConfig.customHeader);
-            Logger.debug(`${this.displayName} 应用自定义头部: ${JSON.stringify(modelConfig.customHeader)}`);
+        if (Object.keys(processedCustomHeader).length > 0) {
+            Object.assign(defaultHeaders, processedCustomHeader);
+            Logger.debug(`${this.displayName} 应用自定义头部: ${JSON.stringify(processedCustomHeader)}`);
         }
 
         const client = new OpenAI({

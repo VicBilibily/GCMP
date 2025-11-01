@@ -248,6 +248,11 @@ export class ConfigManager {
                             `  模型 ${modelOverride.id}: 覆盖 maxOutputTokens = ${modelOverride.maxOutputTokens}`
                         );
                     }
+                    // 覆盖 sdkMode
+                    if (modelOverride.sdkMode !== undefined) {
+                        existingModel.sdkMode = modelOverride.sdkMode;
+                        Logger.debug(`  模型 ${modelOverride.id}: 覆盖 sdkMode = ${modelOverride.sdkMode}`);
+                    }
                     if (modelOverride.baseUrl !== undefined) {
                         existingModel.baseUrl = modelOverride.baseUrl;
                         Logger.debug(`  模型 ${modelOverride.id}: 覆盖 baseUrl = ${modelOverride.baseUrl}`);
@@ -260,6 +265,13 @@ export class ConfigManager {
                         };
                         Logger.debug(
                             `  模型 ${modelOverride.id}: 合并 capabilities = ${JSON.stringify(existingModel.capabilities)}`
+                        );
+                    }
+                    // 合并 customHeader
+                    if (modelOverride.customHeader) {
+                        existingModel.customHeader = { ...existingModel.customHeader, ...modelOverride.customHeader };
+                        Logger.debug(
+                            `  模型 ${modelOverride.id}: 合并 customHeader = ${JSON.stringify(existingModel.customHeader)}`
                         );
                     }
                 } else {
@@ -275,7 +287,9 @@ export class ConfigManager {
                             imageInput: modelOverride.capabilities?.imageInput ?? false
                         },
                         ...(modelOverride.model && { model: modelOverride.model }),
-                        ...(modelOverride.baseUrl && { baseUrl: modelOverride.baseUrl })
+                        ...(modelOverride.sdkMode && { sdkMode: modelOverride.sdkMode }),
+                        ...(modelOverride.baseUrl && { baseUrl: modelOverride.baseUrl }),
+                        ...(modelOverride.customHeader && { customHeader: modelOverride.customHeader })
                     };
                     config.models.push(newModel);
                     Logger.info(`  添加新模型: ${modelOverride.id}`);

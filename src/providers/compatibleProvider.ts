@@ -65,7 +65,8 @@ export class CompatibleProvider extends GenericModelProvider {
                 sdkMode: model.sdkMode,
                 capabilities: model.capabilities,
                 ...(model.baseUrl && { baseUrl: model.baseUrl }),
-                ...(model.model && { model: model.model })
+                ...(model.model && { model: model.model }),
+                ...(model.customHeader && { customHeader: model.customHeader })
             }));
 
             Logger.debug(`Compatible Provider 加载了 ${modelConfigs.length} 个用户配置的模型`);

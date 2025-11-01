@@ -171,11 +171,15 @@ export class ModelScopeProvider extends GenericModelProvider implements Language
         const cancellationListener = token.onCancellationRequested(() => abortController.abort());
 
         try {
+            // 处理 customHeader 中的 API 密钥替换
+            const processedCustomHeader = ApiKeyManager.processCustomHeader(modelConfig?.customHeader, apiKey);
+
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${apiKey}`
+                    Authorization: `Bearer ${apiKey}`,
+                    ...processedCustomHeader
                 },
                 body: JSON.stringify(requestBody),
                 signal: abortController.signal

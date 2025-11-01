@@ -50,6 +50,8 @@ export interface CompatibleModelConfig {
         /** 图像输入 */
         imageInput: boolean;
     };
+    /** 自定义HTTP头部（可选） */
+    customHeader?: Record<string, string>;
     /** 是否由向导创建（内部标记，不持久化） */
     _isFromWizard?: boolean;
 }
@@ -466,10 +468,10 @@ export class CompatibleModelManager {
         const modelNameForRequest = await this._createInputBoxWithBackButton({
             title: mode === 'create' ? '添加自定义模型 - 请求 模型ID 标识值' : '编辑模型 - 请求 模型ID 标识值',
             prompt: '输入发送 API 请求时使用的 模型ID 标识值',
-            placeHolder: '例如：glm-4.6 或 endpoint-id',
-            value: currentConfig?.model || (mode === 'create' ? modelId : undefined) || currentConfig?.id,
+            placeHolder: '例如：glm-4.6',
+            value: currentConfig?.model,
             validateInput: value => {
-                return !value.trim() ? '请求模型名称不能为空' : null;
+                return !value.trim() ? '请求模型ID不能为空' : null;
             }
         });
         if (!modelNameForRequest || isBackButtonClick(modelNameForRequest)) {
@@ -482,7 +484,7 @@ export class CompatibleModelManager {
             return undefined;
         }
 
-        // 第4步/第3步：API BASE URL
+        // 第6步/第5步：API BASE URL
         const urlTitle = mode === 'create' ? '添加自定义模型 - API BASE URL' : '编辑模型 - API BASE URL';
         const url = await this._createInputBoxWithBackButton({
             title: urlTitle,
@@ -505,20 +507,20 @@ export class CompatibleModelManager {
             return undefined;
         }
 
-        // 第5步/第4步：SDK 模式（两种模式都需要）
+        // 第7步/第6步：SDK 模式
         const result = await this._selectSDKMode(mode === 'edit' ? currentConfig?.sdkMode : undefined);
         if (!result || isBackButtonClick(result)) {
             return undefined;
         }
         const sdkMode = result as 'openai' | 'anthropic';
 
-        // 第6步/第5步：能力选择
+        // 第8步/第7步：能力选择
         const capabilities = await this._selectCapabilities(currentConfig ? currentConfig.capabilities : undefined);
         if (!capabilities || isBackButtonClick(capabilities)) {
             return undefined;
         }
 
-        // 第7步/第6步：Token 限制
+        // 第9步/第8步：Token 限制
         const tokenLimits = await this._configureTokenLimits(currentConfig);
         if (!tokenLimits || isBackButtonClick(tokenLimits)) {
             return undefined;
@@ -526,7 +528,7 @@ export class CompatibleModelManager {
 
         // 返回结果根据模式不同
         if (mode === 'create') {
-            // 创建模式返回完整的模型对象
+            // 创建模式返回完整的模型对象（不设置 customHeader）
             return {
                 id: modelId!.trim(),
                 name: modelName.trim(),
@@ -540,8 +542,8 @@ export class CompatibleModelManager {
                 _isFromWizard: true
             };
         } else {
-            // 编辑模式返回部分更新对象
-            return {
+            // 编辑模式返回部分更新对象（保留原有 customHeader）
+            const result: Partial<CompatibleModelConfig> = {
                 name: modelName.trim(),
                 provider: provider!.trim(),
                 baseUrl: url.trim(),
@@ -551,6 +553,11 @@ export class CompatibleModelManager {
                 maxInputTokens: tokenLimits.maxInputTokens,
                 maxOutputTokens: tokenLimits.maxOutputTokens
             };
+            // 如果原有配置包含 customHeader，保留它
+            if (currentConfig?.customHeader) {
+                result.customHeader = currentConfig.customHeader;
+            }
+            return result;
         }
     }
 

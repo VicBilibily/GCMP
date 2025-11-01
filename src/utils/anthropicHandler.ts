@@ -17,9 +17,6 @@ import type { ModelConfig } from '../types/sharedTypes';
  * 接收完整的供应商配置，使用 Anthropic SDK 处理流式聊天完成
  */
 export class AnthropicHandler {
-    private clients = new Map<string, Anthropic>();
-    private cachedApiKeys = new Map<string, string>();
-
     constructor(
         public readonly provider: string,
         public readonly displayName: string,
@@ -29,50 +26,33 @@ export class AnthropicHandler {
     }
 
     /**
-     * 获取或创建 Anthropic 客户端
-     * 使用构造时传入的配置
+     * 创建 Anthropic 客户端
+     * 每次都创建新的客户端实例，与 OpenAIHandler 保持一致
      */
-    private async getAnthropicClient(modelConfig?: ModelConfig): Promise<Anthropic> {
+    private async createAnthropicClient(modelConfig?: ModelConfig): Promise<Anthropic> {
         const providerKey = modelConfig?.provider || this.provider;
         const currentApiKey = await ApiKeyManager.getApiKey(providerKey);
-
         if (!currentApiKey) {
             throw new Error(`缺少 ${this.displayName} API密钥`);
         }
 
         // 使用模型配置的 baseUrl 或提供商默认的 baseURL
         const baseUrl = modelConfig?.baseUrl || this.baseURL;
-        const clientKey = `${this.provider}_${baseUrl}`;
-        const cachedKey = this.cachedApiKeys.get(clientKey);
+        Logger.debug(`[${this.displayName}] 创建新的 Anthropic 客户端 (baseUrl: ${baseUrl})`);
+        // 处理 customHeader 中的 API 密钥替换
+        const processedCustomHeader = ApiKeyManager.processCustomHeader(modelConfig?.customHeader, currentApiKey);
 
-        // 如果 API 密钥变更了，重置客户端
-        if (!this.clients.has(clientKey) || cachedKey !== currentApiKey) {
-            Logger.debug(`[${this.displayName}] 创建新的 Anthropic 客户端 (baseUrl: ${baseUrl})`);
+        const client = new Anthropic({
+            apiKey: currentApiKey,
+            baseURL: baseUrl,
+            defaultHeaders: {
+                'User-Agent': VersionManager.getUserAgent(this.provider),
+                ...processedCustomHeader
+            }
+        });
 
-            const client = new Anthropic({
-                apiKey: currentApiKey,
-                baseURL: baseUrl,
-                defaultHeaders: {
-                    'User-Agent': VersionManager.getUserAgent(this.provider),
-                    ...(modelConfig?.customHeader || {})
-                }
-            });
-
-            this.clients.set(clientKey, client);
-            this.cachedApiKeys.set(clientKey, currentApiKey);
-            Logger.info(`${this.displayName} Anthropic 兼容客户端已创建 (API密钥已更新)`);
-        }
-
-        return this.clients.get(clientKey)!;
-    }
-
-    /**
-     * 重置客户端
-     */
-    resetClient(): void {
-        this.clients.clear();
-        this.cachedApiKeys.clear();
-        Logger.debug(`${this.displayName} Anthropic 兼容客户端已重置`);
+        Logger.info(`${this.displayName} Anthropic 兼容客户端已创建`);
+        return client;
     }
 
     /**
@@ -87,7 +67,7 @@ export class AnthropicHandler {
         token: vscode.CancellationToken
     ): Promise<void> {
         try {
-            const client = await this.getAnthropicClient(modelConfig);
+            const client = await this.createAnthropicClient(modelConfig);
             const { messages: anthropicMessages, system } = apiMessageToAnthropicMessage(messages);
 
             // 准备工具定义
@@ -144,13 +124,5 @@ export class AnthropicHandler {
             progress.report(new vscode.LanguageModelTextPart(errorMessage));
             throw error;
         }
-    }
-
-    /**
-     * 清理资源
-     */
-    dispose(): void {
-        this.resetClient();
-        Logger.debug(`${this.displayName} AnthropicHandler 已清理`);
     }
 }

@@ -87,8 +87,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         this.configListener?.dispose();
         // 释放事件发射器
         this._onDidChangeLanguageModelChatInformation.dispose();
-        // 释放 Anthropic Handler
-        this.anthropicHandler.dispose();
         Logger.info(`🧹 ${this.providerConfig.displayName}: 扩展销毁`);
     }
 

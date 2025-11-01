@@ -127,6 +127,27 @@ export class ApiKeyManager {
     }
 
     /**
+     * 处理 customHeader 中的 API 密钥替换
+     * 将 $(APIKEY) 替换为实际的 API 密钥（不区分大小写）
+     */
+    static processCustomHeader(
+        customHeader: Record<string, string> | undefined,
+        apiKey: string
+    ): Record<string, string> {
+        if (!customHeader) {
+            return {};
+        }
+
+        const processedHeader: Record<string, string> = {};
+        for (const [key, value] of Object.entries(customHeader)) {
+            // 不区分大小写地替换 $(APIKEY) 为实际的 API 密钥
+            const processedValue = value.replace(/\$\(\s*APIKEY\s*\)/gi, apiKey);
+            processedHeader[key] = processedValue;
+        }
+        return processedHeader;
+    }
+
+    /**
      * 通用API密钥输入和设置逻辑
      */
     static async promptAndSetApiKey(vendor: string, displayName: string, placeHolder: string): Promise<void> {

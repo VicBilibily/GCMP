@@ -57,6 +57,8 @@ export interface ModelOverride {
     maxInputTokens?: number;
     /** 覆盖最大输出token数 */
     maxOutputTokens?: number;
+    /** 覆盖SDK模式：openai（OpenAI兼容格式）或 anthropic（Anthropic兼容格式） */
+    sdkMode?: 'anthropic' | 'openai';
     /** 合并capabilities（会与原有capabilities合并） */
     capabilities?: {
         toolCalling?: boolean;
@@ -64,6 +66,11 @@ export interface ModelOverride {
     };
     /** 覆盖baseUrl */
     baseUrl?: string;
+    /**
+     * 模型特定的自定义HTTP头部（可选）
+     * 如果提供，将在API请求中附加这些自定义头部
+     */
+    customHeader?: Record<string, string>;
 }
 
 /**

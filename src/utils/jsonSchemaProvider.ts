@@ -10,6 +10,15 @@ import { Logger } from './logger';
 import type { JSONSchema7 } from 'json-schema';
 
 /**
+ * 扩展的 JSON Schema 接口，支持 VS Code 特有的 enumDescriptions 属性
+ */
+declare module 'json-schema' {
+    interface JSONSchema7 {
+        enumDescriptions?: string[];
+    }
+}
+
+/**
  * JSON Schema 提供者类
  * 动态生成 GCMP 配置的 JSON Schema，为 settings.json 提供智能提示
  */
@@ -110,7 +119,8 @@ export class JsonSchemaProvider {
         const propertyNames: JSONSchema7 = {
             type: 'string',
             description: '供应商配置键名',
-            enum: Object.keys(providerConfigs)
+            enum: Object.keys(providerConfigs),
+            enumDescriptions: Object.entries(providerConfigs).map(([key, config]) => config.displayName || key)
         };
 
         // 为每个供应商生成 schema
@@ -167,6 +177,20 @@ export class JsonSchemaProvider {
                                             type: 'number',
                                             minimum: 64,
                                             description: '覆盖最大输出token数量'
+                                        },
+                                        sdkMode: {
+                                            type: 'string',
+                                            enum: ['openai', 'anthropic'],
+                                            description:
+                                                '覆盖SDK模式：openai（OpenAI兼容格式）或 anthropic（Anthropic兼容格式）'
+                                        },
+                                        customHeader: {
+                                            type: 'object',
+                                            description: '覆盖模型的自定义HTTP头部，支持合并现有头部配置',
+                                            additionalProperties: {
+                                                type: 'string',
+                                                description: 'HTTP头部值'
+                                            }
                                         },
                                         baseUrl: {
                                             type: 'string',
@@ -263,6 +287,19 @@ export class JsonSchemaProvider {
                                 minimum: 1,
                                 maximum: 200000,
                                 description: '覆盖最大输出token数量'
+                            },
+                            sdkMode: {
+                                type: 'string',
+                                enum: ['openai', 'anthropic'],
+                                description: '覆盖SDK模式：openai（OpenAI兼容格式）或 anthropic（Anthropic兼容格式）'
+                            },
+                            customHeader: {
+                                type: 'object',
+                                description: '覆盖模型的自定义HTTP头部，支持合并现有头部配置',
+                                additionalProperties: {
+                                    type: 'string',
+                                    description: 'HTTP头部值'
+                                }
                             },
                             baseUrl: {
                                 type: 'string',
