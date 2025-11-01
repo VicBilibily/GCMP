@@ -52,6 +52,8 @@ export interface CompatibleModelConfig {
     };
     /** 自定义HTTP头部（可选） */
     customHeader?: Record<string, string>;
+    /** 额外的请求体参数（可选） */
+    extraBody?: Record<string, unknown>;
     /** 是否由向导创建（内部标记，不持久化） */
     _isFromWizard?: boolean;
 }

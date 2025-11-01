@@ -58,7 +58,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 监听配置变更
         this.configListener = vscode.workspace.onDidChangeConfiguration(e => {
             // 检查是否是 providerOverrides 的变更
-            if (e.affectsConfiguration('gcmp.providerOverrides')) {
+            if (e.affectsConfiguration('gcmp.providerOverrides') && providerKey !== 'compatible') {
                 // 重新计算配置
                 this.cachedProviderConfig = ConfigManager.applyProviderOverrides(
                     this.providerKey,

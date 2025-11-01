@@ -274,6 +274,13 @@ export class ConfigManager {
                             `  模型 ${modelOverride.id}: 合并 customHeader = ${JSON.stringify(existingModel.customHeader)}`
                         );
                     }
+                    // 合并 extraBody（仅OpenAI接口生效）
+                    if (modelOverride.extraBody) {
+                        existingModel.extraBody = { ...existingModel.extraBody, ...modelOverride.extraBody };
+                        Logger.debug(
+                            `  模型 ${modelOverride.id}: 合并 extraBody = ${JSON.stringify(existingModel.extraBody)}`
+                        );
+                    }
                 } else {
                     // 添加新模型
                     const newModel: ModelConfig = {
@@ -289,7 +296,8 @@ export class ConfigManager {
                         ...(modelOverride.model && { model: modelOverride.model }),
                         ...(modelOverride.sdkMode && { sdkMode: modelOverride.sdkMode }),
                         ...(modelOverride.baseUrl && { baseUrl: modelOverride.baseUrl }),
-                        ...(modelOverride.customHeader && { customHeader: modelOverride.customHeader })
+                        ...(modelOverride.customHeader && { customHeader: modelOverride.customHeader }),
+                        ...(modelOverride.extraBody && { extraBody: modelOverride.extraBody })
                     };
                     config.models.push(newModel);
                     Logger.info(`  添加新模型: ${modelOverride.id}`);

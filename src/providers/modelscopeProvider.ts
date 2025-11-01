@@ -13,7 +13,7 @@ import {
     ProvideLanguageModelChatResponseOptions
 } from 'vscode';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { ApiKeyManager, Logger, ConfigManager } from '../utils';
+import { ApiKeyManager, Logger, ConfigManager, OpenAIHandler } from '../utils';
 import { GenericModelProvider } from './genericModelProvider';
 import OpenAI from 'openai';
 
@@ -24,24 +24,6 @@ interface ToolCallBuffer {
     id?: string;
     name?: string;
     arguments: string;
-}
-
-/**
- * OpenAI 格式的消息类型（直接使用 OpenAI SDK 类型）
- */
-type OpenAIMessage = OpenAI.Chat.ChatCompletionMessageParam;
-
-type OpenAITool = OpenAI.Chat.ChatCompletionTool;
-
-interface OpenAIRequestBody {
-    model: string;
-    messages: OpenAIMessage[];
-    max_tokens: number;
-    stream: boolean;
-    temperature: number;
-    top_p: number;
-    tools?: OpenAITool[];
-    tool_choice?: string | { type: 'function'; function: { name: string } };
 }
 
 /**
@@ -150,7 +132,7 @@ export class ModelScopeProvider extends GenericModelProvider implements Language
         Logger.info(`[${model.name}] 处理 ${messages.length} 条消息，使用 ${this.providerConfig.displayName}`);
 
         // 构建请求参数
-        const requestBody: OpenAIRequestBody = {
+        const requestBody: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
             model: modelConfig.model || model.id,
             messages: this.openaiHandler.convertMessagesToOpenAI(messages, model.capabilities || undefined),
             max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
@@ -163,6 +145,13 @@ export class ModelScopeProvider extends GenericModelProvider implements Language
         if (options.tools && options.tools.length > 0 && model.capabilities?.toolCalling) {
             requestBody.tools = this.openaiHandler.convertToolsToOpenAI([...options.tools]);
             requestBody.tool_choice = 'auto';
+        }
+
+        // 合并extraBody参数（如果有）
+        if (modelConfig.extraBody) {
+            const filteredExtraBody = OpenAIHandler.filterExtraBodyParams(modelConfig.extraBody);
+            Object.assign(requestBody, filteredExtraBody);
+            Logger.trace(`${model.name} 合并了 extraBody 参数: ${JSON.stringify(filteredExtraBody)}`);
         }
 
         Logger.debug(`[${model.name}] 发送 ${this.providerConfig.displayName} API 请求`);

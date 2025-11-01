@@ -44,6 +44,11 @@ export interface ModelConfig {
      * 如果提供，Handler将优先从此供应商获取API密钥
      */
     provider?: string;
+    /**
+     * 额外的请求体参数（可选）
+     * 如果提供，将在API请求中合并到请求体中
+     */
+    extraBody?: Record<string, unknown>;
 }
 
 /**
@@ -71,6 +76,11 @@ export interface ModelOverride {
      * 如果提供，将在API请求中附加这些自定义头部
      */
     customHeader?: Record<string, string>;
+    /**
+     * 额外的请求体参数（可选）
+     * 如果提供，将在API请求中合并到请求体中
+     */
+    extraBody?: Record<string, unknown>;
 }
 
 /**

@@ -309,6 +309,15 @@
                                 "type": "string",
                                 "description": "模型描述"
                             },
+                            "sdkMode": {
+                                "type": "string",
+                                "enum": [
+                                    "openai",
+                                    "anthropic"
+                                ],
+                                "description": "SDK模式：openai（OpenAI兼容格式）或 anthropic（Anthropic兼容格式）",
+                                "default": "openai"
+                            },
                             "baseUrl": {
                                 "type": "string",
                                 "description": "API基础URL",
@@ -327,15 +336,6 @@
                                 "type": "number",
                                 "description": "最大输出token数量",
                                 "minimum": 8
-                            },
-                            "sdkMode": {
-                                "type": "string",
-                                "enum": [
-                                    "openai",
-                                    "anthropic"
-                                ],
-                                "description": "SDK模式：openai（OpenAI兼容格式）或 anthropic（Anthropic兼容格式）",
-                                "default": "openai"
                             },
                             "capabilities": {
                                 "type": "object",
@@ -360,6 +360,13 @@
                                 "additionalProperties": {
                                     "type": "string",
                                     "description": "HTTP头部值"
+                                }
+                            },
+                            "extraBody": {
+                                "type": "object",
+                                "description": "额外的请求体参数，将在API请求中合并到请求体中",
+                                "additionalProperties": {
+                                    "description": "额外的请求体参数值"
                                 }
                             }
                         },

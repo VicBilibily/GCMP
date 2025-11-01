@@ -300,6 +300,16 @@ export class OpenAIHandler {
                 Logger.trace(`${model.name} 添加了 ${options.tools.length} 个工具`);
             }
 
+            // 合并extraBody参数（如果有）
+            if (modelConfig.extraBody) {
+                // 过滤掉不可修改的核心参数
+                const filteredExtraBody = OpenAIHandler.filterExtraBodyParams(modelConfig.extraBody);
+                Object.assign(createParams, filteredExtraBody);
+                if (Object.keys(filteredExtraBody).length > 0) {
+                    Logger.trace(`${model.name} 合并了 extraBody 参数: ${JSON.stringify(filteredExtraBody)}`);
+                }
+            }
+
             // #region 调试：检查输入消息中的工具调用
             // // 输出转换后的消息统计信息
             // const openaiMessages = createParams.messages;
@@ -939,5 +949,30 @@ export class OpenAIHandler {
             Logger.error(`❌ 创建图像DataURL失败: ${error}`);
             throw error;
         }
+    }
+
+    /**
+     * 过滤extraBody中不可修改的核心参数
+     * @param extraBody 原始extraBody参数
+     * @returns 过滤后的参数，移除了不可修改的核心参数
+     */
+    public static filterExtraBodyParams(extraBody: Record<string, unknown>): Record<string, unknown> {
+        const 不可修改参数 = new Set([
+            'model', // 模型名称
+            'messages', // 消息数组
+            'stream', // 流式开关
+            'stream_options', // 流式选项
+            'tools', // 工具定义
+            'tool_choice' // 工具选择
+        ]);
+
+        const filtered: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(extraBody)) {
+            if (!不可修改参数.has(key)) {
+                filtered[key] = value;
+            }
+        }
+
+        return filtered;
     }
 }

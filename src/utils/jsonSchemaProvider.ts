@@ -213,6 +213,13 @@ export class JsonSchemaProvider {
                                             },
                                             required: ['toolCalling', 'imageInput'],
                                             additionalProperties: false
+                                        },
+                                        extraBody: {
+                                            type: 'object',
+                                            description: '额外的请求体参数（可选，仅在OpenAI兼容接口中生效）',
+                                            additionalProperties: {
+                                                description: '额外的请求体参数值'
+                                            }
                                         }
                                     },
                                     required: ['id'],
@@ -321,6 +328,13 @@ export class JsonSchemaProvider {
                                 },
                                 required: ['toolCalling', 'imageInput'],
                                 additionalProperties: false
+                            },
+                            extraBody: {
+                                type: 'object',
+                                description: '额外的请求体参数（可选，仅在OpenAI兼容接口中生效）',
+                                additionalProperties: {
+                                    description: '额外的请求体参数值'
+                                }
                             }
                         },
                         required: ['id'],
