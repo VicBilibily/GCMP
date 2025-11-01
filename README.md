@@ -42,7 +42,7 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 - **DeepSeek系列**：**DeepSeek-V3.2-Exp**、**DeepSeek-V3.1-Terminus**、**DeepSeek-V3-671B**
 - **Qwen3系列**：**Qwen3-Coder-Plus**、**Qwen3-Coder-480B-A35B**、**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-Max-Preview**、**Qwen3-32B**、**Qwen3-235B-A22B**、**Qwen3-235B-A22B-Instruct**、**Qwen3-235B-A22B-Thinking**
 - **Kimi系列**：**Kimi-K2-Instruct-0905**、**Kimi-K2**
-- **智谱AI系列**：**GLM-4.6**、
+- **智谱AI系列**：**GLM-4.6**
 
 ### 🌙 [**MoonshotAI**](https://platform.moonshot.cn/) - Kimi K2系列
 

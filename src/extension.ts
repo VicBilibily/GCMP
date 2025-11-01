@@ -5,7 +5,7 @@ import { ModelScopeProvider } from './providers/modelscopeProvider';
 import { StreamlakeProvider } from './providers/streamlakeProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
 import { Logger } from './utils/logger';
-import { ApiKeyManager, ConfigManager } from './utils';
+import { ApiKeyManager, ConfigManager, JsonSchemaProvider } from './utils';
 import { CompatibleModelManager } from './utils/compatibleModelManager';
 import { registerAllTools } from './tools';
 
@@ -142,8 +142,12 @@ export async function activate(context: vscode.ExtensionContext) {
         const configDisposable = ConfigManager.initialize();
         context.subscriptions.push(configDisposable);
         Logger.trace(`⏱️ 配置管理器初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
-
-        // 步骤2.5: 初始化兼容模型管理器
+        // 步骤2.1: 初始化 JSON Schema 提供者
+        stepStartTime = Date.now();
+        JsonSchemaProvider.initialize();
+        context.subscriptions.push({ dispose: () => JsonSchemaProvider.dispose() });
+        Logger.trace(`⏱️ JSON Schema 提供者初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        // 步骤2.2: 初始化兼容模型管理器
         stepStartTime = Date.now();
         CompatibleModelManager.initialize();
         Logger.trace(`⏱️ 兼容模型管理器初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
@@ -152,8 +156,7 @@ export async function activate(context: vscode.ExtensionContext) {
         stepStartTime = Date.now();
         await activateProviders(context);
         Logger.trace(`⏱️ 模型提供者注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
-
-        // 步骤3.5: 激活兼容供应商
+        // 步骤3.1: 激活兼容供应商
         stepStartTime = Date.now();
         await activateCompatibleProvider(context);
         Logger.trace(`⏱️ 兼容供应商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);

@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、心流AI、MoonshotAI、DeepSeek、火山方舟、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.9.2",
+    "version": "0.9.3",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -86,7 +86,8 @@
         "onLanguageModelProvider:gcmp.paratera",
         "onLanguageModelProvider:gcmp.ppio",
         "onLanguageModelProvider:gcmp.lanyun",
-        "onLanguageModelTool:gcmp_zhipuWebSearch"
+        "onLanguageModelTool:gcmp_zhipuWebSearch",
+        "onFileSystem:gcmp-settings"
     ],
     "contributes": {
         "commands": [
@@ -284,106 +285,7 @@
                     "type": "object",
                     "default": {},
                     "description": "供应商配置覆盖。允许覆盖供应商的baseUrl和模型配置，支持添加新模型或覆盖现有模型的参数。",
-                    "scope": "application",
-                    "additionalProperties": {
-                        "type": "object",
-                        "description": "供应商配置覆盖",
-                        "properties": {
-                            "baseUrl": {
-                                "type": "string",
-                                "description": "覆盖供应商级别的API基础URL",
-                                "format": "uri"
-                            },
-                            "models": {
-                                "type": "array",
-                                "description": "模型覆盖配置列表",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "id": {
-                                            "type": "string",
-                                            "description": "模型ID（用于匹配现有模型或添加新模型）",
-                                            "minLength": 3,
-                                            "maxLength": 100
-                                        },
-                                        "model": {
-                                            "type": "string",
-                                            "description": "覆盖API请求时使用的模型名称或端点ID",
-                                            "minLength": 1
-                                        },
-                                        "maxInputTokens": {
-                                            "type": "number",
-                                            "description": "覆盖最大输入token数量",
-                                            "minimum": 1,
-                                            "maximum": 2000000
-                                        },
-                                        "maxOutputTokens": {
-                                            "type": "number",
-                                            "description": "覆盖最大输出token数量",
-                                            "minimum": 1,
-                                            "maximum": 200000
-                                        },
-                                        "baseUrl": {
-                                            "type": "string",
-                                            "description": "覆盖模型级别的API基础URL",
-                                            "format": "uri"
-                                        },
-                                        "capabilities": {
-                                            "type": "object",
-                                            "description": "模型能力配置",
-                                            "properties": {
-                                                "toolCalling": {
-                                                    "type": "boolean",
-                                                    "description": "是否支持工具调用（Function Call）"
-                                                },
-                                                "imageInput": {
-                                                    "type": "boolean",
-                                                    "description": "是否支持图像输入"
-                                                }
-                                            },
-                                            "additionalProperties": false
-                                        }
-                                    },
-                                    "required": [
-                                        "id"
-                                    ],
-                                    "additionalProperties": false
-                                }
-                            }
-                        },
-                        "additionalProperties": false
-                    },
-                    "propertyNames": {
-                        "description": "供应商标识符",
-                        "enum": [
-                            "zhipu",
-                            "kimi",
-                            "iflow",
-                            "moonshot",
-                            "deepseek",
-                            "volcengine",
-                            "streamlake",
-                            "dashscope",
-                            "minimax",
-                            "modelscope",
-                            "baidu",
-                            "tbox",
-                            "aiping",
-                            "siliconflow",
-                            "infini",
-                            "coreshub",
-                            "tencentcloud",
-                            "huaweicloud",
-                            "jdcloud",
-                            "qiniu",
-                            "gpulink",
-                            "ucloud",
-                            "paratera",
-                            "ppio",
-                            "lanyun",
-                            "sophnet"
-                        ]
-                    }
+                    "scope": "application"
                 },
                 "gcmp.compatibleModels": {
                     "type": "array",
@@ -419,12 +321,12 @@
                             "maxInputTokens": {
                                 "type": "number",
                                 "description": "最大输入token数量",
-                                "minimum": 1
+                                "minimum": 128
                             },
                             "maxOutputTokens": {
                                 "type": "number",
                                 "description": "最大输出token数量",
-                                "minimum": 1
+                                "minimum": 8
                             },
                             "sdkMode": {
                                 "type": "string",
@@ -464,6 +366,12 @@
                 }
             }
         },
+        "jsonValidation": [
+            {
+                "fileMatch": "settings.json",
+                "url": "gcmp-settings://root/schema.json"
+            }
+        ],
         "languageModelChatProviders": [
             {
                 "vendor": "gcmp.zhipu",
@@ -699,6 +607,7 @@
         "@stylistic/eslint-plugin": "^5.4.0",
         "@types/node": "^20.0.0",
         "@types/vscode": "^1.104.0",
+        "@types/json-schema": "^7.0.15",
         "@vscode/vsce": "^3.6.2",
         "esbuild": "^0.25.10",
         "eslint": "^9.13.0",

@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 export { ApiKeyManager } from './apiKeyManager';
+export { ConfigManager } from './configManager';
+export { CompatibleModelManager } from './compatibleModelManager';
 export { Logger } from './logger';
-export { ConfigManager, type GCMPConfig } from './configManager';
 export { OpenAIHandler } from './openaiHandler';
 export { AnthropicHandler } from './anthropicHandler';
+export { MCPWebSearchClient } from './mcpWebSearchClient';
 export { VersionManager } from './versionManager';
 export { StreamlakeWizard } from './streamlakeWizard';
+export { JsonSchemaProvider } from './jsonSchemaProvider';
