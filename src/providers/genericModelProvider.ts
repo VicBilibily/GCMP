@@ -132,7 +132,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
         let family: string;
         if (editToolMode && editToolMode !== 'none') {
-            family = editToolMode;
+            family = editToolMode.startsWith('claude') ? 'claude-sonnet-4.5' : editToolMode;
         } else if (editToolMode === 'none') {
             family = model.id;
         } else {

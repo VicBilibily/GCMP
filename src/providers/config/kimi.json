@@ -9,8 +9,8 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.kimi.com/coding",
             "tooltip": "Kimi For Coding - 月之暗面推出的专业编程模型，提供强大的代码生成和理解能力",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 32768,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
