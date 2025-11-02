@@ -97,6 +97,11 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.streamlake.configWizard",
+                "title": "智谱AI 配置向导（API密钥 & 搜索 MCP 模式）",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.kimi.setApiKey",
                 "title": "设置 Kimi API密钥",
                 "category": "GCMP"
@@ -391,7 +396,7 @@
             {
                 "vendor": "gcmp.zhipu",
                 "displayName": "智谱AI",
-                "managementCommand": "gcmp.zhipu.setApiKey"
+                "managementCommand": "gcmp.zhipu.configWizard"
             },
             {
                 "vendor": "gcmp.kimi",

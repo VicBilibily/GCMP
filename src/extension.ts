@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
 import { GenericModelProvider } from './providers/genericModelProvider';
+import { ZhipuProvider } from './providers/zhipuProvider';
 import { IFlowProvider } from './providers/iflowProvider';
 import { ModelScopeProvider } from './providers/modelscopeProvider';
-import { StreamlakeProvider } from './providers/streamlakeProvider';
+import { StreamLakeProvider } from './providers/streamlakeProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
 import { Logger } from './utils/logger';
 import { ApiKeyManager, ConfigManager, JsonSchemaProvider } from './utils';
@@ -14,7 +15,7 @@ import { registerAllTools } from './tools';
  */
 const registeredProviders: Record<
     string,
-    GenericModelProvider | IFlowProvider | ModelScopeProvider | StreamlakeProvider | CompatibleProvider
+    GenericModelProvider | ZhipuProvider | IFlowProvider | ModelScopeProvider | StreamLakeProvider | CompatibleProvider
 > = {};
 const registeredDisposables: vscode.Disposable[] = [];
 
@@ -38,11 +39,21 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
             Logger.trace(`正在注册供应商: ${providerConfig.displayName} (${providerKey})`);
             const providerStartTime = Date.now();
 
-            let provider: GenericModelProvider | IFlowProvider | ModelScopeProvider | StreamlakeProvider;
+            let provider:
+                | GenericModelProvider
+                | ZhipuProvider
+                | IFlowProvider
+                | ModelScopeProvider
+                | StreamLakeProvider;
             let disposables: vscode.Disposable[];
 
-            // 对 iflow 使用专门的 provider
-            if (providerKey === 'iflow') {
+            if (providerKey === 'zhipu') {
+                // 对 zhipu 使用专门的 provider（配置向导功能）
+                const result = ZhipuProvider.createAndActivate(context, providerKey, providerConfig);
+                provider = result.provider;
+                disposables = result.disposables;
+            } else if (providerKey === 'iflow') {
+                // 对 iflow 使用专门的 provider
                 const result = IFlowProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
@@ -53,7 +64,7 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
                 disposables = result.disposables;
             } else if (providerKey === 'streamlake') {
                 // 对 streamlake 使用专门的 provider（模型覆盖检查）
-                const result = StreamlakeProvider.createAndActivate(context, providerKey, providerConfig);
+                const result = StreamLakeProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
             } else {
@@ -65,7 +76,6 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
 
             const providerTime = Date.now() - providerStartTime;
             Logger.info(`✅ ${providerConfig.displayName} 供应商注册成功 (耗时: ${providerTime}ms)`);
-
             return { providerKey, provider, disposables };
         } catch (error) {
             Logger.error(`❌ 注册供应商 ${providerKey} 失败:`, error);

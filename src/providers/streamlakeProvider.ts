@@ -19,7 +19,7 @@ import { Logger, ApiKeyManager, ConfigManager, StreamlakeWizard } from '../utils
  * 快手万擎供应商类
  * 继承自 GenericModelProvider，添加推理点ID验证功能
  */
-export class StreamlakeProvider extends GenericModelProvider {
+export class StreamLakeProvider extends GenericModelProvider {
     constructor(providerKey: string, providerConfig: ProviderConfig) {
         super(providerKey, providerConfig);
     }
@@ -31,10 +31,10 @@ export class StreamlakeProvider extends GenericModelProvider {
         context: vscode.ExtensionContext,
         providerKey: string,
         providerConfig: ProviderConfig
-    ): { provider: StreamlakeProvider; disposables: vscode.Disposable[] } {
+    ): { provider: StreamLakeProvider; disposables: vscode.Disposable[] } {
         Logger.trace(`${providerConfig.displayName} 模型扩展已激活!`);
         // 创建供应商实例
-        const provider = new StreamlakeProvider(providerKey, providerConfig);
+        const provider = new StreamLakeProvider(providerKey, providerConfig);
         // 注册语言模型聊天供应商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
 

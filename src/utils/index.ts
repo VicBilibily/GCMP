@@ -11,6 +11,7 @@ export { OpenAIHandler } from './openaiHandler';
 export { AnthropicHandler } from './anthropicHandler';
 export { MCPWebSearchClient } from './mcpWebSearchClient';
 export { VersionManager } from './versionManager';
+export { ZhipuWizard } from './zhipuWizard';
 export { StreamlakeWizard } from './streamlakeWizard';
 export { JsonSchemaProvider } from './jsonSchemaProvider';
 export { RetryManager } from './retryManager';

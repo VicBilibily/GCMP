@@ -9,6 +9,8 @@
 - **OpenAI 兼容模式** 支持 `extraBody` 扩展请求参数配置
 - **自定义 Header** 支持为所有模型配置添加 `customHeader` 自定义请求头
 - **配置增强** 为 `gcmp.providerOverrides` 提供完整的编辑 schema 输入提示
+- **智谱AI** 供应商新增交互式配置向导
+    - ⚙️ 支持修改 API Key 和配置是否启用 MCP 搜索模式
 
 ### 优化
 
