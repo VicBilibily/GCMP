@@ -13,3 +13,4 @@ export { MCPWebSearchClient } from './mcpWebSearchClient';
 export { VersionManager } from './versionManager';
 export { StreamlakeWizard } from './streamlakeWizard';
 export { JsonSchemaProvider } from './jsonSchemaProvider';
+export { RetryManager } from './retryManager';

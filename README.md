@@ -182,13 +182,16 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖供应商的默认�
                     "baseUrl": "https://api.z.ai/api/coding/paas/v4",
                     "maxInputTokens": 200000,
                     "maxOutputTokens": 64000,
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    },
                     "customHeader": {
                         "X-Model-Specific": "value",
                         "X-Custom-Key": "${APIKEY}"
                     },
-                    "capabilities": {
-                        "toolCalling": true,
-                        "imageInput": false
+                    "extraBody": {
+                        "thinking": { "type": "disabled" }
                     }
                 }
             ]

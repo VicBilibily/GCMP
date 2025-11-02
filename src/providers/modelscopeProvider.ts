@@ -13,7 +13,7 @@ import {
     ProvideLanguageModelChatResponseOptions
 } from 'vscode';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { ApiKeyManager, Logger, ConfigManager, OpenAIHandler } from '../utils';
+import { ApiKeyManager, Logger, ConfigManager, OpenAIHandler, RetryManager } from '../utils';
 import { GenericModelProvider } from './genericModelProvider';
 import OpenAI from 'openai';
 
@@ -33,9 +33,19 @@ interface ToolCallBuffer {
 export class ModelScopeProvider extends GenericModelProvider implements LanguageModelChatProvider {
     // 工具调用缓存 - 用于处理分块的工具调用数据
     private toolCallsBuffer = new Map<number, ToolCallBuffer>();
+    // 重试管理器
+    private retryManager: RetryManager;
 
     constructor(providerKey: string, providerConfig: ProviderConfig) {
         super(providerKey, providerConfig);
+        // 为 ModelScope 配置特定的重试参数
+        this.retryManager = new RetryManager({
+            maxAttempts: 3,
+            initialDelayMs: 1000,
+            maxDelayMs: 30000,
+            backoffMultiplier: 2,
+            jitterEnabled: true
+        });
     }
 
     /**
@@ -91,13 +101,27 @@ export class ModelScopeProvider extends GenericModelProvider implements Language
         Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
 
         try {
-            if (sdkMode === 'anthropic') {
-                // 使用 Anthropic SDK
-                await this.anthropicHandler.handleRequest(model, modelConfig, messages, options, progress, token);
-            } else {
-                // 使用自定义的 SSE 流处理（OpenAI 兼容）
-                await this.handleRequestWithCustomSSE(model, modelConfig, messages, options, progress, token);
-            }
+            // 使用重试机制执行请求
+            await this.retryManager.executeWithRetry(
+                async () => {
+                    if (sdkMode === 'anthropic') {
+                        // 使用 Anthropic SDK
+                        await this.anthropicHandler.handleRequest(
+                            model,
+                            modelConfig,
+                            messages,
+                            options,
+                            progress,
+                            token
+                        );
+                    } else {
+                        // 使用自定义的 SSE 流处理（OpenAI 兼容）
+                        await this.handleRequestWithCustomSSE(model, modelConfig, messages, options, progress, token);
+                    }
+                },
+                error => RetryManager.isRateLimitError(error),
+                this.providerConfig.displayName
+            );
         } catch (error) {
             const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
             Logger.error(errorMessage);
