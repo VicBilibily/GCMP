@@ -2,5 +2,5 @@
  *  工具模块导出
  *--------------------------------------------------------------------------------------------*/
 
-export { ZhipuSearchTool } from './zhipu-search';
+export { ZhipuSearchTool } from './zhipuSearch';
 export { registerAllTools } from './registry';

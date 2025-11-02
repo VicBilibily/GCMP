@@ -11,9 +11,7 @@ import {
     Progress
 } from 'vscode';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { Logger } from '../utils/logger';
-import { ApiKeyManager } from '../utils/apiKeyManager';
-import { CompatibleModelManager } from '../utils/compatibleModelManager';
+import { Logger, ApiKeyManager, CompatibleModelManager, RetryManager } from '../utils';
 import { GenericModelProvider } from './genericModelProvider';
 
 /**
@@ -23,6 +21,7 @@ import { GenericModelProvider } from './genericModelProvider';
 export class CompatibleProvider extends GenericModelProvider {
     private static readonly PROVIDER_KEY = 'compatible';
     private modelsChangeListener?: vscode.Disposable;
+    private retryManager: RetryManager;
 
     constructor() {
         // 创建一个虚拟的 ProviderConfig，实际模型配置从 CompatibleModelManager 获取
@@ -33,6 +32,15 @@ export class CompatibleProvider extends GenericModelProvider {
             models: [] // 空模型列表，实际从 CompatibleModelManager 获取
         };
         super(CompatibleProvider.PROVIDER_KEY, virtualConfig);
+
+        // 为 Compatible 配置特定的重试参数
+        this.retryManager = new RetryManager({
+            maxAttempts: 3,
+            initialDelayMs: 1000,
+            maxDelayMs: 30000,
+            backoffMultiplier: 2,
+            jitterEnabled: true
+        });
 
         this.getProviderConfig(); // 初始化配置缓存
         // 监听 CompatibleModelManager 的变更事件
@@ -153,7 +161,7 @@ export class CompatibleProvider extends GenericModelProvider {
 
     /**
      * 重写：提供语言模型聊天响应
-     * 使用最新的动态配置处理请求
+     * 使用最新的动态配置处理请求，并添加失败重试机制
      */
     async provideLanguageModelChatResponse(
         model: LanguageModelChatInformation,
@@ -191,11 +199,32 @@ export class CompatibleProvider extends GenericModelProvider {
             Logger.info(`Compatible Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
 
             try {
-                if (sdkMode === 'anthropic') {
-                    await this.anthropicHandler.handleRequest(model, modelConfig, messages, options, progress, token);
-                } else {
-                    await this.openaiHandler.handleRequest(model, modelConfig, messages, options, progress, token);
-                }
+                // 使用重试机制执行请求
+                await this.retryManager.executeWithRetry(
+                    async () => {
+                        if (sdkMode === 'anthropic') {
+                            await this.anthropicHandler.handleRequest(
+                                model,
+                                modelConfig,
+                                messages,
+                                options,
+                                progress,
+                                token
+                            );
+                        } else {
+                            await this.openaiHandler.handleRequest(
+                                model,
+                                modelConfig,
+                                messages,
+                                options,
+                                progress,
+                                token
+                            );
+                        }
+                    },
+                    error => RetryManager.isRateLimitError(error),
+                    this.providerConfig.displayName
+                );
             } catch (error) {
                 const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
                 Logger.error(errorMessage);

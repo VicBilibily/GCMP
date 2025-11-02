@@ -12,8 +12,8 @@
 
 ### 优化
 
-- **编辑工具** Claude 编辑工具模式现在指向 `claude-sonnet-4.5` 模型
-- **ModelScope** 支持 429 自动重试处理，减少过早中断的 Agent 操作
+- **编辑工具** Claude 编辑工具模式现在指向 `claude-sonnet-4.5` 模型家族
+- **ModelScope**、**Compatible** 支持 429 自动重试处理，减少 Agent 操作过早中断的情况
 
 ## [0.9.2] - 2025-11-01
 

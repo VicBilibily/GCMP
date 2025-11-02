@@ -9,7 +9,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { Logger } from '.';
 import { ApiKeyManager } from './apiKeyManager';
 import { VersionManager } from './versionManager';
-import { ZhipuSearchResult } from '../tools/zhipu-search';
+import { ZhipuSearchResult } from '../tools/zhipuSearch';
 
 /**
  * 搜索请求参数

@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Logger } from '../utils';
-import { ZhipuSearchTool } from './zhipu-search';
+import { ZhipuSearchTool } from './zhipuSearch';
 
 // 全局工具实例管理
 let zhipuSearchTool: ZhipuSearchTool | undefined;
