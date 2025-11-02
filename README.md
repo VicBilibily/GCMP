@@ -163,7 +163,7 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 
 #### 供应商配置覆盖
 
-GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖供应商的默认设置。
+GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖供应商的默认设置，包括 baseUrl、customHeader、模型配置等。
 
 **配置示例**：
 
@@ -172,6 +172,9 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖供应商的默认�
     "gcmp.providerOverrides": {
         "zhipu": {
             "baseUrl": "https://api.z.ai/api/paas/v4",
+            "customHeader": {
+                "X-Custom-Header": "your-value"
+            },
             "models": [
                 {
                     "id": "glm-4.6",
@@ -179,6 +182,10 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖供应商的默认�
                     "baseUrl": "https://api.z.ai/api/coding/paas/v4",
                     "maxInputTokens": 200000,
                     "maxOutputTokens": 64000,
+                    "customHeader": {
+                        "X-Model-Specific": "value",
+                        "X-Custom-Key": "${APIKEY}"
+                    },
                     "capabilities": {
                         "toolCalling": true,
                         "imageInput": false
@@ -202,7 +209,7 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖供应商的默认�
 
 #### 🔌 OpenAI / Anthropic Compatible 自定义模型支持
 
-GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 OpenAI 或 Anthropic 兼容的 API。通过 `gcmp.compatibleModels` 配置，您可以完全自定义模型参数。
+GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 OpenAI 或 Anthropic 兼容的 API。通过 `gcmp.compatibleModels` 配置，您可以完全自定义模型参数，包括扩展请求参数。
 
 ##### 支持的 SDK 模式
 
@@ -228,6 +235,15 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
+            },
+            "customHeader": {
+                "X-Model-Specific": "value",
+                "X-Custom-Key": "${APIKEY}"
+            },
+            "extraBody": {
+                "temperature": 0.1,
+                "top_p": 0.9,
+                "thinking": { "type": "disabled" }
             }
         },
         {

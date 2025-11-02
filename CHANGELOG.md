@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的所有重要更改。
 
+## [0.9.3] - 2025-11-02
+
+### 新增
+
+- **OpenAI 兼容模式** 支持 `extraBody` 扩展请求参数配置
+- **自定义 Header** 支持为所有模型配置添加 `customHeader` 自定义请求头
+- **配置增强** 为 `gcmp.providerOverrides` 提供完整的编辑 schema 输入提示
+
+### 优化
+
+- **编辑工具** Claude 编辑工具模式现在指向 `claude-sonnet-4.5` 模型
+
 ## [0.9.2] - 2025-11-01
 
 ### 新增

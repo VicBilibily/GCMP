@@ -228,7 +228,6 @@ export class ConfigManager {
         if (override.models && override.models.length > 0) {
             for (const modelOverride of override.models) {
                 const existingModelIndex = config.models.findIndex(m => m.id === modelOverride.id);
-
                 if (existingModelIndex >= 0) {
                     // 覆盖现有模型
                     const existingModel = config.models[existingModelIndex];
@@ -267,7 +266,7 @@ export class ConfigManager {
                             `  模型 ${modelOverride.id}: 合并 capabilities = ${JSON.stringify(existingModel.capabilities)}`
                         );
                     }
-                    // 合并 customHeader
+                    // 合并 customHeader（模型级别优先于供应商级别）
                     if (modelOverride.customHeader) {
                         existingModel.customHeader = { ...existingModel.customHeader, ...modelOverride.customHeader };
                         Logger.debug(
@@ -303,6 +302,20 @@ export class ConfigManager {
                     Logger.info(`  添加新模型: ${modelOverride.id}`);
                 }
             }
+        }
+
+        // 将供应商级别的 customHeader 合并到所有模型中（模型级别 customHeader 优先）
+        if (override.customHeader) {
+            for (const model of config.models) {
+                if (model.customHeader) {
+                    // 如果模型已有 customHeader，供应商级别的作为默认值合并
+                    model.customHeader = { ...override.customHeader, ...model.customHeader };
+                } else {
+                    // 如果模型没有 customHeader，直接使用供应商级别的
+                    model.customHeader = { ...override.customHeader };
+                }
+            }
+            Logger.debug(`  供应商 ${providerKey}: 将供应商级别 customHeader 合并到所有模型中`);
         }
 
         return config;

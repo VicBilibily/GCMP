@@ -60,12 +60,12 @@ export class OpenAIHandler {
         const defaultHeaders: Record<string, string> = {
             'User-Agent': VersionManager.getUserAgent('OpenAI')
         };
-        // 处理 customHeader 中的 API 密钥替换
+
+        // 处理模型级别的 customHeader
         const processedCustomHeader = ApiKeyManager.processCustomHeader(modelConfig?.customHeader, currentApiKey);
-        // 如果模型配置中有自定义头部，添加到默认头部中
         if (Object.keys(processedCustomHeader).length > 0) {
             Object.assign(defaultHeaders, processedCustomHeader);
-            Logger.debug(`${this.displayName} 应用自定义头部: ${JSON.stringify(processedCustomHeader)}`);
+            Logger.debug(`${this.displayName} 应用自定义头部: ${JSON.stringify(modelConfig!.customHeader)}`);
         }
 
         const client = new OpenAI({
@@ -957,18 +957,17 @@ export class OpenAIHandler {
      * @returns 过滤后的参数，移除了不可修改的核心参数
      */
     public static filterExtraBodyParams(extraBody: Record<string, unknown>): Record<string, unknown> {
-        const 不可修改参数 = new Set([
+        const coreParams = new Set([
             'model', // 模型名称
             'messages', // 消息数组
             'stream', // 流式开关
             'stream_options', // 流式选项
-            'tools', // 工具定义
-            'tool_choice' // 工具选择
+            'tools' // 工具定义
         ]);
 
         const filtered: Record<string, unknown> = {};
         for (const [key, value] of Object.entries(extraBody)) {
-            if (!不可修改参数.has(key)) {
+            if (!coreParams.has(key)) {
                 filtered[key] = value;
             }
         }

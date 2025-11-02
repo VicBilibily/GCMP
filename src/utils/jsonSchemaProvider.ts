@@ -161,7 +161,8 @@ export class JsonSchemaProvider {
                                             type: 'string',
                                             minLength: 3,
                                             maxLength: 100,
-                                            description: '模型ID（用于匹配现有模型或添加新模型）'
+                                            description:
+                                                '模型ID（用于匹配现有模型或添加新模型，新模型会提示值不被接受，可作为自定义新增区分）'
                                         },
                                         model: {
                                             type: 'string',
@@ -183,14 +184,6 @@ export class JsonSchemaProvider {
                                             enum: ['openai', 'anthropic'],
                                             description:
                                                 '覆盖SDK模式：openai（OpenAI兼容格式）或 anthropic（Anthropic兼容格式）'
-                                        },
-                                        customHeader: {
-                                            type: 'object',
-                                            description: '覆盖模型的自定义HTTP头部，支持合并现有头部配置',
-                                            additionalProperties: {
-                                                type: 'string',
-                                                description: 'HTTP头部值'
-                                            }
                                         },
                                         baseUrl: {
                                             type: 'string',
@@ -214,9 +207,17 @@ export class JsonSchemaProvider {
                                             required: ['toolCalling', 'imageInput'],
                                             additionalProperties: false
                                         },
+                                        customHeader: {
+                                            type: 'object',
+                                            description: '覆盖模型的自定义HTTP头部，支持合并现有头部配置',
+                                            additionalProperties: {
+                                                type: 'string',
+                                                description: 'HTTP头部值'
+                                            }
+                                        },
                                         extraBody: {
                                             type: 'object',
-                                            description: '额外的请求体参数（可选，仅在OpenAI兼容接口中生效）',
+                                            description: '额外的请求体参数（仅OpenAI接口生效），支持合并现有参数',
                                             additionalProperties: {
                                                 description: '额外的请求体参数值'
                                             }
@@ -245,9 +246,8 @@ export class JsonSchemaProvider {
             type: 'string',
             minLength: 3,
             maxLength: 100,
-            description: '模型ID（用于匹配现有模型或添加新模型）'
+            description: '模型ID（用于匹配现有模型或添加新模型，新模型会提示值不被接受，可作为自定义新增区分）'
         };
-
         // 如果有模型ID，添加枚举和示例
         if (modelIds.length > 0) {
             idProperty.enum = modelIds;
@@ -273,6 +273,14 @@ export class JsonSchemaProvider {
                     type: 'string',
                     description: '覆盖供应商级别的API基础URL',
                     format: 'uri'
+                },
+                customHeader: {
+                    type: 'object',
+                    description: '供应商级别的自定义HTTP头部，支持 ${APIKEY} 占位符替换',
+                    additionalProperties: {
+                        type: 'string',
+                        description: 'HTTP头部值'
+                    }
                 },
                 models: {
                     type: 'array',
@@ -300,14 +308,6 @@ export class JsonSchemaProvider {
                                 enum: ['openai', 'anthropic'],
                                 description: '覆盖SDK模式：openai（OpenAI兼容格式）或 anthropic（Anthropic兼容格式）'
                             },
-                            customHeader: {
-                                type: 'object',
-                                description: '覆盖模型的自定义HTTP头部，支持合并现有头部配置',
-                                additionalProperties: {
-                                    type: 'string',
-                                    description: 'HTTP头部值'
-                                }
-                            },
                             baseUrl: {
                                 type: 'string',
                                 description: '覆盖模型级别的API基础URL',
@@ -328,6 +328,14 @@ export class JsonSchemaProvider {
                                 },
                                 required: ['toolCalling', 'imageInput'],
                                 additionalProperties: false
+                            },
+                            customHeader: {
+                                type: 'object',
+                                description: '模型自定义HTTP头部，支持 ${APIKEY} 占位符替换',
+                                additionalProperties: {
+                                    type: 'string',
+                                    description: 'HTTP头部值'
+                                }
                             },
                             extraBody: {
                                 type: 'object',

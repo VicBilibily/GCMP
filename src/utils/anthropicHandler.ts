@@ -39,16 +39,23 @@ export class AnthropicHandler {
         // 使用模型配置的 baseUrl 或提供商默认的 baseURL
         const baseUrl = modelConfig?.baseUrl || this.baseURL;
         Logger.debug(`[${this.displayName}] 创建新的 Anthropic 客户端 (baseUrl: ${baseUrl})`);
-        // 处理 customHeader 中的 API 密钥替换
+
+        // 构建默认头部，包含供应商级别和模型级别的 customHeader
+        const defaultHeaders: Record<string, string> = {
+            'User-Agent': VersionManager.getUserAgent(this.provider)
+        };
+
+        // 处理模型级别的 customHeader
         const processedCustomHeader = ApiKeyManager.processCustomHeader(modelConfig?.customHeader, currentApiKey);
+        if (Object.keys(processedCustomHeader).length > 0) {
+            Object.assign(defaultHeaders, processedCustomHeader);
+            Logger.debug(`${this.displayName} 应用自定义头部: ${JSON.stringify(modelConfig!.customHeader)}`);
+        }
 
         const client = new Anthropic({
             apiKey: currentApiKey,
             baseURL: baseUrl,
-            defaultHeaders: {
-                'User-Agent': VersionManager.getUserAgent(this.provider),
-                ...processedCustomHeader
-            }
+            defaultHeaders: defaultHeaders
         });
 
         Logger.info(`${this.displayName} Anthropic 兼容客户端已创建`);

@@ -356,7 +356,7 @@
                             },
                             "customHeader": {
                                 "type": "object",
-                                "description": "自定义HTTP头部配置，支持 $(APIKEY) 占位符替换",
+                                "description": "自定义HTTP头部配置，支持 ${APIKEY} 占位符替换",
                                 "additionalProperties": {
                                     "type": "string",
                                     "description": "HTTP头部值"

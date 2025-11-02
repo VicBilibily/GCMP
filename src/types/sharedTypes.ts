@@ -89,6 +89,8 @@ export interface ModelOverride {
 export interface ProviderOverride {
     /** 覆盖供应商级别的baseUrl */
     baseUrl?: string;
+    /** 供应商级别的自定义HTTP头部（可选） */
+    customHeader?: Record<string, string>;
     /** 模型覆盖配置列表 */
     models?: ModelOverride[];
 }
