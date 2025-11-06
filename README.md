@@ -22,7 +22,7 @@
 
 ## 🤖 支持的AI供应商
 
-### 🧠 [**智谱AI**](https://bigmodel.cn/) - GLM-4.5系列
+### [**智谱AI**](https://bigmodel.cn/) - GLM系列
 
 > - [**订阅套餐**](https://bigmodel.cn/claude-code)：推荐订阅Pro套餐。
 > - **搜索功能**：集成官方 Web Search API，支持实时联网搜索，仅Pro/Max套餐支持通过 MCP 模式调用。
@@ -31,11 +31,17 @@
 - 标准计费：**GLM-4.6**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5-X**、**GLM-4.5-AirX**、**GLM-4.5V**
 - 免费版本：**GLM-4.5-Flash**
 
-### 🌙 [**Kimi**](https://www.kimi.com/) - Kimi For Coding
+### [**Kimi**](https://www.kimi.com/) - Kimi For Coding
 
 Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic SDK 模拟为 Roo Code 请求。
 
-### 💫 [**心流AI**](https://platform.iflow.cn/) - iFlow
+### [**MiniMax**](https://platform.minimaxi.com/login)
+
+> - **订阅套餐**：可能将于近期上线 [订阅计划](https://x.com/zpysky1125/status/1984839132242469129)。另外据透露 [MiniMax-M2.1](https://mmbiz.qpic.cn/sz_mmbiz_png/ykj6qYPSm3fI3ukzAwZFKzU1doaH56BKHToc3mHTO9QRiahicqLs2ntLSFZYlz5tXEpXVELR10ZMrYaahKwQPZpg/640?wx_fmt=png&from=appmsg&wxfrom=13&tp=wxpic#imgIndex=3) 正在路上。
+
+- **支持模型**：**MiniMax-M2**、**MiniMax-M1**、**MiniMax-Text-01**
+
+### [**心流AI**](https://platform.iflow.cn/) - iFlow
 
 阿里巴巴旗下的的AI平台，当前[API调用](https://platform.iflow.cn/docs/)服务**免费使用**，目前[限流规则](https://platform.iflow.cn/docs/limitSpeed)为每个用户最多只能**同时发起一个**请求。
 
@@ -44,21 +50,21 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 - **Kimi系列**：**Kimi-K2-Instruct-0905**、**Kimi-K2**
 - **智谱AI系列**：**GLM-4.6**
 
-### 🌙 [**MoonshotAI**](https://platform.moonshot.cn/) - Kimi K2系列
+### [**MoonshotAI**](https://platform.moonshot.cn/) - Kimi K2系列
 
 - 支持模型：**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-K2-0711-Preview**、**Kimi-Latest**
 
-### 🔥 [**DeepSeek**](https://platform.deepseek.com/) - 深度求索
+### [**DeepSeek**](https://platform.deepseek.com/) - 深度求索
 
 - 支持模型：**DeepSeek-V3.2-Exp**，包含思考模式聊天模型。
 
-### 🏔️ [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
+### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
 
 - **豆包系列**：**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
 - **DeepSeek系列**：**DeepSeek-V3-250324**、**DeepSeek-V3.1-250821**、**DeepSeek-V3.1-Terminus**
 - **Kimi系列**：**Kimi-K2-250905**
 
-### 🎬 [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake KAT-Coder
+### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake KAT-Coder
 
 - **KAT-Coder系列**：**KAT-Coder-Pro-V1**、**KAT-Coder-Exp-72B-1010**、**KAT-Coder-Air-V1**
 - **DeepSeek系列**：**DeepSeek-V3.2-Exp**、**DeepSeek-V3.1**、**DeepSeek-V3**
@@ -67,15 +73,11 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 
 > 快手万擎 (KAT) StreamLake 需要手动创建 [`在线推理服务`](https://www.streamlake.com/document/WANQING/mdsosw46egl9m9lfbg) 后，在模型选择的快手万擎供应商设置中配置在线推理预置模型服务推理点ID方可使用。
 
-### 🏭 [**阿里云百炼**](https://bailian.console.aliyun.com/) - 一站式AI开发平台
+### [**阿里云百炼**](https://bailian.console.aliyun.com/) - 通义大模型
 
 - **通义千问系列**：**Qwen-Flash**、**Qwen-Plus**、**Qwen-Max**、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen3-Next**、**Qwen3**（开源系列多种参数规模）
 - **DeepSeek系列**：**DeepSeek-V3**、**DeepSeek-V3.1**、**DeepSeek-V3.2-Exp**
 - **智谱系列**：**GLM-4.5**、**GLM-4.5-Air**
-
-### 🎨 [**MiniMax**](https://platform.minimaxi.com/login)
-
-- **支持模型**：**MiniMax-M2**、**MiniMax-M1**、**MiniMax-Text-01**
 
 ## 🔍 智谱AI联网搜索工具
 
@@ -93,12 +95,12 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 > 由于各供应商 OpenAI 的兼容性问题，部分情况下可能会报错或卡住不动，建议先查看本地输出的日志后提交 Issue 进一步处理。
 
 [**ModelScope**](https://www.modelscope.cn/)、
+[**AI Ping**](https://aiping.cn/#?invitation_code=EBQQKW)、
 [**百度智能云**](https://cloud.baidu.com/)、
 [**百灵大模型**](https://ling.tbox.cn/open)
 
 > 以下供应商已结束支持，将于 `2025年11月11日` 移除，如需使用可通过自定义模型方式接入：
 
-[**AI Ping**](https://aiping.cn/user/user-center)、
 [**硅基流动**](https://siliconflow.cn/)、
 [**无问芯穹**](https://cloud.infini-ai.com/)、
 [**基石智算**](https://www.coreshub.cn/)、

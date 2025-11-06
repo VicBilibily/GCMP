@@ -2,18 +2,18 @@ import { ProviderConfig } from '../../types/sharedTypes';
 // 统一导出所有模型配置，便于代码 import
 import zhipu from './zhipu.json';
 import kimi from './kimi.json';
+import minimax from './minimax.json';
 import iflow from './iflow.json';
 import moonshot from './moonshot.json';
 import deepseek from './deepseek.json';
 import volcengine from './volcengine.json';
 import streamlake from './streamlake.json';
 import dashscope from './dashscope.json';
-import minimax from './minimax.json';
 import modelscope from './modelscope.json';
+import aiping from './aiping.json';
 import baidu from './baidu.json';
 import tbox from './tbox.json';
 // EOL providers
-import aiping from './aiping.json';
 import siliconflow from './siliconflow.json';
 import infini from './infini.json';
 import coreshub from './coreshub.json';
@@ -31,18 +31,18 @@ import sophnet from './sophnet.json';
 const providers = {
     zhipu,
     kimi,
+    minimax,
     iflow,
     moonshot,
     deepseek,
     volcengine,
     streamlake,
     dashscope,
-    minimax,
     modelscope,
+    aiping,
     baidu,
     tbox,
     // EOL providers
-    aiping,
     siliconflow,
     infini,
     coreshub,

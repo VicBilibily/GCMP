@@ -2,6 +2,12 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的所有重要更改。
 
+## [0.9.4] - 2025-11-04
+
+### 调整
+
+- [**AI Ping**](https://aiping.cn/#?invitation_code=EBQQKW) 恢复为用于测试并持续提供维护
+
 ## [0.9.3] - 2025-11-02
 
 ### 新增
@@ -57,7 +63,7 @@
     - 用户可通过 `gcmp.compatibleModels` 配置完全自定义任何 OpenAI 或 Anthropic 兼容的 API
     - 在模型选择器中显示为 "OpenAI / Anthropic Compatible (Beta)"，可通过 ⚙ 设置进入配置引导
 
-- 🎨 MiniMax 正式列为常规支持供应商
+- 🎨 **MiniMax** 正式列为常规支持供应商
 
 ### 生命周期变更 (EOL)
 

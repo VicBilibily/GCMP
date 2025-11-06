@@ -57,8 +57,8 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
                 const result = IFlowProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
-            } else if (providerKey === 'modelscope') {
-                // 对 modelscope 使用专门的 provider（自定义流处理）
+            } else if (providerKey === 'modelscope' || providerKey === 'tbox') {
+                // 对 modelscope 和 tbox 使用专门的 provider（自定义流处理）
                 const result = ModelScopeProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;

@@ -2,8 +2,8 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、心流AI、MoonshotAI、DeepSeek、火山方舟、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.9.3",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、MiniMax、心流AI、MoonshotAI、DeepSeek、火山方舟、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
+    "version": "0.9.4",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -107,6 +107,11 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.minimax.setApiKey",
+                "title": "设置 MiniMax API密钥",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.iflow.setApiKey",
                 "title": "设置 心流AI API密钥",
                 "category": "GCMP"
@@ -142,13 +147,13 @@
                 "category": "GCMP"
             },
             {
-                "command": "gcmp.minimax.setApiKey",
-                "title": "设置 MiniMax API密钥",
+                "command": "gcmp.modelscope.setApiKey",
+                "title": "设置 ModelScope API密钥",
                 "category": "GCMP"
             },
             {
-                "command": "gcmp.modelscope.setApiKey",
-                "title": "设置 ModelScope API密钥",
+                "command": "gcmp.aiping.setApiKey",
+                "title": "设置 AI Ping API密钥",
                 "category": "GCMP"
             },
             {
@@ -164,11 +169,6 @@
             {
                 "command": "gcmp.compatible.manageModels",
                 "title": "Compatible Provider 设置",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.aiping.setApiKey",
-                "title": "设置 AI Ping API密钥",
                 "category": "GCMP"
             },
             {
@@ -404,6 +404,11 @@
                 "managementCommand": "gcmp.kimi.setApiKey"
             },
             {
+                "vendor": "gcmp.minimax",
+                "displayName": "MiniMax",
+                "managementCommand": "gcmp.minimax.setApiKey"
+            },
+            {
                 "vendor": "gcmp.iflow",
                 "displayName": "心流AI",
                 "managementCommand": "gcmp.iflow.setApiKey"
@@ -434,14 +439,14 @@
                 "managementCommand": "gcmp.dashscope.setApiKey"
             },
             {
-                "vendor": "gcmp.minimax",
-                "displayName": "MiniMax",
-                "managementCommand": "gcmp.minimax.setApiKey"
-            },
-            {
                 "vendor": "gcmp.modelscope",
                 "displayName": "ModelScope (Beta)",
                 "managementCommand": "gcmp.modelscope.setApiKey"
+            },
+            {
+                "vendor": "gcmp.aiping",
+                "displayName": "AI Ping (Beta)",
+                "managementCommand": "gcmp.aiping.setApiKey"
             },
             {
                 "vendor": "gcmp.baidu",
@@ -457,11 +462,6 @@
                 "vendor": "gcmp.compatible",
                 "displayName": "OpenAI / Anthropic Compatible (Beta)",
                 "managementCommand": "gcmp.compatible.manageModels"
-            },
-            {
-                "vendor": "gcmp.aiping",
-                "displayName": "AI Ping (EOL on 2025-11-11)",
-                "managementCommand": "gcmp.aiping.setApiKey"
             },
             {
                 "vendor": "gcmp.siliconflow",
