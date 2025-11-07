@@ -37,9 +37,9 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 
 ### [**MiniMax**](https://platform.minimaxi.com/login)
 
-> - **订阅套餐**：可能将于近期上线 [订阅计划](https://x.com/zpysky1125/status/1984839132242469129)。另外据透露 [MiniMax-M2.1](https://mmbiz.qpic.cn/sz_mmbiz_png/ykj6qYPSm3fI3ukzAwZFKzU1doaH56BKHToc3mHTO9QRiahicqLs2ntLSFZYlz5tXEpXVELR10ZMrYaahKwQPZpg/640?wx_fmt=png&from=appmsg&wxfrom=13&tp=wxpic#imgIndex=3) 正在路上。
+> - [**编程套餐**](https://mp.weixin.qq.com/s/c9zSXtBxOGAlUeN683y00A)：`受限于一些外部的对接流程，我们预计在11月14号给开发者朋友提供收费的编程套餐。为了方便个人开发者朋友使用，在编程套餐正式推出前，依然为个人开发者提供足够同时进行两个Vibe Coding项目的免费服务。使用时，请选择MiniMax-M2。`
 
-- **支持模型**：**MiniMax-M2**、**MiniMax-M1**、**MiniMax-Text-01**
+- **支持模型**：**MiniMax-M2**、**MiniMax-M2-Stable**、**MiniMax-M1**、**MiniMax-Text-01**
 
 ### [**心流AI**](https://platform.iflow.cn/) - iFlow
 
