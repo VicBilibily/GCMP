@@ -12,7 +12,7 @@ import { ZhipuWizard } from '../utils/zhipuWizard';
 import { GenericModelProvider } from './genericModelProvider';
 
 /**
- * 智谱AI 专用模型供应商类
+ * 智谱AI 专用模型提供商类
  * 继承 GenericModelProvider，添加配置向导功能
  */
 export class ZhipuProvider extends GenericModelProvider implements LanguageModelChatProvider {
@@ -21,7 +21,7 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
     }
 
     /**
-     * 静态工厂方法 - 创建并激活 Zhipu 供应商
+     * 静态工厂方法 - 创建并激活 Zhipu 提供商
      */
     static createAndActivate(
         context: vscode.ExtensionContext,
@@ -29,9 +29,9 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
         providerConfig: ProviderConfig
     ): { provider: ZhipuProvider; disposables: vscode.Disposable[] } {
         Logger.trace(`${providerConfig.displayName} 专用模型扩展已激活!`);
-        // 创建供应商实例
+        // 创建提供商实例
         const provider = new ZhipuProvider(providerKey, providerConfig);
-        // 注册语言模型聊天供应商
+        // 注册语言模型聊天提供商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
         // 注册设置API密钥命令
         const setApiKeyCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.setApiKey`, async () => {

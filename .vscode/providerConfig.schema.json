@@ -9,7 +9,7 @@
         "displayName": {
             "type": "string",
             "minLength": 1,
-            "description": "在供应商选择器中显示的用户友好名称。"
+            "description": "在提供商选择器中显示的用户友好名称。"
         },
         "baseUrl": {
             "type": "string",
@@ -27,7 +27,7 @@
             "items": {
                 "$ref": "#/$defs/model"
             },
-            "description": "供应商公开的模型列表。"
+            "description": "提供商公开的模型列表。"
         }
     },
     "$defs": {
@@ -54,7 +54,7 @@
                 "id": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "发送给供应商 API 的标识符。"
+                    "description": "发送给提供商 API 的标识符。"
                 },
                 "name": {
                     "type": "string",
@@ -69,17 +69,17 @@
                 "maxInputTokens": {
                     "type": "integer",
                     "minimum": 1,
-                    "description": "供应商接受的最大输入令牌数。"
+                    "description": "提供商接受的最大输入令牌数。"
                 },
                 "maxOutputTokens": {
                     "type": "integer",
                     "minimum": 1,
-                    "description": "供应商在单个响应中可以生成的最大令牌数。"
+                    "description": "提供商在单个响应中可以生成的最大令牌数。"
                 },
                 "version": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "可选的供应商特定版本标签。"
+                    "description": "可选的提供商特定版本标签。"
                 },
                 "capabilities": {
                     "$ref": "#/$defs/capabilities"
@@ -93,7 +93,7 @@
                 "baseUrl": {
                     "type": "string",
                     "format": "uri",
-                    "description": "覆盖供应商默认的可选模型特定基础 URL。"
+                    "description": "覆盖提供商默认的可选模型特定基础 URL。"
                 },
                 "model": {
                     "type": "string",

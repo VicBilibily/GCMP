@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  共享类型定义
- *  支持多供应商的通用类型定义
+ *  支持多提供商的通用类型定义
  *--------------------------------------------------------------------------------------------*/
 
 /**
@@ -25,7 +25,7 @@ export interface ModelConfig {
     sdkMode?: 'anthropic' | 'openai';
     /**
      * 模型特定的baseUrl（可选）
-     * 如果提供，将覆盖供应商级别的baseUrl
+     * 如果提供，将覆盖提供商级别的baseUrl
      */
     baseUrl?: string;
     /**
@@ -39,9 +39,9 @@ export interface ModelConfig {
      */
     customHeader?: Record<string, string>;
     /**
-     * 模型特定的供应商标识符（可选）
-     * 用于自定义模型，指定该模型使用的供应商进行API密钥查找
-     * 如果提供，Handler将优先从此供应商获取API密钥
+     * 模型特定的提供商标识符（可选）
+     * 用于自定义模型，指定该模型使用的提供商进行API密钥查找
+     * 如果提供，Handler将优先从此提供商获取API密钥
      */
     provider?: string;
     /**
@@ -84,19 +84,19 @@ export interface ModelOverride {
 }
 
 /**
- * 供应商覆盖配置接口 - 用于用户配置覆盖
+ * 提供商覆盖配置接口 - 用于用户配置覆盖
  */
 export interface ProviderOverride {
-    /** 覆盖供应商级别的baseUrl */
+    /** 覆盖提供商级别的baseUrl */
     baseUrl?: string;
-    /** 供应商级别的自定义HTTP头部（可选） */
+    /** 提供商级别的自定义HTTP头部（可选） */
     customHeader?: Record<string, string>;
     /** 模型覆盖配置列表 */
     models?: ModelOverride[];
 }
 
 /**
- * 供应商配置接口 - 来自package.json
+ * 提供商配置接口 - 来自package.json
  */
 export interface ProviderConfig {
     displayName: string;

@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  自定义模型管理器
- *  用于管理独立兼容供应商的自定义模型
+ *  用于管理独立兼容提供商的自定义模型
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -29,7 +29,7 @@ export interface CompatibleModelConfig {
     id: string;
     /** 模型名称 */
     name: string;
-    /** 供应商标识符 */
+    /** 提供商标识符 */
     provider: string;
     /** 模型描述 */
     tooltip?: string;
@@ -249,24 +249,24 @@ export class CompatibleModelManager {
     }
 
     /**
-     * 提示并设置 API 密钥 - 按供应商为单位设置
+     * 提示并设置 API 密钥 - 按提供商为单位设置
      */
     private static async promptAndSetApiKey(): Promise<void> {
         try {
-            // 获取所有已配置的供应商
+            // 获取所有已配置的提供商
             const providers = await this.getUniqueProviders();
             if (providers.length === 0) {
                 vscode.window.showWarningMessage('暂无自定义模型配置，请先添加模型');
                 return;
             }
-            // 如果只有一个供应商，直接设置该供应商的 API 密钥
+            // 如果只有一个提供商，直接设置该提供商的 API 密钥
             if (providers.length === 1) {
                 await this.setApiKeyForProvider(providers[0]);
                 return;
             }
-            // 如果有多个供应商，让用户选择
+            // 如果有多个提供商，让用户选择
             const selected = await vscode.window.showQuickPick(providers, {
-                placeHolder: '选择要设置 API 密钥的供应商'
+                placeHolder: '选择要设置 API 密钥的提供商'
             });
             if (!selected) {
                 return;
@@ -279,16 +279,16 @@ export class CompatibleModelManager {
     }
 
     /**
-     * 获取所有唯一的供应商列表
+     * 获取所有唯一的提供商列表
      */
     private static async getUniqueProviders(): Promise<string[]> {
         const providers = new Set<string>();
-        // 从现有模型中获取所有供应商
+        // 从现有模型中获取所有提供商
         for (const model of this.models) {
             if (model.provider && model.provider.trim()) {
                 providers.add(model.provider.trim());
             } else {
-                // 如果模型没有指定供应商，使用 'compatible' 作为默认值
+                // 如果模型没有指定提供商，使用 'compatible' 作为默认值
                 providers.add('compatible');
             }
         }
@@ -296,7 +296,7 @@ export class CompatibleModelManager {
     }
 
     /**
-     * 为指定供应商设置 API 密钥
+     * 为指定提供商设置 API 密钥
      */
     private static async setApiKeyForProvider(provider: string): Promise<void> {
         const apiKey = await vscode.window.showInputBox({
@@ -311,11 +311,11 @@ export class CompatibleModelManager {
         if (apiKey.trim().length === 0) {
             // 清空密钥
             await ApiKeyManager.deleteApiKey(provider);
-            Logger.info(`供应商 "${provider}" 的 API 密钥已清除`);
+            Logger.info(`提供商 "${provider}" 的 API 密钥已清除`);
         } else {
             // 保存密钥
             await ApiKeyManager.setApiKey(provider, apiKey.trim());
-            Logger.info(`供应商 "${provider}" 的 API 密钥已设置`);
+            Logger.info(`提供商 "${provider}" 的 API 密钥已设置`);
         }
     }
 
@@ -480,7 +480,7 @@ export class CompatibleModelManager {
             return undefined;
         }
 
-        // 第4步/第3步：供应商标识
+        // 第4步/第3步：提供商标识
         const provider = await this._selectProvider(currentConfig?.provider);
         if (isBackButtonClick(provider)) {
             return undefined;
@@ -631,40 +631,40 @@ export class CompatibleModelManager {
     }
 
     /**
-     * 获取历史自定义供应商列表
+     * 获取历史自定义提供商列表
      */
     private static async getHistoricalCustomProviders(): Promise<string[]> {
         try {
-            // 导入供应商配置以获取内置供应商列表
+            // 导入提供商配置以获取内置提供商列表
             const { configProviders } = await import('../providers/config/index.js');
             const builtinProviders = Object.keys(configProviders);
-            // 从现有模型中获取所有唯一的供应商标识
+            // 从现有模型中获取所有唯一的提供商标识
             const allProviders = this.models
                 .map(model => model.provider)
                 .filter(provider => provider && provider.trim() !== '');
-            // 去重并排除内置供应商和 'compatible'
+            // 去重并排除内置提供商和 'compatible'
             const customProviders = [...new Set(allProviders)].filter(
                 provider => provider !== 'compatible' && !builtinProviders.includes(provider)
             );
             return customProviders;
         } catch (error) {
-            Logger.error('获取历史自定义供应商失败:', error);
+            Logger.error('获取历史自定义提供商失败:', error);
             return [];
         }
     }
 
     /**
-     * 选择供应商标识
+     * 选择提供商标识
      */
     private static async _selectProvider(currentProvider?: string): Promise<string | BackButtonClick | undefined> {
-        // 导入供应商配置
+        // 导入提供商配置
         const { configProviders } = await import('../providers/config/index.js');
         type ProviderConfig = import('../types/sharedTypes').ProviderConfig;
         interface ProviderItem extends vscode.QuickPickItem {
             providerId?: string;
         }
         const items: ProviderItem[] = [];
-        // 添加已有供应商
+        // 添加已有提供商
         for (const [providerId, providerConfig] of Object.entries(configProviders)) {
             const config = providerConfig as unknown as ProviderConfig;
             items.push({
@@ -675,9 +675,9 @@ export class CompatibleModelManager {
             });
         }
 
-        // 获取历史自定义供应商
+        // 获取历史自定义提供商
         const historicalProviders = await this.getHistoricalCustomProviders();
-        // 如果有历史自定义供应商，添加到列表中
+        // 如果有历史自定义提供商，添加到列表中
         if (historicalProviders.length > 0) {
             const separator1 = { label: '', kind: vscode.QuickPickItemKind.Separator };
             items.push(separator1 as ProviderItem);
@@ -694,17 +694,17 @@ export class CompatibleModelManager {
         const separator2 = { label: '', kind: vscode.QuickPickItemKind.Separator };
         items.push(separator2 as ProviderItem);
         items.push({
-            label: '$(edit) 自定义供应商',
+            label: '$(edit) 自定义提供商',
             providerId: '__custom__'
         });
 
         const quickPick = vscode.window.createQuickPick<ProviderItem>();
-        quickPick.title = currentProvider ? '编辑供应商标识' : '选择供应商标识';
-        quickPick.placeholder = '选择一个供应商或自定义';
+        quickPick.title = currentProvider ? '编辑提供商标识' : '选择提供商标识';
+        quickPick.placeholder = '选择一个提供商或自定义';
         quickPick.items = items;
         quickPick.ignoreFocusOut = true;
 
-        // 设置为单选模式并预选当前供应商
+        // 设置为单选模式并预选当前提供商
         if (currentProvider) {
             const currentItem = items.find(item => item.providerId === currentProvider);
             if (currentItem) {
@@ -735,18 +735,18 @@ export class CompatibleModelManager {
         }
 
         if (selected.providerId === '__custom__') {
-            // 自定义供应商
+            // 自定义提供商
             const customProvider = await this._createInputBoxWithBackButton({
-                title: '添加自定义模型 - 自定义供应商标识',
-                prompt: '输入自定义的供应商标识符',
+                title: '添加自定义模型 - 自定义提供商标识',
+                prompt: '输入自定义的提供商标识符',
                 placeHolder: '例如：my-provider',
                 validateInput: value => {
                     // 不能为空
                     if (!value.trim()) {
-                        return '供应商标识符不能为空';
+                        return '提供商标识符不能为空';
                     }
                     if (!/^[a-zA-Z0-9_-]+$/.test(value.trim())) {
-                        return '供应商标识符只能包含字母、数字、下划线和连字符';
+                        return '提供商标识符只能包含字母、数字、下划线和连字符';
                     }
                     return null;
                 }

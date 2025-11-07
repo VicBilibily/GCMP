@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  配置管理器
- *  用于管理GCMP扩展的全局配置设置和供应商配置
+ *  用于管理GCMP扩展的全局配置设置和提供商配置
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -36,13 +36,13 @@ export interface GCMPConfig {
     maxTokens: number;
     /** 智谱AI配置 */
     zhipu: ZhipuConfig;
-    /** 供应商配置覆盖 */
+    /** 提供商配置覆盖 */
     providerOverrides: UserConfigOverrides;
 }
 
 /**
  * 配置管理器类
- * 负责读取和管理 VS Code 设置中的 GCMP 配置以及package.json中的供应商配置
+ * 负责读取和管理 VS Code 设置中的 GCMP 配置以及package.json中的提供商配置
  */
 export class ConfigManager {
     private static readonly CONFIG_SECTION = 'gcmp';
@@ -189,7 +189,7 @@ export class ConfigManager {
     }
 
     /**
-     * 获取供应商配置（新模式：直接 import configProviders）
+     * 获取提供商配置（新模式：直接 import configProviders）
      */
     static getConfigProvider(): ConfigProvider {
         return configProviders;
@@ -203,7 +203,7 @@ export class ConfigManager {
     }
 
     /**
-     * 应用配置覆盖到原始供应商配置
+     * 应用配置覆盖到原始提供商配置
      */
     static applyProviderOverrides(providerKey: string, originalConfig: ProviderConfig): ProviderConfig {
         const overrides = this.getProviderOverrides();
@@ -213,12 +213,12 @@ export class ConfigManager {
             return originalConfig;
         }
 
-        Logger.info(`🔧 应用供应商 ${providerKey} 的配置覆盖`);
+        Logger.info(`🔧 应用提供商 ${providerKey} 的配置覆盖`);
 
         // 创建配置的深拷贝
         const config: ProviderConfig = JSON.parse(JSON.stringify(originalConfig));
 
-        // 应用供应商级别的覆盖
+        // 应用提供商级别的覆盖
         if (override.baseUrl) {
             config.baseUrl = override.baseUrl;
             Logger.debug(`  覆盖 baseUrl: ${override.baseUrl}`);
@@ -266,7 +266,7 @@ export class ConfigManager {
                             `  模型 ${modelOverride.id}: 合并 capabilities = ${JSON.stringify(existingModel.capabilities)}`
                         );
                     }
-                    // 合并 customHeader（模型级别优先于供应商级别）
+                    // 合并 customHeader（模型级别优先于提供商级别）
                     if (modelOverride.customHeader) {
                         existingModel.customHeader = { ...existingModel.customHeader, ...modelOverride.customHeader };
                         Logger.debug(
@@ -304,18 +304,18 @@ export class ConfigManager {
             }
         }
 
-        // 将供应商级别的 customHeader 合并到所有模型中（模型级别 customHeader 优先）
+        // 将提供商级别的 customHeader 合并到所有模型中（模型级别 customHeader 优先）
         if (override.customHeader) {
             for (const model of config.models) {
                 if (model.customHeader) {
-                    // 如果模型已有 customHeader，供应商级别的作为默认值合并
+                    // 如果模型已有 customHeader，提供商级别的作为默认值合并
                     model.customHeader = { ...override.customHeader, ...model.customHeader };
                 } else {
-                    // 如果模型没有 customHeader，直接使用供应商级别的
+                    // 如果模型没有 customHeader，直接使用提供商级别的
                     model.customHeader = { ...override.customHeader };
                 }
             }
-            Logger.debug(`  供应商 ${providerKey}: 将供应商级别 customHeader 合并到所有模型中`);
+            Logger.debug(`  提供商 ${providerKey}: 将提供商级别 customHeader 合并到所有模型中`);
         }
 
         return config;

@@ -53,7 +53,7 @@ export class OpenAIHandler {
         if (!currentApiKey) {
             throw new Error(`缺少 ${this.displayName} API密钥`);
         }
-        // 优先使用模型特定的baseUrl，如果没有则使用供应商级别的baseUrl
+        // 优先使用模型特定的baseUrl，如果没有则使用提供商级别的baseUrl
         const baseURL = modelConfig?.baseUrl || this.baseURL;
 
         // 构建默认头部，包含自定义头部
@@ -359,7 +359,7 @@ export class OpenAIHandler {
             const abortController = new AbortController();
             const cancellationListener = token.onCancellationRequested(() => abortController.abort());
             let streamError: Error | null = null; // 用于捕获流错误
-            // 保存最后一个 chunk 的 usage 信息（若有），部分供应商会在每个 chunk 返回 usage
+            // 保存最后一个 chunk 的 usage 信息（若有），部分提供商会在每个 chunk 返回 usage
             let finalUsage: OpenAI.Completions.CompletionUsage | undefined = undefined;
 
             try {
@@ -433,7 +433,7 @@ export class OpenAIHandler {
                             );
                         }
                     )
-                    // 保存最后一个 chunk 的 usage 信息，部分供应商会在每个 chunk 都返回 usage，
+                    // 保存最后一个 chunk 的 usage 信息，部分提供商会在每个 chunk 都返回 usage，
                     // 我们只在流成功完成后输出一次统计，避免重复日志
                     .on('chunk', (chunk: OpenAI.Chat.Completions.ChatCompletionChunk, _snapshot: unknown) => {
                         // 处理token使用统计：仅保存到 finalUsage，最后再统一输出

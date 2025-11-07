@@ -1,6 +1,6 @@
 ﻿/*---------------------------------------------------------------------------------------------
  *  通用Provider类
- *  基于配置文件动态创建供应商实现
+ *  基于配置文件动态创建提供商实现
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -18,7 +18,7 @@ import { ApiKeyManager, ConfigManager, Logger, OpenAIHandler, AnthropicHandler }
 
 /**
  * 全局共享的 tokenizer 实例
- * 所有供应商共享同一个 tokenizer，节省内存和初始化时间
+ * 所有提供商共享同一个 tokenizer，节省内存和初始化时间
  */
 let sharedTokenizerPromise: Promise<TikTokenizer> | null = null;
 
@@ -34,8 +34,8 @@ function getSharedTokenizer(): Promise<TikTokenizer> {
 }
 
 /**
- * 通用模型供应商类
- * 基于配置文件动态创建供应商实现
+ * 通用模型提供商类
+ * 基于配置文件动态创建提供商实现
  */
 export class GenericModelProvider implements LanguageModelChatProvider {
     protected readonly openaiHandler: OpenAIHandler;
@@ -98,7 +98,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     }
 
     /**
-     * 静态工厂方法 - 根据配置创建并激活供应商
+     * 静态工厂方法 - 根据配置创建并激活提供商
      */
     static createAndActivate(
         context: vscode.ExtensionContext,
@@ -106,9 +106,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         providerConfig: ProviderConfig
     ): { provider: GenericModelProvider; disposables: vscode.Disposable[] } {
         Logger.trace(`${providerConfig.displayName} 模型扩展已激活!`);
-        // 创建供应商实例
+        // 创建提供商实例
         const provider = new GenericModelProvider(providerKey, providerConfig);
-        // 注册语言模型聊天供应商
+        // 注册语言模型聊天提供商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
         // 注册设置API密钥命令
         const setApiKeyCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.setApiKey`, async () => {

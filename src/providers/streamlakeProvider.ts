@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  快手万擎 Provider
- *  为快手万擎供应商提供模型覆盖检查功能
+ *  为快手万擎提供商提供模型覆盖检查功能
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -16,7 +16,7 @@ import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { Logger, ApiKeyManager, ConfigManager, StreamlakeWizard } from '../utils';
 
 /**
- * 快手万擎供应商类
+ * 快手万擎提供商类
  * 继承自 GenericModelProvider，添加推理点ID验证功能
  */
 export class StreamLakeProvider extends GenericModelProvider {
@@ -25,7 +25,7 @@ export class StreamLakeProvider extends GenericModelProvider {
     }
 
     /**
-     * 静态工厂方法 - 根据配置创建并激活供应商
+     * 静态工厂方法 - 根据配置创建并激活提供商
      */
     static createAndActivate(
         context: vscode.ExtensionContext,
@@ -33,9 +33,9 @@ export class StreamLakeProvider extends GenericModelProvider {
         providerConfig: ProviderConfig
     ): { provider: StreamLakeProvider; disposables: vscode.Disposable[] } {
         Logger.trace(`${providerConfig.displayName} 模型扩展已激活!`);
-        // 创建供应商实例
+        // 创建提供商实例
         const provider = new StreamLakeProvider(providerKey, providerConfig);
-        // 注册语言模型聊天供应商
+        // 注册语言模型聊天提供商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
 
         // 注册设置API密钥命令

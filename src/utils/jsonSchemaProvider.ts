@@ -111,19 +111,19 @@ export class JsonSchemaProvider {
     }
 
     /**
-     * 获取供应商覆盖配置的 JSON Schema
+     * 获取提供商覆盖配置的 JSON Schema
      */
     static getProviderOverridesSchema(): JSONSchema7 {
         const providerConfigs = ConfigManager.getConfigProvider();
         const patternProperties: Record<string, JSONSchema7> = {};
         const propertyNames: JSONSchema7 = {
             type: 'string',
-            description: '供应商配置键名',
+            description: '提供商配置键名',
             enum: Object.keys(providerConfigs),
             enumDescriptions: Object.entries(providerConfigs).map(([key, config]) => config.displayName || key)
         };
 
-        // 为每个供应商生成 schema
+        // 为每个提供商生成 schema
         for (const [providerKey, config] of Object.entries(providerConfigs)) {
             patternProperties[`^${providerKey}$`] = this.createProviderSchema(providerKey, config);
         }
@@ -137,16 +137,16 @@ export class JsonSchemaProvider {
                 'gcmp.providerOverrides': {
                     type: 'object',
                     description:
-                        '供应商配置覆盖。允许覆盖供应商的baseUrl和模型配置，支持添加新模型或覆盖现有模型的参数。',
+                        '提供商配置覆盖。允许覆盖提供商的baseUrl和模型配置，支持添加新模型或覆盖现有模型的参数。',
                     patternProperties,
                     propertyNames,
                     additionalProperties: {
                         type: 'object',
-                        description: '自定义供应商配置覆盖',
+                        description: '自定义提供商配置覆盖',
                         properties: {
                             baseUrl: {
                                 type: 'string',
-                                description: '覆盖供应商级别的API基础URL',
+                                description: '覆盖提供商级别的API基础URL',
                                 format: 'uri',
                                 pattern: '^https?://'
                             },
@@ -237,7 +237,7 @@ export class JsonSchemaProvider {
     }
 
     /**
-     * 为特定供应商创建 JSON Schema
+     * 为特定提供商创建 JSON Schema
      */
     private static createProviderSchema(providerKey: string, config: ProviderConfig): JSONSchema7 {
         const modelIds = config.models?.map(model => model.id) || [];
@@ -271,12 +271,12 @@ export class JsonSchemaProvider {
             properties: {
                 baseUrl: {
                     type: 'string',
-                    description: '覆盖供应商级别的API基础URL',
+                    description: '覆盖提供商级别的API基础URL',
                     format: 'uri'
                 },
                 customHeader: {
                     type: 'object',
-                    description: '供应商级别的自定义HTTP头部，支持 ${APIKEY} 占位符替换',
+                    description: '提供商级别的自定义HTTP头部，支持 ${APIKEY} 占位符替换',
                     additionalProperties: {
                         type: 'string',
                         description: 'HTTP头部值'

@@ -9,7 +9,7 @@ import { Logger } from './logger';
 
 /**
  * API密钥安全存储管理器
- * 支持多供应商模式
+ * 支持多提供商模式
  */
 export class ApiKeyManager {
     private static context: vscode.ExtensionContext;
@@ -23,7 +23,7 @@ export class ApiKeyManager {
     }
 
     /**
-     * 获取内置供应商列表
+     * 获取内置提供商列表
      */
     private static async getBuiltinProviders(): Promise<Set<string>> {
         if (this.builtinProviders !== null) {
@@ -33,16 +33,16 @@ export class ApiKeyManager {
             const { configProviders } = await import('../providers/config/index.js');
             this.builtinProviders = new Set(Object.keys(configProviders));
         } catch (error) {
-            Logger.warn('无法获取内置供应商列表:', error);
+            Logger.warn('无法获取内置提供商列表:', error);
             this.builtinProviders = new Set();
         }
         return this.builtinProviders;
     }
 
     /**
-     * 获取供应商的密钥存储键名
-     * 对于内置供应商，使用其原始键名
-     * 对于自定义供应商，使用 provider 作为键名
+     * 获取提供商的密钥存储键名
+     * 对于内置提供商，使用其原始键名
+     * 对于自定义提供商，使用 provider 作为键名
      */
     private static getSecretKey(vendor: string): string {
         return `${vendor}.apiKey`;
@@ -59,8 +59,8 @@ export class ApiKeyManager {
 
     /**
      * 获取API密钥
-     * 内置供应商：直接使用供应商名称作为键名
-     * 自定义供应商：使用 provider 作为键名
+     * 内置提供商：直接使用提供商名称作为键名
+     * 自定义提供商：使用 provider 作为键名
      */
     static async getApiKey(vendor: string): Promise<string | undefined> {
         const secretKey = this.getSecretKey(vendor);
@@ -97,7 +97,7 @@ export class ApiKeyManager {
 
     /**
      * 确保有API密钥，如果没有则提示用户输入
-     * @param vendor 供应商标识
+     * @param vendor 提供商标识
      * @param displayName 显示名称
      * @param throwError 是否在检查失败时抛出错误，默认为 true
      * @returns 检查是否成功
@@ -107,14 +107,14 @@ export class ApiKeyManager {
             return true;
         }
 
-        // 检查是否为内置供应商
+        // 检查是否为内置提供商
         const builtinProviders = await this.getBuiltinProviders();
         if (builtinProviders.has(vendor)) {
-            // 内置供应商：触发对应的设置命令，让Provider处理具体配置
+            // 内置提供商：触发对应的设置命令，让Provider处理具体配置
             const commandId = `gcmp.${vendor}.setApiKey`;
             await vscode.commands.executeCommand(commandId);
         } else {
-            // 自定义供应商：直接提示输入API密钥
+            // 自定义提供商：直接提示输入API密钥
             await this.promptAndSetApiKey(vendor, vendor, 'sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
         }
 

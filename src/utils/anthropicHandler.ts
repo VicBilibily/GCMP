@@ -14,7 +14,7 @@ import type { ModelConfig } from '../types/sharedTypes';
 
 /**
  * Anthropic 兼容处理器类
- * 接收完整的供应商配置，使用 Anthropic SDK 处理流式聊天完成
+ * 接收完整的提供商配置，使用 Anthropic SDK 处理流式聊天完成
  */
 export class AnthropicHandler {
     constructor(
@@ -40,7 +40,7 @@ export class AnthropicHandler {
         const baseUrl = modelConfig?.baseUrl || this.baseURL;
         Logger.debug(`[${this.displayName}] 创建新的 Anthropic 客户端 (baseUrl: ${baseUrl})`);
 
-        // 构建默认头部，包含供应商级别和模型级别的 customHeader
+        // 构建默认头部，包含提供商级别和模型级别的 customHeader
         const defaultHeaders: Record<string, string> = {
             'User-Agent': VersionManager.getUserAgent(this.provider)
         };

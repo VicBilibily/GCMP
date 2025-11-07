@@ -17,7 +17,7 @@ import { ApiKeyManager, Logger } from '../utils';
 import { GenericModelProvider } from './genericModelProvider';
 
 /**
- * 心流AI 专用模型供应商类
+ * 心流AI 专用模型提供商类
  * 继承 GenericModelProvider，实现请求节流控制，确保同时只允许一个请求
  */
 export class IFlowProvider extends GenericModelProvider implements LanguageModelChatProvider {
@@ -30,7 +30,7 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
     }
 
     /**
-     * 静态工厂方法 - 创建并激活心流AI供应商
+     * 静态工厂方法 - 创建并激活心流AI提供商
      */
     static createAndActivate(
         context: vscode.ExtensionContext,
@@ -38,9 +38,9 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
         providerConfig: ProviderConfig
     ): { provider: IFlowProvider; disposables: vscode.Disposable[] } {
         Logger.trace(`${providerConfig.displayName} 专用模型扩展已激活!`);
-        // 创建供应商实例
+        // 创建提供商实例
         const provider = new IFlowProvider(providerKey, providerConfig);
-        // 注册语言模型聊天供应商
+        // 注册语言模型聊天提供商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
         // 注册设置API密钥命令
         const setApiKeyCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.setApiKey`, async () => {

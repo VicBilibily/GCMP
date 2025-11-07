@@ -289,7 +289,7 @@
                 "gcmp.providerOverrides": {
                     "type": "object",
                     "default": {},
-                    "description": "供应商配置覆盖。允许覆盖供应商的baseUrl和模型配置，支持添加新模型或覆盖现有模型的参数。",
+                    "description": "提供商配置覆盖。允许覆盖提供商的baseUrl和模型配置，支持添加新模型或覆盖现有模型的参数。",
                     "scope": "application"
                 },
                 "gcmp.compatibleModels": {

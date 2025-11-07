@@ -1,4 +1,4 @@
-# GCMP - 提供多个国内主流AI大模型供应商支持的扩展
+# GCMP - 提供多个国内主流AI大模型提供商支持的扩展
 
 [![CI](https://github.com/VicBilibily/GCMP/actions/workflows/ci.yml/badge.svg)](https://github.com/VicBilibily/GCMP/actions)
 [![Version](https://img.shields.io/visual-studio-marketplace/v/vicanent.gcmp?color=blue&label=Version)](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp)
@@ -6,7 +6,7 @@
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/vicanent.gcmp?color=green&label=Downloads)](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp)
 [![License](https://img.shields.io/github/license/VicBilibily/GCMP?color=orange&label=License)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
-通过集成国内的AI模型，为开发者提供更丰富、更适合的AI编程助手选择。目前支持智谱AI、Kimi、心流AI、MoonshotAI、DeepSeek、火山方舟、快手万擎、阿里云百炼、MiniMax等多家主流AI供应商，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。
+通过集成国内的AI模型，为开发者提供更丰富、更适合的AI编程助手选择。目前支持智谱AI、Kimi、心流AI、MoonshotAI、DeepSeek、火山方舟、快手万擎、阿里云百炼、MiniMax等多家主流AI提供商，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。
 
 ## 🚀 快速开始
 
@@ -20,7 +20,7 @@
 2. 在模型选择器中选择您想要使用的 `AI模型`
 3. 开始与 `AI助手` 对话，享受强大的编程辅助功能
 
-## 🤖 支持的AI供应商
+## 🤖 支持的AI提供商
 
 ### [**智谱AI**](https://bigmodel.cn/) - GLM系列
 
@@ -71,7 +71,7 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 - **Kimi系列**：**Kimi-K2-Instruct**
 - **Qwen系列**：**Qwen3-VL-235B-A22B-Instruct**、**Qwen3-VL-235B-A22B-Thinking**、**Qwen3-32B**、**Qwen3-30B-A3B**、**Qwen3-8B**、**Qwen2.5-7B-Instruct**
 
-> 快手万擎 (KAT) StreamLake 需要手动创建 [`在线推理服务`](https://www.streamlake.com/document/WANQING/mdsosw46egl9m9lfbg) 后，在模型选择的快手万擎供应商设置中配置在线推理预置模型服务推理点ID方可使用。
+> 快手万擎 (KAT) StreamLake 需要手动创建 [`在线推理服务`](https://www.streamlake.com/document/WANQING/mdsosw46egl9m9lfbg) 后，在模型选择的快手万擎提供商设置中配置在线推理预置模型服务推理点ID方可使用。
 
 ### [**阿里云百炼**](https://bailian.console.aliyun.com/) - 通义大模型
 
@@ -90,16 +90,16 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 
 > 💡 **提示**：MCP 模式默认启用，仅Pro/Max套餐支持，Lite套餐请关闭此开关使用标准计费模式。如需使用高级搜索引擎，可切换至标准计费模式。
 
-## 仅供测试体验的供应商
+## 仅供测试体验的提供商
 
-> 由于各供应商 OpenAI 的兼容性问题，部分情况下可能会报错或卡住不动，建议先查看本地输出的日志后提交 Issue 进一步处理。
+> 由于各提供商 OpenAI 的兼容性问题，部分情况下可能会报错或卡住不动，建议先查看本地输出的日志后提交 Issue 进一步处理。
 
 [**ModelScope**](https://www.modelscope.cn/)、
 [**AI Ping**](https://aiping.cn/#?invitation_code=EBQQKW)、
 [**百度智能云**](https://cloud.baidu.com/)、
 [**百灵大模型**](https://ling.tbox.cn/open)
 
-> 以下供应商已结束支持，将于 `2025年11月11日` 移除，如需使用可通过自定义模型方式接入：
+> 以下提供商已结束支持，将于 `2025年11月11日` 移除，如需使用可通过自定义模型方式接入：
 
 [**硅基流动**](https://siliconflow.cn/)、
 [**无问芯穹**](https://cloud.infini-ai.com/)、
@@ -152,9 +152,9 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 | ----------------------------- | ------- | ------ | -------------------------------------------------------------------------- |
 | `gcmp.zhipu.search.enableMCP` | boolean | true   | **搜索模式**：启用MCP通讯模式（仅Pro/Max套餐支持），关闭则使用标准计费接口 |
 
-#### 供应商配置覆盖
+#### 提供商配置覆盖
 
-GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖供应商的默认设置，包括 baseUrl、customHeader、模型配置等。
+GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认设置，包括 baseUrl、customHeader、模型配置等。
 
 **配置示例**：
 

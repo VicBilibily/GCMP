@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  独立兼容供应商
+ *  独立兼容提供商
  *  继承 GenericModelProvider，重写必要方法以支持完全用户配置
  *--------------------------------------------------------------------------------------------*/
 
@@ -15,7 +15,7 @@ import { Logger, ApiKeyManager, CompatibleModelManager, RetryManager } from '../
 import { GenericModelProvider } from './genericModelProvider';
 
 /**
- * 独立兼容模型供应商类
+ * 独立兼容模型提供商类
  * 继承 GenericModelProvider，重写模型配置获取方法
  */
 export class CompatibleProvider extends GenericModelProvider {
@@ -56,7 +56,7 @@ export class CompatibleProvider extends GenericModelProvider {
     }
 
     /**
-     * 重写：获取动态的供应商配置
+     * 重写：获取动态的提供商配置
      * 从 CompatibleModelManager 获取用户配置的模型
      */
     getProviderConfig(): ProviderConfig {
@@ -102,7 +102,7 @@ export class CompatibleProvider extends GenericModelProvider {
     /**
      * 重写：提供语言模型聊天信息
      * 直接获取最新的动态配置，不依赖构造时的配置
-     * 检查所有模型涉及的供应商的 API Key
+     * 检查所有模型涉及的提供商的 API Key
      */
     async provideLanguageModelChatInformation(
         options: { silent: boolean },
@@ -126,20 +126,20 @@ export class CompatibleProvider extends GenericModelProvider {
                 return [];
             }
 
-            // 获取所有模型涉及的供应商（去重）
+            // 获取所有模型涉及的提供商（去重）
             const providers = new Set<string>();
             for (const model of currentConfig.models) {
                 if (model.provider) {
                     providers.add(model.provider);
                 }
             }
-            // 检查每个供应商的 API Key
+            // 检查每个提供商的 API Key
             for (const provider of providers) {
                 if (!options.silent) {
                     // 非静默模式下，使用 ensureApiKey 逐一确认和设置
                     const hasValidKey = await ApiKeyManager.ensureApiKey(provider, provider, false);
                     if (!hasValidKey) {
-                        Logger.warn(`Compatible Provider 用户未设置供应商 "${provider}" 的 API 密钥`);
+                        Logger.warn(`Compatible Provider 用户未设置提供商 "${provider}" 的 API 密钥`);
                         return [];
                     }
                 }
@@ -262,16 +262,16 @@ export class CompatibleProvider extends GenericModelProvider {
     }
 
     /**
-     * 静态工厂方法 - 创建并激活供应商
+     * 静态工厂方法 - 创建并激活提供商
      */
     static createAndActivate(context: vscode.ExtensionContext): {
         provider: CompatibleProvider;
         disposables: vscode.Disposable[];
     } {
         Logger.trace('Compatible Provider 已激活!');
-        // 创建供应商实例
+        // 创建提供商实例
         const provider = new CompatibleProvider();
-        // 注册语言模型聊天供应商
+        // 注册语言模型聊天提供商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider('gcmp.compatible', provider);
         // 注册命令
         const commandDisposables = this.registerCommands(context);

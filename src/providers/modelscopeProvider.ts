@@ -27,7 +27,7 @@ interface ToolCallBuffer {
 }
 
 /**
- * ModelScope 专用模型供应商类
+ * ModelScope 专用模型提供商类
  * 继承 GenericModelProvider，只重写流处理部分以使用自定义 SSE 解析
  */
 export class ModelScopeProvider extends GenericModelProvider implements LanguageModelChatProvider {
@@ -49,7 +49,7 @@ export class ModelScopeProvider extends GenericModelProvider implements Language
     }
 
     /**
-     * 静态工厂方法 - 创建并激活 ModelScope 供应商
+     * 静态工厂方法 - 创建并激活 ModelScope 提供商
      */
     static createAndActivate(
         context: vscode.ExtensionContext,
@@ -57,9 +57,9 @@ export class ModelScopeProvider extends GenericModelProvider implements Language
         providerConfig: ProviderConfig
     ): { provider: ModelScopeProvider; disposables: vscode.Disposable[] } {
         Logger.trace(`${providerConfig.displayName} 专用模型扩展已激活!`);
-        // 创建供应商实例
+        // 创建提供商实例
         const provider = new ModelScopeProvider(providerKey, providerConfig);
-        // 注册语言模型聊天供应商
+        // 注册语言模型聊天提供商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
         // 注册设置API密钥命令
         const setApiKeyCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.setApiKey`, async () => {
