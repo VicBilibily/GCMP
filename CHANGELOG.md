@@ -2,6 +2,13 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的所有重要更改。
 
+## [0.9.5] - 2025-11-07
+
+### 新增
+
+- **MoonshotAI** 提供商新增 `Kimi-K2-Thinking` 和 `Kimi-K2-Thinking-Turbo` 思考模型
+    - 已根据官方推荐固定采用 ```{ "temperature": 1.0, "top_p": 1 }```
+
 ## [0.9.4] - 2025-11-04
 
 ### 调整

@@ -105,7 +105,15 @@
                     "description": "可选的自定义HTTP头部，将在API请求中附加。",
                     "additionalProperties": {
                         "type": "string",
+                        "description": "HTTP头部值",
                         "minLength": 1
+                    }
+                },
+                "extraBody": {
+                    "type": "object",
+                    "description": "额外的请求体参数，将在API请求中合并到请求体中",
+                    "additionalProperties": {
+                        "description": "额外的请求体参数值"
                     }
                 }
             }

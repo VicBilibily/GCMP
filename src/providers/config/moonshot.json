@@ -4,8 +4,40 @@
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "kimi-k2-thinking",
+            "name": "Kimi-K2-Thinking",
+            "tooltip": "月之暗面 Kimi-K2-Thinking - 模型上下文长度 256k，是具有通用 Agentic 能力和推理能力的思考模型，它擅长深度推理",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "temperature": 1.0,
+                "top_p": 1
+            }
+        },
+        {
+            "id": "kimi-k2-thinking-turbo",
+            "name": "Kimi-K2-Thinking-Turbo",
+            "tooltip": "月之暗面 Kimi-K2-Thinking-Turbo - 模型上下文长度 256k，是 kimi-k2-thinking 模型的高速版，适用于需要深度推理和追求极致高速的场景",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "temperature": 1.0,
+                "top_p": 1
+            }
+        },
+        {
             "id": "kimi-k2-0905-preview",
             "name": "Kimi-K2-0905-Preview",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.moonshot.cn/anthropic",
             "tooltip": "月之暗面 Kimi-K2-0905-Preview - 更强的Agentic Coding能力，更突出的前端代码美观度和实用性，256K上下文",
             "maxInputTokens": 256000,
             "maxOutputTokens": 8192,
@@ -17,6 +49,8 @@
         {
             "id": "kimi-k2-turbo-preview",
             "name": "Kimi-K2-Turbo-Preview",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.moonshot.cn/anthropic",
             "tooltip": "月之暗面 Kimi-K2-Turbo-Preview - 高速版本模型，输出速度60-100 tokens/秒，256K上下文",
             "maxInputTokens": 256000,
             "maxOutputTokens": 8192,
@@ -28,6 +62,8 @@
         {
             "id": "kimi-k2-0711-preview",
             "name": "Kimi-K2-0711-Preview",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.moonshot.cn/anthropic",
             "tooltip": "月之暗面 Kimi-K2-0711-Preview - K2系列基础版本，128K上下文",
             "maxInputTokens": 128000,
             "maxOutputTokens": 8192,

@@ -52,7 +52,7 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 
 ### [**MoonshotAI**](https://platform.moonshot.cn/) - Kimi K2系列
 
-- 支持模型：**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-K2-0711-Preview**、**Kimi-Latest**
+- 支持模型：**Kimi-K2-Thinking**、**Kimi-K2-Thinking-Turbo**、**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-K2-0711-Preview**、**Kimi-Latest**
 
 ### [**DeepSeek**](https://platform.deepseek.com/) - 深度求索
 
