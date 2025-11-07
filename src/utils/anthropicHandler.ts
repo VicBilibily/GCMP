@@ -11,6 +11,7 @@ import { Logger } from './logger';
 import { ConfigManager } from './configManager';
 import { VersionManager } from './versionManager';
 import type { ModelConfig } from '../types/sharedTypes';
+import { OpenAIHandler } from './openaiHandler';
 
 /**
  * Anthropic 兼容处理器类
@@ -91,6 +92,16 @@ export class AnthropicHandler {
                 temperature: ConfigManager.getTemperature(),
                 top_p: ConfigManager.getTopP()
             };
+
+            // 合并extraBody参数（如果有）
+            if (modelConfig.extraBody) {
+                // 过滤掉不可修改的核心参数
+                const filteredExtraBody = OpenAIHandler.filterExtraBodyParams(modelConfig.extraBody);
+                Object.assign(createParams, filteredExtraBody);
+                if (Object.keys(filteredExtraBody).length > 0) {
+                    Logger.trace(`${model.name} 合并了 extraBody 参数: ${JSON.stringify(filteredExtraBody)}`);
+                }
+            }
 
             // 添加系统消息（如果有）
             if (system.text) {

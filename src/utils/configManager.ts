@@ -273,7 +273,7 @@ export class ConfigManager {
                             `  模型 ${modelOverride.id}: 合并 customHeader = ${JSON.stringify(existingModel.customHeader)}`
                         );
                     }
-                    // 合并 extraBody（仅OpenAI接口生效）
+                    // 合并 extraBody
                     if (modelOverride.extraBody) {
                         existingModel.extraBody = { ...existingModel.extraBody, ...modelOverride.extraBody };
                         Logger.debug(

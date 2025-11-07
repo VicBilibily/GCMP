@@ -2,12 +2,19 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的所有重要更改。
 
+## [0.9.6] - 2025-11-07
+
+### 新增
+
+- **Anthropic 兼容模式** 支持 `extraBody` 扩展请求参数配置
+    - 支持将请求内容覆盖设置 `{ "top_p": null }` 以消解部分服务提供商不支持同时设置 `temperature` 和 `top_p` 的问题
+
 ## [0.9.5] - 2025-11-07
 
 ### 新增
 
 - **MoonshotAI** 提供商新增 `Kimi-K2-Thinking` 和 `Kimi-K2-Thinking-Turbo` 思考模型
-    - 已根据官方推荐固定采用 ```{ "temperature": 1.0, "top_p": 1 }```
+    - 已根据官方推荐固定采用 `{ "temperature": 1.0, "top_p": 1 }`
 
 ## [0.9.4] - 2025-11-04
 

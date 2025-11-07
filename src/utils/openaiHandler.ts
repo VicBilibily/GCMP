@@ -969,6 +969,9 @@ export class OpenAIHandler {
         for (const [key, value] of Object.entries(extraBody)) {
             if (!coreParams.has(key)) {
                 filtered[key] = value;
+                if (value == null) {
+                    filtered[key] = undefined;
+                }
             }
         }
 

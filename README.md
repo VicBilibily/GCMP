@@ -215,7 +215,6 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
 在 VS Code 设置中编辑 `gcmp.compatibleModels` 配置项（或通过 `GCMP: Compatible Provider 设置` 命令）：
 
 - `customHeader` 及 `extraBody` 配置只可通过编辑全局 `settings.json` 配置
-- `extraBody` 仅在 OpenAI SDK 模式的接口生效，Anthropic 暂不生效
 
 ```json
 {
@@ -255,6 +254,9 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
+            },
+            "extraBody": {
+                "top_p": null
             }
         }
     ]
