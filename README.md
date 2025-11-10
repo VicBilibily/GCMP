@@ -99,22 +99,6 @@ GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手
 [**百度智能云**](https://cloud.baidu.com/)、
 [**百灵大模型**](https://ling.tbox.cn/open)
 
-> 以下提供商已结束支持，将于 `2025年11月11日` 移除，如需使用可通过自定义模型方式接入：
-
-[**硅基流动**](https://siliconflow.cn/)、
-[**无问芯穹**](https://cloud.infini-ai.com/)、
-[**基石智算**](https://www.coreshub.cn/)、
-[**腾讯云**](https://cloud.tencent.com/)、
-[**华为云**](https://www.huaweicloud.com/product/modelarts/studio.html)、
-[**京东云**](https://www.jdcloud.com/)、
-[**七牛云**](https://www.qiniu.com/)、
-[**零克云**](https://gpulink.cc/model-market/model-center/modelCenter)、
-[**UCloud**](https://www.ucloud.cn/)、
-[**SophNet**](https://sophnet.com/)、
-[**并行智算云**](https://ai.paratera.com/)、
-[**PPIO派欧云**](https://ppio.com/)、
-[**蓝耘元生代**](https://maas.lanyun.net/)
-
 ## ⚙️ 高级配置
 
 GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获得更个性化的AI助手体验。
@@ -201,7 +185,7 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
 }
 ```
 
-#### 🔌 OpenAI / Anthropic Compatible 自定义模型支持
+#### 🔌 OpenAI / Anthropic Compatible 自定义模型支持 (Beta)
 
 GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 OpenAI 或 Anthropic 兼容的 API。通过 `gcmp.compatibleModels` 配置，您可以完全自定义模型参数，包括扩展请求参数。
 

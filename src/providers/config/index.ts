@@ -13,20 +13,6 @@ import modelscope from './modelscope.json';
 import aiping from './aiping.json';
 import baidu from './baidu.json';
 import tbox from './tbox.json';
-// EOL providers
-import siliconflow from './siliconflow.json';
-import infini from './infini.json';
-import coreshub from './coreshub.json';
-import tencentcloud from './tencentcloud.json';
-import huaweicloud from './huaweicloud.json';
-import jdcloud from './jdcloud.json';
-import qiniu from './qiniu.json';
-import gpulink from './gpulink.json';
-import ucloud from './ucloud.json';
-import paratera from './paratera.json';
-import ppio from './ppio.json';
-import lanyun from './lanyun.json';
-import sophnet from './sophnet.json';
 
 const providers = {
     zhipu,
@@ -41,21 +27,7 @@ const providers = {
     modelscope,
     aiping,
     baidu,
-    tbox,
-    // EOL providers
-    siliconflow,
-    infini,
-    coreshub,
-    tencentcloud,
-    huaweicloud,
-    jdcloud,
-    qiniu,
-    gpulink,
-    ucloud,
-    paratera,
-    ppio,
-    lanyun,
-    sophnet
+    tbox
 };
 
 export type ProviderName = keyof typeof providers;

@@ -2,6 +2,30 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的所有重要更改。
 
+## [0.10.0] - 2025-11-10
+
+### 新增
+
+- **MiniMax** 提供商新增 `MiniMax-M2-Stable` 模型支持
+
+### 移除
+
+- 移除 EOL 提供商：
+[**硅基流动**](https://siliconflow.cn/)、
+[**无问芯穹**](https://cloud.infini-ai.com/)、
+[**基石智算**](https://www.coreshub.cn/)、
+[**腾讯云**](https://cloud.tencent.com/)、
+[**华为云**](https://www.huaweicloud.com/product/modelarts/studio.html)、
+[**京东云**](https://www.jdcloud.com/)、
+[**七牛云**](https://www.qiniu.com/)、
+[**零克云**](https://gpulink.cc/model-market/model-center/modelCenter)、
+[**UCloud**](https://www.ucloud.cn/)、
+[**SophNet**](https://sophnet.com/)、
+[**并行智算云**](https://ai.paratera.com/)、
+[**PPIO派欧云**](https://ppio.com/)、
+[**蓝耘元生代**](https://maas.lanyun.net/)
+
+
 ## [0.9.6] - 2025-11-07
 
 ### 新增
