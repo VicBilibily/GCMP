@@ -25,7 +25,7 @@
 ### [**智谱AI**](https://bigmodel.cn/) - GLM系列
 
 > - [**订阅套餐**](https://bigmodel.cn/claude-code)：推荐订阅Pro套餐。
-> - **搜索功能**：集成官方 Web Search API，支持实时联网搜索，仅Pro/Max套餐支持通过 MCP 模式调用。
+> - **搜索功能**：集成官方 Web Search API，支持实时联网搜索。默认启用Pro/Max套餐支持的联网搜索MCP。
 
 - 编程套餐：**GLM-4.6**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**(Pro/Max套餐)
 - 标准计费：**GLM-4.6**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5-X**、**GLM-4.5-AirX**、**GLM-4.5V**
@@ -39,7 +39,7 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 
 > - [**编程套餐**](https://mp.weixin.qq.com/s/c9zSXtBxOGAlUeN683y00A)：`受限于一些外部的对接流程，我们预计在11月14号给开发者朋友提供收费的编程套餐。为了方便个人开发者朋友使用，在编程套餐正式推出前，依然为个人开发者提供足够同时进行两个Vibe Coding项目的免费服务。使用时，请选择MiniMax-M2。`
 
-- **支持模型**：**MiniMax-M2**、**MiniMax-M2-Stable**、**MiniMax-M1**、**MiniMax-Text-01**
+- **支持模型**：**MiniMax-M2**、**MiniMax-M2-Stable**、**MiniMax-M1**
 
 ### [**心流AI**](https://platform.iflow.cn/) - iFlow
 
@@ -61,34 +61,16 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 ### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
 
 - **豆包系列**：**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
-- **DeepSeek系列**：**DeepSeek-V3-250324**、**DeepSeek-V3.1-250821**、**DeepSeek-V3.1-Terminus**
-- **Kimi系列**：**Kimi-K2-250905**
 
-### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake KAT-Coder
+### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
 
-- **KAT-Coder系列**：**KAT-Coder-Pro-V1**、**KAT-Coder-Exp-72B-1010**、**KAT-Coder-Air-V1**
-- **DeepSeek系列**：**DeepSeek-V3.2-Exp**、**DeepSeek-V3.1**、**DeepSeek-V3**
-- **Kimi系列**：**Kimi-K2-Instruct**
-- **Qwen系列**：**Qwen3-VL-235B-A22B-Instruct**、**Qwen3-VL-235B-A22B-Thinking**、**Qwen3-32B**、**Qwen3-30B-A3B**、**Qwen3-8B**、**Qwen2.5-7B-Instruct**
+- **KAT-Coder系列**：**KAT-Coder-Pro-V1**、**KAT-Coder-Air-V1**
 
 > 快手万擎 (KAT) StreamLake 需要手动创建 [`在线推理服务`](https://www.streamlake.com/document/WANQING/mdsosw46egl9m9lfbg) 后，在模型选择的快手万擎提供商设置中配置在线推理预置模型服务推理点ID方可使用。
 
 ### [**阿里云百炼**](https://bailian.console.aliyun.com/) - 通义大模型
 
-- **通义千问系列**：**Qwen-Flash**、**Qwen-Plus**、**Qwen-Max**、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen3-Next**、**Qwen3**（开源系列多种参数规模）
-- **DeepSeek系列**：**DeepSeek-V3**、**DeepSeek-V3.1**、**DeepSeek-V3.2-Exp**
-- **智谱系列**：**GLM-4.5**、**GLM-4.5-Air**
-
-## 🔍 智谱AI联网搜索工具
-
-GCMP 集成了智谱AI官方的联网搜索 MCP 及 Web Search API，为AI助手提供实时联网搜索能力。
-
-### 🚀 MCP 模式（默认启用）
-
-- **默认启用**：默认使用 MCP 模式
-- **Pro/Max套餐支持**：其他情况需将 `gcmp.zhipu.search.enableMCP` 设为 `false`
-
-> 💡 **提示**：MCP 模式默认启用，仅Pro/Max套餐支持，Lite套餐请关闭此开关使用标准计费模式。如需使用高级搜索引擎，可切换至标准计费模式。
+- **通义千问系列**：**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
 
 ## 仅供测试体验的提供商
 
@@ -132,9 +114,9 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 
 #### 智谱AI专用配置
 
-| 参数                          | 类型    | 默认值 | 说明                                                                       |
-| ----------------------------- | ------- | ------ | -------------------------------------------------------------------------- |
-| `gcmp.zhipu.search.enableMCP` | boolean | true   | **搜索模式**：启用MCP通讯模式（仅Pro/Max套餐支持），关闭则使用标准计费接口 |
+| 参数                          | 类型    | 默认值 | 说明                                               |
+| ----------------------------- | ------- | ------ | -------------------------------------------------- |
+| `gcmp.zhipu.search.enableMCP` | boolean | true   | **搜索模式**：启用MCP通讯模式（仅Pro/Max套餐支持） |
 
 #### 提供商配置覆盖
 
@@ -171,6 +153,21 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
                 }
             ]
         },
+        "dashscope": {
+            "models": [
+                {
+                    "id": "deepseek-v3.2-exp", // 增加额外模型，提示不被接受，但实际支持可用
+                    "name": "Deepseek-V3.2-Exp (阿里云百炼)", // name 及 tooltip 提示不允许，但针对新增模型可用
+                    "tooltip": "引入了DeepSeek Sparse Attention（一种稀疏注意力机制）的实验性质版本，针对长文本的训练和推理效率进行了探索性的优化和验证。",
+                    "maxInputTokens": 128000,
+                    "maxOutputTokens": 16000,
+                    "capabilities": {
+                        "toolCalling": true,
+                        "imageInput": false
+                    }
+                }
+            ]
+        },
         "streamlake": [
             {
                 "id": "KAT-Coder-Pro-V1",
@@ -179,6 +176,18 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
             {
                 "id": "KAT-Coder-Air-V1",
                 "model": "your-kat-coder-air-endpoint-id"
+            },
+            {
+                "id": "DeepSeek-V3.2-Exp", // v0.10.1 起各自有模型提供商不再内置第三方开源模型，如需使用可自行添加
+                "model": "your-deepseek-v3.2-exp-endpoint-id",
+                "name": "DeepSeek-V3.2-Exp (快手万擎)",
+                "tooltip": "DeepSeek-V3.2-Exp 在 V3.1-Terminus 的基础上引入了 DeepSeek Sparse Attention（一种稀疏注意力机制），针对长文本的训练和推理效率进行了探索性的优化和验证。支持深度思考。",
+                "maxInputTokens": 128000,
+                "maxOutputTokens": 16000,
+                "capabilities": {
+                    "toolCalling": true,
+                    "imageInput": false
+                }
             }
         ]
     }
@@ -188,11 +197,6 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
 #### 🔌 OpenAI / Anthropic Compatible 自定义模型支持 (Beta)
 
 GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 OpenAI 或 Anthropic 兼容的 API。通过 `gcmp.compatibleModels` 配置，您可以完全自定义模型参数，包括扩展请求参数。
-
-##### 支持的 SDK 模式
-
-- **OpenAI SDK 兼容**：支持 OpenAI API 标准格式
-- **Anthropic SDK 兼容**：支持 Anthropic Messages API 格式
 
 ##### 配置自定义模型
 

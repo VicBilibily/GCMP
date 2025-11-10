@@ -4,10 +4,10 @@
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
-            "id": "qwen-flash",
-            "name": "通义千问-Flash (阿里云百炼)",
-            "tooltip": "Qwen3系列Flash模型，实现思考模式和非思考模式的有效融合，可在对话中切换模式。复杂推理类任务性能优秀，指令遵循、文本理解等能力显著提高。支持1M上下文长度，按照上下文长度进行阶梯计费。",
-            "maxInputTokens": 997000,
+            "id": "qwen3-max",
+            "name": "通义千问3-Max",
+            "tooltip": "通义千问3系列Max模型，相较preview版本在智能体编程与工具调用方向进行了专项升级。本次发布的正式版模型达到领域SOTA水平，适配场景更加复杂的智能体需求。",
+            "maxInputTokens": 252000,
             "maxOutputTokens": 32000,
             "capabilities": {
                 "toolCalling": true,
@@ -15,19 +15,30 @@
             }
         },
         {
-            "id": "qwen-flash-2025-07-28",
-            "name": "通义千问-Flash-2025-07-28 (阿里云百炼)",
-            "tooltip": "Qwen3系列Flash模型，实现思考模式和非思考模式的有效融合，可在对话中切换模式。复杂推理类任务性能优秀，指令遵循、文本理解等能力显著提高。支持1M上下文长度，按照上下文长度进行阶梯计费。本版本为2025年7月28日快照。",
-            "maxInputTokens": 997000,
+            "id": "qwen3-vl-plus",
+            "name": "通义千问3-VL-Plus",
+            "tooltip": "Qwen3系列视觉理解模型，实现思考模式和非思考模式的有效融合，视觉智能体能力在OS World等公开测试集上达到世界顶尖水平。此版本在视觉coding、空间感知、多模态思考等方向全面升级；视觉感知与识别能力大幅提升，支持超长视频理解。",
+            "maxInputTokens": 254000,
             "maxOutputTokens": 32000,
             "capabilities": {
                 "toolCalling": true,
-                "imageInput": false
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qwen3-vl-flash",
+            "name": "通义千问3-VL-Flash",
+            "tooltip": "Qwen3系列小尺寸视觉理解模型，实现思考模式和非思考模式的有效融合，效果优于开源版Qwen3-VL-30B-A3B，响应速度快。全面升级图像/视频理解，支持长视频长文档等超长上下文、空间感知与万物识别；具备视觉2D/3D定位能力，胜任复杂现实任务。",
+            "maxInputTokens": 254000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
             }
         },
         {
             "id": "qwen-plus",
-            "name": "通义千问-Plus (阿里云百炼)",
+            "name": "通义千问-Plus",
             "tooltip": "Qwen3系列Plus模型，实现思考模式和非思考模式的有效融合，可在对话中切换模式。推理能力显著超过QwQ、通用能力显著超过Qwen2.5-Plus，达到同规模业界SOTA水平。",
             "maxInputTokens": 96000,
             "maxOutputTokens": 16000,
@@ -38,7 +49,7 @@
         },
         {
             "id": "qwen-plus-latest",
-            "name": "通义千问-Plus-Latest (阿里云百炼)",
+            "name": "通义千问-Plus-Latest",
             "tooltip": "通义千问系列能力均衡的模型，推理效果和速度介于通义千问-Max和通义千问-Turbo之间，适合中等复杂任务。本模型是动态更新版本，模型更新不会提前通知。",
             "maxInputTokens": 995000,
             "maxOutputTokens": 32000,
@@ -48,418 +59,11 @@
             }
         },
         {
-            "id": "qwen-plus-2025-09-11",
-            "name": "通义千问-Plus-2025-09-11 (阿里云百炼)",
-            "tooltip": "本版本为2025年9月11日快照，相较7月28日快照在思考模式下指令遵循能力有提升、模型总结回复更加精简；在非思考模式下中文文本理解能力更佳、逻辑推理能力有增强。支持1M上下文长度，按照上下文长度进行阶梯计费。",
-            "maxInputTokens": 995000,
+            "id": "qwen-flash",
+            "name": "通义千问-Flash",
+            "tooltip": "Qwen3系列Flash模型，实现思考模式和非思考模式的有效融合，可在对话中切换模式。复杂推理类任务性能优秀，指令遵循、文本理解等能力显著提高。支持1M上下文长度，按照上下文长度进行阶梯计费。",
+            "maxInputTokens": 997000,
             "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen-plus-2025-07-28",
-            "name": "通义千问-Plus-2025-07-28 (阿里云百炼)",
-            "tooltip": "Qwen3系列Plus模型，实现思考模式和非思考模式的有效融合，可在对话中切换模式。相较上个版本在中英文能力、工具调用上进行了专用增强。本版本为2025年7月28日快照，首次支持1M上下文长度，按照上下文长度进行阶梯计费。",
-            "maxInputTokens": 995000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen-plus-2025-07-14",
-            "name": "通义千问-Plus-2025-07-14 (阿里云百炼)",
-            "tooltip": "Qwen3系列Plus模型，实现思考模式和非思考模式的有效融合，可在对话中切换模式。此版本为2025年7月14日快照模型，相较上个版本在非thinking模式下中英文能力均有大幅提升，工具调用能力专项增强。",
-            "maxInputTokens": 96000,
-            "maxOutputTokens": 16000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen-plus-2025-04-28",
-            "name": "通义千问-Plus-2025-04-28 (阿里云百炼)",
-            "tooltip": "Qwen3系列Plus模型，实现思考模式和非思考模式的有效融合，可在对话中切换模式。推理能力显著超过QwQ、通用能力显著超过Qwen2.5-Plus，达到同规模业界SOTA水平。此版本为2025年4月28日快照模型。",
-            "maxInputTokens": 96000,
-            "maxOutputTokens": 16000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-vl-flash",
-            "name": "通义千问3-VL-Flash (阿里云百炼)",
-            "tooltip": "Qwen3系列小尺寸视觉理解模型，实现思考模式和非思考模式的有效融合，效果优于开源版Qwen3-VL-30B-A3B，响应速度快。全面升级图像/视频理解，支持长视频长文档等超长上下文、空间感知与万物识别；具备视觉2D/3D定位能力，胜任复杂现实任务。",
-            "maxInputTokens": 254000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "qwen3-vl-flash-2025-10-15",
-            "name": "通义千问3-VL-Flash-2025-10-15 (阿里云百炼)",
-            "tooltip": "Qwen3系列小尺寸视觉理解模型，实现思考模式和非思考模式的有效融合，效果优于开源版Qwen3-VL-30B-A3B，响应速度快。全面升级图像/视频理解，支持长视频长文档等超长上下文、空间感知与万物识别；具备视觉2D/3D定位能力，胜任复杂现实任务。此版本为2025年10月15日快照版本。",
-            "maxInputTokens": 254000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "qwen3-vl-plus",
-            "name": "通义千问3-VL-Plus (阿里云百炼)",
-            "tooltip": "Qwen3系列视觉理解模型，实现思考模式和非思考模式的有效融合，视觉智能体能力在OS World等公开测试集上达到世界顶尖水平。此版本在视觉coding、空间感知、多模态思考等方向全面升级；视觉感知与识别能力大幅提升，支持超长视频理解。",
-            "maxInputTokens": 254000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "qwen3-vl-plus-2025-09-23",
-            "name": "通义千问3-VL-Plus-2025-09-23 (阿里云百炼)",
-            "tooltip": "Qwen3系列视觉理解模型，实现思考模式和非思考模式的有效融合，视觉智能体能力在OS World等公开测试集上达到世界顶尖水平。此版本在视觉coding、空间感知、多模态思考等方向全面升级；视觉感知与识别能力大幅提升，支持超长视频理解。此版本为2025年9月23日快照版本。",
-            "maxInputTokens": 254000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "qwen3-max",
-            "name": "通义千问3-Max (阿里云百炼)",
-            "tooltip": "通义千问3系列Max模型，相较preview版本在智能体编程与工具调用方向进行了专项升级。本次发布的正式版模型达到领域SOTA水平，适配场景更加复杂的智能体需求。",
-            "maxInputTokens": 252000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-max-preview",
-            "name": "通义千问3-Max-Preview (阿里云百炼)",
-            "tooltip": "通义千问3系列Max模型Preview版本，相较2.5系列整体通用能力有大幅度提升，中英文通用文本理解能力、复杂指令遵循能力、主观开放任务能力、多语言能力、工具调用能力均显著增强；模型知识幻觉更少。",
-            "maxInputTokens": 252000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-max-2025-09-23",
-            "name": "通义千问3-Max-2025-09-23 (阿里云百炼)",
-            "tooltip": "通义千问3系列Max模型，相较preview版本在智能体编程与工具调用方向进行了专项升级。本次发布的正式版模型达到领域SOTA水平，适配场景更加复杂的智能体需求。此版本为2025年9月23日快照。",
-            "maxInputTokens": 252000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-vl-8b-instruct",
-            "name": "通义千问3-VL-8B-Instruct (阿里云百炼)",
-            "tooltip": "Qwen3-VL系列8B Dense模型的Instruct版本，占用显存更低，全面升级图像/视频理解、长视频长文档等超长上下文支持、空间感知与万物识别能力，胜任复杂现实任务。",
-            "maxInputTokens": 126000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "qwen3-vl-8b-thinking",
-            "name": "通义千问3-VL-8B-Thinking (阿里云百炼)",
-            "tooltip": "Qwen3-VL系列8B Dense模型的Thinking版本，占用显存更低，能够完成多模态理解与推理；支持长视频长文档等超长上下文、视觉2D/3D定位；全面升级图像/视频理解、空间感知与万物识别能力。",
-            "maxInputTokens": 124000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "qwen3-vl-30b-a3b-instruct",
-            "name": "通义千问3-VL-30B-A3B-Instruct (阿里云百炼)",
-            "tooltip": "Qwen3-VL系列第二大MoE模型的Instruct版本，响应速度快，支持长视频长文档等超长上下文；全面升级图像/视频理解、空间感知与万物识别能力；具备视觉2D/3D定位能力，胜任复杂现实任务。",
-            "maxInputTokens": 126000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "qwen3-vl-30b-a3b-thinking",
-            "name": "通义千问3-VL-30B-A3B-Thinking (阿里云百炼)",
-            "tooltip": "Qwen3-VL系列第二大MoE模型的Thinking版本，响应速度快，具备更强多模态理解与推理、视觉智能体、长视频长文档等超长上下文支持能力；全面升级图像/视频理解、空间感知与万物识别能力，胜任复杂现实任务。",
-            "maxInputTokens": 124000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "qwen3-vl-32b-instruct",
-            "name": "Qwen3-VL-32B-Instruct (阿里云百炼)",
-            "tooltip": "Qwen3-VL系列最大尺寸Dense模型的非推理版本，综合表现仅次于Qwen3-VL-235B-Instruct，文档识别和理解能力出色，空间感知与万物识别能力强，视觉2D检测/空间推理能力达到SOTA，适合通用场景下的复杂感知任务。",
-            "maxInputTokens": 126000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "qwen3-vl-32b-thinking",
-            "name": "Qwen3-VL-32B-Thinking (阿里云百炼)",
-            "tooltip": "Qwen3-VL系列最大尺寸Dense模型的推理版本，多模态推理能力仅次于Qwen3-VL-235B-Thinking，STEM&数学类解题能力、通用图像和视频理解能力出众，多模态Agent能力达到SOTA，适合做复杂多模态推理任务。",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "qwen3-vl-235b-a22b-instruct",
-            "name": "通义千问3-VL-235B-A22B-Instruct (阿里云百炼)",
-            "tooltip": "Qwen3系列视觉理解模型，在视觉coding、空间感知等方向全面升级；视觉感知与识别能力大幅提升，支持超长视频理解，OCR能力迎来重大升级。",
-            "maxInputTokens": 126000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "qwen3-vl-235b-a22b-thinking",
-            "name": "通义千问3-VL-235B-A22B-Thinking (阿里云百炼)",
-            "tooltip": "Qwen3系列视觉理解模型，多模态思考能力显著增强，模型在STEM与数学推理方面进行了重点优化；视觉感知与识别能力全面提升、OCR能力迎来重大升级。",
-            "maxInputTokens": 124000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "qwen3-next-80b-a3b-instruct",
-            "name": "通义千问3-Next-80B-A3B-Instruct (阿里云百炼)",
-            "tooltip": "基于Qwen3的新一代非思考模式开源模型，相较上一版本（通义千问3-235B-A22B-Instruct-2507）中文文本理解能力更佳、逻辑推理能力有增强、文本生成类任务表现更好。",
-            "maxInputTokens": 126000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-next-80b-a3b-thinking",
-            "name": "通义千问3-Next-80B-A3B-Thinking (阿里云百炼)",
-            "tooltip": "基于Qwen3的新一代思考模式开源模型，相较上一版本（通义千问3-235B-A22B-Thinking-2507）指令遵循能力有提升、模型总结回复更加精简。",
-            "maxInputTokens": 124000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-30b-a3b-instruct-2507",
-            "name": "通义千问3-30B-A3B-Instruct-2507 (阿里云百炼)",
-            "tooltip": "基于Qwen3的非思考模式开源模型，相较上一版本（通义千问3-30B-A3B）中英文和多语言整体通用能力有大幅提升。主观开放类任务专项优化，显著更加符合用户偏好，能够提供更有帮助性的回复。",
-            "maxInputTokens": 126000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-30b-a3b-thinking-2507",
-            "name": "通义千问3-30B-A3B-Thinking-2507 (阿里云百炼)",
-            "tooltip": "基于Qwen3的思考模式开源模型，相较上一版本（通义千问3-30B-A3B）复杂推理类任务性能优秀，包括逻辑推理、数学、科学、代码类等具有一定难度的任务场景，指令遵循、文本理解、多语言翻译等能力显著提高。",
-            "maxInputTokens": 124000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-235b-a22b-instruct-2507",
-            "name": "通义千问3-235B-A22B-Instruct-2507 (阿里云百炼)",
-            "tooltip": "基于Qwen3的非思考模式开源模型，相较上一版本（通义千问3-235B-A22B）主观创作能力与模型安全性均有小幅度提升。",
-            "maxInputTokens": 126000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-235b-a22b-thinking-2507",
-            "name": "通义千问3-235B-A22B-Thinking-2507 (阿里云百炼)",
-            "tooltip": "基于Qwen3的思考模式开源模型，相较上一版本（通义千问3-235B-A22B）逻辑能力、通用能力、知识增强及创作能力均有大幅提升，适用于高难度强推理场景。",
-            "maxInputTokens": 124000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-235b-a22b",
-            "name": "通义千问3-235B-A22B (阿里云百炼)",
-            "tooltip": "实现思考模式和非思考模式的有效融合，可在对话中切换模式。推理能力显著超过QwQ、通用能力显著超过Qwen2.5-72B-Instruct，达到同规模业界SOTA水平。",
-            "maxInputTokens": 126000,
-            "maxOutputTokens": 16000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-30b-a3b",
-            "name": "通义千问3-30B-A3B (阿里云百炼)",
-            "tooltip": "实现思考模式和非思考模式的有效融合，可在对话中切换模式。推理能力以更小参数规模比肩QwQ-32B、通用能力显著超过Qwen2.5-14B，达到同规模业界SOTA水平。",
-            "maxInputTokens": 96000,
-            "maxOutputTokens": 8192,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-32b",
-            "name": "通义千问3-32B (阿里云百炼)",
-            "tooltip": "实现思考模式和非思考模式的有效融合，可在对话中切换模式。推理能力显著超过QwQ、通用能力显著超过Qwen2.5-32B-Instruct，达到同规模业界SOTA水平。",
-            "maxInputTokens": 96000,
-            "maxOutputTokens": 8192,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-14b",
-            "name": "通义千问3-14B (阿里云百炼)",
-            "tooltip": "实现思考模式和非思考模式的有效融合，可在对话中切换模式。推理能力达到同规模业界SOTA水平、通用能力显著超过Qwen2.5-14B。",
-            "maxInputTokens": 96000,
-            "maxOutputTokens": 8192,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-8b",
-            "name": "通义千问3-8B (阿里云百炼)",
-            "tooltip": "实现思考模式和非思考模式的有效融合，可在对话中切换模式。推理能力达到同规模业界SOTA水平、通用能力显著超过Qwen2.5-7B。",
-            "maxInputTokens": 96000,
-            "maxOutputTokens": 8192,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-4b",
-            "name": "通义千问3-4B (阿里云百炼)",
-            "tooltip": "实现思考模式和非思考模式的有效融合，可在对话中切换模式。推理能力达到同规模业界SOTA水平、模型人类偏好能力显著增强，创意写作、角色扮演、多轮对话、指令遵循能力均有明显提升，用户体验预期明显更佳。",
-            "maxInputTokens": 96000,
-            "maxOutputTokens": 8192,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-1.7b",
-            "name": "通义千问3-1.7B (阿里云百炼)",
-            "tooltip": "实现思考模式和非思考模式的有效融合，可在对话中切换模式。通用能力显著超过Qwen2.5小规模系列，模型人类偏好能力显著增强，创意写作、角色扮演、多轮对话、指令遵循能力均有明显提升，用户体验预期明显更佳。",
-            "maxInputTokens": 28000,
-            "maxOutputTokens": 8192,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-0.6b",
-            "name": "通义千问3-0.6B (阿里云百炼)",
-            "tooltip": "实现思考模式和非思考模式的有效融合，可在对话中切换模式。通用能力显著超过Qwen2.5小规模系列。",
-            "maxInputTokens": 28000,
-            "maxOutputTokens": 8192,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "deepseek-v3.2-exp",
-            "name": "Deepseek-V3.2-Exp (阿里云百炼)",
-            "tooltip": "引入了DeepSeek Sparse Attention（一种稀疏注意力机制）的实验性质版本，针对长文本的训练和推理效率进行了探索性的优化和验证。",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 16000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "deepseek-v3.1",
-            "name": "DeepSeek-V3.1 (阿里云百炼)",
-            "tooltip": "DeepSeek-V3.1为混合推理架构模型，同时支持思考模式与非思考模式，具备更高的推理效率和更强的Agent能力。",
-            "maxInputTokens": 96000,
-            "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "deepseek-v3",
-            "name": "DeepSeek-V3 (阿里云百炼)",
-            "tooltip": "DeepSeek-V3 为自研 MoE 模型，671B 参数，激活 37B，在 14.8T token 上进行了预训练，在长文本、代码、数学、百科、中文 能力上表现优秀。",
-            "maxInputTokens": 56000,
-            "maxOutputTokens": 8000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "glm-4.5",
-            "name": "GLM-4.5 (阿里云百炼)",
-            "tooltip": "GLM-4.5采用混合专家（MoE）架构，总参数量为3550 亿，激活参数320亿，在复杂推理、代码生成及智能体交互等通用能力上实现了能力融合与技术突破。",
-            "maxInputTokens": 96000,
-            "maxOutputTokens": 16000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "glm-4.5-air",
-            "name": "GLM-4.5-Air (阿里云百炼)",
-            "tooltip": "GLM-4.5-Air采用混合专家（MoE）架构，总参数量为1060亿，激活参数120亿，相较GLM-4.5更紧凑、轻量，适用于对模型规模和资源消耗有一定限制的场景。",
-            "maxInputTokens": 96000,
-            "maxOutputTokens": 16000,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false

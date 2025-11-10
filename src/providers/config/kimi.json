@@ -18,7 +18,7 @@
             "customHeader": {
                 "HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
                 "X-Title": "Roo Code",
-                "User-Agent": "RooCode/3.29.0"
+                "User-Agent": "RooCode/3.31.0"
             }
         }
     ]

@@ -56,8 +56,8 @@
             "customHeader": {
                 "HTTP-Referer": "https://kilocode.ai",
                 "X-Title": "Kilo Code",
-                "X-KiloCode-Version": "4.110.0",
-                "User-Agent": "Kilo-Code/4.110.0"
+                "X-KiloCode-Version": "4.117.0",
+                "User-Agent": "Kilo-Code/4.117.0"
             }
         },
         {

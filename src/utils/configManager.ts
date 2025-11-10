@@ -281,11 +281,12 @@ export class ConfigManager {
                         );
                     }
                 } else {
+                    const fullConfig = modelOverride as ModelConfig;
                     // 添加新模型
                     const newModel: ModelConfig = {
                         id: modelOverride.id,
-                        name: modelOverride.id, // 默认使用ID作为名称
-                        tooltip: `用户自定义模型: ${modelOverride.id}`,
+                        name: fullConfig?.name || modelOverride.id, // 默认使用ID作为名称
+                        tooltip: fullConfig?.tooltip || `用户自定义模型: ${modelOverride.id}`,
                         maxInputTokens: modelOverride.maxInputTokens || 128000,
                         maxOutputTokens: modelOverride.maxOutputTokens || 8192,
                         capabilities: {
