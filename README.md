@@ -60,7 +60,9 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 
 ### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
 
-- **豆包系列**：**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
+- [**Coding Plan套餐**](https://www.volcengine.com/activity/codingplan)：**Doubao-Seed-Code**
+
+- **豆包系列**：**Doubao-Seed-Code**、**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
 
 ### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
 

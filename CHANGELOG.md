@@ -2,6 +2,16 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的所有重要更改。
 
+## [0.10.1] - 2025-11-11
+
+### 新增
+
+- **火山方舟** 提供商新增 `Doubao-Seed-Code` 模型支持，支持 Coding Plan 套餐模型
+
+### 移除
+
+- 存在自主模型的提供商移除所有的三方模型，仅保留自主模型。若要需要可自行增加使用。
+
 ## [0.10.0] - 2025-11-10
 
 ### 新增
@@ -11,20 +21,19 @@
 ### 移除
 
 - 移除 EOL 提供商：
-[**硅基流动**](https://siliconflow.cn/)、
-[**无问芯穹**](https://cloud.infini-ai.com/)、
-[**基石智算**](https://www.coreshub.cn/)、
-[**腾讯云**](https://cloud.tencent.com/)、
-[**华为云**](https://www.huaweicloud.com/product/modelarts/studio.html)、
-[**京东云**](https://www.jdcloud.com/)、
-[**七牛云**](https://www.qiniu.com/)、
-[**零克云**](https://gpulink.cc/model-market/model-center/modelCenter)、
-[**UCloud**](https://www.ucloud.cn/)、
-[**SophNet**](https://sophnet.com/)、
-[**并行智算云**](https://ai.paratera.com/)、
-[**PPIO派欧云**](https://ppio.com/)、
-[**蓝耘元生代**](https://maas.lanyun.net/)
-
+  [**硅基流动**](https://siliconflow.cn/)、
+  [**无问芯穹**](https://cloud.infini-ai.com/)、
+  [**基石智算**](https://www.coreshub.cn/)、
+  [**腾讯云**](https://cloud.tencent.com/)、
+  [**华为云**](https://www.huaweicloud.com/product/modelarts/studio.html)、
+  [**京东云**](https://www.jdcloud.com/)、
+  [**七牛云**](https://www.qiniu.com/)、
+  [**零克云**](https://gpulink.cc/model-market/model-center/modelCenter)、
+  [**UCloud**](https://www.ucloud.cn/)、
+  [**SophNet**](https://sophnet.com/)、
+  [**并行智算云**](https://ai.paratera.com/)、
+  [**PPIO派欧云**](https://ppio.com/)、
+  [**蓝耘元生代**](https://maas.lanyun.net/)
 
 ## [0.9.6] - 2025-11-07
 
