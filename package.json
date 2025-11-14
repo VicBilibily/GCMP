@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、MiniMax、心流AI、MoonshotAI、DeepSeek、火山方舟、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.10.1",
+    "version": "0.10.2",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -45,9 +45,6 @@
         "node": ">=20.0.0",
         "npm": ">=9.0.0"
     },
-    "extensionDependencies": [
-        "github.copilot-chat"
-    ],
     "categories": [
         "AI",
         "Chat"
@@ -317,72 +314,72 @@
         "languageModelChatProviders": [
             {
                 "vendor": "gcmp.zhipu",
-                "displayName": "智谱AI",
+                "displayName": "$(comment-discussion) 智谱AI (GLM Coding Plan)",
                 "managementCommand": "gcmp.zhipu.configWizard"
             },
             {
                 "vendor": "gcmp.kimi",
-                "displayName": "Kimi",
+                "displayName": "$(comment-discussion) Kimi For Coding",
                 "managementCommand": "gcmp.kimi.setApiKey"
             },
             {
                 "vendor": "gcmp.minimax",
-                "displayName": "MiniMax",
+                "displayName": "$(comment-discussion) MiniMax",
                 "managementCommand": "gcmp.minimax.setApiKey"
             },
             {
                 "vendor": "gcmp.iflow",
-                "displayName": "心流AI",
+                "displayName": "$(comment-discussion) 心流AI (iFlow) 「免费」",
                 "managementCommand": "gcmp.iflow.setApiKey"
             },
             {
                 "vendor": "gcmp.moonshot",
-                "displayName": "MoonshotAI",
+                "displayName": "$(comment-discussion) MoonshotAI",
                 "managementCommand": "gcmp.moonshot.setApiKey"
             },
             {
                 "vendor": "gcmp.deepseek",
-                "displayName": "DeepSeek",
+                "displayName": "$(comment-discussion) DeepSeek",
                 "managementCommand": "gcmp.deepseek.setApiKey"
             },
             {
                 "vendor": "gcmp.volcengine",
-                "displayName": "火山方舟",
+                "displayName": "$(comment-discussion) 火山方舟 (Coding Plan)",
                 "managementCommand": "gcmp.volcengine.setApiKey"
             },
             {
                 "vendor": "gcmp.streamlake",
-                "displayName": "快手万擎 (KAT-Coder)",
+                "displayName": "$(comment-discussion) 快手万擎 (KAT-Coder)",
                 "managementCommand": "gcmp.streamlake.configWizard"
             },
             {
                 "vendor": "gcmp.dashscope",
-                "displayName": "阿里云百炼",
+                "displayName": "$(comment-discussion) 阿里云百炼",
                 "managementCommand": "gcmp.dashscope.setApiKey"
             },
             {
                 "vendor": "gcmp.modelscope",
-                "displayName": "ModelScope (Beta)",
+                "displayName": "$(comment-draft) ModelScope (Beta)",
                 "managementCommand": "gcmp.modelscope.setApiKey"
             },
             {
                 "vendor": "gcmp.aiping",
-                "displayName": "AI Ping (Beta)",
+                "displayName": "$(comment-draft) AI Ping (Beta)",
                 "managementCommand": "gcmp.aiping.setApiKey"
             },
             {
                 "vendor": "gcmp.baidu",
-                "displayName": "百度智能云 (Beta)",
+                "displayName": "$(comment-draft) 百度智能云 (Beta)",
                 "managementCommand": "gcmp.baidu.setApiKey"
             },
             {
                 "vendor": "gcmp.tbox",
-                "displayName": "百灵大模型 (Beta)",
+                "displayName": "$(comment-draft) 百灵大模型 (Beta)",
                 "managementCommand": "gcmp.tbox.setApiKey"
             },
             {
                 "vendor": "gcmp.compatible",
-                "displayName": "OpenAI / Anthropic Compatible (Beta)",
+                "displayName": "$(comment-unresolved) OpenAI / Anthropic Compatible (Beta)",
                 "managementCommand": "gcmp.compatible.manageModels"
             }
         ],
