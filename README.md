@@ -195,7 +195,7 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
 }
 ```
 
-#### 🔌 OpenAI / Anthropic Compatible 自定义模型支持 (Beta)
+#### 🔌 OpenAI / Anthropic Compatible 自定义模型支持 (GA)
 
 GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 OpenAI 或 Anthropic 兼容的 API。通过 `gcmp.compatibleModels` 配置，您可以完全自定义模型参数，包括扩展请求参数。
 

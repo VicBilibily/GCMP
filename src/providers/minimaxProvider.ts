@@ -121,54 +121,44 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
 
     /**
      * 重写：获取模型信息 - 添加密钥检查
-     * 在获取模型列表时检查每个模型对应的密钥是否存在
+     * 只要有任意密钥存在就返回所有模型，不进行过滤
+     * 具体的密钥验证在实际使用时（provideLanguageModelChatResponse）进行
      */
     override async provideLanguageModelChatInformation(
         options: { silent: boolean },
         _token: CancellationToken
     ): Promise<LanguageModelChatInformation[]> {
-        // 首先检查普通 minimax 密钥（用于非 Coding Plan 模型）
+        // 检查是否有任意密钥
         const hasNormalKey = await ApiKeyManager.hasValidApiKey(this.providerKey);
-
-        // 检查 Coding Plan 密钥（用于 Coding Plan 模型）
         const hasCodingKey = await ApiKeyManager.hasValidApiKey('minimax-coding');
+        const hasAnyKey = hasNormalKey || hasCodingKey;
 
-        // 如果是静默模式且任何密钥都不存在，直接返回空列表
-        if (options.silent && !hasNormalKey && !hasCodingKey) {
-            Logger.debug(`${this.providerConfig.displayName}: 静默模式下，密钥不存在，返回空模型列表`);
+        // 如果是静默模式且没有任何密钥，直接返回空列表
+        if (options.silent && !hasAnyKey) {
+            Logger.debug(`${this.providerConfig.displayName}: 静默模式下，未检测到任何密钥，返回空模型列表`);
             return [];
         }
 
-        // 非静默模式：检查是否需要设置任何密钥
-        if (!options.silent && !hasNormalKey && !hasCodingKey) {
-            // 如果两种密钥都不存在，弹出配置向导
+        // 非静默模式：如果没有任何密钥，启动配置向导
+        if (!options.silent && !hasAnyKey) {
             Logger.info(`${this.providerConfig.displayName}: 检测到未配置任何密钥，启动配置向导`);
             await MiniMaxWizard.startWizard(this.providerConfig.displayName, this.providerConfig.apiKeyTemplate);
-        }
 
-        // 重新检查密钥状态
-        const normalKeyValid = await ApiKeyManager.hasValidApiKey(this.providerKey);
-        const codingKeyValid = await ApiKeyManager.hasValidApiKey('minimax-coding');
+            // 重新检查是否设置了密钥
+            const normalKeyValid = await ApiKeyManager.hasValidApiKey(this.providerKey);
+            const codingKeyValid = await ApiKeyManager.hasValidApiKey('minimax-coding');
 
-        // 过滤模型：只返回有对应密钥的模型
-        const availableModels: LanguageModelChatInformation[] = [];
-
-        for (const model of this.providerConfig.models) {
-            const modelProviderKey = this.getProviderKeyForModel(model);
-            const isModelKeyValid = modelProviderKey === 'minimax-coding' ? codingKeyValid : normalKeyValid;
-
-            if (isModelKeyValid) {
-                availableModels.push(this.modelConfigToInfo(model));
-            } else {
-                Logger.debug(`模型 ${model.name} 因缺少对应密钥被过滤 (需要: ${modelProviderKey})`);
+            // 如果用户仍未设置任何密钥，返回空列表
+            if (!normalKeyValid && !codingKeyValid) {
+                Logger.warn(`${this.providerConfig.displayName}: 用户未设置任何密钥，返回空模型列表`);
+                return [];
             }
         }
 
-        if (availableModels.length === 0) {
-            Logger.warn(`${this.providerConfig.displayName}: 没有有效的模型可用（缺少所有密钥）`);
-        }
-
-        return availableModels;
+        // 返回所有模型，不进行过滤
+        // 具体的密钥验证会在用户选择模型后的 provideLanguageModelChatResponse 中进行
+        Logger.debug(`${this.providerConfig.displayName}: 返回全部 ${this.providerConfig.models.length} 个模型`);
+        return this.providerConfig.models.map(model => this.modelConfigToInfo(model));
     }
 
     /**
