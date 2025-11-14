@@ -1,0 +1,228 @@
+/*---------------------------------------------------------------------------------------------
+ *  MiniMax 专用 Provider
+ *  为 MiniMax 提供商提供多密钥管理和专属配置向导功能
+ *--------------------------------------------------------------------------------------------*/
+
+import * as vscode from 'vscode';
+import {
+    CancellationToken,
+    LanguageModelChatInformation,
+    LanguageModelChatMessage,
+    LanguageModelChatProvider,
+    Progress,
+    ProvideLanguageModelChatResponseOptions
+} from 'vscode';
+import { GenericModelProvider } from './genericModelProvider';
+import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
+import { Logger, ApiKeyManager, MiniMaxWizard } from '../utils';
+
+/**
+ * MiniMax 专用模型提供商类
+ * 继承 GenericModelProvider，添加多密钥管理和配置向导功能
+ */
+export class MiniMaxProvider extends GenericModelProvider implements LanguageModelChatProvider {
+    constructor(providerKey: string, providerConfig: ProviderConfig) {
+        super(providerKey, providerConfig);
+    }
+
+    /**
+     * 静态工厂方法 - 创建并激活 MiniMax 提供商
+     */
+    static createAndActivate(
+        context: vscode.ExtensionContext,
+        providerKey: string,
+        providerConfig: ProviderConfig
+    ): { provider: MiniMaxProvider; disposables: vscode.Disposable[] } {
+        Logger.trace(`${providerConfig.displayName} 专用模型扩展已激活!`);
+        // 创建提供商实例
+        const provider = new MiniMaxProvider(providerKey, providerConfig);
+        // 注册语言模型聊天提供商
+        const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
+
+        // 注册设置普通 API 密钥命令
+        const setApiKeyCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.setApiKey`, async () => {
+            await MiniMaxWizard.setNormalApiKey(providerConfig.displayName, providerConfig.apiKeyTemplate);
+        });
+
+        // 注册设置 Coding Plan 专用密钥命令
+        const setCodingKeyCommand = vscode.commands.registerCommand(
+            `gcmp.${providerKey}.setCodingPlanApiKey`,
+            async () => {
+                await MiniMaxWizard.setCodingPlanApiKey(providerConfig.displayName, providerConfig.apiKeyTemplate);
+            }
+        );
+
+        // 注册配置向导命令
+        const configWizardCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.configWizard`, async () => {
+            Logger.info(`启动 ${providerConfig.displayName} 配置向导`);
+            await MiniMaxWizard.startWizard(providerConfig.displayName, providerConfig.apiKeyTemplate);
+        });
+
+        const disposables = [providerDisposable, setApiKeyCommand, setCodingKeyCommand, configWizardCommand];
+        disposables.forEach(disposable => context.subscriptions.push(disposable));
+        return { provider, disposables };
+    }
+
+    /**
+     * 获取模型对应的 provider key（考虑 provider 字段和默认值）
+     */
+    private getProviderKeyForModel(modelConfig: ModelConfig): string {
+        // 优先使用模型特定的 provider 字段
+        if (modelConfig.provider) {
+            return modelConfig.provider;
+        }
+        // 否则使用提供商默认的 provider key
+        return this.providerKey;
+    }
+
+    /**
+     * 获取模型对应的密钥，确保存在有效密钥
+     * @param modelConfig 模型配置
+     * @returns 返回可用的 API 密钥
+     */
+    private async ensureApiKeyForModel(modelConfig: ModelConfig): Promise<string> {
+        const providerKey = this.getProviderKeyForModel(modelConfig);
+        const isCodingPlan = providerKey === 'minimax-coding';
+        const keyType = isCodingPlan ? 'Coding Plan 专用' : '普通';
+
+        // 检查是否已有密钥
+        const hasApiKey = await ApiKeyManager.hasValidApiKey(providerKey);
+        if (hasApiKey) {
+            const apiKey = await ApiKeyManager.getApiKey(providerKey);
+            if (apiKey) {
+                return apiKey;
+            }
+        }
+
+        // 密钥不存在，直接进入设置流程（不弹窗确认）
+        Logger.warn(`模型 ${modelConfig.name} 缺少 ${keyType} API 密钥，进入设置流程`);
+
+        if (isCodingPlan) {
+            // Coding Plan 模型直接进入专用密钥设置
+            await MiniMaxWizard.setCodingPlanApiKey(
+                this.providerConfig.displayName,
+                this.providerConfig.apiKeyTemplate
+            );
+        } else {
+            // 普通模型直接进入普通密钥设置
+            await MiniMaxWizard.setNormalApiKey(this.providerConfig.displayName, this.providerConfig.apiKeyTemplate);
+        }
+
+        // 重新检查密钥是否设置成功
+        const apiKey = await ApiKeyManager.getApiKey(providerKey);
+        if (apiKey) {
+            Logger.info(`${keyType}密钥设置成功`);
+            return apiKey;
+        }
+
+        // 用户未设置或设置失败
+        throw new Error(`${this.providerConfig.displayName}: 用户未设置 ${keyType} API 密钥`);
+    }
+
+    /**
+     * 重写：获取模型信息 - 添加密钥检查
+     * 在获取模型列表时检查每个模型对应的密钥是否存在
+     */
+    override async provideLanguageModelChatInformation(
+        options: { silent: boolean },
+        _token: CancellationToken
+    ): Promise<LanguageModelChatInformation[]> {
+        // 首先检查普通 minimax 密钥（用于非 Coding Plan 模型）
+        const hasNormalKey = await ApiKeyManager.hasValidApiKey(this.providerKey);
+
+        // 检查 Coding Plan 密钥（用于 Coding Plan 模型）
+        const hasCodingKey = await ApiKeyManager.hasValidApiKey('minimax-coding');
+
+        // 如果是静默模式且任何密钥都不存在，直接返回空列表
+        if (options.silent && !hasNormalKey && !hasCodingKey) {
+            Logger.debug(`${this.providerConfig.displayName}: 静默模式下，密钥不存在，返回空模型列表`);
+            return [];
+        }
+
+        // 非静默模式：检查是否需要设置任何密钥
+        if (!options.silent && !hasNormalKey && !hasCodingKey) {
+            // 如果两种密钥都不存在，弹出配置向导
+            Logger.info(`${this.providerConfig.displayName}: 检测到未配置任何密钥，启动配置向导`);
+            await MiniMaxWizard.startWizard(this.providerConfig.displayName, this.providerConfig.apiKeyTemplate);
+        }
+
+        // 重新检查密钥状态
+        const normalKeyValid = await ApiKeyManager.hasValidApiKey(this.providerKey);
+        const codingKeyValid = await ApiKeyManager.hasValidApiKey('minimax-coding');
+
+        // 过滤模型：只返回有对应密钥的模型
+        const availableModels: LanguageModelChatInformation[] = [];
+
+        for (const model of this.providerConfig.models) {
+            const modelProviderKey = this.getProviderKeyForModel(model);
+            const isModelKeyValid = modelProviderKey === 'minimax-coding' ? codingKeyValid : normalKeyValid;
+
+            if (isModelKeyValid) {
+                availableModels.push(this.modelConfigToInfo(model));
+            } else {
+                Logger.debug(`模型 ${model.name} 因缺少对应密钥被过滤 (需要: ${modelProviderKey})`);
+            }
+        }
+
+        if (availableModels.length === 0) {
+            Logger.warn(`${this.providerConfig.displayName}: 没有有效的模型可用（缺少所有密钥）`);
+        }
+
+        return availableModels;
+    }
+
+    /**
+     * 重写：提供语言模型聊天响应 - 添加请求前密钥确保机制
+     * 在处理请求前确保对应的密钥存在
+     */
+    override async provideLanguageModelChatResponse(
+        model: LanguageModelChatInformation,
+        messages: Array<LanguageModelChatMessage>,
+        options: ProvideLanguageModelChatResponseOptions,
+        progress: Progress<vscode.LanguageModelResponsePart>,
+        _token: CancellationToken
+    ): Promise<void> {
+        // 查找对应的模型配置
+        const modelConfig = this.providerConfig.models.find((m: ModelConfig) => m.id === model.id);
+        if (!modelConfig) {
+            const errorMessage = `未找到模型: ${model.id}`;
+            Logger.error(errorMessage);
+            throw new Error(errorMessage);
+        }
+
+        // 请求前：确保模型对应的密钥存在
+        // 这会在没有密钥时弹出设置对话框
+        const providerKey = this.getProviderKeyForModel(modelConfig);
+        const apiKey = await this.ensureApiKeyForModel(modelConfig);
+
+        if (!apiKey) {
+            const keyType = providerKey === 'minimax-coding' ? 'Coding Plan 专用' : '普通';
+            throw new Error(`${this.providerConfig.displayName}: 无效的 ${keyType} API 密钥`);
+        }
+
+        Logger.info(
+            `${this.providerConfig.displayName}: 即将处理请求，使用 ${providerKey === 'minimax-coding' ? 'Coding Plan' : '普通'} 密钥 - 模型: ${modelConfig.name}`
+        );
+
+        // 根据模型的 sdkMode 选择使用的 handler
+        // 注：此处不调用 super.provideLanguageModelChatResponse，而是直接处理
+        // 避免双重密钥检查，因为我们已经在 ensureApiKeyForModel 中检查过了
+        const sdkMode = modelConfig.sdkMode || 'openai';
+        const sdkName = sdkMode === 'anthropic' ? 'Anthropic SDK' : 'OpenAI SDK';
+        Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
+
+        try {
+            if (sdkMode === 'anthropic') {
+                await this.anthropicHandler.handleRequest(model, modelConfig, messages, options, progress, _token);
+            } else {
+                await this.openaiHandler.handleRequest(model, modelConfig, messages, options, progress, _token);
+            }
+        } catch (error) {
+            const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
+            Logger.error(errorMessage);
+            throw error;
+        } finally {
+            Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} 请求已完成`);
+        }
+    }
+}

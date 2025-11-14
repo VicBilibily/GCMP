@@ -193,8 +193,12 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             throw new Error(errorMessage);
         }
 
-        // 确保有API密钥
-        await ApiKeyManager.ensureApiKey(this.providerKey, this.providerConfig.displayName);
+        // 根据模型配置中的 provider 字段确定实际使用的提供商
+        // 这样可以正确处理同一提供商下不同模型使用不同密钥的情况
+        const effectiveProviderKey = modelConfig.provider || this.providerKey;
+
+        // 确保对应提供商的 API 密钥存在
+        await ApiKeyManager.ensureApiKey(effectiveProviderKey, this.providerConfig.displayName);
 
         // 根据模型的 sdkMode 选择使用的 handler
         const sdkMode = modelConfig.sdkMode || 'openai';

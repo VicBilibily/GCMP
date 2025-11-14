@@ -4,6 +4,7 @@ import { ZhipuProvider } from './providers/zhipuProvider';
 import { IFlowProvider } from './providers/iflowProvider';
 import { ModelScopeProvider } from './providers/modelscopeProvider';
 import { StreamLakeProvider } from './providers/streamlakeProvider';
+import { MiniMaxProvider } from './providers/minimaxProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
 import { Logger } from './utils/logger';
 import { ApiKeyManager, ConfigManager, JsonSchemaProvider } from './utils';
@@ -15,7 +16,13 @@ import { registerAllTools } from './tools';
  */
 const registeredProviders: Record<
     string,
-    GenericModelProvider | ZhipuProvider | IFlowProvider | ModelScopeProvider | StreamLakeProvider | CompatibleProvider
+    | GenericModelProvider
+    | ZhipuProvider
+    | IFlowProvider
+    | ModelScopeProvider
+    | StreamLakeProvider
+    | MiniMaxProvider
+    | CompatibleProvider
 > = {};
 const registeredDisposables: vscode.Disposable[] = [];
 
@@ -44,7 +51,8 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
                 | ZhipuProvider
                 | IFlowProvider
                 | ModelScopeProvider
-                | StreamLakeProvider;
+                | StreamLakeProvider
+                | MiniMaxProvider;
             let disposables: vscode.Disposable[];
 
             if (providerKey === 'zhipu') {
@@ -55,6 +63,11 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
             } else if (providerKey === 'iflow') {
                 // 对 iflow 使用专门的 provider
                 const result = IFlowProvider.createAndActivate(context, providerKey, providerConfig);
+                provider = result.provider;
+                disposables = result.disposables;
+            } else if (providerKey === 'minimax') {
+                // 对 minimax 使用专门的 provider（多密钥管理和配置向导）
+                const result = MiniMaxProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
             } else if (providerKey === 'modelscope' || providerKey === 'tbox') {

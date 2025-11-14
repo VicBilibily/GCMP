@@ -84,6 +84,11 @@
                 "capabilities": {
                     "$ref": "#/$defs/capabilities"
                 },
+                "provider": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "模型特定的提供商标识符。用于指定该模型使用的提供商进行API密钥查找，使得同一提供商下的不同模型可以使用不同的API密钥。"
+                },
                 "sdkMode": {
                     "type": "string",
                     "enum": ["openai", "anthropic"],

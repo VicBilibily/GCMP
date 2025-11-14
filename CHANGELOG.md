@@ -2,11 +2,19 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的所有重要更改。
 
+## [0.11.0] - 2025-11-15
+
+### 新增
+
+- **MiniMax** 提供商新增 `Coding Plan 编程套餐` 支持
+    - 支持单独为 `Coding Plan 编程套餐` 设置专用 Api 密钥
+- **百度智能云** 提供商新增 `ERNIE-5.0` 模型支持
+
 ## [0.10.1] - 2025-11-11
 
 ### 新增
 
-- **火山方舟** 提供商新增 `Doubao-Seed-Code` 模型支持，支持 Coding Plan 套餐模型
+- **火山方舟** 提供商新增 `Doubao-Seed-Code` 模型支持，支持 `Coding Plan 套餐` 模型
 
 ### 移除
 

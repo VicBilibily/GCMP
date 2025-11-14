@@ -13,5 +13,6 @@ export { MCPWebSearchClient } from './mcpWebSearchClient';
 export { VersionManager } from './versionManager';
 export { ZhipuWizard } from './zhipuWizard';
 export { StreamlakeWizard } from './streamlakeWizard';
+export { MiniMaxWizard } from './minimaxWizard';
 export { JsonSchemaProvider } from './jsonSchemaProvider';
 export { RetryManager } from './retryManager';

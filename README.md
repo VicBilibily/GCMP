@@ -35,11 +35,16 @@
 
 Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic SDK 模拟为 Roo Code 请求。
 
+### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
+
+- [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：**Doubao-Seed-Code**
+
+- **豆包系列**：**Doubao-Seed-Code**、**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
+
 ### [**MiniMax**](https://platform.minimaxi.com/login)
 
-> - [**编程套餐**](https://mp.weixin.qq.com/s/c9zSXtBxOGAlUeN683y00A)：`受限于一些外部的对接流程，我们预计在11月14号给开发者朋友提供收费的编程套餐。为了方便个人开发者朋友使用，在编程套餐正式推出前，依然为个人开发者提供足够同时进行两个Vibe Coding项目的免费服务。使用时，请选择MiniMax-M2。`
-
-- **支持模型**：**MiniMax-M2**、**MiniMax-M2-Stable**、**MiniMax-M1**
+- [**Coding Plan 编程套餐**](https://platform.minimaxi.com/subscribe/coding-plan)：**MiniMax-M2**
+- **标准模型**：**MiniMax-M2**、**MiniMax-M2-Stable**、**MiniMax-M1**
 
 ### [**心流AI**](https://platform.iflow.cn/) - iFlow
 
@@ -57,12 +62,6 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 ### [**DeepSeek**](https://platform.deepseek.com/) - 深度求索
 
 - 支持模型：**DeepSeek-V3.2-Exp**，包含思考模式聊天模型。
-
-### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
-
-- [**Coding Plan套餐**](https://www.volcengine.com/activity/codingplan)：**Doubao-Seed-Code**
-
-- **豆包系列**：**Doubao-Seed-Code**、**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
 
 ### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
 

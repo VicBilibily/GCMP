@@ -2,11 +2,11 @@ import { ProviderConfig } from '../../types/sharedTypes';
 // 统一导出所有模型配置，便于代码 import
 import zhipu from './zhipu.json';
 import kimi from './kimi.json';
+import volcengine from './volcengine.json';
 import minimax from './minimax.json';
 import iflow from './iflow.json';
 import moonshot from './moonshot.json';
 import deepseek from './deepseek.json';
-import volcengine from './volcengine.json';
 import streamlake from './streamlake.json';
 import dashscope from './dashscope.json';
 import modelscope from './modelscope.json';
@@ -17,11 +17,11 @@ import tbox from './tbox.json';
 const providers = {
     zhipu,
     kimi,
+    volcengine,
     minimax,
     iflow,
     moonshot,
     deepseek,
-    volcengine,
     streamlake,
     dashscope,
     modelscope,

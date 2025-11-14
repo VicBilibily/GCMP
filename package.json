@@ -2,8 +2,8 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、MiniMax、心流AI、MoonshotAI、DeepSeek、火山方舟、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.10.2",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、火山方舟、MiniMax、心流AI、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
+    "version": "0.11.0",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -13,28 +13,29 @@
         "language-model",
         "zhipu",
         "kimi",
+        "volcengine",
+        "minimax",
         "iflow",
         "moonshot",
         "deepseek",
-        "volcengine",
         "streamlake",
         "dashscope",
-        "minimax",
         "modelscope",
         "baidu",
         "tbox",
         "OpenAI Compatible",
         "Anthropic Compatible",
         "智谱AI",
+        "火山方舟",
         "心流AI",
         "月之暗面",
         "深度求索",
-        "火山方舟",
         "快手万擎",
         "阿里云百炼",
         "魔搭社区",
         "百度智能云",
-        "百灵大模型"
+        "百灵大模型",
+        "Coding Plan 编程套餐"
     ],
     "repository": {
         "type": "git",
@@ -58,13 +59,13 @@
         "onStartupFinished",
         "onLanguageModelProvider:gcmp.zhipu",
         "onLanguageModelProvider:gcmp.kimi",
+        "onLanguageModelProvider:gcmp.volcengine",
+        "onLanguageModelProvider:gcmp.minimax",
         "onLanguageModelProvider:gcmp.iflow",
         "onLanguageModelProvider:gcmp.moonshot",
         "onLanguageModelProvider:gcmp.deepseek",
-        "onLanguageModelProvider:gcmp.volcengine",
         "onLanguageModelProvider:gcmp.streamlake",
         "onLanguageModelProvider:gcmp.dashscope",
-        "onLanguageModelProvider:gcmp.minimax",
         "onLanguageModelProvider:gcmp.modelscope",
         "onLanguageModelProvider:gcmp.aiping",
         "onLanguageModelProvider:gcmp.baidu",
@@ -91,8 +92,23 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.volcengine.setApiKey",
+                "title": "设置 火山方舟 API密钥",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.minimax.setApiKey",
                 "title": "设置 MiniMax API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.minimax.setCodingPlanApiKey",
+                "title": "设置 MiniMax Coding Plan 专用密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.minimax.configWizard",
+                "title": "启动 MiniMax 配置向导",
                 "category": "GCMP"
             },
             {
@@ -108,11 +124,6 @@
             {
                 "command": "gcmp.deepseek.setApiKey",
                 "title": "设置 DeepSeek API密钥",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.volcengine.setApiKey",
-                "title": "设置 火山方舟 API密钥",
                 "category": "GCMP"
             },
             {
@@ -323,9 +334,14 @@
                 "managementCommand": "gcmp.kimi.setApiKey"
             },
             {
+                "vendor": "gcmp.volcengine",
+                "displayName": "$(comment-discussion) 火山方舟 (Coding Plan)",
+                "managementCommand": "gcmp.volcengine.setApiKey"
+            },
+            {
                 "vendor": "gcmp.minimax",
-                "displayName": "$(comment-discussion) MiniMax",
-                "managementCommand": "gcmp.minimax.setApiKey"
+                "displayName": "$(comment-discussion) MiniMax (Coding Plan)",
+                "managementCommand": "gcmp.minimax.configWizard"
             },
             {
                 "vendor": "gcmp.iflow",
@@ -341,11 +357,6 @@
                 "vendor": "gcmp.deepseek",
                 "displayName": "$(comment-discussion) DeepSeek",
                 "managementCommand": "gcmp.deepseek.setApiKey"
-            },
-            {
-                "vendor": "gcmp.volcengine",
-                "displayName": "$(comment-discussion) 火山方舟 (Coding Plan)",
-                "managementCommand": "gcmp.volcengine.setApiKey"
             },
             {
                 "vendor": "gcmp.streamlake",
@@ -379,7 +390,7 @@
             },
             {
                 "vendor": "gcmp.compatible",
-                "displayName": "$(comment-unresolved) OpenAI / Anthropic Compatible (Beta)",
+                "displayName": "$(comment-unresolved) OpenAI / Anthropic Compatible (GA)",
                 "managementCommand": "gcmp.compatible.manageModels"
             }
         ],
