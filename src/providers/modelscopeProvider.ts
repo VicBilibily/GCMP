@@ -36,8 +36,8 @@ export class ModelScopeProvider extends GenericModelProvider implements Language
     // 重试管理器
     private retryManager: RetryManager;
 
-    constructor(providerKey: string, providerConfig: ProviderConfig) {
-        super(providerKey, providerConfig);
+    constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
+        super(context, providerKey, providerConfig);
         // 为 ModelScope 配置特定的重试参数
         this.retryManager = new RetryManager({
             maxAttempts: 3,
@@ -58,7 +58,7 @@ export class ModelScopeProvider extends GenericModelProvider implements Language
     ): { provider: ModelScopeProvider; disposables: vscode.Disposable[] } {
         Logger.trace(`${providerConfig.displayName} 专用模型扩展已激活!`);
         // 创建提供商实例
-        const provider = new ModelScopeProvider(providerKey, providerConfig);
+        const provider = new ModelScopeProvider(context, providerKey, providerConfig);
         // 注册语言模型聊天提供商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
         // 注册设置API密钥命令
@@ -68,6 +68,10 @@ export class ModelScopeProvider extends GenericModelProvider implements Language
                 providerConfig.displayName,
                 providerConfig.apiKeyTemplate
             );
+            // API 密钥变更后清除缓存
+            await provider.modelInfoCache?.invalidateCache(providerKey);
+            // 触发模型信息变更事件
+            provider._onDidChangeLanguageModelChatInformation.fire();
         });
         const disposables = [providerDisposable, setApiKeyCommand];
         disposables.forEach(disposable => context.subscriptions.push(disposable));

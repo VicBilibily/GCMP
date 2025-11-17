@@ -23,7 +23,7 @@ export class CompatibleProvider extends GenericModelProvider {
     private modelsChangeListener?: vscode.Disposable;
     private retryManager: RetryManager;
 
-    constructor() {
+    constructor(context: vscode.ExtensionContext) {
         // 创建一个虚拟的 ProviderConfig，实际模型配置从 CompatibleModelManager 获取
         const virtualConfig: ProviderConfig = {
             displayName: 'Compatible',
@@ -31,7 +31,7 @@ export class CompatibleProvider extends GenericModelProvider {
             apiKeyTemplate: 'sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
             models: [] // 空模型列表，实际从 CompatibleModelManager 获取
         };
-        super(CompatibleProvider.PROVIDER_KEY, virtualConfig);
+        super(context, CompatibleProvider.PROVIDER_KEY, virtualConfig);
 
         // 为 Compatible 配置特定的重试参数
         this.retryManager = new RetryManager({
@@ -46,6 +46,10 @@ export class CompatibleProvider extends GenericModelProvider {
         // 监听 CompatibleModelManager 的变更事件
         this.modelsChangeListener = CompatibleModelManager.onDidChangeModels(() => {
             this.getProviderConfig(); // 刷新配置缓存
+            // 清除模型缓存
+            this.modelInfoCache
+                ?.invalidateCache(CompatibleProvider.PROVIDER_KEY)
+                .catch(err => Logger.warn('[compatible] 清除缓存失败:', err));
             this._onDidChangeLanguageModelChatInformation.fire();
         });
     }
@@ -103,12 +107,28 @@ export class CompatibleProvider extends GenericModelProvider {
      * 重写：提供语言模型聊天信息
      * 直接获取最新的动态配置，不依赖构造时的配置
      * 检查所有模型涉及的提供商的 API Key
+     * 集成模型缓存机制以提高性能
      */
     async provideLanguageModelChatInformation(
         options: { silent: boolean },
         _token: vscode.CancellationToken
     ): Promise<LanguageModelChatInformation[]> {
         try {
+            // 获取 API 密钥的哈希值用于缓存验证
+            const apiKeyHash = await this.getApiKeyHash();
+
+            // 快速路径：检查缓存
+            const cachedModels = await this.modelInfoCache?.getCachedModels(
+                CompatibleProvider.PROVIDER_KEY,
+                apiKeyHash
+            );
+            if (cachedModels) {
+                Logger.trace(`✓ Compatible Provider 缓存命中: ${cachedModels.length} 个模型`);
+                // 后台异步更新缓存
+                this.updateModelCacheAsync(apiKeyHash);
+                return cachedModels;
+            }
+
             // 获取最新的动态配置
             const currentConfig = this.providerConfig;
             // 如果没有模型，直接返回空列表
@@ -152,6 +172,10 @@ export class CompatibleProvider extends GenericModelProvider {
                 return { ...info, detail: `${sdkModeDisplay} Compatible` };
             });
             Logger.debug(`Compatible Provider 提供了 ${modelInfos.length} 个模型信息`);
+
+            // 后台异步更新缓存
+            this.updateModelCacheAsync(apiKeyHash);
+
             return modelInfos;
         } catch (error) {
             Logger.error('获取 Compatible Provider 模型信息失败:', error);
@@ -270,7 +294,7 @@ export class CompatibleProvider extends GenericModelProvider {
     } {
         Logger.trace('Compatible Provider 已激活!');
         // 创建提供商实例
-        const provider = new CompatibleProvider();
+        const provider = new CompatibleProvider(context);
         // 注册语言模型聊天提供商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider('gcmp.compatible', provider);
         // 注册命令

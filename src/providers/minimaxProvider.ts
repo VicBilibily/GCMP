@@ -21,8 +21,8 @@ import { Logger, ApiKeyManager, MiniMaxWizard } from '../utils';
  * 继承 GenericModelProvider，添加多密钥管理和配置向导功能
  */
 export class MiniMaxProvider extends GenericModelProvider implements LanguageModelChatProvider {
-    constructor(providerKey: string, providerConfig: ProviderConfig) {
-        super(providerKey, providerConfig);
+    constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
+        super(context, providerKey, providerConfig);
     }
 
     /**
@@ -35,13 +35,17 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
     ): { provider: MiniMaxProvider; disposables: vscode.Disposable[] } {
         Logger.trace(`${providerConfig.displayName} 专用模型扩展已激活!`);
         // 创建提供商实例
-        const provider = new MiniMaxProvider(providerKey, providerConfig);
+        const provider = new MiniMaxProvider(context, providerKey, providerConfig);
         // 注册语言模型聊天提供商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
 
         // 注册设置普通 API 密钥命令
         const setApiKeyCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.setApiKey`, async () => {
             await MiniMaxWizard.setNormalApiKey(providerConfig.displayName, providerConfig.apiKeyTemplate);
+            // API 密钥变更后清除缓存
+            await provider.modelInfoCache?.invalidateCache(providerKey);
+            // 触发模型信息变更事件
+            provider._onDidChangeLanguageModelChatInformation.fire();
         });
 
         // 注册设置 Coding Plan 专用密钥命令
@@ -49,6 +53,10 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             `gcmp.${providerKey}.setCodingPlanApiKey`,
             async () => {
                 await MiniMaxWizard.setCodingPlanApiKey(providerConfig.displayName, providerConfig.apiKeyTemplate);
+                // API 密钥变更后清除缓存
+                await provider.modelInfoCache?.invalidateCache('minimax-coding');
+                // 触发模型信息变更事件
+                provider._onDidChangeLanguageModelChatInformation.fire();
             }
         );
 

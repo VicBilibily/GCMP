@@ -16,3 +16,4 @@ export { StreamlakeWizard } from './streamlakeWizard';
 export { MiniMaxWizard } from './minimaxWizard';
 export { JsonSchemaProvider } from './jsonSchemaProvider';
 export { RetryManager } from './retryManager';
+export { ModelInfoCache } from './modelInfoCache';

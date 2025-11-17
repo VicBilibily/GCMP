@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、火山方舟、MiniMax、心流AI、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.11.1",
+    "version": "0.12.0",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -46,6 +46,9 @@
         "node": ">=20.0.0",
         "npm": ">=9.0.0"
     },
+    "extensionDependencies": [
+        "github.copilot-chat"
+    ],
     "categories": [
         "AI",
         "Chat"
@@ -325,72 +328,72 @@
         "languageModelChatProviders": [
             {
                 "vendor": "gcmp.zhipu",
-                "displayName": "$(comment-discussion) 智谱AI (GLM Coding Plan)",
+                "displayName": "㊣ 智谱AI (GLM Coding Plan)",
                 "managementCommand": "gcmp.zhipu.configWizard"
             },
             {
                 "vendor": "gcmp.kimi",
-                "displayName": "$(comment-discussion) Kimi For Coding",
+                "displayName": "㊣ Kimi For Coding",
                 "managementCommand": "gcmp.kimi.setApiKey"
             },
             {
                 "vendor": "gcmp.volcengine",
-                "displayName": "$(comment-discussion) 火山方舟 (Coding Plan)",
+                "displayName": "㊣ 火山方舟 (Coding Plan)",
                 "managementCommand": "gcmp.volcengine.setApiKey"
             },
             {
                 "vendor": "gcmp.minimax",
-                "displayName": "$(comment-discussion) MiniMax (Coding Plan)",
+                "displayName": "㊣ MiniMax (Coding Plan)",
                 "managementCommand": "gcmp.minimax.configWizard"
             },
             {
                 "vendor": "gcmp.iflow",
-                "displayName": "$(comment-discussion) 心流AI (iFlow) 「免费」",
+                "displayName": "㊣ 心流AI (iFlow) 「免费」",
                 "managementCommand": "gcmp.iflow.setApiKey"
             },
             {
                 "vendor": "gcmp.moonshot",
-                "displayName": "$(comment-discussion) MoonshotAI",
+                "displayName": "㊣ MoonshotAI",
                 "managementCommand": "gcmp.moonshot.setApiKey"
             },
             {
                 "vendor": "gcmp.deepseek",
-                "displayName": "$(comment-discussion) DeepSeek",
+                "displayName": "㊣ DeepSeek",
                 "managementCommand": "gcmp.deepseek.setApiKey"
             },
             {
                 "vendor": "gcmp.streamlake",
-                "displayName": "$(comment-discussion) 快手万擎 (KAT-Coder)",
+                "displayName": "㊣ 快手万擎 (KAT-Coder)",
                 "managementCommand": "gcmp.streamlake.configWizard"
             },
             {
                 "vendor": "gcmp.dashscope",
-                "displayName": "$(comment-discussion) 阿里云百炼",
+                "displayName": "㊣ 阿里云百炼",
                 "managementCommand": "gcmp.dashscope.setApiKey"
             },
             {
                 "vendor": "gcmp.tbox",
-                "displayName": "$(comment-discussion) 百灵大模型",
+                "displayName": "㊣ 百灵大模型",
                 "managementCommand": "gcmp.tbox.setApiKey"
             },
             {
                 "vendor": "gcmp.modelscope",
-                "displayName": "$(comment-draft) ModelScope (Beta)",
+                "displayName": "㊫ ModelScope (Beta)",
                 "managementCommand": "gcmp.modelscope.setApiKey"
             },
             {
                 "vendor": "gcmp.aiping",
-                "displayName": "$(comment-draft) AI Ping (Beta)",
+                "displayName": "㊫ AI Ping (Beta)",
                 "managementCommand": "gcmp.aiping.setApiKey"
             },
             {
                 "vendor": "gcmp.baidu",
-                "displayName": "$(comment-draft) 百度智能云 (Beta)",
+                "displayName": "㊫ 百度智能云 (Beta)",
                 "managementCommand": "gcmp.baidu.setApiKey"
             },
             {
                 "vendor": "gcmp.compatible",
-                "displayName": "$(comment-unresolved) OpenAI / Anthropic Compatible (GA)",
+                "displayName": "㊭ OpenAI / Anthropic Compatible (GA)",
                 "managementCommand": "gcmp.compatible.manageModels"
             }
         ],

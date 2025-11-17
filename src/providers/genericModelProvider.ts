@@ -14,7 +14,7 @@ import {
 } from 'vscode';
 import { createByEncoderName, TikTokenizer } from '@microsoft/tiktokenizer';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { ApiKeyManager, ConfigManager, Logger, OpenAIHandler, AnthropicHandler } from '../utils';
+import { ApiKeyManager, ConfigManager, Logger, OpenAIHandler, AnthropicHandler, ModelInfoCache } from '../utils';
 
 /**
  * 全局共享的 tokenizer 实例
@@ -44,17 +44,21 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     protected baseProviderConfig: ProviderConfig; // protected 以支持子类访问
     protected cachedProviderConfig: ProviderConfig; // 缓存的配置
     protected configListener?: vscode.Disposable; // 配置监听器
+    protected modelInfoCache?: ModelInfoCache; // 模型信息缓存
 
     // 模型信息变更事件
     protected _onDidChangeLanguageModelChatInformation = new vscode.EventEmitter<void>();
     readonly onDidChangeLanguageModelChatInformation = this._onDidChangeLanguageModelChatInformation.event;
 
-    constructor(providerKey: string, providerConfig: ProviderConfig) {
+    constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
         this.providerKey = providerKey;
         // 保存原始配置（不应用覆盖）
         this.baseProviderConfig = providerConfig;
         // 初始化缓存配置（应用覆盖）
         this.cachedProviderConfig = ConfigManager.applyProviderOverrides(this.providerKey, this.baseProviderConfig);
+        // 初始化模型信息缓存
+        this.modelInfoCache = new ModelInfoCache(context);
+
         // 监听配置变更
         this.configListener = vscode.workspace.onDidChangeConfiguration(e => {
             // 检查是否是 providerOverrides 的变更
@@ -64,11 +68,19 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     this.providerKey,
                     this.baseProviderConfig
                 );
+                // 清除缓存
+                this.modelInfoCache
+                    ?.invalidateCache(this.providerKey)
+                    .catch(err => Logger.warn(`[${this.providerKey}] 清除缓存失败:`, err));
                 Logger.trace(`${this.providerKey} 配置已更新`);
                 this._onDidChangeLanguageModelChatInformation.fire();
             }
             if (e.affectsConfiguration('gcmp.editToolMode')) {
                 Logger.trace(`${this.providerKey} 检测到 editToolMode 变更`);
+                // 清除缓存
+                this.modelInfoCache
+                    ?.invalidateCache(this.providerKey)
+                    .catch(err => Logger.warn(`[${this.providerKey}] 清除缓存失败:`, err));
                 this._onDidChangeLanguageModelChatInformation.fire();
             }
         });
@@ -107,7 +119,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     ): { provider: GenericModelProvider; disposables: vscode.Disposable[] } {
         Logger.trace(`${providerConfig.displayName} 模型扩展已激活!`);
         // 创建提供商实例
-        const provider = new GenericModelProvider(providerKey, providerConfig);
+        const provider = new GenericModelProvider(context, providerKey, providerConfig);
         // 注册语言模型聊天提供商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
         // 注册设置API密钥命令
@@ -117,6 +129,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 providerConfig.displayName,
                 providerConfig.apiKeyTemplate
             );
+            // API 密钥变更后清除缓存
+            await provider.modelInfoCache?.invalidateCache(providerKey);
+            // 触发模型信息变更事件
+            provider._onDidChangeLanguageModelChatInformation.fire();
         });
         const disposables = [providerDisposable, setApiKeyCommand];
         disposables.forEach(disposable => context.subscriptions.push(disposable));
@@ -158,7 +174,27 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         options: { silent: boolean },
         _token: CancellationToken
     ): Promise<LanguageModelChatInformation[]> {
-        // 检查是否有API密钥
+        // 快速路径：检查缓存
+        try {
+            const apiKeyHash = await this.getApiKeyHash();
+            const cachedModels = await this.modelInfoCache?.getCachedModels(this.providerKey, apiKeyHash);
+
+            if (cachedModels) {
+                Logger.trace(`✓ [${this.providerKey}] 从缓存返回模型列表 ` + `(${cachedModels.length} 个模型)`);
+
+                // 后台异步更新缓存（不阻塞返回，不等待 await）
+                this.updateModelCacheAsync(apiKeyHash);
+
+                return cachedModels;
+            }
+        } catch (err) {
+            Logger.warn(
+                `[${this.providerKey}] 缓存查询失败，降级到原始逻辑:`,
+                err instanceof Error ? err.message : String(err)
+            );
+        }
+
+        // 原始逻辑：检查 API 密钥并构建模型列表
         const hasApiKey = await ApiKeyManager.hasValidApiKey(this.providerKey);
         if (!hasApiKey) {
             // 如果是静默模式（如扩展启动时），不触发用户交互，直接返回空列表
@@ -175,7 +211,56 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             }
         }
         // 将配置中的模型转换为VS Code所需的格式
-        return this.providerConfig.models.map(model => this.modelConfigToInfo(model));
+        const models = this.providerConfig.models.map(model => this.modelConfigToInfo(model));
+
+        // 异步缓存结果（不阻塞返回）
+        try {
+            const apiKeyHash = await this.getApiKeyHash();
+            this.updateModelCacheAsync(apiKeyHash);
+        } catch (err) {
+            Logger.warn(`[${this.providerKey}] 缓存保存失败:`, err);
+        }
+
+        return models;
+    }
+
+    /**
+     * 异步更新模型缓存（不阻塞调用者）
+     */
+    protected updateModelCacheAsync(apiKeyHash: string): void {
+        // 使用 Promise 在后台执行，不等待结果
+        (async () => {
+            try {
+                const models = this.providerConfig.models.map(model => this.modelConfigToInfo(model));
+
+                await this.modelInfoCache?.cacheModels(this.providerKey, models, apiKeyHash);
+            } catch (err) {
+                // 后台更新失败不应影响扩展运行
+                Logger.trace(
+                    `[${this.providerKey}] 后台缓存更新失败:`,
+                    err instanceof Error ? err.message : String(err)
+                );
+            }
+        })();
+    }
+
+    /**
+     * 计算 API 密钥的哈希值（用于缓存检查）
+     */
+    protected async getApiKeyHash(): Promise<string> {
+        try {
+            const apiKey = await ApiKeyManager.getApiKey(this.providerKey);
+            if (!apiKey) {
+                return 'no-key';
+            }
+            return await ModelInfoCache.computeApiKeyHash(apiKey);
+        } catch (err) {
+            Logger.warn(
+                `[${this.providerKey}] 计算 API 密钥哈希失败:`,
+                err instanceof Error ? err.message : String(err)
+            );
+            return 'hash-error';
+        }
     }
 
     async provideLanguageModelChatResponse(

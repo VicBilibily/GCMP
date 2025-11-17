@@ -16,8 +16,8 @@ import { GenericModelProvider } from './genericModelProvider';
  * 继承 GenericModelProvider，添加配置向导功能
  */
 export class ZhipuProvider extends GenericModelProvider implements LanguageModelChatProvider {
-    constructor(providerKey: string, providerConfig: ProviderConfig) {
-        super(providerKey, providerConfig);
+    constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
+        super(context, providerKey, providerConfig);
     }
 
     /**
@@ -30,7 +30,7 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
     ): { provider: ZhipuProvider; disposables: vscode.Disposable[] } {
         Logger.trace(`${providerConfig.displayName} 专用模型扩展已激活!`);
         // 创建提供商实例
-        const provider = new ZhipuProvider(providerKey, providerConfig);
+        const provider = new ZhipuProvider(context, providerKey, providerConfig);
         // 注册语言模型聊天提供商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
         // 注册设置API密钥命令
@@ -40,6 +40,10 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
                 providerConfig.displayName,
                 providerConfig.apiKeyTemplate
             );
+            // API 密钥变更后清除缓存
+            await provider.modelInfoCache?.invalidateCache(providerKey);
+            // 触发模型信息变更事件
+            provider._onDidChangeLanguageModelChatInformation.fire();
         });
 
         // 注册配置向导命令
