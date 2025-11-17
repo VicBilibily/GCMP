@@ -9,10 +9,10 @@ import moonshot from './moonshot.json';
 import deepseek from './deepseek.json';
 import streamlake from './streamlake.json';
 import dashscope from './dashscope.json';
+import tbox from './tbox.json';
 import modelscope from './modelscope.json';
 import aiping from './aiping.json';
 import baidu from './baidu.json';
-import tbox from './tbox.json';
 
 const providers = {
     zhipu,
@@ -24,10 +24,10 @@ const providers = {
     deepseek,
     streamlake,
     dashscope,
+    tbox,
     modelscope,
     aiping,
-    baidu,
-    tbox
+    baidu
 };
 
 export type ProviderName = keyof typeof providers;

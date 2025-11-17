@@ -66,10 +66,10 @@
         "onLanguageModelProvider:gcmp.deepseek",
         "onLanguageModelProvider:gcmp.streamlake",
         "onLanguageModelProvider:gcmp.dashscope",
+        "onLanguageModelProvider:gcmp.tbox",
         "onLanguageModelProvider:gcmp.modelscope",
         "onLanguageModelProvider:gcmp.aiping",
         "onLanguageModelProvider:gcmp.baidu",
-        "onLanguageModelProvider:gcmp.tbox",
         "onLanguageModelProvider:gcmp.compatible",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
         "onFileSystem:gcmp-settings"
@@ -142,6 +142,11 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.tbox.setApiKey",
+                "title": "设置 百灵大模型 API密钥",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.modelscope.setApiKey",
                 "title": "设置 ModelScope API密钥",
                 "category": "GCMP"
@@ -154,11 +159,6 @@
             {
                 "command": "gcmp.baidu.setApiKey",
                 "title": "设置 百度智能云 API密钥",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.tbox.setApiKey",
-                "title": "设置 百灵大模型 API密钥",
                 "category": "GCMP"
             },
             {
@@ -369,6 +369,11 @@
                 "managementCommand": "gcmp.dashscope.setApiKey"
             },
             {
+                "vendor": "gcmp.tbox",
+                "displayName": "$(comment-discussion) 百灵大模型",
+                "managementCommand": "gcmp.tbox.setApiKey"
+            },
+            {
                 "vendor": "gcmp.modelscope",
                 "displayName": "$(comment-draft) ModelScope (Beta)",
                 "managementCommand": "gcmp.modelscope.setApiKey"
@@ -382,11 +387,6 @@
                 "vendor": "gcmp.baidu",
                 "displayName": "$(comment-draft) 百度智能云 (Beta)",
                 "managementCommand": "gcmp.baidu.setApiKey"
-            },
-            {
-                "vendor": "gcmp.tbox",
-                "displayName": "$(comment-draft) 百灵大模型 (Beta)",
-                "managementCommand": "gcmp.tbox.setApiKey"
             },
             {
                 "vendor": "gcmp.compatible",

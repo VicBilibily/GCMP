@@ -6,6 +6,8 @@
         {
             "id": "Ling-1T",
             "name": "Ling-1T",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.tbox.cn/api/anthropic",
             "tooltip": "Ling-1T 是百灵混合专家（MoE）架构系列的，万亿参数量旗舰版自然语言大模型，在 20T+ 高质量语料上完成了预训练。本模型是最新发布的万亿参数级别开源模型，在各项评测集中都有上佳表现，适合作为下一代开放模型中最易用，使用体验最好的开源基础模型的选择。支持工具调用功能。",
             "maxInputTokens": 128000,
             "maxOutputTokens": 8192,
@@ -17,6 +19,8 @@
         {
             "id": "Ring-1T",
             "name": "Ring-1T",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.tbox.cn/api/anthropic",
             "tooltip": "Ring-1T 是全球首个开源的万亿参数推理大模型，也是百灵混合专家（MoE）推理模型 Ring 系列中尺寸最大，推理能力最强的旗舰版模型。本模型基于 icepop 方法进行 RLVR 训练，有卓越的自然语言推理能力，在 AIME 25，CodeForces，HMMT25、LiveCodeBench，ARC-AGI- v1 等测试中均有 SOTA 表现，多项指标位列开源模型首位。专注于深度思考能力。",
             "maxInputTokens": 128000,
             "maxOutputTokens": 8192,
