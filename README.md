@@ -97,6 +97,7 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
     "gcmp.temperature": 0.1,
     "gcmp.topP": 1.0,
     "gcmp.maxTokens": 8192,
+    "gcmp.rememberLastModel": true,
     "gcmp.zhipu.search.enableMCP": true,
     "gcmp.editToolMode": "claude"
 }
@@ -106,12 +107,13 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 
 #### 通用AI模型参数
 
-| 参数                | 类型   | 默认值 | 范围/选项         | 说明         |
-| ------------------- | ------ | ------ | ----------------- | ------------ |
-| `gcmp.temperature`  | number | 0.1    | 0.0-2.0           | 输出随机性   |
-| `gcmp.topP`         | number | 1.0    | 0.0-1.0           | 输出多样性   |
-| `gcmp.maxTokens`    | number | 8192   | 32-32768          | 最大输出长度 |
-| `gcmp.editToolMode` | string | claude | claude/gpt-5/none | 编辑工具模式 |
+| 参数                    | 类型    | 默认值 | 范围/选项         | 说明                                                         |
+| ----------------------- | ------- | ------ | ----------------- | ------------------------------------------------------------ |
+| `gcmp.temperature`      | number  | 0.1    | 0.0-2.0           | 输出随机性                                                   |
+| `gcmp.topP`             | number  | 1.0    | 0.0-1.0           | 输出多样性                                                   |
+| `gcmp.maxTokens`        | number  | 8192   | 32-32768          | 最大输出长度                                                 |
+| `gcmp.editToolMode`     | string  | claude | claude/gpt-5/none | 编辑工具模式                                                 |
+| `gcmp.rememberLastModel` | boolean | true   | true/false        | 记住上次使用的模型 |
 
 #### 智谱AI专用配置
 

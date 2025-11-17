@@ -197,12 +197,6 @@
                     "description": "控制AI模型输出的最大token数量。较大的值允许更长的响应。",
                     "scope": "application"
                 },
-                "gcmp.zhipu.search.enableMCP": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "启用智谱AI搜索的MCP SDK模式。使用标准 MCP 协议和官方 SDK 实现搜索功能，提供更稳定的连接和更好的错误处理。非订阅套餐请关闭此开关以使用标准计费接口（按次计费）。需要有效的智谱AI API密钥。",
-                    "scope": "application"
-                },
                 "gcmp.editToolMode": {
                     "type": "string",
                     "enum": [
@@ -217,6 +211,18 @@
                     ],
                     "default": "claude",
                     "description": "选择编辑工具模式。Claude 使用高效的ReplaceString，GPT-5 使用ApplyPatch进行批量编辑，None 直接使用基础文件编辑。",
+                    "scope": "application"
+                },
+                "gcmp.rememberLastModel": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "启用后，会记录并自动恢复上次使用的扩展提供的模型。(VSCode1.106.0版本会重置为默认最优模型[eg：Claude Sonnet 4.5])",
+                    "scope": "application"
+                },
+                "gcmp.zhipu.search.enableMCP": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "启用智谱AI搜索的MCP SDK模式。使用标准 MCP 协议和官方 SDK 实现搜索功能，提供更稳定的连接和更好的错误处理。非订阅套餐请关闭此开关以使用标准计费接口（按次计费）。需要有效的智谱AI API密钥。",
                     "scope": "application"
                 },
                 "gcmp.providerOverrides": {

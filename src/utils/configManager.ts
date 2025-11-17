@@ -34,6 +34,8 @@ export interface GCMPConfig {
     topP: number;
     /** 最大输出token数量 */
     maxTokens: number;
+    /** 是否记住上次选择的模型 */
+    rememberLastModel: boolean;
     /** 智谱AI配置 */
     zhipu: ZhipuConfig;
     /** 提供商配置覆盖 */
@@ -87,6 +89,7 @@ export class ConfigManager {
             temperature: this.validateTemperature(config.get<number>('temperature', 0.1)),
             topP: this.validateTopP(config.get<number>('topP', 1.0)),
             maxTokens: this.validateMaxTokens(config.get<number>('maxTokens', 8192)),
+            rememberLastModel: config.get<boolean>('rememberLastModel', true),
             zhipu: {
                 search: {
                     enableMCP: config.get<boolean>('zhipu.search.enableMCP', true) // 默认启用SSE模式（仅Pro+套餐支持）
@@ -121,6 +124,13 @@ export class ConfigManager {
     }
 
     /**
+     * 获取是否记住上次选择的模型
+     */
+    static getRememberLastModel(): boolean {
+        return this.getConfig().rememberLastModel;
+    }
+
+    /**
      * 获取智谱AI搜索配置
      */
     static getZhipuSearchConfig(): ZhipuSearchConfig {
@@ -130,20 +140,6 @@ export class ConfigManager {
      */
     static getZhipuConfig(): ZhipuConfig {
         return this.getConfig().zhipu;
-    }
-
-    /**
-     * 监听智谱搜索配置变化
-     */
-    static onZhipuSearchConfigChanged(callback: (searchConfig: ZhipuSearchConfig) => void): vscode.Disposable {
-        return vscode.workspace.onDidChangeConfiguration(event => {
-            if (event.affectsConfiguration(`${this.CONFIG_SECTION}.zhipu.search`)) {
-                this.cache = null; // 清除缓存
-                const newConfig = this.getZhipuSearchConfig();
-                Logger.info('🔄 [配置管理] 智谱搜索配置已更新');
-                callback(newConfig);
-            }
-        });
     }
 
     /**

@@ -11,7 +11,7 @@ import {
     Progress
 } from 'vscode';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { Logger, ApiKeyManager, CompatibleModelManager, RetryManager } from '../utils';
+import { Logger, ApiKeyManager, CompatibleModelManager, RetryManager, ConfigManager } from '../utils';
 import { GenericModelProvider } from './genericModelProvider';
 
 /**
@@ -118,12 +118,22 @@ export class CompatibleProvider extends GenericModelProvider {
             const apiKeyHash = await this.getApiKeyHash();
 
             // 快速路径：检查缓存
-            const cachedModels = await this.modelInfoCache?.getCachedModels(
-                CompatibleProvider.PROVIDER_KEY,
-                apiKeyHash
-            );
+            let cachedModels = await this.modelInfoCache?.getCachedModels(CompatibleProvider.PROVIDER_KEY, apiKeyHash);
             if (cachedModels) {
                 Logger.trace(`✓ Compatible Provider 缓存命中: ${cachedModels.length} 个模型`);
+
+                // 读取用户上次选择的模型并标记为默认（仅当启用记忆功能时）
+                const rememberLastModel = ConfigManager.getRememberLastModel();
+                if (rememberLastModel) {
+                    const lastSelectedId = this.modelInfoCache?.getLastSelectedModel(CompatibleProvider.PROVIDER_KEY);
+                    if (lastSelectedId) {
+                        cachedModels = cachedModels.map(model => ({
+                            ...model,
+                            isDefault: model.id === lastSelectedId
+                        }));
+                    }
+                }
+
                 // 后台异步更新缓存
                 this.updateModelCacheAsync(apiKeyHash);
                 return cachedModels;
@@ -166,14 +176,25 @@ export class CompatibleProvider extends GenericModelProvider {
             }
 
             // 将最新配置中的模型转换为 VS Code 所需的格式
-            const modelInfos = currentConfig.models.map(model => {
+            let modelInfos = currentConfig.models.map(model => {
                 const info = this.modelConfigToInfo(model);
                 const sdkModeDisplay = model.sdkMode === 'anthropic' ? 'Anthropic' : 'OpenAI';
                 return { ...info, detail: `${sdkModeDisplay} Compatible` };
             });
-            Logger.debug(`Compatible Provider 提供了 ${modelInfos.length} 个模型信息`);
 
-            // 后台异步更新缓存
+            // 读取用户上次选择的模型并标记为默认（仅当启用记忆功能时）
+            const rememberLastModel = ConfigManager.getRememberLastModel();
+            if (rememberLastModel) {
+                const lastSelectedId = this.modelInfoCache?.getLastSelectedModel(CompatibleProvider.PROVIDER_KEY);
+                if (lastSelectedId) {
+                    modelInfos = modelInfos.map(model => ({
+                        ...model,
+                        isDefault: model.id === lastSelectedId
+                    }));
+                }
+            }
+
+            Logger.debug(`Compatible Provider 提供了 ${modelInfos.length} 个模型信息`); // 后台异步更新缓存
             this.updateModelCacheAsync(apiKeyHash);
 
             return modelInfos;
@@ -194,6 +215,14 @@ export class CompatibleProvider extends GenericModelProvider {
         progress: Progress<vscode.LanguageModelResponsePart>,
         token: vscode.CancellationToken
     ): Promise<void> {
+        // 保存用户选择的模型及其提供商（仅当启用记忆功能时）
+        const rememberLastModel = ConfigManager.getRememberLastModel();
+        if (rememberLastModel) {
+            this.modelInfoCache
+                ?.saveLastSelectedModel(CompatibleProvider.PROVIDER_KEY, model.id)
+                .catch(err => Logger.warn('[compatible] 保存模型选择失败:', err));
+        }
+
         try {
             // 获取最新的动态配置
             const currentConfig = this.providerConfig;

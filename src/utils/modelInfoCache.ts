@@ -11,6 +11,18 @@ import { configProviders } from '../providers/config';
 import crypto from 'crypto';
 
 /**
+ * 已保存的模型选择信息
+ */
+interface SavedModelSelection {
+    /** 提供商标识符 */
+    providerKey: string;
+    /** 模型 ID */
+    modelId: string;
+    /** 保存时间戳 */
+    timestamp: number;
+}
+
+/**
  * 缓存的模型信息结构
  */
 interface CachedModelInfo {
@@ -32,11 +44,13 @@ interface CachedModelInfo {
  * - 自动版本检查失效
  * - API 密钥变更检测
  * - 24小时时间过期
+ * - 全局模型选择持久化（保存用户上次选择的模型，跨所有提供商）
  */
 export class ModelInfoCache {
     private readonly context: vscode.ExtensionContext;
     private readonly cacheVersion = '1';
     private readonly cacheExpiryMs = 24 * 60 * 60 * 1000; // 24 hours
+    private static readonly SELECTED_MODEL_KEY = 'gcmp_selected_model'; // 全局模型选择存储键
 
     constructor(context: vscode.ExtensionContext) {
         this.context = context;
@@ -211,5 +225,55 @@ export class ModelInfoCache {
      */
     private getCacheKey(providerKey: string): string {
         return `gcmp_modelinfo_cache_${this.cacheVersion}_${providerKey}`;
+    }
+
+    /**
+     * 保存用户选择的模型（全局保存提供商+模型对）
+     *
+     * 参考: Microsoft vscode-copilot-chat COPILOT_CLI_MODEL_MEMENTO_KEY
+     * 保存用户上次选择的模型及其所属提供商，这样能区分同名模型来自不同提供商的情况
+     *
+     * @param providerKey 提供商标识符
+     * @param modelId 模型 ID
+     */
+    async saveLastSelectedModel(providerKey: string, modelId: string): Promise<void> {
+        try {
+            const selection: SavedModelSelection = {
+                providerKey,
+                modelId,
+                timestamp: Date.now()
+            };
+            await this.context.globalState.update(ModelInfoCache.SELECTED_MODEL_KEY, selection);
+            Logger.trace(`[ModelInfoCache] 已保存默认模型选择 (${providerKey}: ${modelId})`);
+        } catch (err) {
+            Logger.warn('[ModelInfoCache] 保存模型选择失败:', err instanceof Error ? err.message : String(err));
+        }
+    }
+
+    /**
+     * 获取用户上次选择的模型（全局查询）
+     * 只返回与当前提供商匹配的已保存模型
+     *
+     * @param providerKey 当前提供商标识符
+     * @returns 如果上次选择的提供商与当前相同，返回模型 ID；否则返回 null
+     */
+    getLastSelectedModel(providerKey: string): string | null {
+        try {
+            const saved = this.context.globalState.get<SavedModelSelection>(ModelInfoCache.SELECTED_MODEL_KEY);
+            if (saved && saved.providerKey === providerKey) {
+                Logger.trace(`[ModelInfoCache] ${providerKey}: 读取到默认模型 (${saved.modelId})`);
+                return saved.modelId;
+            }
+            if (saved) {
+                Logger.trace(
+                    `[ModelInfoCache] ${providerKey}: 跳过其他提供商的默认选择 (` +
+                        `已保存: ${saved.providerKey}/${saved.modelId})`
+                );
+            }
+            return null;
+        } catch (err) {
+            Logger.warn('[ModelInfoCache] 读取模型选择失败:', err instanceof Error ? err.message : String(err));
+            return null;
+        }
     }
 }
