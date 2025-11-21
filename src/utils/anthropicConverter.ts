@@ -173,21 +173,14 @@ export function apiMessageToAnthropicMessage(messages: readonly vscode.LanguageM
  */
 export function convertToAnthropicTools(tools: readonly vscode.LanguageModelChatTool[]): Anthropic.Messages.Tool[] {
     return tools.map(tool => {
-        const inputSchema = tool.inputSchema as
-            | {
-                  type?: string;
-                  properties?: Record<string, unknown>;
-                  required?: string[];
-                  additionalProperties?: boolean;
-              }
-            | undefined;
+        const inputSchema = tool.inputSchema as Anthropic.Messages.Tool.InputSchema | undefined;
 
         if (!inputSchema) {
             return {
                 name: tool.name,
                 description: tool.description || '',
                 input_schema: {
-                    type: 'object',
+                    type: 'object' as const,
                     properties: {},
                     required: []
                 }

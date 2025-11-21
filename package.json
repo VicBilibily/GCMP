@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、火山方舟、MiniMax、心流AI、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.12.2",
+    "version": "0.12.3",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -75,6 +75,7 @@
         "onLanguageModelProvider:gcmp.baidu",
         "onLanguageModelProvider:gcmp.compatible",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
+        "onLanguageModelTool:gcmp_minimaxWebSearch",
         "onFileSystem:gcmp-settings"
     ],
     "contributes": {
@@ -469,6 +470,26 @@
                     },
                     "required": [
                         "search_query"
+                    ]
+                },
+                "canBeReferencedInPrompt": true
+            },
+            {
+                "name": "gcmp_minimaxWebSearch",
+                "displayName": "MiniMax网络搜索",
+                "toolReferenceName": "minimaxWebSearch",
+                "modelDescription": "使用 MiniMax Coding Plan 提供的网络搜索功能获取实时信息。需要订阅 MiniMax Coding Plan 套餐并设置专用API密钥。",
+                "userDescription": "通过MiniMax网络搜索获取最新信息",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "q": {
+                            "type": "string",
+                            "description": "搜索查询字符串"
+                        }
+                    },
+                    "required": [
+                        "q"
                     ]
                 },
                 "canBeReferencedInPrompt": true

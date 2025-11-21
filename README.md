@@ -25,7 +25,7 @@
 ### [**智谱AI**](https://bigmodel.cn/) - GLM系列
 
 > - [**订阅套餐**](https://bigmodel.cn/claude-code)：推荐订阅Pro套餐。
-> - **搜索功能**：集成官方 Web Search API，支持实时联网搜索。默认启用Pro/Max套餐支持的联网搜索MCP。
+> - **搜索功能**：集成官方 Web Search API，支持 `#zhipuWebSearch` 进行联网搜索。默认启用Pro/Max套餐支持的联网搜索MCP。
 
 - 编程套餐：**GLM-4.6**(Thinking)、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**(Pro/Max套餐)
 - 标准计费：**GLM-4.6**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5-X**、**GLM-4.5-AirX**、**GLM-4.5V**
@@ -44,6 +44,7 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 ### [**MiniMax**](https://platform.minimaxi.com/login)
 
 - [**Coding Plan 编程套餐**](https://platform.minimaxi.com/subscribe/coding-plan)：**MiniMax-M2**
+    - **搜索功能**：集成 Coding Plan 联网搜索调用工具，支持通过 `#minimaxWebSearch` 进行联网搜索。
 - **标准模型**：**MiniMax-M2**、**MiniMax-M2-Stable**、**MiniMax-M1**
 
 ### [**心流AI**](https://platform.iflow.cn/) - iFlow
@@ -73,14 +74,17 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 
 - **通义千问系列**：**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
 
+### [**百灵大模型**](https://ling.tbox.cn/open)
+
+- **百灵系列**:**Ling-1T**、**Ring-1T**
+
 ## 仅供测试体验的提供商
 
 > 由于各提供商 OpenAI 的兼容性问题，部分情况下可能会报错或卡住不动，建议先查看本地输出的日志后提交 Issue 进一步处理。
 
 [**ModelScope**](https://www.modelscope.cn/)、
 [**AI Ping**](https://aiping.cn/#?invitation_code=EBQQKW)、
-[**百度智能云**](https://cloud.baidu.com/)、
-[**百灵大模型**](https://ling.tbox.cn/open)
+[**百度智能云**](https://cloud.baidu.com/)
 
 ## ⚙️ 高级配置
 
@@ -97,9 +101,9 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
     "gcmp.temperature": 0.1,
     "gcmp.topP": 1.0,
     "gcmp.maxTokens": 8192,
+    "gcmp.editToolMode": "claude",
     "gcmp.rememberLastModel": true,
-    "gcmp.zhipu.search.enableMCP": true,
-    "gcmp.editToolMode": "claude"
+    "gcmp.zhipu.search.enableMCP": true
 }
 ```
 
@@ -107,12 +111,12 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 
 #### 通用AI模型参数
 
-| 参数                    | 类型    | 默认值 | 范围/选项         | 说明                                                         |
-| ----------------------- | ------- | ------ | ----------------- | ------------------------------------------------------------ |
-| `gcmp.temperature`      | number  | 0.1    | 0.0-2.0           | 输出随机性                                                   |
-| `gcmp.topP`             | number  | 1.0    | 0.0-1.0           | 输出多样性                                                   |
-| `gcmp.maxTokens`        | number  | 8192   | 32-32768          | 最大输出长度                                                 |
-| `gcmp.editToolMode`     | string  | claude | claude/gpt-5/none | 编辑工具模式                                                 |
+| 参数                     | 类型    | 默认值 | 范围/选项         | 说明               |
+| ------------------------ | ------- | ------ | ----------------- | ------------------ |
+| `gcmp.temperature`       | number  | 0.1    | 0.0-2.0           | 输出随机性         |
+| `gcmp.topP`              | number  | 1.0    | 0.0-1.0           | 输出多样性         |
+| `gcmp.maxTokens`         | number  | 8192   | 32-32768          | 最大输出长度       |
+| `gcmp.editToolMode`      | string  | claude | claude/gpt-5/none | 编辑工具模式       |
 | `gcmp.rememberLastModel` | boolean | true   | true/false        | 记住上次使用的模型 |
 
 #### 智谱AI专用配置
