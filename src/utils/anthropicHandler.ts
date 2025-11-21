@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Anthropic SDK Handler
- *  处理使用 Claude SDK 的智谱AI模型请求
+ *  处理使用 Anthropic SDK 的模型请求
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -147,6 +147,7 @@ export class AnthropicHandler {
     /**
      * 处理 Anthropic 流式响应
      * 参照官方文档：https://docs.anthropic.com/en/api/messages-streaming
+     * 参照官方实现：https://github.com/microsoft/vscode-copilot-chat/blob/main/src/extension/byok/vscode-node/anthropicProvider.ts
      */
     private async handleAnthropicStream(
         stream: AsyncIterable<Anthropic.Messages.MessageStreamEvent>,
@@ -154,7 +155,9 @@ export class AnthropicHandler {
         token: vscode.CancellationToken
     ): Promise<{ usage?: { inputTokens: number; outputTokens: number; totalTokens: number } }> {
         let pendingToolCall: { toolId?: string; name?: string; jsonInput?: string } | undefined;
-        let currentThinkingBlockId: string | undefined;
+        // let pendingServerToolCall: { toolId?: string; name?: string; jsonInput?: string; type?: string } | undefined; // 暂不支持 web_search
+        let pendingThinking: { thinking?: string; signature?: string } | undefined;
+        let pendingRedactedThinking: { data: string } | undefined;
         let usage: { inputTokens: number; outputTokens: number; totalTokens: number } | undefined;
 
         Logger.debug('开始处理 Anthropic 流式响应');
@@ -165,6 +168,56 @@ export class AnthropicHandler {
                     Logger.debug('流处理被取消');
                     break;
                 }
+
+                // 处理特殊类型 - web_search_tool_result (暂不支持)
+                /*
+                if (
+                    chunk.type === 'content_block_start' &&
+                    'content_block' in chunk &&
+                    chunk.content_block.type === 'web_search_tool_result'
+                ) {
+                    if (!pendingServerToolCall || !pendingServerToolCall.toolId) {
+                        Logger.warn('收到web_search_tool_result但没有待处理的服务器工具调用');
+                        continue;
+                    }
+
+                    const resultBlock = chunk.content_block as Anthropic.Messages.WebSearchToolResultBlock;
+                    // 处理web搜索中的潜在错误
+                    if (!Array.isArray(resultBlock.content)) {
+                        Logger.error(
+                            `Web搜索错误: ${(resultBlock.content as Anthropic.Messages.WebSearchToolResultError).error_code}`
+                        );
+                        continue;
+                    }
+
+                    const results = resultBlock.content.map((result: Anthropic.Messages.WebSearchResultBlock) => ({
+                        type: 'web_search_result',
+                        url: result.url,
+                        title: result.title,
+                        page_age: result.page_age,
+                        encrypted_content: result.encrypted_content
+                    }));
+
+                    // 根据Anthropic的web_search_tool_result规范格式化
+                    const toolResult = {
+                        type: 'web_search_tool_result',
+                        tool_use_id: pendingServerToolCall.toolId,
+                        content: results
+                    };
+
+                    const searchResults = JSON.stringify(toolResult, null, 2);
+
+                    // 向用户报告搜索结果
+                    progress.report(
+                        new vscode.LanguageModelToolResultPart(pendingServerToolCall.toolId!, [
+                            new vscode.LanguageModelTextPart(searchResults)
+                        ])
+                    );
+
+                    pendingServerToolCall = undefined;
+                    continue;
+                }
+                */
 
                 // 处理不同的事件类型
                 switch (chunk.type) {
@@ -192,10 +245,29 @@ export class AnthropicHandler {
                             Logger.trace(`工具调用开始: ${chunk.content_block.name}`);
                         } else if (chunk.content_block.type === 'thinking') {
                             // 标记思考块开始
-                            currentThinkingBlockId = chunk.index.toString();
+                            pendingThinking = {
+                                thinking: '',
+                                signature: ''
+                            };
                             Logger.trace('思考块开始 (流式输出)');
                         } else if (chunk.content_block.type === 'text') {
                             Logger.trace('文本块开始');
+                        } /* else if (chunk.content_block.type === 'server_tool_use') {
+                            // 处理服务器端工具使用（例如 web_search）(暂不支持)
+                            pendingServerToolCall = {
+                                toolId: chunk.content_block.id,
+                                name: chunk.content_block.name,
+                                jsonInput: '',
+                                type: chunk.content_block.name
+                            };
+                            progress.report(new vscode.LanguageModelTextPart('\n'));
+                            Logger.trace(`服务器工具调用开始: ${chunk.content_block.name}`);
+                        } */ else if (chunk.content_block.type === 'redacted_thinking') {
+                            const redactedBlock = chunk.content_block as Anthropic.Messages.RedactedThinkingBlock;
+                            pendingRedactedThinking = {
+                                data: redactedBlock.data
+                            };
+                            Logger.trace('加密思考块开始');
                         }
                         break;
 
@@ -207,10 +279,67 @@ export class AnthropicHandler {
                         } else if (chunk.delta.type === 'input_json_delta' && pendingToolCall) {
                             // 工具调用参数增量
                             pendingToolCall.jsonInput = (pendingToolCall.jsonInput || '') + chunk.delta.partial_json;
-                        } else if (chunk.delta.type === 'thinking_delta') {
+                            // 尝试解析累积的JSON，看是否完整
+                            try {
+                                const parsedJson = JSON.parse(pendingToolCall.jsonInput);
+                                progress.report(
+                                    new vscode.LanguageModelToolCallPart(
+                                        pendingToolCall.toolId!,
+                                        pendingToolCall.name!,
+                                        parsedJson
+                                    )
+                                );
+                                pendingToolCall = undefined;
+                            } catch {
+                                // JSON尚未完整，继续累积
+                            }
+                        } /* else if (chunk.delta.type === 'input_json_delta' && pendingServerToolCall) {
+                            // 服务器工具调用参数增量 (暂不支持)
+                            pendingServerToolCall.jsonInput =
+                                (pendingServerToolCall.jsonInput || '') + chunk.delta.partial_json;
+                        } */ else if (chunk.delta.type === 'thinking_delta') {
                             // 思考内容增量 - 流式输出
-                            progress.report(new vscode.LanguageModelThinkingPart(chunk.delta.thinking));
-                        }
+                            if (pendingThinking) {
+                                pendingThinking.thinking =
+                                    (pendingThinking.thinking || '') + (chunk.delta.thinking || '');
+                                progress.report(new vscode.LanguageModelThinkingPart(chunk.delta.thinking || ''));
+                            }
+                        } else if (chunk.delta.type === 'signature_delta') {
+                            // 累积签名
+                            if (pendingThinking) {
+                                pendingThinking.signature =
+                                    (pendingThinking.signature || '') + (chunk.delta.signature || '');
+                            }
+                        } /* else if (chunk.delta.type === 'citations_delta') {
+                            // 处理引用增量
+                            if ('citation' in chunk.delta) {
+                                const citation = chunk.delta
+                                    .citation as Anthropic.Messages.CitationsWebSearchResultLocation;
+                                if (citation.type === 'web_search_result_location') {
+                                    // 根据Anthropic规范格式化引用
+                                    const citationData = {
+                                        type: 'web_search_result_location',
+                                        url: citation.url,
+                                        title: citation.title,
+                                        encrypted_index: citation.encrypted_index,
+                                        cited_text: citation.cited_text
+                                    };
+
+                                    // 将引用格式化为可读的块引用和源链接
+                                    const referenceText = `\n> "${citation.cited_text}" — [来源](${citation.url})\n\n`;
+
+                                    // 向用户报告格式化的引用文本
+                                    progress.report(new vscode.LanguageModelTextPart(referenceText));
+
+                                    // 以正确格式存储引用数据，用于多轮对话
+                                    progress.report(
+                                        new vscode.LanguageModelToolResultPart('citation', [
+                                            new vscode.LanguageModelTextPart(JSON.stringify(citationData, null, 2))
+                                        ])
+                                    );
+                                }
+                            }
+                        } */
                         break;
 
                     case 'content_block_stop':
@@ -230,11 +359,21 @@ export class AnthropicHandler {
                                 Logger.error(`解析工具调用 JSON 失败 (${pendingToolCall.name}):`, e);
                             }
                             pendingToolCall = undefined;
-                        } else if (currentThinkingBlockId !== undefined) {
-                            // 思考块结束 - 发送空的 ThinkingPart 作为结束标记
-                            progress.report(new vscode.LanguageModelThinkingPart('', currentThinkingBlockId));
-                            Logger.debug(`思考块完成 (id: ${currentThinkingBlockId})`);
-                            currentThinkingBlockId = undefined;
+                        } else if (pendingThinking) {
+                            // 处理思考块结束
+                            if (pendingThinking.signature) {
+                                const finalThinkingPart = new vscode.LanguageModelThinkingPart('');
+                                finalThinkingPart.metadata = {
+                                    signature: pendingThinking.signature,
+                                    _completeThinking: pendingThinking.thinking || ''
+                                };
+                                progress.report(finalThinkingPart);
+                            }
+                            pendingThinking = undefined;
+                            Logger.debug('思考块完成');
+                        } else if (pendingRedactedThinking) {
+                            pendingRedactedThinking = undefined;
+                            Logger.debug('加密思考块完成');
                         }
                         break;
 
