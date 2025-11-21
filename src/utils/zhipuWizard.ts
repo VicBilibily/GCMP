@@ -88,12 +88,12 @@ export class ZhipuWizard {
             [
                 {
                     label: '$(x) 不启用 MCP 搜索模式',
-                    detail: '使用 Lite 套餐或按量计费，搜索使用按次计费接口',
+                    detail: '使用 Web Search API 按量计费接口，套餐次数用完或需要高级搜索功能时使用',
                     action: 'disableMCP'
                 },
                 {
                     label: '$(check) 启用 MCP 搜索模式',
-                    detail: '需要 Pro/Max 套餐支持，提供不限次数的搜索功能',
+                    detail: '使用 Coding Plan 套餐内的搜索次数，Lite(100次体验)/Pro(1千次搜索)/Max(4千次搜索)',
                     action: 'enableMCP'
                 }
             ],
@@ -126,7 +126,7 @@ export class ZhipuWizard {
         while (true) {
             // 获取当前 MCP 状态
             const currentMCPStatus = ConfigManager.getZhipuSearchConfig().enableMCP;
-            const mcpStatusText = currentMCPStatus ? '已启用 (Pro/Max 套餐)' : '已禁用 (Lite 套餐或按量计费)';
+            const mcpStatusText = currentMCPStatus ? '已启用' : '已禁用';
 
             const choice = await vscode.window.showQuickPick(
                 [

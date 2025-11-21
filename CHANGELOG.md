@@ -2,6 +2,11 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的所有重要更改。
 
+## [0.12.4] - 2025-11-21
+
+- **智谱AI** 提供商 联网搜索MCP 相关描述调整，编程套餐全挡位支持MCP调用
+    - 所有挡位的编程套餐均已支持调用：Lite(100次)、Pro(1000次)、Max(4000次)。
+
 ## [0.12.3] - 2025-11-21
 
 ### 新增
@@ -176,77 +181,19 @@
 [**PPIO派欧云**](https://ppio.com/)、
 [**蓝耘元生代**](https://maas.lanyun.net/)
 
-## [0.8.2] - 2025-10-28
-
-### 修复
-
-- 修复部分模型返回错误 choice index 导致 OpenAI SDK 解析失败的问题
-- 优化 OpenAI 处理器对流式响应中 choice 结构的处理逻辑
-
-### 更新
-
-- 升级 `@modelcontextprotocol/sdk` 依赖至 v1.20.2
-- 升级 `openai` 依赖至 v6.7.0
-
-## [0.8.1] - 2025-10-27
-
-### 修复
-
-- 修复 Anthropic SDK 调用结束后的 `inputTokens`、`totalTokens` 的统计输出
-
-### 变更
-
-- ModelScope 提供商的 `DeepSeek`、`ZhipuAI` 系列模型 现在通过 Anthropic SDK 调用
-
-## [0.8.0] - 2025-10-27
-
-### 新增
-
-- 新增 `@anthropic-ai/sdk` 依赖（v0.67.0）
-
-### 重大变更
-
-- 智谱AI 订阅套餐语言模型（`GLM-4.6`、`GLM-4.5`、`GLM-4.5-Air`） 现在通过 Anthropic SDK 调用
-- MiniMax 提供商的 `MiniMax-M2` 现在通过 Anthropic SDK 调用
-- Kimi 提供商胡 `Kimi For Coding` 现在通过 Anthropic SDK 调用
-
-## [0.7.3] - 2025-10-27
-
-### 新增
-
-- MiniMax 新增 `MiniMax-M2` 模型支持
-
-## [0.7.2] - 2025-10-25
-
-### 新增
-
-- 新增 `Kimi会员计划` 的 `Kimi For Coding` 支持
-
-## [0.7.1] - 2025-10-24
-
-### 新增
-
-- 阿里云百炼 新增 `通义千问3-VL-Flash`、`Qwen3-VL-32B` 系列模型
-- 硅基流动 新增 `Qwen3-VL-32B` 系列模型
-
-## [0.7.0] - 2025-10-24
-
-### 新增
-
-- 新增 快手万擎 (StreamLake) 提供商支持，可使用 `KAT-Coder` 系列模型
-- 新增配置覆盖策略，允许覆盖提供商的baseUrl和模型基本配置
-
 ---
 
 ## 早期版本
 
 早期版本实现了扩展的核心功能和基础架构，包括：
 
-- **多提供商支持**：智谱AI、心流AI、MoonshotAI、DeepSeek 等模型提供商接入
-- **国内云厂商支持**：阿里云百炼、火山方舟、百度智能云、ModelScope 等多家云厂商集成
+- **多提供商支持**：智谱AI、心流AI、MoonshotAI、DeepSeek、MiniMax 等模型提供商接入
+- **国内云厂商支持**：阿里云百炼、火山方舟、百度智能云、ModelScope、快手万擎等云厂商集成
 - **联网搜索**：智谱AI网络搜索工具集成，支持 MCP SDK 客户端连接
 - **编辑工具优化**：支持多种编辑工具模式（Claude/GPT-5/Grok）
-- **思维链输出**：思维模型支持输出推理过程
-- **配置系统**：支持 temperature、topP、maxTokens 等参数配置
-- **OpenAI SDK 集成**：统一使用 OpenAI SDK 处理模型请求
+- **配置系统**：支持 temperature、topP、maxTokens 等参数配置，支持提供商配置覆盖
 - **Token 计算**：集成 @microsoft/tiktokenizer 进行 token 计算
+- **多 SDK 支持**：集成 OpenAI SDK 和 Anthropic SDK 处理不同模型请求
+- **思维链输出**：思维模型支持输出推理过程
+- **兼容模式支持**：OpenAI / Anthropic 兼容模式，支持自定义 API 接入
+- **自动重试机制**：`ModelScope`及`OpenAI / Anthropic 兼容模式`支持 429 状态码自动重试，减少 Agent 操作中断

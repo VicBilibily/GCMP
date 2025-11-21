@@ -6,7 +6,7 @@
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/vicanent.gcmp?color=green&label=Downloads)](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp)
 [![License](https://img.shields.io/github/license/VicBilibily/GCMP?color=orange&label=License)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
-通过集成国内的AI模型，为开发者提供更丰富、更适合的AI编程助手选择。目前支持智谱AI、Kimi、火山方舟、MiniMax、心流AI、MoonshotAI、DeepSeek、快手万擎、阿里云百炼等多家主流AI提供商，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。
+通过集成国内的AI模型，为开发者提供更丰富、更适合的AI编程助手选择。目前支持智谱AI、Kimi、火山方舟、MiniMax、心流AI、MoonshotAI、DeepSeek、快手万擎、阿里云百炼、百灵大模型等多家主流AI提供商，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。
 
 ## 🚀 快速开始
 
@@ -24,12 +24,13 @@
 
 ### [**智谱AI**](https://bigmodel.cn/) - GLM系列
 
-> - [**订阅套餐**](https://bigmodel.cn/claude-code)：推荐订阅Pro套餐。
-> - **搜索功能**：集成官方 Web Search API，支持 `#zhipuWebSearch` 进行联网搜索。默认启用Pro/Max套餐支持的联网搜索MCP。
-
-- 编程套餐：**GLM-4.6**(Thinking)、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**(Pro/Max套餐)
+- [**编程套餐**](https://bigmodel.cn/claude-code)：**GLM-4.6**(Thinking)、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
 - 标准计费：**GLM-4.6**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5-X**、**GLM-4.5-AirX**、**GLM-4.5V**
 - 免费版本：**GLM-4.5-Flash**
+
+- **搜索功能**：集成 联网搜索MCP 及 Web Search API，支持 `#zhipuWebSearch` 进行联网搜索。
+    - 默认启用 联网搜索MCP 模式，所有挡位的编程套餐均已支持调用：Lite(100次)、Pro(1000次)、Max(4000次)。
+    - 可通过设置关闭 联网搜索MCP 模式以使用 Web Search API 按此计费。
 
 ### [**Kimi**](https://www.kimi.com/) - Kimi For Coding
 
@@ -76,7 +77,7 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 
 ### [**百灵大模型**](https://ling.tbox.cn/open)
 
-- **百灵系列**:**Ling-1T**、**Ring-1T**
+- **百灵系列**：**Ling-1T**、**Ring-1T**
 
 ## 仅供测试体验的提供商
 
@@ -121,9 +122,9 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 
 #### 智谱AI专用配置
 
-| 参数                          | 类型    | 默认值 | 说明                                               |
-| ----------------------------- | ------- | ------ | -------------------------------------------------- |
-| `gcmp.zhipu.search.enableMCP` | boolean | true   | **搜索模式**：启用MCP通讯模式（仅Pro/Max套餐支持） |
+| 参数                          | 类型    | 默认值 | 说明                                             |
+| ----------------------------- | ------- | ------ | ------------------------------------------------ |
+| `gcmp.zhipu.search.enableMCP` | boolean | true   | **搜索模式**：启用MCP通讯模式（Coding Plan专属） |
 
 #### 提供商配置覆盖
 

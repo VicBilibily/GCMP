@@ -75,7 +75,7 @@ export class ZhipuSearchTool {
     }
 
     /**
-     * 通过 MCP 搜索（仅Pro/Max套餐支持）
+     * 通过 MCP 搜索
      */
     private async searchViaMCP(params: ZhipuSearchRequest): Promise<ZhipuSearchResult[]> {
         Logger.info(`🔄 [智谱搜索] 使用MCP模式搜索: "${params.search_query}"`);
@@ -199,7 +199,7 @@ export class ZhipuSearchTool {
             // 根据配置选择搜索模式
             let searchResults: ZhipuSearchResult[];
             if (this.isMCPEnabled()) {
-                Logger.info('🔄 [智谱搜索] 使用MCP模式搜索（仅Pro/Max套餐支持）');
+                Logger.info('🔄 [智谱搜索] 使用MCP模式搜索');
                 searchResults = await this.searchViaMCP(params);
             } else {
                 Logger.info('🔄 [智谱搜索] 使用标准计费接口搜索（按次计费）');
@@ -227,7 +227,7 @@ export class ZhipuSearchTool {
         const isMCP = this.isMCPEnabled();
         return {
             mode: isMCP ? 'MCP' : 'Standard',
-            description: isMCP ? 'MCP模式（仅Pro/Max套餐支持）' : '标准计费接口模式（按次计费）'
+            description: isMCP ? 'MCP模式（Coding Plan专属）' : '标准计费接口模式（按次计费）'
         };
     }
 

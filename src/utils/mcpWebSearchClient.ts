@@ -157,7 +157,7 @@ export class MCPWebSearchClient {
     private async showMCPDisableDialog(): Promise<boolean> {
         const message =
             '检测到您的智谱AI账户无权访问联网搜索 MCP 功能。这可能是因为：\n\n' +
-            '1. 您的账户套餐不支持 MCP 功能（需要 Pro+ 或更高套餐）\n' +
+            '1. 您的账户不支持 MCP 功能（需要 Coding Plan 套餐）\n' +
             '2. API 密钥权限不足\n\n' +
             '是否切换到标准计费模式（按次计费）？';
 

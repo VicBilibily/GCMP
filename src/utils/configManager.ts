@@ -92,7 +92,7 @@ export class ConfigManager {
             rememberLastModel: config.get<boolean>('rememberLastModel', true),
             zhipu: {
                 search: {
-                    enableMCP: config.get<boolean>('zhipu.search.enableMCP', true) // 默认启用SSE模式（仅Pro+套餐支持）
+                    enableMCP: config.get<boolean>('zhipu.search.enableMCP', true) // 默认启用MCP模式（Coding Plan专属）
                 }
             },
             providerOverrides: config.get<UserConfigOverrides>('providerOverrides', {})
