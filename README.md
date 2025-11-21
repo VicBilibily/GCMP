@@ -6,7 +6,7 @@
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/vicanent.gcmp?color=green&label=Downloads)](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp)
 [![License](https://img.shields.io/github/license/VicBilibily/GCMP?color=orange&label=License)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
-通过集成国内的AI模型，为开发者提供更丰富、更适合的AI编程助手选择。目前支持智谱AI、Kimi、心流AI、MoonshotAI、DeepSeek、火山方舟、快手万擎、阿里云百炼、MiniMax等多家主流AI提供商，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。
+通过集成国内的AI模型，为开发者提供更丰富、更适合的AI编程助手选择。目前支持智谱AI、Kimi、火山方舟、MiniMax、心流AI、MoonshotAI、DeepSeek、快手万擎、阿里云百炼等多家主流AI提供商，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。
 
 ## 🚀 快速开始
 
@@ -27,7 +27,7 @@
 > - [**订阅套餐**](https://bigmodel.cn/claude-code)：推荐订阅Pro套餐。
 > - **搜索功能**：集成官方 Web Search API，支持实时联网搜索。默认启用Pro/Max套餐支持的联网搜索MCP。
 
-- 编程套餐：**GLM-4.6**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**(Pro/Max套餐)
+- 编程套餐：**GLM-4.6**(Thinking)、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**(Pro/Max套餐)
 - 标准计费：**GLM-4.6**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5-X**、**GLM-4.5-AirX**、**GLM-4.5V**
 - 免费版本：**GLM-4.5-Flash**
 
