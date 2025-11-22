@@ -13,7 +13,7 @@ import {
     ProvideLanguageModelChatResponseOptions
 } from 'vscode';
 import { ProviderConfig } from '../types/sharedTypes';
-import { ApiKeyManager, Logger } from '../utils';
+import { ApiKeyManager, Logger, ConfigManager } from '../utils';
 import { GenericModelProvider } from './genericModelProvider';
 
 /**
@@ -66,6 +66,14 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
         progress: Progress<vscode.LanguageModelResponsePart>,
         token: CancellationToken
     ): Promise<void> {
+        // 保存用户选择的模型及其提供商（仅当启用记忆功能时）
+        const rememberLastModel = ConfigManager.getRememberLastModel();
+        if (rememberLastModel) {
+            this.modelInfoCache
+                ?.saveLastSelectedModel(this.providerKey, model.id)
+                .catch(err => Logger.warn(`[${this.providerKey}] 保存模型选择失败:`, err));
+        }
+
         // 查找对应的模型配置
         const modelConfig = this.providerConfig.models.find(m => m.id === model.id);
         if (!modelConfig) {

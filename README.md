@@ -46,6 +46,7 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 
 - [**Coding Plan 编程套餐**](https://platform.minimaxi.com/subscribe/coding-plan)：**MiniMax-M2**
     - **搜索功能**：集成 Coding Plan 联网搜索调用工具，支持通过 `#minimaxWebSearch` 进行联网搜索。
+    - **用量查询**：VsCode 状态栏显示当前 Coding Plan 编程套餐用量信息。
 - **标准模型**：**MiniMax-M2**、**MiniMax-M2-Stable**、**MiniMax-M1**
 
 ### [**心流AI**](https://platform.iflow.cn/) - iFlow

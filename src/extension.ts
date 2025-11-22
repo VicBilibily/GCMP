@@ -7,6 +7,7 @@ import { StreamLakeProvider } from './providers/streamlakeProvider';
 import { MiniMaxProvider } from './providers/minimaxProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
 import { Logger } from './utils/logger';
+import { StatusLogger } from './utils/statusLogger';
 import { ApiKeyManager, ConfigManager, JsonSchemaProvider } from './utils';
 import { CompatibleModelManager } from './utils/compatibleModelManager';
 import { registerAllTools } from './tools';
@@ -145,6 +146,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     try {
         Logger.initialize('GitHub Copilot Models Provider (GCMP)'); // 初始化日志管理器
+        StatusLogger.initialize('GitHub Copilot Models Provider Status'); // 初始化高频状态日志管理器
 
         const isDevelopment = context.extensionMode === vscode.ExtensionMode.Development;
         Logger.info(`🔧 GCMP 扩展模式: ${isDevelopment ? 'Development' : 'Production'}`);
@@ -221,6 +223,7 @@ export function deactivate() {
 
         ConfigManager.dispose(); // 清理配置管理器
         Logger.info('GCMP 扩展停用完成');
+        StatusLogger.dispose(); // 清理状态日志管理器
         Logger.dispose(); // 在扩展销毁时才 dispose Logger
     } catch (error) {
         Logger.error('GCMP 扩展停用时出错:', error);

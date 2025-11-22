@@ -14,7 +14,8 @@ import {
 } from 'vscode';
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { Logger, ApiKeyManager, MiniMaxWizard } from '../utils';
+import { Logger, ApiKeyManager, MiniMaxWizard, ConfigManager } from '../utils';
+import { MiniMaxStatusManager } from '../utils/miniMaxStatusManager';
 
 /**
  * MiniMax 专用模型提供商类
@@ -64,6 +65,11 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         const configWizardCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.configWizard`, async () => {
             Logger.info(`启动 ${providerConfig.displayName} 配置向导`);
             await MiniMaxWizard.startWizard(providerConfig.displayName, providerConfig.apiKeyTemplate);
+        });
+
+        // 异步初始化状态栏管理器（不等待）
+        MiniMaxStatusManager.initialize(context).catch((error: unknown) => {
+            Logger.error('初始化 MiniMax 状态栏失败', error);
         });
 
         const disposables = [providerDisposable, setApiKeyCommand, setCodingKeyCommand, configWizardCommand];
@@ -166,20 +172,44 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         // 返回所有模型，不进行过滤
         // 具体的密钥验证会在用户选择模型后的 provideLanguageModelChatResponse 中进行
         Logger.debug(`${this.providerConfig.displayName}: 返回全部 ${this.providerConfig.models.length} 个模型`);
-        return this.providerConfig.models.map(model => this.modelConfigToInfo(model));
+
+        // 将配置中的模型转换为 VS Code 所需的格式
+        let models = this.providerConfig.models.map(model => this.modelConfigToInfo(model));
+
+        // 读取用户上次选择的模型并标记为默认（仅当启用记忆功能且提供商匹配时）
+        const rememberLastModel = ConfigManager.getRememberLastModel();
+        if (rememberLastModel) {
+            const lastSelectedId = this.modelInfoCache?.getLastSelectedModel(this.providerKey);
+            if (lastSelectedId) {
+                models = models.map(model => ({
+                    ...model,
+                    isDefault: model.id === lastSelectedId
+                }));
+            }
+        }
+
+        return models;
     }
 
     /**
      * 重写：提供语言模型聊天响应 - 添加请求前密钥确保机制
      * 在处理请求前确保对应的密钥存在
      */
-    override async provideLanguageModelChatResponse(
+    async provideLanguageModelChatResponse(
         model: LanguageModelChatInformation,
         messages: Array<LanguageModelChatMessage>,
         options: ProvideLanguageModelChatResponseOptions,
         progress: Progress<vscode.LanguageModelResponsePart>,
         _token: CancellationToken
     ): Promise<void> {
+        // 保存用户选择的模型及其提供商（仅当启用记忆功能时）
+        const rememberLastModel = ConfigManager.getRememberLastModel();
+        if (rememberLastModel) {
+            this.modelInfoCache
+                ?.saveLastSelectedModel(this.providerKey, model.id)
+                .catch(err => Logger.warn(`[${this.providerKey}] 保存模型选择失败:`, err));
+        }
+
         // 查找对应的模型配置
         const modelConfig = this.providerConfig.models.find((m: ModelConfig) => m.id === model.id);
         if (!modelConfig) {
@@ -221,6 +251,11 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             throw error;
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} 请求已完成`);
+
+            // 如果使用的是 Coding Plan 密钥，延时更新状态栏使用量
+            if (providerKey === 'minimax-coding') {
+                MiniMaxStatusManager.delayedUpdate();
+            }
         }
     }
 }

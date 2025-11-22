@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { Logger } from './logger';
 import { ApiKeyManager } from './apiKeyManager';
+import { MiniMaxStatusManager } from './miniMaxStatusManager';
 
 export class MiniMaxWizard {
     private static readonly PROVIDER_KEY = 'minimax';
@@ -129,6 +130,8 @@ export class MiniMaxWizard {
                 Logger.info(`${displayName} Coding Plan 专用 API Key 已设置`);
                 vscode.window.showInformationMessage(`${displayName} Coding Plan 专用 API Key 已设置`);
             }
+            // 检查并显示状态栏
+            await MiniMaxStatusManager.checkAndShowStatus();
         } catch (error) {
             Logger.error(`Coding Plan API Key 操作失败: ${error instanceof Error ? error.message : '未知错误'}`);
             vscode.window.showErrorMessage(`设置失败: ${error instanceof Error ? error.message : '未知错误'}`);
