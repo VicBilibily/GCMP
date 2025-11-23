@@ -33,7 +33,7 @@ export class KimiStatusBarManager {
     private static isLoading = false; // 加载状态标志
     private static cacheUpdateTimer: NodeJS.Timeout | undefined; // 缓存定时器
     private static readonly CACHE_UPDATE_INTERVAL = 10000; // 缓存加载间隔 10 秒
-    private static readonly CACHE_EXPIRY_THRESHOLD = 12 * 60 * 60 * 1000; // 缓存过期阈值 12 小时
+    private static readonly CACHE_EXPIRY_THRESHOLD = 1 * 60 * 60 * 1000; // 缓存过期阈值 1 小时
 
     private static lastStatusData: { data: KimiUsage; timestamp: number } | null = null;
 

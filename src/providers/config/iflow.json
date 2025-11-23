@@ -26,31 +26,9 @@
             }
         },
         {
-            "id": "deepseek-v3",
-            "name": "DeepSeek-V3-671B (iFlow)",
-            "tooltip": "DeepSeek-V3 模型，671B 参数，激活 37B，在 14.8T token 上进行了预训练。DeepSeek-V3 多项评测成绩超越了 Qwen2.5-72B 和 Llama-3.1-405B 等其他开源模型，并在性能上和世界顶尖的闭源模型 GPT-4o 以及 Claude-3.5-Sonnet 不分伯仲。",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
             "id": "qwen3-coder-plus",
             "name": "Qwen3-Coder-Plus (iFlow)",
             "tooltip": "Qwen3-Coder-Plus，这是一个总参数量 480B，激活 35B 的 MoE 模型，原生支持 256K token 的上下文并可通过 YaRN 扩展到 1M token，拥有卓越的代码和 Agent 能力。Qwen3-Coder-480B-A35B-Instruct 在 Agentic Coding、Agentic Browser-Use 和 Agentic Tool-Use 上取得了开源模型的 SOTA 效果，可以与 Claude Sonnet4 媲美",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-coder",
-            "name": "Qwen3-Coder-480B-A35B (iFlow)",
-            "tooltip": "Qwen3-Coder-480B-A35B，这是一个总参数量 480B，激活 35B 的 MoE 模型，原生支持 256K token 的上下文并可通过 YaRN 扩展到 1M token，拥有卓越的代码和 Agent 能力。Qwen3-Coder-480B-A35B-Instruct 在 Agentic Coding、Agentic Browser-Use 和 Agentic Tool-Use 上取得了开源模型的 SOTA 效果，可以与 Claude Sonnet4 媲美",
             "maxInputTokens": 256000,
             "maxOutputTokens": 64000,
             "capabilities": {
