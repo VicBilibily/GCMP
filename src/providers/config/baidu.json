@@ -1,5 +1,5 @@
 {
-    "displayName": "百度智能云",
+    "displayName": "百度千帆",
     "baseUrl": "https://qianfan.baidubce.com/v2",
     "apiKeyTemplate": "bce-v3/ALTAK-xxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [

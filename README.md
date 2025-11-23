@@ -53,8 +53,8 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 
 阿里巴巴旗下的的AI平台，当前[API调用](https://platform.iflow.cn/docs/)服务**免费使用**，目前[限流规则](https://platform.iflow.cn/docs/limitSpeed)为每个用户最多只能**同时发起一个**请求。
 
-- **DeepSeek系列**：**DeepSeek-V3.2-Exp**、**DeepSeek-V3.1-Terminus**、**DeepSeek-V3-671B**
-- **Qwen3系列**：**Qwen3-Coder-Plus**、**Qwen3-Coder-480B-A35B**、**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-Max-Preview**、**Qwen3-32B**、**Qwen3-235B-A22B**、**Qwen3-235B-A22B-Instruct**、**Qwen3-235B-A22B-Thinking**
+- **DeepSeek系列**：**DeepSeek-V3.2-Exp**、**DeepSeek-V3.1-Terminus**
+- **Qwen3系列**：**Qwen3-Coder-Plus**、**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-Max-Preview**、**Qwen3-32B**、**Qwen3-235B-A22B**、**Qwen3-235B-A22B-Instruct**、**Qwen3-235B-A22B-Thinking**
 - **Kimi系列**：**Kimi-K2-Instruct-0905**、**Kimi-K2**
 - **智谱AI系列**：**GLM-4.6**
 
@@ -86,7 +86,7 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 
 [**ModelScope**](https://www.modelscope.cn/)、
 [**AI Ping**](https://aiping.cn/#?invitation_code=EBQQKW)、
-[**百度智能云**](https://cloud.baidu.com/)
+[**百度千帆**](https://console.bce.baidu.com/qianfan/overview)
 
 ## ⚙️ 高级配置
 
