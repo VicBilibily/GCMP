@@ -11,6 +11,7 @@ import { Logger } from './utils/logger';
 import { StatusLogger } from './utils/statusLogger';
 import { ApiKeyManager, ConfigManager, JsonSchemaProvider } from './utils';
 import { CompatibleModelManager } from './utils/compatibleModelManager';
+import { LeaderElectionService } from './status';
 import { registerAllTools } from './tools';
 
 /**
@@ -165,8 +166,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
         Logger.info('⏱️ 开始激活 GCMP 扩展...');
 
-        // 步骤1: 初始化API密钥管理器
+        // 步骤0: 初始化主实例竞选服务
         let stepStartTime = Date.now();
+        LeaderElectionService.initialize(context);
+        Logger.trace(`⏱️ 主实例竞选服务初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+
+        // 步骤1: 初始化API密钥管理器
+        stepStartTime = Date.now();
         ApiKeyManager.initialize(context);
         Logger.trace(`⏱️ API密钥管理器初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
@@ -216,6 +222,10 @@ export async function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
     try {
         Logger.info('开始停用 GCMP 扩展...');
+
+        // 停止主实例竞选服务
+        LeaderElectionService.stop();
+        Logger.trace('已停止主实例竞选服务');
 
         // 清理所有已注册提供商的资源
         for (const [providerKey, provider] of Object.entries(registeredProviders)) {

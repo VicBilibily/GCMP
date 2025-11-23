@@ -28,9 +28,9 @@
 - 标准计费：**GLM-4.6**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5-X**、**GLM-4.5-AirX**、**GLM-4.5V**
 - 免费版本：**GLM-4.5-Flash**
 
-- **搜索功能**：集成 联网搜索MCP 及 Web Search API，支持 `#zhipuWebSearch` 进行联网搜索。
-    - 默认启用 联网搜索MCP 模式，所有挡位的编程套餐均已支持调用：Lite(100次)、Pro(1000次)、Max(4000次)。
-    - 可通过设置关闭 联网搜索MCP 模式以使用 Web Search API 按此计费。
+- **搜索功能**：集成 `联网搜索MCP` 及 `Web Search API`，支持 `#zhipuWebSearch` 进行联网搜索。
+    - 默认启用 `联网搜索MCP` 模式，所有挡位的套餐均已支持：Lite(100次)、Pro(1000次)、Max(4000次)。
+    - 可通过设置关闭 `联网搜索MCP` 模式以使用 `Web Search API` 按次计费。
 
 ### [**Kimi**](https://www.kimi.com/) - Kimi For Coding
 
