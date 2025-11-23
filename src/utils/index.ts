@@ -15,7 +15,6 @@ export { VersionManager } from './versionManager';
 export { ZhipuWizard } from './zhipuWizard';
 export { StreamlakeWizard } from './streamlakeWizard';
 export { MiniMaxWizard } from './minimaxWizard';
-export { MiniMaxRemainQuery } from './minimaxRemainQuery';
 export { JsonSchemaProvider } from './jsonSchemaProvider';
 export { RetryManager } from './retryManager';
 export { ModelInfoCache } from './modelInfoCache';

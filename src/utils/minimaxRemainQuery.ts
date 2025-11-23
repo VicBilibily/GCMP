@@ -19,6 +19,10 @@ export interface ModelRemainItem {
     percentage: number /* 12 */;
     /** 可用量状态 */
     usageStatus: string /** 528/600 */;
+    /** 可用次数 */
+    usage: number /** 528 */;
+    /** 配额次数 */
+    total: number /** 600 */;
 }
 
 export interface RemainQueryResult {
@@ -206,7 +210,9 @@ export class MiniMaxRemainQuery {
                 range,
                 remainMs: remains_time,
                 percentage,
-                usageStatus
+                usageStatus,
+                usage: current_interval_usage_count || 0,
+                total: current_interval_total_count || 0
             };
         });
     }

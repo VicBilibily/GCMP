@@ -23,7 +23,7 @@ import { ApiKeyManager } from './apiKeyManager';
  * 1. 手动刷新：点击状态栏或执行命令
  * 2. 延时刷新：API 请求后 2 秒执行，带 30 秒防抖
  */
-export class MiniMaxStatusManager {
+export class MiniMaxStatusBarManager {
     private static statusBarItem: vscode.StatusBarItem | undefined;
     private static lastMaxPercentage = 0; // 存储上一次的最大使用量百分比
     private static updateDebouncer: NodeJS.Timeout | undefined; // 防抖定时器
@@ -296,11 +296,11 @@ export class MiniMaxStatusManager {
     private static generateTooltip(formatted: ModelRemainItem[], maxUsageModel: ModelRemainItem) {
         const md = new vscode.MarkdownString();
         md.supportHtml = true;
-        md.appendMarkdown('#### Coding Plan 使用情况\n\n');
-        md.appendMarkdown('| 模型 | 可用/总量 | 已使用 |\n');
-        md.appendMarkdown('| :--- | ------: | ---: |\n');
+        md.appendMarkdown('#### MiniMax Coding Plan 使用情况\n\n');
+        md.appendMarkdown('| 模型 | 上限 | 剩余 | 使用率 |\n');
+        md.appendMarkdown('| :--- | ----: | ----: | ---: |\n');
         for (const info of formatted) {
-            md.appendMarkdown(`| ${info.model} | ${info.usageStatus} | ${info.percentage}% |\n`);
+            md.appendMarkdown(`| ${info.model} | ${info.total} | ${info.usage} | ${info.percentage}% |\n`);
         }
         md.appendMarkdown('\n');
         if (maxUsageModel) {

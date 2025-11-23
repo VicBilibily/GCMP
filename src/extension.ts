@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { GenericModelProvider } from './providers/genericModelProvider';
 import { ZhipuProvider } from './providers/zhipuProvider';
+import { KimiProvider } from './providers/kimiProvider';
 import { IFlowProvider } from './providers/iflowProvider';
 import { ModelScopeProvider } from './providers/modelscopeProvider';
 import { StreamLakeProvider } from './providers/streamlakeProvider';
@@ -19,6 +20,7 @@ const registeredProviders: Record<
     string,
     | GenericModelProvider
     | ZhipuProvider
+    | KimiProvider
     | IFlowProvider
     | ModelScopeProvider
     | StreamLakeProvider
@@ -50,6 +52,7 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
             let provider:
                 | GenericModelProvider
                 | ZhipuProvider
+                | KimiProvider
                 | IFlowProvider
                 | ModelScopeProvider
                 | StreamLakeProvider
@@ -59,6 +62,11 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
             if (providerKey === 'zhipu') {
                 // 对 zhipu 使用专门的 provider（配置向导功能）
                 const result = ZhipuProvider.createAndActivate(context, providerKey, providerConfig);
+                provider = result.provider;
+                disposables = result.disposables;
+            } else if (providerKey === 'kimi') {
+                // 对 kimi 使用专门的 provider（使用量统计和状态栏管理）
+                const result = KimiProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
             } else if (providerKey === 'iflow') {
