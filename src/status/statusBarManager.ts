@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { StatusLogger } from '../utils/statusLogger';
 import { MiniMaxStatusBar } from './minimaxStatusBar';
+import { KimiStatusBar } from './kimiStatusBar';
 
 /**
  * 状态栏项接口
@@ -26,6 +27,8 @@ export class StatusBarManager {
     // ==================== 公共状态栏实例 ====================
     /** MiniMax Coding Plan 状态栏 */
     static minimax: IStatusBar | undefined;
+    /** Kimi For Coding 状态栏 */
+    static kimi: IStatusBar | undefined;
 
     // ==================== 私有成员 ====================
     private static statusBars: Map<string, IStatusBar> = new Map<string, IStatusBar>();
@@ -39,6 +42,10 @@ export class StatusBarManager {
         // 创建并注册 MiniMax 状态栏
         const miniMaxStatusBar = new MiniMaxStatusBar();
         this.registerStatusBar('minimax', miniMaxStatusBar);
+
+        // 创建并注册 Kimi 状态栏
+        const kimiStatusBar = new KimiStatusBar();
+        this.registerStatusBar('kimi', kimiStatusBar);
     }
 
     /**
@@ -57,6 +64,9 @@ export class StatusBarManager {
         switch (key) {
             case 'minimax':
                 this.minimax = statusBar;
+                break;
+            case 'kimi':
+                this.kimi = statusBar;
                 break;
             default:
                 break;
@@ -151,6 +161,7 @@ export class StatusBarManager {
 
         // 清除公共实例引用
         this.minimax = undefined;
+        this.kimi = undefined;
     }
 
     /**

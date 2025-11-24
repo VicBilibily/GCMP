@@ -535,11 +535,17 @@ export abstract class BaseStatusBarItem<T> {
         LeaderElectionService.registerPeriodicTask(async () => {
             // 只有主实例才会执行此任务
             if (!this.initialized || !this.context || !this.statusBarItem) {
+                StatusLogger.trace(`[${this.config.logPrefix}] 主实例周期任务跳过：未初始化或无上下文`);
                 return;
             }
 
             // 检查是否需要刷新
-            if (this.shouldRefresh()) {
+            const needRefresh = this.shouldRefresh();
+            StatusLogger.trace(
+                `[${this.config.logPrefix}] 主实例周期任务检查：needRefresh=${needRefresh}, lastStatusData=${!!this.lastStatusData}`
+            );
+
+            if (needRefresh) {
                 StatusLogger.debug(`[${this.config.logPrefix}] 主实例触发定时刷新`);
                 await this.executeApiQuery();
             }

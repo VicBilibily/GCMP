@@ -15,7 +15,7 @@ import {
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig } from '../types/sharedTypes';
 import { Logger, ApiKeyManager } from '../utils';
-import { KimiStatusBarManager } from '../utils/kimiStatusBarManager';
+import { StatusBarManager } from '../status';
 
 /**
  * Kimi 专用模型提供商类
@@ -51,20 +51,10 @@ export class KimiProvider extends GenericModelProvider implements LanguageModelC
             // 触发模型信息变更事件
             provider._onDidChangeLanguageModelChatInformation.fire();
             // 检查并显示状态栏
-            await KimiStatusBarManager.checkAndShowStatus();
+            await StatusBarManager.checkAndShowStatus('kimi');
         });
 
-        // 注册刷新使用量命令
-        const refreshKimiUsageCommand = vscode.commands.registerCommand('gcmp.kimi.refreshUsage', async () => {
-            await KimiStatusBarManager.performRefresh();
-        });
-
-        // 初始化 Kimi 状态管理器
-        KimiStatusBarManager.initialize(context).catch((error: unknown) => {
-            Logger.error('初始化 Kimi 状态栏失败', error);
-        });
-
-        const disposables = [providerDisposable, setApiKeyCommand, refreshKimiUsageCommand];
+        const disposables = [providerDisposable, setApiKeyCommand];
         disposables.forEach(disposable => context.subscriptions.push(disposable));
         return { provider, disposables };
     }
@@ -89,7 +79,7 @@ export class KimiProvider extends GenericModelProvider implements LanguageModelC
             throw error;
         } finally {
             // 请求完成后，延时更新状态栏使用量信息
-            KimiStatusBarManager.delayedUpdate();
+            StatusBarManager.delayedUpdate('kimi');
         }
     }
 }
