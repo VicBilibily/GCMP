@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { Logger } from './logger';
 import { ApiKeyManager } from './apiKeyManager';
-import { MiniMaxStatusBarManager } from './minimaxStatusBarManager';
+import { StatusBarManager } from '../status';
 
 export class MiniMaxWizard {
     private static readonly PROVIDER_KEY = 'minimax';
@@ -136,6 +136,6 @@ export class MiniMaxWizard {
         }
 
         // 检查并显示状态栏
-        await MiniMaxStatusBarManager.checkAndShowStatus();
+        await StatusBarManager.checkAndShowStatus('minimax');
     }
 }

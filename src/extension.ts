@@ -11,7 +11,7 @@ import { Logger } from './utils/logger';
 import { StatusLogger } from './utils/statusLogger';
 import { ApiKeyManager, ConfigManager, JsonSchemaProvider } from './utils';
 import { CompatibleModelManager } from './utils/compatibleModelManager';
-import { LeaderElectionService } from './status';
+import { LeaderElectionService, StatusBarManager } from './status';
 import { registerAllTools } from './tools';
 
 /**
@@ -200,6 +200,11 @@ export async function activate(context: vscode.ExtensionContext) {
         await activateCompatibleProvider(context);
         Logger.trace(`⏱️ 兼容提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
+        // 步骤3.2: 初始化所有状态栏（包含创建和注册）
+        stepStartTime = Date.now();
+        await StatusBarManager.initializeAll(context);
+        Logger.trace(`⏱️ 所有状态栏初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+
         // 步骤4: 注册工具
         stepStartTime = Date.now();
         registerAllTools(context);
@@ -222,6 +227,10 @@ export async function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
     try {
         Logger.info('开始停用 GCMP 扩展...');
+
+        // 清理所有状态栏
+        StatusBarManager.disposeAll();
+        Logger.trace('已清理所有状态栏');
 
         // 停止主实例竞选服务
         LeaderElectionService.stop();

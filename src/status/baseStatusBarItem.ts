@@ -36,6 +36,8 @@ export interface StatusBarItemConfig {
     cacheKeyPrefix: string;
     /** 日志前缀 */
     logPrefix: string;
+    /** 状态栏图标，如 '$(gcmp-minimax)' */
+    icon: string;
 }
 
 /**
@@ -92,7 +94,8 @@ export abstract class BaseStatusBarItem<T> {
             'refreshCommand',
             'apiKeyProvider',
             'cacheKeyPrefix',
-            'logPrefix'
+            'logPrefix',
+            'icon'
         ];
 
         for (const field of requiredFields) {
@@ -107,12 +110,6 @@ export abstract class BaseStatusBarItem<T> {
     }
 
     // ==================== 抽象方法（子类必须实现） ====================
-
-    /**
-     * 获取状态栏图标
-     * @returns 图标字符串，如 '$(gcmp-minimax)'
-     */
-    protected abstract getIcon(): string;
 
     /**
      * 获取显示文本
@@ -190,7 +187,7 @@ export abstract class BaseStatusBarItem<T> {
         // 创建 StatusBarItem
         this.statusBarItem = vscode.window.createStatusBarItem(this.config.alignment, this.config.priority);
         this.statusBarItem.name = this.config.name;
-        this.statusBarItem.text = this.getIcon();
+        this.statusBarItem.text = this.config.icon;
         this.statusBarItem.command = this.config.refreshCommand;
 
         // 检查是否设置了 API Key
@@ -346,13 +343,11 @@ export abstract class BaseStatusBarItem<T> {
      * 执行用户刷新（带加载状态）
      */
     private async performRefresh(): Promise<void> {
-        this.isLoading = true;
-
         try {
             // 显示加载中状态
             if (this.statusBarItem && this.lastStatusData) {
                 const previousText = this.getDisplayText(this.lastStatusData.data);
-                this.statusBarItem.text = `$(loading~spin) ${previousText.replace(this.getIcon(), '').trim()}`;
+                this.statusBarItem.text = `$(loading~spin) ${previousText.replace(this.config.icon, '').trim()}`;
                 this.statusBarItem.backgroundColor = undefined;
                 this.statusBarItem.tooltip = '加载中...';
             }
@@ -374,8 +369,13 @@ export abstract class BaseStatusBarItem<T> {
 
             // 执行 API 查询
             await this.executeApiQuery();
-        } finally {
-            this.isLoading = false;
+        } catch (error) {
+            StatusLogger.error(`[${this.config.logPrefix}] 刷新失败`, error);
+
+            if (this.statusBarItem) {
+                this.statusBarItem.text = `${this.config.icon} ERR`;
+                this.statusBarItem.tooltip = `获取失败: ${error instanceof Error ? error.message : '未知错误'}`;
+            }
         }
     }
 
@@ -421,7 +421,7 @@ export abstract class BaseStatusBarItem<T> {
                 const errorMsg = result.error || '未知错误';
 
                 if (this.statusBarItem) {
-                    this.statusBarItem.text = `${this.getIcon()} ERR`;
+                    this.statusBarItem.text = `${this.config.icon} ERR`;
                     this.statusBarItem.tooltip = `获取失败: ${errorMsg}`;
                 }
 
@@ -431,11 +431,11 @@ export abstract class BaseStatusBarItem<T> {
             StatusLogger.error(`[${this.config.logPrefix}] 更新状态栏失败`, error);
 
             if (this.statusBarItem) {
-                this.statusBarItem.text = `${this.getIcon()} ERR`;
+                this.statusBarItem.text = `${this.config.icon} ERR`;
                 this.statusBarItem.tooltip = `获取失败: ${error instanceof Error ? error.message : '未知错误'}`;
             }
         } finally {
-            // 确保在所有情况下都重置加载标志
+            // 一定要在最后重置加载状态
             this.isLoading = false;
         }
     }

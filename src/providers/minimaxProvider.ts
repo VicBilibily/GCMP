@@ -15,7 +15,7 @@ import {
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { Logger, ApiKeyManager, MiniMaxWizard, ConfigManager } from '../utils';
-import { MiniMaxStatusBarManager } from '../utils/minimaxStatusBarManager';
+import { StatusBarManager } from '../status';
 
 /**
  * MiniMax 专用模型提供商类
@@ -67,14 +67,16 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             await MiniMaxWizard.startWizard(providerConfig.displayName, providerConfig.apiKeyTemplate);
         });
 
-        // 异步初始化状态栏管理器（不等待）
-        MiniMaxStatusBarManager.initialize(context).catch((error: unknown) => {
-            Logger.error('初始化 MiniMax 状态栏失败', error);
-        });
-
         const disposables = [providerDisposable, setApiKeyCommand, setCodingKeyCommand, configWizardCommand];
         disposables.forEach(disposable => context.subscriptions.push(disposable));
         return { provider, disposables };
+    }
+
+    /**
+     * 获取 MiniMax 状态栏实例（用于 delayedUpdate 调用）
+     */
+    static getMiniMaxStatusBar() {
+        return StatusBarManager.minimax;
     }
 
     /**
@@ -254,7 +256,8 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
 
             // 如果使用的是 Coding Plan 密钥，延时更新状态栏使用量
             if (providerKey === 'minimax-coding') {
-                MiniMaxStatusBarManager.delayedUpdate();
+                const statusBar = MiniMaxProvider.getMiniMaxStatusBar();
+                statusBar?.delayedUpdate();
             }
         }
     }
