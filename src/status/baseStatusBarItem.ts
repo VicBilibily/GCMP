@@ -478,14 +478,6 @@ export abstract class BaseStatusBarItem<T> {
             if (cachedStatusData && cachedStatusData.data) {
                 const dataAge = Date.now() - cachedStatusData.timestamp;
 
-                // 检查是否需要触发刷新
-                if (this.shouldRefresh()) {
-                    this.performRefresh().catch(error => {
-                        StatusLogger.error(`[${this.config.logPrefix}] 自动刷新失败`, error);
-                    });
-                    return;
-                }
-
                 if (dataAge > 30 * 1000) {
                     // 30秒以上的数据视为无变更，跳过更新
                     if (dataAge < 60 * 1000) {

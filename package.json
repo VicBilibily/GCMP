@@ -390,7 +390,7 @@
             },
             {
                 "vendor": "gcmp.aiping",
-                "displayName": "Ⓣ AI Ping (Beta)",
+                "displayName": "Ⓣ AI Ping (EOL on 2025-11-30)",
                 "managementCommand": "gcmp.aiping.setApiKey"
             },
             {

@@ -1,5 +1,5 @@
 ﻿{
-    "displayName": "AI Ping",
+    "displayName": "AI Ping (EOL)",
     "baseUrl": "https://aiping.cn/api/v1",
     "apiKeyTemplate": "QC-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
