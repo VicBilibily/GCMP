@@ -63,8 +63,6 @@ export interface KimiStatusData {
  * - 支持多时间窗口展示
  */
 export class KimiStatusBar extends BaseStatusBarItem<KimiStatusData> {
-    private static readonly CACHE_EXPIRY_THRESHOLD = 10 * 60 * 1000; // 缓存过期阈值 10 分钟
-
     constructor() {
         const config: StatusBarItemConfig = {
             name: 'Kimi Usage',
@@ -372,7 +370,7 @@ export class KimiStatusBar extends BaseStatusBarItem<KimiStatusData> {
 
     /**
      * 检查是否需要刷新缓存
-     * 缓存超过10分钟固定过期时间则刷新
+     * 缓存超过5分钟固定过期时间则刷新
      */
     protected shouldRefresh(): boolean {
         if (!this.lastStatusData) {
@@ -380,11 +378,12 @@ export class KimiStatusBar extends BaseStatusBarItem<KimiStatusData> {
         }
 
         const dataAge = Date.now() - this.lastStatusData.timestamp;
+        const CACHE_EXPIRY_THRESHOLD = 5 * 60 * 1000; // 缓存过期阈值 5 分钟
 
-        // 检查缓存是否超过10分钟固定过期时间
-        if (dataAge > KimiStatusBar.CACHE_EXPIRY_THRESHOLD) {
+        // 检查缓存是否超过5分钟固定过期时间
+        if (dataAge > CACHE_EXPIRY_THRESHOLD) {
             StatusLogger.debug(
-                `[${this.config.logPrefix}] 缓存时间(${(dataAge / 1000).toFixed(1)}秒)超过10分钟固定过期时间，触发API刷新`
+                `[${this.config.logPrefix}] 缓存时间(${(dataAge / 1000).toFixed(1)}秒)超过5分钟固定过期时间，触发API刷新`
             );
             return true;
         }

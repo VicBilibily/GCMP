@@ -285,7 +285,7 @@ export class MiniMaxStatusBar extends BaseStatusBarItem<MiniMaxStatusData> {
     /**
      * 检查是否需要刷新缓存
      * 根据 remainMs（重置剩余时间）判断是否需要刷新
-     * 以及固定10分钟缓存过期时间
+     * 以及固定5分钟缓存过期时间
      */
     protected shouldRefresh(): boolean {
         if (!this.lastStatusData) {
@@ -293,7 +293,7 @@ export class MiniMaxStatusBar extends BaseStatusBarItem<MiniMaxStatusData> {
         }
 
         const dataAge = Date.now() - this.lastStatusData.timestamp;
-        const TEN_MINUTES_MS = 10 * 60 * 1000; // 10分钟的毫秒数
+        const CACHE_EXPIRY_THRESHOLD = 5 * 60 * 1000; // 5分钟的毫秒数
 
         // 1. 检查是否需要根据 remainMs 触发刷新
         if (this.lastStatusData.data.formatted && this.lastStatusData.data.formatted.length > 0) {
@@ -307,10 +307,10 @@ export class MiniMaxStatusBar extends BaseStatusBarItem<MiniMaxStatusData> {
             }
         }
 
-        // 2. 检查缓存是否超过10分钟固定过期时间
-        if (dataAge > TEN_MINUTES_MS) {
+        // 2. 检查缓存是否超过5分钟固定过期时间
+        if (dataAge > CACHE_EXPIRY_THRESHOLD) {
             StatusLogger.debug(
-                `[${this.config.logPrefix}] 缓存时间(${(dataAge / 1000).toFixed(1)}秒)超过10分钟固定过期时间，触发API刷新`
+                `[${this.config.logPrefix}] 缓存时间(${(dataAge / 1000).toFixed(1)}秒)超过5分钟固定过期时间，触发API刷新`
             );
             return true;
         }

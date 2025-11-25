@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { StatusLogger } from '../utils/statusLogger';
+import { UserActivityService } from './userActivityService';
 import * as crypto from 'crypto';
 
 interface LeaderInfo {
@@ -51,6 +52,9 @@ export class LeaderElectionService {
         this.context = context;
         StatusLogger.info(`[LeaderElectionService] 初始化主实例竞选服务，当前实例ID: ${this.instanceId}`);
 
+        // 初始化用户活跃检测服务
+        UserActivityService.initialize(context, this.instanceId);
+
         // 添加随机延迟 (0-1000ms)，避免多个实例同时启动时的竞态条件
         const startDelay = Math.random() * 1000;
         setTimeout(() => {
@@ -92,6 +96,9 @@ export class LeaderElectionService {
             clearInterval(this.taskTimer);
             this.taskTimer = undefined;
         }
+
+        // 停止用户活跃检测服务
+        UserActivityService.stop();
 
         // 如果是 Leader，尝试主动释放
         this.resignLeader();
@@ -281,6 +288,13 @@ export class LeaderElectionService {
     }
 
     private static async executePeriodicTasks(): Promise<void> {
+        // 检查用户是否在30分钟内有活跃（使用 UserActivityService）
+        if (!UserActivityService.isUserActive()) {
+            const inactiveMinutes = Math.floor(UserActivityService.getInactiveTime() / 60000);
+            StatusLogger.debug(`[LeaderElectionService] 用户已不活跃 ${inactiveMinutes} 分钟，暂停周期性任务执行`);
+            return;
+        }
+
         StatusLogger.trace(`[LeaderElectionService] 开始执行 ${this.periodicTasks.length} 个周期性任务...`);
         for (const task of this.periodicTasks) {
             try {
