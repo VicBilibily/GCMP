@@ -76,7 +76,7 @@ export class AnthropicHandler {
     ): Promise<void> {
         try {
             const client = await this.createAnthropicClient(modelConfig);
-            const { messages: anthropicMessages, system } = apiMessageToAnthropicMessage(messages);
+            const { messages: anthropicMessages, system } = apiMessageToAnthropicMessage(modelConfig, messages);
 
             // 准备工具定义
             const tools: Anthropic.Messages.Tool[] = options.tools ? convertToAnthropicTools([...options.tools]) : [];

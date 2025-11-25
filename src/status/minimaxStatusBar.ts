@@ -66,8 +66,8 @@ export class MiniMaxStatusBar extends BaseStatusBarItem<MiniMaxStatusData> {
      * 获取显示文本
      */
     protected getDisplayText(data: MiniMaxStatusData): string {
-        const percentage = data.maxUsageModel.percentage;
-        return `${this.config.icon} ${percentage}%`;
+        const { usage, percentage } = data.maxUsageModel;
+        return `${this.config.icon} ${usage} (${percentage}%)`;
     }
 
     /**

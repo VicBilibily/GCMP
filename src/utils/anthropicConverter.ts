@@ -4,13 +4,22 @@
  *  主要功能:
  *  - VS Code API消息格式转换为 Anthropic API格式
  *  - 支持文本、图像、工具调用和工具结果
+ *  - 支持思考内容（thinking）转换，保持多轮对话思维链连续性
  *  - 支持缓存控制和流式响应处理
  *  - 完整的错误处理和类型安全
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
-import type { ContentBlockParam, MessageParam, TextBlockParam, ImageBlockParam } from '@anthropic-ai/sdk/resources';
+import type {
+    ContentBlockParam,
+    ThinkingBlockParam,
+    RedactedThinkingBlockParam,
+    MessageParam,
+    TextBlockParam,
+    ImageBlockParam
+} from '@anthropic-ai/sdk/resources';
+import { ModelConfig } from '../types/sharedTypes';
 
 // 自定义数据部分MIME类型
 const CustomDataPartMimeTypes = {
@@ -31,13 +40,49 @@ function contentBlockSupportsCacheControl(block: ContentBlockParam): boolean {
 
 /**
  * 将 VS Code API 消息内容转换为 Anthropic 格式
+ * 支持 thinking 内容块以保持多轮对话中思维链的连续性（MiniMax 要求）
  */
-function apiContentToAnthropicContent(content: vscode.LanguageModelChatMessage['content']): ContentBlockParam[] {
+function apiContentToAnthropicContent(
+    content: vscode.LanguageModelChatMessage['content'],
+    includeThinking = false
+): ContentBlockParam[] {
     const convertedContent: ContentBlockParam[] = [];
 
     for (const part of content) {
+        // 思考内容（thinking）- 用于保持多轮对话思维链连续性
+        if (includeThinking && part instanceof vscode.LanguageModelThinkingPart) {
+            // 检查是否有 metadata（包含 signature 等信息）
+            const metadata = part.metadata as
+                | { signature?: string; data?: string; _completeThinking?: string }
+                | undefined;
+
+            // 如果是加密的思考内容（redacted_thinking）
+            if (metadata?.data) {
+                convertedContent.push({
+                    type: 'redacted_thinking',
+                    data: metadata.data
+                } as RedactedThinkingBlockParam);
+            } else {
+                // 普通思考内容
+                // 优先使用 _completeThinking（完整思考内容），否则使用 value
+                const thinkingText =
+                    metadata?._completeThinking || (Array.isArray(part.value) ? part.value.join('') : part.value);
+                // 只有当思考内容非空时才添加
+                if (thinkingText) {
+                    const thinkingBlock = {
+                        type: 'thinking',
+                        thinking: thinkingText
+                    } as ThinkingBlockParam;
+                    // 如果有签名，添加到块中
+                    if (metadata?.signature) {
+                        thinkingBlock.signature = metadata.signature;
+                    }
+                    convertedContent.push(thinkingBlock);
+                }
+            }
+        }
         // 工具调用
-        if (part instanceof vscode.LanguageModelToolCallPart) {
+        else if (part instanceof vscode.LanguageModelToolCallPart) {
             convertedContent.push({
                 type: 'tool_use',
                 id: part.callId,
@@ -107,10 +152,16 @@ function apiContentToAnthropicContent(content: vscode.LanguageModelChatMessage['
     return convertedContent;
 }
 
+/** 需要包含 thinking 部分的模型 */
+const includeThinkingForModels = new Set(['MiniMax-M2']);
+
 /**
  * 将 VS Code API 消息转换为 Anthropic 格式
  */
-export function apiMessageToAnthropicMessage(messages: readonly vscode.LanguageModelChatMessage[]): {
+export function apiMessageToAnthropicMessage(
+    model: ModelConfig,
+    messages: readonly vscode.LanguageModelChatMessage[]
+): {
     messages: MessageParam[];
     system: TextBlockParam;
 } {
@@ -122,9 +173,10 @@ export function apiMessageToAnthropicMessage(messages: readonly vscode.LanguageM
 
     for (const message of messages) {
         if (message.role === vscode.LanguageModelChatMessageRole.Assistant) {
+            const modelName = model.model || model.id;
             unmergedMessages.push({
                 role: 'assistant',
-                content: apiContentToAnthropicContent(message.content)
+                content: apiContentToAnthropicContent(message.content, includeThinkingForModels.has(modelName))
             });
         } else if (message.role === vscode.LanguageModelChatMessageRole.User) {
             unmergedMessages.push({

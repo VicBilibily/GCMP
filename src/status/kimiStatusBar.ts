@@ -84,7 +84,19 @@ export class KimiStatusBar extends BaseStatusBarItem<KimiStatusData> {
      */
     protected getDisplayText(data: KimiStatusData): string {
         const remaining = data.summary.remaining;
-        return `${this.config.icon} ${remaining}`;
+        let displayText = `${this.config.icon} ${remaining}`;
+
+        // 如果有窗口数据，添加每个窗口的剩余数
+        if (data.windows.length > 0) {
+            const windowTexts = data.windows.map(window => {
+                // const timeUnit = this.translateTimeUnit(window.timeUnit);
+                // return `${window.duration}${timeUnit}: ${window.detail.remaining}`;
+                return `${window.detail.remaining}`;
+            });
+            displayText += ` (${windowTexts.join(',')})`;
+        }
+
+        return displayText;
     }
 
     /**
@@ -96,7 +108,7 @@ export class KimiStatusBar extends BaseStatusBarItem<KimiStatusData> {
 
         const { summary } = data;
         md.appendMarkdown('#### Kimi For Coding 使用情况\n\n');
-        md.appendMarkdown('|  类型  | 配额上限 | 剩余额度 |\n');
+        md.appendMarkdown('|  套餐限制  | 配额上限 | 剩余额度 |\n');
         md.appendMarkdown('| :----: | ----: | ----: |\n');
         md.appendMarkdown(`| **每周额度** | ${summary.limit} | ${summary.remaining} |\n`);
 
@@ -113,7 +125,7 @@ export class KimiStatusBar extends BaseStatusBarItem<KimiStatusData> {
             md.appendMarkdown('---\n');
             const resetTime = new Date(summary.resetTime);
             const resetTimeStr = resetTime.toLocaleString('zh-CN');
-            md.appendMarkdown(`**重置时间** ${resetTimeStr}\n`);
+            md.appendMarkdown(`**每周重置** ${resetTimeStr}\n`);
             md.appendMarkdown('\n');
         }
 
