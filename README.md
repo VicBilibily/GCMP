@@ -24,7 +24,7 @@
 
 ### [**智谱AI**](https://bigmodel.cn/) - GLM系列
 
-- [**编程套餐**](https://bigmodel.cn/claude-code)：**GLM-4.6**(Thinking)、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
+- [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-4.6**(Thinking)、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
 - 标准计费：**GLM-4.6**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5-X**、**GLM-4.5-AirX**、**GLM-4.5V**
 - 免费版本：**GLM-4.5-Flash**
 
@@ -84,9 +84,11 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 
 > 由于各提供商 OpenAI 的兼容性问题，部分情况下可能会报错或卡住不动，建议先查看本地输出的日志后提交 Issue 进一步处理。
 
-[**ModelScope**](https://www.modelscope.cn/)、
-[**AI Ping**](https://aiping.cn/#?invitation_code=EBQQKW)、
-[**百度千帆**](https://console.bce.baidu.com/qianfan/overview)
+### [**ModelScope**](https://www.modelscope.cn/)
+
+> 由于`魔搭社区`的内置模型全部使用 Anthropic 兼容 API 接口。可通过覆盖设置 `gcmp.providerOverrides` 自行添加 OpenAI API 接口模型，但仅提供有限的兼容。
+
+### [**百度千帆**](https://console.bce.baidu.com/qianfan/overview)
 
 ## ⚙️ 高级配置
 
@@ -123,9 +125,9 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 
 #### 智谱AI专用配置
 
-| 参数                          | 类型    | 默认值 | 说明                                             |
-| ----------------------------- | ------- | ------ | ------------------------------------------------ |
-| `gcmp.zhipu.search.enableMCP` | boolean | true   | **搜索模式**：启用MCP通讯模式（Coding Plan专属） |
+| 参数                          | 类型    | 默认值 | 说明                                 |
+| ----------------------------- | ------- | ------ | ------------------------------------ |
+| `gcmp.zhipu.search.enableMCP` | boolean | true   | 启用`联网搜索MCP`（Coding Plan专属） |
 
 #### 提供商配置覆盖
 
@@ -136,32 +138,6 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
 ```json
 {
     "gcmp.providerOverrides": {
-        "zhipu": {
-            "baseUrl": "https://api.z.ai/api/paas/v4",
-            "customHeader": {
-                "X-Custom-Header": "your-value"
-            },
-            "models": [
-                {
-                    "id": "glm-4.6",
-                    "model": "glm-4.6",
-                    "baseUrl": "https://api.z.ai/api/coding/paas/v4",
-                    "maxInputTokens": 200000,
-                    "maxOutputTokens": 64000,
-                    "capabilities": {
-                        "toolCalling": true,
-                        "imageInput": false
-                    },
-                    "customHeader": {
-                        "X-Model-Specific": "value",
-                        "X-Custom-Key": "${APIKEY}"
-                    },
-                    "extraBody": {
-                        "thinking": { "type": "disabled" }
-                    }
-                }
-            ]
-        },
         "dashscope": {
             "models": [
                 {
@@ -207,11 +183,9 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
 
 GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 OpenAI 或 Anthropic 兼容的 API。通过 `gcmp.compatibleModels` 配置，您可以完全自定义模型参数，包括扩展请求参数。
 
-##### 配置自定义模型
-
-在 VS Code 设置中编辑 `gcmp.compatibleModels` 配置项（或通过 `GCMP: Compatible Provider 设置` 命令）：
-
-- `customHeader` 及 `extraBody` 配置只可通过编辑全局 `settings.json` 配置
+1. 通过 `GCMP: Compatible Provider 设置` 命令启动配置向导。
+2. 在 `settings.json` 设置中编辑 `gcmp.compatibleModels` 配置项：
+    - `customHeader` 及 `extraBody` 配置只可通过编辑全局 `settings.json` 配置。
 
 ```json
 {
@@ -219,9 +193,13 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
         {
             "id": "glm-4.6:openai",
             "name": "GLM-4.6 (OAI)",
+            // "id": "glm-4.6:claude",
+            // "name": "GLM-4.6 (Claude)",
             "provider": "zhipu",
             "sdkMode": "openai",
             "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+            // "sdkMode": "anthropic",
+            // "baseUrl": "https://open.bigmodel.cn/api/anthropic",
             "model": "glm-4.6",
             "maxInputTokens": 128000,
             "maxOutputTokens": 4096,
@@ -237,23 +215,6 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
                 "temperature": 0.1,
                 "top_p": 0.9,
                 "thinking": { "type": "disabled" }
-            }
-        },
-        {
-            "id": "glm-4.6:claude",
-            "name": "GLM-4.6 (Claude)",
-            "provider": "zhipu",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://open.bigmodel.cn/api/anthropic",
-            "model": "glm-4.6",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 4096,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
-            "extraBody": {
-                "top_p": null
             }
         }
     ]
