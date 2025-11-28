@@ -1,5 +1,5 @@
 {
-    "displayName": "ModelScope",
+    "displayName": "魔搭社区",
     "baseUrl": "https://api-inference.modelscope.cn/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
@@ -56,13 +56,52 @@
             }
         },
         {
-            "id": "MiniMax/MiniMax-M2",
-            "name": "MiniMax-M2 (ModelScope)",
+            "id": "Qwen/Qwen3-Coder-480B-A35B-Instruct",
+            "name": "通义千问3-Coder-480B-A35B-Instruct",
             "sdkMode": "anthropic",
             "baseUrl": "https://api-inference.modelscope.cn",
-            "tooltip": "MiniMax-M2 文本生成模型，支持文本生成和理解。",
+            "tooltip": "Qwen3-Coder是一个由Qwen团队宣布推出的新型代码模型系列，被定位为他们迄今为止最具智能体（agentic）能力的模型。该系列提供多种尺寸，其中Qwen3-Coder-480B-A35B-Instruct是率先推出并作为其最强大的变体。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "Qwen/Qwen3-235B-A22B",
+            "name": "通义千问3-235B-A22B",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api-inference.modelscope.cn",
+            "tooltip": "Qwen3-235B-A22B是阿里开源的第三代千问大模型最大参数规模的版本，共2350亿参数，但是这是MoE（混合专家）架构的大模型，每次推理仅激活其中的220亿参数。",
             "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+            "name": "通义千问3-235B-A22B-Instruct-2507",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api-inference.modelscope.cn",
+            "tooltip": "wen3-235B-A22B-2507是阿里开源的Qwen3-235B-A22B的一个升级版本",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "Qwen/Qwen3-Next-80B-A3B-Instruct",
+            "name": "通义千问3-Next-80B-A3B-Instruct",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api-inference.modelscope.cn",
+            "tooltip": "Qwen3-Next-80B-A3B-Instruct 仅支持指令模式（非思考模式），其输出中不会生成 <think></think> 块。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
