@@ -86,7 +86,7 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 
 ### [**ModelScope**](https://www.modelscope.cn/)
 
-> 由于`魔搭社区`的内置模型全部使用 Anthropic 兼容 API 接口。可通过覆盖设置 `gcmp.providerOverrides` 自行添加 OpenAI API 接口模型，但仅提供有限的兼容。
+> `魔搭社区` 的内置模型全部使用 Anthropic 兼容 API 接口。可通过覆盖设置 `gcmp.providerOverrides` 自行添加 OpenAI API 接口模型，但仅提供有限的兼容，自行添加时建议使用 Anthropic API 兼容模式接口。
 
 - **DeepSeek系列**：`DeepSeek-V3.2-Exp`、`DeepSeek-V3.1`
 - **智谱AI系列**：`GLM-4.6`、`GLM-4.5`
