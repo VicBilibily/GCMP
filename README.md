@@ -6,7 +6,7 @@
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/vicanent.gcmp?color=green&label=Downloads)](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp)
 [![License](https://img.shields.io/github/license/VicBilibily/GCMP?color=orange&label=License)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
-通过集成国内的AI模型，为开发者提供更丰富、更适合的AI编程助手选择。目前支持智谱AI、Kimi、火山方舟、MiniMax、心流AI、MoonshotAI、DeepSeek、快手万擎、阿里云百炼、百灵大模型等多家主流AI提供商，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。
+通过集成国内的AI模型，为开发者提供更丰富、更适合的AI编程助手选择。目前内置 智谱AI、Kimi、火山方舟、MiniMax、心流AI、MoonshotAI、DeepSeek、快手万擎、阿里云百炼、百灵大模型 等提供商，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。
 
 ## 🚀 快速开始
 
@@ -17,10 +17,11 @@
 ### 2. 开始使用
 
 1. 打开 `VS Code` 的 `GitHub Copilot Chat` 面板
-2. 在模型选择器中选择您想要使用的 `AI模型`
-3. 开始与 `AI助手` 对话，享受强大的编程辅助功能
+2. 在模型选择器的底部选择 `管理模型`，从弹出的模型提供商列表中选择所需的提供商
+3. 若第一次使用，选择提供商后会要求设置 ApiKey，根据提示完成API密钥配置后，即可返回模型选择器添加并启用模型
+4. 在模型选择器中选中目标模型后，即可开始与AI助手进行对话
 
-## 🤖 支持的AI提供商
+## 🤖 内置的AI大模型提供商
 
 ### [**智谱AI**](https://bigmodel.cn/) - GLM系列
 
@@ -29,7 +30,7 @@
 - 免费版本：**GLM-4.5-Flash**
 
 - **搜索功能**：集成 `联网搜索MCP` 及 `Web Search API`，支持 `#zhipuWebSearch` 进行联网搜索。
-    - 默认启用 `联网搜索MCP` 模式，所有挡位的套餐均已支持：Lite(100次)、Pro(1000次)、Max(4000次)。
+    - 默认启用 `联网搜索MCP` 模式，编程套餐支持：Lite(100次/月)、Pro(1000次/月)、Max(4000次/月)。
     - 可通过设置关闭 `联网搜索MCP` 模式以使用 `Web Search API` 按次计费。
 
 ### [**Kimi**](https://www.kimi.com/) - Kimi For Coding
@@ -48,7 +49,7 @@
 - [**Coding Plan 编程套餐**](https://platform.minimaxi.com/subscribe/coding-plan)：**MiniMax-M2**
     - **搜索功能**：集成 Coding Plan 联网搜索调用工具，支持通过 `#minimaxWebSearch` 进行联网搜索。
     - **用量查询**：已支持状态栏显示周期使用比例，可查看 Coding Plan 编程套餐用量信息。
-- **标准模型**：**MiniMax-M2**、**MiniMax-M2-Stable**、**MiniMax-M1**
+- **按量计费**：**MiniMax-M2**、**MiniMax-M1**
 
 ### [**心流AI**](https://platform.iflow.cn/) - iFlow
 
@@ -61,11 +62,11 @@
 
 ### [**MoonshotAI**](https://platform.moonshot.cn/) - Kimi K2系列
 
-- 支持模型：**Kimi-K2-Thinking**、**Kimi-K2-Thinking-Turbo**、**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-K2-0711-Preview**、**Kimi-Latest**
+- 预置模型：**Kimi-K2-Thinking**、**Kimi-K2-Thinking-Turbo**、**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-K2-0711-Preview**、**Kimi-Latest**
 
 ### [**DeepSeek**](https://platform.deepseek.com/) - 深度求索
 
-- 支持模型：**DeepSeek-V3.2-Exp**，包含思考模式聊天模型。
+- 预置模型：**DeepSeek-V3.2-Exp**，包含思考模式聊天模型。
 
 ### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
 
@@ -87,7 +88,7 @@
 
 ### [**ModelScope**](https://www.modelscope.cn/)
 
-> - `魔搭社区` 的内置模型全部使用 Anthropic 兼容 API 接口。
+> - `魔搭社区` 的预置模型全部使用 Anthropic 兼容 API 接口。
 > - 可通过覆盖设置 `gcmp.providerOverrides` 自行添加 OpenAI API 接口模型，但仅提供有限的兼容，自行添加时建议使用 Anthropic API 兼容模式接口。
 
 - **DeepSeek系列**：`DeepSeek-V3.2-Exp`、`DeepSeek-V3.1`
@@ -189,7 +190,7 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
 }
 ```
 
-#### 🔌 OpenAI / Anthropic Compatible 自定义模型支持 (GA)
+#### 🔌 OpenAI / Anthropic Compatible 自定义模型支持
 
 GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 OpenAI 或 Anthropic 兼容的 API。通过 `gcmp.compatibleModels` 配置，您可以完全自定义模型参数，包括扩展请求参数。
 
