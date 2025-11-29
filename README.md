@@ -25,7 +25,7 @@
 ### [**智谱AI**](https://bigmodel.cn/) - GLM系列
 
 - [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-4.6**(Thinking)、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
-- 标准计费：**GLM-4.6**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5-X**、**GLM-4.5-AirX**、**GLM-4.5V**
+- 按量计费：**GLM-4.6**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
 - 免费版本：**GLM-4.5-Flash**
 
 - **搜索功能**：集成 `联网搜索MCP` 及 `Web Search API`，支持 `#zhipuWebSearch` 进行联网搜索。
@@ -34,7 +34,8 @@
 
 ### [**Kimi**](https://www.kimi.com/) - Kimi For Coding
 
-Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic SDK 请求。已支持状态栏显示周期剩余额度。
+- Kimi `会员计划` 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic SDK 请求。
+    - **用量查询**：已支持状态栏显示周期剩余额度，可查看赠送的每周剩余用量及每周重置时间。
 
 ### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
 
@@ -82,11 +83,12 @@ Kimi 登月计划 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic 
 
 ## 仅供测试体验的提供商
 
-> 由于各提供商的兼容性问题，遇到问题建议先查看本地输出的日志排查后再提交 Issue 进一步处理。
+> 由于测试体验提供商可能存在兼容性问题，遇到问题建议先查看本地输出的日志排查后再提交 Issue 进一步处理。
 
 ### [**ModelScope**](https://www.modelscope.cn/)
 
-> `魔搭社区` 的内置模型全部使用 Anthropic 兼容 API 接口。可通过覆盖设置 `gcmp.providerOverrides` 自行添加 OpenAI API 接口模型，但仅提供有限的兼容，自行添加时建议使用 Anthropic API 兼容模式接口。
+> - `魔搭社区` 的内置模型全部使用 Anthropic 兼容 API 接口。
+> - 可通过覆盖设置 `gcmp.providerOverrides` 自行添加 OpenAI API 接口模型，但仅提供有限的兼容，自行添加时建议使用 Anthropic API 兼容模式接口。
 
 - **DeepSeek系列**：`DeepSeek-V3.2-Exp`、`DeepSeek-V3.1`
 - **智谱AI系列**：`GLM-4.6`、`GLM-4.5`
@@ -171,7 +173,7 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
                 "model": "your-kat-coder-air-endpoint-id"
             },
             {
-                "id": "DeepSeek-V3.2-Exp", // v0.10.1 起各自有模型提供商不再内置第三方开源模型，如需使用可自行添加
+                "id": "DeepSeek-V3.2-Exp", // 部分提供商提供第三方开源模型，如有需要可自行添加
                 "model": "your-deepseek-v3.2-exp-endpoint-id",
                 "name": "DeepSeek-V3.2-Exp (快手万擎)",
                 "tooltip": "DeepSeek-V3.2-Exp 在 V3.1-Terminus 的基础上引入了 DeepSeek Sparse Attention（一种稀疏注意力机制），针对长文本的训练和推理效率进行了探索性的优化和验证。支持深度思考。",
