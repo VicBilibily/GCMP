@@ -345,21 +345,21 @@ export class KimiStatusBar extends BaseStatusBarItem<KimiStatusData> {
     }
 
     /**
-     * 检查是否需要高亮警告（已使用百分比高于90%或任意窗口已使用高于90%）
+     * 检查是否需要高亮警告（已使用百分比高于阈值或任意窗口已使用高于阈值）
      */
     protected shouldHighlightWarning(data: KimiStatusData): boolean {
         const { summary, windows } = data;
 
-        // 检查总体百分比是否高于90%
-        if (summary.usage_percentage >= 90) {
+        // 检查总体百分比是否高于阈值
+        if (summary.usage_percentage >= this.HIGH_USAGE_THRESHOLD) {
             return true;
         }
 
-        // 检查是否存在任意窗口已使用高于90%
+        // 检查是否存在任意窗口已使用高于阈值
         if (windows.length > 0) {
             for (const window of windows) {
                 const windowPercentage = window.detail.limit > 0 ? (window.detail.used / window.detail.limit) * 100 : 0;
-                if (windowPercentage >= 90) {
+                if (windowPercentage >= this.HIGH_USAGE_THRESHOLD) {
                     return true;
                 }
             }

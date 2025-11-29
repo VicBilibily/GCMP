@@ -276,10 +276,10 @@ export class MiniMaxStatusBar extends BaseStatusBarItem<MiniMaxStatusData> {
 
     /**
      * 检查是否需要高亮警告
-     * 当使用率 >= 90% 时高亮显示
+     * 当使用率高于阈值时高亮显示
      */
     protected shouldHighlightWarning(data: MiniMaxStatusData): boolean {
-        return data.maxUsageModel.percentage >= 90;
+        return data.maxUsageModel.percentage >= this.HIGH_USAGE_THRESHOLD;
     }
 
     /**

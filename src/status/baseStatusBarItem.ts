@@ -74,6 +74,7 @@ export abstract class BaseStatusBarItem<T> {
     // 常量配置
     protected readonly MIN_DELAYED_UPDATE_INTERVAL = 30000; // 最小延时更新间隔 30 秒
     protected readonly CACHE_UPDATE_INTERVAL = 10000; // 缓存加载间隔 10 秒
+    protected readonly HIGH_USAGE_THRESHOLD = 80; // 高使用率阈值 80%
 
     /**
      * 构造函数
@@ -335,8 +336,8 @@ export abstract class BaseStatusBarItem<T> {
             this.statusBarItem.show();
         }
 
-        // 执行 API 查询
-        await this.executeApiQuery();
+        // 执行 API 查询（自动刷新，失败时不显示 ERR）
+        await this.executeApiQuery(false);
     }
 
     /**
@@ -367,8 +368,8 @@ export abstract class BaseStatusBarItem<T> {
                 this.statusBarItem.show();
             }
 
-            // 执行 API 查询
-            await this.executeApiQuery();
+            // 执行 API 查询（手动刷新，失败时显示 ERR）
+            await this.executeApiQuery(true);
         } catch (error) {
             StatusLogger.error(`[${this.config.logPrefix}] 刷新失败`, error);
 
@@ -381,12 +382,29 @@ export abstract class BaseStatusBarItem<T> {
 
     /**
      * 执行 API 查询并更新状态栏
+     * @param isManualRefresh 是否为手动刷新（用户点击触发），手动刷新失败时显示 ERR，自动刷新失败时保持原状态
      */
-    private async executeApiQuery(): Promise<void> {
+    private async executeApiQuery(isManualRefresh = false): Promise<void> {
         // 防止并发执行
         if (this.isLoading) {
             StatusLogger.debug(`[${this.config.logPrefix}] 正在执行查询，跳过重复调用`);
             return;
+        }
+
+        // 非手动刷新时，检查缓存是否在 5 秒内有效，有效则跳过本次加载
+        if (!isManualRefresh && this.lastStatusData) {
+            try {
+                const dataAge = Date.now() - this.lastStatusData.timestamp;
+                if (dataAge >= 0 && dataAge < 5000) {
+                    StatusLogger.debug(
+                        `[${this.config.logPrefix}] 数据在 5 秒内有效 (${(dataAge / 1000).toFixed(1)}秒前)，跳过本次自动刷新`
+                    );
+                    return;
+                }
+            } catch {
+                // 旧版本数据格式不兼容，忽略错误继续执行刷新
+                StatusLogger.debug(`[${this.config.logPrefix}] 缓存数据格式不兼容，继续执行刷新`);
+            }
         }
 
         this.isLoading = true;
@@ -420,7 +438,8 @@ export abstract class BaseStatusBarItem<T> {
                 // 错误处理
                 const errorMsg = result.error || '未知错误';
 
-                if (this.statusBarItem) {
+                // 只有手动刷新时才显示 ERR，自动刷新失败时保持原状态等待下次刷新
+                if (isManualRefresh && this.statusBarItem) {
                     this.statusBarItem.text = `${this.config.icon} ERR`;
                     this.statusBarItem.tooltip = `获取失败: ${errorMsg}`;
                 }
@@ -430,7 +449,8 @@ export abstract class BaseStatusBarItem<T> {
         } catch (error) {
             StatusLogger.error(`[${this.config.logPrefix}] 更新状态栏失败`, error);
 
-            if (this.statusBarItem) {
+            // 只有手动刷新时才显示 ERR，自动刷新失败时保持原状态等待下次刷新
+            if (isManualRefresh && this.statusBarItem) {
                 this.statusBarItem.text = `${this.config.icon} ERR`;
                 this.statusBarItem.tooltip = `获取失败: ${error instanceof Error ? error.message : '未知错误'}`;
             }
@@ -539,7 +559,8 @@ export abstract class BaseStatusBarItem<T> {
 
             if (needRefresh) {
                 StatusLogger.debug(`[${this.config.logPrefix}] 主实例触发定时刷新`);
-                await this.executeApiQuery();
+                // 定时刷新属于自动刷新，失败时不显示 ERR
+                await this.executeApiQuery(false);
             }
         });
 
