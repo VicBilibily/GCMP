@@ -19,7 +19,7 @@
         },
         {
             "id": "doubao-seed-code",
-            "name": "Doubao-Seed-Code",
+            "name": "Doubao-Seed-Code (按量计费)",
             "model": "doubao-seed-code-preview-251028",
             "tooltip": "Doubao-Seed-Code 面向Agentic编程任务进行了深度优化，在Terminal Bench、SWE-Bench-Verified-Openhands、Multi-SWE-Bench-Flash-Openhands等多项权威基准测试中表现优异，领先国内同类模型，上下文窗口至256k。",
             "maxInputTokens": 224000,

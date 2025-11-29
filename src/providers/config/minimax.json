@@ -20,23 +20,10 @@
         },
         {
             "id": "MiniMax-M2",
-            "name": "MiniMax-M2",
+            "name": "MiniMax-M2 (按量计费)",
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "MiniMax-M2 - 专为高效编码与Agent工作流而生",
-            "maxInputTokens": 204800,
-            "maxOutputTokens": 16000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "MiniMax-M2-Stable",
-            "name": "MiniMax-M2-Stable",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://api.minimaxi.com/anthropic",
-            "tooltip": "MiniMax-M2-Stable - 更高并发，商业使用",
             "maxInputTokens": 204800,
             "maxOutputTokens": 16000,
             "capabilities": {
