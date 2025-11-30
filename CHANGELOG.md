@@ -2,6 +2,12 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的所有重要更改。
 
+## [0.14.1] - 2025-11-30
+
+### 修复
+
+- **OpenAI / Anthropic Compatible** 在模型选择列表正确显示模型来源 `OpenAI Compatible` 或 `Anthropic Compatible`
+
 ## [0.14.0] - 2025-11-30
 
 ### 调整

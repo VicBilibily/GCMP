@@ -205,6 +205,27 @@ export class CompatibleProvider extends GenericModelProvider {
     }
 
     /**
+     * 重写：异步更新模型缓存
+     * 需要正确设置 detail 字段以显示 SDK 模式
+     */
+    protected override updateModelCacheAsync(apiKeyHash: string): void {
+        (async () => {
+            try {
+                const currentConfig = this.providerConfig;
+                const models = currentConfig.models.map(model => {
+                    const info = this.modelConfigToInfo(model);
+                    const sdkModeDisplay = model.sdkMode === 'anthropic' ? 'Anthropic' : 'OpenAI';
+                    return { ...info, detail: `${sdkModeDisplay} Compatible` };
+                });
+
+                await this.modelInfoCache?.cacheModels(CompatibleProvider.PROVIDER_KEY, models, apiKeyHash);
+            } catch (err) {
+                Logger.trace('[compatible] 后台缓存更新失败:', err instanceof Error ? err.message : String(err));
+            }
+        })();
+    }
+
+    /**
      * 重写：提供语言模型聊天响应
      * 使用最新的动态配置处理请求，并添加失败重试机制
      */
