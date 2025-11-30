@@ -9,6 +9,10 @@
 - **OpenAI / Anthropic Compatible** 自定义兼容模型提供商结束 GA 测试阶段
 - **AI Ping** 提供商正式结束内置支持并移除
 
+### 修复
+
+- **AnthropicHandler** 修复：添加缺失的 Authorization header 以解决 MiniMax 服务兼容性问题 [#11](https://github.com/VicBilibily/GCMP/pull/11)
+
 ## [0.13.6] - 2025-11-29
 
 ### 调整
