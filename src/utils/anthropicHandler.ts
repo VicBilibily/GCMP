@@ -56,6 +56,7 @@ export class AnthropicHandler {
         const client = new Anthropic({
             apiKey: currentApiKey,
             baseURL: baseUrl,
+            authToken: currentApiKey, // 解决 Minimax 报错： Please carry the API secret key in the 'Authorization' field of the request header
             defaultHeaders: defaultHeaders
         });
 
