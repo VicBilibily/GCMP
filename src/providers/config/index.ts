@@ -11,7 +11,6 @@ import streamlake from './streamlake.json';
 import dashscope from './dashscope.json';
 import tbox from './tbox.json';
 import modelscope from './modelscope.json';
-import aiping from './aiping.json';
 import baidu from './baidu.json';
 
 const providers = {
@@ -26,7 +25,6 @@ const providers = {
     dashscope,
     tbox,
     modelscope,
-    aiping,
     baidu
 };
 

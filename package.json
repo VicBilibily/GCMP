@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、火山方舟、MiniMax、心流AI、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.13.6",
+    "version": "0.14.0",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -71,7 +71,6 @@
         "onLanguageModelProvider:gcmp.dashscope",
         "onLanguageModelProvider:gcmp.tbox",
         "onLanguageModelProvider:gcmp.modelscope",
-        "onLanguageModelProvider:gcmp.aiping",
         "onLanguageModelProvider:gcmp.baidu",
         "onLanguageModelProvider:gcmp.compatible",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
@@ -153,11 +152,6 @@
             {
                 "command": "gcmp.modelscope.setApiKey",
                 "title": "设置 ModelScope API密钥",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.aiping.setApiKey",
-                "title": "设置 AI Ping API密钥",
                 "category": "GCMP"
             },
             {
@@ -389,18 +383,13 @@
                 "managementCommand": "gcmp.modelscope.setApiKey"
             },
             {
-                "vendor": "gcmp.aiping",
-                "displayName": "Ⓣ AI Ping (EOL on 2025-11-30)",
-                "managementCommand": "gcmp.aiping.setApiKey"
-            },
-            {
                 "vendor": "gcmp.baidu",
                 "displayName": "Ⓣ 百度千帆 (Beta)",
                 "managementCommand": "gcmp.baidu.setApiKey"
             },
             {
                 "vendor": "gcmp.compatible",
-                "displayName": "Ⓣ OpenAI / Anthropic Compatible (GA)",
+                "displayName": "Ⓜ OpenAI / Anthropic Compatible",
                 "managementCommand": "gcmp.compatible.manageModels"
             }
         ],
