@@ -21,6 +21,8 @@
             "id": "doubao-seed-code",
             "name": "Doubao-Seed-Code (按量计费)",
             "model": "doubao-seed-code-preview-251028",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/compatible",
             "tooltip": "Doubao-Seed-Code 面向Agentic编程任务进行了深度优化，在Terminal Bench、SWE-Bench-Verified-Openhands、Multi-SWE-Bench-Flash-Openhands等多项权威基准测试中表现优异，领先国内同类模型，上下文窗口至256k。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
@@ -87,6 +89,30 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
+            }
+        },
+        {
+            "id": "deepseek-v3.1",
+            "name": "DeepSeek-V3.1-terminus",
+            "model": "deepseek-v3-1-terminus",
+            "tooltip": "相比上一版DeepSeek-V3.1解决了一系列问题，主要包含：语言一致性： 缓解了中英文混杂、偶发异常字符等情况；Agent 能力： 进一步优化了 Code Agent 与 Search Agent 的表现。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "kimi-k2",
+            "name": "Kimi-K2-250905",
+            "model": "kimi-k2-250905",
+            "tooltip": "在公共基准测试与真实编码智能体任务中，0905版本性能提升显著，同时优化了前端编程的美观性与实用性。上下文窗口提升至256k。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
             }
         }
     ]

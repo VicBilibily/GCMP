@@ -50,8 +50,9 @@
 ### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
 
 - [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：**Doubao-Seed-Code**
-
-- **豆包系列**：**Doubao-Seed-Code**、**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
+- **编程系列**：**Doubao-Seed-Code**
+- **豆包系列**：**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
+- **协作奖励计划**：**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**
 
 ### [**MiniMax**](https://platform.minimaxi.com/login)
 
@@ -66,7 +67,8 @@
 
 ### [**DeepSeek**](https://platform.deepseek.com/) - 深度求索
 
-- 预置模型：**DeepSeek-V3.2-Exp**，包含思考模式聊天模型。
+- 预置模型：**DeepSeek-V3.2**(思考模式)、**DeepSeek-V3.2-Speciale**(Expires on 2025-12-15)
+    - **余额查询**：已支持状态栏显示当前账户额度，可查看用户余额详情。
 
 ### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
 
