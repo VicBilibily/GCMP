@@ -2,8 +2,8 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、火山方舟、MiniMax、心流AI、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.14.1",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
+    "version": "0.14.2",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -15,24 +15,20 @@
         "kimi",
         "volcengine",
         "minimax",
-        "iflow",
         "moonshot",
         "deepseek",
         "streamlake",
         "dashscope",
-        "modelscope",
         "baidu",
         "tbox",
         "OpenAI Compatible",
         "Anthropic Compatible",
         "智谱AI",
         "火山方舟",
-        "心流AI",
         "月之暗面",
         "深度求索",
         "快手万擎",
         "阿里云百炼",
-        "魔搭社区",
         "百度千帆",
         "百灵大模型",
         "Coding Plan 编程套餐"
@@ -349,7 +345,7 @@
             },
             {
                 "vendor": "gcmp.iflow",
-                "displayName": "Ⓜ 心流AI (iFlow) 「免费」",
+                "displayName": "Ⓜ 心流AI (EOL on 2025-12-31)",
                 "managementCommand": "gcmp.iflow.setApiKey"
             },
             {
@@ -379,7 +375,7 @@
             },
             {
                 "vendor": "gcmp.modelscope",
-                "displayName": "Ⓣ ModelScope (Beta)",
+                "displayName": "Ⓣ ModelScope (EOL on 2025-12-11)",
                 "managementCommand": "gcmp.modelscope.setApiKey"
             },
             {

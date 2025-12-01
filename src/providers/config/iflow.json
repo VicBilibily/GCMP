@@ -1,5 +1,5 @@
 {
-    "displayName": "心流AI",
+    "displayName": "心流AI (EOL)",
     "baseUrl": "https://apis.iflow.cn/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [

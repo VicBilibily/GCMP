@@ -1,4 +1,4 @@
-# GCMP - 提供多个国内主流AI大模型提供商支持的扩展
+# GCMP - 提供多个国内原生大模型提供商支持的扩展
 
 [![CI](https://github.com/VicBilibily/GCMP/actions/workflows/ci.yml/badge.svg)](https://github.com/VicBilibily/GCMP/actions)
 [![Version](https://img.shields.io/visual-studio-marketplace/v/vicanent.gcmp?color=blue&label=Version)](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp)
@@ -6,7 +6,16 @@
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/vicanent.gcmp?color=green&label=Downloads)](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp)
 [![License](https://img.shields.io/github/license/VicBilibily/GCMP?color=orange&label=License)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
-通过集成国内的AI模型，为开发者提供更丰富、更适合的AI编程助手选择。目前内置 智谱AI、Kimi、火山方舟、MiniMax、心流AI、MoonshotAI、DeepSeek、快手万擎、阿里云百炼、百灵大模型 等提供商，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。
+通过集成国内主流原生大模型提供商，为开发者提供更加丰富、更适合本土需求的 AI 编程助手选择。目前已内置支持 智谱AI、Kimi、火山方舟、MiniMax、Moonshot AI、DeepSeek、快手万擎、阿里云百炼、百灵大模型 等**原生大模型**提供商。此外，扩展插件已适配支持 OpenAI 与 Anthropic 的 API 接口兼容模型，支持自定义接入任何提供兼容接口的第三方**云服务模型**。
+
+#### EOL 内置提供商结束支持计划
+
+> 即将移除及已经移除的提供商均支持通过 OpenAI / Anthropic Compatible 自定义模型添加使用。
+
+- **ModelScope魔搭社区**
+    - 2025-12-11 移除内置支持：此提供商仅适用于测试，各模型提供的 推理 API-Inference 接口不定时关闭服务。
+- **心流AI**
+    - 2025-12-31 移除内置支持：官方已专注于完善 `iFlow CLI`，免费API调用已不再提供新增模型，存量模型亦在逐步下线。
 
 ## 🚀 快速开始
 
@@ -51,15 +60,6 @@
     - **用量查询**：已支持状态栏显示周期使用比例，可查看 Coding Plan 编程套餐用量信息。
 - **按量计费**：**MiniMax-M2**、**MiniMax-M1**
 
-### [**心流AI**](https://platform.iflow.cn/) - iFlow
-
-阿里巴巴旗下的的AI平台，当前[API调用](https://platform.iflow.cn/docs/)服务**免费使用**，目前[限流规则](https://platform.iflow.cn/docs/limitSpeed)为每个用户最多只能**同时发起一个**请求。
-
-- **DeepSeek系列**：**DeepSeek-V3.2-Exp**、**DeepSeek-V3.1-Terminus**
-- **Qwen3系列**：**Qwen3-Coder-Plus**、**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-Max-Preview**、**Qwen3-32B**、**Qwen3-235B-A22B**、**Qwen3-235B-A22B-Instruct**、**Qwen3-235B-A22B-Thinking**
-- **Kimi系列**：**Kimi-K2-Instruct-0905**、**Kimi-K2**
-- **智谱AI系列**：**GLM-4.6**
-
 ### [**MoonshotAI**](https://platform.moonshot.cn/) - Kimi K2系列
 
 - 预置模型：**Kimi-K2-Thinking**、**Kimi-K2-Thinking-Turbo**、**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-K2-0711-Preview**、**Kimi-Latest**
@@ -82,22 +82,30 @@
 
 - **百灵系列**：**Ling-1T**、**Ring-1T**
 
+### [**心流AI**](https://platform.iflow.cn/) - iFlow (EOL)
+
+> - 由于 **iFlow** 已转移业务方向，主要支持 `iFlow CLI`，免费 API 接口已不再进行模型新增，免费接口的模型亦已开始逐步下线服务，故计划移除本插件的内置支持。
+> - **EOL on 2025-12-31**：`心流AI` 目前仅提供 OpenAI 兼容 API 接口，若需继续使用仍在提供的免费模型服务，可自行添加 OpenAI 兼容 API 接口模型。
+
+阿里巴巴旗下的的AI平台，当前[API调用](https://platform.iflow.cn/docs/)服务**免费使用**，目前[限流规则](https://platform.iflow.cn/docs/limitSpeed)为每个用户最多只能**同时发起一个**请求。
+
+- **DeepSeek系列**：**DeepSeek-V3.2-Exp**、**DeepSeek-V3.1-Terminus**
+- **Qwen3系列**：**Qwen3-Coder-Plus**、**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-Max-Preview**、**Qwen3-32B**、**Qwen3-235B-A22B**、**Qwen3-235B-A22B-Instruct**、**Qwen3-235B-A22B-Thinking**
+- **Kimi系列**：**Kimi-K2-Instruct-0905**、**Kimi-K2**
+- **智谱AI系列**：**GLM-4.6**
+
 ## 仅供测试体验的提供商
 
 > 由于测试体验提供商可能存在兼容性问题，遇到问题建议先查看本地输出的日志排查后再提交 Issue 进一步处理。
 
-### [**ModelScope**](https://www.modelscope.cn/)
-
-> - `魔搭社区` 的预置模型全部使用 Anthropic 兼容 API 接口。
-> - 可通过覆盖设置 `gcmp.providerOverrides` 自行添加 OpenAI API 接口模型，但仅提供有限的兼容，自行添加时建议使用 Anthropic API 兼容模式接口。
-
-- **DeepSeek系列**：`DeepSeek-V3.2-Exp`、`DeepSeek-V3.1`
-- **智谱AI系列**：`GLM-4.6`、`GLM-4.5`
-- **通义千问3系列**：`通义千问3-Coder-480B-A35B`、`通义千问3-235B-A22B`、`通义千问3-Next-80B-A3B`
-
 ### [**百度千帆**](https://console.bce.baidu.com/qianfan/overview)
 
 - **文心大模型**：`ERNIE-5.0-Thinking`(Preview/Latest)、`ERNIE 4.5`(Turbo/Turbo VL)
+
+### [**ModelScope**](https://www.modelscope.cn/) - (EOL)
+
+> - 由于 **ModelScope** 作为模型分发测试平台，并不保证接口服务稳定性和持久性，API接口会随时调整，故不再提供内置支持。
+> - **EOL on 2025-12-11**：`魔搭社区` 已经基本支持 Anthropic 兼容 API 接口，此兼容测试内置提供商将于 2025-12-11 移除内置支持。若需测试使用新模型可自行添加 Anthropic 兼容 API 接口模型。
 
 ## ⚙️ 高级配置
 
