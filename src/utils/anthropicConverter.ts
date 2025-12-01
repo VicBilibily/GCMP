@@ -152,8 +152,12 @@ function apiContentToAnthropicContent(
     return convertedContent;
 }
 
-/** 需要包含 thinking 部分的模型 */
-const includeThinkingForModels = new Set(['MiniMax-M2']);
+/** 需要包含 thinking 部分的模型
+ * - MiniMax-M2: MiniMax 要求多轮对话保持思维链连续性
+ * - deepseek-reasoner: DeepSeek 思考模式在工具调用循环中需要保留 reasoning_content
+ *   https://api-docs.deepseek.com/zh-cn/guides/thinking_mode
+ */
+const includeThinkingForModels = new Set(['MiniMax-M2', 'deepseek-reasoner']);
 
 /**
  * 将 VS Code API 消息转换为 Anthropic 格式

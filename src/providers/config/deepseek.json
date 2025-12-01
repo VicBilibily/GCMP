@@ -5,8 +5,10 @@
     "models": [
         {
             "id": "deepseek-chat",
-            "name": "DeepSeek-V3.2-Exp",
-            "tooltip": "DeepSeek V3.2-Exp 官方模型，探索性优化版本，针对长文本训练和推理效率进行深度优化，支持工具调用和复杂任务处理。",
+            "name": "DeepSeek-V3.2",
+            "tooltip": "DeepSeek V3.2 官方模型，DeepSeek-V3.2 的目标是平衡推理能力与输出长度，适合日常使用，例如问答场景和通用 Agent 任务场景。在公开的推理类 Benchmark 测试中，DeepSeek-V3.2 达到了 GPT-5 的水平，仅略低于 Gemini-3.0-Pro；相比 Kimi-K2-Thinking，V3.2 的输出长度大幅降低，显著减少了计算开销与用户等待时间。",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.deepseek.com/anthropic",
             "maxInputTokens": 128000,
             "maxOutputTokens": 8192,
             "capabilities": {
@@ -16,10 +18,25 @@
         },
         {
             "id": "deepseek-reasoner",
-            "name": "DeepSeek-V3.2-Exp (思考模式)",
-            "tooltip": "DeepSeek V3.2-Exp 思考模式，增强推理能力，提供更详细的思考过程，适合复杂逻辑分析和问题解决。",
+            "name": "DeepSeek-V3.2 (思考模式)",
+            "tooltip": "DeepSeek V3.2 思考模式，DeepSeek-V3.2 的目标是平衡推理能力与输出长度，适合日常使用，例如问答场景和通用 Agent 任务场景。在公开的推理类 Benchmark 测试中，DeepSeek-V3.2 达到了 GPT-5 的水平，仅略低于 Gemini-3.0-Pro；相比 Kimi-K2-Thinking，V3.2 的输出长度大幅降低，显著减少了计算开销与用户等待时间。",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.deepseek.com/anthropic",
             "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "deepseek-v3.2_speciale_expires_on_20251215",
+            "name": "DeepSeek-V3.2-Speciale",
+            "model": "deepseek-reasoner",
+            "tooltip": "DeepSeek-V3.2-Speciale 的目标是将开源模型的推理能力推向极致，探索模型能力的边界。V3.2-Speciale 是 DeepSeek-V3.2 的长思考增强版，同时结合了 DeepSeek-Math-V2 的定理证明能力。该模型具备出色的指令跟随、严谨的数学证明与逻辑验证能力，在主流推理基准测试上的性能表现媲美 Gemini-3.0-Pro（见表1）。更令人瞩目的是，V3.2-Speciale 模型成功斩获 IMO 2025（国际数学奥林匹克）、CMO 2025（中国数学奥林匹克）、ICPC World Finals 2025（国际大学生程序设计竞赛全球总决赛）及 IOI 2025（国际信息学奥林匹克）金牌。其中，ICPC 与 IOI 成绩分别达到了人类选手第二名与第十名的水平。",
+            "baseUrl": "https://api.deepseek.com/v3.2_speciale_expires_on_20251215",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 128000,
             "capabilities": {
                 "toolCalling": false,
                 "imageInput": false
