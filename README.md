@@ -13,9 +13,9 @@
 > 即将移除及已经移除的提供商均支持通过 OpenAI / Anthropic Compatible 自定义模型添加使用。
 
 - **ModelScope魔搭社区**
-    - 2025-12-11 移除内置支持：此提供商仅适用于测试，各模型提供的 推理 API-Inference 接口不定时关闭服务。
+    - 2025-12-11 移除内置：此提供商仅适用于测试，各模型提供的 推理 API-Inference 接口不定时关闭服务。
 - **心流AI**
-    - 2025-12-31 移除内置支持：官方已专注于完善 `iFlow CLI`，免费API调用已不再提供新增模型，存量模型亦在逐步下线。
+    - 2025-12-31 移除内置：官方已专注于完善 `iFlow CLI`，免费服务已不再提供新增模型，存量模型亦在逐步下线。
 
 ## 🚀 快速开始
 
@@ -64,13 +64,14 @@
 ### [**MoonshotAI**](https://platform.moonshot.cn/) - Kimi K2系列
 
 - 预置模型：**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-K2-0711-Preview**、**Kimi-Latest**
-- 思考模型：**Kimi-K2-Thinking**、**Kimi-K2-Thinking-Turbo** 
+    - **余额查询**：已支持状态栏显示当前账户额度，可查看账户余额状况。
+- 思考模型：**Kimi-K2-Thinking**、**Kimi-K2-Thinking-Turbo**
     - 多次工具调用后思考内容输出存在兼容性问题，展示关闭思考内容输出
 
 ### [**DeepSeek**](https://platform.deepseek.com/) - 深度求索
 
 - 预置模型：**DeepSeek-V3.2**(思考模式)、**DeepSeek-V3.2-Speciale**(Expires on 2025-12-15)
-    - **余额查询**：已支持状态栏显示当前账户额度，可查看用户余额详情。
+    - **余额查询**：已支持状态栏显示当前账户额度，可查看账户余额详情。
 
 ### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
 
@@ -163,7 +164,7 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
             "models": [
                 {
                     "id": "deepseek-v3.2-exp", // 增加额外模型，提示不被接受，但实际支持可用
-                    "name": "Deepseek-V3.2-Exp (阿里云百炼)", // name 及 tooltip 提示不允许，但针对新增模型可用
+                    "name": "Deepseek-V3.2-Exp (阿里云百炼)",
                     "tooltip": "引入了DeepSeek Sparse Attention（一种稀疏注意力机制）的实验性质版本，针对长文本的训练和推理效率进行了探索性的优化和验证。",
                     // "sdkMode": "openai", // 阿里云百炼已默认继承提供商设置，其他提供商模型可按需设置
                     // "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",

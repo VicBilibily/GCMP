@@ -8,6 +8,7 @@ import { StatusLogger } from '../utils/statusLogger';
 import { MiniMaxStatusBar } from './minimaxStatusBar';
 import { KimiStatusBar } from './kimiStatusBar';
 import { DeepSeekStatusBar } from './deepseekStatusBar';
+import { MoonshotStatusBar } from './moonshotStatusBar';
 
 /**
  * 状态栏项接口
@@ -32,6 +33,8 @@ export class StatusBarManager {
     static kimi: IStatusBar | undefined;
     /** DeepSeek 余额查询状态栏 */
     static deepseek: IStatusBar | undefined;
+    /** Moonshot 余额查询状态栏 */
+    static moonshot: IStatusBar | undefined;
 
     // ==================== 私有成员 ====================
     private static statusBars: Map<string, IStatusBar> = new Map<string, IStatusBar>();
@@ -53,6 +56,10 @@ export class StatusBarManager {
         // 创建并注册 DeepSeek 状态栏
         const deepseekStatusBar = new DeepSeekStatusBar();
         this.registerStatusBar('deepseek', deepseekStatusBar);
+
+        // 创建并注册 Moonshot 状态栏
+        const moonshotStatusBar = new MoonshotStatusBar();
+        this.registerStatusBar('moonshot', moonshotStatusBar);
     }
 
     /**
@@ -77,6 +84,9 @@ export class StatusBarManager {
                 break;
             case 'deepseek':
                 this.deepseek = statusBar;
+                break;
+            case 'moonshot':
+                this.moonshot = statusBar;
                 break;
             default:
                 break;
@@ -173,6 +183,7 @@ export class StatusBarManager {
         this.minimax = undefined;
         this.kimi = undefined;
         this.deepseek = undefined;
+        this.moonshot = undefined;
     }
 
     /**

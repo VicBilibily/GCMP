@@ -1,6 +1,6 @@
-/*---------------------------------------------------------------------------------------------
- *  DeepSeek 余额查询状态栏项
- *  继承 BaseStatusBarItem，显示 DeepSeek 余额信息
+﻿/*---------------------------------------------------------------------------------------------
+ *  Moonshot 余额查询状态栏项
+ *  继承 BaseStatusBarItem，显示 Moonshot 余额信息
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -11,103 +11,89 @@ import { ApiKeyManager } from '../utils/apiKeyManager';
 import { VersionManager } from '../utils/versionManager';
 
 /**
- * DeepSeek 余额信息数据结构
+ * Moonshot 余额信息数据结构
  */
-export interface DeepSeekBalanceInfo {
-    /** 货币代码 */
-    currency: string;
-    /** 总余额 */
-    total_balance: string;
-    /** 赠送余额 */
-    granted_balance: string;
-    /** 充值余额 */
-    topped_up_balance: string;
+export interface MoonshotBalanceInfo {
+    /** 可用余额，包括现金余额和代金券余额 */
+    available_balance: number;
+    /** 代金券余额，不会为负数 */
+    voucher_balance: number;
+    /** 现金余额，可能为负数，代表用户欠费 */
+    cash_balance: number;
 }
 
 /**
- * DeepSeek 余额数据结构（API响应格式）
+ * Moonshot 余额数据结构（API响应格式）
  */
-export interface DeepSeekBalanceResponse {
-    /** 是否可用 */
-    is_available: boolean;
-    /** 余额信息数组 */
-    balance_infos: DeepSeekBalanceInfo[];
+export interface MoonshotBalanceResponse {
+    /** 响应代码 */
+    code: number;
+    /** 余额信息 */
+    data: MoonshotBalanceInfo;
+    /** 状态代码 */
+    scode: string;
+    /** 状态是否成功 */
+    status: boolean;
 }
 
 /**
- * DeepSeek 状态数据
+ * Moonshot 状态数据
  */
-export interface DeepSeekStatusData {
-    /** 主要余额信息（用于状态栏显示） */
-    primaryBalance: DeepSeekBalanceInfo;
-    /** 所有余额信息（用于 tooltip 显示） */
-    allBalances: DeepSeekBalanceInfo[];
+export interface MoonshotStatusData {
+    /** 余额信息 */
+    balanceInfo: MoonshotBalanceInfo;
     /** 最后更新时间 */
     lastUpdated: string;
 }
 
 /**
- * DeepSeek 余额查询状态栏项
- * 显示 DeepSeek 的余额信息，包括：
+ * Moonshot 余额查询状态栏项
+ * 显示 Moonshot 的余额信息，包括：
  * - 可用余额（状态栏显示）
- * - 已用金额（tooltip显示）
- * - 充值总额（tooltip显示）
+ * - 现金余额（tooltip显示）
+ * - 代金券余额（tooltip显示）
  * - 每5分钟自动刷新一次
  */
-export class DeepSeekStatusBar extends BaseStatusBarItem<DeepSeekStatusData> {
+export class MoonshotStatusBar extends BaseStatusBarItem<MoonshotStatusData> {
     constructor() {
         const config: StatusBarItemConfig = {
-            name: 'DeepSeek Balance',
+            name: 'Moonshot Balance',
             alignment: vscode.StatusBarAlignment.Right,
-            priority: 80,
-            refreshCommand: 'gcmp.deepseek.refreshBalance',
-            apiKeyProvider: 'deepseek',
-            cacheKeyPrefix: 'deepseek',
-            logPrefix: 'DeepSeek状态栏',
-            icon: '$(gcmp-deepseek)'
+            priority: 79, // 优先级略低于 DeepSeek
+            refreshCommand: 'gcmp.moonshot.refreshBalance',
+            apiKeyProvider: 'moonshot',
+            cacheKeyPrefix: 'moonshot',
+            logPrefix: 'Moonshot状态栏',
+            icon: '$(gcmp-moonshot)'
         };
         super(config);
     }
 
     /**
-     * 根据货币代码返回货币符号
-     * 支持: CNY (¥) 和 USD ($)
+     * 获取显示文本（显示可用余额）
      */
-    private getCurrencySymbol(currency?: string): string {
-        if (currency === 'USD') {
-            return '$';
-        }
-        return '¥'; // 默认使用人民币符号
-    }
-
-    /**
-     * 获取显示文本（显示主要余额）
-     */
-    protected getDisplayText(data: DeepSeekStatusData): string {
-        const currencySymbol = this.getCurrencySymbol(data.primaryBalance.currency);
-        const balance = parseFloat(data.primaryBalance.total_balance);
+    protected getDisplayText(data: MoonshotStatusData): string {
+        const balance = data.balanceInfo.available_balance;
         const balanceText = balance.toFixed(2);
-        return `${this.config.icon} ${currencySymbol}${balanceText}`;
+        return `${this.config.icon} ¥${balanceText}`;
     }
 
     /**
      * 生成 Tooltip 内容（显示所有余额信息）
      */
-    protected generateTooltip(data: DeepSeekStatusData): vscode.MarkdownString {
+    protected generateTooltip(data: MoonshotStatusData): vscode.MarkdownString {
         const md = new vscode.MarkdownString();
         md.supportHtml = true;
 
-        md.appendMarkdown('#### DeepSeek 用户余额详情\n\n');
+        md.appendMarkdown('#### Moonshot 用户账户余额\n\n');
 
-        md.appendMarkdown('| 货币 | 充值余额 | 赠金余额 | 可用余额 |\n');
+        md.appendMarkdown('| 货币 | 现金余额 | 代金券 | 可用余额 |\n');
         md.appendMarkdown('| :---: | ---: | ---: | ---: |\n');
-        for (const balanceInfo of data.allBalances) {
-            md.appendMarkdown(
-                `| **${balanceInfo.currency}** | ${balanceInfo.topped_up_balance} | ${balanceInfo.granted_balance} | **${balanceInfo.total_balance}** |\n`
-            );
-        }
+        md.appendMarkdown(
+            `| **CNY** | ${data.balanceInfo.cash_balance.toFixed(2)} | ${data.balanceInfo.voucher_balance.toFixed(2)} | **${data.balanceInfo.available_balance.toFixed(2)}** |\n`
+        );
 
-        md.appendMarkdown('---\n');
+        md.appendMarkdown('\n---\n');
         md.appendMarkdown(`**最后更新** ${data.lastUpdated}\n`);
         md.appendMarkdown('\n');
         md.appendMarkdown('---\n');
@@ -117,33 +103,33 @@ export class DeepSeekStatusBar extends BaseStatusBarItem<DeepSeekStatusData> {
 
     /**
      * 执行 API 查询
-     * 实现 DeepSeek 余额查询逻辑
+     * 实现 Moonshot 余额查询逻辑
      */
-    protected async performApiQuery(): Promise<{ success: boolean; data?: DeepSeekStatusData; error?: string }> {
-        const BALANCE_QUERY_URL = 'https://api.deepseek.com/v1/user/balance';
-        const DEEPSEEK_KEY = 'deepseek';
+    protected async performApiQuery(): Promise<{ success: boolean; data?: MoonshotStatusData; error?: string }> {
+        const BALANCE_QUERY_URL = 'https://api.moonshot.cn/v1/users/me/balance';
+        const MOONSHOT_KEY = 'moonshot';
 
         try {
-            // 检查 DeepSeek 密钥是否存在
-            const hasApiKey = await ApiKeyManager.hasValidApiKey(DEEPSEEK_KEY);
+            // 检查 Moonshot 密钥是否存在
+            const hasApiKey = await ApiKeyManager.hasValidApiKey(MOONSHOT_KEY);
             if (!hasApiKey) {
                 return {
                     success: false,
-                    error: 'DeepSeek API 密钥未配置，请先设置 DeepSeek API 密钥'
+                    error: 'Moonshot API 密钥未配置，请先设置 Moonshot API 密钥'
                 };
             }
 
-            // 获取 DeepSeek 密钥
-            const apiKey = await ApiKeyManager.getApiKey(DEEPSEEK_KEY);
+            // 获取 Moonshot 密钥
+            const apiKey = await ApiKeyManager.getApiKey(MOONSHOT_KEY);
             if (!apiKey) {
                 return {
                     success: false,
-                    error: '无法获取 DeepSeek API 密钥'
+                    error: '无法获取 Moonshot API 密钥'
                 };
             }
 
-            Logger.debug('触发查询 DeepSeek 余额');
-            StatusLogger.debug(`[${this.config.logPrefix}] 开始查询 DeepSeek 余额...`);
+            Logger.debug('触发查询 Moonshot 余额');
+            StatusLogger.debug(`[${this.config.logPrefix}] 开始查询 Moonshot 余额...`);
 
             // 构建请求
             const requestOptions: RequestInit = {
@@ -151,7 +137,7 @@ export class DeepSeekStatusBar extends BaseStatusBarItem<DeepSeekStatusData> {
                 headers: {
                     Authorization: `Bearer ${apiKey}`,
                     'Content-Type': 'application/json',
-                    'User-Agent': VersionManager.getUserAgent('DeepSeek')
+                    'User-Agent': VersionManager.getUserAgent('Moonshot')
                 }
             };
 
@@ -164,7 +150,7 @@ export class DeepSeekStatusBar extends BaseStatusBarItem<DeepSeekStatusData> {
             );
 
             // 解析响应
-            let parsedResponse: DeepSeekBalanceResponse;
+            let parsedResponse: MoonshotBalanceResponse;
             try {
                 parsedResponse = JSON.parse(responseText);
             } catch (parseError) {
@@ -195,12 +181,18 @@ export class DeepSeekStatusBar extends BaseStatusBarItem<DeepSeekStatusData> {
                 };
             }
 
+            // 检查 API 响应状态
+            if (!parsedResponse.status || parsedResponse.code !== 0) {
+                const errorMessage = parsedResponse.scode || '未知错误';
+                Logger.error(`API 返回错误: ${errorMessage}`);
+                return {
+                    success: false,
+                    error: `API 错误: ${errorMessage}`
+                };
+            }
+
             // 检查是否包含有效的余额数据
-            if (
-                !parsedResponse.balance_infos ||
-                !Array.isArray(parsedResponse.balance_infos) ||
-                parsedResponse.balance_infos.length === 0
-            ) {
+            if (!parsedResponse.data) {
                 Logger.error('未获取到余额数据');
                 return {
                     success: false,
@@ -211,21 +203,13 @@ export class DeepSeekStatusBar extends BaseStatusBarItem<DeepSeekStatusData> {
             // 格式化最后更新时间
             const lastUpdated = new Date().toLocaleString('zh-CN');
 
-            // 选择主要余额（优先 CNY，其次 USD，最后第一个）
-            let primaryBalance = parsedResponse.balance_infos.find(b => b.currency === 'CNY');
-            if (!primaryBalance) {
-                primaryBalance =
-                    parsedResponse.balance_infos.find(b => b.currency === 'USD') || parsedResponse.balance_infos[0];
-            }
-
             // 解析成功响应
             StatusLogger.debug(`[${this.config.logPrefix}] 余额查询成功`);
 
             return {
                 success: true,
                 data: {
-                    primaryBalance,
-                    allBalances: parsedResponse.balance_infos,
+                    balanceInfo: parsedResponse.data,
                     lastUpdated
                 }
             };
@@ -241,10 +225,10 @@ export class DeepSeekStatusBar extends BaseStatusBarItem<DeepSeekStatusData> {
 
     /**
      * 检查是否需要高亮警告
-     * 当主要余额低于阈值时高亮显示
+     * 当可用余额低于阈值时高亮显示
      */
-    protected shouldHighlightWarning(_data: DeepSeekStatusData): boolean {
-        return false; // DeepSeek 不设置余额警告
+    protected shouldHighlightWarning(_data: MoonshotStatusData): boolean {
+        return false; // Moonshot 不设置余额警告
     }
 
     /**
@@ -273,7 +257,7 @@ export class DeepSeekStatusBar extends BaseStatusBarItem<DeepSeekStatusData> {
     /**
      * 访问器：获取最后的状态数据（用于测试和调试）
      */
-    getLastStatusData(): { data: DeepSeekStatusData; timestamp: number } | null {
+    getLastStatusData(): { data: MoonshotStatusData; timestamp: number } | null {
         return this.lastStatusData;
     }
 }
