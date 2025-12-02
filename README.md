@@ -65,7 +65,7 @@
 - 预置模型：**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-K2-0711-Preview**、**Kimi-Latest**
     - **余额查询**：已支持状态栏显示当前账户额度，可查看账户余额状况。
 - 思考模型：**Kimi-K2-Thinking**、**Kimi-K2-Thinking-Turbo**
-    - 多次工具调用后思考内容输出存在兼容性问题，展示关闭思考内容输出
+    - 多次工具调用后思考内容输出存在兼容性问题，暂时关闭思考内容输出
 
 ### [**DeepSeek**](https://platform.deepseek.com/) - 深度求索
 

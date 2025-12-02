@@ -169,12 +169,12 @@ export class ApiKeyManager {
             // API密钥更改后，相关组件会通过ConfigManager的配置监听器自动更新
             Logger.debug(`API密钥已更新: ${vendor}`);
 
-            // DeepSeek API密钥 设置后，更新状态栏
-            if (vendor === 'deepseek') {
+            // API密钥 设置后，更新状态栏
+            if (vendor === 'deepseek' || vendor === 'moonshot') {
                 try {
-                    StatusBarManager.delayedUpdate('deepseek', 1000); // 1秒后更新，给密钥存储留出时间
+                    StatusBarManager.checkAndShowStatus(vendor);
                 } catch (error) {
-                    Logger.warn('更新DeepSeek状态栏失败:', error);
+                    Logger.warn('更新状态栏失败:', vendor, error);
                 }
             }
         }
