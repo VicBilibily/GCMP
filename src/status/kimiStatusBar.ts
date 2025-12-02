@@ -65,7 +65,8 @@ export interface KimiStatusData {
 export class KimiStatusBar extends BaseStatusBarItem<KimiStatusData> {
     constructor() {
         const config: StatusBarItemConfig = {
-            name: 'Kimi Usage',
+            id: 'gcmp.statusBar.kimi',
+            name: 'GCMP: Kimi For Coding',
             alignment: vscode.StatusBarAlignment.Right,
             priority: 90,
             refreshCommand: 'gcmp.kimi.refreshUsage',

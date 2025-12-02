@@ -50,7 +50,8 @@ interface MiniMaxStatusData {
 export class MiniMaxStatusBar extends BaseStatusBarItem<MiniMaxStatusData> {
     constructor() {
         const config: StatusBarItemConfig = {
-            name: 'MiniMax Usage',
+            id: 'gcmp.statusBar.minimax',
+            name: 'GCMP: MiniMax Coding Plan',
             alignment: vscode.StatusBarAlignment.Right,
             priority: 100,
             refreshCommand: 'gcmp.refreshMiniMaxUsage',

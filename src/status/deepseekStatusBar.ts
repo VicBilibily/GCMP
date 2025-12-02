@@ -57,7 +57,8 @@ export interface DeepSeekStatusData {
 export class DeepSeekStatusBar extends BaseStatusBarItem<DeepSeekStatusData> {
     constructor() {
         const config: StatusBarItemConfig = {
-            name: 'DeepSeek Balance',
+            id: 'gcmp.statusBar.deepseek',
+            name: 'GCMP: DeepSeek Balance',
             alignment: vscode.StatusBarAlignment.Right,
             priority: 80,
             refreshCommand: 'gcmp.deepseek.refreshBalance',

@@ -22,7 +22,9 @@ export interface CachedStatusData<T> {
  * 状态栏项配置
  */
 export interface StatusBarItemConfig {
-    /** 状态栏项名称 */
+    /** 状态栏项唯一标识符（用于 VS Code 区分不同状态栏项） */
+    id: string;
+    /** 状态栏项名称（显示在状态栏项菜单中） */
     name: string;
     /** 状态栏项对齐方式 */
     alignment: vscode.StatusBarAlignment;
@@ -91,6 +93,7 @@ export abstract class BaseStatusBarItem<T> {
      */
     private validateConfig(): void {
         const requiredFields: (keyof StatusBarItemConfig)[] = [
+            'id',
             'name',
             'refreshCommand',
             'apiKeyProvider',
@@ -185,8 +188,12 @@ export abstract class BaseStatusBarItem<T> {
 
         this.context = context;
 
-        // 创建 StatusBarItem
-        this.statusBarItem = vscode.window.createStatusBarItem(this.config.alignment, this.config.priority);
+        // 创建 StatusBarItem（使用唯一 id 确保 VS Code 能正确区分不同状态栏项）
+        this.statusBarItem = vscode.window.createStatusBarItem(
+            this.config.id,
+            this.config.alignment,
+            this.config.priority
+        );
         this.statusBarItem.name = this.config.name;
         this.statusBarItem.text = this.config.icon;
         this.statusBarItem.command = this.config.refreshCommand;

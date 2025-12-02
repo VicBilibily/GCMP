@@ -57,7 +57,8 @@ export interface MoonshotStatusData {
 export class MoonshotStatusBar extends BaseStatusBarItem<MoonshotStatusData> {
     constructor() {
         const config: StatusBarItemConfig = {
-            name: 'Moonshot Balance',
+            id: 'gcmp.statusBar.moonshot',
+            name: 'GCMP: Moonshot Balance',
             alignment: vscode.StatusBarAlignment.Right,
             priority: 79, // 优先级略低于 DeepSeek
             refreshCommand: 'gcmp.moonshot.refreshBalance',
