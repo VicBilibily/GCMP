@@ -54,6 +54,8 @@ export interface CompatibleModelConfig {
     customHeader?: Record<string, string>;
     /** 额外的请求体参数（可选） */
     extraBody?: Record<string, unknown>;
+    /** 是否启用输出思考过程（默认true，高级功能） */
+    outputThinking?: boolean;
     /** 是否由向导创建（内部标记，不持久化） */
     _isFromWizard?: boolean;
 }
@@ -530,7 +532,7 @@ export class CompatibleModelManager {
 
         // 返回结果根据模式不同
         if (mode === 'create') {
-            // 创建模式返回完整的模型对象（不设置 customHeader）
+            // 创建模式返回完整的模型对象（默认启用outputThinking）
             return {
                 id: modelId!.trim(),
                 name: modelName.trim(),
@@ -541,10 +543,11 @@ export class CompatibleModelManager {
                 maxOutputTokens: tokenLimits.maxOutputTokens,
                 sdkMode: sdkMode,
                 capabilities: capabilities,
+                outputThinking: true, // 默认true，高级功能无需用户配置
                 _isFromWizard: true
             };
         } else {
-            // 编辑模式返回部分更新对象（保留原有 customHeader）
+            // 编辑模式返回部分更新对象（保留原有 customHeader 和 outputThinking）
             const result: Partial<CompatibleModelConfig> = {
                 name: modelName.trim(),
                 provider: provider!.trim(),
@@ -558,6 +561,10 @@ export class CompatibleModelManager {
             // 如果原有配置包含 customHeader，保留它
             if (currentConfig?.customHeader) {
                 result.customHeader = currentConfig.customHeader;
+            }
+            // 如果原有配置包含 outputThinking，保留它
+            if (currentConfig?.outputThinking !== undefined) {
+                result.outputThinking = currentConfig.outputThinking;
             }
             return result;
         }

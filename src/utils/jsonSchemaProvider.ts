@@ -139,97 +139,7 @@ export class JsonSchemaProvider {
                     description:
                         '提供商配置覆盖。允许覆盖提供商的baseUrl和模型配置，支持添加新模型或覆盖现有模型的参数。',
                     patternProperties,
-                    propertyNames,
-                    additionalProperties: {
-                        type: 'object',
-                        description: '自定义提供商配置覆盖',
-                        properties: {
-                            baseUrl: {
-                                type: 'string',
-                                description: '覆盖提供商级别的API基础URL',
-                                format: 'uri',
-                                pattern: '^https?://'
-                            },
-                            models: {
-                                type: 'array',
-                                description: '模型覆盖配置列表',
-                                minItems: 1,
-                                items: {
-                                    type: 'object',
-                                    properties: {
-                                        id: {
-                                            type: 'string',
-                                            minLength: 3,
-                                            maxLength: 100,
-                                            description:
-                                                '模型ID（用于匹配现有模型或添加新模型，新模型会提示值不被接受，可作为自定义新增区分）'
-                                        },
-                                        model: {
-                                            type: 'string',
-                                            minLength: 1,
-                                            description: '覆盖API请求时使用的模型名称或端点ID'
-                                        },
-                                        maxInputTokens: {
-                                            type: 'number',
-                                            minimum: 512,
-                                            description: '覆盖最大输入token数量'
-                                        },
-                                        maxOutputTokens: {
-                                            type: 'number',
-                                            minimum: 64,
-                                            description: '覆盖最大输出token数量'
-                                        },
-                                        sdkMode: {
-                                            type: 'string',
-                                            enum: ['openai', 'anthropic'],
-                                            description:
-                                                '覆盖SDK模式：openai（OpenAI兼容格式）或 anthropic（Anthropic兼容格式）'
-                                        },
-                                        baseUrl: {
-                                            type: 'string',
-                                            description: '覆盖模型级别的API基础URL',
-                                            format: 'uri',
-                                            pattern: '^https?://'
-                                        },
-                                        capabilities: {
-                                            type: 'object',
-                                            description: '模型能力配置',
-                                            properties: {
-                                                toolCalling: {
-                                                    type: 'boolean',
-                                                    description: '是否支持工具调用'
-                                                },
-                                                imageInput: {
-                                                    type: 'boolean',
-                                                    description: '是否支持图像输入'
-                                                }
-                                            },
-                                            required: ['toolCalling', 'imageInput'],
-                                            additionalProperties: false
-                                        },
-                                        customHeader: {
-                                            type: 'object',
-                                            description: '覆盖模型的自定义HTTP头部，支持合并现有头部配置',
-                                            additionalProperties: {
-                                                type: 'string',
-                                                description: 'HTTP头部值'
-                                            }
-                                        },
-                                        extraBody: {
-                                            type: 'object',
-                                            description: '额外的请求体参数（仅OpenAI接口生效），支持合并现有参数',
-                                            additionalProperties: {
-                                                description: '额外的请求体参数值'
-                                            }
-                                        }
-                                    },
-                                    required: ['id'],
-                                    additionalProperties: false
-                                }
-                            }
-                        },
-                        additionalProperties: false
-                    }
+                    propertyNames
                 }
             },
             additionalProperties: true
@@ -246,8 +156,10 @@ export class JsonSchemaProvider {
             type: 'string',
             minLength: 3,
             maxLength: 100,
-            description: '模型ID（用于匹配现有模型或添加新模型，新模型会提示值不被接受，可作为自定义新增区分）'
+            description:
+                '从下拉列表选择现有模型ID，或输入新ID创建自定义配置。\r\n自定义创建的模型ID会提示值不被接受，忽略即可。'
         };
+
         // 如果有模型ID，添加枚举和示例
         if (modelIds.length > 0) {
             idProperty.enum = modelIds;
@@ -291,6 +203,16 @@ export class JsonSchemaProvider {
                         properties: {
                             id: idProperty,
                             model: modelProperty,
+                            name: {
+                                type: 'string',
+                                minLength: 1,
+                                description: '在模型选择器中显示的友好名称。\r\n仅新增模型时有效，不会覆盖预置名称。'
+                            },
+                            tooltip: {
+                                type: 'string',
+                                minLength: 1,
+                                description: '作为悬停工具提示显示的详细描述。\r\n仅新增模型时有效，不会覆盖预置描述。'
+                            },
                             maxInputTokens: {
                                 type: 'number',
                                 minimum: 1,
@@ -312,6 +234,11 @@ export class JsonSchemaProvider {
                                 type: 'string',
                                 description: '覆盖模型级别的API基础URL',
                                 format: 'uri'
+                            },
+                            outputThinking: {
+                                type: 'boolean',
+                                description: '是否启用输出思考过程（高级功能，默认true）',
+                                default: true
                             },
                             capabilities: {
                                 type: 'object',

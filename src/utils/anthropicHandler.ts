@@ -121,7 +121,7 @@ export class AnthropicHandler {
             const stream = await client.messages.create(createParams);
 
             // 使用完整的流处理函数
-            const result = await this.handleAnthropicStream(stream, progress, token);
+            const result = await this.handleAnthropicStream(stream, progress, token, modelConfig);
             Logger.info(`[${model.name}] Anthropic 请求完成`, result.usage);
         } catch (error) {
             Logger.error(`[${model.name}] Anthropic SDK error:`, error);
@@ -153,7 +153,8 @@ export class AnthropicHandler {
     private async handleAnthropicStream(
         stream: AsyncIterable<Anthropic.Messages.MessageStreamEvent>,
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
-        token: vscode.CancellationToken
+        token: vscode.CancellationToken,
+        modelConfig?: ModelConfig
     ): Promise<{ usage?: { inputTokens: number; outputTokens: number; totalTokens: number } }> {
         let pendingToolCall: { toolId?: string; name?: string; jsonInput?: string } | undefined;
         // let pendingServerToolCall: { toolId?: string; name?: string; jsonInput?: string; type?: string } | undefined; // 暂不支持 web_search
@@ -300,10 +301,21 @@ export class AnthropicHandler {
                                 (pendingServerToolCall.jsonInput || '') + chunk.delta.partial_json;
                         } */ else if (chunk.delta.type === 'thinking_delta') {
                             // 思考内容增量 - 流式输出
-                            if (pendingThinking) {
-                                pendingThinking.thinking =
-                                    (pendingThinking.thinking || '') + (chunk.delta.thinking || '');
-                                progress.report(new vscode.LanguageModelThinkingPart(chunk.delta.thinking || ''));
+                            // 检查模型配置中的 outputThinking 设置
+                            const shouldOutputThinking = modelConfig?.outputThinking !== false; // 默认 true
+                            if (shouldOutputThinking) {
+                                if (pendingThinking) {
+                                    pendingThinking.thinking =
+                                        (pendingThinking.thinking || '') + (chunk.delta.thinking || '');
+                                    progress.report(new vscode.LanguageModelThinkingPart(chunk.delta.thinking || ''));
+                                }
+                            } else {
+                                Logger.trace('⏭️ 跳过思考内容输出：配置为不输出thinking');
+                                // 累积thinking但不输出
+                                if (pendingThinking) {
+                                    pendingThinking.thinking =
+                                        (pendingThinking.thinking || '') + (chunk.delta.thinking || '');
+                                }
                             }
                         } else if (chunk.delta.type === 'signature_delta') {
                             // 累积签名

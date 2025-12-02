@@ -6,6 +6,9 @@
         {
             "id": "kimi-k2-thinking",
             "name": "Kimi-K2-Thinking",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.moonshot.cn/anthropic",
+            "outputThinking": false,
             "tooltip": "月之暗面 Kimi-K2-Thinking - 模型上下文长度 256k，是具有通用 Agentic 能力和推理能力的思考模型，它擅长深度推理",
             "maxInputTokens": 256000,
             "maxOutputTokens": 16000,
@@ -21,6 +24,9 @@
         {
             "id": "kimi-k2-thinking-turbo",
             "name": "Kimi-K2-Thinking-Turbo",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.moonshot.cn/anthropic",
+            "outputThinking": false,
             "tooltip": "月之暗面 Kimi-K2-Thinking-Turbo - 模型上下文长度 256k，是 kimi-k2-thinking 模型的高速版，适用于需要深度推理和追求极致高速的场景",
             "maxInputTokens": 256000,
             "maxOutputTokens": 16000,

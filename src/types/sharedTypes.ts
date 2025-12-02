@@ -49,6 +49,13 @@ export interface ModelConfig {
      * 如果提供，将在API请求中合并到请求体中
      */
     extraBody?: Record<string, unknown>;
+    /**
+     * 是否启用输出思考过程（可选）
+     * 默认值为 true，开启 thinking 内容输出（高级功能）
+     * 当设置为 false 时，handler 不回报 thinking 内容
+     * 注意：此功能默认启用，无需用户手动配置
+     */
+    outputThinking?: boolean;
 }
 
 /**

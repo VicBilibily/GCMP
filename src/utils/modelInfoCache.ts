@@ -71,6 +71,13 @@ export class ModelInfoCache {
      */
     async getCachedModels(providerKey: string, apiKeyHash: string): Promise<LanguageModelChatInformation[] | null> {
         try {
+            // 开发模式下始终返回 null，强制重新获取模型列表
+            const isDevelopment = this.context.extensionMode === vscode.ExtensionMode.Development;
+            if (isDevelopment) {
+                Logger.trace(`[ModelInfoCache] ${providerKey}: 开发模式下跳过缓存`);
+                return null;
+            }
+
             const cacheKey = this.getCacheKey(providerKey);
             const cached = this.context.globalState.get<CachedModelInfo>(cacheKey);
 

@@ -114,6 +114,19 @@
                 "toolCalling": true,
                 "imageInput": false
             }
+        },
+        {
+            "id": "kimi-k2-thinking",
+            "name": "Kimi-K2-thinking-251104",
+            "model": "kimi-k2-thinking-251104",
+            "tooltip": "具有通用 Agentic 能力和推理能力的思考模型，它擅长深度推理，并可通过多步工具调用，帮助解决各类难题。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "outputThinking": false,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
         }
     ]
 }

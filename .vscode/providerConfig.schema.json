@@ -105,6 +105,11 @@
                     "minLength": 1,
                     "description": "当与 ID 不同时的可选请求模型名称。"
                 },
+                "outputThinking": {
+                    "type": "boolean",
+                    "description": "是否启用输出思考过程（如有支持）",
+                    "default": true
+                },
                 "customHeader": {
                     "type": "object",
                     "description": "可选的自定义HTTP头部，将在API请求中附加。",

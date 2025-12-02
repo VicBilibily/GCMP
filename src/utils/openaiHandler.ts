@@ -454,22 +454,33 @@ export class OpenAIHandler {
                                 // 兼容：优先使用 delta 中的 reasoning_content，否则尝试从 message 中读取
                                 const reasoningContent = delta?.reasoning_content ?? message?.reasoning_content;
                                 if (reasoningContent) {
-                                    try {
-                                        Logger.trace(
-                                            `🧠 接收到思考内容 (choice ${choiceIndex}): ${reasoningContent.length}字符`
-                                        );
-                                        // 如果当前没有 active id，则生成一个用于本次思维链
-                                        if (!currentThinkingId) {
-                                            currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                                    // 检查模型配置中的 outputThinking 设置
+                                    const shouldOutputThinking = modelConfig.outputThinking !== false; // 默认 true
+                                    if (shouldOutputThinking) {
+                                        try {
+                                            Logger.trace(
+                                                `🧠 接收到思考内容 (choice ${choiceIndex}): ${reasoningContent.length}字符`
+                                            );
+                                            // 如果当前没有 active id，则生成一个用于本次思维链
+                                            if (!currentThinkingId) {
+                                                currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                                            }
+                                            progress.report(
+                                                new vscode.LanguageModelThinkingPart(
+                                                    reasoningContent,
+                                                    currentThinkingId
+                                                )
+                                            );
+                                            // 标记已接收内容
+                                            hasReceivedContent = true;
+                                        } catch (e) {
+                                            Logger.trace(
+                                                `${model.name} report 思维链失败 (choice ${choiceIndex}): ${String(e)}`
+                                            );
                                         }
-                                        progress.report(
-                                            new vscode.LanguageModelThinkingPart(reasoningContent, currentThinkingId)
-                                        );
-                                        // 标记已接收内容
-                                        hasReceivedContent = true;
-                                    } catch (e) {
+                                    } else {
                                         Logger.trace(
-                                            `${model.name} report 思维链失败 (choice ${choiceIndex}): ${String(e)}`
+                                            `⏭️ 跳过思考内容输出 (choice ${choiceIndex}): 配置为不输出thinking`
                                         );
                                     }
                                 }

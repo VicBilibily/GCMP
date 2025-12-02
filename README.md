@@ -52,7 +52,7 @@
 - [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：**Doubao-Seed-Code**
 - **编程系列**：**Doubao-Seed-Code**
 - **豆包系列**：**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
-- **协作奖励计划**：**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**
+- **协作奖励计划**：**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**(暂不输出思考内容)
 
 ### [**MiniMax**](https://platform.minimaxi.com/login)
 
@@ -63,7 +63,9 @@
 
 ### [**MoonshotAI**](https://platform.moonshot.cn/) - Kimi K2系列
 
-- 预置模型：**Kimi-K2-Thinking**、**Kimi-K2-Thinking-Turbo**、**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-K2-0711-Preview**、**Kimi-Latest**
+- 预置模型：**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-K2-0711-Preview**、**Kimi-Latest**
+- 思考模型：**Kimi-K2-Thinking**、**Kimi-K2-Thinking-Turbo** 
+    - 多次工具调用后思考内容输出存在兼容性问题，展示关闭思考内容输出
 
 ### [**DeepSeek**](https://platform.deepseek.com/) - 深度求索
 
