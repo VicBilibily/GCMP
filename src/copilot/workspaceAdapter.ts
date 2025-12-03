@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { OffsetRange } from '@vscode/chat-lib/dist/src/_internal/util/vs/editor/common/core/ranges/offsetRange';
-import { Logger } from '../../utils';
+import { Logger } from '../utils';
 import {
     MutableObservableDocument,
     MutableObservableWorkspace

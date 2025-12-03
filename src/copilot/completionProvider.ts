@@ -23,9 +23,8 @@ import {
     ITextDocument
 } from '@vscode/chat-lib/dist/src/_internal/extension/completions-core/vscode-node/lib/src/textDocument';
 
-import { Logger } from '../../utils/logger';
-
-import { VersionManager } from '../../utils';
+import { Logger } from '../utils/logger';
+import { VersionManager } from '../utils';
 import { DocumentManager } from './documentManager';
 import { FimCompletionConfig, FimProviderConfig } from './types';
 import { CAPIClientService } from './capiClient';

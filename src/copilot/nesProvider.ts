@@ -12,7 +12,7 @@ import { CancellationToken } from '@vscode/chat-lib/dist/src/_internal/util/vs/b
 // import { GCMPFetcher, GCMPTelemetrySender, LogTarget, FIM_PROVIDERS, AuthenticationService } from './copilot';
 import { WorkspaceAdapter } from './workspaceAdapter';
 import { FimProviderConfig, NESCompletionConfig } from './types';
-import { Logger } from '../../utils';
+import { Logger } from '../utils';
 import { Fetcher } from './fetcher';
 import { AuthenticationService } from './auth';
 import { TelemetrySender } from './telemetry';

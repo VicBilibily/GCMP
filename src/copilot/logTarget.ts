@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ILogTarget, LogLevel } from '@vscode/chat-lib';
-import { Logger } from '../../utils/logger';
+import { Logger } from '../utils/logger';
 
 /**
  * 日志目标实现
