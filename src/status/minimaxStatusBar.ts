@@ -7,8 +7,7 @@ import * as vscode from 'vscode';
 import { BaseStatusBarItem, StatusBarItemConfig } from './baseStatusBarItem';
 import { StatusLogger } from '../utils/statusLogger';
 import { Logger } from '../utils/logger';
-import { ApiKeyManager } from '../utils/apiKeyManager';
-import { VersionManager } from '../utils/versionManager';
+import { ConfigManager, ApiKeyManager, VersionManager } from '../utils';
 
 /**
  * 模型余量项数据结构
@@ -134,8 +133,12 @@ export class MiniMaxStatusBar extends BaseStatusBarItem<MiniMaxStatusData> {
                 }
             };
 
+            let requestUrl = REMAIN_QUERY_URL;
+            if (ConfigManager.getMinimaxEndpoint() === 'minimax.io') {
+                requestUrl = requestUrl.replace('.minimaxi.com', '.minimax.io');
+            }
             // 发送请求
-            const response = await fetch(REMAIN_QUERY_URL, requestOptions);
+            const response = await fetch(requestUrl, requestOptions);
             const responseText = await response.text();
 
             StatusLogger.debug(

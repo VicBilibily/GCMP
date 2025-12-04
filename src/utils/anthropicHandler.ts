@@ -38,7 +38,14 @@ export class AnthropicHandler {
         }
 
         // 使用模型配置的 baseUrl 或提供商默认的 baseURL
-        const baseUrl = modelConfig?.baseUrl || this.baseURL;
+        let baseUrl = modelConfig?.baseUrl || this.baseURL;
+        if (providerKey === 'minimax-coding') {
+            // 针对 MiniMax 国际站进行 baseUrl 覆盖设置
+            const endpoint = ConfigManager.getMinimaxEndpoint();
+            if (baseUrl && endpoint === 'minimax.io') {
+                baseUrl = baseUrl.replace('api.minimaxi.com', 'api.minimax.io');
+            }
+        }
         Logger.debug(`[${this.displayName}] 创建新的 Anthropic 客户端 (baseUrl: ${baseUrl})`);
 
         // 构建默认头部，包含提供商级别和模型级别的 customHeader

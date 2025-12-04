@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as https from 'https';
-import { Logger } from '../utils';
+import { ConfigManager, Logger } from '../utils';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { VersionManager } from '../utils/versionManager';
 
@@ -69,8 +69,14 @@ export class MiniMaxSearchTool {
         Logger.info(`🔍 [MiniMax 搜索] 开始搜索: "${params.q}"`);
         Logger.debug(`📝 [MiniMax 搜索] 请求数据: ${requestData}`);
 
+        let requestUrl = this.baseURL;
+        if (ConfigManager.getMinimaxEndpoint() === 'minimax.io') {
+            // 国际站需要使用指定的搜索端点
+            requestUrl = requestUrl.replace('api.minimax.chat', 'api.minimax.io');
+        }
+
         return new Promise((resolve, reject) => {
-            const req = https.request(this.baseURL, options, res => {
+            const req = https.request(requestUrl, options, res => {
                 let data = '';
 
                 res.on('data', chunk => {

@@ -61,13 +61,28 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             }
         );
 
+        // 注册设置 Coding Plan 接入点命令
+        const setCodingPlanEndpointCommand = vscode.commands.registerCommand(
+            `gcmp.${providerKey}.setCodingPlanEndpoint`,
+            async () => {
+                Logger.info(`用户手动打开 ${providerConfig.displayName} Coding Plan 接入点选择`);
+                await MiniMaxWizard.setCodingPlanEndpoint(providerConfig.displayName);
+            }
+        );
+
         // 注册配置向导命令
         const configWizardCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.configWizard`, async () => {
             Logger.info(`启动 ${providerConfig.displayName} 配置向导`);
             await MiniMaxWizard.startWizard(providerConfig.displayName, providerConfig.apiKeyTemplate);
         });
 
-        const disposables = [providerDisposable, setApiKeyCommand, setCodingKeyCommand, configWizardCommand];
+        const disposables = [
+            providerDisposable,
+            setApiKeyCommand,
+            setCodingKeyCommand,
+            setCodingPlanEndpointCommand,
+            configWizardCommand
+        ];
         disposables.forEach(disposable => context.subscriptions.push(disposable));
         return { provider, disposables };
     }

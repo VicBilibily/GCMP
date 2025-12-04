@@ -25,6 +25,14 @@ export interface ZhipuConfig {
 }
 
 /**
+ * MiniMax 配置
+ */
+export interface MiniMaxConfig {
+    /** Coding Plan 接入点 */
+    endpoint: 'minimaxi.com' | 'minimax.io';
+}
+
+/**
  * GCMP配置接口
  */
 export interface GCMPConfig {
@@ -38,6 +46,8 @@ export interface GCMPConfig {
     rememberLastModel: boolean;
     /** 智谱AI配置 */
     zhipu: ZhipuConfig;
+    /** MiniMax配置 */
+    minimax: MiniMaxConfig;
     /** 提供商配置覆盖 */
     providerOverrides: UserConfigOverrides;
 }
@@ -95,6 +105,9 @@ export class ConfigManager {
                     enableMCP: config.get<boolean>('zhipu.search.enableMCP', true) // 默认启用MCP模式（Coding Plan专属）
                 }
             },
+            minimax: {
+                endpoint: config.get<MiniMaxConfig['endpoint']>('minimax.endpoint', 'minimaxi.com')
+            },
             providerOverrides: config.get<UserConfigOverrides>('providerOverrides', {})
         };
 
@@ -135,11 +148,21 @@ export class ConfigManager {
      */
     static getZhipuSearchConfig(): ZhipuSearchConfig {
         return this.getConfig().zhipu.search;
-    } /**
+    }
+
+    /**
      * 获取智谱AI统一配置
      */
     static getZhipuConfig(): ZhipuConfig {
         return this.getConfig().zhipu;
+    }
+
+    /**
+     * 获取 MiniMax Coding Plan 接入点配置
+     * @returns 'minimaxi.com' 或 'minimax.io'，默认 'minimaxi.com'
+     */
+    static getMinimaxEndpoint(): 'minimaxi.com' | 'minimax.io' {
+        return this.getConfig().minimax.endpoint;
     }
 
     /**
