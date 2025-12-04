@@ -244,6 +244,21 @@ export class NESProvider implements vscode.InlineCompletionItemProvider, vscode.
     ): Promise<vscode.InlineCompletionItem[] | vscode.InlineCompletionList | undefined> {
         const config = this.getConfig();
 
+        const { triggerKind } = context as { triggerKind: vscode.InlineCompletionTriggerKind };
+        if (triggerKind == vscode.InlineCompletionTriggerKind.Invoke) {
+            /** 手动触发 */
+            Logger.warn('用户手动触发补全');
+
+            // 将键绑定放在此文件中以覆盖默认值
+            // [
+            //     {
+            //         key: 'alt+oem_2',
+            //         command: 'editor.action.inlineSuggest.trigger',
+            //         when: 'editorHasCompletionItemProvider && textInputFocus && !editorReadonly && !suggestWidgetVisible'
+            //     }
+            // ];
+        }
+
         // 检查是否启用
         if (!this.isEnabled) {
             return undefined;
