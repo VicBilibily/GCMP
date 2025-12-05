@@ -155,6 +155,9 @@ export class JointInlineCompletionProvider implements vscode.InlineCompletionIte
             const provider = vscode.languages.registerInlineCompletionItemProvider({ pattern: '**/*' }, this);
             this.disposables.push(provider);
 
+            // 禁用官方 GitHub Copilot 的 inline completion
+            this.disableCopilotInlineCompletion();
+
             // 注册命令
             this.registerCommands();
 
@@ -230,6 +233,36 @@ export class JointInlineCompletionProvider implements vscode.InlineCompletionIte
         });
 
         this.nesInitialized = true;
+    }
+
+    /**
+     * 禁用官方 GitHub Copilot 的 inline completion
+     * 通过修改用户设置来禁用官方补全，避免与我们的提供商冲突
+     */
+    private disableCopilotInlineCompletion(): void {
+        // 禁用官方 Copilot inline completion 的多个相关配置
+        const disableConfigs = [
+            { key: 'github.copilot.inlineCompletions.enabled', value: false },
+            { key: 'chat.advanced.inlineEdits.inlineCompletions.enabled', value: false }
+        ];
+
+        disableConfigs.forEach(config => {
+            vscode.workspace
+                .getConfiguration()
+                .update(config.key, config.value, vscode.ConfigurationTarget.Global)
+                .then(
+                    () => {
+                        Logger.trace(`[JointInlineCompletionProvider] 已禁用: ${config.key}`);
+                    },
+                    (_error: unknown) => {
+                        Logger.trace(
+                            `[JointInlineCompletionProvider] 无法禁用 ${config.key}（可能已禁用或需要手动配置）`
+                        );
+                    }
+                );
+        });
+
+        Logger.info('[JointInlineCompletionProvider] 已禁用官方 GitHub Copilot inline completion 相关配置');
     }
 
     // ========================================================================
