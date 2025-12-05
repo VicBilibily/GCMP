@@ -101,8 +101,9 @@ export class NESProvider implements vscode.InlineCompletionItemProvider, vscode.
 
     /**
      * 激活 NES 提供商
+     * @param registerProvider 是否注册为 VS Code 提供商 (默认 true)
      */
-    private activate(): void {
+    public activate(registerProvider: boolean = true): void {
         Logger.trace('[NESProvider.activate] 激活开始');
 
         try {
@@ -116,10 +117,12 @@ export class NESProvider implements vscode.InlineCompletionItemProvider, vscode.
                 })
             );
 
-            // 注册为 VS Code 提供商
-            const provider = vscode.languages.registerInlineCompletionItemProvider({ pattern: '**/*' }, this);
-            this.disposables.push(provider);
-            Logger.trace('[NESProvider.activate] InlineCompletionItemProvider 注册成功');
+            if (registerProvider) {
+                // 注册为 VS Code 提供商
+                const provider = vscode.languages.registerInlineCompletionItemProvider({ pattern: '**/*' }, this);
+                this.disposables.push(provider);
+                Logger.trace('[NESProvider.activate] InlineCompletionItemProvider 注册成功');
+            }
 
             // 注册命令
             this.registerCommands();

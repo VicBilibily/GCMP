@@ -72,8 +72,9 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
     /**
      * 激活内联补全提供商
      * 使用 @vscode/chat-lib 的 createInlineCompletionsProvider
+     * @param registerProvider 是否注册为 VS Code 提供商 (默认 true)
      */
-    activate(): void {
+    activate(registerProvider: boolean = true): void {
         Logger.trace('[InlineCompletionProvider.activate] 激活开始');
 
         try {
@@ -87,11 +88,13 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                     Logger.error('[InlineCompletionProvider.activate] chat-lib provider 初始化失败:', error);
                 });
 
-            Logger.trace('[InlineCompletionProvider.activate] 注册 InlineCompletionItemProvider');
-            // 使用官方的 registerInlineCompletionItemProvider
-            const provider = vscode.languages.registerInlineCompletionItemProvider({ pattern: '**/*' }, this);
-            this.disposables.push(provider);
-            Logger.trace('[InlineCompletionProvider.activate] InlineCompletionItemProvider 注册成功');
+            if (registerProvider) {
+                Logger.trace('[InlineCompletionProvider.activate] 注册 InlineCompletionItemProvider');
+                // 使用官方的 registerInlineCompletionItemProvider
+                const provider = vscode.languages.registerInlineCompletionItemProvider({ pattern: '**/*' }, this);
+                this.disposables.push(provider);
+                Logger.trace('[InlineCompletionProvider.activate] InlineCompletionItemProvider 注册成功');
+            }
 
             Logger.trace('[InlineCompletionProvider.activate] 注册命令');
             // 注册命令

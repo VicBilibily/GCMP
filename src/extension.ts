@@ -9,6 +9,7 @@ import { MiniMaxProvider } from './providers/minimaxProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
 import { InlineCompletionProvider } from './copilot/completionProvider';
 import { NESProvider } from './copilot/nesProvider';
+import { JointInlineCompletionProvider } from './copilot/jointInlineCompletionProvider';
 import { Logger } from './utils/logger';
 import { StatusLogger } from './utils/statusLogger';
 import { ApiKeyManager, ConfigManager, JsonSchemaProvider } from './utils';
@@ -37,6 +38,9 @@ let inlineCompletionProvider: InlineCompletionProvider | undefined;
 
 // NES 提供商实例
 let nesProvider: NESProvider | undefined;
+
+// 联合内联补全提供商实例
+let jointInlineCompletionProvider: JointInlineCompletionProvider | undefined;
 
 /**
  * 激活提供商 - 基于配置文件动态注册（并行优化版本）
@@ -200,6 +204,26 @@ async function activateNESProvider(context: vscode.ExtensionContext): Promise<vo
     }
 }
 
+/**
+ * 激活联合内联补全提供商 (竞争模式)
+ */
+async function activateJointInlineCompletionProvider(context: vscode.ExtensionContext): Promise<void> {
+    try {
+        Logger.trace('正在注册联合内联补全提供商 (竞争模式)...');
+        const providerStartTime = Date.now();
+
+        // 创建并激活联合内联补全提供商
+        const result = JointInlineCompletionProvider.createAndActivate(context);
+        jointInlineCompletionProvider = result.provider;
+        registeredDisposables.push(...result.disposables);
+
+        const providerTime = Date.now() - providerStartTime;
+        Logger.info(`✅ 联合内联补全提供商注册成功 (耗时: ${providerTime}ms)`);
+    } catch (error) {
+        Logger.error('❌ 注册联合内联补全提供商失败:', error);
+    }
+}
+
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
@@ -262,10 +286,15 @@ export async function activate(context: vscode.ExtensionContext) {
         registerAllTools(context);
         Logger.trace(`⏱️ 工具注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
-        // 步骤5: 注册内联补全提供商（临时禁用）
+        // 步骤5: 注册联合内联补全提供商（竞争模式）
         stepStartTime = Date.now();
-        await activateInlineCompletionProvider(context);
-        Logger.trace(`⏱️ 内联补全提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        await activateJointInlineCompletionProvider(context);
+        Logger.trace(`⏱️ 联合内联补全提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+
+        // // 步骤5: 注册内联补全提供商（临时禁用）
+        // stepStartTime = Date.now();
+        // await activateInlineCompletionProvider(context);
+        // Logger.trace(`⏱️ 内联补全提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
         // // 步骤5.1: 激活 NES 提供商（实验）
         // stepStartTime = Date.now();
@@ -320,6 +349,12 @@ export function deactivate() {
         if (nesProvider) {
             nesProvider.dispose();
             Logger.trace('已清理 NES 提供商');
+        }
+
+        // 清理联合内联补全提供商
+        if (jointInlineCompletionProvider) {
+            jointInlineCompletionProvider.dispose();
+            Logger.trace('已清理联合内联补全提供商');
         }
 
         ConfigManager.dispose(); // 清理配置管理器
