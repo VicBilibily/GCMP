@@ -22,9 +22,12 @@ export class LogTarget implements ILogTarget {
             case LogLevel.Info:
                 Logger.info(`[LogTarget] ${metadataStr}`, ...extra);
                 return;
-            case LogLevel.Debug:
-                Logger.debug(`[LogTarget] ${metadataStr}`, ...extra);
-                return;
+            // case LogLevel.Debug:
+            //     Logger.debug(`[LogTarget] ${metadataStr}`, ...extra);
+            //     return;
+            // case LogLevel.Trace:
+            //     Logger.trace(`[LogTarget] ${metadataStr}`, ...extra);
+            //     return;
         }
     }
 }
