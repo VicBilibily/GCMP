@@ -7,9 +7,7 @@ import { ModelScopeProvider } from './providers/modelscopeProvider';
 import { StreamLakeProvider } from './providers/streamlakeProvider';
 import { MiniMaxProvider } from './providers/minimaxProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
-import { InlineCompletionProvider } from './copilot/completionProvider';
-import { NESProvider } from './copilot/nesProvider';
-import { JointInlineCompletionProvider } from './copilot/jointInlineCompletionProvider';
+import { JointInlineCompletionProvider } from './copilot/completionProvider';
 import { Logger } from './utils/logger';
 import { StatusLogger } from './utils/statusLogger';
 import { ApiKeyManager, ConfigManager, JsonSchemaProvider } from './utils';
@@ -32,12 +30,6 @@ const registeredProviders: Record<
     | CompatibleProvider
 > = {};
 const registeredDisposables: vscode.Disposable[] = [];
-
-// 内联补全提供商实例
-let inlineCompletionProvider: InlineCompletionProvider | undefined;
-
-// NES 提供商实例
-let nesProvider: NESProvider | undefined;
 
 // 联合内联补全提供商实例
 let jointInlineCompletionProvider: JointInlineCompletionProvider | undefined;
@@ -161,50 +153,6 @@ async function activateCompatibleProvider(context: vscode.ExtensionContext): Pro
 }
 
 /**
- * 激活内联补全提供商
- * 支持多个 FIM API 提供商切换
- *
- * 临时禁用：为了进行 NES 对接实验
- */
-async function activateInlineCompletionProvider(context: vscode.ExtensionContext): Promise<void> {
-    try {
-        Logger.trace('正在注册内联补全提供商...');
-        const providerStartTime = Date.now();
-
-        // 创建并激活内联补全提供商
-        const result = InlineCompletionProvider.createAndActivate(context);
-        inlineCompletionProvider = result.provider;
-        registeredDisposables.push(...result.disposables);
-
-        const providerTime = Date.now() - providerStartTime;
-        Logger.info(`✅ 内联补全提供商注册成功 (耗时: ${providerTime}ms)`);
-    } catch (error) {
-        Logger.error('❌ 注册内联补全提供商失败:', error);
-    }
-}
-
-/**
- * 激活 NES 提供商
- * 用于 Next Edit Suggest 的对接实验
- */
-async function activateNESProvider(context: vscode.ExtensionContext): Promise<void> {
-    try {
-        Logger.trace('正在注册 NES 提供商...');
-        const providerStartTime = Date.now();
-
-        // 创建并激活 NES 提供商
-        const result = NESProvider.createAndActivate(context);
-        nesProvider = result.provider;
-        registeredDisposables.push(...result.disposables);
-
-        const providerTime = Date.now() - providerStartTime;
-        Logger.info(`✅ NES 提供商注册成功 (耗时: ${providerTime}ms)`);
-    } catch (error) {
-        Logger.error('❌ 注册 NES 提供商失败:', error);
-    }
-}
-
-/**
  * 激活联合内联补全提供商 (竞争模式)
  */
 async function activateJointInlineCompletionProvider(context: vscode.ExtensionContext): Promise<void> {
@@ -291,16 +239,6 @@ export async function activate(context: vscode.ExtensionContext) {
         await activateJointInlineCompletionProvider(context);
         Logger.trace(`⏱️ 联合内联补全提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
-        // // 步骤5: 注册内联补全提供商（临时禁用）
-        // stepStartTime = Date.now();
-        // await activateInlineCompletionProvider(context);
-        // Logger.trace(`⏱️ 内联补全提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
-
-        // // 步骤5.1: 激活 NES 提供商（实验）
-        // stepStartTime = Date.now();
-        // await activateNESProvider(context);
-        // Logger.trace(`⏱️ NES 提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
-
         const totalActivationTime = Date.now() - activationStartTime;
         Logger.info(`✅ GCMP 扩展激活完成 (总耗时: ${totalActivationTime}ms)`);
     } catch (error) {
@@ -337,18 +275,6 @@ export function deactivate() {
             } catch (error) {
                 Logger.warn(`清理提供商 ${providerKey} 资源时出错:`, error);
             }
-        }
-
-        // 清理内联补全提供商
-        if (inlineCompletionProvider) {
-            inlineCompletionProvider.dispose();
-            Logger.trace('已清理内联补全提供商');
-        }
-
-        // 清理 NES 提供商
-        if (nesProvider) {
-            nesProvider.dispose();
-            Logger.trace('已清理 NES 提供商');
         }
 
         // 清理联合内联补全提供商
