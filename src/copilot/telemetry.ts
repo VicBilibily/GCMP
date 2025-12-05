@@ -14,5 +14,7 @@ export class TelemetrySender implements ITelemetrySender {
         _eventName: string,
         _properties?: Record<string, string | undefined>,
         _measurements?: Record<string, number | undefined>
-    ): void {}
+    ): void {
+        return;
+    }
 }

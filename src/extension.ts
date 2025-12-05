@@ -262,15 +262,15 @@ export async function activate(context: vscode.ExtensionContext) {
         registerAllTools(context);
         Logger.trace(`⏱️ 工具注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
-        // // 步骤5: 注册内联补全提供商（临时禁用）
-        // stepStartTime = Date.now();
-        // await activateInlineCompletionProvider(context);
-        // Logger.trace(`⏱️ 内联补全提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
-
-        // 步骤5.1: 激活 NES 提供商（实验）
+        // 步骤5: 注册内联补全提供商（临时禁用）
         stepStartTime = Date.now();
-        await activateNESProvider(context);
-        Logger.trace(`⏱️ NES 提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        await activateInlineCompletionProvider(context);
+        Logger.trace(`⏱️ 内联补全提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+
+        // // 步骤5.1: 激活 NES 提供商（实验）
+        // stepStartTime = Date.now();
+        // await activateNESProvider(context);
+        // Logger.trace(`⏱️ NES 提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
         const totalActivationTime = Date.now() - activationStartTime;
         Logger.info(`✅ GCMP 扩展激活完成 (总耗时: ${totalActivationTime}ms)`);

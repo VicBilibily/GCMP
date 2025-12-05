@@ -71,6 +71,27 @@ export class Fetcher implements IFetcher {
     }
 
     async fetch(url: string, options: FetchOptions): Promise<Response> {
+        if (options?.method === 'GET' && url.endsWith('/models')) {
+            // 返回一个空模型列表的响应
+            const emptyModelsResponse = {
+                object: 'list',
+                data: []
+            };
+            return new ResponseWrapper(
+                200,
+                'OK',
+                { 'Content-Type': 'application/json' } as unknown as IHeaders,
+                async () => JSON.stringify(emptyModelsResponse),
+                async () => emptyModelsResponse,
+                async () => null,
+                'fetcher'
+            ) as unknown as Response;
+        }
+
+        if (options?.method !== 'POST' || url.endsWith('/completions') === false) {
+            throw new Error('Not Support Request');
+        }
+
         const { baseUrl, requestPath, providerKey, requestModel } = this.providerConfig;
         url = `${baseUrl}/${requestPath}`;
 
@@ -103,7 +124,7 @@ export class Fetcher implements IFetcher {
             // }
 
             const fetchOptions: RequestInit = {
-                method: options.method || 'POST',
+                method: 'POST',
                 headers,
                 body: JSON.stringify({
                     ...requestBody,
@@ -187,7 +208,10 @@ export class Fetcher implements IFetcher {
                 'node-fetch'
             ) as unknown as Response;
         } catch (error) {
-            Logger.error('[Fetcher] 异常:', error);
+            // 如果是中止错误，不记录错误日志
+            if (!this.isAbortError(error)) {
+                Logger.error('[Fetcher] 异常:', error);
+            }
             throw error;
         }
     }

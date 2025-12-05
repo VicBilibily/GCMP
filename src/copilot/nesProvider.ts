@@ -9,7 +9,6 @@
 import * as vscode from 'vscode';
 import { createNESProvider, INESProvider, INESResult } from '@vscode/chat-lib';
 import { CancellationToken } from '@vscode/chat-lib/dist/src/_internal/util/vs/base/common/cancellation';
-// import { GCMPFetcher, GCMPTelemetrySender, LogTarget, FIM_PROVIDERS, AuthenticationService } from './copilot';
 import { WorkspaceAdapter } from './workspaceAdapter';
 import { FimProviderConfig, NESCompletionConfig } from './types';
 import { Logger } from '../utils';
@@ -78,26 +77,26 @@ export class NESProvider implements vscode.InlineCompletionItemProvider, vscode.
     }
 
     constructor(private readonly context: vscode.ExtensionContext) {
-        this.currentProvider = {
-            id: 'glm-4.5-air',
-            name: 'GLM-4.5-Air',
-            providerKey: 'zhipu',
-            baseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4',
-            requestPath: 'chat/completions',
-            requestModel: 'glm-4.5',
-            supportsSuffix: true,
-            maxTokens: 4096
-        };
         // this.currentProvider = {
-        //     id: 'deepseek',
-        //     name: 'DeepSeek',
-        //     providerKey: 'deepseek',
-        //     baseUrl: 'https://api.deepseek.com/v1',
+        //     id: 'glm-4.5-air',
+        //     name: 'GLM-4.5-Air',
+        //     providerKey: 'zhipu',
+        //     baseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4',
         //     requestPath: 'chat/completions',
-        //     requestModel: 'deepseek-chat',
+        //     requestModel: 'glm-4.5',
         //     supportsSuffix: true,
         //     maxTokens: 4096
         // };
+        this.currentProvider = {
+            id: 'deepseek',
+            name: 'DeepSeek',
+            providerKey: 'deepseek',
+            baseUrl: 'https://api.deepseek.com/v1',
+            requestPath: 'chat/completions',
+            requestModel: 'deepseek-chat',
+            supportsSuffix: true,
+            maxTokens: 4096
+        };
     }
 
     /**
