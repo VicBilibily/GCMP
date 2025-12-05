@@ -18,6 +18,39 @@
             }
         },
         {
+            "id": "deepseek-v3.2-coding-plan",
+            "name": "DeepSeek-V3.2 (Coding Plan)",
+            "model": "ark-code-latest",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "DeepSeek-V3.2正式版，平衡推理能力与输出长度，适合日常使用，例如问答场景和通用 Agent 任务场景",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "deepseek-v3.2-coding-plan-thinking",
+            "name": "DeepSeek-V3.2 (Coding Plan) (思考模式)",
+            "model": "ark-code-latest",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "DeepSeek-V3.2正式版，平衡推理能力与输出长度，适合日常使用，例如问答场景和通用 Agent 任务场景",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": {
+                    "type": "enabled"
+                }
+            }
+        },
+        {
             "id": "doubao-seed-code",
             "name": "Doubao-Seed-Code (按量计费)",
             "model": "doubao-seed-code-preview-251028",
@@ -89,6 +122,35 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
+            }
+        },
+        {
+            "id": "deepseek-v3.2",
+            "name": "DeepSeek-V3.2-251201",
+            "model": "deepseek-v3-2-251201",
+            "tooltip": "DeepSeek-V3.2正式版，平衡推理能力与输出长度，适合日常使用，例如问答场景和通用 Agent 任务场景",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "deepseek-v3.2-thinking",
+            "name": "DeepSeek-V3.2-251201 (思考模式)",
+            "model": "deepseek-v3-2-251201",
+            "tooltip": "DeepSeek-V3.2正式版，平衡推理能力与输出长度，适合日常使用，例如问答场景和通用 Agent 任务场景",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": {
+                    "type": "enabled"
+                }
             }
         },
         {

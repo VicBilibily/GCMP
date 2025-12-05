@@ -48,10 +48,10 @@
 
 ### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
 
-- [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：**Doubao-Seed-Code**
+- [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：**Doubao-Seed-Code**、**DeepSeek-V3.2**(思考模式)
 - **编程系列**：**Doubao-Seed-Code**
 - **豆包系列**：**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
-- **协作奖励计划**：**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**(暂不输出思考内容)
+- **协作奖励计划**：**DeepSeek-V3.2**(思考模式)、**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**(暂不输出思考内容)
 
 ### [**MiniMax**](https://platform.minimaxi.com/login)
 
