@@ -407,20 +407,42 @@ export class JointInlineCompletionProvider implements vscode.InlineCompletionIte
                 { coreToken: token, completionsCts, nesCts }
             );
 
-            Logger.trace(`[JointInlineCompletionProvider] 请求 #${invocationId} 结束`, list);
+            Logger.trace(`[JointInlineCompletionProvider] 请求 #${invocationId} 结束`);
+            Logger.trace(`  - list 是否存在: ${!!list}`);
+            if (list) {
+                const listWithSource = list as SingularCompletionList;
+                Logger.trace(`  - list.source: ${listWithSource.source}`);
+                Logger.trace(`  - list.items 数量: ${list.items.length}`);
+                if (list.items.length > 0) {
+                    const item = list.items[0];
+                    const insertTextStr = typeof item.insertText === 'string' ? item.insertText : item.insertText.value;
+                    Logger.trace(`  - 首项 insertText 长度: ${insertTextStr.length}`);
+                    Logger.trace(`  - 首项 range: ${item.range}`);
+                }
+            }
 
             if (token.isCancellationRequested) {
+                Logger.warn('[JointInlineCompletionProvider] token 已取消，返回当前 list');
                 return list;
             }
 
             if (!list || list.source !== 'NES' || list.items.length === 0) {
+                const listWithSource = list as SingularCompletionList | undefined;
+                Logger.trace(
+                    `[JointInlineCompletionProvider] 不满足保存条件: list=${!!list}, source=${listWithSource?.source}, items=${list?.items.length}`
+                );
                 return list;
             }
 
             const firstItem = list.items[0];
             if (!firstItem.range || typeof firstItem.insertText !== 'string') {
+                Logger.warn(
+                    `[JointInlineCompletionProvider] 首项无效: range=${!!firstItem.range}, insertText 类型=${typeof firstItem.insertText}`
+                );
                 return list;
             }
+
+            Logger.trace('[JointInlineCompletionProvider] 保存缓存建议中...');
 
             // 简单的 applyTextEdit 模拟
             saveLastNesSuggestion = {
@@ -432,6 +454,7 @@ export class JointInlineCompletionProvider implements vscode.InlineCompletionIte
                     document.getText().substring(document.offsetAt(firstItem.range.end))
             };
 
+            Logger.info(`[JointInlineCompletionProvider] 返回完成列表，项数: ${list?.items.length}`);
             return list;
         } finally {
             tokenDisposable.dispose();
@@ -710,7 +733,38 @@ export class JointInlineCompletionProvider implements vscode.InlineCompletionIte
             const endPos = document.positionAt(range.endExclusive);
             const vscodeRange = new vscode.Range(startPos, endPos);
 
+            // === 关键诊断：验证 Range 的有效性 ===
+            const docLength = document.getText().length;
+            Logger.trace('[JointInlineCompletionProvider] Range 验证：');
+            Logger.trace(`  - 文档总长度: ${docLength}`);
+            Logger.trace(`  - range.start: ${range.start}, range.endExclusive: ${range.endExclusive}`);
+            Logger.trace(`  - start 有效: ${range.start >= 0 && range.start <= docLength}`);
+            Logger.trace(`  - endExclusive 有效: ${range.endExclusive >= 0 && range.endExclusive <= docLength}`);
+            Logger.trace(`  - 转换后 startPos: line=${startPos.line}, char=${startPos.character}`);
+            Logger.trace(`  - 转换后 endPos: line=${endPos.line}, char=${endPos.character}`);
+
+            // 验证 Range 的有效性
+            if (range.start < 0 || range.endExclusive > docLength || range.start >= range.endExclusive) {
+                Logger.error(
+                    `[JointInlineCompletionProvider] Range 无效！range=[${range.start}, ${range.endExclusive}], 文档长度=${docLength}`
+                );
+                return undefined;
+            }
+
             const completionItem = new vscode.InlineCompletionItem(newText, vscodeRange);
+
+            // 详细的建议项验证日志
+            Logger.trace('[JointInlineCompletionProvider] 创建 InlineCompletionItem:');
+            Logger.trace(`  - insertText 类型: ${typeof completionItem.insertText}`);
+            const insertTextStr =
+                typeof completionItem.insertText === 'string'
+                    ? completionItem.insertText
+                    : completionItem.insertText.value;
+            Logger.trace(`  - insertText 长度: ${insertTextStr.length}`);
+            Logger.trace(`  - insertText 首 50 字符: ${insertTextStr.substring(0, 50)}`);
+            Logger.trace(`  - range 开始行: ${vscodeRange.start.line}, 列: ${vscodeRange.start.character}`);
+            Logger.trace(`  - range 结束行: ${vscodeRange.end.line}, 列: ${vscodeRange.end.character}`);
+            Logger.trace(`  - 原始 range: start=${range.start}, endExclusive=${range.endExclusive}`);
 
             // 记录建议已显示
             this.nesProvider!.handleShown(nesResult);
@@ -753,21 +807,32 @@ export class JointInlineCompletionProvider implements vscode.InlineCompletionIte
         const completionsR = completionsP ? await completionsP : undefined;
         if (completionsR && completionsR.items.length > 0) {
             Logger.info('[JointInlineCompletionProvider] 使用 FIM 结果');
+            Logger.trace(`  - FIM 建议数: ${completionsR.items.length}`);
             tokens.nesCts.cancel();
             const singularList = completionsR as SingularCompletionList;
             singularList.source = 'FIM';
             return singularList;
         }
 
+        Logger.trace('[JointInlineCompletionProvider] FIM 无结果，等待 NES...');
         const nesR = nesP ? await nesP : undefined;
         if (nesR && nesR.items.length > 0) {
             Logger.info('[JointInlineCompletionProvider] FIM 无结果，使用 NES 结果');
+            Logger.trace(`  - NES 建议数: ${nesR.items.length}`);
+            if (nesR.items[0]) {
+                const insertTextStr =
+                    typeof nesR.items[0].insertText === 'string'
+                        ? nesR.items[0].insertText
+                        : nesR.items[0].insertText.value;
+                Logger.trace(`  - NES 首项: insertText.length=${insertTextStr.length}, range=${nesR.items[0].range}`);
+            }
             tokens.completionsCts.cancel();
             const singularList = nesR as SingularCompletionList;
             singularList.source = 'NES';
             return singularList;
         }
 
+        Logger.warn('[JointInlineCompletionProvider] FIM 和 NES 都无结果');
         return undefined;
     }
 
