@@ -111,17 +111,17 @@ export class Fetcher implements IFetcher {
 
             // 拦截并修改 messages，添加 Prompt 指令
             const requestBody = options.json as OpenAI.Chat.ChatCompletionCreateParamsStreaming;
-            // if (Array.isArray(requestBody.messages)) {
-            //     const messages = requestBody.messages;
-            //     const promptAddition =
-            //         '\n IMPORTANT: Do NOT use markdown code blocks (```). Output ONLY the raw code. Do not explain.';
-            //     // 尝试添加到 system message
-            //     const systemMessage = messages.find(m => m.role === 'system');
-            //     if (systemMessage) {
-            //         systemMessage.content = (systemMessage.content || '') + promptAddition;
-            //     }
-            //     Logger.trace('[Fetcher] 已注入 Prompt 指令以禁止 Markdown');
-            // }
+            if (Array.isArray(requestBody.messages)) {
+                const messages = requestBody.messages;
+                const promptAddition =
+                    '\n IMPORTANT: Do NOT use markdown code blocks (```). Output ONLY the raw code. Do not explain.';
+                // 尝试添加到 system message
+                const systemMessage = messages.find(m => m.role === 'system');
+                if (systemMessage) {
+                    systemMessage.content = (systemMessage.content || '') + promptAddition;
+                }
+                Logger.trace('[Fetcher] 已注入 Prompt 指令以禁止 Markdown');
+            }
 
             const fetchOptions: RequestInit = {
                 method: 'POST',

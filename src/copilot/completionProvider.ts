@@ -103,6 +103,7 @@ export class JointInlineCompletionProvider implements vscode.InlineCompletionIte
     private nesProviderConfig: FimProviderConfig;
     private lastNesSuggestion: LastNesSuggestion | null = null;
     private provideInlineCompletionItemsInvocationCount = 0;
+    private readonly manualTriggerCooldownMs: number = 20000; // 20秒
 
     constructor(private readonly context: vscode.ExtensionContext) {
         // 注册 emitter 的清理
@@ -121,13 +122,23 @@ export class JointInlineCompletionProvider implements vscode.InlineCompletionIte
         };
 
         // NES 提供商配置（与 FIM 不同的 API 端点）
+        // this.nesProviderConfig = {
+        //     id: 'deepseek',
+        //     name: 'DeepSeek',
+        //     providerKey: 'deepseek',
+        //     baseUrl: 'https://api.deepseek.com/v1',
+        //     requestPath: 'chat/completions',
+        //     requestModel: 'deepseek-chat',
+        //     supportsSuffix: true,
+        //     maxTokens: 4096
+        // };
         this.nesProviderConfig = {
-            id: 'deepseek',
-            name: 'DeepSeek',
-            providerKey: 'deepseek',
-            baseUrl: 'https://api.deepseek.com/v1',
+            id: 'GLM',
+            name: 'GLM-4.6',
+            providerKey: 'siliconflow',
+            baseUrl: 'https://api.siliconflow.cn/v1',
             requestPath: 'chat/completions',
-            requestModel: 'deepseek-chat',
+            requestModel: 'zai-org/GLM-4.6',
             supportsSuffix: true,
             maxTokens: 4096
         };
@@ -408,7 +419,8 @@ export class JointInlineCompletionProvider implements vscode.InlineCompletionIte
             // ];
         } else {
             // 自动触发也应该返回补全
-            Logger.warn('自动触发补全请求 - 继续处理');
+            Logger.warn('自动触发补全请求');
+            // return;
         }
 
         const invocationId = ++this.provideInlineCompletionItemsInvocationCount;
@@ -800,6 +812,9 @@ export class JointInlineCompletionProvider implements vscode.InlineCompletionIte
                 `[JointInlineCompletionProvider] 返回 NES 建议: range=${range.start}-${range.endExclusive}, ` +
                     `newText.length=${newText.length}, elapsed=${elapsed}ms`
             );
+
+            // 通知 VS Code 有新的补全可用，触发刷新
+            this.triggerChange();
 
             return new vscode.InlineCompletionList([completionItem]);
         } catch (error) {
