@@ -260,6 +260,12 @@ npm install
 # 在 VsCode 打开后按下 F5 开始扩展调试
 ```
 
+## 🙏 致谢
+
+感谢以下组织对本项目的支持：
+
+- 项目Logo 来源于 [三花AI](https://sanhua.himrr.com/)，版权归 重庆毛茸茸科技有限责任公司 所有。
+
 ## 📄 许可证
 
 本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
