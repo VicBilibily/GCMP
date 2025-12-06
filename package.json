@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.14.9",
+    "version": "0.15.0-p3",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -51,6 +51,10 @@
     ],
     "icon": "./gcmp-logo.png",
     "main": "./dist/extension.js",
+    "files": [
+        "dist/**/*",
+        "gcmp-logo.png"
+    ],
     "enabledApiProposals": [
         "chatProvider"
     ],
@@ -126,6 +130,11 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.inlineCompletion.toggle",
+                "title": "切换内联代码补全",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.streamlake.setApiKey",
                 "title": "设置 快手万擎 API密钥",
                 "category": "GCMP"
@@ -158,6 +167,36 @@
             {
                 "command": "gcmp.compatible.manageModels",
                 "title": "Compatible Provider 设置",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.inlineCompletion.enable",
+                "title": "启用内联代码补全",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.inlineCompletion.disable",
+                "title": "禁用内联代码补全",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.inlineCompletion.toggle",
+                "title": "切换内联代码补全",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.nesCompletion.enable",
+                "title": "启用 NES 补全",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.nesCompletion.disable",
+                "title": "禁用 NES 补全",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.nesCompletion.toggle",
+                "title": "切换 NES 补全",
                 "category": "GCMP"
             }
         ],
@@ -214,6 +253,81 @@
                     "type": "boolean",
                     "default": true,
                     "description": "启用智谱AI搜索的MCP SDK模式。使用标准 MCP 协议和官方 SDK 实现搜索功能，提供更稳定的连接和更好的错误处理。非订阅套餐请关闭此开关以使用标准计费接口（按次计费）。需要有效的智谱AI API密钥。",
+                    "scope": "application"
+                },
+                "gcmp.inlineCompletion.enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "启用内联代码补全功能。基于 FIM (Fill In the Middle) API 实现的内联代码补全。",
+                    "scope": "application"
+                },
+                "gcmp.inlineCompletion.provider": {
+                    "type": "string",
+                    "default": "deepseek",
+                    "enum": [
+                        "deepseek"
+                    ],
+                    "enumDescriptions": [
+                        "DeepSeek FIM API - 支持 Fill In the Middle 补全"
+                    ],
+                    "description": "内联补全使用的提供商。需要设置对应提供商的 API 密钥。",
+                    "scope": "application"
+                },
+                "gcmp.inlineCompletion.model": {
+                    "type": "string",
+                    "description": "内联补全使用的模型 ID。留空则使用提供商默认模型。",
+                    "scope": "application"
+                },
+                "gcmp.inlineCompletion.maxTokens": {
+                    "type": "number",
+                    "default": 128,
+                    "minimum": 16,
+                    "maximum": 4096,
+                    "description": "内联补全的最大生成 token 数量。",
+                    "scope": "application"
+                },
+                "gcmp.inlineCompletion.temperature": {
+                    "type": "number",
+                    "default": 0,
+                    "minimum": 0,
+                    "maximum": 2,
+                    "description": "内联补全的采样温度。较低的值产生更确定性的补全结果。",
+                    "scope": "application"
+                },
+                "gcmp.inlineCompletion.contextLines": {
+                    "type": "number",
+                    "default": 50,
+                    "minimum": 10,
+                    "maximum": 200,
+                    "description": "内联补全的上下文行数（光标前后各取多少行）。",
+                    "scope": "application"
+                },
+                "gcmp.inlineCompletion.triggerDelay": {
+                    "type": "number",
+                    "default": 300,
+                    "minimum": 100,
+                    "maximum": 2000,
+                    "description": "内联补全的触发延迟（毫秒）。用于避免频繁请求。",
+                    "scope": "application"
+                },
+                "gcmp.nesCompletion.enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "启用 NES (Next Edit Suggest) 建议功能。",
+                    "scope": "application"
+                },
+                "gcmp.nesCompletion.provider": {
+                    "type": "string",
+                    "default": "zhipu",
+                    "description": "NES 补全使用的提供商。",
+                    "scope": "application"
+                },
+                "gcmp.nesCompletion.debounceMs": {
+                    "type": "number",
+                    "default": 100,
+                    "minimum": 50,
+                    "maximum": 1000,
+                    "description": "NES 补全的防抖延迟（毫秒）。",
                     "scope": "application"
                 },
                 "gcmp.providerOverrides": {
@@ -522,14 +636,14 @@
     },
     "scripts": {
         "vscode:prepublish": "npm run clean && npm run compile",
-        "compile": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify",
-        "compile:dev": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+        "compile": "node esbuild.config.js",
+        "compile:dev": "node esbuild.config.js --dev",
         "clean": "rimraf dist",
         "lint": "eslint",
         "lint:fix": "eslint --fix",
         "format": "prettier --write \"src/**/*.{ts,js,json}\"",
         "format:check": "prettier --check \"src/**/*.{ts,js,json}\"",
-        "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
+        "watch": "node esbuild.config.js --watch --dev",
         "package": "vsce package",
         "publish": "vsce publish --allow-proposed-apis chatProvider",
         "pretest": "npm run compile:dev",
@@ -537,21 +651,22 @@
     },
     "dependencies": {
         "@anthropic-ai/sdk": "^0.67.0",
-        "@microsoft/tiktokenizer": "^1.0.10",
         "@modelcontextprotocol/sdk": "^1.20.2",
+        "@vscode/chat-lib": "^0.1.3-4",
         "openai": "^6.7.0"
     },
     "devDependencies": {
         "@eslint/js": "^9.13.0",
         "@stylistic/eslint-plugin": "^5.4.0",
+        "@types/json-schema": "^7.0.15",
         "@types/node": "^20.0.0",
         "@types/vscode": "^1.104.0",
-        "@types/json-schema": "^7.0.15",
         "@vscode/vsce": "^3.6.2",
         "esbuild": "^0.25.10",
         "eslint": "^9.13.0",
         "prettier": "^3.6.2",
         "rimraf": "^6.0.1",
+        "tsx": "^4.21.0",
         "typescript": "^5.9.2",
         "typescript-eslint": "^8.39.0"
     },

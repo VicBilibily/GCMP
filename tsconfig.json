@@ -2,9 +2,7 @@
     "compilerOptions": {
         "module": "Node16",
         "target": "ES2022",
-        "lib": [
-            "ES2022"
-        ],
+        "lib": ["ES2022"],
         "sourceMap": true,
         "rootDir": "src",
         "strict": true /* enable all strict type-checking options */,
@@ -22,12 +20,6 @@
         // "noFallthroughCasesInSwitch": true, /* Report errors for fallthrough cases in switch statement. */
         // "noUnusedParameters": true,  /* Report errors on unused parameters. */
     },
-    "include": [
-        "src/**/*"
-    ],
-    "exclude": [
-        "node_modules",
-        "dist",
-        "**/*.test.ts"
-    ]
+    "include": ["src/**/*"],
+    "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }
