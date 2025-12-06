@@ -237,7 +237,7 @@
                 },
                 "gcmp.nesCompletion.enabled": {
                     "type": "boolean",
-                    "default": true,
+                    "default": false,
                     "description": "启用 NES (Next Edit Suggest) 建议功能。",
                     "scope": "application"
                 },
@@ -249,7 +249,7 @@
                 },
                 "gcmp.nesCompletion.debounceMs": {
                     "type": "number",
-                    "default": 100,
+                    "default": 500,
                     "minimum": 50,
                     "maximum": 1000,
                     "description": "NES 补全的防抖延迟（毫秒）。",

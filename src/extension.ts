@@ -7,7 +7,7 @@ import { ModelScopeProvider } from './providers/modelscopeProvider';
 import { StreamLakeProvider } from './providers/streamlakeProvider';
 import { MiniMaxProvider } from './providers/minimaxProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
-import { JointInlineCompletionProvider } from './copilot/completionProvider';
+import { InlineCompletionProvider } from './copilot/completionProvider';
 import { Logger } from './utils/logger';
 import { StatusLogger } from './utils/statusLogger';
 import { ApiKeyManager, ConfigManager, JsonSchemaProvider } from './utils';
@@ -31,8 +31,8 @@ const registeredProviders: Record<
 > = {};
 const registeredDisposables: vscode.Disposable[] = [];
 
-// 联合内联补全提供商实例
-let jointInlineCompletionProvider: JointInlineCompletionProvider | undefined;
+// 内联补全提供商实例
+let inlineCompletionProvider: InlineCompletionProvider | undefined;
 
 /**
  * 激活提供商 - 基于配置文件动态注册（并行优化版本）
@@ -153,22 +153,22 @@ async function activateCompatibleProvider(context: vscode.ExtensionContext): Pro
 }
 
 /**
- * 激活联合内联补全提供商 (竞争模式)
+ * 激活内联补全提供商
  */
-async function activateJointInlineCompletionProvider(context: vscode.ExtensionContext): Promise<void> {
+async function activateInlineCompletionProvider(context: vscode.ExtensionContext): Promise<void> {
     try {
-        Logger.trace('正在注册联合内联补全提供商 (竞争模式)...');
+        Logger.trace('正在注册内联补全提供商...');
         const providerStartTime = Date.now();
 
-        // 创建并激活联合内联补全提供商
-        const result = JointInlineCompletionProvider.createAndActivate(context);
-        jointInlineCompletionProvider = result.provider;
+        // 创建并激活内联补全提供商
+        const result = InlineCompletionProvider.createAndActivate(context);
+        inlineCompletionProvider = result.provider;
         registeredDisposables.push(...result.disposables);
 
         const providerTime = Date.now() - providerStartTime;
-        Logger.info(`✅ 联合内联补全提供商注册成功 (耗时: ${providerTime}ms)`);
+        Logger.info(`✅ 内联补全提供商注册成功 (耗时: ${providerTime}ms)`);
     } catch (error) {
-        Logger.error('❌ 注册联合内联补全提供商失败:', error);
+        Logger.error('❌ 注册内联补全提供商失败:', error);
     }
 }
 
@@ -234,10 +234,10 @@ export async function activate(context: vscode.ExtensionContext) {
         registerAllTools(context);
         Logger.trace(`⏱️ 工具注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
-        // 步骤5: 注册联合内联补全提供商（竞争模式）
+        // 步骤5: 注册内联补全提供商
         stepStartTime = Date.now();
-        await activateJointInlineCompletionProvider(context);
-        Logger.trace(`⏱️ 联合内联补全提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        await activateInlineCompletionProvider(context);
+        Logger.trace(`⏱️ 内联补全提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
         const totalActivationTime = Date.now() - activationStartTime;
         Logger.info(`✅ GCMP 扩展激活完成 (总耗时: ${totalActivationTime}ms)`);
@@ -277,10 +277,10 @@ export function deactivate() {
             }
         }
 
-        // 清理联合内联补全提供商
-        if (jointInlineCompletionProvider) {
-            jointInlineCompletionProvider.dispose();
-            Logger.trace('已清理联合内联补全提供商');
+        // 清理内联补全提供商
+        if (inlineCompletionProvider) {
+            inlineCompletionProvider.dispose();
+            Logger.trace('已清理内联补全提供商');
         }
 
         ConfigManager.dispose(); // 清理配置管理器

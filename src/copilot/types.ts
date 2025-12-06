@@ -31,5 +31,4 @@ export interface NESCompletionConfig {
     enabled: boolean;
     debounceMs: number;
     timeoutMs: number; // 请求超时时间
-    maxConcurrent: number; // 最大并发请求数
 }
