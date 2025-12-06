@@ -130,11 +130,6 @@
                 "category": "GCMP"
             },
             {
-                "command": "gcmp.inlineCompletion.toggle",
-                "title": "切换内联代码补全",
-                "category": "GCMP"
-            },
-            {
                 "command": "gcmp.streamlake.setApiKey",
                 "title": "设置 快手万擎 API密钥",
                 "category": "GCMP"
@@ -167,21 +162,6 @@
             {
                 "command": "gcmp.compatible.manageModels",
                 "title": "Compatible Provider 设置",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.inlineCompletion.enable",
-                "title": "启用内联代码补全",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.inlineCompletion.disable",
-                "title": "禁用内联代码补全",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.inlineCompletion.toggle",
-                "title": "切换内联代码补全",
                 "category": "GCMP"
             },
             {
@@ -253,61 +233,6 @@
                     "type": "boolean",
                     "default": true,
                     "description": "启用智谱AI搜索的MCP SDK模式。使用标准 MCP 协议和官方 SDK 实现搜索功能，提供更稳定的连接和更好的错误处理。非订阅套餐请关闭此开关以使用标准计费接口（按次计费）。需要有效的智谱AI API密钥。",
-                    "scope": "application"
-                },
-                "gcmp.inlineCompletion.enabled": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "启用内联代码补全功能。基于 FIM (Fill In the Middle) API 实现的内联代码补全。",
-                    "scope": "application"
-                },
-                "gcmp.inlineCompletion.provider": {
-                    "type": "string",
-                    "default": "deepseek",
-                    "enum": [
-                        "deepseek"
-                    ],
-                    "enumDescriptions": [
-                        "DeepSeek FIM API - 支持 Fill In the Middle 补全"
-                    ],
-                    "description": "内联补全使用的提供商。需要设置对应提供商的 API 密钥。",
-                    "scope": "application"
-                },
-                "gcmp.inlineCompletion.model": {
-                    "type": "string",
-                    "description": "内联补全使用的模型 ID。留空则使用提供商默认模型。",
-                    "scope": "application"
-                },
-                "gcmp.inlineCompletion.maxTokens": {
-                    "type": "number",
-                    "default": 128,
-                    "minimum": 16,
-                    "maximum": 4096,
-                    "description": "内联补全的最大生成 token 数量。",
-                    "scope": "application"
-                },
-                "gcmp.inlineCompletion.temperature": {
-                    "type": "number",
-                    "default": 0,
-                    "minimum": 0,
-                    "maximum": 2,
-                    "description": "内联补全的采样温度。较低的值产生更确定性的补全结果。",
-                    "scope": "application"
-                },
-                "gcmp.inlineCompletion.contextLines": {
-                    "type": "number",
-                    "default": 50,
-                    "minimum": 10,
-                    "maximum": 200,
-                    "description": "内联补全的上下文行数（光标前后各取多少行）。",
-                    "scope": "application"
-                },
-                "gcmp.inlineCompletion.triggerDelay": {
-                    "type": "number",
-                    "default": 300,
-                    "minimum": 100,
-                    "maximum": 2000,
-                    "description": "内联补全的触发延迟（毫秒）。用于避免频繁请求。",
                     "scope": "application"
                 },
                 "gcmp.nesCompletion.enabled": {

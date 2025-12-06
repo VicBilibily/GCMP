@@ -19,38 +19,18 @@ export class WorkspaceAdapter implements vscode.Disposable {
     private readonly documentMap = new Map<string, MutableObservableDocument>();
     private readonly disposables: vscode.Disposable[] = [];
 
-    // 文档变化优化：防抖 + 批处理，防止频繁操作导致编辑器卡顿
     private pendingDocumentChanges = new Set<string>();
     private documentChangeTimer: ReturnType<typeof setTimeout> | null = null;
-    private readonly DOCUMENT_CHANGE_DEBOUNCE_MS = 300; // 文档变化防抖延迟
 
     constructor() {
         this.workspace = new MutableObservableWorkspace();
 
-        // 监听文档变化（防抖处理）
-        this.disposables.push(
-            vscode.workspace.onDidChangeTextDocument(e => {
-                // 记录需要更新的文档 URI，避免重复处理
-                this.pendingDocumentChanges.add(e.document.uri.toString());
-
-                // 清除之前的防抖定时器
-                if (this.documentChangeTimer) {
-                    clearTimeout(this.documentChangeTimer);
-                }
-
-                // 设置新的防抖定时器，批量处理所有待更新的文档
-                this.documentChangeTimer = setTimeout(() => {
-                    for (const uriStr of this.pendingDocumentChanges) {
-                        const doc = vscode.workspace.textDocuments.find(d => d.uri.toString() === uriStr);
-                        if (doc) {
-                            this.handleDocumentChange(doc);
-                        }
-                    }
-                    this.pendingDocumentChanges.clear();
-                    this.documentChangeTimer = null;
-                }, this.DOCUMENT_CHANGE_DEBOUNCE_MS);
-            })
-        );
+        // // 监听文档变化
+        // this.disposables.push(
+        //     vscode.workspace.onDidChangeTextDocument(() => {
+        //         // 不在此处处理文档变化，触发提示前自动同步
+        //     })
+        // );
 
         // 监听文档打开
         this.disposables.push(
