@@ -211,6 +211,19 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
 2. 在 `settings.json` 设置中编辑 `gcmp.compatibleModels` 配置项：
     - `customHeader` 及 `extraBody` 配置只可通过编辑全局 `settings.json` 配置。
 
+##### 自定义模型内置已知提供商ID及显示名称列表
+
+> 聚合转发类型的提供商可提供内置特殊适配，不作为单一内置提供商提供。<br/>
+> 若需要内置或特殊适配的请通过 Issue 提供相关信息。
+
+| 提供商ID        | 提供商名称                                                | 提供商描述                |
+| --------------- | --------------------------------------------------------- | ------------------------- |
+| **aiping**      | [**AI Ping**](https://aiping.cn/#?invitation_code=EBQQKW) |                           |
+| **aihubmix**    | [**AIHubMix**](https://aihubmix.com/?aff=xb8N)            | 推理时代，可立享 10% 优惠 |
+| **siliconflow** | [**硅基流动**](https://cloud.siliconflow.cn/i/tQkcsZbJ)   |                           |
+
+**配置示例**：
+
 ```json
 {
     "gcmp.compatibleModels": [

@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { Logger } from './logger';
 import { ApiKeyManager } from './apiKeyManager';
+import { ProviderConfig, ProviderOverride } from '../types/sharedTypes';
 
 /**
  * 后退按钮点击事件
@@ -68,6 +69,15 @@ export class CompatibleModelManager {
     private static configListener: vscode.Disposable | null = null;
     private static _onDidChangeModels = new vscode.EventEmitter<void>();
     static readonly onDidChangeModels = CompatibleModelManager._onDidChangeModels.event;
+
+    public static readonly KnownProviders: Record<string, Partial<ProviderConfig & ProviderOverride>> = {
+        aihubmix: {
+            displayName: 'AIHubMix',
+            customHeader: { 'APP-Code': 'TFUV4759' }
+        },
+        aiping: { displayName: 'AI Ping' },
+        siliconflow: { displayName: '硅基流动' }
+    };
 
     /**
      * 初始化模型管理器
@@ -645,13 +655,17 @@ export class CompatibleModelManager {
             // 导入提供商配置以获取内置提供商列表
             const { configProviders } = await import('../providers/config/index.js');
             const builtinProviders = Object.keys(configProviders);
+            const knownProviders = Object.keys(this.KnownProviders);
             // 从现有模型中获取所有唯一的提供商标识
             const allProviders = this.models
                 .map(model => model.provider)
                 .filter(provider => provider && provider.trim() !== '');
             // 去重并排除内置提供商和 'compatible'
             const customProviders = [...new Set(allProviders)].filter(
-                provider => provider !== 'compatible' && !builtinProviders.includes(provider)
+                provider =>
+                    provider !== 'compatible' &&
+                    !builtinProviders.includes(provider) &&
+                    !knownProviders.includes(provider)
             );
             return customProviders;
         } catch (error) {
@@ -682,12 +696,25 @@ export class CompatibleModelManager {
             });
         }
 
+        // 添加内置存在适配的供应商列表
+        const adaptedProviders = Object.keys(this.KnownProviders);
+        const separator1 = { kind: vscode.QuickPickItemKind.Separator };
+        items.push(separator1 as ProviderItem);
+        for (const provider of adaptedProviders) {
+            items.push({
+                label: provider,
+                description: this.KnownProviders[provider]?.displayName,
+                providerId: provider,
+                picked: currentProvider === provider
+            });
+        }
+
         // 获取历史自定义提供商
         const historicalProviders = await this.getHistoricalCustomProviders();
         // 如果有历史自定义提供商，添加到列表中
         if (historicalProviders.length > 0) {
-            const separator1 = { label: '', kind: vscode.QuickPickItemKind.Separator };
-            items.push(separator1 as ProviderItem);
+            const separator2 = { kind: vscode.QuickPickItemKind.Separator };
+            items.push(separator2 as ProviderItem);
             for (const provider of historicalProviders) {
                 items.push({
                     label: provider,
@@ -698,8 +725,8 @@ export class CompatibleModelManager {
         }
 
         // 添加分隔符和自定义选项
-        const separator2 = { label: '', kind: vscode.QuickPickItemKind.Separator };
-        items.push(separator2 as ProviderItem);
+        const separator3 = { label: '', kind: vscode.QuickPickItemKind.Separator };
+        items.push(separator3 as ProviderItem);
         items.push({
             label: '$(edit) 自定义提供商',
             providerId: '__custom__'

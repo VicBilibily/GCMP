@@ -67,21 +67,34 @@ export class CompatibleProvider extends GenericModelProvider {
         try {
             const models = CompatibleModelManager.getModels();
             // 将 CompatibleModelManager 的模型转换为 ModelConfig 格式
-            const modelConfigs: ModelConfig[] = models.map(model => ({
-                id: model.id,
-                name: model.name,
-                provider: model.provider,
-                tooltip: model.tooltip || `自定义模型: ${model.name}`,
-                maxInputTokens: model.maxInputTokens,
-                maxOutputTokens: model.maxOutputTokens,
-                sdkMode: model.sdkMode,
-                capabilities: model.capabilities,
-                ...(model.baseUrl && { baseUrl: model.baseUrl }),
-                ...(model.model && { model: model.model }),
-                ...(model.customHeader && { customHeader: model.customHeader }),
-                ...(model.extraBody && { extraBody: model.extraBody }),
-                ...(model.outputThinking !== undefined && { outputThinking: model.outputThinking })
-            }));
+            const modelConfigs: ModelConfig[] = models.map(model => {
+                let customHeader = model.customHeader;
+                if (model.provider) {
+                    const provider = CompatibleModelManager.KnownProviders[model.provider];
+                    if (provider?.customHeader) {
+                        const existingHeaders = model.customHeader || {};
+                        customHeader = {
+                            ...existingHeaders,
+                            ...provider.customHeader
+                        };
+                    }
+                }
+                return {
+                    id: model.id,
+                    name: model.name,
+                    provider: model.provider,
+                    tooltip: model.tooltip || `自定义模型: ${model.name}`,
+                    maxInputTokens: model.maxInputTokens,
+                    maxOutputTokens: model.maxOutputTokens,
+                    sdkMode: model.sdkMode,
+                    capabilities: model.capabilities,
+                    ...(model.baseUrl && { baseUrl: model.baseUrl }),
+                    ...(model.model && { model: model.model }),
+                    ...(customHeader && { customHeader: customHeader }),
+                    ...(model.extraBody && { extraBody: model.extraBody }),
+                    ...(model.outputThinking !== undefined && { outputThinking: model.outputThinking })
+                };
+            });
 
             Logger.debug(`Compatible Provider 加载了 ${modelConfigs.length} 个用户配置的模型`);
 
@@ -180,6 +193,14 @@ export class CompatibleProvider extends GenericModelProvider {
             let modelInfos = currentConfig.models.map(model => {
                 const info = this.modelConfigToInfo(model);
                 const sdkModeDisplay = model.sdkMode === 'anthropic' ? 'Anthropic' : 'OpenAI';
+
+                if (model.provider) {
+                    const provider = CompatibleModelManager.KnownProviders[model.provider];
+                    if (provider?.displayName) {
+                        return { ...info, detail: provider.displayName };
+                    }
+                }
+
                 return { ...info, detail: `${sdkModeDisplay} Compatible` };
             });
 
@@ -213,9 +234,18 @@ export class CompatibleProvider extends GenericModelProvider {
         (async () => {
             try {
                 const currentConfig = this.providerConfig;
+
                 const models = currentConfig.models.map(model => {
                     const info = this.modelConfigToInfo(model);
                     const sdkModeDisplay = model.sdkMode === 'anthropic' ? 'Anthropic' : 'OpenAI';
+
+                    if (model.provider) {
+                        const provider = CompatibleModelManager.KnownProviders[model.provider];
+                        if (provider?.displayName) {
+                            return { ...info, detail: provider.displayName };
+                        }
+                    }
+
                     return { ...info, detail: `${sdkModeDisplay} Compatible` };
                 });
 
