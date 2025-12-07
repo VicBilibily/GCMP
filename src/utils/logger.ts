@@ -102,24 +102,6 @@ export class Logger {
     }
 
     /**
-     * 显示输出窗口
-     */
-    static show(): void {
-        if (this.outputChannel) {
-            this.outputChannel.show();
-        }
-    }
-
-    /**
-     * 清空日志
-     */
-    static clear(): void {
-        if (this.outputChannel) {
-            this.outputChannel.clear();
-        }
-    }
-
-    /**
      * 销毁日志管理器
      */
     static dispose(): void {

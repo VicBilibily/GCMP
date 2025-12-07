@@ -63,26 +63,6 @@ export class StatusLogger {
     static error(message: string | Error, ...args: unknown[]): void {
         if (this.outputChannel) {
             this.outputChannel.error(message, ...args);
-            // 对于错误级别，显示输出窗口
-            this.outputChannel.show(true);
-        }
-    }
-
-    /**
-     * 显示输出窗口
-     */
-    static show(): void {
-        if (this.outputChannel) {
-            this.outputChannel.show();
-        }
-    }
-
-    /**
-     * 清空日志
-     */
-    static clear(): void {
-        if (this.outputChannel) {
-            this.outputChannel.clear();
         }
     }
 
