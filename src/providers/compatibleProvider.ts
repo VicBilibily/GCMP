@@ -13,6 +13,7 @@ import {
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { Logger, ApiKeyManager, CompatibleModelManager, RetryManager, ConfigManager } from '../utils';
 import { GenericModelProvider } from './genericModelProvider';
+import { StatusBarManager } from '../status';
 
 /**
  * 独立兼容模型提供商类
@@ -336,6 +337,8 @@ export class CompatibleProvider extends GenericModelProvider {
                 throw error;
             } finally {
                 Logger.info(`✅ Compatible Provider: ${model.name} 请求已完成`);
+                // 延时更新状态栏以反映最新余额
+                StatusBarManager.compatible?.delayedUpdate(modelConfig.provider!, 2000);
             }
         } catch (error) {
             Logger.error('Compatible Provider 处理请求失败:', error);

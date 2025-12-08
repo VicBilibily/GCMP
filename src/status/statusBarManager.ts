@@ -9,6 +9,7 @@ import { MiniMaxStatusBar } from './minimaxStatusBar';
 import { KimiStatusBar } from './kimiStatusBar';
 import { DeepSeekStatusBar } from './deepseekStatusBar';
 import { MoonshotStatusBar } from './moonshotStatusBar';
+import { CompatibleStatusBar } from './compatibleStatusBar';
 
 /**
  * 状态栏项接口
@@ -18,6 +19,11 @@ interface IStatusBar {
     checkAndShowStatus(): Promise<void>;
     delayedUpdate(delayMs?: number): void;
     dispose(): void;
+}
+interface ICompatibleStatusBar extends IStatusBar {
+    /** @deprecated Use delayedUpdate with providerId instead */
+    delayedUpdate(delayMs?: number): void;
+    delayedUpdate(providerId: string, delayMs?: number): void;
 }
 
 /**
@@ -35,6 +41,8 @@ export class StatusBarManager {
     static deepseek: IStatusBar | undefined;
     /** Moonshot 余额查询状态栏 */
     static moonshot: IStatusBar | undefined;
+    /** Compatible 提供商状态栏 */
+    static compatible: ICompatibleStatusBar | undefined;
 
     // ==================== 私有成员 ====================
     private static statusBars: Map<string, IStatusBar> = new Map<string, IStatusBar>();
@@ -60,6 +68,10 @@ export class StatusBarManager {
         // 创建并注册 Moonshot 状态栏
         const moonshotStatusBar = new MoonshotStatusBar();
         this.registerStatusBar('moonshot', moonshotStatusBar);
+
+        // 创建并注册 Compatible 提供商状态栏
+        const compatibleStatusBar = new CompatibleStatusBar();
+        this.registerStatusBar('compatible', compatibleStatusBar);
     }
 
     /**
@@ -88,6 +100,9 @@ export class StatusBarManager {
             case 'moonshot':
                 this.moonshot = statusBar;
                 break;
+            case 'compatible':
+                this.compatible = statusBar as ICompatibleStatusBar;
+                break;
             default:
                 break;
         }
@@ -97,8 +112,10 @@ export class StatusBarManager {
      * 获取指定的状态栏项
      * @param key 状态栏项的唯一标识
      */
-    static getStatusBar<T extends IStatusBar>(key: string): T | undefined {
-        return this.statusBars.get(key) as T | undefined;
+    static getStatusBar(key: 'compatible'): ICompatibleStatusBar | undefined;
+    static getStatusBar(key: string): IStatusBar | undefined;
+    static getStatusBar(key: string): IStatusBar | undefined {
+        return this.statusBars.get(key);
     }
 
     /**
@@ -184,6 +201,7 @@ export class StatusBarManager {
         this.kimi = undefined;
         this.deepseek = undefined;
         this.moonshot = undefined;
+        this.compatible = undefined;
     }
 
     /**

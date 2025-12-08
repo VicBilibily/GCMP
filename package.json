@@ -532,6 +532,13 @@
                     "fontPath": "./fonts/moonshot.ttf",
                     "fontCharacter": "\\e6e0"
                 }
+            },
+            "gcmp-compatible": {
+                "description": "Compatible",
+                "default": {
+                    "fontPath": "./fonts/compatible.ttf",
+                    "fontCharacter": "\\eac8"
+                }
             }
         }
     },

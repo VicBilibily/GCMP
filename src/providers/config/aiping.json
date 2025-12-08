@@ -1,0 +1,23 @@
+﻿{
+    "displayName": "AIPing",
+    "baseUrl": "https://aiping.cn/api/v1",
+    "apiKeyTemplate": "QC-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "models": [
+        {
+            "id": "aiping-default",
+            "name": "AIPing Default",
+            "sdkMode": "openai",
+            "tooltip": "AIPing 默认模型",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 4096,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        }
+    ],
+    "balanceQuery": {
+        "enabled": true,
+        "provider": "aiping"
+    }
+}
