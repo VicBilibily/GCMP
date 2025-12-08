@@ -2,6 +2,13 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的所有重要更改。
 
+## [0.14.15] - 2025-12-08
+
+- **OpenAI / Anthropic Compatible** 内置部分已知提供商支持余额查询：
+  - **aiping**： [**AI Ping**](https://aiping.cn/#?invitation_code=EBQQKW) 用户账户余额(5分钟刷新)
+  - **aihubmix**: [**AIHubMix**](https://aihubmix.com/?aff=xb8N) ApiKey余额
+  - **siliconflow**：[**硅基流动**](https://cloud.siliconflow.cn/i/tQkcsZbJ) 用户账户余额(5分钟刷新)
+
 ## [0.14.14] - 2025-12-08
 
 - **智谱AI** 提供商模型维护：

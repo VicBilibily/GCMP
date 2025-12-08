@@ -1,10 +1,10 @@
 /*---------------------------------------------------------------------------------------------
  *  MiniMax Coding Plan 状态栏项
- *  继承 BaseStatusBarItem，显示 MiniMax Coding Plan 使用量信息
+ *  继承 ProviderStatusBarItem，显示 MiniMax Coding Plan 使用量信息
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { BaseStatusBarItem, StatusBarItemConfig } from './baseStatusBarItem';
+import { ProviderStatusBarItem, StatusBarItemConfig } from './providerStatusBarItem';
 import { StatusLogger } from '../utils/statusLogger';
 import { Logger } from '../utils/logger';
 import { ConfigManager, ApiKeyManager, VersionManager } from '../utils';
@@ -46,7 +46,7 @@ interface MiniMaxStatusData {
  * - 已使用百分比
  * - 支持多模型展示
  */
-export class MiniMaxStatusBar extends BaseStatusBarItem<MiniMaxStatusData> {
+export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
     constructor() {
         const config: StatusBarItemConfig = {
             id: 'gcmp.statusBar.minimax',

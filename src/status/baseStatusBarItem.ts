@@ -1,11 +1,12 @@
 /*---------------------------------------------------------------------------------------------
  *  状态栏项基类
  *  提供状态栏管理的通用逻辑和生命周期管理
+ *  此类为最通用的基类，不包含 API Key 相关逻辑
+ *  适用于需要管理多个提供商或自定义显示逻辑的状态栏项（如 CompatibleStatusBar）
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
 import { StatusLogger } from '../utils/statusLogger';
-import { ApiKeyManager } from '../utils/apiKeyManager';
 import { LeaderElectionService } from './leaderElectionService';
 
 /**
@@ -19,9 +20,10 @@ export interface CachedStatusData<T> {
 }
 
 /**
- * 状态栏项配置
+ * 基础状态栏项配置
+ * 不包含 apiKeyProvider，适用于不依赖单个 API Key 的状态栏
  */
-export interface StatusBarItemConfig {
+export interface BaseStatusBarItemConfig {
     /** 状态栏项唯一标识符（用于 VS Code 区分不同状态栏项） */
     id: string;
     /** 状态栏项名称（显示在状态栏项菜单中） */
@@ -32,8 +34,6 @@ export interface StatusBarItemConfig {
     priority: number;
     /** 刷新命令ID */
     refreshCommand: string;
-    /** API Key 提供商标识 */
-    apiKeyProvider: string;
     /** 缓存键前缀 */
     cacheKeyPrefix: string;
     /** 日志前缀 */
@@ -43,13 +43,27 @@ export interface StatusBarItemConfig {
 }
 
 /**
+ * 扩展的状态栏项配置（包含 API Key 提供商）
+ * 适用于单提供商状态栏（如 MiniMaxStatusBar、DeepSeekStatusBar 等）
+ */
+export interface StatusBarItemConfig extends BaseStatusBarItemConfig {
+    /** API Key 提供商标识 */
+    apiKeyProvider: string;
+}
+
+/**
  * 状态栏项基类
- * 提供状态栏管理的通用逻辑，包括：
+ * 提供状态栏管理的最通用逻辑，包括：
  * - 生命周期管理（初始化、销毁）
  * - 刷新机制（手动刷新、延时刷新、周期性刷新）
  * - 缓存管理（读取、写入、过期检测）
  * - 防抖逻辑
- * - API Key 检测
+ *
+ * 此类不包含 API Key 相关逻辑，适用于：
+ * - 管理多个提供商的状态栏（如 CompatibleStatusBar）
+ * - 自定义显示逻辑的状态栏
+ *
+ * 对于单提供商状态栏，请使用 ProviderStatusBarItem 子类
  *
  * @template T 状态数据类型
  */
@@ -57,7 +71,7 @@ export abstract class BaseStatusBarItem<T> {
     // ==================== 实例成员 ====================
     protected statusBarItem: vscode.StatusBarItem | undefined;
     protected context: vscode.ExtensionContext | undefined;
-    protected config: StatusBarItemConfig;
+    protected readonly config: BaseStatusBarItemConfig;
 
     // 状态数据
     protected lastStatusData: CachedStatusData<T> | null = null;
@@ -82,7 +96,7 @@ export abstract class BaseStatusBarItem<T> {
      * 构造函数
      * @param config 状态栏项配置
      */
-    constructor(config: StatusBarItemConfig) {
+    constructor(config: BaseStatusBarItemConfig) {
         this.config = config;
         this.validateConfig();
     }
@@ -92,11 +106,10 @@ export abstract class BaseStatusBarItem<T> {
      * @throws {Error} 当配置无效时抛出错误
      */
     private validateConfig(): void {
-        const requiredFields: (keyof StatusBarItemConfig)[] = [
+        const requiredFields: (keyof BaseStatusBarItemConfig)[] = [
             'id',
             'name',
             'refreshCommand',
-            'apiKeyProvider',
             'cacheKeyPrefix',
             'logPrefix',
             'icon'
@@ -143,6 +156,20 @@ export abstract class BaseStatusBarItem<T> {
     protected abstract shouldHighlightWarning(data: T): boolean;
 
     /**
+     * 检查是否需要刷新缓存
+     * 由子类实现自定义的刷新判断逻辑（包括缓存触发和主实例定时触发）
+     * @returns 是否需要刷新
+     */
+    protected abstract shouldRefresh(): boolean;
+
+    /**
+     * 检查是否应该显示状态栏
+     * 子类需要根据自身逻辑实现（如检查 API Key 是否存在、是否有配置的提供商等）
+     * @returns 是否应该显示状态栏
+     */
+    protected abstract shouldShowStatusBar(): Promise<boolean>;
+
+    /**
      * 获取缓存键名
      * @param key 键名后缀
      * @returns 完整的缓存键名
@@ -152,13 +179,6 @@ export abstract class BaseStatusBarItem<T> {
     }
 
     // ==================== 虚方法（子类可以重写） ====================
-
-    /**
-     * 检查是否需要刷新缓存
-     * 由子类实现自定义的刷新判断逻辑（包括缓存触发和主实例定时触发）
-     * @returns 是否需要刷新
-     */
-    protected abstract shouldRefresh(): boolean;
 
     /**
      * 在初始化后执行的钩子方法
@@ -198,12 +218,12 @@ export abstract class BaseStatusBarItem<T> {
         this.statusBarItem.text = this.config.icon;
         this.statusBarItem.command = this.config.refreshCommand;
 
-        // 检查是否设置了 API Key
-        const hasKey = await ApiKeyManager.hasValidApiKey(this.config.apiKeyProvider);
-        if (hasKey) {
+        // 检查是否应该显示状态栏
+        const shouldShow = await this.shouldShowStatusBar();
+        if (shouldShow) {
             this.statusBarItem.show();
         } else {
-            StatusLogger.trace(`[${this.config.logPrefix}] 未设置 API Key，隐藏状态栏`);
+            StatusLogger.trace(`[${this.config.logPrefix}] 不满足显示条件，隐藏状态栏`);
         }
 
         // 注册刷新命令
@@ -240,12 +260,12 @@ export abstract class BaseStatusBarItem<T> {
     }
 
     /**
-     * 检查并显示状态栏（在设置 API Key 后调用）
+     * 检查并显示状态栏（在满足条件后调用）
      */
     async checkAndShowStatus(): Promise<void> {
         if (this.statusBarItem) {
-            const hasKey = await ApiKeyManager.hasValidApiKey(this.config.apiKeyProvider);
-            if (hasKey) {
+            const shouldShow = await this.shouldShowStatusBar();
+            if (shouldShow) {
                 this.statusBarItem.show();
                 this.performInitialUpdate();
             } else {
@@ -328,10 +348,10 @@ export abstract class BaseStatusBarItem<T> {
      * 执行初始更新（后台加载）
      */
     private async performInitialUpdate(): Promise<void> {
-        // 检查是否设置了 API Key
-        const hasKey = await ApiKeyManager.hasValidApiKey(this.config.apiKeyProvider);
+        // 检查是否应该显示状态栏
+        const shouldShow = await this.shouldShowStatusBar();
 
-        if (!hasKey) {
+        if (!shouldShow) {
             if (this.statusBarItem) {
                 this.statusBarItem.hide();
             }
@@ -360,10 +380,10 @@ export abstract class BaseStatusBarItem<T> {
                 this.statusBarItem.tooltip = '加载中...';
             }
 
-            // 检查是否设置了 API Key
-            const hasKey = await ApiKeyManager.hasValidApiKey(this.config.apiKeyProvider);
+            // 检查是否应该显示状态栏
+            const shouldShow = await this.shouldShowStatusBar();
 
-            if (!hasKey) {
+            if (!shouldShow) {
                 if (this.statusBarItem) {
                     this.statusBarItem.hide();
                 }
@@ -391,7 +411,7 @@ export abstract class BaseStatusBarItem<T> {
      * 执行 API 查询并更新状态栏
      * @param isManualRefresh 是否为手动刷新（用户点击触发），手动刷新失败时显示 ERR，自动刷新失败时保持原状态
      */
-    private async executeApiQuery(isManualRefresh = false): Promise<void> {
+    protected async executeApiQuery(isManualRefresh = false): Promise<void> {
         // 防止并发执行
         if (this.isLoading) {
             StatusLogger.debug(`[${this.config.logPrefix}] 正在执行查询，跳过重复调用`);
@@ -471,7 +491,7 @@ export abstract class BaseStatusBarItem<T> {
      * 更新状态栏 UI
      * @param data 状态数据
      */
-    private updateStatusBarUI(data: T): void {
+    protected updateStatusBarUI(data: T): void {
         if (!this.statusBarItem) {
             return;
         }

@@ -1,10 +1,10 @@
 /*---------------------------------------------------------------------------------------------
  *  Kimi For Coding 状态栏项
- *  继承 BaseStatusBarItem，显示 Kimi For Coding 使用量信息
+ *  继承 ProviderStatusBarItem，显示 Kimi For Coding 使用量信息
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { BaseStatusBarItem, StatusBarItemConfig } from './baseStatusBarItem';
+import { ProviderStatusBarItem, StatusBarItemConfig } from './providerStatusBarItem';
 import { StatusLogger } from '../utils/statusLogger';
 import { Logger } from '../utils/logger';
 import { ApiKeyManager } from '../utils/apiKeyManager';
@@ -62,7 +62,7 @@ export interface KimiStatusData {
  * - 已使用百分比
  * - 支持多时间窗口展示
  */
-export class KimiStatusBar extends BaseStatusBarItem<KimiStatusData> {
+export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
     constructor() {
         const config: StatusBarItemConfig = {
             id: 'gcmp.statusBar.kimi',

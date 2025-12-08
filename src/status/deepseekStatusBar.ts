@@ -1,10 +1,10 @@
 /*---------------------------------------------------------------------------------------------
  *  DeepSeek 余额查询状态栏项
- *  继承 BaseStatusBarItem，显示 DeepSeek 余额信息
+ *  继承 ProviderStatusBarItem，显示 DeepSeek 余额信息
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { BaseStatusBarItem, StatusBarItemConfig } from './baseStatusBarItem';
+import { ProviderStatusBarItem, StatusBarItemConfig } from './providerStatusBarItem';
 import { StatusLogger } from '../utils/statusLogger';
 import { Logger } from '../utils/logger';
 import { ApiKeyManager } from '../utils/apiKeyManager';
@@ -54,7 +54,7 @@ export interface DeepSeekStatusData {
  * - 充值总额（tooltip显示）
  * - 每5分钟自动刷新一次
  */
-export class DeepSeekStatusBar extends BaseStatusBarItem<DeepSeekStatusData> {
+export class DeepSeekStatusBar extends ProviderStatusBarItem<DeepSeekStatusData> {
     constructor() {
         const config: StatusBarItemConfig = {
             id: 'gcmp.statusBar.deepseek',
