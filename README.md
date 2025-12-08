@@ -34,8 +34,8 @@
 
 ### [**智谱AI**](https://bigmodel.cn/) - GLM系列
 
-- [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-4.6**(Thinking)、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
-- **按量计费**：**GLM-4.6**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
+- [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-4.6**(Thinking)、**GLM-4.6V**(Thinking)、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
+- **按量计费**：**GLM-4.6**、**GLM-4.6V**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
 - **免费版本**：**GLM-4.5-Flash**
 - **搜索功能**：集成 `联网搜索MCP` 及 `Web Search API`，支持 `#zhipuWebSearch` 进行联网搜索。
     - 默认启用 `联网搜索MCP` 模式，编程套餐支持：Lite(100次/月)、Pro(1000次/月)、Max(4000次/月)。
@@ -216,11 +216,11 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
 > 聚合转发类型的提供商可提供内置特殊适配，不作为单一内置提供商提供。<br/>
 > 若需要内置或特殊适配的请通过 Issue 提供相关信息。
 
-| 提供商ID        | 提供商名称                                                | 提供商描述                |
-| --------------- | --------------------------------------------------------- | ------------------------- |
-| **aiping**      | [**AI Ping**](https://aiping.cn/#?invitation_code=EBQQKW) |                           |
-| **aihubmix**    | [**AIHubMix**](https://aihubmix.com/?aff=xb8N)            | 推理时代，可立享 10% 优惠 |
-| **siliconflow** | [**硅基流动**](https://cloud.siliconflow.cn/i/tQkcsZbJ)   |                           |
+| 提供商ID        | 提供商名称                                                | 提供商描述      | 余额查询     |
+| --------------- | --------------------------------------------------------- | --------------- | ------------ |
+| **aiping**      | [**AI Ping**](https://aiping.cn/#?invitation_code=EBQQKW) |                 | 用户账户余额 |
+| **aihubmix**    | [**AIHubMix**](https://aihubmix.com/?aff=xb8N)            | 可立享 10% 优惠 | ApiKey余额   |
+| **siliconflow** | [**硅基流动**](https://cloud.siliconflow.cn/i/tQkcsZbJ)   |                 | 用户账户余额 |
 
 **配置示例**：
 

@@ -34,6 +34,38 @@
             }
         },
         {
+            "id": "glm-4.6v",
+            "model": "glm-4.6v",
+            "name": "GLM-4.6V (Coding Plan)",
+            "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+            "tooltip": "ZHIPU GLM-4.6V - 智谱最新视觉推理模型，视觉理解精度达同规模 SOTA，全面支持工具调用，支持 128k 超长上下文，并针对 Coding 场景进行了专项优化。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "thinking": { "type": "disabled" }
+            }
+        },
+        {
+            "id": "glm-4.6v-thinking",
+            "model": "glm-4.6v",
+            "name": "GLM-4.6V-Thinking (Coding Plan)",
+            "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+            "tooltip": "ZHIPU GLM-4.6V - 智谱最新视觉推理模型，视觉理解精度达同规模 SOTA，全面支持工具调用，支持 128k 超长上下文，并针对 Coding 场景进行了专项优化。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
+        },
+        {
             "id": "glm-4.5",
             "name": "GLM-4.5 (Coding Plan)",
             "sdkMode": "anthropic",
@@ -87,6 +119,18 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
+            }
+        },
+        {
+            "id": "glm-4.6v-billing",
+            "model": "glm-4.6v",
+            "name": "GLM-4.6V (按量计费)",
+            "tooltip": "ZHIPU GLM-4.6V - 智谱最新视觉推理模型，视觉理解精度达同规模 SOTA，全面支持工具调用，支持 128k 超长上下文，并针对 Coding 场景进行了专项优化。",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
             }
         },
         {
