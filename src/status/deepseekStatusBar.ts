@@ -258,7 +258,7 @@ export class DeepSeekStatusBar extends ProviderStatusBarItem<DeepSeekStatusData>
         }
 
         const dataAge = Date.now() - this.lastStatusData.timestamp;
-        const REFRESH_INTERVAL = 5 * 60 * 1000; // 5分钟的毫秒数
+        const REFRESH_INTERVAL = (5 * 60 - 10) * 1000; // 缓存过期阈值 5 分钟
 
         // 检查是否超过5分钟刷新间隔
         if (dataAge > REFRESH_INTERVAL) {

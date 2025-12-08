@@ -9,6 +9,7 @@ import { BaseStatusBarItem, BaseStatusBarItemConfig } from './baseStatusBarItem'
 import { StatusLogger } from '../utils/statusLogger';
 import { CompatibleModelManager } from '../utils/compatibleModelManager';
 import { BalanceQueryManager } from './compatible/balanceQueryManager';
+import { ApiKeyManager } from '../utils/apiKeyManager';
 
 /**
  * Compatible 提供商余额信息
@@ -80,9 +81,6 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
     /** 各提供商的最后延时更新时间戳 */
     private providerLastDelayedUpdateTimes = new Map<string, number>();
 
-    /** 单个提供商缓存过期时间 5 分钟 */
-    private readonly PROVIDER_CACHE_EXPIRY = 5 * 60 * 1000;
-
     /** 支持延时更新的提供商列表 */
     private static readonly SUPPORTED_DELAYED_UPDATE_PROVIDERS = ['aihubmix'];
 
@@ -104,12 +102,23 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
 
     /**
      * 检查是否应该显示状态栏
-     * 通过检查是否有配置支持的兼容提供商来决定
+     * 通过检查是否有配置支持的兼容提供商且该提供商有 API Key 来决定
      */
     protected async shouldShowStatusBar(): Promise<boolean> {
         const models = CompatibleModelManager.getModels();
         const supportedProviders = new Set(BalanceQueryManager.getRegisteredProviders());
-        return models.some(m => m.provider && supportedProviders.has(m.provider));
+
+        // 检查是否有配置的模型且其提供商既支持余额查询，又有 API Key
+        for (const model of models) {
+            if (model.provider && supportedProviders.has(model.provider)) {
+                // 检查该提供商是否有有效的 API Key
+                const hasApiKey = await ApiKeyManager.hasValidApiKey(model.provider);
+                if (hasApiKey) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -127,6 +136,10 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
         const sortedProviders = successfulProviders.sort((a, b) => a.providerId.localeCompare(b.providerId));
 
         for (const provider of sortedProviders) {
+            if (provider.balance === Number.MAX_SAFE_INTEGER) {
+                // balanceTexts.push('∞');
+                continue;
+            }
             // 默认货币为CNY，除非明确指定为USD
             const currencySymbol = provider.currency === 'USD' ? '$' : '¥';
             balanceTexts.push(`${currencySymbol}${provider.balance.toFixed(2)}`);
@@ -164,7 +177,10 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
                 const paidBalance = provider.paid !== undefined ? `${currencySymbol}${provider.paid.toFixed(2)}` : '-';
                 const grantedBalance =
                     provider.granted !== undefined ? `${currencySymbol}${provider.granted.toFixed(2)}` : '-';
-                const availableBalance = `${currencySymbol}${provider.balance.toFixed(2)}`;
+                const availableBalance =
+                    provider.balance === Number.MAX_SAFE_INTEGER
+                        ? '无限制'
+                        : `${currencySymbol}${provider.balance.toFixed(2)}`;
 
                 md.appendMarkdown(
                     `| ${provider.providerName} | ${paidBalance} | ${grantedBalance} | ${availableBalance} |\n`
@@ -184,6 +200,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
      * 查询所有兼容提供商的余额信息
      * 使用各提供商独立缓存，只查询缓存过期的提供商
      * 手动刷新时强制查询所有提供商，忽略缓存
+     * 只查询已设置 API Key 的提供商
      */
     protected async performApiQuery(
         isManualRefresh = false
@@ -196,6 +213,13 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             // 按提供商分组模型，只处理支持的提供商
             for (const model of models) {
                 if (!model.provider || !supportedProviders.has(model.provider)) {
+                    continue;
+                }
+
+                // 检查提供商是否有有效的 API Key，没有则跳过
+                const hasApiKey = await ApiKeyManager.hasValidApiKey(model.provider);
+                if (!hasApiKey) {
+                    StatusLogger.debug(`[${this.config.logPrefix}] 跳过未配置 API Key 的提供商: ${model.provider}`);
                     continue;
                 }
 
@@ -311,6 +335,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
 
         for (const providerId of providerIds) {
             if (this.isProviderCacheExpired(providerId)) {
+                StatusLogger.debug(`[${this.config.logPrefix}] 缓存时间超过5分钟固定过期时间，触发API刷新`);
                 return true;
             }
         }
@@ -365,8 +390,14 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
         }
 
         // 检查提供商是否在支持列表中
+        const supportedProviders = new Set(BalanceQueryManager.getRegisteredProviders());
         if (!CompatibleStatusBar.SUPPORTED_DELAYED_UPDATE_PROVIDERS.includes(providerId)) {
-            StatusLogger.debug(`[${this.config.logPrefix}] 提供商 ${providerId} 无需延时更新，由定时器统一刷新管理`);
+            // 只在已知支持查询的列表中才输出此日志
+            if (supportedProviders.has(providerId)) {
+                StatusLogger.debug(
+                    `[${this.config.logPrefix}] 提供商 ${providerId} 无需延时更新，由定时器统一刷新管理`
+                );
+            }
             return;
         }
 
@@ -479,7 +510,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
                     this.updateStatusBarUI(data);
 
                     StatusLogger.info(
-                        `[${this.config.logPrefix}] 余额查询成功 (${data.successCount}/${data.totalCount})`
+                        `[${this.config.logPrefix}] 余额检查成功 (${data.successCount}/${data.totalCount})`
                     );
                 }
             } else {
@@ -574,9 +605,11 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             return true;
         }
 
+        const PROVIDER_CACHE_EXPIRY = (5 * 60 - 10) * 1000; // 缓存过期阈值 5 分钟
+
         const now = Date.now();
         const cacheAge = now - cached.timestamp;
-        return cacheAge > this.PROVIDER_CACHE_EXPIRY;
+        return cacheAge > PROVIDER_CACHE_EXPIRY;
     }
 
     // ==================== 私有方法：单提供商更新 ====================

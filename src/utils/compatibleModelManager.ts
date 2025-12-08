@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { Logger } from './logger';
 import { ApiKeyManager } from './apiKeyManager';
 import { ProviderConfig, ProviderOverride } from '../types/sharedTypes';
+import { StatusBarManager } from '../status';
 
 /**
  * 后退按钮点击事件
@@ -179,6 +180,8 @@ export class CompatibleModelManager {
         this.models.push(model);
         await this.saveModels();
         Logger.info(`已添加自定义模型: ${model.name} (${model.provider}, ${model.sdkMode})`);
+
+        StatusBarManager.compatible?.checkAndShowStatus();
     }
 
     /**
@@ -192,6 +195,8 @@ export class CompatibleModelManager {
         this.models[index] = { ...this.models[index], ...updates };
         await this.saveModels();
         Logger.info(`已更新自定义模型: ${id}`);
+
+        StatusBarManager.compatible?.checkAndShowStatus();
     }
 
     /**
@@ -206,6 +211,8 @@ export class CompatibleModelManager {
         this.models.splice(index, 1);
         await this.saveModels();
         Logger.info(`已删除自定义模型: ${removedModel.name}`);
+
+        await StatusBarManager.compatible?.checkAndShowStatus();
     }
 
     /**
@@ -329,9 +336,11 @@ export class CompatibleModelManager {
             await ApiKeyManager.setApiKey(provider, apiKey.trim());
             Logger.info(`提供商 "${provider}" 的 API 密钥已设置`);
         }
-    }
 
-    /**
+        // 修改 API Key 后检查 Compatible 状态栏是否需要显示/隐藏
+        await StatusBarManager.compatible?.checkAndShowStatus();
+        await StatusBarManager.compatible?.delayedUpdate(provider, 0);
+    } /**
      * 配置模型 - 主要配置流程
      */
     private static async configureModels(): Promise<void> {

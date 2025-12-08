@@ -297,7 +297,7 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
         }
 
         const dataAge = Date.now() - this.lastStatusData.timestamp;
-        const CACHE_EXPIRY_THRESHOLD = 5 * 60 * 1000; // 5分钟的毫秒数
+        const CACHE_EXPIRY_THRESHOLD = (5 * 60 - 10) * 1000; // 缓存过期阈值 5 分钟
 
         // 1. 检查是否需要根据 remainMs 触发刷新
         if (this.lastStatusData.data.formatted && this.lastStatusData.data.formatted.length > 0) {

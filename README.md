@@ -36,7 +36,7 @@
 
 - [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-4.6**(Thinking)、**GLM-4.6V**(Thinking)、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
 - **按量计费**：**GLM-4.6**、**GLM-4.6V**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
-- **免费版本**：**GLM-4.5-Flash**
+- **免费模型**：**GLM-4.6V-Flash**、**GLM-4.5-Flash**
 - **搜索功能**：集成 `联网搜索MCP` 及 `Web Search API`，支持 `#zhipuWebSearch` 进行联网搜索。
     - 默认启用 `联网搜索MCP` 模式，编程套餐支持：Lite(100次/月)、Pro(1000次/月)、Max(4000次/月)。
     - 可通过设置关闭 `联网搜索MCP` 模式以使用 `Web Search API` 按次计费。

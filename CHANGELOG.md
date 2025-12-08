@@ -5,9 +5,11 @@
 ## [0.14.15] - 2025-12-08
 
 - **OpenAI / Anthropic Compatible** 内置部分已知提供商支持余额查询：
-  - **aiping**： [**AI Ping**](https://aiping.cn/#?invitation_code=EBQQKW) 用户账户余额(5分钟刷新)
-  - **aihubmix**: [**AIHubMix**](https://aihubmix.com/?aff=xb8N) ApiKey余额
-  - **siliconflow**：[**硅基流动**](https://cloud.siliconflow.cn/i/tQkcsZbJ) 用户账户余额(5分钟刷新)
+    - **aiping**： [**AI Ping**](https://aiping.cn/#?invitation_code=EBQQKW) 用户账户余额(5分钟刷新)
+    - **aihubmix**: [**AIHubMix**](https://aihubmix.com/?aff=xb8N) ApiKey余额
+    - **siliconflow**：[**硅基流动**](https://cloud.siliconflow.cn/i/tQkcsZbJ) 用户账户余额(5分钟刷新)
+- **智谱AI** 提供商模型维护：
+    - **免费模型**：新增 **GLM-4.6V-Flash**
 
 ## [0.14.14] - 2025-12-08
 
@@ -20,10 +22,9 @@
 ### 新增
 
 - **OpenAI / Anthropic Compatible** 内置部分已知提供商ID及名称：
-  - **aiping**： [**AI Ping**](https://aiping.cn/#?invitation_code=EBQQKW)
-  - **aihubmix**: [**AIHubMix**](https://aihubmix.com/?aff=xb8N) 推理时代，可立享 10% 优惠。
-  - **siliconflow**：[**硅基流动**](https://cloud.siliconflow.cn/i/tQkcsZbJ)
-
+    - **aiping**： [**AI Ping**](https://aiping.cn/#?invitation_code=EBQQKW)
+    - **aihubmix**: [**AIHubMix**](https://aihubmix.com/?aff=xb8N) 推理时代，可立享 10% 优惠。
+    - **siliconflow**：[**硅基流动**](https://cloud.siliconflow.cn/i/tQkcsZbJ)
 
 ## [0.14.12] - 2025-12-07
 

@@ -379,7 +379,7 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
         }
 
         const dataAge = Date.now() - this.lastStatusData.timestamp;
-        const CACHE_EXPIRY_THRESHOLD = 5 * 60 * 1000; // 缓存过期阈值 5 分钟
+        const CACHE_EXPIRY_THRESHOLD = (5 * 60 - 10) * 1000; // 缓存过期阈值 5 分钟
 
         // 检查缓存是否超过5分钟固定过期时间
         if (dataAge > CACHE_EXPIRY_THRESHOLD) {
