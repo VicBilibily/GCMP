@@ -9,6 +9,7 @@ export { CompatibleModelManager } from './compatibleModelManager';
 export { Logger } from './logger';
 export { StatusLogger } from './statusLogger';
 export { OpenAIHandler } from './openaiHandler';
+export { OpenAISpecialHandler } from './openaiSpecialHandler';
 export { AnthropicHandler } from './anthropicHandler';
 export { MCPWebSearchClient } from './mcpWebSearchClient';
 export { VersionManager } from './versionManager';

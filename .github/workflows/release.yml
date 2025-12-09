@@ -10,6 +10,8 @@ permissions:
 jobs:
     deploy:
         runs-on: ubuntu-latest
+        # 只有非预发布版本才执行发布到VS Code市场的步骤
+        if: '!github.event.release.prerelease'
 
         steps:
             - name: Checkout
@@ -55,3 +57,50 @@ jobs:
               with:
                   files: ${{ steps.package.outputs.filename }}
                   token: ${{ secrets.GITHUB_TOKEN }}
+
+    # 预发布版本处理作业
+    prerelease:
+        runs-on: ubuntu-latest
+        # 只有预发布版本才执行此作业
+        if: 'github.event.release.prerelease'
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                  lfs: true
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '20.x'
+                  cache: 'npm'
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Run ESLint
+              run: npm run lint
+
+            - name: Compile TypeScript
+              run: npm run compile
+
+            - name: Package extension
+              run: npm run package
+
+            - name: Get package info
+              id: package
+              run: |
+                  PACKAGE_VERSION=$(node -p "require('./package.json').version")
+                  PACKAGE_NAME=$(node -p "require('./package.json').name")
+                  echo "version=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
+                  echo "name=$PACKAGE_NAME" >> $GITHUB_OUTPUT
+                  echo "filename=${PACKAGE_NAME}-${PACKAGE_VERSION}.vsix" >> $GITHUB_OUTPUT
+
+            - name: Upload VSIX as prerelease asset
+              uses: softprops/action-gh-release@v2
+              with:
+                  files: ${{ steps.package.outputs.filename }}
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  # 确保标记为预发布资产
+                  prerelease: true
