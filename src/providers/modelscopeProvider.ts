@@ -127,9 +127,8 @@ export class ModelScopeProvider extends GenericModelProvider implements Language
                             token
                         );
                     } else {
-                        await this.openaiHandler.handleRequest(model, modelConfig, messages, options, progress, token);
-                        // // 使用自定义的 SSE 流处理（OpenAI 兼容）
-                        // await this.handleRequestWithCustomSSE(model, modelConfig, messages, options, progress, token);
+                        // 使用自定义的 SSE 流处理（OpenAI 兼容）
+                        await this.handleRequestWithCustomSSE(model, modelConfig, messages, options, progress, token);
                     }
                 },
                 error => RetryManager.isRateLimitError(error),

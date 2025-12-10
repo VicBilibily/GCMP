@@ -9,7 +9,6 @@ import { Logger, VersionManager } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { ModelConfig } from '../types/sharedTypes';
-import { OpenAISpecialHandler } from './openaiSpecialHandler';
 
 /**
  * 扩展Delta类型以支持reasoning_content字段
@@ -35,20 +34,13 @@ interface ExtendedChoice extends OpenAI.Chat.Completions.ChatCompletionChunk.Cho
 export class OpenAIHandler {
     // SDK事件去重跟踪器（基于请求级别）
     private currentRequestProcessedEvents = new Set<string>();
-    // SDK 模式（默认为 'openai'，支持 'openai-special' 用于非标准格式）
-    private sdkMode: 'openai' | 'openai-special' = 'openai';
 
     constructor(
         private provider: string,
         private displayName: string,
-        private baseURL?: string,
-        sdkMode?: 'openai' | 'openai-special'
+        private baseURL?: string
     ) {
         // provider、displayName 和 baseURL 由调用方传入
-        // 如果提供了 sdkMode，则使用指定的模式
-        if (sdkMode) {
-            this.sdkMode = sdkMode;
-        }
     }
 
     /**
@@ -251,51 +243,6 @@ export class OpenAIHandler {
         Logger.debug(`${model.name} 开始处理 ${this.displayName} 请求`);
         // 清理当前请求的事件去重跟踪器
         this.currentRequestProcessedEvents.clear();
-
-        // 根据 modelConfig 的 sdkMode 动态设置处理器的模式
-        if (modelConfig.sdkMode === 'openai-special') {
-            this.sdkMode = 'openai-special';
-            Logger.info(`${model.name} 使用 openai-special 模式处理非标准 OpenAI 流格式，${this.displayName}`);
-
-            // 构建请求体（openai-special 模式需要）
-            const requestModel = modelConfig.model || model.id;
-            const requestBody: Record<string, unknown> = {
-                model: requestModel,
-                messages: this.convertMessagesToOpenAI(messages, model.capabilities || undefined),
-                max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
-                stream: true,
-                temperature: ConfigManager.getTemperature(),
-                top_p: ConfigManager.getTopP()
-            };
-
-            // 添加工具
-            if (options.tools && options.tools.length > 0 && model.capabilities?.toolCalling) {
-                requestBody.tools = this.convertToolsToOpenAI([...options.tools]);
-                requestBody.tool_choice = 'auto';
-            }
-
-            // 添加额外参数
-            if (modelConfig.extraBody) {
-                const filteredExtraBody = OpenAIHandler.filterExtraBodyParams(modelConfig.extraBody);
-                Object.assign(requestBody, filteredExtraBody);
-                Logger.trace(`${model.name} 合并了 extraBody 参数: ${JSON.stringify(filteredExtraBody)}`);
-            }
-
-            // 使用 OpenAISpecialHandler 处理 openai-special 模式
-            const baseURL = modelConfig.baseUrl || this.baseURL || 'https://api.openai.com/v1';
-            const specialHandler = new OpenAISpecialHandler(this.displayName);
-            return await specialHandler.handleRequest(
-                model,
-                modelConfig,
-                messages,
-                baseURL,
-                requestBody,
-                progress,
-                token,
-                this.provider
-            );
-        }
-
         try {
             const client = await this.createOpenAIClient(modelConfig);
             Logger.debug(`${model.name} 发送 ${messages.length} 条消息，使用 ${this.displayName}`);

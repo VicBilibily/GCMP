@@ -319,19 +319,13 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
         // 根据模型的 sdkMode 选择使用的 handler
         const sdkMode = modelConfig.sdkMode || 'openai';
-        let sdkName = 'OpenAI SDK';
-        if (sdkMode === 'anthropic') {
-            sdkName = 'Anthropic SDK';
-        } else if (sdkMode === 'openai-special') {
-            sdkName = 'OpenAI 兼容模式';
-        }
+        const sdkName = sdkMode === 'anthropic' ? 'Anthropic SDK' : 'OpenAI SDK';
         Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
 
         try {
             if (sdkMode === 'anthropic') {
                 await this.anthropicHandler.handleRequest(model, modelConfig, messages, options, progress, token);
             } else {
-                // 'openai' 和 'openai-special' 都使用 OpenAIHandler，通过 modelConfig 传递 sdkMode
                 await this.openaiHandler.handleRequest(model, modelConfig, messages, options, progress, token);
             }
         } catch (error) {

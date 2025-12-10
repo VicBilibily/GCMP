@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.14.16-p1",
+    "version": "0.14.15",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -267,15 +267,9 @@
                                 "type": "string",
                                 "enum": [
                                     "openai",
-                                    "openai-special",
                                     "anthropic"
                                 ],
-                                "enumDescriptions": [
-                                    "OpenAI SDK模式 - 使用标准 OpenAI API 格式，适用于大多数 OpenAI 兼容的模型和服务",
-                                    "OpenAI 兼容模式 - 针对特定 OpenAI 兼容服务的优化格式，支持更多自定义参数和功能",
-                                    "Anthropic SDK模式 - 使用 Anthropic Claude API 格式，适用于 Anthropic 兼容的模型和服务"
-                                ],
-                                "description": "SDK模式：选择与模型服务兼容的API格式",
+                                "description": "SDK模式：openai（OpenAI兼容格式）或 anthropic（Anthropic兼容格式）",
                                 "default": "openai"
                             },
                             "baseUrl": {
