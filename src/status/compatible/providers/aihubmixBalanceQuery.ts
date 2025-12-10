@@ -18,6 +18,19 @@ interface AiHubMixBalanceResponse {
 }
 
 /**
+ * AIHubMix 错误响应类型
+ */
+interface AiHubMixErrorResponse {
+    /** 错误响应 */
+    error: {
+        /** 错误消息 */
+        message: string;
+        /** 错误类型 */
+        type: string;
+    };
+}
+
+/**
  * AIHubMix 余额查询器
  */
 export class AiHubMixBalanceQuery implements IBalanceQuery {
@@ -47,7 +60,24 @@ export class AiHubMixBalanceQuery implements IBalanceQuery {
             });
 
             if (!response.ok) {
-                throw new Error(`API 请求失败: ${response.status} ${response.statusText}`);
+                // 尝试解析错误响应
+                let errorMessage = `API 请求失败: ${response.status} ${response.statusText}`;
+                try {
+                    const errorData = (await response.json()) as AiHubMixErrorResponse;
+                    errorMessage = errorData?.error?.message || errorMessage;
+
+                    // 检测欠费错误：quota exhausted
+                    if (errorData.error?.message?.includes('quota exhausted')) {
+                        StatusLogger.warn(`[AiHubMixBalanceQuery] 账户额度已用尽 (欠费): ${errorData.error.message}`);
+                        return {
+                            balance: Number.MIN_SAFE_INTEGER, // 使用特殊负值表示欠费
+                            currency: 'USD'
+                        };
+                    }
+                } catch {
+                    // 如果无法解析错误响应，使用默认错误消息
+                }
+                throw new Error(errorMessage);
             }
 
             const data = (await response.json()) as AiHubMixBalanceResponse;

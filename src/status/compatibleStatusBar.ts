@@ -140,6 +140,10 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
                 // balanceTexts.push('∞');
                 continue;
             }
+            if (provider.balance === Number.MIN_SAFE_INTEGER) {
+                balanceTexts.push('耗尽');
+                continue;
+            }
             // 默认货币为CNY，除非明确指定为USD
             const currencySymbol = provider.currency === 'USD' ? '$' : '¥';
             balanceTexts.push(`${currencySymbol}${provider.balance.toFixed(2)}`);
@@ -177,10 +181,12 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
                 const paidBalance = provider.paid !== undefined ? `${currencySymbol}${provider.paid.toFixed(2)}` : '-';
                 const grantedBalance =
                     provider.granted !== undefined ? `${currencySymbol}${provider.granted.toFixed(2)}` : '-';
-                const availableBalance =
-                    provider.balance === Number.MAX_SAFE_INTEGER
-                        ? '无限制'
-                        : `${currencySymbol}${provider.balance.toFixed(2)}`;
+                let availableBalance = `${currencySymbol}${provider.balance.toFixed(2)}`;
+                if (provider.balance === Number.MAX_SAFE_INTEGER) {
+                    availableBalance = '无限制';
+                } else if (provider.balance === Number.MIN_SAFE_INTEGER) {
+                    availableBalance = '已耗尽';
+                }
 
                 md.appendMarkdown(
                     `| ${provider.providerName} | ${paidBalance} | ${grantedBalance} | ${availableBalance} |\n`
