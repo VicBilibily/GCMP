@@ -15,6 +15,7 @@ import { Logger, ApiKeyManager, CompatibleModelManager, RetryManager, ConfigMana
 import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status';
 import OpenAI from 'openai';
+import { ExtendedDelta } from '../utils/openaiHandler';
 
 /**
  * 工具调用缓存结构
@@ -476,6 +477,7 @@ export class CompatibleProvider extends GenericModelProvider {
         let hasReceivedContent = false;
         let chunkCount = 0;
         const toolCallsBuffer = new Map<number, ToolCallBuffer>();
+        let currentThinkingId: string | null = null; // 思维链追踪
 
         try {
             while (true) {
@@ -512,10 +514,17 @@ export class CompatibleProvider extends GenericModelProvider {
                             chunkCount++;
                             // 输出完整的 chunk 到 trace 日志
                             Logger.trace(`[${modelName}] Chunk #${chunkCount}: ${JSON.stringify(chunk)}`);
-                            const hasContent = this.handleStreamChunk(chunk, progress, modelName, toolCallsBuffer);
+                            const { hasContent, thinkingId } = this.handleStreamChunk(
+                                chunk,
+                                progress,
+                                modelName,
+                                toolCallsBuffer,
+                                currentThinkingId
+                            );
                             if (hasContent) {
                                 hasReceivedContent = true;
                             }
+                            currentThinkingId = thinkingId;
                         } catch (error) {
                             Logger.error(`[${modelName}] 解析 JSON 失败: ${data}`, error);
                         }
@@ -539,6 +548,7 @@ export class CompatibleProvider extends GenericModelProvider {
             choices?: Array<{
                 delta?: {
                     content?: string;
+                    reasoning_content?: string;
                     tool_calls?: Array<{
                         index?: number;
                         id?: string;
@@ -548,25 +558,53 @@ export class CompatibleProvider extends GenericModelProvider {
                 finish_reason?: string;
             }>;
         },
-        progress: vscode.Progress<vscode.LanguageModelResponsePart>,
+        progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
         modelName: string,
-        toolCallsBuffer: Map<number, ToolCallBuffer>
-    ): boolean {
+        toolCallsBuffer: Map<number, ToolCallBuffer>,
+        currentThinkingId: string | null
+    ): { hasContent: boolean; thinkingId: string | null } {
         let hasContent = false;
+        let newThinkingId = currentThinkingId;
 
         // 检查是否是包含usage信息的最终chunk
         if (chunk.usage && (!chunk.choices || chunk.choices.length === 0)) {
             Logger.debug(`[${modelName}] 收到使用统计信息: ${JSON.stringify(chunk.usage)}`);
-            return true;
+            return { hasContent: true, thinkingId: newThinkingId };
         }
 
         // 处理正常的choices
         for (const choice of chunk.choices || []) {
-            const delta = choice.delta;
+            const delta = choice.delta as ExtendedDelta | undefined;
+
+            // 处理思考内容（reasoning_content）
+            if (delta && delta.reasoning_content && typeof delta.reasoning_content === 'string') {
+                Logger.trace(`[${modelName}] 接收到思考内容: ${delta.reasoning_content.length} 字符`);
+                // 如果当前没有 active id，则生成一个用于本次思维链
+                if (!newThinkingId) {
+                    newThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                    Logger.trace(`[${modelName}] 创建新思维链 ID: ${newThinkingId}`);
+                }
+                try {
+                    progress.report(new vscode.LanguageModelThinkingPart(delta.reasoning_content, newThinkingId));
+                    hasContent = true;
+                } catch (e) {
+                    Logger.warn(`[${modelName}] 报告思维链失败: ${String(e)}`);
+                }
+            }
 
             // 处理文本内容（即使 delta 存在但可能为空对象）
             if (delta && delta.content && typeof delta.content === 'string') {
                 Logger.trace(`[${modelName}] 输出文本内容: ${delta.content.length} 字符`);
+                // 遇到可见 content 前，如果有未结束的 thinking，则先结束之
+                if (newThinkingId) {
+                    try {
+                        Logger.trace(`[${modelName}] 在输出文本前结束思维链 ID: ${newThinkingId}`);
+                        progress.report(new vscode.LanguageModelThinkingPart('', newThinkingId));
+                    } catch (e) {
+                        Logger.warn(`[${modelName}] 结束思维链失败: ${String(e)}`);
+                    }
+                    newThinkingId = null;
+                }
                 progress.report(new vscode.LanguageModelTextPart(delta.content));
                 hasContent = true;
             }
@@ -604,6 +642,17 @@ export class CompatibleProvider extends GenericModelProvider {
             if (choice.finish_reason) {
                 Logger.debug(`[${modelName}] 流已结束，原因: ${choice.finish_reason}`);
 
+                // 如果有未结束的思维链，在 finish_reason 时结束它
+                if (newThinkingId && choice.finish_reason !== 'length') {
+                    try {
+                        Logger.trace(`[${modelName}] 流结束前结束思维链 ID: ${newThinkingId}`);
+                        progress.report(new vscode.LanguageModelThinkingPart('', newThinkingId));
+                    } catch (e) {
+                        Logger.warn(`[${modelName}] 结束思维链失败: ${String(e)}`);
+                    }
+                    newThinkingId = null;
+                }
+
                 // 如果是工具调用结束，处理缓存中的工具调用
                 if (choice.finish_reason === 'tool_calls') {
                     const toolProcessed = this.processBufferedToolCalls(progress, modelName, toolCallsBuffer);
@@ -623,7 +672,7 @@ export class CompatibleProvider extends GenericModelProvider {
             }
         }
 
-        return hasContent;
+        return { hasContent, thinkingId: newThinkingId };
     }
 
     /**

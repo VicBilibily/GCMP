@@ -13,7 +13,7 @@ import { ModelConfig } from '../types/sharedTypes';
 /**
  * 扩展Delta类型以支持reasoning_content字段
  */
-interface ExtendedDelta extends OpenAI.Chat.ChatCompletionChunk.Choice.Delta {
+export interface ExtendedDelta extends OpenAI.Chat.ChatCompletionChunk.Choice.Delta {
     reasoning_content?: string;
 }
 

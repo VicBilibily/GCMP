@@ -2,6 +2,15 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的所有重要更改。
 
+## [0.14.17] - 2025-12-10
+
+- **OpenAI Compatible**：`openai-sse` 新增支持思考过程输出
+
+## [0.14.16] - 2025-12-10
+
+- **OpenAI / Anthropic Compatible**：
+    - OpenAI Compatible 初步支持 `openai-sse`(Preview) 非标准模型接口响应格式（原针对魔搭社区的兼容的实现）
+
 ## [0.14.15] - 2025-12-08
 
 - **OpenAI / Anthropic Compatible** 内置部分已知提供商支持余额查询：
