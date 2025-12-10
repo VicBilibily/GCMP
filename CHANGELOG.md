@@ -4,6 +4,11 @@
 
 ## [0.14.19] - 2025-12-11
 
+### 新增
+
+- **OpenAI / Anthropic Compatible** 内置部分已知提供商支持余额查询：
+    - **openrouter** [**OpenRouter**](https://openrouter.ai/) 用户账户余额
+
 ### 调整
 
 - **ModelScope魔搭社区** 提供商正式移除内置支持，若需继续使用，可自定义模型接入 `Anthropic API` 或 `OpenAI SSE` 兼容模式。

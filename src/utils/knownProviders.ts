@@ -33,8 +33,10 @@ export const KnownProviders: Record<string, KnownProviderConfig> = {
             }
         }
     },
-    aiping: { displayName: 'AI Ping' },
+    aiping: { displayName: 'AIPing' },
     iflow: { displayName: 'iFlow' },
     modelscope: { displayName: '魔搭社区' },
-    siliconflow: { displayName: '硅基流动' }
+    openrouter: { displayName: 'OpenRouter' },
+    siliconflow: { displayName: '硅基流动' },
+    tbox: { displayName: '百灵大模型' }
 };

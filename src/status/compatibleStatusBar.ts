@@ -83,7 +83,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
     private providerLastDelayedUpdateTimes = new Map<string, number>();
 
     /** 支持延时更新的提供商列表 */
-    private static readonly SUPPORTED_DELAYED_UPDATE_PROVIDERS = ['aihubmix'];
+    private static readonly SUPPORTED_DELAYED_UPDATE_PROVIDERS = ['aihubmix', 'openrouter'];
 
     constructor() {
         const config: BaseStatusBarItemConfig = {
