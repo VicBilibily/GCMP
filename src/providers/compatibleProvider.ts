@@ -10,12 +10,14 @@ import {
     ProvideLanguageModelChatResponseOptions,
     Progress
 } from 'vscode';
-import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
+import { ProviderConfig, ModelConfig, ModelOverride } from '../types/sharedTypes';
 import { Logger, ApiKeyManager, CompatibleModelManager, RetryManager, ConfigManager } from '../utils';
 import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status';
 import OpenAI from 'openai';
 import { ExtendedDelta } from '../utils/openaiHandler';
+import { KnownProviders } from '../utils';
+import { configProviders } from './config';
 
 /**
  * 工具调用缓存结构
@@ -82,13 +84,23 @@ export class CompatibleProvider extends GenericModelProvider {
             const modelConfigs: ModelConfig[] = models.map(model => {
                 let customHeader = model.customHeader;
                 if (model.provider) {
-                    const provider = CompatibleModelManager.KnownProviders[model.provider];
+                    const provider = KnownProviders[model.provider];
                     if (provider?.customHeader) {
                         const existingHeaders = model.customHeader || {};
-                        customHeader = {
-                            ...existingHeaders,
-                            ...provider.customHeader
-                        };
+                        customHeader = { ...existingHeaders, ...provider.customHeader };
+                    }
+
+                    let knownOverride: Omit<ModelOverride, 'id'> | undefined;
+                    if (model.sdkMode === 'anthropic' && provider?.anthropic) {
+                        knownOverride = provider.anthropic;
+                    } else if (model.sdkMode !== 'anthropic' && provider?.openai) {
+                        knownOverride = provider.openai.extraBody;
+                    }
+
+                    if (knownOverride) {
+                        const extraBody = knownOverride.extraBody || {};
+                        const modelBody = model.extraBody || {};
+                        model.extraBody = { ...extraBody, ...modelBody };
                     }
                 }
                 return {
@@ -208,7 +220,11 @@ export class CompatibleProvider extends GenericModelProvider {
                 const sdkModeDisplay = model.sdkMode === 'anthropic' ? 'Anthropic' : 'OpenAI';
 
                 if (model.provider) {
-                    const provider = CompatibleModelManager.KnownProviders[model.provider];
+                    const knownProvider = KnownProviders[model.provider];
+                    if (knownProvider?.displayName) {
+                        return { ...info, detail: knownProvider.displayName };
+                    }
+                    const provider = configProviders[model.provider as keyof typeof configProviders];
                     if (provider?.displayName) {
                         return { ...info, detail: provider.displayName };
                     }
@@ -253,7 +269,11 @@ export class CompatibleProvider extends GenericModelProvider {
                     const sdkModeDisplay = model.sdkMode === 'anthropic' ? 'Anthropic' : 'OpenAI';
 
                     if (model.provider) {
-                        const provider = CompatibleModelManager.KnownProviders[model.provider];
+                        const knownProvider = KnownProviders[model.provider];
+                        if (knownProvider?.displayName) {
+                            return { ...info, detail: knownProvider.displayName };
+                        }
+                        const provider = configProviders[model.provider as keyof typeof configProviders];
                         if (provider?.displayName) {
                             return { ...info, detail: provider.displayName };
                         }
@@ -312,7 +332,12 @@ export class CompatibleProvider extends GenericModelProvider {
 
             // 根据模型的 sdkMode 选择使用的 handler
             const sdkMode = modelConfig.sdkMode || 'openai';
-            const sdkName = sdkMode === 'anthropic' ? 'Anthropic SDK' : 'OpenAI SDK';
+            let sdkName = 'OpenAI SDK';
+            if (sdkMode === 'anthropic') {
+                sdkName = 'Anthropic SDK';
+            } else if (sdkMode === 'openai-sse') {
+                sdkName = 'OpenAI SSE';
+            }
 
             Logger.info(`Compatible Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
 

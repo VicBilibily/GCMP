@@ -10,6 +10,7 @@ import { StatusLogger } from '../utils/statusLogger';
 import { CompatibleModelManager } from '../utils/compatibleModelManager';
 import { BalanceQueryManager } from './compatible/balanceQueryManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
+import { KnownProviders } from '../utils/knownProviders';
 
 /**
  * Compatible 提供商余额信息
@@ -230,7 +231,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
                 }
 
                 if (!providerMap.has(model.provider)) {
-                    const knownProvider = CompatibleModelManager.KnownProviders[model.provider];
+                    const knownProvider = KnownProviders[model.provider];
 
                     // 手动刷新时强制查询所有提供商，忽略缓存
                     if (isManualRefresh) {
@@ -644,7 +645,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             StatusLogger.debug(`[${this.config.logPrefix}] 开始查询提供商 ${providerId} 的余额...`);
 
             // 获取提供商信息
-            const knownProvider = CompatibleModelManager.KnownProviders[providerId];
+            const knownProvider = KnownProviders[providerId];
             const providerName = knownProvider?.displayName || providerId;
 
             // 创建提供商余额信息对象

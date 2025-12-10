@@ -6,8 +6,10 @@
 import * as vscode from 'vscode';
 import { Logger } from './logger';
 import { ApiKeyManager } from './apiKeyManager';
-import { ProviderConfig, ProviderOverride } from '../types/sharedTypes';
 import { StatusBarManager } from '../status';
+import { KnownProviders } from './knownProviders';
+import { configProviders } from '../providers/config';
+import { ProviderConfig } from '../types/sharedTypes';
 
 /**
  * 后退按钮点击事件
@@ -72,15 +74,6 @@ export class CompatibleModelManager {
     private static configListener: vscode.Disposable | null = null;
     private static _onDidChangeModels = new vscode.EventEmitter<void>();
     static readonly onDidChangeModels = CompatibleModelManager._onDidChangeModels.event;
-
-    public static readonly KnownProviders: Record<string, Partial<ProviderConfig & ProviderOverride>> = {
-        aihubmix: {
-            displayName: 'AIHubMix',
-            customHeader: { 'APP-Code': 'TFUV4759' }
-        },
-        aiping: { displayName: 'AI Ping' },
-        siliconflow: { displayName: '硅基流动' }
-    };
 
     /**
      * 初始化模型管理器
@@ -285,14 +278,69 @@ export class CompatibleModelManager {
                 await this.setApiKeyForProvider(providers[0]);
                 return;
             }
+
+            // 获取历史自定义提供商
+            const historicalProviders = await this.getHistoricalCustomProviders();
+
+            const customProviders: string[] = [];
+            const knownProviders: string[] = [];
+            const builtinProviders: string[] = [];
+
+            providers.forEach(provider => {
+                if (historicalProviders.includes(provider)) {
+                    customProviders.push(provider);
+                } else if (provider in KnownProviders) {
+                    knownProviders.push(provider);
+                } else if (provider in configProviders) {
+                    builtinProviders.push(provider);
+                } else {
+                    // 默认归类为自定义提供商
+                    customProviders.push(provider);
+                }
+            });
+
+            // 按自定义、已知、内置的顺序创建选择项，并添加分隔线
+            const providerChoices = [];
+
+            // 自定义提供商
+            if (customProviders.length > 0) {
+                providerChoices.push(...customProviders.map(provider => ({ label: provider })));
+            }
+
+            // 已知提供商（添加分隔线）
+            if (knownProviders.length > 0) {
+                if (customProviders.length > 0) {
+                    providerChoices.push({ label: '已知提供商', kind: vscode.QuickPickItemKind.Separator });
+                }
+                providerChoices.push(
+                    ...knownProviders.map(provider => ({
+                        label: provider,
+                        description: KnownProviders[provider]?.displayName
+                    }))
+                );
+            }
+
+            // 内置提供商（添加分隔线）
+            if (builtinProviders.length > 0) {
+                if (customProviders.length > 0 || knownProviders.length > 0) {
+                    providerChoices.push({ label: '内置提供商', kind: vscode.QuickPickItemKind.Separator });
+                }
+                providerChoices.push(
+                    ...builtinProviders.map(provider => ({
+                        label: provider,
+                        description: configProviders[provider as keyof typeof configProviders]?.displayName
+                    }))
+                );
+            }
+
             // 如果有多个提供商，让用户选择
-            const selected = await vscode.window.showQuickPick(providers, {
+            const selected = await vscode.window.showQuickPick(providerChoices, {
                 placeHolder: '选择要设置 API 密钥的提供商'
             });
             if (!selected) {
                 return;
             }
-            await this.setApiKeyForProvider(selected);
+            await this.setApiKeyForProvider(selected.label);
         } catch (error) {
             Logger.error('设置 API 密钥失败:', error);
             vscode.window.showErrorMessage(`设置 API 密钥失败: ${error instanceof Error ? error.message : '未知错误'}`);
@@ -666,7 +714,7 @@ export class CompatibleModelManager {
             // 导入提供商配置以获取内置提供商列表
             const { configProviders } = await import('../providers/config/index.js');
             const builtinProviders = Object.keys(configProviders);
-            const knownProviders = Object.keys(this.KnownProviders);
+            const knownProviders = Object.keys(KnownProviders);
             // 从现有模型中获取所有唯一的提供商标识
             const allProviders = this.models
                 .map(model => model.provider)
@@ -690,42 +738,23 @@ export class CompatibleModelManager {
      */
     private static async _selectProvider(currentProvider?: string): Promise<string | BackButtonClick | undefined> {
         // 导入提供商配置
-        const { configProviders } = await import('../providers/config/index.js');
-        type ProviderConfig = import('../types/sharedTypes').ProviderConfig;
         interface ProviderItem extends vscode.QuickPickItem {
             providerId?: string;
         }
         const items: ProviderItem[] = [];
-        // 添加已有提供商
-        for (const [providerId, providerConfig] of Object.entries(configProviders)) {
-            const config = providerConfig as unknown as ProviderConfig;
-            items.push({
-                label: providerId,
-                description: config.displayName || providerId,
-                providerId: providerId,
-                picked: currentProvider === providerId
-            });
-        }
 
-        // 添加内置存在适配的供应商列表
-        const adaptedProviders = Object.keys(this.KnownProviders);
-        const separator1 = { kind: vscode.QuickPickItemKind.Separator };
-        items.push(separator1 as ProviderItem);
-        for (const provider of adaptedProviders) {
-            items.push({
-                label: provider,
-                description: this.KnownProviders[provider]?.displayName,
-                providerId: provider,
-                picked: currentProvider === provider
-            });
-        }
+        // 添加分隔符和自定义选项（移到最前面）
+        items.push({
+            label: '$(edit) 自定义提供商',
+            providerId: '__custom__'
+        });
 
         // 获取历史自定义提供商
         const historicalProviders = await this.getHistoricalCustomProviders();
         // 如果有历史自定义提供商，添加到列表中
         if (historicalProviders.length > 0) {
-            const separator2 = { kind: vscode.QuickPickItemKind.Separator };
-            items.push(separator2 as ProviderItem);
+            const separator1 = { label: '历史提供商', kind: vscode.QuickPickItemKind.Separator };
+            items.push(separator1 as ProviderItem);
             for (const provider of historicalProviders) {
                 items.push({
                     label: provider,
@@ -735,13 +764,29 @@ export class CompatibleModelManager {
             }
         }
 
-        // 添加分隔符和自定义选项
-        const separator3 = { label: '', kind: vscode.QuickPickItemKind.Separator };
+        const knownProviders = Object.keys(KnownProviders);
+        const separator2 = { label: '已知提供商', kind: vscode.QuickPickItemKind.Separator };
+        items.push(separator2 as ProviderItem);
+        for (const provider of knownProviders) {
+            items.push({
+                label: provider,
+                description: KnownProviders[provider]?.displayName,
+                providerId: provider,
+                picked: currentProvider === provider
+            });
+        }
+
+        const separator3 = { label: '内置提供商', kind: vscode.QuickPickItemKind.Separator };
         items.push(separator3 as ProviderItem);
-        items.push({
-            label: '$(edit) 自定义提供商',
-            providerId: '__custom__'
-        });
+        for (const [providerId, providerConfig] of Object.entries(configProviders)) {
+            const config = providerConfig as unknown as ProviderConfig;
+            items.push({
+                label: providerId,
+                description: config.displayName || providerId,
+                providerId: providerId,
+                picked: currentProvider === providerId
+            });
+        }
 
         const quickPick = vscode.window.createQuickPick<ProviderItem>();
         quickPick.title = currentProvider ? '编辑提供商标识' : '选择提供商标识';

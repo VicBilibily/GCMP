@@ -5,7 +5,7 @@
 import { IBalanceQuery, BalanceQueryResult } from '../balanceQuery';
 import { StatusLogger } from '../../../utils/statusLogger';
 import { ApiKeyManager } from '../../../utils/apiKeyManager';
-import { CompatibleModelManager, Logger } from '../../../utils';
+import { Logger, KnownProviders } from '../../../utils';
 
 /**
  * AIHubMix API 响应类型
@@ -55,7 +55,7 @@ export class AiHubMixBalanceQuery implements IBalanceQuery {
                 headers: {
                     Authorization: `Bearer ${apiKey}`,
                     'Content-Type': 'application/json',
-                    ...(CompatibleModelManager.KnownProviders['aihubmix']?.customHeader || {})
+                    ...(KnownProviders['aihubmix']?.customHeader || {})
                 }
             });
 
