@@ -39,6 +39,10 @@ export class OpenAISpecialHandler {
     // 工具调用去重集合
     private emittedTextToolCallKeys = new Set<string>();
     private emittedTextToolCallIds = new Set<string>();
+    // 思考内容缓冲 - 用于批量刷新思考内容以优化性能
+    private thinkingBuffer: string = '';
+    // 思考内容刷新计时器 - 80ms 延迟缓冲
+    private thinkingFlushTimer: NodeJS.Timeout | null = null;
 
     constructor(private displayName: string) {
         // displayName 用于日志输出
@@ -70,6 +74,12 @@ export class OpenAISpecialHandler {
         this.currentThinkingId = null;
         this.emittedTextToolCallKeys.clear();
         this.emittedTextToolCallIds.clear();
+        // 清理思考内容缓冲和计时器
+        this.thinkingBuffer = '';
+        if (this.thinkingFlushTimer) {
+            clearTimeout(this.thinkingFlushTimer);
+            this.thinkingFlushTimer = null;
+        }
 
         // 获取 API Key
         // 优先级：传入的 providerKey -> modelConfig.provider -> 'openai'
@@ -139,6 +149,9 @@ export class OpenAISpecialHandler {
             while (!token.isCancellationRequested) {
                 const { done, value } = await reader.read();
                 if (done) {
+                    // 流正常结束，刷新所有缓冲的内容
+                    await this.flushToolCallBuffers(progress, false);
+                    this.flushThinkingBuffer(progress, true);
                     break;
                 }
 
@@ -153,8 +166,9 @@ export class OpenAISpecialHandler {
 
                     const data = line.slice(5).trim();
                     if (data === '[DONE]') {
-                        // 流结束，刷新缓冲的工具调用（不抛异常）
+                        // 流结束，刷新缓冲的工具调用和思考内容
                         await this.flushToolCallBuffers(progress, false);
+                        this.flushThinkingBuffer(progress, true);
                         Logger.debug(`[${model.name}] 收到流结束标记`);
                         continue;
                     }
@@ -181,22 +195,30 @@ export class OpenAISpecialHandler {
             this.currentThinkingId = null;
             this.emittedTextToolCallKeys.clear();
             this.emittedTextToolCallIds.clear();
+            // 清理思考内容缓冲和计时器
+            this.thinkingBuffer = '';
+            if (this.thinkingFlushTimer) {
+                clearTimeout(this.thinkingFlushTimer);
+                this.thinkingFlushTimer = null;
+            }
         }
     }
 
     /**
      * 处理单个 delta（choice）
      * 提取思考内容、文本内容、工具调用等信息
-     * 参考 oai-compatible-copilot 的 processChoice 实现
+     * 参考 oai-compatible-copilot 的 processDelta 实现
+     * @returns 是否发送了任何内容
      */
     private async processDelta(
         delta: Record<string, unknown>,
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
         model: vscode.LanguageModelChatInformation
-    ): Promise<void> {
+    ): Promise<boolean> {
+        let emitted = false;
         const choice = (delta.choices as Record<string, unknown>[] | undefined)?.[0];
         if (!choice) {
-            return;
+            return false;
         }
 
         const deltaObj = choice.delta as Record<string, unknown> | undefined;
@@ -235,11 +257,13 @@ export class OpenAISpecialHandler {
                         if (!this.currentThinkingId) {
                             this.currentThinkingId = this.generateThinkingId();
                         }
-                        const metadata = { format: detail.format, type: detail.type, index: detail.index };
                         Logger.trace(`🧠 接收到推理详情: ${extractedText.length}字符`);
-                        progress.report(
-                            new vscode.LanguageModelThinkingPart(extractedText, this.currentThinkingId, metadata)
-                        );
+                        this.bufferThinkingContent(extractedText, {
+                            format: detail.format,
+                            type: detail.type,
+                            index: detail.index
+                        });
+                        emitted = true;
                     }
                 }
                 // 如果有 details，跳过简单的 thinking 处理
@@ -259,7 +283,8 @@ export class OpenAISpecialHandler {
                         this.currentThinkingId = this.generateThinkingId();
                     }
                     Logger.trace(`🧠 接收到思考内容: ${text.length}字符`);
-                    progress.report(new vscode.LanguageModelThinkingPart(text, this.currentThinkingId, metadata));
+                    this.bufferThinkingContent(text, metadata);
+                    emitted = true;
                 }
             }
         } catch (e) {
@@ -274,16 +299,17 @@ export class OpenAISpecialHandler {
             const xmlRes = this.processXmlThinkBlocks(content, progress);
             if (xmlRes.emittedAny) {
                 // XML think 块已处理
+                emitted = true;
             } else {
                 // 检查是否有可见内容
                 const hasVisibleContent = content.trim().length > 0;
 
-                // 如果有可见内容且有活跃的思考序列，先结束它
+                // 如果有可见内容且有活跃的思考序列，先刷新思考缓冲
                 if (hasVisibleContent && this.currentThinkingId) {
                     try {
-                        progress.report(new vscode.LanguageModelThinkingPart('', this.currentThinkingId));
+                        this.flushThinkingBuffer(progress, true);
                     } catch (e) {
-                        Logger.warn(`[${model.name}] 结束思考序列失败: ${e}`);
+                        Logger.warn(`[${model.name}] 刷新思考缓冲失败: ${e}`);
                     } finally {
                         this.currentThinkingId = null;
                     }
@@ -293,6 +319,7 @@ export class OpenAISpecialHandler {
                 const res = this.processTextContent(content, progress);
                 if (res.emittedText) {
                     this.hasEmittedAssistantText = true;
+                    emitted = true;
                 }
             }
         }
@@ -348,6 +375,8 @@ export class OpenAISpecialHandler {
             const throwOnInvalid = finish === 'tool_calls';
             await this.flushToolCallBuffers(progress, throwOnInvalid);
         }
+
+        return emitted;
     }
 
     /**
@@ -441,9 +470,9 @@ export class OpenAISpecialHandler {
     /**
      * 尝试解析 JSON 对象
      */
-    private tryParseJSON(str: string): { ok: boolean; value?: unknown } {
+    private tryParseJSON(str: string): { ok: boolean; value?: unknown; error?: string } {
         if (!str || str.trim().length === 0) {
-            return { ok: false };
+            return { ok: false, error: '空字符串' };
         }
 
         try {
@@ -473,6 +502,8 @@ export class OpenAISpecialHandler {
 
         const canParse = this.tryParseJSON(buf.args);
         if (!canParse.ok) {
+            // 如果解析失败，记录错误但不立即返回，让流继续接收更多数据
+            Logger.trace(`[${modelName}] 工具调用 [${index}] 参数暂未完整: ${canParse.error || '未知错误'}`);
             return;
         }
 
@@ -583,5 +614,60 @@ export class OpenAISpecialHandler {
      */
     private generateThinkingId(): string {
         return `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    }
+
+    /**
+     * 缓冲思考内容，使用 80ms 延迟批量刷新以优化性能
+     * 同步 provider.ts 的思考内容缓冲策略
+     */
+    private bufferThinkingContent(content: string, _metadata?: Record<string, unknown>): void {
+        if (!content) {
+            return;
+        }
+
+        // 累积思考文本
+        this.thinkingBuffer += content;
+
+        // 清除现有的计时器
+        if (this.thinkingFlushTimer) {
+            clearTimeout(this.thinkingFlushTimer);
+        }
+
+        // 安排延迟刷新（80ms）以批量处理多个小块
+        this.thinkingFlushTimer = setTimeout(() => {
+            this.thinkingFlushTimer = null;
+            // 注意: 这里无法访问 progress，所以在实际刷新时由 flushThinkingBuffer 处理
+        }, 80);
+    }
+
+    /**
+     * 刷新思考内容缓冲到 progress
+     * 同步 provider.ts 的实现方式
+     */
+    private flushThinkingBuffer(
+        progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
+        immediate: boolean = false
+    ): void {
+        if (this.thinkingBuffer && this.currentThinkingId) {
+            progress.report(new vscode.LanguageModelThinkingPart(this.thinkingBuffer, this.currentThinkingId));
+        }
+
+        // 清除计时器
+        if (this.thinkingFlushTimer) {
+            clearTimeout(this.thinkingFlushTimer);
+            this.thinkingFlushTimer = null;
+        }
+
+        // 重置缓冲区
+        if (!immediate) {
+            // 如果非立即刷新，安排延迟清空以便继续累积
+            this.thinkingFlushTimer = setTimeout(() => {
+                this.thinkingFlushTimer = null;
+                this.thinkingBuffer = '';
+            }, 80);
+        } else {
+            // 立即清空
+            this.thinkingBuffer = '';
+        }
     }
 }

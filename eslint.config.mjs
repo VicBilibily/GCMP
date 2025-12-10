@@ -44,6 +44,7 @@ export default defineConfig(
             }],
             '@stylistic/quotes': ['error', 'single'],
             '@stylistic/comma-dangle': ['error', 'never'],
+            '@typescript-eslint/no-inferrable-types': 'off',
             '@typescript-eslint/no-empty-function': 'off',
             '@typescript-eslint/array-type': 'off',
             '@typescript-eslint/naming-convention': [
