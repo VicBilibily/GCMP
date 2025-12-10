@@ -9,8 +9,6 @@ import moonshot from './moonshot.json';
 import deepseek from './deepseek.json';
 import streamlake from './streamlake.json';
 import dashscope from './dashscope.json';
-import tbox from './tbox.json';
-import modelscope from './modelscope.json';
 import baidu from './baidu.json';
 
 const providers = {
@@ -23,8 +21,6 @@ const providers = {
     deepseek,
     streamlake,
     dashscope,
-    tbox,
-    modelscope,
     baidu
 };
 

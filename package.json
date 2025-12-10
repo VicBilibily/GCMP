@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.14.18",
+    "version": "0.14.19",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -20,7 +20,6 @@
         "streamlake",
         "dashscope",
         "baidu",
-        "tbox",
         "OpenAI Compatible",
         "Anthropic Compatible",
         "智谱AI",
@@ -29,7 +28,6 @@
         "深度求索",
         "快手万擎",
         "阿里云百炼",
-        "百灵大模型",
         "百度千帆",
         "Coding Plan 编程套餐"
     ],
@@ -65,8 +63,6 @@
         "onLanguageModelProvider:gcmp.deepseek",
         "onLanguageModelProvider:gcmp.streamlake",
         "onLanguageModelProvider:gcmp.dashscope",
-        "onLanguageModelProvider:gcmp.tbox",
-        "onLanguageModelProvider:gcmp.modelscope",
         "onLanguageModelProvider:gcmp.baidu",
         "onLanguageModelProvider:gcmp.compatible",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
@@ -143,16 +139,6 @@
             {
                 "command": "gcmp.dashscope.setApiKey",
                 "title": "设置 阿里云百炼 API密钥",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.tbox.setApiKey",
-                "title": "设置 百灵大模型 API密钥",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.modelscope.setApiKey",
-                "title": "设置 ModelScope API密钥",
                 "category": "GCMP"
             },
             {
@@ -402,16 +388,6 @@
                 "vendor": "gcmp.dashscope",
                 "displayName": "⦿ 阿里云百炼",
                 "managementCommand": "gcmp.dashscope.setApiKey"
-            },
-            {
-                "vendor": "gcmp.tbox",
-                "displayName": "⦿ 百灵大模型",
-                "managementCommand": "gcmp.tbox.setApiKey"
-            },
-            {
-                "vendor": "gcmp.modelscope",
-                "displayName": "⨭ ModelScope (EOL on 2025-12-11)",
-                "managementCommand": "gcmp.modelscope.setApiKey"
             },
             {
                 "vendor": "gcmp.baidu",

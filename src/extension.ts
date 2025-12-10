@@ -3,7 +3,6 @@ import { GenericModelProvider } from './providers/genericModelProvider';
 import { ZhipuProvider } from './providers/zhipuProvider';
 import { KimiProvider } from './providers/kimiProvider';
 import { IFlowProvider } from './providers/iflowProvider';
-import { ModelScopeProvider } from './providers/modelscopeProvider';
 import { StreamLakeProvider } from './providers/streamlakeProvider';
 import { MiniMaxProvider } from './providers/minimaxProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
@@ -23,7 +22,6 @@ const registeredProviders: Record<
     | ZhipuProvider
     | KimiProvider
     | IFlowProvider
-    | ModelScopeProvider
     | StreamLakeProvider
     | MiniMaxProvider
     | CompatibleProvider
@@ -55,7 +53,6 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
                 | ZhipuProvider
                 | KimiProvider
                 | IFlowProvider
-                | ModelScopeProvider
                 | StreamLakeProvider
                 | MiniMaxProvider;
             let disposables: vscode.Disposable[];
@@ -78,11 +75,6 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
             } else if (providerKey === 'minimax') {
                 // 对 minimax 使用专门的 provider（多密钥管理和配置向导）
                 const result = MiniMaxProvider.createAndActivate(context, providerKey, providerConfig);
-                provider = result.provider;
-                disposables = result.disposables;
-            } else if (providerKey === 'modelscope' || providerKey === 'tbox') {
-                // 对 modelscope 和 tbox 使用专门的 provider（自定义流处理）
-                const result = ModelScopeProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
             } else if (providerKey === 'streamlake') {
