@@ -44,7 +44,7 @@ export interface CompatibleModelConfig {
     /** 最大输出token数 */
     maxOutputTokens: number;
     /** SDK模式 */
-    sdkMode: 'openai' | 'anthropic';
+    sdkMode?: 'anthropic' | 'openai' | 'openai-sse';
     /** 模型能力 */
     capabilities: {
         /** 工具调用 */
@@ -807,21 +807,27 @@ export class CompatibleModelManager {
      * @param currentMode - 编辑模式下的当前 SDK 模式
      */
     private static async _selectSDKMode(
-        currentMode?: 'openai' | 'anthropic'
-    ): Promise<'openai' | 'anthropic' | BackButtonClick | undefined> {
+        currentMode?: CompatibleModelConfig['sdkMode']
+    ): Promise<CompatibleModelConfig['sdkMode'] | BackButtonClick | undefined> {
         interface SDKModeItem extends vscode.QuickPickItem {
-            mode: 'openai' | 'anthropic';
+            mode: CompatibleModelConfig['sdkMode'];
         }
         const items: SDKModeItem[] = [
             {
                 label: 'OpenAI SDK',
-                detail: '使用 OpenAI 兼容的 API 格式',
+                detail: 'OpenAI SDK 标准的 API 格式，使用官方 OpenAI SDK 进行请求响应处理',
                 mode: 'openai',
                 picked: currentMode === 'openai'
             },
             {
+                label: 'OpenAI SSE (Preview)',
+                detail: 'OpenAI SSE 兼容的 API 格式，使用插件内实现的SSE解析逻辑进行流式响应处理',
+                mode: 'openai-sse',
+                picked: currentMode === 'openai-sse'
+            },
+            {
                 label: 'Anthropic SDK',
-                detail: '使用 Anthropic 兼容的 API 格式',
+                detail: 'Anthropic SDK 标准的 API 格式，使用官方 Anthropic SDK 进行请求响应处理',
                 mode: 'anthropic',
                 picked: currentMode === 'anthropic'
             }
