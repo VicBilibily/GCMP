@@ -562,7 +562,7 @@ export class CompatibleModelManager {
         const url = await this._createInputBoxWithBackButton({
             title: urlTitle,
             prompt: '输入 API 端点 BASE URL',
-            placeHolder: '例如：https://api.openai.com/v1 或 https://api.anthropic.com/v1',
+            placeHolder: '例如：https://api.openai.com/v1 或 https://api.anthropic.com',
             value: currentConfig?.baseUrl,
             validateInput: value => {
                 if (!value.trim()) {
