@@ -13,6 +13,7 @@
             "provider": "minimax-coding",
             "maxInputTokens": 204800,
             "maxOutputTokens": 16000,
+            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -26,6 +27,7 @@
             "tooltip": "MiniMax-M2 - 专为高效编码与Agent工作流而生",
             "maxInputTokens": 204800,
             "maxOutputTokens": 16000,
+            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false

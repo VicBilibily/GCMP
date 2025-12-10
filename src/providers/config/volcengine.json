@@ -40,6 +40,7 @@
             "tooltip": "DeepSeek-V3.2正式版，平衡推理能力与输出长度，适合日常使用，例如问答场景和通用 Agent 任务场景",
             "maxInputTokens": 128000,
             "maxOutputTokens": 32000,
+            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -143,6 +144,7 @@
             "tooltip": "DeepSeek-V3.2正式版，平衡推理能力与输出长度，适合日常使用，例如问答场景和通用 Agent 任务场景",
             "maxInputTokens": 128000,
             "maxOutputTokens": 32000,
+            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -184,7 +186,7 @@
             "tooltip": "具有通用 Agentic 能力和推理能力的思考模型，它擅长深度推理，并可通过多步工具调用，帮助解决各类难题。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
-            "outputThinking": false,
+            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false

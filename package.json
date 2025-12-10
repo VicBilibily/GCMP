@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.14.17",
+    "version": "0.14.18",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -301,6 +301,11 @@
                                 "type": "boolean",
                                 "description": "是否启用输出思考过程（如有支持）",
                                 "default": true
+                            },
+                            "includeThinking": {
+                                "type": "boolean",
+                                "description": "多轮对话消息是否必须包含思考内容（可选）\n默认值为 false，表示思考内容为可选传递给模型\n当设置为 true 时，工具消息必须包含思考内容，否则会报错",
+                                "default": false
                             },
                             "capabilities": {
                                 "type": "object",

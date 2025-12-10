@@ -58,6 +58,8 @@ export interface CompatibleModelConfig {
     extraBody?: Record<string, unknown>;
     /** 是否启用输出思考过程（默认true，高级功能） */
     outputThinking?: boolean;
+    /** 多轮对话消息是否必须包含思考内容（默认false，高级功能） */
+    includeThinking?: boolean;
     /** 是否由向导创建（内部标记，不持久化） */
     _isFromWizard?: boolean;
 }

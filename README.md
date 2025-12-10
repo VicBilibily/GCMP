@@ -51,7 +51,7 @@
 - [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：**Doubao-Seed-Code**、**DeepSeek-V3.2**(思考模式)
 - **编程系列**：**Doubao-Seed-Code**
 - **豆包系列**：**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
-- **协作奖励计划**：**DeepSeek-V3.2**(思考模式)、**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**(暂不输出思考内容)
+- **协作奖励计划**：**DeepSeek-V3.2**(思考模式)、**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**
 
 ### [**MiniMax**](https://platform.minimaxi.com/login)
 
@@ -66,7 +66,6 @@
 - 预置模型：**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-K2-0711-Preview**、**Kimi-Latest**
     - **余额查询**：已支持状态栏显示当前账户额度，可查看账户余额状况。
 - 思考模型：**Kimi-K2-Thinking**、**Kimi-K2-Thinking-Turbo**
-    - 多次工具调用后思考内容输出存在兼容性问题，暂时关闭思考内容输出
 
 ### [**DeepSeek**](https://platform.deepseek.com/) - 深度求索
 
@@ -185,18 +184,6 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
             {
                 "id": "KAT-Coder-Air-V1",
                 "model": "your-kat-coder-air-endpoint-id"
-            },
-            {
-                "id": "DeepSeek-V3.2-Exp", // 部分提供商提供第三方开源模型，如有需要可自行添加
-                "model": "your-deepseek-v3.2-exp-endpoint-id",
-                "name": "DeepSeek-V3.2-Exp (快手万擎)",
-                "tooltip": "DeepSeek-V3.2-Exp 在 V3.1-Terminus 的基础上引入了 DeepSeek Sparse Attention（一种稀疏注意力机制），针对长文本的训练和推理效率进行了探索性的优化和验证。支持深度思考。",
-                "maxInputTokens": 128000,
-                "maxOutputTokens": 16000,
-                "capabilities": {
-                    "toolCalling": true,
-                    "imageInput": false
-                }
             }
         ]
     }
@@ -233,17 +220,19 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
             // "id": "glm-4.6:claude",
             // "name": "GLM-4.6 (Claude)",
             "provider": "zhipu",
+            "model": "glm-4.6",
             "sdkMode": "openai",
             "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
             // "sdkMode": "anthropic",
             // "baseUrl": "https://open.bigmodel.cn/api/anthropic",
-            "model": "glm-4.6",
             "maxInputTokens": 128000,
             "maxOutputTokens": 4096,
+            // "includeThinking": true, // deepseek-reasoner v3.2 要求多轮对话包含思考过程
             "capabilities": {
-                "toolCalling": true,
+                "toolCalling": true, // Agent模式下模型必须支持工具调用
                 "imageInput": false
             },
+            // customHeader 和 extraBody 可按需设置
             "customHeader": {
                 "X-Model-Specific": "value",
                 "X-Custom-Key": "${APIKEY}"
@@ -251,6 +240,7 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
             "extraBody": {
                 "temperature": 0.1,
                 "top_p": 0.9,
+                // "top_p": null, // 部分提供商不支持同时设置 temperature 和 top_p
                 "thinking": { "type": "disabled" }
             }
         }

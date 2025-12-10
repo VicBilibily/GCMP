@@ -28,6 +28,13 @@ interface ExtendedChoice extends OpenAI.Chat.Completions.ChatCompletionChunk.Cho
 }
 
 /**
+ * 扩展助手消息类型，支持 reasoning_content 字段
+ */
+interface ExtendedAssistantMessageParam extends OpenAI.Chat.ChatCompletionAssistantMessageParam {
+    reasoning_content?: string;
+}
+
+/**
  * OpenAI SDK 处理器
  * 使用 OpenAI SDK 实现流式聊天完成，支持工具调用
  */
@@ -250,7 +257,7 @@ export class OpenAIHandler {
             const requestModel = modelConfig.model || model.id;
             const createParams: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
                 model: requestModel,
-                messages: this.convertMessagesToOpenAI(messages, model.capabilities || undefined),
+                messages: this.convertMessagesToOpenAI(messages, model.capabilities || undefined, modelConfig),
                 max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
                 stream: true,
                 stream_options: { include_usage: true },
@@ -354,6 +361,11 @@ export class OpenAIHandler {
             // 当前正在输出的思维链 ID（可重复开始/结束）
             // 当不为 null 时表示有一个未结束的思维链，遇到第一个可见 content delta 时需要先用相同 id 发送一个空 value 来结束该思维链
             let currentThinkingId: string | null = null;
+            // 思考内容缓存，用于累积思考内容
+            let thinkingContentBuffer: string = '';
+            // 思考内容缓存的最大长度，达到这个范围时报告
+            const MAX_THINKING_BUFFER_LENGTH = 10;
+
             // 使用 OpenAI SDK 的事件驱动流式方法，利用内置工具调用处理
             // 将 vscode.CancellationToken 转换为 AbortSignal
             const abortController = new AbortController();
@@ -384,7 +396,22 @@ export class OpenAIHandler {
                         const deltaVisible =
                             typeof delta === 'string' && delta.replace(/[\s\uFEFF\xA0]+/g, '').length > 0;
                         if (deltaVisible && currentThinkingId) {
-                            // 在输出第一个可见 content 前，显式结束当前思维链：使用相同的 thinking id 发送一个空 value
+                            // 在输出第一个可见 content 前，如果有缓存的思考内容，先报告出来
+                            if (thinkingContentBuffer.length > 0) {
+                                try {
+                                    progress.report(
+                                        new vscode.LanguageModelThinkingPart(thinkingContentBuffer, currentThinkingId)
+                                    );
+                                    Logger.trace(
+                                        `${model.name} 在输出content前报告剩余思考内容: ${thinkingContentBuffer.length}字符`
+                                    );
+                                    thinkingContentBuffer = ''; // 清空缓存
+                                } catch (e) {
+                                    Logger.trace(`${model.name} 报告剩余思考内容失败: ${String(e)}`);
+                                }
+                            }
+
+                            // 然后结束当前思维链
                             try {
                                 Logger.trace(`${model.name} 在输出content前结束当前思维链 id=${currentThinkingId}`);
                                 progress.report(new vscode.LanguageModelThinkingPart('', currentThinkingId));
@@ -408,6 +435,7 @@ export class OpenAIHandler {
                             if (token.isCancellationRequested) {
                                 return;
                             }
+
                             // 基于事件索引和名称生成去重标识
                             const eventKey = `tool_call_${event.name}_${event.index}_${event.arguments.length}`;
                             if (this.currentRequestProcessedEvents.has(eventKey)) {
@@ -424,6 +452,7 @@ export class OpenAIHandler {
                             hasReceivedContent = true;
                         }
                     )
+
                     .on(
                         'tool_calls.function.arguments.delta',
                         (event: { name: string; index: number; arguments_delta: string }) => {
@@ -451,6 +480,39 @@ export class OpenAIHandler {
                                 const delta = choice.delta as ExtendedDelta | undefined;
                                 const message = choice.message;
 
+                                // 检查是否有工具调用开始（tool_calls delta 存在但还没有 arguments）
+                                if (delta?.tool_calls && delta.tool_calls.length > 0) {
+                                    for (const toolCall of delta.tool_calls) {
+                                        // 如果有工具调用但没有 arguments，表示工具调用刚开始
+                                        if (toolCall.index !== undefined && !toolCall.function?.arguments) {
+                                            // 在工具调用开始时，如果有缓存的思考内容，先报告出来
+                                            if (thinkingContentBuffer.length > 0 && currentThinkingId) {
+                                                try {
+                                                    progress.report(
+                                                        new vscode.LanguageModelThinkingPart(
+                                                            thinkingContentBuffer,
+                                                            currentThinkingId
+                                                        )
+                                                    );
+                                                    Logger.trace(
+                                                        `${model.name} 在工具调用开始时报告剩余思考内容: ${thinkingContentBuffer.length}字符`
+                                                    );
+                                                    // 结束当前思维链
+                                                    progress.report(
+                                                        new vscode.LanguageModelThinkingPart('', currentThinkingId)
+                                                    );
+                                                    thinkingContentBuffer = ''; // 清空缓存
+                                                } catch (e) {
+                                                    Logger.trace(`${model.name} 报告剩余思考内容失败: ${String(e)}`);
+                                                }
+                                            }
+                                            Logger.trace(
+                                                `🔧 工具调用开始: ${toolCall.function?.name || 'unknown'} (索引: ${toolCall.index})`
+                                            );
+                                        }
+                                    }
+                                }
+
                                 // 兼容：优先使用 delta 中的 reasoning_content，否则尝试从 message 中读取
                                 const reasoningContent = delta?.reasoning_content ?? message?.reasoning_content;
                                 if (reasoningContent) {
@@ -459,18 +521,35 @@ export class OpenAIHandler {
                                     if (shouldOutputThinking) {
                                         try {
                                             Logger.trace(
-                                                `🧠 接收到思考内容 (choice ${choiceIndex}): ${reasoningContent.length}字符`
+                                                `🧠 接收到思考内容 (choice ${choiceIndex}): ${reasoningContent.length}字符, 内容="${reasoningContent}"`
                                             );
+
                                             // 如果当前没有 active id，则生成一个用于本次思维链
                                             if (!currentThinkingId) {
                                                 currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
                                             }
-                                            progress.report(
-                                                new vscode.LanguageModelThinkingPart(
-                                                    reasoningContent,
-                                                    currentThinkingId
-                                                )
+
+                                            // 将思考内容添加到缓存
+                                            thinkingContentBuffer += reasoningContent;
+                                            Logger.trace(
+                                                `添加思考内容到缓存: ${reasoningContent.length}字符, 当前缓存总长度: ${thinkingContentBuffer.length}`
                                             );
+
+                                            // 检查是否达到报告条件
+                                            if (thinkingContentBuffer.length >= MAX_THINKING_BUFFER_LENGTH) {
+                                                // 达到最大长度，立即报告
+                                                progress.report(
+                                                    new vscode.LanguageModelThinkingPart(
+                                                        thinkingContentBuffer,
+                                                        currentThinkingId
+                                                    )
+                                                );
+                                                Logger.trace(
+                                                    `达到最大长度，报告思考内容: ${thinkingContentBuffer.length}字符`
+                                                );
+                                                thinkingContentBuffer = ''; // 清空缓存
+                                            }
+
                                             // 标记已接收内容
                                             hasReceivedContent = true;
                                         } catch (e) {
@@ -527,6 +606,18 @@ export class OpenAIHandler {
                     });
                 // 等待流处理完成
                 await stream.done();
+
+                // 流结束时，检查是否有未报告的思考内容缓存
+                if (thinkingContentBuffer.length > 0 && currentThinkingId) {
+                    try {
+                        progress.report(new vscode.LanguageModelThinkingPart(thinkingContentBuffer, currentThinkingId));
+                        Logger.trace(`流结束时报告缓存的思考内容: ${thinkingContentBuffer.length}字符`);
+                        thinkingContentBuffer = ''; // 清空缓存
+                    } catch (e) {
+                        Logger.trace(`流结束时报告思考内容失败: ${String(e)}`);
+                    }
+                }
+
                 // 检查是否有流错误
                 if (streamError) {
                     throw streamError;
@@ -622,11 +713,12 @@ export class OpenAIHandler {
      */
     convertMessagesToOpenAI(
         messages: readonly vscode.LanguageModelChatMessage[],
-        capabilities?: { toolCalling?: boolean | number; imageInput?: boolean }
+        capabilities?: { toolCalling?: boolean | number; imageInput?: boolean },
+        modelConfig?: ModelConfig
     ): OpenAI.Chat.ChatCompletionMessageParam[] {
         const result: OpenAI.Chat.ChatCompletionMessageParam[] = [];
         for (const message of messages) {
-            const convertedMessage = this.convertSingleMessage(message, capabilities);
+            const convertedMessage = this.convertSingleMessage(message, capabilities, modelConfig);
             if (convertedMessage) {
                 if (Array.isArray(convertedMessage)) {
                     result.push(...convertedMessage);
@@ -643,7 +735,8 @@ export class OpenAIHandler {
      */
     public convertSingleMessage(
         message: vscode.LanguageModelChatMessage,
-        capabilities?: { toolCalling?: boolean | number; imageInput?: boolean }
+        capabilities?: { toolCalling?: boolean | number; imageInput?: boolean },
+        modelConfig?: ModelConfig
     ): OpenAI.Chat.ChatCompletionMessageParam | OpenAI.Chat.ChatCompletionMessageParam[] | null {
         switch (message.role) {
             case vscode.LanguageModelChatMessageRole.System:
@@ -651,7 +744,7 @@ export class OpenAIHandler {
             case vscode.LanguageModelChatMessageRole.User:
                 return this.convertUserMessage(message, capabilities);
             case vscode.LanguageModelChatMessageRole.Assistant:
-                return this.convertAssistantMessage(message);
+                return this.convertAssistantMessage(message, modelConfig);
             default:
                 Logger.warn(`未知的消息角色: ${message.role}`);
                 return null;
@@ -803,12 +896,14 @@ export class OpenAIHandler {
      * 转换助手消息 - 处理文本和工具调用
      */
     private convertAssistantMessage(
-        message: vscode.LanguageModelChatMessage
+        message: vscode.LanguageModelChatMessage,
+        modelConfig?: ModelConfig
     ): OpenAI.Chat.ChatCompletionAssistantMessageParam | null {
         const textContent = this.extractTextContent(message.content);
         const toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = [];
+        let thinkingContent: string | null = null;
 
-        // 处理工具调用
+        // 处理工具调用和思考内容
         for (const part of message.content) {
             if (part instanceof vscode.LanguageModelToolCallPart) {
                 toolCalls.push({
@@ -823,19 +918,49 @@ export class OpenAIHandler {
             }
         }
 
-        // 如果没有内容和工具调用，返回 null
-        if (!textContent && toolCalls.length === 0) {
+        // 检查是否需要包含思考内容
+        const includeThinking = modelConfig?.includeThinking === true;
+        if (includeThinking) {
+            // 从消息中提取思考内容
+            Logger.trace(`检查是否需要包含思考内容: includeThinking=${includeThinking}`);
+
+            // 遍历消息内容，查找 LanguageModelThinkingPart
+            for (const part of message.content) {
+                if (part instanceof vscode.LanguageModelThinkingPart) {
+                    // 处理思考内容，可能是字符串或字符串数组
+                    if (Array.isArray(part.value)) {
+                        thinkingContent = part.value.join('');
+                    } else {
+                        thinkingContent = part.value;
+                    }
+                    Logger.trace(`提取到思考内容: ${thinkingContent.length} 字符`);
+                    break; // 只取第一个思考内容部分
+                }
+            }
+        }
+
+        // 如果没有文本内容、思考内容和工具调用，返回 null
+        if (!textContent && !thinkingContent && toolCalls.length === 0) {
             return null;
         }
 
-        const assistantMessage: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
+        // 创建扩展的助手消息，支持 reasoning_content 字段
+        const assistantMessage: ExtendedAssistantMessageParam = {
             role: 'assistant',
-            content: textContent || null
+            content: textContent || null // 只包含普通文本内容，不包含思考内容
         };
+
+        // 如果有思考内容，添加到 reasoning_content 字段
+        if (thinkingContent) {
+            assistantMessage.reasoning_content = thinkingContent;
+            Logger.trace(`添加 reasoning_content: ${thinkingContent.length} 字符`);
+        }
+
         if (toolCalls.length > 0) {
             assistantMessage.tool_calls = toolCalls;
             // Logger.debug(`Assistant消息包含 ${toolCalls.length} 个工具调用`);
         }
+
         return assistantMessage;
     }
 
@@ -848,6 +973,7 @@ export class OpenAIHandler {
             | vscode.LanguageModelDataPart
             | vscode.LanguageModelToolCallPart
             | vscode.LanguageModelToolResultPart
+            | vscode.LanguageModelThinkingPart
         )[]
     ): string | null {
         const textParts = content

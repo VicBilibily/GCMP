@@ -2,16 +2,36 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的所有重要更改。
 
+## [0.14.18] - 2025-12-10
+
+### 新增
+
+- **OpenAI Compatible**：`includeThinking` 新增参数以支持多轮对话思考过程传递
+    - "includeThinking": true, // deepseek-reasoner v3.2 要求多轮对话包含思考过程
+
+### 调整
+
+- 解决思考内容存在换行问题（采用思考过程积累一定字符后输出显示）[#14](https://github.com/VicBilibily/GCMP/issues/14)
+    - `Kimi-K2-Thinking` 内置模型全量恢复思考过程的输出显示
+- **iFLow心流AI** 模型移除：
+    - 兼容性异常模型：`DeepSeek-V3.2-Exp`、`DeepSeek-V3.1-Terminus`
+
 ## [0.14.17] - 2025-12-10
+
+### 新增
 
 - **OpenAI Compatible**：`openai-sse` 新增支持思考过程输出
 
 ## [0.14.16] - 2025-12-10
 
+### 新增
+
 - **OpenAI / Anthropic Compatible**：
     - OpenAI Compatible 初步支持 `openai-sse`(Preview) 非标准模型接口响应格式（原针对魔搭社区的兼容的实现）
 
 ## [0.14.15] - 2025-12-08
+
+### 新增
 
 - **OpenAI / Anthropic Compatible** 内置部分已知提供商支持余额查询：
     - **aiping**： [**AI Ping**](https://aiping.cn/#?invitation_code=EBQQKW) 用户账户余额(5分钟刷新)

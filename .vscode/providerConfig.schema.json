@@ -110,6 +110,11 @@
                     "description": "是否启用输出思考过程（如有支持）",
                     "default": true
                 },
+                "includeThinking": {
+                    "type": "boolean",
+                    "description": "多轮对话消息是否必须包含思考内容（可选）",
+                    "default": false
+                },
                 "customHeader": {
                     "type": "object",
                     "description": "可选的自定义HTTP头部，将在API请求中附加。",

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * 模型配置接口 - 来自package.json
+ * 模型配置接口
  */
 export interface ModelConfig {
     id: string;
@@ -57,6 +57,12 @@ export interface ModelConfig {
      * 注意：此功能默认启用，无需用户手动配置
      */
     outputThinking?: boolean;
+    /**
+     * 多轮对话消息是否必须包含思考内容（可选）
+     * 默认值为 false，表示思考内容为可选传递给模型
+     * 当设置为 true 时，工具消息必须包含思考内容，否则会报错
+     */
+    includeThinking?: boolean;
 }
 
 /**

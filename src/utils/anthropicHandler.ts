@@ -169,12 +169,19 @@ export class AnthropicHandler {
         let pendingRedactedThinking: { data: string } | undefined;
         let usage: { inputTokens: number; outputTokens: number; totalTokens: number } | undefined;
 
+        // 思考内容缓存的最大长度，达到这个范围时报告
+        const MAX_THINKING_BUFFER_LENGTH = 20;
+        // 当前正在输出的思维链 ID
+        let currentThinkingId: string | null = null;
+
         Logger.debug('开始处理 Anthropic 流式响应');
 
         try {
             for await (const chunk of stream) {
                 if (token.isCancellationRequested) {
                     Logger.debug('流处理被取消');
+                    // 使用统一方法处理剩余思考内容
+                    this.reportRemainingThinkingContent(progress, pendingThinking, currentThinkingId, '流取消');
                     break;
                 }
 
@@ -246,6 +253,19 @@ export class AnthropicHandler {
                     case 'content_block_start':
                         // 内容块开始
                         if (chunk.content_block.type === 'tool_use') {
+                            // 在工具调用开始前，使用统一方法处理剩余思考内容
+                            this.reportRemainingThinkingContent(
+                                progress,
+                                pendingThinking,
+                                currentThinkingId,
+                                '工具调用开始'
+                            );
+                            // 清空 pendingThinking 内容和ID，避免重复处理
+                            if (pendingThinking) {
+                                pendingThinking.thinking = '';
+                            }
+                            currentThinkingId = null;
+
                             pendingToolCall = {
                                 toolId: chunk.content_block.id,
                                 name: chunk.content_block.name,
@@ -258,8 +278,22 @@ export class AnthropicHandler {
                                 thinking: '',
                                 signature: ''
                             };
+                            // 生成思考块ID
+                            currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
                             Logger.trace('思考块开始 (流式输出)');
                         } else if (chunk.content_block.type === 'text') {
+                            // 在文本块开始前，使用统一方法处理剩余思考内容
+                            this.reportRemainingThinkingContent(
+                                progress,
+                                pendingThinking,
+                                currentThinkingId,
+                                '文本块开始'
+                            );
+                            // 清空 pendingThinking 内容和ID，避免重复处理
+                            if (pendingThinking) {
+                                pendingThinking.thinking = '';
+                            }
+                            currentThinkingId = null;
                             Logger.trace('文本块开始');
                         } /* else if (chunk.content_block.type === 'server_tool_use') {
                             // 处理服务器端工具使用（例如 web_search）(暂不支持)
@@ -307,21 +341,40 @@ export class AnthropicHandler {
                             pendingServerToolCall.jsonInput =
                                 (pendingServerToolCall.jsonInput || '') + chunk.delta.partial_json;
                         } */ else if (chunk.delta.type === 'thinking_delta') {
-                            // 思考内容增量 - 流式输出
-                            // 检查模型配置中的 outputThinking 设置
-                            const shouldOutputThinking = modelConfig?.outputThinking !== false; // 默认 true
-                            if (shouldOutputThinking) {
-                                if (pendingThinking) {
-                                    pendingThinking.thinking =
-                                        (pendingThinking.thinking || '') + (chunk.delta.thinking || '');
-                                    progress.report(new vscode.LanguageModelThinkingPart(chunk.delta.thinking || ''));
-                                }
-                            } else {
-                                Logger.trace('⏭️ 跳过思考内容输出：配置为不输出thinking');
-                                // 累积thinking但不输出
-                                if (pendingThinking) {
-                                    pendingThinking.thinking =
-                                        (pendingThinking.thinking || '') + (chunk.delta.thinking || '');
+                            // 思考内容增量 - 只累积到 pendingThinking，用缓冲机制报告
+                            const thinkingDelta = chunk.delta.thinking || '';
+
+                            if (pendingThinking) {
+                                // 累积到 pendingThinking
+                                pendingThinking.thinking = (pendingThinking.thinking || '') + thinkingDelta;
+
+                                // 检查模型配置中的 outputThinking 设置
+                                const shouldOutputThinking = modelConfig?.outputThinking !== false; // 默认 true
+                                if (shouldOutputThinking) {
+                                    // 用 pendingThinking 的内容作为缓冲进行报告
+                                    const currentThinkingContent = pendingThinking.thinking || '';
+
+                                    // 当内容达到最大长度时报告
+                                    if (currentThinkingContent.length >= MAX_THINKING_BUFFER_LENGTH) {
+                                        if (!currentThinkingId) {
+                                            currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                                        }
+                                        try {
+                                            progress.report(
+                                                new vscode.LanguageModelThinkingPart(
+                                                    currentThinkingContent,
+                                                    currentThinkingId
+                                                )
+                                            );
+                                            Logger.trace(`思考内容缓冲满，报告 ${currentThinkingContent.length} 字符`);
+                                            // 清空 pendingThinking 的内容，避免重复报告
+                                            pendingThinking.thinking = '';
+                                        } catch (e) {
+                                            Logger.trace(`报告思考内容失败: ${String(e)}`);
+                                        }
+                                    }
+                                } else {
+                                    Logger.trace('⏭️ 跳过思考内容输出：配置为不输出thinking');
                                 }
                             }
                         } else if (chunk.delta.type === 'signature_delta') {
@@ -380,15 +433,41 @@ export class AnthropicHandler {
                             }
                             pendingToolCall = undefined;
                         } else if (pendingThinking) {
-                            // 处理思考块结束
-                            if (pendingThinking.signature) {
-                                const finalThinkingPart = new vscode.LanguageModelThinkingPart('');
-                                finalThinkingPart.metadata = {
-                                    signature: pendingThinking.signature,
-                                    _completeThinking: pendingThinking.thinking || ''
-                                };
+                            // 处理思考块结束 - 统一处理思考内容和签名信息
+                            let hasReportedContent = false;
+
+                            // 如果有思考内容，先报告并可能添加签名元数据
+                            const finalThinkingContent = pendingThinking.thinking || '';
+                            if (finalThinkingContent.length > 0 && currentThinkingId) {
+                                const finalThinkingPart = new vscode.LanguageModelThinkingPart(
+                                    finalThinkingContent,
+                                    currentThinkingId
+                                );
+
+                                // 如果有签名，添加到元数据中
+                                if (pendingThinking.signature) {
+                                    finalThinkingPart.metadata = {
+                                        signature: pendingThinking.signature,
+                                        _completeThinking: finalThinkingContent
+                                    };
+                                }
+
                                 progress.report(finalThinkingPart);
+                                // 结束当前思维链
+                                progress.report(new vscode.LanguageModelThinkingPart('', currentThinkingId));
+                                hasReportedContent = true;
                             }
+
+                            // 如果只有签名但没有思考内容，创建一个包含签名元数据的空思考部分
+                            if (!hasReportedContent && pendingThinking.signature) {
+                                const signaturePart = new vscode.LanguageModelThinkingPart('');
+                                signaturePart.metadata = {
+                                    signature: pendingThinking.signature,
+                                    _completeThinking: finalThinkingContent
+                                };
+                                progress.report(signaturePart);
+                            }
+
                             pendingThinking = undefined;
                             Logger.debug('思考块完成');
                         } else if (pendingRedactedThinking) {
@@ -425,7 +504,13 @@ export class AnthropicHandler {
                         break;
 
                     case 'message_stop':
-                        // 消息停止
+                        // 消息停止 - 使用统一方法处理剩余思考内容
+                        this.reportRemainingThinkingContent(progress, pendingThinking, currentThinkingId, '消息流结束');
+                        // 清空 pendingThinking 内容和ID，避免重复处理
+                        if (pendingThinking) {
+                            pendingThinking.thinking = '';
+                        }
+                        currentThinkingId = null;
                         Logger.trace('消息流完成');
                         break;
 
@@ -438,7 +523,11 @@ export class AnthropicHandler {
             }
         } catch (error) {
             Logger.error('处理 Anthropic 流时出错:', error);
+            // 错误处理逻辑移到 finally 块中统一处理
             throw error;
+        } finally {
+            // 统一处理未报告的思考内容（包括正常完成、错误、取消等情况）
+            this.reportRemainingThinkingContent(progress, pendingThinking, currentThinkingId, '流处理结束');
         }
 
         if (usage) {
@@ -450,5 +539,27 @@ export class AnthropicHandler {
         }
 
         return { usage };
+    }
+
+    /**
+     * 统一处理剩余思考内容的报告
+     */
+    private reportRemainingThinkingContent(
+        progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
+        pendingThinking: { thinking?: string; signature?: string } | undefined,
+        currentThinkingId: string | null,
+        context: string
+    ): void {
+        const thinkingContent = pendingThinking?.thinking || '';
+        if (thinkingContent.length > 0 && currentThinkingId) {
+            try {
+                progress.report(new vscode.LanguageModelThinkingPart(thinkingContent, currentThinkingId));
+                Logger.trace(`${context}时报告剩余思考内容: ${thinkingContent.length}字符`);
+                // 结束当前思维链
+                progress.report(new vscode.LanguageModelThinkingPart('', currentThinkingId));
+            } catch (e) {
+                Logger.trace(`${context}时报告思考内容失败: ${String(e)}`);
+            }
+        }
     }
 }

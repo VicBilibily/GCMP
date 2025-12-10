@@ -24,6 +24,7 @@
             "baseUrl": "https://api.deepseek.com/anthropic",
             "maxInputTokens": 128000,
             "maxOutputTokens": 32000,
+            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
