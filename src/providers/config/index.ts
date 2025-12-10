@@ -12,8 +12,6 @@ import dashscope from './dashscope.json';
 import tbox from './tbox.json';
 import modelscope from './modelscope.json';
 import baidu from './baidu.json';
-import aihubmix from './aihubmix.json';
-import aiping from './aiping.json';
 
 const providers = {
     zhipu,
@@ -27,9 +25,7 @@ const providers = {
     dashscope,
     tbox,
     modelscope,
-    baidu,
-    aihubmix,
-    aiping
+    baidu
 };
 
 export type ProviderName = keyof typeof providers;

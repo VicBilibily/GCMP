@@ -14,6 +14,16 @@ import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { Logger, ApiKeyManager, CompatibleModelManager, RetryManager, ConfigManager } from '../utils';
 import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status';
+import OpenAI from 'openai';
+
+/**
+ * 工具调用缓存结构
+ */
+interface ToolCallBuffer {
+    id?: string;
+    name?: string;
+    arguments: string;
+}
 
 /**
  * 独立兼容模型提供商类
@@ -317,6 +327,16 @@ export class CompatibleProvider extends GenericModelProvider {
                                 progress,
                                 token
                             );
+                        } else if (sdkMode === 'openai-sse') {
+                            // OpenAI 模式：使用自定义 SSE 流处理
+                            await this.handleRequestWithCustomSSE(
+                                model,
+                                modelConfig,
+                                messages,
+                                options,
+                                progress,
+                                token
+                            );
                         } else {
                             await this.openaiHandler.handleRequest(
                                 model,
@@ -344,6 +364,303 @@ export class CompatibleProvider extends GenericModelProvider {
             Logger.error('Compatible Provider 处理请求失败:', error);
             throw error;
         }
+    }
+
+    /**
+     * 使用自定义 SSE 流处理的请求方法
+     */
+    private async handleRequestWithCustomSSE(
+        model: vscode.LanguageModelChatInformation,
+        modelConfig: ModelConfig,
+        messages: readonly vscode.LanguageModelChatMessage[],
+        options: vscode.ProvideLanguageModelChatResponseOptions,
+        progress: vscode.Progress<vscode.LanguageModelResponsePart>,
+        token: vscode.CancellationToken
+    ): Promise<void> {
+        const provider = modelConfig.provider || this.providerKey;
+        const apiKey = await ApiKeyManager.getApiKey(provider);
+        if (!apiKey) {
+            throw new Error(`缺少 ${provider} API 密钥`);
+        }
+
+        const baseURL = modelConfig.baseUrl || 'https://api.openai.com/v1';
+        const url = `${baseURL}/chat/completions`;
+
+        Logger.info(`[${model.name}] 处理 ${messages.length} 条消息，使用自定义 SSE 处理`);
+
+        // 构建请求参数
+        const requestBody: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
+            model: modelConfig.model || model.id,
+            messages: this.openaiHandler.convertMessagesToOpenAI(messages, model.capabilities || undefined),
+            max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
+            stream: true,
+            temperature: ConfigManager.getTemperature(),
+            top_p: ConfigManager.getTopP()
+        };
+
+        // 添加工具支持（如果有）
+        if (options.tools && options.tools.length > 0 && model.capabilities?.toolCalling) {
+            requestBody.tools = this.openaiHandler.convertToolsToOpenAI([...options.tools]);
+            requestBody.tool_choice = 'auto';
+        }
+
+        // 合并extraBody参数（如果有）
+        if (modelConfig.extraBody) {
+            const filteredExtraBody = modelConfig.extraBody;
+            Object.assign(requestBody, filteredExtraBody);
+            Logger.trace(`${model.name} 合并了 extraBody 参数: ${JSON.stringify(filteredExtraBody)}`);
+        }
+
+        Logger.debug(`[${model.name}] 发送 API 请求`);
+
+        const abortController = new AbortController();
+        const cancellationListener = token.onCancellationRequested(() => abortController.abort());
+
+        try {
+            // 处理 customHeader 中的 API 密钥替换
+            const processedCustomHeader = ApiKeyManager.processCustomHeader(modelConfig?.customHeader, apiKey);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${apiKey}`,
+                    ...processedCustomHeader
+                },
+                body: JSON.stringify(requestBody),
+                signal: abortController.signal
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`API请求失败: ${response.status} ${response.statusText} - ${errorText}`);
+            }
+
+            if (!response.body) {
+                throw new Error('响应体为空');
+            }
+
+            const hasReceivedContent = await this.processStream(response.body, progress, token, model.name);
+
+            Logger.debug(`[${model.name}] 流处理完成`);
+
+            // 注意：工具调用响应可能不包含文本内容，这是正常的
+            if (!hasReceivedContent) {
+                Logger.debug(`[${model.name}] 流结束但未收到文本内容（可能是纯工具调用响应）`);
+            }
+
+            Logger.debug(`[${model.name}] API请求完成`);
+        } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+                Logger.warn(`[${model.name}] 用户取消了请求`);
+                throw new vscode.CancellationError();
+            }
+            throw error;
+        } finally {
+            cancellationListener.dispose();
+        }
+    }
+
+    /**
+     * 处理 SSE 流
+     */
+    private async processStream(
+        body: ReadableStream<Uint8Array>,
+        progress: vscode.Progress<vscode.LanguageModelResponsePart>,
+        token: vscode.CancellationToken,
+        modelName: string
+    ): Promise<boolean> {
+        const reader = body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let hasReceivedContent = false;
+        let chunkCount = 0;
+        const toolCallsBuffer = new Map<number, ToolCallBuffer>();
+
+        try {
+            while (true) {
+                if (token.isCancellationRequested) {
+                    Logger.warn(`[${modelName}] 用户取消了请求`);
+                    break;
+                }
+
+                const { done, value } = await reader.read();
+                if (done) {
+                    break;
+                }
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (!line.trim() || line.trim() === '') {
+                        continue;
+                    }
+
+                    // 处理 SSE 数据行
+                    if (line.startsWith('data:')) {
+                        const data = line.substring(5).trim();
+
+                        if (data === '[DONE]') {
+                            Logger.debug(`[${modelName}] 收到流结束标记`);
+                            continue;
+                        }
+
+                        try {
+                            const chunk = JSON.parse(data);
+                            chunkCount++;
+                            // 输出完整的 chunk 到 trace 日志
+                            Logger.trace(`[${modelName}] Chunk #${chunkCount}: ${JSON.stringify(chunk)}`);
+                            const hasContent = this.handleStreamChunk(chunk, progress, modelName, toolCallsBuffer);
+                            if (hasContent) {
+                                hasReceivedContent = true;
+                            }
+                        } catch (error) {
+                            Logger.error(`[${modelName}] 解析 JSON 失败: ${data}`, error);
+                        }
+                    }
+                }
+            }
+        } finally {
+            reader.releaseLock();
+        }
+
+        Logger.trace(`[${modelName}] SSE 流处理统计: ${chunkCount} 个 chunk, hasReceivedContent=${hasReceivedContent}`);
+        return hasReceivedContent;
+    }
+
+    /**
+     * 处理流式响应块
+     */
+    private handleStreamChunk(
+        chunk: {
+            usage?: unknown;
+            choices?: Array<{
+                delta?: {
+                    content?: string;
+                    tool_calls?: Array<{
+                        index?: number;
+                        id?: string;
+                        function?: { name?: string; arguments?: string };
+                    }>;
+                };
+                finish_reason?: string;
+            }>;
+        },
+        progress: vscode.Progress<vscode.LanguageModelResponsePart>,
+        modelName: string,
+        toolCallsBuffer: Map<number, ToolCallBuffer>
+    ): boolean {
+        let hasContent = false;
+
+        // 检查是否是包含usage信息的最终chunk
+        if (chunk.usage && (!chunk.choices || chunk.choices.length === 0)) {
+            Logger.debug(`[${modelName}] 收到使用统计信息: ${JSON.stringify(chunk.usage)}`);
+            return true;
+        }
+
+        // 处理正常的choices
+        for (const choice of chunk.choices || []) {
+            const delta = choice.delta;
+
+            // 处理文本内容（即使 delta 存在但可能为空对象）
+            if (delta && delta.content && typeof delta.content === 'string') {
+                Logger.trace(`[${modelName}] 输出文本内容: ${delta.content.length} 字符`);
+                progress.report(new vscode.LanguageModelTextPart(delta.content));
+                hasContent = true;
+            }
+
+            // 处理工具调用 - 支持分块数据的累积处理
+            if (delta && delta.tool_calls && Array.isArray(delta.tool_calls)) {
+                for (const toolCall of delta.tool_calls) {
+                    const toolIndex = toolCall.index ?? 0;
+
+                    // 获取或创建工具调用缓存
+                    let bufferedTool = toolCallsBuffer.get(toolIndex);
+                    if (!bufferedTool) {
+                        bufferedTool = { arguments: '' };
+                        toolCallsBuffer.set(toolIndex, bufferedTool);
+                    }
+
+                    // 累积工具调用数据
+                    if (toolCall.id) {
+                        bufferedTool.id = toolCall.id;
+                    }
+                    if (toolCall.function?.name) {
+                        bufferedTool.name = toolCall.function.name;
+                    }
+                    if (toolCall.function?.arguments) {
+                        bufferedTool.arguments += toolCall.function.arguments;
+                    }
+
+                    Logger.debug(
+                        `[${modelName}] 累积工具调用数据 [${toolIndex}]: name=${bufferedTool.name}, args_length=${bufferedTool.arguments.length}`
+                    );
+                }
+            }
+
+            // 检查是否完成
+            if (choice.finish_reason) {
+                Logger.debug(`[${modelName}] 流已结束，原因: ${choice.finish_reason}`);
+
+                // 如果是工具调用结束，处理缓存中的工具调用
+                if (choice.finish_reason === 'tool_calls') {
+                    const toolProcessed = this.processBufferedToolCalls(progress, modelName, toolCallsBuffer);
+                    if (toolProcessed) {
+                        hasContent = true;
+                        Logger.trace(`[${modelName}] 工具调用已处理，标记为已接收内容`);
+                    }
+                } else if (choice.finish_reason === 'stop') {
+                    // 对于 stop，标记为已处理（即使没有文本内容，也可能有之前的工具调用）
+                    if (!hasContent) {
+                        Logger.trace(`[${modelName}] finish_reason=stop，未收到文本内容`);
+                    }
+                    // 如果有任何处理（文本或工具调用），都算作有效响应
+                    // 即使只是流结束标记，也应该算作接收到响应
+                    hasContent = true;
+                }
+            }
+        }
+
+        return hasContent;
+    }
+
+    /**
+     * 处理缓存中的工具调用
+     */
+    private processBufferedToolCalls(
+        progress: vscode.Progress<vscode.LanguageModelResponsePart>,
+        modelName: string,
+        toolCallsBuffer: Map<number, ToolCallBuffer>
+    ): boolean {
+        let hasProcessed = false;
+
+        for (const [toolIndex, bufferedTool] of toolCallsBuffer.entries()) {
+            if (bufferedTool.name && bufferedTool.arguments) {
+                try {
+                    const args = JSON.parse(bufferedTool.arguments);
+                    const toolCallId = bufferedTool.id || `tool_${Date.now()}_${toolIndex}`;
+
+                    progress.report(new vscode.LanguageModelToolCallPart(toolCallId, bufferedTool.name, args));
+
+                    Logger.info(
+                        `[${modelName}] 成功处理工具调用: ${bufferedTool.name}, args: ${bufferedTool.arguments}`
+                    );
+                    hasProcessed = true;
+                } catch (error) {
+                    Logger.error(
+                        `[${modelName}] 无法解析工具调用参数: ${bufferedTool.name}, args: ${bufferedTool.arguments}, error: ${error}`
+                    );
+                }
+            } else {
+                Logger.warn(
+                    `[${modelName}] 不完整的工具调用 [${toolIndex}]: name=${bufferedTool.name}, args_length=${bufferedTool.arguments.length}`
+                );
+            }
+        }
+
+        return hasProcessed;
     }
 
     /**

@@ -21,8 +21,9 @@ export interface ModelConfig {
      * SDK模式选择（可选）
      * - "anthropic": 使用 Anthropic SDK
      * - "openai": 使用 OpenAI SDK（默认）
+     * - "openai-sse": 使用 OpenAI SSE 兼容模式（自定义实现流式响应处理）
      */
-    sdkMode?: 'anthropic' | 'openai';
+    sdkMode?: 'anthropic' | 'openai' | 'openai-sse';
     /**
      * 模型特定的baseUrl（可选）
      * 如果提供，将覆盖提供商级别的baseUrl

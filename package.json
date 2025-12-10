@@ -267,9 +267,15 @@
                                 "type": "string",
                                 "enum": [
                                     "openai",
+                                    "openai-sse",
                                     "anthropic"
                                 ],
-                                "description": "SDK模式：openai（OpenAI兼容格式）或 anthropic（Anthropic兼容格式）",
+                                "enumDescriptions": [
+                                    "OpenAI SDK 标准模式，使用官方 OpenAI SDK 进行请求响应处理",
+                                    "OpenAI SSE 兼容模式，使用插件内实现的SSE解析逻辑进行流式响应处理",
+                                    "Anthropic SDK 标准模式，使用官方 Anthropic SDK 进行请求响应处理"
+                                ],
+                                "description": "SDK模式默认为 openai。",
                                 "default": "openai"
                             },
                             "baseUrl": {
