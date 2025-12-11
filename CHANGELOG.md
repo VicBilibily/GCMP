@@ -2,6 +2,36 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的所有重要更改。
 
+## [0.15.0] - 2025-12-12
+
+### 新增
+
+- 内置支持 NES (Next Edit Suggestions) 代码补全
+
+**示例配置**
+
+```json
+  "gcmp.nesCompletion.enabled": true,
+  "gcmp.nesCompletion.debounceMs": 500, // 自动触发补全的防抖延迟
+  "gcmp.nesCompletion.timeoutMs": 10000, // NES 补全 OpenAI 接口请求超时时间
+  "gcmp.nesCompletion.manualOnly": false, // 启用手动 `Alt+/` 快捷键触发代码补全提示
+  "gcmp.nesCompletion.modelConfig": {
+    "provider": "zhipu", // 提供商ID, 其他请先添加 OpenAI Compatible 自定义模型 provider 并设置 ApiKey。
+    "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4", // 指定 OpenAI Endpoint 的 BaseUrl 地址
+    "model": "glm-4.6",
+    "extraBody": {
+      "thinking": { "type": "disabled" }
+    },
+    // "provider": "siliconflow",
+    // "baseUrl": "https://api.siliconflow.cn/v1",
+    // "model": "zai-org/GLM-4.6",
+    // "provider": "deepseek",
+    // "baseUrl": "https://api.deepseek.com/v1",
+    // "model": "deepseek-chat",
+    "maxTokens": 100
+  }
+```
+
 ## [0.14.19] - 2025-12-11
 
 ### 新增

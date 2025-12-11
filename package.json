@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.14.19",
+    "version": "0.15.0",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -150,6 +150,26 @@
                 "command": "gcmp.compatible.manageModels",
                 "title": "Compatible Provider 设置",
                 "category": "GCMP"
+            },
+            {
+                "command": "gcmp.nesCompletion.enable",
+                "title": "启用 NES 补全",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.nesCompletion.disable",
+                "title": "禁用 NES 补全",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.nesCompletion.toggle",
+                "title": "切换 NES 补全",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.nesCompletion.toggleManual",
+                "title": "切换 NES 手动触发模式",
+                "category": "GCMP"
             }
         ],
         "configuration": {
@@ -216,6 +236,78 @@
                     "default": "minimaxi.com",
                     "description": "MiniMax Coding Plan 接入站点。minimaxi.com 为国内站（推荐），minimax.io 为国际站。",
                     "scope": "application"
+                },
+                "gcmp.nesCompletion.enabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "启用 NES (Next Edit Suggestions) 建议功能。",
+                    "scope": "application"
+                },
+                "gcmp.nesCompletion.debounceMs": {
+                    "type": "number",
+                    "default": 500,
+                    "minimum": 50,
+                    "maximum": 1000,
+                    "description": "NES 补全的防抖延迟（毫秒）。",
+                    "scope": "application"
+                },
+                "gcmp.nesCompletion.timeoutMs": {
+                    "type": "number",
+                    "default": 5000,
+                    "minimum": 1000,
+                    "maximum": 30000,
+                    "description": "NES 补全的请求超时时间（毫秒）。",
+                    "scope": "application"
+                },
+                "gcmp.nesCompletion.manualOnly": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "启用后，NES 补全仅响应手动触发（Alt+/），不会自动触发。",
+                    "scope": "application"
+                },
+                "gcmp.nesCompletion.modelConfig": {
+                    "type": "object",
+                    "default": {
+                        "provider": "",
+                        "baseUrl": "",
+                        "model": ""
+                    },
+                    "description": "NES 补全使用的模型配置。",
+                    "scope": "application",
+                    "properties": {
+                        "provider": {
+                            "type": "string",
+                            "description": "模型提供商标识符"
+                        },
+                        "baseUrl": {
+                            "type": "string",
+                            "description": "API基础URL",
+                            "format": "uri"
+                        },
+                        "model": {
+                            "type": "string",
+                            "description": "NES 补全使用的模型名称"
+                        },
+                        "maxTokens": {
+                            "type": "number",
+                            "description": "NES 补全返回的最大长度",
+                            "default": 200,
+                            "minimum": 50,
+                            "maximum": 1000
+                        },
+                        "extraBody": {
+                            "type": "object",
+                            "description": "额外的请求体参数，将在API请求中合并到请求体中",
+                            "additionalProperties": {
+                                "description": "额外的请求体参数值"
+                            }
+                        }
+                    },
+                    "required": [
+                        "provider",
+                        "baseUrl",
+                        "model"
+                    ]
                 },
                 "gcmp.providerOverrides": {
                     "type": "object",
@@ -527,18 +619,29 @@
                     "fontCharacter": "\\eac8"
                 }
             }
-        }
+        },
+        "keybindings": [
+            {
+                "command": "editor.action.inlineSuggest.trigger",
+                "key": "alt+/",
+                "when": "editorHasCompletionItemProvider && textInputFocus && !editorReadonly && !suggestWidgetVisible"
+            },
+            {
+                "command": "gcmp.nesCompletion.toggleManual",
+                "key": "shift+alt+/"
+            }
+        ]
     },
     "scripts": {
         "vscode:prepublish": "npm run clean && npm run compile",
-        "compile": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify",
-        "compile:dev": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+        "compile": "node esbuild.config.js",
+        "compile:dev": "node esbuild.config.js --dev",
         "clean": "rimraf dist",
         "lint": "eslint",
         "lint:fix": "eslint --fix",
         "format": "prettier --write \"src/**/*.{ts,js,json}\"",
         "format:check": "prettier --check \"src/**/*.{ts,js,json}\"",
-        "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
+        "watch": "node esbuild.config.js --watch --dev",
         "package": "vsce package",
         "publish": "vsce publish --allow-proposed-apis chatProvider",
         "pretest": "npm run compile:dev",
@@ -546,21 +649,22 @@
     },
     "dependencies": {
         "@anthropic-ai/sdk": "^0.67.0",
-        "@microsoft/tiktokenizer": "^1.0.10",
         "@modelcontextprotocol/sdk": "^1.20.2",
+        "@vscode/chat-lib": "^0.1.3-4",
         "openai": "^6.7.0"
     },
     "devDependencies": {
         "@eslint/js": "^9.13.0",
         "@stylistic/eslint-plugin": "^5.4.0",
+        "@types/json-schema": "^7.0.15",
         "@types/node": "^20.0.0",
         "@types/vscode": "^1.104.0",
-        "@types/json-schema": "^7.0.15",
         "@vscode/vsce": "^3.6.2",
         "esbuild": "^0.25.10",
         "eslint": "^9.13.0",
         "prettier": "^3.6.2",
         "rimraf": "^6.0.1",
+        "tsx": "^4.21.0",
         "typescript": "^5.9.2",
         "typescript-eslint": "^8.39.0"
     },

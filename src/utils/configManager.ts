@@ -33,6 +33,23 @@ export interface MiniMaxConfig {
 }
 
 /**
+ * NES 补全配置
+ */
+export interface NESCompletionConfig {
+    enabled: boolean;
+    debounceMs: number;
+    timeoutMs: number; // 请求超时时间
+    manualOnly: boolean; // 仅手动触发模式
+    modelConfig: {
+        provider: string;
+        baseUrl: string;
+        model: string;
+        maxTokens: number;
+        extraBody?: Record<string, unknown>;
+    };
+}
+
+/**
  * GCMP配置接口
  */
 export interface GCMPConfig {
@@ -48,6 +65,8 @@ export interface GCMPConfig {
     zhipu: ZhipuConfig;
     /** MiniMax配置 */
     minimax: MiniMaxConfig;
+    /** NES补全配置 */
+    nesCompletion: NESCompletionConfig;
     /** 提供商配置覆盖 */
     providerOverrides: UserConfigOverrides;
 }
@@ -60,7 +79,6 @@ export class ConfigManager {
     private static readonly CONFIG_SECTION = 'gcmp';
     private static cache: GCMPConfig | null = null;
     private static configListener: vscode.Disposable | null = null;
-    // 配置已迁移至 src/providers/config，不再需要 packageJsonCache
 
     /**
      * 初始化配置管理器
@@ -107,6 +125,21 @@ export class ConfigManager {
             },
             minimax: {
                 endpoint: config.get<MiniMaxConfig['endpoint']>('minimax.endpoint', 'minimaxi.com')
+            },
+            nesCompletion: {
+                enabled: config.get<boolean>('nesCompletion.enabled', false),
+                debounceMs: this.validateNESDebounceMs(config.get<number>('nesCompletion.debounceMs', 500)),
+                timeoutMs: this.validateNESTimeoutMs(config.get<number>('nesCompletion.timeoutMs', 5000)),
+                manualOnly: config.get<boolean>('nesCompletion.manualOnly', false),
+                modelConfig: {
+                    provider: config.get<string>('nesCompletion.modelConfig.provider', ''),
+                    baseUrl: config.get<string>('nesCompletion.modelConfig.baseUrl', ''),
+                    model: config.get<string>('nesCompletion.modelConfig.model', ''),
+                    maxTokens: this.validateNESMaxTokens(
+                        config.get<number>('nesCompletion.modelConfig.maxTokens', 200)
+                    ),
+                    extraBody: config.get('nesCompletion.modelConfig.extraBody')
+                }
             },
             providerOverrides: config.get<UserConfigOverrides>('providerOverrides', {})
         };
@@ -166,6 +199,13 @@ export class ConfigManager {
     }
 
     /**
+     * 获取NES补全配置
+     */
+    static getNESConfig(): NESCompletionConfig {
+        return this.getConfig().nesCompletion;
+    }
+
+    /**
      * 获取适合模型的最大token数量
      * 考虑模型限制和用户配置
      */
@@ -203,6 +243,39 @@ export class ConfigManager {
         if (isNaN(value) || value < 32 || value > 32768) {
             Logger.warn(`无效的maxTokens值: ${value}，使用默认值8192`);
             return 8192;
+        }
+        return Math.floor(value);
+    }
+
+    /**
+     * 验证防抖延迟时间
+     */
+    private static validateNESDebounceMs(value: number): number {
+        if (isNaN(value) || value < 50 || value > 2000) {
+            Logger.warn(`无效的debounceMs值: ${value}，使用默认值500`);
+            return 500;
+        }
+        return Math.floor(value);
+    }
+
+    /**
+     * 验证超时时间
+     */
+    private static validateNESTimeoutMs(value: number): number {
+        if (isNaN(value) || value < 1000 || value > 30000) {
+            Logger.warn(`无效的timeoutMs值: ${value}，使用默认值5000`);
+            return 5000;
+        }
+        return Math.floor(value);
+    }
+
+    /**
+     * 验证NES补全的maxTokens参数
+     */
+    private static validateNESMaxTokens(value: number): number {
+        if (isNaN(value) || value < 50 || value > 1000) {
+            Logger.warn(`无效的NES maxTokens值: ${value}，使用默认值200`);
+            return 200;
         }
         return Math.floor(value);
     }
@@ -341,10 +414,6 @@ export class ConfigManager {
         return config;
     }
 
-    /**
-     * 获取动态的 kiloCode 头部配置
-     * 由于已调整为使用专用 coding API 接口，不再需要模拟工具
-     */
     /**
      * 清理资源
      */

@@ -6,8 +6,8 @@ import { IFlowProvider } from './providers/iflowProvider';
 import { StreamLakeProvider } from './providers/streamlakeProvider';
 import { MiniMaxProvider } from './providers/minimaxProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
-import { Logger } from './utils/logger';
-import { StatusLogger } from './utils/statusLogger';
+import { InlineCompletionProvider } from './copilot/completionProvider';
+import { Logger, StatusLogger, NESLogger } from './utils';
 import { ApiKeyManager, ConfigManager, JsonSchemaProvider } from './utils';
 import { CompatibleModelManager } from './utils/compatibleModelManager';
 import { LeaderElectionService, StatusBarManager } from './status';
@@ -27,6 +27,9 @@ const registeredProviders: Record<
     | CompatibleProvider
 > = {};
 const registeredDisposables: vscode.Disposable[] = [];
+
+// 内联补全提供商实例
+let inlineCompletionProvider: InlineCompletionProvider | undefined;
 
 /**
  * 激活提供商 - 基于配置文件动态注册（并行优化版本）
@@ -140,6 +143,26 @@ async function activateCompatibleProvider(context: vscode.ExtensionContext): Pro
     }
 }
 
+/**
+ * 激活内联补全提供商
+ */
+async function activateInlineCompletionProvider(context: vscode.ExtensionContext): Promise<void> {
+    try {
+        Logger.trace('正在注册内联补全提供商...');
+        const providerStartTime = Date.now();
+
+        // 创建并激活内联补全提供商
+        const result = InlineCompletionProvider.createAndActivate(context);
+        inlineCompletionProvider = result.provider;
+        registeredDisposables.push(...result.disposables);
+
+        const providerTime = Date.now() - providerStartTime;
+        Logger.info(`✅ 内联补全提供商注册成功 (耗时: ${providerTime}ms)`);
+    } catch (error) {
+        Logger.error('❌ 注册内联补全提供商失败:', error);
+    }
+}
+
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
@@ -148,6 +171,7 @@ export async function activate(context: vscode.ExtensionContext) {
     try {
         Logger.initialize('GitHub Copilot Models Provider (GCMP)'); // 初始化日志管理器
         StatusLogger.initialize('GitHub Copilot Models Provider Status'); // 初始化高频状态日志管理器
+        NESLogger.initialize('GitHub Copilot Next Edit Suggestions (via GCMP)'); // 初始化高频 NES 日志管理器
 
         const isDevelopment = context.extensionMode === vscode.ExtensionMode.Development;
         Logger.info(`🔧 GCMP 扩展模式: ${isDevelopment ? 'Development' : 'Production'}`);
@@ -202,6 +226,11 @@ export async function activate(context: vscode.ExtensionContext) {
         registerAllTools(context);
         Logger.trace(`⏱️ 工具注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
+        // 步骤5: 注册内联补全提供商
+        stepStartTime = Date.now();
+        await activateInlineCompletionProvider(context);
+        Logger.trace(`⏱️ NES 内联补全提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+
         const totalActivationTime = Date.now() - activationStartTime;
         Logger.info(`✅ GCMP 扩展激活完成 (总耗时: ${totalActivationTime}ms)`);
     } catch (error) {
@@ -240,9 +269,16 @@ export function deactivate() {
             }
         }
 
+        // 清理内联补全提供商
+        if (inlineCompletionProvider) {
+            inlineCompletionProvider.dispose();
+            Logger.trace('已清理内联补全提供商');
+        }
+
         ConfigManager.dispose(); // 清理配置管理器
         Logger.info('GCMP 扩展停用完成');
         StatusLogger.dispose(); // 清理状态日志管理器
+        NESLogger.dispose(); // 清理NES日志管理器
         Logger.dispose(); // 在扩展销毁时才 dispose Logger
     } catch (error) {
         Logger.error('GCMP 扩展停用时出错:', error);
