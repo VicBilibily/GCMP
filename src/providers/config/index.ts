@@ -9,7 +9,6 @@ import moonshot from './moonshot.json';
 import deepseek from './deepseek.json';
 import streamlake from './streamlake.json';
 import dashscope from './dashscope.json';
-import baidu from './baidu.json';
 
 const providers = {
     zhipu,
@@ -20,8 +19,7 @@ const providers = {
     moonshot,
     deepseek,
     streamlake,
-    dashscope,
-    baidu
+    dashscope
 };
 
 export type ProviderName = keyof typeof providers;

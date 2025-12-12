@@ -33,7 +33,7 @@
         },
         {
             "id": "deepseek-v3.2-coding-plan-thinking",
-            "name": "DeepSeek-V3.2 (Coding Plan) (思考模式)",
+            "name": "DeepSeek-V3.2 (Coding Plan) (Thinking)",
             "model": "ark-code-latest",
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
@@ -139,7 +139,7 @@
         },
         {
             "id": "deepseek-v3.2-thinking",
-            "name": "DeepSeek-V3.2-251201 (思考模式)",
+            "name": "DeepSeek-V3.2-251201 (Thinking)",
             "model": "deepseek-v3-2-251201",
             "tooltip": "DeepSeek-V3.2正式版，平衡推理能力与输出长度，适合日常使用，例如问答场景和通用 Agent 任务场景",
             "maxInputTokens": 96000,

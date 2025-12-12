@@ -46,10 +46,10 @@
 
 ### [**火山方舟**](https://www.volcengine.com/product/ark) (`volcengine`) - 豆包大模型
 
-- [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：**Doubao-Seed-Code**、**DeepSeek-V3.2**(思考模式)
+- [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：**Doubao-Seed-Code**、**DeepSeek-V3.2**(Thinking)
 - **编程系列**：**Doubao-Seed-Code**
 - **豆包系列**：**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
-- **协作奖励计划**：**DeepSeek-V3.2**(思考模式)、**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**
+- **协作奖励计划**：**DeepSeek-V3.2**(Thinking)、**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**
 
 ### [**MiniMax**](https://platform.minimaxi.com/login) (`minimax`)
 
@@ -67,7 +67,7 @@
 
 ### [**DeepSeek**](https://platform.deepseek.com/) (`deepseek`) - 深度求索
 
-- 预置模型：**DeepSeek-V3.2**(思考模式)、**DeepSeek-V3.2-Speciale**(Expires on 2025-12-15)
+- 预置模型：**DeepSeek-V3.2**(Reasoner)
     - **余额查询**：已支持状态栏显示当前账户额度，可查看账户余额详情。
 
 ### [**快手万擎**](https://streamlake.com/product/kat-coder) (`streamlake`) - StreamLake
@@ -90,14 +90,6 @@
 - **Qwen3系列**：**Qwen3-Coder-Plus**、**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-Max-Preview**、**Qwen3-32B**、**Qwen3-235B-A22B**、**Qwen3-235B-A22B-Instruct**、**Qwen3-235B-A22B-Thinking**
 - **Kimi系列**：**Kimi-K2-Instruct-0905**、**Kimi-K2**
 - **智谱AI系列**：**GLM-4.6**
-
-## 仅供测试体验的提供商
-
-> 由于测试体验提供商可能存在兼容性问题，遇到问题建议先查看本地输出的日志排查后再提交 Issue 进一步处理。
-
-### [**百度千帆**](https://console.bce.baidu.com/qianfan/overview) (`baidu`)
-
-- **文心大模型**：`ERNIE-5.0-Thinking`(Preview/Latest)、`ERNIE 4.5`(Turbo/Turbo VL)
 
 ## ⚙️ 高级配置
 

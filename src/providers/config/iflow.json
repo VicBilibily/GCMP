@@ -4,28 +4,6 @@
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
-            "id": "deepseek-v3.2",
-            "name": "DeepSeek-V3.2-Exp (iFlow)",
-            "tooltip": " DeepSeek-V3.2-Exp 模型，这是一个实验性（Experimental）的版本。作为迈向新一代架构的中间步骤，V3.2-Exp 在 V3.1-Terminus 的基础上引入了 DeepSeek Sparse Attention（一种稀疏注意力机制），针对长文本的训练和推理效率进行了探索性的优化和验证",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "deepseek-v3.1",
-            "name": "DeepSeek-V3.1-Terminus (iFlow)",
-            "tooltip": "DeepSeek-V3.1-Terminus包含了混合推理架构、更高的思考效率、更强的Agent能力。混合推理架构：一个模型同时支持思考模式与非思考模式； 更高的思考效率：相比DeepSeek-R1-0528，DeepSeek-V3.1-Think能在更短时间内给出答案； 更强的Agent能力：通过Post-Training优化，新模型在工具使用与智能体任务中的表现有较大提升。",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
             "id": "qwen3-coder-plus",
             "name": "Qwen3-Coder-Plus (iFlow)",
             "tooltip": "Qwen3-Coder-Plus，这是一个总参数量 480B，激活 35B 的 MoE 模型，原生支持 256K token 的上下文并可通过 YaRN 扩展到 1M token，拥有卓越的代码和 Agent 能力。Qwen3-Coder-480B-A35B-Instruct 在 Agentic Coding、Agentic Browser-Use 和 Agentic Tool-Use 上取得了开源模型的 SOTA 效果，可以与 Claude Sonnet4 媲美",

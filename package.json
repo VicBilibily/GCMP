@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.15.1",
+    "version": "0.15.2",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -19,7 +19,6 @@
         "deepseek",
         "streamlake",
         "dashscope",
-        "baidu",
         "OpenAI Compatible",
         "Anthropic Compatible",
         "智谱AI",
@@ -28,7 +27,6 @@
         "深度求索",
         "快手万擎",
         "阿里云百炼",
-        "百度千帆",
         "Coding Plan 编程套餐"
     ],
     "repository": {
@@ -63,7 +61,6 @@
         "onLanguageModelProvider:gcmp.deepseek",
         "onLanguageModelProvider:gcmp.streamlake",
         "onLanguageModelProvider:gcmp.dashscope",
-        "onLanguageModelProvider:gcmp.baidu",
         "onLanguageModelProvider:gcmp.compatible",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
         "onLanguageModelTool:gcmp_minimaxWebSearch",
@@ -139,11 +136,6 @@
             {
                 "command": "gcmp.dashscope.setApiKey",
                 "title": "设置 阿里云百炼 API密钥",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.baidu.setApiKey",
-                "title": "设置 百度千帆 API密钥",
                 "category": "GCMP"
             },
             {
@@ -480,11 +472,6 @@
                 "vendor": "gcmp.dashscope",
                 "displayName": "⦿ 阿里云百炼",
                 "managementCommand": "gcmp.dashscope.setApiKey"
-            },
-            {
-                "vendor": "gcmp.baidu",
-                "displayName": "⨮ 百度千帆 (Beta)",
-                "managementCommand": "gcmp.baidu.setApiKey"
             },
             {
                 "vendor": "gcmp.compatible",
