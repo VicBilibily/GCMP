@@ -24,7 +24,7 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
             "tooltip": "DeepSeek-V3.2正式版，平衡推理能力与输出长度，适合日常使用，例如问答场景和通用 Agent 任务场景",
-            "maxInputTokens": 128000,
+            "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
             "capabilities": {
                 "toolCalling": true,
@@ -38,7 +38,7 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
             "tooltip": "DeepSeek-V3.2正式版，平衡推理能力与输出长度，适合日常使用，例如问答场景和通用 Agent 任务场景",
-            "maxInputTokens": 128000,
+            "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
             "includeThinking": true,
             "capabilities": {
@@ -130,7 +130,7 @@
             "name": "DeepSeek-V3.2-251201",
             "model": "deepseek-v3-2-251201",
             "tooltip": "DeepSeek-V3.2正式版，平衡推理能力与输出长度，适合日常使用，例如问答场景和通用 Agent 任务场景",
-            "maxInputTokens": 128000,
+            "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
             "capabilities": {
                 "toolCalling": true,
@@ -142,7 +142,7 @@
             "name": "DeepSeek-V3.2-251201 (思考模式)",
             "model": "deepseek-v3-2-251201",
             "tooltip": "DeepSeek-V3.2正式版，平衡推理能力与输出长度，适合日常使用，例如问答场景和通用 Agent 任务场景",
-            "maxInputTokens": 128000,
+            "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
             "includeThinking": true,
             "capabilities": {

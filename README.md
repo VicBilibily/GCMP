@@ -254,7 +254,7 @@ NES 补全使用单独的模型配置，可以通过 `gcmp.nesCompletion.modelCo
 
 ````json
 {
-    "gcmp.nesCompletion.enabled": true,
+    "gcmp.nesCompletion.enabled": true, // 启用 NES 补全功能
     "gcmp.nesCompletion.debounceMs": 500, // 自动触发补全的防抖延迟
     "gcmp.nesCompletion.timeoutMs": 10000, // NES 补全 OpenAI 接口请求超时时间
     "gcmp.nesCompletion.manualOnly": true, // 启用手动 `Alt+/` 快捷键触发代码补全提示
