@@ -17,6 +17,7 @@ import type {
 import { IFetcher } from '@vscode/chat-lib/dist/src/_internal/platform/networking/common/networking';
 import { StatusBarManager } from '../status';
 import { configProviders } from '../providers/config';
+import OpenAI from 'openai';
 
 // ============================================================================
 // Response 包装类
@@ -101,6 +102,9 @@ export class Fetcher implements IFetcher {
             throw new Error('Not Support Request');
         }
 
+        let dashscopeStopChunk = false; // 只截取 stop 表示的 chunk, 阿里云百炼补全接口
+        const requestBody = { ...options.json } as Record<string, unknown>; // as OpenAI.Chat.ChatCompletionCreateParamsStreaming;
+
         let modelConfig: NESCompletionConfig['modelConfig'];
         if (url.endsWith('/chat/completions')) {
             modelConfig = ConfigManager.getNESConfig().modelConfig;
@@ -116,6 +120,14 @@ export class Fetcher implements IFetcher {
                 throw new Error('FIM model configuration is missing');
             }
             url = `${modelConfig.baseUrl}/completions`;
+            if (modelConfig.provider === 'dashscope') {
+                const { prompt, suffix } = requestBody;
+                if (prompt && suffix) {
+                    dashscopeStopChunk = true;
+                    delete requestBody.suffix;
+                    requestBody.prompt = `<|fim_prefix|>${prompt}<|fim_suffix|>${suffix}<|fim_middle|>`;
+                }
+            }
         } else {
             throw new Error('Not Support Request URL');
         }
@@ -136,8 +148,6 @@ export class Fetcher implements IFetcher {
                 Authorization: `Bearer ${apiKey}`
             };
 
-            // 拦截并修改 messages，添加 Prompt 指令
-            const requestBody = options.json; // as OpenAI.Chat.ChatCompletionCreateParamsStreaming;
             if (extraBody) {
                 for (const key in extraBody) {
                     requestBody[key] = extraBody[key];
@@ -248,7 +258,45 @@ export class Fetcher implements IFetcher {
                             if (done) {
                                 this.push(null);
                             } else {
-                                this.push(Buffer.from(value));
+                                if (dashscopeStopChunk) {
+                                    const chunk = Buffer.from(value).toString('utf-8');
+                                    CompletionLogger.trace(`[Fetcher] 收到 chunk: ${chunk}`);
+                                    const lines = chunk.split('\n');
+
+                                    for (const line of lines) {
+                                        if (line.trim() === '') {
+                                            continue; // 跳过空行
+                                        }
+
+                                        if (line.startsWith('data: ')) {
+                                            const data = line.slice(6); // 移除 'data: ' 前缀
+
+                                            // 检查是否为 [DONE] 消息
+                                            if (data === '[DONE]') {
+                                                this.push(Buffer.from('data: [DONE]\n\n'));
+                                                continue;
+                                            }
+
+                                            try {
+                                                const parsed = JSON.parse(data) as OpenAI.Completion;
+                                                // 检查是否包含有效的选择项
+                                                if (parsed?.choices?.[0]?.finish_reason === 'stop') {
+                                                    // 推送最后一个补全完整的有效的响应数据
+                                                    this.push(Buffer.from(line + '\n'));
+                                                    CompletionLogger.debug(`[Fetcher] 推送数据: ${line}`);
+                                                } else {
+                                                    // 中间的无效数据不推送，空消息保持
+                                                    this.push(Buffer.from('\n\n'));
+                                                }
+                                            } catch (e) {
+                                                CompletionLogger.debug(`[Fetcher] JSON 解析失败: ${e}`);
+                                                // 忽略解析错误
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    this.push(Buffer.from(value));
+                                }
                             }
                         } catch (error) {
                             this.destroy(error as Error);

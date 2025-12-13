@@ -2,6 +2,21 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的所有重要更改。
 
+## [0.15.4] - 2025-12-14
+
+- **FIM内联提示功能** 完善 `阿里云百炼` 的 Completions 接口特殊支持
+
+**示例配置**
+
+```json
+  "gcmp.fimCompletion.modelConfig": {
+    "provider": "dashscope",
+    "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "model": "qwen-coder-turbo-latest",
+    "maxTokens": 100
+  }
+```
+
 ## [0.15.3] - 2025-12-13
 
 ### 新增
