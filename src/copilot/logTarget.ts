@@ -6,7 +6,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ILogTarget, LogLevel } from '@vscode/chat-lib';
-import { NESLogger } from '../utils/nesLogger';
+import { CompletionLogger } from '../utils/completionLogger';
 
 /**
  * 日志目标实现
@@ -15,19 +15,19 @@ export class CopilotLogTarget implements ILogTarget {
     logIt(level: LogLevel, metadataStr: string, ...extra: unknown[]): void {
         switch (level) {
             case LogLevel.Error:
-                NESLogger.error(`[CopilotLogTarget] ${metadataStr}`, ...extra);
+                CompletionLogger.error(`[CopilotLogTarget] ${metadataStr}`, ...extra);
                 return;
             case LogLevel.Warning:
-                NESLogger.warn(`[CopilotLogTarget] ${metadataStr}`, ...extra);
+                CompletionLogger.warn(`[CopilotLogTarget] ${metadataStr}`, ...extra);
                 return;
             case LogLevel.Info:
-                // NESLogger.info(`[CopilotLogTarget] ${metadataStr}`, ...extra);
+                // CompletionLogger.info(`[CopilotLogTarget] ${metadataStr}`, ...extra);
                 // return;
                 // case LogLevel.Debug:
-                NESLogger.debug(`[CopilotLogTarget] ${metadataStr}`, ...extra);
+                CompletionLogger.debug(`[CopilotLogTarget] ${metadataStr}`, ...extra);
                 return;
             // case LogLevel.Trace:
-            //     NESLogger.trace(`[CopilotLogTarget] ${metadataStr}`, ...extra);
+            //     CompletionLogger.trace(`[CopilotLogTarget] ${metadataStr}`, ...extra);
             //     return;
         }
     }

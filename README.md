@@ -300,7 +300,7 @@ FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimC
     "gcmp.nesCompletion.enabled": true,
     "gcmp.nesCompletion.debounceMs": 500,
     "gcmp.nesCompletion.timeoutMs": 10000,
-    "gcmp.nesCompletion.manualOnly": false, // 启用自动FIM + 手动触发NES
+    "gcmp.nesCompletion.manualOnly": true, // 启用FIM自动触发，但手动触发NES
     "gcmp.nesCompletion.modelConfig": {
         "provider": "deepseek",
         "baseUrl": "https://api.deepseek.com/v1",

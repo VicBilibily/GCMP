@@ -5,7 +5,7 @@
 
 import { Readable } from 'stream';
 import { VersionManager } from '../utils/versionManager';
-import { ApiKeyManager, NESLogger } from '../utils';
+import { ApiKeyManager, CompletionLogger } from '../utils';
 import { ConfigManager, NESCompletionConfig } from '../utils/configManager';
 import type {
     FetchOptions,
@@ -105,14 +105,14 @@ export class Fetcher implements IFetcher {
         if (url.endsWith('/chat/completions')) {
             modelConfig = ConfigManager.getNESConfig().modelConfig;
             if (!modelConfig || !modelConfig.baseUrl) {
-                NESLogger.error('[Fetcher] NES 模型配置缺失');
+                CompletionLogger.error('[Fetcher] NES 模型配置缺失');
                 throw new Error('NES model configuration is missing');
             }
             url = `${modelConfig.baseUrl}/chat/completions`;
         } else if (url.endsWith('/completions')) {
             modelConfig = ConfigManager.getFIMConfig().modelConfig;
             if (!modelConfig || !modelConfig.baseUrl) {
-                NESLogger.error('[Fetcher] FIM 模型配置缺失');
+                CompletionLogger.error('[Fetcher] FIM 模型配置缺失');
                 throw new Error('FIM model configuration is missing');
             }
             url = `${modelConfig.baseUrl}/completions`;
@@ -125,7 +125,7 @@ export class Fetcher implements IFetcher {
         try {
             const apiKey = await ApiKeyManager.getApiKey(provider);
             if (!apiKey) {
-                NESLogger.error(`[Fetcher] ${provider} API key 未配置`);
+                CompletionLogger.error(`[Fetcher] ${provider} API key 未配置`);
                 throw new Error('API key not configured');
             }
 
@@ -152,7 +152,7 @@ export class Fetcher implements IFetcher {
             //     if (systemMessage) {
             //         systemMessage.content = (systemMessage.content || '') + promptAddition;
             //     }
-            //     NESLogger.trace('[Fetcher] 已注入 Prompt 指令以禁止 Markdown');
+            //     CompletionLogger.trace('[Fetcher] 已注入 Prompt 指令以禁止 Markdown');
             // }
 
             const fetchOptions: RequestInit = {
@@ -166,14 +166,14 @@ export class Fetcher implements IFetcher {
                 signal: options.signal as AbortSignal | undefined
             };
 
-            NESLogger.info(`[Fetcher] 发送请求: ${url}`);
+            CompletionLogger.info(`[Fetcher] 发送请求: ${url}`);
             const response = await fetch(url, fetchOptions);
-            NESLogger.debug(`[Fetcher] 收到响应 - 状态码: ${response.status} ${response.statusText}`);
+            CompletionLogger.debug(`[Fetcher] 收到响应 - 状态码: ${response.status} ${response.statusText}`);
 
             // let responseText: string | null = null;
             // if (response.ok) {
             //     responseText = await response.text();
-            //     NESLogger.trace(`[Fetcher] 收到响应 - 正文体: ${responseText}`);
+            //     CompletionLogger.trace(`[Fetcher] 收到响应 - 正文体: ${responseText}`);
 
             //     const completion = JSON.parse(responseText) as OpenAI.ChatCompletion;
             //     if (completion?.choices?.length === 1) {
@@ -191,7 +191,7 @@ export class Fetcher implements IFetcher {
             //             if (newContent && newContent !== content) {
             //                 message.content = newContent;
             //                 responseText = JSON.stringify(completion);
-            //                 NESLogger.debug(`[Fetcher] 修正响应 - 正文体: ${responseText}`);
+            //                 CompletionLogger.debug(`[Fetcher] 修正响应 - 正文体: ${responseText}`);
             //             }
             //         }
             //     }
@@ -210,7 +210,7 @@ export class Fetcher implements IFetcher {
                 }
                 bodyConsumed = true;
                 cachedText = await response.text();
-                NESLogger.trace(`[Fetcher] 响应体长度: ${cachedText.length} 字符`);
+                CompletionLogger.trace(`[Fetcher] 响应体长度: ${cachedText.length} 字符`);
                 return cachedText;
             };
 
@@ -219,7 +219,7 @@ export class Fetcher implements IFetcher {
                 try {
                     return JSON.parse(text);
                 } catch (e) {
-                    NESLogger.error('[Fetcher.ResponseWrapper] JSON 解析失败:', e);
+                    CompletionLogger.error('[Fetcher.ResponseWrapper] JSON 解析失败:', e);
                     throw e;
                 }
             };
@@ -270,7 +270,7 @@ export class Fetcher implements IFetcher {
         } catch (error) {
             // 如果是请求中止，不记录错误日志
             if (!this.isAbortError(error)) {
-                NESLogger.error('[Fetcher] 异常:', error);
+                CompletionLogger.error('[Fetcher] 异常:', error);
             }
             throw error;
         } finally {

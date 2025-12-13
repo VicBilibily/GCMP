@@ -20,7 +20,7 @@ import {
 } from '@vscode/chat-lib';
 import { CancellationToken } from '@vscode/chat-lib/dist/src/_internal/util/vs/base/common/cancellation';
 
-import { NESLogger, VersionManager } from '../utils';
+import { CompletionLogger, VersionManager } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { WorkspaceAdapter } from './workspaceAdapter';
 import { Fetcher } from './fetcher';
@@ -78,7 +78,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
     // ========================================================================
 
     activate(): void {
-        NESLogger.trace('[InlineCompletionProvider.activate] 激活开始');
+        CompletionLogger.trace('[InlineCompletionProvider.activate] 激活开始');
 
         try {
             this.nesWorkspaceAdapter = new WorkspaceAdapter();
@@ -142,15 +142,17 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                         .getConfiguration('gcmp.nesCompletion')
                         .update('manualOnly', newState, vscode.ConfigurationTarget.Global);
                     vscode.window.showInformationMessage(
-                        `GCMP: 下一个代码编辑建议 触发模式 ${newState ? '手动触发' : '自动触发'}`
+                        `GCMP: 下一个代码编辑建议 触发模式：${newState ? '手动触发' : '自动触发'}`
                     );
-                    NESLogger.info(`[InlineCompletionProvider] NES 手动触发模式 ${newState ? '已启用' : '已禁用'}`);
+                    CompletionLogger.info(
+                        `[InlineCompletionProvider] NES 手动触发模式 ${newState ? '已启用' : '已禁用'}`
+                    );
                 })
             );
 
-            NESLogger.info('✅ [InlineCompletionProvider] 已激活');
+            CompletionLogger.info('✅ [InlineCompletionProvider] 已激活');
         } catch (error) {
-            NESLogger.error('[InlineCompletionProvider.activate] 激活失败:', error);
+            CompletionLogger.error('[InlineCompletionProvider.activate] 激活失败:', error);
             throw error;
         }
     }
@@ -164,14 +166,14 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         const fimConfig = ConfigManager.getFIMConfig();
         const nesConfig = ConfigManager.getNESConfig();
         if (!fimConfig.enabled && !nesConfig.enabled) {
-            NESLogger.trace('[InlineCompletionProvider] 补全功能未启用');
+            CompletionLogger.trace('[InlineCompletionProvider] 补全功能未启用');
             return undefined;
         }
 
         const { triggerKind } = context as { triggerKind: vscode.InlineCompletionTriggerKind };
 
         const triggerDesc = triggerKind === vscode.InlineCompletionTriggerKind.Invoke ? '手动' : '自动';
-        NESLogger.trace(`[InlineCompletionProvider] 补全请求 (${triggerDesc}触发) - ${document.fileName}`);
+        CompletionLogger.trace(`[InlineCompletionProvider] 补全请求 (${triggerDesc}触发) - ${document.fileName}`);
 
         // 防抖处理：对自动触发进行防抖，防止频繁请求
         if (triggerKind !== vscode.InlineCompletionTriggerKind.Invoke) {
@@ -200,7 +202,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                         this.pendingDebounceRequest = null;
 
                         const invocationId = ++this.invocationCount;
-                        NESLogger.trace(`[InlineCompletionProvider] 请求 #${invocationId} 开始`);
+                        CompletionLogger.trace(`[InlineCompletionProvider] 请求 #${invocationId} 开始`);
 
                         const completionsCts = new vscode.CancellationTokenSource();
                         const nesCts = new vscode.CancellationTokenSource();
@@ -241,7 +243,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         });
         try {
             const invocationId = ++this.invocationCount;
-            NESLogger.trace(`[InlineCompletionProvider] 请求 #${invocationId} 开始`);
+            CompletionLogger.trace(`[InlineCompletionProvider] 请求 #${invocationId} 开始`);
             // 手动触发直接执行
             return this._invokeNESProvider(document, { nesCts });
         } finally {
@@ -268,7 +270,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         if (fimConfig.enabled && nesConfig.enabled) {
             // NES 手动触发模式：仅使用 FIM
             if (nesConfig.manualOnly) {
-                NESLogger.trace('[InlineCompletionProvider] FIM 和 NES 启用，但 NES 手动触发，使用 FIM');
+                CompletionLogger.trace('[InlineCompletionProvider] FIM 和 NES 启用，但 NES 手动触发，使用 FIM');
                 return this._invokeFIMProvider(document, position, tokens);
             }
 
@@ -282,10 +284,10 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             const isCursorAtEndOfLine = position.character >= lastNonWhitespaceChar + 1;
 
             if (isCursorAtEndOfLine) {
-                NESLogger.trace('[InlineCompletionProvider] 光标在行尾，使用 FIM');
+                CompletionLogger.trace('[InlineCompletionProvider] 光标在行尾，使用 FIM');
                 return this._invokeFIMProvider(document, position, tokens);
             } else {
-                NESLogger.trace('[InlineCompletionProvider] 光标不在行尾，使用 NES');
+                CompletionLogger.trace('[InlineCompletionProvider] 光标不在行尾，使用 NES');
                 const nesResult = await this._invokeNESProvider(document, tokens);
                 if (nesResult) {
                     // 检查 NES 结果是否为有意义的编辑
@@ -320,7 +322,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                                 item.range.end.character === document.lineAt(item.range.end.line).text.length &&
                                 insertedLines.length > originalLines.length + 2
                             ) {
-                                NESLogger.trace(
+                                CompletionLogger.trace(
                                     `[InlineCompletionProvider] NES 生成内容异常（跨多行替换），可能误解了上下文:\r\n原始文本=\r\n${originalText}\r\n插入文本=\r\n${item.insertText}`
                                 );
                                 // 这种情况认为是无意义编辑，继续检查下一项
@@ -328,7 +330,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                             }
 
                             // 认为是有意义的编辑
-                            NESLogger.trace(
+                            CompletionLogger.trace(
                                 `[InlineCompletionProvider] NES 建议与原始文本不同，视为有意义编辑:\r\n原始文本=\r\n${originalText}\r\n插入文本=\r\n${item.insertText}`
                             );
                             isMeaningfulEdit = true;
@@ -337,22 +339,22 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                     }
 
                     if (isMeaningfulEdit) {
-                        NESLogger.trace('[InlineCompletionProvider] NES 有意义结果，返回 NES 结果');
+                        CompletionLogger.trace('[InlineCompletionProvider] NES 有意义结果，返回 NES 结果');
                         return nesResult;
                     } else {
-                        NESLogger.trace('[InlineCompletionProvider] NES 结果无意义或过度生成，回退到 FIM');
+                        CompletionLogger.trace('[InlineCompletionProvider] NES 结果无意义或过度生成，回退到 FIM');
                         return this._invokeFIMProvider(document, position, tokens);
                     }
                 }
                 // NES 无结果，回退到 FIM
-                NESLogger.trace('[InlineCompletionProvider] NES 无结果，回退到 FIM');
+                CompletionLogger.trace('[InlineCompletionProvider] NES 无结果，回退到 FIM');
                 return this._invokeFIMProvider(document, position, tokens);
             }
         }
 
         // 情况2：只有 FIM 启用
         if (fimConfig.enabled) {
-            NESLogger.trace('[InlineCompletionProvider] 仅 FIM 启用，使用 FIM');
+            CompletionLogger.trace('[InlineCompletionProvider] 仅 FIM 启用，使用 FIM');
             return this._invokeFIMProvider(document, position, tokens);
         }
 
@@ -360,16 +362,16 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         if (nesConfig.enabled) {
             // NES 手动触发模式，但这是自动触发请求，不处理
             if (nesConfig.manualOnly) {
-                NESLogger.trace('[InlineCompletionProvider] 仅 NES 启用但为手动触发模式，忽略自动请求');
+                CompletionLogger.trace('[InlineCompletionProvider] 仅 NES 启用但为手动触发模式，忽略自动请求');
                 return undefined;
             }
 
-            NESLogger.trace('[InlineCompletionProvider] 仅 NES 启用，使用 NES');
+            CompletionLogger.trace('[InlineCompletionProvider] 仅 NES 启用，使用 NES');
             return this._invokeNESProvider(document, tokens);
         }
 
         // 情况4：都未启用
-        NESLogger.trace('[InlineCompletionProvider] FIM 和 NES 都未启用');
+        CompletionLogger.trace('[InlineCompletionProvider] FIM 和 NES 都未启用');
         return undefined;
     }
 
@@ -383,7 +385,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             return undefined;
         }
 
-        NESLogger.trace('[InlineCompletionProvider] 调用 FIM');
+        CompletionLogger.trace('[InlineCompletionProvider] 调用 FIM');
         const startTime = Date.now();
 
         try {
@@ -412,7 +414,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             const fimResult = await Promise.race([fimPromise, timeoutPromise]);
 
             const elapsed = Date.now() - startTime;
-            NESLogger.trace(`[InlineCompletionProvider] FIM 请求完成，耗时: ${elapsed}ms`);
+            CompletionLogger.trace(`[InlineCompletionProvider] FIM 请求完成，耗时: ${elapsed}ms`);
 
             if (!fimResult || !fimResult.length) {
                 return undefined;
@@ -425,7 +427,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                     completion.range.end.line,
                     completion.range.end.character
                 );
-                NESLogger.info(
+                CompletionLogger.info(
                     `[InlineCompletionProvider] 返回 FIM 建议 [${index}]: insertText=\r\n${completion.insertText}`
                 );
                 return new vscode.InlineCompletionItem(completion.insertText, range);
@@ -436,7 +438,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             const elapsed = Date.now() - startTime;
 
             if (error instanceof Error && error.message.includes('超时')) {
-                NESLogger.warn(`[InlineCompletionProvider] ${error.message}`);
+                CompletionLogger.warn(`[InlineCompletionProvider] ${error.message}`);
                 return undefined;
             }
 
@@ -444,7 +446,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                 return undefined;
             }
 
-            NESLogger.error(`[InlineCompletionProvider] FIM 请求异常 (${elapsed}ms):`, error);
+            CompletionLogger.error(`[InlineCompletionProvider] FIM 请求异常 (${elapsed}ms):`, error);
             return undefined;
         }
     }
@@ -458,7 +460,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             return undefined;
         }
 
-        NESLogger.trace('[InlineCompletionProvider] 调用 NES');
+        CompletionLogger.trace('[InlineCompletionProvider] 调用 NES');
         const startTime = Date.now();
 
         try {
@@ -482,7 +484,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             const nesResult = await Promise.race([nesPromise, timeoutPromise]);
 
             const elapsed = Date.now() - startTime;
-            NESLogger.trace(`[InlineCompletionProvider] NES 请求完成，耗时: ${elapsed}ms`);
+            CompletionLogger.trace(`[InlineCompletionProvider] NES 请求完成，耗时: ${elapsed}ms`);
 
             if (!nesResult || !nesResult.result) {
                 return undefined;
@@ -505,14 +507,16 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             // 记录建议已显示
             this.nesProvider.handleShown(nesResult);
 
-            NESLogger.info(`[InlineCompletionProvider] 返回 NES 建议: insertText=\r\n${completionItem?.insertText}`);
+            CompletionLogger.info(
+                `[InlineCompletionProvider] 返回 NES 建议: insertText=\r\n${completionItem?.insertText}`
+            );
 
             return new vscode.InlineCompletionList([completionItem]);
         } catch (error) {
             const elapsed = Date.now() - startTime;
 
             if (error instanceof Error && error.message.includes('超时')) {
-                NESLogger.warn(`[InlineCompletionProvider] ${error.message}`);
+                CompletionLogger.warn(`[InlineCompletionProvider] ${error.message}`);
                 return undefined;
             }
 
@@ -520,7 +524,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                 return undefined;
             }
 
-            NESLogger.error(`[InlineCompletionProvider] NES 请求异常 (${elapsed}ms):`, error);
+            CompletionLogger.error(`[InlineCompletionProvider] NES 请求异常 (${elapsed}ms):`, error);
             return undefined;
         }
     }
@@ -570,7 +574,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
     // 资源清理
     // ========================================================================
     dispose(): void {
-        NESLogger.trace('[InlineCompletionProvider.dispose] 开始释放资源');
+        CompletionLogger.trace('[InlineCompletionProvider.dispose] 开始释放资源');
 
         // 清除防抖定时器
         if (this.debounceTimer) {
@@ -601,12 +605,12 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             try {
                 d.dispose();
             } catch (error) {
-                NESLogger.warn('[InlineCompletionProvider.dispose] 释放资源时出错:', error);
+                CompletionLogger.warn('[InlineCompletionProvider.dispose] 释放资源时出错:', error);
             }
         });
         this.disposables.length = 0;
 
-        NESLogger.info('🧹 [InlineCompletionProvider] 已释放所有资源');
+        CompletionLogger.info('🧹 [InlineCompletionProvider] 已释放所有资源');
     }
 
     static createAndActivate(context: vscode.ExtensionContext): {

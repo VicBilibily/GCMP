@@ -10,13 +10,13 @@ import * as vscode from 'vscode';
  * 高频状态日志管理器类
  * 用于记录 FIM / NES 高频操作的日志
  */
-export class NESLogger {
+export class CompletionLogger {
     private static outputChannel: vscode.LogOutputChannel;
 
     /**
      * 初始化高频状态日志管理器
      */
-    static initialize(channelName = 'GCMP-NES'): void {
+    static initialize(channelName = 'GCMP-Completion'): void {
         // 使用LogOutputChannel (VS Code 1.74+)，支持原生的日志级别和格式化
         this.outputChannel = vscode.window.createOutputChannel(channelName, { log: true });
     }

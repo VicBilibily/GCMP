@@ -2,6 +2,47 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的所有重要更改。
 
+## [0.15.3] - 2025-12-13
+
+### 新增
+
+- **融合实现 FIM 和 NES 内联提示功能**：
+    - 整合 FIM (Fill In the Middle) 和 NES (Next Edit Suggestions) 两种代码补全模式
+    - **启用策略说明**：
+        - **自动触发 + manualOnly: false**：根据光标位置智能选择提供者
+            - 光标在行尾 → 使用 FIM（适合补全当前行）
+            - 光标不在行尾 → 使用 NES（适合编辑代码中间部分）
+            - 如果 NES 无结果或补全无意义，则自动回退到 FIM
+        - **自动触发 + manualOnly: true**：仅发起 FIM 请求（NES 需手动触发）
+        - **手动触发**（按 `Alt+/`）：直接调用 NES，不发起 FIM
+        - **模式切换**（按 `Shift+Alt+/`）：在自动/手动间切换（仅影响 NES）
+
+**示例配置**
+
+```json
+{
+    "gcmp.fimCompletion.enabled": true,
+    "gcmp.fimCompletion.debounceMs": 500,
+    "gcmp.fimCompletion.timeoutMs": 5000,
+    "gcmp.fimCompletion.modelConfig": {
+        "provider": "deepseek",
+        "baseUrl": "https://api.deepseek.com/beta",
+        "model": "deepseek-chat",
+        "maxTokens": 100
+    },
+    "gcmp.nesCompletion.enabled": true,
+    "gcmp.nesCompletion.debounceMs": 500,
+    "gcmp.nesCompletion.timeoutMs": 10000,
+    "gcmp.nesCompletion.manualOnly": false,
+    "gcmp.nesCompletion.modelConfig": {
+        "provider": "deepseek",
+        "baseUrl": "https://api.deepseek.com/v1",
+        "model": "deepseek-chat",
+        "maxTokens": 200
+    }
+}
+```
+
 ## [0.15.2] - 2025-12-12
 
 ### 调整

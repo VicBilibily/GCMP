@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { OffsetRange } from '@vscode/chat-lib/dist/src/_internal/util/vs/editor/common/core/ranges/offsetRange';
-import { NESLogger } from '../utils';
+import { CompletionLogger } from '../utils';
 import {
     MutableObservableDocument,
     MutableObservableWorkspace
@@ -47,7 +47,7 @@ export class WorkspaceAdapter implements vscode.Disposable {
                 if (docToRemove) {
                     docToRemove.dispose();
                     this.documentMap.delete(uriStr);
-                    NESLogger.trace(`[VSCodeWorkspaceAdapter] 移除文档: ${uriStr}`);
+                    CompletionLogger.trace(`[VSCodeWorkspaceAdapter] 移除文档: ${uriStr}`);
                 }
             })
         );
@@ -71,8 +71,6 @@ export class WorkspaceAdapter implements vscode.Disposable {
         for (const doc of vscode.workspace.textDocuments) {
             this.syncDocument(doc);
         }
-
-        NESLogger.trace('[VSCodeWorkspaceAdapter] 初始化完成（文档变化已优化为防抖批处理）');
     }
 
     getWorkspace(): MutableObservableWorkspace {
@@ -110,7 +108,7 @@ export class WorkspaceAdapter implements vscode.Disposable {
         });
 
         this.documentMap.set(uriStr, doc);
-        NESLogger.trace(`[VSCodeWorkspaceAdapter] 同步文档: ${vscodeDoc.fileName}`);
+        CompletionLogger.trace(`[VSCodeWorkspaceAdapter] 同步文档: ${vscodeDoc.fileName}`);
 
         return doc;
     }

@@ -9,7 +9,7 @@ export { CompatibleModelManager } from './compatibleModelManager';
 export { KnownProviderConfig, KnownProviders } from './knownProviders';
 export { Logger } from './logger';
 export { StatusLogger } from './statusLogger';
-export { NESLogger } from './nesLogger';
+export { CompletionLogger } from './completionLogger';
 export { OpenAIHandler } from './openaiHandler';
 export { AnthropicHandler } from './anthropicHandler';
 export { MCPWebSearchClient } from './mcpWebSearchClient';
