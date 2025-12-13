@@ -144,21 +144,6 @@
                 "category": "GCMP"
             },
             {
-                "command": "gcmp.nesCompletion.enable",
-                "title": "启用 NES 补全",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.nesCompletion.disable",
-                "title": "禁用 NES 补全",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.nesCompletion.toggle",
-                "title": "切换 NES 补全",
-                "category": "GCMP"
-            },
-            {
                 "command": "gcmp.nesCompletion.toggleManual",
                 "title": "切换 NES 手动触发模式",
                 "category": "GCMP"
@@ -228,6 +213,72 @@
                     "default": "minimaxi.com",
                     "description": "MiniMax Coding Plan 接入站点。minimaxi.com 为国内站（推荐），minimax.io 为国际站。",
                     "scope": "application"
+                },
+                "gcmp.fimCompletion.enabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "启用 FIM (Fill In the Middle) 建议功能。",
+                    "scope": "application"
+                },
+                "gcmp.fimCompletion.debounceMs": {
+                    "type": "number",
+                    "default": 500,
+                    "minimum": 50,
+                    "maximum": 1000,
+                    "description": "FIM 补全的防抖延迟（毫秒）。",
+                    "scope": "application"
+                },
+                "gcmp.fimCompletion.timeoutMs": {
+                    "type": "number",
+                    "default": 5000,
+                    "minimum": 1000,
+                    "maximum": 30000,
+                    "description": "FIM 补全的请求超时时间（毫秒）。",
+                    "scope": "application"
+                },
+                "gcmp.fimCompletion.modelConfig": {
+                    "type": "object",
+                    "default": {
+                        "provider": "",
+                        "baseUrl": "",
+                        "model": ""
+                    },
+                    "description": "FIM 补全使用的模型配置。",
+                    "scope": "application",
+                    "properties": {
+                        "provider": {
+                            "type": "string",
+                            "description": "模型提供商标识符"
+                        },
+                        "baseUrl": {
+                            "type": "string",
+                            "description": "API基础URL",
+                            "format": "uri"
+                        },
+                        "model": {
+                            "type": "string",
+                            "description": "FIM 补全使用的模型名称"
+                        },
+                        "maxTokens": {
+                            "type": "number",
+                            "description": "FIM 补全返回的最大长度",
+                            "default": 200,
+                            "minimum": 50,
+                            "maximum": 1000
+                        },
+                        "extraBody": {
+                            "type": "object",
+                            "description": "额外的请求体参数，将在API请求中合并到请求体中",
+                            "additionalProperties": {
+                                "description": "额外的请求体参数值"
+                            }
+                        }
+                    },
+                    "required": [
+                        "provider",
+                        "baseUrl",
+                        "model"
+                    ]
                 },
                 "gcmp.nesCompletion.enabled": {
                     "type": "boolean",

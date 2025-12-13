@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  高频状态日志管理器
- *  专用于 primaryInstanceManager 等
+ *  专用于 InlineCompletionProvider 等
  *  高频状态刷新模块的日志输出，与主日志通道分离
  *--------------------------------------------------------------------------------------------*/
 
@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 
 /**
  * 高频状态日志管理器类
- * 用于记录 NES (Next Edit Suggestions) 高频操作的日志
+ * 用于记录 FIM / NES 高频操作的日志
  */
 export class NESLogger {
     private static outputChannel: vscode.LogOutputChannel;

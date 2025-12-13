@@ -48,6 +48,7 @@ export interface NESCompletionConfig {
         extraBody?: Record<string, unknown>;
     };
 }
+export type FIMCompletionConfig = Omit<NESCompletionConfig, 'manualOnly'>;
 
 /**
  * GCMP配置接口
@@ -65,6 +66,8 @@ export interface GCMPConfig {
     zhipu: ZhipuConfig;
     /** MiniMax配置 */
     minimax: MiniMaxConfig;
+    /** FIM补全配置 */
+    fimCompletion: FIMCompletionConfig;
     /** NES补全配置 */
     nesCompletion: NESCompletionConfig;
     /** 提供商配置覆盖 */
@@ -125,6 +128,20 @@ export class ConfigManager {
             },
             minimax: {
                 endpoint: config.get<MiniMaxConfig['endpoint']>('minimax.endpoint', 'minimaxi.com')
+            },
+            fimCompletion: {
+                enabled: config.get<boolean>('fimCompletion.enabled', false),
+                debounceMs: this.validateNESDebounceMs(config.get<number>('fimCompletion.debounceMs', 500)),
+                timeoutMs: this.validateNESTimeoutMs(config.get<number>('fimCompletion.timeoutMs', 5000)),
+                modelConfig: {
+                    provider: config.get<string>('fimCompletion.modelConfig.provider', ''),
+                    baseUrl: config.get<string>('fimCompletion.modelConfig.baseUrl', ''),
+                    model: config.get<string>('fimCompletion.modelConfig.model', ''),
+                    maxTokens: this.validateNESMaxTokens(
+                        config.get<number>('fimCompletion.modelConfig.maxTokens', 200)
+                    ),
+                    extraBody: config.get('fimCompletion.modelConfig.extraBody')
+                }
             },
             nesCompletion: {
                 enabled: config.get<boolean>('nesCompletion.enabled', false),
@@ -196,6 +213,13 @@ export class ConfigManager {
      */
     static getMinimaxEndpoint(): 'minimaxi.com' | 'minimax.io' {
         return this.getConfig().minimax.endpoint;
+    }
+
+    /**
+     * 获取FIM补全配置
+     */
+    static getFIMConfig(): FIMCompletionConfig {
+        return this.getConfig().fimCompletion;
     }
 
     /**

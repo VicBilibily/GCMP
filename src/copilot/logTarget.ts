@@ -21,11 +21,11 @@ export class CopilotLogTarget implements ILogTarget {
                 NESLogger.warn(`[CopilotLogTarget] ${metadataStr}`, ...extra);
                 return;
             case LogLevel.Info:
-                NESLogger.info(`[CopilotLogTarget] ${metadataStr}`, ...extra);
+                // NESLogger.info(`[CopilotLogTarget] ${metadataStr}`, ...extra);
+                // return;
+                // case LogLevel.Debug:
+                NESLogger.debug(`[CopilotLogTarget] ${metadataStr}`, ...extra);
                 return;
-            // case LogLevel.Debug:
-            //     NESLogger.debug(`[CopilotLogTarget] ${metadataStr}`, ...extra);
-            //     return;
             // case LogLevel.Trace:
             //     NESLogger.trace(`[CopilotLogTarget] ${metadataStr}`, ...extra);
             //     return;

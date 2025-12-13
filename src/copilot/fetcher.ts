@@ -6,7 +6,7 @@
 import { Readable } from 'stream';
 import { VersionManager } from '../utils/versionManager';
 import { ApiKeyManager, NESLogger } from '../utils';
-import { ConfigManager } from '../utils/configManager';
+import { ConfigManager, NESCompletionConfig } from '../utils/configManager';
 import type {
     FetchOptions,
     PaginationOptions,
@@ -101,13 +101,26 @@ export class Fetcher implements IFetcher {
             throw new Error('Not Support Request');
         }
 
-        const { modelConfig } = ConfigManager.getNESConfig();
-        if (!modelConfig || !modelConfig.baseUrl) {
-            NESLogger.error('[Fetcher] NES 模型配置缺失');
-            throw new Error('NES model configuration is missing');
+        let modelConfig: NESCompletionConfig['modelConfig'];
+        if (url.endsWith('/chat/completions')) {
+            modelConfig = ConfigManager.getNESConfig().modelConfig;
+            if (!modelConfig || !modelConfig.baseUrl) {
+                NESLogger.error('[Fetcher] NES 模型配置缺失');
+                throw new Error('NES model configuration is missing');
+            }
+            url = `${modelConfig.baseUrl}/chat/completions`;
+        } else if (url.endsWith('/completions')) {
+            modelConfig = ConfigManager.getFIMConfig().modelConfig;
+            if (!modelConfig || !modelConfig.baseUrl) {
+                NESLogger.error('[Fetcher] FIM 模型配置缺失');
+                throw new Error('FIM model configuration is missing');
+            }
+            url = `${modelConfig.baseUrl}/completions`;
+        } else {
+            throw new Error('Not Support Request URL');
         }
-        const { baseUrl, provider, model, maxTokens, extraBody } = modelConfig;
-        url = `${baseUrl}/chat/completions`;
+
+        const { provider, model, maxTokens, extraBody } = modelConfig;
 
         try {
             const apiKey = await ApiKeyManager.getApiKey(provider);
@@ -119,7 +132,7 @@ export class Fetcher implements IFetcher {
             const requestHeaders: Record<string, string> = {
                 ...(options.headers || {}),
                 'Content-Type': 'application/json',
-                'User-Agent': VersionManager.getUserAgent(`${provider}-NES`),
+                'User-Agent': VersionManager.getUserAgent(provider),
                 Authorization: `Bearer ${apiKey}`
             };
 

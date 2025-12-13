@@ -170,7 +170,7 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
 }
 ```
 
-#### 🔌 OpenAI / Anthropic Compatible 自定义模型支持
+## 🔌 OpenAI / Anthropic Compatible 自定义模型支持
 
 GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 OpenAI 或 Anthropic 兼容的 API。通过 `gcmp.compatibleModels` 配置，您可以完全自定义模型参数，包括扩展请求参数。
 
@@ -178,7 +178,7 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
 2. 在 `settings.json` 设置中编辑 `gcmp.compatibleModels` 配置项：
     - `customHeader` 及 `extraBody` 配置只可通过编辑全局 `settings.json` 配置。
 
-##### 自定义模型内置已知提供商ID及显示名称列表
+### 自定义模型内置已知提供商ID及显示名称列表
 
 > 聚合转发类型的提供商可提供内置特殊适配，不作为单一内置提供商提供。<br/>
 > 若需要内置或特殊适配的请通过 Issue 提供相关信息。
@@ -229,53 +229,93 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
 }
 ```
 
-#### NES (Next Edit Suggestions) 补全配置
+## FIM / NES 内联补全建议功能配置
 
-NES (Next Edit Suggestions) 是一个智能代码补全功能，可以根据当前上下文提供代码建议。
+- **FIM** (Fill In the Middle) 是一种代码补全技术，模型通过上下文预测中间缺失的代码，适合快速补全单行或短片段代码。
+- **NES** (Next Edit Suggestions) 是一个智能代码建议功能，根据当前编辑上下文提供更精准的代码补全建议，支持多行代码生成。
 
-| 参数                            | 类型    | 默认值 | 范围/选项  | 说明                                 |
-| ------------------------------- | ------- | ------ | ---------- | ------------------------------------ |
-| `gcmp.nesCompletion.enabled`    | boolean | false  | true/false | 启用 NES 补全功能                    |
-| `gcmp.nesCompletion.debounceMs` | number  | 500    | 50-1000    | NES 补全的防抖延迟（毫秒）           |
-| `gcmp.nesCompletion.timeoutMs`  | number  | 5000   | 1000-30000 | NES 补全的请求超时时间（毫秒）       |
-| `gcmp.nesCompletion.manualOnly` | boolean | false  | true/false | 仅手动触发模式（启用后仅响应 Alt+/） |
+### FIM / NES 内联补全建议模型配置
 
-##### NES 补全模型配置
+FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimCompletion.modelConfig` 和 `gcmp.nesCompletion.modelConfig` 进行设置。
 
-NES 补全使用单独的模型配置，可以通过 `gcmp.nesCompletion.modelConfig` 进行设置：
+- **启用 FIM 补全模式**（推荐 DeepSeek、Qwen 等支持 FIM 的模型）：
+
+```json
+{
+    "gcmp.fimCompletion.enabled": true, // 启用 FIM 补全功能
+    "gcmp.fimCompletion.debounceMs": 500, // 自动触发补全的防抖延迟
+    "gcmp.fimCompletion.timeoutMs": 5000, // FIM 补全的请求超时时间
+    "gcmp.fimCompletion.modelConfig": {
+        "provider": "deepseek", // 提供商ID，其他请先添加 OpenAI Compatible 自定义模型 provider 并设置 ApiKey
+        "baseUrl": "https://api.deepseek.com/beta", // 指定 FIM Completion Endpoint 的 BaseUrl
+        "model": "deepseek-chat",
+        "maxTokens": 100
+        // "extraBody": { "top_p": 0.9 }
+    }
+}
+```
+
+- **启用 NES 手动补全模式**：
 
 ````json
 {
     "gcmp.nesCompletion.enabled": true, // 启用 NES 补全功能
     "gcmp.nesCompletion.debounceMs": 500, // 自动触发补全的防抖延迟
-    "gcmp.nesCompletion.timeoutMs": 10000, // NES 补全 OpenAI 接口请求超时时间
+    "gcmp.nesCompletion.timeoutMs": 10000, // NES 补全请求超时时间
     "gcmp.nesCompletion.manualOnly": true, // 启用手动 `Alt+/` 快捷键触发代码补全提示
     "gcmp.nesCompletion.modelConfig": {
-        "provider": "zhipu", // 提供商ID, 其他请先添加 OpenAI Compatible 自定义模型 provider 并设置 ApiKey。
-        "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4", // 指定 OpenAI Endpoint 的 BaseUrl 地址
-        "model": "glm-4.6", // 留意日志输出是否包含 ``` markdown 代码起始符。若遇到此类输出，请更换更好的模型。
+        "provider": "zhipu", // 提供商ID，其他请先添加 OpenAI Compatible 自定义模型 provider 并设置 ApiKey
+        "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4", // OpenAI Chat Completion Endpoint 的 BaseUrl 地址
+        "model": "glm-4.6", // 推荐使用性能较好的模型，留意日志输出是否包含 ``` markdown 代码符
         "maxTokens": 200,
         "extraBody": {
-            // GLM-4.6 默认启用思考，补全关闭思考
+            // GLM-4.6 默认启用思考，补全场景建议关闭思考以加快响应
             "thinking": { "type": "disabled" }
         }
     }
 }
 ````
 
-##### NES 补全快捷键
+- **混合使用 FIM + NES 补全模式**：
 
-- `Alt+/` - 手动触发 NES 补全
-- `Shift+Alt+/` - 切换 NES 手动触发模式
+> - **自动触发 + manualOnly: false**：根据光标位置智能选择提供者
+>     - 光标在行尾 → 使用 FIM（适合补全当前行）
+>     - 光标不在行尾 → 使用 NES（适合编辑代码中间部分）
+>     - 如果使用 NES 提供无结果或补全无意义，则自动回退到 FIM
+> - **自动触发 + manualOnly: true**：仅发起 FIM 请求（NES 需手动触发）
+> - **手动触发**（按 `Alt+/`）：直接调用 NES，不发起 FIM
+> - **模式切换**（按 `Shift+Alt+/`）：在自动/手动间切换（仅影响 NES）
 
-##### NES 补全命令
+```json
+{
+    "gcmp.fimCompletion.enabled": true,
+    "gcmp.fimCompletion.debounceMs": 500,
+    "gcmp.fimCompletion.timeoutMs": 5000,
+    "gcmp.fimCompletion.modelConfig": {
+        "provider": "deepseek",
+        "baseUrl": "https://api.deepseek.com/beta",
+        "model": "deepseek-chat",
+        "maxTokens": 100
+    },
+    "gcmp.nesCompletion.enabled": true,
+    "gcmp.nesCompletion.debounceMs": 500,
+    "gcmp.nesCompletion.timeoutMs": 10000,
+    "gcmp.nesCompletion.manualOnly": false, // 启用自动FIM + 手动触发NES
+    "gcmp.nesCompletion.modelConfig": {
+        "provider": "deepseek",
+        "baseUrl": "https://api.deepseek.com/v1",
+        "model": "deepseek-chat",
+        "maxTokens": 200
+    }
+}
+```
 
-GCMP 提供了以下命令来管理 NES 补全功能：
+### 快捷键与操作
 
-- `GCMP: 启用 NES 补全` - 启用 NES 补全功能
-- `GCMP: 禁用 NES 补全` - 禁用 NES 补全功能
-- `GCMP: 切换 NES 补全` - 切换 NES 补全的启用状态
-- `GCMP: 切换 NES 手动触发模式` - 切换是否仅使用手动触发模式
+| 快捷键        | 操作说明                     |
+| ------------- | ---------------------------- |
+| `Alt+/`       | 手动触发补全建议（NES 模式） |
+| `Shift+Alt+/` | 切换 NES 手动触发模式        |
 
 ## 🤝 贡献指南
 
