@@ -20,6 +20,7 @@ import type {
     ImageBlockParam
 } from '@anthropic-ai/sdk/resources';
 import { ModelConfig } from '../types/sharedTypes';
+import { Logger } from './logger';
 
 // 自定义数据部分MIME类型
 const CustomDataPartMimeTypes = {
@@ -209,6 +210,25 @@ export function apiMessageToAnthropicMessage(
             const prevMessage = mergedMessages[mergedMessages.length - 1];
             if (Array.isArray(prevMessage.content) && Array.isArray(message.content)) {
                 (prevMessage.content as ContentBlockParam[]).push(...(message.content as ContentBlockParam[]));
+            }
+        }
+    }
+
+    // 如果 includeThinking=true，检查并确保 assistant 消息包含 thinking 块
+    if (model.includeThinking) {
+        for (const message of mergedMessages) {
+            if (message.role === 'assistant' && Array.isArray(message.content)) {
+                const hasThinkingBlock = message.content.some(
+                    block => block.type === 'thinking' || block.type === 'redacted_thinking'
+                );
+                if (!hasThinkingBlock) {
+                    // 在 assistant 消息开头添加默认 thinking 块
+                    message.content.unshift({
+                        type: 'thinking',
+                        thinking: '...'
+                    } as ThinkingBlockParam);
+                    Logger.warn('Assistant message missing thinking block, added default one');
+                }
             }
         }
     }
