@@ -8,6 +8,9 @@ import { ProviderConfig } from '../types/sharedTypes';
 import { ConfigManager } from './configManager';
 import { Logger } from './logger';
 import type { JSONSchema7 } from 'json-schema';
+import { configProviders } from '../providers/config';
+import { KnownProviders } from './knownProviders';
+import { CompatibleModelManager } from './compatibleModelManager';
 
 /**
  * 扩展的 JSON Schema 接口，支持 VS Code 特有的 enumDescriptions 属性
@@ -127,6 +130,10 @@ export class JsonSchemaProvider {
         for (const [providerKey, config] of Object.entries(providerConfigs)) {
             patternProperties[`^${providerKey}$`] = this.createProviderSchema(providerKey, config);
         }
+
+        // 获取所有可用的提供商ID
+        const { providerIds, enumDescriptions: allProviderDescriptions } = this.getAllAvailableProviders();
+
         return {
             $schema: 'http://json-schema.org/draft-07/schema#',
             $id: this.SCHEMA_URI,
@@ -140,6 +147,32 @@ export class JsonSchemaProvider {
                         '提供商配置覆盖。允许覆盖提供商的baseUrl和模型配置，支持添加新模型或覆盖现有模型的参数。',
                     patternProperties,
                     propertyNames
+                },
+                'gcmp.fimCompletion.modelConfig': {
+                    type: 'object',
+                    description: 'FIM (Fill-in-the-Middle) 补全模式配置',
+                    properties: {
+                        provider: {
+                            type: 'string',
+                            description: 'FIM补全使用的提供商ID',
+                            enum: providerIds,
+                            enumDescriptions: allProviderDescriptions
+                        }
+                    },
+                    additionalProperties: true
+                },
+                'gcmp.nesCompletion.modelConfig': {
+                    type: 'object',
+                    description: 'NES (Next Edit Suggestion) 补全模式配置',
+                    properties: {
+                        provider: {
+                            type: 'string',
+                            description: 'NES补全使用的提供商ID',
+                            enum: providerIds,
+                            enumDescriptions: allProviderDescriptions
+                        }
+                    },
+                    additionalProperties: true
                 }
             },
             additionalProperties: true
@@ -279,6 +312,50 @@ export class JsonSchemaProvider {
             },
             additionalProperties: false
         };
+    }
+
+    /**
+     * 获取所有可用的提供商ID（包括内置、已知、自定义和历史提供商）
+     */
+    private static getAllAvailableProviders(): { providerIds: string[]; enumDescriptions: string[] } {
+        const providerIds: string[] = [];
+        const enumDescriptions: string[] = [];
+
+        try {
+            // 1. 获取内置提供商
+            for (const [providerId, config] of Object.entries(configProviders)) {
+                providerIds.push(providerId);
+                enumDescriptions.push(config.displayName || providerId);
+            }
+
+            // 2. 获取已知提供商
+            for (const [providerId, config] of Object.entries(KnownProviders)) {
+                if (!providerIds.includes(providerId)) {
+                    providerIds.push(providerId);
+                    enumDescriptions.push(config.displayName || providerId);
+                }
+            }
+
+            // 3. 获取自定义模型中的历史提供商
+            const customModels = CompatibleModelManager.getModels();
+            const customProviders = new Set<string>();
+
+            for (const model of customModels) {
+                if (model.provider && model.provider.trim() && !providerIds.includes(model.provider)) {
+                    customProviders.add(model.provider.trim());
+                }
+            }
+
+            // 添加自定义提供商
+            for (const providerId of Array.from(customProviders).sort()) {
+                providerIds.push(providerId);
+                enumDescriptions.push('自定义提供商：' + providerId);
+            }
+        } catch (error) {
+            Logger.error('获取可用提供商列表失败:', error);
+        }
+
+        return { providerIds, enumDescriptions };
     }
 
     /**
