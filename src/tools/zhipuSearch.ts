@@ -105,7 +105,14 @@ export class ZhipuSearchTool {
             throw new Error('智谱AI API密钥未设置，请先运行命令"GCMP: 设置 智谱AI API密钥"');
         }
 
-        const url = `${this.baseURL}/web_search`;
+        // 根据 endpoint 配置确定 baseURL
+        let baseURL = this.baseURL;
+        const endpoint = ConfigManager.getZhipuEndpoint();
+        if (endpoint === 'api.z.ai') {
+            baseURL = baseURL.replace('open.bigmodel.cn', 'api.z.ai');
+        }
+
+        const url = `${baseURL}/web_search`;
 
         const requestData = JSON.stringify({
             search_query: params.search_query,

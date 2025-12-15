@@ -46,6 +46,13 @@ export class AnthropicHandler {
                 baseUrl = baseUrl.replace('api.minimaxi.com', 'api.minimax.io');
             }
         }
+        if (providerKey === 'zhipu') {
+            // 针对智谱AI国际站进行 baseUrl 覆盖设置
+            const endpoint = ConfigManager.getZhipuEndpoint();
+            if (baseUrl && endpoint === 'api.z.ai') {
+                baseUrl = baseUrl.replace('open.bigmodel.cn', 'api.z.ai');
+            }
+        }
         Logger.debug(`[${this.displayName}] 创建新的 Anthropic 客户端 (baseUrl: ${baseUrl})`);
 
         // 构建默认头部，包含提供商级别和模型级别的 customHeader

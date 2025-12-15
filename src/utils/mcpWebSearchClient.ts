@@ -6,7 +6,8 @@
 import * as vscode from 'vscode';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { Logger } from '.';
+import { Logger } from './logger';
+import { ConfigManager } from './configManager';
 import { ApiKeyManager } from './apiKeyManager';
 import { VersionManager } from './versionManager';
 import { ZhipuSearchResult } from '../tools/zhipuSearch';
@@ -257,7 +258,12 @@ export class MCPWebSearchClient {
 
         try {
             // 使用 StreamableHTTP 传输，通过 requestInit.headers 传递 Authorization token
-            const httpUrl = 'https://open.bigmodel.cn/api/mcp/web_search_prime/mcp';
+            // 根据 endpoint 配置确定 MCP URL
+            let httpUrl = 'https://open.bigmodel.cn/api/mcp/web_search_prime/mcp';
+            const endpoint = ConfigManager.getZhipuEndpoint();
+            if (endpoint === 'api.z.ai') {
+                httpUrl = httpUrl.replace('open.bigmodel.cn', 'api.z.ai');
+            }
 
             this.client = new Client(
                 {

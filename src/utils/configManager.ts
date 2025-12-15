@@ -22,6 +22,8 @@ export interface ZhipuSearchConfig {
 export interface ZhipuConfig {
     /** 搜索功能配置 */
     search: ZhipuSearchConfig;
+    /** 接入站点 */
+    endpoint: 'open.bigmodel.cn' | 'api.z.ai';
 }
 
 /**
@@ -124,7 +126,8 @@ export class ConfigManager {
             zhipu: {
                 search: {
                     enableMCP: config.get<boolean>('zhipu.search.enableMCP', true) // 默认启用MCP模式（Coding Plan专属）
-                }
+                },
+                endpoint: config.get<ZhipuConfig['endpoint']>('zhipu.endpoint', 'open.bigmodel.cn')
             },
             minimax: {
                 endpoint: config.get<MiniMaxConfig['endpoint']>('minimax.endpoint', 'minimaxi.com')
@@ -205,6 +208,14 @@ export class ConfigManager {
      */
     static getZhipuConfig(): ZhipuConfig {
         return this.getConfig().zhipu;
+    }
+
+    /**
+     * 获取智谱AI接入点配置
+     * @returns 'open.bigmodel.cn' 或 'api.z.ai'，默认 'open.bigmodel.cn'
+     */
+    static getZhipuEndpoint(): 'open.bigmodel.cn' | 'api.z.ai' {
+        return this.getConfig().zhipu.endpoint;
     }
 
     /**

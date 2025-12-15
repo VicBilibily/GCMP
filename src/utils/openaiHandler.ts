@@ -61,7 +61,15 @@ export class OpenAIHandler {
             throw new Error(`缺少 ${this.displayName} API密钥`);
         }
         // 优先使用模型特定的baseUrl，如果没有则使用提供商级别的baseUrl
-        const baseURL = modelConfig?.baseUrl || this.baseURL;
+        let baseURL = modelConfig?.baseUrl || this.baseURL;
+
+        // 针对智谱AI国际站进行 baseURL 覆盖设置
+        if (providerKey === 'zhipu') {
+            const endpoint = ConfigManager.getZhipuEndpoint();
+            if (baseURL && endpoint === 'api.z.ai') {
+                baseURL = baseURL.replace('open.bigmodel.cn', 'api.z.ai');
+            }
+        }
 
         // 构建默认头部，包含自定义头部
         const defaultHeaders: Record<string, string> = {
