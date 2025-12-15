@@ -173,6 +173,8 @@ export class AnthropicHandler {
         const MAX_THINKING_BUFFER_LENGTH = 20;
         // 当前正在输出的思维链 ID
         let currentThinkingId: string | null = null;
+        // 追踪是否有输出过有效的文本内容
+        let hasOutputContent = false;
 
         Logger.debug('开始处理 Anthropic 流式响应');
 
@@ -319,6 +321,8 @@ export class AnthropicHandler {
                         if (chunk.delta.type === 'text_delta') {
                             // 文本内容增量
                             progress.report(new vscode.LanguageModelTextPart(chunk.delta.text));
+                            // 标记已有输出内容
+                            hasOutputContent = true;
                         } else if (chunk.delta.type === 'input_json_delta' && pendingToolCall) {
                             // 工具调用参数增量
                             pendingToolCall.jsonInput = (pendingToolCall.jsonInput || '') + chunk.delta.partial_json;
@@ -336,6 +340,8 @@ export class AnthropicHandler {
                             } catch {
                                 // JSON尚未完整，继续累积
                             }
+                            // 工具调用也算作输出内容
+                            hasOutputContent = true;
                         } /* else if (chunk.delta.type === 'input_json_delta' && pendingServerToolCall) {
                             // 服务器工具调用参数增量 (暂不支持)
                             pendingServerToolCall.jsonInput =
@@ -511,6 +517,11 @@ export class AnthropicHandler {
                             pendingThinking.thinking = '';
                         }
                         currentThinkingId = null;
+                        // 如果没有返回有效的文本内容，输出一个 <think/> 标签
+                        if (!hasOutputContent) {
+                            progress.report(new vscode.LanguageModelTextPart('<think/>'));
+                            Logger.warn('消息流结束时没有输出内容，添加了 <think/> 占位符作为输出');
+                        }
                         Logger.trace('消息流完成');
                         break;
 
