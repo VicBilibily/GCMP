@@ -99,6 +99,7 @@ export class JsonSchemaProvider {
                     const edit = new vscode.WorkspaceEdit();
                     edit.replace(uri, new vscode.Range(0, 0, doc.lineCount, 0), newContent);
                     vscode.workspace.applyEdit(edit);
+                    Logger.info('JSON Schema 已更新');
                 }
             });
         } catch (error) {
@@ -173,6 +174,120 @@ export class JsonSchemaProvider {
                         }
                     },
                     additionalProperties: true
+                },
+                'gcmp.compatibleModels': {
+                    type: 'array',
+                    description: 'Compatible Provider 的自定义模型配置。',
+                    default: [],
+                    items: {
+                        type: 'object',
+                        properties: {
+                            id: {
+                                type: 'string',
+                                description: '模型ID',
+                                minLength: 1
+                            },
+                            name: {
+                                type: 'string',
+                                description: '模型显示名称',
+                                minLength: 1
+                            },
+                            tooltip: {
+                                type: 'string',
+                                description: '模型描述'
+                            },
+                            provider: {
+                                type: 'string',
+                                description:
+                                    '模型提供商标识符。从下拉列表选择现有提供商ID，或输入新ID创建自定义提供商。',
+                                anyOf: [
+                                    {
+                                        type: 'string',
+                                        enum: providerIds,
+                                        description: '选择现有提供商ID'
+                                    },
+                                    {
+                                        type: 'string',
+                                        minLength: 3,
+                                        maxLength: 100,
+                                        pattern: '^[a-zA-Z0-9_-]+$',
+                                        description: '新增自定义提供商ID（允许字母、数字、下划线、连字符）'
+                                    }
+                                ]
+                            },
+                            sdkMode: {
+                                type: 'string',
+                                enum: ['openai', 'openai-sse', 'anthropic'],
+                                enumDescriptions: [
+                                    'OpenAI SDK 标准模式，使用官方 OpenAI SDK 进行请求响应处理',
+                                    'OpenAI SSE 兼容模式，使用插件内实现的SSE解析逻辑进行流式响应处理',
+                                    'Anthropic SDK 标准模式，使用官方 Anthropic SDK 进行请求响应处理'
+                                ],
+                                description: 'SDK模式默认为 openai。',
+                                default: 'openai'
+                            },
+                            baseUrl: {
+                                type: 'string',
+                                description: 'API基础URL',
+                                format: 'uri'
+                            },
+                            model: {
+                                type: 'string',
+                                description: 'API请求时使用的模型名称（可选，默认使用模型ID）'
+                            },
+                            maxInputTokens: {
+                                type: 'number',
+                                description: '最大输入token数量',
+                                minimum: 128
+                            },
+                            maxOutputTokens: {
+                                type: 'number',
+                                description: '最大输出token数量',
+                                minimum: 8
+                            },
+                            outputThinking: {
+                                type: 'boolean',
+                                description: '是否启用输出思考过程（如有支持）',
+                                default: true
+                            },
+                            includeThinking: {
+                                type: 'boolean',
+                                description:
+                                    '多轮对话消息是否必须包含思考内容（可选）\n默认值为 false，表示思考内容为可选传递给模型\n当设置为 true 时，工具消息必须包含思考内容，否则会报错',
+                                default: false
+                            },
+                            capabilities: {
+                                type: 'object',
+                                properties: {
+                                    toolCalling: {
+                                        type: 'boolean',
+                                        description: '是否支持工具调用'
+                                    },
+                                    imageInput: {
+                                        type: 'boolean',
+                                        description: '是否支持图像输入'
+                                    }
+                                },
+                                required: ['toolCalling', 'imageInput']
+                            },
+                            customHeader: {
+                                type: 'object',
+                                description: '自定义HTTP头部配置，支持 ${APIKEY} 占位符替换',
+                                additionalProperties: {
+                                    type: 'string',
+                                    description: 'HTTP头部值'
+                                }
+                            },
+                            extraBody: {
+                                type: 'object',
+                                description: '额外的请求体参数，将在API请求中合并到请求体中',
+                                additionalProperties: {
+                                    description: '额外的请求体参数值'
+                                }
+                            }
+                        },
+                        required: ['id', 'name', 'maxInputTokens', 'maxOutputTokens', 'capabilities']
+                    }
                 }
             },
             additionalProperties: true
