@@ -185,19 +185,24 @@ export class JsonSchemaProvider {
     private static createProviderSchema(providerKey: string, config: ProviderConfig): JSONSchema7 {
         const modelIds = config.models?.map(model => model.id) || [];
 
+        // 创建 id 属性的 schema，支持选择现有模型ID或输入自定义ID
         const idProperty: JSONSchema7 = {
-            type: 'string',
-            minLength: 3,
-            maxLength: 100,
-            description:
-                '从下拉列表选择现有模型ID，或输入新ID创建自定义配置。\r\n自定义创建的模型ID会提示值不被接受，忽略即可。'
+            anyOf: [
+                {
+                    type: 'string',
+                    enum: modelIds,
+                    description: '覆盖现有模型ID'
+                },
+                {
+                    type: 'string',
+                    minLength: 3,
+                    maxLength: 100,
+                    pattern: '^[a-zA-Z0-9._-]+$',
+                    description: '新增自定义模型ID（允许字母、数字、下划线、连字符和点号）'
+                }
+            ],
+            description: '从下拉列表选择现有模型ID，或输入新ID创建自定义配置'
         };
-
-        // 如果有模型ID，添加枚举和示例
-        if (modelIds.length > 0) {
-            idProperty.enum = modelIds;
-            idProperty.examples = modelIds.slice(0, 3);
-        }
 
         // 为 streamlake 的 model 字段添加正则验证
         const modelProperty: JSONSchema7 = {
@@ -239,12 +244,14 @@ export class JsonSchemaProvider {
                             name: {
                                 type: 'string',
                                 minLength: 1,
-                                description: '在模型选择器中显示的友好名称。\r\n仅新增模型时有效，不会覆盖预置名称。'
+                                description:
+                                    '在模型选择器中显示的友好名称。\r\n对于自定义模型ID有效，不会覆盖预置模型的名称。'
                             },
                             tooltip: {
                                 type: 'string',
                                 minLength: 1,
-                                description: '作为悬停工具提示显示的详细描述。\r\n仅新增模型时有效，不会覆盖预置描述。'
+                                description:
+                                    '作为悬停工具提示显示的详细描述。\r\n对于自定义模型ID有效，不会覆盖预置模型的描述。'
                             },
                             maxInputTokens: {
                                 type: 'number',

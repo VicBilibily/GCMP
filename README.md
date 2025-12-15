@@ -142,9 +142,9 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
         "dashscope": {
             "models": [
                 {
-                    "id": "deepseek-v3.2-exp", // 增加额外模型，提示不被接受，但实际支持可用
-                    "name": "Deepseek-V3.2-Exp (阿里云百炼)",
-                    "tooltip": "引入了DeepSeek Sparse Attention（一种稀疏注意力机制）的实验性质版本，针对长文本的训练和推理效率进行了探索性的优化和验证。",
+                    "id": "deepseek-v3.2", // 增加额外模型：不在提示可选选项，但允许自定义新增
+                    "name": "Deepseek-V3.2 (阿里云百炼)",
+                    "tooltip": "DeepSeek-V3.2是引入DeepSeek Sparse Attention（一种稀疏注意力机制）的正式版模型，也是DeepSeek推出的首个将思考融入工具使用的模型，同时支持思考模式与非思考模式的工具调用。",
                     // "sdkMode": "openai", // 阿里云百炼已默认继承提供商设置，其他提供商模型可按需设置
                     // "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
                     "maxInputTokens": 128000,
