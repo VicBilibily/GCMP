@@ -2,6 +2,19 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的所有重要更改。
 
+## [0.15.6] - 2025-12-15
+
+### 新增
+
+- **配置编辑智能提示优化**：
+    - 为 `gcmp.compatibleModels.[].provider` 提供编辑时的可用提供商智能提示
+    - 为 `gcmp.[fim|nes]Completion.modelConfig.provider` 提供模型配置中的可用提供商编辑智能提示
+    - 完善 `gcmp.providerOverrides` 覆盖模型设置的ID字段的智能提示
+
+### 修复
+
+- **Anthropic SDK 思考模式优化**：思考模式没有输出 content 正文而响应 stop 时的处理，现尝试输出 `<think/>` 占位文本以确保响应消息完整性，避免工具提示 `很抱歉，未返回响应。`。
+
 ## [0.15.5] - 2025-12-14
 
 ### 调整
