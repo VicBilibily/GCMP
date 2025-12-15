@@ -30,7 +30,7 @@
 
 ## 🤖 内置的AI大模型提供商
 
-### [**智谱AI**](https://bigmodel.cn/) (`zhipu`) - GLM系列
+### [**智谱AI**](https://bigmodel.cn/) - GLM系列
 
 - [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-4.6**(Thinking)、**GLM-4.6V**(Thinking)、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
 - **按量计费**：**GLM-4.6**、**GLM-4.6V**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
@@ -39,19 +39,19 @@
     - 默认启用 `联网搜索MCP` 模式，编程套餐支持：Lite(100次/月)、Pro(1000次/月)、Max(4000次/月)。
     - 可通过设置关闭 `联网搜索MCP` 模式以使用 `Web Search API` 按次计费。
 
-### [**Kimi**](https://www.kimi.com/) (`kimi`) - Kimi For Coding
+### [**Kimi**](https://www.kimi.com/) - Kimi For Coding
 
 - Kimi `会员计划` 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic SDK 请求。
     - **用量查询**：已支持状态栏显示周期剩余额度，可查看赠送的每周剩余用量及每周重置时间。
 
-### [**火山方舟**](https://www.volcengine.com/product/ark) (`volcengine`) - 豆包大模型
+### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
 
 - [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：**Doubao-Seed-Code**、**DeepSeek-V3.2**(Thinking)
 - **编程系列**：**Doubao-Seed-Code**
 - **豆包系列**：**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
 - **协作奖励计划**：**DeepSeek-V3.2**(Thinking)、**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**
 
-### [**MiniMax**](https://platform.minimaxi.com/login) (`minimax`)
+### [**MiniMax**](https://platform.minimaxi.com/login)
 
 - [**Coding Plan 编程套餐**](https://platform.minimaxi.com/subscribe/coding-plan)：**MiniMax-M2**
     - **搜索功能**：集成 Coding Plan 联网搜索调用工具，支持通过 `#minimaxWebSearch` 进行联网搜索。
@@ -59,28 +59,32 @@
     - **[国际站点](https://platform.minimax.io/subscribe/coding-plan)**：已支持国际站 Coding Plan 编程套餐使用（`MiniMax-M2`、联网搜索、用量查询）。
 - **按量计费**：**MiniMax-M2**、**MiniMax-M1**
 
-### [**MoonshotAI**](https://platform.moonshot.cn/) (`moonshot`) - Kimi K2系列
+### [**MoonshotAI**](https://platform.moonshot.cn/) - Kimi K2系列
 
 - 预置模型：**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-K2-0711-Preview**、**Kimi-Latest**
     - **余额查询**：已支持状态栏显示当前账户额度，可查看账户余额状况。
 - 思考模型：**Kimi-K2-Thinking**、**Kimi-K2-Thinking-Turbo**
 
-### [**DeepSeek**](https://platform.deepseek.com/) (`deepseek`) - 深度求索
+### [**DeepSeek**](https://platform.deepseek.com/) - 深度求索
 
 - 预置模型：**DeepSeek-V3.2**(Reasoner)
     - **余额查询**：已支持状态栏显示当前账户额度，可查看账户余额详情。
 
-### [**快手万擎**](https://streamlake.com/product/kat-coder) (`streamlake`) - StreamLake
+```json
+  "chat.agent.thinkingStyle": "expanded", // 使用 DeepSeek-V3.2 (Reasoner) 时建议展开思考内容
+```
+
+### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
 
 - **KAT-Coder系列**：**KAT-Coder-Pro-V1**、**KAT-Coder-Air-V1**
 
 > 快手万擎 (KAT) StreamLake 需要手动创建 [`在线推理服务`](https://www.streamlake.com/document/WANQING/mdsosw46egl9m9lfbg) 后，在模型选择的快手万擎提供商设置中配置在线推理预置模型服务推理点ID方可使用。
 
-### [**阿里云百炼**](https://bailian.console.aliyun.com/) (`dashscope`) - 通义大模型
+### [**阿里云百炼**](https://bailian.console.aliyun.com/) - 通义大模型
 
 - **通义千问系列**：**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
 
-### [**心流AI**](https://platform.iflow.cn/) (`iflow`) - iFlow (EOL)
+### [**心流AI**](https://platform.iflow.cn/) - iFlow (EOL)
 
 > - 由于 **iFlow** 已转移业务方向，主要支持 `iFlow CLI`，免费 API 接口已不再进行模型新增，免费接口的模型亦已开始逐步下线服务，故计划移除本插件的内置支持。
 > - **EOL on 2025-12-31**：`心流AI` 目前仅提供 OpenAI 兼容 API 接口，若需继续使用仍在提供的免费模型服务，可自行添加 OpenAI 兼容 API 接口模型。
@@ -120,7 +124,7 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 | ------------------------ | ------- | ------ | ----------------- | ------------------ |
 | `gcmp.temperature`       | number  | 0.1    | 0.0-2.0           | 输出随机性         |
 | `gcmp.topP`              | number  | 1.0    | 0.0-1.0           | 输出多样性         |
-| `gcmp.maxTokens`         | number  | 8192   | 32-32768          | 最大输出长度       |
+| `gcmp.maxTokens`         | number  | 8192   | 32-256000         | 最大输出长度       |
 | `gcmp.editToolMode`      | string  | claude | claude/gpt-5/none | 编辑工具模式       |
 | `gcmp.rememberLastModel` | boolean | true   | true/false        | 记住上次使用的模型 |
 
@@ -180,7 +184,7 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
 
 ### 自定义模型内置已知提供商ID及显示名称列表
 
-> 聚合转发类型的提供商可提供内置特殊适配，不作为单一内置提供商提供。<br/>
+> 聚合转发类型的提供商可提供内置特殊适配，不作为单一提供商提供。<br/>
 > 若需要内置或特殊适配的请通过 Issue 提供相关信息。
 
 | 提供商ID        | 提供商名称                                                | 提供商描述      | 余额查询     |

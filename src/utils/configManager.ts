@@ -119,7 +119,7 @@ export class ConfigManager {
         this.cache = {
             temperature: this.validateTemperature(config.get<number>('temperature', 0.1)),
             topP: this.validateTopP(config.get<number>('topP', 1.0)),
-            maxTokens: this.validateMaxTokens(config.get<number>('maxTokens', 8192)),
+            maxTokens: this.validateMaxTokens(config.get<number>('maxTokens', 256000)),
             rememberLastModel: config.get<boolean>('rememberLastModel', true),
             zhipu: {
                 search: {
@@ -264,7 +264,7 @@ export class ConfigManager {
      * 验证最大token数量
      */
     private static validateMaxTokens(value: number): number {
-        if (isNaN(value) || value < 32 || value > 32768) {
+        if (isNaN(value) || value < 32 || value > 256000) {
             Logger.warn(`无效的maxTokens值: ${value}，使用默认值8192`);
             return 8192;
         }
@@ -297,7 +297,7 @@ export class ConfigManager {
      * 验证NES补全的maxTokens参数
      */
     private static validateNESMaxTokens(value: number): number {
-        if (isNaN(value) || value < 50 || value > 1000) {
+        if (isNaN(value) || value < 50 || value > 16000) {
             Logger.warn(`无效的NES maxTokens值: ${value}，使用默认值200`);
             return 200;
         }
