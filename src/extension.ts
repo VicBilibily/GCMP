@@ -3,7 +3,6 @@ import { GenericModelProvider } from './providers/genericModelProvider';
 import { ZhipuProvider } from './providers/zhipuProvider';
 import { KimiProvider } from './providers/kimiProvider';
 import { IFlowProvider } from './providers/iflowProvider';
-import { StreamLakeProvider } from './providers/streamlakeProvider';
 import { MiniMaxProvider } from './providers/minimaxProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
 import { InlineCompletionProvider } from './copilot/completionProvider';
@@ -18,13 +17,7 @@ import { registerAllTools } from './tools';
  */
 const registeredProviders: Record<
     string,
-    | GenericModelProvider
-    | ZhipuProvider
-    | KimiProvider
-    | IFlowProvider
-    | StreamLakeProvider
-    | MiniMaxProvider
-    | CompatibleProvider
+    GenericModelProvider | ZhipuProvider | KimiProvider | IFlowProvider | MiniMaxProvider | CompatibleProvider
 > = {};
 const registeredDisposables: vscode.Disposable[] = [];
 
@@ -51,13 +44,7 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
             Logger.trace(`正在注册提供商: ${providerConfig.displayName} (${providerKey})`);
             const providerStartTime = Date.now();
 
-            let provider:
-                | GenericModelProvider
-                | ZhipuProvider
-                | KimiProvider
-                | IFlowProvider
-                | StreamLakeProvider
-                | MiniMaxProvider;
+            let provider: GenericModelProvider | ZhipuProvider | KimiProvider | IFlowProvider | MiniMaxProvider;
             let disposables: vscode.Disposable[];
 
             if (providerKey === 'zhipu') {
@@ -78,11 +65,6 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
             } else if (providerKey === 'minimax') {
                 // 对 minimax 使用专门的 provider（多密钥管理和配置向导）
                 const result = MiniMaxProvider.createAndActivate(context, providerKey, providerConfig);
-                provider = result.provider;
-                disposables = result.disposables;
-            } else if (providerKey === 'streamlake') {
-                // 对 streamlake 使用专门的 provider（模型覆盖检查）
-                const result = StreamLakeProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
             } else {

@@ -7,8 +7,7 @@
             "id": "doubao-seed-code-coding-plan",
             "name": "Doubao-Seed-Code (Coding Plan)",
             "model": "doubao-seed-code-preview-latest",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
             "tooltip": "Doubao-Seed-Code 面向Agentic编程任务进行了深度优化，在Terminal Bench、SWE-Bench-Verified-Openhands、Multi-SWE-Bench-Flash-Openhands等多项权威基准测试中表现优异，领先国内同类模型，上下文窗口至256k。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
@@ -55,11 +54,21 @@
             "id": "doubao-seed-code",
             "name": "Doubao-Seed-Code (按量计费)",
             "model": "doubao-seed-code-preview-251028",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/compatible",
             "tooltip": "Doubao-Seed-Code 面向Agentic编程任务进行了深度优化，在Terminal Bench、SWE-Bench-Verified-Openhands、Multi-SWE-Bench-Flash-Openhands等多项权威基准测试中表现优异，领先国内同类模型，上下文窗口至256k。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "doubao-seed-1-8",
+            "name": "Doubao-Seed-1.8-251215",
+            "model": "doubao-seed-1-8-251215",
+            "tooltip": "全新面向多模态 Agent 场景定向优化模型。更强Agent能力、升级多模态理解、更灵活的上下文管理。",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 64000,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true

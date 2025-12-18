@@ -10,8 +10,6 @@
 
 #### EOL 内置提供商结束支持计划
 
-> 即将移除及已经移除的提供商均支持通过 OpenAI / Anthropic Compatible 自定义模型添加使用。
-
 - **心流AI**
     - 2025-12-31 移除内置：官方已专注于完善 `iFlow CLI`，免费服务已不再新增模型，存量模型亦在逐步下线。
 
@@ -49,7 +47,7 @@
 
 - [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：**Doubao-Seed-Code**、**DeepSeek-V3.2**(Thinking)
 - **编程系列**：**Doubao-Seed-Code**
-- **豆包系列**：**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
+- **豆包系列**：**Doubao-Seed-1.8**、**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
 - **协作奖励计划**：**DeepSeek-V3.2**(Thinking)、**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**
 
 ### [**MiniMax**](https://platform.minimaxi.com/login)
@@ -79,8 +77,6 @@
 
 - **KAT-Coder系列**：**KAT-Coder-Pro-V1**、**KAT-Coder-Air-V1**
 
-> 快手万擎 (KAT) StreamLake 需要手动创建 [`在线推理服务`](https://www.streamlake.com/document/WANQING/mdsosw46egl9m9lfbg) 后，在模型选择的快手万擎提供商设置中配置在线推理预置模型服务推理点ID方可使用。
-
 ### [**阿里云百炼**](https://bailian.console.aliyun.com/) - 通义大模型
 
 - **通义千问系列**：**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
@@ -100,40 +96,20 @@
 
 GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获得更个性化的AI助手体验。
 
-> 📝 **提示**：所有参数修改会立即生效。
+> 📝 **提示**：`settings.json` 所有参数修改会立即生效。
 
-### 配置AI模型参数
-
-在 VS Code 设置中搜索 `"gcmp"` 或直接编辑 `settings.json`：
+### 通用模型参数 及 额外支持功能 配置
 
 ```json
 {
-    "gcmp.temperature": 0.1,
-    "gcmp.topP": 1.0,
-    "gcmp.maxTokens": 8192,
-    "gcmp.editToolMode": "claude",
-    "gcmp.rememberLastModel": true,
-    "gcmp.zhipu.search.enableMCP": true
+    "gcmp.temperature": 0.1, // 0.0-2.0
+    "gcmp.topP": 1.0, // 0.0-1.0
+    "gcmp.maxTokens": 8192, // 32-256000
+    "gcmp.editToolMode": "claude", // claude/gpt-5/none
+    "gcmp.rememberLastModel": true, // 记住上次使用的模型
+    "gcmp.zhipu.search.enableMCP": true // 启用`联网搜索MCP`（Coding Plan专属）
 }
 ```
-
-### 参数说明
-
-#### 通用AI模型参数
-
-| 参数                     | 类型    | 默认值 | 范围/选项         | 说明               |
-| ------------------------ | ------- | ------ | ----------------- | ------------------ |
-| `gcmp.temperature`       | number  | 0.1    | 0.0-2.0           | 输出随机性         |
-| `gcmp.topP`              | number  | 1.0    | 0.0-1.0           | 输出多样性         |
-| `gcmp.maxTokens`         | number  | 8192   | 32-256000         | 最大输出长度       |
-| `gcmp.editToolMode`      | string  | claude | claude/gpt-5/none | 编辑工具模式       |
-| `gcmp.rememberLastModel` | boolean | true   | true/false        | 记住上次使用的模型 |
-
-#### 智谱AI专用配置
-
-| 参数                          | 类型    | 默认值 | 说明                                 |
-| ----------------------------- | ------- | ------ | ------------------------------------ |
-| `gcmp.zhipu.search.enableMCP` | boolean | true   | 启用`联网搜索MCP`（Coding Plan专属） |
 
 #### 提供商配置覆盖
 
@@ -160,17 +136,7 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
                     }
                 }
             ]
-        },
-        "streamlake": [
-            {
-                "id": "KAT-Coder-Pro-V1",
-                "model": "your-kat-coder-pro-endpoint-id"
-            },
-            {
-                "id": "KAT-Coder-Air-V1",
-                "model": "your-kat-coder-air-endpoint-id"
-            }
-        ]
+        }
     }
 }
 ```
@@ -200,10 +166,8 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
 {
     "gcmp.compatibleModels": [
         {
-            "id": "glm-4.6:openai",
-            "name": "GLM-4.6 (OAI)",
-            // "id": "glm-4.6:claude",
-            // "name": "GLM-4.6 (Claude)",
+            "id": "glm-4.6",
+            "name": "GLM-4.6",
             "provider": "zhipu",
             "model": "glm-4.6",
             "sdkMode": "openai",
@@ -243,6 +207,7 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
 FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimCompletion.modelConfig` 和 `gcmp.nesCompletion.modelConfig` 进行设置。
 
 - **启用 FIM 补全模式**（推荐 DeepSeek、Qwen 等支持 FIM 的模型）：
+    - 已测试支持 `DeepSeek`、`硅基流动`，特殊支持 `阿里云百炼`。
 
 ```json
 {
@@ -252,6 +217,8 @@ FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimC
     "gcmp.fimCompletion.modelConfig": {
         "provider": "deepseek", // 提供商ID，其他请先添加 OpenAI Compatible 自定义模型 provider 并设置 ApiKey
         "baseUrl": "https://api.deepseek.com/beta", // 指定 FIM Completion Endpoint 的 BaseUrl
+        // "baseUrl": "https://api.siliconflow.cn/v1", // 硅基流动(provider:`siliconflow`)
+        // "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1", 阿里云百炼(provider:`dashscope`)
         "model": "deepseek-chat",
         "maxTokens": 100
         // "extraBody": { "top_p": 0.9 }
@@ -289,30 +256,6 @@ FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimC
 > - **自动触发 + manualOnly: true**：仅发起 FIM 请求（NES 需手动触发）
 > - **手动触发**（按 `Alt+/`）：直接调用 NES，不发起 FIM
 > - **模式切换**（按 `Shift+Alt+/`）：在自动/手动间切换（仅影响 NES）
-
-```json
-{
-    "gcmp.fimCompletion.enabled": true,
-    "gcmp.fimCompletion.debounceMs": 500,
-    "gcmp.fimCompletion.timeoutMs": 5000,
-    "gcmp.fimCompletion.modelConfig": {
-        "provider": "deepseek",
-        "baseUrl": "https://api.deepseek.com/beta",
-        "model": "deepseek-chat",
-        "maxTokens": 100
-    },
-    "gcmp.nesCompletion.enabled": true,
-    "gcmp.nesCompletion.debounceMs": 500,
-    "gcmp.nesCompletion.timeoutMs": 10000,
-    "gcmp.nesCompletion.manualOnly": true, // 启用FIM自动触发，但手动触发NES
-    "gcmp.nesCompletion.modelConfig": {
-        "provider": "deepseek",
-        "baseUrl": "https://api.deepseek.com/v1",
-        "model": "deepseek-chat",
-        "maxTokens": 200
-    }
-}
-```
 
 ### 快捷键与操作
 
