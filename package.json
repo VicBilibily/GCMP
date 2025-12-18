@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.15.8",
+    "version": "0.15.9",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -602,10 +602,12 @@
         "@types/node": "^20.0.0",
         "@types/vscode": "^1.104.0",
         "@vscode/vsce": "^3.6.2",
+        "cssnano": "^7.1.2",
         "esbuild": "^0.25.10",
         "eslint": "^9.13.0",
         "prettier": "^3.6.2",
         "rimraf": "^6.0.1",
+        "terser": "^5.44.1",
         "tsx": "^4.21.0",
         "typescript": "^5.9.2",
         "typescript-eslint": "^8.39.0"

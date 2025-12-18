@@ -60,7 +60,7 @@ export interface ModelConfig {
     /**
      * 多轮对话消息是否必须包含思考内容（可选）
      * 默认值为 false，表示思考内容为可选传递给模型
-     * 当设置为 true 时，工具消息必须包含思考内容，否则会报错
+     * 当模型要求工具消息必须包含思考内容时需设置为 true
      */
     includeThinking?: boolean;
 }

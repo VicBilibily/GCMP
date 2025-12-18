@@ -59,12 +59,14 @@ export class CompatibleProvider extends GenericModelProvider {
         this.getProviderConfig(); // 初始化配置缓存
         // 监听 CompatibleModelManager 的变更事件
         this.modelsChangeListener = CompatibleModelManager.onDidChangeModels(() => {
+            Logger.debug('[compatible] 接收到模型变化事件，刷新配置和缓存');
             this.getProviderConfig(); // 刷新配置缓存
             // 清除模型缓存
             this.modelInfoCache
                 ?.invalidateCache(CompatibleProvider.PROVIDER_KEY)
                 .catch(err => Logger.warn('[compatible] 清除缓存失败:', err));
             this._onDidChangeLanguageModelChatInformation.fire();
+            Logger.debug('[compatible] 已触发语言模型信息变化事件');
         });
     }
 
@@ -107,7 +109,7 @@ export class CompatibleProvider extends GenericModelProvider {
                     id: model.id,
                     name: model.name,
                     provider: model.provider,
-                    tooltip: model.tooltip || `自定义模型: ${model.name}`,
+                    tooltip: model.tooltip || `${model.name} (${model.sdkMode})`,
                     maxInputTokens: model.maxInputTokens,
                     maxOutputTokens: model.maxOutputTokens,
                     sdkMode: model.sdkMode,

@@ -35,7 +35,7 @@
 - [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-4.6**(Thinking)、**GLM-4.6V**(Thinking)、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
 - **按量计费**：**GLM-4.6**、**GLM-4.6V**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
 - **免费模型**：**GLM-4.6V-Flash**、**GLM-4.5-Flash**
-- [**国际站点**](https://z.ai/model-api)：已支持国际站(z.ai)切换，实测可与国内站互通。
+- [**国际站点**](https://z.ai/model-api)：已支持国际站(z.ai)切换设置。
 - **搜索功能**：集成 `联网搜索MCP` 及 `Web Search API`，支持 `#zhipuWebSearch` 进行联网搜索。
     - 默认启用 `联网搜索MCP` 模式，编程套餐支持：Lite(100次/月)、Pro(1000次/月)、Max(4000次/月)。
     - 可通过设置关闭 `联网搜索MCP` 模式以使用 `Web Search API` 按次计费。
@@ -180,8 +180,7 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
 GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 OpenAI 或 Anthropic 兼容的 API。通过 `gcmp.compatibleModels` 配置，您可以完全自定义模型参数，包括扩展请求参数。
 
 1. 通过 `GCMP: Compatible Provider 设置` 命令启动配置向导。
-2. 在 `settings.json` 设置中编辑 `gcmp.compatibleModels` 配置项：
-    - `customHeader` 及 `extraBody` 配置只可通过编辑全局 `settings.json` 配置。
+2. 在 `settings.json` 设置中编辑 `gcmp.compatibleModels` 配置项。
 
 ### 自定义模型内置已知提供商ID及显示名称列表
 

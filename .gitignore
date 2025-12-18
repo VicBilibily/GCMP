@@ -5,3 +5,4 @@ node_modules
 .vscode-test/
 *.vsix
 extension.js*
+/.claude

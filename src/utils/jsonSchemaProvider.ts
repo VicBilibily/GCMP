@@ -253,7 +253,7 @@ export class JsonSchemaProvider {
                             includeThinking: {
                                 type: 'boolean',
                                 description:
-                                    '多轮对话消息是否必须包含思考内容（可选）\n默认值为 false，表示思考内容为可选传递给模型\n当设置为 true 时，工具消息必须包含思考内容，否则会报错',
+                                    '多轮对话消息是否必须包含思考内容（可选）\n默认值为 false，表示思考内容为可选传递给模型\n当模型要求多轮对话中的工具消息必须包含思考内容时需设置为 true',
                                 default: false
                             },
                             capabilities: {
@@ -421,7 +421,7 @@ export class JsonSchemaProvider {
                             },
                             extraBody: {
                                 type: 'object',
-                                description: '额外的请求体参数（可选，仅在OpenAI兼容接口中生效）',
+                                description: '额外的请求体参数（可选）',
                                 additionalProperties: {
                                     description: '额外的请求体参数值'
                                 }

@@ -178,8 +178,8 @@ export class MCPWebSearchClient {
     private async disableMCPMode(): Promise<void> {
         try {
             // 更新配置：禁用MCP模式
-            const config = vscode.workspace.getConfiguration('gcmp');
-            await config.update('zhipu.search.enableMCP', false, vscode.ConfigurationTarget.Global);
+            const config = vscode.workspace.getConfiguration('gcmp.zhipu.search');
+            await config.update('enableMCP', false, vscode.ConfigurationTarget.Global);
 
             Logger.info('✅ [MCP WebSearch] MCP模式已禁用，已切换到标准计费模式');
 

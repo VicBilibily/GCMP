@@ -214,8 +214,8 @@ export class ZhipuWizard {
         }
 
         try {
-            const config = vscode.workspace.getConfiguration('gcmp');
-            await config.update('zhipu.endpoint', choice.value, vscode.ConfigurationTarget.Global);
+            const config = vscode.workspace.getConfiguration('gcmp.zhipu');
+            await config.update('endpoint', choice.value, vscode.ConfigurationTarget.Global);
             Logger.info(`智谱AI接入站点已设置为 ${choice.value}`);
             vscode.window.showInformationMessage(
                 `智谱AI接入站点已设置为 ${choice.value === 'api.z.ai' ? '国际站' : '国内站'}`
