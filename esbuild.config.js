@@ -2,13 +2,8 @@
 const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
-const cssnano = require('cssnano');
-const { minify } = require('terser');
 const isWatch = process.argv.includes('--watch');
 const isDev = process.argv.includes('--dev');
-
-// 创建cssnano处理器实例
-const cssnanoProcessor = cssnano();
 
 // postinstall.ts 中的资源复制逻辑
 const treeSitterGrammars = [
@@ -122,7 +117,7 @@ async function copyBuildAssets() {
     await copyStaticAssets(filesToCopy, 'dist');
 }
 
-// 自定义插件处理 ?raw 导入并添加 minify 功能
+// 自定义插件处理 ?raw 导入（内嵌资源，不进行 minify）
 const rawPlugin = {
     name: 'raw-import',
     setup(build) {
@@ -135,68 +130,9 @@ const rawPlugin = {
                 }
             };
         });
-
         build.onLoad({ filter: /.*/, namespace: 'raw-file' }, async (args) => {
             const filePath = path.join(args.pluginData.resolveDir, args.path);
-            const fileExt = path.extname(filePath).toLowerCase();
-            let contents = await fs.promises.readFile(filePath, 'utf8');
-
-            // 如果不是开发模式，则进行 minify
-            if (!isDev) {
-                try {
-                    if (fileExt === '.css') {
-                        // CSS minify
-                        const result = await cssnanoProcessor.process(contents, {
-                            from: undefined
-                        });
-                        contents = result.css;
-                    } else if (fileExt === '.js') {
-                        // JS minify
-                        const result = await minify(contents, {
-                            compress: {
-                                drop_console: false,
-                                drop_debugger: true,
-                                ecma: 2020,
-                                keep_fargs: false,
-                                keep_infinity: true,
-                                passes: 2,
-                                pure_funcs: [],
-                                reduce_funcs: true,
-                                reduce_vars: true,
-                                sequences: true,
-                                side_effects: true,
-                                switches: true,
-                                toplevel: true,
-                                unsafe: false,
-                                unsafe_arrows: false,
-                                unsafe_comps: false,
-                                unsafe_Function: false,
-                                unsafe_math: false,
-                                unsafe_symbols: false,
-                                unsafe_methods: false,
-                                unsafe_proto: false,
-                                unsafe_regexp: false,
-                                unsafe_undefined: false,
-                                unused: true
-                            },
-                            mangle: {
-                                properties: false,
-                                reserved: ['vscode', 'acquireVsCodeApi', 'initializeEditor', 'ModelData', 'Provider']
-                            },
-                            format: {
-                                comments: false,
-                                ecma: 2020
-                            },
-                            sourceMap: false
-                        });
-                        contents = result.code;
-                    }
-                } catch (error) {
-                    console.warn(`Failed to minify ${filePath}:`, error.message);
-                    // 如果minify失败，使用原始内容
-                }
-            }
-
+            const contents = await fs.promises.readFile(filePath, 'utf8');
             return {
                 contents: `export default ${JSON.stringify(contents)};`,
                 loader: 'js'
