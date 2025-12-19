@@ -10,6 +10,7 @@ import { KimiStatusBar } from './kimiStatusBar';
 import { DeepSeekStatusBar } from './deepseekStatusBar';
 import { MoonshotStatusBar } from './moonshotStatusBar';
 import { CompatibleStatusBar } from './compatibleStatusBar';
+import { TokenUsageStatusBar } from './tokenUsageStatusBar';
 
 /**
  * 状态栏项接口
@@ -43,6 +44,8 @@ export class StatusBarManager {
     static moonshot: IStatusBar | undefined;
     /** Compatible 提供商状态栏 */
     static compatible: ICompatibleStatusBar | undefined;
+    /** 模型上下文窗口占用情况状态栏 */
+    static tokenUsage: IStatusBar | undefined;
 
     // ==================== 私有成员 ====================
     private static statusBars: Map<string, IStatusBar> = new Map<string, IStatusBar>();
@@ -72,6 +75,10 @@ export class StatusBarManager {
         // 创建并注册 Compatible 提供商状态栏
         const compatibleStatusBar = new CompatibleStatusBar();
         this.registerStatusBar('compatible', compatibleStatusBar);
+
+        // 创建并注册 模型上下文窗口占用情况 状态栏
+        const tokenUsageStatusBar = new TokenUsageStatusBar();
+        this.registerStatusBar('tokenUsage', tokenUsageStatusBar);
     }
 
     /**
@@ -102,6 +109,9 @@ export class StatusBarManager {
                 break;
             case 'compatible':
                 this.compatible = statusBar as ICompatibleStatusBar;
+                break;
+            case 'tokenUsage':
+                this.tokenUsage = statusBar;
                 break;
             default:
                 break;
@@ -202,6 +212,7 @@ export class StatusBarManager {
         this.deepseek = undefined;
         this.moonshot = undefined;
         this.compatible = undefined;
+        this.tokenUsage = undefined;
     }
 
     /**

@@ -19,3 +19,4 @@ export { MiniMaxWizard } from './minimaxWizard';
 export { JsonSchemaProvider } from './jsonSchemaProvider';
 export { RetryManager } from './retryManager';
 export { ModelInfoCache } from './modelInfoCache';
+export { TokenCounter } from './tokenCounter';

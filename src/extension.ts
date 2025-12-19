@@ -6,7 +6,7 @@ import { IFlowProvider } from './providers/iflowProvider';
 import { MiniMaxProvider } from './providers/minimaxProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
 import { InlineCompletionProvider } from './copilot/completionProvider';
-import { Logger, StatusLogger, CompletionLogger } from './utils';
+import { Logger, StatusLogger, CompletionLogger, TokenCounter } from './utils';
 import { ApiKeyManager, ConfigManager, JsonSchemaProvider } from './utils';
 import { CompatibleModelManager } from './utils/compatibleModelManager';
 import { LeaderElectionService, StatusBarManager } from './status';
@@ -35,6 +35,9 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
         Logger.warn('未找到提供商配置，跳过提供商注册');
         return;
     }
+
+    // 设置扩展路径（用于 tokenizer 初始化）
+    TokenCounter.setExtensionPath(context.extensionPath);
 
     Logger.info(`⏱️ 开始并行注册 ${Object.keys(configProvider).length} 个提供商...`);
 

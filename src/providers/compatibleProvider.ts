@@ -517,7 +517,7 @@ export class CompatibleProvider extends GenericModelProvider {
                                 const chunk = JSON.parse(data);
                                 chunkCount++;
                                 // 输出完整的 chunk 到 trace 日志
-                                Logger.trace(`[${model.name}] Chunk #${chunkCount}: ${JSON.stringify(chunk)}`);
+                                // Logger.trace(`[${model.name}] Chunk #${chunkCount}: ${JSON.stringify(chunk)}`);
 
                                 let hasContent = false;
 

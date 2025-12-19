@@ -85,6 +85,9 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
         // 确保有API密钥
         await ApiKeyManager.ensureApiKey(this.providerKey, this.providerConfig.displayName);
 
+        // 计算输入 token 数量并更新状态栏
+        await this.updateTokenUsageStatusBar(model, messages, modelConfig, options);
+
         // 根据模型的 sdkMode 选择使用的 handler
         const sdkMode = modelConfig.sdkMode || 'openai';
         const sdkName = sdkMode === 'anthropic' ? 'Anthropic SDK' : 'OpenAI SDK';

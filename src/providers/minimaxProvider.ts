@@ -249,6 +249,9 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             `${this.providerConfig.displayName}: 即将处理请求，使用 ${providerKey === 'minimax-coding' ? 'Coding Plan' : '普通'} 密钥 - 模型: ${modelConfig.name}`
         );
 
+        // 计算输入 token 数量并更新状态栏
+        await this.updateTokenUsageStatusBar(model, messages, modelConfig, options);
+
         // 根据模型的 sdkMode 选择使用的 handler
         // 注：此处不调用 super.provideLanguageModelChatResponse，而是直接处理
         // 避免双重密钥检查，因为我们已经在 ensureApiKeyForModel 中检查过了

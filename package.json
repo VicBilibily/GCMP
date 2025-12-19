@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.15.11",
+    "version": "0.15.12-5",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -555,6 +555,69 @@
                     "fontPath": "./fonts/compatible.ttf",
                     "fontCharacter": "\\eac8"
                 }
+            },
+            "gcmp-tokens": {
+                "description": "Tokens",
+                "default": {
+                    "fontPath": "./fonts/tokens.ttf",
+                    "fontCharacter": "\\e64d"
+                }
+            },
+            "gcmp-token1": {
+                "description": "Tokens 1/8",
+                "default": {
+                    "fontPath": "./fonts/tokens.ttf",
+                    "fontCharacter": "\\e677"
+                }
+            },
+            "gcmp-token2": {
+                "description": "Tokens 2/8",
+                "default": {
+                    "fontPath": "./fonts/tokens.ttf",
+                    "fontCharacter": "\\e676"
+                }
+            },
+            "gcmp-token3": {
+                "description": "Tokens 3/8",
+                "default": {
+                    "fontPath": "./fonts/tokens.ttf",
+                    "fontCharacter": "\\e679"
+                }
+            },
+            "gcmp-token4": {
+                "description": "Tokens 4/8",
+                "default": {
+                    "fontPath": "./fonts/tokens.ttf",
+                    "fontCharacter": "\\e67d"
+                }
+            },
+            "gcmp-token5": {
+                "description": "Tokens 5/8",
+                "default": {
+                    "fontPath": "./fonts/tokens.ttf",
+                    "fontCharacter": "\\e67e"
+                }
+            },
+            "gcmp-token6": {
+                "description": "Tokens 6/8",
+                "default": {
+                    "fontPath": "./fonts/tokens.ttf",
+                    "fontCharacter": "\\e678"
+                }
+            },
+            "gcmp-token7": {
+                "description": "Tokens 7/8",
+                "default": {
+                    "fontPath": "./fonts/tokens.ttf",
+                    "fontCharacter": "\\e67f"
+                }
+            },
+            "gcmp-token8": {
+                "description": "Tokens 8/8",
+                "default": {
+                    "fontPath": "./fonts/tokens.ttf",
+                    "fontCharacter": "\\e67a"
+                }
             }
         },
         "keybindings": [
@@ -586,6 +649,7 @@
     },
     "dependencies": {
         "@anthropic-ai/sdk": "^0.67.0",
+        "@microsoft/tiktokenizer": "^1.0.10",
         "@modelcontextprotocol/sdk": "^1.20.2",
         "@vscode/chat-lib": "^0.1.3-4",
         "openai": "^6.7.0"

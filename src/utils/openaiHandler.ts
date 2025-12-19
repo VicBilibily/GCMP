@@ -140,7 +140,7 @@ export class OpenAIHandler {
                         // 修复 SSE 格式：确保 "data:" 后面有空格
                         // 处理 "data:{json}" -> "data: {json}"
                         chunk = chunk.replace(/^data:([^\s])/gm, 'data: $1');
-                        Logger.trace(`接收到 SSE chunk: ${chunk.length} 字符，chunk=${chunk}`);
+                        // Logger.trace(`接收到 SSE chunk: ${chunk.length} 字符，chunk=${chunk}`);
                         // 判断并处理 chunk 中所有的 data: {json} 对象，兼容部分模型使用旧格式把内容放在 choice.message
                         try {
                             const dataRegex = /^data: (.*)$/gm;
@@ -225,7 +225,7 @@ export class OpenAIHandler {
                             // 解析失败不影响正常流
                         }
 
-                        Logger.trace(`预处理后的 SSE chunk: ${chunk.length} 字符，chunk=${chunk}`);
+                        // Logger.trace(`预处理后的 SSE chunk: ${chunk.length} 字符，chunk=${chunk}`);
                         // 重新编码并传递有效内容
                         controller.enqueue(encoder.encode(chunk));
                     }

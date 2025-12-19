@@ -13,31 +13,16 @@ import {
     ProvideLanguageModelChatResponseOptions
 } from 'vscode';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { ApiKeyManager, ConfigManager, Logger, OpenAIHandler, AnthropicHandler, ModelInfoCache } from '../utils';
 import {
-    ITokenizerProvider,
-    TokenizerProvider
-} from '@vscode/chat-lib/dist/src/_internal/platform/tokenizer/node/tokenizer';
-import { ITelemetryService } from '@vscode/chat-lib/dist/src/_internal/platform/telemetry/common/telemetry';
-import { TokenizerType } from '@vscode/chat-lib/dist/src/_internal/util/common/tokenizer';
-import { ChatMessage } from '@vscode/prompt-tsx/dist/base/output/rawTypes';
-
-/**
- * 全局共享的 tokenizer 实例
- * 所有提供商共享同一个 tokenizer，节省内存和初始化时间
- */
-const multiModelTokenizer: ITokenizerProvider = new TokenizerProvider(false, {
-    sendMSFTTelemetryEvent() {
-        return;
-    }
-} as unknown as ITelemetryService);
-
-/**
- * 获取共享的 tokenizer 实例
- */
-function getSharedTokenizer() {
-    return multiModelTokenizer.acquireTokenizer({ tokenizer: TokenizerType.O200K });
-}
+    ApiKeyManager,
+    ConfigManager,
+    Logger,
+    OpenAIHandler,
+    AnthropicHandler,
+    ModelInfoCache,
+    TokenCounter
+} from '../utils';
+import { TokenUsageStatusBar } from '../status/tokenUsageStatusBar';
 
 /**
  * 通用模型提供商类
@@ -316,6 +301,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             throw new Error(errorMessage);
         }
 
+        // 计算输入 token 数量并更新状态栏
+        await this.updateTokenUsageStatusBar(model, messages, modelConfig, options);
+
         // 根据模型配置中的 provider 字段确定实际使用的提供商
         // 这样可以正确处理同一提供商下不同模型使用不同密钥的情况
         const effectiveProviderKey = modelConfig.provider || this.providerKey;
@@ -349,8 +337,57 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         text: string | LanguageModelChatMessage,
         _token: CancellationToken
     ): Promise<number> {
-        // mark: 2025/12/05 这个方法接口是官方预留的，目前暂时不会被调用，别纠结这个为什么进不来断点
-        Logger.info(`🔢 provideTokenCount 被调用 - 模型: ${model.id}, 输入类型: ${typeof text}`);
-        return await getSharedTokenizer().countMessageTokens(text as unknown as ChatMessage);
+        return TokenCounter.getInstance().countTokens(model, text);
+    }
+
+    /**
+     * 计算多条消息的总 token 数
+     */
+    protected async countMessagesTokens(
+        model: LanguageModelChatInformation,
+        messages: Array<LanguageModelChatMessage>,
+        modelConfig?: ModelConfig,
+        options?: ProvideLanguageModelChatResponseOptions
+    ): Promise<number> {
+        return TokenCounter.getInstance().countMessagesTokens(model, messages, modelConfig, options);
+    }
+
+    /**
+     * 更新 token 占用状态栏
+     * 计算输入 token 数量和占用百分比，更新状态栏显示
+     * 供子类复用
+     */
+    protected async updateTokenUsageStatusBar(
+        model: LanguageModelChatInformation,
+        messages: Array<LanguageModelChatMessage>,
+        modelConfig: ModelConfig,
+        options?: ProvideLanguageModelChatResponseOptions
+    ): Promise<void> {
+        try {
+            // 计算占用百分比
+            const totalInputTokens = await this.countMessagesTokens(model, messages, modelConfig, options);
+            const maxInputTokens = model.maxInputTokens || modelConfig.maxInputTokens;
+            const percentage = (totalInputTokens / maxInputTokens) * 100;
+
+            // 更新 token 占用状态栏
+            const tokenUsageStatusBar = TokenUsageStatusBar.getInstance();
+            if (tokenUsageStatusBar) {
+                tokenUsageStatusBar.updateTokenUsage({
+                    modelId: model.id,
+                    modelName: model.name || modelConfig.name,
+                    inputTokens: totalInputTokens,
+                    maxInputTokens: maxInputTokens,
+                    percentage: percentage,
+                    timestamp: Date.now()
+                });
+            }
+
+            Logger.debug(
+                `[${this.providerKey}] Token 计算: ${totalInputTokens}/${maxInputTokens} (${percentage.toFixed(1)}%)`
+            );
+        } catch (error) {
+            // Token 计算失败不应阻止请求，只记录警告
+            Logger.warn(`[${this.providerKey}] Token 计算失败:`, error);
+        }
     }
 }
