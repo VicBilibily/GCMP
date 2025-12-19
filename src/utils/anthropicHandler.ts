@@ -182,6 +182,8 @@ export class AnthropicHandler {
         let currentThinkingId: string | null = null;
         // 追踪是否有输出过有效的文本内容
         let hasOutputContent = false;
+        // 标记是否输出了 thinking 内容
+        let hasThinkingContent = false;
 
         Logger.debug('开始处理 Anthropic 流式响应');
 
@@ -289,6 +291,8 @@ export class AnthropicHandler {
                             };
                             // 生成思考块ID
                             currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                            // 标记已输出 thinking 内容
+                            hasThinkingContent = true;
                             Logger.trace('思考块开始 (流式输出)');
                         } else if (chunk.content_block.type === 'text') {
                             // 在文本块开始前，使用统一方法处理剩余思考内容
@@ -379,7 +383,6 @@ export class AnthropicHandler {
                                                     currentThinkingId
                                                 )
                                             );
-                                            Logger.trace(`思考内容缓冲满，报告 ${currentThinkingContent.length} 字符`);
                                             // 清空 pendingThinking 的内容，避免重复报告
                                             pendingThinking.thinking = '';
                                         } catch (e) {
@@ -524,10 +527,10 @@ export class AnthropicHandler {
                             pendingThinking.thinking = '';
                         }
                         currentThinkingId = null;
-                        // 如果没有返回有效的文本内容，输出一个 <think/> 标签
-                        if (!hasOutputContent) {
+                        // 只有在输出了 thinking 内容但没有输出 content 时才添加 <think/> 占位符
+                        if (hasThinkingContent && !hasOutputContent) {
                             progress.report(new vscode.LanguageModelTextPart('<think/>'));
-                            Logger.warn('消息流结束时没有输出内容，添加了 <think/> 占位符作为输出');
+                            Logger.warn('消息流结束时只有思考内容没有文本内容，添加了 <think/> 占位符作为输出');
                         }
                         Logger.trace('消息流完成');
                         break;

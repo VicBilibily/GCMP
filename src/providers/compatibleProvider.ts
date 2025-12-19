@@ -477,6 +477,7 @@ export class CompatibleProvider extends GenericModelProvider {
             const decoder = new TextDecoder();
             let buffer = '';
             let hasReceivedContent = false;
+            let hasThinkingContent = false; // 标记是否输出了 thinking 内容
             let chunkCount = 0;
             const toolCallsBuffer = new Map<number, ToolCallBuffer>();
             let currentThinkingId: string | null = null; // 思维链追踪
@@ -537,7 +538,7 @@ export class CompatibleProvider extends GenericModelProvider {
                                             typeof delta.reasoning_content === 'string'
                                         ) {
                                             Logger.trace(
-                                                `[${model.name}] 接收到思考内容: ${delta.reasoning_content.length} 字符`
+                                                `[${model.name}] 接收到思考内容: ${delta.reasoning_content.length} 字符, 内容="${delta.reasoning_content}"`
                                             );
                                             // 如果当前没有 active id，则生成一个用于本次思维链
                                             if (!currentThinkingId) {
@@ -547,9 +548,6 @@ export class CompatibleProvider extends GenericModelProvider {
 
                                             // 将思考内容添加到缓冲
                                             thinkingContentBuffer += delta.reasoning_content;
-                                            Logger.trace(
-                                                `[${model.name}] 添加思考内容到缓冲: ${delta.reasoning_content.length}字符, 当前缓冲总长度: ${thinkingContentBuffer.length}`
-                                            );
 
                                             // 检查是否达到报告条件
                                             if (thinkingContentBuffer.length >= MAX_THINKING_BUFFER_LENGTH) {
@@ -561,20 +559,22 @@ export class CompatibleProvider extends GenericModelProvider {
                                                             currentThinkingId
                                                         )
                                                     );
-                                                    Logger.trace(
-                                                        `[${model.name}] 达到最大长度，报告思考内容: ${thinkingContentBuffer.length}字符`
-                                                    );
                                                     thinkingContentBuffer = ''; // 清空缓冲
-                                                    hasContent = true;
+                                                    hasThinkingContent = true; // 标记已输出 thinking 内容
                                                 } catch (e) {
                                                     Logger.trace(`[${model.name}] 报告思考内容失败: ${String(e)}`);
                                                 }
+                                            } else {
+                                                // 即使没有立即报告，也标记有 thinking 内容
+                                                hasThinkingContent = true;
                                             }
                                         }
 
                                         // 处理文本内容（即使 delta 存在但可能为空对象）
                                         if (delta && delta.content && typeof delta.content === 'string') {
-                                            Logger.trace(`[${model.name}] 输出文本内容: ${delta.content.length} 字符`);
+                                            Logger.trace(
+                                                `[${model.name}] 输出文本内容: ${delta.content.length} 字符, preview=${delta.content}`
+                                            );
                                             // 遇到可见 content 前，如果有缓存的思考内容，先报告出来
                                             if (thinkingContentBuffer.length > 0 && currentThinkingId) {
                                                 try {
@@ -584,10 +584,8 @@ export class CompatibleProvider extends GenericModelProvider {
                                                             currentThinkingId
                                                         )
                                                     );
-                                                    Logger.trace(
-                                                        `[${model.name}] 在输出content前报告剩余思考内容: ${thinkingContentBuffer.length}字符`
-                                                    );
                                                     thinkingContentBuffer = ''; // 清空缓冲
+                                                    hasThinkingContent = true; // 标记已输出 thinking 内容
                                                 } catch (e) {
                                                     Logger.trace(`[${model.name}] 报告剩余思考内容失败: ${String(e)}`);
                                                 }
@@ -630,9 +628,6 @@ export class CompatibleProvider extends GenericModelProvider {
                                                                     currentThinkingId
                                                                 )
                                                             );
-                                                            Logger.trace(
-                                                                `[${model.name}] 在工具调用开始时报告剩余思考内容: ${thinkingContentBuffer.length}字符`
-                                                            );
                                                             // 结束当前思维链
                                                             progress.report(
                                                                 new vscode.LanguageModelThinkingPart(
@@ -641,6 +636,7 @@ export class CompatibleProvider extends GenericModelProvider {
                                                                 )
                                                             );
                                                             thinkingContentBuffer = ''; // 清空缓冲
+                                                            hasThinkingContent = true; // 标记已输出 thinking 内容
                                                         } catch (e) {
                                                             Logger.trace(
                                                                 `[${model.name}] 报告剩余思考内容失败: ${String(e)}`
@@ -689,10 +685,8 @@ export class CompatibleProvider extends GenericModelProvider {
                                                             currentThinkingId
                                                         )
                                                     );
-                                                    Logger.trace(
-                                                        `[${model.name}] 流结束前报告剩余思考内容: ${thinkingContentBuffer.length}字符`
-                                                    );
                                                     thinkingContentBuffer = ''; // 清空缓冲
+                                                    hasThinkingContent = true; // 标记已输出 thinking 内容
                                                 } catch (e) {
                                                     Logger.trace(`[${model.name}] 报告剩余思考内容失败: ${String(e)}`);
                                                 }
@@ -752,13 +746,12 @@ export class CompatibleProvider extends GenericModelProvider {
                                                     Logger.trace(`[${model.name}] 工具调用已处理，标记为已接收内容`);
                                                 }
                                             } else if (choice.finish_reason === 'stop') {
-                                                // 对于 stop，标记为已处理（即使没有文本内容，也可能有之前的工具调用）
+                                                // 对于 stop，只有在真正接收到内容时才标记（不包括仅有思考内容的情况）
                                                 if (!hasContent) {
                                                     Logger.trace(`[${model.name}] finish_reason=stop，未收到文本内容`);
                                                 }
-                                                // 如果有任何处理（文本或工具调用），都算作有效响应
-                                                // 即使只是流结束标记，也应该算作接收到响应
-                                                hasContent = true;
+                                                // 注意：不再强制设置 hasContent = true
+                                                // 只有在前面真正接收到文本或工具调用时，hasContent 才会是 true
                                             }
                                         }
                                     }
@@ -783,9 +776,10 @@ export class CompatibleProvider extends GenericModelProvider {
 
             Logger.debug(`[${model.name}] 流处理完成`);
 
-            // 注意：工具调用响应可能不包含文本内容，这是正常的
-            if (!hasReceivedContent) {
-                Logger.debug(`[${model.name}] 流结束但未收到文本内容（可能是纯工具调用响应）`);
+            // 只有在输出了 thinking 内容但没有输出 content 时才添加 <think/> 占位符
+            if (hasThinkingContent && !hasReceivedContent) {
+                progress.report(new vscode.LanguageModelTextPart('<think/>'));
+                Logger.warn(`[${model.name}] 消息流结束时只有思考内容没有文本内容，添加了 <think/> 占位符作为输出`);
             }
 
             Logger.debug(`[${model.name}] API请求完成`);

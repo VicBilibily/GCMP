@@ -14,6 +14,11 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
+            },
+            "extraBody": {
+                "thinking": {
+                    "type": "disabled"
+                }
             }
         },
         {
@@ -60,6 +65,11 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
+            },
+            "extraBody": {
+                "thinking": {
+                    "type": "disabled"
+                }
             }
         },
         {

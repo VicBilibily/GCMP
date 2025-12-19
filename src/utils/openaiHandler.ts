@@ -366,6 +366,7 @@ export class OpenAIHandler {
             Logger.info(`🚀 ${model.name} 发送 ${this.displayName} 请求`);
 
             let hasReceivedContent = false;
+            let hasThinkingContent = false; // 标记是否输出了 thinking 内容
             // 当前正在输出的思维链 ID（可重复开始/结束）
             // 当不为 null 时表示有一个未结束的思维链，遇到第一个可见 content delta 时需要先用相同 id 发送一个空 value 来结束该思维链
             let currentThinkingId: string | null = null;
@@ -414,6 +415,7 @@ export class OpenAIHandler {
                                         `${model.name} 在输出content前报告剩余思考内容: ${thinkingContentBuffer.length}字符`
                                     );
                                     thinkingContentBuffer = ''; // 清空缓存
+                                    hasThinkingContent = true; // 标记已输出 thinking 内容
                                 } catch (e) {
                                     Logger.trace(`${model.name} 报告剩余思考内容失败: ${String(e)}`);
                                 }
@@ -510,6 +512,7 @@ export class OpenAIHandler {
                                                         new vscode.LanguageModelThinkingPart('', currentThinkingId)
                                                     );
                                                     thinkingContentBuffer = ''; // 清空缓存
+                                                    hasThinkingContent = true; // 标记已输出 thinking 内容
                                                 } catch (e) {
                                                     Logger.trace(`${model.name} 报告剩余思考内容失败: ${String(e)}`);
                                                 }
@@ -529,7 +532,7 @@ export class OpenAIHandler {
                                     if (shouldOutputThinking) {
                                         try {
                                             Logger.trace(
-                                                `🧠 接收到思考内容 (choice ${choiceIndex}): ${reasoningContent.length}字符, 内容="${reasoningContent}"`
+                                                `接收到思考内容 (choice ${choiceIndex}): ${reasoningContent.length}字符, 内容="${reasoningContent}"`
                                             );
 
                                             // 如果当前没有 active id，则生成一个用于本次思维链
@@ -539,9 +542,6 @@ export class OpenAIHandler {
 
                                             // 将思考内容添加到缓存
                                             thinkingContentBuffer += reasoningContent;
-                                            Logger.trace(
-                                                `添加思考内容到缓存: ${reasoningContent.length}字符, 当前缓存总长度: ${thinkingContentBuffer.length}`
-                                            );
 
                                             // 检查是否达到报告条件
                                             if (thinkingContentBuffer.length >= MAX_THINKING_BUFFER_LENGTH) {
@@ -552,14 +552,11 @@ export class OpenAIHandler {
                                                         currentThinkingId
                                                     )
                                                 );
-                                                Logger.trace(
-                                                    `达到最大长度，报告思考内容: ${thinkingContentBuffer.length}字符`
-                                                );
                                                 thinkingContentBuffer = ''; // 清空缓存
                                             }
 
-                                            // 标记已接收内容
-                                            hasReceivedContent = true;
+                                            // 标记已接收 thinking 内容
+                                            hasThinkingContent = true;
                                         } catch (e) {
                                             Logger.trace(
                                                 `${model.name} report 思维链失败 (choice ${choiceIndex}): ${String(e)}`
@@ -619,8 +616,8 @@ export class OpenAIHandler {
                 if (thinkingContentBuffer.length > 0 && currentThinkingId) {
                     try {
                         progress.report(new vscode.LanguageModelThinkingPart(thinkingContentBuffer, currentThinkingId));
-                        Logger.trace(`流结束时报告缓存的思考内容: ${thinkingContentBuffer.length}字符`);
                         thinkingContentBuffer = ''; // 清空缓存
+                        hasThinkingContent = true; // 标记已输出 thinking 内容
                     } catch (e) {
                         Logger.trace(`流结束时报告思考内容失败: ${String(e)}`);
                     }
@@ -654,8 +651,10 @@ export class OpenAIHandler {
             } finally {
                 cancellationListener.dispose();
             }
-            if (!hasReceivedContent) {
-                Logger.warn(`${model.name} 没有接收到任何内容`);
+            // 只有在输出了 thinking 内容但没有输出 content 时才添加 <think/> 占位符
+            if (hasThinkingContent && !hasReceivedContent) {
+                progress.report(new vscode.LanguageModelTextPart('<think/>'));
+                Logger.warn(`${model.name} 消息流结束时只有思考内容没有文本内容，添加了 <think/> 占位符作为输出`);
             }
             Logger.debug(`✅ ${model.name} ${this.displayName} 请求完成`);
         } catch (error) {
