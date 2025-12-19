@@ -24,7 +24,7 @@ import { CompletionLogger, VersionManager } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { WorkspaceAdapter } from './workspaceAdapter';
 import { Fetcher } from './fetcher';
-import { AuthenticationService, CAPIClientService, EndpointProvider, TelemetrySender } from './mockImpl';
+import { AuthenticationService, EndpointProvider, TelemetrySender } from './mockImpl';
 import { CopilotLogTarget } from './logTarget';
 import { DocumentManager } from './documentManager';
 import { MutableObservableWorkspace } from '@vscode/chat-lib/dist/src/_internal/platform/inlineEdits/common/observableWorkspace';
@@ -116,8 +116,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                         return undefined;
                     }
                 })(),
-                endpointProvider: new EndpointProvider(),
-                capiClientService: new CAPIClientService()
+                endpointProvider: new EndpointProvider()
             });
             this.nesProvider = createNESProvider({
                 workspace: this.nesWorkspaceAdapter.getWorkspace(),

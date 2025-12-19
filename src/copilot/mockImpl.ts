@@ -5,7 +5,6 @@
  *  包含的空实现：
  *  - AuthenticationService: 认证服务实现，无实际验证逻辑
  *  - TelemetrySender: 遥测发送器实现，不发送任何数据
- *  - CAPIClientService：官方的一个接口服务定义，开源仓库已作为可选传参，但未发新版本目前留着
  *  - EndpointProvider：官方的示例传参，目前没具体作用，先留着
  *
  *  参考: getInlineCompletions.spec.ts 和 nesProvider.spec.ts 的测试示例
@@ -98,39 +97,6 @@ export class TelemetrySender implements ITelemetrySender {
         _measurements?: Record<string, number | undefined>
     ): void {
         return;
-    }
-}
-
-/**
- * CAPIClientService 空实现
- * ICAPIClientService 接口要求继承 CAPIClient，但我们使用类型断言绕过
- */
-export class CAPIClientService {
-    readonly _serviceBrand: undefined;
-
-    // CAPIClient 基本属性
-    // proxyBaseURL 必须是有效 URL，chat-lib 内部会用它构建请求地址
-    readonly domain = 'https://github-copilot.localhost';
-    readonly copilotTelemetryURL = this.domain;
-    readonly dotcomAPIURL = this.domain;
-    readonly capiPingURL = this.domain;
-    readonly proxyBaseURL = this.domain;
-    readonly originTrackerURL = this.domain;
-    readonly snippyMatchPath = '/v1/completions';
-    readonly snippyFilesForMatchPath = '/v1/completions';
-
-    // CAPIClient 方法（空实现）
-    updateDomains() {
-        return {
-            capiUrlChanged: false,
-            telemetryUrlChanged: false,
-            dotcomUrlChanged: false,
-            proxyUrlChanged: false
-        };
-    }
-
-    async makeRequest(): Promise<never> {
-        throw new Error('CAPIClientService.makeRequest not implemented - GCMP uses custom fetcher');
     }
 }
 

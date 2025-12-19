@@ -651,7 +651,7 @@
         "@anthropic-ai/sdk": "^0.67.0",
         "@microsoft/tiktokenizer": "^1.0.10",
         "@modelcontextprotocol/sdk": "^1.20.2",
-        "@vscode/chat-lib": "^0.1.3-4",
+        "@vscode/chat-lib": "^0.2.0",
         "openai": "^6.7.0"
     },
     "devDependencies": {
