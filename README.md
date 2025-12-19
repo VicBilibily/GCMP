@@ -40,8 +40,7 @@
 
 ### [**Kimi**](https://www.kimi.com/) - Kimi For Coding
 
-- Kimi `会员计划` 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic SDK 请求。
-    - **用量查询**：已支持状态栏显示周期剩余额度，可查看赠送的每周剩余用量及每周重置时间。
+- Kimi `会员计划` 套餐的附带的 `Kimi For Coding`，当前使用 Anthropic SDK 请求（Roo Code）。
 
 ### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
 
