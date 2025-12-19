@@ -148,6 +148,10 @@ export class OpenAIHandler {
                             const matches = Array.from(chunk.matchAll(dataRegex));
                             for (const m of matches) {
                                 const jsonStr = m[1];
+                                // 跳过 SSE 结束标记 [DONE]
+                                if (jsonStr === '[DONE]') {
+                                    continue;
+                                }
                                 try {
                                     const obj = JSON.parse(jsonStr);
                                     let objModified = false;
@@ -202,7 +206,8 @@ export class OpenAIHandler {
                                         if (obj.choices.length == 1) {
                                             // 将 choice 的 index 改为 0
                                             for (const choice of obj.choices) {
-                                                if (choice.index !== undefined || choice.index !== 0) {
+                                                // 部分模型返回index不存在或index值不为0
+                                                if (choice.index == null || choice.index !== 0) {
                                                     choice.index = 0;
                                                     objModified = true;
                                                 }
@@ -438,43 +443,133 @@ export class OpenAIHandler {
                         progress.report(new vscode.LanguageModelTextPart(delta));
                         hasReceivedContent = true;
                     })
-                    .on(
-                        'tool_calls.function.arguments.done',
-                        (event: { name: string; index: number; arguments: string; parsed_arguments: unknown }) => {
-                            // SDK 自动累积完成后触发的完整工具调用事件
-                            if (token.isCancellationRequested) {
-                                return;
-                            }
-
-                            // 基于事件索引和名称生成去重标识
-                            const eventKey = `tool_call_${event.name}_${event.index}_${event.arguments.length}`;
-                            if (this.currentRequestProcessedEvents.has(eventKey)) {
-                                Logger.trace(`跳过重复的工具调用事件: ${event.name} (索引: ${event.index})`);
-                                return;
-                            }
-                            this.currentRequestProcessedEvents.add(eventKey);
-                            // 使用 SDK 解析的参数（优先）或解析 arguments 字符串
-                            const parsedArgs = event.parsed_arguments || JSON.parse(event.arguments || '{}');
-                            // SDK 会自动生成唯一的工具调用ID，这里使用简单的索引标识
-                            const toolCallId = `tool_call_${event.index}_${Date.now()}`;
-                            Logger.debug(`✅ SDK工具调用完成: ${event.name} (索引: ${event.index})`);
-                            progress.report(new vscode.LanguageModelToolCallPart(toolCallId, event.name, parsedArgs));
-                            hasReceivedContent = true;
+                    .on('tool_calls.function.arguments.done', event => {
+                        // SDK 自动累积完成后触发的完整工具调用事件
+                        if (token.isCancellationRequested) {
+                            return;
                         }
-                    )
 
-                    .on(
-                        'tool_calls.function.arguments.delta',
-                        (event: { name: string; index: number; arguments_delta: string }) => {
-                            // 工具调用参数增量事件（用于调试）
-                            Logger.trace(
-                                `🔧 工具调用参数增量: ${event.name} (索引: ${event.index}) - ${event.arguments_delta}`
-                            );
+                        // 基于事件索引和名称生成去重标识
+                        const eventKey = `tool_call_${event.name}_${event.index}_${event.arguments.length}`;
+                        if (this.currentRequestProcessedEvents.has(eventKey)) {
+                            Logger.trace(`跳过重复的工具调用事件: ${event.name} (索引: ${event.index})`);
+                            return;
                         }
-                    )
+                        this.currentRequestProcessedEvents.add(eventKey);
+
+                        // 使用 SDK 解析的参数（优先）或手动解析 arguments 字符串
+                        let parsedArgs: object = {};
+
+                        // 如果 SDK 已经成功解析，直接使用（信任 SDK 的结果）
+                        if (event.parsed_arguments) {
+                            const result = event.parsed_arguments;
+                            parsedArgs = typeof result === 'object' && result !== null ? result : {};
+                        } else {
+                            // SDK 未解析，尝试手动解析
+                            try {
+                                parsedArgs = JSON.parse(event.arguments || '{}');
+                            } catch (firstError) {
+                                // 第一次解析失败，尝试去重修复后再解析
+                                Logger.trace(
+                                    `工具调用参数首次解析失败: ${event.name} (索引: ${event.index})，尝试去重修复...`
+                                );
+
+                                let cleanedArgs = event.arguments || '{}';
+
+                                // 检测并修复常见的重复模式
+                                // 1. 检测前部分是否在后面重复出现，逐一检测前50个字符（火山的Coding套餐接口会出现异常）
+                                try {
+                                    const maxCheckLength = Math.min(50, Math.floor(cleanedArgs.length / 2));
+                                    let duplicateFound = false;
+                                    let cutPosition = 0;
+
+                                    // 从较长的子串开始检测（优先检测较长的重复）
+                                    for (let len = maxCheckLength; len >= 5; len--) {
+                                        const prefix = cleanedArgs.substring(0, len);
+                                        // 在剩余部分中查找这个前缀是否重复出现
+                                        const restContent = cleanedArgs.substring(len);
+                                        const duplicateIndex = restContent.indexOf(prefix);
+
+                                        if (duplicateIndex !== -1) {
+                                            // 找到重复，计算应该裁剪的位置
+                                            cutPosition = len + duplicateIndex;
+                                            duplicateFound = true;
+                                            Logger.debug(
+                                                `去重修复: 检测到前 ${len} 个字符在位置 ${cutPosition} 重复，前缀="${prefix}"`
+                                            );
+                                            break;
+                                        }
+                                    }
+
+                                    if (duplicateFound && cutPosition > 0) {
+                                        const originalLength = cleanedArgs.length;
+                                        cleanedArgs = cleanedArgs.substring(cutPosition);
+                                        Logger.debug(
+                                            `去重修复: 移除重复前缀，从 ${originalLength} 字符截取到 ${cleanedArgs.length} 字符`
+                                        );
+                                    }
+                                } catch {
+                                    // 前缀重复检测失败，继续其他修复尝试
+                                }
+
+                                // 2. 检测 {}{} 模式（重复的空对象或完整对象）
+                                if (cleanedArgs.includes('}{')) {
+                                    let depth = 0;
+                                    let firstObjEnd = -1;
+                                    for (let i = 0; i < cleanedArgs.length; i++) {
+                                        if (cleanedArgs[i] === '{') {
+                                            depth++;
+                                        } else if (cleanedArgs[i] === '}') {
+                                            depth--;
+                                            if (depth === 0) {
+                                                firstObjEnd = i;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (firstObjEnd !== -1 && firstObjEnd < cleanedArgs.length - 1) {
+                                        const originalLength = cleanedArgs.length;
+                                        cleanedArgs = cleanedArgs.substring(0, firstObjEnd + 1);
+                                        Logger.debug(
+                                            `去重修复: 移除重复对象，从 ${originalLength} 字符截取到 ${cleanedArgs.length} 字符`
+                                        );
+                                    }
+                                }
+
+                                // 尝试解析修复后的参数
+                                try {
+                                    parsedArgs = JSON.parse(cleanedArgs);
+                                    Logger.debug(
+                                        `✅ 去重修复成功: ${event.name} (索引: ${event.index})，修复后解析成功`
+                                    );
+                                } catch (secondError) {
+                                    // 修复后仍然失败，输出详细错误信息
+                                    Logger.error(`❌ 工具调用参数解析失败: ${event.name} (索引: ${event.index})`);
+                                    Logger.error(`原始参数字符串 (前100字符): ${event.arguments?.substring(0, 100)}`);
+                                    Logger.error(`首次解析错误: ${firstError}`);
+                                    Logger.error(`去重修复后仍失败: ${secondError}`);
+                                    // 抛出原始错误
+                                    throw firstError;
+                                }
+                            }
+                        }
+
+                        // SDK 会自动生成唯一的工具调用ID，这里使用简单的索引标识
+                        const toolCallId = `tool_call_${event.index}_${Date.now()}`;
+                        Logger.debug(`✅ SDK工具调用完成: ${event.name} (索引: ${event.index})`);
+                        progress.report(new vscode.LanguageModelToolCallPart(toolCallId, event.name, parsedArgs));
+                        hasReceivedContent = true;
+                    })
+
+                    .on('tool_calls.function.arguments.delta', event => {
+                        // 工具调用参数增量事件（用于调试）
+                        Logger.trace(
+                            `🔧 工具调用参数增量: ${event.name} (索引: ${event.index}) - ${event.arguments_delta}`
+                        );
+                    })
                     // 保存最后一个 chunk 的 usage 信息，部分提供商会在每个 chunk 都返回 usage，
                     // 我们只在流成功完成后输出一次统计，避免重复日志
-                    .on('chunk', (chunk: OpenAI.Chat.Completions.ChatCompletionChunk, _snapshot: unknown) => {
+                    .on('chunk', (chunk, _snapshot: unknown) => {
                         // 处理token使用统计：仅保存到 finalUsage，最后再统一输出
                         if (chunk.usage) {
                             // 直接保存 SDK 返回的 usage 对象（类型为 CompletionUsage）

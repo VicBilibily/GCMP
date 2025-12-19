@@ -343,6 +343,9 @@ export class CompatibleProvider extends GenericModelProvider {
 
             Logger.info(`Compatible Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
 
+            // 计算输入 token 数量并更新状态栏
+            await this.updateTokenUsageStatusBar(model, messages, modelConfig, options);
+
             try {
                 // 使用重试机制执行请求
                 await this.retryManager.executeWithRetry(
@@ -663,10 +666,33 @@ export class CompatibleProvider extends GenericModelProvider {
                                                     bufferedTool.name = toolCall.function.name;
                                                 }
                                                 if (toolCall.function?.arguments) {
-                                                    bufferedTool.arguments += toolCall.function.arguments;
+                                                    const newArgs = toolCall.function.arguments;
+                                                    // 检查是否是重复数据：新数据是否已经包含在当前累积的字符串中
+                                                    // 某些 API（如 DeepSeek）可能会重复发送之前的 arguments 片段
+                                                    if (bufferedTool.arguments.endsWith(newArgs)) {
+                                                        // 完全重复，跳过
+                                                        Logger.trace(
+                                                            `[${model.name}] 跳过重复的工具调用参数 [${toolIndex}]: "${newArgs}"`
+                                                        );
+                                                    } else if (
+                                                        bufferedTool.arguments.length > 0 &&
+                                                        newArgs.startsWith(bufferedTool.arguments)
+                                                    ) {
+                                                        // 新数据包含了旧数据（完全重复+新增），只取新增部分
+                                                        const incrementalArgs = newArgs.substring(
+                                                            bufferedTool.arguments.length
+                                                        );
+                                                        bufferedTool.arguments += incrementalArgs;
+                                                        Logger.trace(
+                                                            `[${model.name}] 检测到部分重复，提取增量部分 [${toolIndex}]: "${incrementalArgs}"`
+                                                        );
+                                                    } else {
+                                                        // 正常累积
+                                                        bufferedTool.arguments += newArgs;
+                                                    }
                                                 }
 
-                                                Logger.debug(
+                                                Logger.trace(
                                                     `[${model.name}] 累积工具调用数据 [${toolIndex}]: name=${bufferedTool.name}, args_length=${bufferedTool.arguments.length}`
                                                 );
                                             }
