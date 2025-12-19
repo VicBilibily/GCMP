@@ -52,11 +52,17 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
     readonly onDidChange = this.onDidChangeEmitter.event;
 
     // ========================================================================
-    // 补全提供者
+    // 补全提供者 (fimProvider 和 nesProvider 使用懒加载)
     // ========================================================================
-    private fimProvider: IInlineCompletionsProvider | null = null;
-    private nesProvider: INESProvider<INESResult> | null = null;
+    private _fimProvider: IInlineCompletionsProvider | null = null;
+    private _nesProvider: INESProvider<INESResult> | null = null;
     private nesWorkspaceAdapter: WorkspaceAdapter | null = null;
+
+    // 懒加载辅助变量
+    private _fetcher: Fetcher | null = null;
+    private _logTarget: CopilotLogTarget | null = null;
+    private _authService: AuthenticationService | null = null;
+    private _telemetrySender: TelemetrySender | null = null;
 
     private debounceTimer: ReturnType<typeof setTimeout> | null = null;
     private pendingDebounceRequest: {
@@ -74,26 +80,52 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
     }
 
     // ========================================================================
-    // 激活与初始化
+    // 懒加载 Getter
     // ========================================================================
 
-    activate(): void {
-        CompletionLogger.trace('[InlineCompletionProvider.activate] 激活开始');
+    /** 懒加载获取 FIM 提供者 */
+    private get fimProvider(): IInlineCompletionsProvider | null {
+        if (!this._fimProvider) {
+            this.initializeProviders();
+        }
+        return this._fimProvider;
+    }
+
+    /** 懒加载获取 NES 提供者 */
+    private get nesProvider(): INESProvider<INESResult> | null {
+        if (!this._nesProvider) {
+            this.initializeProviders();
+        }
+        return this._nesProvider;
+    }
+
+    /** 初始化提供者（懒加载时调用） */
+    private initializeProviders(): void {
+        if (this._fimProvider && this._nesProvider) {
+            return; // 已初始化
+        }
+
+        CompletionLogger.trace('[InlineCompletionProvider] 懒加载初始化 FIM/NES 提供者');
 
         try {
-            this.nesWorkspaceAdapter = new WorkspaceAdapter();
-            this.disposables.push(this.nesWorkspaceAdapter);
+            // 初始化共享依赖
+            this._fetcher = new Fetcher();
+            this._logTarget = new CopilotLogTarget();
+            this._authService = new AuthenticationService();
+            this._telemetrySender = new TelemetrySender();
 
-            const fetcher = new Fetcher();
-            const logTarget = new CopilotLogTarget();
-            const authService = new AuthenticationService();
-            const telemetrySender = new TelemetrySender();
+            // 确保 nesWorkspaceAdapter 已初始化
+            if (!this.nesWorkspaceAdapter) {
+                this.nesWorkspaceAdapter = new WorkspaceAdapter();
+                this.disposables.push(this.nesWorkspaceAdapter);
+            }
 
-            this.fimProvider = createInlineCompletionsProvider({
-                fetcher: fetcher,
-                authService: authService,
-                telemetrySender: telemetrySender,
-                logTarget: logTarget,
+            // 初始化 FIM 提供者
+            this._fimProvider = createInlineCompletionsProvider({
+                fetcher: this._fetcher,
+                authService: this._authService,
+                telemetrySender: this._telemetrySender,
+                logTarget: this._logTarget,
                 isRunningInTest: false,
                 contextProviderMatch: async () => 0,
                 statusHandler: new (class implements ICompletionsStatusHandler {
@@ -118,15 +150,32 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                 })(),
                 endpointProvider: new EndpointProvider()
             });
-            this.nesProvider = createNESProvider({
+
+            // 初始化 NES 提供者
+            this._nesProvider = createNESProvider({
                 workspace: this.nesWorkspaceAdapter.getWorkspace(),
-                fetcher: fetcher,
-                copilotTokenManager: authService,
-                telemetrySender: telemetrySender,
-                logTarget: logTarget,
+                fetcher: this._fetcher,
+                copilotTokenManager: this._authService,
+                telemetrySender: this._telemetrySender,
+                logTarget: this._logTarget,
                 waitForTreatmentVariables: false
             });
 
+            CompletionLogger.info('[InlineCompletionProvider] FIM/NES 提供者懒加载完成');
+        } catch (error) {
+            CompletionLogger.error('[InlineCompletionProvider] 懒加载初始化提供者失败:', error);
+            throw error;
+        }
+    }
+
+    // ========================================================================
+    // 激活与初始化
+    // ========================================================================
+
+    activate(): void {
+        CompletionLogger.trace('[InlineCompletionProvider.activate] 激活开始');
+
+        try {
             // 注册内联建议提供
             const provider = vscode.languages.registerInlineCompletionItemProvider({ pattern: '**/*' }, this);
             this.disposables.push(provider);
@@ -149,7 +198,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                 })
             );
 
-            CompletionLogger.info('✅ [InlineCompletionProvider] 已激活');
+            CompletionLogger.info('✅ [InlineCompletionProvider] 已激活（使用懒加载）');
         } catch (error) {
             CompletionLogger.error('[InlineCompletionProvider.activate] 激活失败:', error);
             throw error;
@@ -588,15 +637,15 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         }
 
         // 释放 FIM 提供者
-        if (this.fimProvider) {
-            this.fimProvider.dispose();
-            this.fimProvider = null;
+        if (this._fimProvider) {
+            this._fimProvider.dispose();
+            this._fimProvider = null;
         }
 
         // 释放 NES 提供者
-        if (this.nesProvider) {
-            this.nesProvider.dispose();
-            this.nesProvider = null;
+        if (this._nesProvider) {
+            this._nesProvider.dispose();
+            this._nesProvider = null;
         }
 
         // 清理所有 disposables (包含 onDidChangeEmitter, nesWorkspaceAdapter, provider 和命令)
