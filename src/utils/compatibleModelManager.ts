@@ -46,7 +46,7 @@ export interface CompatibleModelConfig {
     /** 最大输出token数 */
     maxOutputTokens: number;
     /** SDK模式 */
-    sdkMode?: 'anthropic' | 'openai' | 'openai-sse';
+    sdkMode?: 'anthropic' | 'openai' | 'openai-sse' | 'openai-responses';
     /** 模型能力 */
     capabilities: {
         /** 工具调用 */
@@ -62,6 +62,18 @@ export interface CompatibleModelConfig {
     outputThinking?: boolean;
     /** 多轮对话消息是否必须包含思考内容（默认false，高级功能） */
     includeThinking?: boolean;
+    /**
+     * Responses API 特定配置（可选）
+     * 用于配置 OpenAI Responses API 的特殊功能
+     */
+    responsesConfig?: {
+        supportAnnotations?: boolean;
+        supportReasoning?: boolean;
+        supportFileSearch?: boolean;
+        supportWebSearch?: boolean;
+        truncation?: 'auto' | 'disabled';
+        store?: boolean;
+    };
     /** 是否由向导创建（内部标记，不持久化） */
     _isFromWizard?: boolean;
 }
@@ -489,7 +501,7 @@ export class CompatibleModelManager {
             for (const model of this.models) {
                 const details: string[] = [
                     `$(arrow-up) ${model.maxInputTokens} $(arrow-down) ${model.maxOutputTokens}`,
-                    `$(chip) ${model.sdkMode === 'openai' ? 'OpenAI' : 'Anthropic'}`
+                    `$(chip) ${model.sdkMode === 'anthropic' ? 'Anthropic' : 'OpenAI'}`
                 ];
                 if (model.capabilities.toolCalling) {
                     details.push('$(plug) 工具调用');

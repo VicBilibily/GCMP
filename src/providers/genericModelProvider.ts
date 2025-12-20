@@ -22,6 +22,7 @@ import {
     ModelInfoCache,
     TokenCounter
 } from '../utils';
+import { ResponsesHandler } from '../utils/responsesHandler';
 import { TokenUsageStatusBar } from '../status/tokenUsageStatusBar';
 
 /**
@@ -31,6 +32,7 @@ import { TokenUsageStatusBar } from '../status/tokenUsageStatusBar';
 export class GenericModelProvider implements LanguageModelChatProvider {
     protected readonly openaiHandler: OpenAIHandler;
     protected readonly anthropicHandler: AnthropicHandler;
+    protected readonly responsesHandler: ResponsesHandler;
     protected readonly providerKey: string;
     protected baseProviderConfig: ProviderConfig; // protected 以支持子类访问
     protected cachedProviderConfig: ProviderConfig; // 缓存的配置
@@ -80,6 +82,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         this.openaiHandler = new OpenAIHandler(providerKey, providerConfig.displayName, providerConfig.baseUrl);
         // 创建 Anthropic SDK 处理器
         this.anthropicHandler = new AnthropicHandler(providerKey, providerConfig.displayName, providerConfig.baseUrl);
+        // 创建 Responses API 处理器
+        this.responsesHandler = new ResponsesHandler(providerKey, providerConfig.displayName, providerConfig.baseUrl);
     }
 
     /**
@@ -313,12 +317,19 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
         // 根据模型的 sdkMode 选择使用的 handler
         const sdkMode = modelConfig.sdkMode || 'openai';
-        const sdkName = sdkMode === 'anthropic' ? 'Anthropic SDK' : 'OpenAI SDK';
+        let sdkName = 'OpenAI SDK';
+        if (sdkMode === 'anthropic') {
+            sdkName = 'Anthropic SDK';
+        } else if (sdkMode === 'openai-responses') {
+            sdkName = 'OpenAI Responses';
+        }
         Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
 
         try {
             if (sdkMode === 'anthropic') {
                 await this.anthropicHandler.handleRequest(model, modelConfig, messages, options, progress, token);
+            } else if (sdkMode === 'openai-responses') {
+                await this.responsesHandler.handleRequest(model, modelConfig, messages, options, progress, token);
             } else {
                 await this.openaiHandler.handleRequest(model, modelConfig, messages, options, progress, token);
             }

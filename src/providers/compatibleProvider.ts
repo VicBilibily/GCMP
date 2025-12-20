@@ -119,7 +119,8 @@ export class CompatibleProvider extends GenericModelProvider {
                     ...(customHeader && { customHeader: customHeader }),
                     ...(model.extraBody && { extraBody: model.extraBody }),
                     ...(model.outputThinking !== undefined && { outputThinking: model.outputThinking }),
-                    ...(model.includeThinking !== undefined && { includeThinking: model.includeThinking })
+                    ...(model.includeThinking !== undefined && { includeThinking: model.includeThinking }),
+                    ...(model.responsesConfig && { responsesConfig: model.responsesConfig })
                 };
             });
 
@@ -339,6 +340,8 @@ export class CompatibleProvider extends GenericModelProvider {
                 sdkName = 'Anthropic SDK';
             } else if (sdkMode === 'openai-sse') {
                 sdkName = 'OpenAI SSE';
+            } else if (sdkMode === 'openai-responses') {
+                sdkName = 'OpenAI Responses';
             }
 
             Logger.info(`Compatible Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
@@ -352,6 +355,16 @@ export class CompatibleProvider extends GenericModelProvider {
                     async () => {
                         if (sdkMode === 'anthropic') {
                             await this.anthropicHandler.handleRequest(
+                                model,
+                                modelConfig,
+                                messages,
+                                options,
+                                progress,
+                                token
+                            );
+                        } else if (sdkMode === 'openai-responses') {
+                            // OpenAI Responses API 模式
+                            await this.responsesHandler.handleRequest(
                                 model,
                                 modelConfig,
                                 messages,
