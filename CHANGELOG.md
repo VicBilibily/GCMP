@@ -2,6 +2,10 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.15.16] - 2025-12-20
+
+- **Anthropic Compatible**：同步调整 `CustomDataPartMimeTypes['CacheControl'] = 'cache_control'`。
+
 ## [0.15.15] - 2025-12-20
 
 ### 优化
