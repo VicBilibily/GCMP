@@ -218,13 +218,20 @@ export abstract class BaseStatusBarItem<T> {
         this.statusBarItem.text = this.config.icon;
         this.statusBarItem.command = this.config.refreshCommand;
 
-        // 检查是否应该显示状态栏
-        const shouldShow = await this.shouldShowStatusBar();
-        if (shouldShow) {
-            this.statusBarItem.show();
-        } else {
-            StatusLogger.trace(`[${this.config.logPrefix}] 不满足显示条件，隐藏状态栏`);
-        }
+        // 异步检查是否应该显示状态栏(不阻塞初始化)
+        // 先隐藏,等检查完成后再决定是否显示
+        this.statusBarItem.hide();
+        this.shouldShowStatusBar()
+            .then(shouldShow => {
+                if (shouldShow && this.statusBarItem) {
+                    this.statusBarItem.show();
+                } else {
+                    StatusLogger.trace(`[${this.config.logPrefix}] 不满足显示条件，隐藏状态栏`);
+                }
+            })
+            .catch(error => {
+                StatusLogger.error(`[${this.config.logPrefix}] 检查显示条件失败`, error);
+            });
 
         // 注册刷新命令
         context.subscriptions.push(

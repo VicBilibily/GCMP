@@ -104,21 +104,32 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
     /**
      * 检查是否应该显示状态栏
      * 通过检查是否有配置支持的兼容提供商且该提供商有 API Key 来决定
+     * 逐个检查，找到第一个有效 API Key 就立即返回 true
      */
     protected async shouldShowStatusBar(): Promise<boolean> {
         const models = CompatibleModelManager.getModels();
         const supportedProviders = new Set(BalanceQueryManager.getRegisteredProviders());
 
-        // 检查是否有配置的模型且其提供商既支持余额查询，又有 API Key
+        // 收集所有需要检查的提供商(去重)
+        const providersToCheck = new Set<string>();
         for (const model of models) {
             if (model.provider && supportedProviders.has(model.provider)) {
-                // 检查该提供商是否有有效的 API Key
-                const hasApiKey = await ApiKeyManager.hasValidApiKey(model.provider);
-                if (hasApiKey) {
-                    return true;
-                }
+                providersToCheck.add(model.provider);
             }
         }
+
+        if (providersToCheck.size === 0) {
+            return false;
+        }
+
+        // 逐个检查提供商的 API Key，找到第一个有效的就立即返回 true
+        for (const provider of providersToCheck) {
+            const hasApiKey = await ApiKeyManager.hasValidApiKey(provider);
+            if (hasApiKey) {
+                return true;
+            }
+        }
+
         return false;
     }
 

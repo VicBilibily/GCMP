@@ -134,13 +134,16 @@ export class StatusBarManager {
 
         StatusLogger.info(`[StatusBarManager] 开始初始化 ${this.statusBars.size} 个状态栏项`);
 
-        // 并行初始化所有状态栏
+        // 并行初始化所有状态栏,并记录每个的耗时
         const initPromises = Array.from(this.statusBars.entries()).map(async ([key, statusBar]) => {
+            const startTime = Date.now();
             try {
                 await statusBar.initialize(context);
-                StatusLogger.debug(`[StatusBarManager] 状态栏项 ${key} 初始化成功`);
+                const duration = Date.now() - startTime;
+                StatusLogger.debug(`[StatusBarManager] 状态栏项 ${key} 初始化成功 (耗时: ${duration}ms)`);
             } catch (error) {
-                StatusLogger.error(`[StatusBarManager] 状态栏项 ${key} 初始化失败`, error);
+                const duration = Date.now() - startTime;
+                StatusLogger.error(`[StatusBarManager] 状态栏项 ${key} 初始化失败 (耗时: ${duration}ms)`, error);
             }
         });
 
