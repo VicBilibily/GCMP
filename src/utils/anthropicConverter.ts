@@ -24,7 +24,7 @@ import { Logger } from './logger';
 
 // 自定义数据部分MIME类型
 const CustomDataPartMimeTypes = {
-    CacheControl: 'application/vnd.vscode.copilot.cache-control'
+    CacheControl: 'cache_control'
 } as const;
 
 // 辅助函数 - 过滤undefined值
