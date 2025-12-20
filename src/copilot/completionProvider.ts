@@ -20,8 +20,7 @@ import {
 } from '@vscode/chat-lib';
 import { CancellationToken } from '@vscode/chat-lib/dist/src/_internal/util/vs/base/common/cancellation';
 
-import { CompletionLogger, VersionManager } from '../utils';
-import { ConfigManager } from '../utils/configManager';
+import { VersionManager } from '../utils';
 import { WorkspaceAdapter } from './workspaceAdapter';
 import { Fetcher } from './fetcher';
 import { AuthenticationService, EndpointProvider, TelemetrySender } from './mockImpl';
@@ -29,6 +28,7 @@ import { CopilotLogTarget } from './logTarget';
 import { DocumentManager } from './documentManager';
 import { MutableObservableWorkspace } from '@vscode/chat-lib/dist/src/_internal/platform/inlineEdits/common/observableWorkspace';
 import { CopilotTextDocument } from '@vscode/chat-lib/dist/src/_internal/extension/completions-core/vscode-node/lib/src/textDocument';
+import { getCompletionLogger, getConfigManager } from './singletons';
 
 // ========================================================================
 // 类型定义
@@ -105,6 +105,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             return; // 已初始化
         }
 
+        const CompletionLogger = getCompletionLogger();
         CompletionLogger.trace('[InlineCompletionProvider] 懒加载初始化 FIM/NES 提供者');
 
         try {
@@ -114,10 +115,14 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             this._authService = new AuthenticationService();
             this._telemetrySender = new TelemetrySender();
 
-            // 确保 nesWorkspaceAdapter 已初始化
+            // 初始化 WorkspaceAdapter（若未初始化）
+            // WorkspaceAdapter 构造函数中已自动同步所有已打开文档的内容和光标位置
             if (!this.nesWorkspaceAdapter) {
                 this.nesWorkspaceAdapter = new WorkspaceAdapter();
                 this.disposables.push(this.nesWorkspaceAdapter);
+                CompletionLogger.trace(
+                    '[InlineCompletionProvider] WorkspaceAdapter 初始化完成（文档已在构造函数中同步）'
+                );
             }
 
             // 初始化 FIM 提供者
@@ -173,30 +178,13 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
     // ========================================================================
 
     activate(): void {
+        const CompletionLogger = getCompletionLogger();
         CompletionLogger.trace('[InlineCompletionProvider.activate] 激活开始');
 
         try {
             // 注册内联建议提供
             const provider = vscode.languages.registerInlineCompletionItemProvider({ pattern: '**/*' }, this);
             this.disposables.push(provider);
-
-            // 注册命令
-            this.disposables.push(
-                vscode.commands.registerCommand('gcmp.nesCompletion.toggleManual', async () => {
-                    const config = vscode.workspace.getConfiguration('gcmp.nesCompletion');
-                    const currentState = config.get('manualOnly', false);
-                    const newState = !currentState;
-                    await vscode.workspace
-                        .getConfiguration('gcmp.nesCompletion')
-                        .update('manualOnly', newState, vscode.ConfigurationTarget.Global);
-                    vscode.window.showInformationMessage(
-                        `GCMP: 下一个代码编辑建议 触发模式：${newState ? '手动触发' : '自动触发'}`
-                    );
-                    CompletionLogger.info(
-                        `[InlineCompletionProvider] NES 手动触发模式 ${newState ? '已启用' : '已禁用'}`
-                    );
-                })
-            );
 
             CompletionLogger.info('✅ [InlineCompletionProvider] 已激活（使用懒加载）');
         } catch (error) {
@@ -211,6 +199,8 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         context: vscode.InlineCompletionContext,
         token: vscode.CancellationToken
     ): Promise<vscode.InlineCompletionItem[] | vscode.InlineCompletionList | undefined> {
+        const CompletionLogger = getCompletionLogger();
+        const ConfigManager = getConfigManager();
         const fimConfig = ConfigManager.getFIMConfig();
         const nesConfig = ConfigManager.getNESConfig();
         if (!fimConfig.enabled && !nesConfig.enabled) {
@@ -311,6 +301,8 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             completionsCts: vscode.CancellationTokenSource;
         }
     ): Promise<vscode.InlineCompletionList | undefined> {
+        const CompletionLogger = getCompletionLogger();
+        const ConfigManager = getConfigManager();
         const fimConfig = ConfigManager.getFIMConfig();
         const nesConfig = ConfigManager.getNESConfig();
 
@@ -428,6 +420,8 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         position: vscode.Position,
         tokens: { completionsCts: vscode.CancellationTokenSource }
     ): Promise<vscode.InlineCompletionList | undefined> {
+        const CompletionLogger = getCompletionLogger();
+        const ConfigManager = getConfigManager();
         const config = ConfigManager.getFIMConfig();
         if (!config.enabled || !this.fimProvider) {
             return undefined;
@@ -503,6 +497,8 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         document: vscode.TextDocument,
         tokens: { nesCts: vscode.CancellationTokenSource }
     ): Promise<vscode.InlineCompletionList | undefined> {
+        const CompletionLogger = getCompletionLogger();
+        const ConfigManager = getConfigManager();
         const config = ConfigManager.getNESConfig();
         if (!config.enabled || !this.nesProvider || !this.nesWorkspaceAdapter) {
             return undefined;
@@ -622,6 +618,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
     // 资源清理
     // ========================================================================
     dispose(): void {
+        const CompletionLogger = getCompletionLogger();
         CompletionLogger.trace('[InlineCompletionProvider.dispose] 开始释放资源');
 
         // 清除防抖定时器
@@ -659,14 +656,5 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         this.disposables.length = 0;
 
         CompletionLogger.info('🧹 [InlineCompletionProvider] 已释放所有资源');
-    }
-
-    static createAndActivate(context: vscode.ExtensionContext): {
-        provider: InlineCompletionProvider;
-        disposables: vscode.Disposable[];
-    } {
-        const provider = new InlineCompletionProvider(context);
-        provider.activate();
-        return { provider, disposables: provider.disposables };
     }
 }

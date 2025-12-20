@@ -4,7 +4,7 @@ import { ZhipuProvider } from './providers/zhipuProvider';
 import { IFlowProvider } from './providers/iflowProvider';
 import { MiniMaxProvider } from './providers/minimaxProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
-import { InlineCompletionProvider } from './copilot/completionProvider';
+import { InlineCompletionShim } from './copilot/inlineCompletionShim';
 import { Logger, StatusLogger, CompletionLogger, TokenCounter } from './utils';
 import { ApiKeyManager, ConfigManager, JsonSchemaProvider } from './utils';
 import { CompatibleModelManager } from './utils/compatibleModelManager';
@@ -20,8 +20,8 @@ const registeredProviders: Record<
 > = {};
 const registeredDisposables: vscode.Disposable[] = [];
 
-// 内联补全提供商实例
-let inlineCompletionProvider: InlineCompletionProvider | undefined;
+// 内联补全提供商实例（使用轻量级 Shim，延迟加载真正的补全引擎）
+let inlineCompletionProvider: InlineCompletionShim | undefined;
 
 /**
  * 激活提供商 - 基于配置文件动态注册（并行优化版本）
@@ -123,20 +123,20 @@ async function activateCompatibleProvider(context: vscode.ExtensionContext): Pro
 }
 
 /**
- * 激活内联补全提供商
+ * 激活内联补全提供商（轻量级 Shim，延迟加载真正的补全引擎）
  */
 async function activateInlineCompletionProvider(context: vscode.ExtensionContext): Promise<void> {
     try {
-        Logger.trace('正在注册内联补全提供商...');
+        Logger.trace('正在注册内联补全提供商 (Shim 模式)...');
         const providerStartTime = Date.now();
 
-        // 创建并激活内联补全提供商
-        const result = InlineCompletionProvider.createAndActivate(context);
+        // 创建并激活轻量级 Shim（不包含 @vscode/chat-lib 依赖）
+        const result = InlineCompletionShim.createAndActivate(context);
         inlineCompletionProvider = result.provider;
         registeredDisposables.push(...result.disposables);
 
         const providerTime = Date.now() - providerStartTime;
-        Logger.info(`✅ 内联补全提供商注册成功 (耗时: ${providerTime}ms)`);
+        Logger.info(`✅ 内联补全提供商注册成功 - Shim 模式 (耗时: ${providerTime}ms)`);
     } catch (error) {
         Logger.error('❌ 注册内联补全提供商失败:', error);
     }
@@ -145,6 +145,14 @@ async function activateInlineCompletionProvider(context: vscode.ExtensionContext
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
+    // 将单例实例存储到 globalThis，供 copilot.bundle.js 中的模块使用
+    globalThis.__gcmp_singletons = {
+        CompletionLogger,
+        ApiKeyManager,
+        StatusBarManager,
+        ConfigManager
+    };
+
     const activationStartTime = Date.now();
 
     try {
@@ -205,7 +213,7 @@ export async function activate(context: vscode.ExtensionContext) {
         registerAllTools(context);
         Logger.trace(`⏱️ 工具注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
-        // 步骤5: 注册内联补全提供商
+        // 步骤5: 注册内联补全提供商（轻量级 Shim，延迟加载真正的补全引擎）
         stepStartTime = Date.now();
         await activateInlineCompletionProvider(context);
         Logger.trace(`⏱️ NES 内联补全提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);

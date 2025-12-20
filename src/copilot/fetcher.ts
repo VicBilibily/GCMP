@@ -5,8 +5,7 @@
 
 import { Readable } from 'stream';
 import { VersionManager } from '../utils/versionManager';
-import { ApiKeyManager, CompletionLogger } from '../utils';
-import { ConfigManager, NESCompletionConfig } from '../utils/configManager';
+import type { NESCompletionConfig } from '../utils/configManager';
 import type {
     FetchOptions,
     PaginationOptions,
@@ -18,6 +17,7 @@ import { IFetcher } from '@vscode/chat-lib/dist/src/_internal/platform/networkin
 import { StatusBarManager } from '../status';
 import { configProviders } from '../providers/config';
 import OpenAI from 'openai';
+import { getCompletionLogger, getApiKeyManager, getConfigManager } from './singletons';
 
 // ============================================================================
 // Response 包装类
@@ -69,6 +69,10 @@ export class Fetcher implements IFetcher {
     }
 
     async fetch(url: string, options: FetchOptions): Promise<Response> {
+        // 优先使用 globalThis 中的单例实例（确保跨 bundle 的单例性）
+        const logger = getCompletionLogger();
+        const keyManager = getApiKeyManager();
+
         if (options?.method === 'GET' && url.endsWith('/models')) {
             // 返回一个空模型列表的响应
             const emptyModelsResponse = {
@@ -105,18 +109,19 @@ export class Fetcher implements IFetcher {
         let dashscopeStopChunk = false; // 只截取 stop 表示的 chunk, 阿里云百炼补全接口
         const requestBody = { ...options.json } as Record<string, unknown>; // as OpenAI.Chat.ChatCompletionCreateParamsStreaming;
 
+        const ConfigManager = getConfigManager();
         let modelConfig: NESCompletionConfig['modelConfig'];
         if (url.endsWith('/chat/completions')) {
             modelConfig = ConfigManager.getNESConfig().modelConfig;
             if (!modelConfig || !modelConfig.baseUrl) {
-                CompletionLogger.error('[Fetcher] NES 模型配置缺失');
+                logger.error('[Fetcher] NES 模型配置缺失');
                 throw new Error('NES model configuration is missing');
             }
             url = `${modelConfig.baseUrl}/chat/completions`;
         } else if (url.endsWith('/completions')) {
             modelConfig = ConfigManager.getFIMConfig().modelConfig;
             if (!modelConfig || !modelConfig.baseUrl) {
-                CompletionLogger.error('[Fetcher] FIM 模型配置缺失');
+                logger.error('[Fetcher] FIM 模型配置缺失');
                 throw new Error('FIM model configuration is missing');
             }
             url = `${modelConfig.baseUrl}/completions`;
@@ -135,9 +140,9 @@ export class Fetcher implements IFetcher {
         const { provider, model, maxTokens, extraBody } = modelConfig;
 
         try {
-            const apiKey = await ApiKeyManager.getApiKey(provider);
+            const apiKey = await keyManager.getApiKey(provider);
             if (!apiKey) {
-                CompletionLogger.error(`[Fetcher] ${provider} API key 未配置`);
+                logger.error(`[Fetcher] ${provider} API key 未配置`);
                 throw new Error('API key not configured');
             }
 
@@ -176,9 +181,9 @@ export class Fetcher implements IFetcher {
                 signal: options.signal as AbortSignal | undefined
             };
 
-            CompletionLogger.info(`[Fetcher] 发送请求: ${url}`);
+            logger.info(`[Fetcher] 发送请求: ${url}`);
             const response = await fetch(url, fetchOptions);
-            CompletionLogger.debug(`[Fetcher] 收到响应 - 状态码: ${response.status} ${response.statusText}`);
+            logger.debug(`[Fetcher] 收到响应 - 状态码: ${response.status} ${response.statusText}`);
 
             // let responseText: string | null = null;
             // if (response.ok) {
@@ -220,7 +225,7 @@ export class Fetcher implements IFetcher {
                 }
                 bodyConsumed = true;
                 cachedText = await response.text();
-                CompletionLogger.trace(`[Fetcher] 响应体长度: ${cachedText.length} 字符`);
+                logger.trace(`[Fetcher] 响应体长度: ${cachedText.length} 字符`);
                 return cachedText;
             };
 
@@ -229,7 +234,7 @@ export class Fetcher implements IFetcher {
                 try {
                     return JSON.parse(text);
                 } catch (e) {
-                    CompletionLogger.error('[Fetcher.ResponseWrapper] JSON 解析失败:', e);
+                    logger.error('[Fetcher.ResponseWrapper] JSON 解析失败:', e);
                     throw e;
                 }
             };
@@ -260,7 +265,7 @@ export class Fetcher implements IFetcher {
                             } else {
                                 if (dashscopeStopChunk) {
                                     const chunk = Buffer.from(value).toString('utf-8');
-                                    CompletionLogger.trace(`[Fetcher] 收到 chunk: ${chunk}`);
+                                    logger.trace(`[Fetcher] 收到 chunk: ${chunk}`);
                                     const lines = chunk.split('\n');
 
                                     for (const line of lines) {
@@ -283,13 +288,13 @@ export class Fetcher implements IFetcher {
                                                 if (parsed?.choices?.[0]?.finish_reason === 'stop') {
                                                     // 推送最后一个补全完整的有效的响应数据
                                                     this.push(Buffer.from(line + '\n'));
-                                                    CompletionLogger.debug(`[Fetcher] 推送数据: ${line}`);
+                                                    logger.debug(`[Fetcher] 推送数据: ${line}`);
                                                 } else {
                                                     // 中间的无效数据不推送，空消息保持
                                                     this.push(Buffer.from('\n\n'));
                                                 }
                                             } catch (e) {
-                                                CompletionLogger.debug(`[Fetcher] JSON 解析失败: ${e}`);
+                                                logger.debug(`[Fetcher] JSON 解析失败: ${e}`);
                                                 // 忽略解析错误
                                             }
                                         }
@@ -318,7 +323,7 @@ export class Fetcher implements IFetcher {
         } catch (error) {
             // 如果是请求中止，不记录错误日志
             if (!this.isAbortError(error)) {
-                CompletionLogger.error('[Fetcher] 异常:', error);
+                logger.error('[Fetcher] 异常:', error);
             }
             throw error;
         } finally {

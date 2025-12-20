@@ -6,13 +6,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ILogTarget, LogLevel } from '@vscode/chat-lib';
-import { CompletionLogger } from '../utils/completionLogger';
+import { getCompletionLogger } from './singletons';
 
 /**
  * 日志目标实现
  */
 export class CopilotLogTarget implements ILogTarget {
     logIt(level: LogLevel, metadataStr: string, ...extra: unknown[]): void {
+        const CompletionLogger = getCompletionLogger();
         switch (level) {
             case LogLevel.Error:
                 CompletionLogger.error(`[CopilotLogTarget] ${metadataStr}`, ...extra);

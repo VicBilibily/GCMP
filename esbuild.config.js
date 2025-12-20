@@ -141,11 +141,11 @@ const rawPlugin = {
     }
 };
 
-/** @type {import('esbuild').BuildOptions} */
-const buildOptions = {
-    entryPoints: ['./src/extension.ts'],
+// ========================================================================
+// 公共构建选项
+// ========================================================================
+const commonOptions = {
     bundle: true,
-    outfile: 'dist/extension.js',
     external: ['vscode'],
     format: 'cjs',
     platform: 'node',
@@ -162,12 +162,47 @@ const buildOptions = {
     logLevel: 'info'
 };
 
+// ========================================================================
+// 主扩展构建选项
+// - 不包含 @vscode/chat-lib 相关的重型依赖
+// - 使用轻量级的 InlineCompletionShim 进行延迟加载
+// ========================================================================
+/** @type {import('esbuild').BuildOptions} */
+const extensionBuildOptions = {
+    ...commonOptions,
+    entryPoints: ['./src/extension.ts'],
+    outfile: 'dist/extension.js',
+    // 排除 copilot.bundle 模块和 @vscode/chat-lib，避免重复打包
+    external: [...commonOptions.external, './copilot.bundle', '@vscode/chat-lib']
+};
+
+// ========================================================================
+// Copilot 模块构建选项
+// - 包含 @vscode/chat-lib 和相关重型依赖
+// - 在首次触发补全时延迟加载
+// ========================================================================
+/** @type {import('esbuild').BuildOptions} */
+const copilotBuildOptions = {
+    ...commonOptions,
+    entryPoints: ['./src/copilot/copilot.bundle.ts'],
+    outfile: 'dist/copilot.bundle.js',
+    // 只排除 vscode 本身，保留 @vscode/chat-lib 及其依赖，确保被打包到 bundle 中
+    external: ['vscode']
+};
+
 async function build() {
     try {
         if (isWatch) {
-            const ctx = await esbuild.context(buildOptions);
-            await ctx.watch();
-            console.log('Watching for changes...');
+            // Watch 模式：同时监听两个入口点
+            console.log('Starting watch mode for extension and copilot bundles...');
+
+            const [extensionCtx, copilotCtx] = await Promise.all([
+                esbuild.context(extensionBuildOptions),
+                esbuild.context(copilotBuildOptions)
+            ]);
+
+            await Promise.all([extensionCtx.watch(), copilotCtx.watch()]);
+            console.log('Watching for changes in both extension.js and copilot.bundle.js...');
         } else {
             // 构建前清理 dist 目录
             console.log('Cleaning dist directory...');
@@ -178,8 +213,17 @@ async function build() {
                 console.log('No dist directory to clean.');
             }
 
-            await esbuild.build(buildOptions);
-            console.log('Build completed successfully.');
+            // 并行构建两个入口点
+            console.log('Building extension.js and copilot.bundle.js...');
+            const startTime = Date.now();
+
+            await Promise.all([
+                esbuild.build(extensionBuildOptions),
+                esbuild.build(copilotBuildOptions)
+            ]);
+
+            const buildTime = Date.now() - startTime;
+            console.log(`Build completed successfully in ${buildTime}ms.`);
 
             // 构建完成后复制资源文件
             await copyBuildAssets();
