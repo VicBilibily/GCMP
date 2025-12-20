@@ -2,6 +2,10 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.15.17] - 2025-12-21
+
+- **Kimi用量查询功能**：恢复 Kimi 状态栏用量查询实现，从官方仓库找到了公开查询接口。
+
 ## [0.15.16] - 2025-12-20
 
 - **Anthropic Compatible**：同步调整 `CustomDataPartMimeTypes['CacheControl'] = 'cache_control'`。
