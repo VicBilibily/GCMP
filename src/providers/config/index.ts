@@ -1,7 +1,6 @@
 import { ProviderConfig } from '../../types/sharedTypes';
 // 统一导出所有模型配置，便于代码 import
 import zhipu from './zhipu.json';
-import kimi from './kimi.json';
 import volcengine from './volcengine.json';
 import minimax from './minimax.json';
 import iflow from './iflow.json';
@@ -12,7 +11,6 @@ import dashscope from './dashscope.json';
 
 const providers = {
     zhipu,
-    kimi,
     volcengine,
     minimax,
     iflow,

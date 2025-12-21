@@ -2,8 +2,8 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、Kimi、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.15.17",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
+    "version": "0.15.18",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -53,7 +53,6 @@
     "activationEvents": [
         "onStartupFinished",
         "onLanguageModelProvider:gcmp.zhipu",
-        "onLanguageModelProvider:gcmp.kimi",
         "onLanguageModelProvider:gcmp.volcengine",
         "onLanguageModelProvider:gcmp.minimax",
         "onLanguageModelProvider:gcmp.iflow",
@@ -76,11 +75,6 @@
             {
                 "command": "gcmp.zhipu.configWizard",
                 "title": "智谱AI 配置向导（API密钥 & 搜索 MCP 模式）",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.kimi.setApiKey",
-                "title": "设置 Kimi API密钥",
                 "category": "GCMP"
             },
             {
@@ -114,8 +108,18 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.kimi.setApiKey",
+                "title": "设置 Kimi API密钥",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.moonshot.setApiKey",
                 "title": "设置 MoonshotAI API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.moonshot.configWizard",
+                "title": "启动 MoonshotAI 配置向导",
                 "category": "GCMP"
             },
             {
@@ -384,11 +388,6 @@
                 "managementCommand": "gcmp.zhipu.configWizard"
             },
             {
-                "vendor": "gcmp.kimi",
-                "displayName": "⦿ Kimi For Coding",
-                "managementCommand": "gcmp.kimi.setApiKey"
-            },
-            {
                 "vendor": "gcmp.volcengine",
                 "displayName": "⦿ 火山方舟 (Coding Plan)",
                 "managementCommand": "gcmp.volcengine.setApiKey"
@@ -405,8 +404,8 @@
             },
             {
                 "vendor": "gcmp.moonshot",
-                "displayName": "⦿ MoonshotAI",
-                "managementCommand": "gcmp.moonshot.setApiKey"
+                "displayName": "⦿ MoonshotAI (Kimi For Coding)",
+                "managementCommand": "gcmp.moonshot.configWizard"
             },
             {
                 "vendor": "gcmp.deepseek",

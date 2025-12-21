@@ -16,6 +16,7 @@ export { MCPWebSearchClient } from './mcpWebSearchClient';
 export { VersionManager } from './versionManager';
 export { ZhipuWizard } from './zhipuWizard';
 export { MiniMaxWizard } from './minimaxWizard';
+export { MoonshotWizard } from './moonshotWizard';
 export { JsonSchemaProvider } from './jsonSchemaProvider';
 export { RetryManager } from './retryManager';
 export { ModelInfoCache } from './modelInfoCache';

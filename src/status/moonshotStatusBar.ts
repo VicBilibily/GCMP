@@ -60,7 +60,7 @@ export class MoonshotStatusBar extends ProviderStatusBarItem<MoonshotStatusData>
             id: 'gcmp.statusBar.moonshot',
             name: 'GCMP: Moonshot Balance',
             alignment: vscode.StatusBarAlignment.Right,
-            priority: 79, // 优先级略低于 DeepSeek
+            priority: 89, // 优先级略低于 Kimi
             refreshCommand: 'gcmp.moonshot.refreshBalance',
             apiKeyProvider: 'moonshot',
             cacheKeyPrefix: 'moonshot',

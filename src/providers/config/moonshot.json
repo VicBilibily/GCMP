@@ -4,6 +4,25 @@
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "kimi-for-coding",
+            "name": "Kimi For Coding",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.kimi.com/coding",
+            "provider": "kimi",
+            "tooltip": "Kimi For Coding - 月之暗面推出的专业编程模型，提供强大的代码生成和理解能力",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "customHeader": {
+                "HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
+                "X-Title": "Roo Code",
+                "User-Agent": "RooCode/3.36.16"
+            }
+        },
+        {
             "id": "kimi-k2-thinking",
             "name": "Kimi-K2-Thinking",
             "tooltip": "月之暗面 Kimi-K2-Thinking - 模型上下文长度 256k，是具有通用 Agentic 能力和推理能力的思考模型，它擅长深度推理",
