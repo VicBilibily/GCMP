@@ -90,7 +90,7 @@ export class ZhipuStatusBar extends ProviderStatusBarItem<ZhipuStatusData> {
     protected generateTooltip(data: ZhipuStatusData): vscode.MarkdownString {
         const md = new vscode.MarkdownString();
         md.supportHtml = true;
-        md.appendMarkdown('#### 智谱AI GLM Coding Plan - 用量信息\n\n');
+        md.appendMarkdown('#### 智谱AI GLM Coding Plan 用量信息\n\n');
 
         // 显示总表：所有限制类型
         md.appendMarkdown('| 类型 | 上限 | 使用 | 剩余 | \n');

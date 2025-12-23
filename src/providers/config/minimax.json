@@ -4,6 +4,22 @@
     "apiKeyTemplate": "这个 ApiKey密钥 是一个很长一串的类似JWT结构字符串",
     "models": [
         {
+            "id": "MiniMax-M2.1-Coding-Plan",
+            "name": "MiniMax-M2.1 (Coding Plan)",
+            "model": "MiniMax-M2.1",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.minimaxi.com/anthropic",
+            "tooltip": "MiniMax-M2.1 - 强大多语言编程能力，全面升级编程体验",
+            "provider": "minimax-coding",
+            "maxInputTokens": 204800,
+            "maxOutputTokens": 64000,
+            "includeThinking": true,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
             "id": "MiniMax-M2-Coding-Plan",
             "name": "MiniMax-M2 (Coding Plan)",
             "model": "MiniMax-M2",
@@ -12,7 +28,35 @@
             "tooltip": "MiniMax-M2 - 专为高效编码与Agent工作流而生",
             "provider": "minimax-coding",
             "maxInputTokens": 204800,
-            "maxOutputTokens": 16000,
+            "maxOutputTokens": 64000,
+            "includeThinking": true,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "MiniMax-M2.1",
+            "name": "MiniMax-M2.1 (按量计费)",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.minimaxi.com/anthropic",
+            "tooltip": "MiniMax-M2.1 - 强大多语言编程能力，全面升级编程体验",
+            "maxInputTokens": 204800,
+            "maxOutputTokens": 128000,
+            "includeThinking": true,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "MiniMax-M2.1-Lightning",
+            "name": "MiniMax-M2.1-Lightning (双倍速费)",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.minimaxi.com/anthropic",
+            "tooltip": "MiniMax-M2.1 - 更快，更高效 - 强大多语言编程能力，全面升级编程体验",
+            "maxInputTokens": 204800,
+            "maxOutputTokens": 128000,
             "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
@@ -26,19 +70,8 @@
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "MiniMax-M2 - 专为高效编码与Agent工作流而生",
             "maxInputTokens": 204800,
-            "maxOutputTokens": 16000,
+            "maxOutputTokens": 64000,
             "includeThinking": true,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "MiniMax-M1",
-            "name": "MiniMax-M1",
-            "tooltip": "MiniMax-M1 - 通用文本生成模型，支持1M超长上下文（输入+输出总token≤1000000），支持流式响应、Function Calling、OpenAI参数风格，QPM≤60，TPM≤100000。适合多场景应用。",
-            "maxInputTokens": 1000000,
-            "maxOutputTokens": 16000,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false

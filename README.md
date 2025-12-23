@@ -30,7 +30,7 @@
 
 ### [**智谱AI**](https://bigmodel.cn/) - GLM系列
 
-- [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-4.7**(Thinking)、**GLM-4.6**(Thinking)、**GLM-4.6V**(Thinking)、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
+- [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-4.7**(Thinking)、**GLM-4.6**、**GLM-4.6V**(Thinking)、**GLM-4.5-Air**
     - **用量查询**：已支持状态栏显示周期剩余用量，可查看 GLM Coding Plan 用量信息。
 - **按量计费**：**GLM-4.7**、**GLM-4.6**、**GLM-4.6V**、**GLM-4.5**、**GLM-4.5-Air**、**GLM-4.5V**
 - **免费模型**：**GLM-4.6V-Flash**、**GLM-4.5-Flash**
@@ -48,11 +48,11 @@
 
 ### [**MiniMax**](https://platform.minimaxi.com/login)
 
-- [**Coding Plan 编程套餐**](https://platform.minimaxi.com/subscribe/coding-plan)：**MiniMax-M2**
+- [**Coding Plan 编程套餐**](https://platform.minimaxi.com/subscribe/coding-plan)：**MiniMax-M2.1**、**MiniMax-M2**
     - **搜索功能**：集成 Coding Plan 联网搜索调用工具，支持通过 `#minimaxWebSearch` 进行联网搜索。
     - **用量查询**：已支持状态栏显示周期使用比例，可查看 Coding Plan 编程套餐用量信息。
-    - **[国际站点](https://platform.minimax.io/subscribe/coding-plan)**：已支持国际站 Coding Plan 编程套餐使用（`MiniMax-M2`、联网搜索、用量查询）。
-- **按量计费**：**MiniMax-M2**、**MiniMax-M1**
+    - **[国际站点](https://platform.minimax.io/subscribe/coding-plan)**：已支持国际站 Coding Plan 编程套餐使用。
+- **按量计费**：**MiniMax-M2.1**、**MiniMax-M2.1-Lightning**、**MiniMax-M2**
 
 ### [**MoonshotAI**](https://platform.moonshot.cn/) - Kimi K2系列
 

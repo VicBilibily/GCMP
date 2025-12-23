@@ -227,7 +227,7 @@ export function apiMessageToAnthropicMessage(
                         type: 'thinking',
                         thinking: '...'
                     } as ThinkingBlockParam);
-                    Logger.warn('Assistant message missing thinking block, added default one');
+                    Logger.trace('Assistant message missing thinking block, added default one');
                 }
             }
         }

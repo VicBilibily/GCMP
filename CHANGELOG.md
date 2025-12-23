@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.15.22] - 2025-12-23
+
+### 调整
+
+- **智谱AI** 提供商 GLM Coding Plan 预置模型移除：
+    - `GLM-4.6-Thinking`：可改用 `GLM-4.7-Thinking`
+    - `GLM-4.5`：可改用 `GLM-4.7`
+    - `GLM-4.5V`：可改用 `GLM-4.6V`
+- **MiniMax** 提供商模型维护：
+    - 新增：`MiniMax-M2.1`(Coding Plan)、`MiniMax-M2.1-Lightning`
+    - 移除：`MiniMax-M1`
+
 ## [0.15.21] - 2025-12-23
 
 ### 调整
