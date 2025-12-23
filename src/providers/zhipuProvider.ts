@@ -1,15 +1,23 @@
 /*---------------------------------------------------------------------------------------------
  *  智谱AI 专用 Provider
- *  继承 GenericModelProvider，添加配置向导功能
+ *  继承 GenericModelProvider，添加配置向导功能和状态栏更新
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { LanguageModelChatProvider } from 'vscode';
+import {
+    LanguageModelChatProvider,
+    LanguageModelChatMessage,
+    LanguageModelChatInformation,
+    ProvideLanguageModelChatResponseOptions,
+    Progress,
+    CancellationToken
+} from 'vscode';
 import { ProviderConfig } from '../types/sharedTypes';
 import { Logger } from '../utils/logger';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { ZhipuWizard } from '../utils/zhipuWizard';
 import { GenericModelProvider } from './genericModelProvider';
+import { StatusBarManager } from '../status/statusBarManager';
 
 /**
  * 智谱AI 专用模型提供商类
@@ -55,5 +63,31 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
         const disposables = [providerDisposable, setApiKeyCommand, configWizardCommand];
         disposables.forEach(disposable => context.subscriptions.push(disposable));
         return { provider, disposables };
+    }
+
+    /**
+     * 获取 Zhipu 状态栏实例（用于 delayedUpdate 调用）
+     */
+    static getZhipuStatusBar() {
+        return StatusBarManager.zhipu;
+    }
+
+    /**
+     * 覆盖 provideChatResponse 以在请求完成后更新状态栏
+     */
+    override async provideLanguageModelChatResponse(
+        model: LanguageModelChatInformation,
+        messages: Array<LanguageModelChatMessage>,
+        options: ProvideLanguageModelChatResponseOptions,
+        progress: Progress<vscode.LanguageModelResponsePart>,
+        token: CancellationToken
+    ): Promise<void> {
+        try {
+            // 调用父类的实现
+            await super.provideLanguageModelChatResponse(model, messages, options, progress, token);
+        } finally {
+            // 请求完成后，延时更新智谱AI状态栏使用量
+            StatusBarManager.zhipu?.delayedUpdate();
+        }
     }
 }

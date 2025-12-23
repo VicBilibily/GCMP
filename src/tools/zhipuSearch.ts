@@ -10,6 +10,7 @@ import { ApiKeyManager } from '../utils/apiKeyManager';
 import { ConfigManager } from '../utils/configManager';
 import { VersionManager } from '../utils/versionManager';
 import { MCPWebSearchClient, type WebSearchRequest } from '../utils/mcpWebSearchClient';
+import { StatusBarManager } from '../status/statusBarManager';
 
 /**
  * 智谱AI搜索引擎类型
@@ -215,6 +216,9 @@ export class ZhipuSearchTool {
             }
 
             Logger.info('✅ [工具调用] 智谱AI联网搜索工具调用成功');
+
+            // 搜索完成后，延时更新智谱AI状态栏（用量显示）
+            StatusBarManager.zhipu?.delayedUpdate();
 
             return new vscode.LanguageModelToolResult([
                 new vscode.LanguageModelTextPart(JSON.stringify(searchResults))

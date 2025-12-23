@@ -9,6 +9,7 @@ import { MiniMaxStatusBar } from './minimaxStatusBar';
 import { KimiStatusBar } from './kimiStatusBar';
 import { DeepSeekStatusBar } from './deepseekStatusBar';
 import { MoonshotStatusBar } from './moonshotStatusBar';
+import { ZhipuStatusBar } from './zhipuStatusBar';
 import { CompatibleStatusBar } from './compatibleStatusBar';
 import { TokenUsageStatusBar } from './tokenUsageStatusBar';
 
@@ -42,6 +43,8 @@ export class StatusBarManager {
     static deepseek: IStatusBar | undefined;
     /** Moonshot 余额查询状态栏 */
     static moonshot: IStatusBar | undefined;
+    /** 智谱AI用量状态栏 */
+    static zhipu: IStatusBar | undefined;
     /** Compatible 提供商状态栏 */
     static compatible: ICompatibleStatusBar | undefined;
     /** 模型上下文窗口占用情况状态栏 */
@@ -59,6 +62,10 @@ export class StatusBarManager {
         // 创建并注册 MiniMax 状态栏
         const miniMaxStatusBar = new MiniMaxStatusBar();
         this.registerStatusBar('minimax', miniMaxStatusBar);
+
+        // 创建并注册 Zhipu 状态栏
+        const zhipuStatusBar = new ZhipuStatusBar();
+        this.registerStatusBar('zhipu', zhipuStatusBar);
 
         // 创建并注册 Kimi 状态栏
         const kimiStatusBar = new KimiStatusBar();
@@ -97,6 +104,9 @@ export class StatusBarManager {
         switch (key) {
             case 'minimax':
                 this.minimax = statusBar;
+                break;
+            case 'zhipu':
+                this.zhipu = statusBar;
                 break;
             case 'kimi':
                 this.kimi = statusBar;
@@ -211,6 +221,7 @@ export class StatusBarManager {
 
         // 清除公共实例引用
         this.minimax = undefined;
+        this.zhipu = undefined;
         this.kimi = undefined;
         this.deepseek = undefined;
         this.moonshot = undefined;
