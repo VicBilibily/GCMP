@@ -8,7 +8,7 @@
             "name": "通义千问3-Max",
             "tooltip": "通义千问3系列Max模型，相较preview版本在智能体编程与工具调用方向进行了专项升级。本次发布的正式版模型达到领域SOTA水平，适配场景更加复杂的智能体需求。",
             "maxInputTokens": 252000,
-            "maxOutputTokens": 32000,
+            "maxOutputTokens": 64000,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -51,7 +51,7 @@
             "id": "qwen-plus-latest",
             "name": "通义千问-Plus-Latest",
             "tooltip": "通义千问系列能力均衡的模型，推理效果和速度介于通义千问-Max和通义千问-Turbo之间，适合中等复杂任务。本模型是动态更新版本，模型更新不会提前通知。",
-            "maxInputTokens": 995000,
+            "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
             "capabilities": {
                 "toolCalling": true,
@@ -62,7 +62,7 @@
             "id": "qwen-flash",
             "name": "通义千问-Flash",
             "tooltip": "Qwen3系列Flash模型，实现思考模式和非思考模式的有效融合，可在对话中切换模式。复杂推理类任务性能优秀，指令遵循、文本理解等能力显著提高。支持1M上下文长度，按照上下文长度进行阶梯计费。",
-            "maxInputTokens": 997000,
+            "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
             "capabilities": {
                 "toolCalling": true,
