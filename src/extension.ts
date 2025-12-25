@@ -285,6 +285,13 @@ export function deactivate() {
         }
 
         ConfigManager.dispose(); // 清理配置管理器
+
+        // 清理 Token 用量管理器
+        TokenUsagesManager.instance.dispose().catch(error => {
+            Logger.warn('清理 Token 用量管理器失败:', error);
+        });
+        Logger.trace('已清理 Token 用量管理器');
+
         Logger.info('GCMP 扩展停用完成');
         StatusLogger.dispose(); // 清理状态日志管理器
         CompletionLogger.dispose(); // 清理内联补全日志管理器

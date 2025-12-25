@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Token Usages Manager
  *  Token 用量管理器 - 基于 fileLogger,无存储限制
  *--------------------------------------------------------------------------------------------*/
@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
-import { Logger } from '../utils/logger';
+import { StatusLogger } from '../utils/statusLogger';
 import { TokenFileLogger, TokenUsageStatsFromFile } from './fileLogger';
 import { UsageParser, ExtendedTokenRequestLog } from './fileLogger/usageParser';
 import { EventEmitter } from 'events';
@@ -119,7 +119,7 @@ export class TokenUsagesManager {
      */
     async initialize(context: vscode.ExtensionContext): Promise<void> {
         if (this.initialized) {
-            Logger.trace('[UsagesManager] Token用量管理器已初始化，跳过重复初始化');
+            StatusLogger.trace('[UsagesManager] Token用量管理器已初始化，跳过重复初始化');
             return;
         }
 
@@ -132,7 +132,7 @@ export class TokenUsagesManager {
         this.initialized = true;
 
         const elapsed = Date.now() - startTime;
-        Logger.info(`[UsagesManager] Token用量管理器初始化完成 (耗时: ${elapsed}ms)`);
+        StatusLogger.info(`[UsagesManager] Token用量管理器初始化完成 (耗时: ${elapsed}ms)`);
 
         // 异步后台清理过期数据（不阻塞初始化）
         this.scheduleBackgroundCleanup();
@@ -149,18 +149,18 @@ export class TokenUsagesManager {
                 const retentionDays = config.get<number>('retentionDays', 100);
 
                 if (retentionDays > 0) {
-                    Logger.trace(`[UsagesManager] 开始后台清理过期数据 (保留 ${retentionDays} 天)`);
+                    StatusLogger.trace(`[UsagesManager] 开始后台清理过期数据 (保留 ${retentionDays} 天)`);
                     const deletedCount = await this.cleanExpiredData(retentionDays);
                     if (deletedCount > 0) {
-                        Logger.info(`[UsagesManager] 后台清理完成: 删除了 ${deletedCount} 个过期日期的数据`);
+                        StatusLogger.info(`[UsagesManager] 后台清理完成: 删除了 ${deletedCount} 个过期日期的数据`);
                     } else {
-                        Logger.trace('[UsagesManager] 后台清理完成: 无需清理的数据');
+                        StatusLogger.trace('[UsagesManager] 后台清理完成: 无需清理的数据');
                     }
                 } else {
-                    Logger.trace('[UsagesManager] 数据保留设置为永久保留，跳过清理');
+                    StatusLogger.trace('[UsagesManager] 数据保留设置为永久保留，跳过清理');
                 }
             } catch (error) {
-                Logger.warn(`[UsagesManager] 后台清理过期数据失败: ${error}`);
+                StatusLogger.warn(`[UsagesManager] 后台清理过期数据失败: ${error}`);
             }
         });
     }
@@ -211,13 +211,13 @@ export class TokenUsagesManager {
             // 通知更新
             this.notifyUpdate();
 
-            Logger.info(
+            StatusLogger.info(
                 `[Usages] 记录预估 token: ${params.providerKey}/${params.modelName}, ${params.estimatedInputTokens} tokens, requestId=${requestId}`
             );
 
             return requestId;
         } catch (err) {
-            Logger.warn('[Usages] 记录预估 token 失败:', err);
+            StatusLogger.warn('[Usages] 记录预估 token 失败:', err);
             throw err;
         }
     }
@@ -231,7 +231,7 @@ export class TokenUsagesManager {
         status: 'completed' | 'failed';
     }): Promise<void> {
         if (!this.initialized) {
-            Logger.warn('TokenUsagesManager 尚未初始化，跳过 token 统计更新');
+            StatusLogger.warn('TokenUsagesManager 尚未初始化，跳过 token 统计更新');
             return;
         }
 
@@ -252,13 +252,13 @@ export class TokenUsagesManager {
             // 通知更新
             this.notifyUpdate();
 
-            Logger.debug(
+            StatusLogger.debug(
                 `[Usages] 更新实际 token: requestId=${params.requestId}, ` +
                     `rawUsage=${params.rawUsage ? '已记录' : '未记录'}, ` +
                     `status=${params.status}`
             );
         } catch (err) {
-            Logger.warn('[Usages] 更新实际 token 失败:', err);
+            StatusLogger.warn('[Usages] 更新实际 token 失败:', err);
         }
     }
 
@@ -287,7 +287,7 @@ export class TokenUsagesManager {
             await this.fileLogger.updateRequestTimestamp(requestId, newTimestamp);
             this.notifyUpdate();
         } catch (err) {
-            Logger.warn('[Usages] 更新请求时间戳失败:', err);
+            StatusLogger.warn('[Usages] 更新请求时间戳失败:', err);
         }
     }
 
@@ -317,7 +317,7 @@ export class TokenUsagesManager {
         const today = this.getTodayDateString();
         const result = this.convertToLegacyFormat(today, stats);
 
-        Logger.info(
+        StatusLogger.info(
             `[Usages] 获取今日统计: provider数量=${Object.keys(result.providers).length}, totalRequests=${Object.values(result.providers).reduce((sum, p) => sum + p.totalRequests, 0)}`
         );
 
@@ -448,7 +448,7 @@ export class TokenUsagesManager {
      */
     async deleteDate(date: string, notify: boolean = true): Promise<void> {
         await this.fileLogger.deleteDateLogs(date);
-        Logger.info(`[Usages] 已删除日期 ${date} 的数据`);
+        StatusLogger.info(`[Usages] 已删除日期 ${date} 的数据`);
         if (notify) {
             this.notifyUpdate();
         }
@@ -465,7 +465,7 @@ export class TokenUsagesManager {
         const deletedCount = await this.fileLogger.cleanupExpiredLogs(retentionDays);
 
         if (deletedCount > 0) {
-            Logger.info(`[Usages] 清理了 ${deletedCount} 个过期日期的数据 (${retentionDays}天前)`);
+            StatusLogger.info(`[Usages] 清理了 ${deletedCount} 个过期日期的数据 (${retentionDays}天前)`);
         }
 
         return deletedCount;

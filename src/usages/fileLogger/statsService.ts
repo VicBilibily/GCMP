@@ -3,7 +3,7 @@
  *  统一管理各种统计数据的查询逻辑，避免重复代码
  *--------------------------------------------------------------------------------------------*/
 
-import { Logger } from '../../utils/logger';
+import { StatusLogger } from '../../utils/statusLogger';
 import { LogReadManager } from './readManager';
 import { DailyStatsManager } from './dailyStatsManager';
 import type { TokenUsageStatsFromFile } from './types';
@@ -32,13 +32,13 @@ export class StatsQueryService {
         if (!isTodayOrHistory && !fromFile) {
             const saved = await this.dailyStatsManager.loadStats(dateStr);
             if (saved) {
-                Logger.info(`[StatsQueryService] 从持久化文件读取统计: ${dateStr}`);
+                StatusLogger.info(`[StatsQueryService] 从持久化文件读取统计: ${dateStr}`);
                 return saved;
             }
         }
 
         // 从日志文件计算统计
-        Logger.info(`[StatsQueryService] 计算${isTodayOrHistory ? '今日' : '历史'}统计: ${dateStr}`);
+        StatusLogger.info(`[StatsQueryService] 计算${isTodayOrHistory ? '今日' : '历史'}统计: ${dateStr}`);
         const stats = await this.readManager.calculateDateStats(dateStr);
 
         // 对于历史日期，保存到持久化文件
@@ -56,7 +56,7 @@ export class StatsQueryService {
         // 尝试从持久化文件读取
         const saved = await this.dailyStatsManager.loadStats(dateStr, hour);
         if (saved) {
-            Logger.info(`[StatsQueryService] 从持久化文件读取小时统计: ${dateStr} ${hour}:00`);
+            StatusLogger.info(`[StatsQueryService] 从持久化文件读取小时统计: ${dateStr} ${hour}:00`);
             return saved;
         }
 
@@ -74,7 +74,7 @@ export class StatsQueryService {
      * 使日期相关的所有缓存失效（重新计算）
      */
     async invalidateDateCaches(dateStr: string): Promise<void> {
-        Logger.debug(`[StatsQueryService] 已清除日期缓存: ${dateStr}`);
+        StatusLogger.debug(`[StatsQueryService] 已清除日期缓存: ${dateStr}`);
     }
 
     /**

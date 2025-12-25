@@ -12,7 +12,7 @@
 import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import * as path from 'path';
-import { Logger } from '../../utils/logger';
+import { StatusLogger } from '../../utils/statusLogger';
 import type { TokenUsageStatsFromFile, DateIndex, DateIndexEntry } from './types';
 
 /**
@@ -78,9 +78,9 @@ export class DailyStatsManager {
             // 更新索引文件
             await this.updateDateIndex(dateStr, stats.total);
 
-            Logger.debug(`[DailyStatsManager] 已保存日期统计到 stats.json: ${dateStr}`);
+            StatusLogger.debug(`[DailyStatsManager] 已保存日期统计到 stats.json: ${dateStr}`);
         } catch (err) {
-            Logger.error(`[DailyStatsManager] 保存日期统计失败: ${dateStr}`, err);
+            StatusLogger.error(`[DailyStatsManager] 保存日期统计失败: ${dateStr}`, err);
             throw err;
         }
     }
@@ -153,9 +153,9 @@ export class DailyStatsManager {
             // 更新索引文件
             await this.updateDateIndex(dateStr, dateStats.total);
 
-            Logger.debug(`[DailyStatsManager] 已保存小时和日期统计到 stats.json: ${dateStr} ${hourKey}:00`);
+            StatusLogger.debug(`[DailyStatsManager] 已保存小时和日期统计到 stats.json: ${dateStr} ${hourKey}:00`);
         } catch (err) {
-            Logger.error(`[DailyStatsManager] 保存小时和日期统计失败: ${dateStr} ${hour}:00`, err);
+            StatusLogger.error(`[DailyStatsManager] 保存小时和日期统计失败: ${dateStr} ${hour}:00`, err);
             throw err;
         }
     }
@@ -195,15 +195,18 @@ export class DailyStatsManager {
                     providers: {} // 小时级别没有提供商统计
                 };
 
-                Logger.debug(`[DailyStatsManager] 已从 stats.json 读取小时统计: ${dateStr} ${hourKey}:00`);
+                StatusLogger.debug(`[DailyStatsManager] 已从 stats.json 读取小时统计: ${dateStr} ${hourKey}:00`);
                 return result;
             }
 
             // 返回完整的日期统计
-            Logger.debug(`[DailyStatsManager] 已从 stats.json 读取日期统计: ${dateStr}`);
+            StatusLogger.debug(`[DailyStatsManager] 已从 stats.json 读取日期统计: ${dateStr}`);
             return statsData;
         } catch (err) {
-            Logger.warn(`[DailyStatsManager] 读取统计失败: ${dateStr}${hour !== undefined ? ` ${hour}:00` : ''}`, err);
+            StatusLogger.warn(
+                `[DailyStatsManager] 读取统计失败: ${dateStr}${hour !== undefined ? ` ${hour}:00` : ''}`,
+                err
+            );
             return null;
         }
     }
@@ -245,7 +248,7 @@ export class DailyStatsManager {
 
             return dates.sort().reverse(); // 倒序(最新的在前)
         } catch (err) {
-            Logger.error('[DailyStatsManager] 获取统计日期列表失败', err);
+            StatusLogger.error('[DailyStatsManager] 获取统计日期列表失败', err);
             return [];
         }
     }
@@ -273,7 +276,7 @@ export class DailyStatsManager {
                     actualDateSet.delete(dateStr); // 从待添加集合中移除已存在的
                 } else {
                     hasChanges = true;
-                    Logger.debug(`[DailyStatsManager] 索引中的日期文件夹不存在，已移除: ${dateStr}`);
+                    StatusLogger.debug(`[DailyStatsManager] 索引中的日期文件夹不存在，已移除: ${dateStr}`);
                 }
             }
         }
@@ -291,10 +294,10 @@ export class DailyStatsManager {
                             total_requests: stats.total.requests
                         };
                         hasChanges = true;
-                        Logger.debug(`[DailyStatsManager] 新日期文件夹已添加到索引: ${dateStr}`);
+                        StatusLogger.debug(`[DailyStatsManager] 新日期文件夹已添加到索引: ${dateStr}`);
                     }
                 } catch (err) {
-                    Logger.warn(`[DailyStatsManager] 获取日期摘要失败: ${dateStr}`, err);
+                    StatusLogger.warn(`[DailyStatsManager] 获取日期摘要失败: ${dateStr}`, err);
                 }
             }
         }
@@ -321,9 +324,9 @@ export class DailyStatsManager {
             await fs.unlink(filePath);
             // 从索引中删除
             await this.removeDateFromIndex(dateStr);
-            Logger.info(`[DailyStatsManager] 已删除每日统计: ${dateStr}`);
+            StatusLogger.info(`[DailyStatsManager] 已删除每日统计: ${dateStr}`);
         } catch (err) {
-            Logger.error(`[DailyStatsManager] 删除每日统计失败: ${dateStr}`, err);
+            StatusLogger.error(`[DailyStatsManager] 删除每日统计失败: ${dateStr}`, err);
             throw err;
         }
     }
@@ -375,7 +378,7 @@ export class DailyStatsManager {
     private async ensureDirectoryExists(dirPath: string): Promise<void> {
         if (!fsSync.existsSync(dirPath)) {
             await fs.mkdir(dirPath, { recursive: true });
-            Logger.debug(`[DailyStatsManager] 创建目录: ${dirPath}`);
+            StatusLogger.debug(`[DailyStatsManager] 创建目录: ${dirPath}`);
         }
     }
 
@@ -428,7 +431,7 @@ export class DailyStatsManager {
             // 使用统一的保存方法
             await this.saveDateIndex(index);
         } catch (err) {
-            Logger.warn(`[DailyStatsManager] 更新日期索引失败: ${dateStr}`, err);
+            StatusLogger.warn(`[DailyStatsManager] 更新日期索引失败: ${dateStr}`, err);
             // 不抛出错误，索引更新失败不影响主流程
         }
     }
@@ -447,10 +450,10 @@ export class DailyStatsManager {
         try {
             const content = await fs.readFile(indexPath, 'utf-8');
             const index: DateIndex = JSON.parse(content);
-            Logger.debug(`[DailyStatsManager] 已读取日期索引，共 ${Object.keys(index.dates).length} 个日期`);
+            StatusLogger.debug(`[DailyStatsManager] 已读取日期索引，共 ${Object.keys(index.dates).length} 个日期`);
             return index;
         } catch (err) {
-            Logger.warn('[DailyStatsManager] 读取日期索引失败', err);
+            StatusLogger.warn('[DailyStatsManager] 读取日期索引失败', err);
             return null;
         }
     }
@@ -468,9 +471,9 @@ export class DailyStatsManager {
 
             // 写入索引文件
             await fs.writeFile(indexPath, JSON.stringify(index, null, 2), 'utf-8');
-            Logger.debug(`[DailyStatsManager] 已保存日期索引，共 ${Object.keys(index.dates).length} 个日期`);
+            StatusLogger.debug(`[DailyStatsManager] 已保存日期索引，共 ${Object.keys(index.dates).length} 个日期`);
         } catch (err) {
-            Logger.warn('[DailyStatsManager] 保存日期索引失败', err);
+            StatusLogger.warn('[DailyStatsManager] 保存日期索引失败', err);
             // 不抛出错误，索引更新失败不影响主流程
         }
     }
@@ -496,14 +499,14 @@ export class DailyStatsManager {
                         };
                     }
                 } catch (err) {
-                    Logger.warn(`[DailyStatsManager] 重建索引时获取日期摘要失败: ${dateStr}`, err);
+                    StatusLogger.warn(`[DailyStatsManager] 重建索引时获取日期摘要失败: ${dateStr}`, err);
                 }
             }
 
             await this.saveDateIndex({ dates: summaries });
-            Logger.info(`[DailyStatsManager] 已重新构建日期索引，共 ${Object.keys(summaries).length} 个日期`);
+            StatusLogger.info(`[DailyStatsManager] 已重新构建日期索引，共 ${Object.keys(summaries).length} 个日期`);
         } catch (err) {
-            Logger.error('[DailyStatsManager] 重新构建日期索引失败', err);
+            StatusLogger.error('[DailyStatsManager] 重新构建日期索引失败', err);
         }
     }
 
@@ -526,10 +529,10 @@ export class DailyStatsManager {
                 delete index.dates[dateStr];
                 // 使用统一的保存方法
                 await this.saveDateIndex(index);
-                Logger.debug(`[DailyStatsManager] 已从索引中删除日期: ${dateStr}`);
+                StatusLogger.debug(`[DailyStatsManager] 已从索引中删除日期: ${dateStr}`);
             }
         } catch (err) {
-            Logger.warn(`[DailyStatsManager] 从索引中删除日期失败: ${dateStr}`, err);
+            StatusLogger.warn(`[DailyStatsManager] 从索引中删除日期失败: ${dateStr}`, err);
             // 不抛出错误，索引更新失败不影响主流程
         }
     }
@@ -568,7 +571,7 @@ export class DailyStatsManager {
                 const logFilePath = path.join(dateFolder, logFile);
                 const logStats = fsSync.statSync(logFilePath);
                 if (logStats.mtimeMs > statsMtime) {
-                    Logger.debug(
+                    StatusLogger.debug(
                         `[DailyStatsManager] 日期 ${dateStr} 的 stats.json 过期 (日志文件 ${logFile} 更新时间: ${new Date(logStats.mtimeMs).toISOString()})`
                     );
                     return true;
@@ -577,7 +580,7 @@ export class DailyStatsManager {
 
             return false;
         } catch (err) {
-            Logger.warn(`[DailyStatsManager] 检查日期 ${dateStr} 是否需要更新失败:`, err);
+            StatusLogger.warn(`[DailyStatsManager] 检查日期 ${dateStr} 是否需要更新失败:`, err);
             return false;
         }
     }
@@ -611,7 +614,7 @@ export class DailyStatsManager {
 
             return outdatedDates;
         } catch (err) {
-            Logger.error('[DailyStatsManager] 获取过期日期列表失败', err);
+            StatusLogger.error('[DailyStatsManager] 获取过期日期列表失败', err);
             return outdatedDates;
         }
     }

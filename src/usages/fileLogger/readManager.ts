@@ -6,7 +6,7 @@
 import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import * as path from 'path';
-import { Logger } from '../../utils/logger';
+import { StatusLogger } from '../../utils/statusLogger';
 import { LogPathManager } from './pathManager';
 import { UsageParser } from './usageParser';
 import type { TokenRequestLog, TokenUsageStatsFromFile } from './types';
@@ -36,7 +36,7 @@ export class LogReadManager {
             const content = await fs.readFile(filePath, 'utf-8');
             return this.parseJsonlContent(content);
         } catch (err) {
-            Logger.error(`[LogReadManager] 读取小时日志失败: ${filePath}`, err);
+            StatusLogger.error(`[LogReadManager] 读取小时日志失败: ${filePath}`, err);
             return [];
         }
     }
@@ -66,7 +66,7 @@ export class LogReadManager {
 
             return allLogs;
         } catch (err) {
-            Logger.error(`[LogReadManager] 读取日期日志失败: ${dateFolder}`, err);
+            StatusLogger.error(`[LogReadManager] 读取日期日志失败: ${dateFolder}`, err);
             return [];
         }
     }
@@ -137,7 +137,7 @@ export class LogReadManager {
 
             return dates;
         } catch (err) {
-            Logger.error('[LogReadManager] 获取日期列表失败', err);
+            StatusLogger.error('[LogReadManager] 获取日期列表失败', err);
             return [];
         }
     }
@@ -159,10 +159,10 @@ export class LogReadManager {
             // 删除整个文件夹
             await fs.rm(dateFolder, { recursive: true, force: true });
 
-            Logger.info(`[LogReadManager] 已删除日期日志: ${dateStr} (${count} 个文件)`);
+            StatusLogger.info(`[LogReadManager] 已删除日期日志: ${dateStr} (${count} 个文件)`);
             return count;
         } catch (err) {
-            Logger.error(`[LogReadManager] 删除日期日志失败: ${dateStr}`, err);
+            StatusLogger.error(`[LogReadManager] 删除日期日志失败: ${dateStr}`, err);
             throw err;
         }
     }
@@ -207,7 +207,7 @@ export class LogReadManager {
                 const log = JSON.parse(line) as TokenRequestLog;
                 logs.push(log);
             } catch (err) {
-                Logger.warn('[LogReadManager] 解析日志行失败,跳过', err);
+                StatusLogger.warn('[LogReadManager] 解析日志行失败,跳过', err);
             }
         }
 

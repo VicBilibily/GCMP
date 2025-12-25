@@ -6,7 +6,7 @@
 
 import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
-import { Logger } from '../../utils/logger';
+import { StatusLogger } from '../../utils/statusLogger';
 import { LogPathManager } from './pathManager';
 import type { TokenRequestLog } from './types';
 
@@ -121,11 +121,11 @@ export class LogWriteManager {
             // 追加到文件(使用 appendFile 自动处理并发)
             await fs.appendFile(logPath.fullPath, line, 'utf-8');
 
-            Logger.debug(
+            StatusLogger.debug(
                 `[LogWriteManager] 写入流水日志: ${logPath.fullPath} (${log.requestId}, status=${log.status})`
             );
         } catch (err) {
-            Logger.error(`[LogWriteManager] 写入日志失败: ${logPath.fullPath}`, err);
+            StatusLogger.error(`[LogWriteManager] 写入日志失败: ${logPath.fullPath}`, err);
             throw err;
         }
     }
@@ -138,7 +138,7 @@ export class LogWriteManager {
             // 同步检查避免竞态条件
             if (!fsSync.existsSync(dir)) {
                 await fs.mkdir(dir, { recursive: true });
-                Logger.debug(`[LogWriteManager] 创建目录: ${dir}`);
+                StatusLogger.debug(`[LogWriteManager] 创建目录: ${dir}`);
             }
         } catch (err) {
             // 忽略已存在错误
@@ -172,11 +172,27 @@ export class LogWriteManager {
      * 销毁写入管理器
      */
     async dispose(): Promise<void> {
-        this.isDisposed = true;
+        try {
+            StatusLogger.info('[LogWriteManager] 开始销毁写入管理器...');
 
-        // 等待队列清空
-        await this.flush();
+            // 标记为已销毁，阻止新的写入请求
+            this.isDisposed = true;
 
-        Logger.info('[LogWriteManager] 写入管理器已销毁');
+            // 等待队列清空
+            const queueStatus = this.getQueueStatus();
+            if (queueStatus.queueLength > 0) {
+                StatusLogger.warn(
+                    `[LogWriteManager] 销毁时发现 ${queueStatus.queueLength} 个待处理的写入任务，正在等待完成...`
+                );
+            }
+
+            // 刷新队列中的所有任务
+            await this.flush();
+
+            StatusLogger.info('[LogWriteManager] 写入管理器已销毁');
+        } catch (error) {
+            StatusLogger.error('[LogWriteManager] 销毁写入管理器时出错:', error);
+            throw error;
+        }
     }
 }
