@@ -8,6 +8,7 @@ import OpenAI from 'openai';
 import { Logger, VersionManager } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
+import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelConfig } from '../types/sharedTypes';
 
 /**
@@ -258,7 +259,8 @@ export class OpenAIHandler {
         messages: readonly vscode.LanguageModelChatMessage[],
         options: vscode.ProvideLanguageModelChatResponseOptions,
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
-        token: vscode.CancellationToken
+        token: vscode.CancellationToken,
+        requestId?: string | null
     ): Promise<void> {
         Logger.debug(`${model.name} 开始处理 ${this.displayName} 请求`);
         // 清理当前请求的事件去重跟踪器
@@ -722,15 +724,25 @@ export class OpenAIHandler {
                 if (streamError) {
                     throw streamError;
                 }
+
                 // 只在流成功完成后输出一次 usage 信息，避免多次重复打印
                 if (finalUsage) {
-                    try {
-                        const usage = finalUsage as OpenAI.Completions.CompletionUsage;
-                        Logger.info(
-                            `📊 ${model.name} Token使用: ${usage.prompt_tokens}+${usage.completion_tokens}=${usage.total_tokens}`
-                        );
-                    } catch (e) {
-                        Logger.trace(`${model.name} 打印 finalUsage 失败: ${String(e)}`);
+                    const usage = finalUsage as OpenAI.Completions.CompletionUsage;
+                    Logger.info(`📊 ${model.name} OpenAI 请求完成`, usage);
+
+                    if (requestId) {
+                        // === Token 统计: 更新实际 token ===
+                        try {
+                            const usagesManager = TokenUsagesManager.instance;
+                            // 直接传递原始 usage 对象
+                            await usagesManager.updateActualTokens({
+                                requestId,
+                                rawUsage: usage,
+                                status: 'completed'
+                            });
+                        } catch (err) {
+                            Logger.warn('更新Token统计失败:', err);
+                        }
                     }
                 }
                 Logger.debug(`${model.name} ${this.displayName} SDK流处理完成`);

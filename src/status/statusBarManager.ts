@@ -12,6 +12,7 @@ import { MoonshotStatusBar } from './moonshotStatusBar';
 import { ZhipuStatusBar } from './zhipuStatusBar';
 import { CompatibleStatusBar } from './compatibleStatusBar';
 import { TokenUsageStatusBar } from './tokenUsageStatusBar';
+import { TokenUsagesStatusBar } from './usagesStatusBar';
 
 /**
  * 状态栏项接口
@@ -49,6 +50,8 @@ export class StatusBarManager {
     static compatible: ICompatibleStatusBar | undefined;
     /** 模型上下文窗口占用情况状态栏 */
     static tokenUsage: IStatusBar | undefined;
+    /** Token 使用统计状态栏 */
+    static tokenStats: IStatusBar | undefined;
 
     // ==================== 私有成员 ====================
     private static statusBars: Map<string, IStatusBar> = new Map<string, IStatusBar>();
@@ -58,7 +61,7 @@ export class StatusBarManager {
      * 注册所有内置状态栏
      * 在初始化时自动创建和注册所有状态栏实例
      */
-    private static registerBuiltInStatusBars(): void {
+    private static registerBuiltInStatusBars(context: vscode.ExtensionContext): void {
         // 创建并注册 MiniMax 状态栏
         const miniMaxStatusBar = new MiniMaxStatusBar();
         this.registerStatusBar('minimax', miniMaxStatusBar);
@@ -86,6 +89,10 @@ export class StatusBarManager {
         // 创建并注册 模型上下文窗口占用情况 状态栏
         const tokenUsageStatusBar = new TokenUsageStatusBar();
         this.registerStatusBar('tokenUsage', tokenUsageStatusBar);
+
+        // 创建并注册 Token 使用统计 状态栏
+        const tokenStatsStatusBar = new TokenUsagesStatusBar(context);
+        this.registerStatusBar('tokenStats', tokenStatsStatusBar);
     }
 
     /**
@@ -123,6 +130,9 @@ export class StatusBarManager {
             case 'tokenUsage':
                 this.tokenUsage = statusBar;
                 break;
+            case 'tokenStats':
+                this.tokenStats = statusBar;
+                break;
             default:
                 break;
         }
@@ -150,7 +160,7 @@ export class StatusBarManager {
         }
 
         // 第一步：注册所有内置状态栏
-        this.registerBuiltInStatusBars();
+        this.registerBuiltInStatusBars(context);
 
         StatusLogger.info(`[StatusBarManager] 开始初始化 ${this.statusBars.size} 个状态栏项`);
 

@@ -11,7 +11,14 @@ import {
     Progress
 } from 'vscode';
 import { ProviderConfig, ModelConfig, ModelOverride } from '../types/sharedTypes';
-import { Logger, ApiKeyManager, CompatibleModelManager, RetryManager, ConfigManager } from '../utils';
+import {
+    Logger,
+    ApiKeyManager,
+    CompatibleModelManager,
+    RetryManager,
+    ConfigManager,
+    TokenUsagesManager
+} from '../utils';
 import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status';
 import OpenAI from 'openai';
@@ -26,6 +33,23 @@ interface ToolCallBuffer {
     id?: string;
     name?: string;
     arguments: string;
+}
+
+/**
+ * 扩展的 CompletionUsage 接口,包含 prompt_tokens_details 和 completion_tokens_details
+ */
+interface ExtendedCompletionUsage extends OpenAI.Completions.CompletionUsage {
+    prompt_tokens_details?: {
+        cached_tokens?: number;
+        audio_tokens?: number;
+        [key: string]: number | undefined;
+    };
+    completion_tokens_details?: {
+        reasoning_tokens?: number;
+        audio_tokens?: number;
+        [key: string]: number | undefined;
+    };
+    [key: string]: number | undefined | object | Record<string, number | undefined>;
 }
 
 /**
@@ -292,6 +316,28 @@ export class CompatibleProvider extends GenericModelProvider {
     }
 
     /**
+     * 获取提供商的显示名称
+     * @param providerKey 提供商的 key
+     * @returns 提供商的显示名称，如果找不到则返回 providerKey
+     */
+    private getProviderDisplayName(providerKey: string): string {
+        // 先从 KnownProviders 查找
+        const knownProvider = KnownProviders[providerKey];
+        if (knownProvider?.displayName) {
+            return knownProvider.displayName;
+        }
+
+        // 再从 configProviders 查找
+        const provider = configProviders[providerKey as keyof typeof configProviders];
+        if (provider?.displayName) {
+            return provider.displayName;
+        }
+
+        // 找不到则返回 key 本身
+        return providerKey;
+    }
+
+    /**
      * 重写：提供语言模型聊天响应
      * 使用最新的动态配置处理请求，并添加失败重试机制
      */
@@ -344,7 +390,29 @@ export class CompatibleProvider extends GenericModelProvider {
             Logger.info(`Compatible Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
 
             // 计算输入 token 数量并更新状态栏
-            await this.updateTokenUsageStatusBar(model, messages, modelConfig, options);
+            const totalInputTokens = await this.updateTokenUsageStatusBar(model, messages, modelConfig, options);
+
+            // === Token 统计: 记录预估 token ===
+            let requestId: string | null = null;
+            try {
+                const usagesManager = TokenUsagesManager.instance;
+
+                // 获取实际提供商的 key 和显示名称
+                const actualProviderKey = modelConfig.provider || this.providerKey;
+                const actualDisplayName = modelConfig.provider
+                    ? this.getProviderDisplayName(modelConfig.provider)
+                    : currentConfig.displayName;
+
+                requestId = await usagesManager.recordEstimatedTokens({
+                    providerKey: actualProviderKey,
+                    displayName: actualDisplayName,
+                    modelId: model.id,
+                    modelName: model.name,
+                    estimatedInputTokens: totalInputTokens
+                });
+            } catch (err) {
+                Logger.warn('记录预估Token失败:', err);
+            }
 
             try {
                 // 使用重试机制执行请求
@@ -357,7 +425,8 @@ export class CompatibleProvider extends GenericModelProvider {
                                 messages,
                                 options,
                                 progress,
-                                token
+                                token,
+                                requestId
                             );
                         } else if (sdkMode === 'openai-sse') {
                             // OpenAI 模式：使用自定义 SSE 流处理
@@ -367,7 +436,8 @@ export class CompatibleProvider extends GenericModelProvider {
                                 messages,
                                 options,
                                 progress,
-                                token
+                                token,
+                                requestId
                             );
                         } else {
                             await this.openaiHandler.handleRequest(
@@ -376,7 +446,8 @@ export class CompatibleProvider extends GenericModelProvider {
                                 messages,
                                 options,
                                 progress,
-                                token
+                                token,
+                                requestId
                             );
                         }
                     },
@@ -386,6 +457,20 @@ export class CompatibleProvider extends GenericModelProvider {
             } catch (error) {
                 const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
                 Logger.error(errorMessage);
+
+                // === Token 统计: 更新失败状态 ===
+                if (requestId) {
+                    try {
+                        const usagesManager = TokenUsagesManager.instance;
+                        await usagesManager.updateActualTokens({
+                            requestId,
+                            status: 'failed'
+                        });
+                    } catch (err) {
+                        Logger.warn('更新Token统计失败:', err);
+                    }
+                }
+
                 throw error;
             } finally {
                 Logger.info(`✅ Compatible Provider: ${model.name} 请求已完成`);
@@ -407,7 +492,8 @@ export class CompatibleProvider extends GenericModelProvider {
         messages: readonly vscode.LanguageModelChatMessage[],
         options: vscode.ProvideLanguageModelChatResponseOptions,
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
-        token: vscode.CancellationToken
+        token: vscode.CancellationToken,
+        requestId?: string | null
     ): Promise<void> {
         const provider = modelConfig.provider || this.providerKey;
         const apiKey = await ApiKeyManager.getApiKey(provider);
@@ -487,6 +573,9 @@ export class CompatibleProvider extends GenericModelProvider {
             let thinkingContentBuffer: string = ''; // 思考内容缓存
             const MAX_THINKING_BUFFER_LENGTH = 10; // 思考内容缓存的最大长度
 
+            // Token 统计: 收集 usage 信息
+            let finalUsage: ExtendedCompletionUsage | undefined;
+
             try {
                 while (true) {
                     if (token.isCancellationRequested) {
@@ -526,259 +615,256 @@ export class CompatibleProvider extends GenericModelProvider {
                                 let hasContent = false;
 
                                 // 检查是否是包含usage信息的最终chunk
-                                if (chunk.usage && (!chunk.choices || chunk.choices.length === 0)) {
-                                    Logger.debug(`[${model.name}] 收到使用统计信息: ${JSON.stringify(chunk.usage)}`);
-                                    // 继续处理下一个chunk，不设置 hasReceivedContent
-                                } else {
-                                    // 处理正常的choices
-                                    for (const choice of chunk.choices || []) {
-                                        const delta = choice.delta as ExtendedDelta | undefined;
+                                if (chunk.usage) {
+                                    // Logger.trace(`[${model.name}] 收到使用统计信息: ${JSON.stringify(chunk.usage)}`);
+                                    finalUsage = chunk.usage;
+                                }
 
-                                        // 处理思考内容（reasoning_content）- 使用缓冲累积策略
-                                        if (
-                                            delta &&
-                                            delta.reasoning_content &&
-                                            typeof delta.reasoning_content === 'string'
-                                        ) {
-                                            Logger.trace(
-                                                `[${model.name}] 接收到思考内容: ${delta.reasoning_content.length} 字符, 内容="${delta.reasoning_content}"`
-                                            );
-                                            // 如果当前没有 active id，则生成一个用于本次思维链
-                                            if (!currentThinkingId) {
-                                                currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                                                Logger.trace(`[${model.name}] 创建新思维链 ID: ${currentThinkingId}`);
+                                // 处理正常的choices
+                                for (const choice of chunk.choices || []) {
+                                    const delta = choice.delta as ExtendedDelta | undefined;
+
+                                    // 处理思考内容（reasoning_content）- 使用缓冲累积策略
+                                    if (
+                                        delta &&
+                                        delta.reasoning_content &&
+                                        typeof delta.reasoning_content === 'string'
+                                    ) {
+                                        Logger.trace(
+                                            `[${model.name}] 接收到思考内容: ${delta.reasoning_content.length} 字符, 内容="${delta.reasoning_content}"`
+                                        );
+                                        // 如果当前没有 active id，则生成一个用于本次思维链
+                                        if (!currentThinkingId) {
+                                            currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                                            Logger.trace(`[${model.name}] 创建新思维链 ID: ${currentThinkingId}`);
+                                        }
+
+                                        // 将思考内容添加到缓冲
+                                        thinkingContentBuffer += delta.reasoning_content;
+
+                                        // 检查是否达到报告条件
+                                        if (thinkingContentBuffer.length >= MAX_THINKING_BUFFER_LENGTH) {
+                                            // 达到最大长度，立即报告
+                                            try {
+                                                progress.report(
+                                                    new vscode.LanguageModelThinkingPart(
+                                                        thinkingContentBuffer,
+                                                        currentThinkingId
+                                                    )
+                                                );
+                                                thinkingContentBuffer = ''; // 清空缓冲
+                                                hasThinkingContent = true; // 标记已输出 thinking 内容
+                                            } catch (e) {
+                                                Logger.trace(`[${model.name}] 报告思考内容失败: ${String(e)}`);
                                             }
+                                        } else {
+                                            // 即使没有立即报告，也标记有 thinking 内容
+                                            hasThinkingContent = true;
+                                        }
+                                    }
 
-                                            // 将思考内容添加到缓冲
-                                            thinkingContentBuffer += delta.reasoning_content;
-
-                                            // 检查是否达到报告条件
-                                            if (thinkingContentBuffer.length >= MAX_THINKING_BUFFER_LENGTH) {
-                                                // 达到最大长度，立即报告
-                                                try {
-                                                    progress.report(
-                                                        new vscode.LanguageModelThinkingPart(
-                                                            thinkingContentBuffer,
-                                                            currentThinkingId
-                                                        )
-                                                    );
-                                                    thinkingContentBuffer = ''; // 清空缓冲
-                                                    hasThinkingContent = true; // 标记已输出 thinking 内容
-                                                } catch (e) {
-                                                    Logger.trace(`[${model.name}] 报告思考内容失败: ${String(e)}`);
-                                                }
-                                            } else {
-                                                // 即使没有立即报告，也标记有 thinking 内容
-                                                hasThinkingContent = true;
+                                    // 处理文本内容（即使 delta 存在但可能为空对象）
+                                    if (delta && delta.content && typeof delta.content === 'string') {
+                                        Logger.trace(
+                                            `[${model.name}] 输出文本内容: ${delta.content.length} 字符, preview=${delta.content}`
+                                        );
+                                        // 遇到可见 content 前，如果有缓存的思考内容，先报告出来
+                                        if (thinkingContentBuffer.length > 0 && currentThinkingId) {
+                                            try {
+                                                progress.report(
+                                                    new vscode.LanguageModelThinkingPart(
+                                                        thinkingContentBuffer,
+                                                        currentThinkingId
+                                                    )
+                                                );
+                                                thinkingContentBuffer = ''; // 清空缓冲
+                                                hasThinkingContent = true; // 标记已输出 thinking 内容
+                                            } catch (e) {
+                                                Logger.trace(`[${model.name}] 报告剩余思考内容失败: ${String(e)}`);
                                             }
                                         }
 
-                                        // 处理文本内容（即使 delta 存在但可能为空对象）
-                                        if (delta && delta.content && typeof delta.content === 'string') {
-                                            Logger.trace(
-                                                `[${model.name}] 输出文本内容: ${delta.content.length} 字符, preview=${delta.content}`
-                                            );
-                                            // 遇到可见 content 前，如果有缓存的思考内容，先报告出来
-                                            if (thinkingContentBuffer.length > 0 && currentThinkingId) {
-                                                try {
-                                                    progress.report(
-                                                        new vscode.LanguageModelThinkingPart(
-                                                            thinkingContentBuffer,
-                                                            currentThinkingId
-                                                        )
-                                                    );
-                                                    thinkingContentBuffer = ''; // 清空缓冲
-                                                    hasThinkingContent = true; // 标记已输出 thinking 内容
-                                                } catch (e) {
-                                                    Logger.trace(`[${model.name}] 报告剩余思考内容失败: ${String(e)}`);
-                                                }
-                                            }
-
-                                            // 然后结束当前思维链
-                                            if (currentThinkingId) {
-                                                try {
-                                                    Logger.trace(
-                                                        `[${model.name}] 在输出content前结束思维链 ID: ${currentThinkingId}`
-                                                    );
-                                                    progress.report(
-                                                        new vscode.LanguageModelThinkingPart('', currentThinkingId)
-                                                    );
-                                                } catch (e) {
-                                                    Logger.trace(
-                                                        `[${model.name}] 发送 thinking done(id=${currentThinkingId}) 失败: ${String(e)}`
-                                                    );
-                                                }
-                                                currentThinkingId = null;
-                                            }
-
-                                            progress.report(new vscode.LanguageModelTextPart(delta.content));
-                                            hasContent = true;
-                                        }
-
-                                        // 处理工具调用 - 支持分块数据的累积处理
-                                        if (delta && delta.tool_calls && Array.isArray(delta.tool_calls)) {
-                                            for (const toolCall of delta.tool_calls) {
-                                                const toolIndex = toolCall.index ?? 0;
-
-                                                // 检查是否有工具调用开始（tool_calls 存在但还没有 arguments）
-                                                if (toolIndex !== undefined && !toolCall.function?.arguments) {
-                                                    // 在工具调用开始时，如果有缓存的思考内容，先报告出来
-                                                    if (thinkingContentBuffer.length > 0 && currentThinkingId) {
-                                                        try {
-                                                            progress.report(
-                                                                new vscode.LanguageModelThinkingPart(
-                                                                    thinkingContentBuffer,
-                                                                    currentThinkingId
-                                                                )
-                                                            );
-                                                            // 结束当前思维链
-                                                            progress.report(
-                                                                new vscode.LanguageModelThinkingPart(
-                                                                    '',
-                                                                    currentThinkingId
-                                                                )
-                                                            );
-                                                            thinkingContentBuffer = ''; // 清空缓冲
-                                                            hasThinkingContent = true; // 标记已输出 thinking 内容
-                                                        } catch (e) {
-                                                            Logger.trace(
-                                                                `[${model.name}] 报告剩余思考内容失败: ${String(e)}`
-                                                            );
-                                                        }
-                                                    }
-                                                    Logger.trace(
-                                                        `🔧 [${model.name}] 工具调用开始: ${toolCall.function?.name || 'unknown'} (索引: ${toolIndex})`
-                                                    );
-                                                }
-
-                                                // 获取或创建工具调用缓存
-                                                let bufferedTool = toolCallsBuffer.get(toolIndex);
-                                                if (!bufferedTool) {
-                                                    bufferedTool = { arguments: '' };
-                                                    toolCallsBuffer.set(toolIndex, bufferedTool);
-                                                }
-
-                                                // 累积工具调用数据
-                                                if (toolCall.id) {
-                                                    bufferedTool.id = toolCall.id;
-                                                }
-                                                if (toolCall.function?.name) {
-                                                    bufferedTool.name = toolCall.function.name;
-                                                }
-                                                if (toolCall.function?.arguments) {
-                                                    const newArgs = toolCall.function.arguments;
-                                                    // 检查是否是重复数据：新数据是否已经包含在当前累积的字符串中
-                                                    // 某些 API（如 DeepSeek）可能会重复发送之前的 arguments 片段
-                                                    if (bufferedTool.arguments.endsWith(newArgs)) {
-                                                        // 完全重复，跳过
-                                                        Logger.trace(
-                                                            `[${model.name}] 跳过重复的工具调用参数 [${toolIndex}]: "${newArgs}"`
-                                                        );
-                                                    } else if (
-                                                        bufferedTool.arguments.length > 0 &&
-                                                        newArgs.startsWith(bufferedTool.arguments)
-                                                    ) {
-                                                        // 新数据包含了旧数据（完全重复+新增），只取新增部分
-                                                        const incrementalArgs = newArgs.substring(
-                                                            bufferedTool.arguments.length
-                                                        );
-                                                        bufferedTool.arguments += incrementalArgs;
-                                                        Logger.trace(
-                                                            `[${model.name}] 检测到部分重复，提取增量部分 [${toolIndex}]: "${incrementalArgs}"`
-                                                        );
-                                                    } else {
-                                                        // 正常累积
-                                                        bufferedTool.arguments += newArgs;
-                                                    }
-                                                }
-
+                                        // 然后结束当前思维链
+                                        if (currentThinkingId) {
+                                            try {
                                                 Logger.trace(
-                                                    `[${model.name}] 累积工具调用数据 [${toolIndex}]: name=${bufferedTool.name}, args_length=${bufferedTool.arguments.length}`
+                                                    `[${model.name}] 在输出content前结束思维链 ID: ${currentThinkingId}`
+                                                );
+                                                progress.report(
+                                                    new vscode.LanguageModelThinkingPart('', currentThinkingId)
+                                                );
+                                            } catch (e) {
+                                                Logger.trace(
+                                                    `[${model.name}] 发送 thinking done(id=${currentThinkingId}) 失败: ${String(e)}`
                                                 );
                                             }
+                                            currentThinkingId = null;
                                         }
 
-                                        // 检查是否完成
-                                        if (choice.finish_reason) {
-                                            Logger.debug(`[${model.name}] 流已结束，原因: ${choice.finish_reason}`);
+                                        progress.report(new vscode.LanguageModelTextPart(delta.content));
+                                        hasContent = true;
+                                    }
 
-                                            // 如果有缓存的思考内容，先报告出来
-                                            if (thinkingContentBuffer.length > 0 && currentThinkingId) {
-                                                try {
-                                                    progress.report(
-                                                        new vscode.LanguageModelThinkingPart(
-                                                            thinkingContentBuffer,
-                                                            currentThinkingId
-                                                        )
-                                                    );
-                                                    thinkingContentBuffer = ''; // 清空缓冲
-                                                    hasThinkingContent = true; // 标记已输出 thinking 内容
-                                                } catch (e) {
-                                                    Logger.trace(`[${model.name}] 报告剩余思考内容失败: ${String(e)}`);
-                                                }
-                                            }
+                                    // 处理工具调用 - 支持分块数据的累积处理
+                                    if (delta && delta.tool_calls && Array.isArray(delta.tool_calls)) {
+                                        for (const toolCall of delta.tool_calls) {
+                                            const toolIndex = toolCall.index ?? 0;
 
-                                            // 如果有未结束的思维链，在 finish_reason 时结束它
-                                            if (currentThinkingId && choice.finish_reason !== 'length') {
-                                                try {
-                                                    Logger.trace(
-                                                        `[${model.name}] 流结束前结束思维链 ID: ${currentThinkingId}`
-                                                    );
-                                                    progress.report(
-                                                        new vscode.LanguageModelThinkingPart('', currentThinkingId)
-                                                    );
-                                                } catch (e) {
-                                                    Logger.warn(`[${model.name}] 结束思维链失败: ${String(e)}`);
-                                                }
-                                                currentThinkingId = null;
-                                            }
-
-                                            // 如果是工具调用结束，处理缓存中的工具调用
-                                            if (choice.finish_reason === 'tool_calls') {
-                                                let toolProcessed = false;
-                                                for (const [toolIndex, bufferedTool] of toolCallsBuffer.entries()) {
-                                                    if (bufferedTool.name && bufferedTool.arguments) {
-                                                        try {
-                                                            const args = JSON.parse(bufferedTool.arguments);
-                                                            const toolCallId =
-                                                                bufferedTool.id || `tool_${Date.now()}_${toolIndex}`;
-
-                                                            progress.report(
-                                                                new vscode.LanguageModelToolCallPart(
-                                                                    toolCallId,
-                                                                    bufferedTool.name,
-                                                                    args
-                                                                )
-                                                            );
-
-                                                            Logger.info(
-                                                                `[${model.name}] 成功处理工具调用: ${bufferedTool.name}, args: ${bufferedTool.arguments}`
-                                                            );
-                                                            toolProcessed = true;
-                                                        } catch (error) {
-                                                            Logger.error(
-                                                                `[${model.name}] 无法解析工具调用参数: ${bufferedTool.name}, args: ${bufferedTool.arguments}, error: ${error}`
-                                                            );
-                                                        }
-                                                    } else {
-                                                        Logger.warn(
-                                                            `[${model.name}] 不完整的工具调用 [${toolIndex}]: name=${bufferedTool.name}, args_length=${bufferedTool.arguments.length}`
+                                            // 检查是否有工具调用开始（tool_calls 存在但还没有 arguments）
+                                            if (toolIndex !== undefined && !toolCall.function?.arguments) {
+                                                // 在工具调用开始时，如果有缓存的思考内容，先报告出来
+                                                if (thinkingContentBuffer.length > 0 && currentThinkingId) {
+                                                    try {
+                                                        progress.report(
+                                                            new vscode.LanguageModelThinkingPart(
+                                                                thinkingContentBuffer,
+                                                                currentThinkingId
+                                                            )
+                                                        );
+                                                        // 结束当前思维链
+                                                        progress.report(
+                                                            new vscode.LanguageModelThinkingPart('', currentThinkingId)
+                                                        );
+                                                        thinkingContentBuffer = ''; // 清空缓冲
+                                                        hasThinkingContent = true; // 标记已输出 thinking 内容
+                                                    } catch (e) {
+                                                        Logger.trace(
+                                                            `[${model.name}] 报告剩余思考内容失败: ${String(e)}`
                                                         );
                                                     }
                                                 }
-
-                                                if (toolProcessed) {
-                                                    hasContent = true;
-                                                    Logger.trace(`[${model.name}] 工具调用已处理，标记为已接收内容`);
-                                                }
-                                            } else if (choice.finish_reason === 'stop') {
-                                                // 对于 stop，只有在真正接收到内容时才标记（不包括仅有思考内容的情况）
-                                                if (!hasContent) {
-                                                    Logger.trace(`[${model.name}] finish_reason=stop，未收到文本内容`);
-                                                }
-                                                // 注意：不再强制设置 hasContent = true
-                                                // 只有在前面真正接收到文本或工具调用时，hasContent 才会是 true
+                                                Logger.trace(
+                                                    `🔧 [${model.name}] 工具调用开始: ${toolCall.function?.name || 'unknown'} (索引: ${toolIndex})`
+                                                );
                                             }
+
+                                            // 获取或创建工具调用缓存
+                                            let bufferedTool = toolCallsBuffer.get(toolIndex);
+                                            if (!bufferedTool) {
+                                                bufferedTool = { arguments: '' };
+                                                toolCallsBuffer.set(toolIndex, bufferedTool);
+                                            }
+
+                                            // 累积工具调用数据
+                                            if (toolCall.id) {
+                                                bufferedTool.id = toolCall.id;
+                                            }
+                                            if (toolCall.function?.name) {
+                                                bufferedTool.name = toolCall.function.name;
+                                            }
+                                            if (toolCall.function?.arguments) {
+                                                const newArgs = toolCall.function.arguments;
+                                                // 检查是否是重复数据：新数据是否已经包含在当前累积的字符串中
+                                                // 某些 API（如 DeepSeek）可能会重复发送之前的 arguments 片段
+                                                if (bufferedTool.arguments.endsWith(newArgs)) {
+                                                    // 完全重复，跳过
+                                                    Logger.trace(
+                                                        `[${model.name}] 跳过重复的工具调用参数 [${toolIndex}]: "${newArgs}"`
+                                                    );
+                                                } else if (
+                                                    bufferedTool.arguments.length > 0 &&
+                                                    newArgs.startsWith(bufferedTool.arguments)
+                                                ) {
+                                                    // 新数据包含了旧数据（完全重复+新增），只取新增部分
+                                                    const incrementalArgs = newArgs.substring(
+                                                        bufferedTool.arguments.length
+                                                    );
+                                                    bufferedTool.arguments += incrementalArgs;
+                                                    Logger.trace(
+                                                        `[${model.name}] 检测到部分重复，提取增量部分 [${toolIndex}]: "${incrementalArgs}"`
+                                                    );
+                                                } else {
+                                                    // 正常累积
+                                                    bufferedTool.arguments += newArgs;
+                                                }
+                                            }
+
+                                            Logger.trace(
+                                                `[${model.name}] 累积工具调用数据 [${toolIndex}]: name=${bufferedTool.name}, args_length=${bufferedTool.arguments.length}`
+                                            );
+                                        }
+                                    }
+
+                                    // 检查是否完成
+                                    if (choice.finish_reason) {
+                                        Logger.debug(`[${model.name}] 流已结束，原因: ${choice.finish_reason}`);
+
+                                        // 如果有缓存的思考内容，先报告出来
+                                        if (thinkingContentBuffer.length > 0 && currentThinkingId) {
+                                            try {
+                                                progress.report(
+                                                    new vscode.LanguageModelThinkingPart(
+                                                        thinkingContentBuffer,
+                                                        currentThinkingId
+                                                    )
+                                                );
+                                                thinkingContentBuffer = ''; // 清空缓冲
+                                                hasThinkingContent = true; // 标记已输出 thinking 内容
+                                            } catch (e) {
+                                                Logger.trace(`[${model.name}] 报告剩余思考内容失败: ${String(e)}`);
+                                            }
+                                        }
+
+                                        // 如果有未结束的思维链，在 finish_reason 时结束它
+                                        if (currentThinkingId && choice.finish_reason !== 'length') {
+                                            try {
+                                                Logger.trace(
+                                                    `[${model.name}] 流结束前结束思维链 ID: ${currentThinkingId}`
+                                                );
+                                                progress.report(
+                                                    new vscode.LanguageModelThinkingPart('', currentThinkingId)
+                                                );
+                                            } catch (e) {
+                                                Logger.warn(`[${model.name}] 结束思维链失败: ${String(e)}`);
+                                            }
+                                            currentThinkingId = null;
+                                        }
+
+                                        // 如果是工具调用结束，处理缓存中的工具调用
+                                        if (choice.finish_reason === 'tool_calls') {
+                                            let toolProcessed = false;
+                                            for (const [toolIndex, bufferedTool] of toolCallsBuffer.entries()) {
+                                                if (bufferedTool.name && bufferedTool.arguments) {
+                                                    try {
+                                                        const args = JSON.parse(bufferedTool.arguments);
+                                                        const toolCallId =
+                                                            bufferedTool.id || `tool_${Date.now()}_${toolIndex}`;
+
+                                                        progress.report(
+                                                            new vscode.LanguageModelToolCallPart(
+                                                                toolCallId,
+                                                                bufferedTool.name,
+                                                                args
+                                                            )
+                                                        );
+
+                                                        Logger.info(
+                                                            `[${model.name}] 成功处理工具调用: ${bufferedTool.name}, args: ${bufferedTool.arguments}`
+                                                        );
+                                                        toolProcessed = true;
+                                                    } catch (error) {
+                                                        Logger.error(
+                                                            `[${model.name}] 无法解析工具调用参数: ${bufferedTool.name}, args: ${bufferedTool.arguments}, error: ${error}`
+                                                        );
+                                                    }
+                                                } else {
+                                                    Logger.warn(
+                                                        `[${model.name}] 不完整的工具调用 [${toolIndex}]: name=${bufferedTool.name}, args_length=${bufferedTool.arguments.length}`
+                                                    );
+                                                }
+                                            }
+
+                                            if (toolProcessed) {
+                                                hasContent = true;
+                                                Logger.trace(`[${model.name}] 工具调用已处理，标记为已接收内容`);
+                                            }
+                                        } else if (choice.finish_reason === 'stop') {
+                                            // 对于 stop，只有在真正接收到内容时才标记（不包括仅有思考内容的情况）
+                                            if (!hasContent) {
+                                                Logger.trace(`[${model.name}] finish_reason=stop，未收到文本内容`);
+                                            }
+                                            // 注意：不再强制设置 hasContent = true
+                                            // 只有在前面真正接收到文本或工具调用时，hasContent 才会是 true
                                         }
                                     }
                                 }
@@ -809,6 +895,28 @@ export class CompatibleProvider extends GenericModelProvider {
             }
 
             Logger.debug(`[${model.name}] API请求完成`);
+
+            // === Token 统计: 更新实际 token ===
+            if (finalUsage && requestId) {
+                try {
+                    const usagesManager = TokenUsagesManager.instance;
+
+                    // 提取缓存 token 信息
+                    const cacheReadTokens = finalUsage.prompt_tokens_details?.cached_tokens ?? 0;
+                    Logger.info(
+                        `📊 ${model.name} Token使用: 输入${finalUsage.prompt_tokens}${cacheReadTokens > 0 ? ` (缓存:${cacheReadTokens})` : ''} + 输出${finalUsage.completion_tokens} = 总计${finalUsage.total_tokens}`
+                    );
+
+                    // 直接传递原始 usage 对象
+                    await usagesManager.updateActualTokens({
+                        requestId,
+                        rawUsage: finalUsage,
+                        status: 'completed'
+                    });
+                } catch (err) {
+                    Logger.warn('更新Token统计失败:', err);
+                }
+            }
         } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') {
                 Logger.warn(`[${model.name}] 用户取消了请求`);

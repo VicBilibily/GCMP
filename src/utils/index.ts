@@ -21,3 +21,6 @@ export { JsonSchemaProvider } from './jsonSchemaProvider';
 export { RetryManager } from './retryManager';
 export { ModelInfoCache } from './modelInfoCache';
 export { TokenCounter } from './tokenCounter';
+export { TokenUsagesManager } from '../usages/usagesManager';
+export type { DailyStats, ProviderStats, ModelStats, HourlyStats, DateSummary } from '../usages/usagesManager';
+export type { TokenRequestLog } from '../usages/fileLogger';

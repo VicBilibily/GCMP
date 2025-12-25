@@ -23,6 +23,7 @@ import {
     TokenCounter
 } from '../utils';
 import { TokenUsageStatusBar } from '../status/tokenUsageStatusBar';
+import { TokenUsagesManager } from '../usages/usagesManager';
 
 /**
  * 通用模型提供商类
@@ -301,12 +302,27 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             throw new Error(errorMessage);
         }
 
-        // 计算输入 token 数量并更新状态栏
-        await this.updateTokenUsageStatusBar(model, messages, modelConfig, options);
-
         // 根据模型配置中的 provider 字段确定实际使用的提供商
         // 这样可以正确处理同一提供商下不同模型使用不同密钥的情况
         const effectiveProviderKey = modelConfig.provider || this.providerKey;
+
+        // 计算输入 token 数量并更新状态栏
+        const totalInputTokens = await this.updateTokenUsageStatusBar(model, messages, modelConfig, options);
+
+        // === Token 统计: 记录预估输入 token ===
+        const usagesManager = TokenUsagesManager.instance;
+        let requestId: string | null = null;
+        try {
+            requestId = await usagesManager.recordEstimatedTokens({
+                providerKey: effectiveProviderKey,
+                displayName: this.providerConfig.displayName,
+                modelId: model.id,
+                modelName: model.name || modelConfig.name,
+                estimatedInputTokens: totalInputTokens
+            });
+        } catch (err) {
+            Logger.warn('记录预估Token失败，继续执行请求:', err);
+        }
 
         // 确保对应提供商的 API 密钥存在
         await ApiKeyManager.ensureApiKey(effectiveProviderKey, this.providerConfig.displayName);
@@ -318,13 +334,42 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
         try {
             if (sdkMode === 'anthropic') {
-                await this.anthropicHandler.handleRequest(model, modelConfig, messages, options, progress, token);
+                await this.anthropicHandler.handleRequest(
+                    model,
+                    modelConfig,
+                    messages,
+                    options,
+                    progress,
+                    token,
+                    requestId
+                );
             } else {
-                await this.openaiHandler.handleRequest(model, modelConfig, messages, options, progress, token);
+                await this.openaiHandler.handleRequest(
+                    model,
+                    modelConfig,
+                    messages,
+                    options,
+                    progress,
+                    token,
+                    requestId
+                );
             }
         } catch (error) {
             const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
             Logger.error(errorMessage);
+
+            // === Token 统计: 更新失败状态 ===
+            if (requestId) {
+                try {
+                    await usagesManager.updateActualTokens({
+                        requestId,
+                        status: 'failed'
+                    });
+                } catch (err) {
+                    Logger.warn('更新Token统计失败状态失败:', err);
+                }
+            }
+
             // 直接抛出错误，让VS Code处理重试
             throw error;
         } finally {
@@ -356,13 +401,14 @@ export class GenericModelProvider implements LanguageModelChatProvider {
      * 更新 token 占用状态栏
      * 计算输入 token 数量和占用百分比，更新状态栏显示
      * 供子类复用
+     * @returns totalInputTokens - 返回计算的输入token数量，供Token统计使用
      */
     protected async updateTokenUsageStatusBar(
         model: LanguageModelChatInformation,
         messages: Array<LanguageModelChatMessage>,
         modelConfig: ModelConfig,
         options?: ProvideLanguageModelChatResponseOptions
-    ): Promise<void> {
+    ): Promise<number> {
         try {
             // 计算占用百分比
             const totalInputTokens = await this.countMessagesTokens(model, messages, modelConfig, options);
@@ -385,9 +431,12 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             Logger.debug(
                 `[${this.providerKey}] Token 计算: ${totalInputTokens}/${maxInputTokens} (${percentage.toFixed(1)}%)`
             );
+
+            return totalInputTokens;
         } catch (error) {
             // Token 计算失败不应阻止请求，只记录警告
             Logger.warn(`[${this.providerKey}] Token 计算失败:`, error);
+            return 0;
         }
     }
 }

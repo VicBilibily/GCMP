@@ -150,7 +150,8 @@ const commonOptions = {
     format: 'cjs',
     platform: 'node',
     sourcemap: isDev,
-    minify: !isDev,
+    // 不再使用 minify，因为会破坏某些代码
+    minify: false, // !isDev,
     // 使用 mainFields 优先选择 ESM 模块格式
     // 这解决了 jsonc-parser UMD 模块的相对路径问题
     mainFields: ['module', 'main'],

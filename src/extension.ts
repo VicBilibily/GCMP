@@ -8,6 +8,8 @@ import { CompatibleProvider } from './providers/compatibleProvider';
 import { InlineCompletionShim } from './copilot/inlineCompletionShim';
 import { Logger, StatusLogger, CompletionLogger, TokenCounter } from './utils';
 import { ApiKeyManager, ConfigManager, JsonSchemaProvider } from './utils';
+import { TokenUsagesManager } from './usages/usagesManager';
+import { TokenUsagesView } from './ui/usagesView';
 import { CompatibleModelManager } from './utils/compatibleModelManager';
 import { LeaderElectionService, StatusBarManager } from './status';
 import { registerAllTools } from './tools';
@@ -199,6 +201,10 @@ export async function activate(context: vscode.ExtensionContext) {
         stepStartTime = Date.now();
         CompatibleModelManager.initialize();
         Logger.trace(`⏱️ 兼容模型管理器初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        // 步骤2.3: 初始化Token统计管理器
+        stepStartTime = Date.now();
+        await TokenUsagesManager.instance.initialize(context);
+        Logger.trace(`⏱️ Token统计管理器初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
         // 步骤3: 激活提供商（并行优化）
         stepStartTime = Date.now();
@@ -223,6 +229,16 @@ export async function activate(context: vscode.ExtensionContext) {
         stepStartTime = Date.now();
         await activateInlineCompletionProvider(context);
         Logger.trace(`⏱️ NES 内联补全提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+
+        // 步骤6: 注册Token消耗统计命令
+        stepStartTime = Date.now();
+        // 查看今日消耗统计详情命令
+        const viewStatsCommand = vscode.commands.registerCommand('gcmp.tokenStats.showDetails', () => {
+            const view = new TokenUsagesView(context);
+            view.show();
+        });
+        context.subscriptions.push(viewStatsCommand);
+        Logger.trace(`⏱️ 查看Token消耗统计命令注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
         const totalActivationTime = Date.now() - activationStartTime;
         Logger.info(`✅ GCMP 扩展激活完成 (总耗时: ${totalActivationTime}ms)`);

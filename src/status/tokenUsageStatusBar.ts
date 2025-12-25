@@ -37,9 +37,6 @@ export class TokenUsageStatusBar {
     // 状态栏项
     private statusBarItem: vscode.StatusBarItem | undefined;
 
-    // 当前状态数据
-    private currentData: TokenUsageData | undefined;
-
     // 默认数据，显示 0%
     private readonly defaultData: TokenUsageData = {
         modelId: '',
@@ -69,7 +66,7 @@ export class TokenUsageStatusBar {
         this.statusBarItem = vscode.window.createStatusBarItem(
             'gcmp.statusBar.tokenUsage',
             vscode.StatusBarAlignment.Right,
-            11
+            12
         );
 
         this.statusBarItem.name = 'GCMP: 模型上下文窗口占用情况';
@@ -89,9 +86,6 @@ export class TokenUsageStatusBar {
         StatusLogger.debug(
             `[模型上下文窗口占用状态栏] 更新 token 使用数据: ${data.inputTokens}/${data.maxInputTokens}`
         );
-
-        // 保存当前数据
-        this.currentData = data;
 
         // 直接更新 UI（无缓存）
         this.updateUI(data);

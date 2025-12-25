@@ -10,6 +10,7 @@ import { ApiKeyManager } from './apiKeyManager';
 import { Logger } from './logger';
 import { ConfigManager } from './configManager';
 import { VersionManager } from './versionManager';
+import { TokenUsagesManager } from '../usages/usagesManager';
 import type { ModelConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 
@@ -87,7 +88,8 @@ export class AnthropicHandler {
         messages: readonly vscode.LanguageModelChatMessage[],
         options: vscode.ProvideLanguageModelChatResponseOptions,
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
-        token: vscode.CancellationToken
+        token: vscode.CancellationToken,
+        requestId?: string | null
     ): Promise<void> {
         try {
             const client = await this.createAnthropicClient(modelConfig);
@@ -137,6 +139,21 @@ export class AnthropicHandler {
             // 使用完整的流处理函数
             const result = await this.handleAnthropicStream(stream, progress, token, modelConfig);
             Logger.info(`[${model.name}] Anthropic 请求完成`, result.usage);
+
+            // === Token 统计: 更新实际 token ===
+            if (result.usage && requestId) {
+                try {
+                    const usagesManager = TokenUsagesManager.instance;
+                    // 直接传递 SDK 的 Usage 对象
+                    await usagesManager.updateActualTokens({
+                        requestId,
+                        rawUsage: result.usage,
+                        status: 'completed'
+                    });
+                } catch (err) {
+                    Logger.warn('更新Token统计失败:', err);
+                }
+            }
         } catch (error) {
             Logger.error(`[${model.name}] Anthropic SDK error:`, error);
 
@@ -169,12 +186,14 @@ export class AnthropicHandler {
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
         token: vscode.CancellationToken,
         modelConfig?: ModelConfig
-    ): Promise<{ usage?: { inputTokens: number; outputTokens: number; totalTokens: number } }> {
+    ): Promise<{
+        usage?: Anthropic.Messages.Usage;
+    }> {
         let pendingToolCall: { toolId?: string; name?: string; jsonInput?: string } | undefined;
         // let pendingServerToolCall: { toolId?: string; name?: string; jsonInput?: string; type?: string } | undefined; // 暂不支持 web_search
         let pendingThinking: { thinking?: string; signature?: string } | undefined;
         let pendingRedactedThinking: { data: string } | undefined;
-        let usage: { inputTokens: number; outputTokens: number; totalTokens: number } | undefined;
+        let usage: Anthropic.Messages.Usage | undefined;
 
         // 思考内容缓存的最大长度，达到这个范围时报告
         const MAX_THINKING_BUFFER_LENGTH = 20;
@@ -250,15 +269,9 @@ export class AnthropicHandler {
                 switch (chunk.type) {
                     case 'message_start':
                         // 消息开始 - 收集初始使用统计
-                        usage = {
-                            inputTokens:
-                                (chunk.message.usage.input_tokens ?? 0) +
-                                (chunk.message.usage.cache_creation_input_tokens ?? 0) +
-                                (chunk.message.usage.cache_read_input_tokens ?? 0),
-                            outputTokens: 1,
-                            totalTokens: -1
-                        };
-                        Logger.trace(`消息流开始 - 初始输入tokens: ${usage.inputTokens}`);
+                        if (chunk.message.usage) {
+                            usage = chunk.message.usage;
+                        }
                         break;
 
                     case 'content_block_start':
@@ -494,28 +507,17 @@ export class AnthropicHandler {
 
                     case 'message_delta':
                         // 消息增量 - 更新使用统计
-                        if (usage && chunk.usage) {
-                            // 更新输入 tokens（如果有更新）
-                            if (chunk.usage.input_tokens !== undefined && chunk.usage.input_tokens !== null) {
-                                usage.inputTokens =
-                                    chunk.usage.input_tokens +
-                                    (chunk.usage.cache_creation_input_tokens ?? 0) +
-                                    (chunk.usage.cache_read_input_tokens ?? 0);
-                            }
-                            // 更新输出 tokens（如果有更新）
-                            if (chunk.usage.output_tokens !== undefined && chunk.usage.output_tokens !== null) {
-                                usage.outputTokens = chunk.usage.output_tokens;
-                            }
-                            // 重新计算总数
-                            usage.totalTokens = usage.inputTokens + usage.outputTokens;
-
-                            Logger.trace(
-                                `Token使用更新 - 输入: ${usage.inputTokens}, 输出: ${usage.outputTokens}, 总计: ${usage.totalTokens}`
-                            );
-                        }
-                        // 记录停止原因
-                        if (chunk.delta.stop_reason) {
-                            Logger.trace(`消息停止原因: ${chunk.delta.stop_reason}`);
+                        if (chunk.usage && usage) {
+                            // 合并 MessageDeltaUsage 增量到当前 Usage
+                            usage = {
+                                ...usage,
+                                input_tokens: chunk.usage.input_tokens ?? usage.input_tokens,
+                                output_tokens: chunk.usage.output_tokens ?? usage.output_tokens,
+                                cache_read_input_tokens:
+                                    chunk.usage.cache_read_input_tokens ?? usage.cache_read_input_tokens,
+                                cache_creation_input_tokens:
+                                    chunk.usage.cache_creation_input_tokens ?? usage.cache_creation_input_tokens
+                            } as Anthropic.Messages.Usage;
                         }
                         break;
 
@@ -552,11 +554,7 @@ export class AnthropicHandler {
         }
 
         if (usage) {
-            Logger.debug(
-                `流处理完成 - 最终使用统计: 输入=${usage.inputTokens}, 输出=${usage.outputTokens}, 总计=${usage.totalTokens}`
-            );
-        } else {
-            Logger.warn('流处理完成但未获取到使用统计信息');
+            Logger.debug(`流处理完成 - 最终使用统计: 输入=${usage.input_tokens}, 输出=${usage.output_tokens}`);
         }
 
         return { usage };
