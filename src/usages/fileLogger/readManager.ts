@@ -87,6 +87,23 @@ export class LogReadManager {
     }
 
     /**
+     * 获取最近的请求详情（性能优化版本）
+     * 仅读取最近 N 条请求，避免在有大量日志时加载整个日期的数据
+     * 用于状态栏等需要快速响应的场景
+     */
+    async getRecentRequestDetails(dateStr: string, limit: number = 100): Promise<TokenRequestLog[]> {
+        const logs = await this.readDateLogs(dateStr);
+        const mergedMap = this.mergeLogsByRequestId(logs);
+
+        // 转换为数组并按时间戳倒序排序(最新的在前)
+        const details = Array.from(mergedMap.values());
+        details.sort((a, b) => b.timestamp - a.timestamp);
+
+        // 只返回最近的 limit 条
+        return details.slice(0, limit);
+    }
+
+    /**
      * 获取指定小时的请求详情列表
      */
     async getHourRequestDetails(dateStr: string, hour: number): Promise<TokenRequestLog[]> {
@@ -216,6 +233,7 @@ export class LogReadManager {
 
     /**
      * 合并同一requestId的多条流水记录,取最终状态
+     * 保留最后一条记录的状态（completed/failed），但使用第一条记录的时间戳（请求开始时间）
      * @param logs 流水记录列表
      * @returns 按requestId合并后的记录Map
      */
@@ -226,13 +244,18 @@ export class LogReadManager {
             const existing = mergedMap.get(log.requestId);
 
             if (!existing) {
-                // 第一次遇到此requestId
-                mergedMap.set(log.requestId, log);
+                // 第一次遇到此requestId，记录初始时间戳
+                mergedMap.set(log.requestId, { ...log });
             } else {
-                // 已存在,比较时间戳,保留最新的
-                if (log.timestamp > existing.timestamp) {
-                    mergedMap.set(log.requestId, log);
+                // 已存在，保留时间戳更早的（请求开始时间），但更新其他字段为最新状态
+                if (log.timestamp < existing.timestamp) {
+                    // 当前记录时间戳更早，更新时间戳但保留其他字段
+                    existing.timestamp = log.timestamp;
+                    existing.isoTime = log.isoTime;
                 }
+                // 无论时间戳如何，都更新为最新状态（completed/failed 和 rawUsage）
+                existing.status = log.status;
+                existing.rawUsage = log.rawUsage;
             }
         }
 

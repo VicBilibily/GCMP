@@ -119,7 +119,7 @@ export class TokenUsagesStatusBar {
         }
 
         // ========== 今日用量表格 ==========
-        md.appendMarkdown(`**今日 Token 消耗统计** (${date})\n`);
+        md.appendMarkdown(`**今日 Token 消耗统计** (${date})\n\n`);
 
         // 按提供商统计（按总 token 排序）
         const sortedProviders = providers.sort((a, b) => {
@@ -156,6 +156,7 @@ export class TokenUsagesStatusBar {
             const recentRequests = await this.usagesManager.getRecentRecords(3); // 获取最近 3 条
 
             if (recentRequests.length > 0) {
+                md.appendMarkdown('\n---\n\n');
                 // 创建表格标题
                 md.appendMarkdown('| 提供商 | 请求时间 | 状态 | 输入 | 缓存 | 输出 |\n');
                 md.appendMarkdown('| :---- | :----: | :----: | ----: | ----: | ----: |\n');
@@ -164,7 +165,15 @@ export class TokenUsagesStatusBar {
                 const reversedRequests = [...recentRequests].reverse();
                 for (const req of reversedRequests) {
                     const startTime = new Date(req.timestamp);
-                    const statusIcon = req.status === 'completed' ? '✅' : req.status === 'failed' ? '❌' : '⏳';
+                    // 确定状态图标：仅当有 rawUsage 且状态为 completed 时才显示 ✅
+                    let statusIcon = '⏳'; // 默认为进行中
+                    if (req.status === 'completed' && req.rawUsage) {
+                        statusIcon = '✅'; // 真正完成
+                    } else if (req.status === 'failed') {
+                        statusIcon = '❌'; // 失败
+                    } else if (req.status === 'estimated') {
+                        statusIcon = '⏳'; // 预估中
+                    }
                     const timeStr = startTime.toLocaleTimeString('zh-CN');
 
                     // 使用扩展方法获取解析后的值
@@ -174,23 +183,25 @@ export class TokenUsagesStatusBar {
 
                     // 根据状态决定显示实际值还是预估值
                     let inputStr: string;
-                    if (req.status === 'completed') {
-                        // 完成状态显示实际值
-                        inputStr = this.formatTokens(actualInput);
-                    } else if (req.estimatedInput !== undefined && req.estimatedInput > 0) {
-                        // estimated 或 failed 状态显示预估值（带 ~ 前缀）
-                        inputStr = `~${this.formatTokens(req.estimatedInput)}`;
-                    } else {
-                        inputStr = '-';
-                    }
+                    let cacheStr: string;
+                    let outputStr: string;
 
-                    let cacheStr = '-';
-                    let outputStr = '-';
-                    if (req.status === 'completed') {
-                        // 完成状态
+                    if (req.status === 'completed' && req.rawUsage) {
+                        // 真正完成状态：显示实际值
+                        inputStr = this.formatTokens(actualInput);
                         cacheStr = cacheTokens > 0 ? this.formatTokens(cacheTokens) : '-';
                         outputStr = outputTokens > 0 ? this.formatTokens(outputTokens) : '-';
+                    } else {
+                        // estimated 或 failed 状态：显示预估值（带 ~ 前缀）
+                        if (req.estimatedInput !== undefined && req.estimatedInput > 0) {
+                            inputStr = `~${this.formatTokens(req.estimatedInput)}`;
+                        } else {
+                            inputStr = '-';
+                        }
+                        cacheStr = '-';
+                        outputStr = '-';
                     }
+
                     md.appendMarkdown(
                         `| ${req.providerName} | ${timeStr} | ${statusIcon} | ${inputStr} | ${cacheStr} | ${outputStr} |\n`
                     );

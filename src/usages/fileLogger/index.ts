@@ -170,6 +170,9 @@ export class TokenFileLogger {
         // 写入文件
         await this.writeManager.appendLog(log);
 
+        // 通知状态栏有新的预估请求
+        this.notifyUpdate();
+
         StatusLogger.info(
             `[TokenFileLogger] 记录预估token: ${params.requestId}, model=${params.modelName}, tokens=${params.estimatedInput}`
         );
@@ -221,6 +224,9 @@ export class TokenFileLogger {
 
         // 立即统计当前小时
         await this.refreshCurrentHourStats();
+
+        // 通知状态栏更新
+        this.notifyUpdate();
 
         StatusLogger.info(
             `[TokenFileLogger] 更新实际token: ${params.requestId}, status=${params.status}, rawUsage=${params.rawUsage ? '已记录' : '未记录'}`
@@ -390,6 +396,23 @@ export class TokenFileLogger {
      */
     async getRequestDetails(dateStr: string): Promise<TokenRequestLog[]> {
         return this.readManager.getRequestDetails(dateStr);
+    }
+
+    /**
+     * 获取最近的请求详情（性能优化版本）
+     * 仅读取最近 N 条请求，避免在有大量日志时加载整个日期的数据
+     * 用于状态栏等需要快速响应的场景
+     */
+    async getRecentRequestDetails(dateStr: string, limit: number = 100): Promise<TokenRequestLog[]> {
+        return this.readManager.getRecentRequestDetails(dateStr, limit);
+    }
+
+    /**
+     * 获取还在进行中的 pending 日志（内存中的请求）
+     * 这些请求已记录预估值但还未完成
+     */
+    getPendingLogs(): TokenRequestLog[] {
+        return Array.from(this.pendingLogs.values());
     }
 
     // ==================== 清理操作 ====================

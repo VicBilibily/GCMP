@@ -259,6 +259,8 @@ export class TokenUsagesManager {
             );
         } catch (err) {
             StatusLogger.warn('[Usages] 更新实际 token 失败:', err);
+            // 即使更新失败也要通知，让状态栏反应错误状态
+            this.notifyUpdate();
         }
     }
 
@@ -423,13 +425,32 @@ export class TokenUsagesManager {
 
     /**
      * 获取最近的请求记录
+     * 包括已完成的记录和仍在进行中的 pending 记录
+     * 性能优化：只读取最近 limit*2 条已完成请求，减少大量日志场景下的内存占用
      */
     async getRecentRecords(limit: number = 100): Promise<ExtendedTokenRequestLog[]> {
         const today = this.getTodayDateString();
-        const details = await this.fileLogger.getRequestDetails(today);
+
+        // 使用性能优化版本，只读取最近 limit*2 条（以防过滤后不足）
+        const details = await this.fileLogger.getRecentRequestDetails(today, limit * 2);
+
+        // 获取内存中的 pending 日志（还未完成的请求）
+        const pendingLogs = this.fileLogger.getPendingLogs();
+
+        // 创建一个 pending requestId 的集合，用于快速查找
+        const pendingRequestIds = new Set(pendingLogs.map(log => log.requestId));
+
+        // 过滤文件中的日志：只保留那些不在 pending 中的（已完成的）
+        const completedRequests = details.filter(log => !pendingRequestIds.has(log.requestId));
+
+        // 合并完成的请求和仍在进行中的 pending 请求
+        const allLogs = [...completedRequests, ...pendingLogs];
+
+        // 按时间戳倒序排序（最新的在前）
+        allLogs.sort((a, b) => b.timestamp - a.timestamp);
 
         // 扩展记录，添加便捷访问方法
-        const extended = UsageParser.extendLogs(details);
+        const extended = UsageParser.extendLogs(allLogs);
 
         // 返回最近的 N 条记录
         return extended.slice(0, limit);
