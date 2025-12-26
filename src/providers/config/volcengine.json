@@ -7,6 +7,26 @@
             "id": "doubao-seed-code-coding-plan",
             "name": "Doubao-Seed-Code (Coding Plan)",
             "model": "doubao-seed-code-preview-latest",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Doubao-Seed-Code 面向Agentic编程任务进行了深度优化，在Terminal Bench、SWE-Bench-Verified-Openhands、Multi-SWE-Bench-Flash-Openhands等多项权威基准测试中表现优异，领先国内同类模型，上下文窗口至256k。",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": {
+                    "type": "disabled"
+                }
+            }
+        },
+        {
+            "id": "doubao-seed-code-vision-coding-plan",
+            "name": "Doubao-Seed-Code-Vision (Coding Plan)",
+            "model": "doubao-seed-code-preview-latest",
+            "sdkMode": "openai-sse",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
             "tooltip": "Doubao-Seed-Code 面向Agentic编程任务进行了深度优化，在Terminal Bench、SWE-Bench-Verified-Openhands、Multi-SWE-Bench-Flash-Openhands等多项权威基准测试中表现优异，领先国内同类模型，上下文窗口至256k。",
             "maxInputTokens": 224000,
@@ -52,23 +72,6 @@
             "extraBody": {
                 "thinking": {
                     "type": "enabled"
-                }
-            }
-        },
-        {
-            "id": "doubao-seed-code",
-            "name": "Doubao-Seed-Code (按量计费)",
-            "model": "doubao-seed-code-preview-251028",
-            "tooltip": "Doubao-Seed-Code 面向Agentic编程任务进行了深度优化，在Terminal Bench、SWE-Bench-Verified-Openhands、Multi-SWE-Bench-Flash-Openhands等多项权威基准测试中表现优异，领先国内同类模型，上下文窗口至256k。",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
-            "extraBody": {
-                "thinking": {
-                    "type": "disabled"
                 }
             }
         },

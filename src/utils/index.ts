@@ -11,6 +11,7 @@ export { Logger } from './logger';
 export { StatusLogger } from './statusLogger';
 export { CompletionLogger } from './completionLogger';
 export { OpenAIHandler } from './openaiHandler';
+export { OpenAICustomHandler } from './openaiCustomHandler';
 export { AnthropicHandler } from './anthropicHandler';
 export { MCPWebSearchClient } from './mcpWebSearchClient';
 export { VersionManager } from './versionManager';

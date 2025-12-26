@@ -18,6 +18,7 @@ import {
     ConfigManager,
     Logger,
     OpenAIHandler,
+    OpenAICustomHandler,
     AnthropicHandler,
     ModelInfoCache,
     TokenCounter
@@ -31,6 +32,7 @@ import { TokenUsagesManager } from '../usages/usagesManager';
  */
 export class GenericModelProvider implements LanguageModelChatProvider {
     protected readonly openaiHandler: OpenAIHandler;
+    protected readonly openaiCustomHandler: OpenAICustomHandler;
     protected readonly anthropicHandler: AnthropicHandler;
     protected readonly providerKey: string;
     protected baseProviderConfig: ProviderConfig; // protected 以支持子类访问
@@ -79,6 +81,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
         // 创建 OpenAI SDK 处理器
         this.openaiHandler = new OpenAIHandler(providerKey, providerConfig.displayName, providerConfig.baseUrl);
+        // 创建 OpenAI 自定义 SSE 处理器
+        this.openaiCustomHandler = new OpenAICustomHandler(providerKey, providerConfig.displayName);
+        // 将 openaiHandler 实例传递给 openaiCustomHandler 用于消息和工具转换
+        this.openaiCustomHandler.setOpenAIHandler(this.openaiHandler);
         // 创建 Anthropic SDK 处理器
         this.anthropicHandler = new AnthropicHandler(providerKey, providerConfig.displayName, providerConfig.baseUrl);
     }
@@ -329,12 +335,28 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
         // 根据模型的 sdkMode 选择使用的 handler
         const sdkMode = modelConfig.sdkMode || 'openai';
-        const sdkName = sdkMode === 'anthropic' ? 'Anthropic SDK' : 'OpenAI SDK';
+        let sdkName = 'OpenAI SDK';
+        if (sdkMode === 'anthropic') {
+            sdkName = 'Anthropic SDK';
+        } else if (sdkMode === 'openai-sse') {
+            sdkName = 'OpenAI SSE';
+        }
         Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
 
         try {
             if (sdkMode === 'anthropic') {
                 await this.anthropicHandler.handleRequest(
+                    model,
+                    modelConfig,
+                    messages,
+                    options,
+                    progress,
+                    token,
+                    requestId
+                );
+            } else if (sdkMode === 'openai-sse') {
+                // OpenAI SSE 模式：使用自定义 SSE 流处理
+                await this.openaiCustomHandler.handleRequest(
                     model,
                     modelConfig,
                     messages,
