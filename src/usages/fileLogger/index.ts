@@ -1,7 +1,6 @@
 ﻿/*---------------------------------------------------------------------------------------------
  *  Token文件日志系统 - 主管理器
  *  整合路径管理、写入管理、读取管理、统计管理
- *  支持文件监听，实时更新今日统计
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -17,7 +16,6 @@ import type { TokenRequestLog, TokenUsageStatsFromFile } from './types';
 /**
  * Token文件日志管理器
  * 主入口,提供完整的日志记录和统计功能
- * 支持文件变更监听，实时更新统计
  */
 export class TokenFileLogger {
     private readonly pathManager: LogPathManager;
@@ -29,11 +27,6 @@ export class TokenFileLogger {
 
     // 内存中的待更新日志(requestId -> log)
     private pendingLogs = new Map<string, TokenRequestLog>();
-
-    // 文件监听
-    private indexJsonWatcher: vscode.FileSystemWatcher | null = null;
-    private lastUpdateTime: number = 0;
-    private updateThrottleMs: number = 500; // 500ms 内去重
 
     // pendingLogs 清理任务
     private pendingLogsCleanupTimer: ReturnType<typeof setInterval> | null = null;
@@ -56,7 +49,6 @@ export class TokenFileLogger {
 
     /**
      * 初始化日志系统
-     * 注意: 文件监听在 initialize 时创建但不启用，由上层（usagesView）根据条件启用/禁用
      */
     async initialize(): Promise<void> {
         const startTime = Date.now();
@@ -65,85 +57,11 @@ export class TokenFileLogger {
         const baseDir = this.pathManager.getBaseDir();
         StatusLogger.info(`[TokenFileLogger] 基础目录: ${baseDir}`);
 
-        // 创建文件监听器但不启用（由上层调用 enableFileWatcher 时启用）
-        this.createFileWatcher();
-
         // 启动 pendingLogs 清理任务
         this.startPendingLogsCleanup();
 
         const elapsed = Date.now() - startTime;
         StatusLogger.info(`[TokenFileLogger] 文件日志系统初始化完成 (耗时: ${elapsed}ms)`);
-    }
-
-    /**
-     * 创建文件监听器（内部方法，不启用）
-     */
-    private createFileWatcher(): void {
-        const baseDir = this.pathManager.getBaseDir();
-
-        // 监听 index.json 文件的变化（用于多实例同步）
-        // index.json 记录所有日期的统计摘要，其他实例更新统计时会更新此文件
-        const indexPattern = new vscode.RelativePattern(baseDir, 'index.json');
-        this.indexJsonWatcher = vscode.workspace.createFileSystemWatcher(indexPattern);
-
-        this.indexJsonWatcher.onDidChange(async uri => {
-            this.handleIndexJsonChange(uri);
-        });
-
-        StatusLogger.debug('[TokenFileLogger] 文件监听器已创建但未启用');
-    }
-
-    /**
-     * 启用文件监听 - 仅在详情页打开且查看今日第一页时调用
-     */
-    enableFileWatcher(): void {
-        if (this.indexJsonWatcher) {
-            // FileSystemWatcher 默认是启用的，这里标记为启用状态
-            StatusLogger.debug('[TokenFileLogger] 文件监听已启用（监听 index.json 变化）');
-        } else {
-            // 如果 watcher 被销毁了，重新创建
-            this.createFileWatcher();
-            StatusLogger.debug('[TokenFileLogger] 文件监听已重新创建并启用');
-        }
-    }
-
-    /**
-     * 禁用文件监听 - 当离开详情页或切换到非今日/非首页时调用
-     */
-    disableFileWatcher(): void {
-        if (this.indexJsonWatcher) {
-            this.indexJsonWatcher.dispose();
-            this.indexJsonWatcher = null;
-            StatusLogger.debug('[TokenFileLogger] 文件监听已禁用');
-        }
-    }
-
-    /**
-     * 处理 index.json 变化
-     * 表示有实例更新了统计数据，本实例应该重新读取缓存的 stats.json
-     */
-    private async handleIndexJsonChange(_uri: vscode.Uri): Promise<void> {
-        const now = Date.now();
-
-        // 节流：500ms 内只处理一次
-        if (now - this.lastUpdateTime < this.updateThrottleMs) {
-            StatusLogger.trace('[TokenFileLogger] index.json 变化节流中，忽略此次触发');
-            return;
-        }
-
-        this.lastUpdateTime = now;
-
-        try {
-            StatusLogger.debug('[TokenFileLogger] 检测到 index.json 变化 (其他实例的统计更新)');
-
-            // index.json 变化表示有实例更新了统计数据
-            // 通知本实例的监听者重新查询，他们会从最新的 stats.json 缓存中读取
-            this.notifyUpdate();
-
-            StatusLogger.debug('[TokenFileLogger] 已通知监听者重新读取统计缓存');
-        } catch (err) {
-            StatusLogger.warn('[TokenFileLogger] 处理 index.json 变化失败:', err);
-        }
     }
 
     /**
@@ -300,7 +218,6 @@ export class TokenFileLogger {
 
     /**
      * 获取今日统计（使用缓存）
-     * 多实例通过监听 stats.json 文件变化来自动同步
      */
     async getTodayStats(): Promise<TokenUsageStatsFromFile> {
         const dateStr = this.pathManager.getTodayDateString();
@@ -309,7 +226,7 @@ export class TokenFileLogger {
 
     /**
      * 获取指定日期的统计
-     * 优先从缓存读取，多实例通过监听 stats.json 自动同步
+     * 优先从缓存读取
      */
     async getDateStats(dateStr: string): Promise<TokenUsageStatsFromFile> {
         return this.statsService.getDateStats(dateStr);
@@ -325,7 +242,6 @@ export class TokenFileLogger {
 
     /**
      * 获取指定日期的所有小时统计
-     * 优先从缓存读取，多实例通过监听 stats.json 自动同步
      */
     async getAllHourStats(dateStr: string): Promise<TokenUsageStatsFromFile | null> {
         // 尝试从持久化的统计文件读取完整的日期统计（包含所有小时）
@@ -343,7 +259,6 @@ export class TokenFileLogger {
 
     /**
      * 获取指定小时的统计
-     * 优先从缓存读取，多实例通过监听 stats.json 自动同步
      */
     async getHourStats(dateStr: string, hour: number): Promise<TokenUsageStatsFromFile> {
         return this.statsService.getHourStats(dateStr, hour);
@@ -506,13 +421,6 @@ export class TokenFileLogger {
                 );
                 // 清理待处理日志
                 this.pendingLogs.clear();
-            }
-
-            // 停止 index.json 监听
-            if (this.indexJsonWatcher) {
-                this.indexJsonWatcher.dispose();
-                this.indexJsonWatcher = null;
-                StatusLogger.debug('[TokenFileLogger] index.json 监听已停止');
             }
 
             // 清理事件监听器

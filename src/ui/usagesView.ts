@@ -97,9 +97,6 @@ export class TokenUsagesView {
             this.panel = undefined;
             this.updateDisposable?.dispose();
             this.updateDisposable = undefined;
-            // 关闭详情页时禁用文件监听
-            this.usagesManager.getFileLogger().disableFileWatcher();
-            Logger.debug('[TokenUsagesView] 详情页已关闭，已禁用文件监听');
         });
     }
 
@@ -172,15 +169,13 @@ export class TokenUsagesView {
         );
 
         if (isViewingToday && isFirstPage) {
-            // 查看今日且在第一页 - 启用文件监听 + 刷新整个详情 + 更新日期列表
-            Logger.info('[TokenUsagesView] 启用文件监听，刷新今日详情 + 日期列表');
-            this.usagesManager.getFileLogger().enableFileWatcher();
+            // 查看今日且在第一页 - 刷新整个详情 + 更新日期列表
+            Logger.info('[TokenUsagesView] 刷新今日详情 + 日期列表');
             await this.updateDateDetails(today);
             await this.updateDateListOnly();
         } else {
-            // 查看其他日期 - 禁用文件监听 + 只刷新日期列表统计
-            Logger.info('[TokenUsagesView] 禁用文件监听，仅刷新日期列表');
-            this.usagesManager.getFileLogger().disableFileWatcher();
+            // 查看其他日期 - 只刷新日期列表统计
+            Logger.info('[TokenUsagesView] 仅刷新日期列表');
             await this.updateDateListOnly();
         }
     }
@@ -258,15 +253,6 @@ export class TokenUsagesView {
             const today = this.getTodayDateString();
             const isToday = date === today;
 
-            // 如果切换到今日，启用文件监听；否则禁用
-            if (isToday) {
-                this.usagesManager.getFileLogger().enableFileWatcher();
-                Logger.debug('[TokenUsagesView] 切换到今日，已启用文件监听');
-            } else {
-                this.usagesManager.getFileLogger().disableFileWatcher();
-                Logger.debug('[TokenUsagesView] 切换到历史日期，已禁用文件监听');
-            }
-
             // 从文件直接读取,不使用缓存
             const dateStats = await this.usagesManager.getDateStatsFromFile(date);
             const hourlyStats = await this.usagesManager.getDateHourlyStats(date);
@@ -314,15 +300,6 @@ export class TokenUsagesView {
             // 更新当前页码和日期
             this.currentPage = page;
             this.currentSelectedDate = date;
-
-            // 只在查看今日第一页时启用文件监听
-            if (isToday && isFirstPage) {
-                this.usagesManager.getFileLogger().enableFileWatcher();
-                Logger.debug('[TokenUsagesView] 翻到第一页（今日），已启用文件监听');
-            } else {
-                this.usagesManager.getFileLogger().disableFileWatcher();
-                Logger.debug('[TokenUsagesView] 翻到非第一页或非今日，已禁用文件监听');
-            }
 
             const dateRecords = await this.usagesManager.getDateRecords(date);
 

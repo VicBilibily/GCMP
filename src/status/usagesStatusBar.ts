@@ -156,7 +156,7 @@ export class TokenUsagesStatusBar {
             const recentRequests = await this.usagesManager.getRecentRecords(3); // 获取最近 3 条
 
             if (recentRequests.length > 0) {
-                md.appendMarkdown('\n---\n最近的请求 Token 使用信息\n\n');
+                md.appendMarkdown('\n---\n**最近的请求 Token 使用信息**\n\n');
                 // 创建表格标题
                 md.appendMarkdown('| 提供商 | 请求时间 | 状态 | 输入/预估 | 缓存命中 | 输出Tokens |\n');
                 md.appendMarkdown('| :---- | :----: | :----: | ----: | ----: | ----: |\n');
