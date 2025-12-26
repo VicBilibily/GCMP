@@ -25,15 +25,6 @@ export class DateUtils {
     }
 
     /**
-     * 获取昨日的日期字符串
-     */
-    static getYesterdayDateString(): string {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        return this.formatDate(yesterday);
-    }
-
-    /**
      * 获取指定天数前的日期字符串
      * @param daysAgo 天数前（正数）
      */

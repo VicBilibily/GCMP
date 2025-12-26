@@ -116,18 +116,20 @@ export interface FileLoggerModelStats extends BaseStats {
  * FileLogger 内部使用的提供商统计
  * 扩展基础统计，添加提供商名称和模型分组
  */
-export interface FileLoggerProviderStats extends BaseStats {
+export interface FileLoggerProviderStats extends TokenStats {
     providerName: string;
     models: Record<string, FileLoggerModelStats>;
 }
 
 /**
  * 每小时统计（用于 hourly）
- * 直接保存 total 的结构，不嵌套
+ * 包含总计、提供商和模型的统计信息，用于差分计算的缓存
  */
 export interface HourlyStats extends TokenStats {
     /** 日志文件修改时间戳 (用于缓存验证) */
     modifiedTime: number;
+    /** 按提供商分组 (直接使用 providerId 作为 key) */
+    providers: Record<string, FileLoggerProviderStats>;
 }
 
 /**
@@ -141,8 +143,6 @@ export interface TokenUsageStatsFromFile {
     providers: Record<string, FileLoggerProviderStats>;
     /** 每小时合计 (仅日期统计包含此字段) */
     hourly?: Record<string, HourlyStats>;
-    /** 每小时日志文件的修改时间戳 (用于增量更新) */
-    hourlyModified?: Record<string, number>;
 }
 
 /**

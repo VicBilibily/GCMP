@@ -259,15 +259,6 @@ export class TokenFileLogger {
     }
 
     /**
-     * 计算指定日期的统计（包含小时统计和日期统计）
-     * 支持增量更新：根据小时文件的修改时间戳判断是否需要重新计算
-     * 自动遍历所有小时文件，只重新计算已改变的小时
-     */
-    async calculateStats(dateStr: string, existingStats?: TokenUsageStatsFromFile): Promise<TokenUsageStatsFromFile> {
-        return this.logStatsManager.calculateStats(dateStr, existingStats);
-    }
-
-    /**
      * 检查并重新生成过期的统计数据
      * 在打开统计页面时调用，确保所有日期的 stats.json 都是最新的
      */
@@ -451,11 +442,8 @@ export class TokenFileLogger {
             // 等待写入队列完成
             await this.writeManager.flush();
 
-            // 读取现有统计
-            const existingStats = await this.logStatsManager.loadStats(dateStr);
-
             // 计算统计（支持增量更新）
-            const stats = await this.logStatsManager.calculateStats(dateStr, existingStats || undefined);
+            const stats = await this.logStatsManager.calculateDateStats(dateStr);
 
             // 保存统计
             await this.logStatsManager.saveDateStats(dateStr, stats);

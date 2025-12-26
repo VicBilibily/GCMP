@@ -148,7 +148,6 @@ export class LogReadManager {
      */
     async getHourFileModifiedTime(dateStr: string, hour: number): Promise<number> {
         const filePath = this.pathManager.getHourFilePath(dateStr, hour);
-
         if (!fsSync.existsSync(filePath)) {
             return 0;
         }

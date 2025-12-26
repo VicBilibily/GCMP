@@ -16,7 +16,13 @@ import { LogReadManager } from './logReadManager';
 import { LogIndexManager } from './logIndexManager';
 import { DateUtils } from './dateUtils';
 import { StatsCalculator } from './statsCalculator';
-import type { TokenUsageStatsFromFile, DateIndexEntry, HourlyStats } from './types';
+import type {
+    TokenUsageStatsFromFile,
+    DateIndexEntry,
+    HourlyStats,
+    FileLoggerProviderStats,
+    TokenStats
+} from './types';
 
 /**
  * 日志统计管理器
@@ -39,28 +45,20 @@ export class LogStatsManager {
     // ==================== 统计查询方法 ====================
 
     /**
-     * 统计指定日期的数据
-     */
-    async calculateDateStats(dateStr: string): Promise<TokenUsageStatsFromFile> {
-        const logs = await this.readManager.readDateLogs(dateStr);
-        return StatsCalculator.aggregateLogs(logs);
-    }
-
-    /**
      * 计算指定日期的统计（包含小时统计和日期统计）
      * 支持增量更新：根据小时文件的修改时间戳判断是否需要重新计算
      * 自动遍历所有小时文件，只重新计算已改变的小时
-     * 返回: 包含日期统计、所有小时统计和hourlyModified时间戳的完整对象
+     * 日期统计（total 和 providers）从小时缓存结果聚合计算
+     * 返回: 包含日期统计、所有小时统计（含 modifiedTime 和 providers）的完整对象
      */
-    async calculateStats(dateStr: string, existingStats?: TokenUsageStatsFromFile): Promise<TokenUsageStatsFromFile> {
-        // 获取现有的统计数据和时间戳
-        const existingHourlyModified = existingStats?.hourlyModified;
+    async calculateDateStats(dateStr: string): Promise<TokenUsageStatsFromFile> {
+        // 读取现有的统计数据
+        const existingStats = await this.loadStats(dateStr);
         const existingHourly = existingStats?.hourly || {};
 
         // 获取日期文件夹中所有存在的小时文件
         const dateFolder = path.join(this.baseDir, dateStr);
         let hourFiles: number[] = [];
-
         try {
             const files = await fs.readdir(dateFolder);
             hourFiles = files
@@ -73,16 +71,13 @@ export class LogStatsManager {
             StatusLogger.debug(`[LogStatsManager] 日期文件夹不存在或无法读取: ${dateStr}`);
         }
 
-        // 初始化结果
+        // 初始化小时统计结果
         const hourly: Record<string, HourlyStats> = { ...existingHourly };
-        const updatedHourlyModified: Record<string, number> = { ...existingHourlyModified };
-
         // 遍历所有小时文件，进行增量更新
         for (const hour of hourFiles) {
             const hourKey = String(hour).padStart(2, '0');
             const hourFileModified = await this.readManager.getHourFileModifiedTime(dateStr, hour);
-            const existingModified = existingHourlyModified?.[hourKey];
-
+            const existingModified = existingHourly[hourKey]?.modifiedTime;
             // 检查时间戳：如果一致，说明文件未改变，可以跳过此小时的计算
             if (existingModified !== undefined && existingModified === hourFileModified) {
                 // 时间戳一致，保留现有统计
@@ -94,40 +89,102 @@ export class LogStatsManager {
             StatusLogger.debug(`[LogStatsManager] 小时文件已改变，重新计算: ${dateStr} ${hourKey}:00`);
             const logs = await this.readManager.readHourLogs(dateStr, hour);
             const hourStats = StatsCalculator.aggregateLogs(logs);
-
-            // 更新该小时的统计
+            // 更新该小时的统计（包含 modifiedTime 和 providers）
             hourly[hourKey] = {
                 ...hourStats.total,
-                modifiedTime: hourFileModified
+                modifiedTime: hourFileModified,
+                providers: hourStats.providers
             };
-
-            // 更新时间戳
-            updatedHourlyModified[hourKey] = hourFileModified;
         }
 
-        // 一次性读取整个日期的所有日志
-        const allDateLogs = await this.readManager.readDateLogs(dateStr);
+        // 从小时统计聚合计算日期统计（避免重复读取日志）
+        // 初始化总计
+        const total: TokenStats = {
+            estimatedInput: 0,
+            actualInput: 0,
+            cacheTokens: 0,
+            outputTokens: 0,
+            requests: 0,
+            completedRequests: 0,
+            failedRequests: 0
+        };
 
-        // 计算日期统计
-        const dateStats = StatsCalculator.aggregateLogs(allDateLogs);
+        // 初始化提供商统计
+        const providers: Record<string, FileLoggerProviderStats> = {};
+        // 遍历所有小时统计，聚合计算
+        for (const hourStats of Object.values(hourly)) {
+            // 累加总计
+            total.estimatedInput += hourStats.estimatedInput;
+            total.actualInput += hourStats.actualInput;
+            total.cacheTokens += hourStats.cacheTokens;
+            total.outputTokens += hourStats.outputTokens;
+            total.requests += hourStats.requests;
+            total.completedRequests += hourStats.completedRequests;
+            total.failedRequests += hourStats.failedRequests;
+
+            // 聚合提供商统计
+            if (hourStats.providers) {
+                for (const [providerKey, providerStats] of Object.entries(hourStats.providers)) {
+                    if (!providers[providerKey]) {
+                        providers[providerKey] = {
+                            providerName: providerStats.providerName,
+                            estimatedInput: 0,
+                            actualInput: 0,
+                            cacheTokens: 0,
+                            outputTokens: 0,
+                            requests: 0,
+                            completedRequests: 0,
+                            failedRequests: 0,
+                            models: {}
+                        };
+                    }
+
+                    const provider = providers[providerKey];
+                    // 累加提供商统计
+                    provider.estimatedInput += providerStats.estimatedInput;
+                    provider.actualInput += providerStats.actualInput;
+                    provider.cacheTokens += providerStats.cacheTokens;
+                    provider.outputTokens += providerStats.outputTokens;
+                    provider.requests += providerStats.requests;
+                    provider.completedRequests += providerStats.completedRequests;
+                    provider.failedRequests += providerStats.failedRequests;
+
+                    // 聚合模型统计
+                    if (providerStats.models) {
+                        for (const [modelKey, modelStats] of Object.entries(providerStats.models)) {
+                            if (!provider.models[modelKey]) {
+                                provider.models[modelKey] = {
+                                    modelName: modelStats.modelName,
+                                    estimatedInput: 0,
+                                    actualInput: 0,
+                                    cacheTokens: 0,
+                                    outputTokens: 0,
+                                    requests: 0
+                                };
+                            }
+
+                            const model = provider.models[modelKey];
+                            // 累加模型统计
+                            model.estimatedInput += modelStats.estimatedInput;
+                            model.actualInput += modelStats.actualInput;
+                            model.cacheTokens += modelStats.cacheTokens;
+                            model.outputTokens += modelStats.outputTokens;
+                            model.requests += modelStats.requests;
+                        }
+                    }
+                }
+            }
+        }
 
         // 返回完整的 TokenUsageStatsFromFile 结构
-        return {
-            total: dateStats.total,
-            providers: dateStats.providers,
-            hourly,
-            hourlyModified: updatedHourlyModified
-        };
+        return { total, providers, hourly };
     }
 
     /**
      * 获取日期统计
-     * 优先尝试从持久化文件读取，否则从日志文件计算
+     * 优先尝试从持久化文件读取，否则进行增量差分计算并保存
      */
     async getDateStats(dateStr: string, fromFile: boolean = false): Promise<TokenUsageStatsFromFile> {
-        const today = DateUtils.getTodayDateString();
-        const isTodayOrHistory = dateStr === today;
-
         // 优先尝试从持久化文件读取（如果不是直接计算模式）
         if (!fromFile) {
             const saved = await this.loadStats(dateStr);
@@ -137,15 +194,12 @@ export class LogStatsManager {
             }
         }
 
-        // 从日志文件计算统计
-        StatusLogger.debug(`[LogStatsManager] 计算${isTodayOrHistory ? '今日' : '历史'}统计: ${dateStr}`);
+        // 进行增量差分计算（仅重算改变的小时，从小时缓存聚合日期统计）
+        StatusLogger.debug(`[LogStatsManager] 增量计算统计: ${dateStr}`);
         const stats = await this.calculateDateStats(dateStr);
 
         // 保存到持久化文件
-        if (!isTodayOrHistory) {
-            // 始终保存历史统计到文件
-            await this.saveDateStats(dateStr, stats);
-        }
+        await this.saveDateStats(dateStr, stats);
 
         return stats;
     }
@@ -154,7 +208,8 @@ export class LogStatsManager {
      * 刷新日期统计（重新计算并更新）
      */
     async refreshDateStats(dateStr: string): Promise<TokenUsageStatsFromFile> {
-        // 重新计算
+        // 强制重新计算（删除现有缓存，重新计算所有小时）
+        StatusLogger.debug(`[LogStatsManager] 刷新统计: ${dateStr}`);
         const stats = await this.calculateDateStats(dateStr);
 
         // 保存到文件
@@ -168,7 +223,7 @@ export class LogStatsManager {
     /**
      * 保存每日统计结果
      * 保存到: <baseDir>/usages/YYYY-MM-DD/stats.json
-     * 仅更新日期统计，不修改小时统计
+     * 保存完整的日期统计和小时统计（包含 providers）
      */
     async saveDateStats(dateStr: string, stats: TokenUsageStatsFromFile): Promise<void> {
         const filePath = this.getStatsFilePath(dateStr);
@@ -178,41 +233,8 @@ export class LogStatsManager {
             const dateFolder = path.join(this.baseDir, dateStr);
             await this.ensureDirectoryExists(dateFolder);
 
-            // 读取现有的统计数据
-            let statsData: TokenUsageStatsFromFile = {
-                total: {
-                    estimatedInput: 0,
-                    actualInput: 0,
-                    cacheTokens: 0,
-                    outputTokens: 0,
-                    requests: 0,
-                    completedRequests: 0,
-                    failedRequests: 0
-                },
-                providers: {},
-                hourly: {}
-            };
-
-            if (fsSync.existsSync(filePath)) {
-                const content = await fs.readFile(filePath, 'utf-8');
-                try {
-                    const existing = JSON.parse(content) as TokenUsageStatsFromFile;
-                    statsData = {
-                        total: existing.total || statsData.total,
-                        providers: existing.providers || statsData.providers,
-                        hourly: existing.hourly || statsData.hourly
-                    };
-                } catch {
-                    // 如果解析失败,使用空对象
-                }
-            }
-
-            // 更新每日统计
-            statsData.total = stats.total;
-            statsData.providers = stats.providers;
-
-            // 写入文件
-            await fs.writeFile(filePath, JSON.stringify(statsData, null, 2), 'utf-8');
+            // 写入完整的统计数据
+            await fs.writeFile(filePath, JSON.stringify(stats, null, 2), 'utf-8');
 
             // 更新索引文件
             await this.indexManager.updateIndex(dateStr, stats.total);
@@ -220,90 +242,6 @@ export class LogStatsManager {
             StatusLogger.debug(`[LogStatsManager] 已保存日期统计到 stats.json: ${dateStr}`);
         } catch (err) {
             StatusLogger.error(`[LogStatsManager] 保存日期统计失败: ${dateStr}`, err);
-            throw err;
-        }
-    }
-
-    /**
-     * 一次性保存小时和日期统计结果
-     * 优化：避免重复读取和写入文件
-     */
-    async saveHourAndDateStats(
-        dateStr: string,
-        hour: number,
-        hourStats: TokenUsageStatsFromFile,
-        dateStats: TokenUsageStatsFromFile
-    ): Promise<void> {
-        const filePath = this.getStatsFilePath(dateStr);
-
-        try {
-            // 确保日期目录存在
-            const dateFolder = path.join(this.baseDir, dateStr);
-            await this.ensureDirectoryExists(dateFolder);
-
-            // 读取现有的统计数据
-            let statsData: TokenUsageStatsFromFile = {
-                total: {
-                    estimatedInput: 0,
-                    actualInput: 0,
-                    cacheTokens: 0,
-                    outputTokens: 0,
-                    requests: 0,
-                    completedRequests: 0,
-                    failedRequests: 0
-                },
-                providers: {},
-                hourly: {},
-                hourlyModified: {}
-            };
-
-            if (fsSync.existsSync(filePath)) {
-                const content = await fs.readFile(filePath, 'utf-8');
-                try {
-                    const existing = JSON.parse(content) as TokenUsageStatsFromFile;
-                    statsData = {
-                        total: existing.total || statsData.total,
-                        providers: existing.providers || statsData.providers,
-                        hourly: existing.hourly || statsData.hourly,
-                        hourlyModified: existing.hourlyModified || statsData.hourlyModified
-                    };
-                } catch {
-                    // 如果解析失败,使用空对象
-                }
-            }
-
-            // 更新指定小时的统计数据 - 保存包含 modifiedTime 的完整结构
-            const hourKey = String(hour).padStart(2, '0');
-            if (!statsData.hourly) {
-                statsData.hourly = {};
-            }
-            // 从 hourStats 中获取该小时的统计（包含 modifiedTime）
-            const hourData = hourStats.hourly?.[hourKey];
-            if (hourData) {
-                statsData.hourly[hourKey] = hourData;
-            }
-
-            // 更新 daily 统计（保存完整的提供商和模型统计）
-            statsData.total = dateStats.total;
-            statsData.providers = dateStats.providers;
-
-            // 更新 hourlyModified 时间戳
-            if (dateStats.hourlyModified) {
-                if (!statsData.hourlyModified) {
-                    statsData.hourlyModified = {};
-                }
-                statsData.hourlyModified = dateStats.hourlyModified;
-            }
-
-            // 写入文件
-            await fs.writeFile(filePath, JSON.stringify(statsData, null, 2), 'utf-8');
-
-            // 更新索引文件
-            await this.indexManager.updateIndex(dateStr, dateStats.total);
-
-            StatusLogger.debug(`[LogStatsManager] 已保存小时和日期统计到 stats.json: ${dateStr} ${hourKey}:00`);
-        } catch (err) {
-            StatusLogger.error(`[LogStatsManager] 保存小时和日期统计失败: ${dateStr} ${hour}:00`, err);
             throw err;
         }
     }
@@ -335,10 +273,10 @@ export class LogStatsManager {
                     return null;
                 }
 
-                // 返回小时统计（包含 modifiedTime）
+                // 返回小时统计（包含 modifiedTime 和 providers）
                 const result: TokenUsageStatsFromFile = {
                     total: hourStats,
-                    providers: {}, // 小时级别没有提供商统计
+                    providers: hourStats.providers || {},
                     hourly: {
                         [hourKey]: hourStats
                     }

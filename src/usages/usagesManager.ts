@@ -230,15 +230,6 @@ export class TokenUsagesManager {
     }
 
     /**
-     * 获取昨日统计数据
-     */
-    async getYesterdayStats(): Promise<DailyStats> {
-        const yesterday = DateUtils.getYesterdayDateString();
-        const stats = await this.fileLogger.getDateStats(yesterday);
-        return this.convertToLegacyFormat(yesterday, stats);
-    }
-
-    /**
      * 获取指定日期按小时的统计数据
      */
     async getDateHourlyStats(date: string): Promise<UsagesHourlyStats[]> {
@@ -267,9 +258,9 @@ export class TokenUsagesManager {
             return hourlyList;
         }
 
-        // 如果没有持久化的统计文件，使用 calculateStats 一次性计算所有小时
+        // 如果没有持久化的统计文件，使用 calculateDateStats 一次性计算所有小时
         try {
-            const stats = await this.fileLogger.calculateStats(date);
+            const stats = await this.fileLogger.calculateDateStats(date);
 
             if (stats.hourly) {
                 for (const [hourKey, hourData] of Object.entries(stats.hourly)) {
@@ -289,7 +280,7 @@ export class TokenUsagesManager {
 
             // 按时间排序
             hourlyList.sort((a, b) => a.hour.localeCompare(b.hour));
-        } catch (err) {
+        } catch {
             // 忽略错误
         }
 
@@ -358,17 +349,6 @@ export class TokenUsagesManager {
     async getDateRecords(date: string): Promise<ExtendedTokenRequestLog[]> {
         const details = await this.fileLogger.getRequestDetails(date);
         return UsageParser.extendLogs(details);
-    }
-
-    /**
-     * 删除指定日期的数据
-     */
-    async deleteDate(date: string, notify: boolean = true): Promise<void> {
-        await this.fileLogger.deleteDateLogs(date);
-        StatusLogger.info(`[Usages] 已删除日期 ${date} 的数据`);
-        if (notify) {
-            this.notifyUpdate();
-        }
     }
 
     /**

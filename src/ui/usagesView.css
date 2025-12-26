@@ -137,15 +137,15 @@ body {
 
 .content h2 {
     color: var(--vscode-foreground);
-    font-size: 15px;
-    margin: 10px 0 8px 0;
+    font-size: 13px;
+    margin: 6px 0 4px 0;
 }
 
 table {
     width: 100%;
     border-collapse: collapse;
-    margin: 12px 0;
-    font-size: 12px;
+    margin: 6px 0 12px 0;
+    font-size: 11px;
 }
 
 th,
@@ -161,10 +161,6 @@ th {
     position: sticky;
     top: 0;
     z-index: 10;
-}
-
-td {
-    font-size: 11px;
 }
 
 /* 提供商表格和小时表格：数值列右对齐（第2-6列） */

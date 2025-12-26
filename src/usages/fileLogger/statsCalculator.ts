@@ -111,6 +111,8 @@ export abstract class StatsCalculator {
                     cacheTokens: 0,
                     outputTokens: 0,
                     requests: 0,
+                    completedRequests: 0,
+                    failedRequests: 0,
                     models: {}
                 };
             }
@@ -121,6 +123,7 @@ export abstract class StatsCalculator {
             providerStats.cacheTokens += parsed.cacheReadTokens;
             providerStats.outputTokens += parsed.outputTokens;
             providerStats.requests++;
+            providerStats.completedRequests++;
 
             // 按模型聚合(仅成功的请求)
             if (!providerStats.models[log.modelId]) {
