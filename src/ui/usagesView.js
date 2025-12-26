@@ -196,8 +196,8 @@ function createContent(data) {
 
     // 如果有数据,创建详情内容
     if (data.providers.length > 0) {
-        // 创建提供商统计（包含合计行）
-        const providersSection = createProvidersSection(data.providers, data.summary);
+        // 创建提供商统计
+        const providersSection = createProvidersSection(data.providers);
         detailsContent.appendChild(providersSection);
 
         // 创建各小时用量
@@ -207,7 +207,7 @@ function createContent(data) {
         // 空消息
         const emptyMessage = document.createElement('div');
         emptyMessage.className = 'empty-message';
-        emptyMessage.innerHTML = `<p>💡 ${data.selectedDate} 暂无 Token 使用记录</p>`;
+        emptyMessage.innerHTML = `<p>💡 ${data.selectedDate} 暂无 Token 消耗记录</p>`;
         detailsContent.appendChild(emptyMessage);
     }
 
@@ -234,17 +234,16 @@ function createContent(data) {
 /**
  * 创建提供商统计部分
  * @param {Array} providers - 提供商数据
- * @param {Object} summary - 汇总数据
  * @returns {HTMLElement} 提供商统计元素
  */
-function createProvidersSection(providers, summary) {
+function createProvidersSection(providers) {
     const section = document.createElement('div');
 
     const h2 = document.createElement('h2');
     h2.textContent = '按提供商统计';
     section.appendChild(h2);
 
-    const table = createProvidersTable(providers, summary);
+    const table = createProvidersTable(providers);
     section.appendChild(table);
 
     return section;
@@ -253,10 +252,9 @@ function createProvidersSection(providers, summary) {
 /**
  * 创建提供商表格
  * @param {Array} providers - 提供商数据
- * @param {Object} summary - 汇总数据
  * @returns {HTMLElement} 表格元素
  */
-function createProvidersTable(providers, summary) {
+function createProvidersTable(providers) {
     if (providers.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'empty-message';
@@ -292,10 +290,6 @@ function createProvidersTable(providers, summary) {
             });
         }
     });
-
-    // 创建合计行
-    const totalRow = createTotalRow(summary);
-    tbody.appendChild(totalRow);
 
     table.appendChild(thead);
     table.appendChild(tbody);
@@ -355,40 +349,6 @@ function createModelRow(model) {
             td.style.paddingLeft = '24px';
         }
         td.textContent = cellData.content;
-        row.appendChild(td);
-    });
-
-    return row;
-}
-
-/**
- * 创建合计行
- * @param {Object} summary - 汇总数据
- * @returns {HTMLElement} 表格行元素
- */
-function createTotalRow(summary) {
-    const row = document.createElement('tr');
-    row.style.backgroundColor = 'var(--vscode-editor-selectionBackground)';
-    row.style.borderTop = '2px solid var(--vscode-panel-border)';
-
-    const cells = [
-        { content: '合计', bold: true },
-        { content: summary.totalInput },
-        { content: summary.totalCacheRead },
-        { content: summary.totalOutput },
-        { content: summary.total, bold: true },
-        { content: summary.totalRequests }
-    ];
-
-    cells.forEach(cellData => {
-        const td = document.createElement('td');
-        if (cellData.bold) {
-            const strong = document.createElement('strong');
-            strong.textContent = cellData.content;
-            td.appendChild(strong);
-        } else {
-            td.textContent = cellData.content;
-        }
         row.appendChild(td);
     });
 
@@ -780,8 +740,8 @@ function handleUpdateDateDetails(message) {
         detailsContent.innerHTML = '';
 
         if (message.providers.length > 0) {
-            // 创建提供商统计（包含合计行）
-            const providersSection = createProvidersSection(message.providers, message.summary);
+            // 创建提供商统计
+            const providersSection = createProvidersSection(message.providers);
             detailsContent.appendChild(providersSection);
 
             // 创建各小时用量
@@ -791,7 +751,7 @@ function handleUpdateDateDetails(message) {
             // 空消息
             const emptyMessage = document.createElement('div');
             emptyMessage.className = 'empty-message';
-            emptyMessage.innerHTML = `<p>💡 ${message.date} 暂无 Token 使用记录</p>`;
+            emptyMessage.innerHTML = `<p>💡 ${message.date} 暂无 Token 消耗记录</p>`;
             detailsContent.appendChild(emptyMessage);
         }
     }

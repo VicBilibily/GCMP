@@ -50,7 +50,10 @@ export interface ModelStats {
  */
 export interface HourlyStats {
     hour: string;
-    providers: Record<string, ProviderStats>;
+    totalInputTokens: number;
+    totalCacheReadTokens: number;
+    totalOutputTokens: number;
+    totalRequests: number;
     lastUpdated: number;
 }
 
@@ -349,22 +352,12 @@ export class TokenUsagesManager {
             for (const [hourKey, hourData] of Object.entries(allHourStats.hourly)) {
                 if (hourData.requests > 0) {
                     const hourStr = `${date}-${hourKey}`;
-                    // 直接从 hourData 创建 HourlyStats，不使用 convertToLegacyHourlyFormat
-                    // 因为持久化的小时统计只保存了 total，没有 providers
                     hourlyList.push({
                         hour: hourStr,
-                        providers: {
-                            // 创建一个虚拟的提供商来存储 total 数据
-                            total: {
-                                providerKey: 'total',
-                                displayName: '合计',
-                                totalInputTokens: hourData.actualInput,
-                                totalCacheReadTokens: hourData.cacheTokens,
-                                totalOutputTokens: hourData.outputTokens,
-                                totalRequests: hourData.requests,
-                                models: {}
-                            }
-                        },
+                        totalInputTokens: hourData.actualInput,
+                        totalCacheReadTokens: hourData.cacheTokens,
+                        totalOutputTokens: hourData.outputTokens,
+                        totalRequests: hourData.requests,
                         lastUpdated: Date.now()
                     });
                 }
@@ -382,7 +375,14 @@ export class TokenUsagesManager {
                 // 只添加有数据的小时
                 if (stats.total.requests > 0) {
                     const hourStr = `${date}-${String(hour).padStart(2, '0')}`;
-                    hourlyList.push(this.convertToLegacyHourlyFormat(hourStr, stats));
+                    hourlyList.push({
+                        hour: hourStr,
+                        totalInputTokens: stats.total.actualInput,
+                        totalCacheReadTokens: stats.total.cacheTokens,
+                        totalOutputTokens: stats.total.outputTokens,
+                        totalRequests: stats.total.requests,
+                        lastUpdated: Date.now()
+                    });
                 }
             } catch {
                 // 忽略错误,继续下一个小时
@@ -544,44 +544,6 @@ export class TokenUsagesManager {
 
         return {
             date,
-            providers,
-            lastUpdated: Date.now()
-        };
-    }
-
-    /**
-     * 转换小时统计格式
-     */
-    private convertToLegacyHourlyFormat(hour: string, stats: TokenUsageStatsFromFile): HourlyStats {
-        const providers: Record<string, ProviderStats> = {};
-
-        for (const [providerKey, providerData] of Object.entries(stats.providers)) {
-            const models: Record<string, ModelStats> = {};
-
-            for (const [modelId, modelData] of Object.entries(providerData.models)) {
-                models[modelId] = {
-                    modelId: modelId,
-                    modelName: modelData.modelName,
-                    totalInputTokens: modelData.actualInput,
-                    totalCacheReadTokens: modelData.cacheTokens,
-                    totalOutputTokens: modelData.outputTokens,
-                    totalRequests: modelData.requests
-                };
-            }
-
-            providers[providerKey] = {
-                providerKey: providerKey,
-                displayName: providerData.providerName,
-                totalInputTokens: providerData.actualInput,
-                totalCacheReadTokens: providerData.cacheTokens,
-                totalOutputTokens: providerData.outputTokens,
-                totalRequests: providerData.requests,
-                models
-            };
-        }
-
-        return {
-            hour,
             providers,
             lastUpdated: Date.now()
         };

@@ -174,7 +174,7 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
             // "baseUrl": "https://open.bigmodel.cn/api/anthropic",
             "maxInputTokens": 128000,
             "maxOutputTokens": 4096,
-            // "includeThinking": true, // deepseek-reasoner v3.2 要求多轮对话包含思考过程
+            // "includeThinking": true, // 多轮对话消息是否必须包含思考内容（默认false）
             "capabilities": {
                 "toolCalling": true, // Agent模式下模型必须支持工具调用
                 "imageInput": false

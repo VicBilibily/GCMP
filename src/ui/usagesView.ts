@@ -258,21 +258,6 @@ export class TokenUsagesView {
 
             const providers = Object.values(dateStats.providers);
 
-            // 计算总计
-            let totalInput = 0;
-            let totalCacheRead = 0;
-            let totalOutput = 0;
-            let totalRequests = 0;
-
-            for (const stats of providers) {
-                totalInput += stats.totalInputTokens;
-                totalCacheRead += stats.totalCacheReadTokens;
-                totalOutput += stats.totalOutputTokens;
-                totalRequests += stats.totalRequests;
-            }
-
-            const total = totalInput + totalOutput;
-
             // 更新当前状态
             this.currentSelectedDate = date;
             this.currentPage = 1;
@@ -288,13 +273,6 @@ export class TokenUsagesView {
                     command: 'updateDateDetails',
                     date,
                     isToday: date === today,
-                    summary: {
-                        total: this.formatTokens(total),
-                        totalInput: this.formatTokens(totalInput),
-                        totalCacheRead: this.formatTokens(totalCacheRead),
-                        totalOutput: this.formatTokens(totalOutput),
-                        totalRequests
-                    },
                     providers: this.formatProvidersData(providers),
                     hourlyStats: this.formatHourlyStatsData(hourlyStats),
                     records: this.formatRecordsData(UsageParser.extendLogs(dateRecords)),
@@ -466,31 +444,19 @@ export class TokenUsagesView {
      */
     private formatHourlyStatsData(hourlyStats: HourlyStats[]): unknown[] {
         return hourlyStats.map(h => {
-            const providers = Object.values(h.providers);
-            let hourInput = 0;
-            let hourCacheRead = 0;
-            let hourOutput = 0;
-            let hourRequests = 0;
-
-            for (const p of providers) {
-                hourInput += p.totalInputTokens;
-                hourCacheRead += p.totalCacheReadTokens;
-                hourOutput += p.totalOutputTokens;
-                hourRequests += p.totalRequests;
-            }
-
             const hourPart = h.hour.substring(11, 13);
+            const total = h.totalInputTokens + h.totalOutputTokens;
             return {
                 time: `${hourPart}:00`,
-                totalInput: hourInput,
-                totalInputFormatted: this.formatTokens(hourInput),
-                totalCacheRead: hourCacheRead,
-                totalCacheReadFormatted: this.formatTokens(hourCacheRead),
-                totalOutput: hourOutput,
-                totalOutputFormatted: this.formatTokens(hourOutput),
-                total: hourInput + hourOutput,
-                totalFormatted: this.formatTokens(hourInput + hourOutput),
-                totalRequests: hourRequests
+                totalInput: h.totalInputTokens,
+                totalInputFormatted: this.formatTokens(h.totalInputTokens),
+                totalCacheRead: h.totalCacheReadTokens,
+                totalCacheReadFormatted: this.formatTokens(h.totalCacheReadTokens),
+                totalOutput: h.totalOutputTokens,
+                totalOutputFormatted: this.formatTokens(h.totalOutputTokens),
+                total: total,
+                totalFormatted: this.formatTokens(total),
+                totalRequests: h.totalRequests
             };
         });
     }
@@ -560,21 +526,6 @@ export class TokenUsagesView {
         const providers = Object.values(dateStats.providers);
         const cspSource = this.panel?.webview.cspSource || '';
 
-        // 计算选中日期总计
-        let totalInput = 0;
-        let totalCacheRead = 0;
-        let totalOutput = 0;
-        let totalRequests = 0;
-
-        for (const stats of providers) {
-            totalInput += stats.totalInputTokens;
-            totalCacheRead += stats.totalCacheReadTokens;
-            totalOutput += stats.totalOutputTokens;
-            totalRequests += stats.totalRequests;
-        }
-
-        const total = totalInput + totalOutput;
-
         // 准备初始数据
         const initialData = {
             dateSummaries: dateSummaries.map(summary => ({
@@ -586,13 +537,6 @@ export class TokenUsagesView {
             today,
             currentPage,
             datesLimit: this.datesLimit,
-            summary: {
-                total: this.formatTokens(total),
-                totalInput: this.formatTokens(totalInput),
-                totalCacheRead: this.formatTokens(totalCacheRead),
-                totalOutput: this.formatTokens(totalOutput),
-                totalRequests
-            },
             providers: this.formatProvidersData(providers),
             hourlyStats: this.formatHourlyStatsData(hourlyStats),
             records: this.formatRecordsData(UsageParser.extendLogs(dateRecords))
