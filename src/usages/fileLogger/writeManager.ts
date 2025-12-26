@@ -5,7 +5,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs/promises';
-import * as fsSync from 'fs';
 import { StatusLogger } from '../../utils/statusLogger';
 import { LogPathManager } from './pathManager';
 import type { TokenRequestLog } from './types';
@@ -111,8 +110,8 @@ export class LogWriteManager {
         const logPath = this.pathManager.getLogPathFromDate(new Date(log.timestamp));
 
         try {
-            // 确保日期文件夹存在
-            await this.ensureDirectoryExists(logPath.dateFolder);
+            // 确保日期文件夹存在（使用 PathManager 统一的方法）
+            await this.pathManager.ensureDirectoryExists(logPath.dateFolder);
 
             // 将日志对象转换为JSONL格式(一行一个JSON)
             // 每次调用都追加新行,同一requestId可能有多条记录(预估→完成/失败)
@@ -127,24 +126,6 @@ export class LogWriteManager {
         } catch (err) {
             StatusLogger.error(`[LogWriteManager] 写入日志失败: ${logPath.fullPath}`, err);
             throw err;
-        }
-    }
-
-    /**
-     * 确保目录存在(递归创建)
-     */
-    private async ensureDirectoryExists(dir: string): Promise<void> {
-        try {
-            // 同步检查避免竞态条件
-            if (!fsSync.existsSync(dir)) {
-                await fs.mkdir(dir, { recursive: true });
-                StatusLogger.debug(`[LogWriteManager] 创建目录: ${dir}`);
-            }
-        } catch (err) {
-            // 忽略已存在错误
-            if ((err as NodeJS.ErrnoException).code !== 'EEXIST') {
-                throw err;
-            }
         }
     }
 

@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
+import * as fsSync from 'fs';
+import * as fs from 'fs/promises';
+import { StatusLogger } from '../../utils/statusLogger';
+import { DateUtils } from './dateUtils';
 import type { LogFilePath } from './types';
 
 /**
@@ -32,7 +36,7 @@ export class LogPathManager {
      * 获取指定日期对象的日志文件路径
      */
     getLogPathFromDate(date: Date): LogFilePath {
-        const dateStr = this.formatDate(date);
+        const dateStr = DateUtils.formatDate(date);
         const hour = date.getHours();
 
         const dateFolder = path.join(this.baseDir, dateStr);
@@ -75,16 +79,14 @@ export class LogPathManager {
      * 获取今日的日期字符串
      */
     getTodayDateString(): string {
-        return this.formatDate(new Date());
+        return DateUtils.getTodayDateString();
     }
 
     /**
      * 获取昨日的日期字符串
      */
     getYesterdayDateString(): string {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        return this.formatDate(yesterday);
+        return DateUtils.getYesterdayDateString();
     }
 
     /**
@@ -98,31 +100,25 @@ export class LogPathManager {
      * 从日期字符串解析出日期范围(开始和结束时间戳)
      */
     parseDateRange(dateStr: string): { start: number; end: number } {
-        const start = new Date(dateStr).getTime();
-        const end = start + 24 * 60 * 60 * 1000; // 24小时后
-        return { start, end };
+        return DateUtils.parseDateRange(dateStr);
     }
 
     /**
-     * 从小时字符串解析出小时范围(开始和结束时间戳)
-     * @param dateStr 日期字符串 (YYYY-MM-DD)
-     * @param hour 小时 (0-23)
+     * 确保目录存在(递归创建)
      */
-    parseHourRange(dateStr: string, hour: number): { start: number; end: number } {
-        const date = new Date(dateStr);
-        date.setHours(hour, 0, 0, 0);
-        const start = date.getTime();
-        const end = start + 60 * 60 * 1000; // 1小时后
-        return { start, end };
-    }
-
-    /**
-     * 格式化日期为 YYYY-MM-DD
-     */
-    private formatDate(date: Date): string {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
+    async ensureDirectoryExists(dir: string): Promise<void> {
+        try {
+            // 同步检查避免竞态条件
+            if (!fsSync.existsSync(dir)) {
+                await fs.mkdir(dir, { recursive: true });
+                StatusLogger.debug(`[LogPathManager] 创建目录: ${dir}`);
+            }
+        } catch (err) {
+            // 忽略已存在错误
+            const error = err as NodeJS.ErrnoException;
+            if (error.code !== 'EEXIST') {
+                throw err;
+            }
+        }
     }
 }

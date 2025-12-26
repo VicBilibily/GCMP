@@ -13,6 +13,7 @@ import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import * as path from 'path';
 import { StatusLogger } from '../../utils/statusLogger';
+import { DateUtils } from './dateUtils';
 import type { TokenUsageStatsFromFile, DateIndex, DateIndexEntry } from './types';
 
 /**
@@ -342,7 +343,7 @@ export class DailyStatsManager {
         const allDates = await this.getAllStatsDates();
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-        const cutoffDateStr = this.formatDate(cutoffDate);
+        const cutoffDateStr = DateUtils.formatDate(cutoffDate);
 
         let deletedCount = 0;
 
@@ -373,23 +374,22 @@ export class DailyStatsManager {
     }
 
     /**
-     * 确保目录存在
+     * 确保目录存在(递归创建)
      */
     private async ensureDirectoryExists(dirPath: string): Promise<void> {
-        if (!fsSync.existsSync(dirPath)) {
-            await fs.mkdir(dirPath, { recursive: true });
-            StatusLogger.debug(`[DailyStatsManager] 创建目录: ${dirPath}`);
+        try {
+            // 同步检查避免竞态条件
+            if (!fsSync.existsSync(dirPath)) {
+                await fs.mkdir(dirPath, { recursive: true });
+                StatusLogger.debug(`[DailyStatsManager] 创建目录: ${dirPath}`);
+            }
+        } catch (err) {
+            // 忽略已存在错误
+            const error = err as NodeJS.ErrnoException;
+            if (error.code !== 'EEXIST') {
+                throw err;
+            }
         }
-    }
-
-    /**
-     * 格式化日期为 YYYY-MM-DD
-     */
-    private formatDate(date: Date): string {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
     }
 
     /**

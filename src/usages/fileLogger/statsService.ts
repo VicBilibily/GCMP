@@ -23,26 +23,28 @@ export class StatsQueryService {
     /**
      * 获取日期统计
      * 优先尝试从持久化文件读取，否则从日志文件计算
+     * 多实例通过监听 stats.json 文件变化来实时同步
      */
     async getDateStats(dateStr: string, fromFile: boolean = false): Promise<TokenUsageStatsFromFile> {
         const today = this.getTodayDateString();
         const isTodayOrHistory = dateStr === today;
 
-        // 对于历史日期，优先尝试从持久化文件读取（如果不是直接计算模式）
-        if (!isTodayOrHistory && !fromFile) {
+        // 优先尝试从持久化文件读取（如果不是直接计算模式）
+        if (!fromFile) {
             const saved = await this.dailyStatsManager.loadStats(dateStr);
             if (saved) {
-                StatusLogger.info(`[StatsQueryService] 从持久化文件读取统计: ${dateStr}`);
+                StatusLogger.debug(`[StatsQueryService] 从缓存读取统计: ${dateStr}`);
                 return saved;
             }
         }
 
         // 从日志文件计算统计
-        StatusLogger.info(`[StatsQueryService] 计算${isTodayOrHistory ? '今日' : '历史'}统计: ${dateStr}`);
+        StatusLogger.debug(`[StatsQueryService] 计算${isTodayOrHistory ? '今日' : '历史'}统计: ${dateStr}`);
         const stats = await this.readManager.calculateDateStats(dateStr);
 
-        // 对于历史日期，保存到持久化文件
+        // 保存到持久化文件
         if (!isTodayOrHistory) {
+            // 始终保存，便于多实例通过 stats.json 同步
             await this.dailyStatsManager.saveDateStats(dateStr, stats);
         }
 
@@ -51,12 +53,13 @@ export class StatsQueryService {
 
     /**
      * 获取小时统计
+     * 优先从持久化文件读取，多实例通过监听 stats.json 来同步
      */
     async getHourStats(dateStr: string, hour: number): Promise<TokenUsageStatsFromFile> {
         // 尝试从持久化文件读取
         const saved = await this.dailyStatsManager.loadStats(dateStr, hour);
         if (saved) {
-            StatusLogger.info(`[StatsQueryService] 从持久化文件读取小时统计: ${dateStr} ${hour}:00`);
+            StatusLogger.debug(`[StatsQueryService] 从缓存读取小时统计: ${dateStr} ${hour}:00`);
             return saved;
         }
 

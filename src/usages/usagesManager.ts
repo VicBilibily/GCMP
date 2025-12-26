@@ -4,100 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import Anthropic from '@anthropic-ai/sdk';
-import OpenAI from 'openai';
 import { StatusLogger } from '../utils/statusLogger';
 import { TokenFileLogger, TokenUsageStatsFromFile } from './fileLogger';
 import { UsageParser, ExtendedTokenRequestLog } from './fileLogger/usageParser';
+import { DateUtils } from './fileLogger/dateUtils';
 import { EventEmitter } from 'events';
-
-/**
- * 日期统计数据
- */
-export interface DailyStats {
-    date: string;
-    providers: Record<string, ProviderStats>;
-    lastUpdated: number;
-}
-
-/**
- * 供应商统计
- */
-export interface ProviderStats {
-    providerKey: string;
-    displayName: string;
-    totalInputTokens: number;
-    totalCacheReadTokens: number;
-    totalOutputTokens: number;
-    totalRequests: number;
-    models: Record<string, ModelStats>;
-}
-
-/**
- * 模型统计
- */
-export interface ModelStats {
-    modelId: string;
-    modelName: string;
-    totalInputTokens: number;
-    totalCacheReadTokens: number;
-    totalOutputTokens: number;
-    totalRequests: number;
-}
-
-/**
- * 小时统计数据
- */
-export interface HourlyStats {
-    hour: string;
-    totalInputTokens: number;
-    totalCacheReadTokens: number;
-    totalOutputTokens: number;
-    totalRequests: number;
-    lastUpdated: number;
-}
-
-/**
- * 日期摘要
- */
-export interface DateSummary {
-    date: string;
-    total_input: number;
-    total_cache: number;
-    total_output: number;
-    total_requests: number;
-}
-
-/**
- * 通用的 Token 使用数据格式 - 支持多个 SDK
- */
-export interface GenericUsageData {
-    // === OpenAI 格式 ===
-    prompt_tokens?: number;
-    completion_tokens?: number;
-    total_tokens?: number;
-    prompt_tokens_details?: {
-        cached_tokens?: number;
-        [key: string]: number | undefined;
-    };
-    completion_tokens_details?: {
-        reasoning_tokens?: number;
-        [key: string]: number | undefined;
-    };
-    // === Anthropic/Claude 格式 ===
-    input_tokens?: number;
-    output_tokens?: number;
-    cache_creation_input_tokens?: number;
-    cache_read_input_tokens?: number;
-    // === 其他字段 ===
-    [key: string]: number | undefined | object;
-}
-
-/**
- * 原始 Token 使用数据 - 支持多个 SDK 的格式
- * 用于统一处理 Anthropic、OpenAI 等不同供应商的 usage 对象
- */
-export type RawUsageData = Anthropic.Messages.Usage | OpenAI.Completions.CompletionUsage | GenericUsageData;
+import type { DailyStats, ProviderStats, ModelStats, UsagesHourlyStats, DateSummary } from './types';
+import { GenericUsageData, RawUsageData } from './fileLogger/types';
 
 /**
  * Token 用量管理器
@@ -284,19 +197,6 @@ export class TokenUsagesManager {
     }
 
     /**
-     * 更新请求的时间戳（仅用于测试数据生成）
-     * 警告: 此方法仅用于测试/开发,会修改已写入日志的时间戳
-     */
-    async updateRequestTimestamp(requestId: string, newTimestamp: number): Promise<void> {
-        try {
-            await this.fileLogger.updateRequestTimestamp(requestId, newTimestamp);
-            this.notifyUpdate();
-        } catch (err) {
-            StatusLogger.warn('[Usages] 更新请求时间戳失败:', err);
-        }
-    }
-
-    /**
      * 获取指定日期的统计数据(带缓存)
      * 适用于状态栏等需要快速响应的场景
      */
@@ -319,7 +219,7 @@ export class TokenUsagesManager {
      */
     async getTodayStats(): Promise<DailyStats> {
         const stats = await this.fileLogger.getTodayStats();
-        const today = this.getTodayDateString();
+        const today = DateUtils.getTodayDateString();
         const result = this.convertToLegacyFormat(today, stats);
 
         StatusLogger.info(
@@ -333,7 +233,7 @@ export class TokenUsagesManager {
      * 获取昨日统计数据
      */
     async getYesterdayStats(): Promise<DailyStats> {
-        const yesterday = this.getYesterdayDateString();
+        const yesterday = DateUtils.getYesterdayDateString();
         const stats = await this.fileLogger.getDateStats(yesterday);
         return this.convertToLegacyFormat(yesterday, stats);
     }
@@ -341,8 +241,8 @@ export class TokenUsagesManager {
     /**
      * 获取指定日期按小时的统计数据
      */
-    async getDateHourlyStats(date: string): Promise<HourlyStats[]> {
-        const hourlyList: HourlyStats[] = [];
+    async getDateHourlyStats(date: string): Promise<UsagesHourlyStats[]> {
+        const hourlyList: UsagesHourlyStats[] = [];
 
         // 优先尝试从持久化的统计文件读取所有小时数据
         const allHourStats = await this.fileLogger.getAllHourStats(date);
@@ -395,8 +295,8 @@ export class TokenUsagesManager {
     /**
      * 获取今日按小时的统计数据
      */
-    async getTodayHourlyStats(): Promise<HourlyStats[]> {
-        const today = this.getTodayDateString();
+    async getTodayHourlyStats(): Promise<UsagesHourlyStats[]> {
+        const today = DateUtils.getTodayDateString();
         return this.getDateHourlyStats(today);
     }
 
@@ -429,7 +329,7 @@ export class TokenUsagesManager {
      * 性能优化：只读取最近 limit*2 条已完成请求，减少大量日志场景下的内存占用
      */
     async getRecentRecords(limit: number = 100): Promise<ExtendedTokenRequestLog[]> {
-        const today = this.getTodayDateString();
+        const today = DateUtils.getTodayDateString();
 
         // 使用性能优化版本，只读取最近 limit*2 条（以防过滤后不足）
         const details = await this.fileLogger.getRecentRequestDetails(today, limit * 2);
@@ -547,30 +447,6 @@ export class TokenUsagesManager {
             providers,
             lastUpdated: Date.now()
         };
-    }
-
-    /**
-     * 获取今日日期字符串（YYYY-MM-DD）
-     */
-    private getTodayDateString(): string {
-        const now = new Date();
-        return this.formatDate(now);
-    }
-
-    /**
-     * 获取昨日日期字符串（YYYY-MM-DD）
-     */
-    private getYesterdayDateString(): string {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        return this.formatDate(yesterday);
-    }
-
-    /**
-     * 格式化日期为 YYYY-MM-DD
-     */
-    private formatDate(date: Date): string {
-        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     }
 
     /**

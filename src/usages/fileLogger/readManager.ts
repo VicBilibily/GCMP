@@ -43,6 +43,7 @@ export class LogReadManager {
 
     /**
      * 读取指定日期的所有日志
+     * 优化：使用 Promise.all 并行读取所有小时文件
      */
     async readDateLogs(dateStr: string): Promise<TokenRequestLog[]> {
         const dateFolder = this.pathManager.getDateFolderPath(dateStr);
@@ -55,12 +56,22 @@ export class LogReadManager {
             const files = await fs.readdir(dateFolder);
             const hourFiles = files.filter(f => f.endsWith('.jsonl')).sort();
 
+            // 并行读取所有文件
+            const readPromises = hourFiles.map(file => {
+                const filePath = path.join(dateFolder, file);
+                return fs
+                    .readFile(filePath, 'utf-8')
+                    .then(content => this.parseJsonlContent(content))
+                    .catch(err => {
+                        StatusLogger.warn(`[LogReadManager] 读取小时日志失败: ${filePath}`, err);
+                        return [];
+                    });
+            });
+
+            const allLogsArrays = await Promise.all(readPromises);
             const allLogs: TokenRequestLog[] = [];
 
-            for (const file of hourFiles) {
-                const filePath = path.join(dateFolder, file);
-                const content = await fs.readFile(filePath, 'utf-8');
-                const logs = this.parseJsonlContent(content);
+            for (const logs of allLogsArrays) {
                 allLogs.push(...logs);
             }
 
