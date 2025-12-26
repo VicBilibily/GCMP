@@ -232,12 +232,22 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // 步骤6: 注册Token消耗统计命令
         stepStartTime = Date.now();
-        // 查看今日消耗统计详情命令
+        // 查看今日消耗统计详情命令（单例模式，同一窗口只允许打开一个统计页面）
+        let tokenUsagesView: TokenUsagesView | undefined;
         const viewStatsCommand = vscode.commands.registerCommand('gcmp.tokenStats.showDetails', () => {
-            const view = new TokenUsagesView(context);
-            view.show();
+            if (!tokenUsagesView) {
+                tokenUsagesView = new TokenUsagesView(context);
+            }
+            tokenUsagesView.show();
         });
-        context.subscriptions.push(viewStatsCommand);
+        context.subscriptions.push(
+            viewStatsCommand,
+            // 确保在扩展停用时清理视图实例
+            new vscode.Disposable(() => {
+                tokenUsagesView?.dispose();
+                tokenUsagesView = undefined;
+            })
+        );
         Logger.trace(`⏱️ 查看Token消耗统计命令注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
         const totalActivationTime = Date.now() - activationStartTime;
