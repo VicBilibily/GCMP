@@ -64,7 +64,7 @@ export class UsageParser {
             const cacheReadTokens = rawUsage.cache_read_input_tokens || 0;
             const cacheCreationTokens = rawUsage.cache_creation_input_tokens || 0;
             const outputTokens = rawUsage.output_tokens || 0;
-            const actualInput = inputTokens + cacheReadTokens; // Anthropic: input_tokens 不包含缓存读取
+            const actualInput = inputTokens + cacheReadTokens + cacheCreationTokens;
 
             return {
                 actualInput,

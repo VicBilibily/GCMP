@@ -129,7 +129,7 @@ export class TokenUsagesStatusBar {
         });
 
         // 创建提供商统计表格
-        md.appendMarkdown('| 提供商 | 输入 | 缓存 | 输出 | 总计 | 请求数 |\n');
+        md.appendMarkdown('| 提供商 | 输入Tokens | 缓存命中 | 输出Tokens | 消耗Tokens | 请求数 |\n');
         md.appendMarkdown('| :---- | ----: | ----: | ----: | ----: | ----: |\n');
 
         for (const stats of sortedProviders) {
@@ -156,9 +156,9 @@ export class TokenUsagesStatusBar {
             const recentRequests = await this.usagesManager.getRecentRecords(3); // 获取最近 3 条
 
             if (recentRequests.length > 0) {
-                md.appendMarkdown('\n---\n\n');
+                md.appendMarkdown('\n---\n最近的请求 Token 使用信息\n\n');
                 // 创建表格标题
-                md.appendMarkdown('| 提供商 | 请求时间 | 状态 | 输入 | 缓存 | 输出 |\n');
+                md.appendMarkdown('| 提供商 | 请求时间 | 状态 | 输入/预估 | 缓存命中 | 输出Tokens |\n');
                 md.appendMarkdown('| :---- | :----: | :----: | ----: | ----: | ----: |\n');
 
                 // 反转数组，让最近的请求在最下方显示

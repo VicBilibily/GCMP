@@ -267,7 +267,7 @@ function createProvidersTable(providers) {
     // 创建表头
     const thead = document.createElement('thead');
     const headerRow = document.createElement('tr');
-    const headers = ['提供商/模型', '输入', '缓存', '输出', '消耗量', '请求数'];
+    const headers = ['提供商/模型', '输入Tokens', '缓存命中', '输出Tokens', '消耗Tokens', '请求数'];
     headers.forEach(headerText => {
         const th = document.createElement('th');
         th.textContent = headerText;
@@ -391,7 +391,7 @@ function createHourlyTable(hourlyStats) {
     // 创建表头
     const thead = document.createElement('thead');
     const headerRow = document.createElement('tr');
-    const headers = ['时间', '输入', '缓存', '输出', '消耗量', '请求数'];
+    const headers = ['时间', '输入Tokens', '缓存命中', '输出Tokens', '消耗Tokens', '请求数'];
     headers.forEach(headerText => {
         const th = document.createElement('th');
         th.textContent = headerText;
@@ -469,7 +469,7 @@ function createRecordsTable(records, page) {
     // 创建表头
     const thead = document.createElement('thead');
     const headerRow = document.createElement('tr');
-    const headers = ['时间', '提供商', '模型', '输入', '缓存', '输出', '状态'];
+    const headers = ['时间', '提供商', '模型', '输入Tokens', '缓存命中', '输出Tokens', '状态'];
     headers.forEach(headerText => {
         const th = document.createElement('th');
         th.textContent = headerText;
