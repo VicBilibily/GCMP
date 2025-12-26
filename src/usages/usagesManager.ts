@@ -10,7 +10,7 @@ import { UsageParser, ExtendedTokenRequestLog } from './fileLogger/usageParser';
 import { DateUtils } from './fileLogger/dateUtils';
 import { EventEmitter } from 'events';
 import type { DailyStats, ProviderStats, ModelStats, UsagesHourlyStats, DateSummary } from './types';
-import { GenericUsageData, RawUsageData } from './fileLogger/types';
+import { GenericUsageData, RawUsageData, DateIndexEntry } from './fileLogger/types';
 
 /**
  * Token 用量管理器
@@ -218,8 +218,8 @@ export class TokenUsagesManager {
      * 获取今日统计数据
      */
     async getTodayStats(): Promise<DailyStats> {
-        const stats = await this.fileLogger.getTodayStats();
         const today = DateUtils.getTodayDateString();
+        const stats = await this.fileLogger.getDateStats(today);
         const result = this.convertToLegacyFormat(today, stats);
 
         StatusLogger.info(
@@ -293,14 +293,6 @@ export class TokenUsagesManager {
     }
 
     /**
-     * 获取今日按小时的统计数据
-     */
-    async getTodayHourlyStats(): Promise<UsagesHourlyStats[]> {
-        const today = DateUtils.getTodayDateString();
-        return this.getDateHourlyStats(today);
-    }
-
-    /**
      * 获取所有日期的统计摘要
      */
     async getAllDateSummaries(): Promise<DateSummary[]> {
@@ -308,7 +300,7 @@ export class TokenUsagesManager {
         const summariesMap = await this.fileLogger.getAllDateSummaries();
         const summaries: DateSummary[] = [];
 
-        for (const [date, entry] of Object.entries(summariesMap)) {
+        for (const [date, entry] of Object.entries(summariesMap) as [string, DateIndexEntry][]) {
             summaries.push({
                 date,
                 total_input: entry.total_input,

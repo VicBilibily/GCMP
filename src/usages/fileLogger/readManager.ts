@@ -1,6 +1,7 @@
 ﻿/*---------------------------------------------------------------------------------------------
- *  日志读取和统计管理器
- *  读取JSONL格式的日志文件,计算统计数据
+ *  日志读取管理器
+ *  读取JSONL格式的日志文件,负责所有文件 I/O 操作
+ *  统计计算逻辑已迁移到 StatsCalculator
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs/promises';
@@ -8,12 +9,13 @@ import * as fsSync from 'fs';
 import * as path from 'path';
 import { StatusLogger } from '../../utils/statusLogger';
 import { LogPathManager } from './pathManager';
-import { UsageParser } from './usageParser';
+import { DateUtils } from './dateUtils';
+import { StatsCalculator } from './statsCalculator';
 import type { TokenRequestLog, TokenUsageStatsFromFile } from './types';
 
 /**
  * 日志读取管理器
- * 读取JSONL文件并计算统计数据
+ * 只负责文件 I/O，统计计算委托给 StatsCalculator
  */
 export class LogReadManager {
     private readonly pathManager: LogPathManager;
@@ -27,7 +29,6 @@ export class LogReadManager {
      */
     private async readHourLogs(dateStr: string, hour: number): Promise<TokenRequestLog[]> {
         const filePath = this.pathManager.getHourFilePath(dateStr, hour);
-
         if (!fsSync.existsSync(filePath)) {
             return [];
         }
@@ -47,7 +48,6 @@ export class LogReadManager {
      */
     async readDateLogs(dateStr: string): Promise<TokenRequestLog[]> {
         const dateFolder = this.pathManager.getDateFolderPath(dateStr);
-
         if (!fsSync.existsSync(dateFolder)) {
             return [];
         }
@@ -55,7 +55,6 @@ export class LogReadManager {
         try {
             const files = await fs.readdir(dateFolder);
             const hourFiles = files.filter(f => f.endsWith('.jsonl')).sort();
-
             // 并行读取所有文件
             const readPromises = hourFiles.map(file => {
                 const filePath = path.join(dateFolder, file);
@@ -70,11 +69,9 @@ export class LogReadManager {
 
             const allLogsArrays = await Promise.all(readPromises);
             const allLogs: TokenRequestLog[] = [];
-
             for (const logs of allLogsArrays) {
                 allLogs.push(...logs);
             }
-
             return allLogs;
         } catch (err) {
             StatusLogger.error(`[LogReadManager] 读取日期日志失败: ${dateFolder}`, err);
@@ -88,52 +85,61 @@ export class LogReadManager {
      */
     async getRequestDetails(dateStr: string): Promise<TokenRequestLog[]> {
         const logs = await this.readDateLogs(dateStr);
-        const mergedMap = this.mergeLogsByRequestId(logs);
-
+        const mergedMap = StatsCalculator.mergeLogsByRequestId(logs);
         // 转换为数组并按时间戳倒序排序(最新的在前)
         const details = Array.from(mergedMap.values());
         details.sort((a, b) => b.timestamp - a.timestamp);
-
         return details;
     }
 
     /**
      * 获取最近的请求详情（性能优化版本）
-     * 仅读取最近 N 条请求，避免在有大量日志时加载整个日期的数据
+     * 只读取最近的 N 条请求，避免在有大量日志时加载整个日期的数据
      * 用于状态栏等需要快速响应的场景
+     * 优化策略：从最新的小时开始反向读取，找到足够的记录就停止
      */
     async getRecentRequestDetails(dateStr: string, limit: number = 100): Promise<TokenRequestLog[]> {
-        const logs = await this.readDateLogs(dateStr);
-        const mergedMap = this.mergeLogsByRequestId(logs);
+        const now = new Date();
+        const currentHour = now.getHours();
+        const today = this.pathManager.getTodayDateString();
+        const isToday = dateStr === today;
 
-        // 转换为数组并按时间戳倒序排序(最新的在前)
-        const details = Array.from(mergedMap.values());
-        details.sort((a, b) => b.timestamp - a.timestamp);
+        // 获取需要检查的小时范围
+        // 如果是今天，从当前小时开始；否则从 23 小时开始
+        const startHour = isToday ? currentHour : 23;
+        const logs: TokenRequestLog[] = [];
+        const dateFolder = this.pathManager.getDateFolderPath(dateStr);
+        if (!fsSync.existsSync(dateFolder)) {
+            return [];
+        }
 
-        // 只返回最近的 limit 条
-        return details.slice(0, limit);
-    }
+        try {
+            // 从最新的小时开始反向读取
+            for (let hour = startHour; hour >= 0 && logs.length < limit; hour--) {
+                const hourLogs = await this.readHourLogs(dateStr, hour);
+                if (hourLogs.length === 0) {
+                    continue;
+                }
 
-    /**
-     * 获取指定小时的请求详情列表
-     */
-    async getHourRequestDetails(dateStr: string, hour: number): Promise<TokenRequestLog[]> {
-        const logs = await this.readHourLogs(dateStr, hour);
-        const mergedMap = this.mergeLogsByRequestId(logs);
+                // 合并日志
+                const mergedMap = StatsCalculator.mergeLogsByRequestId(hourLogs);
+                const hourDetails = Array.from(mergedMap.values());
+                // 合并到结果中
+                logs.push(...hourDetails);
+                // 如果已经收集了足够多的记录，提前结束
+                if (logs.length >= limit) {
+                    break;
+                }
+            }
 
-        // 转换为数组并按时间戳倒序排序
-        const details = Array.from(mergedMap.values());
-        details.sort((a, b) => b.timestamp - a.timestamp);
-
-        return details;
-    }
-
-    /**
-     * 统计指定小时的数据
-     */
-    async calculateHourStats(dateStr: string, hour: number): Promise<TokenUsageStatsFromFile> {
-        const logs = await this.readHourLogs(dateStr, hour);
-        return this.aggregateLogs(logs);
+            // 按时间戳倒序排序（最新的在前）
+            logs.sort((a, b) => b.timestamp - a.timestamp);
+            // 只返回最近的 limit 条
+            return logs.slice(0, limit);
+        } catch (err) {
+            StatusLogger.error(`[LogReadManager] 获取最近请求详情失败: ${dateStr}`, err);
+            return [];
+        }
     }
 
     /**
@@ -141,7 +147,62 @@ export class LogReadManager {
      */
     async calculateDateStats(dateStr: string): Promise<TokenUsageStatsFromFile> {
         const logs = await this.readDateLogs(dateStr);
-        return this.aggregateLogs(logs);
+        return StatsCalculator.aggregateLogs(logs);
+    }
+
+    /**
+     * 一次性计算指定日期的小时和日期统计
+     * 优化：只读取一次日期的所有日志，然后分别计算小时和日期统计
+     * 支持增量更新：根据小时文件的修改时间戳判断是否需要重新计算
+     * 返回: [小时统计, 日期统计, 更新后的hourlyModified时间戳]
+     */
+    async calculateHourAndDateStats(
+        dateStr: string,
+        hour: number,
+        existingHourlyModified?: Record<string, number>
+    ): Promise<[TokenUsageStatsFromFile, TokenUsageStatsFromFile, Record<string, number>]> {
+        // 获取小时文件的修改时间戳
+        const hourKey = String(hour).padStart(2, '0');
+        const hourFileModified = await this.getHourFileModifiedTime(dateStr, hour);
+        const existingModified = existingHourlyModified?.[hourKey];
+
+        // 检查时间戳：如果一致，说明文件未改变，可以跳过此小时的计算
+        let hourStats: TokenUsageStatsFromFile;
+
+        if (existingModified !== undefined && existingModified === hourFileModified) {
+            // 时间戳一致，跳过计算，使用空统计
+            StatusLogger.debug(`[LogReadManager] 小时文件未改变，跳过计算: ${dateStr} ${hourKey}:00`);
+            hourStats = {
+                total: {
+                    estimatedInput: 0,
+                    actualInput: 0,
+                    cacheTokens: 0,
+                    outputTokens: 0,
+                    requests: 0,
+                    completedRequests: 0,
+                    failedRequests: 0
+                },
+                providers: {}
+            };
+        } else {
+            // 时间戳不一致或不存在，需要读取并计算
+            const logs = await this.readHourLogs(dateStr, hour);
+            hourStats = StatsCalculator.aggregateLogs(logs);
+        }
+
+        // 一次性读取整个日期的所有日志
+        const allDateLogs = await this.readDateLogs(dateStr);
+
+        // 计算日期统计
+        const dateStats = StatsCalculator.aggregateLogs(allDateLogs);
+
+        // 更新 hourlyModified 时间戳
+        const updatedHourlyModified = {
+            ...existingHourlyModified,
+            [hourKey]: hourFileModified
+        };
+
+        return [hourStats, dateStats, updatedHourlyModified];
     }
 
     /**
@@ -206,7 +267,7 @@ export class LogReadManager {
         const allDates = await this.getAllDates();
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-        const cutoffDateStr = this.formatDate(cutoffDate);
+        const cutoffDateStr = DateUtils.formatDate(cutoffDate);
 
         let deletedCount = 0;
 
@@ -229,154 +290,34 @@ export class LogReadManager {
     private parseJsonlContent(content: string): TokenRequestLog[] {
         const lines = content.split('\n').filter(line => line.trim());
         const logs: TokenRequestLog[] = [];
-
         for (const line of lines) {
             try {
                 const log = JSON.parse(line) as TokenRequestLog;
                 logs.push(log);
-            } catch (err) {
-                StatusLogger.warn('[LogReadManager] 解析日志行失败,跳过', err);
+            } catch {
+                // StatusLogger.warn('[LogReadManager] 解析日志行失败,跳过', err);
             }
         }
-
         return logs;
     }
 
     /**
-     * 合并同一requestId的多条流水记录,取最终状态
-     * 保留最后一条记录的状态（completed/failed），但使用第一条记录的时间戳（请求开始时间）
-     * @param logs 流水记录列表
-     * @returns 按requestId合并后的记录Map
+     * 获取小时日志文件的修改时间戳（毫秒）
+     * 如果文件不存在，返回 0
      */
-    private mergeLogsByRequestId(logs: TokenRequestLog[]): Map<string, TokenRequestLog> {
-        const mergedMap = new Map<string, TokenRequestLog>();
+    private async getHourFileModifiedTime(dateStr: string, hour: number): Promise<number> {
+        const filePath = this.pathManager.getHourFilePath(dateStr, hour);
 
-        for (const log of logs) {
-            const existing = mergedMap.get(log.requestId);
-
-            if (!existing) {
-                // 第一次遇到此requestId，记录初始时间戳
-                mergedMap.set(log.requestId, { ...log });
-            } else {
-                // 已存在，保留时间戳更早的（请求开始时间），但更新其他字段为最新状态
-                if (log.timestamp < existing.timestamp) {
-                    // 当前记录时间戳更早，更新时间戳但保留其他字段
-                    existing.timestamp = log.timestamp;
-                    existing.isoTime = log.isoTime;
-                }
-                // 无论时间戳如何，都更新为最新状态（completed/failed 和 rawUsage）
-                existing.status = log.status;
-                existing.rawUsage = log.rawUsage;
-            }
+        if (!fsSync.existsSync(filePath)) {
+            return 0;
         }
 
-        return mergedMap;
-    }
-
-    /**
-     * 聚合日志为统计数据
-     * 1. 先按requestId合并流水记录,取最终状态
-     * 2. 只统计成功(completed)的请求
-     * 3. 从 rawUsage 解析 token 统计
-     */
-    private aggregateLogs(logs: TokenRequestLog[]): TokenUsageStatsFromFile {
-        const stats: TokenUsageStatsFromFile = {
-            total: {
-                estimatedInput: 0,
-                actualInput: 0,
-                cacheTokens: 0,
-                outputTokens: 0,
-                requests: 0,
-                completedRequests: 0,
-                failedRequests: 0
-            },
-            providers: {}
-        };
-
-        // 1. 按requestId合并,取最终状态
-        const mergedMap = this.mergeLogsByRequestId(logs);
-        const finalLogs = Array.from(mergedMap.values());
-
-        // 2. 遍历合并后的日志
-        for (const log of finalLogs) {
-            // 统计所有请求的状态
-            stats.total.requests++;
-
-            if (log.status === 'completed') {
-                stats.total.completedRequests++;
-            } else if (log.status === 'failed') {
-                stats.total.failedRequests++;
-            }
-
-            // 只统计成功的请求到token用量
-            if (log.status !== 'completed' || !log.rawUsage) {
-                // 如果没有 rawUsage，使用预估的 input
-                if (log.status === 'completed') {
-                    stats.total.estimatedInput += log.estimatedInput;
-                    stats.total.actualInput += log.estimatedInput;
-                }
-                continue;
-            }
-
-            // 从 rawUsage 解析 token 统计
-            const parsed = UsageParser.parseFromLog(log);
-
-            // 更新总计(仅成功的请求)
-            stats.total.estimatedInput += log.estimatedInput;
-            stats.total.actualInput += parsed.actualInput;
-            stats.total.cacheTokens += parsed.cacheReadTokens;
-            stats.total.outputTokens += parsed.outputTokens;
-
-            // 按提供商聚合(仅成功的请求)
-            if (!stats.providers[log.providerKey]) {
-                stats.providers[log.providerKey] = {
-                    providerName: log.providerName,
-                    estimatedInput: 0,
-                    actualInput: 0,
-                    cacheTokens: 0,
-                    outputTokens: 0,
-                    requests: 0,
-                    models: {}
-                };
-            }
-
-            const providerStats = stats.providers[log.providerKey];
-            providerStats.estimatedInput += log.estimatedInput;
-            providerStats.actualInput += parsed.actualInput;
-            providerStats.cacheTokens += parsed.cacheReadTokens;
-            providerStats.outputTokens += parsed.outputTokens;
-            providerStats.requests++;
-
-            // 按模型聚合(仅成功的请求)
-            if (!providerStats.models[log.modelId]) {
-                providerStats.models[log.modelId] = {
-                    modelName: log.modelName,
-                    estimatedInput: 0,
-                    actualInput: 0,
-                    cacheTokens: 0,
-                    outputTokens: 0,
-                    requests: 0
-                };
-            }
-
-            const modelStats = providerStats.models[log.modelId];
-            modelStats.estimatedInput += log.estimatedInput;
-            modelStats.actualInput += parsed.actualInput;
-            modelStats.cacheTokens += parsed.cacheReadTokens;
-            modelStats.outputTokens += parsed.outputTokens;
-            modelStats.requests++;
+        try {
+            const stats = await fs.stat(filePath);
+            return stats.mtime.getTime();
+        } catch (err) {
+            StatusLogger.warn(`[LogReadManager] 获取文件修改时间失败: ${filePath}`, err);
+            return 0;
         }
-
-        return stats;
-    }
-
-    /**
-     * 格式化日期为 YYYY-MM-DD
-     */
-    private formatDate(date: Date): string {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
     }
 }

@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { TokenUsagesManager, ProviderStats } from '../usages/usagesManager';
+import { TokenUsagesManager } from '../usages/usagesManager';
 import { StatusLogger } from '../utils/statusLogger';
+import { ProviderStats } from '../usages/types';
 
 /**
  * Token 用量状态栏

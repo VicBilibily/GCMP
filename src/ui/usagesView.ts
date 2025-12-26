@@ -251,7 +251,6 @@ export class TokenUsagesView {
     private async updateDateDetails(date: string): Promise<void> {
         try {
             const today = this.getTodayDateString();
-            const isToday = date === today;
 
             // 从文件直接读取,不使用缓存
             const dateStats = await this.usagesManager.getDateStatsFromFile(date);
@@ -293,10 +292,6 @@ export class TokenUsagesView {
      */
     private async updatePageRecords(date: string, page: number): Promise<void> {
         try {
-            const today = this.getTodayDateString();
-            const isToday = date === today;
-            const isFirstPage = page === 1;
-
             // 更新当前页码和日期
             this.currentPage = page;
             this.currentSelectedDate = date;

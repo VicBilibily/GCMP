@@ -120,7 +120,8 @@ export class DailyStatsManager {
                     failedRequests: 0
                 },
                 providers: {},
-                hourly: {}
+                hourly: {},
+                hourlyModified: {}
             };
 
             if (fsSync.existsSync(filePath)) {
@@ -130,7 +131,8 @@ export class DailyStatsManager {
                     statsData = {
                         total: existing.total || statsData.total,
                         providers: existing.providers || statsData.providers,
-                        hourly: existing.hourly || statsData.hourly
+                        hourly: existing.hourly || statsData.hourly,
+                        hourlyModified: existing.hourlyModified || statsData.hourlyModified
                     };
                 } catch {
                     // 如果解析失败,使用空对象
@@ -147,6 +149,14 @@ export class DailyStatsManager {
             // 更新 daily 统计（保存完整的提供商和模型统计）
             statsData.total = dateStats.total;
             statsData.providers = dateStats.providers;
+
+            // 更新 hourlyModified 时间戳
+            if (dateStats.hourlyModified) {
+                if (!statsData.hourlyModified) {
+                    statsData.hourlyModified = {};
+                }
+                statsData.hourlyModified = dateStats.hourlyModified;
+            }
 
             // 写入文件
             await fs.writeFile(filePath, JSON.stringify(statsData, null, 2), 'utf-8');

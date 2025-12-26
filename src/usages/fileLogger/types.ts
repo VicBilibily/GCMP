@@ -138,6 +138,8 @@ export interface TokenUsageStatsFromFile {
     providers: Record<string, FileLoggerProviderStats>;
     /** 每小时合计 (仅日期统计包含此字段) */
     hourly?: Record<string, HourlyStats>;
+    /** 每小时日志文件的修改时间戳 (用于增量更新) */
+    hourlyModified?: Record<string, number>;
 }
 
 /**

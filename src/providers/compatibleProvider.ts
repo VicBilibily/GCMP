@@ -11,14 +11,8 @@ import {
     Progress
 } from 'vscode';
 import { ProviderConfig, ModelConfig, ModelOverride } from '../types/sharedTypes';
-import {
-    Logger,
-    ApiKeyManager,
-    CompatibleModelManager,
-    RetryManager,
-    ConfigManager,
-    TokenUsagesManager
-} from '../utils';
+import { Logger, ApiKeyManager, CompatibleModelManager, RetryManager, ConfigManager } from '../utils';
+import { TokenUsagesManager } from '../usages/usagesManager';
 import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status';
 import { KnownProviders } from '../utils';

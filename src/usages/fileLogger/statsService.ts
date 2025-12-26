@@ -54,21 +54,33 @@ export class StatsQueryService {
     /**
      * 获取小时统计
      * 优先从持久化文件读取，多实例通过监听 stats.json 来同步
+     * 优化：一次性计算小时和日期统计，避免重复读取日志
+     * 支持增量更新：根据小时文件修改时间戳判断是否需要重新计算
      */
     async getHourStats(dateStr: string, hour: number): Promise<TokenUsageStatsFromFile> {
-        // 尝试从持久化文件读取
+        // 一次读取：尝试获取已持久化的统计（包含hourlyModified）
         const saved = await this.dailyStatsManager.loadStats(dateStr, hour);
         if (saved) {
             StatusLogger.debug(`[StatsQueryService] 从缓存读取小时统计: ${dateStr} ${hour}:00`);
             return saved;
         }
 
-        // 从日志计算并保存
-        const hourStats = await this.readManager.calculateHourStats(dateStr, hour);
-        const dateStats = await this.readManager.calculateDateStats(dateStr);
+        // 读取日期统计以获取现有的 hourlyModified 时间戳
+        const dateStats = await this.dailyStatsManager.loadStats(dateStr);
+        const existingHourlyModified = dateStats?.hourlyModified;
+
+        // 一次性计算小时和日期统计（支持增量更新）
+        const [hourStats, newDateStats, updatedHourlyModified] = await this.readManager.calculateHourAndDateStats(
+            dateStr,
+            hour,
+            existingHourlyModified
+        );
+
+        // 更新日期统计中的 hourlyModified 和小时统计
+        newDateStats.hourlyModified = updatedHourlyModified;
 
         // 一次性保存小时和日期统计
-        await this.dailyStatsManager.saveHourAndDateStats(dateStr, hour, hourStats, dateStats);
+        await this.dailyStatsManager.saveHourAndDateStats(dateStr, hour, hourStats, newDateStats);
 
         return hourStats;
     }
@@ -95,14 +107,26 @@ export class StatsQueryService {
 
     /**
      * 刷新小时统计（重新计算并更新）
+     * 优化：一次性计算小时和日期统计，避免重复读取日志
+     * 支持增量更新：根据小时文件修改时间戳判断是否需要重新计算
      */
     async refreshHourStats(dateStr: string, hour: number): Promise<TokenUsageStatsFromFile> {
-        // 重新计算
-        const hourStats = await this.readManager.calculateHourStats(dateStr, hour);
-        const dateStats = await this.readManager.calculateDateStats(dateStr);
+        // 读取日期统计以获取现有的 hourlyModified 时间戳
+        const dateStats = await this.dailyStatsManager.loadStats(dateStr);
+        const existingHourlyModified = dateStats?.hourlyModified;
+
+        // 一次性计算小时和日期统计（支持增量更新）
+        const [hourStats, newDateStats, updatedHourlyModified] = await this.readManager.calculateHourAndDateStats(
+            dateStr,
+            hour,
+            existingHourlyModified
+        );
+
+        // 更新日期统计中的 hourlyModified 和小时统计
+        newDateStats.hourlyModified = updatedHourlyModified;
 
         // 保存
-        await this.dailyStatsManager.saveHourAndDateStats(dateStr, hour, hourStats, dateStats);
+        await this.dailyStatsManager.saveHourAndDateStats(dateStr, hour, hourStats, newDateStats);
 
         return hourStats;
     }

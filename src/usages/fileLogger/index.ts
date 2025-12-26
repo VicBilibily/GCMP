@@ -221,7 +221,7 @@ export class TokenFileLogger {
      */
     async getTodayStats(): Promise<TokenUsageStatsFromFile> {
         const dateStr = this.pathManager.getTodayDateString();
-        return this.getDateStats(dateStr);
+        return this.statsService.getDateStats(dateStr);
     }
 
     /**
@@ -262,23 +262,6 @@ export class TokenFileLogger {
      */
     async getHourStats(dateStr: string, hour: number): Promise<TokenUsageStatsFromFile> {
         return this.statsService.getHourStats(dateStr, hour);
-    }
-
-    /**
-     * 获取所有日期列表
-     */
-    async getAllDates(): Promise<string[]> {
-        return this.readManager.getAllDates();
-    }
-
-    /**
-     * 获取所有日期的摘要信息
-     * 用于日期列表显示，避免加载完整的 stats.json
-     */
-    async getAllDateSummaries(): Promise<
-        Record<string, { total_input: number; total_cache: number; total_output: number; total_requests: number }>
-    > {
-        return this.dailyStatsManager.getAllDateSummaries();
     }
 
     /**
@@ -366,6 +349,16 @@ export class TokenFileLogger {
      */
     getPendingLogs(): TokenRequestLog[] {
         return Array.from(this.pendingLogs.values());
+    }
+
+    /**
+     * 获取所有日期的摘要信息
+     * 用于日期列表显示，避免加载完整的 stats.json
+     */
+    async getAllDateSummaries(): Promise<
+        Record<string, { total_input: number; total_cache: number; total_output: number; total_requests: number }>
+    > {
+        return this.dailyStatsManager.getAllDateSummaries();
     }
 
     // ==================== 清理操作 ====================
@@ -484,3 +477,6 @@ export class TokenFileLogger {
 
 // 导出类型
 export type { TokenRequestLog, TokenUsageStatsFromFile } from './types';
+
+// 导出统计计算器
+export { StatsCalculator } from './statsCalculator';
