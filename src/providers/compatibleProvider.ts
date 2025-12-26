@@ -516,6 +516,7 @@ export class CompatibleProvider extends GenericModelProvider {
             ),
             max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
             stream: true,
+            stream_options: { include_usage: true },
             temperature: ConfigManager.getTemperature(),
             top_p: ConfigManager.getTopP()
         };
