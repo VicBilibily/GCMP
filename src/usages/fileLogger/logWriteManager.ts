@@ -6,7 +6,7 @@
 
 import * as fs from 'fs/promises';
 import { StatusLogger } from '../../utils/statusLogger';
-import { LogPathManager } from './pathManager';
+import { LogPathManager } from './logPathManager';
 import type { TokenRequestLog } from './types';
 
 /**

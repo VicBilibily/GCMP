@@ -125,7 +125,10 @@ export interface FileLoggerProviderStats extends BaseStats {
  * 每小时统计（用于 hourly）
  * 直接保存 total 的结构，不嵌套
  */
-export type HourlyStats = TokenStats;
+export interface HourlyStats extends TokenStats {
+    /** 日志文件修改时间戳 (用于缓存验证) */
+    modifiedTime: number;
+}
 
 /**
  * 统计结果(从文件读取后计算)

@@ -76,31 +76,10 @@ export class LogPathManager {
     }
 
     /**
-     * 获取今日的日期字符串
-     */
-    getTodayDateString(): string {
-        return DateUtils.getTodayDateString();
-    }
-
-    /**
-     * 获取昨日的日期字符串
-     */
-    getYesterdayDateString(): string {
-        return DateUtils.getYesterdayDateString();
-    }
-
-    /**
      * 获取基础目录路径
      */
     getBaseDir(): string {
         return this.baseDir;
-    }
-
-    /**
-     * 从日期字符串解析出日期范围(开始和结束时间戳)
-     */
-    parseDateRange(dateStr: string): { start: number; end: number } {
-        return DateUtils.parseDateRange(dateStr);
     }
 
     /**

@@ -267,26 +267,30 @@ export class TokenUsagesManager {
             return hourlyList;
         }
 
-        // 如果没有持久化的统计文件，逐个计算小时统计
-        for (let hour = 0; hour < 24; hour++) {
-            try {
-                const stats = await this.fileLogger.getHourStats(date, hour);
+        // 如果没有持久化的统计文件，使用 calculateStats 一次性计算所有小时
+        try {
+            const stats = await this.fileLogger.calculateStats(date);
 
-                // 只添加有数据的小时
-                if (stats.total.requests > 0) {
-                    const hourStr = `${date}-${String(hour).padStart(2, '0')}`;
-                    hourlyList.push({
-                        hour: hourStr,
-                        totalInputTokens: stats.total.actualInput,
-                        totalCacheReadTokens: stats.total.cacheTokens,
-                        totalOutputTokens: stats.total.outputTokens,
-                        totalRequests: stats.total.requests,
-                        lastUpdated: Date.now()
-                    });
+            if (stats.hourly) {
+                for (const [hourKey, hourData] of Object.entries(stats.hourly)) {
+                    if (hourData.requests > 0) {
+                        const hourStr = `${date}-${hourKey}`;
+                        hourlyList.push({
+                            hour: hourStr,
+                            totalInputTokens: hourData.actualInput,
+                            totalCacheReadTokens: hourData.cacheTokens,
+                            totalOutputTokens: hourData.outputTokens,
+                            totalRequests: hourData.requests,
+                            lastUpdated: Date.now()
+                        });
+                    }
                 }
-            } catch {
-                // 忽略错误,继续下一个小时
             }
+
+            // 按时间排序
+            hourlyList.sort((a, b) => a.hour.localeCompare(b.hour));
+        } catch (err) {
+            // 忽略错误
         }
 
         return hourlyList;

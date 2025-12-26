@@ -38,14 +38,14 @@ export class TokenUsagesStatusBar {
         await this.updateDisplay();
         this.statusBarItem.show();
 
-        // 监听文件日志系统的统计更新事件（实时监听日志文件变化）
+        // 监听文件日志系统的统计更新事件
         const fileLogger = this.usagesManager.getFileLogger();
         this.updateDisposable = fileLogger.onStatsUpdate(async () => {
             await this.updateDisplay();
         });
 
         this.context.subscriptions.push(this.statusBarItem);
-        StatusLogger.debug('[Token统计状态栏] 初始化完成（已启用实时文件监听）');
+        StatusLogger.debug('[Token统计状态栏] 初始化完成');
     }
 
     /**

@@ -3,7 +3,7 @@ const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
 const isWatch = process.argv.includes('--watch');
-const isDev = process.argv.includes('--dev');
+// const isDev = process.argv.includes('--dev');
 
 // postinstall.ts 中的资源复制逻辑
 const treeSitterGrammars = [
@@ -149,7 +149,7 @@ const commonOptions = {
     external: ['vscode'],
     format: 'cjs',
     platform: 'node',
-    sourcemap: isDev,
+    sourcemap: true, // isDev,
     // 不再使用 minify，因为会破坏某些代码
     minify: false, // !isDev,
     // 使用 mainFields 优先选择 ESM 模块格式

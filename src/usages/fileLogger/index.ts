@@ -1,15 +1,17 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Token文件日志系统 - 主管理器
  *  整合路径管理、写入管理、读取管理、统计管理
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
 import { StatusLogger } from '../../utils/statusLogger';
-import { LogPathManager } from './pathManager';
-import { LogWriteManager } from './writeManager';
-import { LogReadManager } from './readManager';
-import { DailyStatsManager } from './dailyStatsManager';
-import { StatsQueryService } from './statsService';
+import { LogPathManager } from './logPathManager';
+import { LogWriteManager } from './logWriteManager';
+import { LogReadManager } from './logReadManager';
+import { LogCleanupManager } from './logCleanupManager';
+import { LogIndexManager } from './logIndexManager';
+import { LogStatsManager } from './logStatsManager';
+import { DateUtils } from './dateUtils';
 import { EventEmitter } from 'events';
 import type { TokenRequestLog, TokenUsageStatsFromFile } from './types';
 
@@ -21,8 +23,9 @@ export class TokenFileLogger {
     private readonly pathManager: LogPathManager;
     private readonly writeManager: LogWriteManager;
     private readonly readManager: LogReadManager;
-    private readonly dailyStatsManager: DailyStatsManager;
-    private readonly statsService: StatsQueryService;
+    private readonly cleanupManager: LogCleanupManager;
+    private readonly indexManager: LogIndexManager;
+    private readonly logStatsManager: LogStatsManager;
     private readonly eventEmitter: EventEmitter;
 
     // 内存中的待更新日志(requestId -> log)
@@ -34,16 +37,14 @@ export class TokenFileLogger {
     private readonly pendingLogsCleanupInterval: number = 60 * 1000; // 1分钟检查一次
 
     constructor(private context: vscode.ExtensionContext) {
-        // 使用 globalStorageUri 而非 logUri,确保日志不会被清理
         const storageDir = context.globalStorageUri.fsPath;
 
         this.pathManager = new LogPathManager(storageDir);
         this.writeManager = new LogWriteManager(this.pathManager);
         this.readManager = new LogReadManager(this.pathManager);
-        this.dailyStatsManager = new DailyStatsManager(storageDir);
-        this.statsService = new StatsQueryService(this.readManager, this.dailyStatsManager, () =>
-            this.pathManager.getTodayDateString()
-        );
+        this.cleanupManager = new LogCleanupManager(this.pathManager);
+        this.indexManager = new LogIndexManager(storageDir);
+        this.logStatsManager = new LogStatsManager(this.readManager, storageDir, this.indexManager);
         this.eventEmitter = new EventEmitter();
     }
 
@@ -202,7 +203,7 @@ export class TokenFileLogger {
         // 从内存移除
         this.pendingLogs.delete(params.requestId);
 
-        // 只有当前实例在请求完成时立即计算统计（不等待文件监听）
+        // 只有当前实例在请求完成时立即计算统计
         // 这样可以避免多实例同时计算的问题
         await this.refreshCurrentHourStats();
 
@@ -220,8 +221,8 @@ export class TokenFileLogger {
      * 获取今日统计（使用缓存）
      */
     async getTodayStats(): Promise<TokenUsageStatsFromFile> {
-        const dateStr = this.pathManager.getTodayDateString();
-        return this.statsService.getDateStats(dateStr);
+        const dateStr = DateUtils.getTodayDateString();
+        return this.logStatsManager.getDateStats(dateStr);
     }
 
     /**
@@ -229,7 +230,7 @@ export class TokenFileLogger {
      * 优先从缓存读取
      */
     async getDateStats(dateStr: string): Promise<TokenUsageStatsFromFile> {
-        return this.statsService.getDateStats(dateStr);
+        return this.logStatsManager.getDateStats(dateStr);
     }
 
     /**
@@ -237,7 +238,7 @@ export class TokenFileLogger {
      * 适用于详情界面,确保显示最新的准确数据
      */
     async getDateStatsFromFile(dateStr: string): Promise<TokenUsageStatsFromFile> {
-        return this.statsService.getDateStats(dateStr, true);
+        return this.logStatsManager.getDateStats(dateStr, true);
     }
 
     /**
@@ -245,7 +246,7 @@ export class TokenFileLogger {
      */
     async getAllHourStats(dateStr: string): Promise<TokenUsageStatsFromFile | null> {
         // 尝试从持久化的统计文件读取完整的日期统计（包含所有小时）
-        const saved = await this.dailyStatsManager.loadStats(dateStr);
+        const saved = await this.logStatsManager.loadStats(dateStr);
         if (saved && saved.hourly && Object.keys(saved.hourly).length > 0) {
             StatusLogger.debug(
                 `[TokenFileLogger] 从缓存读取所有小时统计: ${dateStr}, 小时数=${Object.keys(saved.hourly).length}`
@@ -258,10 +259,12 @@ export class TokenFileLogger {
     }
 
     /**
-     * 获取指定小时的统计
+     * 计算指定日期的统计（包含小时统计和日期统计）
+     * 支持增量更新：根据小时文件的修改时间戳判断是否需要重新计算
+     * 自动遍历所有小时文件，只重新计算已改变的小时
      */
-    async getHourStats(dateStr: string, hour: number): Promise<TokenUsageStatsFromFile> {
-        return this.statsService.getHourStats(dateStr, hour);
+    async calculateStats(dateStr: string, existingStats?: TokenUsageStatsFromFile): Promise<TokenUsageStatsFromFile> {
+        return this.logStatsManager.calculateStats(dateStr, existingStats);
     }
 
     /**
@@ -273,8 +276,7 @@ export class TokenFileLogger {
 
         try {
             // 获取所有需要重新生成的日期列表
-            const outdatedDates = await this.dailyStatsManager.getOutdatedDates();
-
+            const outdatedDates = await this.logStatsManager.getOutdatedDates();
             if (outdatedDates.length === 0) {
                 StatusLogger.info('[TokenFileLogger] 所有统计数据都是最新的，无需重新生成');
                 return;
@@ -283,14 +285,12 @@ export class TokenFileLogger {
             StatusLogger.info(`[TokenFileLogger] 发现 ${outdatedDates.length} 个日期的统计数据需要重新生成`);
 
             let regeneratedCount = 0;
-
             for (const dateStr of outdatedDates) {
                 try {
                     // 重新计算该日期的统计数据
-                    const stats = await this.readManager.calculateDateStats(dateStr);
-
+                    const stats = await this.logStatsManager.calculateDateStats(dateStr);
                     // 保存统计数据
-                    await this.dailyStatsManager.saveDateStats(dateStr, stats);
+                    await this.logStatsManager.saveDateStats(dateStr, stats);
 
                     regeneratedCount++;
                     StatusLogger.debug(`[TokenFileLogger] 已重新生成日期 ${dateStr} 的统计数据`);
@@ -307,16 +307,6 @@ export class TokenFileLogger {
         } catch (err) {
             StatusLogger.error('[TokenFileLogger] 检查并重新生成过期统计数据失败:', err);
         }
-    }
-
-    /**
-     * 计算并保存指定日期的统计
-     * 用于主动归档历史统计
-     */
-    async calculateAndSaveDailyStats(dateStr: string): Promise<void> {
-        const stats = await this.readManager.calculateDateStats(dateStr);
-        await this.dailyStatsManager.saveDateStats(dateStr, stats);
-        StatusLogger.info(`[TokenFileLogger] 已计算并保存每日统计: ${dateStr}`);
     }
 
     /**
@@ -358,7 +348,7 @@ export class TokenFileLogger {
     async getAllDateSummaries(): Promise<
         Record<string, { total_input: number; total_cache: number; total_output: number; total_requests: number }>
     > {
-        return this.dailyStatsManager.getAllDateSummaries();
+        return this.logStatsManager.getAllDateSummaries();
     }
 
     // ==================== 清理操作 ====================
@@ -367,8 +357,8 @@ export class TokenFileLogger {
      * 删除指定日期的所有日志和统计
      */
     async deleteDateLogs(dateStr: string): Promise<void> {
-        await this.readManager.deleteDateLogs(dateStr);
-        await this.dailyStatsManager.deleteDailyStats(dateStr);
+        await this.cleanupManager.deleteDateLogs(dateStr);
+        await this.logStatsManager.deleteDailyStats(dateStr);
 
         StatusLogger.info(`[TokenFileLogger] 已删除日期日志和统计: ${dateStr}`);
     }
@@ -377,11 +367,9 @@ export class TokenFileLogger {
      * 清理过期日志和统计(保留最近N天)
      */
     async cleanupExpiredLogs(retentionDays: number): Promise<number> {
-        const deletedCount = await this.readManager.cleanupExpiredLogs(retentionDays);
-
+        const deletedCount = await this.cleanupManager.cleanupExpiredLogs(retentionDays);
         // 清理过期统计
-        await this.dailyStatsManager.cleanupExpiredStats(retentionDays);
-
+        await this.logStatsManager.cleanupExpiredStats(retentionDays);
         return deletedCount;
     }
 
@@ -457,18 +445,22 @@ export class TokenFileLogger {
      * 确保统计是最新的，缓存由上层调用者(usagesStatusBar)维护
      */
     private async refreshCurrentHourStats(): Promise<void> {
-        const now = new Date();
-        const dateStr = this.pathManager.getTodayDateString();
-        const hour = now.getHours();
+        const dateStr = DateUtils.getTodayDateString();
 
         try {
             // 等待写入队列完成
             await this.writeManager.flush();
 
-            // 使用 StatsQueryService 刷新统计
-            await this.statsService.refreshHourStats(dateStr, hour);
+            // 读取现有统计
+            const existingStats = await this.logStatsManager.loadStats(dateStr);
 
-            StatusLogger.debug(`[TokenFileLogger] 已刷新小时统计: ${dateStr} ${hour}:00`);
+            // 计算统计（支持增量更新）
+            const stats = await this.logStatsManager.calculateStats(dateStr, existingStats || undefined);
+
+            // 保存统计
+            await this.logStatsManager.saveDateStats(dateStr, stats);
+
+            StatusLogger.debug(`[TokenFileLogger] 已刷新小时统计: ${dateStr}`);
         } catch (err) {
             StatusLogger.warn('[TokenFileLogger] 刷新统计失败:', err);
         }
