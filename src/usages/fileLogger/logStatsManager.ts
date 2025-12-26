@@ -14,7 +14,6 @@ import * as path from 'path';
 import { StatusLogger } from '../../utils/statusLogger';
 import { LogReadManager } from './logReadManager';
 import { LogIndexManager } from './logIndexManager';
-import { DateUtils } from './dateUtils';
 import { StatsCalculator } from './statsCalculator';
 import type {
     TokenUsageStatsFromFile,
@@ -197,10 +196,8 @@ export class LogStatsManager {
         // 进行增量差分计算（仅重算改变的小时，从小时缓存聚合日期统计）
         StatusLogger.debug(`[LogStatsManager] 增量计算统计: ${dateStr}`);
         const stats = await this.calculateDateStats(dateStr);
-
         // 保存到持久化文件
         await this.saveDateStats(dateStr, stats);
-
         return stats;
     }
 
@@ -299,14 +296,6 @@ export class LogStatsManager {
     }
 
     /**
-     * 检查每日统计是否存在
-     */
-    async hasDailyStats(dateStr: string): Promise<boolean> {
-        const filePath = this.getStatsFilePath(dateStr);
-        return fsSync.existsSync(filePath);
-    }
-
-    /**
      * 获取所有日期的摘要信息（从索引文件读取）
      */
     async getAllDateSummaries(): Promise<Record<string, DateIndexEntry>> {
@@ -363,62 +352,10 @@ export class LogStatsManager {
     }
 
     /**
-     * 删除指定日期的统计
-     */
-    async deleteDailyStats(dateStr: string): Promise<void> {
-        const filePath = this.getStatsFilePath(dateStr);
-
-        if (!fsSync.existsSync(filePath)) {
-            return;
-        }
-
-        try {
-            await fs.unlink(filePath);
-            // 从索引中删除
-            await this.indexManager.removeDate(dateStr);
-            StatusLogger.info(`[LogStatsManager] 已删除每日统计: ${dateStr}`);
-        } catch (err) {
-            StatusLogger.error(`[LogStatsManager] 删除每日统计失败: ${dateStr}`, err);
-            throw err;
-        }
-    }
-
-    /**
-     * 清理过期统计
-     */
-    async cleanupExpiredStats(retentionDays: number): Promise<number> {
-        if (retentionDays === 0) {
-            return 0; // 永久保留
-        }
-
-        const allDates = await this.indexManager.getAllStatsDates();
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-        const cutoffDateStr = DateUtils.formatDate(cutoffDate);
-
-        let deletedCount = 0;
-
-        for (const dateStr of allDates) {
-            if (dateStr < cutoffDateStr) {
-                await this.deleteDailyStats(dateStr);
-                deletedCount++;
-            }
-        }
-
-        // 清理过期数据后，更新索引文件
-        if (deletedCount > 0) {
-            await this.indexManager.rebuildIndex(dateStr => this.loadStats(dateStr));
-        }
-
-        return deletedCount;
-    }
-
-    /**
      * 检查指定日期的 stats.json 是否需要更新
      */
-    async needsRegeneration(dateStr: string): Promise<boolean> {
+    private async needsRegeneration(dateStr: string): Promise<boolean> {
         const statsFilePath = this.getStatsFilePath(dateStr);
-
         // 如果 stats.json 不存在，需要生成
         if (!fsSync.existsSync(statsFilePath)) {
             return true;
@@ -431,7 +368,6 @@ export class LogStatsManager {
 
             // 获取日期文件夹路径
             const dateFolder = path.join(this.baseDir, dateStr);
-
             // 检查日期文件夹是否存在
             if (!fsSync.existsSync(dateFolder)) {
                 return false;
@@ -440,7 +376,6 @@ export class LogStatsManager {
             // 读取日期文件夹中的所有文件
             const files = await fs.readdir(dateFolder);
             const logFiles = files.filter(f => f.endsWith('.jsonl'));
-
             // 检查是否有任何日志文件的修改时间晚于 stats.json
             for (const logFile of logFiles) {
                 const logFilePath = path.join(dateFolder, logFile);

@@ -120,19 +120,16 @@ export class TokenUsagesStatusBar {
         }
 
         // ========== 今日用量表格 ==========
-        md.appendMarkdown(`**今日 Token 消耗统计** (${date})\n\n`);
-
+        md.appendMarkdown(`**今日 Token 消耗统计** (${date})\n\n---\n\n`);
         // 按提供商统计（按总 token 排序）
         const sortedProviders = providers.sort((a, b) => {
             const totalA = a.totalInputTokens + a.totalOutputTokens;
             const totalB = b.totalInputTokens + b.totalOutputTokens;
             return totalB - totalA;
         });
-
         // 创建提供商统计表格
-        md.appendMarkdown('| 提供商 | 输入Tokens | 缓存命中 | 输出Tokens | 消耗Tokens | 请求数 |\n');
-        md.appendMarkdown('| :---- | ----: | ----: | ----: | ----: | ----: |\n');
-
+        md.appendMarkdown('| 提供商        |     输入 |    缓存 |    输出 |    消耗 | 请求数 |\n');
+        md.appendMarkdown('| :------------ | ------: | ------: | ------: | ------: | ----: |\n');
         for (const stats of sortedProviders) {
             const providerTotal = stats.totalInputTokens + stats.totalOutputTokens;
             md.appendMarkdown(
@@ -142,7 +139,6 @@ export class TokenUsagesStatusBar {
                     `${this.formatTokens(providerTotal)} | ${stats.totalRequests} |\n`
             );
         }
-
         // 合计行
         const total = totalInput + totalOutput;
         md.appendMarkdown(
@@ -157,10 +153,10 @@ export class TokenUsagesStatusBar {
             const recentRequests = await this.usagesManager.getRecentRecords(3); // 获取最近 3 条
 
             if (recentRequests.length > 0) {
-                md.appendMarkdown('\n---\n**最近的请求 Token 使用信息**\n\n');
+                md.appendMarkdown('\n---\n\n\n');
                 // 创建表格标题
-                md.appendMarkdown('| 提供商 | 请求时间 | 状态 | 输入/预估 | 缓存命中 | 输出Tokens |\n');
-                md.appendMarkdown('| :---- | :----: | :----: | ----: | ----: | ----: |\n');
+                md.appendMarkdown('| 提供商         | 请求时间 |  状态  | 输入/预估 |    缓存 |    输出 |\n');
+                md.appendMarkdown('| :------------ | :------: | :----: | ------: | ------: | ------: |\n');
 
                 // 反转数组，让最近的请求在最下方显示
                 const reversedRequests = [...recentRequests].reverse();
@@ -186,7 +182,6 @@ export class TokenUsagesStatusBar {
                     let inputStr: string;
                     let cacheStr: string;
                     let outputStr: string;
-
                     if (req.status === 'completed' && req.rawUsage) {
                         // 真正完成状态：显示实际值
                         inputStr = this.formatTokens(actualInput);

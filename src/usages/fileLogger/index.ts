@@ -42,8 +42,8 @@ export class TokenFileLogger {
         this.pathManager = new LogPathManager(storageDir);
         this.writeManager = new LogWriteManager(this.pathManager);
         this.readManager = new LogReadManager(this.pathManager);
-        this.cleanupManager = new LogCleanupManager(this.pathManager);
         this.indexManager = new LogIndexManager(storageDir);
+        this.cleanupManager = new LogCleanupManager(this.pathManager, this.indexManager);
         this.logStatsManager = new LogStatsManager(this.readManager, storageDir, this.indexManager);
         this.eventEmitter = new EventEmitter();
     }
@@ -345,23 +345,10 @@ export class TokenFileLogger {
     // ==================== 清理操作 ====================
 
     /**
-     * 删除指定日期的所有日志和统计
-     */
-    async deleteDateLogs(dateStr: string): Promise<void> {
-        await this.cleanupManager.deleteDateLogs(dateStr);
-        await this.logStatsManager.deleteDailyStats(dateStr);
-
-        StatusLogger.info(`[TokenFileLogger] 已删除日期日志和统计: ${dateStr}`);
-    }
-
-    /**
      * 清理过期日志和统计(保留最近N天)
      */
     async cleanupExpiredLogs(retentionDays: number): Promise<number> {
-        const deletedCount = await this.cleanupManager.cleanupExpiredLogs(retentionDays);
-        // 清理过期统计
-        await this.logStatsManager.cleanupExpiredStats(retentionDays);
-        return deletedCount;
+        return this.cleanupManager.cleanupExpiredLogs(retentionDays);
     }
 
     // ==================== 管理操作 ====================

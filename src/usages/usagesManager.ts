@@ -63,10 +63,9 @@ export class TokenUsagesManager {
             try {
                 const config = vscode.workspace.getConfiguration('gcmp.usages');
                 const retentionDays = config.get<number>('retentionDays', 100);
-
                 if (retentionDays > 0) {
                     StatusLogger.trace(`[UsagesManager] 开始后台清理过期数据 (保留 ${retentionDays} 天)`);
-                    const deletedCount = await this.cleanExpiredData(retentionDays);
+                    const deletedCount = await this.fileLogger.cleanupExpiredLogs(retentionDays);
                     if (deletedCount > 0) {
                         StatusLogger.info(`[UsagesManager] 后台清理完成: 删除了 ${deletedCount} 个过期日期的数据`);
                     } else {
@@ -317,28 +316,21 @@ export class TokenUsagesManager {
      */
     async getRecentRecords(limit: number = 100): Promise<ExtendedTokenRequestLog[]> {
         const today = DateUtils.getTodayDateString();
-
         // 使用性能优化版本，只读取最近 limit*2 条（以防过滤后不足）
         const details = await this.fileLogger.getRecentRequestDetails(today, limit * 2);
-
         // 获取内存中的 pending 日志（还未完成的请求）
         const pendingLogs = this.fileLogger.getPendingLogs();
-
         // 创建一个 pending requestId 的集合，用于快速查找
         const pendingRequestIds = new Set(pendingLogs.map(log => log.requestId));
-
         // 过滤文件中的日志：只保留那些不在 pending 中的（已完成的）
         const completedRequests = details.filter(log => !pendingRequestIds.has(log.requestId));
-
         // 合并完成的请求和仍在进行中的 pending 请求
         const allLogs = [...completedRequests, ...pendingLogs];
-
         // 按时间戳倒序排序（最新的在前）
         allLogs.sort((a, b) => b.timestamp - a.timestamp);
 
         // 扩展记录，添加便捷访问方法
         const extended = UsageParser.extendLogs(allLogs);
-
         // 返回最近的 N 条记录
         return extended.slice(0, limit);
     }
@@ -349,23 +341,6 @@ export class TokenUsagesManager {
     async getDateRecords(date: string): Promise<ExtendedTokenRequestLog[]> {
         const details = await this.fileLogger.getRequestDetails(date);
         return UsageParser.extendLogs(details);
-    }
-
-    /**
-     * 清理过期数据（保留最近 N 天）
-     */
-    async cleanExpiredData(retentionDays: number = 90): Promise<number> {
-        if (retentionDays === 0) {
-            return 0; // 永久保留
-        }
-
-        const deletedCount = await this.fileLogger.cleanupExpiredLogs(retentionDays);
-
-        if (deletedCount > 0) {
-            StatusLogger.info(`[Usages] 清理了 ${deletedCount} 个过期日期的数据 (${retentionDays}天前)`);
-        }
-
-        return deletedCount;
     }
 
     /**

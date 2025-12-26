@@ -7,6 +7,7 @@ import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import { StatusLogger } from '../../utils/statusLogger';
 import { LogPathManager } from './logPathManager';
+import { LogIndexManager } from './logIndexManager';
 import { DateUtils } from './dateUtils';
 
 /**
@@ -15,8 +16,10 @@ import { DateUtils } from './dateUtils';
  */
 export class LogCleanupManager {
     private readonly pathManager: LogPathManager;
-    constructor(pathManager: LogPathManager) {
+    private readonly indexManager: LogIndexManager;
+    constructor(pathManager: LogPathManager, indexManager: LogIndexManager) {
         this.pathManager = pathManager;
+        this.indexManager = indexManager;
     }
 
     /**
@@ -58,10 +61,13 @@ export class LogCleanupManager {
             // 删除整个文件夹
             await fs.rm(dateFolder, { recursive: true, force: true });
 
-            StatusLogger.info(`[LogCleanupManager] 已删除日期日志: ${dateStr} (${count} 个文件)`);
+            // 从索引中删除该日期
+            await this.indexManager.removeDate(dateStr);
+
+            StatusLogger.info(`[LogCleanupManager] 已删除过期记录: ${dateStr} (${count} 个文件)`);
             return count;
         } catch (err) {
-            StatusLogger.error(`[LogCleanupManager] 删除日期日志失败: ${dateStr}`, err);
+            StatusLogger.error(`[LogCleanupManager] 删除过期记录失败: ${dateStr}`, err);
             throw err;
         }
     }
