@@ -257,9 +257,9 @@ export class TokenUsagesManager {
             return hourlyList;
         }
 
-        // 如果没有持久化的统计文件，使用 calculateDateStats 一次性计算所有小时
+        // 如果没有持久化的统计文件，使用 getDateStats 一次性计算所有小时
         try {
-            const stats = await this.fileLogger.calculateDateStats(date);
+            const stats = await this.fileLogger.getDateStats(date);
 
             if (stats.hourly) {
                 for (const [hourKey, hourData] of Object.entries(stats.hourly)) {
@@ -291,7 +291,7 @@ export class TokenUsagesManager {
      */
     async getAllDateSummaries(): Promise<DateSummary[]> {
         // 使用索引文件快速获取所有日期的摘要
-        const summariesMap = await this.fileLogger.getAllDateSummaries();
+        const summariesMap = await this.fileLogger.getIndex();
         const summaries: DateSummary[] = [];
 
         for (const [date, entry] of Object.entries(summariesMap) as [string, DateIndexEntry][]) {

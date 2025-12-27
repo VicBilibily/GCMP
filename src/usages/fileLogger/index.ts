@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Token文件日志系统 - 主管理器
  *  整合路径管理、写入管理、读取管理、统计管理
  *--------------------------------------------------------------------------------------------*/
@@ -13,7 +13,7 @@ import { LogIndexManager } from './logIndexManager';
 import { LogStatsManager } from './logStatsManager';
 import { DateUtils } from './dateUtils';
 import { EventEmitter } from 'events';
-import type { TokenRequestLog, TokenUsageStatsFromFile } from './types';
+import type { DateIndexEntry, TokenRequestLog, TokenUsageStatsFromFile } from './types';
 
 /**
  * Token文件日志管理器
@@ -86,7 +86,6 @@ export class TokenFileLogger {
     private cleanupExpiredPendingLogs(): void {
         const now = Date.now();
         const expiredKeys: string[] = [];
-
         for (const [requestId, log] of this.pendingLogs.entries()) {
             const age = now - log.timestamp;
             if (age > this.pendingLogsTTL) {
@@ -182,7 +181,6 @@ export class TokenFileLogger {
         const now = Date.now();
         const originalTimestamp = pendingLog.timestamp;
         const isSameTime = now === originalTimestamp;
-
         if (isSameTime) {
             // 同一毫秒内，+1ms保持顺序
             pendingLog.timestamp = originalTimestamp + 1;
@@ -205,7 +203,7 @@ export class TokenFileLogger {
 
         // 只有当前实例在请求完成时立即计算统计
         // 这样可以避免多实例同时计算的问题
-        await this.refreshCurrentHourStats();
+        await this.refreshCurrentStats();
 
         // 通知本实例的监听者
         this.notifyUpdate();
@@ -218,7 +216,7 @@ export class TokenFileLogger {
     // ==================== 读取和统计操作 ====================
 
     /**
-     * 获取今日统计（使用缓存）
+     * 获取今日统计
      */
     async getTodayStats(): Promise<TokenUsageStatsFromFile> {
         const dateStr = DateUtils.getTodayDateString();
@@ -246,14 +244,13 @@ export class TokenFileLogger {
      */
     async getAllHourStats(dateStr: string): Promise<TokenUsageStatsFromFile | null> {
         // 尝试从持久化的统计文件读取完整的日期统计（包含所有小时）
-        const saved = await this.logStatsManager.loadStats(dateStr);
+        const saved = await this.logStatsManager.getDateStats(dateStr);
         if (saved && saved.hourly && Object.keys(saved.hourly).length > 0) {
             StatusLogger.debug(
                 `[TokenFileLogger] 从缓存读取所有小时统计: ${dateStr}, 小时数=${Object.keys(saved.hourly).length}`
             );
             return saved;
         }
-
         // 如果没有持久化的统计文件，返回 null，让调用方决定是否需要计算
         return null;
     }
@@ -261,43 +258,10 @@ export class TokenFileLogger {
     /**
      * 检查并重新生成过期的统计数据
      * 在打开统计页面时调用，确保所有日期的 stats.json 都是最新的
+     * @returns 成功重新生成的日期统计
      */
-    async regenerateOutdatedStats(): Promise<void> {
-        const startTime = Date.now();
-
-        try {
-            // 获取所有需要重新生成的日期列表
-            const outdatedDates = await this.logStatsManager.getOutdatedDates();
-            if (outdatedDates.length === 0) {
-                StatusLogger.info('[TokenFileLogger] 所有统计数据都是最新的，无需重新生成');
-                return;
-            }
-
-            StatusLogger.info(`[TokenFileLogger] 发现 ${outdatedDates.length} 个日期的统计数据需要重新生成`);
-
-            let regeneratedCount = 0;
-            for (const dateStr of outdatedDates) {
-                try {
-                    // 重新计算该日期的统计数据
-                    const stats = await this.logStatsManager.calculateDateStats(dateStr);
-                    // 保存统计数据
-                    await this.logStatsManager.saveDateStats(dateStr, stats);
-
-                    regeneratedCount++;
-                    StatusLogger.debug(`[TokenFileLogger] 已重新生成日期 ${dateStr} 的统计数据`);
-                } catch (err) {
-                    StatusLogger.warn(`[TokenFileLogger] 重新生成日期 ${dateStr} 的统计数据失败:`, err);
-                    // 继续处理下一个日期
-                }
-            }
-
-            const elapsed = Date.now() - startTime;
-            StatusLogger.info(
-                `[TokenFileLogger] 统计数据重新生成完成: ${regeneratedCount}/${outdatedDates.length} 个成功 (耗时: ${elapsed}ms)`
-            );
-        } catch (err) {
-            StatusLogger.error('[TokenFileLogger] 检查并重新生成过期统计数据失败:', err);
-        }
+    async regenerateOutdatedStats(): Promise<Record<string, TokenUsageStatsFromFile>> {
+        return this.logStatsManager.regenerateOutdatedStats();
     }
 
     /**
@@ -336,10 +300,8 @@ export class TokenFileLogger {
      * 获取所有日期的摘要信息
      * 用于日期列表显示，避免加载完整的 stats.json
      */
-    async getAllDateSummaries(): Promise<
-        Record<string, { total_input: number; total_cache: number; total_output: number; total_requests: number }>
-    > {
-        return this.logStatsManager.getAllDateSummaries();
+    async getIndex(): Promise<Record<string, DateIndexEntry>> {
+        return this.indexManager.getIndex();
     }
 
     // ==================== 清理操作 ====================
@@ -419,21 +381,21 @@ export class TokenFileLogger {
     // ==================== Private Helper Methods ====================
 
     /**
-     * 刷新当前小时的统计（请求结束后立即调用）
+     * 刷新当前日期的统计（请求结束后立即调用）
      * 确保统计是最新的，缓存由上层调用者(usagesStatusBar)维护
      */
-    private async refreshCurrentHourStats(): Promise<void> {
+    private async refreshCurrentStats(): Promise<void> {
         const dateStr = DateUtils.getTodayDateString();
 
         try {
             // 等待写入队列完成
             await this.writeManager.flush();
 
-            // 计算统计（支持增量更新）
-            const stats = await this.logStatsManager.calculateDateStats(dateStr);
+            // 计算并保存统计（getDateStats 会自动处理增量更新和保存）
+            await this.logStatsManager.getDateStats(dateStr);
 
-            // 保存统计
-            await this.logStatsManager.saveDateStats(dateStr, stats);
+            // 通知本实例的监听者
+            this.notifyUpdate();
 
             StatusLogger.debug(`[TokenFileLogger] 已刷新小时统计: ${dateStr}`);
         } catch (err) {

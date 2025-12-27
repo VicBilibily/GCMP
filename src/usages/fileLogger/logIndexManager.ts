@@ -34,7 +34,7 @@ export class LogIndexManager {
      * 读取日期索引
      * 用于快速获取所有日期的摘要信息
      */
-    async readIndex(): Promise<DateIndex | null> {
+    private async readIndex(): Promise<DateIndex | null> {
         const indexPath = this.getIndexPath();
         if (!fsSync.existsSync(indexPath)) {
             return null;
@@ -55,7 +55,7 @@ export class LogIndexManager {
      * 保存日期索引
      * 直接保存索引文件，不进行额外检查
      */
-    async saveIndex(index: DateIndex): Promise<void> {
+    private async saveIndex(index: DateIndex): Promise<void> {
         const indexPath = this.getIndexPath();
 
         try {
@@ -127,19 +127,37 @@ export class LogIndexManager {
     }
 
     /**
-     * 重新构建日期索引
-     * 扫描所有日期目录，重新生成索引文件
-     *
-     * @param statsLoader 用于加载日期统计数据的函数
+     * 获取所有日期的摘要信息
+     * 自动同步索引与实际日期文件夹，添加缺失的日期，移除不存在的日期
      */
-    async rebuildIndex(statsLoader: (dateStr: string) => Promise<TokenUsageStatsFromFile | null>): Promise<void> {
-        try {
-            const dates = await this.getAllStatsDates();
-            const summaries: Record<string, DateIndexEntry> = {};
+    async getIndex(): Promise<Record<string, DateIndexEntry>> {
+        // 获取所有实际的日期文件夹
+        const actualDates = await this.getAllStatsDates();
+        const actualDateSet = new Set(actualDates);
 
-            for (const dateStr of dates) {
+        // 读取现有索引
+        const index = await this.readIndex();
+        const summaries: Record<string, DateIndexEntry> = {};
+        let hasChanges = false;
+        if (index) {
+            // 验证索引中的日期是否仍然存在，移除不存在的日期
+            for (const [dateStr, entry] of Object.entries(index.dates)) {
+                const dateFolder = path.join(this.baseDir, dateStr);
+                if (fsSync.existsSync(dateFolder)) {
+                    summaries[dateStr] = entry;
+                    actualDateSet.delete(dateStr); // 从待添加集合中移除已存在的
+                } else {
+                    hasChanges = true;
+                    StatusLogger.debug(`[LogIndexManager] 索引中的日期文件夹不存在，已移除: ${dateStr}`);
+                }
+            }
+        }
+
+        // 将新出现的日期文件夹添加到索引中
+        for (const dateStr of actualDates) {
+            if (actualDateSet.has(dateStr)) {
                 try {
-                    const stats = await statsLoader(dateStr);
+                    const stats = await this.loadStats(dateStr);
                     if (stats) {
                         summaries[dateStr] = {
                             total_input: stats.total.actualInput,
@@ -147,23 +165,26 @@ export class LogIndexManager {
                             total_output: stats.total.outputTokens,
                             total_requests: stats.total.requests
                         };
+                        hasChanges = true;
+                        StatusLogger.debug(`[LogIndexManager] 新日期文件夹已添加到索引: ${dateStr}`);
                     }
                 } catch (err) {
-                    StatusLogger.warn(`[LogIndexManager] 重建索引时获取日期摘要失败: ${dateStr}`, err);
+                    StatusLogger.warn(`[LogIndexManager] 获取日期摘要失败: ${dateStr}`, err);
                 }
             }
-
-            await this.saveIndex({ dates: summaries });
-            StatusLogger.info(`[LogIndexManager] 已重新构建日期索引，共 ${Object.keys(summaries).length} 个日期`);
-        } catch (err) {
-            StatusLogger.error('[LogIndexManager] 重新构建日期索引失败', err);
         }
+
+        // 如果有变化（新增或删除），更新索引文件
+        if (hasChanges) {
+            await this.saveIndex({ dates: summaries });
+        }
+        return summaries;
     }
 
     /**
      * 获取所有已保存的日期列表
      */
-    async getAllStatsDates(): Promise<string[]> {
+    private async getAllStatsDates(): Promise<string[]> {
         if (!fsSync.existsSync(this.baseDir)) {
             return [];
         }
@@ -191,6 +212,24 @@ export class LogIndexManager {
         } catch (err) {
             StatusLogger.error('[LogIndexManager] 获取统计日期列表失败', err);
             return [];
+        }
+    }
+
+    /**
+     * 加载日期统计
+     */
+    private async loadStats(dateStr: string): Promise<TokenUsageStatsFromFile | null> {
+        const statsPath = path.join(this.baseDir, dateStr, 'stats.json');
+        if (!fsSync.existsSync(statsPath)) {
+            return null;
+        }
+
+        try {
+            const content = await fs.readFile(statsPath, 'utf-8');
+            return JSON.parse(content) as TokenUsageStatsFromFile;
+        } catch (err) {
+            StatusLogger.warn(`[LogIndexManager] 读取日期统计失败: ${dateStr}`, err);
+            return null;
         }
     }
 

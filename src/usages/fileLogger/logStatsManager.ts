@@ -15,13 +15,7 @@ import { StatusLogger } from '../../utils/statusLogger';
 import { LogReadManager } from './logReadManager';
 import { LogIndexManager } from './logIndexManager';
 import { StatsCalculator } from './statsCalculator';
-import type {
-    TokenUsageStatsFromFile,
-    DateIndexEntry,
-    HourlyStats,
-    FileLoggerProviderStats,
-    TokenStats
-} from './types';
+import type { TokenUsageStatsFromFile, HourlyStats, FileLoggerProviderStats, TokenStats } from './types';
 
 /**
  * 日志统计管理器
@@ -41,7 +35,29 @@ export class LogStatsManager {
         this.indexManager = indexManager;
     }
 
-    // ==================== 统计查询方法 ====================
+    /**
+     * 获取日期统计
+     * 优先尝试从持久化文件读取，否则进行增量差分计算并保存
+     * @param dateStr 日期字符串 (YYYY-MM-DD)
+     * @param ignoreCache 是否忽略缓存，强制重新计算
+     */
+    async getDateStats(dateStr: string, ignoreCache: boolean = false): Promise<TokenUsageStatsFromFile> {
+        // 优先尝试从持久化文件读取（如果不忽略缓存）
+        if (!ignoreCache) {
+            const saved = await this.loadStats(dateStr);
+            if (saved) {
+                StatusLogger.debug(`[LogStatsManager] 从缓存读取统计: ${dateStr}`);
+                return saved;
+            }
+        }
+
+        // 进行增量差分计算（仅重算改变的小时，从小时缓存聚合日期统计）
+        StatusLogger.debug(`[LogStatsManager] 增量计算统计: ${dateStr}`);
+        const stats = await this.calculateDateStats(dateStr);
+        // 保存到持久化文件
+        await this.saveDateStats(dateStr, stats);
+        return stats;
+    }
 
     /**
      * 计算指定日期的统计（包含小时统计和日期统计）
@@ -49,8 +65,9 @@ export class LogStatsManager {
      * 自动遍历所有小时文件，只重新计算已改变的小时
      * 日期统计（total 和 providers）从小时缓存结果聚合计算
      * 返回: 包含日期统计、所有小时统计（含 modifiedTime 和 providers）的完整对象
+     * @private 内部使用，通过 getDateStats 访问
      */
-    async calculateDateStats(dateStr: string): Promise<TokenUsageStatsFromFile> {
+    private async calculateDateStats(dateStr: string): Promise<TokenUsageStatsFromFile> {
         // 读取现有的统计数据
         const existingStats = await this.loadStats(dateStr);
         const existingHourly = existingStats?.hourly || {};
@@ -180,49 +197,12 @@ export class LogStatsManager {
     }
 
     /**
-     * 获取日期统计
-     * 优先尝试从持久化文件读取，否则进行增量差分计算并保存
-     */
-    async getDateStats(dateStr: string, fromFile: boolean = false): Promise<TokenUsageStatsFromFile> {
-        // 优先尝试从持久化文件读取（如果不是直接计算模式）
-        if (!fromFile) {
-            const saved = await this.loadStats(dateStr);
-            if (saved) {
-                StatusLogger.debug(`[LogStatsManager] 从缓存读取统计: ${dateStr}`);
-                return saved;
-            }
-        }
-
-        // 进行增量差分计算（仅重算改变的小时，从小时缓存聚合日期统计）
-        StatusLogger.debug(`[LogStatsManager] 增量计算统计: ${dateStr}`);
-        const stats = await this.calculateDateStats(dateStr);
-        // 保存到持久化文件
-        await this.saveDateStats(dateStr, stats);
-        return stats;
-    }
-
-    /**
-     * 刷新日期统计（重新计算并更新）
-     */
-    async refreshDateStats(dateStr: string): Promise<TokenUsageStatsFromFile> {
-        // 强制重新计算（删除现有缓存，重新计算所有小时）
-        StatusLogger.debug(`[LogStatsManager] 刷新统计: ${dateStr}`);
-        const stats = await this.calculateDateStats(dateStr);
-
-        // 保存到文件
-        await this.saveDateStats(dateStr, stats);
-
-        return stats;
-    }
-
-    // ==================== 统计持久化方法 ====================
-
-    /**
      * 保存每日统计结果
      * 保存到: <baseDir>/usages/YYYY-MM-DD/stats.json
      * 保存完整的日期统计和小时统计（包含 providers）
+     * @private 内部使用，通过 getDateStats 访问
      */
-    async saveDateStats(dateStr: string, stats: TokenUsageStatsFromFile): Promise<void> {
+    private async saveDateStats(dateStr: string, stats: TokenUsageStatsFromFile): Promise<void> {
         const filePath = this.getStatsFilePath(dateStr);
 
         try {
@@ -244,11 +224,95 @@ export class LogStatsManager {
     }
 
     /**
-     * 读取统计结果
+     * 检查并重新生成过期的统计数据
+     * 在打开统计页面时调用，确保所有日期的 stats.json 都是最新的
+     * @returns 成功重新生成的日期统计，key 为日期字符串
      */
-    async loadStats(dateStr: string, hour?: number): Promise<TokenUsageStatsFromFile | null> {
-        const filePath = this.getStatsFilePath(dateStr);
+    async regenerateOutdatedStats(): Promise<Record<string, TokenUsageStatsFromFile>> {
+        const startTime = Date.now();
 
+        // 获取所有需要重新生成的日期列表
+        const outdatedDates = await this.getOutdatedDates();
+        if (outdatedDates.length === 0) {
+            StatusLogger.info('[LogStatsManager] 所有统计数据都是最新的，无需重新生成');
+            return {};
+        }
+
+        StatusLogger.info(`[LogStatsManager] 发现 ${outdatedDates.length} 个日期的统计数据需要重新生成`);
+
+        const results: Record<string, TokenUsageStatsFromFile> = {};
+        for (const dateStr of outdatedDates) {
+            try {
+                // 重新计算该日期的统计数据（使用 getDateStats 自动处理计算和保存）
+                const stats = await this.getDateStats(dateStr);
+
+                // 记录结果
+                results[dateStr] = stats;
+                StatusLogger.debug(`[LogStatsManager] 已重新生成日期 ${dateStr} 的统计数据`);
+            } catch (err) {
+                StatusLogger.warn(`[LogStatsManager] 重新生成日期 ${dateStr} 的统计数据失败:`, err);
+            }
+        }
+
+        const elapsed = Date.now() - startTime;
+        StatusLogger.info(
+            `[LogStatsManager] 统计数据重新生成完成: ${Object.keys(results).length}/${outdatedDates.length} 个成功 (耗时: ${elapsed}ms)`
+        );
+        return results;
+    }
+
+    /**
+     * 获取所有需要重新生成的日期列表
+     * @private 内部使用，通过 regenerateOutdatedStats 访问
+     */
+    private async getOutdatedDates(): Promise<string[]> {
+        const outdatedDates: string[] = [];
+
+        if (!fsSync.existsSync(this.baseDir)) {
+            return outdatedDates;
+        }
+
+        try {
+            // 读取所有日期目录
+            const entries = await fs.readdir(this.baseDir, { withFileTypes: true });
+
+            for (const entry of entries) {
+                if (entry.isDirectory()) {
+                    const dateStr = entry.name;
+                    // 检查是否是有效的日期格式
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                        // 检查是否需要重新生成
+                        if (await this.needsRegeneration(dateStr)) {
+                            outdatedDates.push(dateStr);
+                        }
+                    }
+                }
+            }
+
+            return outdatedDates;
+        } catch (err) {
+            StatusLogger.error('[LogStatsManager] 获取过期日期列表失败', err);
+            return outdatedDates;
+        }
+    }
+
+    // ==================== Private Helper Methods ====================
+
+    /**
+     * 获取统计文件路径
+     */
+    private getStatsFilePath(dateStr: string): string {
+        return path.join(this.baseDir, dateStr, 'stats.json');
+    }
+
+    /**
+     * 从持久化文件读取日期统计结果
+     * 读取 <baseDir>/usages/YYYY-MM-DD/stats.json 文件
+     * @param dateStr 日期字符串 (YYYY-MM-DD)
+     * @returns 统计对象，不存在时返回 null
+     */
+    private async loadStats(dateStr: string): Promise<TokenUsageStatsFromFile | null> {
+        const filePath = this.getStatsFilePath(dateStr);
         if (!fsSync.existsSync(filePath)) {
             return null;
         }
@@ -256,103 +320,20 @@ export class LogStatsManager {
         try {
             const content = await fs.readFile(filePath, 'utf-8');
             const statsData: TokenUsageStatsFromFile = JSON.parse(content);
-
-            // 如果指定了小时，返回该小时的统计
-            if (hour !== undefined) {
-                if (!statsData.hourly) {
-                    return null;
-                }
-
-                const hourKey = String(hour).padStart(2, '0');
-                const hourStats = statsData.hourly[hourKey];
-
-                if (!hourStats) {
-                    return null;
-                }
-
-                // 返回小时统计（包含 modifiedTime 和 providers）
-                const result: TokenUsageStatsFromFile = {
-                    total: hourStats,
-                    providers: hourStats.providers || {},
-                    hourly: {
-                        [hourKey]: hourStats
-                    }
-                };
-
-                StatusLogger.debug(`[LogStatsManager] 已从 stats.json 读取小时统计: ${dateStr} ${hourKey}:00`);
-                return result;
-            }
-
-            // 返回完整的日期统计
             StatusLogger.debug(`[LogStatsManager] 已从 stats.json 读取日期统计: ${dateStr}`);
             return statsData;
         } catch (err) {
-            StatusLogger.warn(
-                `[LogStatsManager] 读取统计失败: ${dateStr}${hour !== undefined ? ` ${hour}:00` : ''}`,
-                err
-            );
+            StatusLogger.warn(`[LogStatsManager] 读取统计失败: ${dateStr}`, err);
             return null;
         }
     }
 
     /**
-     * 获取所有日期的摘要信息（从索引文件读取）
-     */
-    async getAllDateSummaries(): Promise<Record<string, DateIndexEntry>> {
-        // 获取所有实际的日期文件夹
-        const actualDates = await this.indexManager.getAllStatsDates();
-        const actualDateSet = new Set(actualDates);
-
-        // 读取现有索引
-        const index = await this.indexManager.readIndex();
-        const summaries: Record<string, DateIndexEntry> = {};
-        let hasChanges = false;
-
-        if (index) {
-            // 验证索引中的日期是否仍然存在，移除不存在的日期
-            for (const [dateStr, entry] of Object.entries(index.dates)) {
-                const dateFolder = path.join(this.baseDir, dateStr);
-                if (fsSync.existsSync(dateFolder)) {
-                    summaries[dateStr] = entry;
-                    actualDateSet.delete(dateStr); // 从待添加集合中移除已存在的
-                } else {
-                    hasChanges = true;
-                    StatusLogger.debug(`[LogStatsManager] 索引中的日期文件夹不存在，已移除: ${dateStr}`);
-                }
-            }
-        }
-
-        // 将新出现的日期文件夹添加到索引中
-        for (const dateStr of actualDates) {
-            if (actualDateSet.has(dateStr)) {
-                try {
-                    const stats = await this.loadStats(dateStr);
-                    if (stats) {
-                        summaries[dateStr] = {
-                            total_input: stats.total.actualInput,
-                            total_cache: stats.total.cacheTokens,
-                            total_output: stats.total.outputTokens,
-                            total_requests: stats.total.requests
-                        };
-                        hasChanges = true;
-                        StatusLogger.debug(`[LogStatsManager] 新日期文件夹已添加到索引: ${dateStr}`);
-                    }
-                } catch (err) {
-                    StatusLogger.warn(`[LogStatsManager] 获取日期摘要失败: ${dateStr}`, err);
-                }
-            }
-        }
-
-        // 如果有变化（新增或删除），更新索引文件
-        if (hasChanges) {
-            await this.indexManager.saveIndex({ dates: summaries });
-        }
-
-        return summaries;
-    }
-
-    /**
-     * 检查指定日期的 stats.json 是否需要更新
+     * 检查指定日期的统计文件是否需要重新生成
+     * 通过比较日志文件(.jsonl)与统计文件(stats.json)的修改时间来判断
+     * 如果 stats.json 不存在或任何日志文件的修改时间晚于 stats.json，则需要重新生成
+     * @param dateStr 日期字符串 (YYYY-MM-DD)
+     * @returns true 表示需要重新生成，false 表示无需重新生成
      */
     private async needsRegeneration(dateStr: string): Promise<boolean> {
         const statsFilePath = this.getStatsFilePath(dateStr);
@@ -393,49 +374,6 @@ export class LogStatsManager {
             StatusLogger.warn(`[LogStatsManager] 检查日期 ${dateStr} 是否需要更新失败:`, err);
             return false;
         }
-    }
-
-    /**
-     * 获取所有需要重新生成的日期列表
-     */
-    async getOutdatedDates(): Promise<string[]> {
-        const outdatedDates: string[] = [];
-
-        if (!fsSync.existsSync(this.baseDir)) {
-            return outdatedDates;
-        }
-
-        try {
-            // 读取所有日期目录
-            const entries = await fs.readdir(this.baseDir, { withFileTypes: true });
-
-            for (const entry of entries) {
-                if (entry.isDirectory()) {
-                    const dateStr = entry.name;
-                    // 检查是否是有效的日期格式
-                    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-                        // 检查是否需要重新生成
-                        if (await this.needsRegeneration(dateStr)) {
-                            outdatedDates.push(dateStr);
-                        }
-                    }
-                }
-            }
-
-            return outdatedDates;
-        } catch (err) {
-            StatusLogger.error('[LogStatsManager] 获取过期日期列表失败', err);
-            return outdatedDates;
-        }
-    }
-
-    // ==================== Private Helper Methods ====================
-
-    /**
-     * 获取统计文件路径
-     */
-    private getStatsFilePath(dateStr: string): string {
-        return path.join(this.baseDir, dateStr, 'stats.json');
     }
 
     /**
