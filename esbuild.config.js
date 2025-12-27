@@ -2,6 +2,7 @@
 const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
+const { transform: vaporTransform } = require('@vue-jsx-vapor/compiler-rs');
 const isWatch = process.argv.includes('--watch');
 const isDev = process.argv.includes('--dev');
 
@@ -141,6 +142,62 @@ const rawPlugin = {
     }
 };
 
+// 自定义插件处理 Vue JSX Vapor (.tsx 文件)
+const vueJsxVaporPlugin = {
+    name: 'vue-jsx-vapor',
+    setup(build) {
+        // 处理 .tsx 文件（仅限 src/ui/ 目录下用于 WebView 的组件）
+        build.onLoad({ filter: /src[\/\\]ui[\/\\].*\.tsx$/ }, async (args) => {
+            const source = await fs.promises.readFile(args.path, 'utf8');
+
+            try {
+                // 第一步：使用 esbuild 转换 TypeScript 为 JavaScript（保留JSX）
+                const tsResult = await esbuild.transform(source, {
+                    loader: 'tsx',
+                    target: 'es2020',
+                    format: 'esm',
+                    tsconfigRaw: {
+                        compilerOptions: {
+                            jsx: 'preserve', // 保留 JSX，让 vapor 来处理
+                            jsxImportSource: 'vue' // 确保JSX指向Vue
+                        }
+                    }
+                });
+
+                // 第二步：使用 vue-jsx-vapor 编译器转换 JSX → h() 调用
+                const result = vaporTransform(tsResult.code, {
+                    filename: args.path,
+                    sourceMap: isDev,
+                    // 确保生成Vue的h()调用
+                    transformJsx: true
+                });
+
+                // 确保结果中包含必要的Vue导入
+                let finalCode = result.code;
+
+                // 如果代码使用了h()但没有导入，需要添加导入
+                if (finalCode.includes('h(') && !finalCode.includes('import { h }')) {
+                    finalCode = "import { h } from 'vue';\n" + finalCode;
+                }
+
+                return {
+                    contents: finalCode,
+                    loader: 'js',
+                    resolveDir: path.dirname(args.path)
+                };
+            } catch (error) {
+                console.error(`Error transforming ${args.path}:`, error);
+                return {
+                    errors: [{
+                        text: error.message,
+                        location: null
+                    }]
+                };
+            }
+        });
+    }
+};
+
 // ========================================================================
 // 公共构建选项
 // ========================================================================
@@ -155,10 +212,10 @@ const commonOptions = {
     // 使用 mainFields 优先选择 ESM 模块格式
     // 这解决了 jsonc-parser UMD 模块的相对路径问题
     mainFields: ['module', 'main'],
-    // 确保正确解析模块
-    resolveExtensions: ['.ts', '.js', '.mjs', '.json'],
+    // 确保正确解析模块（.ts 优先于 .tsx）
+    resolveExtensions: ['.ts', '.tsx', '.js', '.mjs', '.json'],
     // 添加自定义插件
-    plugins: [rawPlugin],
+    plugins: [rawPlugin, vueJsxVaporPlugin],
     // 日志级别
     logLevel: 'info'
 };
@@ -191,19 +248,81 @@ const copilotBuildOptions = {
     external: ['vscode']
 };
 
+// ========================================================================
+// UsagesView WebView 构建选项
+// - 用于 WebView 的 Vue JSX Vapor 应用
+// - 目标平台为浏览器
+// ========================================================================
+/** @type {import('esbuild').BuildOptions} */
+const usagesViewBuildOptions = {
+    bundle: true,
+    entryPoints: ['./src/ui/usagesViewApp.tsx'],
+    outfile: 'dist/ui/usagesView.js',
+    format: 'iife',
+    platform: 'browser',
+    sourcemap: isDev,
+    minify: !isDev,
+    resolveExtensions: ['.tsx', '.ts', '.js', '.mjs', '.json'],
+    // 使用 esbuild 的原生 jsx 处理，转换为 h() 调用
+    jsx: 'automatic',
+    jsxImportSource: 'vue',
+    logLevel: 'info',
+    // 不设置 external，让 vue.ts 被打包进去
+    // vue.ts 会从全局 VueChunk 读取 API
+    external: [],
+    plugins: [rawPlugin],
+    define: {
+        __VUE_OPTIONS_API__: 'false',
+        __VUE_PROD_DEVTOOLS__: 'false',
+        __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: 'false'
+    }
+};
+
+// ========================================================================
+// Vue 响应式系统 Chunk 构建选项
+// - 独立的 Vue 库 chunk，可在多个 WebView 之间共享
+// - 只包含 ref 等响应式 API
+// - 使用 IIFE 格式并导出到全局，供其他 bundle 使用
+// ========================================================================
+/** @type {import('esbuild').BuildOptions} */
+const vueChunkBuildOptions = {
+    bundle: true,
+    entryPoints: ['./src/ui/vendor/vueReactivity.ts'],
+    outfile: 'dist/ui/vue-chunk.js',
+    format: 'iife', // 使用 IIFE 格式
+    globalName: 'VueChunk', // 导出到全局变量 VueChunk
+    platform: 'browser',
+    sourcemap: isDev,
+    minify: !isDev,
+    logLevel: 'info',
+    external: [],
+    define: {
+        __VUE_OPTIONS_API__: 'false',
+        __VUE_PROD_DEVTOOLS__: 'false',
+        __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: 'false'
+    }
+};
+
 async function build() {
     try {
         if (isWatch) {
-            // Watch 模式：同时监听两个入口点
-            console.log('Starting watch mode for extension and copilot bundles...');
+            // Watch 模式：同时监听四个入口点
+            console.log('Starting watch mode for extension, copilot, vue-chunk and usagesView bundles...');
 
-            const [extensionCtx, copilotCtx] = await Promise.all([
+            const [extensionCtx, copilotCtx, vueChunkCtx, usagesViewCtx] = await Promise.all([
                 esbuild.context(extensionBuildOptions),
-                esbuild.context(copilotBuildOptions)
+                esbuild.context(copilotBuildOptions),
+                esbuild.context(vueChunkBuildOptions),
+                esbuild.context(usagesViewBuildOptions)
             ]);
 
-            await Promise.all([extensionCtx.watch(), copilotCtx.watch()]);
-            console.log('Watching for changes in both extension.js and copilot.bundle.js...');
+            await Promise.all([
+                extensionCtx.watch(),
+                copilotCtx.watch(),
+                vueChunkCtx.watch(),
+                usagesViewCtx.watch()
+            ]);
+            console.log('Watching for changes in extension.js, copilot.bundle.js, vue-chunk.js and usagesView.js...');
         } else {
             // 构建前清理 dist 目录
             console.log('Cleaning dist directory...');
@@ -214,13 +333,15 @@ async function build() {
                 console.log('No dist directory to clean.');
             }
 
-            // 并行构建两个入口点
-            console.log('Building extension.js and copilot.bundle.js...');
+            // 并行构建四个入口点
+            console.log('Building extension.js, copilot.bundle.js, vue-chunk.js and usagesView.js...');
             const startTime = Date.now();
 
             await Promise.all([
                 esbuild.build(extensionBuildOptions),
-                esbuild.build(copilotBuildOptions)
+                esbuild.build(copilotBuildOptions),
+                esbuild.build(vueChunkBuildOptions),
+                esbuild.build(usagesViewBuildOptions)
             ]);
 
             const buildTime = Date.now() - startTime;
@@ -229,10 +350,33 @@ async function build() {
             // 构建完成后复制资源文件
             await copyBuildAssets();
             console.log('Asset copying completed.');
+
+            // 复制 usagesView.css 到 dist/ui
+            await copyUsagesViewCss();
+            console.log('UsagesView CSS copied.');
         }
     } catch (error) {
         console.error('Build failed:', error);
         process.exit(1);
+    }
+}
+
+/**
+ * 复制 usagesView.css 到 dist/ui 目录
+ */
+async function copyUsagesViewCss() {
+    const srcCssPath = path.join(REPO_ROOT, 'src/ui/usagesView.css');
+    const destCssPath = path.join(REPO_ROOT, 'dist/ui/usagesView.css');
+
+    try {
+        // 确保 dist/ui 目录存在
+        await fs.promises.mkdir(path.dirname(destCssPath), { recursive: true });
+
+        // 复制 CSS 文件
+        await fs.promises.copyFile(srcCssPath, destCssPath);
+        console.log(`✓ Copied usagesView.css to dist/ui/`);
+    } catch (error) {
+        console.warn(`Failed to copy usagesView.css:`, error.message);
     }
 }
 

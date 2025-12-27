@@ -7,16 +7,18 @@ import * as vscode from 'vscode';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import type { TokenUsageStatsFromFile } from '../usages/fileLogger';
 import type { DateSummary } from '../usages/types';
+import type { HourlyStats, FileLoggerProviderStats } from '../usages/fileLogger/types';
 import { ExtendedTokenRequestLog, UsageParser } from '../usages/fileLogger/usageParser';
 import { Logger } from '../utils/logger';
-import usagesViewCss from './usagesView.css?raw';
-import usagesViewJs from './usagesView.js?raw';
 import { TokenRequestLog } from '../usages/fileLogger';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**
  * WebView 消息类型定义
  */
 type WebViewMessage =
+    | { command: 'getInitialData' }
     | { command: 'refresh'; date?: string; page?: number }
     | { command: 'selectDate'; date: string }
     | { command: 'changePage'; date: string; page: number }
@@ -174,6 +176,11 @@ export class TokenUsagesView {
             Logger.info('[TokenUsagesView] 刷新今日详情 + 日期列表');
             await this.updateDateDetails(today);
             await this.updateDateListOnly();
+        } else if (isViewingToday && !isFirstPage) {
+            // 查看今日但不在第一页 - 只刷新统计数据（提供商统计、小时统计），不刷新记录列表
+            Logger.info('[TokenUsagesView] 仅刷新今日统计数据');
+            await this.updateStatsOnly(today);
+            await this.updateDateListOnly();
         } else {
             // 查看其他日期 - 只刷新日期列表统计
             Logger.info('[TokenUsagesView] 仅刷新日期列表');
@@ -212,6 +219,32 @@ export class TokenUsagesView {
     }
 
     /**
+     * 只更新统计数据（提供商统计、小时统计），不更新记录列表
+     */
+    private async updateStatsOnly(date: string): Promise<void> {
+        if (!this.panel) {
+            return;
+        }
+
+        try {
+            // 从文件直接读取统计数据
+            const dateStats = await this.usagesManager.getDateStatsFromFile(date);
+            const providers = Object.values(dateStats.providers);
+
+            // 发送消息给 WebView，只更新统计数据
+            this.panel.webview.postMessage({
+                command: 'updateStatsOnly',
+                providers: this.formatProvidersData(providers),
+                hourlyStats: dateStats.hourly
+            });
+
+            Logger.info(`[TokenUsagesView] 已更新统计数据: ${date}, 提供商数=${providers.length}`);
+        } catch (err) {
+            Logger.error('[TokenUsagesView] 更新统计数据失败:', err);
+        }
+    }
+
+    /**
      * 获取今日日期字符串（YYYY-MM-DD）
      */
     private getTodayDateString(): string {
@@ -220,10 +253,66 @@ export class TokenUsagesView {
     }
 
     /**
+     * 发送初始数据给 WebView
+     */
+    private async sendInitialData(): Promise<void> {
+        if (!this.panel) {
+            return;
+        }
+
+        try {
+            const dateSummaries = await this.usagesManager.getAllDateSummaries();
+            const today = this.getTodayDateString();
+            const displayDate = today;
+
+            // 获取选中日期的详细数据
+            const dateStats = await this.usagesManager.getDateStatsFromFile(displayDate);
+            const dateRecords = await this.usagesManager.getDateRecords(displayDate);
+
+            const providers = Object.values(dateStats.providers);
+
+            // 更新当前状态
+            this.currentSelectedDate = displayDate;
+            this.currentPage = 1;
+
+            // 发送日期列表
+            this.panel.webview.postMessage({
+                command: 'updateDateList',
+                dateList: dateSummaries.slice(0, this.datesLimit).map(summary => ({
+                    date: summary.date,
+                    total_requests: summary.total_requests,
+                    totalTokensFormatted: this.formatTokens(summary.total_input + summary.total_output)
+                })),
+                selectedDate: displayDate,
+                today
+            });
+
+            // 发送日期详情
+            this.panel.webview.postMessage({
+                command: 'updateDateDetails',
+                date: displayDate,
+                isToday: displayDate === today,
+                providers: this.formatProvidersData(providers),
+                hourlyStats: dateStats.hourly,
+                records: this.formatRecordsData(UsageParser.extendLogs(dateRecords)),
+                currentPage: 1
+            });
+
+            Logger.info('[TokenUsagesView] 已发送初始数据');
+        } catch (err) {
+            Logger.error('[TokenUsagesView] 发送初始数据失败:', err);
+        }
+    }
+
+    /**
      * 处理来自 WebView 的消息
      */
     private async handleMessage(message: WebViewMessage): Promise<void> {
         switch (message.command) {
+            case 'getInitialData':
+                await this.sendInitialData();
+                break;
+
             case 'refresh':
                 await this.updateView(message.date, message.page || 1);
                 break;
@@ -249,7 +338,7 @@ export class TokenUsagesView {
     /**
      * 更新日期详情（动态更新，不重新渲染整个页面）
      */
-    private async updateDateDetails(date: string): Promise<void> {
+    private async updateDateDetails(date: string, resetPage: boolean = true): Promise<void> {
         try {
             const today = this.getTodayDateString();
 
@@ -261,7 +350,9 @@ export class TokenUsagesView {
 
             // 更新当前状态
             this.currentSelectedDate = date;
-            this.currentPage = 1;
+            if (resetPage) {
+                this.currentPage = 1;
+            }
 
             // 更新面板标题
             if (this.panel) {
@@ -277,11 +368,13 @@ export class TokenUsagesView {
                     providers: this.formatProvidersData(providers),
                     hourlyStats: dateStats.hourly,
                     records: this.formatRecordsData(UsageParser.extendLogs(dateRecords)),
-                    currentPage: 1
+                    currentPage: this.currentPage
                 });
             }
 
-            Logger.info(`[TokenUsagesView] 已更新日期详情: ${date}, 记录数=${dateRecords.length}`);
+            Logger.info(
+                `[TokenUsagesView] 已更新日期详情: ${date}, 记录数=${dateRecords.length}, 当前页=${this.currentPage}`
+            );
         } catch (err) {
             Logger.error('[TokenUsagesView] 更新日期详情失败:', err);
         }
@@ -372,72 +465,55 @@ export class TokenUsagesView {
     /**
      * 格式化提供商数据
      */
-    private formatProvidersData(
-        providers: Array<{
-            providerKey: string;
-            displayName: string;
-            totalInputTokens: number;
-            totalCacheReadTokens: number;
-            totalOutputTokens: number;
-            totalRequests: number;
-            models?: Record<
-                string,
-                {
-                    modelId: string;
-                    modelName: string;
-                    totalInputTokens: number;
-                    totalCacheReadTokens: number;
-                    totalOutputTokens: number;
-                    totalRequests: number;
-                }
-            >;
-        }>
-    ): unknown[] {
-        const formatModel = (m: {
-            modelId: string;
-            modelName: string;
-            totalInputTokens: number;
-            totalCacheReadTokens: number;
-            totalOutputTokens: number;
-            totalRequests: number;
-        }) => {
-            const modelTotal = m.totalInputTokens + m.totalOutputTokens;
+    private formatProvidersData(providers: FileLoggerProviderStats[]): unknown[] {
+        const formatModel = (
+            m: {
+                estimatedInput: number;
+                actualInput: number;
+                cacheTokens: number;
+                outputTokens: number;
+                requests: number;
+                modelName: string;
+            },
+            index: number
+        ) => {
+            const modelTotal = m.actualInput + m.outputTokens;
             return {
-                modelId: m.modelId,
+                modelId: `model_${index}`,
                 modelName: m.modelName,
-                totalInputTokens: m.totalInputTokens,
-                totalInputTokensFormatted: this.formatTokens(m.totalInputTokens),
-                totalCacheReadTokens: m.totalCacheReadTokens,
-                totalCacheReadTokensFormatted: this.formatTokens(m.totalCacheReadTokens),
-                totalOutputTokens: m.totalOutputTokens,
-                totalOutputTokensFormatted: this.formatTokens(m.totalOutputTokens),
+                totalInputTokens: m.actualInput,
+                totalInputTokensFormatted: this.formatTokens(m.actualInput),
+                totalCacheReadTokens: m.cacheTokens,
+                totalCacheReadTokensFormatted: this.formatTokens(m.cacheTokens),
+                totalOutputTokens: m.outputTokens,
+                totalOutputTokensFormatted: this.formatTokens(m.outputTokens),
                 totalTokensFormatted: this.formatTokens(modelTotal),
-                totalRequests: m.totalRequests
+                totalRequests: m.requests
             };
         };
 
         return providers
-            .map(p => {
-                const total = p.totalInputTokens + p.totalOutputTokens;
-                const models = p.models ? Object.values(p.models).map(formatModel) : [];
+            .map((p, index) => {
+                const total = p.actualInput + p.outputTokens;
+                const models = p.models ? Object.values(p.models).map((m, i) => formatModel(m, i)) : [];
                 return {
-                    providerKey: p.providerKey,
-                    displayName: p.displayName,
-                    totalInputTokens: p.totalInputTokens,
-                    totalInputTokensFormatted: this.formatTokens(p.totalInputTokens),
-                    totalCacheReadTokens: p.totalCacheReadTokens,
-                    totalCacheReadTokensFormatted: this.formatTokens(p.totalCacheReadTokens),
-                    totalOutputTokens: p.totalOutputTokens,
-                    totalOutputTokensFormatted: this.formatTokens(p.totalOutputTokens),
+                    providerKey: `provider_${index}`,
+                    providerName: p.providerName,
+                    displayName: p.providerName,
+                    totalInputTokens: p.actualInput,
+                    totalInputTokensFormatted: this.formatTokens(p.actualInput),
+                    totalCacheReadTokens: p.cacheTokens,
+                    totalCacheReadTokensFormatted: this.formatTokens(p.cacheTokens),
+                    totalOutputTokens: p.outputTokens,
+                    totalOutputTokensFormatted: this.formatTokens(p.outputTokens),
                     totalTokensFormatted: this.formatTokens(total),
-                    totalRequests: p.totalRequests,
+                    totalRequests: p.requests,
                     models: models
                 };
             })
-            .sort((a, b) => {
-                const totalA = a.totalInputTokens + a.totalOutputTokens;
-                const totalB = b.totalInputTokens + b.totalOutputTokens;
-                return totalB - totalA;
+            .sort((_a, _b) => {
+                // 保持原始顺序
+                return 0;
             });
     }
 
@@ -504,34 +580,46 @@ export class TokenUsagesView {
      * 生成 WebView HTML 内容
      */
     private getWebviewContent(
-        dateSummaries: DateSummary[],
-        selectedDate: string,
-        dateStats: TokenUsageStatsFromFile & { date: string; lastUpdated: number },
-        hourlyStats: Record<string, HourlyStats> | undefined,
-        dateRecords: TokenRequestLog[],
-        currentPage: number = 1
+        _dateSummaries: DateSummary[],
+        _selectedDate: string,
+        _dateStats: TokenUsageStatsFromFile & { date: string; lastUpdated: number },
+        _hourlyStats: Record<string, HourlyStats> | undefined,
+        _dateRecords: TokenRequestLog[],
+        _currentPage: number = 1
     ): string {
-        const today = this.getTodayDateString();
-        const providers = Object.values(dateStats.providers);
         const cspSource = this.panel?.webview.cspSource || '';
 
-        // 准备初始数据
-        const initialData = {
-            dateSummaries: dateSummaries.map(summary => ({
-                date: summary.date,
-                total_requests: summary.total_requests,
-                totalTokensFormatted: this.formatTokens(summary.total_input + summary.total_output)
-            })),
-            selectedDate,
-            today,
-            currentPage,
-            datesLimit: this.datesLimit,
-            providers: this.formatProvidersData(providers),
-            hourlyStats: this.formatHourlyStatsData(hourlyStats),
-            records: this.formatRecordsData(UsageParser.extendLogs(dateRecords))
-        };
+        // 读取编译后的 Vue 应用 JS 文件
+        const usagesViewJsPath = path.join(this.context.extensionPath, 'dist', 'ui', 'usagesView.js');
+        let usagesViewJs = '';
+        try {
+            usagesViewJs = fs.readFileSync(usagesViewJsPath, 'utf8');
+        } catch (error) {
+            Logger.error('[TokenUsagesView] 读取 usagesView.js 失败:', error);
+            usagesViewJs = '/* Error loading usagesView.js */';
+        }
 
-        return `<!DOCTYPE html>
+        // 读取 Vue chunk JS 文件
+        const vueChunkPath = path.join(this.context.extensionPath, 'dist', 'ui', 'vue-chunk.js');
+        let vueChunkJs = '';
+        try {
+            vueChunkJs = fs.readFileSync(vueChunkPath, 'utf8');
+        } catch (error) {
+            Logger.error('[TokenUsagesView] 读取 vue-chunk.js 失败:', error);
+            vueChunkJs = '/* Error loading vue-chunk.js */';
+        }
+
+        // 读取 CSS 文件
+        const usagesViewCssPath = path.join(this.context.extensionPath, 'dist', 'ui', 'usagesView.css');
+        let usagesViewCss = '';
+        try {
+            usagesViewCss = fs.readFileSync(usagesViewCssPath, 'utf8');
+        } catch (error) {
+            Logger.error('[TokenUsagesView] 读取 usagesView.css 失败:', error);
+            usagesViewCss = '/* Error loading usagesView.css */';
+        }
+
+        const htmlContent = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 	<meta charset="UTF-8">
@@ -545,18 +633,35 @@ export class TokenUsagesView {
 <body>
 	<div id="app"></div>
 	<script>
+		// 注入 VSCode API（必须在其他脚本之前）
+		const vscode = acquireVsCodeApi();
+		window.vscode = vscode;
+
+		// 加载 Vue chunk（IIFE，导出到全局 VueChunk）
+		${vueChunkJs}
+
+		// 加载主应用（IIFE，使用 shim 映射 vue 模块到全局 VueChunk）
 		${usagesViewJs}
 
-		// 初始化数据
-		const initialData = ${JSON.stringify(initialData)};
+		console.log('[UsagesView] Initializing WebView');
 
-		// 启动视图
-		document.addEventListener('DOMContentLoaded', function() {
-			initializeUsagesView(initialData);
-		});
+		// 启动视图（不传递任何参数，初始数据通过消息桥加载）
+		if (window.initializeUsagesView) {
+			try {
+				window.initializeUsagesView();
+			} catch (error) {
+				console.error('[UsagesView] Initialization failed:', error);
+				document.getElementById('app').innerHTML = '<div style="color: red; padding: 20px;">Failed to initialize view: ' + error.message + '</div>';
+			}
+		} else {
+			console.error('[UsagesView] initializeUsagesView function not found');
+			document.getElementById('app').innerHTML = '<div style="color: red; padding: 20px;">Failed to load view initialization function</div>';
+		}
 	</script>
 </body>
 </html>`;
+
+        return htmlContent;
     }
 
     /**

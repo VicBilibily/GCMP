@@ -10,9 +10,17 @@ body {
     overflow: hidden;
 }
 
+#app {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+}
+
+.usages-view,
 .container {
     display: flex;
-    height: 100vh;
+    height: 100%;
+    width: 100%;
 }
 
 .sidebar {
@@ -108,12 +116,7 @@ body {
     word-break: break-word;
 }
 
-.load-more-container {
-    padding: 6px 12px;
-    text-align: center;
-    border-bottom: 1px solid var(--vscode-panel-border);
-}
-
+.load-more-btn,
 .load-more-button {
     width: 100%;
     background-color: var(--vscode-button-secondaryBackground);
@@ -125,6 +128,7 @@ body {
     font-size: 10px;
 }
 
+.load-more-btn:hover,
 .load-more-button:hover {
     background-color: var(--vscode-button-secondaryHoverBackground);
 }
@@ -259,23 +263,27 @@ button.danger:hover {
     margin: 16px 0;
 }
 
+.page-info,
 .pagination-info {
     color: var(--vscode-descriptionForeground);
     font-size: 12px;
 }
 
-.pagination button {
+.pagination button,
+.page-btn {
     padding: 4px 8px;
     font-size: 12px;
     margin-right: 0;
 }
 
-.pagination button:disabled {
+.pagination button:disabled,
+.page-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
 }
 
-.pagination .page-number {
+.pagination .page-number,
+.page-btn {
     padding: 4px;
     min-width: 24px;
     text-align: center;
@@ -284,11 +292,13 @@ button.danger:hover {
     border: 1px solid var(--vscode-panel-border);
 }
 
-.pagination .page-number:hover {
+.pagination .page-number:hover,
+.page-btn:hover {
     background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.pagination .page-number.active {
+.pagination .page-number.active,
+.page-btn.active {
     background-color: var(--vscode-button-background);
     color: var(--vscode-button-foreground);
     font-weight: bold;
