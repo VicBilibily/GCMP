@@ -97,7 +97,7 @@ export class TokenUsagesStatusBar {
         md.supportHtml = false;
         md.isTrusted = true;
 
-        md.appendMarkdown('**今日 Token 消耗统计** 及 **最近请求记录**\n\n');
+        md.appendMarkdown('**GCMP: 今日 Token 消耗统计**\n\n');
 
         const providers = Object.values(stats.providers);
         if (providers.length === 0) {
@@ -134,12 +134,12 @@ export class TokenUsagesStatusBar {
                 `**${this.formatTokens(total)}** | **${stats.total.requests}** |\n`
         );
 
-        // ========== 最近历史记录表格 ==========
+        // ========== 最近请求记录表格 ==========
         try {
             const recentRequests = await this.usagesManager.getRecentRecords(3); // 获取最近 3 条
 
             if (recentRequests.length > 0) {
-                md.appendMarkdown('\n---\n\n\n');
+                md.appendMarkdown('\n\n ---- \n\n **GCMP: 最近模型请求状况记录** \n\n');
                 // 创建表格标题
                 md.appendMarkdown('| 提供商         | 请求时间 |  状态  | 输入/预估 | 缓存命中 | 输出Tokens |\n');
                 md.appendMarkdown('| :------------ | :------: | :----: | ------: | ------: | ------: |\n');
