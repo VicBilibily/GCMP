@@ -357,7 +357,7 @@ function createModelRow(model) {
 
 /**
  * 创建各小时用量部分
- * @param {Array} hourlyStats - 小时统计数据
+ * @param {Object|undefined} hourlyStats - 小时统计数据 (Record<string, HourlyStats>)
  * @returns {HTMLElement} 小时统计元素
  */
 function createHourlySection(hourlyStats) {
@@ -374,12 +374,41 @@ function createHourlySection(hourlyStats) {
 }
 
 /**
+ * 格式化 token 数量
+ * @param {number} tokens - token 数量
+ * @returns {string} 格式化后的字符串
+ */
+function formatTokens(tokens) {
+    if (tokens >= 1000000) {
+        return (tokens / 1000000).toFixed(1) + 'M';
+    } else if (tokens >= 1000) {
+        return (tokens / 1000).toFixed(1) + 'K';
+    } else {
+        return tokens.toString();
+    }
+}
+
+/**
  * 创建各小时用量表格
- * @param {Array} hourlyStats - 小时统计数据
+ * @param {Object|undefined} hourlyStats - 小时统计数据 (Record<string, HourlyStats>)
  * @returns {HTMLElement} 表格元素
  */
 function createHourlyTable(hourlyStats) {
-    if (hourlyStats.length === 0) {
+    // 将 Record 转换为数组并排序
+    const hourlyArray = hourlyStats
+        ? Object.entries(hourlyStats)
+            .filter(([, data]) => data.requests > 0)
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .map(([hour, data]) => ({
+                hour,
+                actualInput: data.actualInput,
+                cacheTokens: data.cacheTokens,
+                outputTokens: data.outputTokens,
+                requests: data.requests
+            }))
+        : [];
+
+    if (hourlyArray.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'empty-message';
         empty.textContent = '暂无数据';
@@ -401,16 +430,17 @@ function createHourlyTable(hourlyStats) {
 
     // 创建表体
     const tbody = document.createElement('tbody');
-    hourlyStats.forEach(hourStat => {
+    hourlyArray.forEach(hourStat => {
         const row = document.createElement('tr');
+        const total = hourStat.actualInput + hourStat.outputTokens;
 
         const cells = [
-            { content: hourStat.time, bold: true },
-            { content: hourStat.totalInputFormatted },
-            { content: hourStat.totalCacheReadFormatted },
-            { content: hourStat.totalOutputFormatted },
-            { content: hourStat.totalFormatted, bold: true },
-            { content: hourStat.totalRequests }
+            { content: `${hourStat.hour}:00`, bold: true },
+            { content: formatTokens(hourStat.actualInput) },
+            { content: formatTokens(hourStat.cacheTokens) },
+            { content: formatTokens(hourStat.outputTokens) },
+            { content: formatTokens(total), bold: true },
+            { content: hourStat.requests }
         ];
 
         cells.forEach(cellData => {

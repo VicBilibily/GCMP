@@ -9,8 +9,8 @@ import { TokenFileLogger, TokenUsageStatsFromFile } from './fileLogger';
 import { UsageParser, ExtendedTokenRequestLog } from './fileLogger/usageParser';
 import { DateUtils } from './fileLogger/dateUtils';
 import { EventEmitter } from 'events';
-import type { DailyStats, ProviderStats, ModelStats, UsagesHourlyStats, DateSummary } from './types';
-import { GenericUsageData, RawUsageData, DateIndexEntry } from './fileLogger/types';
+import type { DateSummary } from './types';
+import type { GenericUsageData, RawUsageData, DateIndexEntry } from './fileLogger/types';
 
 /**
  * Token 用量管理器
@@ -199,91 +199,26 @@ export class TokenUsagesManager {
      * 获取指定日期的统计数据(带缓存)
      * 适用于状态栏等需要快速响应的场景
      */
-    async getDateStats(date: string): Promise<DailyStats> {
+    async getDateStats(date: string): Promise<TokenUsageStatsFromFile & { date: string; lastUpdated: number }> {
         const stats = await this.fileLogger.getDateStats(date);
-        return this.convertToLegacyFormat(date, stats);
+        return {
+            ...stats,
+            date,
+            lastUpdated: Date.now()
+        };
     }
 
     /**
      * 获取指定日期的统计数据(从文件直接读取,无缓存)
      * 适用于详情界面,确保显示最新的准确数据
      */
-    async getDateStatsFromFile(date: string): Promise<DailyStats> {
+    async getDateStatsFromFile(date: string): Promise<TokenUsageStatsFromFile & { date: string; lastUpdated: number }> {
         const stats = await this.fileLogger.getDateStatsFromFile(date);
-        return this.convertToLegacyFormat(date, stats);
-    }
-
-    /**
-     * 获取今日统计数据
-     */
-    async getTodayStats(): Promise<DailyStats> {
-        const today = DateUtils.getTodayDateString();
-        const stats = await this.fileLogger.getDateStats(today);
-        const result = this.convertToLegacyFormat(today, stats);
-
-        StatusLogger.info(
-            `[Usages] 获取今日统计: provider数量=${Object.keys(result.providers).length}, totalRequests=${Object.values(result.providers).reduce((sum, p) => sum + p.totalRequests, 0)}`
-        );
-
-        return result;
-    }
-
-    /**
-     * 获取指定日期按小时的统计数据
-     */
-    async getDateHourlyStats(date: string): Promise<UsagesHourlyStats[]> {
-        const hourlyList: UsagesHourlyStats[] = [];
-
-        // 优先尝试从持久化的统计文件读取所有小时数据
-        const allHourStats = await this.fileLogger.getAllHourStats(date);
-
-        if (allHourStats && allHourStats.hourly) {
-            // 从持久化文件读取，遍历所有小时
-            for (const [hourKey, hourData] of Object.entries(allHourStats.hourly)) {
-                if (hourData.requests > 0) {
-                    const hourStr = `${date}-${hourKey}`;
-                    hourlyList.push({
-                        hour: hourStr,
-                        totalInputTokens: hourData.actualInput,
-                        totalCacheReadTokens: hourData.cacheTokens,
-                        totalOutputTokens: hourData.outputTokens,
-                        totalRequests: hourData.requests,
-                        lastUpdated: Date.now()
-                    });
-                }
-            }
-            // 按时间排序
-            hourlyList.sort((a, b) => a.hour.localeCompare(b.hour));
-            return hourlyList;
-        }
-
-        // 如果没有持久化的统计文件，使用 getDateStats 一次性计算所有小时
-        try {
-            const stats = await this.fileLogger.getDateStats(date);
-
-            if (stats.hourly) {
-                for (const [hourKey, hourData] of Object.entries(stats.hourly)) {
-                    if (hourData.requests > 0) {
-                        const hourStr = `${date}-${hourKey}`;
-                        hourlyList.push({
-                            hour: hourStr,
-                            totalInputTokens: hourData.actualInput,
-                            totalCacheReadTokens: hourData.cacheTokens,
-                            totalOutputTokens: hourData.outputTokens,
-                            totalRequests: hourData.requests,
-                            lastUpdated: Date.now()
-                        });
-                    }
-                }
-            }
-
-            // 按时间排序
-            hourlyList.sort((a, b) => a.hour.localeCompare(b.hour));
-        } catch {
-            // 忽略错误
-        }
-
-        return hourlyList;
+        return {
+            ...stats,
+            date,
+            lastUpdated: Date.now()
+        };
     }
 
     /**
@@ -360,44 +295,6 @@ export class TokenUsagesManager {
      */
     private notifyUpdate() {
         this.eventEmitter.emit('update');
-    }
-
-    /**
-     * 转换 fileLogger 格式为旧版格式
-     */
-    private convertToLegacyFormat(date: string, stats: TokenUsageStatsFromFile): DailyStats {
-        const providers: Record<string, ProviderStats> = {};
-
-        for (const [providerKey, providerData] of Object.entries(stats.providers)) {
-            const models: Record<string, ModelStats> = {};
-
-            for (const [modelId, modelData] of Object.entries(providerData.models)) {
-                models[modelId] = {
-                    modelId: modelId,
-                    modelName: modelData.modelName,
-                    totalInputTokens: modelData.actualInput,
-                    totalCacheReadTokens: modelData.cacheTokens,
-                    totalOutputTokens: modelData.outputTokens,
-                    totalRequests: modelData.requests
-                };
-            }
-
-            providers[providerKey] = {
-                providerKey: providerKey,
-                displayName: providerData.providerName,
-                totalInputTokens: providerData.actualInput,
-                totalCacheReadTokens: providerData.cacheTokens,
-                totalOutputTokens: providerData.outputTokens,
-                totalRequests: providerData.requests,
-                models
-            };
-        }
-
-        return {
-            date,
-            providers,
-            lastUpdated: Date.now()
-        };
     }
 
     /**

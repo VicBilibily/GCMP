@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { TokenUsagesManager, DailyStats, HourlyStats, DateSummary } from '../usages/usagesManager';
+import { TokenUsagesManager } from '../usages/usagesManager';
+import type { TokenUsageStatsFromFile } from '../usages/fileLogger';
+import type { DateSummary } from '../usages/types';
 import { ExtendedTokenRequestLog, UsageParser } from '../usages/fileLogger/usageParser';
 import { Logger } from '../utils/logger';
 import usagesViewCss from './usagesView.css?raw';
@@ -134,14 +136,13 @@ export class TokenUsagesView {
 
             // 获取选中日期的详细数据(从文件直接读取,不使用缓存)
             const dateStats = await this.usagesManager.getDateStatsFromFile(displayDate);
-            const hourlyStats = await this.usagesManager.getDateHourlyStats(displayDate);
             const dateRecords = await this.usagesManager.getDateRecords(displayDate);
 
             this.panel.webview.html = this.getWebviewContent(
                 dateSummaries,
                 displayDate,
                 dateStats,
-                hourlyStats,
+                dateStats.hourly,
                 dateRecords,
                 page
             );
@@ -254,7 +255,6 @@ export class TokenUsagesView {
 
             // 从文件直接读取,不使用缓存
             const dateStats = await this.usagesManager.getDateStatsFromFile(date);
-            const hourlyStats = await this.usagesManager.getDateHourlyStats(date);
             const dateRecords = await this.usagesManager.getDateRecords(date);
 
             const providers = Object.values(dateStats.providers);
@@ -275,7 +275,7 @@ export class TokenUsagesView {
                     date,
                     isToday: date === today,
                     providers: this.formatProvidersData(providers),
-                    hourlyStats: this.formatHourlyStatsData(hourlyStats),
+                    hourlyStats: dateStats.hourly,
                     records: this.formatRecordsData(UsageParser.extendLogs(dateRecords)),
                     currentPage: 1
                 });
@@ -442,25 +442,12 @@ export class TokenUsagesView {
     }
 
     /**
-     * 格式化小时统计数据
+     * 格式化小时统计数据 - 直接返回原始结构
      */
-    private formatHourlyStatsData(hourlyStats: HourlyStats[]): unknown[] {
-        return hourlyStats.map(h => {
-            const hourPart = h.hour.substring(11, 13);
-            const total = h.totalInputTokens + h.totalOutputTokens;
-            return {
-                time: `${hourPart}:00`,
-                totalInput: h.totalInputTokens,
-                totalInputFormatted: this.formatTokens(h.totalInputTokens),
-                totalCacheRead: h.totalCacheReadTokens,
-                totalCacheReadFormatted: this.formatTokens(h.totalCacheReadTokens),
-                totalOutput: h.totalOutputTokens,
-                totalOutputFormatted: this.formatTokens(h.totalOutputTokens),
-                total: total,
-                totalFormatted: this.formatTokens(total),
-                totalRequests: h.totalRequests
-            };
-        });
+    private formatHourlyStatsData(
+        hourly: Record<string, HourlyStats> | undefined
+    ): Record<string, HourlyStats> | undefined {
+        return hourly;
     }
 
     /**
@@ -519,8 +506,8 @@ export class TokenUsagesView {
     private getWebviewContent(
         dateSummaries: DateSummary[],
         selectedDate: string,
-        dateStats: DailyStats,
-        hourlyStats: HourlyStats[],
+        dateStats: TokenUsageStatsFromFile & { date: string; lastUpdated: number },
+        hourlyStats: Record<string, HourlyStats> | undefined,
         dateRecords: TokenRequestLog[],
         currentPage: number = 1
     ): string {

@@ -6,7 +6,8 @@
 import * as vscode from 'vscode';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { StatusLogger } from '../utils/statusLogger';
-import { ProviderStats } from '../usages/types';
+import { DateUtils } from '../usages/fileLogger/dateUtils';
+import type { TokenUsageStatsFromFile } from '../usages/fileLogger/types';
 
 /**
  * Token 用量状态栏
@@ -57,20 +58,18 @@ export class TokenUsagesStatusBar {
         }
 
         try {
-            const todayStats = await this.usagesManager.getTodayStats();
-            const providers = Object.values(todayStats.providers);
+            const today = DateUtils.getTodayDateString();
+            const todayStats = await this.usagesManager.getDateStats(today);
 
             // 计算今日总 token
             let totalInputTokens = 0;
-            let totalCacheReadTokens = 0;
             let totalOutputTokens = 0;
             let totalRequests = 0;
 
-            for (const stats of providers) {
-                totalInputTokens += stats.totalInputTokens;
-                totalCacheReadTokens += stats.totalCacheReadTokens;
-                totalOutputTokens += stats.totalOutputTokens;
-                totalRequests += stats.totalRequests;
+            for (const stats of Object.values(todayStats.providers)) {
+                totalInputTokens += stats.actualInput;
+                totalOutputTokens += stats.outputTokens;
+                totalRequests += stats.requests;
             }
 
             const totalTokens = totalInputTokens + totalOutputTokens;
@@ -83,14 +82,7 @@ export class TokenUsagesStatusBar {
             }
 
             // 更新 Tooltip (异步生成)
-            this.statusBarItem.tooltip = await this.generateTooltip(
-                providers,
-                totalInputTokens,
-                totalCacheReadTokens,
-                totalOutputTokens,
-                totalRequests,
-                todayStats.date
-            );
+            this.statusBarItem.tooltip = await this.generateTooltip(todayStats);
         } catch (err) {
             StatusLogger.error('[Token统计状态栏] 更新显示失败:', err);
             this.statusBarItem.text = '$(pulse)';
@@ -100,52 +92,46 @@ export class TokenUsagesStatusBar {
     /**
      * 生成 Tooltip（显示今日分提供商统计 + 最近历史记录）
      */
-    private async generateTooltip(
-        providers: ProviderStats[],
-        totalInput: number,
-        totalCacheRead: number,
-        totalOutput: number,
-        totalRequests: number,
-        date: string
-    ): Promise<vscode.MarkdownString> {
+    private async generateTooltip(stats: TokenUsageStatsFromFile): Promise<vscode.MarkdownString> {
         const md = new vscode.MarkdownString();
         md.supportHtml = false;
         md.isTrusted = true;
 
+        md.appendMarkdown('**今日 Token 消耗统计** 及 **最近请求记录**\n\n');
+
+        const providers = Object.values(stats.providers);
         if (providers.length === 0) {
-            md.appendMarkdown(`**今日 Token 消耗统计** (${date})\n\n`);
             md.appendMarkdown('暂无使用记录');
             md.appendMarkdown('\n\n---\n\n点击查看详情');
             return md;
         }
 
         // ========== 今日用量表格 ==========
-        md.appendMarkdown(`**今日 Token 消耗统计** (${date})\n\n---\n\n`);
         // 按提供商统计（按总 token 排序）
         const sortedProviders = providers.sort((a, b) => {
-            const totalA = a.totalInputTokens + a.totalOutputTokens;
-            const totalB = b.totalInputTokens + b.totalOutputTokens;
+            const totalA = a.actualInput + a.outputTokens;
+            const totalB = b.actualInput + b.outputTokens;
             return totalB - totalA;
         });
         // 创建提供商统计表格
-        md.appendMarkdown('| 提供商        |     输入 |    缓存 |    输出 |    消耗 | 请求数 |\n');
+        md.appendMarkdown('| 提供商        | 输入Tokens | 缓存命中 | 输出Tokens | 合计消耗 | 请求数 |\n');
         md.appendMarkdown('| :------------ | ------: | ------: | ------: | ------: | ----: |\n');
         for (const stats of sortedProviders) {
-            const providerTotal = stats.totalInputTokens + stats.totalOutputTokens;
+            const providerTotal = stats.actualInput + stats.outputTokens;
             md.appendMarkdown(
-                `| ${stats.displayName} | ${this.formatTokens(stats.totalInputTokens)} | ` +
-                    `${this.formatTokens(stats.totalCacheReadTokens)} | ` +
-                    `${this.formatTokens(stats.totalOutputTokens)} | ` +
-                    `${this.formatTokens(providerTotal)} | ${stats.totalRequests} |\n`
+                `| ${stats.providerName} | ${this.formatTokens(stats.actualInput)} | ` +
+                    `${this.formatTokens(stats.cacheTokens)} | ` +
+                    `${this.formatTokens(stats.outputTokens)} | ` +
+                    `**${this.formatTokens(providerTotal)}** | ${stats.requests} |\n`
             );
         }
         // 合计行
-        const total = totalInput + totalOutput;
+        const total = stats.total.actualInput + stats.total.outputTokens;
         md.appendMarkdown(
-            `| **合计** | **${this.formatTokens(totalInput)}** | ` +
-                `**${this.formatTokens(totalCacheRead)}** | ` +
-                `**${this.formatTokens(totalOutput)}** | ` +
-                `**${this.formatTokens(total)}** | **${totalRequests}** |\n`
+            `| **合计** | **${this.formatTokens(stats.total.actualInput)}** | ` +
+                `**${this.formatTokens(stats.total.cacheTokens)}** | ` +
+                `**${this.formatTokens(stats.total.outputTokens)}** | ` +
+                `**${this.formatTokens(total)}** | **${stats.total.requests}** |\n`
         );
 
         // ========== 最近历史记录表格 ==========
@@ -155,7 +141,7 @@ export class TokenUsagesStatusBar {
             if (recentRequests.length > 0) {
                 md.appendMarkdown('\n---\n\n\n');
                 // 创建表格标题
-                md.appendMarkdown('| 提供商         | 请求时间 |  状态  | 输入/预估 |    缓存 |    输出 |\n');
+                md.appendMarkdown('| 提供商         | 请求时间 |  状态  | 输入/预估 | 缓存命中 | 输出Tokens |\n');
                 md.appendMarkdown('| :------------ | :------: | :----: | ------: | ------: | ------: |\n');
 
                 // 反转数组，让最近的请求在最下方显示
