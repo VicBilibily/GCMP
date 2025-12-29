@@ -8,6 +8,8 @@ import { CompatibleProvider } from './providers/compatibleProvider';
 import { InlineCompletionShim } from './copilot/inlineCompletionShim';
 import { Logger, StatusLogger, CompletionLogger, TokenCounter } from './utils';
 import { ApiKeyManager, ConfigManager, JsonSchemaProvider } from './utils';
+import { TokenUsagesManager } from './usages/usagesManager';
+import { TokenUsagesView } from './ui/usagesView';
 import { CompatibleModelManager } from './utils/compatibleModelManager';
 import { LeaderElectionService, StatusBarManager } from './status';
 import { registerAllTools } from './tools';
@@ -199,6 +201,10 @@ export async function activate(context: vscode.ExtensionContext) {
         stepStartTime = Date.now();
         CompatibleModelManager.initialize();
         Logger.trace(`⏱️ 兼容模型管理器初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        // 步骤2.3: 初始化Token统计管理器
+        stepStartTime = Date.now();
+        await TokenUsagesManager.instance.initialize(context);
+        Logger.trace(`⏱️ Token统计管理器初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
         // 步骤3: 激活提供商（并行优化）
         stepStartTime = Date.now();
@@ -223,6 +229,26 @@ export async function activate(context: vscode.ExtensionContext) {
         stepStartTime = Date.now();
         await activateInlineCompletionProvider(context);
         Logger.trace(`⏱️ NES 内联补全提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+
+        // 步骤6: 注册Token用量统计命令
+        stepStartTime = Date.now();
+        // 查看今日用量统计详情命令（单例模式，同一窗口只允许打开一个统计页面）
+        let tokenUsagesView: TokenUsagesView | undefined;
+        const viewStatsCommand = vscode.commands.registerCommand('gcmp.tokenUsage.showDetails', () => {
+            if (!tokenUsagesView) {
+                tokenUsagesView = new TokenUsagesView(context);
+            }
+            tokenUsagesView.show();
+        });
+        context.subscriptions.push(
+            viewStatsCommand,
+            // 确保在扩展停用时清理视图实例
+            new vscode.Disposable(() => {
+                tokenUsagesView?.dispose();
+                tokenUsagesView = undefined;
+            })
+        );
+        Logger.trace(`⏱️ 查看Token消耗统计命令注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
         const totalActivationTime = Date.now() - activationStartTime;
         Logger.info(`✅ GCMP 扩展激活完成 (总耗时: ${totalActivationTime}ms)`);
@@ -269,6 +295,13 @@ export function deactivate() {
         }
 
         ConfigManager.dispose(); // 清理配置管理器
+
+        // 清理 Token 用量管理器
+        TokenUsagesManager.instance.dispose().catch(error => {
+            Logger.warn('清理 Token 用量管理器失败:', error);
+        });
+        Logger.trace('已清理 Token 用量管理器');
+
         Logger.info('GCMP 扩展停用完成');
         StatusLogger.dispose(); // 清理状态日志管理器
         CompletionLogger.dispose(); // 清理内联补全日志管理器

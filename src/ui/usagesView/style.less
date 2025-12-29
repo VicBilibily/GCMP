@@ -1,0 +1,420 @@
+﻿/**
+ * UsagesView 样式
+ * Token 用量详细视图样式
+ * 保持原有样式模式
+ */
+
+body {
+    font-family: var(--vscode-font-family);
+    color: var(--vscode-foreground);
+    background-color: var(--vscode-editor-background);
+    margin: 0;
+    padding: 0;
+    line-height: 1.4;
+    font-size: 13px;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.container {
+    display: flex;
+    height: 100vh;
+
+    .sidebar {
+        width: 180px;
+        background-color: var(--vscode-sideBar-background);
+        border-right: 1px solid var(--vscode-panel-border);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+
+        .sidebar-header {
+            padding: 12px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+
+            &-top {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+            }
+
+            h1 {
+                font-size: 14px;
+                margin: 0;
+                flex: 1;
+                min-width: 0;
+            }
+
+            .open-storage-button {
+                background-color: var(--vscode-button-secondaryBackground);
+                color: var(--vscode-button-secondaryForeground);
+                border: none;
+                padding: 3px 6px;
+                cursor: pointer;
+                border-radius: 2px;
+                font-size: 10px;
+                transition: background-color 0.1s;
+                white-space: nowrap;
+                flex-shrink: 0;
+
+                &:hover {
+                    background-color: var(--vscode-button-secondaryHoverBackground);
+                }
+            }
+        }
+
+        .date-list {
+            flex: 1;
+            overflow-y: auto;
+
+            .date-item {
+                padding: 8px 12px;
+                border-bottom: 1px solid var(--vscode-panel-border);
+                cursor: pointer;
+                transition: background-color 0.1s;
+
+                &:hover {
+                    background-color: var(--vscode-list-hoverBackground);
+                }
+
+                &.selected {
+                    background-color: var(--vscode-list-activeSelectionBackground);
+                    color: var(--vscode-list-activeSelectionForeground);
+                }
+
+                &-header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    margin-bottom: 4px;
+                    gap: 8px;
+                }
+
+                &-title {
+                    font-weight: bold;
+                    flex: 1;
+                    min-width: 0;
+                    font-size: 12px;
+                    word-break: break-word;
+
+                    &.today {
+                        color: var(--vscode-charts-blue);
+                    }
+                }
+
+                &-stats {
+                    font-size: 10px;
+                    color: var(--vscode-descriptionForeground);
+                    word-break: break-word;
+                }
+            }
+        }
+
+        .load-more-container {
+            padding: 6px 12px;
+            text-align: center;
+            border-bottom: 1px solid var(--vscode-panel-border);
+
+            .load-more-button {
+                width: 100%;
+                background-color: var(--vscode-button-secondaryBackground);
+                color: var(--vscode-button-secondaryForeground);
+                border: none;
+                padding: 4px 8px;
+                cursor: pointer;
+                border-radius: 2px;
+                font-size: 10px;
+
+                &:hover {
+                    background-color: var(--vscode-button-secondaryHoverBackground);
+                }
+            }
+        }
+    }
+
+    .content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px;
+
+        h2 {
+            color: var(--vscode-foreground);
+            font-size: 13px;
+            margin: 6px 0 4px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 6px 0 12px 0;
+            font-size: 11px;
+            min-width: 580px;
+            table-layout: fixed;
+
+            th,
+            td {
+                padding: 3px 5px;
+                text-align: left;
+                border-bottom: 1px solid var(--vscode-panel-border);
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            th {
+                background-color: var(--vscode-editor-selectionBackground);
+                font-weight: bold;
+                position: sticky;
+                top: 0;
+                z-index: 10;
+
+                /* 提供商表格和小时表格：数值列右对齐（第2-6列） */
+                &:nth-child(n + 2):nth-child(-n + 6) {
+                    text-align: right;
+                }
+            }
+
+            td {
+                /* 提供商表格和小时表格：数值列右对齐（第2-6列） */
+                &:nth-child(n + 2):nth-child(-n + 6) {
+                    text-align: right;
+                }
+            }
+
+            tr {
+                &:hover {
+                    background-color: var(--vscode-list-hoverBackground);
+                }
+            }
+        }
+
+        /* 提供商统计表格特定样式 */
+        .provider-stats-table {
+            /* 第1列（提供商/模型）占较大比例 */
+            th:nth-child(1),
+            td:nth-child(1) {
+                width: 35%;
+                min-width: 150px;
+            }
+
+            /* 数值列平均分配剩余空间 */
+            th:nth-child(n + 2):nth-child(-n + 6),
+            td:nth-child(n + 2):nth-child(-n + 6) {
+                width: 13%;
+                min-width: 80px;
+            }
+        }
+    }
+}
+
+/* 记录表格特定样式 */
+#records-container {
+    /* 列宽分配 */
+    .records-table {
+        /* 第1列（时间） */
+        th:nth-child(1),
+        td:nth-child(1) {
+            width: 10%;
+            min-width: 70px;
+        }
+
+        /* 第2列（提供商） */
+        th:nth-child(2),
+        td:nth-child(2) {
+            width: 15%;
+            min-width: 100px;
+        }
+
+        /* 第3列（模型） */
+        th:nth-child(3),
+        td:nth-child(3) {
+            width: 20%;
+            min-width: 120px;
+        }
+
+        /* 第4-7列（输入、缓存、输出、消耗）数值列 */
+        th:nth-child(n + 4):nth-child(-n + 7),
+        td:nth-child(n + 4):nth-child(-n + 7) {
+            width: 12%;
+            min-width: 80px;
+        }
+
+        /* 第8列（状态） */
+        th:nth-child(8),
+        td:nth-child(8) {
+            width: 10%;
+            min-width: 60px;
+        }
+    }
+
+    td,
+    th {
+        /* 第1列（时间）居中 */
+        &:nth-child(1) {
+            text-align: center;
+        }
+
+        /* 第2-3列（提供商、模型）左对齐 */
+        &:nth-child(2),
+        &:nth-child(3) {
+            text-align: left;
+        }
+
+        /* 第4-7列（输入、缓存、输出、消耗）右对齐 */
+        &:nth-child(n + 4):nth-child(-n + 7) {
+            text-align: right;
+        }
+
+        /* 第8列（状态）居中对齐 */
+        &:nth-child(8) {
+            text-align: center;
+        }
+    }
+}
+
+button {
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    padding: 5px 8px;
+    margin-right: 4px;
+    cursor: pointer;
+    border-radius: 2px;
+    font-size: 12px;
+
+    &:hover {
+        background-color: var(--vscode-button-hoverBackground);
+    }
+
+    &.secondary {
+        background-color: var(--vscode-button-secondaryBackground);
+        color: var(--vscode-button-secondaryForeground);
+
+        &:hover {
+            background-color: var(--vscode-button-secondaryHoverBackground);
+        }
+    }
+
+    &.danger {
+        background-color: var(--vscode-inputValidation-errorBackground);
+        color: var(--vscode-input-foreground);
+
+        &:hover {
+            opacity: 0.9;
+        }
+    }
+}
+
+.status-completed {
+    color: var(--vscode-testing-iconPassed);
+}
+
+.status-failed {
+    color: var(--vscode-testing-iconFailed);
+}
+
+.status-estimated {
+    color: var(--vscode-descriptionForeground);
+}
+
+.empty-message {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--vscode-descriptionForeground);
+    font-size: 13px;
+}
+
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 16px 0;
+
+    &-info {
+        color: var(--vscode-descriptionForeground);
+        font-size: 12px;
+    }
+
+    button {
+        padding: 4px 8px;
+        font-size: 12px;
+        margin-right: 0;
+
+        &:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    }
+
+    .page-number {
+        padding: 4px;
+        min-width: 24px;
+        text-align: center;
+        background-color: transparent;
+        color: var(--vscode-foreground);
+        border: 1px solid var(--vscode-panel-border);
+
+        &:hover {
+            background-color: var(--vscode-toolbar-hoverBackground);
+        }
+
+        &.active {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            font-weight: bold;
+            border-color: var(--vscode-button-background);
+        }
+    }
+}
+
+/* 加载状态遮罩 */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--vscode-editor-background);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+
+    &.visible {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .loading-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+
+        .loading-spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--vscode-panel-border);
+            border-top-color: var(--vscode-button-background);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .loading-text {
+            color: var(--vscode-foreground);
+            font-size: 13px;
+        }
+    }
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

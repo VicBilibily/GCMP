@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.15.23",
+    "version": "0.16.0",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -146,6 +146,11 @@
                 "command": "gcmp.nesCompletion.toggleManual",
                 "title": "切换 NES 手动触发模式",
                 "category": "GCMP"
+            },
+            {
+                "command": "gcmp.usages.showDetails",
+                "title": "查看今日 Token 消耗统计详情",
+                "category": "GCMP"
             }
         ],
         "configuration": {
@@ -221,6 +226,14 @@
                     ],
                     "default": "minimaxi.com",
                     "description": "MiniMax Coding Plan 接入站点。minimaxi.com 为国内站（推荐），minimax.io 为国际站。",
+                    "scope": "application"
+                },
+                "gcmp.usages.retentionDays": {
+                    "type": "number",
+                    "default": 100,
+                    "minimum": 0,
+                    "maximum": 365,
+                    "description": "Token消耗记录历史数据保留天数（按日期保存，0表示永久保留）。",
                     "scope": "application"
                 },
                 "gcmp.fimCompletion.enabled": {
@@ -666,9 +679,10 @@
         "@types/json-schema": "^7.0.15",
         "@types/node": "^20.0.0",
         "@types/vscode": "^1.104.0",
-        "@vscode/vsce": "^3.6.2",
+        "@vscode/vsce": "^3.7.1",
         "esbuild": "^0.25.10",
         "eslint": "^9.13.0",
+        "less": "^4.5.1",
         "prettier": "^3.6.2",
         "rimraf": "^6.0.1",
         "tsx": "^4.21.0",

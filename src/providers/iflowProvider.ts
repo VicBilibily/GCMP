@@ -15,6 +15,7 @@ import {
 import { ProviderConfig } from '../types/sharedTypes';
 import { ApiKeyManager, Logger, ConfigManager } from '../utils';
 import { GenericModelProvider } from './genericModelProvider';
+import { TokenUsagesManager } from '../usages/usagesManager';
 
 /**
  * 心流AI 专用模型提供商类
@@ -86,7 +87,22 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
         await ApiKeyManager.ensureApiKey(this.providerKey, this.providerConfig.displayName);
 
         // 计算输入 token 数量并更新状态栏
-        await this.updateTokenUsageStatusBar(model, messages, modelConfig, options);
+        const totalInputTokens = await this.updateContextUsageStatusBar(model, messages, modelConfig, options);
+
+        // === Token 统计: 记录预估输入 token ===
+        const usagesManager = TokenUsagesManager.instance;
+        let usageRequestId: string | null = null;
+        try {
+            usageRequestId = await usagesManager.recordEstimatedTokens({
+                providerKey: this.providerKey,
+                displayName: this.providerConfig.displayName,
+                modelId: model.id,
+                modelName: model.name || modelConfig.name,
+                estimatedInputTokens: totalInputTokens
+            });
+        } catch (err) {
+            Logger.warn('记录预估Token失败，继续执行请求:', err);
+        }
 
         // 根据模型的 sdkMode 选择使用的 handler
         const sdkMode = modelConfig.sdkMode || 'openai';
@@ -109,14 +125,36 @@ export class IFlowProvider extends GenericModelProvider implements LanguageModel
                     messages,
                     options,
                     progress,
-                    combinedToken
+                    combinedToken,
+                    usageRequestId
                 );
             } else {
-                await this.openaiHandler.handleRequest(model, modelConfig, messages, options, progress, combinedToken);
+                await this.openaiHandler.handleRequest(
+                    model,
+                    modelConfig,
+                    messages,
+                    options,
+                    progress,
+                    combinedToken,
+                    usageRequestId
+                );
             }
         } catch (error) {
             const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
             Logger.error(errorMessage);
+
+            // === Token 统计: 更新失败状态 ===
+            if (usageRequestId) {
+                try {
+                    await usagesManager.updateActualTokens({
+                        requestId: usageRequestId,
+                        status: 'failed'
+                    });
+                } catch (err) {
+                    Logger.warn('更新Token统计失败状态失败:', err);
+                }
+            }
+
             throw error;
         } finally {
             // 请求完成后清理

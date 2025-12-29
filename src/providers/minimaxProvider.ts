@@ -16,6 +16,7 @@ import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { Logger, ApiKeyManager, MiniMaxWizard, ConfigManager } from '../utils';
 import { StatusBarManager } from '../status';
+import { TokenUsagesManager } from '../usages/usagesManager';
 
 /**
  * MiniMax 专用模型提供商类
@@ -250,7 +251,22 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         );
 
         // 计算输入 token 数量并更新状态栏
-        await this.updateTokenUsageStatusBar(model, messages, modelConfig, options);
+        const totalInputTokens = await this.updateContextUsageStatusBar(model, messages, modelConfig, options);
+
+        // === Token 统计: 记录预估输入 token ===
+        const usagesManager = TokenUsagesManager.instance;
+        let requestId: string | null = null;
+        try {
+            requestId = await usagesManager.recordEstimatedTokens({
+                providerKey: providerKey,
+                displayName: this.providerConfig.displayName,
+                modelId: model.id,
+                modelName: model.name || modelConfig.name,
+                estimatedInputTokens: totalInputTokens
+            });
+        } catch (err) {
+            Logger.warn('记录预估Token失败，继续执行请求:', err);
+        }
 
         // 根据模型的 sdkMode 选择使用的 handler
         // 注：此处不调用 super.provideLanguageModelChatResponse，而是直接处理
@@ -261,13 +277,42 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
 
         try {
             if (sdkMode === 'anthropic') {
-                await this.anthropicHandler.handleRequest(model, modelConfig, messages, options, progress, _token);
+                await this.anthropicHandler.handleRequest(
+                    model,
+                    modelConfig,
+                    messages,
+                    options,
+                    progress,
+                    _token,
+                    requestId
+                );
             } else {
-                await this.openaiHandler.handleRequest(model, modelConfig, messages, options, progress, _token);
+                await this.openaiHandler.handleRequest(
+                    model,
+                    modelConfig,
+                    messages,
+                    options,
+                    progress,
+                    _token,
+                    requestId
+                );
             }
         } catch (error) {
             const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
             Logger.error(errorMessage);
+
+            // === Token 统计: 更新失败状态 ===
+            if (requestId) {
+                try {
+                    await usagesManager.updateActualTokens({
+                        requestId,
+                        status: 'failed'
+                    });
+                } catch (err) {
+                    Logger.warn('更新Token统计失败状态失败:', err);
+                }
+            }
+
             throw error;
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} 请求已完成`);

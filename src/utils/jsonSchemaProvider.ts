@@ -253,7 +253,7 @@ export class JsonSchemaProvider {
                             includeThinking: {
                                 type: 'boolean',
                                 description:
-                                    '多轮对话消息是否必须包含思考内容（可选）\n默认值为 false，表示思考内容为可选传递给模型\n当模型要求多轮对话中的工具消息必须包含思考内容时需设置为 true',
+                                    '多轮对话消息是否必须包含思考内容（可选）\n- false: 不包含思考内容（默认）\n- true: 总是包含思考内容',
                                 default: false
                             },
                             capabilities: {
@@ -394,6 +394,12 @@ export class JsonSchemaProvider {
                                 type: 'boolean',
                                 description: '是否启用输出思考过程（高级功能，默认true）',
                                 default: true
+                            },
+                            includeThinking: {
+                                type: 'boolean',
+                                description:
+                                    '多轮对话消息是否必须包含思考内容（可选）\n- false: 不包含思考内容（默认）\n- true: 总是包含思考内容',
+                                default: false
                             },
                             capabilities: {
                                 type: 'object',

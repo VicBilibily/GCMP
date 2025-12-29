@@ -41,8 +41,7 @@
 
 ### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
 
-- [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：**Doubao-Seed-Code**、**DeepSeek-V3.2**(Thinking)
-- **编程系列**：**Doubao-Seed-Code**
+- [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：**Doubao-Seed-Code**(Vision)、**DeepSeek-V3.2**(Thinking)
 - **豆包系列**：**Doubao-Seed-1.8**、**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
 - **协作奖励计划**：**DeepSeek-V3.2**(Thinking)、**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**
 
@@ -174,7 +173,7 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
             // "baseUrl": "https://open.bigmodel.cn/api/anthropic",
             "maxInputTokens": 128000,
             "maxOutputTokens": 4096,
-            // "includeThinking": true, // deepseek-reasoner v3.2 要求多轮对话包含思考过程
+            // "includeThinking": true, // 多轮对话消息是否必须包含思考内容（默认false）
             "capabilities": {
                 "toolCalling": true, // Agent模式下模型必须支持工具调用
                 "imageInput": false
@@ -261,6 +260,35 @@ FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimC
 | ------------- | ---------------------------- |
 | `Alt+/`       | 手动触发补全建议（NES 模式） |
 | `Shift+Alt+/` | 切换 NES 手动触发模式        |
+
+## 📊 Token 消耗统计系统
+
+GCMP 内置了完整的 Token 消耗统计系统，帮助您追踪和管理 AI 模型的使用情况。
+
+### 主要特性
+
+- **持久化记录**：基于文件系统的日志记录，无存储限制，支持长期数据保存
+- **用量统计**：记录每次 API 请求的模型和用量信息，包括：
+    - 模型信息（提供商、模型 ID、模型名称）
+    - Token 用量（预估输入、实际输入、输出、缓存、推理等）
+    - 请求状态（预估/完成/失败）
+- **多维度统计**：按日期、提供商、模型、小时等多维度查看统计数据
+- **实时状态栏**：状态栏实时显示今日 Token 用量，30秒自动刷新
+- **可视化视图**：WebView 详细视图支持查看历史记录、分页显示请求记录
+
+### 使用方式
+
+- **查看统计**：点击状态栏的 Token 用量显示，或通过命令面板执行 `GCMP: 查看今日 Token 消耗统计详情` 命令
+- **历史记录**：在详细视图中可查看任意日期的统计记录
+- **数据管理**：支持打开日志存储目录进行手动管理
+
+### 配置选项
+
+```json
+{
+    "gcmp.usages.retentionDays": 100 // 历史数据保留天数（0表示永久保留）
+}
+```
 
 ## 🤝 贡献指南
 

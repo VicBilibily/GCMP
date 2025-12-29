@@ -5,6 +5,8 @@ const path = require('path');
 const isWatch = process.argv.includes('--watch');
 const isDev = process.argv.includes('--dev');
 
+
+//#region 复制 chat-lib 相关的资源文件
 // postinstall.ts 中的资源复制逻辑
 const treeSitterGrammars = [
     'tree-sitter-c-sharp',
@@ -75,7 +77,9 @@ async function copyStaticAssets(srcpaths, dst) {
         try {
             await fs.promises.mkdir(path.dirname(dest), { recursive: true });
             await fs.promises.copyFile(src, dest);
-            console.log(`Copied: ${srcpath} -> ${dest}`);
+            // 只输出目标文件相对于项目根目录的路径
+            const relativeDest = path.relative(REPO_ROOT, dest);
+            console.log(`Copied: ${relativeDest}`);
         } catch {
             console.warn(`Failed to copy ${srcpath}`);
         }
@@ -116,6 +120,7 @@ async function copyBuildAssets() {
 
     await copyStaticAssets(filesToCopy, 'dist');
 }
+//#endregion
 
 // 自定义插件处理 ?raw 导入（内嵌资源，不进行 minify）
 const rawPlugin = {
@@ -141,6 +146,7 @@ const rawPlugin = {
     }
 };
 
+
 // ========================================================================
 // 公共构建选项
 // ========================================================================
@@ -154,8 +160,8 @@ const commonOptions = {
     // 使用 mainFields 优先选择 ESM 模块格式
     // 这解决了 jsonc-parser UMD 模块的相对路径问题
     mainFields: ['module', 'main'],
-    // 确保正确解析模块
-    resolveExtensions: ['.ts', '.js', '.mjs', '.json'],
+    // 确保正确解析模块（.ts 优先于 .tsx）
+    resolveExtensions: ['.ts', '.tsx', '.js', '.mjs', '.json'],
     // 添加自定义插件
     plugins: [rawPlugin],
     // 日志级别
@@ -190,19 +196,141 @@ const copilotBuildOptions = {
     external: ['vscode']
 };
 
+// ========================================================================
+// UI WebView 构建选项
+// ========================================================================
+/**
+ * 构建 UI WebView 的编译配置
+ * 扫描 ui 目录下所有包含 app.ts 的文件夹，生成对应的构建选项
+ * @returns {import('esbuild').BuildOptions[]} 构建配置数组
+ */
+function buildUiConfigs() {
+    const uiDir = path.join(REPO_ROOT, 'src/ui');
+    const configs = [];
+
+    // 自定义插件处理 CSS 内联（处理 .less 文件）
+    const inlineLessPlugin = {
+        name: 'inline-less',
+        setup(build) {
+            // 处理所有 .less 文件（自动内联）
+            build.onResolve({ filter: /\.less$/ }, (args) => {
+                return {
+                    path: args.path,
+                    namespace: 'inline-less',
+                    pluginData: {
+                        resolveDir: args.resolveDir
+                    }
+                };
+            });
+
+            // 处理 .less 文件
+            build.onLoad({ filter: /.*/, namespace: 'inline-less' }, async (args) => {
+                const filePath = path.join(args.pluginData.resolveDir, args.path);
+                const less = require('less');
+                const lessContent = await fs.promises.readFile(filePath, 'utf8');
+                const result = await less.render(lessContent, {
+                    filename: filePath,
+                    paths: [path.dirname(filePath)], // 搜索路径，用于 @import
+                    javascriptEnabled: true,
+                    compress: !isDev // 生产模式下压缩 CSS
+                });
+
+                // 返回一个模块，导出 CSS 字符串并自动注入到页面
+                return {
+                    contents: `
+                    const css = ${JSON.stringify(result.css)};
+                    if (typeof document !== 'undefined') {
+                        const style = document.createElement('style');
+                        style.textContent = css;
+                        document.head.appendChild(style);
+                    }
+                    export default {};
+                `,
+                    loader: 'js'
+                };
+            });
+        }
+    };
+
+    // UI 构建选项（浏览器目标）
+    const uiBuildOptions = {
+        bundle: true,
+        format: 'iife',
+        platform: 'browser',
+        sourcemap: isDev,
+        minify: !isDev,
+        treeShaking: true,
+        resolveExtensions: ['.ts', '.js', '.mjs', '.json'],
+        logLevel: 'info',
+        plugins: [inlineLessPlugin],
+        tsconfig: './tsconfig.json',
+        define: {
+            'process.env.NODE_ENV': isDev ? '"development"' : '"production"'
+        }
+    };
+
+    function scan(dir) {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                const appTsPath = path.join(fullPath, 'app.ts');
+                if (fs.existsSync(appTsPath)) {
+                    const folderName = path.basename(fullPath);
+                    configs.push({
+                        ...uiBuildOptions,
+                        entryPoints: [appTsPath],
+                        outfile: `dist/ui/${folderName}.js`
+                    });
+                }
+                // 递归扫描子目录
+                scan(fullPath);
+            }
+        }
+    }
+
+    scan(uiDir);
+    return configs;
+}
+
+
+// ========================================================================
+// 构建函数
+// ========================================================================
 async function build() {
     try {
+        // 基础构建配置
+        const baseConfigs = [
+            extensionBuildOptions,
+            copilotBuildOptions
+        ];
+
+        // 构建 UI WebView 的编译配置
+        const uiConfigs = buildUiConfigs();
+
         if (isWatch) {
-            // Watch 模式：同时监听两个入口点
-            console.log('Starting watch mode for extension and copilot bundles...');
+            // Watch 模式
+            console.log('Starting watch mode...');
 
-            const [extensionCtx, copilotCtx] = await Promise.all([
-                esbuild.context(extensionBuildOptions),
-                esbuild.context(copilotBuildOptions)
-            ]);
+            const contexts = [];
 
-            await Promise.all([extensionCtx.watch(), copilotCtx.watch()]);
-            console.log('Watching for changes in both extension.js and copilot.bundle.js...');
+            // 添加基础配置
+            for (const config of baseConfigs) {
+                const ctx = await esbuild.context(config);
+                contexts.push(ctx);
+                await ctx.watch();
+            }
+
+            // 添加 UI 配置
+            for (const config of uiConfigs) {
+                const ctx = await esbuild.context(config);
+                contexts.push(ctx);
+                await ctx.watch();
+                console.log(`Watching: ${config.outfile}`);
+            }
+
+            console.log(`Watching for changes in ${contexts.length} bundles...`);
+            await Promise.all(contexts.map(ctx => ctx.watch()));
         } else {
             // 构建前清理 dist 目录
             console.log('Cleaning dist directory...');
@@ -213,20 +341,32 @@ async function build() {
                 console.log('No dist directory to clean.');
             }
 
-            // 并行构建两个入口点
-            console.log('Building extension.js and copilot.bundle.js...');
+            // 并行构建所有配置
+            console.log(`Building ${baseConfigs.length + uiConfigs.length} bundles...`);
             const startTime = Date.now();
 
-            await Promise.all([
+            const allConfigs = [
                 esbuild.build(extensionBuildOptions),
-                esbuild.build(copilotBuildOptions)
-            ]);
+                esbuild.build(copilotBuildOptions),
+                ...uiConfigs.map(c => esbuild.build(c))
+            ];
+
+            await Promise.all(allConfigs);
 
             const buildTime = Date.now() - startTime;
             console.log(`Build completed successfully in ${buildTime}ms.`);
 
+            // 输出构建产物列表
+            console.log('Built bundles:');
+            console.log('  - dist/extension.js');
+            console.log('  - dist/copilot.bundle.js');
+            uiConfigs.forEach(c => {
+                console.log(`  - ${c.outfile}`);
+            });
+
             // 构建完成后复制资源文件
             await copyBuildAssets();
+
             console.log('Asset copying completed.');
         }
     } catch (error) {

@@ -9,6 +9,7 @@ import {
     LanguageModelChatMessage,
     LanguageModelChatMessageRole,
     LanguageModelChatTool,
+    LanguageModelThinkingPart,
     ProvideLanguageModelChatResponseOptions
 } from 'vscode';
 import { createTokenizer, getRegexByEncoder, getSpecialTokensByEncoder, TikTokenizer } from '@microsoft/tiktokenizer';
@@ -137,6 +138,29 @@ export class TokenCounter {
     }
 
     /**
+     * 从消息 part 中提取文本内容
+     */
+    private extractPartText(part: unknown): string | null {
+        if (!part || typeof part !== 'object') {
+            return null;
+        }
+
+        const partObj = part as Record<string, unknown>;
+
+        // 处理 LanguageModelTextPart
+        if ('value' in partObj && typeof partObj.value === 'string') {
+            return partObj.value;
+        }
+
+        // 处理其他类型的 part，转换为 JSON 字符串
+        if ('name' in partObj || 'input' in partObj || 'callId' in partObj) {
+            return JSON.stringify(partObj);
+        }
+
+        return null;
+    }
+
+    /**
      * 计算单个文本或消息对象的 token 数
      */
     async countTokens(_model: LanguageModelChatInformation, text: string | LanguageModelChatMessage): Promise<number> {
@@ -162,7 +186,7 @@ export class TokenCounter {
 
     /**
      * 递归计算消息对象中的 token 数量
-     * 支持文本、图片、工具调用等复杂内容
+     * 支持文本、图片、工具调用、思考内容等复杂内容
      */
     async countMessageObjectTokens(obj: Record<string, unknown>, depth: number = 0): Promise<number> {
         let numTokens = 0;
@@ -225,21 +249,55 @@ export class TokenCounter {
 
     /**
      * 计算多条消息的总 token 数
-     * 包括常规消息、系统消息和工具定义
+     * 包括常规消息、系统消息、工具定义和思考内容（基于配置）
      */
     async countMessagesTokens(
         model: LanguageModelChatInformation,
         messages: Array<LanguageModelChatMessage>,
-        modelConfig?: { sdkMode?: string },
+        modelConfig?: { sdkMode?: string; includeThinking?: boolean },
         options?: ProvideLanguageModelChatResponseOptions
     ): Promise<number> {
         let totalTokens = 0;
         // Logger.trace(`[Token计数] 开始计算 ${messages.length} 条消息的 token...`);
 
+        // 检查是否需要包含思考内容
+        const includeThinking = modelConfig?.includeThinking === true;
+
         // 计算消息 token
         // eslint-disable-next-line @typescript-eslint/prefer-for-of
         for (let i = 0; i < messages.length; i++) {
             const message = messages[i];
+
+            // 如果不包含思考内容，需要过滤掉 LanguageModelThinkingPart
+            if (!includeThinking && message.content) {
+                // 检查是否有思考内容需要过滤
+                const hasThinking = message.content.some(part => part instanceof LanguageModelThinkingPart);
+
+                if (hasThinking) {
+                    // 只计算非思考内容部分
+                    let messageTokens = 0;
+
+                    // 基础消息开销
+                    messageTokens += 3;
+
+                    // 遍历每个 part，只统计非思考内容
+                    for (const part of message.content) {
+                        if (!(part instanceof LanguageModelThinkingPart)) {
+                            // 提取文本内容并直接计算
+                            const textContent = this.extractPartText(part);
+                            if (textContent) {
+                                messageTokens += await this.countTokens(model, textContent);
+                            }
+                        }
+                    }
+
+                    totalTokens += messageTokens;
+                    // Logger.trace(`[Token计数] 消息 #${i + 1}: ${messageTokens} tokens (已过滤思考内容, 累计: ${totalTokens})`);
+                    continue;
+                }
+            }
+
+            // 包含思考内容或没有思考内容，正常计算整个消息
             const messageTokens = await this.countTokens(
                 model,
                 message as unknown as string | LanguageModelChatMessage
@@ -258,24 +316,15 @@ export class TokenCounter {
                 totalTokens += systemMessageTokens;
                 // Logger.trace(`[Token计数] 系统消息: ${systemMessageTokens} tokens (累计: ${totalTokens})`);
             }
+        }
 
-            // 计算工具定义的 token 成本
-            const toolsTokens = this.countToolsTokens(options?.tools);
-            if (toolsTokens > 0) {
-                totalTokens += toolsTokens;
-                // Logger.trace(
-                //     `[Token计数] 工具定义 (${options?.tools?.length || 0} 个): ${toolsTokens} tokens (累计: ${totalTokens})`
-                // );
-            }
-        } else if (sdkMode === 'openai') {
-            // OpenAI SDK 模式：工具成本与 Anthropic 相同（都使用 1.1 倍）
-            const toolsTokens = this.countToolsTokens(options?.tools);
-            if (toolsTokens > 0) {
-                totalTokens += toolsTokens;
-                // Logger.trace(
-                //     `[Token计数] 工具定义 (${options?.tools?.length || 0} 个): ${toolsTokens} tokens (累计: ${totalTokens})`
-                // );
-            }
+        // 工具成本（都使用 1.1 倍）
+        const toolsTokens = this.countToolsTokens(options?.tools);
+        if (toolsTokens > 0) {
+            totalTokens += toolsTokens;
+            // Logger.trace(
+            //     `[Token计数] 工具定义 (${options?.tools?.length || 0} 个): ${toolsTokens} tokens (累计: ${totalTokens})`
+            // );
         }
 
         // Logger.info(

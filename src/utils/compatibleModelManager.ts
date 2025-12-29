@@ -58,9 +58,10 @@ export interface CompatibleModelConfig {
     customHeader?: Record<string, string>;
     /** 额外的请求体参数（可选） */
     extraBody?: Record<string, unknown>;
-    /** 是否启用输出思考过程（默认true，高级功能） */
+    /** 是否启用输出思考过程（默认true） */
     outputThinking?: boolean;
-    /** 多轮对话消息是否必须包含思考内容（默认false，高级功能） */
+    /** 多轮对话消息是否必须包含思考内容（默认false）
+     */
     includeThinking?: boolean;
     /** 是否由向导创建（内部标记，不持久化） */
     _isFromWizard?: boolean;
@@ -127,8 +128,9 @@ export class CompatibleModelManager {
         try {
             const config = vscode.workspace.getConfiguration('gcmp');
             const modelsData = config.get<CompatibleModelConfig[]>('compatibleModels', []);
-            this.models = (modelsData || [])
-                .filter(model => model != null && typeof model === 'object' && model.id && model.name && model.provider); // 过滤掉无效模型
+            this.models = (modelsData || []).filter(
+                model => model != null && typeof model === 'object' && model.id && model.name && model.provider
+            ); // 过滤掉无效模型
             Logger.debug(`已加载 ${this.models.length} 个自定义模型`);
         } catch (error) {
             Logger.error('加载自定义模型失败:', error);
@@ -667,5 +669,4 @@ export class CompatibleModelManager {
             return [];
         }
     }
-
 }

@@ -11,6 +11,7 @@ import { DeepSeekStatusBar } from './deepseekStatusBar';
 import { MoonshotStatusBar } from './moonshotStatusBar';
 import { ZhipuStatusBar } from './zhipuStatusBar';
 import { CompatibleStatusBar } from './compatibleStatusBar';
+import { ContextUsageStatusBar } from './contextUsageStatusBar';
 import { TokenUsageStatusBar } from './tokenUsageStatusBar';
 
 /**
@@ -48,6 +49,8 @@ export class StatusBarManager {
     /** Compatible 提供商状态栏 */
     static compatible: ICompatibleStatusBar | undefined;
     /** 模型上下文窗口占用情况状态栏 */
+    static contextUsage: IStatusBar | undefined;
+    /** Token 用量统计状态栏 */
     static tokenUsage: IStatusBar | undefined;
 
     // ==================== 私有成员 ====================
@@ -58,7 +61,7 @@ export class StatusBarManager {
      * 注册所有内置状态栏
      * 在初始化时自动创建和注册所有状态栏实例
      */
-    private static registerBuiltInStatusBars(): void {
+    private static registerBuiltInStatusBars(context: vscode.ExtensionContext): void {
         // 创建并注册 MiniMax 状态栏
         const miniMaxStatusBar = new MiniMaxStatusBar();
         this.registerStatusBar('minimax', miniMaxStatusBar);
@@ -84,7 +87,11 @@ export class StatusBarManager {
         this.registerStatusBar('compatible', compatibleStatusBar);
 
         // 创建并注册 模型上下文窗口占用情况 状态栏
-        const tokenUsageStatusBar = new TokenUsageStatusBar();
+        const contextUsageStatusBar = new ContextUsageStatusBar();
+        this.registerStatusBar('contextUsage', contextUsageStatusBar);
+
+        // 创建并注册 Token 用量统计 状态栏
+        const tokenUsageStatusBar = new TokenUsageStatusBar(context);
         this.registerStatusBar('tokenUsage', tokenUsageStatusBar);
     }
 
@@ -120,6 +127,9 @@ export class StatusBarManager {
             case 'compatible':
                 this.compatible = statusBar as ICompatibleStatusBar;
                 break;
+            case 'contextUsage':
+                this.contextUsage = statusBar;
+                break;
             case 'tokenUsage':
                 this.tokenUsage = statusBar;
                 break;
@@ -150,7 +160,7 @@ export class StatusBarManager {
         }
 
         // 第一步：注册所有内置状态栏
-        this.registerBuiltInStatusBars();
+        this.registerBuiltInStatusBars(context);
 
         StatusLogger.info(`[StatusBarManager] 开始初始化 ${this.statusBars.size} 个状态栏项`);
 
@@ -226,6 +236,7 @@ export class StatusBarManager {
         this.deepseek = undefined;
         this.moonshot = undefined;
         this.compatible = undefined;
+        this.contextUsage = undefined;
         this.tokenUsage = undefined;
     }
 
