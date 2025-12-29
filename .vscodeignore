@@ -15,3 +15,5 @@ esbuild.mjs
 # Exclude JS and map files from root directory
 /*.js
 /*.map
+# Exclude specific image file
+donate.jpg
