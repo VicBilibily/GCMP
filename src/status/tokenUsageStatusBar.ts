@@ -185,14 +185,16 @@ export class TokenUsageStatusBar {
                     `**${this.formatTokens(providerTotal)}** | ${stats.requests} |\n`
             );
         }
-        // 合计行
-        const total = stats.total.actualInput + stats.total.outputTokens;
-        md.appendMarkdown(
-            `| **合计** | **${this.formatTokens(stats.total.actualInput)}** | ` +
-                `**${this.formatTokens(stats.total.cacheTokens)}** | ` +
-                `**${this.formatTokens(stats.total.outputTokens)}** | ` +
-                `**${this.formatTokens(total)}** | **${stats.total.requests}** |\n`
-        );
+        // 合计行（仅当有多个提供商时显示）
+        if (providers.length > 1) {
+            const total = stats.total.actualInput + stats.total.outputTokens;
+            md.appendMarkdown(
+                `| **合计** | **${this.formatTokens(stats.total.actualInput)}** | ` +
+                    `**${this.formatTokens(stats.total.cacheTokens)}** | ` +
+                    `**${this.formatTokens(stats.total.outputTokens)}** | ` +
+                    `**${this.formatTokens(total)}** | **${stats.total.requests}** |\n`
+            );
+        }
 
         // ========== 最近请求记录表格 ==========
         try {

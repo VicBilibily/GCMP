@@ -194,12 +194,20 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
 }
 ```
 
-## FIM / NES 内联补全建议功能配置
+## 💡 FIM / NES 内联补全建议功能
 
 - **FIM** (Fill In the Middle) 是一种代码补全技术，模型通过上下文预测中间缺失的代码，适合快速补全单行或短片段代码。
 - **NES** (Next Edit Suggestions) 是一个智能代码建议功能，根据当前编辑上下文提供更精准的代码补全建议，支持多行代码生成。
 
+> - 使用 FIM/NES 补全功能前，**必须先在对话模型配置中设置对应提供商的 ApiKey 并验证可用**。补全功能复用对话模型的 ApiKey 配置。
+> - 在输出面板选择 **`GitHub Copilot Inline Completion via GCMP`** 输出通道，可查看具体补全运行情况和调试信息。
+> - 目前能接入的都是通用大语言模型，**没有经过专门的补全训练调优**，效果可能不如 Copilot 自带的 Tab 补全。
+
 ### FIM / NES 内联补全建议模型配置
+
+<details>
+
+<summary>展开查看配置说明</summary>
 
 FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimCompletion.modelConfig` 和 `gcmp.nesCompletion.modelConfig` 进行设置。
 
@@ -213,9 +221,9 @@ FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimC
     "gcmp.fimCompletion.timeoutMs": 5000, // FIM 补全的请求超时时间
     "gcmp.fimCompletion.modelConfig": {
         "provider": "deepseek", // 提供商ID，其他请先添加 OpenAI Compatible 自定义模型 provider 并设置 ApiKey
-        "baseUrl": "https://api.deepseek.com/beta", // 指定 FIM Completion Endpoint 的 BaseUrl
+        "baseUrl": "https://api.deepseek.com/beta", // ⚠️ DeepSeek FIM 必须使用 beta 端点才支持
         // "baseUrl": "https://api.siliconflow.cn/v1", // 硅基流动(provider:`siliconflow`)
-        // "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1", 阿里云百炼(provider:`dashscope`)
+        // "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1", // 阿里云百炼(provider:`dashscope`)
         "model": "deepseek-chat",
         "maxTokens": 100
         // "extraBody": { "top_p": 0.9 }
@@ -261,9 +269,11 @@ FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimC
 | `Alt+/`       | 手动触发补全建议（NES 模式） |
 | `Shift+Alt+/` | 切换 NES 手动触发模式        |
 
-## 📊 Token 消耗统计系统
+</details>
 
-GCMP 内置了完整的 Token 消耗统计系统，帮助您追踪和管理 AI 模型的使用情况。
+## 📊 Token 消耗统计功能
+
+GCMP 内置了完整的 Token 消耗统计功能，帮助您追踪和管理 AI 模型的使用情况。
 
 ### 主要特性
 
