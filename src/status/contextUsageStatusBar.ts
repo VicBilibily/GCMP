@@ -8,6 +8,24 @@ import * as vscode from 'vscode';
 import { StatusLogger } from '../utils/statusLogger';
 
 /**
+ * 提示词部分的 token 占用详情
+ */
+export interface PromptPartTokens {
+    /** 系统提示词 token 数 */
+    systemPrompt?: number;
+    /** 可用工具描述 token 数 */
+    availableTools?: number;
+    /** 用户助手消息 token 数 (user + assistant + tool roles 合并) */
+    userAssistantMessage?: number;
+    /** 思考过程 token 数 (thinking 内容) */
+    thinking?: number;
+    /** 自动压缩部分 token 数 */
+    autoCompressed?: number;
+    /** 上下文内容 token 数 (总和) */
+    context?: number;
+}
+
+/**
  * 模型上下文窗口占用情况数据接口
  */
 export interface ContextUsageData {
@@ -23,6 +41,10 @@ export interface ContextUsageData {
     percentage: number;
     /** 请求时间戳 */
     timestamp: number;
+    /** 提示词各部分的 token 占用细节 */
+    promptParts?: PromptPartTokens;
+    /** 剩余可用 token 数 */
+    remainingTokens?: number;
 }
 
 /**
@@ -172,14 +194,54 @@ export class ContextUsageStatusBar {
             return md;
         }
 
-        md.appendMarkdown(` **模型名称** \t ${data.modelName} <br/>\n`);
-
-        const usageString = `${this.formatTokens(data.inputTokens)}/${this.formatTokens(data.maxInputTokens)}`;
-        md.appendMarkdown(` **占用情况** \t **${data.percentage.toFixed(1)}%** \t ${usageString} <br/>\n`);
+        md.appendMarkdown('\n---\n');
+        md.appendMarkdown('|        |          |\n');
+        md.appendMarkdown('| ------ | :------- |\n');
 
         const requestTime = new Date(data.timestamp);
         const requestTimeStr = requestTime.toLocaleString('zh-CN');
-        md.appendMarkdown(` **请求时间** \t ${requestTimeStr} <br/>\n`);
+        md.appendMarkdown(`| **请求时间** | ${requestTimeStr} |\n`);
+        md.appendMarkdown(`| **模型名称** | ${data.modelName} |\n`);
+        const usageString = `${this.formatTokens(data.inputTokens)}/${this.formatTokens(data.maxInputTokens)}`;
+        md.appendMarkdown(`| **占用情况** | **${data.percentage.toFixed(1)}%** \t ${usageString} |\n`);
+
+        if (data.promptParts) {
+            md.appendMarkdown('\n---\n');
+            const parts = data.promptParts;
+            const totalTokens = data.inputTokens;
+
+            // 表头行（显示窗口信息，三列格式）
+            md.appendMarkdown('|          |          |          |\n');
+            md.appendMarkdown('| :------- | -------: | -------: |\n');
+
+            // 1. 系统提示词
+            if (parts.systemPrompt !== undefined && parts.systemPrompt > 0) {
+                const percent = totalTokens > 0 ? ((parts.systemPrompt / totalTokens) * 100).toFixed(1) : '0';
+                md.appendMarkdown(`| **系统提示** | ${percent}% | ${this.formatTokens(parts.systemPrompt)} |\n`);
+            }
+            // 2. 可用的工具
+            if (parts.availableTools !== undefined && parts.availableTools > 0) {
+                const percent = totalTokens > 0 ? ((parts.availableTools / totalTokens) * 100).toFixed(1) : '0';
+                md.appendMarkdown(`| **可用工具** | ${percent}% | ${this.formatTokens(parts.availableTools)} |\n`);
+            }
+            // 3. 压缩的消息 (如果有则显示)
+            if (parts.autoCompressed !== undefined && parts.autoCompressed > 0) {
+                const percent = totalTokens > 0 ? ((parts.autoCompressed / totalTokens) * 100).toFixed(1) : '0';
+                md.appendMarkdown(`| **压缩消息** | ${percent}% | ${this.formatTokens(parts.autoCompressed)} |\n`);
+            }
+            // 4. 思考的内容 (如果有则显示)
+            if (parts.thinking !== undefined && parts.thinking > 0) {
+                const percent = totalTokens > 0 ? ((parts.thinking / totalTokens) * 100).toFixed(1) : '0';
+                md.appendMarkdown(`| **思考内容** | ${percent}% | ${this.formatTokens(parts.thinking)} |\n`);
+            }
+            // 5. 用户助手消息 (合并所有对话相关角色)
+            if (parts.userAssistantMessage !== undefined && parts.userAssistantMessage > 0) {
+                const userAssistantMessage = parts.userAssistantMessage;
+                const percent = totalTokens > 0 ? ((userAssistantMessage / totalTokens) * 100).toFixed(1) : '0';
+                md.appendMarkdown(`| **会话消息** | ${percent}% | ${this.formatTokens(userAssistantMessage)} |\n`);
+            }
+            md.appendMarkdown('\n');
+        }
 
         md.appendMarkdown('\n---\n');
         md.appendMarkdown('💡 此数据显示最近一次请求的预估值\n');
@@ -195,6 +257,30 @@ export class ContextUsageStatusBar {
         if (this.statusBarItem) {
             this.statusBarItem.show();
         }
+    }
+
+    /**
+     * 根据各部分 token 占用来更新状态
+     * @param modelName 模型名称
+     * @param maxInputTokens 最大输入 token 数
+     * @param promptParts 提示词各部分的 token 占用
+     */
+    updateWithPromptParts(modelName: string, maxInputTokens: number, promptParts: PromptPartTokens): void {
+        // 使用 context 作为总 token 占用（已包含所有部分）
+        const inputTokens = promptParts.context || 0;
+        const remainingTokens = maxInputTokens - inputTokens;
+        const percentage = (inputTokens / maxInputTokens) * 100;
+        const data: ContextUsageData = {
+            modelId: modelName,
+            modelName,
+            inputTokens,
+            maxInputTokens,
+            percentage,
+            timestamp: Date.now(),
+            promptParts,
+            remainingTokens
+        };
+        this.updateContextUsage(data);
     }
 
     /**

@@ -21,7 +21,8 @@ import {
     OpenAICustomHandler,
     AnthropicHandler,
     ModelInfoCache,
-    TokenCounter
+    TokenCounter,
+    PromptAnalyzer
 } from '../utils';
 import { ContextUsageStatusBar } from '../status/contextUsageStatusBar';
 import { TokenUsagesManager } from '../usages/usagesManager';
@@ -408,18 +409,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     }
 
     /**
-     * 计算多条消息的总 token 数
-     */
-    protected async countMessagesTokens(
-        model: LanguageModelChatInformation,
-        messages: Array<LanguageModelChatMessage>,
-        modelConfig?: ModelConfig,
-        options?: ProvideLanguageModelChatResponseOptions
-    ): Promise<number> {
-        return TokenCounter.getInstance().countMessagesTokens(model, messages, modelConfig, options);
-    }
-
-    /**
      * 更新上下文占用状态栏
      * 计算输入 token 数量和占用百分比，更新状态栏显示
      * 供子类复用
@@ -432,28 +421,38 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         options?: ProvideLanguageModelChatResponseOptions
     ): Promise<number> {
         try {
-            // 计算占用百分比
-            const totalInputTokens = await this.countMessagesTokens(model, messages, modelConfig, options);
+            // 统计提示词各部分的占用（包含总 token 数）
+            const promptParts = await PromptAnalyzer.analyzePromptParts(this.providerKey, model, messages, options);
+
+            // 使用 promptParts.context 作为总 token 占用
+            const totalInputTokens = promptParts.context || 0;
             const maxInputTokens = model.maxInputTokens || modelConfig.maxInputTokens;
             const percentage = (totalInputTokens / maxInputTokens) * 100;
+
+            // const countMessagesTokens = await TokenCounter.getInstance().countMessagesTokens(
+            //     model,
+            //     messages,
+            //     modelConfig,
+            //     options
+            // );
+            // Logger.debug(
+            //     `[${this.providerKey}] 详细 Token 计算: 消息总计 ${countMessagesTokens}，` +
+            //         `提示词各部分: ${JSON.stringify(promptParts)}`
+            // );
 
             // 更新上下文占用状态栏
             const contextUsageStatusBar = ContextUsageStatusBar.getInstance();
             if (contextUsageStatusBar) {
-                contextUsageStatusBar.updateContextUsage({
-                    modelId: model.id,
-                    modelName: model.name || modelConfig.name,
-                    inputTokens: totalInputTokens,
-                    maxInputTokens: maxInputTokens,
-                    percentage: percentage,
-                    timestamp: Date.now()
-                });
+                contextUsageStatusBar.updateWithPromptParts(
+                    model.name || modelConfig.name,
+                    maxInputTokens,
+                    promptParts
+                );
             }
 
             Logger.debug(
                 `[${this.providerKey}] Token 计算: ${totalInputTokens}/${maxInputTokens} (${percentage.toFixed(1)}%)`
             );
-
             return totalInputTokens;
         } catch (error) {
             // Token 计算失败不应阻止请求，只记录警告
