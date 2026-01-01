@@ -15,6 +15,8 @@ export interface PromptPartTokens {
     systemPrompt?: number;
     /** 可用工具描述 token 数 */
     availableTools?: number;
+    /** 环境信息 token 数 (environment_info 和 workspace_info) */
+    environment?: number;
     /** 用户助手消息 token 数 (user + assistant + tool roles 合并) */
     userAssistantMessage?: number;
     /** 历史消息 token 数 (本轮对话之前的所有消息) */
@@ -228,23 +230,27 @@ export class ContextUsageStatusBar {
                 const percent = totalTokens > 0 ? ((parts.availableTools / totalTokens) * 100).toFixed(1) : '0';
                 md.appendMarkdown(`| **可用工具** | ${percent}% | ${this.formatTokens(parts.availableTools)} |\n`);
             }
-            // 3. 压缩的消息 (如果有则显示)
+            // 3. 环境信息
+            if (parts.environment !== undefined && parts.environment > 0) {
+                const percent = totalTokens > 0 ? ((parts.environment / totalTokens) * 100).toFixed(1) : '0';
+                md.appendMarkdown(`| **环境信息** | ${percent}% | ${this.formatTokens(parts.environment)} |\n`);
+            }
+            // 4. 压缩的消息
             if (parts.autoCompressed !== undefined && parts.autoCompressed > 0) {
                 const percent = totalTokens > 0 ? ((parts.autoCompressed / totalTokens) * 100).toFixed(1) : '0';
                 md.appendMarkdown(`| **压缩消息** | ${percent}% | ${this.formatTokens(parts.autoCompressed)} |\n`);
             }
-            // 4. 历史消息 (本轮对话之前的所有消息)
+            // 5. 历史消息
             if (parts.historyMessages !== undefined && parts.historyMessages > 0) {
-                const historyMessages = parts.historyMessages;
-                const percent = totalTokens > 0 ? ((historyMessages / totalTokens) * 100).toFixed(1) : '0';
-                md.appendMarkdown(`| **历史消息** | ${percent}% | ${this.formatTokens(historyMessages)} |\n`);
+                const percent = totalTokens > 0 ? ((parts.historyMessages / totalTokens) * 100).toFixed(1) : '0';
+                md.appendMarkdown(`| **历史消息** | ${percent}% | ${this.formatTokens(parts.historyMessages)} |\n`);
             }
-            // 5. 思考内容 (如果有则显示)
+            // 6. 思考内容
             if (parts.thinking !== undefined && parts.thinking > 0) {
                 const percent = totalTokens > 0 ? ((parts.thinking / totalTokens) * 100).toFixed(1) : '0';
                 md.appendMarkdown(`| **思考内容** | ${percent}% | ${this.formatTokens(parts.thinking)} |\n`);
             }
-            // 6. 本轮消息 (从最后一个 user text 消息开始的所有消息)
+            // 7. 本轮消息
             if (parts.currentRoundMessages !== undefined && parts.currentRoundMessages > 0) {
                 const currentRoundMessages = parts.currentRoundMessages;
                 const percent = totalTokens > 0 ? ((currentRoundMessages / totalTokens) * 100).toFixed(1) : '0';

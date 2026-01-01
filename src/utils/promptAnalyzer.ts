@@ -21,7 +21,8 @@ import { TokenCounter, Logger } from './index';
 export class PromptAnalyzer {
     static readonly CONVERSATION_COMPRESSION_MARKER =
         'The following is a compressed version of the preceeding history in the current conversation.';
-    static readonly CONVERSATION_SUMMARY_TAG = 'conversation-summary';
+    static readonly CONVERSATION_SUMMARY_TAG = '<conversation-summary>\n';
+    static readonly ENVIRONMENT_WORKSPACE_TAG = '</environment_info>\n<workspace_info>';
 
     /**
      * 类型守卫：检查是否是 LanguageModelTextPart
@@ -53,6 +54,7 @@ export class PromptAnalyzer {
         const promptParts: PromptPartTokens = {
             systemPrompt: 0,
             availableTools: 0,
+            environment: 0,
             userAssistantMessage: 0,
             thinking: 0,
             autoCompressed: 0,
@@ -121,7 +123,7 @@ export class PromptAnalyzer {
             // ===== 3. 检测压缩历史消息 =====
             // 官方实现：当历史过长时，将历史压缩为特殊的 UserMessage
             // 检查是否有 "compressed version" 或 "conversation-summary" 标记
-            let compressedHistoryText = '';
+            let compressedHistoryMessage: vscode.LanguageModelChatMessage | undefined;
             for (const message of messages) {
                 const role = message.role;
                 if (role === vscode.LanguageModelChatMessageRole.User) {
@@ -142,15 +144,55 @@ export class PromptAnalyzer {
                         messageContent.includes(PromptAnalyzer.CONVERSATION_COMPRESSION_MARKER) ||
                         messageContent.includes(PromptAnalyzer.CONVERSATION_SUMMARY_TAG)
                     ) {
-                        compressedHistoryText = messageContent;
+                        compressedHistoryMessage = message;
                         break;
                     }
                 }
             }
 
-            if (compressedHistoryText) {
-                const compressedTokens = await tokenCounter.countTokens(model, compressedHistoryText);
+            if (compressedHistoryMessage) {
+                // 使用完整的消息体计算 token（包含消息格式开销）
+                const compressedTokens = await tokenCounter.countTokens(
+                    model,
+                    compressedHistoryMessage as unknown as vscode.LanguageModelChatMessage
+                );
                 promptParts.autoCompressed = compressedTokens;
+            }
+
+            // ===== 3.5 检测环境消息 =====
+            // 检查是否有包含环境信息的消息（environment_info 和 workspace_info）
+            let environmentMessage: vscode.LanguageModelChatMessage | undefined;
+            for (const message of messages) {
+                const role = message.role;
+                if (role === vscode.LanguageModelChatMessageRole.User) {
+                    // 检查消息内容是否包含环境信息的标记
+                    let messageContent = '';
+                    if (typeof message.content === 'string') {
+                        messageContent = message.content;
+                    } else if (Array.isArray(message.content)) {
+                        for (const part of message.content) {
+                            const text = this.extractPartText(part as unknown);
+                            if (text) {
+                                messageContent += text;
+                            }
+                        }
+                    }
+                    // 检查是否是环境消息（包含环境标签）
+                    if (messageContent.includes(PromptAnalyzer.ENVIRONMENT_WORKSPACE_TAG)) {
+                        environmentMessage = message;
+                        break;
+                    }
+                }
+            }
+
+            if (environmentMessage) {
+                // 使用完整的消息体计算 token（包含消息格式开销）
+                const environmentTokens = await tokenCounter.countTokens(
+                    model,
+                    environmentMessage as unknown as vscode.LanguageModelChatMessage
+                );
+                promptParts.environment = environmentTokens;
+                Logger.debug(`[${providerKey}] 检测到环境消息, tokens=${environmentTokens}`);
             }
 
             // ===== 4. 分析消息：用户、助手、其他角色合并为 userAssistantMessage =====
@@ -253,6 +295,13 @@ export class PromptAnalyzer {
                     continue;
                 }
 
+                // 跳过环境消息（已在第3.5步处理）
+                if (messageContentForCheck.includes(PromptAnalyzer.ENVIRONMENT_WORKSPACE_TAG)) {
+                    Logger.debug(`[${providerKey}] 跳过环境消息, content length: ${messageContentForCheck.length}`);
+                    skippedMessageCount++;
+                    continue;
+                }
+
                 // 使用与 countMessagesTokens 相同的方式计算消息 token
                 // 这样可以确保计算结果一致
                 const messageTokens = await tokenCounter.countTokens(
@@ -294,10 +343,11 @@ export class PromptAnalyzer {
             );
 
             // ===== 5. 计算上下文总占用 =====
-            // context = systemPrompt + availableTools + userAssistantMessage + thinking + autoCompressed
+            // context = systemPrompt + availableTools + environment + userAssistantMessage + thinking + autoCompressed
             const contextTotal =
                 (promptParts.systemPrompt || 0) +
                 (promptParts.availableTools || 0) +
+                (promptParts.environment || 0) +
                 (promptParts.autoCompressed || 0) +
                 (promptParts.thinking || 0) +
                 (promptParts.userAssistantMessage || 0);
@@ -306,6 +356,7 @@ export class PromptAnalyzer {
                 `[${providerKey}] Token 分解统计:\n` +
                     `  系统提示词: ${promptParts.systemPrompt} tokens (含 28 包装开销)\n` +
                     `  可用工具: ${promptParts.availableTools} tokens (含 1.1x 安全系数)\n` +
+                    `  环境消息: ${promptParts.environment} tokens (environment_info 和 workspace_info)\n` +
                     `  自动压缩: ${promptParts.autoCompressed} tokens (压缩历史消息体)\n` +
                     `  思考过程: ${promptParts.thinking} tokens (LanguageModelThinkingPart)\n` +
                     `  对话消息: ${promptParts.userAssistantMessage} tokens (用户、助手及其他对话角色)\n` +
@@ -317,7 +368,7 @@ export class PromptAnalyzer {
         } catch (error) {
             Logger.warn(`[${providerKey}] 分析提示词部分失败:`, error);
             Logger.debug(
-                `[${providerKey}] 当前 promptParts: systemPrompt=${promptParts.systemPrompt}, availableTools=${promptParts.availableTools}, userAssistantMessage=${promptParts.userAssistantMessage}, autoCompressed=${promptParts.autoCompressed}, context=${promptParts.context}`
+                `[${providerKey}] 当前 promptParts: systemPrompt=${promptParts.systemPrompt}, availableTools=${promptParts.availableTools}, environment=${promptParts.environment}, userAssistantMessage=${promptParts.userAssistantMessage}, autoCompressed=${promptParts.autoCompressed}, context=${promptParts.context}`
             );
             // 返回零值结构，防止状态栏崩溃
             return promptParts;

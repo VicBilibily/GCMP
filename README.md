@@ -89,6 +89,9 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 
 > 📝 **提示**：`settings.json` 所有参数修改会立即生效。
 
+<details>
+<summary>展开查看高级配置说明</summary>
+
 ### 通用模型参数 及 额外支持功能 配置
 
 ```json
@@ -132,12 +135,17 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
 }
 ```
 
+</details>
+
 ## 🔌 OpenAI / Anthropic Compatible 自定义模型支持
 
 GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 OpenAI 或 Anthropic 兼容的 API。通过 `gcmp.compatibleModels` 配置，您可以完全自定义模型参数，包括扩展请求参数。
 
 1. 通过 `GCMP: Compatible Provider 设置` 命令启动配置向导。
 2. 在 `settings.json` 设置中编辑 `gcmp.compatibleModels` 配置项。
+
+<details>
+<summary>展开查看自定义模型配置说明</summary>
 
 ### 自定义模型内置已知提供商ID及显示名称列表
 
@@ -188,6 +196,8 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
 }
 ```
 
+</details>
+
 ## 💡 FIM / NES 内联补全建议功能
 
 - **FIM** (Fill In the Middle) 是一种代码补全技术，模型通过上下文预测中间缺失的代码，适合快速补全单行或短片段代码。
@@ -197,11 +207,10 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
 > - 在输出面板选择 **`GitHub Copilot Inline Completion via GCMP`** 输出通道，可查看具体补全运行情况和调试信息。
 > - 目前能接入的都是通用大语言模型，**没有经过专门的补全训练调优**，效果可能不如 Copilot 自带的 Tab 补全。
 
-### FIM / NES 内联补全建议模型配置
-
 <details>
+<summary>展开查看详细配置说明</summary>
 
-<summary>展开查看配置说明</summary>
+### FIM / NES 内联补全建议模型配置
 
 FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimCompletion.modelConfig` 和 `gcmp.nesCompletion.modelConfig` 进行设置。
 
@@ -265,9 +274,33 @@ FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimC
 
 </details>
 
+## 🪟 上下文窗口占用比例状态栏
+
+GCMP 提供上下文窗口占用比例状态栏显示功能，帮助您实时监控当前会话的上下文窗口使用情况。
+
+<details>
+<summary>展开主要特性说明</summary>
+
+### 主要特性
+
+- **实时监控**：状态栏实时显示当前会话的上下文窗口占用比例
+- **详细统计**：悬停状态栏可查看详细的上下文占用信息，包括：
+    - **系统提示**：系统提示词占用的 token 数量
+    - **可用工具**：工具及MCP定义占用的 token 数量
+    - **环境信息**：编辑器环境信息占用的 token 数量
+    - **压缩消息**：经过压缩的历史消息占用的 token 数量
+    - **历史消息**：历史对话消息占用的 token 数量
+    - **思考内容**：会话思考过程占用的 token 数量
+    - **会话消息**：当前会话消息占用的 token 数量
+
+</details>
+
 ## 📊 Token 消耗统计功能
 
 GCMP 内置了完整的 Token 消耗统计功能，帮助您追踪和管理 AI 模型的使用情况。
+
+<details>
+<summary>展开查看详细功能说明</summary>
 
 ### 主要特性
 
@@ -293,6 +326,8 @@ GCMP 内置了完整的 Token 消耗统计功能，帮助您追踪和管理 AI �
     "gcmp.usages.retentionDays": 100 // 历史数据保留天数（0表示永久保留）
 }
 ```
+
+</details>
 
 ## 🤝 贡献指南
 
