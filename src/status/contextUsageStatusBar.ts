@@ -17,6 +17,10 @@ export interface PromptPartTokens {
     availableTools?: number;
     /** 用户助手消息 token 数 (user + assistant + tool roles 合并) */
     userAssistantMessage?: number;
+    /** 历史消息 token 数 (本轮对话之前的所有消息) */
+    historyMessages?: number;
+    /** 本轮消息 token 数 (从最后一个 user text 消息开始的所有消息) */
+    currentRoundMessages?: number;
     /** 思考过程 token 数 (thinking 内容) */
     thinking?: number;
     /** 自动压缩部分 token 数 */
@@ -229,16 +233,22 @@ export class ContextUsageStatusBar {
                 const percent = totalTokens > 0 ? ((parts.autoCompressed / totalTokens) * 100).toFixed(1) : '0';
                 md.appendMarkdown(`| **压缩消息** | ${percent}% | ${this.formatTokens(parts.autoCompressed)} |\n`);
             }
-            // 4. 思考的内容 (如果有则显示)
+            // 4. 历史消息 (本轮对话之前的所有消息)
+            if (parts.historyMessages !== undefined && parts.historyMessages > 0) {
+                const historyMessages = parts.historyMessages;
+                const percent = totalTokens > 0 ? ((historyMessages / totalTokens) * 100).toFixed(1) : '0';
+                md.appendMarkdown(`| **历史消息** | ${percent}% | ${this.formatTokens(historyMessages)} |\n`);
+            }
+            // 5. 思考内容 (如果有则显示)
             if (parts.thinking !== undefined && parts.thinking > 0) {
                 const percent = totalTokens > 0 ? ((parts.thinking / totalTokens) * 100).toFixed(1) : '0';
                 md.appendMarkdown(`| **思考内容** | ${percent}% | ${this.formatTokens(parts.thinking)} |\n`);
             }
-            // 5. 用户助手消息 (合并所有对话相关角色)
-            if (parts.userAssistantMessage !== undefined && parts.userAssistantMessage > 0) {
-                const userAssistantMessage = parts.userAssistantMessage;
-                const percent = totalTokens > 0 ? ((userAssistantMessage / totalTokens) * 100).toFixed(1) : '0';
-                md.appendMarkdown(`| **会话消息** | ${percent}% | ${this.formatTokens(userAssistantMessage)} |\n`);
+            // 6. 本轮消息 (从最后一个 user text 消息开始的所有消息)
+            if (parts.currentRoundMessages !== undefined && parts.currentRoundMessages > 0) {
+                const currentRoundMessages = parts.currentRoundMessages;
+                const percent = totalTokens > 0 ? ((currentRoundMessages / totalTokens) * 100).toFixed(1) : '0';
+                md.appendMarkdown(`| **本轮消息** | ${percent}% | ${this.formatTokens(currentRoundMessages)} |\n`);
             }
             md.appendMarkdown('\n');
         }

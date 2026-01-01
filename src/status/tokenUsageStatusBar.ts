@@ -158,6 +158,7 @@ export class TokenUsageStatusBar {
         md.isTrusted = true;
 
         md.appendMarkdown('**GCMP: 今日 Token 消耗统计**\n\n');
+        md.appendMarkdown('\n---\n');
 
         const providers = Object.values(stats.providers);
         if (providers.length === 0) {

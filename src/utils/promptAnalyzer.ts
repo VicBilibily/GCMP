@@ -8,6 +8,7 @@ import {
     LanguageModelChatInformation,
     LanguageModelChatMessage,
     LanguageModelThinkingPart,
+    LanguageModelTextPart,
     ProvideLanguageModelChatResponseOptions
 } from 'vscode';
 import { PromptPartTokens } from '../status/contextUsageStatusBar';
@@ -21,6 +22,19 @@ export class PromptAnalyzer {
     static readonly CONVERSATION_COMPRESSION_MARKER =
         'The following is a compressed version of the preceeding history in the current conversation.';
     static readonly CONVERSATION_SUMMARY_TAG = 'conversation-summary';
+
+    /**
+     * 类型守卫：检查是否是 LanguageModelTextPart
+     * LanguageModelTextPart 有 value 属性
+     */
+    private static isLanguageModelTextPart(part: unknown): part is LanguageModelTextPart {
+        return (
+            typeof part === 'object' &&
+            part !== null &&
+            'value' in part &&
+            typeof (part as LanguageModelTextPart).value === 'string'
+        );
+    }
 
     /**
      * 分析提示词各部分的 token 占用
@@ -140,10 +154,57 @@ export class PromptAnalyzer {
             }
 
             // ===== 4. 分析消息：用户、助手、其他角色合并为 userAssistantMessage =====
+            // 同时拆分为历史消息和本轮消息
+
+            // 4.1 找到最后一个 user role 且 type=text 的消息索引
+            let lastUserTextMessageIndex = -1;
+            for (let i = messages.length - 1; i >= 0; i--) {
+                const message = messages[i];
+                const role = message.role;
+
+                // 只检查 user 角色的消息
+                if (role === vscode.LanguageModelChatMessageRole.User) {
+                    // 检查是否是 text 类型的消息
+                    let isTextMessage = false;
+
+                    if (typeof message.content === 'string') {
+                        // 字符串内容就是 text 类型
+                        isTextMessage = true;
+                    } else if (Array.isArray(message.content)) {
+                        // 检查内容数组中是否有 text 类型的 part
+                        for (const part of message.content) {
+                            // 跳过 thinking part
+                            if (part instanceof LanguageModelThinkingPart) {
+                                continue;
+                            }
+                            // 使用类型守卫检查是否是 LanguageModelTextPart
+                            // LanguageModelTextPart 有 value 属性
+                            if (PromptAnalyzer.isLanguageModelTextPart(part)) {
+                                isTextMessage = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (isTextMessage) {
+                        lastUserTextMessageIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            Logger.debug(`[${providerKey}] 最后一个 user text 消息索引: ${lastUserTextMessageIndex}`);
+
+            // 4.2 遍历所有消息，分别计算历史消息和本轮消息的 token
             let processedMessageCount = 0;
             let skippedMessageCount = 0;
-            for (const message of messages) {
+            let historyMessageCount = 0;
+            let currentRoundMessageCount = 0;
+
+            for (let i = 0; i < messages.length; i++) {
+                const message = messages[i];
                 const role = message.role;
+
                 // 跳过系统消息（已在第1步处理）
                 if (role === vscode.LanguageModelChatMessageRole.System) {
                     skippedMessageCount++;
@@ -199,7 +260,7 @@ export class PromptAnalyzer {
                     message as unknown as string | vscode.LanguageModelChatMessage
                 );
 
-                Logger.debug(`[${providerKey}] 处理消息 role=${role}, tokens=${messageTokens}`);
+                Logger.debug(`[${providerKey}] 处理消息 [${i}] role=${role}, tokens=${messageTokens}`);
 
                 // 按官方标准合并：所有非系统、非压缩的消息都并入 userAssistantMessage
                 // 包括：user、assistant、tool、function 等所有对话角色
@@ -209,10 +270,27 @@ export class PromptAnalyzer {
                 ) {
                     promptParts.userAssistantMessage = (promptParts.userAssistantMessage || 0) + messageTokens;
                     processedMessageCount++;
+
+                    // 根据消息索引判断是历史消息还是本轮消息
+                    if (lastUserTextMessageIndex !== -1 && i >= lastUserTextMessageIndex) {
+                        // 本轮消息
+                        promptParts.currentRoundMessages = (promptParts.currentRoundMessages || 0) + messageTokens;
+                        currentRoundMessageCount++;
+                        Logger.trace(
+                            `[${providerKey}] 消息 [${i}] 归类为本轮消息, 累计 tokens=${promptParts.currentRoundMessages}`
+                        );
+                    } else {
+                        // 历史消息
+                        promptParts.historyMessages = (promptParts.historyMessages || 0) + messageTokens;
+                        historyMessageCount++;
+                        Logger.trace(
+                            `[${providerKey}] 消息 [${i}] 归类为历史消息, 累计 tokens=${promptParts.historyMessages}`
+                        );
+                    }
                 }
             }
             Logger.debug(
-                `[${providerKey}] 消息处理完成: 处理 ${processedMessageCount} 条, 跳过 ${skippedMessageCount} 条`
+                `[${providerKey}] 消息处理完成: 处理 ${processedMessageCount} 条, 跳过 ${skippedMessageCount} 条, 历史消息 ${historyMessageCount} 条, 本轮消息 ${currentRoundMessageCount} 条`
             );
 
             // ===== 5. 计算上下文总占用 =====
@@ -231,6 +309,8 @@ export class PromptAnalyzer {
                     `  自动压缩: ${promptParts.autoCompressed} tokens (压缩历史消息体)\n` +
                     `  思考过程: ${promptParts.thinking} tokens (LanguageModelThinkingPart)\n` +
                     `  对话消息: ${promptParts.userAssistantMessage} tokens (用户、助手及其他对话角色)\n` +
+                    `    - 历史消息: ${promptParts.historyMessages} tokens (本轮对话之前的所有消息)\n` +
+                    `    - 本轮消息: ${promptParts.currentRoundMessages} tokens (从最后一个 user text 消息开始)\n` +
                     `  = 总占用: ${promptParts.context} tokens`
             );
             return promptParts;
