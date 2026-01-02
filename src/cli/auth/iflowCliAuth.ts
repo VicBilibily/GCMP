@@ -31,15 +31,27 @@ export class IFlowCliAuth extends BaseCliAuth {
     /**
      * 获取 iFlow API Key
      * iFlow 需要使用 apiKey 而不是 bearer token
-     * @param forceRefresh 是否强制刷新缓存，默认为 false
+     * @param forceRefresh 是否强制刷新缓存和 access_token，默认为 false
      */
     async getApiKey(forceRefresh = false): Promise<string | null> {
         const now = Date.now();
 
-        // 缓存过期或不存在，重新获取
-        const credentials = await this.loadCredentials();
+        // 如果强制刷新，先刷新 access_token
+        let credentials = await this.loadCredentials();
         if (!credentials) {
             return null;
+        }
+
+        if (forceRefresh) {
+            try {
+                credentials = await this.refreshAccessToken(credentials);
+                Logger.debug('[iFlow] 已强制刷新 access_token');
+            } catch (error) {
+                Logger.warn('[iFlow] 强制刷新 access_token 失败:', error);
+                // 刷新失败，继续使用现有凭证尝试
+            }
+            // 强制刷新时清除 apiKey 缓存
+            IFlowCliAuth.apiKeyCache = null;
         }
 
         // 检查缓存是否有效（除非强制刷新）
@@ -54,6 +66,7 @@ export class IFlowCliAuth extends BaseCliAuth {
             return IFlowCliAuth.apiKeyCache.token;
         }
 
+        // 缓存无效或强制刷新，重新获取 apiKey
         try {
             const userInfo = await this.fetchUserInfo(credentials.access_token);
             if (userInfo && userInfo.apiKey) {
