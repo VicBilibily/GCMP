@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.16.4] - 2026-01-02
+
+### 新增
+
+- **CLI 认证支持**：新增 CLI 工具认证模式，支持通过本地 CLI 工具进行 OAuth 认证
+    - **iFlow CLI**：支持 iFlow CLI 认证，需要先安装 `@iflow-ai/iflow-cli`
+    - **Qwen Code CLI**：支持 Qwen Code CLI 认证，需要先安装 `@qwen-code/qwen-code`
+
+- **Qwen Code CLI**：新增阿里云通义千问命令行编程助手认证支持
+
+### 调整
+
+- **iFlow CLI**：从原定移除 `iFlow`，现已调整为通过 CLI 认证模式接入
+
 ## [0.16.3] - 2026-01-01
 
 ### 调整

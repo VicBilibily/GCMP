@@ -73,15 +73,37 @@
 
 - **通义千问系列**：**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
 
-### [**心流AI**](https://platform.iflow.cn/) - iFlow (EOL)
+### 实验性支持 CLI 提供商
 
-> 原定于 2025-12-31 移除 `心流AI` 的内置支持。由于目前计划兼容 `iFlow CLI` 认证模式（需要本地安装 `iFlow CLI`），此提供商暂时保留支持，直到 OAuth 认证模式兼容实现完成后接替。
+<details>
+<summary>展开查看 CLI 认证支持提供商说明</summary>
 
-阿里巴巴旗下的的AI平台，当前[API调用](https://platform.iflow.cn/docs/)服务**免费使用**，目前[限流规则](https://platform.iflow.cn/docs/limitSpeed)为每个用户最多只能**同时发起一个**请求。
+### [**心流AI**](https://platform.iflow.cn/cli/quickstart) - iFlow CLI
 
-- **Qwen3系列**：**Qwen3-Coder-Plus**、**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-Max-Preview**、**Qwen3-32B**、**Qwen3-235B-A22B**、**Qwen3-235B-A22B-Instruct**、**Qwen3-235B-A22B-Thinking**
-- **Kimi系列**：**Kimi-K2-Instruct-0905**、**Kimi-K2**
-- **智谱AI系列**：**GLM-4.6**
+阿里巴巴旗下的AI平台，支持通过 `iFlow CLI` 进行 `使用 iFlow 登录` 认证（需要本地安装 `iFlow CLI`）。
+
+```bash
+npm install -g @iflow-ai/iflow-cli@latest
+```
+
+- **智谱AI系列**：**GLM-4.7**(Thinking)
+- **DeepSeek系列**：**DeepSeek-V3.2**、**DeepSeek-V3.2-Reasoner**
+- **通义千问系列**：**Qwen3-Coder-Plus**
+- **Kimi系列**：**Kimi-K2-Thinking**、**Kimi-K2-0905**
+- **MiniMax系列**：**MiniMax-2.1**
+- **iFlow系列**：**iFlow-ROME-30BA3B**(Preview)
+
+### [**Qwen Code**](https://qwenlm.github.io/qwen-code-docs/zh/users/overview/) - Qwen Code CLI
+
+阿里云通义千问官方编程助手，支持通过 `Qwen Code CLI` 进行 `Qwen Auth` 认证（需要本地安装 `Qwen Code CLI`）。
+
+```bash
+npm install -g @qwen-code/qwen-code@latest
+```
+
+- **支持模型**：**Qwen3-Coder-Plus**、**Qwen3-VL-Plus**
+
+</details>
 
 ## ⚙️ 高级配置
 
