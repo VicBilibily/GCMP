@@ -1,12 +1,82 @@
 {
-    "displayName": "心流AI (EOL)",
+    "displayName": "iFlow",
     "baseUrl": "https://apis.iflow.cn/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "customHeader": {
+        "User-Agent": "iFlow-Cli"
+    },
     "models": [
+        {
+            "id": "glm-4.7",
+            "name": "GLM-4.7 (iFlow)",
+            "tooltip": "GLM-4.7 (iFlow)",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "chat_template_kwargs": {
+                    "enable_thinking": false
+                }
+            }
+        },
+        {
+            "id": "glm-4.7-thinking",
+            "model": "glm-4.7",
+            "name": "GLM-4.7-Thinking (iFlow)",
+            "tooltip": "GLM-4.7-Thinking (iFlow)",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "chat_template_kwargs": {
+                    "enable_thinking": true
+                }
+            }
+        },
+        {
+            "id": "deepseek-v3.2-chat",
+            "name": "DeepSeek-V3.2 (iFlow)",
+            "tooltip": "DeepSeek-V3.2 (iFlow)",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "iFlow-ROME-30BA3B",
+            "name": "iFlow-ROME-30BA3B (Preview)",
+            "tooltip": "iFlow-ROME-30BA3B (Preview)",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "deepseek-v3.2-reasoner",
+            "name": "DeepSeek-V3.2-Reasoner (iFlow)",
+            "tooltip": "DeepSeek-V3.2-Reasoner (iFlow)",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 64000,
+            "includeThinking": true,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
         {
             "id": "qwen3-coder-plus",
             "name": "Qwen3-Coder-Plus (iFlow)",
-            "tooltip": "Qwen3-Coder-Plus，这是一个总参数量 480B，激活 35B 的 MoE 模型，原生支持 256K token 的上下文并可通过 YaRN 扩展到 1M token，拥有卓越的代码和 Agent 能力。Qwen3-Coder-480B-A35B-Instruct 在 Agentic Coding、Agentic Browser-Use 和 Agentic Tool-Use 上取得了开源模型的 SOTA 效果，可以与 Claude Sonnet4 媲美",
+            "tooltip": "Qwen3-Coder-Plus (iFlow)",
             "maxInputTokens": 256000,
             "maxOutputTokens": 64000,
             "capabilities": {
@@ -15,110 +85,37 @@
             }
         },
         {
-            "id": "qwen3-max",
-            "name": "Qwen3-Max (iFlow)",
-            "tooltip": "通义千问3系列Max模型，相较preview版本在智能体编程与工具调用方向进行了专项升级。本次发布的正式版模型达到领域SOTA水平，适配场景更加复杂的智能体需求。",
+            "id": "kimi-k2-thinking",
+            "name": "Kimi-K2-Thinking (iFlow)",
+            "tooltip": "Kimi-K2-Thinking (iFlow)",
             "maxInputTokens": 256000,
-            "maxOutputTokens": 64000,
+            "maxOutputTokens": 32000,
+            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
             }
         },
         {
-            "id": "qwen3-vl-plus",
-            "name": "Qwen3-VL-Plus (iFlow)",
-            "tooltip": "Qwen3-VL 系列——这是迄今为止 Qwen 系列中最强大的视觉语言模型。 这一代模型在多个维度实现了全面跃升：无论是纯文本理解与生成，还是视觉内容的感知与推理；无论是上下文长度的支持能力，还是对空间关系、动态视频的理解深度；乃至在与Agent交互中的表现，Qwen3-VL 都展现出显著进步。",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "qwen3-max-preview",
-            "name": "Qwen3-Max-Preview (iFlow)",
-            "tooltip": "通义千问3系列Max模型Preview版本，相较2.5系列整体通用能力有大幅度提升，中英文通用文本理解能力、复杂指令遵循能力、主观开放任务能力、多语言能力、工具调用能力均显著增强；模型知识幻觉更少。",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-32b",
-            "name": "Qwen3-32B (iFlow)",
-            "tooltip": "Qwen3-32B是一款拥有 320 亿参数的模型，其性能可与具备 6710 亿参数（其中 370 亿被激活）的 DeepSeek-R1 媲美。这一成果突显了将强化学习应用于经过大规模预训练的强大基础模型的有效性。",
+            "id": "minimax-m2.1",
+            "name": "MiniMax-2.1 (iFlow)",
+            "tooltip": "MiniMax-2.1 (iFlow)",
             "maxInputTokens": 128000,
             "maxOutputTokens": 64000,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-235b",
-            "name": "Qwen3-235B-A22B (iFlow)",
-            "tooltip": "Qwen3-235B-A22B 是 Qwen 系列中最新一代大型语言模型，提供全面的密集模型和混合专家 (MoE) 模型。Qwen3 基于丰富的训练经验，在推理、指令遵循、代理能力和多语言支持方面取得了突破性进展",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-235b-a22b-instruct",
-            "name": "Qwen3-235B-A22B-Instruct (iFlow)",
-            "tooltip": "Qwen3-235B-A22B 是 Qwen 系列中最新一代大型语言模型，提供全面的密集模型和混合专家 (MoE) 模型。Qwen3 基于丰富的训练经验，在推理、指令遵循、代理能力和多语言支持方面取得了突破性进展",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-235b-a22b-thinking-2507",
-            "name": "Qwen3-235B-A22B-Thinking (iFlow)",
-            "tooltip": "Qwen3-235B-A22B-Thinking-2507，其主要增强功能如下：  在推理任务上的性能显著提高，包括逻辑推理、数学、科学、编码和通常需要人类专业知识的学术基准——在开源思维模型中取得最先进的成果。 明显更好的通用能力，例如指令遵循、工具使用、文本生成和与人类偏好的一致性。 增强了256K长上下文理解能力。",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "glm-4.6",
-            "name": "GLM-4.6 (iFlow)",
-            "tooltip": "GLM-4.6 是基于智谱新一代旗舰文本模型开发的，在 41 个公开视觉多模态任务中取得了同级别开源模型中的最佳表现，覆盖图像、视频、文档理解以及 GUI Agent 等多种典型应用场景。",
-            "maxInputTokens": 200000,
-            "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
+            },
+            "extraBody": {
+                "reasoning_split": true
             }
         },
         {
             "id": "kimi-k2-0905",
-            "name": "Kimi-K2-Instruct-0905 (iFlow)",
-            "tooltip": "Kimi K2-Instruct-0905，由月之暗面研发的开源万亿参数MoE模型。激活参数达320亿，采用混合专家架构，支持256K超长上下文，具备卓越的编码智能与工具调用能力，尤其在前端开发与多语言编程任务中表现突出。",
+            "name": "Kimi-K2-0905 (iFlow)",
+            "tooltip": "Kimi-K2-0905 (iFlow)",
             "maxInputTokens": 256000,
-            "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "kimi-k2",
-            "name": "Kimi-K2 (iFlow)",
-            "tooltip": "kimi-k2 是一款具备超强代码和 Agent 能力的 MoE 架构基础模型，总参数 1T，激活参数 32B。在通用知识推理、编程、数学、Agent 等主要类别的基准性能测试中，K2 模型的性能超过其他主流开源模型",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 64000,
+            "maxOutputTokens": 32000,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false

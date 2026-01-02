@@ -3,21 +3,23 @@ import { ProviderConfig } from '../../types/sharedTypes';
 import zhipu from './zhipu.json';
 import volcengine from './volcengine.json';
 import minimax from './minimax.json';
-import iflow from './iflow.json';
 import moonshot from './moonshot.json';
 import deepseek from './deepseek.json';
 import streamlake from './streamlake.json';
 import dashscope from './dashscope.json';
+import iflow from './iflow.json';
+import qwen from './qwen.json';
 
 const providers = {
     zhipu,
     volcengine,
     minimax,
-    iflow,
     moonshot,
     deepseek,
     streamlake,
-    dashscope
+    dashscope,
+    iflow,
+    qwen
 };
 
 export type ProviderName = keyof typeof providers;

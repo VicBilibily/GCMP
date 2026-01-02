@@ -117,6 +117,12 @@ export interface ProviderConfig {
     baseUrl: string;
     apiKeyTemplate: string;
     models: ModelConfig[];
+    /**
+     * 提供商级别的自定义HTTP头部（可选）
+     * 如果提供，将在该提供商的所有API请求中附加这些自定义头部
+     * 模型级别的 customHeader 会覆盖提供商级别的同名头部
+     */
+    customHeader?: Record<string, string>;
 }
 
 /**

@@ -108,6 +108,11 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.iflow.configWizard",
+                "title": "心流AI 配置向导（CLI 认证）",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.kimi.setApiKey",
                 "title": "设置 Kimi API密钥",
                 "category": "GCMP"
@@ -150,6 +155,11 @@
             {
                 "command": "gcmp.usages.showDetails",
                 "title": "查看今日 Token 消耗统计详情",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.cli.auth",
+                "title": "CLI 认证管理",
                 "category": "GCMP"
             }
         ],
@@ -412,8 +422,13 @@
             },
             {
                 "vendor": "gcmp.iflow",
-                "displayName": "⨭ 心流AI (EOL on 2025-12-31)",
-                "managementCommand": "gcmp.iflow.setApiKey"
+                "displayName": "⨮ iFlow CLI",
+                "managementCommand": "gcmp.iflow.configWizard"
+            },
+            {
+                "vendor": "gcmp.qwen",
+                "displayName": "⨮ Qwen Code CLI",
+                "managementCommand": "gcmp.qwen.configWizard"
             },
             {
                 "vendor": "gcmp.moonshot",

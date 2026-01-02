@@ -2,24 +2,26 @@ import * as vscode from 'vscode';
 import { GenericModelProvider } from './providers/genericModelProvider';
 import { ZhipuProvider } from './providers/zhipuProvider';
 import { MoonshotProvider } from './providers/moonshotProvider';
-import { IFlowProvider } from './providers/iflowProvider';
+import { CliModelProvider } from './cli/cliModelProvider';
 import { MiniMaxProvider } from './providers/minimaxProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
 import { InlineCompletionShim } from './copilot/inlineCompletionShim';
 import { Logger, StatusLogger, CompletionLogger, TokenCounter } from './utils';
 import { ApiKeyManager, ConfigManager, JsonSchemaProvider } from './utils';
+import { registerCliAuthCommands } from './cli/cliAuthCommands';
 import { TokenUsagesManager } from './usages/usagesManager';
 import { TokenUsagesView } from './ui/usagesView';
 import { CompatibleModelManager } from './utils/compatibleModelManager';
 import { LeaderElectionService, StatusBarManager } from './status';
 import { registerAllTools } from './tools';
+import { CliAuthFactory } from './cli/auth/cliAuthFactory';
 
 /**
  * 全局变量 - 存储已注册的提供商实例，用于扩展卸载时的清理
  */
 const registeredProviders: Record<
     string,
-    GenericModelProvider | ZhipuProvider | MoonshotProvider | IFlowProvider | MiniMaxProvider | CompatibleProvider
+    GenericModelProvider | ZhipuProvider | MoonshotProvider | CliModelProvider | MiniMaxProvider | CompatibleProvider
 > = {};
 const registeredDisposables: vscode.Disposable[] = [];
 
@@ -43,13 +45,17 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
 
     Logger.info(`⏱️ 开始并行注册 ${Object.keys(configProvider).length} 个提供商...`);
 
+    // CLI 认证提供商列表（从 CliAuthFactory 获取）
+    const supportedCliTypes = CliAuthFactory.getSupportedCliTypes();
+    const cliAuthProviders = supportedCliTypes.map(cli => cli.id);
+
     // 并行注册所有提供商以提升性能
     const registrationPromises = Object.entries(configProvider).map(async ([providerKey, providerConfig]) => {
         try {
             Logger.trace(`正在注册提供商: ${providerConfig.displayName} (${providerKey})`);
             const providerStartTime = Date.now();
 
-            let provider: GenericModelProvider | ZhipuProvider | MoonshotProvider | IFlowProvider | MiniMaxProvider;
+            let provider: GenericModelProvider | ZhipuProvider | MoonshotProvider | CliModelProvider | MiniMaxProvider;
             let disposables: vscode.Disposable[];
 
             if (providerKey === 'zhipu') {
@@ -62,9 +68,9 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
                 const result = MoonshotProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
-            } else if (providerKey === 'iflow') {
-                // 对 iflow 使用专门的 provider
-                const result = IFlowProvider.createAndActivate(context, providerKey, providerConfig);
+            } else if (cliAuthProviders.includes(providerKey)) {
+                // 对 CLI 认证提供商使用通用的 CLI provider
+                const result = CliModelProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
             } else if (providerKey === 'minimax') {
@@ -249,6 +255,11 @@ export async function activate(context: vscode.ExtensionContext) {
             })
         );
         Logger.trace(`⏱️ 查看Token消耗统计命令注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+
+        // 步骤7: 注册 CLI 认证命令
+        stepStartTime = Date.now();
+        registerCliAuthCommands(context);
+        Logger.trace(`⏱️ CLI 认证命令注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
         const totalActivationTime = Date.now() - activationStartTime;
         Logger.info(`✅ GCMP 扩展激活完成 (总耗时: ${totalActivationTime}ms)`);

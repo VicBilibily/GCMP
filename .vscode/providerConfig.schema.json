@@ -21,6 +21,15 @@
             "minLength": 16,
             "description": "指导用户预期 API 密钥格式的占位符模式。"
         },
+        "customHeader": {
+            "type": "object",
+            "description": "可选的自定义HTTP头部，将在该提供商的所有API请求中附加。模型级别的 customHeader 会覆盖提供商级别的设置。",
+            "additionalProperties": {
+                "type": "string",
+                "description": "HTTP头部值",
+                "minLength": 1
+            }
+        },
         "models": {
             "type": "array",
             "minItems": 1,

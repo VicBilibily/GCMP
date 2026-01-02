@@ -1,0 +1,34 @@
+{
+    "displayName": "Qwen",
+    "baseUrl": "https://portal.qwen.ai/v1",
+    "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "customHeader": {
+        "User-Agent": "QwenCode/0.6.0 (win32; x64)"
+    },
+    "models": [
+        {
+            "id": "coder-model",
+            "model": "coder-model",
+            "name": "Qwen3-Coder-Plus (QwenCode)",
+            "tooltip": "Qwen3-Coder-Plus (QwenCode)",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "vision-model",
+            "model": "vision-model",
+            "name": "Qwen3-VL-Plus (QwenCode)",
+            "tooltip": "Qwen3-VL-Plus (QwenCode)",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        }
+    ]
+}

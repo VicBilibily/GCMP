@@ -34,7 +34,6 @@ export const KnownProviders: Record<string, KnownProviderConfig> = {
         }
     },
     aiping: { displayName: 'AIPing' },
-    iflow: { displayName: 'iFlow' },
     modelscope: { displayName: '魔搭社区' },
     openrouter: { displayName: 'OpenRouter' },
     siliconflow: { displayName: '硅基流动' },

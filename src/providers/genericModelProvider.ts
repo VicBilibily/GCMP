@@ -81,13 +81,11 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         });
 
         // 创建 OpenAI SDK 处理器
-        this.openaiHandler = new OpenAIHandler(providerKey, providerConfig.displayName, providerConfig.baseUrl);
+        this.openaiHandler = new OpenAIHandler(providerKey, providerConfig);
         // 创建 OpenAI 自定义 SSE 处理器
-        this.openaiCustomHandler = new OpenAICustomHandler(providerKey, providerConfig.displayName);
-        // 将 openaiHandler 实例传递给 openaiCustomHandler 用于消息和工具转换
-        this.openaiCustomHandler.setOpenAIHandler(this.openaiHandler);
+        this.openaiCustomHandler = new OpenAICustomHandler(providerKey, providerConfig, this.openaiHandler);
         // 创建 Anthropic SDK 处理器
-        this.anthropicHandler = new AnthropicHandler(providerKey, providerConfig.displayName, providerConfig.baseUrl);
+        this.anthropicHandler = new AnthropicHandler(providerKey, providerConfig);
     }
 
     /**

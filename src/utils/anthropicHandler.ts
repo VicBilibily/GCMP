@@ -11,7 +11,7 @@ import { Logger } from './logger';
 import { ConfigManager } from './configManager';
 import { VersionManager } from './versionManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
-import type { ModelConfig } from '../types/sharedTypes';
+import type { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 
 /**
@@ -21,10 +21,16 @@ import { OpenAIHandler } from './openaiHandler';
 export class AnthropicHandler {
     constructor(
         public readonly provider: string,
-        public readonly displayName: string,
-        private readonly baseURL?: string
+        private readonly providerConfig?: ProviderConfig
     ) {
-        // provider、displayName 和 baseURL 由调用方传入
+        // provider 和 providerConfig 由调用方传入
+        // displayName 和 baseURL 从 providerConfig 获取
+    }
+    private get displayName(): string {
+        return this.providerConfig?.displayName || this.provider;
+    }
+    private get baseURL(): string | undefined {
+        return this.providerConfig?.baseUrl;
     }
 
     /**
@@ -61,11 +67,18 @@ export class AnthropicHandler {
             'User-Agent': VersionManager.getUserAgent(this.provider)
         };
 
-        // 处理模型级别的 customHeader
-        const processedCustomHeader = ApiKeyManager.processCustomHeader(modelConfig?.customHeader, currentApiKey);
+        // 合并提供商级别和模型级别的 customHeader
+        // 模型级别的 customHeader 会覆盖提供商级别的同名头部
+        const mergedCustomHeader = {
+            ...this.providerConfig?.customHeader,
+            ...modelConfig?.customHeader
+        };
+
+        // 处理合并后的 customHeader
+        const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, currentApiKey);
         if (Object.keys(processedCustomHeader).length > 0) {
             Object.assign(defaultHeaders, processedCustomHeader);
-            Logger.debug(`${this.displayName} 应用自定义头部: ${JSON.stringify(modelConfig!.customHeader)}`);
+            Logger.debug(`${this.displayName} 应用自定义头部: ${JSON.stringify(mergedCustomHeader)}`);
         }
 
         const client = new Anthropic({

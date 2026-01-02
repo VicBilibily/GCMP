@@ -9,7 +9,7 @@ import { Logger } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
-import { ModelConfig } from '../types/sharedTypes';
+import { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 
 /**
  * OpenAI Handler 接口（用于类型安全的消息和工具转换）
@@ -62,23 +62,9 @@ interface ExtendedCompletionUsage extends OpenAI.Completions.CompletionUsage {
 export class OpenAICustomHandler {
     constructor(
         private provider: string,
-        private displayName?: string,
-        private openaiHandler?: IOpenAIHandler
+        private providerConfig: ProviderConfig,
+        private openaiHandler: IOpenAIHandler
     ) {}
-
-    /**
-     * 设置 OpenAI 处理器实例（用于工具和消息转换）
-     */
-    setOpenAIHandler(openaiHandler: IOpenAIHandler): void {
-        this.openaiHandler = openaiHandler;
-    }
-
-    /**
-     * 获取显示名称，未定义时返回 provider
-     */
-    private getDisplayName(): string {
-        return this.displayName || this.provider;
-    }
 
     /**
      * 使用自定义 SSE 流处理的请求方法
@@ -141,8 +127,15 @@ export class OpenAICustomHandler {
         const cancellationListener = token.onCancellationRequested(() => abortController.abort());
 
         try {
-            // 处理 customHeader 中的 API 密钥替换
-            const processedCustomHeader = ApiKeyManager.processCustomHeader(modelConfig?.customHeader, apiKey);
+            // 合并提供商级别和模型级别的 customHeader
+            // 模型级别的 customHeader 会覆盖提供商级别的同名头部
+            const mergedCustomHeader = {
+                ...this.providerConfig?.customHeader,
+                ...modelConfig?.customHeader
+            };
+
+            // 处理合并后的 customHeader 中的 API 密钥替换
+            const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, apiKey);
 
             const response = await fetch(url, {
                 method: 'POST',
