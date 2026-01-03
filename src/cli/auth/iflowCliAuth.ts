@@ -19,6 +19,10 @@ export class IFlowCliAuth extends BaseCliAuth {
     private static apiKeyCache: { accessToken: string; token: string; expireTime: number } | null = null;
     /** token 缓存有效期：2小时（毫秒） */
     private static readonly API_KEY_CACHE_DURATION = 2 * 60 * 60 * 1000;
+    /** 获取 apiKey 失败计数器 */
+    private static fetchFailureCount: { accessToken: string; count: number } | null = null;
+    /** 最大重试次数 */
+    private static readonly MAX_FETCH_RETRIES = 3;
 
     constructor() {
         const config: CliAuthConfig = {
@@ -70,10 +74,34 @@ export class IFlowCliAuth extends BaseCliAuth {
             return IFlowCliAuth.apiKeyCache.token;
         }
 
+        // 检查是否达到最大失败次数，如果是则直接使用 credentials 中的 apiKey
+        if (
+            !forceRefresh &&
+            IFlowCliAuth.fetchFailureCount &&
+            IFlowCliAuth.fetchFailureCount.accessToken === credentials.access_token &&
+            IFlowCliAuth.fetchFailureCount.count >= IFlowCliAuth.MAX_FETCH_RETRIES
+        ) {
+            Logger.warn(
+                `[iFlow] 已连续失败 ${IFlowCliAuth.fetchFailureCount.count} 次，使用 credentials 中的 apiKey 缓存`
+            );
+            // 使用 credentials 中的 apiKey 作为缓存
+            if (credentials.apiKey) {
+                IFlowCliAuth.apiKeyCache = {
+                    accessToken: credentials.access_token,
+                    token: credentials.apiKey,
+                    expireTime: now + IFlowCliAuth.API_KEY_CACHE_DURATION
+                };
+                return credentials.apiKey;
+            }
+            return null;
+        }
+
         // 缓存无效或强制刷新，重新获取 apiKey
         try {
             const userInfo = await this.fetchUserInfo(credentials.access_token);
             if (userInfo && userInfo.apiKey) {
+                // 成功获取，重置失败计数器
+                IFlowCliAuth.fetchFailureCount = null;
                 // 更新缓存
                 IFlowCliAuth.apiKeyCache = {
                     accessToken: credentials.access_token,
@@ -89,6 +117,27 @@ export class IFlowCliAuth extends BaseCliAuth {
         } catch (error) {
             Logger.warn('[iFlow] 获取用户信息失败:', error);
         }
+
+        // 获取失败，增加失败计数
+        if (!forceRefresh) {
+            if (
+                !IFlowCliAuth.fetchFailureCount ||
+                IFlowCliAuth.fetchFailureCount.accessToken !== credentials.access_token
+            ) {
+                // access_token 变化，重置计数器
+                IFlowCliAuth.fetchFailureCount = {
+                    accessToken: credentials.access_token,
+                    count: 1
+                };
+            } else {
+                // 同一个 access_token，增加计数
+                IFlowCliAuth.fetchFailureCount.count++;
+            }
+            Logger.warn(
+                `[iFlow] 获取 apiKey 失败 (${IFlowCliAuth.fetchFailureCount.count}/${IFlowCliAuth.MAX_FETCH_RETRIES})`
+            );
+        }
+
         return credentials?.apiKey;
     }
 

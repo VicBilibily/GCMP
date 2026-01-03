@@ -2,6 +2,14 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.16.8] - 2026-01-04
+
+### 完善
+
+- **iFlow CLI**：降低 oauth/getUserInfo 的调用频率。
+    - 当 accessToken 失效时，可能 apiKey 依旧可用。
+    - 一个 accessToken 最多尝试刷新 apiKey 请求 3 次。
+
 ## [0.16.7] - 2026-01-04
 
 ### 完善
