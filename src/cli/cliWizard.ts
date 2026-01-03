@@ -130,9 +130,17 @@ export class CliWizard {
                 }
                 await vscode.window.showInformationMessage(`已成功从 ${displayName} CLI 刷新认证凭证`, { modal: true });
             } else {
-                await vscode.window.showWarningMessage(`无法从 ${displayName} CLI 获取认证凭证，请先登录`, {
-                    modal: true
-                });
+                const result = await vscode.window.showWarningMessage(
+                    `无法从 ${displayName} CLI 获取认证凭证，请先登录或重新授权`,
+                    { modal: true },
+                    '打开终端'
+                );
+                if (result === '打开终端') {
+                    // 打开集成终端
+                    const terminal = vscode.window.createTerminal(providerKey);
+                    terminal.sendText(providerKey);
+                    terminal.show();
+                }
             }
         } catch (error) {
             Logger.error('[CliWizard] 刷新认证失败:', error);

@@ -117,7 +117,7 @@ export abstract class BaseCliAuth {
     /**
      * 保存凭证到文件（差分更新，保留文件中已有的其他字段）
      */
-    protected saveCredentials(credentials: OAuthCredentials): void {
+    protected saveCredentials(credentials: Partial<OAuthCredentials>): void {
         const credentialPath = this.resolvePath(this.config.credentialPathPattern);
 
         // 读取现有凭证文件，保留已有字段
@@ -131,8 +131,16 @@ export abstract class BaseCliAuth {
             }
         }
 
+        // 过滤掉 null/undefined 的值，只保留有效值
+        const validCredentials: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(credentials)) {
+            if (value !== null && value !== undefined) {
+                validCredentials[key] = value;
+            }
+        }
+
         // 合并新凭证和现有数据
-        const mergedData = { ...existingData, ...credentials };
+        const mergedData = { ...existingData, ...validCredentials };
         // 确保目录存在
         const dir = path.dirname(credentialPath);
         if (!fs.existsSync(dir)) {

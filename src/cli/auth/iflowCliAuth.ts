@@ -7,6 +7,10 @@ import { BaseCliAuth } from './baseCliAuth';
 import { Logger } from '../../utils/logger';
 import { CliAuthConfig, OAuthCredentials } from '../type';
 
+interface IFlowOAuthCredentials extends OAuthCredentials {
+    apiKey: string;
+}
+
 /**
  * iFlow CLI 认证类
  */
@@ -37,18 +41,18 @@ export class IFlowCliAuth extends BaseCliAuth {
         const now = Date.now();
 
         // 如果强制刷新，先刷新 access_token
-        let credentials = await this.loadCredentials();
+        let credentials = (await this.loadCredentials()) as IFlowOAuthCredentials;
         if (!credentials) {
             return null;
         }
 
         if (forceRefresh) {
             try {
-                credentials = await this.refreshAccessToken(credentials);
+                credentials = (await this.refreshAccessToken(credentials)) as IFlowOAuthCredentials;
                 Logger.debug('[iFlow] 已强制刷新 access_token');
             } catch (error) {
                 Logger.warn('[iFlow] 强制刷新 access_token 失败:', error);
-                // 刷新失败，继续使用现有凭证尝试
+                return null;
             }
             // 强制刷新时清除 apiKey 缓存
             IFlowCliAuth.apiKeyCache = null;
@@ -76,6 +80,7 @@ export class IFlowCliAuth extends BaseCliAuth {
                     token: userInfo.apiKey,
                     expireTime: now + IFlowCliAuth.API_KEY_CACHE_DURATION
                 };
+                this.saveCredentials({ apiKey: userInfo.apiKey } as IFlowOAuthCredentials);
                 Logger.debug(
                     `[iFlow] 已从 getUserInfo 获取最新 apiKey 并缓存 (有效期: ${IFlowCliAuth.API_KEY_CACHE_DURATION / 1000 / 60}分钟)`
                 );
@@ -84,7 +89,7 @@ export class IFlowCliAuth extends BaseCliAuth {
         } catch (error) {
             Logger.warn('[iFlow] 获取用户信息失败:', error);
         }
-        return null;
+        return credentials?.apiKey;
     }
 
     /**
@@ -114,19 +119,22 @@ export class IFlowCliAuth extends BaseCliAuth {
         }
 
         const responseData = (await response.json()) as OAuthCredentials & { expires_in?: number };
-        // 计算新的过期时间
-        const newCredentials: OAuthCredentials = {
-            access_token: responseData.access_token,
-            refresh_token: responseData.refresh_token,
-            expiry_date: responseData.expires_in
-                ? Date.now() + responseData.expires_in * 1000
-                : responseData.expiry_date
-        };
-
-        // 保存刷新后的凭证
-        this.saveCredentials(newCredentials);
-        Logger.info('[iFlow] 令牌刷新成功');
-        return newCredentials;
+        if (responseData.access_token && responseData.expires_in) {
+            // 计算新的过期时间
+            const newCredentials: OAuthCredentials = {
+                access_token: responseData.access_token,
+                refresh_token: responseData.refresh_token,
+                expiry_date: responseData.expires_in
+                    ? Date.now() + responseData.expires_in * 1000
+                    : responseData.expiry_date
+            };
+            // 保存刷新后的凭证
+            this.saveCredentials(newCredentials);
+            Logger.info('[iFlow] 令牌刷新成功');
+            return newCredentials;
+        } else {
+            throw new Error(responseData?.toString() || 'iFlow OAuth 刷新响应缺少 access_token 或 expires_in');
+        }
     }
 
     /**

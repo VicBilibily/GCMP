@@ -44,18 +44,21 @@ export class QwenCodeCliAuth extends BaseCliAuth {
         }
 
         const responseData = (await response.json()) as OAuthCredentials & { expires_in?: number };
-        // 计算新的过期时间
-        const newCredentials: OAuthCredentials = {
-            access_token: responseData.access_token,
-            refresh_token: responseData.refresh_token,
-            expiry_date: responseData.expires_in
-                ? Date.now() + responseData.expires_in * 1000
-                : responseData.expiry_date
-        };
-
-        // 保存刷新后的凭证
-        this.saveCredentials(newCredentials);
-        Logger.info('[Qwen Code] 令牌刷新成功');
-        return newCredentials;
+        if (responseData.access_token && responseData.expires_in) {
+            // 计算新的过期时间
+            const newCredentials: OAuthCredentials = {
+                access_token: responseData.access_token,
+                refresh_token: responseData.refresh_token,
+                expiry_date: responseData.expires_in
+                    ? Date.now() + responseData.expires_in * 1000
+                    : responseData.expiry_date
+            };
+            // 保存刷新后的凭证
+            this.saveCredentials(newCredentials);
+            Logger.info('[Qwen Code] 令牌刷新成功');
+            return newCredentials;
+        } else {
+            throw new Error(responseData?.toString() || 'Qwen OAuth 刷新响应缺少 access_token 或 expires_in');
+        }
     }
 }
