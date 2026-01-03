@@ -233,14 +233,14 @@ export class TokenUsageStatusBar {
                     let cacheStr = '-';
                     let outputStr = '-';
                     let totalStr = '-';
-                    if (req.status === 'completed' && req.rawUsage) {
-                        // 真正完成状态：显示实际值
+                    if (req.status === 'completed' && req.rawUsage && totalTokens > 0) {
+                        // 完成状态且有实际值：显示实际值
                         inputStr = this.formatTokens(actualInput);
                         cacheStr = cacheTokens > 0 ? this.formatTokens(cacheTokens) : '-';
                         outputStr = outputTokens > 0 ? this.formatTokens(outputTokens) : '-';
-                        totalStr = totalTokens > 0 ? this.formatTokens(totalTokens) : '-';
+                        totalStr = this.formatTokens(totalTokens);
                     } else {
-                        // estimated 或 failed 状态：显示预估值（带 ~ 前缀）
+                        // 预估或失败状态或无实际值：显示预估值（带 ~ 前缀）
                         if (req.estimatedInput !== undefined && req.estimatedInput > 0) {
                             totalStr = inputStr = `~${this.formatTokens(req.estimatedInput)}`;
                         }

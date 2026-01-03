@@ -1,7 +1,7 @@
 /*---------------------------------------------------------------------------------------------
  *  CLI 认证专用 Provider
  *  继承 GenericModelProvider，支持 CLI 认证模式
- *  支持 iflow、qwen-code、gemini-cli 等 CLI 认证提供商
+ *  支持 iflow、qwen-code 等 CLI 认证提供商
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -14,7 +14,7 @@ import { CliAuthFactory } from './auth/cliAuthFactory';
 /**
  * CLI 认证专用模型提供商类
  * 继承 GenericModelProvider，支持 CLI 认证模式
- * 适用于所有使用 CLI 认证的提供商（iflow、qwen-code、gemini-cli 等）
+ * 适用于所有使用 CLI 认证的提供商（iflow、qwen-code 等）
  */
 export class CliModelProvider extends GenericModelProvider {
     constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {

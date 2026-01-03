@@ -2,6 +2,12 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.16.6] - 2026-01-03
+
+### 修复
+
+- **Token消耗统计功能**：部分提供商模型不返回usage信息时保持显示预估输入值显示
+
 ## [0.16.5] - 2026-01-03
 
 ### 修复
@@ -92,99 +98,43 @@
 
 ## 历史版本
 
-### 0.15.0 - 0.15.23 版本 (2025-12-12 - 2025-12-23)
+### 0.14.0 - 0.15.23 (2025-11-30 - 2025-12-23)
 
-**核心功能增强**：
+- **NES 代码补全**：新增 Next Edit Suggestions (NES) 代码补全功能，整合 FIM 和 NES 两种模式
+- **上下文窗口占用比例状态栏**：新增上下文窗口占用比例显示功能
+- **智谱AI用量查询**：新增状态栏显示剩余用量
+- **兼容模式成熟化**：OpenAI/Anthropic Compatible Provider 正式发布，支持 includeThinking 参数和 openai-sse 响应格式，内置 OpenRouter、AIHubMix 等提供商余额查询
+- **性能优化**：FIM/NES 内联提示采用懒加载机制，模块分包编译
+- **提供商调整**：
+    - 智谱AI：新增 GLM-4.6V 系列、GLM-4.7 (Thinking) 模型，支持切换到国际站
+    - MiniMax：支持国际站 Coding Plan，新增 M2.1 系列模型
+    - 火山方舟：新增 DeepSeek-V3.2、Doubao-Seed-1.8-251215 模型
+    - MoonshotAI：新增余额查询，Kimi For Coding 合并到 MoonshotAI，新增多密钥设置向导
+    - DeepSeek：新增 DeepSeek-V3.2 模型和余额查询
+- **配置优化**：`gcmp.maxTokens` 上限调整为 256000，完善配置编辑智能提示和模型可视化编辑表单
 
-- **NES 代码补全**：新增内置支持 Next Edit Suggestions (NES) 代码补全功能
-- **FIM/NES 融合**：整合 FIM 和 NES 两种代码补全模式，根据光标位置智能选择提供者
-- **上下文窗口占用比例状态栏**：新增上下文窗口占用比例显示功能，支持查看当前会话的上下文窗口占用情况
-- **智谱AI用量查询**：新增状态栏显示剩余用量，可查看 GLM Coding Plan 用量信息
+### 0.9.0 - 0.13.6 (2025-10-29 - 2025-11-29)
 
-**性能优化**：
-
-- **懒加载机制**：FIM/NES 内联提示采用懒加载机制，延迟到首次请求时初始化，减少扩展启动时间
-- **模块分包编译**：拆离整个模块分包编译，仅在首次触发补全时加载模块
-
-**提供商调整**：
-
-- **智谱AI**：新增 GLM-4.7 (Thinking) 模型，支持切换到国际站(z.ai)
-- **MiniMax**：新增 MiniMax-M2.1 (Coding Plan)、MiniMax-M2.1-Lightning 模型
-- **火山方舟**：新增 Doubao-Seed-1.8-251215 模型，调整 DeepSeek-V3.2 模型参数
-- **MoonshotAI**：Kimi 提供商的 `Kimi For Coding` 会员权益模型合并到 MoonshotAI，新增多密钥设置向导
-
-**配置与工具优化**：
-
-- **配置参数上限调整**：`gcmp.maxTokens` 允许最大值从 `32768` 调整为 `256000`
-- **配置编辑智能提示优化**：为 compatibleModels、fim/nesCompletion、providerOverrides 提供完整的编辑智能提示
-- **OpenAI / Anthropic Compatible**：新增模型可视化编辑表单
-
-### 0.14.0 - 0.14.19 版本 (2025-11-30 - 2025-12-11)
-
-**兼容模式成熟化**：
-
-- **正式发布**：OpenAI/Anthropic Compatible Provider 结束 GA 测试阶段
-- **余额查询扩展**：内置 OpenRouter、AIHubMix 等提供商余额查询
-- **思考过程支持**：新增 includeThinking 参数，支持多轮对话思考过程传递
-- **SSE兼容模式**：新增 openai-sse 非标准模型接口响应格式支持
-
-**提供商兼容优化**：
-
-- **DeepSeek**：新增 DeepSeek-V3.2 模型，支持思考模式 Agent 工具调用，新增余额查询
-- **MoonshotAI**：新增余额查询支持，优化思考模型输出显示
-- **火山方舟**：新增 DeepSeek-V3.2 模型，扩展协作奖励计划模型
-- **智谱AI**：新增 GLM-4.6V 系列模型（Flash、Thinking）
-- **MiniMax**：支持国际站 Coding Plan 编程套餐接入
-
-**用户体验改进**：
-
-- **状态栏优化**：完善密钥变更同步显示，支持单独隐藏图标
-- **错误处理优化**：发生错误时不再自动打开输出窗口，减少干扰
-- **思考内容输出**：解决思考内容换行问题，优化输出显示
-
-### 0.9.0 - 0.13.6 版本 (2025-10-29 - 2025-11-29)
-
-**核心架构演进**：
-
-- **兼容模式支持**：新增 `OpenAI / Anthropic Compatible` Provider，支持完全自定义 API 接入
-- **配置系统增强**：支持 extraBody 扩展请求参数、自定义 Header 请求头
-- **交互式配置向导**：为智谱AI、快手万擎等提供商提供可视化配置界面
-- **模型缓存系统**：使用 VS Code globalState 持久化存储，支持版本检查、API 密钥哈希校验、24小时过期机制
-- **记忆功能**：新增 `gcmp.rememberLastModel` 配置，记录上次使用的模型，重启后自动恢复选择
-- **自动重试机制**：兼容模式支持 429 状态码自动重试，减少 Agent 操作中断
-
-**提供商扩展与深度优化**：
-
-- **MiniMax**：正式列为常规支持提供商，新增 Coding Plan 编程套餐专用 API 密钥支持，新增网络搜索 (`#minimaxWebSearch`) 功能
-- **智谱AI**：新增交互式配置向导，支持修改 API Key 和 MCP 搜索模式配置，新增 GLM-4.6-Thinking 模型模式
-- **MoonshotAI**：新增 Kimi-K2-Thinking 和 Kimi-K2-Thinking-Turbo 思考模型，固定采用 `{ "temperature": 1.0, "top_p": 1 }` 参数
-- **火山方舟**：新增 Doubao-Seed-Code 模型支持，兼容 Coding Plan 套餐模型
-- **快手万擎**：新增交互式配置向导，支持修改 API Key 和推理点ID配置
-
-**模型管理与维护**：
-
-- **计费模型明确**：按量计费模型在模型选择列表中明确强调计费，避免错误选用非编程套餐模型造成欠费
-- **模型清理策略**：移除加价X计费模型（GLM-4.5-X、GLM-4.5-AirX）、免费使用时期的按量计费模型（MiniMax-M2-Stable）
-- **三方模型清理**：存在自主模型的提供商移除所有三方模型，仅保留自主模型
-
-**用户体验优化**：
-
-- **状态栏订阅用量显示**：新增 MiniMax Coding Plan 套餐周期使用比例显示，Kimi For Coding 周期剩余额度显示
-- **订阅状态自动刷新**：新增用户活跃记录，30分钟无操作则暂停自动刷新用量信息，优化资源使用
-- **模型变更通知机制**：采用通知机制让模型配置刷新，避免重新初始化模型提供方造成整个服务重置
-- **配置编辑智能提示**：为 `gcmp.providerOverrides` 提供完整的编辑 schema 输入提示，提升配置效率
-- **编辑工具模式优化**：Claude 编辑工具模式指向 `claude-sonnet-4.5` 模型家族
+- **核心架构演进**：新增 `OpenAI / Anthropic Compatible` Provider，支持 extraBody 和自定义 Header，新增模型缓存系统和记忆功能
+- **提供商扩展**：
+    - MiniMax：正式列为常规支持提供商，新增 Coding Plan 编程套餐和网络搜索功能
+    - 智谱AI：新增交互式配置向导和 GLM-4.6-Thinking 模型
+    - MoonshotAI：新增 Kimi-K2-Thinking 系列模型
+    - 火山方舟：新增 Doubao-Seed-Code 模型
+    - 快手万擎：新增交互式配置向导
+- **模型管理**：明确计费模型标识，清理加价X计费模型和三方模型
 
 ### 早期版本 (0.1.0 - 0.8.2)
 
 早期版本实现了扩展的核心功能和基础架构，包括：
 
-- **多提供商支持**：智谱AI、MoonshotAI、DeepSeek、MiniMax 等模型提供商接入
+- **多提供商支持**：智谱AI、心流AI、MoonshotAI、DeepSeek 等模型提供商接入
 - **国内云厂商支持**：阿里云百炼、火山方舟、快手万擎等云厂商集成
 - **联网搜索**：智谱AI网络搜索工具集成，支持 MCP SDK 客户端连接
-- **编辑工具优化**：支持多种编辑工具模式（Claude/GPT-5）
+- **编辑工具优化**：支持多种编辑工具模式（Claude/GPT-5/Grok）
 - **配置系统**：支持 temperature、topP、maxTokens 等参数配置，支持提供商配置覆盖
 - **Token 计算**：集成 @microsoft/tiktokenizer 进行 token 计算
 - **多 SDK 支持**：集成 OpenAI SDK 和 Anthropic SDK 处理不同模型请求
 - **思维链输出**：思维模型支持输出推理过程
-- **自动重试机制**：`OpenAI / Anthropic 兼容模式`支持 429 状态码自动重试，减少 Agent 操作中断
+- **兼容模式支持**：OpenAI / Anthropic 兼容模式，支持自定义 API 接入
+- **自动重试机制**：`ModelScope`及`OpenAI / Anthropic 兼容模式`支持 429 状态码自动重试，减少 Agent 操作中断

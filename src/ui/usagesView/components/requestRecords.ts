@@ -166,11 +166,11 @@ function createRequestRecordsTable(records: ExtendedTokenRequestLog[]): HTMLElem
 
             const input = createElement('td');
             // 根据状态决定显示实际值还是预估值
-            if (record.status === 'completed' && record.rawUsage) {
-                // 完成状态：显示实际值
-                input.textContent = formatTokens(record.actualInput || 0);
+            if (record.status === 'completed' && record.rawUsage && record.totalTokens > 0) {
+                // 完成状态且有实际值：显示实际值
+                input.textContent = formatTokens(record.actualInput);
             } else {
-                // 预估或失败状态：显示预估值（带 ~ 前缀），否则显示 '-'
+                // 预估或失败状态或无实际值：显示预估值（带 ~ 前缀），否则显示 '-'
                 if (record.estimatedInput !== undefined && record.estimatedInput > 0) {
                     input.textContent = `~${formatTokens(record.estimatedInput)}`;
                 } else {
