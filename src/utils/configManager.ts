@@ -276,8 +276,8 @@ export class ConfigManager {
      */
     private static validateMaxTokens(value: number): number {
         if (isNaN(value) || value < 32 || value > 256000) {
-            Logger.warn(`无效的maxTokens值: ${value}，使用默认值8192`);
-            return 8192;
+            Logger.warn(`无效的maxTokens值: ${value}，使用默认值16000`);
+            return 16000;
         }
         return Math.floor(value);
     }

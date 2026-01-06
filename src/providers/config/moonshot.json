@@ -81,20 +81,6 @@
             }
         },
         {
-            "id": "kimi-k2-0711-preview",
-            "name": "Kimi-K2-0711-Preview",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://api.moonshot.cn/anthropic",
-            "tooltip": "月之暗面 Kimi-K2-0711-Preview - K2系列基础版本，128K上下文",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 8192,
-            "version": "kimi-k2-0711-previw",
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
             "id": "kimi-latest",
             "name": "Kimi-Latest",
             "tooltip": "月之暗面 Kimi-Latest - 最新一代视觉模型，128K上下文，支持图片理解，自动上下文缓存，智能选择8K/32K/128K计费模型",

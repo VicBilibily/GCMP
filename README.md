@@ -37,7 +37,7 @@
 ### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
 
 - [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：**Doubao-Seed-Code**(Vision)、**DeepSeek-V3.2**(Thinking)
-- **豆包系列**：**Doubao-Seed-1.8**、**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**、**Doubao-Seed-1.6-Flash**、**Doubao-Seed-1.6-Thinking**、**Doubao-Seed-1.6-Vision**
+- **豆包系列**：**Doubao-Seed-1.8**、**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**
 - **协作奖励计划**：**DeepSeek-V3.2**(Thinking)、**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**
 
 ### [**MiniMax**](https://platform.minimaxi.com/login)
@@ -52,7 +52,7 @@
 
 - [**会员权益**](https://www.kimi.com/coding)：Kimi `会员计划` 套餐的附带的 `Kimi For Coding`，当前使用 Roo Code 发送 Anthropic 请求。
     - **用量查询**：已支持状态栏显示周期剩余额度，可查看赠送的每周剩余用量及每周重置时间。
-- 预置模型：**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-K2-0711-Preview**、**Kimi-Latest**
+- 预置模型：**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-Latest**
     - **余额查询**：已支持状态栏显示当前账户额度，可查看账户余额状况。
 - 思考模型：**Kimi-K2-Thinking**、**Kimi-K2-Thinking-Turbo**
 
@@ -67,13 +67,17 @@
 
 ### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
 
+> 模型的访问限速将根据服务阶段与账户类型进行动态调整：1月5日 - 1月12日期间 KAT-Coder-Pro V1 将继续提供免费试用，但此阶段的 RPM（每分钟请求数）限制在 20 以内。正式付费阶段 Coding Plan 订阅用户与按量付费用户均享有更高的服务规格：40 RPM / 200万 TPM 。
+
+- [**KwaiKAT Coding Plan**](https://streamlake.com/marketing/coding-plan)：**KAT-Coder-Pro-V1** (容易触发 40RPM 请求限制，暂不建议开通)
+
 - **KAT-Coder系列**：**KAT-Coder-Pro-V1**、**KAT-Coder-Air-V1**
 
 ### [**阿里云百炼**](https://bailian.console.aliyun.com/) - 通义大模型
 
 - **通义千问系列**：**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
 
-### 实验性支持 CLI 提供商
+### 实验性支持 CLI 认证提供商
 
 <details>
 <summary>展开查看 CLI 认证支持提供商说明</summary>
@@ -120,7 +124,7 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 {
     "gcmp.temperature": 0.1, // 0.0-2.0
     "gcmp.topP": 1.0, // 0.0-1.0
-    "gcmp.maxTokens": 8192, // 32-256000
+    "gcmp.maxTokens": 16000, // 32-256000
     "gcmp.editToolMode": "claude", // claude/gpt-5/none
     "gcmp.rememberLastModel": true, // 记住上次使用的模型
     "gcmp.zhipu.search.enableMCP": true // 启用`联网搜索MCP`（Coding Plan专属）

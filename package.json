@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.16.8",
+    "version": "0.16.9",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -184,7 +184,7 @@
                 },
                 "gcmp.maxTokens": {
                     "type": "number",
-                    "default": 8192,
+                    "default": 16000,
                     "minimum": 32,
                     "maximum": 256000,
                     "description": "控制AI模型输出的最大token数量。较大的值允许更长的响应。",

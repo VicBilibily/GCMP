@@ -2,6 +2,17 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.16.9] - 2026-01-06
+
+### 调整
+
+- `gcmp.maxTokens`：默认值由 `8192` 调整为 `16000`。
+- **MoonshotAI**：移除过时模型 `Kimi-K2-0711-Preview`。
+- **快手万擎**：新增 `KwaiKAT Coding Plan` 内置可用模型。
+- **火山方舟**： 调整内置可用模型列表
+    - 更新：`Doubao-Seed-1.8-251215` 至 `Doubao-Seed-1.8-251228`。
+    - 移除：`Doubao-Seed-1.6-Flash-250828`、`Doubao-Seed-1.6-Thinking-250715`、`Doubao-Seed-1.6-Vision-250815`
+
 ## [0.16.8] - 2026-01-04
 
 ### 完善

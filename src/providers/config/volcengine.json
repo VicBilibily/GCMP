@@ -77,11 +77,12 @@
         },
         {
             "id": "doubao-seed-1-8",
-            "name": "Doubao-Seed-1.8-251215",
-            "model": "doubao-seed-1-8-251215",
+            "name": "Doubao-Seed-1.8-251228",
+            "model": "doubao-seed-1-8-251228",
             "tooltip": "全新面向多模态 Agent 场景定向优化模型。更强Agent能力、升级多模态理解、更灵活的上下文管理。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 64000,
+            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -104,42 +105,6 @@
             "name": "Doubao-Seed-1.6-lite-251015",
             "model": "doubao-seed-1-6-lite-251015",
             "tooltip": "Doubao-Seed-1.6-lite 全新多模态深度思考模型，支持思考程度可调节（reasoning effort），即 Minimal、Low、Medium、High 四种模式，更强性价比，常见任务的最佳选择，上下文窗口至256k。",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "doubao-seed-1-6-flash",
-            "name": "Doubao-Seed-1.6-Flash-250828",
-            "model": "doubao-seed-1-6-flash-250828",
-            "tooltip": "Doubao-Seed-1.6-flash推理速度极致的多模态深度思考模型，TPOT低至10ms； 同时支持文本和视觉理解，文本理解能力超过上一代lite，视觉理解比肩友商pro系列模型。支持 256k 上下文窗口，输出长度支持最大 16k tokens。综合能力最强flash版本！相比0615/0715版本，文本&视觉能力显著大幅提升近10%！",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "doubao-seed-1-6-thinking",
-            "name": "Doubao-Seed-1.6-Thinking-250715",
-            "model": "doubao-seed-1-6-thinking-250715",
-            "tooltip": "深度思考能力更强化！相比Doubao-Seed-1.6-thinking/250615版本文本&视觉能力显著提升，综合能力领先Doubao-Seed-1.6/250615开启thinking模式",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "doubao-seed-1-6-vision",
-            "name": "Doubao-Seed-1.6-Vision-250815",
-            "model": "doubao-seed-1-6-vision-250815",
-            "tooltip": "Doubao-Seed-1.6-Vision 250815版本，深度思考模型，支持可手动关闭的深度思考、文本生成、图片理解、视频理解、GUI任务、工具调用、结构化输出。支持256k上下文窗口。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "capabilities": {

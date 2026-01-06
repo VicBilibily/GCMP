@@ -4,6 +4,20 @@
     "apiKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "KAT-Coder-Pro-V1-Coding-Plan",
+            "name": "KAT-Coder-Pro-V1 (Coding Plan)",
+            "model": "KAT-Coder-Pro-V1",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://wanqing.streamlakeapi.com/api/gateway/coding/kat-coder-pro-v1/claude-code-proxy",
+            "tooltip": "专为 Agentic Coding 设计，全面覆盖编程任务与场景，通过大规模智能体强化学习，实现智能行为涌现，在代码编写性能上显著超越同类模型。支持 Function Call。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
             "id": "KAT-Coder-Pro-V1",
             "name": "KAT-Coder-Pro-V1",
             "tooltip": "专为 Agentic Coding 设计，全面覆盖编程任务与场景，通过大规模智能体强化学习，实现智能行为涌现，在代码编写性能上显著超越同类模型。支持 Function Call。",
