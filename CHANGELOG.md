@@ -2,6 +2,24 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.16.11] - 2026-01-08
+
+### 新增
+
+- **OpenAI Responses API 支持**(实验性)
+    - 新增针对 `火山方舟` 的 Responses API 的兼容
+
+## [0.16.10] - 2026-01-08
+
+### 新增
+
+- **OpenAI Responses API 支持**(实验性)：新增 `openai-responses` SDK 模式，使用 OpenAI Responses API 进行消息格式转换
+    - 支持思维链（reasoning）内容输出，包括 `response.reasoning_text.delta/done` 和 `response.reasoning_summary_text.delta/done` 事件
+    - 支持拒绝内容（refusal）处理，包括 `response.refusal.delta/done` 事件
+    - 新增 `useInstructions` 配置选项，控制是否使用 `instructions` 参数传递系统消息
+    - 默认使用用户消息传递系统消息（兼容性更好），设置为 `true` 时使用 `instructions` 参数
+    - 支持 Responses API 格式的 Token 统计（`input_tokens`、`output_tokens`）
+
 ## [0.16.9] - 2026-01-06
 
 ### 调整

@@ -99,6 +99,7 @@ export class OpenAIResponsesHandler {
                         type: 'message' as const,
                         id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                         role: 'assistant' as const,
+                        status: 'completed' as const,
                         content: [{ type: 'output_text' as const, text: assistantText }]
                     } as unknown as ResponseInputMessageItem);
                 }
@@ -115,7 +116,8 @@ export class OpenAIResponsesHandler {
                         id: `fc_${tc.id}`,
                         call_id: tc.id,
                         name: tc.name,
-                        arguments: tc.args
+                        arguments: tc.args,
+                        status: 'completed' as const
                     } as unknown as ResponseFunctionToolCall);
                 }
             }
@@ -129,7 +131,8 @@ export class OpenAIResponsesHandler {
                     type: 'function_call_output' as const,
                     id: `fco_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                     call_id: tr.callId,
-                    output: tr.content || ''
+                    output: tr.content || '',
+                    status: 'completed' as const
                 } as unknown as ResponseFunctionToolCallOutputItem);
             }
 
@@ -152,6 +155,7 @@ export class OpenAIResponsesHandler {
                         type: 'message' as const,
                         id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                         role: 'user' as const,
+                        status: 'completed' as const,
                         content: contentArray
                     } as unknown as ResponseInputMessageItem);
                 }
@@ -162,6 +166,19 @@ export class OpenAIResponsesHandler {
             // system 消息需要通过 instructions 参数传递
             if (role === 'system' && joinedText) {
                 systemMessage = joinedText;
+            }
+        }
+
+        // 根据 Responses API 规范，将最后一个用户消息的状态设置为 incomplete
+        // 这表示对话还在继续，等待模型响应
+        if (out.length > 0) {
+            const lastItem = out[out.length - 1];
+            if (lastItem && typeof lastItem === 'object' && 'type' in lastItem) {
+                const item = lastItem as unknown as Record<string, unknown>;
+                if (item.type === 'message' && item.role === 'user') {
+                    item.status = 'incomplete';
+                    Logger.trace(`${this.displayName} Responses API: 将最后一个用户消息状态设置为 incomplete`);
+                }
             }
         }
 
