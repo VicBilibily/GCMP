@@ -22,8 +22,9 @@ export interface ModelConfig {
      * - "anthropic": 使用 Anthropic SDK
      * - "openai": 使用 OpenAI SDK（默认）
      * - "openai-sse": 使用 OpenAI SSE 兼容模式（自定义实现流式响应处理）
+     * - "openai-responses": 使用 OpenAI Responses API（使用 Responses API 进行请求响应处理）
      */
-    sdkMode?: 'anthropic' | 'openai' | 'openai-sse';
+    sdkMode?: 'anthropic' | 'openai' | 'openai-sse' | 'openai-responses';
     /**
      * 模型特定的baseUrl（可选）
      * 如果提供，将覆盖提供商级别的baseUrl
@@ -63,6 +64,12 @@ export interface ModelConfig {
      * 当模型要求工具消息必须包含思考内容时需设置为 true
      */
     includeThinking?: boolean;
+    /**
+     * 是否在 Responses API 中使用 instructions 参数（可选）
+     *  - 默认值为 false，表示使用 用户消息 传递 系统消息 指令
+     *  - 当设置为 true 时，使用 instructions 参数传递系统指令
+     */
+    useInstructions?: boolean;
 }
 
 /**

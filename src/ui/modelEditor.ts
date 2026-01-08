@@ -136,6 +136,7 @@ export class ModelEditor {
             imageInput: model?.capabilities?.imageInput || false,
             outputThinking: model?.outputThinking !== false,
             includeThinking: model?.includeThinking || false,
+            useInstructions: model?.useInstructions,
             customHeader: model?.customHeader ? JSON.stringify(model.customHeader, null, 2) : '',
             extraBody: model?.extraBody ? JSON.stringify(model.extraBody, null, 2) : ''
         };

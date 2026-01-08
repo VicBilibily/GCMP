@@ -60,7 +60,7 @@ export class OpenAIHandler {
     /**
      * 创建新的 OpenAI 客户端
      */
-    private async createOpenAIClient(modelConfig?: ModelConfig): Promise<OpenAI> {
+    async createOpenAIClient(modelConfig?: ModelConfig): Promise<OpenAI> {
         // 优先级：model.provider -> this.provider
         const providerKey = modelConfig?.provider || this.provider;
         const currentApiKey = await ApiKeyManager.getApiKey(providerKey);

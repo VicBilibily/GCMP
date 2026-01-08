@@ -33,6 +33,7 @@ const vscode = acquireVsCodeApi();
  * @property {ModelCapabilities} capabilities - 能力配置
  * @property {boolean} outputThinking - 是否启用输出思考过程
  * @property {boolean} includeThinking - 多轮对话是否必须包含思考内容
+ * @property {boolean} useInstructions - 是否使用 instructions 参数（仅 openai-responses 有效）
  * @property {Object} [customHeader] - 自定义HTTP头部（可选）
  * @property {Object} [extraBody] - 额外请求体参数（可选）
  */
@@ -115,6 +116,7 @@ function createDOM() {
             options: [
                 { value: 'openai', label: 'OpenAI SDK (使用官方SDK进行流式传输数据处理)', selected: modelData.sdkMode === 'openai' },
                 { value: 'openai-sse', label: 'OpenAI SSE (使用内置兼容解析进行流式传输数据处理)', selected: modelData.sdkMode === 'openai-sse' },
+                { value: 'openai-responses', label: 'OpenAI Responses (实验性支持，使用 Responses API 进行请求响应处理)', selected: modelData.sdkMode === 'openai-responses' },
                 { value: 'anthropic', label: 'Anthropic SDK (使用官方SDK进行流式传输数据处理)', selected: modelData.sdkMode === 'anthropic' }
             ]
         }, '模型通讯使用的兼容模式'),
@@ -160,6 +162,13 @@ function createDOM() {
             'includeThinking',
             modelData.includeThinking,
             '当模型要求多轮对话中的工具消息必须包含思考内容时需设置为 true。'
+        ),
+        createCheckboxFormGroup(
+            'useInstructions',
+            '使用 instructions 参数（仅 openai-responses 有效）',
+            'useInstructions',
+            modelData.useInstructions,
+            '当 SDK 模式为 openai-responses 时，使用 instructions 参数传递系统消息（默认使用用户消息传递）。'
         ),
         createJSONFormGroup('customHeader', '自定义HTTP头部（JSON格式）', 'customHeader', modelData.customHeader,
             '{"Authorization": "Bearer ${APIKEY}", "X-Custom-Header": "value"}',
@@ -699,6 +708,24 @@ function bindEvents() {
             updateProviderList(message.providers);
         }
     });
+
+    // SDK 模式切换事件 - 控制 useInstructions 选项的显示
+    const sdkModeSelect = document.getElementById('sdkMode');
+    const useInstructionsContainer = document.getElementById('useInstructions')?.closest('.form-group');
+    if (sdkModeSelect && useInstructionsContainer) {
+        // 初始状态检查
+        const updateUseInstructionsVisibility = function () {
+            if (sdkModeSelect.value === 'openai-responses') {
+                useInstructionsContainer.style.display = '';
+            } else {
+                useInstructionsContainer.style.display = 'none';
+            }
+        };
+        // 监听 SDK 模式变化
+        sdkModeSelect.addEventListener('change', updateUseInstructionsVisibility);
+        // 初始化时执行一次
+        updateUseInstructionsVisibility();
+    }
 }
 
 /**
@@ -1069,7 +1096,8 @@ function saveModel() {
             imageInput: document.getElementById('imageInput').checked
         },
         outputThinking: document.getElementById('outputThinking').checked,
-        includeThinking: document.getElementById('includeThinking').checked
+        includeThinking: document.getElementById('includeThinking').checked,
+        useInstructions: document.getElementById('useInstructions')?.checked || false
     };
 
     const customHeaderText = document.getElementById('customHeader').value.trim();

@@ -272,7 +272,9 @@ export class MCPWebSearchClient {
                 },
                 {
                     capabilities: {
-                        tools: {}
+                        sampling: {
+                            tools: {}
+                        }
                     }
                 }
             );

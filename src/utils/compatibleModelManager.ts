@@ -46,7 +46,7 @@ export interface CompatibleModelConfig {
     /** 最大输出token数 */
     maxOutputTokens: number;
     /** SDK模式 */
-    sdkMode?: 'anthropic' | 'openai' | 'openai-sse';
+    sdkMode?: 'anthropic' | 'openai' | 'openai-sse' | 'openai-responses';
     /** 模型能力 */
     capabilities: {
         /** 工具调用 */
@@ -60,9 +60,14 @@ export interface CompatibleModelConfig {
     extraBody?: Record<string, unknown>;
     /** 是否启用输出思考过程（默认true） */
     outputThinking?: boolean;
-    /** 多轮对话消息是否必须包含思考内容（默认false）
-     */
+    /** 多轮对话消息是否必须包含思考内容（默认false）*/
     includeThinking?: boolean;
+    /**
+     * 是否在 Responses API 中使用 instructions 参数（默认false）
+     *  - 当设置为 true 时，使用 instructions 参数传递系统指令
+     *  - 当设置为 false 时，使用用户消息传递系统消息指令
+     */
+    useInstructions?: boolean;
     /** 是否由向导创建（内部标记，不持久化） */
     _isFromWizard?: boolean;
 }

@@ -17,9 +17,7 @@
                 "imageInput": false
             },
             "extraBody": {
-                "thinking": {
-                    "type": "disabled"
-                }
+                "thinking": { "type": "disabled" }
             }
         },
         {
@@ -36,9 +34,7 @@
                 "imageInput": true
             },
             "extraBody": {
-                "thinking": {
-                    "type": "disabled"
-                }
+                "thinking": { "type": "disabled" }
             }
         },
         {
@@ -70,9 +66,7 @@
                 "imageInput": false
             },
             "extraBody": {
-                "thinking": {
-                    "type": "enabled"
-                }
+                "thinking": { "type": "enabled" }
             }
         },
         {
@@ -137,9 +131,7 @@
                 "imageInput": false
             },
             "extraBody": {
-                "thinking": {
-                    "type": "enabled"
-                }
+                "thinking": { "type": "enabled" }
             }
         },
         {

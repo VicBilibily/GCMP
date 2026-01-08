@@ -16,10 +16,12 @@ export interface GenericUsageData {
     total_tokens?: number;
     prompt_tokens_details?: {
         cached_tokens?: number;
+        audio_tokens?: number;
         [key: string]: number | undefined;
     };
     completion_tokens_details?: {
         reasoning_tokens?: number;
+        audio_tokens?: number;
         [key: string]: number | undefined;
     };
     // === Anthropic/Claude 格式 ===
@@ -27,6 +29,15 @@ export interface GenericUsageData {
     output_tokens?: number;
     cache_creation_input_tokens?: number;
     cache_read_input_tokens?: number;
+    // === Responses API 格式 ===
+    input_tokens_details?: {
+        cached_tokens?: number;
+        [key: string]: number | undefined;
+    };
+    output_tokens_details?: {
+        reasoning_tokens?: number;
+        [key: string]: number | undefined;
+    };
     // === 其他字段 ===
     [key: string]: number | undefined | object;
 }

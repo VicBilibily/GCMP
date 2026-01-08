@@ -33,7 +33,7 @@ export type ExtendedTokenRequestLog = TokenRequestLog & ParsedUsageTokens;
 export class UsageParser {
     /**
      * 从原始 usage 对象解析 token 统计
-     * 支持 OpenAI 和 Anthropic 两种格式
+     * 支持 OpenAI、Anthropic 和 Responses API 三种格式
      */
     static parseRawUsage(rawUsage: TokenRequestLog['rawUsage']): ParsedUsageTokens {
         // 默认值
@@ -50,19 +50,29 @@ export class UsageParser {
         }
 
         // 尝试解析 Anthropic/Claude 格式
-        if (rawUsage.input_tokens !== undefined) {
+        if (rawUsage.input_tokens !== undefined && rawUsage.output_tokens !== undefined) {
             const inputTokens = rawUsage.input_tokens || 0;
+            const outputTokens = rawUsage.output_tokens || 0;
+
+            // 检查是否有 cached_tokens 字段（Responses API 格式）
+            const cachedTokens = rawUsage.input_tokens_details?.cached_tokens || 0;
+
+            // Anthropic 格式
             const cacheReadTokens = rawUsage.cache_read_input_tokens || 0;
             const cacheCreationTokens = rawUsage.cache_creation_input_tokens || 0;
-            const outputTokens = rawUsage.output_tokens || 0;
-            const actualInput = inputTokens + cacheReadTokens + cacheCreationTokens;
+
+            // 如果有 cached_tokens（Responses API），使用它
+            const actualCacheReadTokens = cachedTokens > 0 ? cachedTokens : cacheReadTokens;
+            const actualCacheCreationTokens = cachedTokens > 0 ? 0 : cacheCreationTokens;
+
+            const actualInput = inputTokens + actualCacheReadTokens + actualCacheCreationTokens;
 
             return {
                 actualInput,
-                cacheReadTokens,
-                cacheCreationTokens,
+                cacheReadTokens: actualCacheReadTokens,
+                cacheCreationTokens: actualCacheCreationTokens,
                 outputTokens,
-                totalTokens: actualInput + outputTokens
+                totalTokens: rawUsage.total_tokens || 0 || actualInput + outputTokens
             };
         }
 

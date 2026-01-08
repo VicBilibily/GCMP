@@ -1,0 +1,764 @@
+﻿/*---------------------------------------------------------------------------------------------
+ *  OpenAI Responses API 处理器
+ *  专门处理 OpenAI Responses API 的消息转换和请求处理
+ *--------------------------------------------------------------------------------------------*/
+
+import * as vscode from 'vscode';
+import OpenAI from 'openai';
+import { ConfigManager } from './configManager';
+import { TokenUsagesManager } from '../usages/usagesManager';
+import { Logger } from './logger';
+import { ModelConfig } from '../types/sharedTypes';
+import { OpenAIHandler } from './openaiHandler';
+
+// 使用 OpenAI SDK 的 Responses API 类型
+type ResponseInputItem = OpenAI.Responses.ResponseInputItem;
+type ResponseInputMessageItem = OpenAI.Responses.ResponseInputMessageItem;
+type ResponseInputText = OpenAI.Responses.ResponseInputText;
+type ResponseInputImage = OpenAI.Responses.ResponseInputImage;
+type ResponseFunctionToolCall = OpenAI.Responses.ResponseFunctionToolCall;
+type ResponseFunctionToolCallOutputItem = OpenAI.Responses.ResponseFunctionToolCallOutputItem;
+type FunctionTool = OpenAI.Responses.FunctionTool;
+
+/**
+ * OpenAI Responses API 处理器
+ * 专门处理 Responses API 的消息转换和请求
+ */
+export class OpenAIResponsesHandler {
+    private handler: OpenAIHandler;
+    private displayName: string;
+
+    constructor(displayName: string, handler: OpenAIHandler) {
+        this.displayName = displayName;
+        this.handler = handler;
+    }
+
+    /**
+     * 将 vscode 消息转换为 OpenAI Responses API 格式
+     * 参照官方 Responses API 规范实现
+     * 注意：Responses API 不支持 system 消息，需要通过 instructions 参数传递
+     * @param messages vscode 聊天消息数组
+     * @param capabilities 模型能力配置
+     * @param modelConfig 模型配置
+     * @returns 包含 system 消息内容和其他消息的对象
+     */
+    public convertMessagesToOpenAIResponses(
+        messages: readonly vscode.LanguageModelChatMessage[],
+        capabilities?: { toolCalling?: boolean | number; imageInput?: boolean },
+        modelConfig?: ModelConfig
+    ): { systemMessage: string; messages: ResponseInputItem[] } {
+        const out: ResponseInputItem[] = [];
+        let systemMessage = '';
+
+        for (const message of messages) {
+            const role = this.mapRole(message.role);
+            const textParts: string[] = [];
+            const imageParts: vscode.LanguageModelDataPart[] = [];
+            const toolCalls: Array<{ id: string; name: string; args: string }> = [];
+            const toolResults: Array<{ callId: string; content: string }> = [];
+            const thinkingParts: string[] = [];
+
+            // 提取各类内容
+            for (const part of message.content) {
+                if (part instanceof vscode.LanguageModelTextPart) {
+                    textParts.push(part.value);
+                } else if (
+                    part instanceof vscode.LanguageModelDataPart &&
+                    this.handler.isImageMimeType(part.mimeType)
+                ) {
+                    imageParts.push(part);
+                } else if (part instanceof vscode.LanguageModelToolCallPart) {
+                    const id = part.callId || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                    let args = '{}';
+                    try {
+                        args = JSON.stringify(part.input ?? {});
+                    } catch {
+                        args = '{}';
+                    }
+                    toolCalls.push({ id, name: part.name, args });
+                } else if (part instanceof vscode.LanguageModelToolResultPart) {
+                    const callId = part.callId ?? '';
+                    const content = this.collectToolResultText(part);
+                    toolResults.push({ callId, content });
+                } else if (part instanceof vscode.LanguageModelThinkingPart && modelConfig?.includeThinking === true) {
+                    const content = Array.isArray(part.value) ? part.value.join('') : part.value;
+                    thinkingParts.push(content);
+                }
+            }
+
+            const joinedText = textParts.join('').trim();
+            const joinedThinking = thinkingParts.join('').trim();
+
+            // 处理 assistant 消息
+            if (role === 'assistant') {
+                const assistantText = joinedText || joinedThinking;
+                if (assistantText) {
+                    // Responses API 中，assistant 消息使用 output_text 类型
+                    // 注意：在 input 数组中，assistant 消息的 content 必须使用 output_text
+                    out.push({
+                        type: 'message' as const,
+                        id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                        role: 'assistant' as const,
+                        content: [{ type: 'output_text' as const, text: assistantText }]
+                    } as unknown as ResponseInputMessageItem);
+                }
+
+                // 添加工具调用
+                for (const tc of toolCalls) {
+                    // 跳过名称为空的工具调用
+                    if (!tc.name || tc.name.trim() === '') {
+                        Logger.warn(`${this.displayName} Responses API: 跳过名称为空的工具调用`);
+                        continue;
+                    }
+                    out.push({
+                        type: 'function_call' as const,
+                        id: `fc_${tc.id}`,
+                        call_id: tc.id,
+                        name: tc.name,
+                        arguments: tc.args
+                    } as unknown as ResponseFunctionToolCall);
+                }
+            }
+
+            // 处理工具结果
+            for (const tr of toolResults) {
+                if (!tr.callId) {
+                    continue;
+                }
+                out.push({
+                    type: 'function_call_output' as const,
+                    id: `fco_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                    call_id: tr.callId,
+                    output: tr.content || ''
+                } as unknown as ResponseFunctionToolCallOutputItem);
+            }
+
+            // 处理 user 消息
+            if (role === 'user') {
+                const contentArray: Array<ResponseInputText | ResponseInputImage> = [];
+                if (joinedText) {
+                    contentArray.push({ type: 'input_text' as const, text: joinedText });
+                }
+                for (const imagePart of imageParts) {
+                    const dataUrl = this.handler.createDataUrl(imagePart);
+                    contentArray.push({
+                        type: 'input_image' as const,
+                        image_url: dataUrl,
+                        detail: 'auto' as const
+                    });
+                }
+                if (contentArray.length > 0) {
+                    out.push({
+                        type: 'message' as const,
+                        id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                        role: 'user' as const,
+                        content: contentArray
+                    } as unknown as ResponseInputMessageItem);
+                }
+            }
+
+            // 处理 system 消息
+            // 注意：Responses API 不支持在 input 中使用 system 消息
+            // system 消息需要通过 instructions 参数传递
+            if (role === 'system' && joinedText) {
+                systemMessage = joinedText;
+            }
+        }
+
+        return { systemMessage, messages: out };
+    }
+
+    /**
+     * 映射 vscode 角色到标准角色
+     */
+    private mapRole(role: number): 'user' | 'assistant' | 'system' {
+        switch (role) {
+            case vscode.LanguageModelChatMessageRole.User:
+                return 'user';
+            case vscode.LanguageModelChatMessageRole.Assistant:
+                return 'assistant';
+            case vscode.LanguageModelChatMessageRole.System:
+                return 'system';
+            default:
+                return 'user';
+        }
+    }
+
+    /**
+     * 将 vscode 工具转换为 OpenAI Responses API 格式
+     * Responses API 的工具格式与 ChatCompletion API 不同
+     * ChatCompletion: { type: 'function', function: { name, description, parameters } }
+     * Responses API: { type: 'function', name, description, parameters }
+     * @param tools vscode 聊天工具数组
+     * @returns FunctionTool 数组
+     */
+    private convertToolsToResponses(tools: readonly vscode.LanguageModelChatTool[]): FunctionTool[] {
+        return tools.map(tool => {
+            const functionTool: FunctionTool = {
+                type: 'function',
+                name: tool.name,
+                description: tool.description || null,
+                parameters: null,
+                strict: false
+            };
+
+            // 处理参数schema
+            if (tool.inputSchema) {
+                if (typeof tool.inputSchema === 'object' && tool.inputSchema !== null) {
+                    functionTool.parameters = tool.inputSchema as Record<string, unknown>;
+                } else {
+                    // 如果不是对象，提供默认schema
+                    functionTool.parameters = {
+                        type: 'object',
+                        properties: {},
+                        required: []
+                    };
+                }
+            } else {
+                // 默认schema
+                functionTool.parameters = {
+                    type: 'object',
+                    properties: {},
+                    required: []
+                };
+            }
+
+            return functionTool;
+        });
+    }
+
+    /**
+     * 收集工具结果的文本内容
+     */
+    public collectToolResultText(part: vscode.LanguageModelToolResultPart): string {
+        if (!part.content || part.content.length === 0) {
+            return '';
+        }
+
+        const texts: string[] = [];
+        for (const item of part.content) {
+            if (item instanceof vscode.LanguageModelTextPart) {
+                texts.push(item.value);
+            } else if (item && typeof item === 'object') {
+                // 尝试转换为字符串
+                try {
+                    const str = JSON.stringify(item);
+                    if (str && str !== '{}') {
+                        texts.push(str);
+                    }
+                } catch {
+                    // 忽略无法序列化的对象
+                }
+            }
+        }
+        return texts.join('\n');
+    }
+
+    /**
+     * 过滤extraBody中不可修改的核心参数
+     * @param extraBody 原始extraBody参数
+     * @returns 过滤后的参数，移除了不可修改的核心参数
+     */
+    private filterExtraBodyParams(extraBody: Record<string, unknown>): Record<string, unknown> {
+        const coreParams = new Set([
+            'model', // 模型名称
+            'input', // 输入消息
+            'stream', // 流式开关
+            'tools' // 工具定义
+        ]);
+
+        const filtered: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(extraBody)) {
+            if (!coreParams.has(key)) {
+                filtered[key] = value;
+                if (value == null) {
+                    filtered[key] = undefined;
+                }
+            }
+        }
+
+        return filtered;
+    }
+
+    /**
+     * 处理 Responses API 请求 - 使用 OpenAI SDK 流式接口
+     * 这是处理 openai-responses 模式的专用方法
+     */
+    async handleResponsesRequest(
+        model: vscode.LanguageModelChatInformation,
+        modelConfig: ModelConfig,
+        messages: readonly vscode.LanguageModelChatMessage[],
+        options: vscode.ProvideLanguageModelChatResponseOptions,
+        progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
+        token: vscode.CancellationToken,
+        requestId?: string | null
+    ): Promise<void> {
+        Logger.debug(`${model.name} 开始处理 ${this.displayName} Responses API 请求`);
+
+        try {
+            const client = await this.handler.createOpenAIClient(modelConfig);
+            Logger.info(`🚀 ${model.name} 发送 ${this.displayName} Responses API 请求`);
+
+            let hasReceivedContent = false;
+            let hasReceivedTextDelta = false; // 标记是否已接收文本增量
+            let hasEmittedThinking = false; // 标记是否已输出思维链内容
+
+            // 将 vscode.CancellationToken 转换为 AbortSignal
+            const abortController = new AbortController();
+            const cancellationListener = token.onCancellationRequested(() => abortController.abort());
+            let streamError: Error | null = null;
+            let finalUsage: Record<string, unknown> | undefined = undefined;
+
+            // 工具调用缓冲区 - 使用索引跟踪，支持累积
+            const toolCallBuffers = new Map<number, { id: string; name: string; args: string }>();
+            const completedToolCallIndices = new Set<number>();
+            const toolCallIdToIndex = new Map<string, number>();
+            let nextToolCallIndex = 0;
+
+            // 获取工具调用索引的辅助函数
+            const getToolCallIndex = (callId: string): number => {
+                if (!toolCallIdToIndex.has(callId)) {
+                    toolCallIdToIndex.set(callId, nextToolCallIndex++);
+                }
+                return toolCallIdToIndex.get(callId)!;
+            };
+
+            try {
+                // 准备请求体
+                // 将消息转换为 Responses API 格式
+                const { systemMessage, messages: responsesMessages } = this.convertMessagesToOpenAIResponses(
+                    messages,
+                    model.capabilities,
+                    modelConfig
+                );
+
+                // 准备请求体
+                const requestModel = modelConfig.model || model.id;
+                const requestBody: Record<string, unknown> = {
+                    model: requestModel,
+                    input: responsesMessages,
+                    stream: true,
+                    temperature: ConfigManager.getTemperature(),
+                    top_p: ConfigManager.getTopP()
+                };
+
+                // 添加 system 消息作为 instructions
+                // Responses API 使用 instructions 参数而不是 system 消息
+                if (systemMessage) {
+                    if (modelConfig.useInstructions === true) {
+                        requestBody.instructions = systemMessage;
+                        Logger.debug(`${this.displayName} Responses API: 使用 instructions 参数传递 system 消息`);
+                    } else {
+                        requestBody.instructions = undefined;
+                        // 部分转发会直接使用 Codex 的 instructions 参数，这里特别在第一条位置插入一条用户消息
+                        responsesMessages.unshift({
+                            type: 'message' as const,
+                            role: 'user' as const,
+                            content: [{ type: 'input_text' as const, text: systemMessage }]
+                        });
+                        Logger.debug(`${this.displayName} Responses API: 在输入消息中使用 用户消息 传递 系统消息 指令`);
+                    }
+                }
+
+                // 添加 max_output_tokens
+                if (modelConfig?.maxOutputTokens) {
+                    requestBody.max_output_tokens = ConfigManager.getMaxTokensForModel(modelConfig.maxOutputTokens);
+                }
+
+                // tools - 转换并添加工具定义
+                if (options?.tools && options.tools.length > 0) {
+                    const tools = this.convertToolsToResponses(options.tools);
+                    if (tools.length > 0) {
+                        requestBody.tools = tools;
+                    }
+                }
+
+                // Process extra configuration parameters from extraBody
+                if (modelConfig?.extraBody) {
+                    // 过滤掉不可修改的核心参数
+                    const filteredExtraBody = this.filterExtraBodyParams(modelConfig.extraBody);
+                    Object.assign(requestBody, filteredExtraBody);
+                }
+
+                // 调用 Responses API 的流式方法
+                const stream = client.responses.stream(requestBody);
+
+                // 使用 on(event) 模式处理流事件
+                stream
+                    .on('response.output_text.delta', event => {
+                        if (token.isCancellationRequested) {
+                            abortController.abort();
+                            return;
+                        }
+                        // 如果之前输出了思维链，现在输出文本前需要结束思维链
+                        if (hasEmittedThinking) {
+                            progress.report(new vscode.LanguageModelThinkingPart(''));
+                            hasEmittedThinking = false;
+                        }
+                        const delta = event.delta;
+                        if (delta && typeof delta === 'string') {
+                            progress.report(new vscode.LanguageModelTextPart(delta));
+                            hasReceivedContent = true;
+                            hasReceivedTextDelta = true;
+                        }
+                    })
+                    .on('response.output_text.done', event => {
+                        // 某些网关只发送最终的 done 事件（没有增量）
+                        if (hasReceivedTextDelta) {
+                            return; // 如果已经接收过增量，忽略 done 事件
+                        }
+                        const text = event.text || '';
+                        if (text) {
+                            progress.report(new vscode.LanguageModelTextPart(text));
+                            hasReceivedContent = true;
+                            hasReceivedTextDelta = true;
+                        }
+                    })
+                    .on('response.refusal.delta', event => {
+                        // 处理拒绝增量（当作普通文本）
+                        if (token.isCancellationRequested) {
+                            abortController.abort();
+                            return;
+                        }
+                        // 如果之前输出了思维链，现在输出拒绝内容前需要结束思维链
+                        if (hasEmittedThinking) {
+                            progress.report(new vscode.LanguageModelThinkingPart(''));
+                            hasEmittedThinking = false;
+                        }
+                        const delta = event.delta;
+                        if (delta && typeof delta === 'string') {
+                            progress.report(new vscode.LanguageModelTextPart(delta));
+                            hasReceivedContent = true;
+                            hasReceivedTextDelta = true;
+                        }
+                    })
+                    .on('response.refusal.done', () => {
+                        // 处理拒绝完成（当作普通文本）
+                        // done 事件没有 text 属性，内容已在 delta 事件中处理
+                        if (token.isCancellationRequested) {
+                            return;
+                        }
+                    })
+                    .on('response.reasoning_text.delta', event => {
+                        // 处理思维链文本增量
+                        if (token.isCancellationRequested) {
+                            abortController.abort();
+                            return;
+                        }
+                        const delta = event.delta;
+                        if (delta && typeof delta === 'string') {
+                            progress.report(new vscode.LanguageModelThinkingPart(delta));
+                            hasReceivedContent = true;
+                            hasEmittedThinking = true;
+                        }
+                    })
+                    .on('response.reasoning_text.done', event => {
+                        // 处理思维链文本完成
+                        if (token.isCancellationRequested) {
+                            return;
+                        }
+                        // 某些网关只发送最终的 done 事件（没有增量）
+                        if (!hasEmittedThinking && event.text) {
+                            progress.report(new vscode.LanguageModelThinkingPart(event.text));
+                        }
+                        progress.report(new vscode.LanguageModelThinkingPart(''));
+                        hasEmittedThinking = false;
+                    })
+                    .on('response.reasoning_summary_text.delta', event => {
+                        // 处理思维链摘要增量
+                        if (token.isCancellationRequested) {
+                            abortController.abort();
+                            return;
+                        }
+                        const delta = event.delta;
+                        if (delta && typeof delta === 'string') {
+                            progress.report(new vscode.LanguageModelThinkingPart(delta));
+                            hasReceivedContent = true;
+                            hasEmittedThinking = true;
+                        }
+                    })
+                    .on('response.reasoning_summary_text.done', event => {
+                        // 处理思维链摘要完成
+                        if (token.isCancellationRequested) {
+                            return;
+                        }
+                        // 某些网关只发送最终的 done 事件（没有增量）
+                        if (!hasEmittedThinking && event.text) {
+                            progress.report(new vscode.LanguageModelThinkingPart(event.text));
+                        }
+                        progress.report(new vscode.LanguageModelThinkingPart(''));
+                        hasEmittedThinking = false;
+                    })
+                    .on('response.function_call_arguments.delta', () => {
+                        // SDK 会在 done 事件中提供完整的 arguments，这里不需要处理
+                        if (token.isCancellationRequested) {
+                            return;
+                        }
+                    })
+                    .on('response.function_call_arguments.done', event => {
+                        if (token.isCancellationRequested) {
+                            return;
+                        }
+
+                        const itemId = event.item_id;
+                        const args = event.arguments || '';
+
+                        if (!itemId) {
+                            return;
+                        }
+
+                        const idx = getToolCallIndex(itemId);
+                        if (completedToolCallIndices.has(idx)) {
+                            return;
+                        }
+
+                        // 从缓冲区获取之前保存的信息（来自 added 事件）
+                        const buf = toolCallBuffers.get(idx);
+                        if (!buf) {
+                            Logger.warn(`工具调用 ${itemId} 的 done 事件，但缓冲区中没有找到记录`);
+                            return;
+                        }
+
+                        const name = buf.name;
+                        const callId = buf.id; // 使用缓冲区中的 callId
+                        if (!name) {
+                            Logger.warn(`工具调用 ${itemId} 没有名称`);
+                            return;
+                        }
+
+                        // 使用 done 事件的完整参数
+                        toolCallBuffers.set(idx, { id: callId, name, args });
+
+                        // 尝试发送工具调用
+                        try {
+                            const input = JSON.parse(args || '{}');
+                            progress.report(new vscode.LanguageModelToolCallPart(callId, name, input));
+                            hasReceivedContent = true;
+                            completedToolCallIndices.add(idx);
+                        } catch (e) {
+                            Logger.warn(`解析工具调用参数失败: ${args}`, e);
+                        }
+                    })
+                    .on('response.output_item.added', event => {
+                        // 处理输出项添加事件
+                        if (token.isCancellationRequested) {
+                            return;
+                        }
+                        const item = event.item;
+                        if (item && item.type === 'function_call') {
+                            // 如果之前输出了思维链，现在输出工具调用前需要结束思维链
+                            if (hasEmittedThinking) {
+                                progress.report(new vscode.LanguageModelThinkingPart(''));
+                                hasEmittedThinking = false;
+                            }
+
+                            const itemId = item.id;
+                            if (!itemId) {
+                                return;
+                            }
+
+                            // call_id 可能不存在，此时使用 itemId
+                            const callId = item.call_id || itemId;
+                            const name = item.name || '';
+                            const args = item.arguments || '';
+
+                            // 使用 item.id 作为索引（delta/done 事件中的 item_id 对应这里）
+                            const idx = getToolCallIndex(itemId);
+                            if (completedToolCallIndices.has(idx)) {
+                                return;
+                            }
+
+                            // 如果 call_id 和 item.id 不同，也建立 call_id 的映射
+                            if (item.call_id && item.call_id !== itemId) {
+                                toolCallIdToIndex.set(item.call_id, idx);
+                            }
+
+                            // 初始化或更新工具调用缓冲区
+                            // 注意：此时 arguments 可能为空，参数会在后续的 delta/done 事件中累积
+                            const buf = toolCallBuffers.get(idx) || { id: callId, name: '', args: '' };
+                            buf.id = callId;
+                            if (name) {
+                                buf.name = name;
+                            }
+                            // 如果已经有参数（某些情况下），使用它
+                            if (args) {
+                                buf.args = args;
+                            }
+                            toolCallBuffers.set(idx, buf);
+
+                            // 只有当参数完整时才发送工具调用
+                            // 否则等待后续的 delta/done 事件
+                            if (args && name) {
+                                try {
+                                    const input = JSON.parse(args);
+                                    progress.report(new vscode.LanguageModelToolCallPart(callId, name, input));
+                                    hasReceivedContent = true;
+                                    completedToolCallIndices.add(idx);
+                                } catch (e) {
+                                    Logger.warn(`解析工具调用参数失败: ${args}`, e);
+                                }
+                            }
+                        }
+                    })
+                    .on('response.output_item.done', event => {
+                        // 处理输出项完成事件（兼容某些网关）
+                        if (token.isCancellationRequested) {
+                            return;
+                        }
+                        const item = event.item;
+                        if (item && typeof item === 'object' && item.type === 'function_call') {
+                            const itemObj = item as unknown as Record<string, unknown>;
+                            const callId = itemObj.call_id || itemObj.id;
+                            const name = typeof itemObj.name === 'string' ? itemObj.name : '';
+                            const args = typeof itemObj.arguments === 'string' ? itemObj.arguments : '';
+
+                            if (!callId || !name || !args) {
+                                return;
+                            }
+
+                            const idx = getToolCallIndex(callId as string);
+                            if (completedToolCallIndices.has(idx)) {
+                                return;
+                            }
+
+                            try {
+                                const input = JSON.parse(args);
+                                progress.report(new vscode.LanguageModelToolCallPart(callId as string, name, input));
+                                completedToolCallIndices.add(idx);
+                            } catch (e) {
+                                Logger.warn(`解析工具调用参数失败: ${args}`, e);
+                            }
+                        }
+                    })
+                    .on('response.completed', event => {
+                        // 保存 usage 信息
+                        if (event.response.usage) {
+                            finalUsage = event.response.usage as unknown as Record<string, unknown>;
+                        }
+
+                        // 如果输出了思维链内容，发送空的 ThinkingPart 来标记结束
+                        if (hasEmittedThinking) {
+                            progress.report(new vscode.LanguageModelThinkingPart(''));
+                            hasEmittedThinking = false;
+                        }
+
+                        // 处理完整的响应中的工具调用
+                        const response = event.response;
+                        if (response && response.output) {
+                            const output = response.output;
+                            if (Array.isArray(output)) {
+                                for (const item of output) {
+                                    if (item.type === 'function_call' && item.id && item.name) {
+                                        const callId = item.id;
+                                        const idx = getToolCallIndex(callId);
+                                        if (completedToolCallIndices.has(idx)) {
+                                            continue;
+                                        }
+
+                                        try {
+                                            const input = JSON.parse(item.arguments || '{}');
+                                            progress.report(
+                                                new vscode.LanguageModelToolCallPart(callId, item.name, input)
+                                            );
+                                            hasReceivedContent = true;
+                                            completedToolCallIndices.add(idx);
+                                        } catch (e) {
+                                            Logger.warn(`解析工具调用参数失败: ${item.arguments}`, e);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    })
+                    .on('error', error => {
+                        // 保存错误，并中止请求
+                        if (error instanceof Error) {
+                            streamError = error;
+                        } else {
+                            // ResponseErrorEvent 不是 Error 类型，需要转换
+                            const errorMsg =
+                                'message' in error ? (error as { message: string }).message : String(error);
+                            streamError = new Error(errorMsg);
+                        }
+                        abortController.abort();
+                    });
+
+                // 等待流处理完成
+                await stream.done();
+
+                // 检查是否有流错误
+                if (streamError) {
+                    throw streamError;
+                }
+
+                // 报告 usage 信息
+                if (finalUsage) {
+                    Logger.info(`📊 ${model.name} Responses API 请求完成`, finalUsage);
+
+                    if (requestId) {
+                        try {
+                            // === Token 统计: 更新实际 token ===
+                            const usagesManager = TokenUsagesManager.instance;
+                            await usagesManager.updateActualTokens({
+                                requestId,
+                                rawUsage: finalUsage,
+                                status: 'completed'
+                            });
+                        } catch (err) {
+                            Logger.warn('更新Token统计失败:', err);
+                        }
+                    }
+                }
+
+                // 如果没有收到任何内容，输出占位符
+                if (!hasReceivedContent) {
+                    progress.report(new vscode.LanguageModelTextPart(''));
+                }
+
+                Logger.debug(`${model.name} ${this.displayName} Responses API 流处理完成`);
+            } catch (error) {
+                if (error instanceof vscode.CancellationError) {
+                    Logger.info(`${model.name} Responses API 请求被用户取消`);
+                    throw error;
+                } else {
+                    Logger.error(`${model.name} Responses API 流处理错误: ${error}`);
+                    streamError = error as Error;
+                    throw error;
+                }
+            } finally {
+                cancellationListener.dispose();
+            }
+
+            Logger.debug(`✅ ${model.name} ${this.displayName} Responses API 请求完成`);
+        } catch (error) {
+            if (error instanceof Error) {
+                const errorMessage = error.message || '未知错误';
+                Logger.error(`${model.name} ${this.displayName} Responses API 请求失败: ${errorMessage}`);
+
+                // 检查是否为特定的服务器错误
+                if (
+                    errorMessage.includes('502') ||
+                    errorMessage.includes('Bad Gateway') ||
+                    errorMessage.includes('500') ||
+                    errorMessage.includes('Internal Server Error') ||
+                    errorMessage.includes('503') ||
+                    errorMessage.includes('Service Unavailable') ||
+                    errorMessage.includes('504') ||
+                    errorMessage.includes('Gateway Timeout')
+                ) {
+                    throw new vscode.LanguageModelError(errorMessage);
+                }
+
+                throw error;
+            }
+
+            if (error instanceof vscode.CancellationError) {
+                throw error;
+            } else if (error instanceof vscode.LanguageModelError) {
+                throw error;
+            } else {
+                throw error;
+            }
+        }
+    }
+}

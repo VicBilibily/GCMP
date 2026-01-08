@@ -314,7 +314,7 @@ export class Fetcher implements IFetcher {
             return new ResponseWrapper(
                 response.status,
                 response.statusText,
-                response.headers,
+                response.headers as unknown as IHeaders,
                 getText,
                 getJson,
                 getBody,

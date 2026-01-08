@@ -217,10 +217,11 @@ export class JsonSchemaProvider {
                             },
                             sdkMode: {
                                 type: 'string',
-                                enum: ['openai', 'openai-sse', 'anthropic'],
+                                enum: ['openai', 'openai-sse', 'openai-responses', 'anthropic'],
                                 enumDescriptions: [
                                     'OpenAI SDK 标准模式，使用官方 OpenAI SDK 进行请求响应处理',
                                     'OpenAI SSE 兼容模式，使用插件内实现的SSE解析逻辑进行流式响应处理',
+                                    'OpenAI Responses API 模式，使用 Responses API 进行请求响应处理',
                                     'Anthropic SDK 标准模式，使用官方 Anthropic SDK 进行请求响应处理'
                                 ],
                                 description: 'SDK模式默认为 openai。',
@@ -254,6 +255,12 @@ export class JsonSchemaProvider {
                                 type: 'boolean',
                                 description:
                                     '多轮对话消息是否必须包含思考内容（可选）\n- false: 不包含思考内容（默认）\n- true: 总是包含思考内容',
+                                default: false
+                            },
+                            useInstructions: {
+                                type: 'boolean',
+                                description:
+                                    '是否在 Responses API 中使用 instructions 参数（可选）\n- false: 使用用户消息传递系统消息（默认）\n- true: 使用 instructions 参数传递系统消息',
                                 default: false
                             },
                             capabilities: {
