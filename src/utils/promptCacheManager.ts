@@ -8,24 +8,26 @@ import { Logger } from './logger';
 import OpenAI from 'openai';
 
 /**
- * 缓存条目接口
+ * 统一的缓存条目接口
  */
-interface PromptCacheEntry {
-    promptCacheKey: string;
-    output: readonly OpenAI.Responses.ResponseOutputItem[];
+interface UnifiedCacheEntry {
+    responseId: string;
+    promptCacheKey?: string; // 只有 GPT/Codex 有 prompt_cache_key
+    // output: readonly OpenAI.Responses.ResponseOutputItem[];
     summary: string; // 预计算的消息摘要
     timestamp: number;
 }
 
 /**
  * Prompt Cache 管理器
- * 用于管理 Responses API 的 prompt_cache_key 缓存
- * 通过比较最后几条消息来确认会话属于哪个 promptCacheKey
+ * 统一管理所有模型的响应缓存（GPT/Codex 的 prompt_cache_key 和豆包的 response.id）
+ * 通过比较最后几条消息来确认会话属于哪个缓存
  */
 export class PromptCacheManager {
     private static instance: PromptCacheManager;
-    private cache: Map<string, PromptCacheEntry> = new Map<string, PromptCacheEntry>();
-    private maxCacheSize = 50; // 最大缓存条目数
+    // 统一的缓存：key 为 responseId 或 promptCacheKey
+    private cache: Map<string, UnifiedCacheEntry> = new Map<string, UnifiedCacheEntry>();
+    private maxCacheSize = 500; // 最大缓存条目数
     private cacheTimeout = 1000 * 60 * 60; // 1小时缓存过期时间
 
     private constructor() {}
@@ -38,75 +40,67 @@ export class PromptCacheManager {
     }
 
     /**
-     * 简单提取消息摘要（用于比较）
-     * 只对包含 tools 或 results 的关键消息生成摘要
-     * @param messages 消息数组
-     * @param lastN 只考虑最后N条消息
+     * 从单个 LanguageModelChatMessage 中提取摘要
+     * @param message 单个消息
      * @returns 消息摘要字符串
      */
-    private getMessagesSummary(messages: readonly vscode.LanguageModelChatMessage[], lastN: number = 3): string {
-        const messagesToSum = messages.slice(-lastN);
+    private getMessageSummary(message: vscode.LanguageModelChatMessage): string {
         const summary: string[] = [];
 
-        Logger.trace(`[PromptCache] getMessagesSummary: 处理 ${messagesToSum.length} 条消息`);
-
-        for (const msg of messagesToSum) {
-            // 映射角色到字符串
-            let role: string;
-            switch (msg.role) {
-                case vscode.LanguageModelChatMessageRole.User:
-                    role = 'user';
-                    break;
-                case vscode.LanguageModelChatMessageRole.Assistant:
-                    role = 'assistant';
-                    break;
-                default:
-                    role = 'system';
-                    break;
-            }
-
-            Logger.trace(`[PromptCache] getMessagesSummary: 处理 ${role} 消息，content 长度=${msg.content.length}`);
-
-            // 每条消息的每个部分生成独立的摘要行
-            for (const part of msg.content) {
-                if (part instanceof vscode.LanguageModelToolCallPart) {
-                    summary.push(`${role}:tool_call:${part.callId}:${part.name}`);
-                    Logger.trace(`[PromptCache] getMessagesSummary: 找到工具调用 ${part.callId}:${part.name}`);
-                } else if (part instanceof vscode.LanguageModelToolResultPart) {
-                    const resultLength = part.content?.length || 0;
-                    summary.push(`${role}:tool_result:${part.callId}:${resultLength}`);
-                    Logger.trace(`[PromptCache] getMessagesSummary: 找到工具结果 ${part.callId}, 长度=${resultLength}`);
-                } else if (part instanceof vscode.LanguageModelTextPart) {
-                    // 提取实际文本内容（可能是字符串或数组）
-                    let textValue = '';
-                    if (Array.isArray(part.value)) {
-                        // 如果是数组，拼接所有元素
-                        textValue = part.value.map(v => (typeof v === 'string' ? v : JSON.stringify(v))).join('');
-                    } else if (part.value) {
-                        textValue = part.value;
-                    }
-                    const truncatedText = textValue.length > 200 ? textValue.substring(0, 200) : textValue;
-                    summary.push(`${role}:text:${truncatedText}`);
-                    Logger.trace(`[PromptCache] getMessagesSummary: 找到文本内容, 长度=${textValue.length}`);
-                } else if (part instanceof vscode.LanguageModelThinkingPart) {
-                    // 提取实际思维链内容（可能是字符串或数组）
-                    let thinkingValue = '';
-                    if (Array.isArray(part.value)) {
-                        // 如果是数组，拼接所有元素
-                        thinkingValue = part.value.map(v => (typeof v === 'string' ? v : JSON.stringify(v))).join('');
-                    } else if (part.value) {
-                        thinkingValue = part.value;
-                    }
-                    const truncatedThinking =
-                        thinkingValue.length > 200 ? thinkingValue.substring(0, 200) : thinkingValue;
-                    summary.push(`${role}:thinking:${truncatedThinking}`);
-                    Logger.trace(`[PromptCache] getMessagesSummary: 找到思维链内容, 长度=${thinkingValue.length}`);
-                }
-                // 忽略 images 等其他非关键内容
-            }
+        // 映射角色到字符串
+        let role: string;
+        switch (message.role) {
+            case vscode.LanguageModelChatMessageRole.User:
+                role = 'user';
+                break;
+            case vscode.LanguageModelChatMessageRole.Assistant:
+                role = 'assistant';
+                break;
+            default:
+                role = 'system';
+                break;
         }
 
-        Logger.trace(`[PromptCache] getMessagesSummary: 生成摘要=${summary.join('\n')}`);
+        Logger.trace(`[PromptCache] getMessageSummary: 处理 ${role} 消息，content 长度=${message.content.length}`);
+
+        // 每条消息的每个部分生成独立的摘要行
+        for (const part of message.content) {
+            if (part instanceof vscode.LanguageModelToolCallPart) {
+                summary.push(`${role}:tool_call:${part.callId}:${part.name}`);
+                Logger.trace(`[PromptCache] getMessageSummary: 找到工具调用 ${part.callId}:${part.name}`);
+            } else if (part instanceof vscode.LanguageModelToolResultPart) {
+                const resultLength = part.content?.length || 0;
+                summary.push(`${role}:tool_result:${part.callId}:${resultLength}`);
+                Logger.trace(`[PromptCache] getMessageSummary: 找到工具结果 ${part.callId}, 长度=${resultLength}`);
+            } else if (part instanceof vscode.LanguageModelTextPart) {
+                // 提取实际文本内容（可能是字符串或数组）
+                let textValue = '';
+                if (Array.isArray(part.value)) {
+                    // 如果是数组，拼接所有元素
+                    textValue = part.value.map(v => (typeof v === 'string' ? v : JSON.stringify(v))).join('');
+                } else if (part.value) {
+                    textValue = part.value;
+                }
+                const truncatedText = textValue.length > 200 ? textValue.substring(0, 200) : textValue;
+                summary.push(`${role}:text:${truncatedText}`);
+                Logger.trace(`[PromptCache] getMessageSummary: 找到文本内容, 长度=${textValue.length}`);
+            } else if (part instanceof vscode.LanguageModelThinkingPart) {
+                // 提取实际思维链内容（可能是字符串或数组）
+                let thinkingValue = '';
+                if (Array.isArray(part.value)) {
+                    // 如果是数组，拼接所有元素
+                    thinkingValue = part.value.map(v => (typeof v === 'string' ? v : JSON.stringify(v))).join('');
+                } else if (part.value) {
+                    thinkingValue = part.value;
+                }
+                const truncatedThinking = thinkingValue.length > 200 ? thinkingValue.substring(0, 200) : thinkingValue;
+                summary.push(`${role}:thinking:${truncatedThinking}`);
+                Logger.trace(`[PromptCache] getMessageSummary: 找到思维链内容, 长度=${thinkingValue.length}`);
+            }
+            // 忽略 images 等其他非关键内容
+        }
+
+        Logger.trace(`[PromptCache] getMessageSummary: 生成摘要=${summary.join('\n')}`);
 
         // 如果没有任何关键消息，返回空字符串
         return summary.join('\n');
@@ -175,38 +169,34 @@ export class PromptCacheManager {
     }
 
     /**
-     * 保存缓存条目
-     * @param promptCacheKey prompt_cache_key
+     * 保存缓存条目（统一方法）
+     * @param responseId 必需：所有模型的 response.id（唯一，不会重复）
      * @param output ResponseOutputItem 数组
+     * @param promptCacheKey 可选：只有 GPT/Codex 有 prompt_cache_key
      */
-    public saveCache(promptCacheKey: string, messages: readonly OpenAI.Responses.ResponseOutputItem[]): void {
-        if (!promptCacheKey) {
+    public saveCache(
+        responseId: string,
+        output: readonly OpenAI.Responses.ResponseOutputItem[],
+        promptCacheKey?: string
+    ): void {
+        if (!responseId) {
+            Logger.warn('[PromptCache] saveCache: 缺少 responseId，跳过保存');
             return;
         }
 
         const now = Date.now();
-        const summary = this.getResponseSummary(messages);
+        const summary = this.getResponseSummary(output);
 
-        // 检查是否已存在相同的 promptCacheKey（直接用 key 查找）
-        const existing = this.cache.get(promptCacheKey);
-        if (existing) {
-            // 更新现有条目
-            existing.output = messages;
-            existing.summary = summary;
-            existing.timestamp = now;
-            Logger.trace(`[PromptCache] 更新缓存条目 ${promptCacheKey}`);
-            return;
-        }
-
-        // 创建新条目
-        const entry: PromptCacheEntry = {
+        // 直接创建新条目（responseId 不会重复）
+        const entry: UnifiedCacheEntry = {
+            responseId,
             promptCacheKey,
-            output: messages,
+            // output,
             summary,
             timestamp: now
         };
-        this.cache.set(promptCacheKey, entry);
-        Logger.debug(`💾 [PromptCache] 保存新缓存 ${promptCacheKey}, summary=${summary}`);
+        this.cache.set(responseId, entry);
+        Logger.debug(`💾 [PromptCache] 保存新缓存 ${responseId}, promptCacheKey=${promptCacheKey}, summary=${summary}`);
 
         // 清理过期缓存
         this.cleanup();
@@ -312,74 +302,99 @@ export class PromptCacheManager {
     }
 
     /**
-     * 查找匹配的缓存
-     * 通过比较最后几条消息来确认会话属于哪个 promptCacheKey
+     * 查找匹配的缓存（统一方法）
+     * 通过比较最后几条消息来确认会话属于哪个缓存
      * @param messages 消息数组
      * @param lastN 只考虑最后N条消息
-     * @returns 匹配的 prompt_cache_key，如果没有匹配则返回 undefined
+     * @returns 匹配的 { responseId, promptCacheKey?, lastMatchIndex }，如果没有匹配则返回 undefined
      */
-    public findCache(messages: readonly vscode.LanguageModelChatMessage[], lastN: number = 3): string | undefined {
-        const currentSummary = this.getMessagesSummary(messages, lastN);
+    public findCache(
+        messages: readonly vscode.LanguageModelChatMessage[],
+        lastN: number = 3
+    ): { responseId: string; promptCacheKey?: string; lastMatchIndex: number } | undefined {
         const now = Date.now();
 
-        // 如果当前摘要为空（没有关键消息），不匹配任何缓存
-        if (!currentSummary || currentSummary.trim() === '') {
-            Logger.trace('[PromptCache] 当前消息无关键内容，跳过缓存匹配');
-            return undefined;
-        }
+        // 缓存已计算的消息摘要，避免重复计算
+        const messageSummaryCache = new Map<number, string>();
 
-        let bestMatch: { key: string; matchCount: number } | undefined = undefined;
-        const currentLines = currentSummary.split('\n').filter(line => line.trim() !== '');
+        // 反序遍历所有缓存（最新的缓存优先）
+        const cacheEntries = Array.from(this.cache.entries()).reverse();
 
-        // 遍历所有缓存，查找最佳匹配
-        for (const [key, entry] of this.cache.entries()) {
+        for (const [cacheKey, entry] of cacheEntries) {
             // 检查是否过期
             if (now - entry.timestamp > this.cacheTimeout) {
-                this.cache.delete(key);
+                this.cache.delete(cacheKey);
                 continue;
             }
 
             // 使用保存的摘要进行比较
             const cachedSummary = entry.summary;
-
-            // 如果缓存摘要为空，跳过
             if (!cachedSummary || cachedSummary.trim() === '') {
                 continue;
             }
 
-            // 计算匹配的行数
             const cachedLines = cachedSummary.split('\n').filter(line => line.trim() !== '');
-            let matchCount = 0;
+            if (cachedLines.length === 0) {
+                continue;
+            }
 
-            // 检查当前摘要的每一行是否与缓存摘要中的某行匹配
-            for (const currentLine of currentLines) {
-                for (const cachedLine of cachedLines) {
-                    if (this.isLineMatch(currentLine, cachedLine)) {
-                        matchCount++;
-                        break; // 找到匹配后跳出内层循环
+            // 从后向前遍历当前消息，只检查 assistant 消息
+            let assistantCount = 0;
+            for (let i = messages.length - 1; i >= 0; i--) {
+                const message = messages[i];
+                if (message.role !== vscode.LanguageModelChatMessageRole.Assistant) {
+                    continue;
+                }
+
+                assistantCount++;
+                // 只检查最后 lastN 个 assistant 消息
+                if (assistantCount > lastN) {
+                    break;
+                }
+
+                // 从缓存中获取或计算当前 assistant 消息的摘要
+                let currentSummary = messageSummaryCache.get(i);
+                if (!currentSummary) {
+                    currentSummary = this.getMessageSummary(message);
+                    messageSummaryCache.set(i, currentSummary);
+                }
+
+                if (!currentSummary || currentSummary.trim() === '') {
+                    continue;
+                }
+
+                const currentLines = currentSummary.split('\n').filter(line => line.trim() !== '');
+                if (currentLines.length === 0) {
+                    continue;
+                }
+
+                // 计算匹配的行数
+                let matchCount = 0;
+                for (const currentLine of currentLines) {
+                    for (const cachedLine of cachedLines) {
+                        if (this.isLineMatch(currentLine, cachedLine)) {
+                            matchCount++;
+                            break;
+                        }
                     }
                 }
-            }
 
-            // 记录最佳匹配（至少匹配1行）
-            if (matchCount > 0 && (!bestMatch || matchCount > bestMatch.matchCount)) {
-                bestMatch = { key, matchCount };
-            }
-        }
-
-        // 返回最佳匹配
-        if (bestMatch) {
-            const entry = this.cache.get(bestMatch.key);
-            if (entry) {
-                entry.timestamp = now;
-                Logger.debug(
-                    `✅ [PromptCache] 缓存命中 ${bestMatch.key}, matchCount=${bestMatch.matchCount}, summary=${currentSummary}`
-                );
-                return entry.promptCacheKey;
+                // 如果至少有一行匹配，返回当前 assistant 消息的位置
+                if (matchCount > 0) {
+                    entry.timestamp = now;
+                    Logger.debug(
+                        `✅ [PromptCache] 缓存命中 ${cacheKey}, responseId=${entry.responseId}, promptCacheKey=${entry.promptCacheKey}, lastMatchIndex=${i}, assistantCount=${assistantCount}, matchCount=${matchCount}`
+                    );
+                    return {
+                        responseId: entry.responseId,
+                        promptCacheKey: entry.promptCacheKey,
+                        lastMatchIndex: i
+                    };
+                }
             }
         }
 
-        Logger.trace(`[PromptCache] 未找到匹配缓存, summary=${currentSummary}`);
+        Logger.trace('[PromptCache] 未找到匹配缓存');
         return undefined;
     }
 

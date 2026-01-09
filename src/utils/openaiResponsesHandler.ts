@@ -380,21 +380,59 @@ export class OpenAIResponsesHandler {
                 };
 
                 const modelId = (modelConfig.model || model.id).toLowerCase();
-                const isGpt = modelId.includes('gpt') || modelId.includes('codex');
+                const isDoubao = modelId.includes('doubao');
 
-                // 针对 codex 检查 prompt_cache_key 缓存
-                if (isGpt) {
-                    const cacheManager = PromptCacheManager.getInstance();
-                    const cachedKey = cacheManager.findCache(messages, 3);
-                    if (cachedKey) {
-                        requestBody.prompt_cache_key = cachedKey;
-                        Logger.info(`🎯 ${model.name} 使用 prompt_cache_key: ${cachedKey}`);
+                // 统一的缓存检查（支持 GPT/Codex 的 prompt_cache_key 和豆包的 previous_response_id）
+                const cacheManager = PromptCacheManager.getInstance();
+                const cacheResult = cacheManager.findCache(messages, 10);
+
+                if (cacheResult) {
+                    if (cacheResult.promptCacheKey) {
+                        // GPT/Codex 使用 prompt_cache_key
+                        requestBody.prompt_cache_key = cacheResult.promptCacheKey;
+                        Logger.info(`🎯 ${model.name} 使用 prompt_cache_key: ${cacheResult.promptCacheKey}`);
+                    } else if (isDoubao) {
+                        // 豆包使用 previous_response_id
+                        const extraBody: { caching?: { type?: string } } = modelConfig.extraBody || {};
+                        if (extraBody?.caching?.type === 'enabled') {
+                            requestBody.previous_response_id = cacheResult.responseId;
+                            Logger.info(
+                                `🎯 ${model.name} 使用豆包缓存 previous_response_id: ${cacheResult.responseId}, lastMatchIndex=${cacheResult.lastMatchIndex}`
+                            );
+
+                            // 截断消息数组，只保留最后匹配位置之后的新消息
+                            const originalMessages = messages as vscode.LanguageModelChatMessage[];
+                            if (
+                                cacheResult.lastMatchIndex >= 0 &&
+                                cacheResult.lastMatchIndex < originalMessages.length - 1
+                            ) {
+                                // 从 lastMatchIndex + 1 开始截断，只发送新的消息
+                                const newMessages = originalMessages.slice(cacheResult.lastMatchIndex + 1);
+                                // 重新转换消息
+                                const { messages: newResponsesMessages } = this.convertMessagesToOpenAIResponses(
+                                    newMessages,
+                                    model.capabilities,
+                                    modelConfig
+                                );
+                                requestBody.input = newResponsesMessages;
+                                Logger.info(
+                                    `🎯 ${model.name} 截断消息，从 ${originalMessages.length} 条减少到 ${newMessages.length} 条（跳过前 ${cacheResult.lastMatchIndex + 1} 条已缓存消息）`
+                                );
+                            }
+                        }
+                    }
+                } else if (isDoubao) {
+                    // 豆包未命中缓存时设置过期时间
+                    const extraBody: { caching?: { type?: string } } = modelConfig.extraBody || {};
+                    if (extraBody?.caching?.type === 'enabled') {
+                        requestBody.expire_at = Math.floor(Date.now() / 1000) + 1 * 3600; // 1小时后过期
+                        Logger.info(`🎯 ${model.name} 使用豆包缓存，设置 expire_at 为 1 小时后过期`);
                     }
                 }
 
-                // 添加 system 消息作为 instructions
-                // Responses API 使用 instructions 参数而不是 system 消息
                 if (systemMessage) {
+                    // 添加 system 消息作为 instructions
+                    // Responses API 使用 instructions 参数而不是 system 消息
                     if (modelConfig.useInstructions === true) {
                         requestBody.instructions = systemMessage;
                         Logger.debug(`${this.displayName} Responses API: 使用 instructions 参数传递 system 消息`);
@@ -417,9 +455,11 @@ export class OpenAIResponsesHandler {
 
                 // tools - 转换并添加工具定义
                 if (options?.tools && options.tools.length > 0) {
-                    const tools = this.convertToolsToResponses(options.tools);
-                    if (tools.length > 0) {
-                        requestBody.tools = tools;
+                    if (!isDoubao || !requestBody.previous_response_id) {
+                        const tools = this.convertToolsToResponses(options.tools);
+                        if (tools.length > 0) {
+                            requestBody.tools = tools;
+                        }
                     }
                 }
 
@@ -690,11 +730,16 @@ export class OpenAIResponsesHandler {
 
                         const modelId = (modelConfig.model || model.id).toLowerCase();
                         const isGpt = modelId.includes('gpt') || modelId.includes('codex');
-                        // 针对 codex 保存 prompt_cache_key 到缓存
-                        if (isGpt && response && response.prompt_cache_key && response.output) {
+                        // 统一保存缓存（所有模型都有 response.id，只有 GPT/Codex 有 prompt_cache_key）
+                        if (response && response.id && response.output) {
                             const cacheManager = PromptCacheManager.getInstance();
-                            cacheManager.saveCache(response.prompt_cache_key as string, response.output);
-                            Logger.info(`💾 ${model.name} 保存 prompt_cache_key: ${response.prompt_cache_key}`);
+                            const responseId = response.id as string;
+                            const promptCacheKey =
+                                isGpt && response.prompt_cache_key ? (response.prompt_cache_key as string) : undefined;
+                            cacheManager.saveCache(responseId, response.output, promptCacheKey);
+                            Logger.info(
+                                `💾 ${model.name} 保存缓存: responseId=${responseId}, promptCacheKey=${promptCacheKey || 'N/A'}`
+                            );
                         }
 
                         // 如果输出了思维链内容，发送空的 ThinkingPart 来标记结束

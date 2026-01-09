@@ -2,6 +2,39 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.16.14] - 2026-01-10
+
+### 完善
+
+- **OpenAI Responses API 支持**(实验性)
+    - 完善 火山方舟 的 Responses API 的缓存增量传递消息支持
+
+```json
+  "gcmp.compatibleModels": [
+    {
+      "id": "doubao-seed-1-8",
+      "name": "Doubao-Seed-1.8-251228 (Responses)",
+      "model": "doubao-seed-1-8-251228",
+      "provider": "volcengine",
+      "sdkMode": "openai-responses",
+      "baseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+      "tooltip": "全新面向多模态 Agent 场景定向优化模型。更强Agent能力、升级多模态理解、更灵活的上下文管理。",
+      "maxInputTokens": 224000,
+      "maxOutputTokens": 64000,
+      "includeThinking": true,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": true
+      },
+      "extraBody": {
+        "caching": { "type": "enabled" }
+      },
+      "outputThinking": true,
+      "useInstructions": false
+    }
+  ]
+```
+
 ## [0.16.13] - 2026-01-09
 
 ### 完善
