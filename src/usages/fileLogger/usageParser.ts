@@ -49,7 +49,7 @@ export class UsageParser {
             return defaultResult;
         }
 
-        // 尝试解析 Anthropic/Claude 格式
+        // 尝试解析 Anthropic/Claude 格式 / Responses API 格式
         if (rawUsage.input_tokens !== undefined && rawUsage.output_tokens !== undefined) {
             const inputTokens = rawUsage.input_tokens || 0;
             const outputTokens = rawUsage.output_tokens || 0;
@@ -61,11 +61,17 @@ export class UsageParser {
             const cacheReadTokens = rawUsage.cache_read_input_tokens || 0;
             const cacheCreationTokens = rawUsage.cache_creation_input_tokens || 0;
 
-            // 如果有 cached_tokens（Responses API），使用它
-            const actualCacheReadTokens = cachedTokens > 0 ? cachedTokens : cacheReadTokens;
-            const actualCacheCreationTokens = cachedTokens > 0 ? 0 : cacheCreationTokens;
+            // Responses API: cached_tokens 已包含在 input_tokens 中，无需重复增加
+            // Anthropic API: cache_read_input_tokens 和 cache_creation_input_tokens 不包含在 input_tokens 中
+            const isResponsesApi = cachedTokens > 0;
+            const actualCacheReadTokens = isResponsesApi ? cachedTokens : cacheReadTokens;
+            const actualCacheCreationTokens = isResponsesApi ? 0 : cacheCreationTokens;
 
-            const actualInput = inputTokens + actualCacheReadTokens + actualCacheCreationTokens;
+            // Responses API: actualInput = inputTokens (已包含 cached_tokens)
+            // Anthropic API: actualInput = inputTokens + cacheReadTokens + cacheCreationTokens
+            const actualInput = isResponsesApi
+                ? inputTokens
+                : inputTokens + actualCacheReadTokens + actualCacheCreationTokens;
 
             return {
                 actualInput,

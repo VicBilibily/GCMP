@@ -10,6 +10,7 @@ import { TokenUsagesManager } from '../usages/usagesManager';
 import { Logger } from './logger';
 import { ModelConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
+import { PromptCacheManager } from './promptCacheManager';
 
 // 使用 OpenAI SDK 的 Responses API 类型
 type ResponseInputItem = OpenAI.Responses.ResponseInputItem;
@@ -359,6 +360,19 @@ export class OpenAIResponsesHandler {
                     top_p: ConfigManager.getTopP()
                 };
 
+                const modelId = (modelConfig.model || model.id).toLowerCase();
+                const isGpt = modelId.includes('gpt') || modelId.includes('codex');
+
+                // 针对 codex 检查 prompt_cache_key 缓存
+                if (isGpt) {
+                    const cacheManager = PromptCacheManager.getInstance();
+                    const cachedKey = cacheManager.findCache(messages, 3);
+                    if (cachedKey) {
+                        requestBody.prompt_cache_key = cachedKey;
+                        Logger.info(`🎯 ${model.name} 使用 prompt_cache_key: ${cachedKey}`);
+                    }
+                }
+
                 // 添加 system 消息作为 instructions
                 // Responses API 使用 instructions 参数而不是 system 消息
                 if (systemMessage) {
@@ -428,7 +442,6 @@ export class OpenAIResponsesHandler {
                         if (text) {
                             progress.report(new vscode.LanguageModelTextPart(text));
                             hasReceivedContent = true;
-                            hasReceivedTextDelta = true;
                         }
                     })
                     .on('response.refusal.delta', event => {
@@ -653,6 +666,18 @@ export class OpenAIResponsesHandler {
                             finalUsage = event.response.usage as unknown as Record<string, unknown>;
                         }
 
+                        // 获取响应对象
+                        const response = event.response;
+
+                        const modelId = (modelConfig.model || model.id).toLowerCase();
+                        const isGpt = modelId.includes('gpt') || modelId.includes('codex');
+                        // 针对 codex 保存 prompt_cache_key 到缓存
+                        if (isGpt && response && response.prompt_cache_key && response.output) {
+                            const cacheManager = PromptCacheManager.getInstance();
+                            cacheManager.saveCache(response.prompt_cache_key as string, response.output);
+                            Logger.info(`💾 ${model.name} 保存 prompt_cache_key: ${response.prompt_cache_key}`);
+                        }
+
                         // 如果输出了思维链内容，发送空的 ThinkingPart 来标记结束
                         if (hasEmittedThinking) {
                             progress.report(new vscode.LanguageModelThinkingPart(''));
@@ -660,7 +685,6 @@ export class OpenAIResponsesHandler {
                         }
 
                         // 处理完整的响应中的工具调用
-                        const response = event.response;
                         if (response && response.output) {
                             const output = response.output;
                             if (Array.isArray(output)) {
