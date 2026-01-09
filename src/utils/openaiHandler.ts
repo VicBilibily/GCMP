@@ -36,6 +36,25 @@ interface ExtendedAssistantMessageParam extends OpenAI.Chat.ChatCompletionAssist
 }
 
 /**
+ * OpenAI API 错误详情类型
+ */
+interface APIErrorDetail {
+    message?: string;
+    code?: string | null;
+    type?: string;
+    param?: string | null;
+}
+
+/**
+ * OpenAI APIError 类型（包含 error 属性）
+ */
+interface APIErrorWithError extends Error {
+    error?: APIErrorDetail | string;
+    status?: number;
+    headers?: Headers;
+}
+
+/**
  * OpenAI SDK 处理器
  * 使用 OpenAI SDK 实现流式聊天完成，支持工具调用
  */
@@ -129,6 +148,35 @@ export class OpenAIHandler {
      */
     private async preprocessSSEResponse(response: Response): Promise<Response> {
         const contentType = response.headers.get('Content-Type');
+
+        // 对于非 200 状态码的响应，尝试读取错误信息
+        if (!response.ok && response.status >= 400) {
+            const text = await response.text();
+            let errorMessage = text || `HTTP ${response.status} ${response.statusText}`;
+
+            // 尝试解析 JSON 格式的错误
+            if (text && text.trim().startsWith('{')) {
+                try {
+                    const errorJson = JSON.parse(text);
+                    if (errorJson.error) {
+                        if (typeof errorJson.error === 'string') {
+                            errorMessage = errorJson.error;
+                        } else if (errorJson.error.message) {
+                            errorMessage = errorJson.error.message;
+                        }
+                    }
+                } catch {
+                    // 如果解析失败，使用原始文本
+                }
+            }
+
+            // 抛出包含详细错误信息的 Error
+            const error = new Error(errorMessage);
+            (error as APIErrorWithError).status = response.status;
+            (error as APIErrorWithError).headers = response.headers;
+            throw error;
+        }
+
         // 如果返回 application/json，读取 body 并直接抛出 Error，让上层 chat 接收到异常
         if (contentType && contentType.includes('application/json')) {
             const text = await response.text();
@@ -868,7 +916,30 @@ export class OpenAIHandler {
                     Logger.error(`${model.name} ${this.displayName} 请求失败: ${errorMessage}`);
                     throw error.cause;
                 } else {
-                    const errorMessage = error.message || '未知错误';
+                    let errorMessage = error.message || '未知错误';
+
+                    // 尝试从 OpenAI SDK 的 APIError 中提取详细的错误信息
+                    // APIError 对象有一个 error 属性，其中包含了原始的 API 错误响应
+                    const apiError = error as APIErrorWithError;
+                    if (apiError.error && typeof apiError.error === 'object') {
+                        const errorDetail = apiError.error as APIErrorDetail;
+                        if (errorDetail.message && typeof errorDetail.message === 'string') {
+                            errorMessage = errorDetail.message;
+                            Logger.debug(`${model.name} 从 APIError.error 中提取到详细错误信息: ${errorMessage}`);
+                        }
+                    }
+
+                    // 尝试从 error.cause 中提取详细的错误信息
+                    // APIConnectionError 可能会在 cause 中包含原始错误
+                    if (error.cause instanceof Error) {
+                        const causeMessage = error.cause.message || '';
+                        if (causeMessage && causeMessage !== errorMessage) {
+                            errorMessage = causeMessage;
+                            Logger.debug(`${model.name} 从 error.cause 中提取到详细错误信息: ${errorMessage}`);
+                            throw error.cause;
+                        }
+                    }
+
                     Logger.error(`${model.name} ${this.displayName} 请求失败: ${errorMessage}`);
 
                     // 检查是否为statusCode错误，如果是则确保同步抛出

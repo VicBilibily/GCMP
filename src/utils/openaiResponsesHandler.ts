@@ -22,6 +22,25 @@ type ResponseFunctionToolCallOutputItem = OpenAI.Responses.ResponseFunctionToolC
 type FunctionTool = OpenAI.Responses.FunctionTool;
 
 /**
+ * OpenAI API 错误详情类型
+ */
+interface APIErrorDetail {
+    message?: string;
+    code?: string | null;
+    type?: string;
+    param?: string | null;
+}
+
+/**
+ * OpenAI APIError 类型（包含 error 属性）
+ */
+interface APIErrorWithError extends Error {
+    error?: APIErrorDetail | string;
+    status?: number;
+    headers?: Headers;
+}
+
+/**
  * OpenAI Responses API 处理器
  * 专门处理 Responses API 的消息转换和请求
  */
@@ -773,7 +792,30 @@ export class OpenAIResponsesHandler {
             Logger.debug(`✅ ${model.name} ${this.displayName} Responses API 请求完成`);
         } catch (error) {
             if (error instanceof Error) {
-                const errorMessage = error.message || '未知错误';
+                let errorMessage = error.message || '未知错误';
+
+                // 尝试从 OpenAI SDK 的 APIError 中提取详细的错误信息
+                // APIError 对象有一个 error 属性，其中包含了原始的 API 错误响应
+                const apiError = error as APIErrorWithError;
+                if (apiError.error && typeof apiError.error === 'object') {
+                    const errorDetail = apiError.error as APIErrorDetail;
+                    if (errorDetail.message && typeof errorDetail.message === 'string') {
+                        errorMessage = errorDetail.message;
+                        Logger.debug(`${model.name} 从 APIError.error 中提取到详细错误信息: ${errorMessage}`);
+                    }
+                }
+
+                // 尝试从 error.cause 中提取详细的错误信息
+                // APIConnectionError 可能会在 cause 中包含原始错误
+                if (error.cause instanceof Error) {
+                    const causeMessage = error.cause.message || '';
+                    if (causeMessage && causeMessage !== errorMessage) {
+                        errorMessage = causeMessage;
+                        Logger.debug(`${model.name} 从 error.cause 中提取到详细错误信息: ${errorMessage}`);
+                        throw error.cause;
+                    }
+                }
+
                 Logger.error(`${model.name} ${this.displayName} Responses API 请求失败: ${errorMessage}`);
 
                 // 检查是否为特定的服务器错误

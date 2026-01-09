@@ -150,7 +150,26 @@ export class OpenAICustomHandler {
 
             if (!response.ok) {
                 const errorText = await response.text();
-                throw new Error(`API请求失败: ${response.status} ${response.statusText} - ${errorText}`);
+                let errorMessage = `API请求失败: ${response.status} ${response.statusText}`;
+
+                // 尝试解析错误响应，提取详细的错误信息
+                try {
+                    const errorJson = JSON.parse(errorText);
+                    if (errorJson.error) {
+                        if (typeof errorJson.error === 'string') {
+                            errorMessage = errorJson.error;
+                        } else if (errorJson.error.message) {
+                            errorMessage = errorJson.error.message;
+                        }
+                    }
+                } catch {
+                    // 如果解析失败，使用原始错误文本
+                    if (errorText) {
+                        errorMessage = `${errorMessage} - ${errorText}`;
+                    }
+                }
+
+                throw new Error(errorMessage);
             }
 
             if (!response.body) {

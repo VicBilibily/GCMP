@@ -102,7 +102,7 @@ export class RetryManager {
                 // 如果不是可重试的错误，直接抛出
                 if (!isRetryable(lastError)) {
                     Logger.warn(`[${providerName}] 第 ${attempt} 次重试失败: ${lastError.message}`);
-                    break;
+                    throw lastError;
                 }
 
                 Logger.warn(`[${providerName}] 第 ${attempt} 次重试失败，准备下一次重试: ${lastError.message}`);
