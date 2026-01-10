@@ -27,7 +27,7 @@ const vscode = acquireVsCodeApi();
  * @property {string} provider - 提供商标识符
  * @property {string} [baseUrl] - API基础URL（可选）
  * @property {string} [model] - 请求模型ID（可选）
- * @property {'openai'|'openai-sse'|'anthropic'} sdkMode - SDK兼容模式
+ * @property {'openai'|'openai-sse'|'openai-responses'|'anthropic'|'gemini'} sdkMode - SDK兼容模式
  * @property {number} maxInputTokens - 最大输入Token
  * @property {number} maxOutputTokens - 最大输出Token
  * @property {ModelCapabilities} capabilities - 能力配置
@@ -117,7 +117,8 @@ function createDOM() {
                 { value: 'openai', label: 'OpenAI SDK (使用官方SDK进行流式传输数据处理)', selected: modelData.sdkMode === 'openai' },
                 { value: 'openai-sse', label: 'OpenAI SSE (使用内置兼容解析进行流式传输数据处理)', selected: modelData.sdkMode === 'openai-sse' },
                 { value: 'openai-responses', label: 'OpenAI Responses (实验性支持，使用 Responses API 进行请求响应处理)', selected: modelData.sdkMode === 'openai-responses' },
-                { value: 'anthropic', label: 'Anthropic SDK (使用官方SDK进行流式传输数据处理)', selected: modelData.sdkMode === 'anthropic' }
+                { value: 'anthropic', label: 'Anthropic SDK (使用官方SDK进行流式传输数据处理)', selected: modelData.sdkMode === 'anthropic' },
+                { value: 'gemini-sse', label: 'Gemini HTTP SSE (实验性支持，使用内置兼容解析进行流式传输数据处理，兼容第三方网关)', selected: modelData.sdkMode === 'gemini-sse' }
             ]
         }, '模型通讯使用的兼容模式'),
         createFormGroup('baseUrl', 'BASE URL *', 'baseUrl', 'input', {

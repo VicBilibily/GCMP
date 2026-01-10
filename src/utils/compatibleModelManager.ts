@@ -46,7 +46,7 @@ export interface CompatibleModelConfig {
     /** 最大输出token数 */
     maxOutputTokens: number;
     /** SDK模式 */
-    sdkMode?: 'anthropic' | 'openai' | 'openai-sse' | 'openai-responses';
+    sdkMode?: 'anthropic' | 'openai' | 'openai-sse' | 'openai-responses' | 'gemini-sse';
     /** 模型能力 */
     capabilities: {
         /** 工具调用 */
@@ -81,6 +81,20 @@ export class CompatibleModelManager {
     private static _onDidChangeModels = new vscode.EventEmitter<void>();
     static readonly onDidChangeModels = CompatibleModelManager._onDidChangeModels.event;
     private static isSaving = false; // 标记是否正在保存，避免触发配置监听器
+
+    static getSdkModeLabel(sdkMode: CompatibleModelConfig['sdkMode']): string {
+        switch (sdkMode) {
+            case 'anthropic':
+                return 'Anthropic';
+            case 'gemini-sse':
+                return 'Gemini';
+            case 'openai':
+            case 'openai-sse':
+            case 'openai-responses':
+            default:
+                return 'OpenAI';
+        }
+    }
 
     /**
      * 初始化模型管理器
@@ -496,7 +510,7 @@ export class CompatibleModelManager {
             for (const model of this.models) {
                 const details: string[] = [
                     `$(arrow-up) ${model.maxInputTokens} $(arrow-down) ${model.maxOutputTokens}`,
-                    `$(chip) ${model.sdkMode === 'openai' ? 'OpenAI' : 'Anthropic'}`
+                    `$(chip) ${this.getSdkModeLabel(model.sdkMode)}`
                 ];
                 if (model.capabilities.toolCalling) {
                     details.push('$(plug) 工具调用');

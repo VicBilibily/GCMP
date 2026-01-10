@@ -82,6 +82,34 @@ export class UsageParser {
             };
         }
 
+        // 优先检测 Gemini 风格的 usageMetadata（有 promptTokenCount 的视为 Gemini）
+        if (rawUsage.promptTokenCount !== undefined) {
+            const promptTokenCount = rawUsage.promptTokenCount;
+            const responseTokenCount = rawUsage.responseTokenCount;
+            const candidatesTokenCount = rawUsage.candidatesTokenCount;
+            const totalTokenCount = rawUsage.totalTokenCount;
+            const cachedContentTokenCount = rawUsage.cachedContentTokenCount;
+
+            let outputTokens: number | undefined;
+            if (typeof responseTokenCount === 'number') {
+                outputTokens = responseTokenCount;
+            } else if (typeof candidatesTokenCount === 'number') {
+                outputTokens = candidatesTokenCount;
+            }
+            if (typeof promptTokenCount === 'number' && typeof outputTokens === 'number') {
+                const cacheReadTokens = typeof cachedContentTokenCount === 'number' ? cachedContentTokenCount : 0;
+                const cacheCreationTokens = Math.max(0, promptTokenCount - cacheReadTokens);
+
+                return {
+                    actualInput: promptTokenCount,
+                    cacheReadTokens,
+                    cacheCreationTokens,
+                    outputTokens,
+                    totalTokens: typeof totalTokenCount === 'number' ? totalTokenCount : promptTokenCount + outputTokens
+                };
+            }
+        }
+
         // 尝试解析 OpenAI 格式
         if (rawUsage.prompt_tokens !== undefined) {
             const promptTokens = rawUsage.prompt_tokens || 0;

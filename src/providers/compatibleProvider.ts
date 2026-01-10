@@ -18,6 +18,7 @@ import { StatusBarManager } from '../status';
 import { KnownProviders } from '../utils';
 import { configProviders } from './config';
 import { OpenAIResponsesHandler } from '../handlers/openaiResponsesHandler';
+import { GeminiHandler } from '../handlers/geminiHandler';
 
 /**
  * 独立兼容模型提供商类
@@ -28,6 +29,7 @@ export class CompatibleProvider extends GenericModelProvider {
     private modelsChangeListener?: vscode.Disposable;
     private retryManager: RetryManager;
     protected readonly openaiResponsesHandler: OpenAIResponsesHandler;
+    protected readonly geminiHandler: GeminiHandler;
 
     constructor(context: vscode.ExtensionContext) {
         // 创建一个虚拟的 ProviderConfig，实际模型配置从 CompatibleModelManager 获取
@@ -49,6 +51,8 @@ export class CompatibleProvider extends GenericModelProvider {
         });
 
         this.openaiResponsesHandler = new OpenAIResponsesHandler(this.providerConfig.displayName, this.openaiHandler);
+
+        this.geminiHandler = new GeminiHandler(this.providerConfig.displayName, this.providerConfig);
 
         this.getProviderConfig(); // 初始化配置缓存
         // 监听 CompatibleModelManager 的变更事件
@@ -214,7 +218,7 @@ export class CompatibleProvider extends GenericModelProvider {
             // 将最新配置中的模型转换为 VS Code 所需的格式
             let modelInfos = currentConfig.models.map(model => {
                 const info = this.modelConfigToInfo(model);
-                const sdkModeDisplay = model.sdkMode === 'anthropic' ? 'Anthropic' : 'OpenAI';
+                const sdkModeDisplay = CompatibleModelManager.getSdkModeLabel(model.sdkMode);
 
                 if (model.provider) {
                     const knownProvider = KnownProviders[model.provider];
@@ -263,7 +267,7 @@ export class CompatibleProvider extends GenericModelProvider {
 
                 const models = currentConfig.models.map(model => {
                     const info = this.modelConfigToInfo(model);
-                    const sdkModeDisplay = model.sdkMode === 'anthropic' ? 'Anthropic' : 'OpenAI';
+                    const sdkModeDisplay = CompatibleModelManager.getSdkModeLabel(model.sdkMode);
 
                     if (model.provider) {
                         const knownProvider = KnownProviders[model.provider];
@@ -358,6 +362,8 @@ export class CompatibleProvider extends GenericModelProvider {
                 sdkName = 'OpenAI SSE';
             } else if (sdkMode === 'openai-responses') {
                 sdkName = 'OpenAI Responses API';
+            } else if (sdkMode === 'gemini-sse') {
+                sdkName = 'Gemini HTTP';
             }
 
             Logger.info(`Compatible Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
@@ -393,6 +399,16 @@ export class CompatibleProvider extends GenericModelProvider {
                     async () => {
                         if (sdkMode === 'anthropic') {
                             await this.anthropicHandler.handleRequest(
+                                model,
+                                modelConfig,
+                                messages,
+                                options,
+                                progress,
+                                token,
+                                requestId
+                            );
+                        } else if (sdkMode === 'gemini-sse') {
+                            await this.geminiHandler.handleRequest(
                                 model,
                                 modelConfig,
                                 messages,

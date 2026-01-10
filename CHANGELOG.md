@@ -2,6 +2,23 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.16.16] - 2026-01-11
+
+### 新增
+
+- **Gemini HTTP SSE 模式**(实验性)：新增纯 HTTP + SSE 流式实现，兼容第三方/自建 Gemini 网关
+    - 支持自定义 `baseUrl`，适配不同网关的端点结构（前缀/版本/完整端点）
+    - 支持自定义鉴权头（`Authorization`/`X-API-Key`/`API-Key`/`X-Goog-Api-Key`）
+    - 支持流式输出（SSE `data:` 和纯 JSON 行），兼容标准 SSE 与类 SSE 实现
+    - 支持思维链输出（`thoughtSignature` + `thinking` parts），受 `outputThinking` 配置控制
+    - 支持工具调用（`functionCall`/`functionResponse`），自动对齐 tool response 顺序
+    - 支持多模态输入（图片 `inlineData` base64 编码）
+    - 支持系统消息（`systemInstruction`）与 `includeThinking`（thinking 作为输入上下文）
+    - 支持 `extraBody` 注入 Gemini 请求体字段（与 OpenAI/Anthropic 扩展点一致）
+    - 支持 `usageMetadata` 原样透传，便于后续统计解析（`promptTokenCount`/`candidatesTokenCount`/`cachedContentTokenCount` 等）
+    - 新增 `geminiConverter.ts` 模块，实现 JSON Schema → Gemini Schema 转换（`$ref`/`nullable`/类型映射/properties/items/required/enum）
+    - 为所有关键方法添加中文 JSDoc 与详细注释，便于后续维护与网关兼容性增强
+
 ## [0.16.15] - 2026-01-10
 
 - 无功能调整，仅调整样式和移动文件

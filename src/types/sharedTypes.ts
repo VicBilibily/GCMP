@@ -23,8 +23,9 @@ export interface ModelConfig {
      * - "openai": 使用 OpenAI SDK（默认）
      * - "openai-sse": 使用 OpenAI SSE 兼容模式（自定义实现流式响应处理）
      * - "openai-responses": 使用 OpenAI Responses API（使用 Responses API 进行请求响应处理）
+     * - "gemini-sse": 使用 Gemini HTTP SSE 兼容模式（自定义实现流式响应处理）
      */
-    sdkMode?: 'anthropic' | 'openai' | 'openai-sse' | 'openai-responses';
+    sdkMode?: 'anthropic' | 'openai' | 'openai-sse' | 'openai-responses' | 'gemini-sse';
     /**
      * 模型特定的baseUrl（可选）
      * 如果提供，将覆盖提供商级别的baseUrl

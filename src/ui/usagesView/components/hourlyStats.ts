@@ -42,7 +42,7 @@ export function createHourlyStats(hourlyStats: Record<string, Omit<HourlyStats, 
                     return;
                 }
 
-                const totalTokens = stats.actualInput + stats.cacheTokens + stats.outputTokens;
+                const totalTokens = stats.actualInput + stats.outputTokens;
                 const row = createElement('tr') as HTMLTableRowElement;
 
                 const timeCell = createElement('td');
