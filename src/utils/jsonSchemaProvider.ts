@@ -217,12 +217,13 @@ export class JsonSchemaProvider {
                             },
                             sdkMode: {
                                 type: 'string',
-                                enum: ['openai', 'openai-sse', 'openai-responses', 'anthropic'],
+                                enum: ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini-sse'],
                                 enumDescriptions: [
                                     'OpenAI SDK 标准模式，使用官方 OpenAI SDK 进行请求响应处理',
                                     'OpenAI SSE 兼容模式，使用插件内实现的SSE解析逻辑进行流式响应处理',
                                     'OpenAI Responses API 模式，使用 Responses API 进行请求响应处理',
-                                    'Anthropic SDK 标准模式，使用官方 Anthropic SDK 进行请求响应处理'
+                                    'Anthropic SDK 标准模式，使用官方 Anthropic SDK 进行请求响应处理',
+                                    'Gemini HTTP SSE 模式（实验性），使用纯 HTTP + SSE 解析，兼容第三方 Gemini 网关'
                                 ],
                                 description: 'SDK模式默认为 openai。',
                                 default: 'openai'
@@ -389,8 +390,9 @@ export class JsonSchemaProvider {
                             },
                             sdkMode: {
                                 type: 'string',
-                                enum: ['openai', 'anthropic'],
-                                description: '覆盖SDK模式：openai（OpenAI兼容格式）或 anthropic（Anthropic兼容格式）'
+                                enum: ['openai', 'anthropic', 'gemini-sse'],
+                                description:
+                                    '覆盖SDK模式：openai（OpenAI兼容格式）、anthropic（Anthropic兼容格式）或 gemini-sse（Gemini HTTP SSE 模式，实验性）'
                             },
                             baseUrl: {
                                 type: 'string',

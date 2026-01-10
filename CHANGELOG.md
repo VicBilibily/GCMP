@@ -2,11 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.16.17] - 2026-01-11
+
+### 完善
+
+- **Gemini HTTP SSE 模式**(实验性)：完善配置智能提示体验
+    - 在 JSON Schema 中为 `sdkMode` 添加 `gemini-sse` 选项
+
 ## [0.16.16] - 2026-01-11
 
 ### 新增
 
-- **Gemini HTTP SSE 模式**(实验性)：新增纯 HTTP + SSE 流式实现，兼容第三方/自建 Gemini 网关
+- **Gemini HTTP SSE 模式**(实验性)：新增纯 HTTP + SSE 流式实现，兼容第三方 Gemini 网关
     - 支持自定义 `baseUrl`，适配不同网关的端点结构（前缀/版本/完整端点）
     - 支持自定义鉴权头（`Authorization`/`X-API-Key`/`API-Key`/`X-Goog-Api-Key`）
     - 支持流式输出（SSE `data:` 和纯 JSON 行），兼容标准 SSE 与类 SSE 实现

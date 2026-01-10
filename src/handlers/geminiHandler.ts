@@ -149,7 +149,7 @@ export class GeminiHandler {
     ): Promise<void> {
         const apiKey = await this.getApiKey(modelConfig);
 
-        // Gemini HTTP 模式强制要求在 modelInfo 指定 baseUrl（第三方/自建网关入口）。
+        // Gemini HTTP 模式强制要求在 modelInfo 指定 baseUrl（第三方网关入口）。
         const baseUrl = modelConfig.baseUrl;
 
         // 合并提供商级别 & 模型级别 customHeader，并用 ${APIKEY} 替换
@@ -207,7 +207,7 @@ export class GeminiHandler {
         let rawUsage: RawUsageData | undefined;
 
         try {
-            // 用途：构建第三方/自建 Gemini 网关可用的流式 SSE endpoint。
+            // 用途：构建第三方 Gemini 网关可用的流式 SSE endpoint。
             const endpoint = this.buildEndpoint(normalizedBaseUrl, modelId, true);
             if (!endpoint) {
                 throw new Error('无法构建 Gemini 请求地址（请检查 baseUrl / model 配置）');
