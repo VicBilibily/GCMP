@@ -13,17 +13,10 @@ import {
     ProvideLanguageModelChatResponseOptions
 } from 'vscode';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import {
-    ApiKeyManager,
-    ConfigManager,
-    Logger,
-    OpenAIHandler,
-    OpenAICustomHandler,
-    AnthropicHandler,
-    ModelInfoCache,
-    TokenCounter,
-    PromptAnalyzer
-} from '../utils';
+import { ApiKeyManager, ConfigManager, Logger, ModelInfoCache, TokenCounter, PromptAnalyzer } from '../utils';
+import { OpenAIHandler } from '../handlers/openaiHandler';
+import { OpenAICustomHandler } from '../handlers/openaiCustomHandler';
+import { AnthropicHandler } from '../handlers/anthropicHandler';
 import { ContextUsageStatusBar } from '../status/contextUsageStatusBar';
 import { TokenUsagesManager } from '../usages/usagesManager';
 

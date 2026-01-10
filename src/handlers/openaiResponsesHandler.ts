@@ -5,9 +5,9 @@
 
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
-import { ConfigManager } from './configManager';
+import { ConfigManager } from '../utils/configManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
-import { Logger } from './logger';
+import { Logger } from '../utils/logger';
 import { ModelConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { PromptCacheManager } from './promptCacheManager';

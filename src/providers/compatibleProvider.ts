@@ -17,7 +17,7 @@ import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status';
 import { KnownProviders } from '../utils';
 import { configProviders } from './config';
-import { OpenAIResponsesHandler } from '../utils/openaiResponsesHandler';
+import { OpenAIResponsesHandler } from '../handlers/openaiResponsesHandler';
 
 /**
  * 独立兼容模型提供商类

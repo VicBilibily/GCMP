@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Logger } from './logger';
+import { Logger } from '../utils/logger';
 import OpenAI from 'openai';
 
 /**

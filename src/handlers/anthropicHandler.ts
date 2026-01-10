@@ -6,10 +6,10 @@
 import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
 import { apiMessageToAnthropicMessage, convertToAnthropicTools } from './anthropicConverter';
-import { ApiKeyManager } from './apiKeyManager';
-import { Logger } from './logger';
-import { ConfigManager } from './configManager';
-import { VersionManager } from './versionManager';
+import { ApiKeyManager } from '../utils/apiKeyManager';
+import { Logger } from '../utils/logger';
+import { ConfigManager } from '../utils/configManager';
+import { VersionManager } from '../utils/versionManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import type { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
