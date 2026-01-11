@@ -33,6 +33,8 @@ export interface GeminiPart {
     // 思考/追踪字段
     thought?: boolean;
     thoughtSignature?: string;
+    // 部分网关/CLI 使用 snake_case
+    thought_signature?: string;
 
     functionCall?: GeminiFunctionCall;
     functionResponse?: GeminiFunctionResponse;

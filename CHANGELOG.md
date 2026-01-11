@@ -2,6 +2,14 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.16.19] - 2026-01-11
+
+### 完善
+
+- **Gemini HTTP SSE 模式**(实验性)：完善思考模式兼容
+    - 兼容部分网关的思考签名，现同时解释和传递 `thoughtSignature` 和 `thought_signature`。
+    - `extraBody` 将传递到 `generationConfig` 并在 gemini 模式支持对象合并。
+
 ## [0.16.18] - 2026-01-11
 
 ### 新增

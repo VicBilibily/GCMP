@@ -7,6 +7,12 @@ import * as vscode from 'vscode';
 import type { ModelConfig } from '../types/sharedTypes';
 import type { GeminiContent, GeminiPart, GeminiTool } from './geminiType';
 
+function getThinkingSignature(part: vscode.LanguageModelThinkingPart): string {
+    const meta = (part as unknown as { metadata?: { signature?: unknown } }).metadata;
+    const sig = meta && typeof meta.signature === 'string' ? meta.signature : '';
+    return sig || '';
+}
+
 /**
  * 将 VS Code 的 tools（LanguageModelChatTool）转换为 Gemini `tools.functionDeclarations`。
  *
@@ -76,6 +82,7 @@ export function convertMessagesToGemini(
         // 用途：拆分 message 内容为 text / images / toolCalls / toolResults 方便后续组装。
         const textParts: string[] = [];
         const imageParts: vscode.LanguageModelDataPart[] = [];
+        const thinkingParts: Array<{ text: string; signature?: string }> = [];
         const toolCalls: Array<{ callId: string; name: string; args: Record<string, unknown> }> = [];
         const toolResults: Array<{ callId: string; outputText: string }> = [];
 
@@ -84,6 +91,10 @@ export function convertMessagesToGemini(
                 textParts.push(part.value);
             } else if (part instanceof vscode.LanguageModelDataPart && isImageMimeType(part.mimeType)) {
                 imageParts.push(part);
+            } else if (part instanceof vscode.LanguageModelThinkingPart) {
+                const v = Array.isArray(part.value) ? part.value.join('') : part.value;
+                const signature = getThinkingSignature(part) || undefined;
+                thinkingParts.push({ text: v || '', signature });
             } else if (part instanceof vscode.LanguageModelToolCallPart) {
                 // 关键说明：Gemini functionResponse 需要 name，因此后续需要 callId -> name 的映射。
                 const callId = part.callId || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -100,6 +111,7 @@ export function convertMessagesToGemini(
         return {
             text: textParts.join(''),
             imageParts,
+            thinkingParts,
             toolCalls,
             toolResults
         };
@@ -189,6 +201,24 @@ export function convertMessagesToGemini(
 
         // 用途：assistant 消息转换为 Gemini model contents，并将 tool calls 转为 functionCall。
         const parts: GeminiPart[] = [];
+
+        let lastThinkingSignature: string | undefined;
+        for (const tp of extracted.thinkingParts) {
+            // 保留 signature 供后续 functionCall 关联
+            lastThinkingSignature = tp.signature;
+            if (modelConfig.includeThinking === true) {
+                const t = (tp.text || '').trim();
+                if (t) {
+                    parts.push({
+                        thought: true,
+                        text: t,
+                        thoughtSignature: tp.signature,
+                        thought_signature: tp.signature
+                    });
+                }
+            }
+        }
+
         const assistantText = extracted.text.trim();
         if (assistantText) {
             parts.push({ text: assistantText });
@@ -198,7 +228,14 @@ export function convertMessagesToGemini(
         for (const tc of extracted.toolCalls) {
             toolNameByCallId.set(tc.callId, tc.name);
             callOrder.push({ callId: tc.callId, name: tc.name });
-            parts.push({ functionCall: { name: tc.name, args: tc.args } });
+
+            // Gemini CLI/部分网关要求 functionCall 带 thought signature。
+            // 优先使用同一条 assistant message 中最近的 thinking signature
+            parts.push({
+                functionCall: { name: tc.name, args: tc.args },
+                thoughtSignature: lastThinkingSignature,
+                thought_signature: lastThinkingSignature
+            });
         }
 
         if (parts.length > 0) {

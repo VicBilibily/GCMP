@@ -187,6 +187,51 @@ export class GeminiHandler {
         return `models/${raw}`;
     }
 
+    private isPlainObject(value: unknown): value is Record<string, unknown> {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+            return false;
+        }
+        const proto = Object.getPrototypeOf(value);
+        return proto === Object.prototype || proto === null;
+    }
+
+    private deepMergePlainObjects(
+        base: Record<string, unknown>,
+        override: Record<string, unknown>
+    ): Record<string, unknown> {
+        const out: Record<string, unknown> = { ...base };
+        for (const [key, value] of Object.entries(override)) {
+            if (value === undefined) {
+                continue;
+            }
+            const existing = out[key];
+            if (this.isPlainObject(existing) && this.isPlainObject(value)) {
+                out[key] = this.deepMergePlainObjects(existing, value);
+                continue;
+            }
+            out[key] = value;
+        }
+        return out;
+    }
+
+    private extractGenerationConfigOverrides(extraBody: Record<string, unknown>): Record<string, unknown> {
+        const overrides: Record<string, unknown> = {};
+        // 兼容旧写法：extraBody.generationConfig
+        const nested = (extraBody as Record<string, unknown>).generationConfig;
+        if (this.isPlainObject(nested)) {
+            Object.assign(overrides, nested);
+        }
+        // 新写法：extraBody 直接作为 generationConfig 的补充字段
+        for (const [k, v] of Object.entries(extraBody)) {
+            // Code Assist wrapper 专用字段：不应进入 generationConfig
+            if (k === 'project' || k === 'generationConfig') {
+                continue;
+            }
+            overrides[k] = v;
+        }
+        return overrides;
+    }
+
     private parseDotEnv(text: string): Record<string, string> {
         const out: Record<string, string> = {};
         const lines = (text || '').split(/\r?\n/);
@@ -294,12 +339,22 @@ export class GeminiHandler {
             throw new Error('Gemini 模式需要在 modelInfo 中指定 baseUrl');
         }
 
-        const generationConfig: GeminiGenerationConfig = {
+        let generationConfig: GeminiGenerationConfig = {
             maxOutputTokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
             temperature: ConfigManager.getTemperature()
         };
         if (modelConfig.outputThinking === true) {
             generationConfig.thinkingConfig = { includeThoughts: true };
+        }
+
+        // extraBody：不再合并到 request body 顶层，而是合并到 generationConfig。
+        // 合并策略：若 value 是对象，则做对象合并覆盖（而不是直接替换对象）。
+        if (modelConfig.extraBody) {
+            const overrides = this.extractGenerationConfigOverrides(modelConfig.extraBody);
+            generationConfig = this.deepMergePlainObjects(
+                generationConfig as Record<string, unknown>,
+                overrides
+            ) as GeminiGenerationConfig;
         }
 
         // 用途：组装请求体（Gemini v1beta / Code Assist v1internal 都复用 contents + generationConfig）。
@@ -320,14 +375,6 @@ export class GeminiHandler {
                 ...(projectId ? { project: projectId } : {}),
                 request: baseRequest
             };
-        }
-
-        if (modelConfig.extraBody) {
-            for (const [k, v] of Object.entries(modelConfig.extraBody)) {
-                if (v !== undefined) {
-                    (requestBody as Record<string, unknown>)[k] = v;
-                }
-            }
         }
 
         Logger.info(`🚀 ${model.name} 发送 ${this.displayName} Gemini HTTP 请求 (model=${modelId})`);
@@ -569,8 +616,11 @@ export class GeminiHandler {
 
         for (const part of parts) {
             // 解析 thoughtSignature：用于把“即将输出的 thinking”与后续 tool call 关联。
-            if (typeof part.thoughtSignature === 'string' && part.thoughtSignature) {
-                pendingThinkingSignature = part.thoughtSignature;
+            const sig =
+                (typeof part.thoughtSignature === 'string' && part.thoughtSignature ? part.thoughtSignature : '') ||
+                (typeof part.thought_signature === 'string' && part.thought_signature ? part.thought_signature : '');
+            if (sig) {
+                pendingThinkingSignature = sig;
             }
 
             // 解析 thinking：受 outputThinking 控制是否向 UI 输出。
@@ -592,7 +642,8 @@ export class GeminiHandler {
             // 解析工具调用：生成一个 ToolCallPart（callId 由扩展生成）。
             if (part.functionCall && typeof part.functionCall.name === 'string' && part.functionCall.name) {
                 // 关键说明：如果 tool call 前有 pendingThinkingSignature，需要先 flush 一个空的 thinking part 来“关闭思考块”。
-                if (pendingThinkingSignature && modelConfigShouldOutputThinking(modelConfig, true)) {
+                // 注意：即使 outputThinking=false，也需要保留 signature，否则下一轮回放 tool call 会被网关拒绝。
+                if (pendingThinkingSignature) {
                     progress.report(
                         new vscode.LanguageModelThinkingPart('', undefined, {
                             signature: pendingThinkingSignature

@@ -116,6 +116,7 @@ npm install -g @google/gemini-cli@latest
 ```
 
 - **支持模型**：**Gemini 2.5 Pro**、**Gemini 2.5 Flash**
+- **预览模型**：**Gemini 3 Pro**、**Gemini 3 Flash**
 
 </details>
 
