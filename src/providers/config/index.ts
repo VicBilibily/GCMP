@@ -9,6 +9,7 @@ import streamlake from './streamlake.json';
 import dashscope from './dashscope.json';
 import iflow from './iflow.json';
 import qwen from './qwen.json';
+import gemini from './gemini.json';
 
 const providers = {
     zhipu,
@@ -19,7 +20,8 @@ const providers = {
     streamlake,
     dashscope,
     iflow,
-    qwen
+    qwen,
+    gemini
 };
 
 export type ProviderName = keyof typeof providers;

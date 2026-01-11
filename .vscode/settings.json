@@ -23,8 +23,11 @@
     "editor.formatOnPaste": true,
     "[typescript]": {
         "editor.tabSize": 4,
-        "editor.insertSpaces": true,
-        "editor.defaultFormatter": "esbenp.prettier-vscode"
+        "editor.insertSpaces": true
+    },
+    "[typescriptreact]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true
     },
     "[javascript]": {
         "editor.tabSize": 4,

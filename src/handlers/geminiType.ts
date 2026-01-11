@@ -7,7 +7,7 @@ export type GeminiRole = 'user' | 'model';
 
 export interface GeminiInlineData {
     mimeType: string;
-    data: string; // base64
+    data: string; // base64 编码
 }
 
 export interface GeminiFileData {
@@ -30,7 +30,7 @@ export interface GeminiPart {
     inlineData?: GeminiInlineData;
     fileData?: GeminiFileData;
 
-    // Thinking/trace fields (gateway-specific)
+    // 思考/追踪字段
     thought?: boolean;
     thoughtSignature?: string;
 
@@ -44,7 +44,7 @@ export interface GeminiContent {
 }
 
 export interface GeminiSchema {
-    // Google style schema: type enum is STRING/NUMBER/INTEGER/BOOLEAN/OBJECT/ARRAY
+    // Google 风格的 schema：type 枚举为 STRING/NUMBER/INTEGER/BOOLEAN/OBJECT/ARRAY
     type?: string;
     format?: string;
     description?: string;
@@ -55,8 +55,6 @@ export interface GeminiSchema {
     properties?: Record<string, GeminiSchema>;
     required?: string[];
     items?: GeminiSchema;
-
-    // best-effort constraints
     [key: string]: unknown;
 }
 
@@ -82,8 +80,6 @@ export interface GeminiGenerationConfig {
     candidateCount?: number;
     stopSequences?: string[];
     thinkingConfig?: GeminiThinkingConfig;
-
-    // allow gateways to accept extra fields
     [key: string]: unknown;
 }
 
@@ -92,14 +88,12 @@ export interface GeminiGenerateContentRequest {
     systemInstruction?: string | GeminiContent;
     tools?: GeminiTool[];
     generationConfig?: GeminiGenerationConfig;
-
-    // allow gateways to accept extra fields
     [key: string]: unknown;
 }
 
 export interface GeminiUsageMetadata {
     promptTokenCount?: number;
-    // Different gateways / API versions may use either field name
+    // 不同的网关 / API 版本可能使用任一字段名
     responseTokenCount?: number;
     candidatesTokenCount?: number;
     totalTokenCount?: number;
@@ -123,7 +117,7 @@ export interface GeminiGenerateContentResponse {
     candidates?: GeminiCandidate[];
     usageMetadata?: GeminiUsageMetadata;
 
-    // some gateways embed error in-stream
+    // 某些网关在流中嵌入错误
     error?: {
         message?: string;
         code?: number | string;

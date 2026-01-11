@@ -107,6 +107,16 @@ npm install -g @qwen-code/qwen-code@latest
 
 - **支持模型**：**Qwen3-Coder-Plus**、**Qwen3-VL-Plus**
 
+### [**Gemini**](https://geminicli.com/docs/) - Gemini CLI
+
+Google 官方 Gemini API 命令行工具，支持通过 `Gemini CLI` 进行 `Login with Google` 认证（需要本地安装 Gemini CLI）。
+
+```bash
+npm install -g @google/gemini-cli@latest
+```
+
+- **支持模型**：**Gemini 2.5 Pro**、**Gemini 2.5 Flash**
+
 </details>
 
 ## ⚙️ 高级配置

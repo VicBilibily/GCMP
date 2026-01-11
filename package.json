@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.16.17",
+    "version": "0.16.18",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -56,6 +56,8 @@
         "onLanguageModelProvider:gcmp.volcengine",
         "onLanguageModelProvider:gcmp.minimax",
         "onLanguageModelProvider:gcmp.iflow",
+        "onLanguageModelProvider:gcmp.qwen",
+        "onLanguageModelProvider:gcmp.gemini",
         "onLanguageModelProvider:gcmp.moonshot",
         "onLanguageModelProvider:gcmp.deepseek",
         "onLanguageModelProvider:gcmp.streamlake",
@@ -110,6 +112,16 @@
             {
                 "command": "gcmp.iflow.configWizard",
                 "title": "心流AI 配置向导（CLI 认证）",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.gemini.setApiKey",
+                "title": "设置 Gemini API密钥（CLI 认证）",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.gemini.configWizard",
+                "title": "Gemini 配置向导（CLI 认证）",
                 "category": "GCMP"
             },
             {
@@ -429,6 +441,11 @@
                 "vendor": "gcmp.qwen",
                 "displayName": "⨮ Qwen Code CLI",
                 "managementCommand": "gcmp.qwen.configWizard"
+            },
+            {
+                "vendor": "gcmp.gemini",
+                "displayName": "⨮ Gemini CLI",
+                "managementCommand": "gcmp.gemini.configWizard"
             },
             {
                 "vendor": "gcmp.moonshot",

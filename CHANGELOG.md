@@ -2,6 +2,13 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.16.18] - 2026-01-11
+
+### 新增
+
+- **Gemini CLI**：新增 Gemini CLI 认证模式，支持通过 Gemini CLI 进行 OAuth 认证
+    - 支持使用 Gemini CLI 进行 `Login with Google` 认证（需要本地安装 Gemini CLI）
+
 ## [0.16.17] - 2026-01-11
 
 ### 完善

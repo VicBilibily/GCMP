@@ -1,0 +1,40 @@
+{
+    "displayName": "Gemini",
+    "baseUrl": "https://cloudcode-pa.googleapis.com",
+    "apiKeyTemplate": "ya29.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "customHeader": {
+        "x-goog-api-client": "gl-node/20.19.5"
+    },
+    "models": [
+        {
+            "id": "gemini-2.5-pro",
+            "name": "Gemini 2.5 Pro",
+            "tooltip": "Gemini 2.5 Pro (Gemini CLI)",
+            "maxInputTokens": 1048576,
+            "maxOutputTokens": 65536,
+            "sdkMode": "gemini-sse",
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "customHeader": {
+                "User-Agent": "GeminiCLI/0.23.0/gemini-2.5-pro (win32; x64) google-api-nodejs-client/9.15.1"
+            }
+        },
+        {
+            "id": "gemini-2.5-flash",
+            "name": "Gemini 2.5 Flash",
+            "tooltip": "Gemini 2.5 Flash (Gemini CLI)",
+            "maxInputTokens": 1048576,
+            "maxOutputTokens": 65536,
+            "sdkMode": "gemini-sse",
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "customHeader": {
+                "User-Agent": "GeminiCLI/0.23.0/gemini-2.5-flash (win32; x64) google-api-nodejs-client/9.15.1"
+            }
+        }
+    ]
+}

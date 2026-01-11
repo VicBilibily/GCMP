@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { ApiKeyManager } from '../utils/apiKeyManager';
+import { ConfigManager } from '../utils/configManager';
 import { Logger } from '../utils/logger';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import type { ModelConfig, ProviderConfig } from '../types/sharedTypes';
@@ -37,6 +41,59 @@ export class GeminiHandler {
         return v.endsWith('/') ? v.slice(0, -1) : v;
     }
 
+    private isCodeAssistBaseUrl(baseUrl: string): boolean {
+        const normalized = this.normalizeBaseUrl(baseUrl);
+        try {
+            const u = new URL(normalized);
+            return u.hostname.toLowerCase() === 'cloudcode-pa.googleapis.com';
+        } catch {
+            return normalized.toLowerCase().includes('cloudcode-pa.googleapis.com');
+        }
+    }
+
+    private buildCodeAssistEndpoint(baseUrl: string, stream: boolean): string {
+        const normalized = this.normalizeBaseUrl(baseUrl);
+        if (!normalized) {
+            return '';
+        }
+
+        // Code Assist API 使用 `v1internal:{method}`
+        const method = stream ? 'streamGenerateContent' : 'generateContent';
+
+        try {
+            const u0 = new URL(normalized);
+            // 如果已配置为完整端点，则保留它并仅规范化方法。
+            let p = (u0.pathname || '').replace(/\/+$/, '') || '/';
+            if (/:generateContent$/i.test(p) || /:streamGenerateContent$/i.test(p)) {
+                u0.pathname = p.replace(/:(streamGenerateContent|generateContent)$/i, `:${method}`);
+            } else {
+                // 如果存在 `/v1internal` 前缀则规范化，否则默认为 `/v1internal`。
+                // 重要说明：Code Assist 方法被附加为 `/v1internal:{method}`（没有额外的 '/'）。
+                const pLower = p.toLowerCase();
+                const idx = pLower.indexOf('/v1internal');
+
+                if (idx >= 0) {
+                    // 如果 baseUrl 在 /v1internal 之后意外包含额外段，则修剪它们。
+                    p = p.slice(0, idx + '/v1internal'.length);
+                } else {
+                    p = this.joinPathPrefix(p, '/v1internal');
+                }
+
+                const basePath = (p || '').replace(/\/+$/, '');
+                u0.pathname = `${basePath}:${method}`;
+            }
+
+            if (stream) {
+                u0.searchParams.set('alt', 'sse');
+            }
+            return u0.toString();
+        } catch {
+            const join = normalized.endsWith('/') ? normalized.slice(0, -1) : normalized;
+            const url = `${join}/v1internal:${method}`;
+            return stream ? `${url}${url.includes('?') ? '&' : '?'}alt=sse` : url;
+        }
+    }
+
     /**
      * 构建 Gemini `:streamGenerateContent` SSE endpoint（仅流式路径）。
      *
@@ -50,13 +107,18 @@ export class GeminiHandler {
             return '';
         }
 
+        // 特殊处理 Gemini Code Assist 端点。
+        if (this.isCodeAssistBaseUrl(normalized)) {
+            return this.buildCodeAssistEndpoint(normalized, stream);
+        }
+
         const method = stream ? 'streamGenerateContent' : 'generateContent';
 
         try {
             const u0 = new URL(normalized);
             let basePath = (u0.pathname || '').replace(/\/+$/, '') || '/';
 
-            // If configured as a full endpoint, keep it (only switch method based on stream).
+            // 如果已配置为完整端点，则保留它（仅根据流式切换方法）。
             if (/:generateContent$/i.test(basePath) || /:streamGenerateContent$/i.test(basePath)) {
                 u0.pathname = basePath.replace(/:(streamGenerateContent|generateContent)$/i, `:${method}`);
                 if (stream) {
@@ -70,7 +132,7 @@ export class GeminiHandler {
                 return '';
             }
 
-            // If base already contains a version segment, don't append again.
+            // 如果基础路径已包含版本段，则不要再次附加。
             if (!/\/v1beta$/i.test(basePath) && !/\/v1beta\//i.test(`${basePath}/`)) {
                 basePath = this.joinPathPrefix(basePath, '/v1beta');
             }
@@ -81,7 +143,7 @@ export class GeminiHandler {
             }
             return u0.toString();
         } catch {
-            // Non-URL baseUrl (best-effort fallback)
+            // 非 URL baseUrl（尽力而为的回退）
             const modelPath = this.normalizeGeminiModelPath(modelId);
             if (!modelPath) {
                 return '';
@@ -104,19 +166,19 @@ export class GeminiHandler {
     private normalizeGeminiModelPath(modelId: string): string {
         const raw = (modelId || '').trim();
         if (!raw) {
-            return 'models/gemini-2.0-flash';
+            return 'models/gemini-2.5-flash';
         }
 
         if (raw.includes('..') || raw.includes('?') || raw.includes('&') || raw.includes('#')) {
             return '';
         }
 
-        // Accept user-provided "models/..." or "tunedModels/..."
+        // 接受用户提供的 "models/..." 或 "tunedModels/..."
         if (/^(models|tunedModels)\//i.test(raw)) {
             return raw;
         }
 
-        // If user accidentally passes a full path like "/v1beta/models/xxx", try to recover the tail.
+        // 如果用户意外传递了完整路径如 "/v1beta/models/xxx"，尝试恢复尾部。
         const m = raw.match(/\b(models|tunedModels)\/[A-Za-z0-9._-]+/i);
         if (m && typeof m[0] === 'string' && m[0]) {
             return m[0];
@@ -125,8 +187,67 @@ export class GeminiHandler {
         return `models/${raw}`;
     }
 
-    private isRecord(value: unknown): value is Record<string, unknown> {
-        return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+    private parseDotEnv(text: string): Record<string, string> {
+        const out: Record<string, string> = {};
+        const lines = (text || '').split(/\r?\n/);
+        for (const rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line || line.startsWith('#')) {
+                continue;
+            }
+            const eq = line.indexOf('=');
+            if (eq <= 0) {
+                continue;
+            }
+            const key = line.slice(0, eq).trim();
+            let value = line.slice(eq + 1).trim();
+            if (!key) {
+                continue;
+            }
+            // 去除引号
+            if (value.startsWith('"') && value.endsWith('"')) {
+                value = value.slice(1, -1);
+            }
+            out[key] = value;
+        }
+        return out;
+    }
+
+    private async discoverProjectId(modelConfig: ModelConfig): Promise<string | undefined> {
+        // 1) 显式配置
+        const fromExtra = modelConfig?.extraBody?.project;
+        if (typeof fromExtra === 'string' && fromExtra.trim()) {
+            return fromExtra.trim();
+        }
+
+        // 2) 环境变量
+        const envCandidates = [
+            process.env.GOOGLE_CLOUD_PROJECT,
+            process.env.CLOUDSDK_CORE_PROJECT,
+            process.env.GCLOUD_PROJECT
+        ];
+        for (const c of envCandidates) {
+            if (typeof c === 'string' && c.trim()) {
+                return c.trim();
+            }
+        }
+
+        // 3) ~/.gemini/.env 文件
+        try {
+            const envPath = path.join(os.homedir(), '.gemini', '.env');
+            if (!fs.existsSync(envPath)) {
+                return undefined;
+            }
+            const text = await fs.promises.readFile(envPath, 'utf-8');
+            const parsed = this.parseDotEnv(text);
+            const v = parsed.GOOGLE_CLOUD_PROJECT || parsed.CLOUDSDK_CORE_PROJECT || parsed.GCLOUD_PROJECT;
+            if (typeof v === 'string' && v.trim()) {
+                return v.trim();
+            }
+        } catch (err) {
+            Logger.trace('[Gemini] 读取 ~/.gemini/.env 失败:', err);
+        }
+        return undefined;
     }
 
     private async getApiKey(modelConfig?: ModelConfig): Promise<string> {
@@ -149,8 +270,8 @@ export class GeminiHandler {
     ): Promise<void> {
         const apiKey = await this.getApiKey(modelConfig);
 
-        // Gemini HTTP 模式强制要求在 modelInfo 指定 baseUrl（第三方网关入口）。
-        const baseUrl = modelConfig.baseUrl;
+        // Gemini HTTP 模式要求存在 baseUrl：优先使用模型级别 baseUrl，缺省回退到提供商级别 baseUrl。
+        const baseUrl = modelConfig.baseUrl || this.providerConfig?.baseUrl;
 
         // 合并提供商级别 & 模型级别 customHeader，并用 ${APIKEY} 替换
         const mergedCustomHeader = {
@@ -173,26 +294,36 @@ export class GeminiHandler {
             throw new Error('Gemini 模式需要在 modelInfo 中指定 baseUrl');
         }
 
-        // 允许用户通过 extraBody 注入 Gemini 的请求体字段（与 OpenAI/Anthropic 的 extraBody 一致扩展点）
-        const extraBody = this.isRecord(modelConfig.extraBody) ? modelConfig.extraBody : undefined;
-
         const generationConfig: GeminiGenerationConfig = {
-            maxOutputTokens: model.maxOutputTokens
+            maxOutputTokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
+            temperature: ConfigManager.getTemperature()
         };
         if (modelConfig.outputThinking === true) {
             generationConfig.thinkingConfig = { includeThoughts: true };
         }
 
-        // 用途：组装 Gemini 的请求体（contents / systemInstruction / tools / generationConfig）。
-        const requestBody: GeminiGenerateContentRequest = {
+        // 用途：组装请求体（Gemini v1beta / Code Assist v1internal 都复用 contents + generationConfig）。
+        const baseRequest: GeminiGenerateContentRequest = {
             contents,
             ...(systemInstruction ? { systemInstruction: { role: 'user', parts: [{ text: systemInstruction }] } } : {}),
             ...(tools.length > 0 ? { tools } : {}),
             generationConfig
         };
 
-        if (extraBody) {
-            for (const [k, v] of Object.entries(extraBody)) {
+        // Code Assist 期望包装格式：{ model, project, request: { ... } }
+        // 保持 Gemini v1beta 为直接请求体。
+        let requestBody: unknown = baseRequest;
+        if (this.isCodeAssistBaseUrl(normalizedBaseUrl)) {
+            const projectId = await this.discoverProjectId(modelConfig);
+            requestBody = {
+                model: modelId,
+                ...(projectId ? { project: projectId } : {}),
+                request: baseRequest
+            };
+        }
+
+        if (modelConfig.extraBody) {
+            for (const [k, v] of Object.entries(modelConfig.extraBody)) {
                 if (v !== undefined) {
                     (requestBody as Record<string, unknown>)[k] = v;
                 }
@@ -220,7 +351,7 @@ export class GeminiHandler {
                 endpoint,
                 apiKey,
                 processedHeaders,
-                requestBody,
+                requestBody as GeminiGenerateContentRequest,
                 progress,
                 token,
                 v => {
@@ -290,28 +421,16 @@ export class GeminiHandler {
         const abortController = new AbortController();
         const cancelSub = token.onCancellationRequested(() => abortController.abort());
 
-        // 默认使用扩展内置存储的 apiKey 注入鉴权头（允许 customHeader 覆盖鉴权头）：
-        // - 兼容第三方网关：Authorization / X-API-Key / API-Key
-        // - 兼容部分 Gemini 网关：X-Goog-Api-Key
-        const defaultAuthHeaders: Record<string, string> = {
-            Authorization: `Bearer ${apiKey}`,
-            'X-API-Key': apiKey,
-            'API-Key': apiKey,
-            'X-Goog-Api-Key': apiKey
-        };
-
-        const finalHeaders: Record<string, string> = {
-            'Content-Type': 'application/json',
-            ...defaultAuthHeaders,
-            ...headers
-        };
-
         const requestUrl = url;
 
         // 用途：执行 fetch（POST JSON body）并挂载取消信号。
         const response = await fetch(requestUrl, {
             method: 'POST',
-            headers: finalHeaders,
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${apiKey}`,
+                ...headers
+            },
             body: JSON.stringify(requestBody),
             signal: abortController.signal
         });
@@ -365,10 +484,18 @@ export class GeminiHandler {
                 return;
             }
 
-            // 关键说明：Gemini stream 的每行 chunk 都是一个（部分字段可选的）GenerateContentResponse。
-            const event = chunk as GeminiGenerateContentResponse;
-            if (event.error?.message) {
-                throw new Error(event.error.message);
+            // 兼容 Code Assist 包装：可能是 { response: GenerateContentResponse }。
+            const wrapped = chunk as { response?: unknown; error?: { message?: string } };
+            const inner = wrapped && typeof wrapped === 'object' && wrapped.response ? wrapped.response : chunk;
+
+            const event = inner as GeminiGenerateContentResponse;
+            const errMsg =
+                (event && typeof event === 'object' && event.error && typeof event.error.message === 'string'
+                    ? event.error.message
+                    : undefined) ||
+                (wrapped?.error && typeof wrapped.error.message === 'string' ? wrapped.error.message : undefined);
+            if (errMsg) {
+                throw new Error(errMsg);
             }
 
             // 用途：把 Gemini 增量 chunk 转为 VS Code 的增量 response parts（文本/思考/tool）。

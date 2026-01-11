@@ -259,7 +259,7 @@ function mapRole(role: number): 'user' | 'assistant' | 'system' {
     }
 }
 
-/** 仅处理图片 DataPart（mimeType 以 image/ 开头）。 */
+/** 仅处理图片 DataPart（mimeType 以 image/ 开头） */
 function isImageMimeType(mimeType: string | undefined): boolean {
     if (!mimeType) {
         return false;
@@ -418,7 +418,7 @@ export function jsonSchemaToGeminiSchema(
         }
     }
 
-    // map type
+    // 映射类型
     const rawType = typeof input.type === 'string' ? input.type : '';
     if (rawType && rawType !== 'null') {
         const mapped = mapJsonSchemaType(rawType);
@@ -455,12 +455,12 @@ export function jsonSchemaToGeminiSchema(
         out.required = Array.from(new Set((input.required as unknown[]).filter(v => typeof v === 'string')));
     }
 
-    // Gemini Schema: if properties exist without explicit type, treat as OBJECT
+    // Gemini Schema：如果存在 properties 但没有显式 type，则视为 OBJECT
     if (!out.type && out.properties && typeof out.properties === 'object') {
         out.type = 'OBJECT';
     }
 
-    // Copy simple constraints best-effort
+    // 尽可能复制简单约束
     for (const [k, v] of Object.entries(input)) {
         if (v == null) {
             continue;
@@ -495,7 +495,7 @@ export function jsonSchemaToGeminiSchema(
     return out;
 }
 
-/** 将 JSON Schema type 映射到 Gemini Schema type（大写枚举）。 */
+/** 将 JSON Schema type 映射到 Gemini Schema type（大写枚举） */
 function mapJsonSchemaType(type: string): string | undefined {
     const t = (type || '').toLowerCase();
     switch (t) {

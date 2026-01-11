@@ -17,6 +17,7 @@ import { ApiKeyManager, ConfigManager, Logger, ModelInfoCache, TokenCounter, Pro
 import { OpenAIHandler } from '../handlers/openaiHandler';
 import { OpenAICustomHandler } from '../handlers/openaiCustomHandler';
 import { AnthropicHandler } from '../handlers/anthropicHandler';
+import { GeminiHandler } from '../handlers/geminiHandler';
 import { ContextUsageStatusBar } from '../status/contextUsageStatusBar';
 import { TokenUsagesManager } from '../usages/usagesManager';
 
@@ -28,6 +29,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     protected readonly openaiHandler: OpenAIHandler;
     protected readonly openaiCustomHandler: OpenAICustomHandler;
     protected readonly anthropicHandler: AnthropicHandler;
+    protected readonly geminiHandler: GeminiHandler;
     protected readonly providerKey: string;
     protected baseProviderConfig: ProviderConfig; // protected 以支持子类访问
     protected cachedProviderConfig: ProviderConfig; // 缓存的配置
@@ -79,6 +81,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         this.openaiCustomHandler = new OpenAICustomHandler(providerKey, providerConfig, this.openaiHandler);
         // 创建 Anthropic SDK 处理器
         this.anthropicHandler = new AnthropicHandler(providerKey, providerConfig);
+        // 创建 Gemini HTTP SSE 处理器
+        this.geminiHandler = new GeminiHandler(providerKey, providerConfig);
     }
 
     /**
@@ -332,6 +336,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             sdkName = 'Anthropic SDK';
         } else if (sdkMode === 'openai-sse') {
             sdkName = 'OpenAI SSE';
+        } else if (sdkMode === 'gemini-sse') {
+            sdkName = 'Gemini SSE';
         }
         Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
 
@@ -349,6 +355,16 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             } else if (sdkMode === 'openai-sse') {
                 // OpenAI SSE 模式：使用自定义 SSE 流处理
                 await this.openaiCustomHandler.handleRequest(
+                    model,
+                    modelConfig,
+                    messages,
+                    options,
+                    progress,
+                    token,
+                    requestId
+                );
+            } else if (sdkMode === 'gemini-sse') {
+                await this.geminiHandler.handleRequest(
                     model,
                     modelConfig,
                     messages,
