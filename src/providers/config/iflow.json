@@ -40,17 +40,6 @@
             }
         },
         {
-            "id": "deepseek-v3.2-chat",
-            "name": "DeepSeek-V3.2 (iFlow)",
-            "tooltip": "DeepSeek-V3.2 (iFlow)",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
             "id": "iFlow-ROME-30BA3B",
             "name": "iFlow-ROME-30BA3B (Preview)",
             "tooltip": "iFlow-ROME-30BA3B (Preview)",

@@ -91,7 +91,7 @@ npm install -g @iflow-ai/iflow-cli@latest
 ```
 
 - **智谱AI系列**：**GLM-4.7**(Thinking)
-- **DeepSeek系列**：**DeepSeek-V3.2**、**DeepSeek-V3.2-Reasoner**
+- **DeepSeek系列**：**DeepSeek-V3.2-Reasoner**
 - **通义千问系列**：**Qwen3-Coder-Plus**
 - **Kimi系列**：**Kimi-K2-Thinking**、**Kimi-K2-0905**
 - **MiniMax系列**：**MiniMax-2.1**
