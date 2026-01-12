@@ -30,7 +30,15 @@ export class CliModelProvider extends GenericModelProvider {
         token: vscode.CancellationToken
     ): Promise<vscode.LanguageModelChatInformation[]> {
         // 检查是否有有效的 API 密钥
-        const hasApiKey = await ApiKeyManager.ensureApiKey(this.providerKey, this.providerConfig.displayName, false);
+        let hasApiKey: boolean;
+        if (options.silent) {
+            hasApiKey = await Promise.race([
+                ApiKeyManager.ensureApiKey(this.providerKey, this.providerConfig.displayName, false),
+                new Promise<boolean>(resolve => setTimeout(() => resolve(false), 500)) // 500ms timeout
+            ]);
+        } else {
+            hasApiKey = await ApiKeyManager.ensureApiKey(this.providerKey, this.providerConfig.displayName, false);
+        }
         if (!hasApiKey) {
             // 如果是静默模式（如扩展启动时），不触发用户交互，直接返回空列表
             if (options.silent) {

@@ -8,6 +8,12 @@ import { Logger } from '../utils/logger';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { CliAuthFactory } from './auth/cliAuthFactory';
 
+interface CliCredentialStatus {
+    hasCredentials: boolean;
+    expiresAt?: number;
+    isExpired?: boolean;
+}
+
 export class CliWizard {
     /**
      * 启动 CLI 配置向导
@@ -16,15 +22,15 @@ export class CliWizard {
      */
     static async startWizard(provider: string, displayName: string): Promise<void> {
         try {
-            // 检查 CLI 是否已登录
-            const isLoggedIn = await this.checkCliLoggedIn(provider);
+            // 检查 CLI 凭证状态（是否存在、是否过期）
+            const credentialStatus = await this.getCredentialStatus(provider);
             // 获取 CLI 显示名称
             const cliName = this.getCliName(provider);
             const choice = await vscode.window.showQuickPick(
                 [
                     {
                         label: '$(sign-in) 登录 CLI',
-                        description: isLoggedIn ? '已登录' : '未登录',
+                        description: this.formatCredentialStatus(credentialStatus),
                         detail: `通过 ${cliName} 进行 OAuth 认证登录`,
                         action: 'login'
                     },
@@ -59,11 +65,30 @@ export class CliWizard {
     }
 
     /**
-     * 检查 CLI 是否已登录
+     * 获取 CLI 凭证状态（是否存在、是否过期）
      */
-    private static async checkCliLoggedIn(providerKey: string): Promise<boolean> {
+    private static async getCredentialStatus(providerKey: string): Promise<CliCredentialStatus> {
         const credentials = await CliAuthFactory.loadCredentials(providerKey);
-        return credentials !== null;
+        if (!credentials) {
+            return { hasCredentials: false };
+        }
+
+        const expiresAt = credentials.expiry_date;
+        if (!expiresAt || Number.isNaN(expiresAt)) {
+            return { hasCredentials: true };
+        }
+
+        return { hasCredentials: true, expiresAt, isExpired: expiresAt <= Date.now() };
+    }
+
+    private static formatCredentialStatus(status: CliCredentialStatus): string {
+        if (!status.hasCredentials) {
+            return '未登录';
+        }
+        if (status.expiresAt === undefined) {
+            return '已登录（有效期未知）';
+        }
+        return status.isExpired ? '已登录（已过期）' : '已登录';
     }
 
     /**
@@ -79,8 +104,9 @@ export class CliWizard {
      * 处理登录流程
      */
     private static async handleLogin(providerKey: string, displayName: string, cliCommand: string): Promise<void> {
-        const isLoggedIn = await this.checkCliLoggedIn(providerKey);
-        if (isLoggedIn) {
+        const status = await this.getCredentialStatus(providerKey);
+        // 凭证已过期：无需二次确认，直接进入下一步提示
+        if (status.hasCredentials && !status.isExpired) {
             const result = await vscode.window.showInformationMessage(
                 `✅ ${displayName} 已登录\n是否要重新登录？`,
                 '重新登录',
@@ -98,7 +124,7 @@ export class CliWizard {
             return;
         }
 
-        const tipInfo = isLoggedIn
+        const tipInfo = status.hasCredentials
             ? '在终端对话输入 /auth 后，选择 OAuth 认证重新登陆。'
             : '首次运行选择 OAuth 认证，然后完成浏览器中的登录流程。';
         // 提示用户在终端中运行 CLI 命令

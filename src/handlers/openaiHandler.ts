@@ -546,13 +546,9 @@ export class OpenAIHandler {
                             throw new vscode.CancellationError();
                         }
                         // 输出 trace 日志：记录增量长度和片段预览，便于排查偶发没有完整chunk的问题
-                        try {
-                            Logger.trace(
-                                `${model.name} 收到 content 增量: ${delta ? delta.length : 0} 字符, preview=${delta}`
-                            );
-                        } catch {
-                            // 日志不应中断流处理
-                        }
+                        // Logger.trace(
+                        //     `${model.name} 收到 content 增量: ${delta ? delta.length : 0} 字符, preview=${delta}`
+                        // );
                         // 判断 delta 是否包含可见字符（去除所有空白、不可见空格后长度 > 0）
                         const deltaVisible =
                             typeof delta === 'string' && delta.replace(/[\s\uFEFF\xA0]+/g, '').length > 0;
@@ -773,9 +769,9 @@ export class OpenAIHandler {
                                     const shouldOutputThinking = modelConfig.outputThinking !== false; // 默认 true
                                     if (shouldOutputThinking) {
                                         try {
-                                            Logger.trace(
-                                                `接收到思考内容 (choice ${choiceIndex}): ${reasoningContent.length}字符, 内容="${reasoningContent}"`
-                                            );
+                                            // Logger.trace(
+                                            //     `接收到思考内容 (choice ${choiceIndex}): ${reasoningContent.length}字符, 内容="${reasoningContent}"`
+                                            // );
 
                                             // 如果当前没有 active id，则生成一个用于本次思维链
                                             if (!currentThinkingId) {
@@ -1089,30 +1085,30 @@ export class OpenAIHandler {
                         imageParts.push(part);
                         Logger.debug(`✅ 添加图像: MIME=${part.mimeType}, 大小=${part.data.length}字节`);
                     } else {
-                        // 分类处理不同类型的数据
-                        if (part.mimeType === 'cache_control') {
-                            Logger.trace('⚠️ 忽略Claude缓存标识: cache_control');
-                        } else if (part.mimeType.startsWith('image/')) {
-                            Logger.warn(`❌ 不支持的图像MIME类型: ${part.mimeType}`);
-                        } else {
-                            Logger.trace(`📄 跳过非图像数据: ${part.mimeType}`);
-                        }
+                        // // 分类处理不同类型的数据
+                        // if (part.mimeType === 'cache_control') {
+                        //     Logger.trace('⚠️ 忽略Claude缓存标识: cache_control');
+                        // } else if (part.mimeType.startsWith('image/')) {
+                        //     Logger.warn(`❌ 不支持的图像MIME类型: ${part.mimeType}`);
+                        // } else {
+                        //     Logger.trace(`📄 跳过非图像数据: ${part.mimeType}`);
+                        // }
                     }
                 } else {
-                    Logger.trace(`📝 非数据部分: ${part.constructor.name}`);
+                    // Logger.trace(`📝 非数据部分: ${part.constructor.name}`);
                 }
             }
-            // 特别提示：如果没有找到图像但有非cache_control的数据部分
-            const allDataParts = message.content.filter(part => part instanceof vscode.LanguageModelDataPart);
-            const nonCacheDataParts = allDataParts.filter(part => {
-                const dataPart = part as vscode.LanguageModelDataPart;
-                return dataPart.mimeType !== 'cache_control';
-            });
-            if (nonCacheDataParts.length > 0 && imageParts.length === 0) {
-                Logger.warn(
-                    `⚠️ 发现 ${nonCacheDataParts.length} 个非cache_control数据部分但没有有效图像，请检查图像附件格式`
-                );
-            }
+            // // 特别提示：如果没有找到图像但有非cache_control的数据部分
+            // const allDataParts = message.content.filter(part => part instanceof vscode.LanguageModelDataPart);
+            // const nonCacheDataParts = allDataParts.filter(part => {
+            //     const dataPart = part as vscode.LanguageModelDataPart;
+            //     return dataPart.mimeType !== 'cache_control';
+            // });
+            // if (nonCacheDataParts.length > 0 && imageParts.length === 0) {
+            //     Logger.warn(
+            //         `⚠️ 发现 ${nonCacheDataParts.length} 个非cache_control数据部分但没有有效图像，请检查图像附件格式`
+            //     );
+            // }
         }
         // 如果没有文本和图片内容，返回 null
         if (textParts.length === 0 && imageParts.length === 0) {

@@ -261,9 +261,9 @@ export class OpenAICustomHandler {
 
                                 // 处理思考内容（reasoning_content）- 使用缓冲累积策略
                                 if (delta && delta.reasoning_content && typeof delta.reasoning_content === 'string') {
-                                    Logger.trace(
-                                        `[${model.name}] 接收到思考内容: ${delta.reasoning_content.length} 字符, 内容="${delta.reasoning_content}"`
-                                    );
+                                    // Logger.trace(
+                                    //     `[${model.name}] 接收到思考内容: ${delta.reasoning_content.length} 字符, 内容="${delta.reasoning_content}"`
+                                    // );
                                     // 如果当前没有 active id，则生成一个用于本次思维链
                                     if (!currentThinkingId) {
                                         currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -296,9 +296,9 @@ export class OpenAICustomHandler {
 
                                 // 处理文本内容（即使 delta 存在但可能为空对象）
                                 if (delta && delta.content && typeof delta.content === 'string') {
-                                    Logger.trace(
-                                        `[${model.name}] 输出文本内容: ${delta.content.length} 字符, preview=${delta.content}`
-                                    );
+                                    // Logger.trace(
+                                    //     `[${model.name}] 输出文本内容: ${delta.content.length} 字符, preview=${delta.content}`
+                                    // );
                                     // 遇到可见 content 前，如果有缓存的思考内容，先报告出来
                                     if (thinkingContentBuffer.length > 0 && currentThinkingId) {
                                         try {
@@ -399,18 +399,18 @@ export class OpenAICustomHandler {
                                                     bufferedTool.arguments.length
                                                 );
                                                 bufferedTool.arguments += incrementalArgs;
-                                                Logger.trace(
-                                                    `[${model.name}] 检测到部分重复，提取增量部分 [${toolIndex}]: "${incrementalArgs}"`
-                                                );
+                                                // Logger.trace(
+                                                //     `[${model.name}] 检测到部分重复，提取增量部分 [${toolIndex}]: "${incrementalArgs}"`
+                                                // );
                                             } else {
                                                 // 正常累积
                                                 bufferedTool.arguments += newArgs;
                                             }
                                         }
 
-                                        Logger.trace(
-                                            `[${model.name}] 累积工具调用数据 [${toolIndex}]: name=${bufferedTool.name}, args_length=${bufferedTool.arguments.length}`
-                                        );
+                                        // Logger.trace(
+                                        //     `[${model.name}] 累积工具调用数据 [${toolIndex}]: name=${bufferedTool.name}, args_length=${bufferedTool.arguments.length}`
+                                        // );
                                     }
                                 }
 

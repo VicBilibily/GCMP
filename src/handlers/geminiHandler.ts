@@ -485,7 +485,7 @@ export class GeminiHandler {
         // 用途：非 2xx 直接提取可读错误信息并抛出。
         if (!response.ok) {
             const text = await response.text();
-            const message = this.extractErrorMessage(text, response.status, response.statusText);
+            const message = this.extractErrorMessage(text || '', response.status, response.statusText);
             throw new Error(message);
         }
 
@@ -687,16 +687,25 @@ export class GeminiHandler {
     private extractErrorMessage(bodyText: string, status: number, statusText: string): string {
         let msg = `API请求失败: ${status} ${statusText}`;
         const parsed = this.safeJsonParse(bodyText);
+        let isExtracted = false;
         if (parsed && typeof parsed === 'object' && 'error' in parsed) {
             const err = (parsed as { error?: unknown }).error;
             if (err && typeof err === 'object' && 'message' in err) {
                 const m = (err as { message?: unknown }).message;
                 if (typeof m === 'string' && m.trim()) {
                     msg = m;
+                    isExtracted = true;
                 }
             }
         }
-        if (!parsed && bodyText.trim()) {
+        if (parsed && typeof parsed === 'object' && 'detail' in parsed && !isExtracted) {
+            const detail = (parsed as { detail?: unknown }).detail;
+            if (typeof detail === 'string' && detail.trim()) {
+                msg = detail;
+                isExtracted = true;
+            }
+        }
+        if (!isExtracted && bodyText.trim()) {
             msg = `${msg} - ${bodyText}`;
         }
         return msg;

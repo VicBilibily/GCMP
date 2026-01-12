@@ -182,7 +182,7 @@ export class IFlowCliAuth extends BaseCliAuth {
             Logger.info('[iFlow] 令牌刷新成功');
             return newCredentials;
         } else {
-            throw new Error(responseData?.toString() || 'iFlow OAuth 刷新响应缺少 access_token 或 expires_in');
+            throw new Error(JSON.stringify(responseData) || 'iFlow OAuth 刷新响应缺少 access_token 或 expires_in');
         }
     }
 
