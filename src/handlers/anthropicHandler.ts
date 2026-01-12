@@ -198,7 +198,7 @@ export class AnthropicHandler {
         stream: AsyncIterable<Anthropic.Messages.MessageStreamEvent>,
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
         token: vscode.CancellationToken,
-        modelConfig?: ModelConfig
+        _modelConfig?: ModelConfig
     ): Promise<{
         usage?: Anthropic.Messages.Usage;
     }> {
@@ -391,32 +391,26 @@ export class AnthropicHandler {
                                 // 累积到 pendingThinking
                                 pendingThinking.thinking = (pendingThinking.thinking || '') + thinkingDelta;
 
-                                // 检查模型配置中的 outputThinking 设置
-                                const shouldOutputThinking = modelConfig?.outputThinking !== false; // 默认 true
-                                if (shouldOutputThinking) {
-                                    // 用 pendingThinking 的内容作为缓冲进行报告
-                                    const currentThinkingContent = pendingThinking.thinking || '';
+                                // 用 pendingThinking 的内容作为缓冲进行报告
+                                const currentThinkingContent = pendingThinking.thinking || '';
 
-                                    // 当内容达到最大长度时报告
-                                    if (currentThinkingContent.length >= MAX_THINKING_BUFFER_LENGTH) {
-                                        if (!currentThinkingId) {
-                                            currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                                        }
-                                        try {
-                                            progress.report(
-                                                new vscode.LanguageModelThinkingPart(
-                                                    currentThinkingContent,
-                                                    currentThinkingId
-                                                )
-                                            );
-                                            // 清空 pendingThinking 的内容，避免重复报告
-                                            pendingThinking.thinking = '';
-                                        } catch (e) {
-                                            Logger.trace(`报告思考内容失败: ${String(e)}`);
-                                        }
+                                // 当内容达到最大长度时报告
+                                if (currentThinkingContent.length >= MAX_THINKING_BUFFER_LENGTH) {
+                                    if (!currentThinkingId) {
+                                        currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
                                     }
-                                } else {
-                                    Logger.trace('⏭️ 跳过思考内容输出：配置为不输出thinking');
+                                    try {
+                                        progress.report(
+                                            new vscode.LanguageModelThinkingPart(
+                                                currentThinkingContent,
+                                                currentThinkingId
+                                            )
+                                        );
+                                        // 清空 pendingThinking 的内容，避免重复报告
+                                        pendingThinking.thinking = '';
+                                    } catch (e) {
+                                        Logger.trace(`报告思考内容失败: ${String(e)}`);
+                                    }
                                 }
                             }
                         } else if (chunk.delta.type === 'signature_delta') {

@@ -53,13 +53,6 @@ export interface ModelConfig {
      */
     extraBody?: Record<string, unknown>;
     /**
-     * 是否启用输出思考过程（可选）
-     * 默认值为 true，开启 thinking 内容输出（高级功能）
-     * 当设置为 false 时，handler 不回报 thinking 内容
-     * 注意：此功能默认启用，无需用户手动配置
-     */
-    outputThinking?: boolean;
-    /**
      * 多轮对话消息是否必须包含思考内容（可选）
      * 默认值为 false，表示思考内容为可选传递给模型
      * 当模型要求工具消息必须包含思考内容时需设置为 true

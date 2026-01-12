@@ -247,11 +247,6 @@ export class JsonSchemaProvider {
                                 description: '最大输出token数量',
                                 minimum: 8
                             },
-                            outputThinking: {
-                                type: 'boolean',
-                                description: '是否启用输出思考过程（如有支持）',
-                                default: true
-                            },
                             includeThinking: {
                                 type: 'boolean',
                                 description:
@@ -398,11 +393,6 @@ export class JsonSchemaProvider {
                                 type: 'string',
                                 description: '覆盖模型级别的API基础URL',
                                 format: 'uri'
-                            },
-                            outputThinking: {
-                                type: 'boolean',
-                                description: '是否启用输出思考过程（高级功能，默认true）',
-                                default: true
                             },
                             includeThinking: {
                                 type: 'boolean',

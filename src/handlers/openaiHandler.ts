@@ -765,44 +765,32 @@ export class OpenAIHandler {
                                 // 兼容：优先使用 delta 中的 reasoning_content，否则尝试从 message 中读取
                                 const reasoningContent = delta?.reasoning_content ?? message?.reasoning_content;
                                 if (reasoningContent) {
-                                    // 检查模型配置中的 outputThinking 设置
-                                    const shouldOutputThinking = modelConfig.outputThinking !== false; // 默认 true
-                                    if (shouldOutputThinking) {
-                                        try {
-                                            // Logger.trace(
-                                            //     `接收到思考内容 (choice ${choiceIndex}): ${reasoningContent.length}字符, 内容="${reasoningContent}"`
-                                            // );
-
-                                            // 如果当前没有 active id，则生成一个用于本次思维链
-                                            if (!currentThinkingId) {
-                                                currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                                            }
-
-                                            // 将思考内容添加到缓存
-                                            thinkingContentBuffer += reasoningContent;
-
-                                            // 检查是否达到报告条件
-                                            if (thinkingContentBuffer.length >= MAX_THINKING_BUFFER_LENGTH) {
-                                                // 达到最大长度，立即报告
-                                                progress.report(
-                                                    new vscode.LanguageModelThinkingPart(
-                                                        thinkingContentBuffer,
-                                                        currentThinkingId
-                                                    )
-                                                );
-                                                thinkingContentBuffer = ''; // 清空缓存
-                                            }
-
-                                            // 标记已接收 thinking 内容
-                                            hasThinkingContent = true;
-                                        } catch (e) {
-                                            Logger.trace(
-                                                `${model.name} report 思维链失败 (choice ${choiceIndex}): ${String(e)}`
-                                            );
+                                    try {
+                                        // 如果当前没有 active id，则生成一个用于本次思维链
+                                        if (!currentThinkingId) {
+                                            currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
                                         }
-                                    } else {
+
+                                        // 将思考内容添加到缓存
+                                        thinkingContentBuffer += reasoningContent;
+
+                                        // 检查是否达到报告条件
+                                        if (thinkingContentBuffer.length >= MAX_THINKING_BUFFER_LENGTH) {
+                                            // 达到最大长度，立即报告
+                                            progress.report(
+                                                new vscode.LanguageModelThinkingPart(
+                                                    thinkingContentBuffer,
+                                                    currentThinkingId
+                                                )
+                                            );
+                                            thinkingContentBuffer = ''; // 清空缓存
+                                        }
+
+                                        // 标记已接收 thinking 内容
+                                        hasThinkingContent = true;
+                                    } catch (e) {
                                         Logger.trace(
-                                            `⏭️ 跳过思考内容输出 (choice ${choiceIndex}): 配置为不输出thinking`
+                                            `${model.name} report 思维链失败 (choice ${choiceIndex}): ${String(e)}`
                                         );
                                     }
                                 }

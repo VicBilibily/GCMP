@@ -134,7 +134,6 @@ export class ModelEditor {
             maxOutputTokens: model?.maxOutputTokens || 4096,
             toolCalling: model?.capabilities?.toolCalling || false,
             imageInput: model?.capabilities?.imageInput || false,
-            outputThinking: model?.outputThinking !== false,
             includeThinking: model?.includeThinking || false,
             useInstructions: model?.useInstructions,
             customHeader: model?.customHeader ? JSON.stringify(model.customHeader, null, 2) : '',

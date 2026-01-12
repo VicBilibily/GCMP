@@ -68,7 +68,7 @@ export function convertMessagesToGemini(
             if (p instanceof vscode.LanguageModelTextPart) {
                 parts.push(p.value);
             } else if (p instanceof vscode.LanguageModelThinkingPart && modelConfig.includeThinking === true) {
-                // 关键说明：includeThinking 控制“把 thinking 当作输入上下文”注入提示词（与 outputThinking 输出不同）。
+                // 关键说明：includeThinking 控制“把 thinking 当作输入上下文”注入提示词。
                 const v = Array.isArray(p.value) ? p.value.join('') : p.value;
                 if (v) {
                     parts.push(v);

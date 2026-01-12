@@ -31,7 +31,6 @@ const vscode = acquireVsCodeApi();
  * @property {number} maxInputTokens - 最大输入Token
  * @property {number} maxOutputTokens - 最大输出Token
  * @property {ModelCapabilities} capabilities - 能力配置
- * @property {boolean} outputThinking - 是否启用输出思考过程
  * @property {boolean} includeThinking - 多轮对话是否必须包含思考内容
  * @property {boolean} useInstructions - 是否使用 instructions 参数（仅 openai-responses 有效）
  * @property {Object} [customHeader] - 自定义HTTP头部（可选）
@@ -150,13 +149,6 @@ function createDOM() {
 
     // 创建高级设置部分
     const advSection = createSection('高级设置', [
-        createCheckboxFormGroup(
-            'outputThinking',
-            '启用输出思考过程',
-            'outputThinking',
-            modelData.outputThinking,
-            '如果支持,模型将在响应中包含思考过程。默认启用。'
-        ),
         createCheckboxFormGroup(
             'includeThinking',
             '多轮对话必须包含思考内容',
@@ -1096,7 +1088,6 @@ function saveModel() {
             toolCalling: document.getElementById('toolCalling').checked,
             imageInput: document.getElementById('imageInput').checked
         },
-        outputThinking: document.getElementById('outputThinking').checked,
         includeThinking: document.getElementById('includeThinking').checked,
         useInstructions: document.getElementById('useInstructions')?.checked || false
     };

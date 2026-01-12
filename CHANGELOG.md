@@ -2,6 +2,13 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.16.23] - 2026-01-12
+
+### 调整
+
+- **Thinking输出**：`outputThinking` 参数全量移除，扩展默认始终输出思考内容（若模型/网关返回 thinking）。
+- **兼容模型配置**：移除 JSON Schema 与可视化模型编辑器中的 `outputThinking` 选项，历史配置将被忽略。
+
 ## [0.16.22] - 2026-01-12
 
 ### 完善
@@ -51,7 +58,7 @@
     - 支持自定义 `baseUrl`，适配不同网关的端点结构（前缀/版本/完整端点）
     - 支持自定义鉴权头（`Authorization`/`X-API-Key`/`API-Key`/`X-Goog-Api-Key`）
     - 支持流式输出（SSE `data:` 和纯 JSON 行），兼容标准 SSE 与类 SSE 实现
-    - 支持思维链输出（`thoughtSignature` + `thinking` parts），受 `outputThinking` 配置控制
+    - 支持思维链输出（`thoughtSignature` + `thinking` parts）
     - 支持工具调用（`functionCall`/`functionResponse`），自动对齐 tool response 顺序
     - 支持多模态输入（图片 `inlineData` base64 编码）
     - 支持系统消息（`systemInstruction`）与 `includeThinking`（thinking 作为输入上下文）
@@ -91,7 +98,6 @@
       "extraBody": {
         "caching": { "type": "enabled" }
       },
-      "outputThinking": true,
       "useInstructions": false
     }
   ]

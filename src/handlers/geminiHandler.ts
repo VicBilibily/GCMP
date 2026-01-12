@@ -343,9 +343,7 @@ export class GeminiHandler {
             maxOutputTokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
             temperature: ConfigManager.getTemperature()
         };
-        if (modelConfig.outputThinking === true) {
-            generationConfig.thinkingConfig = { includeThoughts: true };
-        }
+        generationConfig.thinkingConfig = { includeThoughts: true };
 
         // extraBody：不再合并到 request body 顶层，而是合并到 generationConfig。
         // 合并策略：若 value 是对象，则做对象合并覆盖（而不是直接替换对象）。
@@ -450,7 +448,7 @@ export class GeminiHandler {
      *
      * 输出内容包含：
      * - 文本：LanguageModelTextPart
-     * - thinking：LanguageModelThinkingPart（受 outputThinking 控制）
+     * - thinking：LanguageModelThinkingPart
      * - 工具调用：LanguageModelToolCallPart
      * - usage：原样透传 usageMetadata 供后续统计解析
      */
@@ -623,11 +621,9 @@ export class GeminiHandler {
                 pendingThinkingSignature = sig;
             }
 
-            // 解析 thinking：受 outputThinking 控制是否向 UI 输出。
+            // 解析 thinking：向 UI 输出。
             if (part.thought === true && typeof part.text === 'string' && part.text) {
-                if (modelConfigShouldOutputThinking(modelConfig, true)) {
-                    progress.report(new vscode.LanguageModelThinkingPart(part.text));
-                }
+                progress.report(new vscode.LanguageModelThinkingPart(part.text));
                 hasThinking = true;
                 continue;
             }
@@ -642,7 +638,6 @@ export class GeminiHandler {
             // 解析工具调用：生成一个 ToolCallPart（callId 由扩展生成）。
             if (part.functionCall && typeof part.functionCall.name === 'string' && part.functionCall.name) {
                 // 关键说明：如果 tool call 前有 pendingThinkingSignature，需要先 flush 一个空的 thinking part 来“关闭思考块”。
-                // 注意：即使 outputThinking=false，也需要保留 signature，否则下一轮回放 tool call 会被网关拒绝。
                 if (pendingThinkingSignature) {
                     progress.report(
                         new vscode.LanguageModelThinkingPart('', undefined, {
@@ -710,11 +705,4 @@ export class GeminiHandler {
         }
         return msg;
     }
-}
-
-function modelConfigShouldOutputThinking(modelConfig: ModelConfig, defaultValue: boolean): boolean {
-    if (modelConfig.outputThinking === false) {
-        return false;
-    }
-    return defaultValue;
 }

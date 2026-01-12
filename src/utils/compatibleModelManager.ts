@@ -58,8 +58,6 @@ export interface CompatibleModelConfig {
     customHeader?: Record<string, string>;
     /** 额外的请求体参数（可选） */
     extraBody?: Record<string, unknown>;
-    /** 是否启用输出思考过程（默认true） */
-    outputThinking?: boolean;
     /** 多轮对话消息是否必须包含思考内容（默认false）*/
     includeThinking?: boolean;
     /**
@@ -628,8 +626,7 @@ export class CompatibleModelManager {
             capabilities: {
                 toolCalling: true,
                 imageInput: false
-            },
-            outputThinking: true // 默认启用
+            }
         };
 
         return this.showVisualModelEditor(defaultModel, true);
