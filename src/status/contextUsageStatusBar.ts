@@ -23,6 +23,8 @@ export interface PromptPartTokens {
     historyMessages?: number;
     /** 本轮消息 token 数 (从最后一个 user text 消息开始的所有消息) */
     currentRoundMessages?: number;
+    /** 本轮图片 token 数 (仅统计本轮消息中的图片 DataPart) */
+    currentRoundImages?: number;
     /** 思考过程 token 数 (thinking 内容) */
     thinking?: number;
     /** 自动压缩部分 token 数 */
@@ -250,7 +252,13 @@ export class ContextUsageStatusBar {
                 const percent = totalTokens > 0 ? ((parts.thinking / totalTokens) * 100).toFixed(1) : '0';
                 md.appendMarkdown(`| **思考内容** | ${percent}% | ${this.formatTokens(parts.thinking)} |\n`);
             }
-            // 7. 本轮消息
+            // 7. 本轮图片附件
+            if (parts.currentRoundImages !== undefined && parts.currentRoundImages > 0) {
+                const currentRoundImages = parts.currentRoundImages;
+                const percent = totalTokens > 0 ? ((currentRoundImages / totalTokens) * 100).toFixed(1) : '0';
+                md.appendMarkdown(`| **本轮图片** | ${percent}% | ${this.formatTokens(currentRoundImages)} |\n`);
+            }
+            // 8. 本轮会话消息
             if (parts.currentRoundMessages !== undefined && parts.currentRoundMessages > 0) {
                 const currentRoundMessages = parts.currentRoundMessages;
                 const percent = totalTokens > 0 ? ((currentRoundMessages / totalTokens) * 100).toFixed(1) : '0';

@@ -38,6 +38,18 @@ export class PromptAnalyzer {
     }
 
     /**
+     * 类型守卫：检测是否是包含二进制数据的 DataPart，且为图片
+     * 结构通常为 { mimeType: string, data: Uint8Array | ArrayBuffer | BufferJson | number[] }
+     */
+    private static isImageDataPart(part: unknown): part is { mimeType: string; data: unknown } {
+        if (!part || typeof part !== 'object') {
+            return false;
+        }
+        const obj = part as Record<string, unknown>;
+        return typeof obj.mimeType === 'string' && obj.mimeType.toLowerCase().startsWith('image/') && 'data' in obj;
+    }
+
+    /**
      * 分析提示词各部分的 token 占用
      * @param providerKey 提供商标识，用于日志输出
      * @param model 语言模型信息
@@ -309,6 +321,27 @@ export class PromptAnalyzer {
                     message as unknown as string | vscode.LanguageModelChatMessage
                 );
 
+                // 本轮图片附件：如果消息 content 中包含图片 DataPart，则单独累计其 token
+                // 并且从 currentRoundMessages 中扣除（保证“本轮消息”展示为非图片部分）
+                let currentMessageImageTokens = 0;
+                if (
+                    lastUserTextMessageIndex !== -1 &&
+                    i >= lastUserTextMessageIndex &&
+                    Array.isArray(message.content)
+                ) {
+                    for (const part of message.content) {
+                        if (PromptAnalyzer.isImageDataPart(part)) {
+                            try {
+                                currentMessageImageTokens += await tokenCounter.countMessageObjectTokens(
+                                    part as unknown as Record<string, unknown>
+                                );
+                            } catch {
+                                // ignore single-part failures; message-level counting already exists
+                            }
+                        }
+                    }
+                }
+
                 Logger.debug(`[${providerKey}] 处理消息 [${i}] role=${role}, tokens=${messageTokens}`);
 
                 // 按官方标准合并：所有非系统、非压缩的消息都并入 userAssistantMessage
@@ -323,7 +356,12 @@ export class PromptAnalyzer {
                     // 根据消息索引判断是历史消息还是本轮消息
                     if (lastUserTextMessageIndex !== -1 && i >= lastUserTextMessageIndex) {
                         // 本轮消息
-                        promptParts.currentRoundMessages = (promptParts.currentRoundMessages || 0) + messageTokens;
+                        const nonImageTokens = Math.max(0, messageTokens - currentMessageImageTokens);
+                        promptParts.currentRoundMessages = (promptParts.currentRoundMessages || 0) + nonImageTokens;
+                        if (currentMessageImageTokens > 0) {
+                            promptParts.currentRoundImages =
+                                (promptParts.currentRoundImages || 0) + currentMessageImageTokens;
+                        }
                         currentRoundMessageCount++;
                         Logger.trace(
                             `[${providerKey}] 消息 [${i}] 归类为本轮消息, 累计 tokens=${promptParts.currentRoundMessages}`
@@ -361,7 +399,8 @@ export class PromptAnalyzer {
                     `  思考过程: ${promptParts.thinking} tokens (LanguageModelThinkingPart)\n` +
                     `  对话消息: ${promptParts.userAssistantMessage} tokens (用户、助手及其他对话角色)\n` +
                     `    - 历史消息: ${promptParts.historyMessages} tokens (本轮对话之前的所有消息)\n` +
-                    `    - 本轮消息: ${promptParts.currentRoundMessages} tokens (从最后一个 user text 消息开始)\n` +
+                    `    - 本轮消息: ${promptParts.currentRoundMessages} tokens (从最后一个 user text 消息开始，不含图片)\n` +
+                    `    - 本轮图片: ${promptParts.currentRoundImages || 0} tokens (本轮消息中的图片附件)\n` +
                     `  = 总占用: ${promptParts.context} tokens`
             );
             return promptParts;

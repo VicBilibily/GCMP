@@ -15,6 +15,11 @@ import {
 import { createTokenizer, getRegexByEncoder, getSpecialTokensByEncoder, TikTokenizer } from '@microsoft/tiktokenizer';
 import { Logger } from './logger';
 
+/* ---------------------------------------------------------------------------------------------
+ *  Token Counter 主类
+ *  负责计算消息、系统消息和工具定义的 token 数量
+ *------------------------------------------------------------------------------------------- */
+
 /**
  * 全局共享的 tokenizer 实例和扩展路径
  */
@@ -152,12 +157,49 @@ export class TokenCounter {
             return partObj.value;
         }
 
+        // 处理二进制/DataPart（尤其是图片）：避免 JSON.stringify 把 Uint8Array/Buffer 展开成巨大数组导致 token 被夸大
+        if ('mimeType' in partObj && typeof partObj.mimeType === 'string' && 'data' in partObj) {
+            const byteLength = getBinaryByteLength(partObj.data);
+            return JSON.stringify({ mimeType: partObj.mimeType, byteLength });
+        }
+
         // 处理其他类型的 part，转换为 JSON 字符串
         if ('name' in partObj || 'input' in partObj || 'callId' in partObj) {
             return JSON.stringify(partObj);
         }
 
         return null;
+    }
+
+    private estimateNonImageBinaryTokens(byteLength: number): number {
+        if (!byteLength) {
+            return 0;
+        }
+        // 对非图片二进制载荷做一个小且有上限的估算
+        const base = 20;
+        const per16Kb = Math.ceil(byteLength / 16384);
+        return Math.min(200, base + per16Kb);
+    }
+
+    private estimateImageTokensFromBytes(bytes: Uint8Array, mimeType: string, detail: ImageDetail): number {
+        try {
+            return estimateImageTokensFromBytes(bytes, mimeType, detail);
+        } catch {
+            // 最佳降级方案：如果无法解析尺寸，避免计数爆炸
+            return this.estimateNonImageBinaryTokens(bytes.byteLength);
+        }
+    }
+
+    private estimateImagePartTotalTokens(bytes: Uint8Array, mimeType: string, detail: ImageDetail): number {
+        // 1) 图片本体成本：对齐 vscode-copilot-chat（tiles*170+85）
+        const imageCost = this.estimateImageTokensFromBytes(bytes, mimeType, detail);
+
+        // 2) 包装成本：请求里仍然需要携带结构化的"图片 part"。
+        // 这里刻意不包含 base64 载荷，只用最小 JSON 骨架估算包装开销。
+        const wrapperSkeleton = `{"type":"image_url","image_url":{"url":"data:${mimeType};base64,"}}`;
+        const wrapperTokens = this.getTextTokenLength(wrapperSkeleton);
+
+        return imageCost + wrapperTokens;
     }
 
     /**
@@ -189,6 +231,18 @@ export class TokenCounter {
      * 支持文本、图片、工具调用、思考内容等复杂内容
      */
     async countMessageObjectTokens(obj: Record<string, unknown>, depth: number = 0): Promise<number> {
+        // DataPart / 二进制 part：不要展开 data 数组逐字节计数
+        if (obj && typeof obj.mimeType === 'string' && 'data' in obj) {
+            const bytes = getBinaryUint8Array(obj.data);
+            if (bytes) {
+                const mimeType = String(obj.mimeType);
+                if (isImageMimeType(mimeType)) {
+                    return this.estimateImagePartTotalTokens(bytes, mimeType, 'auto');
+                }
+                return this.getTextTokenLength(mimeType) + this.estimateNonImageBinaryTokens(bytes.byteLength);
+            }
+        }
+
         let numTokens = 0;
         // const indent = '  '.repeat(depth);
 
@@ -200,9 +254,16 @@ export class TokenCounter {
             // Logger.trace(`${indent}[开销] 消息分隔符: ${overheadTokens} tokens`);
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        for (const [key, value] of Object.entries(obj)) {
+        for (const [, value] of Object.entries(obj)) {
             if (!value) {
+                continue;
+            }
+
+            // 大块二进制（Uint8Array / Buffer JSON / number[]）：用估算代替递归遍历，避免 token 夸大与性能问题
+            // 注意：DataPart（包括图片）已在方法开头统一处理，这里只处理其他二进制数据
+            const binaryByteLength = getBinaryByteLength(value);
+            if (binaryByteLength > 0) {
+                numTokens += this.estimateNonImageBinaryTokens(binaryByteLength);
                 continue;
             }
 
@@ -405,4 +466,281 @@ export class TokenCounter {
         // 使用官方标准的 1.1 安全系数
         return Math.floor(numTokens * 1.1);
     }
+}
+
+/* ---------------------------------------------------------------------------------------------
+ *  二进制数据工具
+ *  用于安全处理 Uint8Array/ArrayBuffer/Buffer 等二进制载荷
+ *------------------------------------------------------------------------------------------- */
+
+function isBufferJson(value: unknown): value is { type: 'Buffer'; data: number[] } {
+    if (!value || typeof value !== 'object') {
+        return false;
+    }
+    const obj = value as { type?: unknown; data?: unknown };
+    return obj.type === 'Buffer' && Array.isArray(obj.data);
+}
+
+function getBinaryByteLength(value: unknown): number {
+    if (!value) {
+        return 0;
+    }
+    if (value instanceof Uint8Array) {
+        return value.byteLength;
+    }
+    if (value instanceof ArrayBuffer) {
+        return value.byteLength;
+    }
+    if (ArrayBuffer.isView(value)) {
+        return value.byteLength;
+    }
+    if (isBufferJson(value)) {
+        return value.data.length;
+    }
+    if (Array.isArray(value) && value.length > 0 && value.every(v => typeof v === 'number')) {
+        return value.length;
+    }
+    return 0;
+}
+
+function getBinaryUint8Array(value: unknown): Uint8Array | undefined {
+    if (!value) {
+        return undefined;
+    }
+    if (value instanceof Uint8Array) {
+        return value;
+    }
+    if (value instanceof ArrayBuffer) {
+        return new Uint8Array(value);
+    }
+    if (ArrayBuffer.isView(value)) {
+        return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+    }
+    if (isBufferJson(value)) {
+        return new Uint8Array(value.data);
+    }
+    if (Array.isArray(value) && value.length > 0 && value.every(v => typeof v === 'number')) {
+        return new Uint8Array(value);
+    }
+    return undefined;
+}
+
+/* ---------------------------------------------------------------------------------------------
+ *  图片 Token 估算器
+ *  对齐 microsoft/vscode-copilot-chat 的实现（OpenAI Vision 图片成本估算）
+ *------------------------------------------------------------------------------------------- */
+
+type ImageDetail = 'low' | 'high' | 'auto' | undefined;
+
+function isImageMimeType(mimeType: string): boolean {
+    return mimeType.startsWith('image/');
+}
+
+function readUInt16LE(bytes: Uint8Array, offset: number): number {
+    return bytes[offset] | (bytes[offset + 1] << 8);
+}
+
+function readUInt16BE(bytes: Uint8Array, offset: number): number {
+    return (bytes[offset] << 8) | bytes[offset + 1];
+}
+
+function readUInt32LE(bytes: Uint8Array, offset: number): number {
+    return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)) >>> 0;
+}
+
+function readUInt32BE(bytes: Uint8Array, offset: number): number {
+    return ((bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3]) >>> 0;
+}
+
+function getImageDimensionsFromBytes(bytes: Uint8Array, mimeType: string): { width: number; height: number } {
+    const mt = mimeType.toLowerCase();
+
+    if (mt === 'image/png') {
+        if (bytes.length < 24) {
+            throw new Error('PNG too small');
+        }
+        const width = readUInt32BE(bytes, 16);
+        const height = readUInt32BE(bytes, 20);
+        return { width, height };
+    }
+
+    if (mt === 'image/gif') {
+        if (bytes.length < 10) {
+            throw new Error('GIF too small');
+        }
+        const width = readUInt16LE(bytes, 6);
+        const height = readUInt16LE(bytes, 8);
+        return { width, height };
+    }
+
+    if (mt === 'image/jpeg' || mt === 'image/jpg') {
+        if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) {
+            throw new Error('Invalid JPEG');
+        }
+
+        let offset = 2;
+        while (offset + 4 < bytes.length) {
+            if (bytes[offset] !== 0xff) {
+                offset++;
+                continue;
+            }
+
+            const marker = readUInt16BE(bytes, offset);
+            if (marker === 0xffd8 || marker === 0xffd9) {
+                offset += 2;
+                continue;
+            }
+
+            if (offset + 4 >= bytes.length) {
+                break;
+            }
+
+            const segmentLength = readUInt16BE(bytes, offset + 2);
+
+            if (marker >= 0xffc0 && marker <= 0xffc2) {
+                if (offset + 9 >= bytes.length) {
+                    break;
+                }
+                const height = readUInt16BE(bytes, offset + 5);
+                const width = readUInt16BE(bytes, offset + 7);
+                return { width, height };
+            }
+
+            offset += 2 + segmentLength;
+        }
+
+        throw new Error('JPEG dimensions not found');
+    }
+
+    if (mt === 'image/webp') {
+        if (bytes.length < 16) {
+            throw new Error('WEBP too small');
+        }
+        const riff = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
+        const webp = String.fromCharCode(bytes[8], bytes[9], bytes[10], bytes[11]);
+        if (riff !== 'RIFF' || webp !== 'WEBP') {
+            throw new Error('Invalid WEBP');
+        }
+
+        let offset = 12;
+        while (offset + 8 <= bytes.length) {
+            const fourcc = String.fromCharCode(bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]);
+            const size = readUInt32LE(bytes, offset + 4);
+            const dataStart = offset + 8;
+            if (dataStart + size > bytes.length) {
+                break;
+            }
+
+            if (fourcc === 'VP8X') {
+                if (size < 10) {
+                    throw new Error('Invalid VP8X');
+                }
+                const width = 1 + (bytes[dataStart + 4] | (bytes[dataStart + 5] << 8) | (bytes[dataStart + 6] << 16));
+                const height = 1 + (bytes[dataStart + 7] | (bytes[dataStart + 8] << 8) | (bytes[dataStart + 9] << 16));
+                return { width, height };
+            }
+
+            if (fourcc === 'VP8 ') {
+                if (size >= 10) {
+                    const width = (readUInt16LE(bytes, dataStart + 6) & 0x3fff) >>> 0;
+                    const height = (readUInt16LE(bytes, dataStart + 8) & 0x3fff) >>> 0;
+                    if (width > 0 && height > 0) {
+                        return { width, height };
+                    }
+                }
+            }
+
+            if (fourcc === 'VP8L') {
+                if (size >= 5 && bytes[dataStart] === 0x2f) {
+                    const b0 = bytes[dataStart + 1];
+                    const b1 = bytes[dataStart + 2];
+                    const b2 = bytes[dataStart + 3];
+                    const b3 = bytes[dataStart + 4];
+                    const bits = (b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)) >>> 0;
+                    const width = (bits & 0x3fff) + 1;
+                    const height = ((bits >> 14) & 0x3fff) + 1;
+                    return { width, height };
+                }
+            }
+
+            offset = dataStart + size + (size % 2);
+        }
+
+        throw new Error('WEBP dimensions not found');
+    }
+
+    if (mt === 'image/bmp') {
+        if (bytes.length < 26) {
+            throw new Error('BMP too small');
+        }
+        const width = readUInt32LE(bytes, 18) | 0;
+        const rawHeight = readUInt32LE(bytes, 22) | 0;
+        const height = Math.abs(rawHeight);
+        if (width <= 0 || height <= 0) {
+            throw new Error('Invalid BMP');
+        }
+        return { width, height };
+    }
+
+    throw new Error(`Unsupported image format: ${mimeType}`);
+}
+
+// 对齐 microsoft/vscode-copilot-chat 的实现
+// https://platform.openai.com/docs/guides/vision#calculating-costs
+//
+// 计算示例：
+// 1. 低 detail 模式：固定 85 tokens
+//    calculateOpenAIVisionImageTokenCost(1920, 1080, 'low') = 85
+//
+// 2. 小图片（512x512，无需缩放）：
+//    - tiles = ceil(512/512) * ceil(512/512) = 1 * 1 = 1
+//    - tokens = 1 * 170 + 85 = 255
+//    calculateOpenAIVisionImageTokenCost(512, 512, 'auto') = 255
+//
+// 3. 中等图片（1024x768）：
+//    - 最短边缩放到 768：scaleFactor = 768/768 = 1，无需缩放
+//    - tiles = ceil(1024/512) * ceil(768/512) = 2 * 2 = 4
+//    - tokens = 4 * 170 + 85 = 765
+//    calculateOpenAIVisionImageTokenCost(1024, 768, 'auto') = 765
+//
+// 4. 大图片（3000x2000，需要先缩放到 2048x2048 内）：
+//    - 第一步：scaleFactor = 2048/3000 ≈ 0.683
+//      缩放后：2048 x 1365
+//    - 第二步：scaleFactor = 768/1365 ≈ 0.563
+//      缩放后：1153 x 768
+//    - tiles = ceil(1153/512) * ceil(768/512) = 3 * 2 = 6
+//    - tokens = 6 * 170 + 85 = 1105
+//    calculateOpenAIVisionImageTokenCost(3000, 2000, 'auto') = 1105
+//
+// 5. 超大图片（4000x3000）：
+//    - 第一步：scaleFactor = 2048/4000 = 0.512
+//      缩放后：2048 x 1536
+//    - 第二步：scaleFactor = 768/1536 = 0.5
+//      缩放后：1024 x 768
+//    - tiles = ceil(1024/512) * ceil(768/512) = 2 * 2 = 4
+//    - tokens = 4 * 170 + 85 = 765
+//    calculateOpenAIVisionImageTokenCost(4000, 3000, 'auto') = 765
+//
+function calculateOpenAIVisionImageTokenCost(width: number, height: number, detail: ImageDetail): number {
+    if (detail === 'low') {
+        return 85;
+    }
+
+    if (width > 2048 || height > 2048) {
+        const scaleFactor = 2048 / Math.max(width, height);
+        width = Math.round(width * scaleFactor);
+        height = Math.round(height * scaleFactor);
+    }
+
+    const scaleFactor = 768 / Math.min(width, height);
+    width = Math.round(width * scaleFactor);
+    height = Math.round(height * scaleFactor);
+
+    const tiles = Math.ceil(width / 512) * Math.ceil(height / 512);
+    return tiles * 170 + 85;
+}
+
+function estimateImageTokensFromBytes(bytes: Uint8Array, mimeType: string, detail: ImageDetail): number {
+    const { width, height } = getImageDimensionsFromBytes(bytes, mimeType);
+    return calculateOpenAIVisionImageTokenCost(width, height, detail);
 }
