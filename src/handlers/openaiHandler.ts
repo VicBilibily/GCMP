@@ -463,7 +463,6 @@ export class OpenAIHandler {
             // 添加工具支持（如果有）
             if (options.tools && options.tools.length > 0 && model.capabilities?.toolCalling) {
                 createParams.tools = this.convertToolsToOpenAI([...options.tools]);
-                createParams.tool_choice = 'auto';
                 Logger.trace(`${model.name} 添加了 ${options.tools.length} 个工具`);
             }
 

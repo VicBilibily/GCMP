@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.16.23",
+    "version": "0.16.24",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -111,17 +111,17 @@
             },
             {
                 "command": "gcmp.iflow.configWizard",
-                "title": "心流AI 配置向导（CLI 认证）",
+                "title": "iFlow CLI 配置向导（CLI 认证）",
                 "category": "GCMP"
             },
             {
-                "command": "gcmp.gemini.setApiKey",
-                "title": "设置 Gemini API密钥（CLI 认证）",
+                "command": "gcmp.qwen.configWizard",
+                "title": "Qwen Code CLI 配置向导（CLI 认证）",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.gemini.configWizard",
-                "title": "Gemini 配置向导（CLI 认证）",
+                "title": "Gemini CLI 配置向导（CLI 认证）",
                 "category": "GCMP"
             },
             {

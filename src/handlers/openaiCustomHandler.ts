@@ -111,7 +111,6 @@ export class OpenAICustomHandler {
         // 添加工具支持（如果有）
         if (options.tools && options.tools.length > 0 && model.capabilities?.toolCalling) {
             requestBody.tools = this.openaiHandler.convertToolsToOpenAI([...options.tools]);
-            requestBody.tool_choice = 'auto';
         }
 
         // 合并 extraBody 参数（如果有）
