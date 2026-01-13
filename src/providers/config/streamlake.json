@@ -19,7 +19,7 @@
         },
         {
             "id": "KAT-Coder-Pro-V1",
-            "name": "KAT-Coder-Pro-V1",
+            "name": "KAT-Coder-Pro-V1 (按量付费)",
             "tooltip": "专为 Agentic Coding 设计，全面覆盖编程任务与场景，通过大规模智能体强化学习，实现智能行为涌现，在代码编写性能上显著超越同类模型。支持 Function Call。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 32000,

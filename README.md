@@ -73,11 +73,9 @@
 
 ### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
 
-> 模型的访问限速将根据服务阶段与账户类型进行动态调整：1月5日 - 1月12日期间 KAT-Coder-Pro V1 将继续提供免费试用，但此阶段的 RPM（每分钟请求数）限制在 20 以内。正式付费阶段 Coding Plan 订阅用户与按量付费用户均享有更高的服务规格：40 RPM / 200万 TPM 。
+- [**KwaiKAT Coding Plan**](https://streamlake.com/marketing/coding-plan)：**KAT-Coder-Pro-V1**
 
-- [**KwaiKAT Coding Plan**](https://streamlake.com/marketing/coding-plan)：**KAT-Coder-Pro-V1** (容易触发 40RPM 请求限制，暂不建议开通)
-
-- **KAT-Coder系列**：**KAT-Coder-Pro-V1**、**KAT-Coder-Air-V1**
+- **KAT-Coder系列**：**KAT-Coder-Pro-V1**(按量付费)、**KAT-Coder-Air-V1**
 
 ### [**阿里云百炼**](https://bailian.console.aliyun.com/) - 通义大模型
 
@@ -122,7 +120,6 @@ npm install -g @google/gemini-cli@latest
 ```
 
 - **支持模型**：**Gemini 2.5 Pro**、**Gemini 2.5 Flash**
-- **预览模型**：**Gemini 3 Pro**、**Gemini 3 Flash**
 
 </details>
 
