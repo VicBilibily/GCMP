@@ -2,6 +2,14 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.16.25] - 2026-01-14
+
+### 调整
+
+- **火山方舟**： 调整 Coding Plan 内置可用模型列表
+    - 移除 `DeepSeek-V3.2`
+    - 新增 [`Ark-Code-Latest`(Thinking)](https://www.volcengine.com/docs/82379/1925114?lang=zh#51b87c17)
+
 ## [0.16.24] - 2026-01-13
 
 ### 调整

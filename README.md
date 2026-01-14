@@ -42,7 +42,7 @@
 
 ### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
 
-- [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：**Doubao-Seed-Code**(Vision)、**DeepSeek-V3.2**(Thinking)
+- [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：**Doubao-Seed-Code**(Vision)、[**Ark-Code-Latest**(Thinking)](https://www.volcengine.com/docs/82379/1925114?lang=zh#51b87c17)
 - **豆包系列**：**Doubao-Seed-1.8**、**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**
 - **协作奖励计划**：**DeepSeek-V3.2**(Thinking)、**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**
 
