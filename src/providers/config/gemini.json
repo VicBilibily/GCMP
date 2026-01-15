@@ -37,6 +37,38 @@
             "customHeader": {
                 "User-Agent": "GeminiCLI/0.23.0/gemini-2.5-flash (win32; x64) google-api-nodejs-client/9.15.1"
             }
+        },
+        {
+            "id": "gemini-3-pro-preview",
+            "name": "Gemini 3 Pro Preview",
+            "tooltip": "Gemini 3 Pro Preview is an AI model provided by google.",
+            "maxInputTokens": 1048576,
+            "maxOutputTokens": 65536,
+            "sdkMode": "gemini-sse",
+            "includeThinking": true,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "customHeader": {
+                "User-Agent": "GeminiCLI/0.23.0/gemini-3-pro-preview (win32; x64) google-api-nodejs-client/9.15.1"
+            }
+        },
+        {
+            "id": "gemini-3-flash-preview",
+            "name": "Gemini 3 Flash Preview",
+            "tooltip": "Gemini 3 Flash Preview is an AI model provided by google.",
+            "maxInputTokens": 1048576,
+            "maxOutputTokens": 65536,
+            "sdkMode": "gemini-sse",
+            "includeThinking": true,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "customHeader": {
+                "User-Agent": "GeminiCLI/0.23.0/gemini-3-flash-preview (win32; x64) google-api-nodejs-client/9.15.1"
+            }
         }
     ]
 }
