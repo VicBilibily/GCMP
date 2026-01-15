@@ -2,6 +2,13 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.16.26] - 2026-01-15
+
+### 新增
+
+- **Gemini CLI**：新增预览模型预置，仅部分订阅账号可用：
+    - `Gemini 3 Pro Preview` 及 `Gemini 3 Flash Preview`
+
 ## [0.16.25] - 2026-01-14
 
 ### 调整

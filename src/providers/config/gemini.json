@@ -40,8 +40,8 @@
         },
         {
             "id": "gemini-3-pro-preview",
-            "name": "Gemini 3 Pro Preview",
-            "tooltip": "Gemini 3 Pro Preview is an AI model provided by google.",
+            "name": "Gemini 3 Pro (Preview)",
+            "tooltip": "Gemini 3 Pro (Preview) is an AI model provided by google.",
             "maxInputTokens": 1048576,
             "maxOutputTokens": 65536,
             "sdkMode": "gemini-sse",
@@ -56,8 +56,8 @@
         },
         {
             "id": "gemini-3-flash-preview",
-            "name": "Gemini 3 Flash Preview",
-            "tooltip": "Gemini 3 Flash Preview is an AI model provided by google.",
+            "name": "Gemini 3 Flash (Preview)",
+            "tooltip": "Gemini 3 Flash (Preview) is an AI model provided by google.",
             "maxInputTokens": 1048576,
             "maxOutputTokens": 65536,
             "sdkMode": "gemini-sse",
