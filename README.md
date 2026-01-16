@@ -237,6 +237,22 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
 }
 ```
 
+### 实验性功能：`sdkMode`（OpenAI Responses / Gemini SSE）
+
+`gcmp.compatibleModels[*].sdkMode` 用于指定兼容层的请求/流式解析方式。除 `openai` / `anthropic` 标准模式外，以下两项为**实验性**能力：
+
+- `openai-responses`：OpenAI Responses API 模式（实验性）
+    - 使用 OpenAI SDK 的 Responses API（`/responses`）进行请求与流式处理。
+    - 适用：你的服务端/网关明确支持 Responses API（而不仅是 Chat Completions）。
+    - 注意：并非所有 OpenAI 兼容服务都实现 `/responses`；若报 404/不兼容，请切回 `openai` 或 `openai-sse`。
+    - `useInstructions`（仅对 `openai-responses` 生效）：是否使用 Responses API 的 `instructions` 参数传递系统指令。
+        - `false`：用“用户消息”承载系统指令（默认，兼容性更好）
+        - `true`：用 `instructions` 传递系统指令（更贴近 Responses API 语义，但部分网关可能不支持/行为不同）
+
+- `gemini-sse`：Gemini HTTP SSE 模式（实验性）
+    - 使用纯 HTTP + SSE（`data:`）/ JSON 行流解析，不依赖 Google SDK，主要用于兼容第三方 Gemini 网关。
+    - 适用：你的网关对外暴露 Gemini `:streamGenerateContent` 风格接口（通常需要 `alt=sse`）。
+
 </details>
 
 ## 💡 FIM / NES 内联补全建议功能
@@ -371,11 +387,9 @@ GCMP 内置了完整的 Token 消耗统计功能，帮助您追踪和管理 AI �
 
 </details>
 
-## 📝 Commit 提交消息生成功能
+## 📝 Commit 生成提交消息功能
 
-GCMP 内置 **AI 驱动的提交消息生成**：在您准备提交代码时，自动分析 Git 变更（diff）并生成一条合适的提交消息，填入 VS Code 的 Git 提交输入框。
-
-> ⚠️ **注意**：生成提交消息需要把变更摘要（diff 片段）发送给您选择的语言模型进行处理。请避免在敏感仓库中直接发送包含密钥/隐私数据的变更内容。
+GCMP 内置 **Git 生成提交消息** 功能：在您准备提交代码时，扩展会按文件收集当前仓库 staged(已暂存) / tracked(未暂存) / untracked(新文件) 的变更摘要（diff 片段，过长内容会截断；tracked 还会附带少量 HEAD 最近提交上下文），发送给您选择的语言模型生成提交消息，并将结果写入 VS Code 的 Git 提交输入框。
 
 <details>
 <summary>展开查看详细使用说明</summary>
@@ -383,18 +397,17 @@ GCMP 内置 **AI 驱动的提交消息生成**：在您准备提交代码时，�
 ### 使用入口：Git仓库管理视图
 
 - 仓库标题栏按钮：`生成提交消息`
-- 资源组状态栏菜单：
+- 更改分组栏按钮：
     - 在“暂存的更改”上生成：`生成提交消息 - 暂存的更改`
     - 在“更改”上生成 `生成提交消息 - 未暂存的更改`
 
-### 行为说明
+### 生成范围说明（staged / working tree）
 
-- **分析范围**：
-    - `生成提交消息`：默认同时分析 staged + working tree（tracked）+ untracked（新文件会以“新增文件 diff”形式提供摘要）
-    - `生成提交消息 - 暂存的更改`：仅分析 staged
-    - `生成提交消息 - 未暂存的更改`：仅分析 working tree（tracked + untracked），不包含 staged
-- **多仓库支持**：在多仓库工作区中，会优先根据 SCM 上下文推断当前仓库；无法推断时会弹出仓库选择。
-- **上下文组织**：按文件分段提供 diff 摘要，并附带 tracked 文件的最近提交历史（git log）作为额外上下文，帮助模型写出更贴合项目风格的提交信息。
+- `生成提交消息`：默认行为，**同时分析 staged + working tree**（tracked + untracked）。
+- `生成提交消息 - 暂存的更改`：仅分析 **staged**，适合“分步提交/拆分提交”。
+- `生成提交消息 - 未暂存的更改`：仅分析 **working tree**（tracked + untracked），不包含 staged。
+
+> 多仓库工作区：如果当前工作区包含多个 Git 仓库，GCMP 会尝试根据你点击的 SCM 区域推断仓库；无法推断时会弹出仓库选择。
 
 ### 模型选择与配置
 

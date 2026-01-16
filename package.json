@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.17.0",
+    "version": "0.17.1",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -420,18 +420,6 @@
                         "model"
                     ]
                 },
-                "gcmp.providerOverrides": {
-                    "type": "object",
-                    "default": {},
-                    "description": "提供商配置覆盖。允许覆盖提供商的baseUrl和模型配置，支持添加新模型或覆盖现有模型的参数。",
-                    "scope": "application"
-                },
-                "gcmp.compatibleModels": {
-                    "type": "array",
-                    "default": [],
-                    "description": "Compatible Provider 的自定义模型配置。完全由用户配置的 OpenAI / Anthropic 兼容模型列表。",
-                    "scope": "application"
-                },
                 "gcmp.commit.language": {
                     "type": "string",
                     "enum": [
@@ -461,16 +449,16 @@
                         "atom"
                     ],
                     "enumDescriptions": [
-                        "Plain - 简洁的一句话提交描述",
-                        "Custom - 使用自定义指令生成提交消息",
-                        "Conventional Commits - 约定式提交格式",
-                        "Angular - Angular 项目风格",
-                        "Karma - Karma 测试框架风格",
-                        "Semantic - 语义化版本风格",
-                        "Emoji - 表情符号风格",
-                        "EmojiKarma - 表情符号 + Karma 风格",
-                        "Google - Google 项目风格",
-                        "Atom - Atom 编辑器风格"
+                        "Plain - 简洁的一句话提交描述（示例：修复配置回退逻辑）",
+                        "Custom - 使用自定义指令生成提交消息（示例：PROJ-123: 修复登录跳转）",
+                        "Conventional Commits - 约定式提交格式（示例：feat(auth): 添加登录）",
+                        "Angular - Angular 项目风格（示例：fix(core): 处理空配置）",
+                        "Karma - Karma 测试框架风格（示例：feat(ui): 增加提交向导）",
+                        "Semantic - 语义化版本风格（示例：fix: 修复无效格式回退）",
+                        "Emoji - 表情符号风格（示例：🐛 修复配置回退）",
+                        "EmojiKarma - 表情符号 + Karma 风格（示例：✨ feat(auth): 添加登录）",
+                        "Google - Google 项目风格（示例：Fix: 修复无效格式回退）",
+                        "Atom - Atom 编辑器风格（示例：:bug: 修复配置回退）"
                     ],
                     "default": "plain",
                     "description": "生成提交消息使用的格式。支持在工作区和全局配置中设置，工作区配置优先级更高。",
@@ -488,7 +476,7 @@
                         "provider": "",
                         "model": ""
                     },
-                    "description": "指定用于生成提交消息的模型（provider + model）。留空则自动选择。",
+                    "description": "指定用于生成提交消息的模型（provider + model）。留空则会提示选择模型。",
                     "scope": "window",
                     "properties": {
                         "provider": {
@@ -504,6 +492,18 @@
                         "provider",
                         "model"
                     ]
+                },
+                "gcmp.providerOverrides": {
+                    "type": "object",
+                    "default": {},
+                    "description": "提供商配置覆盖。允许覆盖提供商的baseUrl和模型配置，支持添加新模型或覆盖现有模型的参数。",
+                    "scope": "application"
+                },
+                "gcmp.compatibleModels": {
+                    "type": "array",
+                    "default": [],
+                    "description": "Compatible Provider 的自定义模型配置。完全由用户配置的 OpenAI / Anthropic 兼容模型列表。",
+                    "scope": "application"
                 }
             }
         },
