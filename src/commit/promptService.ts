@@ -28,8 +28,42 @@ export class PromptService {
             return this.generateCustomPrompt(customInstructions);
         }
 
+        // auto：不在扩展侧做任何推断。
+        // 上游会把“最近提交历史”以单独的用户消息提供给模型，模型应自行归纳仓库风格。
+        if (format === 'auto') {
+            return this.generateAutoPrompt(language);
+        }
+
+        // custom 但未提供自定义指令：回退为 plain
         const effectiveFormat = format === 'custom' ? 'plain' : format;
         return this.generateStandardPrompt(effectiveFormat, language);
+    }
+
+    /**
+     * auto 模式：让模型根据“最近提交历史”自行归纳仓库的提交规范，并以同样风格输出。
+     * 注意：历史内容由上游以单独消息形式提供。
+     */
+    private static generateAutoPrompt(language: CommitLanguage): string {
+        const languagePrompt = this.getLanguagePrompt(language);
+
+        let prompt = `Generate a commit message that matches this repository's existing commit message style.
+
+You may be given recent commit history in a previous message.
+
+Rules:
+1. If recent commit history is provided, infer the predominant commit message format/style from it.
+2. Produce ONE commit message for the current changes using the same style.
+3. If the history is mixed or unclear, fall back to a single plain sentence (no prefixes, no emojis, no issue refs).
+4. Keep it concise (ideally <= 72 characters for the first line).
+5. Output the commit message only.`;
+
+        // 保持空白符可预测，避免缩进意外渗入提示词内容。
+        prompt += `\n\n${languagePrompt}\n`;
+
+        prompt += `
+IMPORTANT: Please provide ONLY the commit message, without any additional text, explanations, or markdown formatting (no \`\`\` blocks).`;
+
+        return prompt;
     }
 
     /**

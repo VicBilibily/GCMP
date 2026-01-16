@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.17.1",
+    "version": "0.17.2",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -437,6 +437,7 @@
                 "gcmp.commit.format": {
                     "type": "string",
                     "enum": [
+                        "auto",
                         "plain",
                         "custom",
                         "conventional",
@@ -449,6 +450,7 @@
                         "atom"
                     ],
                     "enumDescriptions": [
+                        "Auto - 根据历史提交记录推断提交规范；无法推断则回退为 Plain",
                         "Plain - 简洁的一句话提交描述（示例：修复配置回退逻辑）",
                         "Custom - 使用自定义指令生成提交消息（示例：PROJ-123: 修复登录跳转）",
                         "Conventional Commits - 约定式提交格式（示例：feat(auth): 添加登录）",
@@ -460,8 +462,8 @@
                         "Google - Google 项目风格（示例：Fix: 修复无效格式回退）",
                         "Atom - Atom 编辑器风格（示例：:bug: 修复配置回退）"
                     ],
-                    "default": "plain",
-                    "description": "生成提交消息使用的格式。支持在工作区和全局配置中设置，工作区配置优先级更高。",
+                    "default": "auto",
+                    "description": "生成提交消息使用的格式。auto 会根据历史提交记录推断提交规范；无法推断则回退为 plain。支持在工作区和全局配置中设置，工作区配置优先级更高。",
                     "scope": "window"
                 },
                 "gcmp.commit.customInstructions": {

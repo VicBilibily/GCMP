@@ -14,7 +14,7 @@ import {
     GitExtensionNotFoundError,
     ModelNotFoundError
 } from './types';
-import { Logger } from '../utils';
+import { ConfigManager, Logger } from '../utils';
 import { Repository } from '../types/git';
 
 /**
@@ -173,6 +173,7 @@ export class CommitMessage {
         scope: 'config' | 'staged' | 'workingTree' = 'config'
     ): Promise<{ message: string; model: string }> {
         const repoPath = repository.rootUri.fsPath;
+        const commitConfig = ConfigManager.getCommitConfig();
         // 仅 staged 入口才启用 staged-only；默认入口始终分析完整变更（staged + working tree）。
         const onlyStagedChanges = scope === 'staged';
 
@@ -190,13 +191,31 @@ export class CommitMessage {
         }
         this.throwIfCancelled(token);
 
-        // 2. Git Blame 分析（历史上下文）
-        progress.report({ message: '正在分析代码历史...', increment: 10 });
+        // 2. 文件改动相关历史（用于理解修改内容；与“风格推断”无关）
+        progress.report({ message: '正在分析文件改动历史...', increment: 10 });
         const blameAnalysis = await this.analyzeChanges(repoPath, diffParts, token);
         this.throwIfCancelled(token);
 
-        // 3. 生成提交消息
-        const commitMessage = await GeneratorService.generateCommitMessages(diffParts, blameAnalysis, progress, token);
+        // 3. 仓库级别最近 50 条提交历史（与文件无关；仅用于 auto 推断提交规范）
+        // auto 使用 subjects-only，以尽量保留仓库风格中可能存在的“前置 emoji”。
+        let recentCommitHistory = '';
+        if (commitConfig.format === 'auto') {
+            progress.report({ message: '正在获取仓库最近提交历史...', increment: 10 });
+            recentCommitHistory = await GitService.getRecentCommits(repoPath, token, {
+                maxEntries: 50,
+                format: 'subject'
+            });
+            this.throwIfCancelled(token);
+        }
+
+        // 4. 生成提交消息
+        const commitMessage = await GeneratorService.generateCommitMessages(
+            diffParts,
+            blameAnalysis,
+            recentCommitHistory,
+            progress,
+            token
+        );
         this.throwIfCancelled(token);
 
         return commitMessage;

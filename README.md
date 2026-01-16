@@ -389,7 +389,12 @@ GCMP 内置了完整的 Token 消耗统计功能，帮助您追踪和管理 AI �
 
 ## 📝 Commit 生成提交消息功能
 
-GCMP 内置 **Git 生成提交消息** 功能：在您准备提交代码时，扩展会按文件收集当前仓库 staged(已暂存) / tracked(未暂存) / untracked(新文件) 的变更摘要（diff 片段，过长内容会截断；tracked 还会附带少量 HEAD 最近提交上下文），发送给您选择的语言模型生成提交消息，并将结果写入 VS Code 的 Git 提交输入框。
+GCMP 内置 **Git 生成提交消息** 功能：在您准备提交代码时，扩展会按文件收集当前仓库 staged(已暂存) / tracked(未暂存) / untracked(新文件) 的变更摘要（diff 片段，过长内容会截断）。
+
+为帮助模型更准确生成提交信息，扩展还会提供两类“历史上下文”（以独立消息传递给模型）：
+
+- **改动相关历史**：对本次变更涉及的 tracked 文件，收集少量最近提交记录（用于理解本次修改的背景）。
+- **仓库级别历史（auto 专用）**：提供仓库最近 50 条提交的 subject（与文件无关，用于让模型推断仓库的提交风格，例如是否使用 emoji 前缀、是否使用 Conventional/Angular 等）。
 
 <details>
 <summary>展开查看详细使用说明</summary>
@@ -419,7 +424,7 @@ GCMP 内置 **Git 生成提交消息** 功能：在您准备提交代码时，�
 ```json
 {
     "gcmp.commit.language": "chinese", // 生成语言：chinese / english
-    "gcmp.commit.format": "plain", // 提交消息格式：见下方 format 表格
+    "gcmp.commit.format": "auto", // 提交消息格式：auto(默认) / 见下方 format 表格
     "gcmp.commit.customInstructions": "", // 自定义指令（仅当 format=custom 时生效）
     "gcmp.commit.model": {
         "provider": "zhipu", // 生成模型的提供商（providerKey，例如 zhipu / minimax / compatible）
@@ -434,7 +439,8 @@ GCMP 内置 **Git 生成提交消息** 功能：在您准备提交代码时，�
 
 | format         | 风格说明                                         | 示例（第一行）                      | 适用场景                          |
 | -------------- | ------------------------------------------------ | ----------------------------------- | --------------------------------- |
-| `plain`        | 简洁一句话，不含 type/scope/emoji                | `新增提交消息生成功能`              | 默认推荐；个人项目/快速提交       |
+| `auto`         | 自动推断：根据仓库历史提交推断风格；不明确则回退为 plain | `✨ 新增提交消息生成` / `feat: 新增提交消息生成` | 默认推荐；希望尽量贴合仓库规范     |
+| `plain`        | 简洁一句话，不含 type/scope/emoji                | `新增提交消息生成功能`              | 个人项目/快速提交；不想要任何前缀 |
 | `custom`       | 完全由自定义指令控制                             | `按你的自定义规则生成`              | 团队有固定模版/需要特殊输出       |
 | `conventional` | Conventional Commits（可带 scope，支持正文要点） | `feat(commit): 新增提交消息生成`    | 希望和语义化版本/Changelog 联动   |
 | `angular`      | Angular 风格（type(scope): summary）             | `feat(commit): 新增 SCM 入口`       | 偏前端/Angular 生态团队习惯       |

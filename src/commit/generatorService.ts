@@ -95,6 +95,7 @@ export class GeneratorService {
     static async generateCommitMessages(
         diffParts: GitDiffParts,
         blameAnalysis: string,
+        recentCommitHistory: string,
         progress: ProgressReporter,
         token: vscode.CancellationToken
     ): Promise<CommitMessage> {
@@ -111,11 +112,21 @@ export class GeneratorService {
         messages.push(...this.buildPerFileAttachmentMessages(diffParts.tracked, 'tracked'));
         messages.push(...this.buildPerFileAttachmentMessages(diffParts.untracked, 'untracked'));
 
-        const historyContext = (blameAnalysis ?? '').trim();
-        if (historyContext) {
+        const blameContext = (blameAnalysis ?? '').trim();
+        if (blameContext) {
+            // 单独一条用户消息：文件改动相关的历史上下文（用于理解改动内容）。
+            messages.push(
+                vscode.LanguageModelChatMessage.User(`Blame analysis (changed files reference):\n\n${blameContext}`)
+            );
+        }
+
+        const commitConfig = ConfigManager.getCommitConfig();
+        const repoHistory = (recentCommitHistory ?? '').trim();
+        if (commitConfig.format === 'auto' && repoHistory) {
+            // 单独一条用户消息：仓库级别最近提交历史（与文件无关），用于 auto 推断提交规范。
             messages.push(
                 vscode.LanguageModelChatMessage.User(
-                    `Attachment: recent commits for changed files (for context)\n\n${historyContext}`
+                    `Recent commit history (repository-wide, last 50, for style inference):\n\n${repoHistory}`
                 )
             );
         }
@@ -141,7 +152,8 @@ export class GeneratorService {
         messages.push(
             vscode.LanguageModelChatMessage.User(
                 `${diffNoticeParts.join('\n')}` +
-                    `${historyContext ? '\nHistory context has also been provided in a previous message. Please use it.' : ''}` +
+                    `${blameContext ? '\nBlame analysis has also been provided in a previous message. Please use it as context.' : ''}` +
+                    `${commitConfig.format === 'auto' && repoHistory ? '\nRepository-wide recent commit history has also been provided in a previous message. Please use it to infer the style.' : ''}` +
                     `\n\n${finalPrompt}`
             )
         );

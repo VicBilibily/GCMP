@@ -5,6 +5,8 @@
 
 import { CommitFormat } from './types';
 
+type TemplateCommitFormat = Exclude<CommitFormat, 'custom' | 'auto'>;
+
 /**
  * Plain 模板：一句话描述
  */
@@ -161,12 +163,12 @@ const templates = {
     emojiKarma: emojiKarmaTemplate,
     google: googleTemplate,
     atom: atomTemplate
-} satisfies Record<Exclude<CommitFormat, 'custom'>, string>;
+} satisfies Record<TemplateCommitFormat, string>;
 
 /**
  * 验证格式是否有效
  */
-function isValidFormat(format: string): format is CommitFormat {
+function isValidFormat(format: string): format is TemplateCommitFormat {
     return Object.keys(templates).includes(format);
 }
 
@@ -174,20 +176,14 @@ function isValidFormat(format: string): format is CommitFormat {
  * 获取模板
  */
 export function getTemplate(format: CommitFormat): string {
-    let validFormat = format;
+    let validFormat: TemplateCommitFormat = 'plain';
 
-    if (!isValidFormat(format)) {
+    if (isValidFormat(format)) {
+        validFormat = format;
+    } else {
         console.warn(`Invalid format "${format}", falling back to plain`);
-        validFormat = 'plain';
     }
 
     // 模板内容仅定义英文提示词；具体输出语言由后续指令单独控制。
-    return templates[validFormat as Exclude<CommitFormat, 'custom'>];
-}
-
-/**
- * 获取所有支持的格式
- */
-export function getSupportedFormats(): CommitFormat[] {
-    return Object.keys(templates) as CommitFormat[];
+    return templates[validFormat];
 }

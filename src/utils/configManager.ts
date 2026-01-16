@@ -177,7 +177,7 @@ export class ConfigManager {
             commit: {
                 // VS Code 会自动应用 package.json configuration contribution 的 default。
                 language: (config.get<CommitLanguage>('commit.language') ?? 'chinese') as CommitLanguage,
-                format: (config.get<CommitFormat>('commit.format') ?? 'plain') as CommitFormat,
+                format: (config.get<CommitFormat>('commit.format') ?? 'auto') as CommitFormat,
                 customInstructions: config.get<string>('commit.customInstructions') ?? '',
                 model: config.get<CommitModelSelection>('commit.model')
             },

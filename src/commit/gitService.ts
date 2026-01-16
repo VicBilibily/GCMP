@@ -438,4 +438,48 @@ export class GitService {
 
         return lines.join('\n');
     }
+
+    /**
+     * 获取仓库最近提交历史（与文件无关，用于让模型推断仓库的提交规范）。
+     */
+    static async getRecentCommits(
+        repoPath: string,
+        token?: vscode.CancellationToken,
+        options?: { maxEntries?: number; format?: 'subject' | 'detailed' }
+    ): Promise<string> {
+        throwIfCancelled(token);
+
+        const repo = await this.getRepositoryByPath(repoPath);
+        const maxEntries = Math.max(1, Math.min(options?.maxEntries ?? 20, 50));
+        const format = options?.format ?? 'detailed';
+
+        const commits = await repo.log({ maxEntries });
+        const lines: string[] = [];
+
+        if (!commits || commits.length === 0) {
+            return 'Recent commits (HEAD): (no history found)';
+        }
+
+        // For style inference, provide clean subject lines so the model can reliably see
+        // leading emojis/prefixes without extra metadata (hash/date/author).
+        if (format === 'subject') {
+            for (const c of commits) {
+                const firstLine = (c.message ?? '').split(/\r?\n/, 1)[0].trim();
+                if (firstLine) {
+                    // Do not add any prefix here; some repos use leading emoji as a semantic prefix.
+                    lines.push(firstLine);
+                }
+            }
+            return lines.join('\n');
+        }
+
+        lines.push(`Recent commits (HEAD, latest ${commits.length}/${maxEntries}):`);
+        for (const c of commits) {
+            const date = c.authorDate ? c.authorDate.toISOString().slice(0, 10) : '';
+            const author = c.authorName ?? '';
+            lines.push(`${c.hash.slice(0, 7)} ${date} ${author} | ${c.message ?? ''}`.trim());
+        }
+
+        return lines.join('\n');
+    }
 }

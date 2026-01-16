@@ -12,7 +12,7 @@ export { PromptService } from './promptService';
 export { GeneratorService } from './generatorService';
 
 // 模板导出
-export { getTemplate, getSupportedFormats } from './templates';
+export { getTemplate } from './templates';
 
 // 命令导出
 export { registerCommitCommands } from './commands';

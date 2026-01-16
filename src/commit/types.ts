@@ -7,6 +7,7 @@
  * 提交消息格式
  */
 export type CommitFormat =
+    | 'auto'
     | 'plain'
     | 'custom'
     | 'conventional'
