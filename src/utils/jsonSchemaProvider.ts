@@ -8,7 +8,6 @@ import { ProviderConfig } from '../types/sharedTypes';
 import { ConfigManager } from './configManager';
 import { Logger } from './logger';
 import type { JSONSchema7 } from 'json-schema';
-import { configProviders } from '../providers/config';
 import { KnownProviders } from './knownProviders';
 import { CompatibleModelManager } from './compatibleModelManager';
 
@@ -132,8 +131,11 @@ export class JsonSchemaProvider {
             patternProperties[`^${providerKey}$`] = this.createProviderSchema(providerKey, config);
         }
 
-        // 获取所有可用的提供商ID
+        // 获取所有可用的提供商ID（用于其它配置项，如 fim/nes/compatibleModels.provider）
         const { providerIds, enumDescriptions: allProviderDescriptions } = this.getAllAvailableProviders();
+
+        // Commit 模型选择：provider 是 VS Code Language Model API 的 vendor（注册给 VS Code 的提供商ID）
+        const commitSchema = this.getCommitModelSchema();
 
         return {
             $schema: 'http://json-schema.org/draft-07/schema#',
@@ -291,7 +293,9 @@ export class JsonSchemaProvider {
                         },
                         required: ['id', 'name', 'maxInputTokens', 'maxOutputTokens', 'capabilities']
                     }
-                }
+                },
+                // Commit 模型选择：保存 provider + model
+                'gcmp.commit.model': commitSchema
             },
             additionalProperties: true
         };
@@ -450,7 +454,7 @@ export class JsonSchemaProvider {
 
         try {
             // 1. 获取内置提供商
-            for (const [providerId, config] of Object.entries(configProviders)) {
+            for (const [providerId, config] of Object.entries(ConfigManager.getConfigProvider())) {
                 providerIds.push(providerId);
                 enumDescriptions.push(config.displayName || providerId);
             }
@@ -483,6 +487,88 @@ export class JsonSchemaProvider {
         }
 
         return { providerIds, enumDescriptions };
+    }
+
+    private static getCommitModelSchema(): JSONSchema7 {
+        // Commit 的 provider 为用户友好的 providerKey（不包含 gcmp. 前缀）。
+        // 在运行时根据该 providerKey 自动拼接为 VS Code Language Model vendor：gcmp.<providerKey>。
+        const commitProviderIds: string[] = [];
+        const commitProviderDescriptions: string[] = [];
+
+        const providerModelIdsMap: Record<string, string[]> = {};
+
+        // 内置提供商（providerKey）+ 用户 providerOverrides 合并后的模型列表
+        // 注意：commit 模型下拉应包含用户通过 override 新增的模型，而不是仅限于内置 configProviders。
+        const providerConfigs = ConfigManager.getConfigProvider();
+        for (const [providerKey, originalConfig] of Object.entries(providerConfigs)) {
+            commitProviderIds.push(providerKey);
+            commitProviderDescriptions.push(originalConfig.displayName || providerKey);
+
+            const effectiveConfig = ConfigManager.applyProviderOverrides(providerKey, originalConfig);
+            providerModelIdsMap[providerKey] = (effectiveConfig.models ?? []).map(m => m.id).filter(Boolean);
+        }
+
+        // Compatible Provider（providerKey = compatible）
+        const compatibleModelIds = CompatibleModelManager.getModels()
+            .map(m => m.id)
+            .filter(Boolean);
+        if (!commitProviderIds.includes('compatible')) {
+            commitProviderIds.push('compatible');
+            commitProviderDescriptions.push('OpenAI / Anthropic Compatible');
+        }
+        providerModelIdsMap['compatible'] = compatibleModelIds;
+
+        const base: JSONSchema7 = {
+            type: 'object',
+            description: 'Commit 消息生成模型配置（provider + model）',
+            properties: {
+                provider: {
+                    type: 'string',
+                    description: '语言模型提供商（vendor）',
+                    enum: commitProviderIds,
+                    enumDescriptions: commitProviderDescriptions
+                },
+                model: {
+                    type: 'string',
+                    description: '模型 ID（对应 Language Model API 的 model.id）',
+                    minLength: 1
+                }
+            },
+            required: ['provider', 'model'],
+            additionalProperties: false
+        };
+
+        const linkedRules: JSONSchema7[] = [];
+        for (const [provider, modelIds] of Object.entries(providerModelIdsMap)) {
+            // Copilot 或无可枚举模型：仅验证 provider
+            if (!modelIds || modelIds.length === 0) {
+                continue;
+            }
+
+            linkedRules.push({
+                if: {
+                    properties: {
+                        provider: { const: provider }
+                    },
+                    required: ['provider']
+                },
+                then: {
+                    properties: {
+                        model: {
+                            type: 'string',
+                            enum: modelIds
+                        }
+                    },
+                    required: ['model']
+                }
+            });
+        }
+
+        if (linkedRules.length > 0) {
+            base.allOf = linkedRules;
+        }
+
+        return base;
     }
 
     /**

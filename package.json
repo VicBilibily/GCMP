@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.16.26",
+    "version": "0.17.0",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -39,6 +39,7 @@
         "npm": ">=9.0.0"
     },
     "extensionDependencies": [
+        "vscode.git",
         "github.copilot-chat"
     ],
     "categories": [
@@ -172,6 +173,29 @@
             {
                 "command": "gcmp.cli.auth",
                 "title": "CLI 认证管理",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.commit.generateMessage",
+                "title": "生成提交消息",
+                "category": "GCMP",
+                "icon": "$(gcmp-git-commit)"
+            },
+            {
+                "command": "gcmp.commit.generateMessageStaged",
+                "title": "生成提交消息 - 暂存的更改",
+                "category": "GCMP",
+                "icon": "$(gcmp-git-commit)"
+            },
+            {
+                "command": "gcmp.commit.generateMessageWorkingTree",
+                "title": "生成提交消息 - 未暂存的更改",
+                "category": "GCMP",
+                "icon": "$(gcmp-git-commit)"
+            },
+            {
+                "command": "gcmp.commit.selectModel",
+                "title": "选择 Commit 消息生成模型",
                 "category": "GCMP"
             }
         ],
@@ -407,6 +431,79 @@
                     "default": [],
                     "description": "Compatible Provider 的自定义模型配置。完全由用户配置的 OpenAI / Anthropic 兼容模型列表。",
                     "scope": "application"
+                },
+                "gcmp.commit.language": {
+                    "type": "string",
+                    "enum": [
+                        "chinese",
+                        "english"
+                    ],
+                    "enumDescriptions": [
+                        "Chinese - 使用中文生成提交消息",
+                        "English - Generate commit messages in English"
+                    ],
+                    "default": "chinese",
+                    "description": "生成提交消息使用的语言。支持在工作区和全局配置中设置，工作区配置优先级更高。",
+                    "scope": "window"
+                },
+                "gcmp.commit.format": {
+                    "type": "string",
+                    "enum": [
+                        "plain",
+                        "custom",
+                        "conventional",
+                        "angular",
+                        "karma",
+                        "semantic",
+                        "emoji",
+                        "emojiKarma",
+                        "google",
+                        "atom"
+                    ],
+                    "enumDescriptions": [
+                        "Plain - 简洁的一句话提交描述",
+                        "Custom - 使用自定义指令生成提交消息",
+                        "Conventional Commits - 约定式提交格式",
+                        "Angular - Angular 项目风格",
+                        "Karma - Karma 测试框架风格",
+                        "Semantic - 语义化版本风格",
+                        "Emoji - 表情符号风格",
+                        "EmojiKarma - 表情符号 + Karma 风格",
+                        "Google - Google 项目风格",
+                        "Atom - Atom 编辑器风格"
+                    ],
+                    "default": "plain",
+                    "description": "生成提交消息使用的格式。支持在工作区和全局配置中设置，工作区配置优先级更高。",
+                    "scope": "window"
+                },
+                "gcmp.commit.customInstructions": {
+                    "type": "string",
+                    "default": "",
+                    "description": "自定义的提交消息生成指令（当 commitFormat=custom 时生效）。",
+                    "scope": "window"
+                },
+                "gcmp.commit.model": {
+                    "type": "object",
+                    "default": {
+                        "provider": "",
+                        "model": ""
+                    },
+                    "description": "指定用于生成提交消息的模型（provider + model）。留空则自动选择。",
+                    "scope": "window",
+                    "properties": {
+                        "provider": {
+                            "type": "string",
+                            "description": "语言模型提供商（providerKey），例如 zhipu / compatible"
+                        },
+                        "model": {
+                            "type": "string",
+                            "description": "模型 ID（对应 Language Model API 的 model.id）"
+                        }
+                    },
+                    "required": [
+                        "provider",
+                        "model"
+                    ]
                 }
             }
         },
@@ -669,6 +766,13 @@
                     "fontPath": "./fonts/tokens.ttf",
                     "fontCharacter": "\\e67a"
                 }
+            },
+            "gcmp-git-commit": {
+                "description": "Git Commit",
+                "default": {
+                    "fontPath": "./fonts/git-commit.ttf",
+                    "fontCharacter": "\\e61d"
+                }
             }
         },
         "keybindings": [
@@ -681,7 +785,28 @@
                 "command": "gcmp.nesCompletion.toggleManual",
                 "key": "shift+alt+/"
             }
-        ]
+        ],
+        "menus": {
+            "scm/title": [
+                {
+                    "command": "gcmp.commit.generateMessage",
+                    "group": "navigation",
+                    "when": "config.git.enabled && scmProvider == git"
+                }
+            ],
+            "scm/resourceGroup/context": [
+                {
+                    "command": "gcmp.commit.generateMessageStaged",
+                    "when": "config.git.enabled && scmProvider == git && scmResourceGroup == index",
+                    "group": "inline@-3"
+                },
+                {
+                    "command": "gcmp.commit.generateMessageWorkingTree",
+                    "when": "config.git.enabled && scmProvider == git && scmResourceGroup == workingTree",
+                    "group": "inline@-3"
+                }
+            ]
+        }
     },
     "scripts": {
         "vscode:prepublish": "npm run clean && npm run compile",

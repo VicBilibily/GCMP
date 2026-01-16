@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { Logger } from './logger';
 import { ConfigProvider, UserConfigOverrides, ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { configProviders } from '../providers/config';
+import { CommitFormat, CommitLanguage, CommitModelSelection } from '../commit/types';
 
 /**
  * 智谱AI搜索配置
@@ -53,6 +54,16 @@ export interface NESCompletionConfig {
 export type FIMCompletionConfig = Omit<NESCompletionConfig, 'manualOnly'>;
 
 /**
+ * Commit 配置
+ */
+export interface CommitConfig {
+    language: CommitLanguage;
+    format: CommitFormat;
+    customInstructions: string;
+    model?: CommitModelSelection;
+}
+
+/**
  * GCMP配置接口
  */
 export interface GCMPConfig {
@@ -72,6 +83,8 @@ export interface GCMPConfig {
     fimCompletion: FIMCompletionConfig;
     /** NES补全配置 */
     nesCompletion: NESCompletionConfig;
+    /** Commit 模块配置 */
+    commit: CommitConfig;
     /** 提供商配置覆盖 */
     providerOverrides: UserConfigOverrides;
 }
@@ -161,6 +174,13 @@ export class ConfigManager {
                     extraBody: config.get('nesCompletion.modelConfig.extraBody')
                 }
             },
+            commit: {
+                // VS Code 会自动应用 package.json configuration contribution 的 default。
+                language: (config.get<CommitLanguage>('commit.language') ?? 'chinese') as CommitLanguage,
+                format: (config.get<CommitFormat>('commit.format') ?? 'plain') as CommitFormat,
+                customInstructions: config.get<string>('commit.customInstructions') ?? '',
+                model: config.get<CommitModelSelection>('commit.model')
+            },
             providerOverrides: config.get<UserConfigOverrides>('providerOverrides', {})
         };
 
@@ -238,6 +258,13 @@ export class ConfigManager {
      */
     static getNESConfig(): NESCompletionConfig {
         return this.getConfig().nesCompletion;
+    }
+
+    /**
+     * 获取 Commit 配置对象
+     */
+    static getCommitConfig(): CommitConfig {
+        return this.getConfig().commit;
     }
 
     /**

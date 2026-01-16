@@ -15,6 +15,7 @@ import { CompatibleModelManager } from './utils/compatibleModelManager';
 import { LeaderElectionService, StatusBarManager } from './status';
 import { registerAllTools } from './tools';
 import { CliAuthFactory } from './cli/auth/cliAuthFactory';
+import { registerCommitCommands } from './commit';
 
 /**
  * 全局变量 - 存储已注册的提供商实例，用于扩展卸载时的清理
@@ -260,6 +261,11 @@ export async function activate(context: vscode.ExtensionContext) {
         stepStartTime = Date.now();
         registerCliAuthCommands(context);
         Logger.trace(`⏱️ CLI 认证命令注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+
+        // 步骤8: 注册 Commit 消息生成命令
+        stepStartTime = Date.now();
+        registerCommitCommands(context);
+        Logger.trace(`⏱️ Commit 消息生成命令注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
         const totalActivationTime = Date.now() - activationStartTime;
         Logger.info(`✅ GCMP 扩展激活完成 (总耗时: ${totalActivationTime}ms)`);
