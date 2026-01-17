@@ -423,7 +423,7 @@ GCMP 内置 **Git 生成提交消息** 功能：在您准备提交代码时，�
 
 ```json
 {
-    "gcmp.commit.language": "chinese", // 生成语言：chinese / english
+    "gcmp.commit.language": "chinese", // 生成语言：chinese / english（auto 模式语言不明确时的回退值）
     "gcmp.commit.format": "auto", // 提交消息格式：auto(默认) / 见下方 format 表格
     "gcmp.commit.customInstructions": "", // 自定义指令（仅当 format=custom 时生效）
     "gcmp.commit.model": {
@@ -439,7 +439,7 @@ GCMP 内置 **Git 生成提交消息** 功能：在您准备提交代码时，�
 
 | format         | 风格说明                                         | 示例（第一行）                      | 适用场景                          |
 | -------------- | ------------------------------------------------ | ----------------------------------- | --------------------------------- |
-| `auto`         | 自动推断：根据仓库历史提交推断风格；不明确则回退为 plain | `✨ 新增提交消息生成` / `feat: 新增提交消息生成` | 默认推荐；希望尽量贴合仓库规范     |
+| `auto`         | 自动推断：根据仓库历史提交推断风格与语言；不明确则回退为 plain + `gcmp.commit.language` | `✨ 新增提交消息生成` / `feat: 新增提交消息生成` | 默认推荐；希望尽量贴合仓库规范     |
 | `plain`        | 简洁一句话，不含 type/scope/emoji                | `新增提交消息生成功能`              | 个人项目/快速提交；不想要任何前缀 |
 | `custom`       | 完全由自定义指令控制                             | `按你的自定义规则生成`              | 团队有固定模版/需要特殊输出       |
 | `conventional` | Conventional Commits（可带 scope，支持正文要点） | `feat(commit): 新增提交消息生成`    | 希望和语义化版本/Changelog 联动   |

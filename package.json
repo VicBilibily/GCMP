@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.17.2",
+    "version": "0.17.3",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -427,11 +427,11 @@
                         "english"
                     ],
                     "enumDescriptions": [
-                        "Chinese - 使用中文生成提交消息",
-                        "English - Generate commit messages in English"
+                        "Chinese - 默认/回退语言（auto 模式下历史语言不明确时使用中文）",
+                        "English - Default/fallback language (used when auto mode language is unclear)"
                     ],
                     "default": "chinese",
-                    "description": "生成提交消息使用的语言。支持在工作区和全局配置中设置，工作区配置优先级更高。",
+                    "description": "生成提交消息使用的语言。auto 模式会优先从仓库最近提交历史推断语言；当历史语言不明确时回退为此配置。支持在工作区和全局配置中设置，工作区配置优先级更高。",
                     "scope": "window"
                 },
                 "gcmp.commit.format": {
