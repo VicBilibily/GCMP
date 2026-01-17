@@ -7,7 +7,7 @@
             "id": "qwen3-coder-plus",
             "name": "Qwen3-Coder-Plus (Coding Plan)",
             "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
-            "maxInputTokens": 960000,
+            "maxInputTokens": 128000,
             "maxOutputTokens": 64000,
             "sdkMode": "anthropic",
             "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",

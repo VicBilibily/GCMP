@@ -2,6 +2,11 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.17.7] - 2026-01-17
+
+- **阿里云百炼**：Coding Plan 模型 `Qwen3-Coder-Plus` 参数修正：
+    - `maxInputTokens` 参数：`960000` -> `128000`，经测试120K以上的请求无响应。
+
 ## [0.17.6] - 2026-01-17
 
 - **阿里云百炼**：兼容 Coding Plan 模型 `Qwen3-Coder-Plus` 的请求 Usage Token 统计
