@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.17.3",
+    "version": "0.17.4",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -153,6 +153,16 @@
             {
                 "command": "gcmp.dashscope.setApiKey",
                 "title": "设置 阿里云百炼 API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.dashscope.setCodingPlanApiKey",
+                "title": "设置 阿里云百炼 Coding Plan 专用密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.dashscope.configWizard",
+                "title": "启动 阿里云百炼 配置向导",
                 "category": "GCMP"
             },
             {
@@ -563,8 +573,8 @@
             },
             {
                 "vendor": "gcmp.dashscope",
-                "displayName": "⦿ 阿里云百炼",
-                "managementCommand": "gcmp.dashscope.setApiKey"
+                "displayName": "⦿ 阿里云百炼 (Coding Plan)",
+                "managementCommand": "gcmp.dashscope.configWizard"
             },
             {
                 "vendor": "gcmp.compatible",

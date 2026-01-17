@@ -4,6 +4,21 @@
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "qwen3-coder-plus",
+            "name": "通义千问3-Coder-Plus (Coding Plan)",
+            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
+            "maxInputTokens": 960000,
+            "maxOutputTokens": 64000,
+            "sdkMode": "anthropic",
+            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+            "provider": "dashscope-coding",
+            "model": "qwen3-coder-plus",
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
             "id": "qwen3-max",
             "name": "通义千问3-Max",
             "tooltip": "通义千问3系列Max模型，相较preview版本在智能体编程与工具调用方向进行了专项升级。本次发布的正式版模型达到领域SOTA水平，适配场景更加复杂的智能体需求。",

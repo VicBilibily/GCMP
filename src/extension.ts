@@ -4,6 +4,7 @@ import { ZhipuProvider } from './providers/zhipuProvider';
 import { MoonshotProvider } from './providers/moonshotProvider';
 import { CliModelProvider } from './cli/cliModelProvider';
 import { MiniMaxProvider } from './providers/minimaxProvider';
+import { DashscopeProvider } from './providers/dashscopeProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
 import { InlineCompletionShim } from './copilot/inlineCompletionShim';
 import { Logger, StatusLogger, CompletionLogger, TokenCounter } from './utils';
@@ -69,14 +70,19 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
                 const result = MoonshotProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
-            } else if (cliAuthProviders.includes(providerKey)) {
-                // 对 CLI 认证提供商使用通用的 CLI provider
-                const result = CliModelProvider.createAndActivate(context, providerKey, providerConfig);
-                provider = result.provider;
-                disposables = result.disposables;
             } else if (providerKey === 'minimax') {
                 // 对 minimax 使用专门的 provider（多密钥管理和配置向导）
                 const result = MiniMaxProvider.createAndActivate(context, providerKey, providerConfig);
+                provider = result.provider;
+                disposables = result.disposables;
+            } else if (providerKey === 'dashscope') {
+                // 对 dashscope 使用专门的 provider（多密钥管理和配置向导）
+                const result = DashscopeProvider.createAndActivate(context, providerKey, providerConfig);
+                provider = result.provider;
+                disposables = result.disposables;
+            } else if (cliAuthProviders.includes(providerKey)) {
+                // 对 CLI 认证提供商使用通用的 CLI provider
+                const result = CliModelProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
             } else {

@@ -2,6 +2,14 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.17.4] - 2026-01-17
+
+### 新增
+
+- **阿里云百炼 (Dashscope) Coding Plan**：新增 Coding Plan 套餐专属模型接入
+    - 新增内置模型：`qwen3-coder-plus`
+    - 支持 Coding Plan 专属 API Key（与普通百炼 API Key 分开存储与管理）
+
 ## [0.17.3] - 2026-01-17
 
 ### 完善

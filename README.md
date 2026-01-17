@@ -79,6 +79,7 @@
 
 ### [**阿里云百炼**](https://bailian.console.aliyun.com/) - 通义大模型
 
+- [**Coding Plan 套餐**](https://bailian.console.aliyun.com/cn-beijing/?tab=globalset#/efm/coding_plan)：**Qwen3-Coder-Plus**
 - **通义千问系列**：**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
 
 ### 实验性支持 CLI 认证提供商
@@ -389,12 +390,7 @@ GCMP 内置了完整的 Token 消耗统计功能，帮助您追踪和管理 AI �
 
 ## 📝 Commit 生成提交消息功能
 
-GCMP 内置 **Git 生成提交消息** 功能：在您准备提交代码时，扩展会按文件收集当前仓库 staged(已暂存) / tracked(未暂存) / untracked(新文件) 的变更摘要（diff 片段，过长内容会截断）。
-
-为帮助模型更准确生成提交信息，扩展还会提供两类“历史上下文”（以独立消息传递给模型）：
-
-- **改动相关历史**：对本次变更涉及的 tracked 文件，收集少量最近提交记录（用于理解本次修改的背景）。
-- **仓库级别历史（auto 专用）**：提供仓库最近 50 条提交的 subject（与文件无关，用于让模型推断仓库的提交风格，例如是否使用 emoji 前缀、是否使用 Conventional/Angular 等）。
+GCMP 支持在提交前自动读取当前仓库的改动（已暂存/未暂存/新文件），提取关键 diff 片段并结合相关历史提交与仓库整体提交风格（auto 模式下）来生成更贴合你项目习惯的提交信息。
 
 <details>
 <summary>展开查看详细使用说明</summary>
@@ -424,7 +420,7 @@ GCMP 内置 **Git 生成提交消息** 功能：在您准备提交代码时，�
 ```json
 {
     "gcmp.commit.language": "chinese", // 生成语言：chinese / english（auto 模式语言不明确时的回退值）
-    "gcmp.commit.format": "auto", // 提交消息格式：auto(默认) / 见下方 format 表格
+    "gcmp.commit.format": "auto", // 提交消息格式：auto(默认) / 见下方 format 说明
     "gcmp.commit.customInstructions": "", // 自定义指令（仅当 format=custom 时生效）
     "gcmp.commit.model": {
         "provider": "zhipu", // 生成模型的提供商（providerKey，例如 zhipu / minimax / compatible）
@@ -435,21 +431,97 @@ GCMP 内置 **Git 生成提交消息** 功能：在您准备提交代码时，�
 
 ### `gcmp.commit.format` 格式说明与示例
 
-> 说明：以下示例仅用于展示格式形态；实际内容会根据您的 diff 自动生成。
+> 说明：以下示例仅用于展示格式形态；实际内容会根据你的 diff 自动生成。
 
-| format         | 风格说明                                         | 示例（第一行）                      | 适用场景                          |
-| -------------- | ------------------------------------------------ | ----------------------------------- | --------------------------------- |
-| `auto`         | 自动推断：根据仓库历史提交推断风格与语言；不明确则回退为 plain + `gcmp.commit.language` | `✨ 新增提交消息生成` / `feat: 新增提交消息生成` | 默认推荐；希望尽量贴合仓库规范     |
-| `plain`        | 简洁一句话，不含 type/scope/emoji                | `新增提交消息生成功能`              | 个人项目/快速提交；不想要任何前缀 |
-| `custom`       | 完全由自定义指令控制                             | `按你的自定义规则生成`              | 团队有固定模版/需要特殊输出       |
-| `conventional` | Conventional Commits（可带 scope，支持正文要点） | `feat(commit): 新增提交消息生成`    | 希望和语义化版本/Changelog 联动   |
-| `angular`      | Angular 风格（type(scope): summary）             | `feat(commit): 新增 SCM 入口`       | 偏前端/Angular 生态团队习惯       |
-| `karma`        | Karma 风格（单行，type(scope): msg）             | `fix(commit): 修复多仓库选择`       | 更偏测试/工具链习惯，想保持短提交 |
-| `semantic`     | 语义化 type: message（不带 scope）               | `feat: 新增提交消息生成`            | 喜欢简单 type 前缀但不想要 scope  |
-| `emoji`        | Emoji 前缀（不带 type）                          | `✨ 新增提交消息生成`               | 追求直观分类、轻量规范            |
-| `emojiKarma`   | Emoji + Karma（emoji + type(scope): msg）        | `✨ feat(commit): 新增提交消息生成` | 同时需要 emoji 和 type/scope      |
-| `google`       | Google 风格（Type: Description）                 | `Feat: 新增提交消息生成`            | Google 风格团队/偏工程化规范      |
-| `atom`         | Atom 风格（:emoji: message）                     | `:sparkles: 新增提交消息生成`       | 喜欢 shortcode emoji 的格式       |
+- `auto`：自动推断（会参考仓库历史的语言/风格；不明确时回退为 `plain` + `gcmp.commit.language`），默认推荐。
+
+```text
+✨ 新增提交消息生成
+
+- 支持在“暂存的更改 / 未暂存的更改”分别生成
+- 自动截断过长 diff，保留关键片段
+```
+
+（也可能推断成 Conventional/Angular 这类风格，例如：）
+
+```text
+feat(commit): 新增提交消息生成
+
+- 增加多仓库推断与选择提示
+```
+
+- `plain`：简洁一句话，不含 type/scope/emoji（适合快速提交）。
+
+```text
+新增提交消息生成功能
+```
+
+- `custom`：完全由你的自定义指令控制（`gcmp.commit.customInstructions`）。
+
+```text
+[Commit] 新增提交消息生成
+
+- 按团队模板输出：模块/影响范围/注意事项等
+```
+
+- `conventional`：Conventional Commits（可带 scope，常见写法是“标题 + 可选正文要点”）。
+
+```text
+feat(commit): 新增提交消息生成
+
+- 支持 staged / 未暂存分别生成
+- 自动补充相关历史提交作为参考
+```
+
+- `angular`：Angular 风格（`type(scope): summary`，语义上接近 conventional）。
+
+```text
+feat(commit): 新增 SCM 入口
+
+- 在仓库标题栏与更改分组栏增加入口
+```
+
+- `karma`：Karma 风格（偏“单行”，保持短小）。
+
+```text
+fix(commit): 修复多仓库选择
+```
+
+- `semantic`：语义化 `type: message`（不带 scope；也可以带正文要点）。
+
+```text
+feat: 新增提交消息生成
+
+- 自动识别本次变更的关键 diff
+```
+
+- `emoji`：Emoji 前缀（不带 type）。
+
+```text
+✨ 新增提交消息生成
+```
+
+- `emojiKarma`：Emoji + Karma（emoji + `type(scope): msg`）。
+
+```text
+✨ feat(commit): 新增提交消息生成
+
+- 更贴合仓库既有提交习惯
+```
+
+- `google`：Google 风格（`Type: Description`）。
+
+```text
+Feat: 新增提交消息生成
+
+- 支持按仓库风格自动选择语言与格式
+```
+
+- `atom`：Atom 风格（`:emoji: message`）。
+
+```text
+:sparkles: 新增提交消息生成
+```
 
 </details>
 
