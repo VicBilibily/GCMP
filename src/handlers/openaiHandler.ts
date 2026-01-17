@@ -702,7 +702,6 @@ export class OpenAIHandler {
                         progress.report(new vscode.LanguageModelToolCallPart(toolCallId, event.name, parsedArgs));
                         hasReceivedContent = true;
                     })
-
                     .on('tool_calls.function.arguments.delta', event => {
                         // 工具调用参数增量事件（用于调试）
                         Logger.trace(
@@ -853,26 +852,23 @@ export class OpenAIHandler {
                     throw streamError;
                 }
 
-                // 只在流成功完成后输出一次 usage 信息，避免多次重复打印
-                if (finalUsage) {
-                    const usage = finalUsage as OpenAI.Completions.CompletionUsage;
-                    Logger.info(`📊 ${model.name} OpenAI 请求完成`, usage);
+                Logger.info(`📊 ${model.name} OpenAI 请求完成`, finalUsage);
 
-                    if (requestId) {
-                        // === Token 统计: 更新实际 token ===
-                        try {
-                            const usagesManager = TokenUsagesManager.instance;
-                            // 直接传递原始 usage 对象
-                            await usagesManager.updateActualTokens({
-                                requestId,
-                                rawUsage: usage,
-                                status: 'completed'
-                            });
-                        } catch (err) {
-                            Logger.warn('更新Token统计失败:', err);
-                        }
+                if (requestId) {
+                    // === Token 统计: 更新实际 token ===
+                    try {
+                        const usagesManager = TokenUsagesManager.instance;
+                        // 直接传递原始 usage 对象
+                        await usagesManager.updateActualTokens({
+                            requestId,
+                            rawUsage: finalUsage || {},
+                            status: 'completed'
+                        });
+                    } catch (err) {
+                        Logger.warn('更新Token统计失败:', err);
                     }
                 }
+
                 Logger.debug(`${model.name} ${this.displayName} SDK流处理完成`);
             } catch (streamError) {
                 // 改进错误处理，区分取消和其他错误

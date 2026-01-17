@@ -2,7 +2,11 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
-## [0.17.45] - 2026-01-17
+## [0.17.6] - 2026-01-17
+
+- **阿里云百炼**：兼容 Coding Plan 模型 `Qwen3-Coder-Plus` 的请求 Usage Token 统计
+
+## [0.17.5] - 2026-01-17
 
 - **阿里云百炼**：修正模型 `maxInputTokens` 参数：`96000` -> `960000`
     - 相关模型：`通义千问-Plus`、`通义千问-Plus-Latest`、`通义千问-Flash`
@@ -12,7 +16,7 @@
 ### 新增
 
 - **阿里云百炼**：新增 Coding Plan 套餐专属模型接入
-    - 新增内置模型：`qwen3-coder-plus`
+    - 新增内置模型：`Qwen3-Coder-Plus`
     - 支持 Coding Plan 专属 API Key（与普通百炼 API Key 分开存储与管理）
 
 ## [0.17.3] - 2026-01-17

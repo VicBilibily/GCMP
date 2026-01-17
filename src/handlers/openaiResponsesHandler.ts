@@ -799,19 +799,19 @@ export class OpenAIResponsesHandler {
                 // 报告 usage 信息
                 if (finalUsage) {
                     Logger.info(`📊 ${model.name} Responses API 请求完成`, finalUsage);
+                }
 
-                    if (requestId) {
-                        try {
-                            // === Token 统计: 更新实际 token ===
-                            const usagesManager = TokenUsagesManager.instance;
-                            await usagesManager.updateActualTokens({
-                                requestId,
-                                rawUsage: finalUsage,
-                                status: 'completed'
-                            });
-                        } catch (err) {
-                            Logger.warn('更新Token统计失败:', err);
-                        }
+                if (requestId) {
+                    try {
+                        // === Token 统计: 更新实际 token ===
+                        const usagesManager = TokenUsagesManager.instance;
+                        await usagesManager.updateActualTokens({
+                            requestId,
+                            rawUsage: finalUsage || {},
+                            status: 'completed'
+                        });
+                    } catch (err) {
+                        Logger.warn('更新Token统计失败:', err);
                     }
                 }
 

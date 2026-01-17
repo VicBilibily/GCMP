@@ -151,16 +151,16 @@ export class AnthropicHandler {
 
             // 使用完整的流处理函数
             const result = await this.handleAnthropicStream(stream, progress, token, modelConfig);
-            Logger.info(`[${model.name}] Anthropic 请求完成`, result.usage);
+            Logger.info(`[${model.name}] Anthropic 请求完成`, result?.usage);
 
             // === Token 统计: 更新实际 token ===
-            if (result.usage && requestId) {
+            if (requestId) {
                 try {
                     const usagesManager = TokenUsagesManager.instance;
                     // 直接传递 SDK 的 Usage 对象
                     await usagesManager.updateActualTokens({
                         requestId,
-                        rawUsage: result.usage,
+                        rawUsage: result?.usage || {},
                         status: 'completed'
                     });
                 } catch (err) {
@@ -514,17 +514,23 @@ export class AnthropicHandler {
 
                     case 'message_delta':
                         // 消息增量 - 更新使用统计
-                        if (chunk.usage && usage) {
-                            // 合并 MessageDeltaUsage 增量到当前 Usage
-                            usage = {
-                                ...usage,
-                                input_tokens: chunk.usage.input_tokens ?? usage.input_tokens,
-                                output_tokens: chunk.usage.output_tokens ?? usage.output_tokens,
-                                cache_read_input_tokens:
-                                    chunk.usage.cache_read_input_tokens ?? usage.cache_read_input_tokens,
-                                cache_creation_input_tokens:
-                                    chunk.usage.cache_creation_input_tokens ?? usage.cache_creation_input_tokens
-                            } as Anthropic.Messages.Usage;
+                        if (chunk.usage) {
+                            // 部分 Claude 网关只会在 message_delta（通常伴随 stop_reason）里返回 usage。
+                            // 此时 message_start 不包含 usage，所以这里需要支持 usage 的延迟初始化。
+                            if (!usage) {
+                                usage = chunk.usage as unknown as Anthropic.Messages.Usage;
+                            } else {
+                                // 合并 MessageDeltaUsage 增量到当前 Usage
+                                usage = {
+                                    ...usage,
+                                    input_tokens: chunk.usage.input_tokens ?? usage.input_tokens,
+                                    output_tokens: chunk.usage.output_tokens ?? usage.output_tokens,
+                                    cache_read_input_tokens:
+                                        chunk.usage.cache_read_input_tokens ?? usage.cache_read_input_tokens,
+                                    cache_creation_input_tokens:
+                                        chunk.usage.cache_creation_input_tokens ?? usage.cache_creation_input_tokens
+                                } as Anthropic.Messages.Usage;
+                            }
                         }
                         break;
 

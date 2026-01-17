@@ -518,21 +518,21 @@ export class OpenAICustomHandler {
             Logger.warn(`[${model.name}] 消息流结束时只有思考内容没有文本内容，添加了 <think/> 占位符作为输出`);
         }
 
+        if (finalUsage) {
+            // 提取缓存 token 信息
+            const cacheReadTokens = finalUsage.prompt_tokens_details?.cached_tokens ?? 0;
+            Logger.info(
+                `📊 ${model.name} Token使用: 输入${finalUsage.prompt_tokens}${cacheReadTokens > 0 ? ` (缓存:${cacheReadTokens})` : ''} + 输出${finalUsage.completion_tokens} = 总计${finalUsage.total_tokens}`
+            );
+        }
+
         // === Token 统计: 更新实际 token ===
-        if (finalUsage && requestId) {
+        if (requestId) {
             try {
                 const usagesManager = TokenUsagesManager.instance;
-
-                // 提取缓存 token 信息
-                const cacheReadTokens = finalUsage.prompt_tokens_details?.cached_tokens ?? 0;
-                Logger.info(
-                    `📊 ${model.name} Token使用: 输入${finalUsage.prompt_tokens}${cacheReadTokens > 0 ? ` (缓存:${cacheReadTokens})` : ''} + 输出${finalUsage.completion_tokens} = 总计${finalUsage.total_tokens}`
-                );
-
-                // 直接传递原始 usage 对象
                 await usagesManager.updateActualTokens({
                     requestId,
-                    rawUsage: finalUsage,
+                    rawUsage: finalUsage || {},
                     status: 'completed'
                 });
             } catch (err) {
