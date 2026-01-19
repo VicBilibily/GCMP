@@ -2,6 +2,16 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.17.8] - 2026-01-19
+
+- **Anthropic Compatible**：支持流式请求的会话粘性缓存（客户端驱动）
+    - 通过 `metadata.user_id` 注入/复用客户端会话标识，实现会话粘性
+    - 流式响应 `message_start.message.id` 作为缓存中的 `messageId` 用于追踪与复用
+- **火山方舟**：新增 Responses API 上下文缓存模型适配
+    - 上下文缓存兼容模式采用 Responses 模式支持上下文缓存续接。
+    - 未命中本地缓存或新对话时默认创建 2 小时缓存窗口对话（实际兼容 1 小时滑动）。
+    - 内置模型补充：`Doubao-Seed-1.8-251228 (Caching)`、`GLM-4.7-251222` 及 `GLM-4.7-251222 (Caching)`
+
 ## [0.17.7] - 2026-01-17
 
 - **阿里云百炼**：Coding Plan 模型 `Qwen3-Coder-Plus` 参数修正：

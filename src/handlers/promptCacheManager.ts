@@ -1,22 +1,35 @@
 ﻿/*---------------------------------------------------------------------------------------------
- *  Prompt Cache 管理器
- *  管理 OpenAI Responses API 的 prompt_cache_key 缓存
+ *  会话缓存管理器
+ *  - OpenAI Responses: prompt_cache_key / previous_response_id
+ *  - Anthropic 兼容接口: metadata.user_id（客户端粘性会话键）
+ *
+ *  统一用“摘要匹配”确认当前对话属于哪个缓存条目。
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
 import { Logger } from '../utils/logger';
 import OpenAI from 'openai';
 
-/**
- * 统一的缓存条目接口
- */
-interface UnifiedCacheEntry {
+interface OpenAIResponsesCacheEntry {
+    kind: 'openai-responses';
+    // OpenAI Responses: response.id
     responseId: string;
     promptCacheKey?: string; // 只有 GPT/Codex 有 prompt_cache_key
-    // output: readonly OpenAI.Responses.ResponseOutputItem[];
     summary: string; // 预计算的消息摘要
     timestamp: number;
 }
+
+interface AnthropicSessionCacheEntry {
+    kind: 'anthropic-session';
+    // Anthropic messages streaming: message_start.message.id
+    messageId: string;
+    // Anthropic compatible: 使用 metadata.user_id 作为客户端会话键
+    sessionId: string;
+    summary: string; // 预计算的消息摘要
+    timestamp: number;
+}
+
+type UnifiedCacheEntry = OpenAIResponsesCacheEntry | AnthropicSessionCacheEntry;
 
 /**
  * Prompt Cache 管理器
@@ -25,7 +38,7 @@ interface UnifiedCacheEntry {
  */
 export class PromptCacheManager {
     private static instance: PromptCacheManager;
-    // 统一的缓存：key 为 responseId 或 promptCacheKey
+    // 统一的缓存：key 为 responseId（OpenAI）/ messageId（Anthropic）或 promptCacheKey
     private cache: Map<string, UnifiedCacheEntry> = new Map<string, UnifiedCacheEntry>();
     private maxCacheSize = 500; // 最大缓存条目数
     private cacheTimeout = 1000 * 60 * 60; // 1小时缓存过期时间
@@ -169,8 +182,8 @@ export class PromptCacheManager {
     }
 
     /**
-     * 保存缓存条目（统一方法）
-     * @param responseId 必需：所有模型的 response.id（唯一，不会重复）
+     * 保存 OpenAI Responses 缓存条目
+     * @param responseId 必需：response.id（唯一，不会重复）
      * @param output ResponseOutputItem 数组
      * @param promptCacheKey 可选：只有 GPT/Codex 有 prompt_cache_key
      */
@@ -189,9 +202,9 @@ export class PromptCacheManager {
 
         // 直接创建新条目（responseId 不会重复）
         const entry: UnifiedCacheEntry = {
+            kind: 'openai-responses',
             responseId,
             promptCacheKey,
-            // output,
             summary,
             timestamp: now
         };
@@ -199,6 +212,41 @@ export class PromptCacheManager {
         Logger.debug(`💾 [PromptCache] 保存新缓存 ${responseId}, promptCacheKey=${promptCacheKey}, summary=${summary}`);
 
         // 清理过期缓存
+        this.cleanup();
+    }
+
+    /**
+     * 保存 Anthropic 兼容接口 session 缓存条目
+     * @param messageId Anthropic message_start.message.id（唯一，用作 cacheKey，便于追踪/诊断）
+     * @param sessionId 会话标识（客户端粘性会话键，写入 metadata.user_id）
+     * @param summary 助手输出的摘要（用于后续匹配会话）
+     */
+    public saveSessionCache(messageId: string, sessionId: string, summary: string): void {
+        if (!messageId) {
+            Logger.warn('[PromptCache] saveSessionCache: 缺少 messageId(message.id)，跳过保存');
+            return;
+        }
+        if (!sessionId) {
+            Logger.warn('[PromptCache] saveSessionCache: 缺少 sessionId，跳过保存');
+            return;
+        }
+        if (!summary || summary.trim() === '') {
+            Logger.trace(`[PromptCache] saveSessionCache: sessionId=${sessionId} 缺少摘要，跳过保存`);
+            return;
+        }
+
+        const now = Date.now();
+        const entry: UnifiedCacheEntry = {
+            kind: 'anthropic-session',
+            messageId,
+            sessionId,
+            summary,
+            timestamp: now
+        };
+        this.cache.set(messageId, entry);
+        Logger.debug(
+            `💾 [PromptCache] 保存 session 缓存 messageId=${messageId}, sessionId=${sessionId}, summary=${summary}`
+        );
         this.cleanup();
     }
 
@@ -302,16 +350,27 @@ export class PromptCacheManager {
     }
 
     /**
-     * 查找匹配的缓存（统一方法）
-     * 通过比较最后几条消息来确认会话属于哪个缓存
-     * @param messages 消息数组
-     * @param lastN 只考虑最后N条消息
-     * @returns 匹配的 { responseId, promptCacheKey?, lastMatchIndex }，如果没有匹配则返回 undefined
+     * 通过比较最后几条 assistant 消息来确认会话属于哪个缓存条目。
+     * 使用 kind（模式）区分不同缓存类型，而不是拆成两套几乎相同的匹配方法。
      */
-    public findCache(
+    public findByKind(
+        kind: 'openai-responses',
+        messages: readonly vscode.LanguageModelChatMessage[],
+        lastN: number
+    ): { responseId: string; promptCacheKey?: string; lastMatchIndex: number } | undefined;
+    public findByKind(
+        kind: 'anthropic-session',
+        messages: readonly vscode.LanguageModelChatMessage[],
+        lastN: number
+    ): { sessionId: string; messageId: string; lastMatchIndex: number } | undefined;
+    public findByKind(
+        kind: UnifiedCacheEntry['kind'],
         messages: readonly vscode.LanguageModelChatMessage[],
         lastN: number = 3
-    ): { responseId: string; promptCacheKey?: string; lastMatchIndex: number } | undefined {
+    ):
+        | { responseId: string; promptCacheKey?: string; lastMatchIndex: number }
+        | { sessionId: string; messageId: string; lastMatchIndex: number }
+        | undefined {
         const now = Date.now();
 
         // 缓存已计算的消息摘要，避免重复计算
@@ -321,6 +380,9 @@ export class PromptCacheManager {
         const cacheEntries = Array.from(this.cache.entries()).reverse();
 
         for (const [cacheKey, entry] of cacheEntries) {
+            if (entry.kind !== kind) {
+                continue;
+            }
             // 检查是否过期
             if (now - entry.timestamp > this.cacheTimeout) {
                 this.cache.delete(cacheKey);
@@ -382,19 +444,30 @@ export class PromptCacheManager {
                 // 如果至少有一行匹配，返回当前 assistant 消息的位置
                 if (matchCount > 0) {
                     entry.timestamp = now;
+                    if (entry.kind === 'openai-responses') {
+                        Logger.debug(
+                            `✅ [PromptCache] 缓存命中 ${cacheKey}, responseId=${entry.responseId}, promptCacheKey=${entry.promptCacheKey}, lastMatchIndex=${i}, assistantCount=${assistantCount}, matchCount=${matchCount}`
+                        );
+                        return {
+                            responseId: entry.responseId,
+                            promptCacheKey: entry.promptCacheKey,
+                            lastMatchIndex: i
+                        };
+                    }
+
                     Logger.debug(
-                        `✅ [PromptCache] 缓存命中 ${cacheKey}, responseId=${entry.responseId}, promptCacheKey=${entry.promptCacheKey}, lastMatchIndex=${i}, assistantCount=${assistantCount}, matchCount=${matchCount}`
+                        `✅ [PromptCache] Session 缓存命中 ${cacheKey}, sessionId=${entry.sessionId}, messageId=${entry.messageId}, lastMatchIndex=${i}, assistantCount=${assistantCount}, matchCount=${matchCount}`
                     );
                     return {
-                        responseId: entry.responseId,
-                        promptCacheKey: entry.promptCacheKey,
+                        sessionId: entry.sessionId,
+                        messageId: entry.messageId,
                         lastMatchIndex: i
                     };
                 }
             }
         }
 
-        Logger.trace('[PromptCache] 未找到匹配缓存');
+        Logger.trace(`[PromptCache] 未找到匹配缓存 kind=${kind}`);
         return undefined;
     }
 

@@ -20,6 +20,7 @@ import { AnthropicHandler } from '../handlers/anthropicHandler';
 import { GeminiHandler } from '../handlers/geminiHandler';
 import { ContextUsageStatusBar } from '../status/contextUsageStatusBar';
 import { TokenUsagesManager } from '../usages/usagesManager';
+import { OpenAIResponsesHandler } from '../handlers/openaiResponsesHandler';
 
 /**
  * 通用模型提供商类
@@ -28,6 +29,7 @@ import { TokenUsagesManager } from '../usages/usagesManager';
 export class GenericModelProvider implements LanguageModelChatProvider {
     protected readonly openaiHandler: OpenAIHandler;
     protected readonly openaiCustomHandler: OpenAICustomHandler;
+    protected readonly openaiResponsesHandler: OpenAIResponsesHandler;
     protected readonly anthropicHandler: AnthropicHandler;
     protected readonly geminiHandler: GeminiHandler;
     protected readonly providerKey: string;
@@ -79,6 +81,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         this.openaiHandler = new OpenAIHandler(providerKey, providerConfig);
         // 创建 OpenAI 自定义 SSE 处理器
         this.openaiCustomHandler = new OpenAICustomHandler(providerKey, providerConfig, this.openaiHandler);
+        // 创建 OpenAI Responses API 处理器
+        this.openaiResponsesHandler = new OpenAIResponsesHandler(this.providerConfig.displayName, this.openaiHandler);
         // 创建 Anthropic SDK 处理器
         this.anthropicHandler = new AnthropicHandler(providerKey, providerConfig);
         // 创建 Gemini HTTP SSE 处理器
@@ -336,6 +340,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             sdkName = 'Anthropic SDK';
         } else if (sdkMode === 'openai-sse') {
             sdkName = 'OpenAI SSE';
+        } else if (sdkMode === 'openai-responses') {
+            sdkName = 'OpenAI Responses API';
         } else if (sdkMode === 'gemini-sse') {
             sdkName = 'Gemini SSE';
         }
@@ -344,6 +350,16 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         try {
             if (sdkMode === 'anthropic') {
                 await this.anthropicHandler.handleRequest(
+                    model,
+                    modelConfig,
+                    messages,
+                    options,
+                    progress,
+                    token,
+                    requestId
+                );
+            } else if (sdkMode === 'gemini-sse') {
+                await this.geminiHandler.handleRequest(
                     model,
                     modelConfig,
                     messages,
@@ -363,10 +379,11 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     token,
                     requestId
                 );
-            } else if (sdkMode === 'gemini-sse') {
-                await this.geminiHandler.handleRequest(
+            } else if (sdkMode === 'openai-responses') {
+                // OpenAI Responses API 模式：使用 Responses API
+                await this.openaiResponsesHandler.handleResponsesRequest(
                     model,
-                    modelConfig,
+                    { ...modelConfig, provider: effectiveProviderKey },
                     messages,
                     options,
                     progress,

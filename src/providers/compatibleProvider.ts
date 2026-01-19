@@ -17,8 +17,6 @@ import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status';
 import { KnownProviders } from '../utils';
 import { configProviders } from './config';
-import { OpenAIResponsesHandler } from '../handlers/openaiResponsesHandler';
-import { GeminiHandler } from '../handlers/geminiHandler';
 
 /**
  * 独立兼容模型提供商类
@@ -28,8 +26,6 @@ export class CompatibleProvider extends GenericModelProvider {
     private static readonly PROVIDER_KEY = 'compatible';
     private modelsChangeListener?: vscode.Disposable;
     private retryManager: RetryManager;
-    protected readonly openaiResponsesHandler: OpenAIResponsesHandler;
-    protected readonly geminiHandler: GeminiHandler;
 
     constructor(context: vscode.ExtensionContext) {
         // 创建一个虚拟的 ProviderConfig，实际模型配置从 CompatibleModelManager 获取
@@ -49,10 +45,6 @@ export class CompatibleProvider extends GenericModelProvider {
             backoffMultiplier: 2,
             jitterEnabled: true
         });
-
-        this.openaiResponsesHandler = new OpenAIResponsesHandler(this.providerConfig.displayName, this.openaiHandler);
-
-        this.geminiHandler = new GeminiHandler(this.providerConfig.displayName, this.providerConfig);
 
         this.getProviderConfig(); // 初始化配置缓存
         // 监听 CompatibleModelManager 的变更事件

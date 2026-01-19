@@ -100,7 +100,7 @@
                 },
                 "sdkMode": {
                     "type": "string",
-                    "enum": ["anthropic", "openai", "openai-sse", "gemini-sse"],
+                    "enum": ["anthropic", "openai", "openai-sse", "openai-responses", "gemini-sse"],
                     "default": "openai",
                     "description": "SDK模式选择：使用 OpenAI SDK 或 Anthropic SDK 处理请求。"
                 },

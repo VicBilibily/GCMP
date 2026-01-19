@@ -69,6 +69,23 @@
             }
         },
         {
+            "id": "doubao-seed-1-8-caching",
+            "name": "Doubao-Seed-1.8-251228 (Caching)",
+            "model": "doubao-seed-1-8-251228",
+            "sdkMode": "openai-responses",
+            "tooltip": "全新面向多模态 Agent 场景定向优化模型。更强Agent能力、升级多模态理解、更灵活的上下文管理。",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 64000,
+            "includeThinking": true,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "caching": { "type": "enabled" }
+            }
+        },
+        {
             "id": "doubao-seed-1-6",
             "name": "Doubao-Seed-1.6-251015",
             "model": "doubao-seed-1-6-251015",
@@ -155,6 +172,36 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
+            }
+        },
+        {
+            "id": "glm-4.7",
+            "name": "GLM-4.7-251222",
+            "model": "glm-4-7-251222",
+            "tooltip": "GLM-4.7 是智谱最新旗舰模型，更强的编程能力与更稳定的多步骤推理/执行能力。在执行复杂智能体任务提升明显，同时对话更自然，前端审美更好。",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "includeThinking": true,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "glm-4.7-caching",
+            "name": "GLM-4.7-251222 (Caching)",
+            "model": "glm-4-7-251222",
+            "sdkMode": "openai-responses",
+            "tooltip": "GLM-4.7 是智谱最新旗舰模型，更强的编程能力与更稳定的多步骤推理/执行能力。在执行复杂智能体任务提升明显，同时对话更自然，前端审美更好。",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "includeThinking": true,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "caching": { "type": "enabled" }
             }
         }
     ]

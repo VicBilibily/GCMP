@@ -87,8 +87,8 @@
         },
         {
             "id": "minimax-m2.1",
-            "name": "MiniMax-2.1 (iFlow)",
-            "tooltip": "MiniMax-2.1 (iFlow)",
+            "name": "MiniMax-M2.1 (iFlow)",
+            "tooltip": "MiniMax-M2.1 (iFlow)",
             "maxInputTokens": 128000,
             "maxOutputTokens": 64000,
             "capabilities": {

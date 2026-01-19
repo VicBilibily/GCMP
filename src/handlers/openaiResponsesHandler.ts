@@ -380,18 +380,18 @@ export class OpenAIResponsesHandler {
                 };
 
                 const modelId = (modelConfig.model || model.id).toLowerCase();
-                const isDoubao = modelId.includes('doubao');
+                const isDoubaoOrVolcengine = modelId.includes('doubao') || modelConfig?.provider === 'volcengine';
 
                 // 统一的缓存检查（支持 GPT/Codex 的 prompt_cache_key 和豆包的 previous_response_id）
                 const cacheManager = PromptCacheManager.getInstance();
-                const cacheResult = cacheManager.findCache(messages, 10);
+                const cacheResult = cacheManager.findByKind('openai-responses', messages, 10);
 
                 if (cacheResult) {
                     if (cacheResult.promptCacheKey) {
                         // GPT/Codex 使用 prompt_cache_key
                         requestBody.prompt_cache_key = cacheResult.promptCacheKey;
                         Logger.info(`🎯 ${model.name} 使用 prompt_cache_key: ${cacheResult.promptCacheKey}`);
-                    } else if (isDoubao) {
+                    } else if (isDoubaoOrVolcengine) {
                         // 豆包使用 previous_response_id
                         const extraBody: { caching?: { type?: string } } = modelConfig.extraBody || {};
                         if (extraBody?.caching?.type === 'enabled') {
@@ -421,12 +421,12 @@ export class OpenAIResponsesHandler {
                             }
                         }
                     }
-                } else if (isDoubao) {
+                } else if (isDoubaoOrVolcengine) {
                     // 豆包未命中缓存时设置过期时间
                     const extraBody: { caching?: { type?: string } } = modelConfig.extraBody || {};
                     if (extraBody?.caching?.type === 'enabled') {
-                        requestBody.expire_at = Math.floor(Date.now() / 1000) + 1 * 3600; // 1小时后过期
-                        Logger.info(`🎯 ${model.name} 使用豆包缓存，设置 expire_at 为 1 小时后过期`);
+                        requestBody.expire_at = Math.floor(Date.now() / 1000) + 2 * 3600; // 2小时后过期
+                        Logger.info(`🎯 ${model.name} 使用豆包缓存，设置 expire_at 为 2 小时后过期`);
                     }
                 }
 
@@ -455,7 +455,7 @@ export class OpenAIResponsesHandler {
 
                 // tools - 转换并添加工具定义
                 if (options?.tools && options.tools.length > 0) {
-                    if (!isDoubao || !requestBody.previous_response_id) {
+                    if (!isDoubaoOrVolcengine || !requestBody.previous_response_id) {
                         const tools = this.convertToolsToResponses(options.tools);
                         if (tools.length > 0) {
                             requestBody.tools = tools;

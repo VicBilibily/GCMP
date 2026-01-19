@@ -83,7 +83,7 @@ export class PromptAnalyzer {
             let systemMessageCount = 0;
             for (const message of messages) {
                 const role = message.role;
-                Logger.debug(`[${providerKey}] 消息角色: ${role}`);
+                // Logger.debug(`[${providerKey}] 消息角色: ${role}`);
                 // role 是 LanguageModelChatMessage.Role 枚举：System=3, User=1, Assistant=2
                 if (role === vscode.LanguageModelChatMessageRole.System) {
                     systemMessageCount++;
@@ -275,9 +275,9 @@ export class PromptAnalyzer {
                             if (thinkingText) {
                                 const thinkingTokens = await tokenCounter.countTokens(model, thinkingText);
                                 promptParts.thinking = (promptParts.thinking || 0) + thinkingTokens;
-                                Logger.debug(
-                                    `[${providerKey}] 检测到 LanguageModelThinkingPart, tokens=${thinkingTokens}`
-                                );
+                                // Logger.debug(
+                                //     `[${providerKey}] 检测到 LanguageModelThinkingPart, tokens=${thinkingTokens}`
+                                // );
                             }
                         }
                     }
@@ -302,14 +302,14 @@ export class PromptAnalyzer {
                     messageContentForCheck.includes(PromptAnalyzer.CONVERSATION_COMPRESSION_MARKER) ||
                     messageContentForCheck.includes(PromptAnalyzer.CONVERSATION_SUMMARY_TAG)
                 ) {
-                    Logger.debug(`[${providerKey}] 跳过压缩历史消息, content length: ${messageContentForCheck.length}`);
+                    // Logger.debug(`[${providerKey}] 跳过压缩历史消息, content length: ${messageContentForCheck.length}`);
                     skippedMessageCount++;
                     continue;
                 }
 
                 // 跳过环境消息（已在第3.5步处理）
                 if (messageContentForCheck.includes(PromptAnalyzer.ENVIRONMENT_WORKSPACE_TAG)) {
-                    Logger.debug(`[${providerKey}] 跳过环境消息, content length: ${messageContentForCheck.length}`);
+                    // Logger.debug(`[${providerKey}] 跳过环境消息, content length: ${messageContentForCheck.length}`);
                     skippedMessageCount++;
                     continue;
                 }
@@ -342,7 +342,7 @@ export class PromptAnalyzer {
                     }
                 }
 
-                Logger.debug(`[${providerKey}] 处理消息 [${i}] role=${role}, tokens=${messageTokens}`);
+                // Logger.debug(`[${providerKey}] 处理消息 [${i}] role=${role}, tokens=${messageTokens}`);
 
                 // 按官方标准合并：所有非系统、非压缩的消息都并入 userAssistantMessage
                 // 包括：user、assistant、tool、function 等所有对话角色
