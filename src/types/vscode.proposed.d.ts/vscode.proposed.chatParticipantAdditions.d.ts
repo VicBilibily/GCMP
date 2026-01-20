@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
     export interface ChatParticipant {
-        onDidPerformAction: Event<ChatUserActionEvent>;
+        readonly onDidPerformAction: Event<ChatUserActionEvent>;
     }
 
     /**
@@ -31,7 +31,8 @@ declare module 'vscode' {
     export class ChatResponseCodeblockUriPart {
         isEdit?: boolean;
         value: Uri;
-        constructor(value: Uri, isEdit?: boolean);
+        undoStopId?: string;
+        constructor(value: Uri, isEdit?: boolean, undoStopId?: string);
     }
 
     /**
@@ -78,9 +79,14 @@ declare module 'vscode' {
         constructor(value: Uri, license: string, snippet: string);
     }
 
-    export class ChatPrepareToolInvocationPart {
-        toolName: string;
-        constructor(toolName: string);
+    export interface ChatToolInvocationStreamData {
+        /**
+         * Partial or not-yet-validated arguments that have streamed from the language model.
+         * Tools may use this to render interim UI while the full invocation input is collected.
+         */
+        readonly partialInput?: unknown;
+
+        readonly subagentInvocationId?: string;
     }
 
     export interface ChatTerminalToolInvocationData {
@@ -102,7 +108,8 @@ declare module 'vscode' {
         isConfirmed?: boolean;
         isComplete?: boolean;
         toolSpecificData?: ChatTerminalToolInvocationData;
-        fromSubAgent?: boolean;
+        subAgentInvocationId?: string;
+        presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
         constructor(toolName: string, toolCallId: string, isError?: boolean);
     }
@@ -152,11 +159,25 @@ declare module 'vscode' {
         title: string;
 
         /**
+         * Whether the multi diff editor should be read-only.
+         * When true, users cannot open individual files or interact with file navigation.
+         */
+        readOnly?: boolean;
+
+        /**
          * Create a new ChatResponseMultiDiffPart.
          * @param value Array of file diff entries.
          * @param title The title for the multi diff editor.
+         * @param readOnly Optional flag to make the multi diff editor read-only.
          */
-        constructor(value: ChatResponseDiffEntry[], title: string);
+        constructor(value: ChatResponseDiffEntry[], title: string, readOnly?: boolean);
+    }
+
+    export class ChatResponseExternalEditPart {
+        uris: Uri[];
+        callback: () => Thenable<unknown>;
+        applied: Thenable<string>;
+        constructor(uris: Uri[], callback: () => Thenable<unknown>);
     }
 
     export type ExtendedChatResponsePart =
@@ -169,10 +190,10 @@ declare module 'vscode' {
         | ChatResponseMovePart
         | ChatResponseExtensionsPart
         | ChatResponsePullRequestPart
-        | ChatPrepareToolInvocationPart
         | ChatToolInvocationPart
         | ChatResponseMultiDiffPart
-        | ChatResponseThinkingProgressPart;
+        | ChatResponseThinkingProgressPart
+        | ChatResponseExternalEditPart;
     export class ChatResponseWarningPart {
         value: MarkdownString;
         constructor(value: string | MarkdownString);
@@ -324,6 +345,14 @@ declare module 'vscode' {
 
         notebookEdit(target: Uri, isDone: true): void;
 
+        /**
+         * Makes an external edit to one or more resources. Changes to the
+         * resources made within the `callback` and before it resolves will be
+         * tracked as agent edits. This can be used to track edits made from
+         * external tools that don't generate simple {@link textEdit textEdits}.
+         */
+        externalEdit(target: Uri | Uri[], callback: () => Thenable<unknown>): Thenable<string>;
+
         markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
         codeblockUri(uri: Uri, isEdit?: boolean): void;
         push(
@@ -364,7 +393,21 @@ declare module 'vscode' {
 
         codeCitation(value: Uri, license: string, snippet: string): void;
 
-        prepareToolInvocation(toolName: string): void;
+        /**
+         * Begin a tool invocation in streaming mode. This creates a tool invocation that will
+         * display streaming progress UI until the tool is actually invoked.
+         * @param toolCallId Unique identifier for this tool call, used to correlate streaming updates and final invocation.
+         * @param toolName The name of the tool being invoked.
+         * @param streamData Optional initial streaming data with partial arguments.
+         */
+        beginToolInvocation(toolCallId: string, toolName: string, streamData?: ChatToolInvocationStreamData): void;
+
+        /**
+         * Update the streaming data for a tool invocation that was started with `beginToolInvocation`.
+         * @param toolCallId The tool call ID that was passed to `beginToolInvocation`.
+         * @param streamData New streaming data with updated partial arguments.
+         */
+        updateToolInvocation(toolCallId: string, streamData: ChatToolInvocationStreamData): void;
 
         push(part: ExtendedChatResponsePart): void;
 
@@ -482,7 +525,7 @@ declare module 'vscode' {
          * Event that fires when a request is paused or unpaused.
          * Chat requests are initially unpaused in the {@link requestHandler}.
          */
-        onDidChangePauseState: Event<ChatParticipantPauseStateEvent>;
+        readonly onDidChangePauseState: Event<ChatParticipantPauseStateEvent>;
     }
 
     export interface ChatParticipantPauseStateEvent {
@@ -699,6 +742,40 @@ declare module 'vscode' {
 
     export interface LanguageModelToolInvocationOptions<T> {
         model?: LanguageModelChat;
+        readonly chatStreamToolCallId?: string;
+    }
+
+    export interface LanguageModelToolInvocationStreamOptions<T> {
+        /**
+         * Raw argument payload, such as the streamed JSON fragment from the language model.
+         */
+        readonly rawInput?: unknown;
+
+        readonly chatRequestId?: string;
+        readonly chatSessionId?: string;
+        readonly chatInteractionId?: string;
+    }
+
+    export interface LanguageModelToolStreamResult {
+        /**
+         * A customized progress message to show while the tool runs.
+         */
+        invocationMessage?: string | MarkdownString;
+    }
+
+    export interface LanguageModelTool<T> {
+        /**
+         * Called zero or more times before {@link LanguageModelTool.prepareInvocation} while the
+         * language model streams argument data for the invocation. Use this to update progress
+         * or UI with the partial arguments that have been generated so far.
+         *
+         * Implementations must be free of side-effects and should be resilient to receiving
+         * malformed or incomplete input.
+         */
+        handleToolStream?(
+            options: LanguageModelToolInvocationStreamOptions<T>,
+            token: CancellationToken
+        ): ProviderResult<LanguageModelToolStreamResult>;
     }
 
     export interface ChatRequest {
@@ -707,6 +784,7 @@ declare module 'vscode' {
     }
 
     export interface ChatRequestModeInstructions {
+        readonly name: string;
         readonly content: string;
         readonly toolReferences?: readonly ChatLanguageModelToolReference[];
         readonly metadata?: Record<string, boolean | string | number>;

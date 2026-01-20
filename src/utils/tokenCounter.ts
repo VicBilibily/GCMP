@@ -208,14 +208,14 @@ export class TokenCounter {
     async countTokens(_model: LanguageModelChatInformation, text: string | LanguageModelChatMessage): Promise<number> {
         if (typeof text === 'string') {
             const stringTokens = this.tokenizer!.encode(text).length;
-            Logger.trace(`[Token计数] 字符串: ${stringTokens} tokens (长度: ${text.length})`);
+            // Logger.trace(`[Token计数] 字符串: ${stringTokens} tokens (长度: ${text.length})`);
             return stringTokens;
         }
 
         // 处理 LanguageModelChatMessage 对象
         try {
             const objectTokens = await this.countMessageObjectTokens(text as unknown as Record<string, unknown>);
-            Logger.trace(`[Token计数] 对象消息: ${objectTokens} tokens`);
+            // Logger.trace(`[Token计数] 对象消息: ${objectTokens} tokens`);
             return objectTokens;
         } catch (error) {
             Logger.warn('[Token计数] 计算消息对象 token 失败，使用简化计算:', error);

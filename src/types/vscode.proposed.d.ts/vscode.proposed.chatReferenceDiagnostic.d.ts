@@ -8,7 +8,7 @@ declare module 'vscode' {
         /**
          * The value of this reference. The `string | Uri | Location` types are used today, but this could expand in the future.
          */
-        readonly value: string | Uri | Location | DiagnosticCollection | unknown;
+        readonly value: string | Uri | Location | ChatReferenceDiagnostic | unknown;
     }
 
     export class ChatReferenceDiagnostic {
@@ -17,6 +17,6 @@ declare module 'vscode' {
          */
         readonly diagnostics: [Uri, Diagnostic[]][];
 
-        protected constructor(diagnostics: [Uri, Diagnostic[]][]);
+        constructor(diagnostics: [Uri, Diagnostic[]][]);
     }
 }

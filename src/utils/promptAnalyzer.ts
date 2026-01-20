@@ -363,16 +363,16 @@ export class PromptAnalyzer {
                                 (promptParts.currentRoundImages || 0) + currentMessageImageTokens;
                         }
                         currentRoundMessageCount++;
-                        Logger.trace(
-                            `[${providerKey}] 消息 [${i}] 归类为本轮消息, 累计 tokens=${promptParts.currentRoundMessages}`
-                        );
+                        // Logger.trace(
+                        //     `[${providerKey}] 消息 [${i}] 归类为本轮消息, 累计 tokens=${promptParts.currentRoundMessages}`
+                        // );
                     } else {
                         // 历史消息
                         promptParts.historyMessages = (promptParts.historyMessages || 0) + messageTokens;
                         historyMessageCount++;
-                        Logger.trace(
-                            `[${providerKey}] 消息 [${i}] 归类为历史消息, 累计 tokens=${promptParts.historyMessages}`
-                        );
+                        // Logger.trace(
+                        //     `[${providerKey}] 消息 [${i}] 归类为历史消息, 累计 tokens=${promptParts.historyMessages}`
+                        // );
                     }
                 }
             }

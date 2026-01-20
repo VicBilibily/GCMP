@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 10
+// version: 11
 
 declare module 'vscode' {
     /**
@@ -86,6 +86,12 @@ declare module 'vscode' {
          * Events for edited files in this session collected since the last request.
          */
         readonly editedFileEvents?: ChatRequestEditedFileEvent[];
+
+        /**
+         * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
+         * Pass this to tool invocations when calling tools from within a subagent context.
+         */
+        readonly subAgentInvocationId?: string;
     }
 
     export enum ChatRequestEditedFileEventKind {
@@ -103,6 +109,10 @@ declare module 'vscode' {
      * ChatRequestTurn + private additions. Note- at runtime this is the SAME as ChatRequestTurn and instanceof is safe.
      */
     export class ChatRequestTurn2 {
+        /**
+         * The id of the chat request. Used to identity an interaction with any of the chat surfaces.
+         */
+        readonly id?: string;
         /**
          * The prompt as entered by the user.
          *
@@ -147,7 +157,8 @@ declare module 'vscode' {
             references: ChatPromptReference[],
             participant: string,
             toolReferences: ChatLanguageModelToolReference[],
-            editedFileEvents: ChatRequestEditedFileEvent[] | undefined
+            editedFileEvents: ChatRequestEditedFileEvent[] | undefined,
+            id: string | undefined
         );
     }
 
@@ -248,7 +259,7 @@ declare module 'vscode' {
         chatSessionId?: string;
         chatInteractionId?: string;
         terminalCommand?: string;
-        fromSubAgent?: boolean;
+        subAgentInvocationId?: string;
     }
 
     export interface LanguageModelToolInvocationPrepareOptions<T> {
@@ -270,6 +281,8 @@ declare module 'vscode' {
         toolResultMessage?: string | MarkdownString;
         toolResultDetails?: Array<Uri | Location>;
         toolMetadata?: unknown;
+        /** Whether there was an error calling the tool. The tool may still have partially succeeded. */
+        hasError?: boolean;
     }
 
     // #region Chat participant detection
@@ -313,6 +326,26 @@ declare module 'vscode' {
     export interface ChatErrorDetailsConfirmationButton {
         data: any;
         label: string;
+    }
+
+    // #endregion
+
+    // #region LanguageModelProxyProvider
+
+    /**
+     * Duplicated so that this proposal and languageModelProxy can be independent.
+     */
+    export interface LanguageModelProxy extends Disposable {
+        readonly uri: Uri;
+        readonly key: string;
+    }
+
+    export interface LanguageModelProxyProvider {
+        provideModelProxy(forExtensionId: string, token: CancellationToken): ProviderResult<LanguageModelProxy>;
+    }
+
+    export namespace lm {
+        export function registerLanguageModelProxyProvider(provider: LanguageModelProxyProvider): Disposable;
     }
 
     // #endregion
