@@ -249,6 +249,8 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
 - `openai-responses`：OpenAI Responses API 模式（实验性）
     - 使用 OpenAI SDK 的 Responses API（`/responses`）进行请求与流式处理。
     - 适用：你的服务端/网关明确支持 Responses API（而不仅是 Chat Completions）。
+    - 参数：默认不再传递 `temperature`、`top_p`、`max_output_tokens`，若需设置通过 `extraBody` 单独设置
+    - Codex：默认通过请求头传递 `conversation_id`、`session_id`，请求体传递 `prompt_cache_key`（火山方舟传递`previous_response_id`除外）。
     - 注意：并非所有 OpenAI 兼容服务都实现 `/responses`；若报 404/不兼容，请切回 `openai` 或 `openai-sse`。
     - `useInstructions`（仅对 `openai-responses` 生效）：是否使用 Responses API 的 `instructions` 参数传递系统指令。
         - `false`：用“用户消息”承载系统指令（默认，兼容性更好）

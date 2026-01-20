@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import OpenAI from 'openai';
-import { ConfigManager } from '../utils/configManager';
+import * as crypto from 'crypto';
+import OpenAI, { ClientOptions } from 'openai';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { Logger } from '../utils/logger';
 import { ModelConfig } from '../types/sharedTypes';
@@ -374,9 +374,7 @@ export class OpenAIResponsesHandler {
                 const requestBody: Record<string, unknown> = {
                     model: requestModel,
                     input: responsesMessages,
-                    stream: true,
-                    temperature: ConfigManager.getTemperature(),
-                    top_p: ConfigManager.getTopP()
+                    stream: true
                 };
 
                 const modelId = (modelConfig.model || model.id).toLowerCase();
@@ -430,6 +428,21 @@ export class OpenAIResponsesHandler {
                     }
                 }
 
+                const { _options: clientOptions } = client as unknown as { _options: ClientOptions };
+                const { defaultHeaders: optHeaders } = clientOptions as { defaultHeaders: Record<string, string> };
+                if (requestBody.prompt_cache_key) {
+                    const promptCacheKey = String(requestBody.prompt_cache_key);
+                    optHeaders['conversation_id'] = promptCacheKey;
+                    optHeaders['session_id'] = promptCacheKey;
+                } else if (!isDoubaoOrVolcengine && !requestBody.previous_response_id) {
+                    const sessionUuid =
+                        typeof crypto.randomUUID === 'function'
+                            ? crypto.randomUUID()
+                            : crypto.randomBytes(16).toString('hex');
+                    optHeaders['conversation_id'] = sessionUuid;
+                    optHeaders['session_id'] = sessionUuid;
+                }
+
                 if (systemMessage) {
                     // 添加 system 消息作为 instructions
                     // Responses API 使用 instructions 参数而不是 system 消息
@@ -446,11 +459,6 @@ export class OpenAIResponsesHandler {
                         });
                         Logger.debug(`${this.displayName} Responses API: 在输入消息中使用 用户消息 传递 系统消息 指令`);
                     }
-                }
-
-                // 添加 max_output_tokens
-                if (modelConfig?.maxOutputTokens) {
-                    requestBody.max_output_tokens = ConfigManager.getMaxTokensForModel(modelConfig.maxOutputTokens);
                 }
 
                 // tools - 转换并添加工具定义

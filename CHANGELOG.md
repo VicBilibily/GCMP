@@ -2,6 +2,14 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.17.10] - 2026-01-20
+
+### 调整
+
+- **OpenAI Responses API 支持**(实验性)：调整 `openai-responses` 模式请求参数与会话标识策略
+    - 默认不再传递 `temperature`、`top_p`、`max_output_tokens`（如需自定义请使用 `extraBody`）
+    - GPT/Codex：当命中 `prompt_cache_key` 时，同步在请求头注入 `conversation_id` / `session_id`；未命中时生成会话 UUID（豆包/火山方舟的 `previous_response_id` 场景除外）
+
 ## [0.17.9] - 2026-01-20
 
 ### 调整
