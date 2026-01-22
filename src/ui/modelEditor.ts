@@ -290,18 +290,18 @@ export class ModelEditor {
             // OpenAI 格式: { data: [{ id: "model-name" }] }
             if (data.data && Array.isArray(data.data)) {
                 models = data.data
-                    .filter((item: any) => item && item.id)
-                    .map((item: any) => item.id);
+                    .filter((item: unknown) => item && typeof item === 'object' && 'id' in item)
+                    .map((item: unknown) => (item as { id: string }).id);
             }
             // 直接数组格式: ["model1", "model2"]
             else if (Array.isArray(data)) {
-                models = data.filter((item: any) => typeof item === 'string');
+                models = data.filter((item: unknown) => typeof item === 'string');
             }
             // 其他格式尝试提取
             else if (data.models && Array.isArray(data.models)) {
                 models = data.models
-                    .filter((item: any) => typeof item === 'string' || (item && item.id))
-                    .map((item: any) => typeof item === 'string' ? item : item.id);
+                    .filter((item: unknown) => typeof item === 'string' || (item && typeof item === 'object' && 'id' in item))
+                    .map((item: unknown) => typeof item === 'string' ? item : (item as { id: string }).id);
             }
 
             // 发送模型列表
