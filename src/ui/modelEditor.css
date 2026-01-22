@@ -358,3 +358,134 @@ button {
 .error-banner-close:hover {
     background-color: rgba(255, 255, 255, 0.1);
 }
+
+/* 模型下拉框样式 */
+.model-dropdown {
+    position: relative;
+}
+
+.model-input-wrapper {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.model-input {
+    flex: 1;
+    position: relative;
+    z-index: 10;
+}
+
+.fetch-models-button {
+    padding: 6px 12px;
+    font-size: 0.9em;
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 3px;
+    background-color: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+    min-width: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.fetch-models-button:hover:not(:disabled) {
+    background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.fetch-models-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.fetch-models-button.loading {
+    position: relative;
+}
+
+.fetch-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--vscode-button-secondaryForeground);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.model-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background-color: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border);
+    border-top: none;
+    border-radius: 0 0 3px 3px;
+    max-height: 200px;
+    overflow-y: auto;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    display: none;
+    z-index: 1000;
+    margin-top: -1px;
+}
+
+.model-list.show {
+    display: block;
+}
+
+.model-list-item {
+    padding: 6px 8px;
+    cursor: pointer;
+    color: var(--vscode-input-foreground);
+    user-select: none;
+}
+
+.model-list-item:hover {
+    background-color: var(--vscode-list-hoverBackground);
+}
+
+.model-list-item.selected {
+    background-color: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+}
+
+.model-fetch-status {
+    margin-top: 6px;
+    padding: 6px 10px;
+    border-radius: 3px;
+    font-size: 0.95em;
+    display: none;
+}
+
+.model-fetch-status.loading {
+    background-color: var(--vscode-inputValidation-infoBackground);
+    color: var(--vscode-inputValidation-infoForeground);
+    border: 1px solid var(--vscode-inputValidation-infoBorder);
+}
+
+.model-fetch-status.success {
+    background-color: var(--vscode-testing-passed-background);
+    color: var(--vscode-testing-passed-foreground);
+    border: 1px solid var(--vscode-testing-passed-border);
+}
+
+.model-fetch-status.error {
+    background-color: var(--vscode-inputValidation-errorBackground);
+    color: var(--vscode-inputValidation-errorForeground);
+    border: 1px solid var(--vscode-inputValidation-errorBorder);
+}
+
+.model-fetch-status.warning {
+    background-color: var(--vscode-inputValidation-warningBackground);
+    color: var(--vscode-inputValidation-warningForeground);
+    border: 1px solid var(--vscode-inputValidation-warningBorder);
+}
