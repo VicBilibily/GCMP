@@ -39,6 +39,8 @@ export interface CompatibleModelConfig {
     tooltip?: string;
     /** API基础URL */
     baseUrl?: string;
+    /** API密钥（可选，如果提供，将会自动设置API key） */
+    apiKey?: string;
     /** API请求时使用的模型名称（可选） */
     model?: string;
     /** 最大输入token数 */
@@ -654,6 +656,19 @@ export class CompatibleModelManager {
                 vscode.window.showErrorMessage(`删除模型失败: ${error instanceof Error ? error.message : '未知错误'}`);
             }
             return undefined;
+        }
+
+        // 如果用户填写了 API Key，保存到密钥管理器
+        if (result && result.apiKey && result.provider) {
+            try {
+                await ApiKeyManager.setApiKey(result.provider, result.apiKey);
+                Logger.info(`已保存提供商 ${result.provider} 的 API 密钥到密钥管理器`);
+                // 从模型配置中移除 apiKey，因为已经保存到密钥管理器
+                delete result.apiKey;
+            } catch (error) {
+                Logger.error('保存 API 密钥失败:', error);
+                vscode.window.showErrorMessage(`保存 API 密钥失败: ${error instanceof Error ? error.message : '未知错误'}`);
+            }
         }
 
         return result as CompatibleModelConfig | undefined;

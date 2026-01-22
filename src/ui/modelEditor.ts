@@ -57,6 +57,10 @@ export class ModelEditor {
                                 // 返回可用的提供商列表
                                 this.sendProvidersList(panel.webview);
                                 break;
+                            case 'fetchModels':
+                                // 获取模型列表
+                                await this.fetchModelsFromAPI(panel.webview, message.baseUrl, message.apiKey);
+                                break;
                             case 'save':
                                 // 验证返回的模型对象
                                 if (
@@ -129,6 +133,7 @@ export class ModelEditor {
             sdkMode: model?.sdkMode || 'openai',
             tooltip: model?.tooltip || '',
             baseUrl: model?.baseUrl || '',
+            apiKey: model?.apiKey || '',
             model: model?.model || '',
             maxInputTokens: model?.maxInputTokens || 128000,
             maxOutputTokens: model?.maxOutputTokens || 4096,
@@ -219,5 +224,98 @@ export class ModelEditor {
             command: 'setProviders',
             providers: Array.from(providersMap.values())
         });
+    }
+
+    /**
+     * 从 API 获取模型列表
+     */
+    private static async fetchModelsFromAPI(webview: vscode.Webview, baseUrl: string, apiKey?: string) {
+        try {
+            // 验证 URL
+            if (!baseUrl || !baseUrl.trim()) {
+                webview.postMessage({
+                    command: 'modelsError',
+                    error: '请先输入 BASE URL'
+                });
+                return;
+            }
+
+            // 构建完整的 URL
+            let url = baseUrl.trim();
+            // 移除末尾的斜杠
+            url = url.replace(/\/+$/, '');
+
+            // 智能添加 /models 端点
+            // 如果 URL 不包含 /v1，则添加 /v1/models
+            // 如果已经包含 /v1，则只添加 /models
+            let modelsUrl: string;
+            if (url.includes('/v1')) {
+                // 已经包含 /v1，直接添加 /models
+                modelsUrl = `${url}/models`;
+            } else {
+                // 不包含 /v1，添加 /v1/models
+                modelsUrl = `${url}/v1/models`;
+            }
+
+            // 发送加载中状态
+            webview.postMessage({
+                command: 'modelsLoading'
+            });
+
+            // 构建请求头
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json'
+            };
+
+            // 如果提供了 API Key，添加到请求头
+            if (apiKey && apiKey.trim()) {
+                headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+            }
+
+            // 发起请求
+            const response = await fetch(modelsUrl, {
+                method: 'GET',
+                headers: headers
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+
+            // 解析模型列表
+            let models: string[] = [];
+
+            // OpenAI 格式: { data: [{ id: "model-name" }] }
+            if (data.data && Array.isArray(data.data)) {
+                models = data.data
+                    .filter((item: any) => item && item.id)
+                    .map((item: any) => item.id);
+            }
+            // 直接数组格式: ["model1", "model2"]
+            else if (Array.isArray(data)) {
+                models = data.filter((item: any) => typeof item === 'string');
+            }
+            // 其他格式尝试提取
+            else if (data.models && Array.isArray(data.models)) {
+                models = data.models
+                    .filter((item: any) => typeof item === 'string' || (item && item.id))
+                    .map((item: any) => typeof item === 'string' ? item : item.id);
+            }
+
+            // 发送模型列表
+            webview.postMessage({
+                command: 'modelsLoaded',
+                models: models
+            });
+
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : '未知错误';
+            webview.postMessage({
+                command: 'modelsError',
+                error: `获取模型列表失败: ${errorMessage}`
+            });
+        }
     }
 }

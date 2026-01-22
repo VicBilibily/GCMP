@@ -40,10 +40,14 @@ const vscode = acquireVsCodeApi();
 // 全局变量
 /** @type {Provider[]} */
 let allProviders = [];
+/** @type {string[]} */
+let availableModels = [];
 /** @type {ModelData} */
 let modelData = {};
 /** @type {boolean} */
 let isCreateMode = false;
+/** @type {boolean} */
+let isLoadingModels = false;
 
 /**
  * 初始化编辑器
@@ -100,12 +104,7 @@ function createDOM() {
             rows: 2,
             placeholder: '模型的详细描述（可选）',
             value: modelData.tooltip
-        }, '悬停时显示的工具提示'),
-        createFormGroup('requestModel', '请求模型ID', 'model', 'input', {
-            type: 'text',
-            placeholder: '例如: gpt-4',
-            value: modelData.model
-        }, '发起请求时使用的模型ID（可选），若不填写则使用 模型ID (id) 的值')
+        }, '悬停时显示的工具提示')
     ]);
 
     // 创建 API 配置部分
@@ -124,7 +123,13 @@ function createDOM() {
             type: 'url',
             placeholder: '例如：https://api.openai.com/v1 或 https://api.anthropic.com',
             value: modelData.baseUrl
-        }, 'API请求的 baseUrl 地址，必须以 http:// 或 https:// 开头\r\n例如：https://api.openai.com/v1 或 https://api.anthropic.com')
+        }, 'API请求的 baseUrl 地址，必须以 http:// 或 https:// 开头\r\n例如：https://api.openai.com/v1 或 https://api.anthropic.com'),
+        createFormGroup('apiKey', 'API 密钥', 'apiKey', 'input', {
+            type: 'password',
+            placeholder: '可选，如果设置则优先使用此密钥',
+            value: modelData.apiKey
+        }, 'API 密钥（可选）。如果在此处设置，则会更新密钥。'),
+        createModelComboboxFormGroup()
     ]);
 
     // 创建性能设置部分
@@ -350,6 +355,70 @@ function createProviderFormGroup() {
     help.className = 'help-text';
     help.textContent = '模型提供商标识符（可选择内置/已知提供商或自定义输入）';
     group.appendChild(help);
+
+    return group;
+}
+
+/**
+ * 创建请求模型ID的 combobox 表单组
+ * @returns {HTMLElement} 创建的表单组元素
+ */
+function createModelComboboxFormGroup() {
+    const group = document.createElement('div');
+    group.className = 'form-group';
+
+    const label = document.createElement('label');
+    label.htmlFor = 'requestModel';
+    label.innerHTML = '请求模型ID <span class="field-name">(model)</span>';
+    group.appendChild(label);
+
+    const dropdown = document.createElement('div');
+    dropdown.className = 'model-dropdown';
+
+    const inputWrapper = document.createElement('div');
+    inputWrapper.className = 'model-input-wrapper';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'requestModel';
+    input.className = 'model-input';
+    input.value = modelData.model || '';
+    input.placeholder = '例如: gpt-4';
+    input.autocomplete = 'off';
+
+    const fetchButton = document.createElement('button');
+    fetchButton.type = 'button';
+    fetchButton.className = 'fetch-models-button';
+    fetchButton.id = 'fetchModelsButton';
+    fetchButton.textContent = '获取模型';
+    fetchButton.title = '从 BASE URL 获取可用模型列表';
+
+    const spinner = document.createElement('span');
+    spinner.className = 'fetch-spinner';
+    spinner.style.display = 'none';
+    fetchButton.appendChild(spinner);
+
+    inputWrapper.appendChild(input);
+    inputWrapper.appendChild(fetchButton);
+
+    const list = document.createElement('div');
+    list.className = 'model-list';
+    list.id = 'modelList';
+
+    dropdown.appendChild(inputWrapper);
+    dropdown.appendChild(list);
+    group.appendChild(dropdown);
+
+    const help = document.createElement('div');
+    help.className = 'help-text';
+    help.textContent = '发起请求时使用的模型ID（可选），若不填写则使用 模型ID (id) 的值。点击"获取模型"按钮从 BASE URL 自动获取可用模型列表。';
+    group.appendChild(help);
+
+    const statusDiv = document.createElement('div');
+    statusDiv.className = 'model-fetch-status';
+    statusDiv.id = 'modelFetchStatus';
+    statusDiv.style.display = 'none';
+    group.appendChild(statusDiv);
 
     return group;
 }
@@ -699,6 +768,12 @@ function bindEvents() {
         const message = event.data;
         if (message.command === 'setProviders') {
             updateProviderList(message.providers);
+        } else if (message.command === 'modelsLoading') {
+            handleModelsLoading();
+        } else if (message.command === 'modelsLoaded') {
+            handleModelsLoaded(message.models);
+        } else if (message.command === 'modelsError') {
+            handleModelsError(message.error);
         }
     });
 
@@ -719,6 +794,61 @@ function bindEvents() {
         // 初始化时执行一次
         updateUseInstructionsVisibility();
     }
+
+    // 请求模型ID输入事件
+    const requestModelInput = document.getElementById('requestModel');
+    const modelList = document.getElementById('modelList');
+
+    requestModelInput.addEventListener('input', function () {
+        const searchText = this.value.toLowerCase();
+        if (searchText && availableModels.length > 0) {
+            const filtered = availableModels.filter(m => m.toLowerCase().includes(searchText));
+            renderModelList(filtered);
+            modelList.classList.add('show');
+        } else if (availableModels.length > 0) {
+            renderModelList(availableModels);
+            modelList.classList.add('show');
+        } else {
+            modelList.classList.remove('show');
+        }
+    });
+
+    requestModelInput.addEventListener('focus', function () {
+        if (availableModels && availableModels.length > 0) {
+            renderModelList(availableModels);
+            modelList.classList.add('show');
+        }
+    });
+
+    requestModelInput.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            modelList.classList.remove('show');
+        }
+    });
+
+    document.addEventListener('click', function (event) {
+        if (!event.target.closest('.model-dropdown')) {
+            modelList.classList.remove('show');
+        }
+    });
+
+    // 获取模型按钮点击事件
+    const fetchModelsButton = document.getElementById('fetchModelsButton');
+    if (fetchModelsButton) {
+        fetchModelsButton.addEventListener('click', function () {
+            fetchModelsFromAPI();
+        });
+    }
+
+    // BASE URL 变化时自动获取模型（可选，用户也可以手动点击按钮）
+    baseUrl.addEventListener('blur', function () {
+        const url = this.value.trim();
+        if (url && !this.classList.contains('invalid')) {
+            // 可以选择在这里自动获取，或者只在用户点击按钮时获取
+            // fetchModelsFromAPI();
+        }
+    });
 }
 
 /**
@@ -1070,6 +1200,7 @@ function saveModel() {
     const tooltipText = document.getElementById('modelTooltip').value.trim();
     const requestModelText = document.getElementById('requestModel').value.trim();
     const baseUrlText = document.getElementById('baseUrl').value.trim();
+    const apiKeyText = document.getElementById('apiKey').value.trim();
 
     const model = {
         id: modelId,
@@ -1079,6 +1210,8 @@ function saveModel() {
         provider: provider,
         // baseUrl: 使用 null 表示清空
         baseUrl: baseUrlText || null,
+        // apiKey: 使用 null 表示清空
+        apiKey: apiKeyText || null,
         // model: 使用 null 表示清空
         model: requestModelText || null,
         sdkMode: document.getElementById('sdkMode').value || 'openai',
@@ -1133,5 +1266,163 @@ function deleteModel() {
         command: 'delete',
         modelId: document.getElementById('modelId').value.trim(),
         modelName: document.getElementById('modelName').value.trim()
+    });
+}
+
+/**
+ * 从 API 获取模型列表
+ * @returns {void}
+ */
+function fetchModelsFromAPI() {
+    const baseUrl = document.getElementById('baseUrl').value.trim();
+    const apiKey = document.getElementById('apiKey').value.trim();
+
+    if (!baseUrl) {
+        showGlobalError('请先输入 BASE URL');
+        return;
+    }
+
+    // 验证 URL 格式
+    try {
+        const urlObj = new URL(baseUrl);
+        if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+            showGlobalError('BASE URL 必须以 http:// 或 https:// 开头');
+            return;
+        }
+    } catch (e) {
+        showGlobalError('BASE URL 格式不正确，请输入有效的 URL');
+        return;
+    }
+
+    // 发送请求到后端
+    vscode.postMessage({
+        command: 'fetchModels',
+        baseUrl: baseUrl,
+        apiKey: apiKey || null
+    });
+}
+
+/**
+ * 处理模型加载中状态
+ * @returns {void}
+ */
+function handleModelsLoading() {
+    isLoadingModels = true;
+    const button = document.getElementById('fetchModelsButton');
+    const statusDiv = document.getElementById('modelFetchStatus');
+    const spinner = button.querySelector('.fetch-spinner');
+
+    button.disabled = true;
+    button.classList.add('loading');
+    spinner.style.display = 'inline-block';
+
+    statusDiv.textContent = '正在获取模型列表...';
+    statusDiv.className = 'model-fetch-status loading';
+    statusDiv.style.display = 'block';
+
+    hideGlobalError();
+}
+
+/**
+ * 处理模型加载成功
+ * @param {string[]} models - 模型列表
+ * @returns {void}
+ */
+function handleModelsLoaded(models) {
+    isLoadingModels = false;
+    const button = document.getElementById('fetchModelsButton');
+    const statusDiv = document.getElementById('modelFetchStatus');
+    const spinner = button.querySelector('.fetch-spinner');
+    const modelList = document.getElementById('modelList');
+
+    button.disabled = false;
+    button.classList.remove('loading');
+    spinner.style.display = 'none';
+
+    if (models && models.length > 0) {
+        availableModels = models;
+        statusDiv.textContent = `成功获取 ${models.length} 个模型`;
+        statusDiv.className = 'model-fetch-status success';
+        statusDiv.style.display = 'block';
+
+        // 自动显示模型列表
+        renderModelList(availableModels);
+        modelList.classList.add('show');
+
+        // 3秒后隐藏状态提示
+        setTimeout(() => {
+            statusDiv.style.display = 'none';
+        }, 3000);
+    } else {
+        availableModels = [];
+        statusDiv.textContent = '未找到可用模型';
+        statusDiv.className = 'model-fetch-status warning';
+        statusDiv.style.display = 'block';
+
+        setTimeout(() => {
+            statusDiv.style.display = 'none';
+        }, 3000);
+    }
+}
+
+/**
+ * 处理模型加载错误
+ * @param {string} error - 错误信息
+ * @returns {void}
+ */
+function handleModelsError(error) {
+    isLoadingModels = false;
+    const button = document.getElementById('fetchModelsButton');
+    const statusDiv = document.getElementById('modelFetchStatus');
+    const spinner = button.querySelector('.fetch-spinner');
+
+    button.disabled = false;
+    button.classList.remove('loading');
+    spinner.style.display = 'none';
+
+    statusDiv.textContent = error || '获取模型列表失败';
+    statusDiv.className = 'model-fetch-status error';
+    statusDiv.style.display = 'block';
+
+    // 5秒后隐藏错误提示
+    setTimeout(() => {
+        statusDiv.style.display = 'none';
+    }, 5000);
+}
+
+/**
+ * 渲染模型列表
+ * @param {string[]} models - 模型列表
+ * @returns {void}
+ */
+function renderModelList(models) {
+    const modelListDiv = document.getElementById('modelList');
+    const currentValue = document.getElementById('requestModel').value;
+
+    modelListDiv.innerHTML = '';
+
+    if (!models || models.length === 0) {
+        const item = document.createElement('div');
+        item.className = 'model-list-item';
+        item.textContent = '无可用模型';
+        item.style.pointerEvents = 'none';
+        item.style.opacity = '0.5';
+        modelListDiv.appendChild(item);
+        return;
+    }
+
+    models.forEach(model => {
+        const item = document.createElement('div');
+        item.className = 'model-list-item';
+        if (model === currentValue) {
+            item.classList.add('selected');
+        }
+        item.textContent = model;
+        item.addEventListener('click', function () {
+            const modelInput = document.getElementById('requestModel');
+            modelInput.value = model;
+            modelListDiv.classList.remove('show');
+        });
+        modelListDiv.appendChild(item);
     });
 }
