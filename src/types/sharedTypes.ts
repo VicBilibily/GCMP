@@ -48,11 +48,6 @@ export interface ModelConfig {
      */
     provider?: string;
     /**
-     * 模型的 API 密钥（可选）
-     * 如果提供，将会自动设置API key
-     */
-    apiKey?: string;
-    /**
      * 额外的请求体参数（可选）
      * 如果提供，将在API请求中合并到请求体中
      */

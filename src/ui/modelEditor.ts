@@ -7,9 +7,16 @@ import * as vscode from 'vscode';
 import { CompatibleModelConfig } from '../utils/compatibleModelManager';
 import { configProviders } from '../providers/config';
 import { KnownProviders } from '../utils/knownProviders';
+import { ApiKeyManager } from '../utils/apiKeyManager';
+import { VersionManager } from '../utils/versionManager';
 import modelEditorCss from './modelEditor.css?raw';
 import modelEditorJs from './modelEditor.js?raw';
+import OpenAI from 'openai';
 
+interface EditedModelConfig extends CompatibleModelConfig {
+    /** API密钥（可选，如果提供，将会自动设置API key） */
+    apiKey?: string;
+}
 /**
  * 删除模型标记接口
  */
@@ -32,7 +39,7 @@ export class ModelEditor {
     static async show(
         model: CompatibleModelConfig,
         isCreateMode: boolean = false
-    ): Promise<CompatibleModelConfig | DeleteModelMarker | undefined> {
+    ): Promise<EditedModelConfig | DeleteModelMarker | undefined> {
         const panel = vscode.window.createWebviewPanel(
             'compatibleModelEditor',
             isCreateMode ? '创建新模型' : `编辑模型: ${model.name || '未命名模型'}`,
@@ -59,7 +66,7 @@ export class ModelEditor {
                                 break;
                             case 'fetchModels':
                                 // 获取模型列表
-                                await this.fetchModelsFromAPI(panel.webview, message.baseUrl, message.apiKey);
+                                await this.fetchModelsFromAPI(panel.webview, message.baseUrl, message.apiKey, message.provider);
                                 break;
                             case 'save':
                                 // 验证返回的模型对象
@@ -133,7 +140,6 @@ export class ModelEditor {
             sdkMode: model?.sdkMode || 'openai',
             tooltip: model?.tooltip || '',
             baseUrl: model?.baseUrl || '',
-            apiKey: model?.apiKey || '',
             model: model?.model || '',
             maxInputTokens: model?.maxInputTokens || 128000,
             maxOutputTokens: model?.maxOutputTokens || 4096,
@@ -229,7 +235,7 @@ export class ModelEditor {
     /**
      * 从 API 获取模型列表
      */
-    private static async fetchModelsFromAPI(webview: vscode.Webview, baseUrl: string, apiKey?: string) {
+    private static async fetchModelsFromAPI(webview: vscode.Webview, baseUrl: string, apiKey?: string, provider?: string) {
         try {
             // 验证 URL
             if (!baseUrl || !baseUrl.trim()) {
@@ -264,12 +270,18 @@ export class ModelEditor {
 
             // 构建请求头
             const headers: Record<string, string> = {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'User-Agent': VersionManager.getUserAgent('ModelEditor')
             };
 
             // 如果提供了 API Key，添加到请求头
-            if (apiKey && apiKey.trim()) {
-                headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+            let effectiveApiKey = apiKey;
+            if (!effectiveApiKey && provider) {
+                // 如果未提供 API Key，尝试从 ApiKeyManager 获取
+                effectiveApiKey = await ApiKeyManager.getApiKey(provider);
+            }
+            if (effectiveApiKey && effectiveApiKey.trim()) {
+                headers['Authorization'] = `Bearer ${effectiveApiKey.trim()}`;
             }
 
             // 发起请求
@@ -282,26 +294,28 @@ export class ModelEditor {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
-            const data = await response.json();
+            const responseData = await response.json() as OpenAI.Models.ModelsPage | { models: OpenAI.Models.Model[] | string[] } | OpenAI.Models.Model[] | string[];
 
             // 解析模型列表
             let models: string[] = [];
 
             // OpenAI 格式: { data: [{ id: "model-name" }] }
-            if (data.data && Array.isArray(data.data)) {
-                models = data.data
-                    .filter((item: unknown) => item && typeof item === 'object' && 'id' in item)
-                    .map((item: unknown) => (item as { id: string }).id);
+            if ('data' in responseData && Array.isArray(responseData.data)) {
+                models = responseData.data
+                    .filter((item): item is OpenAI.Models.Model => !!item?.id)
+                    .map(item => item.id);
             }
             // 直接数组格式: ["model1", "model2"]
-            else if (Array.isArray(data)) {
-                models = data.filter((item: unknown) => typeof item === 'string');
+            else if (Array.isArray(responseData)) {
+                models = responseData
+                    .filter((item): item is string | OpenAI.Models.Model => typeof item === 'string' || !!item?.id)
+                    .map(item => typeof item === 'string' ? item : item.id);
             }
-            // 其他格式尝试提取
-            else if (data.models && Array.isArray(data.models)) {
-                models = data.models
-                    .filter((item: unknown) => typeof item === 'string' || (item && typeof item === 'object' && 'id' in item))
-                    .map((item: unknown) => typeof item === 'string' ? item : (item as { id: string }).id);
+            // 其他格式: { models: [...] } 或 { models: ["model1", "model2"] }
+            else if ('models' in responseData && Array.isArray(responseData.models)) {
+                models = responseData.models
+                    .filter((item): item is string | OpenAI.Models.Model => typeof item === 'string' || !!item?.id)
+                    .map(item => typeof item === 'string' ? item : item.id);
             }
 
             // 发送模型列表

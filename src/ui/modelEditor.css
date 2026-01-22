@@ -366,7 +366,7 @@ button {
 
 .model-input-wrapper {
     display: flex;
-    gap: 8px;
+    gap: 0;
     align-items: stretch;
 }
 
@@ -374,13 +374,18 @@ button {
     flex: 1;
     position: relative;
     z-index: 10;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    border-right: none;
 }
 
 .fetch-models-button {
     padding: 6px 12px;
     font-size: 0.9em;
     border: 1px solid var(--vscode-button-border);
-    border-radius: 3px;
+    border-left: none;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
     background-color: var(--vscode-button-secondaryBackground);
     color: var(--vscode-button-secondaryForeground);
     cursor: pointer;
@@ -396,9 +401,18 @@ button {
     background-color: var(--vscode-button-secondaryHoverBackground);
 }
 
+.fetch-models-button:focus-visible {
+    outline: none;
+    border-color: var(--vscode-focusBorder);
+}
+
 .fetch-models-button:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+}
+
+.fetch-models-button.input-focused {
+    border-color: var(--vscode-focusBorder);
 }
 
 .fetch-models-button.loading {

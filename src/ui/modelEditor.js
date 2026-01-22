@@ -126,9 +126,9 @@ function createDOM() {
         }, 'API请求的 baseUrl 地址，必须以 http:// 或 https:// 开头\r\n例如：https://api.openai.com/v1 或 https://api.anthropic.com'),
         createFormGroup('apiKey', 'API 密钥', 'apiKey', 'input', {
             type: 'password',
-            placeholder: '可选，如果设置则优先使用此密钥',
+            placeholder: '留空则保持已保存的密钥不变',
             value: modelData.apiKey
-        }, 'API 密钥（可选）。如果在此处设置，则会更新密钥。'),
+        }, 'API 密钥（可选）。在此设置会自动更新密钥。'),
         createModelComboboxFormGroup()
     ]);
 
@@ -390,6 +390,7 @@ function createModelComboboxFormGroup() {
     fetchButton.type = 'button';
     fetchButton.className = 'fetch-models-button';
     fetchButton.id = 'fetchModelsButton';
+    fetchButton.onclick = fetchModelsFromAPI;
     fetchButton.textContent = '获取模型';
     fetchButton.title = '从 BASE URL 获取可用模型列表';
 
@@ -410,8 +411,8 @@ function createModelComboboxFormGroup() {
     group.appendChild(dropdown);
 
     const help = document.createElement('div');
-    help.className = 'help-text';
-    help.textContent = '发起请求时使用的模型ID（可选），若不填写则使用 模型ID (id) 的值。点击"获取模型"按钮从 BASE URL 自动获取可用模型列表。';
+    help.className = 'help-text detailed';
+    help.textContent = '发起请求时使用的模型ID（可选），若不填写则使用 模型ID (id) 的值。\r\n点击"获取模型"按钮从 BASE URL 自动获取可用模型列表（可能部分提供商不支持）。';
     group.appendChild(help);
 
     const statusDiv = document.createElement('div');
@@ -798,6 +799,14 @@ function bindEvents() {
     // 请求模型ID输入事件
     const requestModelInput = document.getElementById('requestModel');
     const modelList = document.getElementById('modelList');
+    const fetchModelsButton = document.getElementById('fetchModelsButton');
+    // 输入框焦点时同步按钮样式
+    requestModelInput.addEventListener('focus', function () {
+        fetchModelsButton.classList.add('input-focused');
+    });
+    requestModelInput.addEventListener('blur', function () {
+        fetchModelsButton.classList.remove('input-focused');
+    });
 
     requestModelInput.addEventListener('input', function () {
         const searchText = this.value.toLowerCase();
@@ -833,22 +842,7 @@ function bindEvents() {
         }
     });
 
-    // 获取模型按钮点击事件
-    const fetchModelsButton = document.getElementById('fetchModelsButton');
-    if (fetchModelsButton) {
-        fetchModelsButton.addEventListener('click', function () {
-            fetchModelsFromAPI();
-        });
-    }
 
-    // BASE URL 变化时自动获取模型（可选，用户也可以手动点击按钮）
-    baseUrl.addEventListener('blur', function () {
-        const url = this.value.trim();
-        if (url && !this.classList.contains('invalid')) {
-            // 可以选择在这里自动获取，或者只在用户点击按钮时获取
-            // fetchModelsFromAPI();
-        }
-    });
 }
 
 /**
@@ -1276,6 +1270,7 @@ function deleteModel() {
 function fetchModelsFromAPI() {
     const baseUrl = document.getElementById('baseUrl').value.trim();
     const apiKey = document.getElementById('apiKey').value.trim();
+    const provider = document.getElementById('provider').value.trim();
 
     if (!baseUrl) {
         showGlobalError('请先输入 BASE URL');
@@ -1298,7 +1293,8 @@ function fetchModelsFromAPI() {
     vscode.postMessage({
         command: 'fetchModels',
         baseUrl: baseUrl,
-        apiKey: apiKey || null
+        apiKey: apiKey || null,
+        provider: provider || null
     });
 }
 
