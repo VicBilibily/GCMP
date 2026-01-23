@@ -483,7 +483,7 @@ export class OpenAIResponsesHandler {
                 }
 
                 // 调用 Responses API 的流式方法
-                const stream = client.responses.stream(requestBody);
+                const stream = client.responses.stream(requestBody, { signal: abortController.signal });
 
                 // 使用 on(event) 模式处理流事件
                 stream
@@ -834,9 +834,14 @@ export class OpenAIResponsesHandler {
 
                 Logger.debug(`${model.name} ${this.displayName} Responses API 流处理完成`);
             } catch (error) {
-                if (error instanceof vscode.CancellationError) {
+                if (
+                    token.isCancellationRequested ||
+                    error instanceof vscode.CancellationError ||
+                    error instanceof OpenAI.APIUserAbortError ||
+                    (error instanceof Error && error.name === 'AbortError')
+                ) {
                     Logger.info(`${model.name} Responses API 请求被用户取消`);
-                    throw error;
+                    throw new vscode.CancellationError();
                 } else {
                     Logger.error(`${model.name} Responses API 流处理错误: ${error}`);
                     streamError = error as Error;

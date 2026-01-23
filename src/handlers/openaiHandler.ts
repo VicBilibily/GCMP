@@ -872,10 +872,14 @@ export class OpenAIHandler {
 
                 Logger.debug(`${model.name} ${this.displayName} SDK流处理完成`);
             } catch (streamError) {
-                // 改进错误处理，区分取消和其他错误
-                if (streamError instanceof vscode.CancellationError) {
+                if (
+                    token.isCancellationRequested ||
+                    streamError instanceof vscode.CancellationError ||
+                    streamError instanceof OpenAI.APIUserAbortError ||
+                    (streamError instanceof Error && streamError.name === 'AbortError')
+                ) {
                     Logger.info(`${model.name} 请求被用户取消`);
-                    throw streamError;
+                    throw new vscode.CancellationError();
                 } else {
                     Logger.error(`${model.name} SDK流处理错误: ${streamError}`);
                     throw streamError;
@@ -890,6 +894,15 @@ export class OpenAIHandler {
             }
             Logger.debug(`✅ ${model.name} ${this.displayName} 请求完成`);
         } catch (error) {
+            if (
+                token.isCancellationRequested ||
+                error instanceof vscode.CancellationError ||
+                error instanceof OpenAI.APIUserAbortError ||
+                (error instanceof Error && error.name === 'AbortError')
+            ) {
+                throw new vscode.CancellationError();
+            }
+
             if (error instanceof Error) {
                 if (error.cause instanceof Error) {
                     const errorMessage = error.cause.message || '未知错误';

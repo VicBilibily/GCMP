@@ -426,6 +426,15 @@ export class GeminiHandler {
 
             Logger.debug(`✅ ${model.name} ${this.displayName} Gemini HTTP 请求完成`);
         } catch (error) {
+            if (
+                token.isCancellationRequested ||
+                error instanceof vscode.CancellationError ||
+                (error instanceof Error && error.name === 'AbortError')
+            ) {
+                Logger.warn(`[${model.name}] 用户取消了请求`);
+                throw new vscode.CancellationError();
+            }
+
             Logger.error(`[${model.name}] Gemini HTTP error:`, error);
 
             if (requestId) {

@@ -127,6 +127,10 @@ export class AnthropicHandler {
         token: vscode.CancellationToken,
         requestId?: string | null
     ): Promise<void> {
+        // 将 vscode.CancellationToken 转换为 AbortSignal
+        const abortController = new AbortController();
+        const cancellationListener = token.onCancellationRequested(() => abortController.abort());
+
         try {
             const client = await this.createAnthropicClient(modelConfig);
             const { messages: anthropicMessages, system } = apiMessageToAnthropicMessage(modelConfig, messages);
@@ -174,7 +178,7 @@ export class AnthropicHandler {
                 `[${model.name}] 发送 Anthropic API 请求，包含 ${anthropicMessages.length} 条消息，使用模型: ${modelId}`
             );
 
-            const stream = await client.messages.create(createParams);
+            const stream = await client.messages.create(createParams, { signal: abortController.signal });
 
             // 使用完整的流处理函数
             const result = await this.handleAnthropicStream(stream, progress, token, modelConfig);
@@ -203,6 +207,15 @@ export class AnthropicHandler {
                 }
             }
         } catch (error) {
+            if (
+                token.isCancellationRequested ||
+                error instanceof Anthropic.APIUserAbortError ||
+                (error instanceof Error && error.name === 'AbortError')
+            ) {
+                Logger.info(`[${model.name}] 用户取消了请求`);
+                throw new vscode.CancellationError();
+            }
+
             Logger.error(`[${model.name}] Anthropic SDK error:`, error);
 
             // 提供详细的错误信息
@@ -221,6 +234,8 @@ export class AnthropicHandler {
 
             progress.report(new vscode.LanguageModelTextPart(errorMessage));
             throw error;
+        } finally {
+            cancellationListener.dispose();
         }
     }
 
