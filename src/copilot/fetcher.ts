@@ -107,7 +107,7 @@ export class Fetcher implements IFetcher {
         }
 
         let dashscopeStopChunk = false; // 只截取 stop 表示的 chunk, 阿里云百炼补全接口
-        const requestBody = { ...options.json } as Record<string, unknown>; // as OpenAI.Chat.ChatCompletionCreateParamsStreaming;
+        const requestBody = { ...(options.json as Record<string, unknown>) } as Record<string, unknown>; // as OpenAI.Chat.ChatCompletionCreateParamsStreaming;
 
         const ConfigManager = getConfigManager();
         let modelConfig: NESCompletionConfig['modelConfig'];

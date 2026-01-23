@@ -70,6 +70,13 @@ export class AuthenticationService extends Disposable implements IAuthentication
         return undefined;
     }
 
+    async getGitHubSession(
+        _kind: 'permissive' | 'any',
+        _options?: AuthenticationGetSessionOptions
+    ): Promise<AuthenticationSession> {
+        throw new Error('Method not implemented.');
+    }
+
     async getCopilotToken(_force?: boolean): Promise<CopilotToken> {
         return this.copilotToken;
     }
