@@ -56,7 +56,6 @@
             "tooltip": "DeepSeek-V3.2-Reasoner (iFlow)",
             "maxInputTokens": 128000,
             "maxOutputTokens": 64000,
-            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -79,7 +78,6 @@
             "tooltip": "Kimi-K2-Thinking (iFlow)",
             "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
-            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false

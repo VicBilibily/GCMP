@@ -82,53 +82,54 @@ function contentBlockSupportsCacheControl(
  */
 function apiContentToAnthropicContent(
     content: vscode.LanguageModelChatMessage['content'],
-    includeThinking: boolean | undefined = false
+    modelConfig: ModelConfig
 ): ContentBlockParam[] {
     const thinkingBlocks: ContentBlockParam[] = [];
     const otherBlocks: ContentBlockParam[] = [];
 
+    // 模型能力：不支持 imageInput 时，必须忽略所有 image/* 数据块。
+    const allowImages = modelConfig.capabilities?.imageInput === true;
+
     for (const part of content) {
         // 思考内容（thinking）- 用于保持多轮对话思维链连续性
         if (part instanceof vscode.LanguageModelThinkingPart) {
-            if (includeThinking === true) {
-                const metadata = getThinkingMetadata(part);
+            const metadata = getThinkingMetadata(part);
 
-                // 如果是加密的思考内容（redacted_thinking）
-                if (metadata.data) {
-                    thinkingBlocks.push({
-                        type: 'redacted_thinking',
-                        data: metadata.data
-                    } as RedactedThinkingBlockParam);
-                } else {
-                    // mark: 2025/12/26 官方的数据传递有问题，_completeThinking的内容可能不完整
-                    // // 普通思考内容 - 优先使用 _completeThinking（完整思考内容）
-                    // const thinkingBlock: ThinkingBlockParam = {
-                    //     type: 'thinking',
-                    //     thinking: metadata._completeThinking,
-                    //     signature: metadata.signature || ''
-                    // };
-                    // thinkingBlocks.push(thinkingBlock);
+            // 如果是加密的思考内容（redacted_thinking）
+            if (metadata.data) {
+                thinkingBlocks.push({
+                    type: 'redacted_thinking',
+                    data: metadata.data
+                } as RedactedThinkingBlockParam);
+            } else {
+                // mark: 2025/12/26 官方的数据传递有问题，_completeThinking的内容可能不完整
+                // // 普通思考内容 - 优先使用 _completeThinking（完整思考内容）
+                // const thinkingBlock: ThinkingBlockParam = {
+                //     type: 'thinking',
+                //     thinking: metadata._completeThinking,
+                //     signature: metadata.signature || ''
+                // };
+                // thinkingBlocks.push(thinkingBlock);
 
-                    let thinking = metadata?._completeThinking || ''; // 先用_completeThinking
-                    if (typeof part.value === 'string' && part.value.trim() !== '') {
-                        const partStr = part.value as string;
-                        if (partStr.length > thinking.length) {
-                            thinking = partStr;
-                        }
-                    } else if (Array.isArray(part.value) && part.value.length > 0) {
-                        const partStr = part.value.join('');
-                        if (partStr.length > thinking.length) {
-                            thinking = partStr;
-                        }
+                let thinking = metadata?._completeThinking || ''; // 先用_completeThinking
+                if (typeof part.value === 'string' && part.value.trim() !== '') {
+                    const partStr = part.value as string;
+                    if (partStr.length > thinking.length) {
+                        thinking = partStr;
                     }
-
-                    const thinkingBlock: ThinkingBlockParam = {
-                        type: 'thinking',
-                        thinking: thinking || ' ', // Anthropic 不接受空字符串，使用空格
-                        signature: metadata.signature || ''
-                    };
-                    thinkingBlocks.push(thinkingBlock);
+                } else if (Array.isArray(part.value) && part.value.length > 0) {
+                    const partStr = part.value.join('');
+                    if (partStr.length > thinking.length) {
+                        thinking = partStr;
+                    }
                 }
+
+                const thinkingBlock: ThinkingBlockParam = {
+                    type: 'thinking',
+                    thinking: thinking || ' ', // Anthropic 不接受空字符串，使用空格
+                    signature: metadata.signature || ''
+                };
+                thinkingBlocks.push(thinkingBlock);
             }
         }
         // 工具调用
@@ -166,14 +167,19 @@ function apiContentToAnthropicContent(
             if (part.mimeType === CustomDataPartMimeTypes.StatefulMarker) {
                 continue;
             }
-            otherBlocks.push({
-                type: 'image',
-                source: {
-                    type: 'base64',
-                    data: Buffer.from(part.data as Uint8Array).toString('base64'),
-                    media_type: part.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
-                }
-            } as ImageBlockParam);
+            if (allowImages) {
+                otherBlocks.push({
+                    type: 'image',
+                    source: {
+                        type: 'base64',
+                        data: Buffer.from(part.data as Uint8Array).toString('base64'),
+                        media_type: part.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+                    }
+                } as ImageBlockParam);
+            } else {
+                // 模型不支持图片时，添加占位符
+                otherBlocks.push({ type: 'text', text: '[Image]' } as TextBlockParam);
+            }
         }
         // 工具结果
         else if (
@@ -200,6 +206,10 @@ function apiContentToAnthropicContent(
                             // 空字符串无效，使用空格
                             return { type: 'text', text: ' ', cache_control: { type: 'ephemeral' } } as TextBlockParam;
                         } else if (isDataPart(p) && p.mimeType.startsWith('image/')) {
+                            if (!allowImages) {
+                                // 模型不支持图片时，添加占位符
+                                return { type: 'text', text: '[Image]' } as TextBlockParam;
+                            }
                             return {
                                 type: 'image',
                                 source: {
@@ -227,12 +237,6 @@ function apiContentToAnthropicContent(
         }
     }
 
-    if (includeThinking === true) {
-        // 包含思考内容
-    } else {
-        // 不包含思考内容，过滤掉 thinking 块
-    }
-
     // 重要：thinking 块必须在最前面（Anthropic API 要求）
     return [...thinkingBlocks, ...otherBlocks];
 }
@@ -257,12 +261,12 @@ export function apiMessageToAnthropicMessage(
         if (message.role === vscode.LanguageModelChatMessageRole.Assistant) {
             unmergedMessages.push({
                 role: 'assistant',
-                content: apiContentToAnthropicContent(message.content, model.includeThinking)
+                content: apiContentToAnthropicContent(message.content, model)
             });
         } else if (message.role === vscode.LanguageModelChatMessageRole.User) {
             unmergedMessages.push({
                 role: 'user',
-                content: apiContentToAnthropicContent(message.content)
+                content: apiContentToAnthropicContent(message.content, model)
             });
         } else if (message.role === vscode.LanguageModelChatMessageRole.System) {
             systemMessage.text += message.content

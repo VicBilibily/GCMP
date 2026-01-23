@@ -249,12 +249,6 @@ export class JsonSchemaProvider {
                                 description: '最大输出token数量',
                                 minimum: 8
                             },
-                            includeThinking: {
-                                type: 'boolean',
-                                description:
-                                    '多轮对话消息是否必须包含思考内容（可选）\n- false: 不包含思考内容（默认）\n- true: 总是包含思考内容',
-                                default: false
-                            },
                             useInstructions: {
                                 type: 'boolean',
                                 description:
@@ -397,12 +391,6 @@ export class JsonSchemaProvider {
                                 type: 'string',
                                 description: '覆盖模型级别的API基础URL',
                                 format: 'uri'
-                            },
-                            includeThinking: {
-                                type: 'boolean',
-                                description:
-                                    '多轮对话消息是否必须包含思考内容（可选）\n- false: 不包含思考内容（默认）\n- true: 总是包含思考内容',
-                                default: false
                             },
                             capabilities: {
                                 type: 'object',

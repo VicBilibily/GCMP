@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type { ModelConfig } from '../types/sharedTypes';
 import type { GeminiContent, GeminiPart, GeminiTool } from './geminiType';
 
 function getThinkingSignature(part: vscode.LanguageModelThinkingPart): string {
@@ -50,10 +49,10 @@ export function convertToolsToGemini(tools?: readonly vscode.LanguageModelChatTo
     ];
 }
 
-export function convertMessagesToGemini(
-    messages: readonly vscode.LanguageModelChatMessage[],
-    modelConfig: ModelConfig
-): { contents: GeminiContent[]; systemInstruction: string } {
+export function convertMessagesToGemini(messages: readonly vscode.LanguageModelChatMessage[]): {
+    contents: GeminiContent[];
+    systemInstruction: string;
+} {
     // 用途：将 VS Code 的 chat message 列表转换为 Gemini 的 contents + systemInstruction。
     // 关键点：Gemini 的 tool response 需要作为单独的 user turn 且顺序与 functionCall 对齐。
     const contents: GeminiContent[] = [];
@@ -67,8 +66,7 @@ export function convertMessagesToGemini(
         for (const p of m.content ?? []) {
             if (p instanceof vscode.LanguageModelTextPart) {
                 parts.push(p.value);
-            } else if (p instanceof vscode.LanguageModelThinkingPart && modelConfig.includeThinking === true) {
-                // 关键说明：includeThinking 控制“把 thinking 当作输入上下文”注入提示词。
+            } else if (p instanceof vscode.LanguageModelThinkingPart) {
                 const v = Array.isArray(p.value) ? p.value.join('') : p.value;
                 if (v) {
                     parts.push(v);
@@ -206,16 +204,14 @@ export function convertMessagesToGemini(
         for (const tp of extracted.thinkingParts) {
             // 保留 signature 供后续 functionCall 关联
             lastThinkingSignature = tp.signature;
-            if (modelConfig.includeThinking === true) {
-                const t = (tp.text || '').trim();
-                if (t) {
-                    parts.push({
-                        thought: true,
-                        text: t,
-                        thoughtSignature: tp.signature,
-                        thought_signature: tp.signature
-                    });
-                }
+            const t = (tp.text || '').trim();
+            if (t) {
+                parts.push({
+                    thought: true,
+                    text: t,
+                    thoughtSignature: tp.signature,
+                    thought_signature: tp.signature
+                });
             }
         }
 

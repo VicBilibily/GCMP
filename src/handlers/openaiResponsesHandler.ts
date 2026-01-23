@@ -58,13 +58,11 @@ export class OpenAIResponsesHandler {
      * 参照官方 Responses API 规范实现
      * 注意：Responses API 不支持 system 消息，需要通过 instructions 参数传递
      * @param messages vscode 聊天消息数组
-     * @param capabilities 模型能力配置
      * @param modelConfig 模型配置
      * @returns 包含 system 消息内容和其他消息的对象
      */
     public convertMessagesToOpenAIResponses(
         messages: readonly vscode.LanguageModelChatMessage[],
-        capabilities?: { toolCalling?: boolean | number; imageInput?: boolean },
         modelConfig?: ModelConfig
     ): { systemMessage: string; messages: ResponseInputItem[] } {
         const out: ResponseInputItem[] = [];
@@ -86,7 +84,12 @@ export class OpenAIResponsesHandler {
                     part instanceof vscode.LanguageModelDataPart &&
                     this.handler.isImageMimeType(part.mimeType)
                 ) {
-                    imageParts.push(part);
+                    if (modelConfig?.capabilities?.imageInput === true) {
+                        imageParts.push(part);
+                    } else {
+                        // 模型不支持图片时，添加占位符
+                        textParts.push('[Image]');
+                    }
                 } else if (part instanceof vscode.LanguageModelToolCallPart) {
                     const id = part.callId || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
                     let args = '{}';
@@ -100,7 +103,7 @@ export class OpenAIResponsesHandler {
                     const callId = part.callId ?? '';
                     const content = this.collectToolResultText(part);
                     toolResults.push({ callId, content });
-                } else if (part instanceof vscode.LanguageModelThinkingPart && modelConfig?.includeThinking === true) {
+                } else if (part instanceof vscode.LanguageModelThinkingPart) {
                     const content = Array.isArray(part.value) ? part.value.join('') : part.value;
                     thinkingParts.push(content);
                 }
@@ -276,6 +279,9 @@ export class OpenAIResponsesHandler {
         for (const item of part.content) {
             if (item instanceof vscode.LanguageModelTextPart) {
                 texts.push(item.value);
+            } else if (item instanceof vscode.LanguageModelDataPart && this.handler.isImageMimeType(item.mimeType)) {
+                // 工具结果中的图片添加占位符
+                texts.push('[Image]');
             } else if (item && typeof item === 'object') {
                 // 尝试转换为字符串
                 try {
@@ -365,7 +371,6 @@ export class OpenAIResponsesHandler {
                 // 将消息转换为 Responses API 格式
                 const { systemMessage, messages: responsesMessages } = this.convertMessagesToOpenAIResponses(
                     messages,
-                    model.capabilities,
                     modelConfig
                 );
 
@@ -409,7 +414,6 @@ export class OpenAIResponsesHandler {
                                 // 重新转换消息
                                 const { messages: newResponsesMessages } = this.convertMessagesToOpenAIResponses(
                                     newMessages,
-                                    model.capabilities,
                                     modelConfig
                                 );
                                 requestBody.input = newResponsesMessages;

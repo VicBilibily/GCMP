@@ -2,6 +2,14 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.18.0] - 2026-01-23
+
+### 调整
+
+- **资源调整**：更新插件的 Logo 图标
+- **Thinking 上下文**：移除 `includeThinking` 配置项（历史配置将被忽略）
+    - 只要模型/网关返回了 thinking，插件将默认在多轮对话中携带对应 thinking 作为上下文
+
 ## [0.17.11] - 2026-01-22
 
 ### 新增
@@ -168,7 +176,7 @@
     - 支持思维链输出（`thoughtSignature` + `thinking` parts）
     - 支持工具调用（`functionCall`/`functionResponse`），自动对齐 tool response 顺序
     - 支持多模态输入（图片 `inlineData` base64 编码）
-    - 支持系统消息（`systemInstruction`）与 `includeThinking`（thinking 作为输入上下文）
+    - 支持系统消息（`systemInstruction`）与 thinking 作为输入上下文（默认启用）
     - 支持 `extraBody` 注入 Gemini 请求体字段（与 OpenAI/Anthropic 扩展点一致）
     - 支持 `usageMetadata` 原样透传，便于后续统计解析（`promptTokenCount`/`candidatesTokenCount`/`cachedContentTokenCount` 等）
     - 新增 `geminiConverter.ts` 模块，实现 JSON Schema → Gemini Schema 转换（`$ref`/`nullable`/类型映射/properties/items/required/enum）
@@ -197,7 +205,6 @@
       "tooltip": "全新面向多模态 Agent 场景定向优化模型。更强Agent能力、升级多模态理解、更灵活的上下文管理。",
       "maxInputTokens": 224000,
       "maxOutputTokens": 64000,
-      "includeThinking": true,
       "capabilities": {
         "toolCalling": true,
         "imageInput": true
@@ -367,7 +374,7 @@
 - **NES 代码补全**：新增 Next Edit Suggestions (NES) 代码补全功能，整合 FIM 和 NES 两种模式
 - **上下文窗口占用比例状态栏**：新增上下文窗口占用比例显示功能
 - **智谱AI用量查询**：新增状态栏显示剩余用量
-- **兼容模式成熟化**：OpenAI/Anthropic Compatible Provider 正式发布，支持 includeThinking 参数和 openai-sse 响应格式，内置 OpenRouter、AIHubMix 等提供商余额查询
+- **兼容模式成熟化**：OpenAI/Anthropic Compatible Provider 正式发布，支持 openai-sse 响应格式，内置 OpenRouter、AIHubMix 等提供商余额查询
 - **性能优化**：FIM/NES 内联提示采用懒加载机制，模块分包编译
 - **提供商调整**：
     - 智谱AI：新增 GLM-4.6V 系列、GLM-4.7 (Thinking) 模型，支持切换到国际站

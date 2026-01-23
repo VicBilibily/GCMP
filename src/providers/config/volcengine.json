@@ -46,7 +46,6 @@
             "tooltip": "Coding Plan Code模型。支持最新的 Doubao-Seed-Code、DeepSeek-V3.2、GLM-4.7、Kimi-K2 模型，也可开启 Auto 模式，方舟将根据场景选择最优模型。",
             "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
-            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -62,7 +61,6 @@
             "tooltip": "全新面向多模态 Agent 场景定向优化模型。更强Agent能力、升级多模态理解、更灵活的上下文管理。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 64000,
-            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -76,7 +74,6 @@
             "tooltip": "全新面向多模态 Agent 场景定向优化模型。更强Agent能力、升级多模态理解、更灵活的上下文管理。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 64000,
-            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -128,7 +125,6 @@
             "tooltip": "DeepSeek-V3.2正式版，平衡推理能力与输出长度，适合日常使用，例如问答场景和通用 Agent 任务场景",
             "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
-            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -168,7 +164,6 @@
             "tooltip": "具有通用 Agentic 能力和推理能力的思考模型，它擅长深度推理，并可通过多步工具调用，帮助解决各类难题。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -181,7 +176,6 @@
             "tooltip": "GLM-4.7 是智谱最新旗舰模型，更强的编程能力与更稳定的多步骤推理/执行能力。在执行复杂智能体任务提升明显，同时对话更自然，前端审美更好。",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -195,7 +189,6 @@
             "tooltip": "GLM-4.7 是智谱最新旗舰模型，更强的编程能力与更稳定的多步骤推理/执行能力。在执行复杂智能体任务提升明显，同时对话更自然，前端审美更好。",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false

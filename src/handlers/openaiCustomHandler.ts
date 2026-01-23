@@ -17,7 +17,6 @@ import { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 interface IOpenAIHandler {
     convertMessagesToOpenAI(
         messages: readonly vscode.LanguageModelChatMessage[],
-        capabilities?: vscode.LanguageModelChatCapabilities,
         modelConfig?: ModelConfig
     ): OpenAI.Chat.ChatCompletionMessageParam[];
     convertToolsToOpenAI(tools: vscode.LanguageModelChatTool[]): OpenAI.Chat.ChatCompletionTool[];
@@ -96,11 +95,7 @@ export class OpenAICustomHandler {
         // 构建请求参数
         const requestBody: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
             model: modelConfig.model || model.id,
-            messages: this.openaiHandler.convertMessagesToOpenAI(
-                messages,
-                model.capabilities || undefined,
-                modelConfig
-            ),
+            messages: this.openaiHandler.convertMessagesToOpenAI(messages, modelConfig),
             max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
             stream: true,
             stream_options: { include_usage: true },
@@ -109,7 +104,7 @@ export class OpenAICustomHandler {
         };
 
         // 添加工具支持（如果有）
-        if (options.tools && options.tools.length > 0 && model.capabilities?.toolCalling) {
+        if (options.tools && options.tools.length > 0 && modelConfig.capabilities?.toolCalling) {
             requestBody.tools = this.openaiHandler.convertToolsToOpenAI([...options.tools]);
         }
 

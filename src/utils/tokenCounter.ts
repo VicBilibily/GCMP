@@ -9,7 +9,6 @@ import {
     LanguageModelChatMessage,
     LanguageModelChatMessageRole,
     LanguageModelChatTool,
-    LanguageModelThinkingPart,
     ProvideLanguageModelChatResponseOptions
 } from 'vscode';
 import { createTokenizer, getRegexByEncoder, getSpecialTokensByEncoder, TikTokenizer } from '@microsoft/tiktokenizer';
@@ -315,50 +314,17 @@ export class TokenCounter {
     async countMessagesTokens(
         model: LanguageModelChatInformation,
         messages: Array<LanguageModelChatMessage>,
-        modelConfig?: { sdkMode?: string; includeThinking?: boolean },
+        modelConfig?: { sdkMode?: string },
         options?: ProvideLanguageModelChatResponseOptions
     ): Promise<number> {
         let totalTokens = 0;
         // Logger.trace(`[Token计数] 开始计算 ${messages.length} 条消息的 token...`);
-
-        // 检查是否需要包含思考内容
-        const includeThinking = modelConfig?.includeThinking === true;
 
         // 计算消息 token
         // eslint-disable-next-line @typescript-eslint/prefer-for-of
         for (let i = 0; i < messages.length; i++) {
             const message = messages[i];
 
-            // 如果不包含思考内容，需要过滤掉 LanguageModelThinkingPart
-            if (!includeThinking && message.content) {
-                // 检查是否有思考内容需要过滤
-                const hasThinking = message.content.some(part => part instanceof LanguageModelThinkingPart);
-
-                if (hasThinking) {
-                    // 只计算非思考内容部分
-                    let messageTokens = 0;
-
-                    // 基础消息开销
-                    messageTokens += 3;
-
-                    // 遍历每个 part，只统计非思考内容
-                    for (const part of message.content) {
-                        if (!(part instanceof LanguageModelThinkingPart)) {
-                            // 提取文本内容并直接计算
-                            const textContent = this.extractPartText(part);
-                            if (textContent) {
-                                messageTokens += await this.countTokens(model, textContent);
-                            }
-                        }
-                    }
-
-                    totalTokens += messageTokens;
-                    // Logger.trace(`[Token计数] 消息 #${i + 1}: ${messageTokens} tokens (已过滤思考内容, 累计: ${totalTokens})`);
-                    continue;
-                }
-            }
-
-            // 包含思考内容或没有思考内容，正常计算整个消息
             const messageTokens = await this.countTokens(
                 model,
                 message as unknown as string | LanguageModelChatMessage

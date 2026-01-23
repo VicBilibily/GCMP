@@ -327,7 +327,7 @@ export class GeminiHandler {
         const processedHeaders = ApiKeyManager.processCustomHeader(mergedCustomHeader, apiKey);
 
         // 用途：将 VS Code 的 messages / tools 转换为 Gemini HTTP API 可接受的结构。
-        const { contents, systemInstruction } = convertMessagesToGemini(messages, modelConfig);
+        const { contents, systemInstruction } = convertMessagesToGemini(messages);
         const tools: GeminiTool[] = convertToolsToGemini(options.tools);
 
         const abortController = new AbortController();

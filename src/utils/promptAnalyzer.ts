@@ -428,9 +428,17 @@ export class PromptAnalyzer {
         }
 
         const partObj = part as Record<string, unknown>;
-        // 处理标准的 TextPart
-        if ('value' in partObj && typeof partObj.value === 'string') {
-            return partObj.value;
+        // 处理标准的 TextPart / ThinkingPart
+        // - TextPart: value: string
+        // - ThinkingPart: value: string | string[]
+        if ('value' in partObj) {
+            const v = partObj.value;
+            if (typeof v === 'string') {
+                return v;
+            }
+            if (Array.isArray(v) && v.every(x => typeof x === 'string')) {
+                return v.join('');
+            }
         }
         // 处理 markdown 内容
         if ('markdown' in partObj && typeof partObj.markdown === 'string') {

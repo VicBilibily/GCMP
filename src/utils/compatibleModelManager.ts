@@ -58,8 +58,6 @@ export interface CompatibleModelConfig {
     customHeader?: Record<string, string>;
     /** 额外的请求体参数（可选） */
     extraBody?: Record<string, unknown>;
-    /** 多轮对话消息是否必须包含思考内容（默认false）*/
-    includeThinking?: boolean;
     /**
      * 是否在 Responses API 中使用 instructions 参数（默认false）
      *  - 当设置为 true 时，使用 instructions 参数传递系统指令
@@ -665,7 +663,9 @@ export class CompatibleModelManager {
                 delete result.apiKey;
             } catch (error) {
                 Logger.error('保存 API 密钥失败:', error);
-                vscode.window.showErrorMessage(`保存 API 密钥失败: ${error instanceof Error ? error.message : '未知错误'}`);
+                vscode.window.showErrorMessage(
+                    `保存 API 密钥失败: ${error instanceof Error ? error.message : '未知错误'}`
+                );
             }
         }
 

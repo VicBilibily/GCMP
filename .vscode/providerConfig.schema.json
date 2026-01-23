@@ -114,11 +114,6 @@
                     "minLength": 1,
                     "description": "当与 ID 不同时的可选请求模型名称。"
                 },
-                "includeThinking": {
-                    "type": "boolean",
-                    "description": "多轮对话消息是否必须包含思考内容（可选）",
-                    "default": false
-                },
                 "customHeader": {
                     "type": "object",
                     "description": "可选的自定义HTTP头部，将在API请求中附加。",

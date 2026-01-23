@@ -417,7 +417,8 @@ export class OpenAIHandler {
             const requestModel = modelConfig.model || model.id;
             const createParams: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
                 model: requestModel,
-                messages: this.convertMessagesToOpenAI(messages, model.capabilities || undefined, modelConfig),
+                // capabilities 已包含在 modelConfig 中，优先以配置为准做消息转换
+                messages: this.convertMessagesToOpenAI(messages, modelConfig),
                 max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
                 stream: true,
                 stream_options: { include_usage: true },
@@ -461,7 +462,7 @@ export class OpenAIHandler {
             // #endregion
 
             // 添加工具支持（如果有）
-            if (options.tools && options.tools.length > 0 && model.capabilities?.toolCalling) {
+            if (options.tools && options.tools.length > 0 && modelConfig.capabilities?.toolCalling) {
                 createParams.tools = this.convertToolsToOpenAI([...options.tools]);
                 Logger.trace(`${model.name} 添加了 ${options.tools.length} 个工具`);
             }
@@ -974,12 +975,11 @@ export class OpenAIHandler {
      */
     convertMessagesToOpenAI(
         messages: readonly vscode.LanguageModelChatMessage[],
-        capabilities?: { toolCalling?: boolean | number; imageInput?: boolean },
         modelConfig?: ModelConfig
     ): OpenAI.Chat.ChatCompletionMessageParam[] {
         const result: OpenAI.Chat.ChatCompletionMessageParam[] = [];
         for (const message of messages) {
-            const convertedMessage = this.convertSingleMessage(message, capabilities, modelConfig);
+            const convertedMessage = this.convertSingleMessage(message, modelConfig);
             if (convertedMessage) {
                 if (Array.isArray(convertedMessage)) {
                     result.push(...convertedMessage);
@@ -996,14 +996,13 @@ export class OpenAIHandler {
      */
     public convertSingleMessage(
         message: vscode.LanguageModelChatMessage,
-        capabilities?: { toolCalling?: boolean | number; imageInput?: boolean },
         modelConfig?: ModelConfig
     ): OpenAI.Chat.ChatCompletionMessageParam | OpenAI.Chat.ChatCompletionMessageParam[] | null {
         switch (message.role) {
             case vscode.LanguageModelChatMessageRole.System:
                 return this.convertSystemMessage(message);
             case vscode.LanguageModelChatMessageRole.User:
-                return this.convertUserMessage(message, capabilities);
+                return this.convertUserMessage(message, modelConfig);
             case vscode.LanguageModelChatMessageRole.Assistant:
                 return this.convertAssistantMessage(message, modelConfig);
             default:
@@ -1033,11 +1032,11 @@ export class OpenAIHandler {
      */
     private convertUserMessage(
         message: vscode.LanguageModelChatMessage,
-        capabilities?: { toolCalling?: boolean | number; imageInput?: boolean }
+        modelConfig?: ModelConfig
     ): OpenAI.Chat.ChatCompletionMessageParam[] {
         const results: OpenAI.Chat.ChatCompletionMessageParam[] = [];
         // 处理文本和图片内容
-        const userMessage = this.convertUserContentMessage(message, capabilities);
+        const userMessage = this.convertUserContentMessage(message, modelConfig);
         if (userMessage) {
             results.push(userMessage);
         }
@@ -1052,14 +1051,14 @@ export class OpenAIHandler {
      */
     private convertUserContentMessage(
         message: vscode.LanguageModelChatMessage,
-        capabilities?: { toolCalling?: boolean | number; imageInput?: boolean }
+        modelConfig?: ModelConfig
     ): OpenAI.Chat.ChatCompletionUserMessageParam | null {
         const textParts = message.content.filter(
             part => part instanceof vscode.LanguageModelTextPart
         ) as vscode.LanguageModelTextPart[];
         const imageParts: vscode.LanguageModelDataPart[] = [];
         // 收集图片（如果支持）
-        if (capabilities?.imageInput === true) {
+        if (modelConfig?.capabilities?.imageInput === true) {
             Logger.debug('🖼️ 模型支持图像输入，开始收集图像部分');
             for (const part of message.content) {
                 if (part instanceof vscode.LanguageModelDataPart) {
@@ -1158,7 +1157,7 @@ export class OpenAIHandler {
      */
     private convertAssistantMessage(
         message: vscode.LanguageModelChatMessage,
-        modelConfig?: ModelConfig
+        _modelConfig?: ModelConfig
     ): OpenAI.Chat.ChatCompletionAssistantMessageParam | null {
         const textContent = this.extractTextContent(message.content);
         const toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = [];
@@ -1179,24 +1178,17 @@ export class OpenAIHandler {
             }
         }
 
-        // 检查是否需要包含思考内容
-        const includeThinking = modelConfig?.includeThinking === true;
-        if (includeThinking) {
-            // 从消息中提取思考内容
-            Logger.trace(`检查是否需要包含思考内容: includeThinking=${includeThinking}`);
-
-            // 遍历消息内容，查找 LanguageModelThinkingPart
-            for (const part of message.content) {
-                if (part instanceof vscode.LanguageModelThinkingPart) {
-                    // 处理思考内容，可能是字符串或字符串数组
-                    if (Array.isArray(part.value)) {
-                        thinkingContent = part.value.join('');
-                    } else {
-                        thinkingContent = part.value;
-                    }
-                    Logger.trace(`提取到思考内容: ${thinkingContent.length} 字符`);
-                    break; // 只取第一个思考内容部分
+        // 从消息中提取思考内容（若存在），用于兼容部分网关/模型的上下文传递。
+        for (const part of message.content) {
+            if (part instanceof vscode.LanguageModelThinkingPart) {
+                // 处理思考内容，可能是字符串或字符串数组
+                if (Array.isArray(part.value)) {
+                    thinkingContent = part.value.join('');
+                } else {
+                    thinkingContent = part.value;
                 }
+                Logger.trace(`提取到思考内容: ${thinkingContent.length} 字符`);
+                break; // 只取第一个思考内容部分
             }
         }
 

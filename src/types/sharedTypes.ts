@@ -53,12 +53,6 @@ export interface ModelConfig {
      */
     extraBody?: Record<string, unknown>;
     /**
-     * 多轮对话消息是否必须包含思考内容（可选）
-     * 默认值为 false，表示思考内容为可选传递给模型
-     * 当模型要求工具消息必须包含思考内容时需设置为 true
-     */
-    includeThinking?: boolean;
-    /**
      * 是否在 Responses API 中使用 instructions 参数（可选）
      *  - 默认值为 false，表示使用 用户消息 传递 系统消息 指令
      *  - 当设置为 true 时，使用 instructions 参数传递系统指令

@@ -10,9 +10,8 @@
 
 #### 📣 参数调整公告
 
-- `outputThinking` 已移除：只要模型/网关返回了 thinking（思考内容），扩展将默认输出思考内容。
-- `includeThinking` **目前仍然根据配置生效**：用于控制多轮对话时，是否将 thinking 作为上下文继续传递给模型。
-- `includeThinking` 计划在 **0.18.0** 版本移除：移除后将根据模型是否输出 thinking，在当前轮次对话默认附带思考内容。
+- `outputThinking` / `includeThinking` 已移除：历史配置将被忽略；只要模型/网关返回了 thinking（思考内容），扩展将默认输出思考内容，并在多轮对话中默认携带对应 thinking 作为上下文。
+- `gcmp.temperature` 与 `gcmp.topP` 计划在 `0.19.0` 版本移除：通用设置已不再符合各大模型的差异化参数行为；如需专属设置，请通过模型的 `extraBody` 传递。
 
 ## 🚀 快速开始
 
@@ -221,7 +220,6 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
             // "baseUrl": "https://open.bigmodel.cn/api/anthropic",
             "maxInputTokens": 128000,
             "maxOutputTokens": 4096,
-            // "includeThinking": true, // 多轮对话消息是否必须包含思考内容（默认false）
             "capabilities": {
                 "toolCalling": true, // Agent模式下模型必须支持工具调用
                 "imageInput": false
@@ -554,7 +552,7 @@ npm install
 
 感谢以下组织对本项目的支持：
 
-- 项目Logo 来源于 [三花AI](https://sanhua.himrr.com/)，版权归 重庆毛茸茸科技有限责任公司 所有。
+- 0.18.0 之前的项目Logo 来源于 [三花AI](https://sanhua.himrr.com/)，版权归 重庆毛茸茸科技有限责任公司 所有。
 
 ## 📄 许可证
 

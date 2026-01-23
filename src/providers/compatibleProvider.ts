@@ -108,7 +108,6 @@ export class CompatibleProvider extends GenericModelProvider {
                     ...(model.model && { model: model.model }),
                     ...(customHeader && { customHeader: customHeader }),
                     ...(model.extraBody && { extraBody: model.extraBody }),
-                    ...(model.includeThinking !== undefined && { includeThinking: model.includeThinking }),
                     ...(model.useInstructions !== undefined && { useInstructions: model.useInstructions })
                 };
             });

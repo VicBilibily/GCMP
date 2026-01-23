@@ -66,7 +66,12 @@ export class ModelEditor {
                                 break;
                             case 'fetchModels':
                                 // 获取模型列表
-                                await this.fetchModelsFromAPI(panel.webview, message.baseUrl, message.apiKey, message.provider);
+                                await this.fetchModelsFromAPI(
+                                    panel.webview,
+                                    message.baseUrl,
+                                    message.apiKey,
+                                    message.provider
+                                );
                                 break;
                             case 'save':
                                 // 验证返回的模型对象
@@ -145,7 +150,6 @@ export class ModelEditor {
             maxOutputTokens: model?.maxOutputTokens || 4096,
             toolCalling: model?.capabilities?.toolCalling || false,
             imageInput: model?.capabilities?.imageInput || false,
-            includeThinking: model?.includeThinking || false,
             useInstructions: model?.useInstructions,
             customHeader: model?.customHeader ? JSON.stringify(model.customHeader, null, 2) : '',
             extraBody: model?.extraBody ? JSON.stringify(model.extraBody, null, 2) : ''
@@ -235,7 +239,12 @@ export class ModelEditor {
     /**
      * 从 API 获取模型列表
      */
-    private static async fetchModelsFromAPI(webview: vscode.Webview, baseUrl: string, apiKey?: string, provider?: string) {
+    private static async fetchModelsFromAPI(
+        webview: vscode.Webview,
+        baseUrl: string,
+        apiKey?: string,
+        provider?: string
+    ) {
         try {
             // 验证 URL
             if (!baseUrl || !baseUrl.trim()) {
@@ -294,7 +303,11 @@ export class ModelEditor {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
-            const responseData = await response.json() as OpenAI.Models.ModelsPage | { models: OpenAI.Models.Model[] | string[] } | OpenAI.Models.Model[] | string[];
+            const responseData = (await response.json()) as
+                | OpenAI.Models.ModelsPage
+                | { models: OpenAI.Models.Model[] | string[] }
+                | OpenAI.Models.Model[]
+                | string[];
 
             // 解析模型列表
             let models: string[] = [];
@@ -309,13 +322,13 @@ export class ModelEditor {
             else if (Array.isArray(responseData)) {
                 models = responseData
                     .filter((item): item is string | OpenAI.Models.Model => typeof item === 'string' || !!item?.id)
-                    .map(item => typeof item === 'string' ? item : item.id);
+                    .map(item => (typeof item === 'string' ? item : item.id));
             }
             // 其他格式: { models: [...] } 或 { models: ["model1", "model2"] }
             else if ('models' in responseData && Array.isArray(responseData.models)) {
                 models = responseData.models
                     .filter((item): item is string | OpenAI.Models.Model => typeof item === 'string' || !!item?.id)
-                    .map(item => typeof item === 'string' ? item : item.id);
+                    .map(item => (typeof item === 'string' ? item : item.id));
             }
 
             // 发送模型列表
@@ -323,7 +336,6 @@ export class ModelEditor {
                 command: 'modelsLoaded',
                 models: models
             });
-
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : '未知错误';
             webview.postMessage({

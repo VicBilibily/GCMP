@@ -13,7 +13,6 @@
             "maxInputTokens": 1048576,
             "maxOutputTokens": 65536,
             "sdkMode": "gemini-sse",
-            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -29,7 +28,6 @@
             "maxInputTokens": 1048576,
             "maxOutputTokens": 65536,
             "sdkMode": "gemini-sse",
-            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -45,7 +43,6 @@
             "maxInputTokens": 1048576,
             "maxOutputTokens": 65536,
             "sdkMode": "gemini-sse",
-            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -61,7 +58,6 @@
             "maxInputTokens": 1048576,
             "maxOutputTokens": 65536,
             "sdkMode": "gemini-sse",
-            "includeThinking": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
