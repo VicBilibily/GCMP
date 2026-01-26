@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  OpenAI Responses API 处理器
  *  专门处理 OpenAI Responses API 的消息转换和请求处理
  *--------------------------------------------------------------------------------------------*/
@@ -10,7 +10,8 @@ import { TokenUsagesManager } from '../usages/usagesManager';
 import { Logger } from '../utils/logger';
 import { ModelConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
-import { PromptCacheManager } from './promptCacheManager';
+import { encodeStatefulMarker, getStatefulMarkerAndIndex } from './statefulMarker';
+import { CustomDataPartMimeTypes } from './types';
 
 // 使用 OpenAI SDK 的 Responses API 类型
 type ResponseInputItem = OpenAI.Responses.ResponseInputItem;
@@ -47,8 +48,10 @@ interface APIErrorWithError extends Error {
 export class OpenAIResponsesHandler {
     private handler: OpenAIHandler;
     private displayName: string;
+    private providerKey: string;
 
-    constructor(displayName: string, handler: OpenAIHandler) {
+    constructor(providerKey: string, displayName: string, handler: OpenAIHandler) {
+        this.providerKey = providerKey;
         this.displayName = displayName;
         this.handler = handler;
     }
@@ -385,67 +388,67 @@ export class OpenAIResponsesHandler {
                 const modelId = (modelConfig.model || model.id).toLowerCase();
                 const isDoubaoOrVolcengine = modelId.includes('doubao') || modelConfig?.provider === 'volcengine';
 
-                // 统一的缓存检查（支持 GPT/Codex 的 prompt_cache_key 和豆包的 previous_response_id）
-                const cacheManager = PromptCacheManager.getInstance();
-                const cacheResult = cacheManager.findByKind('openai-responses', messages, 10);
+                // 使用 statefulMarker 获取会话状态
+                const markerAndIndex = getStatefulMarkerAndIndex(model.id, 'openai-responses', messages);
+                const statefulMarker = markerAndIndex?.statefulMarker;
+                const sessionId = statefulMarker?.sessionId || crypto.randomUUID();
+                const previousResponseId = statefulMarker?.responseId;
+                let sessionExpireAt = statefulMarker?.expireAt;
 
-                if (cacheResult) {
-                    if (cacheResult.promptCacheKey) {
-                        // GPT/Codex 使用 prompt_cache_key
-                        requestBody.prompt_cache_key = cacheResult.promptCacheKey;
-                        Logger.info(`🎯 ${model.name} 使用 prompt_cache_key: ${cacheResult.promptCacheKey}`);
-                    } else if (isDoubaoOrVolcengine) {
-                        // 豆包使用 previous_response_id
-                        const extraBody: { caching?: { type?: string } } = modelConfig.extraBody || {};
-                        if (extraBody?.caching?.type === 'enabled') {
-                            requestBody.previous_response_id = cacheResult.responseId;
-                            Logger.info(
-                                `🎯 ${model.name} 使用豆包缓存 previous_response_id: ${cacheResult.responseId}, lastMatchIndex=${cacheResult.lastMatchIndex}`
-                            );
-
-                            // 截断消息数组，只保留最后匹配位置之后的新消息
-                            const originalMessages = messages as vscode.LanguageModelChatMessage[];
-                            if (
-                                cacheResult.lastMatchIndex >= 0 &&
-                                cacheResult.lastMatchIndex < originalMessages.length - 1
-                            ) {
-                                // 从 lastMatchIndex + 1 开始截断，只发送新的消息
-                                const newMessages = originalMessages.slice(cacheResult.lastMatchIndex + 1);
-                                // 重新转换消息
-                                const { messages: newResponsesMessages } = this.convertMessagesToOpenAIResponses(
-                                    newMessages,
-                                    modelConfig
-                                );
-                                requestBody.input = newResponsesMessages;
-                                Logger.info(
-                                    `🎯 ${model.name} 截断消息，从 ${originalMessages.length} 条减少到 ${newMessages.length} 条（跳过前 ${cacheResult.lastMatchIndex + 1} 条已缓存消息）`
-                                );
-                            }
-                        }
-                    }
-                } else if (isDoubaoOrVolcengine) {
-                    // 豆包未命中缓存时设置过期时间
+                // 豆包/火山引擎的 previous_response_id 支持
+                if (isDoubaoOrVolcengine) {
                     const extraBody: { caching?: { type?: string } } = modelConfig.extraBody || {};
                     if (extraBody?.caching?.type === 'enabled') {
-                        requestBody.expire_at = Math.floor(Date.now() / 1000) + 2 * 3600; // 2小时后过期
-                        Logger.info(`🎯 ${model.name} 使用豆包缓存，设置 expire_at 为 2 小时后过期`);
+                        if (previousResponseId) {
+                            // 检查缓存是否过期且模型匹配
+                            if (
+                                sessionExpireAt &&
+                                Date.now() < sessionExpireAt - 5 * 60 * 1000 &&
+                                statefulMarker.modelId === model.id
+                            ) {
+                                requestBody.previous_response_id = previousResponseId;
+                                Logger.debug(
+                                    `🎯 ${model.name} 使用豆包缓存 previous_response_id: ${previousResponseId}`
+                                );
+
+                                // 截断消息数组，只保留最后匹配位置之后的新消息
+                                const markerIndex = markerAndIndex?.index ?? -1;
+                                const originalMessages = messages as vscode.LanguageModelChatMessage[];
+                                if (markerIndex >= 0 && markerIndex < originalMessages.length - 1) {
+                                    // 从 markerIndex + 1 开始截断，只发送新的消息
+                                    const newMessages = originalMessages.slice(markerIndex + 1);
+                                    // 重新转换消息
+                                    const { messages: newResponsesMessages } = this.convertMessagesToOpenAIResponses(
+                                        newMessages,
+                                        modelConfig
+                                    );
+                                    requestBody.input = newResponsesMessages;
+                                    Logger.debug(
+                                        `🎯 ${model.name} 截断消息，从 ${originalMessages.length} 条减少到 ${newMessages.length} 条（跳过前 ${markerIndex + 1} 条已缓存消息）`
+                                    );
+                                }
+                            } else {
+                                Logger.debug(`🎯 ${model.name} 豆包缓存已过期，设置新的 expire_at`);
+                                sessionExpireAt = Date.now() + 1 * 3600 * 1000; // 1小时后过期
+                                requestBody.expire_at = Math.floor(sessionExpireAt / 1000);
+                            }
+                        } else {
+                            // 未命中缓存时设置过期时间
+                            sessionExpireAt = Date.now() + 1 * 3600 * 1000; // 1小时后过期
+                            requestBody.expire_at = Math.floor(sessionExpireAt / 1000);
+                        }
                     }
+                }
+                // GPT/Codex 使用 sessionId 作为 prompt_cache_key
+                else {
+                    requestBody.prompt_cache_key = sessionId;
+                    Logger.debug(`🎯 ${model.name} 使用 prompt_cache_key: ${sessionId}`);
                 }
 
                 const { _options: clientOptions } = client as unknown as { _options: ClientOptions };
                 const { defaultHeaders: optHeaders } = clientOptions as { defaultHeaders: Record<string, string> };
-                if (requestBody.prompt_cache_key) {
-                    const promptCacheKey = String(requestBody.prompt_cache_key);
-                    optHeaders['conversation_id'] = promptCacheKey;
-                    optHeaders['session_id'] = promptCacheKey;
-                } else if (!isDoubaoOrVolcengine && !requestBody.previous_response_id) {
-                    const sessionUuid =
-                        typeof crypto.randomUUID === 'function'
-                            ? crypto.randomUUID()
-                            : crypto.randomBytes(16).toString('hex');
-                    optHeaders['conversation_id'] = sessionUuid;
-                    optHeaders['session_id'] = sessionUuid;
-                }
+                optHeaders['conversation_id'] = optHeaders['session_id'] = sessionId;
+                Logger.info(`🎯 ${model.name} 使用 session_id: ${sessionId}`);
 
                 if (systemMessage) {
                     // 添加 system 消息作为 instructions
@@ -739,18 +742,24 @@ export class OpenAIResponsesHandler {
 
                         // 获取响应对象
                         const response = event.response;
-
-                        const modelId = (modelConfig.model || model.id).toLowerCase();
-                        const isGpt = modelId.includes('gpt') || modelId.includes('codex');
-                        // 统一保存缓存（所有模型都有 response.id，只有 GPT/Codex 有 prompt_cache_key）
-                        if (response && response.id && response.output) {
-                            const cacheManager = PromptCacheManager.getInstance();
+                        // 发送 StatefulMarkerData 作为响应的一部分
+                        if (response && response.id) {
                             const responseId = response.id as string;
-                            const promptCacheKey =
-                                isGpt && response.prompt_cache_key ? (response.prompt_cache_key as string) : undefined;
-                            cacheManager.saveCache(responseId, response.output, promptCacheKey);
-                            Logger.info(
-                                `💾 ${model.name} 保存缓存: responseId=${responseId}, promptCacheKey=${promptCacheKey || 'N/A'}`
+                            progress.report(
+                                new vscode.LanguageModelDataPart(
+                                    encodeStatefulMarker(model.id, {
+                                        provider: modelConfig.provider || this.providerKey,
+                                        modelId: model.id,
+                                        sdkMode: 'openai-responses',
+                                        sessionId,
+                                        responseId,
+                                        expireAt: sessionExpireAt
+                                    }),
+                                    CustomDataPartMimeTypes.StatefulMarker
+                                )
+                            );
+                            Logger.debug(
+                                `💾 ${model.name} 传递 StatefulMarker: sessionId=${sessionId}，responseId=${responseId}`
                             );
                         }
 

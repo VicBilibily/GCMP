@@ -46,8 +46,8 @@
 - **协作奖励计划**：**GLM-4.7**、**DeepSeek-V3.2**(Thinking)、**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**
 - **上下文缓存实验性支持**：**Doubao-Seed-1.8**(Caching)、**GLM-4.7**(Caching)
     - 使用此模式需要在后台手动开通模型的[上下文缓存功能](https://www.volcengine.com/docs/82379/1602228?lang=zh)。
-    - 当前内置实现使用 Responses API 的 [`previous_response_id`](https://www.volcengine.com/docs/82379/1398933?lang=zh#51929890) 匹配缓存模式，使用过程中不支持模型切换。
-    - 在首次对话请求时默认创建 2h 上下文缓存窗口，但插件内部维护 1小时 上下文历史记录 (最大500次模型响应) 用于上下文用于缓存匹配，。
+    - 当前内置实现使用 Responses API 的 [`previous_response_id`](https://www.volcengine.com/docs/82379/1398933?lang=zh#51929890) 模式。
+    - 在首次对话请求时默认创建 1h 上下文缓存窗口，本地命中时额外增加 5m 缓存时间差异窗口（即首次对话 55m 后重建 1h 缓存）。
 
 ### [**MiniMax**](https://platform.minimaxi.com/login)
 

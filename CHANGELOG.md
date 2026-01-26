@@ -2,12 +2,23 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.18.3] - 2026-01-26
+
+### 重构
+
+- **会话状态管理**：重构会话缓存机制，从中心化摘要匹配迁移到分布式 Stateful Marker 模式
+    - 参考 `microsoft/vscode-copilot-chat` 的 StatefulMarker 设计，通过 `LanguageModelDataPart` 传递会话状态
+    - 会话状态通过 `sessionId`、`responseId`、`expireAt` 等字段在消息流中传递
+    - 支持 `openai-responses` 和 `anthropic` 两种 SDK 模式的状态追踪
+    - 优化缓存复用逻辑，豆包/火山方舟 Responses API 支持过期时间检查与消息截断
+    - 架构更清晰，代码更简洁，对齐官方设计模式
+
 ## [0.18.2] - 2026-01-23
 
 ### 完善
 
 - **请求取消/中止信号**：完善多 SDK/HTTP handler 对 `AbortSignal` 的接入与取消行为一致性
-    - ps: 截至目前为止，官方仍未完善手动停止对话时传递取消信号的特性，当前完善仅为预补充实现完善。
+    - ps: 截至目前为止，官方仍未完善手动停止对话时传递取消信号的特性，当前仅为预补充实现完善。
 
 ## [0.18.1] - 2026-01-23
 

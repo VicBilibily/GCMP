@@ -20,21 +20,7 @@ import type {
     ImageBlockParam
 } from '@anthropic-ai/sdk/resources';
 import { ModelConfig } from '../types/sharedTypes';
-
-// 自定义数据部分MIME类型
-const CustomDataPartMimeTypes = {
-    CacheControl: 'cache_control',
-    StatefulMarker: 'stateful_marker',
-    ThinkingData: 'thinking'
-} as const;
-
-/**
- * 数据部分接口 - 扩展 VS Code API
- */
-interface DataPartWithMimeType {
-    mimeType: string;
-    data: unknown;
-}
+import { CacheType, CustomDataPartMimeTypes } from './types';
 
 /**
  * 思考部分的元数据接口
@@ -55,7 +41,7 @@ function isDefined<T>(value: T | undefined): value is T {
 /**
  * 类型守卫 - 检查对象是否有 mimeType 和 data 属性
  */
-function isDataPart(part: unknown): part is DataPartWithMimeType {
+function isDataPart(part: unknown): part is vscode.LanguageModelDataPart2 {
     return typeof part === 'object' && part !== null && 'mimeType' in part && 'data' in part;
 }
 
@@ -145,19 +131,19 @@ function apiContentToAnthropicContent(
         else if (
             isDataPart(part) &&
             part.mimeType === CustomDataPartMimeTypes.CacheControl &&
-            String(part.data) === 'ephemeral'
+            String(part.data) === CacheType
         ) {
             const previousBlock = otherBlocks.at(-1);
             if (previousBlock && contentBlockSupportsCacheControl(previousBlock)) {
                 (previousBlock as ContentBlockParam & { cache_control?: { type: string } }).cache_control = {
-                    type: 'ephemeral'
+                    type: CacheType
                 };
             } else {
                 // 空字符串无效，使用空格
                 otherBlocks.push({
                     type: 'text',
                     text: ' ',
-                    cache_control: { type: 'ephemeral' }
+                    cache_control: { type: CacheType }
                 } as ContentBlockParam);
             }
         }
@@ -201,10 +187,10 @@ function apiContentToAnthropicContent(
                         } else if (
                             isDataPart(p) &&
                             p.mimeType === CustomDataPartMimeTypes.CacheControl &&
-                            String(p.data) === 'ephemeral'
+                            String(p.data) === CacheType
                         ) {
                             // 空字符串无效，使用空格
-                            return { type: 'text', text: ' ', cache_control: { type: 'ephemeral' } } as TextBlockParam;
+                            return { type: 'text', text: ' ', cache_control: { type: CacheType } } as TextBlockParam;
                         } else if (isDataPart(p) && p.mimeType.startsWith('image/')) {
                             if (!allowImages) {
                                 // 模型不支持图片时，添加占位符
@@ -277,10 +263,10 @@ export function apiMessageToAnthropicMessage(
                         'data' in p &&
                         'mimeType' in p &&
                         p.mimeType === CustomDataPartMimeTypes.CacheControl &&
-                        (p.data as Uint8Array).toString() === 'ephemeral'
+                        (p.data as Uint8Array).toString() === CacheType
                     ) {
                         (systemMessage as TextBlockParam & { cache_control?: { type: string } }).cache_control = {
-                            type: 'ephemeral'
+                            type: CacheType
                         };
                     }
                     return '';

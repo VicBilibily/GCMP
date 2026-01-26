@@ -82,7 +82,11 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 创建 OpenAI 自定义 SSE 处理器
         this.openaiCustomHandler = new OpenAICustomHandler(providerKey, providerConfig, this.openaiHandler);
         // 创建 OpenAI Responses API 处理器
-        this.openaiResponsesHandler = new OpenAIResponsesHandler(this.providerConfig.displayName, this.openaiHandler);
+        this.openaiResponsesHandler = new OpenAIResponsesHandler(
+            providerKey,
+            this.providerConfig.displayName,
+            this.openaiHandler
+        );
         // 创建 Anthropic SDK 处理器
         this.anthropicHandler = new AnthropicHandler(providerKey, providerConfig);
         // 创建 Gemini HTTP SSE 处理器
