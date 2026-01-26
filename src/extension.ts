@@ -45,7 +45,7 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
     // 设置扩展路径（用于 tokenizer 初始化）
     TokenCounter.setExtensionPath(context.extensionPath);
 
-    Logger.info(`⏱️ 开始并行注册 ${Object.keys(configProvider).length} 个提供商...`);
+    Logger.debug(`⏱️ 开始并行注册 ${Object.keys(configProvider).length} 个提供商...`);
 
     // CLI 认证提供商列表（从 CliAuthFactory 获取）
     const supportedCliTypes = CliAuthFactory.getSupportedCliTypes();
@@ -93,7 +93,7 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
             }
 
             const providerTime = Date.now() - providerStartTime;
-            Logger.info(`✅ ${providerConfig.displayName} 提供商注册成功 (耗时: ${providerTime}ms)`);
+            Logger.debug(`✅ ${providerConfig.displayName} 提供商注册成功 (耗时: ${providerTime}ms)`);
             return { providerKey, provider, disposables };
         } catch (error) {
             Logger.error(`❌ 注册提供商 ${providerKey} 失败:`, error);
@@ -114,7 +114,7 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
 
     const totalTime = Date.now() - startTime;
     const successCount = results.filter(r => r !== null).length;
-    Logger.info(
+    Logger.debug(
         `⏱️ 提供商注册完成: ${successCount}/${Object.keys(configProvider).length} 个成功 (总耗时: ${totalTime}ms)`
     );
 }
@@ -137,7 +137,7 @@ async function activateCompatibleProvider(context: vscode.ExtensionContext): Pro
         registeredDisposables.push(...disposables);
 
         const providerTime = Date.now() - providerStartTime;
-        Logger.info(`✅ Compatible Provider 提供商注册成功 (耗时: ${providerTime}ms)`);
+        Logger.debug(`✅ Compatible Provider 提供商注册成功 (耗时: ${providerTime}ms)`);
     } catch (error) {
         Logger.error('❌ 注册兼容提供商失败:', error);
     }
@@ -157,7 +157,7 @@ async function activateInlineCompletionProvider(context: vscode.ExtensionContext
         registeredDisposables.push(...result.disposables);
 
         const providerTime = Date.now() - providerStartTime;
-        Logger.info(`✅ 内联补全提供商注册成功 - Shim 模式 (耗时: ${providerTime}ms)`);
+        Logger.debug(`✅ 内联补全提供商注册成功 - Shim 模式 (耗时: ${providerTime}ms)`);
     } catch (error) {
         Logger.error('❌ 注册内联补全提供商失败:', error);
     }
@@ -182,13 +182,13 @@ export async function activate(context: vscode.ExtensionContext) {
         CompletionLogger.initialize('GitHub Copilot Inline Completion via GCMP'); // 初始化高频内联补全日志管理器
 
         const isDevelopment = context.extensionMode === vscode.ExtensionMode.Development;
-        Logger.info(`🔧 GCMP 扩展模式: ${isDevelopment ? 'Development' : 'Production'}`);
+        Logger.debug(`🔧 GCMP 扩展模式: ${isDevelopment ? 'Development' : 'Production'}`);
         // 检查和提示VS Code的日志级别设置
         if (isDevelopment) {
             Logger.checkAndPromptLogLevel();
         }
 
-        Logger.info('⏱️ 开始激活 GCMP 扩展...');
+        Logger.debug('⏱️ 开始激活 GCMP 扩展...');
 
         // 步骤0: 初始化主实例竞选服务
         let stepStartTime = Date.now();

@@ -202,7 +202,7 @@ export class OpenAICustomHandler {
         let chunkCount = 0;
         const toolCallsBuffer = new Map<number, ToolCallBuffer>();
         let currentThinkingId: string | null = null; // 思维链追踪
-        let thinkingContentBuffer: string = ''; // 思考内容缓存
+        let pendingThinking: { thinking?: string } | undefined;
         const MAX_THINKING_BUFFER_LENGTH = 10; // 思考内容缓存的最大长度
 
         // Token 统计: 收集 usage 信息
@@ -264,21 +264,27 @@ export class OpenAICustomHandler {
                                         Logger.trace(`[${model.name}] 创建新思维链 ID: ${currentThinkingId}`);
                                     }
 
-                                    // 将思考内容添加到缓冲
-                                    thinkingContentBuffer += delta.reasoning_content;
+                                    // 初始化 pendingThinking（如果尚未初始化）
+                                    if (!pendingThinking) {
+                                        pendingThinking = { thinking: '' };
+                                    }
+
+                                    // 将思考内容累积到 pendingThinking
+                                    pendingThinking.thinking =
+                                        (pendingThinking.thinking || '') + delta.reasoning_content;
 
                                     // 检查是否达到报告条件
-                                    if (thinkingContentBuffer.length >= MAX_THINKING_BUFFER_LENGTH) {
+                                    if (pendingThinking.thinking.length >= MAX_THINKING_BUFFER_LENGTH) {
                                         // 达到最大长度，立即报告
                                         try {
                                             progress.report(
                                                 new vscode.LanguageModelThinkingPart(
-                                                    thinkingContentBuffer,
+                                                    pendingThinking.thinking,
                                                     currentThinkingId
                                                 )
                                             );
-                                            thinkingContentBuffer = ''; // 清空缓冲
-                                            hasThinkingContent = true; // 标记已输出 thinking 内容
+                                            pendingThinking.thinking = ''; // 清空缓冲
+                                            hasThinkingContent = true;
                                         } catch (e) {
                                             Logger.trace(`[${model.name}] 报告思考内容失败: ${String(e)}`);
                                         }
@@ -293,35 +299,18 @@ export class OpenAICustomHandler {
                                     // Logger.trace(
                                     //     `[${model.name}] 输出文本内容: ${delta.content.length} 字符, preview=${delta.content}`
                                     // );
-                                    // 遇到可见 content 前，如果有缓存的思考内容，先报告出来
-                                    if (thinkingContentBuffer.length > 0 && currentThinkingId) {
-                                        try {
-                                            progress.report(
-                                                new vscode.LanguageModelThinkingPart(
-                                                    thinkingContentBuffer,
-                                                    currentThinkingId
-                                                )
-                                            );
-                                            thinkingContentBuffer = ''; // 清空缓冲
-                                            hasThinkingContent = true; // 标记已输出 thinking 内容
-                                        } catch (e) {
-                                            Logger.trace(`[${model.name}] 报告剩余思考内容失败: ${String(e)}`);
-                                        }
-                                    }
-
-                                    // 然后结束当前思维链
+                                    // 使用统一方法处理剩余思考内容
                                     if (currentThinkingId) {
-                                        try {
-                                            Logger.trace(
-                                                `[${model.name}] 在输出 content 前结束思维链 ID: ${currentThinkingId}`
-                                            );
-                                            progress.report(
-                                                new vscode.LanguageModelThinkingPart('', currentThinkingId)
-                                            );
-                                        } catch (e) {
-                                            Logger.trace(
-                                                `[${model.name}] 发送 thinking done(id=${currentThinkingId}) 失败: ${String(e)}`
-                                            );
+                                        this.reportRemainingThinkingContent(
+                                            model.name,
+                                            progress,
+                                            pendingThinking,
+                                            currentThinkingId,
+                                            '输出 content 前'
+                                        );
+                                        // 清空状态
+                                        if (pendingThinking) {
+                                            pendingThinking.thinking = '';
                                         }
                                         currentThinkingId = null;
                                     }
@@ -337,24 +326,20 @@ export class OpenAICustomHandler {
 
                                         // 检查是否有工具调用开始（tool_calls 存在但还没有 arguments）
                                         if (toolIndex !== undefined && !toolCall.function?.arguments) {
-                                            // 在工具调用开始时，如果有缓存的思考内容，先报告出来
-                                            if (thinkingContentBuffer.length > 0 && currentThinkingId) {
-                                                try {
-                                                    progress.report(
-                                                        new vscode.LanguageModelThinkingPart(
-                                                            thinkingContentBuffer,
-                                                            currentThinkingId
-                                                        )
-                                                    );
-                                                    // 结束当前思维链
-                                                    progress.report(
-                                                        new vscode.LanguageModelThinkingPart('', currentThinkingId)
-                                                    );
-                                                    thinkingContentBuffer = ''; // 清空缓冲
-                                                    hasThinkingContent = true; // 标记已输出 thinking 内容
-                                                } catch (e) {
-                                                    Logger.trace(`[${model.name}] 报告剩余思考内容失败: ${String(e)}`);
+                                            // 使用统一方法处理剩余思考内容
+                                            if (currentThinkingId) {
+                                                this.reportRemainingThinkingContent(
+                                                    model.name,
+                                                    progress,
+                                                    pendingThinking,
+                                                    currentThinkingId,
+                                                    '工具调用开始'
+                                                );
+                                                // 清空状态
+                                                if (pendingThinking) {
+                                                    pendingThinking.thinking = '';
                                                 }
+                                                currentThinkingId = null;
                                             }
                                             Logger.trace(
                                                 `🔧 [${model.name}] 工具调用开始: ${toolCall.function?.name || 'unknown'} (索引: ${toolIndex})`
@@ -412,31 +397,18 @@ export class OpenAICustomHandler {
                                 if (choice.finish_reason) {
                                     Logger.debug(`[${model.name}] 流已结束，原因: ${choice.finish_reason}`);
 
-                                    // 如果有缓存的思考内容，先报告出来
-                                    if (thinkingContentBuffer.length > 0 && currentThinkingId) {
-                                        try {
-                                            progress.report(
-                                                new vscode.LanguageModelThinkingPart(
-                                                    thinkingContentBuffer,
-                                                    currentThinkingId
-                                                )
-                                            );
-                                            thinkingContentBuffer = ''; // 清空缓冲
-                                            hasThinkingContent = true; // 标记已输出 thinking 内容
-                                        } catch (e) {
-                                            Logger.trace(`[${model.name}] 报告剩余思考内容失败: ${String(e)}`);
-                                        }
-                                    }
-
-                                    // 如果有未结束的思维链，在 finish_reason 时结束它
+                                    // 使用统一方法处理剩余思考内容
                                     if (currentThinkingId && choice.finish_reason !== 'length') {
-                                        try {
-                                            Logger.trace(`[${model.name}] 流结束前结束思维链 ID: ${currentThinkingId}`);
-                                            progress.report(
-                                                new vscode.LanguageModelThinkingPart('', currentThinkingId)
-                                            );
-                                        } catch (e) {
-                                            Logger.warn(`[${model.name}] 结束思维链失败: ${String(e)}`);
+                                        this.reportRemainingThinkingContent(
+                                            model.name,
+                                            progress,
+                                            pendingThinking,
+                                            currentThinkingId,
+                                            '流结束前'
+                                        );
+                                        // 清空状态
+                                        if (pendingThinking) {
+                                            pendingThinking.thinking = '';
                                         }
                                         currentThinkingId = null;
                                     }
@@ -532,6 +504,29 @@ export class OpenAICustomHandler {
                 });
             } catch (err) {
                 Logger.warn('更新Token统计失败:', err);
+            }
+        }
+    }
+
+    /**
+     * 统一处理剩余思考内容的报告（参照 Anthropic 模式）
+     */
+    private reportRemainingThinkingContent(
+        modelName: string,
+        progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
+        pendingThinking: { thinking?: string } | undefined,
+        currentThinkingId: string | null,
+        context: string
+    ): void {
+        const thinkingContent = pendingThinking?.thinking || '';
+        if (thinkingContent.length > 0 && currentThinkingId) {
+            try {
+                progress.report(new vscode.LanguageModelThinkingPart(thinkingContent, currentThinkingId));
+                Logger.trace(`[${modelName}] ${context}时报告剩余思考内容: ${thinkingContent.length}字符`);
+                // 结束当前思维链
+                progress.report(new vscode.LanguageModelThinkingPart('', currentThinkingId));
+            } catch (e) {
+                Logger.trace(`[${modelName}] ${context}时报告思考内容失败: ${String(e)}`);
             }
         }
     }

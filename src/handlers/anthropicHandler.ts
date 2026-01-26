@@ -100,7 +100,7 @@ export class AnthropicHandler {
             defaultHeaders: defaultHeaders
         });
 
-        Logger.info(`${this.displayName} Anthropic 兼容客户端已创建`);
+        Logger.trace(`${this.displayName} Anthropic 兼容客户端已创建`);
         return client;
     }
 

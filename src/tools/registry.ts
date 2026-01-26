@@ -38,8 +38,8 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
             }
         });
 
-        Logger.info('智谱AI联网搜索工具已注册: gcmp_zhipuWebSearch');
-        Logger.info('MiniMax网络搜索工具已注册: gcmp_minimaxWebSearch');
+        Logger.debug('智谱AI联网搜索工具已注册: gcmp_zhipuWebSearch');
+        Logger.debug('MiniMax网络搜索工具已注册: gcmp_minimaxWebSearch');
     } catch (error) {
         Logger.error('工具注册失败', error instanceof Error ? error : undefined);
         throw error;

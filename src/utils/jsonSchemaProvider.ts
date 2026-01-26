@@ -62,7 +62,7 @@ export class JsonSchemaProvider {
             }
         });
 
-        Logger.info('动态 JSON Schema 提供者已初始化');
+        Logger.debug('动态 JSON Schema 提供者已初始化');
     }
 
     /**

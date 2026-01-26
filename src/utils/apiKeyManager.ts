@@ -110,7 +110,7 @@ export class ApiKeyManager {
         const cliAuthProviders = supportedCliTypes.map(cli => cli.id);
         if (cliAuthProviders.includes(provider)) {
             // CLI 提供商，从 CLI 加载
-            return await this.handleCliAuth(provider, displayName, throwError);
+            return await this.handleCliAuth(provider, displayName);
         }
 
         // 对于非 CLI 认证提供商，使用原有逻辑
@@ -168,7 +168,7 @@ export class ApiKeyManager {
      * @param throwError 是否在检查失败时抛出错误
      * @returns 认证是否成功
      */
-    private static async handleCliAuth(provider: string, displayName: string, throwError: boolean): Promise<boolean> {
+    private static async handleCliAuth(provider: string, displayName: string): Promise<boolean> {
         const credentials = await CliAuthFactory.ensureAuthenticated(provider);
         if (credentials) {
             const apiKey = await CliAuthFactory.getInstance(provider)?.getApiKey();
@@ -180,12 +180,6 @@ export class ApiKeyManager {
             await this.setApiKey(provider, apiKey);
             Logger.info(`[ApiKeyManager] 已从 ${displayName} CLI 加载认证凭证`);
             return true;
-        }
-
-        const message = `无法从 ${displayName} CLI 加载认证凭证，请先登录 CLI 工具`;
-        Logger.warn(`[ApiKeyManager] ${message}`);
-        if (throwError) {
-            throw new Error(message);
         }
         return false;
     }

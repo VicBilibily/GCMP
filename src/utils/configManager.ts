@@ -367,7 +367,7 @@ export class ConfigManager {
             return originalConfig;
         }
 
-        Logger.info(`🔧 应用提供商 ${providerKey} 的配置覆盖`);
+        Logger.debug(`🔧 应用提供商 ${providerKey} 的配置覆盖`);
 
         // 创建配置的深拷贝
         const config: ProviderConfig = JSON.parse(JSON.stringify(originalConfig));

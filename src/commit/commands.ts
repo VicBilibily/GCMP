@@ -108,7 +108,7 @@ export function registerCommitCommands(context: vscode.ExtensionContext): vscode
     // 添加到订阅
     context.subscriptions.push(...disposables);
 
-    Logger.info('[CommitCommands] Commit 命令已注册');
+    Logger.trace('[CommitCommands] Commit 命令已注册');
 
     return disposables;
 }

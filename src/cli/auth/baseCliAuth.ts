@@ -61,7 +61,7 @@ export abstract class BaseCliAuth {
     async ensureAuthenticated(): Promise<OAuthCredentials | null> {
         let credentials = await this.loadCredentials();
         if (!credentials) {
-            Logger.info(`[${this.config.name}] 未认证，请先运行 CLI 登录`);
+            // Logger.info(`[${this.config.name}] 未认证，请先运行 CLI 登录`);
             return null;
         }
 
