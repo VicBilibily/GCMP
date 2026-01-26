@@ -2,13 +2,17 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.18.5] - 2026-01-26
+
+- 撤销 0.18.4 的重构：再验证 Copilot 依旧存在兼容问题
+
 ## [0.18.4] - 2026-01-26
 
 ### 重构
 
 - **思考内容输出机制**：重构思考内容（thinking/reasoning）的流式输出逻辑，移除缓冲机制实现实时输出
     - 移除 `thinkingContentBuffer` 和 `MAX_THINKING_BUFFER_LENGTH` 缓冲机制
-    - 思考内容现在在接收到时立即输出，不再等待累积到阈值（Copilot已完成兼容，无需在插件处理思考累积）
+    - 思考内容现在在接收到时立即输出，不再等待累积到阈值（~~Copilot已完成兼容，无需在插件处理思考累积~~）
     - 统一 `openaiHandler`、`openaiCustomHandler`、`anthropicHandler` 三个处理器的思考链结束逻辑
     - 新增 `endThinkingChain` 辅助方法，确保在文本内容/工具调用出现前正确结束思维链
     - 优化 OpenAI SDK 事件处理顺序，确保 `chunk` 事件中的 `reasoning_content` 优先处理
