@@ -256,8 +256,6 @@ export class AnthropicHandler {
         // 这里把它作为 responseId 记录，便于后续追踪/诊断。
         let responseId: string | undefined;
 
-        // 思考内容缓存的最大长度，达到这个范围时报告
-        const MAX_THINKING_BUFFER_LENGTH = 20;
         // 当前正在输出的思维链 ID
         let currentThinkingId: string | null = null;
         // 追踪是否有输出过有效的文本内容
@@ -437,32 +435,20 @@ export class AnthropicHandler {
                             pendingServerToolCall.jsonInput =
                                 (pendingServerToolCall.jsonInput || '') + chunk.delta.partial_json;
                         } */ else if (chunk.delta.type === 'thinking_delta') {
-                            // 思考内容增量 - 只累积到 pendingThinking，用缓冲机制报告
+                            // 思考内容增量
                             const thinkingDelta = chunk.delta.thinking || '';
-                            if (pendingThinking) {
-                                // 累积到 pendingThinking
-                                pendingThinking.thinking = (pendingThinking.thinking || '') + thinkingDelta;
-
-                                // 用 pendingThinking 的内容作为缓冲进行报告
-                                const currentThinkingContent = pendingThinking.thinking || '';
-
-                                // 当内容达到最大长度时报告
-                                if (currentThinkingContent.length >= MAX_THINKING_BUFFER_LENGTH) {
-                                    if (!currentThinkingId) {
-                                        currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                                    }
-                                    try {
-                                        progress.report(
-                                            new vscode.LanguageModelThinkingPart(
-                                                currentThinkingContent,
-                                                currentThinkingId
-                                            )
-                                        );
-                                        // 清空 pendingThinking 的内容，避免重复报告
-                                        pendingThinking.thinking = '';
-                                    } catch (e) {
-                                        Logger.trace(`报告思考内容失败: ${String(e)}`);
-                                    }
+                            if (pendingThinking && thinkingDelta) {
+                                if (!currentThinkingId) {
+                                    currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                                }
+                                try {
+                                    progress.report(
+                                        new vscode.LanguageModelThinkingPart(thinkingDelta, currentThinkingId)
+                                    );
+                                    // 累积到 pendingThinking 用于最后的统一处理
+                                    pendingThinking.thinking = (pendingThinking.thinking || '') + thinkingDelta;
+                                } catch (e) {
+                                    Logger.trace(`报告思考内容失败: ${String(e)}`);
                                 }
                             }
                         } else if (chunk.delta.type === 'signature_delta') {
@@ -625,7 +611,7 @@ export class AnthropicHandler {
     }
 
     /**
-     * 统一处理剩余思考内容的报告
+     * 统一处理剩余思考内容的报告（结束思维链）
      */
     private reportRemainingThinkingContent(
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
@@ -633,15 +619,13 @@ export class AnthropicHandler {
         currentThinkingId: string | null,
         context: string
     ): void {
-        const thinkingContent = pendingThinking?.thinking || '';
-        if (thinkingContent.length > 0 && currentThinkingId) {
+        // 只结束思维链，不再输出缓冲内容（因为已经实时输出）
+        if (currentThinkingId) {
             try {
-                progress.report(new vscode.LanguageModelThinkingPart(thinkingContent, currentThinkingId));
-                Logger.trace(`${context}时报告剩余思考内容: ${thinkingContent.length}字符`);
-                // 结束当前思维链
                 progress.report(new vscode.LanguageModelThinkingPart('', currentThinkingId));
+                Logger.trace(`${context}时结束思维链: ${currentThinkingId}`);
             } catch (e) {
-                Logger.trace(`${context}时报告思考内容失败: ${String(e)}`);
+                Logger.trace(`${context}时结束思维链失败: ${String(e)}`);
             }
         }
     }
