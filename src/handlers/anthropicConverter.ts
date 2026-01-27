@@ -17,7 +17,8 @@ import type {
     RedactedThinkingBlockParam,
     MessageParam,
     TextBlockParam,
-    ImageBlockParam
+    ImageBlockParam,
+    ToolResultBlockParam
 } from '@anthropic-ai/sdk/resources';
 import { ModelConfig } from '../types/sharedTypes';
 import { CacheType, CustomDataPartMimeTypes } from './types';
@@ -29,13 +30,6 @@ interface ThinkingPartMetadata {
     signature?: string;
     data?: string;
     _completeThinking?: string;
-}
-
-/**
- * 辅助函数 - 过滤undefined值
- */
-function isDefined<T>(value: T | undefined): value is T {
-    return value !== undefined;
 }
 
 /**
@@ -60,6 +54,66 @@ function contentBlockSupportsCacheControl(
     block: ContentBlockParam
 ): block is Exclude<ContentBlockParam, ThinkingBlockParam | RedactedThinkingBlockParam> {
     return block.type !== 'thinking' && block.type !== 'redacted_thinking';
+}
+
+type ToolResultContent = ToolResultBlockParam['content'];
+type ToolResultContentArray = Exclude<ToolResultContent, string | undefined>;
+
+/**
+ * 规范化 tool_result.content：
+ * - undefined → []
+ * - string → text 块数组
+ * - 数组 → 原样返回
+ */
+function normalizeToolResultContent(content: ToolResultContent): ToolResultContentArray {
+    if (!content) {
+        return [];
+    }
+    if (typeof content === 'string') {
+        return [{ type: 'text', text: content } as TextBlockParam];
+    }
+    return content;
+}
+
+/**
+ * 合并相同 tool_use_id 的 tool_result，确保每个 id 只有一个 tool_result。
+ * 会合并 content，并在缺失时补充 cache_control / is_error。
+ */
+function mergeToolResultBlocks(content: ContentBlockParam[]): ContentBlockParam[] {
+    const merged: ContentBlockParam[] = [];
+    const toolResultIndexById = new Map<string, number>();
+
+    for (const block of content) {
+        if (block.type !== 'tool_result') {
+            merged.push(block);
+            continue;
+        }
+
+        const toolBlock = block as ToolResultBlockParam;
+        const existingIndex = toolResultIndexById.get(toolBlock.tool_use_id);
+        if (existingIndex === undefined) {
+            toolResultIndexById.set(toolBlock.tool_use_id, merged.length);
+            merged.push({
+                ...toolBlock,
+                content: normalizeToolResultContent(toolBlock.content)
+            });
+            continue;
+        }
+
+        const existingBlock = merged[existingIndex] as ToolResultBlockParam;
+        const existingContent = normalizeToolResultContent(existingBlock.content);
+        const incomingContent = normalizeToolResultContent(toolBlock.content);
+        existingBlock.content = [...existingContent, ...incomingContent];
+
+        if (!existingBlock.cache_control && toolBlock.cache_control) {
+            existingBlock.cache_control = toolBlock.cache_control;
+        }
+        if (!existingBlock.is_error && toolBlock.is_error) {
+            existingBlock.is_error = toolBlock.is_error;
+        }
+    }
+
+    return merged;
 }
 
 /**
@@ -177,38 +231,53 @@ function apiContentToAnthropicContent(
                 callId: string;
                 content: (vscode.LanguageModelTextPart | vscode.LanguageModelDataPart)[];
             };
-            otherBlocks.push({
+            const convertedContents: (TextBlockParam | ImageBlockParam)[] = [];
+
+            for (const p of toolPart.content) {
+                if (p instanceof vscode.LanguageModelTextPart) {
+                    convertedContents.push({ type: 'text', text: p.value });
+                    continue;
+                }
+
+                if (
+                    isDataPart(p) &&
+                    p.mimeType === CustomDataPartMimeTypes.CacheControl &&
+                    String(p.data) === CacheType
+                ) {
+                    const previousBlock = convertedContents.at(-1);
+                    if (previousBlock) {
+                        previousBlock.cache_control = { type: CacheType };
+                    } else {
+                        // 空字符串无效，使用空格
+                        convertedContents.push({ type: 'text', text: ' ', cache_control: { type: CacheType } });
+                    }
+                    continue;
+                }
+
+                if (isDataPart(p) && p.mimeType.startsWith('image/')) {
+                    if (!allowImages) {
+                        // 模型不支持图片时，添加占位符
+                        convertedContents.push({ type: 'text', text: '[Image]' });
+                        continue;
+                    }
+                    convertedContents.push({
+                        type: 'image',
+                        source: {
+                            type: 'base64',
+                            media_type: p.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+                            data: Buffer.from(p.data as Uint8Array).toString('base64')
+                        }
+                    });
+                    continue;
+                }
+            }
+
+            const block: ToolResultBlockParam = {
                 type: 'tool_result',
                 tool_use_id: toolPart.callId,
-                content: toolPart.content
-                    .map((p): TextBlockParam | ImageBlockParam | undefined => {
-                        if (p instanceof vscode.LanguageModelTextPart) {
-                            return { type: 'text', text: p.value };
-                        } else if (
-                            isDataPart(p) &&
-                            p.mimeType === CustomDataPartMimeTypes.CacheControl &&
-                            String(p.data) === CacheType
-                        ) {
-                            // 空字符串无效，使用空格
-                            return { type: 'text', text: ' ', cache_control: { type: CacheType } } as TextBlockParam;
-                        } else if (isDataPart(p) && p.mimeType.startsWith('image/')) {
-                            if (!allowImages) {
-                                // 模型不支持图片时，添加占位符
-                                return { type: 'text', text: '[Image]' } as TextBlockParam;
-                            }
-                            return {
-                                type: 'image',
-                                source: {
-                                    type: 'base64',
-                                    media_type: p.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-                                    data: Buffer.from(p.data as Uint8Array).toString('base64')
-                                }
-                            } as ImageBlockParam;
-                        }
-                        return undefined;
-                    })
-                    .filter(isDefined)
-            });
+                content: convertedContents
+            };
+            otherBlocks.push(block);
         }
         // 文本内容
         else if (part instanceof vscode.LanguageModelTextPart) {
@@ -285,6 +354,13 @@ export function apiMessageToAnthropicMessage(
             if (Array.isArray(prevMessage.content) && Array.isArray(message.content)) {
                 (prevMessage.content as ContentBlockParam[]).push(...(message.content as ContentBlockParam[]));
             }
+        }
+    }
+
+    // 合并相同 tool_use_id 的 tool_result，避免批次合并导致重复 id
+    for (const message of mergedMessages) {
+        if (Array.isArray(message.content)) {
+            message.content = mergeToolResultBlocks(message.content as ContentBlockParam[]);
         }
     }
 

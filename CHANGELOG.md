@@ -1,6 +1,14 @@
-﻿# 更新日志
+# 更新日志
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
+
+## [0.18.7] - 2026-01-27
+
+### 修复
+
+- **AnthropicConverter**：
+    - 合并同一 `tool_use_id` 的 `tool_result`，避免出现 “tool_use ids must be unique” [#59](https://github.com/VicBilibily/GCMP/issues/59)
+    - `tool_result` 内的 `cache_control` 合并到前一内容块，避免拆分导致结构异常
 
 ## [0.18.6] - 2026-01-26
 
