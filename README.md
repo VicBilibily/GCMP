@@ -61,7 +61,7 @@
 
 - [**会员权益**](https://www.kimi.com/coding)：Kimi `会员计划` 套餐的附带的 `Kimi For Coding`，当前使用 Roo Code 发送 Anthropic 请求。
     - **用量查询**：已支持状态栏显示周期剩余额度，可查看赠送的每周剩余用量及每周重置时间。
-- 预置模型：**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-Latest**
+- 预置模型：**Kimi-K2.5**(Thinking)、**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-Latest**
     - **余额查询**：已支持状态栏显示当前账户额度，可查看账户余额状况。
 - 思考模型：**Kimi-K2-Thinking**、**Kimi-K2-Thinking-Turbo**
 
@@ -83,7 +83,7 @@
 ### [**阿里云百炼**](https://bailian.console.aliyun.com/) - 通义大模型
 
 - [**Coding Plan 套餐**](https://bailian.console.aliyun.com/cn-beijing/?tab=globalset#/efm/coding_plan)：**Qwen3-Coder-Plus**
-- **通义千问系列**：**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
+- **通义千问系列**：**Qwen3-Max**(Thinking)、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
 
 ### 实验性支持 CLI 认证提供商
 

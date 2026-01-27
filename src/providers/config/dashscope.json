@@ -19,6 +19,23 @@
             }
         },
         {
+            "id": "qwen3-max-thinking",
+            "model": "qwen3-max-2026-01-23",
+            "name": "通义千问3-Max (Thinking)",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "tooltip": "Qwen3-Max-Thinking总参数量超万亿，预训练数据量达36T Tokens，原生Agent能力大幅增强。在涵盖事实知识、复杂推理、指令遵循、人类偏好对齐、Agent能力等19项公认基准测试中，Qwen3-Max-Thinking整体性能可媲美国际顶尖模型。",
+            "maxInputTokens": 252000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
+        },
+        {
             "id": "qwen3-max",
             "name": "通义千问3-Max",
             "tooltip": "通义千问3系列Max模型，相较preview版本在智能体编程与工具调用方向进行了专项升级。本次发布的正式版模型达到领域SOTA水平，适配场景更加复杂的智能体需求。",

@@ -23,6 +23,43 @@
             }
         },
         {
+            "id": "kimi-k2.5",
+            "name": "Kimi-K2.5",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.moonshot.cn/anthropic",
+            "tooltip": "Kimi K2.5 是 Kimi 迄今最智能的模型，在 Agent、代码、视觉理解及一系列通用智能任务上取得开源 SoTA 表现。同时 Kimi K2.5 也是 Kimi 迄今最全能的模型，原生的多模态架构设计，同时支持视觉与文本输入、思考与非思考模式、对话与 Agent 任务。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "top_p": 0.95,
+                "temperature": 0.6,
+                "thinking": { "type": "disabled" }
+            }
+        },
+        {
+            "id": "kimi-k2.5-thinking",
+            "name": "Kimi-K2.5-Thinking",
+            "model": "kimi-k2.5",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.moonshot.cn/anthropic",
+            "tooltip": "Kimi K2.5 是 Kimi 迄今最智能的模型，在 Agent、代码、视觉理解及一系列通用智能任务上取得开源 SoTA 表现。同时 Kimi K2.5 也是 Kimi 迄今最全能的模型，原生的多模态架构设计，同时支持视觉与文本输入、思考与非思考模式、对话与 Agent 任务。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "top_p": 0.95,
+                "temperature": 1.0,
+                "thinking": { "type": "enabled" }
+            }
+        },
+        {
             "id": "kimi-k2-thinking",
             "name": "Kimi-K2-Thinking",
             "tooltip": "月之暗面 Kimi-K2-Thinking - 模型上下文长度 256k，是具有通用 Agentic 能力和推理能力的思考模型，它擅长深度推理",

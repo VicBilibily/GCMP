@@ -246,7 +246,7 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             throw new Error(`${this.providerConfig.displayName}: 无效的 ${keyType} API 密钥`);
         }
 
-        Logger.info(
+        Logger.debug(
             `${this.providerConfig.displayName}: 即将处理请求，使用 ${providerKey === 'minimax-coding' ? 'Coding Plan' : '普通'} 密钥 - 模型: ${modelConfig.name}`
         );
 

@@ -167,7 +167,7 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
             throw new Error(`${this.providerConfig.displayName}: 无效的 ${keyType} API 密钥`);
         }
 
-        Logger.info(
+        Logger.debug(
             `${this.providerConfig.displayName}: 即将处理请求，使用 ${providerKey === 'dashscope-coding' ? 'Coding Plan' : '普通'} 密钥 - 模型: ${modelConfig.name}`
         );
 
