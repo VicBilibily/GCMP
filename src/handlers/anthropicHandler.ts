@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as crypto from 'crypto';
+import * as crypto from 'node:crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { apiMessageToAnthropicMessage, convertToAnthropicTools } from './anthropicConverter';
 import { ApiKeyManager } from '../utils/apiKeyManager';
@@ -14,8 +14,8 @@ import { VersionManager } from '../utils/versionManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import type { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
-import { CustomDataPartMimeTypes } from './types';
-import { encodeStatefulMarker, getStatefulMarkerAndIndex } from './statefulMarker';
+import { getStatefulMarkerAndIndex } from './statefulMarker';
+import { StreamReporter } from './streamReporter';
 
 /**
  * Anthropic 兼容处理器类
@@ -169,32 +169,32 @@ export class AnthropicHandler {
             );
             const stream = await client.messages.create(createParams, { signal: abortController.signal });
 
+            // 创建统一的流报告器
+            const reporter = new StreamReporter({
+                modelName: model.name,
+                modelId: model.id,
+                provider: this.provider,
+                sdkMode: 'anthropic',
+                progress,
+                sessionId
+            });
+
             // 使用完整的流处理函数
-            const result = await this.handleAnthropicStream(stream, progress, token, modelConfig);
-            // 发送 StatefulMarkerData 作为响应的一部分
-            progress.report(
-                new vscode.LanguageModelDataPart(
-                    encodeStatefulMarker(model.id, {
-                        provider: this.provider,
-                        modelId: model.id,
-                        sdkMode: 'anthropic',
-                        sessionId,
-                        responseId: result?.responseId || `msg_${Date.now()}`
-                    }),
-                    CustomDataPartMimeTypes.StatefulMarker
-                )
-            );
+            const result = await this.handleAnthropicStream(stream, reporter, token);
+
             Logger.info(`[${model.name}] Anthropic 请求完成`, result?.usage);
 
             // === Token 统计: 更新实际 token ===
             if (requestId) {
                 try {
                     const usagesManager = TokenUsagesManager.instance;
-                    // 直接传递 SDK 的 Usage 对象
+                    // 直接传递 SDK 的 Usage 对象，包含流时间信息
                     await usagesManager.updateActualTokens({
                         requestId,
                         rawUsage: result?.usage || {},
-                        status: 'completed'
+                        status: 'completed',
+                        streamStartTime: result?.streamStartTime,
+                        streamEndTime: result?.streamEndTime
                     });
                 } catch (err) {
                     Logger.warn('更新Token统计失败:', err);
@@ -212,21 +212,21 @@ export class AnthropicHandler {
 
             Logger.error(`[${model.name}] Anthropic SDK error:`, error);
 
-            // 提供详细的错误信息
-            let errorMessage = `[${model.name}] Anthropic API调用失败`;
-            if (error instanceof Error) {
-                if (error.message.includes('401')) {
-                    errorMessage += ': API密钥无效，请检查配置';
-                } else if (error.message.includes('429')) {
-                    errorMessage += ': 请求频率限制，请稍后重试';
-                } else if (error.message.includes('500')) {
-                    errorMessage += ': 服务器错误，请稍后重试';
-                } else {
-                    errorMessage += `: ${error.message}`;
-                }
-            }
+            // // 提供详细的错误信息
+            // let errorMessage = `[${model.name}] Anthropic API调用失败`;
+            // if (error instanceof Error) {
+            //     if (error.message.includes('401')) {
+            //         errorMessage += ': API密钥无效，请检查配置';
+            //     } else if (error.message.includes('429')) {
+            //         errorMessage += ': 请求频率限制，请稍后重试';
+            //     } else if (error.message.includes('500')) {
+            //         errorMessage += ': 服务器错误，请稍后重试';
+            //     } else {
+            //         errorMessage += `: ${error.message}`;
+            //     }
+            // }
 
-            progress.report(new vscode.LanguageModelTextPart(errorMessage));
+            // progress.report(new vscode.LanguageModelTextPart(errorMessage));
             throw error;
         } finally {
             cancellationListener.dispose();
@@ -240,30 +240,20 @@ export class AnthropicHandler {
      */
     private async handleAnthropicStream(
         stream: AsyncIterable<Anthropic.Messages.MessageStreamEvent>,
-        progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
-        token: vscode.CancellationToken,
-        _modelConfig?: ModelConfig
+        reporter: StreamReporter,
+        token: vscode.CancellationToken
     ): Promise<{
         usage?: Anthropic.Messages.Usage;
         responseId?: string;
+        streamStartTime?: number;
+        streamEndTime?: number;
     }> {
         let pendingToolCall: { toolId?: string; name?: string; jsonInput?: string } | undefined;
-        // let pendingServerToolCall: { toolId?: string; name?: string; jsonInput?: string; type?: string } | undefined; // 暂不支持 web_search
-        let pendingThinking: { thinking?: string; signature?: string } | undefined;
-        let pendingRedactedThinking: { data: string } | undefined;
         let usage: Anthropic.Messages.Usage | undefined;
-        // message_start 会包含 message.id。
-        // 这里把它作为 responseId 记录，便于后续追踪/诊断。
         let responseId: string | undefined;
-
-        // 思考内容缓存的最大长度，达到这个范围时报告
-        const MAX_THINKING_BUFFER_LENGTH = 20;
-        // 当前正在输出的思维链 ID
-        let currentThinkingId: string | null = null;
-        // 追踪是否有输出过有效的文本内容
-        let hasOutputContent = false;
-        // 标记是否输出了 thinking 内容
-        let hasThinkingContent = false;
+        // 记录流处理的开始时间（在 message_start 事件中设置）
+        let streamStartTime = Date.now();
+        let streamEndTime: number | undefined = undefined;
 
         Logger.debug('开始处理 Anthropic 流式响应');
 
@@ -271,8 +261,7 @@ export class AnthropicHandler {
             for await (const chunk of stream) {
                 if (token.isCancellationRequested) {
                     Logger.debug('流处理被取消');
-                    // 使用统一方法处理剩余思考内容
-                    this.reportRemainingThinkingContent(progress, pendingThinking, currentThinkingId, '流取消');
+                    reporter.flushAll(null);
                     break;
                 }
 
@@ -326,16 +315,18 @@ export class AnthropicHandler {
                 }
                 */
 
-                // 处理不同的事件类型
                 switch (chunk.type) {
                     case 'message_start':
-                        // 消息开始 - 收集初始使用统计
+                        // 消息开始 - 记录流开始时间
+                        streamStartTime = Date.now();
+                        // 收集初始使用统计
                         if (chunk.message.usage) {
                             usage = chunk.message.usage;
                         }
                         // 获取响应消息ID：message_start.message.id
-                        if (!responseId) {
+                        if (!responseId && chunk.message.id) {
                             responseId = chunk.message.id;
+                            reporter.setResponseId(responseId);
                             Logger.debug(`收到 Anthropic message id (responseId): ${responseId}`);
                         }
                         break;
@@ -343,66 +334,11 @@ export class AnthropicHandler {
                     case 'content_block_start':
                         // 内容块开始
                         if (chunk.content_block.type === 'tool_use') {
-                            // 在工具调用开始前，使用统一方法处理剩余思考内容
-                            this.reportRemainingThinkingContent(
-                                progress,
-                                pendingThinking,
-                                currentThinkingId,
-                                '工具调用开始'
-                            );
-                            // 清空 pendingThinking 内容和ID，避免重复处理
-                            if (pendingThinking) {
-                                pendingThinking.thinking = '';
-                            }
-                            currentThinkingId = null;
-
                             pendingToolCall = {
                                 toolId: chunk.content_block.id,
                                 name: chunk.content_block.name,
                                 jsonInput: ''
                             };
-                            Logger.trace(`工具调用开始: ${chunk.content_block.name}`);
-                        } else if (chunk.content_block.type === 'thinking') {
-                            // 标记思考块开始
-                            pendingThinking = {
-                                thinking: '',
-                                signature: ''
-                            };
-                            // 生成思考块ID
-                            currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                            // 标记已输出 thinking 内容
-                            hasThinkingContent = true;
-                            Logger.trace('思考块开始 (流式输出)');
-                        } else if (chunk.content_block.type === 'text') {
-                            // 在文本块开始前，使用统一方法处理剩余思考内容
-                            this.reportRemainingThinkingContent(
-                                progress,
-                                pendingThinking,
-                                currentThinkingId,
-                                '文本块开始'
-                            );
-                            // 清空 pendingThinking 内容和ID，避免重复处理
-                            if (pendingThinking) {
-                                pendingThinking.thinking = '';
-                            }
-                            currentThinkingId = null;
-                            Logger.trace('文本块开始');
-                        } /* else if (chunk.content_block.type === 'server_tool_use') {
-                            // 处理服务器端工具使用（例如 web_search）(暂不支持)
-                            pendingServerToolCall = {
-                                toolId: chunk.content_block.id,
-                                name: chunk.content_block.name,
-                                jsonInput: '',
-                                type: chunk.content_block.name
-                            };
-                            progress.report(new vscode.LanguageModelTextPart('\n'));
-                            Logger.trace(`服务器工具调用开始: ${chunk.content_block.name}`);
-                        } */ else if (chunk.content_block.type === 'redacted_thinking') {
-                            const redactedBlock = chunk.content_block as Anthropic.Messages.RedactedThinkingBlock;
-                            pendingRedactedThinking = {
-                                data: redactedBlock.data
-                            };
-                            Logger.trace('加密思考块开始');
                         }
                         break;
 
@@ -410,157 +346,60 @@ export class AnthropicHandler {
                         // 内容块增量更新
                         if (chunk.delta.type === 'text_delta') {
                             // 文本内容增量
-                            progress.report(new vscode.LanguageModelTextPart(chunk.delta.text));
-                            // 标记已有输出内容
-                            hasOutputContent = true;
+                            reporter.reportText(chunk.delta.text);
                         } else if (chunk.delta.type === 'input_json_delta' && pendingToolCall) {
                             // 工具调用参数增量
                             pendingToolCall.jsonInput = (pendingToolCall.jsonInput || '') + chunk.delta.partial_json;
-                            // 尝试解析累积的JSON，看是否完整
+
+                            // 尝试立即解析并报告工具调用（如果 JSON 已完整）
                             try {
                                 const parsedJson = JSON.parse(pendingToolCall.jsonInput);
-                                progress.report(
-                                    new vscode.LanguageModelToolCallPart(
-                                        pendingToolCall.toolId!,
-                                        pendingToolCall.name!,
-                                        parsedJson
-                                    )
-                                );
-                                pendingToolCall = undefined;
+                                // JSON 解析成功，立即报告工具调用
+                                reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson);
+                                Logger.trace(`[${reporter.getModelName()}] 工具调用完成: ${pendingToolCall.name}`);
+                                pendingToolCall = undefined; // 清除待处理的工具调用
                             } catch {
-                                // JSON尚未完整，继续累积
+                                // JSON 还不完整，继续累积
                             }
-                            // 工具调用也算作输出内容
-                            hasOutputContent = true;
-                        } /* else if (chunk.delta.type === 'input_json_delta' && pendingServerToolCall) {
-                            // 服务器工具调用参数增量 (暂不支持)
-                            pendingServerToolCall.jsonInput =
-                                (pendingServerToolCall.jsonInput || '') + chunk.delta.partial_json;
-                        } */ else if (chunk.delta.type === 'thinking_delta') {
-                            // 思考内容增量 - 只累积到 pendingThinking，用缓冲机制报告
+                        } else if (chunk.delta.type === 'thinking_delta') {
+                            // 思考内容增量
                             const thinkingDelta = chunk.delta.thinking || '';
-                            if (pendingThinking) {
-                                // 累积到 pendingThinking
-                                pendingThinking.thinking = (pendingThinking.thinking || '') + thinkingDelta;
-
-                                // 用 pendingThinking 的内容作为缓冲进行报告
-                                const currentThinkingContent = pendingThinking.thinking || '';
-
-                                // 当内容达到最大长度时报告
-                                if (currentThinkingContent.length >= MAX_THINKING_BUFFER_LENGTH) {
-                                    if (!currentThinkingId) {
-                                        currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                                    }
-                                    try {
-                                        progress.report(
-                                            new vscode.LanguageModelThinkingPart(
-                                                currentThinkingContent,
-                                                currentThinkingId
-                                            )
-                                        );
-                                        // 清空 pendingThinking 的内容，避免重复报告
-                                        pendingThinking.thinking = '';
-                                    } catch (e) {
-                                        Logger.trace(`报告思考内容失败: ${String(e)}`);
-                                    }
-                                }
-                            }
+                            reporter.bufferThinking(thinkingDelta);
                         } else if (chunk.delta.type === 'signature_delta') {
                             // 累积签名
-                            if (pendingThinking) {
-                                pendingThinking.signature =
-                                    (pendingThinking.signature || '') + (chunk.delta.signature || '');
-                            }
-                        } /* else if (chunk.delta.type === 'citations_delta') {
-                            // 处理引用增量
-                            if ('citation' in chunk.delta) {
-                                const citation = chunk.delta
-                                    .citation as Anthropic.Messages.CitationsWebSearchResultLocation;
-                                if (citation.type === 'web_search_result_location') {
-                                    // 根据Anthropic规范格式化引用
-                                    const citationData = {
-                                        type: 'web_search_result_location',
-                                        url: citation.url,
-                                        title: citation.title,
-                                        encrypted_index: citation.encrypted_index,
-                                        cited_text: citation.cited_text
-                                    };
-
-                                    // 将引用格式化为可读的块引用和源链接
-                                    const referenceText = `\n> "${citation.cited_text}" — [来源](${citation.url})\n\n`;
-
-                                    // 向用户报告格式化的引用文本
-                                    progress.report(new vscode.LanguageModelTextPart(referenceText));
-
-                                    // 以正确格式存储引用数据，用于多轮对话
-                                    progress.report(
-                                        new vscode.LanguageModelToolResultPart('citation', [
-                                            new vscode.LanguageModelTextPart(JSON.stringify(citationData, null, 2))
-                                        ])
-                                    );
-                                }
-                            }
-                        } */
+                            const signatureDelta = chunk.delta.signature || '';
+                            reporter.bufferSignature(signatureDelta);
+                        }
                         break;
 
                     case 'content_block_stop':
-                        // 内容块停止
+                        // 内容块停止（兜底处理）
                         if (pendingToolCall) {
+                            // 如果还有未处理的工具调用，尝试最后一次解析
                             try {
-                                const parsedJson = JSON.parse(pendingToolCall.jsonInput || '{}');
-                                progress.report(
-                                    new vscode.LanguageModelToolCallPart(
-                                        pendingToolCall.toolId!,
-                                        pendingToolCall.name!,
-                                        parsedJson
-                                    )
-                                );
-                                Logger.debug(`工具调用完成: ${pendingToolCall.name}`);
-                            } catch (e) {
-                                Logger.error(`解析工具调用 JSON 失败 (${pendingToolCall.name}):`, e);
-                            }
-                            pendingToolCall = undefined;
-                        } else if (pendingThinking) {
-                            // 处理思考块结束 - 统一处理思考内容和签名信息
-                            let hasReportedContent = false;
-
-                            // 如果有思考内容，先报告并可能添加签名元数据
-                            const finalThinkingContent = pendingThinking.thinking || '';
-                            if (finalThinkingContent.length > 0 && currentThinkingId) {
-                                const finalThinkingPart = new vscode.LanguageModelThinkingPart(
-                                    finalThinkingContent,
-                                    currentThinkingId
+                                const jsonInput = pendingToolCall.jsonInput || '{}';
+                                Logger.trace(
+                                    `[${reporter.getModelName()}] content_block_stop 兜底处理工具调用 (${pendingToolCall.name}): ${jsonInput.substring(0, 100)}${jsonInput.length > 100 ? '...' : ''}`
                                 );
 
-                                // 如果有签名，添加到元数据中
-                                if (pendingThinking.signature) {
-                                    finalThinkingPart.metadata = {
-                                        signature: pendingThinking.signature,
-                                        _completeThinking: finalThinkingContent
-                                    };
+                                let parsedJson: Record<string, unknown>;
+                                try {
+                                    parsedJson = JSON.parse(jsonInput);
+                                } catch {
+                                    // JSON 解析失败，使用空对象
+                                    Logger.warn(`工具调用 JSON 不完整，使用空对象: ${jsonInput}`);
+                                    parsedJson = {};
                                 }
 
-                                progress.report(finalThinkingPart);
-                                // 结束当前思维链
-                                progress.report(new vscode.LanguageModelThinkingPart('', currentThinkingId));
-                                hasReportedContent = true;
+                                reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson);
+                            } catch (e) {
+                                Logger.error(`兜底处理工具调用失败 (${pendingToolCall.name}):`, e);
                             }
-
-                            // 如果只有签名但没有思考内容，创建一个包含签名元数据的空思考部分
-                            if (!hasReportedContent && pendingThinking.signature) {
-                                const signaturePart = new vscode.LanguageModelThinkingPart('');
-                                signaturePart.metadata = {
-                                    signature: pendingThinking.signature,
-                                    _completeThinking: finalThinkingContent
-                                };
-                                progress.report(signaturePart);
-                            }
-
-                            pendingThinking = undefined;
-                            Logger.debug('思考块完成');
-                        } else if (pendingRedactedThinking) {
-                            pendingRedactedThinking = undefined;
-                            Logger.debug('加密思考块完成');
+                            pendingToolCall = undefined;
+                        } else {
+                            // 思考块结束时输出剩余思考内容和签名
+                            reporter.flushThinking('思考块完成');
+                            reporter.flushSignature();
                         }
                         break;
 
@@ -586,21 +425,15 @@ export class AnthropicHandler {
                         }
                         break;
 
-                    case 'message_stop':
-                        // 消息停止 - 使用统一方法处理剩余思考内容
-                        this.reportRemainingThinkingContent(progress, pendingThinking, currentThinkingId, '消息流结束');
-                        // 清空 pendingThinking 内容和ID，避免重复处理
-                        if (pendingThinking) {
-                            pendingThinking.thinking = '';
-                        }
-                        currentThinkingId = null;
-                        // 只有在输出了 thinking 内容但没有输出 content 时才添加 <think/> 占位符
-                        if (hasThinkingContent && !hasOutputContent) {
-                            progress.report(new vscode.LanguageModelTextPart('<think/>'));
-                            Logger.warn('消息流结束时只有思考内容没有文本内容，添加了 <think/> 占位符作为输出');
+                    case 'message_stop': {
+                        streamEndTime = Date.now();
+                        if (responseId) {
+                            // 消息停止 - 传递 StatefulMarker
+                            reporter.flushAll(null, { sessionId: reporter.getSessionId(), responseId });
                         }
                         Logger.trace('消息流完成');
                         break;
+                    }
 
                     default:
                         // 未知事件类型 - 根据官方建议优雅处理
@@ -611,38 +444,19 @@ export class AnthropicHandler {
             }
         } catch (error) {
             Logger.error('处理 Anthropic 流时出错:', error);
-            // 错误处理逻辑移到 finally 块中统一处理
             throw error;
-        } finally {
-            // 统一处理未报告的思考内容（包括正常完成、错误、取消等情况）
-            this.reportRemainingThinkingContent(progress, pendingThinking, currentThinkingId, '流处理结束');
         }
+
+        // 记录流处理的结束时间
+        streamEndTime ??= Date.now();
 
         if (usage) {
-            Logger.debug(`流处理完成 - 最终使用统计: 输入=${usage.input_tokens}, 输出=${usage.output_tokens}`);
+            const duration = streamEndTime - streamStartTime;
+            const speed = duration > 0 ? ((usage.output_tokens / duration) * 1000).toFixed(1) : 'N/A';
+            Logger.debug(
+                `流处理完成 - 最终使用统计: 输入=${usage.input_tokens}, 输出=${usage.output_tokens}, 耗时=${duration}ms, 速度=${speed} tokens/s`
+            );
         }
-        return { usage, responseId };
-    }
-
-    /**
-     * 统一处理剩余思考内容的报告
-     */
-    private reportRemainingThinkingContent(
-        progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
-        pendingThinking: { thinking?: string; signature?: string } | undefined,
-        currentThinkingId: string | null,
-        context: string
-    ): void {
-        const thinkingContent = pendingThinking?.thinking || '';
-        if (thinkingContent.length > 0 && currentThinkingId) {
-            try {
-                progress.report(new vscode.LanguageModelThinkingPart(thinkingContent, currentThinkingId));
-                Logger.trace(`${context}时报告剩余思考内容: ${thinkingContent.length}字符`);
-                // 结束当前思维链
-                progress.report(new vscode.LanguageModelThinkingPart('', currentThinkingId));
-            } catch (e) {
-                Logger.trace(`${context}时报告思考内容失败: ${String(e)}`);
-            }
-        }
+        return { usage, responseId, streamStartTime, streamEndTime };
     }
 }

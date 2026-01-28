@@ -1,9 +1,10 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Gemini HTTP Handler
  *  纯 fetch + 自定义流解析（兼容 SSE data: 与 JSON 行流），不依赖 Google SDK
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as crypto from 'node:crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -14,6 +15,7 @@ import { TokenUsagesManager } from '../usages/usagesManager';
 import type { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import type { GenericUsageData, RawUsageData } from '../usages/fileLogger/types';
 import { convertMessagesToGemini, convertToolsToGemini } from './geminiConverter';
+import { StreamReporter } from './streamReporter';
 import type {
     GeminiGenerationConfig,
     GeminiGenerateContentRequest,
@@ -377,11 +379,6 @@ export class GeminiHandler {
 
         Logger.info(`🚀 ${model.name} 发送 ${this.displayName} Gemini HTTP 请求 (model=${modelId})`);
 
-        let hasText = false;
-        let hasThinking = false;
-        let hasToolCall = false;
-        let rawUsage: RawUsageData | undefined;
-
         try {
             // 用途：构建第三方 Gemini 网关可用的流式 SSE endpoint。
             const endpoint = this.buildEndpoint(normalizedBaseUrl, modelId, true);
@@ -389,40 +386,41 @@ export class GeminiHandler {
                 throw new Error('无法构建 Gemini 请求地址（请检查 baseUrl / model 配置）');
             }
 
-            // 用途：发起 fetch 请求并以 SSE/行流方式读取增量内容（包含 thinking / tool call / usage）。
-            const result = await this.processStream(
-                model,
-                modelConfig,
-                endpoint,
-                apiKey,
-                processedHeaders,
-                requestBody as GeminiGenerateContentRequest,
-                progress,
-                token,
-                v => {
-                    rawUsage = v;
-                }
-            );
-            hasText = result.hasText;
-            hasThinking = result.hasThinking;
-            hasToolCall = result.hasToolCall;
+            // 创建统一的流报告器
+            const reporter = new StreamReporter({
+                modelName: model.name,
+                modelId: model.id,
+                provider: this.provider,
+                sdkMode: 'gemini',
+                progress
+            });
 
-            if (requestId) {
-                try {
-                    const usagesManager = TokenUsagesManager.instance;
-                    await usagesManager.updateActualTokens({
-                        requestId,
-                        rawUsage,
-                        status: token.isCancellationRequested ? 'failed' : 'completed'
-                    });
-                } catch (err) {
-                    Logger.warn('更新Token统计失败:', err);
-                }
+            // 用途：执行 fetch 请求
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${apiKey}`,
+                    ...processedHeaders
+                },
+                body: JSON.stringify(requestBody),
+                signal: abortController.signal
+            });
+
+            // 用途：非 2xx 直接提取可读错误信息并抛出。
+            if (!response.ok) {
+                const text = await response.text();
+                const message = this.extractErrorMessage(text || '', response.status, response.statusText);
+                throw new Error(message);
             }
 
-            if (hasThinking && !hasText && !hasToolCall) {
-                progress.report(new vscode.LanguageModelTextPart('<think/>'));
+            // 用途：SSE/行流响应必须存在 response.body。
+            if (!response.body) {
+                throw new Error('响应体为空');
             }
+
+            // 用途：处理流式响应
+            await this.processStream(response.body, reporter, requestId || '', token);
 
             Logger.debug(`✅ ${model.name} ${this.displayName} Gemini HTTP 请求完成`);
         } catch (error) {
@@ -453,7 +451,7 @@ export class GeminiHandler {
     }
 
     /**
-     * 发起 Gemini HTTP 请求，并用 read stream 的方式解析 SSE/行流增量输出。
+     * 处理 Gemini HTTP 流式响应，解析 SSE/行流增量输出。
      *
      * 输出内容包含：
      * - 文本：LanguageModelTextPart
@@ -462,55 +460,20 @@ export class GeminiHandler {
      * - usage：原样透传 usageMetadata 供后续统计解析
      */
     private async processStream(
-        model: vscode.LanguageModelChatInformation,
-        modelConfig: ModelConfig,
-        url: string,
-        apiKey: string,
-        headers: Record<string, string>,
-        requestBody: GeminiGenerateContentRequest,
-        progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
-        token: vscode.CancellationToken,
-        onUsage: (usage: RawUsageData) => void
-    ): Promise<{ hasText: boolean; hasThinking: boolean; hasToolCall: boolean }> {
-        const abortController = new AbortController();
-        const cancelSub = token.onCancellationRequested(() => abortController.abort());
-
-        const requestUrl = url;
-
-        // 用途：执行 fetch（POST JSON body）并挂载取消信号。
-        const response = await fetch(requestUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${apiKey}`,
-                ...headers
-            },
-            body: JSON.stringify(requestBody),
-            signal: abortController.signal
-        });
-
-        // 用途：非 2xx 直接提取可读错误信息并抛出。
-        if (!response.ok) {
-            const text = await response.text();
-            const message = this.extractErrorMessage(text || '', response.status, response.statusText);
-            throw new Error(message);
-        }
-
-        // 用途：SSE/行流响应必须存在 response.body。
-        if (!response.body) {
-            throw new Error('响应体为空');
-        }
-
+        body: ReadableStream<Uint8Array>,
+        reporter: StreamReporter,
+        requestId: string,
+        token: vscode.CancellationToken
+    ): Promise<void> {
         // 用途：读取 Web ReadableStream，逐块 decode 并按行切分。
-        const reader = response.body.getReader();
+        const reader = body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
 
-        let hasText = false;
-        let hasThinking = false;
-        let hasToolCall = false;
-
-        let pendingThinkingSignature: string | undefined;
+        // Token 统计: 收集 usage 信息
+        let finalUsage: RawUsageData | undefined;
+        // 记录流处理的开始时间（首次接收数据时记录）
+        let streamStartTime: number | undefined = undefined;
 
         // 用途：处理一行 SSE/行流。
         // 关键兼容点：
@@ -538,26 +501,29 @@ export class GeminiHandler {
                 return;
             }
 
+            // 记录首次接收有效数据的时间
+            if (streamStartTime === undefined) {
+                streamStartTime = Date.now();
+            }
+
             // 兼容 Code Assist 包装：可能是 { response: GenerateContentResponse }。
             const wrapped = chunk as { response?: unknown; error?: { message?: string } };
             const inner = wrapped && typeof wrapped === 'object' && wrapped.response ? wrapped.response : chunk;
 
             const event = inner as GeminiGenerateContentResponse;
-            const errMsg =
-                (event && typeof event === 'object' && event.error && typeof event.error.message === 'string'
-                    ? event.error.message
-                    : undefined) ||
-                (wrapped?.error && typeof wrapped.error.message === 'string' ? wrapped.error.message : undefined);
-            if (errMsg) {
-                throw new Error(errMsg);
+
+            // 检查是否存在错误，存在则序列化整个 error 对象
+            const errorObj = event?.error || wrapped?.error;
+            if (errorObj) {
+                const errorMsg = typeof errorObj === 'object' ? JSON.stringify(errorObj, null, 2) : String(errorObj);
+                throw new Error(errorMsg);
             }
 
             // 用途：把 Gemini 增量 chunk 转为 VS Code 的增量 response parts（文本/思考/tool）。
-            const res = this.processGeminiEvent(event, modelConfig, progress, onUsage, pendingThinkingSignature);
-            hasText = hasText || res.hasText;
-            hasThinking = hasThinking || res.hasThinking;
-            hasToolCall = hasToolCall || res.hasToolCall;
-            pendingThinkingSignature = res.pendingThinkingSignature;
+            const eventUsage = this.processGeminiEvent(event, reporter);
+            if (eventUsage) {
+                finalUsage = eventUsage;
+            }
         };
 
         try {
@@ -585,16 +551,35 @@ export class GeminiHandler {
             }
         } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') {
-                Logger.warn(`[${model.name}] 用户取消了请求`);
+                Logger.warn(`[${reporter.getModelName()}] 用户取消了请求`);
                 throw new vscode.CancellationError();
             }
             throw error;
         } finally {
-            cancelSub.dispose();
             reader.releaseLock();
         }
 
-        return { hasText, hasThinking, hasToolCall };
+        // 记录流结束时间
+        const streamEndTime = Date.now();
+
+        // 流结束，输出所有剩余内容
+        reporter.flushAll(null);
+
+        // Token 统计: 更新实际 token
+        if (finalUsage) {
+            try {
+                const usagesManager = TokenUsagesManager.instance;
+                await usagesManager.updateActualTokens({
+                    requestId,
+                    rawUsage: finalUsage,
+                    status: 'completed',
+                    streamStartTime,
+                    streamEndTime
+                });
+            } catch (err) {
+                Logger.warn('更新Token统计失败:', err);
+            }
+        }
     }
 
     /**
@@ -602,20 +587,15 @@ export class GeminiHandler {
      *
      * 解析流程：
      * 1) candidates[0].content.parts[]：按 part 类型分别输出文本 / thinking / functionCall。
-     * 2) thoughtSignature：用于把“思考段”与后续 tool call 关联（VS Code thinking signature）。
+     * 2) thoughtSignature：用于把"思考段"与后续 tool call 关联（VS Code thinking signature）。
      * 3) usageMetadata：原样透传给 usage logger。
+     *
+     * @returns usage 数据（如果存在）
      */
     private processGeminiEvent(
         event: GeminiGenerateContentResponse,
-        modelConfig: ModelConfig,
-        progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
-        onUsage: (usage: RawUsageData) => void,
-        pendingThinkingSignature: string | undefined = undefined
-    ): { hasText: boolean; hasThinking: boolean; hasToolCall: boolean; pendingThinkingSignature?: string } {
-        let hasText = false;
-        let hasThinking = false;
-        let hasToolCall = false;
-
+        reporter: StreamReporter
+    ): RawUsageData | undefined {
         // 关键说明：流式场景通常只关心第一候选，其他候选（如有）暂不输出。
         const candidates = Array.isArray(event.candidates) ? event.candidates : [];
         const cand = candidates.length > 0 ? candidates[0] : undefined;
@@ -627,43 +607,34 @@ export class GeminiHandler {
                 (typeof part.thoughtSignature === 'string' && part.thoughtSignature ? part.thoughtSignature : '') ||
                 (typeof part.thought_signature === 'string' && part.thought_signature ? part.thought_signature : '');
             if (sig) {
-                pendingThinkingSignature = sig;
+                reporter.setThoughtSignature(sig);
             }
 
             // 解析 thinking：向 UI 输出。
             if (part.thought === true && typeof part.text === 'string' && part.text) {
-                progress.report(new vscode.LanguageModelThinkingPart(part.text));
-                hasThinking = true;
+                reporter.bufferThinking(part.text);
+                // Gemini 的每个 thought part 是独立的思考块，处理完后立即结束
+                reporter.flushThinking('Gemini thought part 完成');
+                reporter.endThinkingChain();
                 continue;
             }
 
             // 解析普通文本：直接增量输出。
             if (typeof part.text === 'string' && part.text) {
-                progress.report(new vscode.LanguageModelTextPart(part.text));
-                hasText = true;
+                reporter.reportText(part.text);
                 continue;
             }
 
-            // 解析工具调用：生成一个 ToolCallPart（callId 由扩展生成）。
+            // 解析工具调用：Gemini 返回完整的 tool call，直接输出
             if (part.functionCall && typeof part.functionCall.name === 'string' && part.functionCall.name) {
-                // 关键说明：如果 tool call 前有 pendingThinkingSignature，需要先 flush 一个空的 thinking part 来“关闭思考块”。
-                if (pendingThinkingSignature) {
-                    progress.report(
-                        new vscode.LanguageModelThinkingPart('', undefined, {
-                            signature: pendingThinkingSignature
-                        })
-                    );
-                    pendingThinkingSignature = undefined;
-                    hasThinking = true;
-                }
-
-                const callId = `tool_call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                // 使用 UUID 生成唯一 ID，避免并行调用时重复
+                const callId = crypto.randomUUID();
                 const args =
                     part.functionCall.args && typeof part.functionCall.args === 'object'
                         ? (part.functionCall.args as Record<string, unknown>)
                         : {};
-                progress.report(new vscode.LanguageModelToolCallPart(callId, part.functionCall.name, args));
-                hasToolCall = true;
+                // Gemini 直接输出 ToolCallPart，不需要累积
+                reporter.reportToolCall(callId, part.functionCall.name, args);
                 continue;
             }
         }
@@ -671,10 +642,10 @@ export class GeminiHandler {
         if (event.usageMetadata) {
             // 用途：usage 原样记录。
             // 关键说明：不同 Gemini 网关返回的 usage 字段可能不完全一致，原样保留便于后续统计解析/调试。
-            onUsage(event.usageMetadata as GenericUsageData);
+            return event.usageMetadata as GenericUsageData;
         }
 
-        return { hasText, hasThinking, hasToolCall, pendingThinkingSignature };
+        return undefined;
     }
 
     /**

@@ -19,6 +19,10 @@ export interface ParsedUsageTokens {
     outputTokens: number;
     /** 总token数 */
     totalTokens: number;
+    /** 流耗时(毫秒) */
+    streamDuration?: number;
+    /** 输出速度(tokens/s) */
+    outputSpeed?: number;
 }
 
 /**
@@ -138,18 +142,56 @@ export class UsageParser {
      * 如果有 rawUsage 则解析，否则使用 estimatedInput
      */
     static parseFromLog(log: TokenRequestLog): ParsedUsageTokens {
+        let result: ParsedUsageTokens;
+
         if (log.rawUsage) {
-            return this.parseRawUsage(log.rawUsage);
+            result = this.parseRawUsage(log.rawUsage);
+        } else {
+            // 没有 rawUsage，使用预估的输入
+            result = {
+                actualInput: log.estimatedInput,
+                cacheReadTokens: 0,
+                cacheCreationTokens: 0,
+                outputTokens: 0,
+                totalTokens: log.estimatedInput
+            };
         }
 
-        // 没有 rawUsage，使用预估的输入
-        return {
-            actualInput: log.estimatedInput,
-            cacheReadTokens: 0,
-            cacheCreationTokens: 0,
-            outputTokens: 0,
-            totalTokens: log.estimatedInput
-        };
+        // 计算流耗时和输出速度
+        if (log.streamStartTime && log.streamEndTime) {
+            const duration = log.streamEndTime - log.streamStartTime;
+            result.streamDuration = duration;
+            if (duration > 0 && result.outputTokens > 0) {
+                result.outputSpeed = (result.outputTokens / duration) * 1000; // tokens/s
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * 计算输出速度 (tokens/s)
+     * @param outputTokens 输出 token 数
+     * @param durationMs 耗时(毫秒)
+     * @returns 输出速度 (tokens/s)，如果无法计算返回 undefined
+     */
+    static calculateOutputSpeed(outputTokens: number, durationMs: number): number | undefined {
+        if (durationMs > 0 && outputTokens > 0) {
+            return (outputTokens / durationMs) * 1000;
+        }
+        return undefined;
+    }
+
+    /**
+     * 格式化输出速度显示
+     * @param speed 输出速度 (tokens/s)
+     * @returns 格式化后的字符串
+     */
+    static formatOutputSpeed(speed: number | undefined): string {
+        if (speed === undefined) {
+            return '-';
+        }
+        return `${speed.toFixed(1)} t/s`;
     }
 
     /**

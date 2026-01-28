@@ -10,6 +10,7 @@ import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelConfig, ProviderConfig } from '../types/sharedTypes';
+import { StreamReporter } from './streamReporter';
 
 /**
  * OpenAI Handler 接口（用于类型安全的消息和工具转换）
@@ -27,15 +28,6 @@ interface IOpenAIHandler {
  */
 export interface ExtendedDelta extends OpenAI.Chat.ChatCompletionChunk.Choice.Delta {
     reasoning_content?: string;
-}
-
-/**
- * 工具调用缓存结构
- */
-interface ToolCallBuffer {
-    id?: string;
-    name?: string;
-    arguments: string;
 }
 
 /**
@@ -170,7 +162,16 @@ export class OpenAICustomHandler {
                 throw new Error('响应体为空');
             }
 
-            await this.processStream(model, response.body, progress, token, requestId);
+            // 创建统一的流报告器
+            const reporter = new StreamReporter({
+                modelName: model.name,
+                modelId: model.id,
+                provider: this.provider,
+                sdkMode: 'openai',
+                progress
+            });
+
+            await this.processStream(model, response.body, reporter, requestId || '', token);
 
             Logger.debug(`[${model.name}] API请求完成`);
         } catch (error) {
@@ -190,23 +191,19 @@ export class OpenAICustomHandler {
     private async processStream(
         model: vscode.LanguageModelChatInformation,
         body: ReadableStream<Uint8Array>,
-        progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
-        token: vscode.CancellationToken,
-        requestId?: string | null
+        reporter: StreamReporter,
+        requestId: string,
+        token: vscode.CancellationToken
     ): Promise<void> {
         const reader = body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-        let hasReceivedContent = false;
-        let hasThinkingContent = false; // 标记是否输出了 thinking 内容
         let chunkCount = 0;
-        const toolCallsBuffer = new Map<number, ToolCallBuffer>();
-        let currentThinkingId: string | null = null; // 思维链追踪
-        let pendingThinking: { thinking?: string } | undefined;
-        const MAX_THINKING_BUFFER_LENGTH = 10; // 思考内容缓存的最大长度
 
         // Token 统计: 收集 usage 信息
         let finalUsage: ExtendedCompletionUsage | undefined;
+        // 记录流处理的开始和结束时间
+        let streamStartTime: number | undefined = undefined;
 
         try {
             while (true) {
@@ -218,6 +215,11 @@ export class OpenAICustomHandler {
                 const { done, value } = await reader.read();
                 if (done) {
                     break;
+                }
+
+                // 记录首个 chunk 的时间作为流开始时间
+                if (streamStartTime === undefined) {
+                    streamStartTime = Date.now();
                 }
 
                 buffer += decoder.decode(value, { stream: true });
@@ -242,7 +244,10 @@ export class OpenAICustomHandler {
                             const chunk = JSON.parse(data);
                             chunkCount++;
 
-                            let hasContent = false;
+                            // 提取响应 ID（从首个 chunk）
+                            if (chunk.id && typeof chunk.id === 'string') {
+                                reporter.setResponseId(chunk.id);
+                            }
 
                             // 检查是否是包含 usage 信息的最终 chunk
                             if (chunk.usage) {
@@ -253,215 +258,30 @@ export class OpenAICustomHandler {
                             for (const choice of chunk.choices || []) {
                                 const delta = choice.delta as ExtendedDelta | undefined;
 
-                                // 处理思考内容（reasoning_content）- 使用缓冲累积策略
+                                // 处理思考内容（reasoning_content）
                                 if (delta && delta.reasoning_content && typeof delta.reasoning_content === 'string') {
-                                    // Logger.trace(
-                                    //     `[${model.name}] 接收到思考内容: ${delta.reasoning_content.length} 字符, 内容="${delta.reasoning_content}"`
-                                    // );
-                                    // 如果当前没有 active id，则生成一个用于本次思维链
-                                    if (!currentThinkingId) {
-                                        currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                                        Logger.trace(`[${model.name}] 创建新思维链 ID: ${currentThinkingId}`);
-                                    }
-
-                                    // 初始化 pendingThinking（如果尚未初始化）
-                                    if (!pendingThinking) {
-                                        pendingThinking = { thinking: '' };
-                                    }
-
-                                    // 将思考内容累积到 pendingThinking
-                                    pendingThinking.thinking =
-                                        (pendingThinking.thinking || '') + delta.reasoning_content;
-
-                                    // 检查是否达到报告条件
-                                    if (pendingThinking.thinking.length >= MAX_THINKING_BUFFER_LENGTH) {
-                                        // 达到最大长度，立即报告
-                                        try {
-                                            progress.report(
-                                                new vscode.LanguageModelThinkingPart(
-                                                    pendingThinking.thinking,
-                                                    currentThinkingId
-                                                )
-                                            );
-                                            pendingThinking.thinking = ''; // 清空缓冲
-                                            hasThinkingContent = true;
-                                        } catch (e) {
-                                            Logger.trace(`[${model.name}] 报告思考内容失败: ${String(e)}`);
-                                        }
-                                    } else {
-                                        // 即使没有立即报告，也标记有 thinking 内容
-                                        hasThinkingContent = true;
-                                    }
+                                    reporter.bufferThinking(delta.reasoning_content);
                                 }
 
-                                // 处理文本内容（即使 delta 存在但可能为空对象）
+                                // 处理文本内容
                                 if (delta && delta.content && typeof delta.content === 'string') {
-                                    // Logger.trace(
-                                    //     `[${model.name}] 输出文本内容: ${delta.content.length} 字符, preview=${delta.content}`
-                                    // );
-                                    // 使用统一方法处理剩余思考内容
-                                    if (currentThinkingId) {
-                                        this.reportRemainingThinkingContent(
-                                            model.name,
-                                            progress,
-                                            pendingThinking,
-                                            currentThinkingId,
-                                            '输出 content 前'
-                                        );
-                                        // 清空状态
-                                        if (pendingThinking) {
-                                            pendingThinking.thinking = '';
-                                        }
-                                        currentThinkingId = null;
-                                    }
-
-                                    progress.report(new vscode.LanguageModelTextPart(delta.content));
-                                    hasContent = true;
+                                    reporter.reportText(delta.content);
                                 }
 
                                 // 处理工具调用 - 支持分块数据的累积处理
                                 if (delta && delta.tool_calls && Array.isArray(delta.tool_calls)) {
                                     for (const toolCall of delta.tool_calls) {
                                         const toolIndex = toolCall.index ?? 0;
-
-                                        // 检查是否有工具调用开始（tool_calls 存在但还没有 arguments）
-                                        if (toolIndex !== undefined && !toolCall.function?.arguments) {
-                                            // 使用统一方法处理剩余思考内容
-                                            if (currentThinkingId) {
-                                                this.reportRemainingThinkingContent(
-                                                    model.name,
-                                                    progress,
-                                                    pendingThinking,
-                                                    currentThinkingId,
-                                                    '工具调用开始'
-                                                );
-                                                // 清空状态
-                                                if (pendingThinking) {
-                                                    pendingThinking.thinking = '';
-                                                }
-                                                currentThinkingId = null;
-                                            }
-                                            Logger.trace(
-                                                `🔧 [${model.name}] 工具调用开始: ${toolCall.function?.name || 'unknown'} (索引: ${toolIndex})`
-                                            );
-                                        }
-
-                                        // 获取或创建工具调用缓存
-                                        let bufferedTool = toolCallsBuffer.get(toolIndex);
-                                        if (!bufferedTool) {
-                                            bufferedTool = { arguments: '' };
-                                            toolCallsBuffer.set(toolIndex, bufferedTool);
-                                        }
-
-                                        // 累积工具调用数据
-                                        if (toolCall.id) {
-                                            bufferedTool.id = toolCall.id;
-                                        }
-                                        if (toolCall.function?.name) {
-                                            bufferedTool.name = toolCall.function.name;
-                                        }
-                                        if (toolCall.function?.arguments) {
-                                            const newArgs = toolCall.function.arguments;
-                                            // 检查是否是重复数据：新数据是否已经包含在当前累积的字符串中
-                                            // 某些 API（如 DeepSeek）可能会重复发送之前的 arguments 片段
-                                            if (bufferedTool.arguments.endsWith(newArgs)) {
-                                                // 完全重复，跳过
-                                                Logger.trace(
-                                                    `[${model.name}] 跳过重复的工具调用参数 [${toolIndex}]: "${newArgs}"`
-                                                );
-                                            } else if (
-                                                bufferedTool.arguments.length > 0 &&
-                                                newArgs.startsWith(bufferedTool.arguments)
-                                            ) {
-                                                // 新数据包含了旧数据（完全重复+新增），只取新增部分
-                                                const incrementalArgs = newArgs.substring(
-                                                    bufferedTool.arguments.length
-                                                );
-                                                bufferedTool.arguments += incrementalArgs;
-                                                // Logger.trace(
-                                                //     `[${model.name}] 检测到部分重复，提取增量部分 [${toolIndex}]: "${incrementalArgs}"`
-                                                // );
-                                            } else {
-                                                // 正常累积
-                                                bufferedTool.arguments += newArgs;
-                                            }
-                                        }
-
-                                        // Logger.trace(
-                                        //     `[${model.name}] 累积工具调用数据 [${toolIndex}]: name=${bufferedTool.name}, args_length=${bufferedTool.arguments.length}`
-                                        // );
-                                    }
-                                }
-
-                                // 检查是否完成
-                                if (choice.finish_reason) {
-                                    Logger.debug(`[${model.name}] 流已结束，原因: ${choice.finish_reason}`);
-
-                                    // 使用统一方法处理剩余思考内容
-                                    if (currentThinkingId && choice.finish_reason !== 'length') {
-                                        this.reportRemainingThinkingContent(
-                                            model.name,
-                                            progress,
-                                            pendingThinking,
-                                            currentThinkingId,
-                                            '流结束前'
+                                        reporter.accumulateToolCall(
+                                            toolIndex,
+                                            toolCall.id,
+                                            toolCall.function?.name,
+                                            toolCall.function?.arguments
                                         );
-                                        // 清空状态
-                                        if (pendingThinking) {
-                                            pendingThinking.thinking = '';
-                                        }
-                                        currentThinkingId = null;
-                                    }
-
-                                    // 如果是工具调用结束，处理缓存中的工具调用
-                                    if (choice.finish_reason === 'tool_calls') {
-                                        let toolProcessed = false;
-                                        for (const [toolIndex, bufferedTool] of toolCallsBuffer.entries()) {
-                                            if (bufferedTool.name && bufferedTool.arguments) {
-                                                try {
-                                                    const args = JSON.parse(bufferedTool.arguments);
-                                                    const toolCallId =
-                                                        bufferedTool.id || `tool_${Date.now()}_${toolIndex}`;
-
-                                                    progress.report(
-                                                        new vscode.LanguageModelToolCallPart(
-                                                            toolCallId,
-                                                            bufferedTool.name,
-                                                            args
-                                                        )
-                                                    );
-
-                                                    Logger.info(
-                                                        `[${model.name}] 成功处理工具调用: ${bufferedTool.name}, args: ${bufferedTool.arguments}`
-                                                    );
-                                                    toolProcessed = true;
-                                                } catch (error) {
-                                                    Logger.error(
-                                                        `[${model.name}] 无法解析工具调用参数: ${bufferedTool.name}, args: ${bufferedTool.arguments}, error: ${error}`
-                                                    );
-                                                }
-                                            } else {
-                                                Logger.warn(
-                                                    `[${model.name}] 不完整的工具调用 [${toolIndex}]: name=${bufferedTool.name}, args_length=${bufferedTool.arguments.length}`
-                                                );
-                                            }
-                                        }
-
-                                        if (toolProcessed) {
-                                            hasContent = true;
-                                            Logger.trace(`[${model.name}] 工具调用已处理，标记为已接收内容`);
-                                        }
-                                    } else if (choice.finish_reason === 'stop') {
-                                        // 对于 stop，只有在真正接收到内容时才标记（不包括仅有思考内容的情况）
-                                        if (!hasContent) {
-                                            Logger.trace(`[${model.name}] finish_reason=stop，未收到文本内容`);
-                                        }
                                     }
                                 }
-                            }
 
-                            if (hasContent) {
-                                hasReceivedContent = true;
+                                // 注意：不在这里调用 flushAll，统一在流结束时处理
                             }
                         } catch (error) {
                             Logger.error(`[${model.name}] 解析 JSON 失败: ${data}`, error);
@@ -473,61 +293,38 @@ export class OpenAICustomHandler {
             reader.releaseLock();
         }
 
-        Logger.trace(
-            `[${model.name}] SSE 流处理统计: ${chunkCount} 个 chunk, hasReceivedContent=${hasReceivedContent}`
-        );
+        // 记录流结束时间
+        const streamEndTime = Date.now();
 
+        // 流结束，输出所有剩余内容
+        reporter.flushAll(null);
+
+        Logger.trace(`[${model.name}] SSE 流处理统计: ${chunkCount} 个 chunk, hasContent=${reporter.hasContent}`);
         Logger.debug(`[${model.name}] 流处理完成`);
-
-        // 只有在输出了 thinking 内容但没有输出 content 时才添加 <think/> 占位符
-        if (hasThinkingContent && !hasReceivedContent) {
-            progress.report(new vscode.LanguageModelTextPart('<think/>'));
-            Logger.warn(`[${model.name}] 消息流结束时只有思考内容没有文本内容，添加了 <think/> 占位符作为输出`);
-        }
 
         if (finalUsage) {
             // 提取缓存 token 信息
             const cacheReadTokens = finalUsage.prompt_tokens_details?.cached_tokens ?? 0;
+            // 计算输出速度
+            const duration = streamStartTime && streamEndTime ? streamEndTime - streamStartTime : 0;
+            const speed = duration > 0 ? ((finalUsage.completion_tokens / duration) * 1000).toFixed(1) : 'N/A';
             Logger.info(
-                `📊 ${model.name} Token使用: 输入${finalUsage.prompt_tokens}${cacheReadTokens > 0 ? ` (缓存:${cacheReadTokens})` : ''} + 输出${finalUsage.completion_tokens} = 总计${finalUsage.total_tokens}`
+                `📊 ${model.name} Token使用: 输入${finalUsage.prompt_tokens}${cacheReadTokens > 0 ? ` (缓存:${cacheReadTokens})` : ''} + 输出${finalUsage.completion_tokens} = 总计${finalUsage.total_tokens}, 耗时=${duration}ms, 速度=${speed} tokens/s`
             );
         }
 
         // === Token 统计: 更新实际 token ===
-        if (requestId) {
-            try {
-                const usagesManager = TokenUsagesManager.instance;
-                await usagesManager.updateActualTokens({
-                    requestId,
-                    rawUsage: finalUsage || {},
-                    status: 'completed'
-                });
-            } catch (err) {
-                Logger.warn('更新Token统计失败:', err);
-            }
-        }
-    }
-
-    /**
-     * 统一处理剩余思考内容的报告（参照 Anthropic 模式）
-     */
-    private reportRemainingThinkingContent(
-        modelName: string,
-        progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
-        pendingThinking: { thinking?: string } | undefined,
-        currentThinkingId: string | null,
-        context: string
-    ): void {
-        const thinkingContent = pendingThinking?.thinking || '';
-        if (thinkingContent.length > 0 && currentThinkingId) {
-            try {
-                progress.report(new vscode.LanguageModelThinkingPart(thinkingContent, currentThinkingId));
-                Logger.trace(`[${modelName}] ${context}时报告剩余思考内容: ${thinkingContent.length}字符`);
-                // 结束当前思维链
-                progress.report(new vscode.LanguageModelThinkingPart('', currentThinkingId));
-            } catch (e) {
-                Logger.trace(`[${modelName}] ${context}时报告思考内容失败: ${String(e)}`);
-            }
+        try {
+            const usagesManager = TokenUsagesManager.instance;
+            await usagesManager.updateActualTokens({
+                requestId,
+                rawUsage: finalUsage || {},
+                status: 'completed',
+                streamStartTime,
+                streamEndTime
+            });
+        } catch (err) {
+            Logger.warn('更新Token统计失败:', err);
         }
     }
 }

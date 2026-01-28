@@ -137,6 +137,11 @@ export class LogStatsManager {
             total.requests += hourStats.requests;
             total.completedRequests += hourStats.completedRequests;
             total.failedRequests += hourStats.failedRequests;
+            // 累加流耗时信息
+            total.totalStreamDuration = (total.totalStreamDuration || 0) + (hourStats.totalStreamDuration || 0);
+            total.validStreamRequests = (total.validStreamRequests || 0) + (hourStats.validStreamRequests || 0);
+            total.validStreamOutputTokens =
+                (total.validStreamOutputTokens || 0) + (hourStats.validStreamOutputTokens || 0);
 
             // 聚合提供商统计
             if (hourStats.providers) {
@@ -164,6 +169,13 @@ export class LogStatsManager {
                     provider.requests += providerStats.requests;
                     provider.completedRequests += providerStats.completedRequests;
                     provider.failedRequests += providerStats.failedRequests;
+                    // 累加提供商级别的流耗时信息
+                    provider.totalStreamDuration =
+                        (provider.totalStreamDuration || 0) + (providerStats.totalStreamDuration || 0);
+                    provider.validStreamRequests =
+                        (provider.validStreamRequests || 0) + (providerStats.validStreamRequests || 0);
+                    provider.validStreamOutputTokens =
+                        (provider.validStreamOutputTokens || 0) + (providerStats.validStreamOutputTokens || 0);
 
                     // 聚合模型统计
                     if (providerStats.models) {
@@ -186,6 +198,13 @@ export class LogStatsManager {
                             model.cacheTokens += modelStats.cacheTokens;
                             model.outputTokens += modelStats.outputTokens;
                             model.requests += modelStats.requests;
+                            // 累加模型级别的流耗时信息
+                            model.totalStreamDuration =
+                                (model.totalStreamDuration || 0) + (modelStats.totalStreamDuration || 0);
+                            model.validStreamRequests =
+                                (model.validStreamRequests || 0) + (modelStats.validStreamRequests || 0);
+                            model.validStreamOutputTokens =
+                                (model.validStreamOutputTokens || 0) + (modelStats.validStreamOutputTokens || 0);
                         }
                     }
                 }

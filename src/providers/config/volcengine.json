@@ -34,7 +34,7 @@
                 "imageInput": false
             },
             "extraBody": {
-                "thinking": { "type": "enabled" }
+                "thinking": { "type": "disabled" }
             }
         },
         {

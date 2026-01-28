@@ -175,25 +175,36 @@ export class TokenUsageStatusBar {
             return totalB - totalA;
         });
         // 创建提供商统计表格
-        md.appendMarkdown('| 提供商        | 输入Tokens | 缓存命中 | 输出Tokens | 消耗Tokens | 请求次数 |\n');
-        md.appendMarkdown('| :------------ | ------: | ------: | ------: | ------: | ----: |\n');
-        for (const stats of sortedProviders) {
-            const providerTotal = stats.actualInput + stats.outputTokens;
+        md.appendMarkdown('| 提供商        | 输入Tokens | 缓存命中 | 输出Tokens | 消耗Tokens | 请求数 | 平均速度 |\n');
+        md.appendMarkdown('| :------------ | ------: | ------: | ------: | ------: | ----: | ------: |\n');
+        for (const providerStats of sortedProviders) {
+            const providerTotal = providerStats.actualInput + providerStats.outputTokens;
+            // 计算平均输出速度
+            const avgSpeed = this.calculateAverageSpeed(
+                providerStats.validStreamOutputTokens,
+                providerStats.totalStreamDuration,
+                providerStats.validStreamRequests
+            );
             md.appendMarkdown(
-                `| ${stats.providerName} | ${this.formatTokens(stats.actualInput)} | ` +
-                    `${this.formatTokens(stats.cacheTokens)} | ` +
-                    `${this.formatTokens(stats.outputTokens)} | ` +
-                    `**${this.formatTokens(providerTotal)}** | ${stats.requests} |\n`
+                `| ${providerStats.providerName} | ${this.formatTokens(providerStats.actualInput)} | ` +
+                    `${this.formatTokens(providerStats.cacheTokens)} | ` +
+                    `${this.formatTokens(providerStats.outputTokens)} | ` +
+                    `**${this.formatTokens(providerTotal)}** | ${providerStats.requests} | ${avgSpeed} |\n`
             );
         }
         // 合计行（仅当有多个提供商时显示）
         if (providers.length > 1) {
             const total = stats.total.actualInput + stats.total.outputTokens;
+            const avgSpeedTotal = this.calculateAverageSpeed(
+                stats.total.validStreamOutputTokens,
+                stats.total.totalStreamDuration,
+                stats.total.validStreamRequests
+            );
             md.appendMarkdown(
                 `| **合计** | **${this.formatTokens(stats.total.actualInput)}** | ` +
                     `**${this.formatTokens(stats.total.cacheTokens)}** | ` +
                     `**${this.formatTokens(stats.total.outputTokens)}** | ` +
-                    `**${this.formatTokens(total)}** | **${stats.total.requests}** |\n`
+                    `**${this.formatTokens(total)}** | **${stats.total.requests}** | **${avgSpeedTotal}** |\n`
             );
         }
 
@@ -204,8 +215,10 @@ export class TokenUsageStatusBar {
             if (recentRequests.length > 0) {
                 md.appendMarkdown('\n\n ---- \n\n\n\n');
                 // 创建表格标题
-                md.appendMarkdown('| 提供商      | 请求时间 | 消耗量 | 状态 | 输入Tokens | 缓存命中 | 输出Tokens |\n');
-                md.appendMarkdown('| :----------- | :-----: | -----: | :----: | -----: | -----: | -----: |\n');
+                md.appendMarkdown(
+                    '| 提供商      | 请求时间 | 消耗量 | 状态 | 输入Tokens | 缓存命中 | 输出Tokens | 输出速度 |\n'
+                );
+                md.appendMarkdown('| :----------- | :-----: | -----: | :----: | -----: | -----: | -----: | -----: |\n');
 
                 // 反转数组，让最近的请求在最下方显示
                 const reversedRequests = [...recentRequests].reverse();
@@ -228,6 +241,9 @@ export class TokenUsageStatusBar {
                     const outputTokens = req.outputTokens;
                     const totalTokens = req.totalTokens;
 
+                    // 格式化输出速度
+                    const speedStr = req.outputSpeed !== undefined ? `${req.outputSpeed.toFixed(1)} t/s` : '-';
+
                     // 根据状态决定显示实际值还是预估值
                     let inputStr = '-';
                     let cacheStr = '-';
@@ -247,7 +263,7 @@ export class TokenUsageStatusBar {
                     }
 
                     md.appendMarkdown(
-                        `| ${req.providerName} | ${timeStr} | ${totalStr} | ${statusIcon} | ${inputStr} | ${cacheStr} | ${outputStr} |\n`
+                        `| ${req.providerName} | ${timeStr} | ${totalStr} | ${statusIcon} | ${inputStr} | ${cacheStr} | ${outputStr} | ${speedStr} |\n`
                     );
                 }
             }
@@ -259,6 +275,30 @@ export class TokenUsageStatusBar {
         md.appendMarkdown('\n---\n\n点击查看详情');
 
         return md;
+    }
+
+    /**
+     * 计算平均输出速度
+     * @param validStreamOutputTokens 有时间记录的输出 token 数（优先使用，避免历史数据影响）
+     * @param totalStreamDuration 总流耗时(毫秒)
+     * @param validStreamRequests 有效请求次数
+     * @returns 格式化的平均速度字符串
+     */
+    private calculateAverageSpeed(
+        validStreamOutputTokens: number | undefined,
+        totalStreamDuration?: number,
+        validStreamRequests?: number
+    ): string {
+        if (!totalStreamDuration || totalStreamDuration <= 0 || !validStreamRequests || validStreamRequests <= 0) {
+            return '-';
+        }
+        // 使用有时间记录的 outputTokens（如果没有则返回 -）
+        if (!validStreamOutputTokens || validStreamOutputTokens <= 0) {
+            return '-';
+        }
+        // 计算平均速度: 有时间记录的输出tokens / 总耗时(秒)
+        const avgSpeed = (validStreamOutputTokens / totalStreamDuration) * 1000;
+        return `${avgSpeed.toFixed(1)} t/s`;
     }
 
     /**

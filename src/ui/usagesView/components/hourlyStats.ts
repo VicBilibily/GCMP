@@ -5,7 +5,7 @@
 
 import type { HourlyStats } from '../types';
 import { createElement } from '../../utils';
-import { formatTokens } from '../utils';
+import { formatTokens, calculateAverageSpeed } from '../utils';
 
 // ============= 组件渲染 =============
 
@@ -24,7 +24,7 @@ export function createHourlyStats(hourlyStats: Record<string, Omit<HourlyStats, 
         const thead = createElement('thead');
         const headerRow = createElement('tr');
 
-        const headers = ['时间', '输入Tokens', '缓存命中', '输出Tokens', '消耗Tokens', '请求次数'];
+        const headers = ['时间', '输入Tokens', '缓存命中', '输出Tokens', '消耗Tokens', '请求次数', '平均速度'];
         headers.forEach(h => {
             const th = createElement('th');
             th.textContent = h;
@@ -68,6 +68,10 @@ export function createHourlyStats(hourlyStats: Record<string, Omit<HourlyStats, 
                 const requestsCell = createElement('td');
                 requestsCell.textContent = String(stats.requests);
                 row.appendChild(requestsCell);
+
+                const speedCell = createElement('td');
+                speedCell.textContent = calculateAverageSpeed(stats);
+                row.appendChild(speedCell);
 
                 tbody.appendChild(row);
             });

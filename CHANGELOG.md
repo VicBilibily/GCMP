@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.18.9] - 2026-01-27
+
+### 新增
+
+- **Token 统计 - 平均输出速度**：新增流式响应的平均输出速度统计与显示
+    - 所有 Handler 记录流开始/结束时间，使用各模式的标准开始事件（`message_start`、`response.started`、首个 chunk 等）
+    - 状态栏 Tooltip 和 WebView 详细视图显示平均输出速度（单位：t/s）
+
+### 重构
+
+- **流解析处理架构**：重构整个 stream 流解析处理机制，统一通过 StreamReporter 进行输出管理
+    - 所有 Handler（openaiHandler、openaiCustomHandler、openaiResponsesHandler、geminiHandler、anthropicHandler）统一通过 StreamReporter 进行流式输出，不再直接调用 `progress.report`
+    - 文本内容（text）采用累积批量输出策略（20 字符阈值），与思考内容（thinking）保持一致
+
 ## [0.18.8] - 2026-01-27
 
 ### 新增

@@ -146,6 +146,10 @@ export class TokenUsagesManager {
         requestId: string;
         rawUsage?: RawUsageData;
         status: 'completed' | 'failed';
+        /** 流开始时间 (毫秒时间戳) */
+        streamStartTime?: number;
+        /** 流结束时间 (毫秒时间戳) */
+        streamEndTime?: number;
     }): Promise<void> {
         if (!this.initialized) {
             StatusLogger.warn('TokenUsagesManager 尚未初始化，跳过 token 统计更新');
@@ -164,17 +168,26 @@ export class TokenUsagesManager {
                 .updateActualTokens({
                     requestId: params.requestId,
                     rawUsage: normalizedUsage,
-                    status: params.status
+                    status: params.status,
+                    streamStartTime: params.streamStartTime,
+                    streamEndTime: params.streamEndTime
                 })
                 .finally(() => {
                     // 通知更新
                     this.notifyUpdate();
                 });
 
+            // 计算流耗时信息（如果有）
+            let durationInfo = '';
+            if (params.streamStartTime && params.streamEndTime) {
+                const duration = params.streamEndTime - params.streamStartTime;
+                durationInfo = `, duration=${duration}ms`;
+            }
+
             StatusLogger.debug(
                 `[Usages] 更新实际 token: requestId=${params.requestId}, ` +
                     `rawUsage=${params.rawUsage ? '已记录' : '未记录'}, ` +
-                    `status=${params.status}`
+                    `status=${params.status}${durationInfo}`
             );
         } catch (err) {
             StatusLogger.warn('[Usages] 更新实际 token 失败:', err);

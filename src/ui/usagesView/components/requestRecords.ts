@@ -130,7 +130,17 @@ function createRequestRecordsTable(records: ExtendedTokenRequestLog[]): HTMLElem
     const thead = createElement('thead');
     const headerRow = createElement('tr');
 
-    const headers = ['时间', '提供商', '模型', '输入Tokens', '缓存命中', '输出Tokens', '消耗Tokens', '状态'];
+    const headers = [
+        '时间',
+        '提供商',
+        '模型',
+        '输入Tokens',
+        '缓存命中',
+        '输出Tokens',
+        '消耗Tokens',
+        '输出速度',
+        '状态'
+    ];
     headers.forEach(h => {
         const th = createElement('th');
         th.textContent = h;
@@ -203,6 +213,13 @@ function createRequestRecordsTable(records: ExtendedTokenRequestLog[]): HTMLElem
             status.className = record.status === 'completed' ? 'status-completed' : '';
             status.textContent = record.status === 'completed' ? '✅' : record.status === 'failed' ? '❌' : '⏳';
 
+            const speed = createElement('td');
+            if (record.outputSpeed !== undefined && record.outputSpeed > 0) {
+                speed.textContent = `${record.outputSpeed.toFixed(1)} t/s`;
+            } else {
+                speed.textContent = '-';
+            }
+
             row.appendChild(time);
             row.appendChild(provider);
             row.appendChild(model);
@@ -210,12 +227,13 @@ function createRequestRecordsTable(records: ExtendedTokenRequestLog[]): HTMLElem
             row.appendChild(cache);
             row.appendChild(output);
             row.appendChild(total);
+            row.appendChild(speed);
             row.appendChild(status);
             tbody.appendChild(row);
         });
     } else {
         const emptyRow = createElement('tr');
-        const emptyCell = createElement('td', '', { colSpan: 8 });
+        const emptyCell = createElement('td', '', { colSpan: 9 });
         emptyCell.textContent = '暂无请求记录';
         emptyCell.style.textAlign = 'center';
         emptyRow.appendChild(emptyCell);

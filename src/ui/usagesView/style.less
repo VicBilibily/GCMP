@@ -205,15 +205,15 @@ body {
                 top: 0;
                 z-index: 10;
 
-                /* 提供商表格和小时表格：数值列右对齐（第2-6列） */
-                &:nth-child(n + 2):nth-child(-n + 6) {
+                /* 提供商表格和小时表格：数值列右对齐（第2-7列） */
+                &:nth-child(n + 2):nth-child(-n + 7) {
                     text-align: right;
                 }
             }
 
             td {
-                /* 提供商表格和小时表格：数值列右对齐（第2-6列） */
-                &:nth-child(n + 2):nth-child(-n + 6) {
+                /* 提供商表格和小时表格：数值列右对齐（第2-7列） */
+                &:nth-child(n + 2):nth-child(-n + 7) {
                     text-align: right;
                 }
             }
@@ -230,14 +230,14 @@ body {
             /* 第1列（提供商/模型）占较大比例 */
             th:nth-child(1),
             td:nth-child(1) {
-                width: 35%;
+                width: 33%;
                 min-width: 150px;
             }
 
             /* 数值列平均分配剩余空间 */
-            th:nth-child(n + 2):nth-child(-n + 6),
-            td:nth-child(n + 2):nth-child(-n + 6) {
-                width: 13%;
+            th:nth-child(n + 2):nth-child(-n + 7),
+            td:nth-child(n + 2):nth-child(-n + 7) {
+                width: 11%;
                 min-width: 80px;
             }
         }
@@ -258,7 +258,7 @@ body {
         /* 第2列（提供商） */
         th:nth-child(2),
         td:nth-child(2) {
-            width: 15%;
+            width: 12%;
             min-width: 100px;
         }
 
@@ -269,17 +269,17 @@ body {
             min-width: 120px;
         }
 
-        /* 第4-7列（输入、缓存、输出、消耗）数值列 */
-        th:nth-child(n + 4):nth-child(-n + 7),
-        td:nth-child(n + 4):nth-child(-n + 7) {
-            width: 12%;
+        /* 第4-8列（输入、缓存、输出、消耗、速度）数值列 */
+        th:nth-child(n + 4):nth-child(-n + 8),
+        td:nth-child(n + 4):nth-child(-n + 8) {
+            width: 10%;
             min-width: 80px;
         }
 
-        /* 第8列（状态） */
-        th:nth-child(8),
-        td:nth-child(8) {
-            width: 10%;
+        /* 第9列（状态） */
+        th:nth-child(9),
+        td:nth-child(9) {
+            width: 8%;
             min-width: 60px;
         }
     }
@@ -297,13 +297,13 @@ body {
             text-align: left;
         }
 
-        /* 第4-7列（输入、缓存、输出、消耗）右对齐 */
-        &:nth-child(n + 4):nth-child(-n + 7) {
+        /* 第4-8列（输入、缓存、输出、消耗、速度）右对齐 */
+        &:nth-child(n + 4):nth-child(-n + 8) {
             text-align: right;
         }
 
-        /* 第8列（状态）居中对齐 */
-        &:nth-child(8) {
+        /* 第9列（状态）居中对齐 */
+        &:nth-child(9) {
             text-align: center;
         }
     }

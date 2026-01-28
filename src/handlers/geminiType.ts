@@ -127,13 +127,3 @@ export interface GeminiGenerateContentResponse {
         [key: string]: unknown;
     };
 }
-
-export interface GeminiErrorResponse {
-    error: {
-        message?: string;
-        code?: number;
-        status?: string;
-        details?: unknown;
-        [key: string]: unknown;
-    };
-}

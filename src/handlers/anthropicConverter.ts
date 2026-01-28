@@ -56,66 +56,6 @@ function contentBlockSupportsCacheControl(
     return block.type !== 'thinking' && block.type !== 'redacted_thinking';
 }
 
-type ToolResultContent = ToolResultBlockParam['content'];
-type ToolResultContentArray = Exclude<ToolResultContent, string | undefined>;
-
-/**
- * 规范化 tool_result.content：
- * - undefined → []
- * - string → text 块数组
- * - 数组 → 原样返回
- */
-function normalizeToolResultContent(content: ToolResultContent): ToolResultContentArray {
-    if (!content) {
-        return [];
-    }
-    if (typeof content === 'string') {
-        return [{ type: 'text', text: content } as TextBlockParam];
-    }
-    return content;
-}
-
-/**
- * 合并相同 tool_use_id 的 tool_result，确保每个 id 只有一个 tool_result。
- * 会合并 content，并在缺失时补充 cache_control / is_error。
- */
-function mergeToolResultBlocks(content: ContentBlockParam[]): ContentBlockParam[] {
-    const merged: ContentBlockParam[] = [];
-    const toolResultIndexById = new Map<string, number>();
-
-    for (const block of content) {
-        if (block.type !== 'tool_result') {
-            merged.push(block);
-            continue;
-        }
-
-        const toolBlock = block as ToolResultBlockParam;
-        const existingIndex = toolResultIndexById.get(toolBlock.tool_use_id);
-        if (existingIndex === undefined) {
-            toolResultIndexById.set(toolBlock.tool_use_id, merged.length);
-            merged.push({
-                ...toolBlock,
-                content: normalizeToolResultContent(toolBlock.content)
-            });
-            continue;
-        }
-
-        const existingBlock = merged[existingIndex] as ToolResultBlockParam;
-        const existingContent = normalizeToolResultContent(existingBlock.content);
-        const incomingContent = normalizeToolResultContent(toolBlock.content);
-        existingBlock.content = [...existingContent, ...incomingContent];
-
-        if (!existingBlock.cache_control && toolBlock.cache_control) {
-            existingBlock.cache_control = toolBlock.cache_control;
-        }
-        if (!existingBlock.is_error && toolBlock.is_error) {
-            existingBlock.is_error = toolBlock.is_error;
-        }
-    }
-
-    return merged;
-}
-
 /**
  * 将 VS Code API 消息内容转换为 Anthropic 格式
  * 支持 thinking 内容块以保持多轮对话中思维链的连续性
@@ -354,13 +294,6 @@ export function apiMessageToAnthropicMessage(
             if (Array.isArray(prevMessage.content) && Array.isArray(message.content)) {
                 (prevMessage.content as ContentBlockParam[]).push(...(message.content as ContentBlockParam[]));
             }
-        }
-    }
-
-    // 合并相同 tool_use_id 的 tool_result，避免批次合并导致重复 id
-    for (const message of mergedMessages) {
-        if (Array.isArray(message.content)) {
-            message.content = mergeToolResultBlocks(message.content as ContentBlockParam[]);
         }
     }
 

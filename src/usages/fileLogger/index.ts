@@ -166,6 +166,10 @@ export class TokenFileLogger {
         requestId: string;
         rawUsage?: TokenRequestLog['rawUsage'];
         status: 'completed' | 'failed';
+        /** 流开始时间 (毫秒时间戳) */
+        streamStartTime?: number;
+        /** 流结束时间 (毫秒时间戳) */
+        streamEndTime?: number;
     }): Promise<void> {
         const pendingLog = this.pendingLogs.get(params.requestId);
 
@@ -194,6 +198,14 @@ export class TokenFileLogger {
         // 更新日志对象
         pendingLog.rawUsage = params.rawUsage ?? null;
         pendingLog.status = params.status;
+
+        // 更新流时间信息（如果提供）
+        if (params.streamStartTime !== undefined) {
+            pendingLog.streamStartTime = params.streamStartTime;
+        }
+        if (params.streamEndTime !== undefined) {
+            pendingLog.streamEndTime = params.streamEndTime;
+        }
 
         // 写入文件(追加新行,形成流水记录)
         await this.writeManager.appendLog(pendingLog);

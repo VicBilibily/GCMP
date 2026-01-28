@@ -42,6 +42,13 @@ export abstract class StatsCalculator {
                 // 无论时间戳如何，都更新为最新状态（completed/failed 和 rawUsage）
                 existing.status = log.status;
                 existing.rawUsage = log.rawUsage;
+                // 更新流时间信息
+                if (log.streamStartTime !== undefined) {
+                    existing.streamStartTime = log.streamStartTime;
+                }
+                if (log.streamEndTime !== undefined) {
+                    existing.streamEndTime = log.streamEndTime;
+                }
             }
         }
 
@@ -74,7 +81,7 @@ export abstract class StatsCalculator {
 
         // 2. 遍历合并后的日志
         for (const log of finalLogs) {
-            // 统计所有请求的状态
+            // 统计所有请求的状态到总计
             stats.total.requests++;
 
             if (log.status === 'completed') {
@@ -83,26 +90,7 @@ export abstract class StatsCalculator {
                 stats.total.failedRequests++;
             }
 
-            // 只统计成功的请求到token用量
-            if (log.status !== 'completed' || !log.rawUsage) {
-                // 如果没有 rawUsage，使用预估的 input
-                if (log.status === 'completed') {
-                    stats.total.estimatedInput += log.estimatedInput;
-                    stats.total.actualInput += log.estimatedInput;
-                }
-                continue;
-            }
-
-            // 从 rawUsage 解析 token 统计
-            const parsed = UsageParser.parseFromLog(log);
-
-            // 更新总计(仅成功的请求)
-            stats.total.estimatedInput += log.estimatedInput;
-            stats.total.actualInput += parsed.actualInput;
-            stats.total.cacheTokens += parsed.cacheReadTokens;
-            stats.total.outputTokens += parsed.outputTokens;
-
-            // 按提供商聚合(仅成功的请求)
+            // 初始化提供商统计（确保所有提供商都被记录，即使请求失败）
             if (!stats.providers[log.providerKey]) {
                 stats.providers[log.providerKey] = {
                     providerName: log.providerName,
@@ -118,12 +106,55 @@ export abstract class StatsCalculator {
             }
 
             const providerStats = stats.providers[log.providerKey];
+            providerStats.requests++;
+
+            if (log.status === 'completed') {
+                providerStats.completedRequests++;
+            } else if (log.status === 'failed') {
+                providerStats.failedRequests++;
+            }
+
+            // 只统计成功的请求到 token 用量和速度
+            if (log.status !== 'completed' || !log.rawUsage) {
+                // 如果没有 rawUsage，使用预估的 input
+                if (log.status === 'completed') {
+                    stats.total.estimatedInput += log.estimatedInput;
+                    stats.total.actualInput += log.estimatedInput;
+                    providerStats.estimatedInput += log.estimatedInput;
+                    providerStats.actualInput += log.estimatedInput;
+                }
+                continue;
+            }
+
+            // 从 rawUsage 解析 token 统计
+            const parsed = UsageParser.parseFromLog(log);
+
+            // 更新总计(仅成功的请求)
+            stats.total.estimatedInput += log.estimatedInput;
+            stats.total.actualInput += parsed.actualInput;
+            stats.total.cacheTokens += parsed.cacheReadTokens;
+            stats.total.outputTokens += parsed.outputTokens;
+
+            // 累加流耗时信息用于计算平均输出速度（只统计有完整时间记录的）
+            if (parsed.streamDuration && parsed.streamDuration > 0) {
+                stats.total.totalStreamDuration = (stats.total.totalStreamDuration || 0) + parsed.streamDuration;
+                stats.total.validStreamRequests = (stats.total.validStreamRequests || 0) + 1;
+                stats.total.validStreamOutputTokens = (stats.total.validStreamOutputTokens || 0) + parsed.outputTokens;
+            }
+
+            // 更新提供商的 token 统计
             providerStats.estimatedInput += log.estimatedInput;
             providerStats.actualInput += parsed.actualInput;
             providerStats.cacheTokens += parsed.cacheReadTokens;
             providerStats.outputTokens += parsed.outputTokens;
-            providerStats.requests++;
-            providerStats.completedRequests++;
+
+            // 累加提供商级别的流耗时信息（只统计有完整时间记录的）
+            if (parsed.streamDuration && parsed.streamDuration > 0) {
+                providerStats.totalStreamDuration = (providerStats.totalStreamDuration || 0) + parsed.streamDuration;
+                providerStats.validStreamRequests = (providerStats.validStreamRequests || 0) + 1;
+                providerStats.validStreamOutputTokens =
+                    (providerStats.validStreamOutputTokens || 0) + parsed.outputTokens;
+            }
 
             // 按模型聚合(仅成功的请求)
             if (!providerStats.models[log.modelId]) {
@@ -143,6 +174,13 @@ export abstract class StatsCalculator {
             modelStats.cacheTokens += parsed.cacheReadTokens;
             modelStats.outputTokens += parsed.outputTokens;
             modelStats.requests++;
+
+            // 累加模型级别的流耗时信息（只统计有完整时间记录的）
+            if (parsed.streamDuration && parsed.streamDuration > 0) {
+                modelStats.totalStreamDuration = (modelStats.totalStreamDuration || 0) + parsed.streamDuration;
+                modelStats.validStreamRequests = (modelStats.validStreamRequests || 0) + 1;
+                modelStats.validStreamOutputTokens = (modelStats.validStreamOutputTokens || 0) + parsed.outputTokens;
+            }
         }
 
         return stats;

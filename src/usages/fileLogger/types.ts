@@ -88,6 +88,10 @@ export interface TokenRequestLog {
     maxInputTokens?: number;
     /** 请求类型 */
     requestType?: 'chat' | 'completion' | 'fim' | 'nes';
+    /** 流开始时间 (毫秒时间戳) */
+    streamStartTime?: number;
+    /** 流结束时间 (毫秒时间戳) */
+    streamEndTime?: number;
 }
 
 /**
@@ -113,6 +117,12 @@ export interface BaseStats {
     estimatedInput: number;
     actualInput: number;
     cacheTokens: number;
+    /** 总输出耗时(毫秒) - 用于计算平均输出速度 */
+    totalStreamDuration?: number;
+    /** 有效的请求次数(有时间记录的完成请求) - 用于计算平均输出速度 */
+    validStreamRequests?: number;
+    /** 有时间记录的输出 tokens - 用于计算平均输出速度（避免历史数据影响） */
+    validStreamOutputTokens?: number;
     outputTokens: number;
     requests: number;
 }

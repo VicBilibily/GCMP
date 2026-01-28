@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
+import * as crypto from 'node:crypto';
 import { StatusLogger } from '../utils/statusLogger';
 import { UserActivityService } from './userActivityService';
-import * as crypto from 'crypto';
 
 interface LeaderInfo {
     instanceId: string;

@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as crypto from 'crypto';
+import * as crypto from 'node:crypto';
 import OpenAI, { ClientOptions } from 'openai';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { Logger } from '../utils/logger';
 import { ModelConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
-import { encodeStatefulMarker, getStatefulMarkerAndIndex } from './statefulMarker';
-import { CustomDataPartMimeTypes } from './types';
+import { getStatefulMarkerAndIndex } from './statefulMarker';
+import { StreamReporter } from './streamReporter';
 
 // 使用 OpenAI SDK 的 Responses API 类型
 type ResponseInputItem = OpenAI.Responses.ResponseInputItem;
@@ -345,15 +345,28 @@ export class OpenAIResponsesHandler {
             const client = await this.handler.createOpenAIClient(modelConfig);
             Logger.info(`🚀 ${model.name} 发送 ${this.displayName} Responses API 请求`);
 
-            let hasReceivedContent = false;
-            let hasReceivedTextDelta = false; // 标记是否已接收文本增量
-            let hasEmittedThinking = false; // 标记是否已输出思维链内容
+            // 创建统一的流报告器
+            const reporter = new StreamReporter({
+                modelName: model.name,
+                modelId: model.id,
+                provider: this.providerKey,
+                sdkMode: 'openai-responses',
+                progress
+            });
+
+            const requestModel = modelConfig.model || model.id;
 
             // 将 vscode.CancellationToken 转换为 AbortSignal
             const abortController = new AbortController();
             const cancellationListener = token.onCancellationRequested(() => abortController.abort());
             let streamError: Error | null = null;
             let finalUsage: Record<string, unknown> | undefined = undefined;
+            // 记录流处理的开始和结束时间
+            let streamStartTime = Date.now();
+            let streamEndTime: number | undefined = undefined;
+
+            // Responses API 专属：追踪 delta/done 事件，避免重复输出
+            let hasReceivedTextDelta = false; // 标记是否已接收文本增量
 
             // 工具调用缓冲区 - 使用索引跟踪，支持累积
             const toolCallBuffers = new Map<number, { id: string; name: string; args: string }>();
@@ -378,7 +391,6 @@ export class OpenAIResponsesHandler {
                 );
 
                 // 准备请求体
-                const requestModel = modelConfig.model || model.id;
                 const requestBody: Record<string, unknown> = {
                     model: requestModel,
                     input: responsesMessages,
@@ -490,21 +502,19 @@ export class OpenAIResponsesHandler {
 
                 // 使用 on(event) 模式处理流事件
                 stream
+                    .on('response.created', () => {
+                        // 响应开始事件 - 记录流开始时间
+                        streamStartTime = Date.now();
+                    })
                     .on('response.output_text.delta', event => {
                         if (token.isCancellationRequested) {
                             abortController.abort();
                             return;
                         }
-                        // 如果之前输出了思维链，现在输出文本前需要结束思维链
-                        if (hasEmittedThinking) {
-                            progress.report(new vscode.LanguageModelThinkingPart(''));
-                            hasEmittedThinking = false;
-                        }
                         const delta = event.delta;
                         if (delta && typeof delta === 'string') {
-                            progress.report(new vscode.LanguageModelTextPart(delta));
-                            hasReceivedContent = true;
-                            hasReceivedTextDelta = true;
+                            reporter.reportText(delta);
+                            hasReceivedTextDelta = true; // 标记已接收文本增量
                         }
                     })
                     .on('response.output_text.done', event => {
@@ -514,8 +524,7 @@ export class OpenAIResponsesHandler {
                         }
                         const text = event.text || '';
                         if (text) {
-                            progress.report(new vscode.LanguageModelTextPart(text));
-                            hasReceivedContent = true;
+                            reporter.reportText(text);
                         }
                     })
                     .on('response.refusal.delta', event => {
@@ -524,16 +533,9 @@ export class OpenAIResponsesHandler {
                             abortController.abort();
                             return;
                         }
-                        // 如果之前输出了思维链，现在输出拒绝内容前需要结束思维链
-                        if (hasEmittedThinking) {
-                            progress.report(new vscode.LanguageModelThinkingPart(''));
-                            hasEmittedThinking = false;
-                        }
                         const delta = event.delta;
                         if (delta && typeof delta === 'string') {
-                            progress.report(new vscode.LanguageModelTextPart(delta));
-                            hasReceivedContent = true;
-                            hasReceivedTextDelta = true;
+                            reporter.reportText(delta);
                         }
                     })
                     .on('response.refusal.done', () => {
@@ -551,9 +553,7 @@ export class OpenAIResponsesHandler {
                         }
                         const delta = event.delta;
                         if (delta && typeof delta === 'string') {
-                            progress.report(new vscode.LanguageModelThinkingPart(delta));
-                            hasReceivedContent = true;
-                            hasEmittedThinking = true;
+                            reporter.bufferThinking(delta);
                         }
                     })
                     .on('response.reasoning_text.done', event => {
@@ -562,11 +562,11 @@ export class OpenAIResponsesHandler {
                             return;
                         }
                         // 某些网关只发送最终的 done 事件（没有增量）
-                        if (!hasEmittedThinking && event.text) {
-                            progress.report(new vscode.LanguageModelThinkingPart(event.text));
+                        if (event.text) {
+                            reporter.bufferThinkingIfNotDelta(event.text);
                         }
-                        progress.report(new vscode.LanguageModelThinkingPart(''));
-                        hasEmittedThinking = false;
+                        reporter.flushThinking('reasoning_text 完成');
+                        reporter.endThinkingChain();
                     })
                     .on('response.reasoning_summary_text.delta', event => {
                         // 处理思维链摘要增量
@@ -576,9 +576,7 @@ export class OpenAIResponsesHandler {
                         }
                         const delta = event.delta;
                         if (delta && typeof delta === 'string') {
-                            progress.report(new vscode.LanguageModelThinkingPart(delta));
-                            hasReceivedContent = true;
-                            hasEmittedThinking = true;
+                            reporter.bufferThinking(delta);
                         }
                     })
                     .on('response.reasoning_summary_text.done', event => {
@@ -587,11 +585,11 @@ export class OpenAIResponsesHandler {
                             return;
                         }
                         // 某些网关只发送最终的 done 事件（没有增量）
-                        if (!hasEmittedThinking && event.text) {
-                            progress.report(new vscode.LanguageModelThinkingPart(event.text));
+                        if (event.text) {
+                            reporter.bufferThinkingIfNotDelta(event.text);
                         }
-                        progress.report(new vscode.LanguageModelThinkingPart(''));
-                        hasEmittedThinking = false;
+                        reporter.flushThinking('reasoning_summary 完成');
+                        reporter.endThinkingChain();
                     })
                     .on('response.function_call_arguments.delta', () => {
                         // SDK 会在 done 事件中提供完整的 arguments，这里不需要处理
@@ -636,8 +634,7 @@ export class OpenAIResponsesHandler {
                         // 尝试发送工具调用
                         try {
                             const input = JSON.parse(args || '{}');
-                            progress.report(new vscode.LanguageModelToolCallPart(callId, name, input));
-                            hasReceivedContent = true;
+                            reporter.reportToolCall(callId, name, input);
                             completedToolCallIndices.add(idx);
                         } catch (e) {
                             Logger.warn(`解析工具调用参数失败: ${args}`, e);
@@ -650,12 +647,6 @@ export class OpenAIResponsesHandler {
                         }
                         const item = event.item;
                         if (item && item.type === 'function_call') {
-                            // 如果之前输出了思维链，现在输出工具调用前需要结束思维链
-                            if (hasEmittedThinking) {
-                                progress.report(new vscode.LanguageModelThinkingPart(''));
-                                hasEmittedThinking = false;
-                            }
-
                             const itemId = item.id;
                             if (!itemId) {
                                 return;
@@ -695,8 +686,7 @@ export class OpenAIResponsesHandler {
                             if (args && name) {
                                 try {
                                     const input = JSON.parse(args);
-                                    progress.report(new vscode.LanguageModelToolCallPart(callId, name, input));
-                                    hasReceivedContent = true;
+                                    reporter.reportToolCall(callId, name, input);
                                     completedToolCallIndices.add(idx);
                                 } catch (e) {
                                     Logger.warn(`解析工具调用参数失败: ${args}`, e);
@@ -727,7 +717,7 @@ export class OpenAIResponsesHandler {
 
                             try {
                                 const input = JSON.parse(args);
-                                progress.report(new vscode.LanguageModelToolCallPart(callId as string, name, input));
+                                reporter.reportToolCall(callId as string, name, input);
                                 completedToolCallIndices.add(idx);
                             } catch (e) {
                                 Logger.warn(`解析工具调用参数失败: ${args}`, e);
@@ -735,6 +725,8 @@ export class OpenAIResponsesHandler {
                         }
                     })
                     .on('response.completed', event => {
+                        streamEndTime = Date.now();
+
                         // 保存 usage 信息
                         if (event.response.usage) {
                             finalUsage = event.response.usage as unknown as Record<string, unknown>;
@@ -742,34 +734,9 @@ export class OpenAIResponsesHandler {
 
                         // 获取响应对象
                         const response = event.response;
-                        // 发送 StatefulMarkerData 作为响应的一部分
-                        if (response && response.id) {
-                            const responseId = response.id as string;
-                            progress.report(
-                                new vscode.LanguageModelDataPart(
-                                    encodeStatefulMarker(model.id, {
-                                        provider: modelConfig.provider || this.providerKey,
-                                        modelId: model.id,
-                                        sdkMode: 'openai-responses',
-                                        sessionId,
-                                        responseId,
-                                        expireAt: sessionExpireAt
-                                    }),
-                                    CustomDataPartMimeTypes.StatefulMarker
-                                )
-                            );
-                            Logger.debug(
-                                `💾 ${model.name} 传递 StatefulMarker: sessionId=${sessionId}，responseId=${responseId}`
-                            );
-                        }
+                        const responseId = response?.id as string | undefined;
 
-                        // 如果输出了思维链内容，发送空的 ThinkingPart 来标记结束
-                        if (hasEmittedThinking) {
-                            progress.report(new vscode.LanguageModelThinkingPart(''));
-                            hasEmittedThinking = false;
-                        }
-
-                        // 处理完整的响应中的工具调用
+                        // 处理完整的响应中的工具调用（备用，确保所有工具调用都被处理）
                         if (response && response.output) {
                             const output = response.output;
                             if (Array.isArray(output)) {
@@ -783,10 +750,7 @@ export class OpenAIResponsesHandler {
 
                                         try {
                                             const input = JSON.parse(item.arguments || '{}');
-                                            progress.report(
-                                                new vscode.LanguageModelToolCallPart(callId, item.name, input)
-                                            );
-                                            hasReceivedContent = true;
+                                            reporter.reportToolCall(callId, item.name, input);
                                             completedToolCallIndices.add(idx);
                                         } catch (e) {
                                             Logger.warn(`解析工具调用参数失败: ${item.arguments}`, e);
@@ -794,6 +758,20 @@ export class OpenAIResponsesHandler {
                                     }
                                 }
                             }
+                        }
+
+                        if (responseId) {
+                            // 流结束，输出所有剩余内容和 StatefulMarker
+                            reporter.flushAll(null, {
+                                sessionId,
+                                responseId,
+                                expireAt: sessionExpireAt
+                            });
+                            Logger.debug(
+                                `💾 ${model.name} 传递 StatefulMarker: sessionId=${sessionId}，responseId=${responseId}`
+                            );
+                        } else {
+                            reporter.flushAll(null);
                         }
                     })
                     .on('error', error => {
@@ -812,15 +790,16 @@ export class OpenAIResponsesHandler {
                 // 等待流处理完成
                 await stream.done();
 
+                // 记录流结束时间
+                streamEndTime ??= Date.now();
+
                 // 检查是否有流错误
                 if (streamError) {
                     throw streamError;
                 }
 
                 // 报告 usage 信息
-                if (finalUsage) {
-                    Logger.info(`📊 ${model.name} Responses API 请求完成`, finalUsage);
-                }
+                Logger.info(`📊 ${model.name} Responses API 请求完成`, finalUsage);
 
                 if (requestId) {
                     try {
@@ -829,16 +808,13 @@ export class OpenAIResponsesHandler {
                         await usagesManager.updateActualTokens({
                             requestId,
                             rawUsage: finalUsage || {},
-                            status: 'completed'
+                            status: 'completed',
+                            streamStartTime,
+                            streamEndTime
                         });
                     } catch (err) {
                         Logger.warn('更新Token统计失败:', err);
                     }
-                }
-
-                // 如果没有收到任何内容，输出占位符
-                if (!hasReceivedContent) {
-                    progress.report(new vscode.LanguageModelTextPart(''));
                 }
 
                 Logger.debug(`${model.name} ${this.displayName} Responses API 流处理完成`);

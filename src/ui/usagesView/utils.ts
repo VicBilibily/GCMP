@@ -26,6 +26,25 @@ export function calculateTotalTokens(stats: BaseStats): number {
 }
 
 /**
+ * 计算平均输出速度
+ */
+export function calculateAverageSpeed(stats: BaseStats): string {
+    if (
+        !stats.totalStreamDuration ||
+        stats.totalStreamDuration <= 0 ||
+        !stats.validStreamRequests ||
+        stats.validStreamRequests <= 0 ||
+        !stats.validStreamOutputTokens ||
+        stats.validStreamOutputTokens <= 0
+    ) {
+        return '-';
+    }
+    // 计算平均速度: 有时间记录的输出tokens / 总耗时(秒)
+    const avgSpeed = (stats.validStreamOutputTokens / stats.totalStreamDuration) * 1000;
+    return `${avgSpeed.toFixed(1)} t/s`;
+}
+
+/**
  * 获取今日日期字符串
  */
 export function getTodayDateString(): string {

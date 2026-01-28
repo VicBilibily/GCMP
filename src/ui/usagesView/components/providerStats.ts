@@ -5,7 +5,8 @@
 
 import type { ProviderData } from '../types';
 import { createElement } from '../../utils';
-import { calculateTotalTokens, formatTokens } from '../utils';
+import { TokenStats } from '../../../usages/fileLogger/types';
+import { calculateTotalTokens, formatTokens, calculateAverageSpeed } from '../utils';
 
 // ============= 工具函数 =============
 
@@ -38,7 +39,7 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
         const thead = createElement('thead');
         const headerRow = createElement('tr');
 
-        const headers = ['提供商/模型', '输入Tokens', '缓存命中', '输出Tokens', '消耗Tokens', '请求次数'];
+        const headers = ['提供商/模型', '输入Tokens', '缓存命中', '输出Tokens', '消耗Tokens', '请求次数', '平均速度'];
         headers.forEach(h => {
             const th = createElement('th');
             th.textContent = h;
@@ -75,6 +76,7 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             providerRow.appendChild(createCell(formatTokens(provider.outputTokens)));
             providerRow.appendChild(createCell(formatTokens(totalTokens)));
             providerRow.appendChild(createCell(provider.requests));
+            providerRow.appendChild(createCell(calculateAverageSpeed(provider)));
 
             tbody.appendChild(providerRow);
 
@@ -89,6 +91,7 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
                 modelRow.appendChild(createCell(formatTokens(stats.outputTokens)));
                 modelRow.appendChild(createCell(formatTokens(totalTokens)));
                 modelRow.appendChild(createCell(stats.requests));
+                modelRow.appendChild(createCell(calculateAverageSpeed(stats)));
 
                 const cell = modelRow.cells[0] as HTMLElement;
                 cell.style.paddingLeft = '24px';
@@ -110,6 +113,21 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
         totalRow.appendChild(createCell(formatTokens(totalOutput)));
         totalRow.appendChild(createCell(formatTokens(grandTotal)));
         totalRow.appendChild(createCell(totalRequests));
+        // 计算合计的平均速度
+        let totalStreamDuration = 0;
+        let totalValidStreamRequests = 0;
+        let totalValidStreamOutputTokens = 0;
+        providers.forEach(provider => {
+            totalStreamDuration += provider.totalStreamDuration || 0;
+            totalValidStreamRequests += provider.validStreamRequests || 0;
+            totalValidStreamOutputTokens += provider.validStreamOutputTokens || 0;
+        });
+        const totalStats = {
+            totalStreamDuration,
+            validStreamRequests: totalValidStreamRequests,
+            validStreamOutputTokens: totalValidStreamOutputTokens
+        } as TokenStats;
+        totalRow.appendChild(createCell(calculateAverageSpeed(totalStats)));
 
         tbody.appendChild(totalRow);
         table.appendChild(tbody);
