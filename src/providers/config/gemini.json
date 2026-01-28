@@ -18,7 +18,7 @@
                 "imageInput": true
             },
             "customHeader": {
-                "User-Agent": "GeminiCLI/0.23.0/gemini-2.5-pro (win32; x64) google-api-nodejs-client/9.15.1"
+                "User-Agent": "GeminiCLI/0.26.0/gemini-2.5-pro (win32; x64) google-api-nodejs-client/9.15.1"
             }
         },
         {
@@ -33,7 +33,7 @@
                 "imageInput": true
             },
             "customHeader": {
-                "User-Agent": "GeminiCLI/0.23.0/gemini-2.5-flash (win32; x64) google-api-nodejs-client/9.15.1"
+                "User-Agent": "GeminiCLI/0.26.0/gemini-2.5-flash (win32; x64) google-api-nodejs-client/9.15.1"
             }
         },
         {
@@ -48,7 +48,7 @@
                 "imageInput": true
             },
             "customHeader": {
-                "User-Agent": "GeminiCLI/0.23.0/gemini-3-pro-preview (win32; x64) google-api-nodejs-client/9.15.1"
+                "User-Agent": "GeminiCLI/0.26.0/gemini-3-pro-preview (win32; x64) google-api-nodejs-client/9.15.1"
             }
         },
         {
@@ -63,7 +63,7 @@
                 "imageInput": true
             },
             "customHeader": {
-                "User-Agent": "GeminiCLI/0.23.0/gemini-3-flash-preview (win32; x64) google-api-nodejs-client/9.15.1"
+                "User-Agent": "GeminiCLI/0.26.0/gemini-3-flash-preview (win32; x64) google-api-nodejs-client/9.15.1"
             }
         }
     ]

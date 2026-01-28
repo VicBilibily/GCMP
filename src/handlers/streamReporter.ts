@@ -409,24 +409,24 @@ export class StreamReporter {
             this.flushThinking('流结束前');
         }
 
-        // 2. 输出剩余文本内容
-        this.flushText('流结束前');
-
-        // 3. 输出剩余签名（Anthropic 特殊）
+        // 2. 输出剩余签名（Anthropic 特殊，紧跟在思考内容之后）
         if (this.signatureBuffer) {
             this.flushSignature();
         }
 
-        // 4. 处理未完成的工具调用（如果有）
+        // 3. 结束思维链（在工具调用之前）
+        this.endThinkingChain();
+
+        // 4. 输出剩余文本内容
+        this.flushText('流结束前');
+
+        // 5. 处理未完成的工具调用（如果有）
         if (this.toolCallsBuffer.size > 0) {
             Logger.warn(`[${this.modelName}] 流结束时仍有 ${this.toolCallsBuffer.size} 个未完成的工具调用`);
             this.flushToolCalls();
         }
 
-        // 5. 结束思维链（如果还没结束）
-        this.endThinkingChain();
-
-        // 6. 处理 \n 占位符
+        // 6. 处理 \n 占位符（只有在没有任何内容时才添加）
         if (this.hasThinkingContent && !this.hasReceivedContent) {
             this.progress.report(new vscode.LanguageModelTextPart('\n'));
             Logger.warn(`[${this.modelName}] 消息流结束时只有思考内容没有文本内容，添加了 \\n 占位符作为输出`);
@@ -450,6 +450,13 @@ export class StreamReporter {
      */
     getSessionId(): string {
         return this.sessionId;
+    }
+
+    /**
+     * 获取响应 ID
+     */
+    getResponseId(): string | null {
+        return this.responseId;
     }
 
     /**

@@ -15,6 +15,7 @@ import { TokenUsagesManager } from '../usages/usagesManager';
 import type { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import type { GenericUsageData, RawUsageData } from '../usages/fileLogger/types';
 import { convertMessagesToGemini, convertToolsToGemini } from './geminiConverter';
+import { getStatefulMarkerAndIndex } from './statefulMarker';
 import { StreamReporter } from './streamReporter';
 import type {
     GeminiGenerationConfig,
@@ -270,6 +271,7 @@ export class GeminiHandler {
         // 2) 环境变量
         const envCandidates = [
             process.env.GOOGLE_CLOUD_PROJECT,
+            process.env.GOOGLE_CLOUD_PROJECT_ID,
             process.env.CLOUDSDK_CORE_PROJECT,
             process.env.GCLOUD_PROJECT
         ];
@@ -287,7 +289,11 @@ export class GeminiHandler {
             }
             const text = await fs.promises.readFile(envPath, 'utf-8');
             const parsed = this.parseDotEnv(text);
-            const v = parsed.GOOGLE_CLOUD_PROJECT || parsed.CLOUDSDK_CORE_PROJECT || parsed.GCLOUD_PROJECT;
+            const v =
+                parsed.GOOGLE_CLOUD_PROJECT ||
+                parsed.GOOGLE_CLOUD_PROJECT_ID ||
+                parsed.CLOUDSDK_CORE_PROJECT ||
+                parsed.GCLOUD_PROJECT;
             if (typeof v === 'string' && v.trim()) {
                 return v.trim();
             }
@@ -357,12 +363,19 @@ export class GeminiHandler {
             ) as GeminiGenerationConfig;
         }
 
+        // 使用 statefulMarker 获取会话状态
+        const markerAndIndex = getStatefulMarkerAndIndex(model.id, 'gemini', messages);
+        const statefulMarker = markerAndIndex?.statefulMarker;
+        const sessionId = statefulMarker?.sessionId || crypto.randomUUID();
+        Logger.debug(`🎯 ${model.name} 使用 session_id: ${sessionId}`);
+
         // 用途：组装请求体（Gemini v1beta / Code Assist v1internal 都复用 contents + generationConfig）。
         const baseRequest: GeminiGenerateContentRequest = {
             contents,
             ...(systemInstruction ? { systemInstruction: { role: 'user', parts: [{ text: systemInstruction }] } } : {}),
             ...(tools.length > 0 ? { tools } : {}),
-            generationConfig
+            generationConfig,
+            session_id: sessionId
         };
 
         // Code Assist 期望包装格式：{ model, project, request: { ... } }
@@ -392,7 +405,8 @@ export class GeminiHandler {
                 modelId: model.id,
                 provider: this.provider,
                 sdkMode: 'gemini',
-                progress
+                progress,
+                sessionId
             });
 
             // 用途：执行 fetch 请求
@@ -563,7 +577,10 @@ export class GeminiHandler {
         const streamEndTime = Date.now();
 
         // 流结束，输出所有剩余内容
-        reporter.flushAll(null);
+        reporter.flushAll(null, {
+            sessionId: reporter.getSessionId(),
+            responseId: reporter.getResponseId() as string
+        });
 
         // Token 统计: 更新实际 token
         if (finalUsage) {
@@ -589,6 +606,7 @@ export class GeminiHandler {
      * 1) candidates[0].content.parts[]：按 part 类型分别输出文本 / thinking / functionCall。
      * 2) thoughtSignature：用于把"思考段"与后续 tool call 关联（VS Code thinking signature）。
      * 3) usageMetadata：原样透传给 usage logger。
+     * 4) responseId：提取并设置到 reporter，用于会话追踪。
      *
      * @returns usage 数据（如果存在）
      */
@@ -596,6 +614,10 @@ export class GeminiHandler {
         event: GeminiGenerateContentResponse,
         reporter: StreamReporter
     ): RawUsageData | undefined {
+        if (event.responseId && typeof event.responseId === 'string') {
+            reporter.setResponseId(event.responseId);
+        }
+
         // 关键说明：流式场景通常只关心第一候选，其他候选（如有）暂不输出。
         const candidates = Array.isArray(event.candidates) ? event.candidates : [];
         const cand = candidates.length > 0 ? candidates[0] : undefined;

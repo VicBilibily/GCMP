@@ -118,6 +118,7 @@ export interface GeminiCandidate {
 export interface GeminiGenerateContentResponse {
     candidates?: GeminiCandidate[];
     usageMetadata?: GeminiUsageMetadata;
+    responseId?: string;
 
     // 某些网关在流中嵌入错误
     error?: {
