@@ -413,7 +413,7 @@ export class AnthropicHandler {
                             } else {
                                 // 合并 MessageDeltaUsage 增量到当前 Usage
                                 usage = {
-                                    ...usage,
+                                    ...Object.assign(usage || {}, chunk.usage),
                                     input_tokens: chunk.usage.input_tokens ?? usage.input_tokens,
                                     output_tokens: chunk.usage.output_tokens ?? usage.output_tokens,
                                     cache_read_input_tokens:

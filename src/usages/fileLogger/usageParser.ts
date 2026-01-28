@@ -58,8 +58,8 @@ export class UsageParser {
             const inputTokens = rawUsage.input_tokens || 0;
             const outputTokens = rawUsage.output_tokens || 0;
 
-            // 检查是否有 cached_tokens 字段（Responses API 格式）
-            const cachedTokens = rawUsage.input_tokens_details?.cached_tokens || 0;
+            // 检查是否有 cached_tokens 字段
+            const cachedTokens = rawUsage.input_tokens_details?.cached_tokens || rawUsage.cached_tokens || 0;
 
             // Anthropic 格式
             const cacheReadTokens = rawUsage.cache_read_input_tokens || 0;
