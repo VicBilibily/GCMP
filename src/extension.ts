@@ -270,13 +270,15 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // 步骤8: 注册 Commit 消息生成命令
         stepStartTime = Date.now();
-        registerCommitCommands(context);
+        const commitDisposables = registerCommitCommands(context);
+        commitDisposables.forEach(disposable => context.subscriptions.push(disposable));
         Logger.trace(`⏱️ Commit 消息生成命令注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
 
         // 步骤9: 检查 Git 可用性（不阻塞扩展激活）
         // 默认设置为不可用，检查完成后更新
         vscode.commands.executeCommand('setContext', 'gcmp.gitAvailable', false);
-        context.subscriptions.push(checkGitAvailability());
+        const gitDisposable = checkGitAvailability();
+        context.subscriptions.push(gitDisposable);
 
         const totalActivationTime = Date.now() - activationStartTime;
         Logger.info(`✅ GCMP 扩展激活完成 (总耗时: ${totalActivationTime}ms)`);
@@ -321,6 +323,21 @@ export function deactivate() {
             inlineCompletionProvider.dispose();
             Logger.trace('已清理内联补全提供商');
         }
+
+        // 清理所有已注册的 disposables
+        for (const disposable of registeredDisposables) {
+            try {
+                disposable.dispose();
+            } catch (error) {
+                Logger.warn('清理 registered disposable 时出错:', error);
+            }
+        }
+        registeredDisposables.length = 0; // 清空数组
+        Logger.trace('已清理所有 registered disposables');
+
+        // 清理兼容模型管理器
+        CompatibleModelManager.dispose();
+        Logger.trace('已清理兼容模型管理器');
 
         ConfigManager.dispose(); // 清理配置管理器
 

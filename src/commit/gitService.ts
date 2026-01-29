@@ -101,7 +101,14 @@ export function checkGitAvailability(): vscode.Disposable {
     disposables.push(listener);
 
     // 返回一个 Disposable 用于清理所有监听器
-    return vscode.Disposable.from(...disposables);
+    return {
+        dispose: () => {
+            for (const disposable of disposables) {
+                disposable.dispose();
+            }
+            disposables.length = 0;
+        }
+    };
 }
 
 /**

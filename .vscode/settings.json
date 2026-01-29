@@ -13,6 +13,7 @@
     "typescript.tsc.autoDetect": "off",
     // Enable proposed APIs for extension development
     "extensions.experimental.affinity": {
+        "vscode.git": 1,
         "vicanent.gcmp": 1
     },
     // 编辑器配置：统一使用4个空格缩进

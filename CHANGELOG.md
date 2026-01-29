@@ -2,6 +2,16 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.18.13] - 2026-01-29
+
+### 完善
+
+- **扩展生命周期管理**：完善资源清理与停用逻辑
+    - 修复 Commit 消息生成命令的 disposables 注册，确保正确清理
+    - 在扩展停用时清理所有 registered disposables，避免内存泄漏
+    - 添加 CompatibleModelManager 的清理逻辑
+    - 优化 `checkGitAvailability()` 的 Disposable 返回实现
+
 ## [0.18.12] - 2026-01-29
 
 ### 完善
