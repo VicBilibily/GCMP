@@ -39,6 +39,72 @@ export interface GitDiffParts {
 }
 
 /**
+ * 检查 Git 可用性并设置上下文变量
+ * 用于控制 Commit 消息生成按钮的显示
+ *
+ * @returns vscode.Disposable 返回一个 Disposable 用于清理监听器
+ */
+export function checkGitAvailability(): vscode.Disposable {
+    const disposables: vscode.Disposable[] = [];
+
+    // 监听扩展的启用状态变化
+    const onDidChangeGitExtensionEnablement = (enabled: boolean) => {
+        if (enabled) {
+            vscode.commands.executeCommand('setContext', 'gcmp.gitAvailable', true);
+            Logger.debug('[Git] vscode.git 扩展已启用，Commit 消息生成功能已启用');
+        } else {
+            vscode.commands.executeCommand('setContext', 'gcmp.gitAvailable', false);
+            Logger.warn('[Git] vscode.git 扩展已禁用，Commit 消息生成功能将被隐藏');
+        }
+    };
+
+    // 初始化 Git 扩展
+    const initialize = () => {
+        const gitExtension = vscode.extensions.getExtension<GitExtension>('vscode.git');
+
+        if (!gitExtension) {
+            // vscode.git 扩展不存在（可能被禁用或未安装）
+            vscode.commands.executeCommand('setContext', 'gcmp.gitAvailable', false);
+            Logger.warn('[Git] vscode.git 扩展未找到，Commit 消息生成功能将被隐藏');
+            return;
+        }
+
+        // 激活扩展并监听启用状态变化
+        gitExtension.activate().then(
+            extension => {
+                // 监听扩展启用状态变化
+                disposables.push(extension.onDidChangeEnablement(onDidChangeGitExtensionEnablement));
+
+                // 设置初始状态
+                onDidChangeGitExtensionEnablement(extension.enabled);
+            },
+            (error: unknown) => {
+                // 发生错误，认为 Git 不可用
+                vscode.commands.executeCommand('setContext', 'gcmp.gitAvailable', false);
+                Logger.warn('[Git] 检查 Git 可用性时出错:', error);
+            }
+        );
+    };
+
+    // 尝试立即初始化
+    initialize();
+
+    // 监听扩展的安装/启用事件
+    const listener = vscode.extensions.onDidChange(() => {
+        const gitExtension = vscode.extensions.getExtension<GitExtension>('vscode.git');
+        if (gitExtension) {
+            // vscode.git 扩展已安装，初始化并移除监听器
+            initialize();
+            listener.dispose();
+        }
+    });
+    disposables.push(listener);
+
+    // 返回一个 Disposable 用于清理所有监听器
+    return vscode.Disposable.from(...disposables);
+}
+
+/**
  * Git 服务类
  * 负责执行 Git 命令和管理 repository
  */

@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.18.11",
+    "version": "0.18.12",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -39,7 +39,6 @@
         "npm": ">=9.0.0"
     },
     "extensionDependencies": [
-        "vscode.git",
         "github.copilot-chat"
     ],
     "categories": [
@@ -803,18 +802,18 @@
                 {
                     "command": "gcmp.commit.generateMessage",
                     "group": "navigation",
-                    "when": "config.git.enabled && scmProvider == git"
+                    "when": "config.git.enabled && scmProvider == git && gcmp.gitAvailable"
                 }
             ],
             "scm/resourceGroup/context": [
                 {
                     "command": "gcmp.commit.generateMessageStaged",
-                    "when": "config.git.enabled && scmProvider == git && scmResourceGroup == index",
+                    "when": "config.git.enabled && scmProvider == git && scmResourceGroup == index && gcmp.gitAvailable",
                     "group": "inline@-3"
                 },
                 {
                     "command": "gcmp.commit.generateMessageWorkingTree",
-                    "when": "config.git.enabled && scmProvider == git && scmResourceGroup == workingTree",
+                    "when": "config.git.enabled && scmProvider == git && scmResourceGroup == workingTree && gcmp.gitAvailable",
                     "group": "inline@-3"
                 }
             ]

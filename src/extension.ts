@@ -16,7 +16,7 @@ import { CompatibleModelManager } from './utils/compatibleModelManager';
 import { LeaderElectionService, StatusBarManager } from './status';
 import { registerAllTools } from './tools';
 import { CliAuthFactory } from './cli/auth/cliAuthFactory';
-import { registerCommitCommands } from './commit';
+import { registerCommitCommands, checkGitAvailability } from './commit';
 
 /**
  * 全局变量 - 存储已注册的提供商实例，用于扩展卸载时的清理
@@ -272,6 +272,11 @@ export async function activate(context: vscode.ExtensionContext) {
         stepStartTime = Date.now();
         registerCommitCommands(context);
         Logger.trace(`⏱️ Commit 消息生成命令注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+
+        // 步骤9: 检查 Git 可用性（不阻塞扩展激活）
+        // 默认设置为不可用，检查完成后更新
+        vscode.commands.executeCommand('setContext', 'gcmp.gitAvailable', false);
+        context.subscriptions.push(checkGitAvailability());
 
         const totalActivationTime = Date.now() - activationStartTime;
         Logger.info(`✅ GCMP 扩展激活完成 (总耗时: ${totalActivationTime}ms)`);

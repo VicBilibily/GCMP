@@ -161,37 +161,17 @@ export class UsageParser {
         if (log.streamStartTime && log.streamEndTime) {
             const duration = log.streamEndTime - log.streamStartTime;
             result.streamDuration = duration;
-            if (duration > 0 && result.outputTokens > 0) {
-                result.outputSpeed = (result.outputTokens / duration) * 1000; // tokens/s
+            // 持续时间最少为 200ms，且必须有输出 tokens
+            if (duration >= 200 && result.outputTokens > 0) {
+                const speed = (result.outputTokens / duration) * 1000; // tokens/s
+                // 速度 > 1000 认为可能有误，直接抛弃
+                if (speed <= 1000) {
+                    result.outputSpeed = speed;
+                }
             }
         }
 
         return result;
-    }
-
-    /**
-     * 计算输出速度 (tokens/s)
-     * @param outputTokens 输出 token 数
-     * @param durationMs 耗时(毫秒)
-     * @returns 输出速度 (tokens/s)，如果无法计算返回 undefined
-     */
-    static calculateOutputSpeed(outputTokens: number, durationMs: number): number | undefined {
-        if (durationMs > 0 && outputTokens > 0) {
-            return (outputTokens / durationMs) * 1000;
-        }
-        return undefined;
-    }
-
-    /**
-     * 格式化输出速度显示
-     * @param speed 输出速度 (tokens/s)
-     * @returns 格式化后的字符串
-     */
-    static formatOutputSpeed(speed: number | undefined): string {
-        if (speed === undefined) {
-            return '-';
-        }
-        return `${speed.toFixed(1)} t/s`;
     }
 
     /**
