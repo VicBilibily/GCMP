@@ -41,7 +41,11 @@
 
 ### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
 
-- [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：**Doubao-Seed-Code**、[**Ark-Code-Latest**(Thinking)](https://www.volcengine.com/docs/82379/1925114?lang=zh#51b87c17)
+- [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：
+    - 智能调度模型：[**Ark-Code-Latest**](https://www.volcengine.com/docs/82379/1925114?lang=zh#51b87c17)
+    - 指定模型支持：**Doubao-Seed-Code**、**Kimi-K2.5**、**GLM 4.7**、**Deepseek v3.2**、**Kimi-K2-Thinking**
+        - 注：`Kimi-K2.5` 模型支持多模态输入（已预设 `"imageInput": true`），需等待火山方舟完成适配后才支持`视觉识别`功能。
+    - 思考模式变体：除了 **Kimi-K2-Thinking** 外，所有模型均提供 Thinking 思考模式变体模型。
 - **豆包系列**：**Doubao-Seed-1.8**、**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**
 - **协作奖励计划**：**GLM-4.7**、**DeepSeek-V3.2**(Thinking)、**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**
 - **上下文缓存实验性支持**：**Doubao-Seed-1.8**(Caching)、**GLM-4.7**(Caching)

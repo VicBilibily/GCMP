@@ -4,29 +4,12 @@
     "apiKeyTemplate": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
     "models": [
         {
-            "id": "doubao-seed-code-coding-plan",
-            "name": "Doubao-Seed-Code (Coding Plan)",
-            "model": "doubao-seed-code-preview-latest",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。Doubao-Seed-Code 面向Agentic编程任务进行了深度优化，在Terminal Bench、SWE-Bench-Verified-Openhands、Multi-SWE-Bench-Flash-Openhands等多项权威基准测试中表现优异，领先国内同类模型，上下文窗口至256k。",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
-            "extraBody": {
-                "thinking": { "type": "disabled" }
-            }
-        },
-        {
             "id": "ark-code-latest",
             "name": "Ark-Code-Latest",
             "model": "ark-code-latest",
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。支持最新的 Doubao-Seed-Code、DeepSeek-V3.2、GLM-4.7、Kimi-K2 模型，也可开启 Auto 模式，方舟将根据场景选择最优模型。",
+            "tooltip": "Coding Plan Code模型。支持选用 Doubao-Seed-Code、DeepSeek-V3.2、GLM-4.7、Kimi-k2-thinking、Kimi-K2.5 模型，也可开启Auto模式，根据场景选择最优模型。",
             "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
             "capabilities": {
@@ -43,7 +26,7 @@
             "model": "ark-code-latest",
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。支持最新的 Doubao-Seed-Code、DeepSeek-V3.2、GLM-4.7、Kimi-K2 模型，也可开启 Auto 模式，方舟将根据场景选择最优模型。",
+            "tooltip": "Coding Plan Code模型。支持选用 Doubao-Seed-Code、DeepSeek-V3.2、GLM-4.7、Kimi-k2-thinking、Kimi-K2.5 模型，也可开启Auto模式，根据场景选择最优模型。",
             "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
             "capabilities": {
@@ -52,6 +35,157 @@
             },
             "extraBody": {
                 "thinking": { "type": "enabled" }
+            }
+        },
+        {
+            "id": "ark-code-doubao-seed-code",
+            "name": "Doubao-Seed-Code (Coding Plan)",
+            "model": "doubao-seed-code",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。豆包编程模型，面向Agentic编程任务进行了深度优化，具备精准的代码生成、任务调度与逻辑协同能力。",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "thinking": { "type": "disabled" }
+            }
+        },
+        {
+            "id": "ark-code-doubao-seed-code-thinking",
+            "name": "Doubao-Seed-Code (Thinking) (Coding Plan)",
+            "model": "doubao-seed-code",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。豆包编程模型，面向Agentic编程任务进行了深度优化，具备精准的代码生成、任务调度与逻辑协同能力。",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
+        },
+        {
+            "id": "ark-code-kimi-k2.5",
+            "name": "Kimi-K2.5 (Coding Plan)",
+            "model": "kimi-k2.5",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。Moonshot AI 最新编程模型，进一步强化前端代码质量与设计表现力前端能力。",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "thinking": { "type": "disabled" }
+            }
+        },
+        {
+            "id": "ark-code-kimi-k2.5-thinking",
+            "name": "Kimi-K2.5 (Thinking) (Coding Plan)",
+            "model": "kimi-k2.5",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。Moonshot AI 最新编程模型，进一步强化前端代码质量与设计表现力前端能力。",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
+        },
+        {
+            "id": "ark-code-glm-4.7",
+            "name": "GLM-4.7 (Coding Plan)",
+            "model": "glm-4.7",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。智谱 AI 旗舰代码大模型，可轻松解析超长代码库、处理复杂智能体（Agent）任务，在代码生成、调试、全链路理解场景中表现优异。",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": { "type": "disabled" }
+            }
+        },
+        {
+            "id": "ark-code-glm-4.7-thinking",
+            "name": "GLM-4.7 (Thinking) (Coding Plan)",
+            "model": "glm-4.7",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。智谱 AI 旗舰代码大模型，可轻松解析超长代码库、处理复杂智能体（Agent）任务，在代码生成、调试、全链路理解场景中表现优异。",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
+        },
+
+        {
+            "id": "ark-code-deepseek-v3.2",
+            "name": "Deepseek V3.2 (Coding Plan)",
+            "model": "deepseek-v3.2",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。DeepSeek-V3.2，平衡推理能力与输出长度，在通用问答、日常 Agent 任务、轻量级代码开发场景中稳定高效，适配多元AI 需求。",
+            "maxInputTokens": 96000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": { "type": "disabled" }
+            }
+        },
+        {
+            "id": "ark-code-deepseek-v3.2-thinking",
+            "name": "Deepseek V3.2 (Thinking) (Coding Plan)",
+            "model": "deepseek-v3.2",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。DeepSeek-V3.2，平衡推理能力与输出长度，在通用问答、日常 Agent 任务、轻量级代码开发场景中稳定高效，适配多元AI 需求。",
+            "maxInputTokens": 96000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
+        },
+        {
+            "id": "ark-code-kimi-k2-thinking",
+            "name": "Kimi-K2-Thinking (Coding Plan)",
+            "model": "kimi-k2-thinking",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。Moonshot AI 推出的 MoE 混合专家架构大模型，在复杂代码开发、Agent 全链路任务中具备强逻辑推理与多任务协同能力。",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
             }
         },
         {
