@@ -2,11 +2,17 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.18.16] - 2026-01-30
+
+### 完善
+
+- **Kimi For Coding 状态栏**：同步官方调整用量显示格式
+
 ## [0.18.15] - 2026-01-30
 
 ### 新增
 
-- **火山方舟 Coding Plan**：新增多个 Coding Plan 专属模型支持
+- **火山方舟**：新增多个 Coding Plan 专属模型支持
     - **Ark-Code-Latest**：支持选用 Doubao-Seed-Code、DeepSeek-V3.2、GLM-4.7、Kimi-k2-thinking、Kimi-K2.5 模型，也可开启 Auto 模式，根据场景选择最优模型
     - 指定模型支持：`Doubao-Seed-Code`、`Kimi-K2.5`、`GLM-4.7`、`Deepseek V3.2`、`Kimi-K2-Thinking`
 

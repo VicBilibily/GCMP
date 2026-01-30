@@ -18,7 +18,7 @@
         },
         {
             "id": "glm-4.7-thinking",
-            "name": "GLM-4.7-Thinking (Coding Plan)",
+            "name": "GLM-4.7 (Thinking) (Coding Plan)",
             "model": "glm-4.7",
             "sdkMode": "anthropic",
             "baseUrl": "https://open.bigmodel.cn/api/anthropic",

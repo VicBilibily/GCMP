@@ -25,8 +25,8 @@
         {
             "id": "glm-4.7-thinking",
             "model": "glm-4.7",
-            "name": "GLM-4.7-Thinking (iFlow)",
-            "tooltip": "GLM-4.7-Thinking (iFlow)",
+            "name": "GLM-4.7 (Thinking) (iFlow)",
+            "tooltip": "GLM-4.7 (Thinking) (iFlow)",
             "maxInputTokens": 200000,
             "maxOutputTokens": 64000,
             "capabilities": {

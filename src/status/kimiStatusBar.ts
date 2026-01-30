@@ -20,12 +20,14 @@ export interface KimiUsageWindow {
     timeUnit: string;
     /** 详细信息 */
     detail: {
-        /** 限制次数 */
+        /** 限制百分比 */
         limit: number;
-        /** 使用次数 */
+        /** 已使用百分比 */
         used: number;
-        /** 剩余次数 */
+        /** 剩余百分比 */
         remaining: number;
+        /** 重置时间 */
+        resetTime?: string;
     };
 }
 
@@ -33,14 +35,12 @@ export interface KimiUsageWindow {
  * Kimi 使用量摘要数据
  */
 export interface KimiUsageSummary {
-    /** 总限制次数 */
+    /** 总百分比（100%） */
     limit: number;
-    /** 已使用次数 */
+    /** 已使用百分比 */
     used: number;
-    /** 剩余次数 */
+    /** 剩余百分比 */
     remaining: number;
-    /** 使用百分比 */
-    usage_percentage: number;
     /** 重置时间 */
     resetTime: string;
 }
@@ -83,14 +83,12 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
      */
     protected getDisplayText(data: KimiStatusData): string {
         const remaining = data.summary.remaining;
-        let displayText = `${this.config.icon} ${remaining}`;
+        let displayText = `${this.config.icon} ${remaining}%`;
 
-        // 如果有窗口数据，添加每个窗口的剩余数
+        // 如果有窗口数据，添加每个窗口的剩余
         if (data.windows.length > 0) {
             const windowTexts = data.windows.map(window => {
-                // const timeUnit = this.translateTimeUnit(window.timeUnit);
-                // return `${window.duration}${timeUnit}: ${window.detail.remaining}`;
-                return `${window.detail.remaining}`;
+                return `${window.detail.remaining}%`;
             });
             displayText += ` (${windowTexts.join(',')})`;
         }
@@ -107,27 +105,26 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
 
         const { summary } = data;
         md.appendMarkdown('#### Kimi For Coding 使用情况\n\n');
-        md.appendMarkdown('|  套餐限制  | 配额上限 | 剩余额度 |\n');
-        md.appendMarkdown('| :----: | ----: | ----: |\n');
-        md.appendMarkdown(`| **每周额度** | ${summary.limit} | ${summary.remaining} |\n`);
+        md.appendMarkdown('| 频限类型 | 余量 | 重置时间 |\n');
+        md.appendMarkdown('| :----: | ----: | :----: |\n');
 
+        // 添加每周额度
+        const resetTime = new Date(summary.resetTime);
+        const resetTimeStr = this.formatDateTime(resetTime);
+        md.appendMarkdown(`| **每周额度** | ${summary.remaining}% | ${resetTimeStr} |\n`);
+
+        // 添加窗口限制
         if (data.windows.length > 0) {
             for (const window of data.windows) {
                 const timeUnit = this.translateTimeUnit(window.timeUnit);
                 const { detail, duration } = window;
-                md.appendMarkdown(`| **${duration} ${timeUnit}** | ${detail.limit} | ${detail.remaining} |\n`);
+                const windowResetTime = detail.resetTime ? new Date(detail.resetTime) : undefined;
+                const windowResetTimeStr = windowResetTime ? this.formatDateTime(windowResetTime) : 'N/A';
+                md.appendMarkdown(`| **${duration} ${timeUnit}** | ${detail.remaining}% | ${windowResetTimeStr} |\n`);
             }
         }
 
         md.appendMarkdown('\n');
-        if (summary.resetTime) {
-            md.appendMarkdown('---\n');
-            const resetTime = new Date(summary.resetTime);
-            const resetTimeStr = resetTime.toLocaleString('zh-CN');
-            md.appendMarkdown(`**每周重置** ${resetTimeStr}\n`);
-            md.appendMarkdown('\n');
-        }
-
         md.appendMarkdown('---\n');
         md.appendMarkdown('点击状态栏可手动刷新\n');
         return md;
@@ -205,6 +202,7 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
                         limit: number;
                         used?: number;
                         remaining?: number;
+                        resetTime?: string;
                     };
                 }[];
                 code?: string;
@@ -275,19 +273,17 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
 
             const usage = parsedResponse.usage;
 
-            // 计算使用百分比
+            // 解析百分比数值
             const used = typeof usage.used === 'string' ? parseInt(usage.used, 10) : (usage.used ?? 0);
             const limit = typeof usage.limit === 'string' ? parseInt(usage.limit, 10) : usage.limit;
             const remaining =
                 typeof usage.remaining === 'string' ? parseInt(usage.remaining, 10) : (usage.remaining ?? 0);
-            const percentage = limit > 0 ? parseFloat(((used / limit) * 100).toFixed(1)) : 0;
 
-            // 总体用量信息
+            // 总体用量信息（limit、used、remaining 都是百分比）
             const summary: KimiUsageSummary = {
                 limit,
                 used,
                 remaining,
-                usage_percentage: percentage,
                 resetTime: usage.resetTime
             };
 
@@ -307,7 +303,8 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
                         detail: {
                             limit: detailLimit,
                             used: detailUsed,
-                            remaining: detailRemaining
+                            remaining: detailRemaining,
+                            resetTime: detail.resetTime
                         }
                     });
                 }
@@ -331,21 +328,22 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
     }
 
     /**
-     * 检查是否需要高亮警告（已使用百分比高于阈值或任意窗口已使用高于阈值）
+     * 检查是否需要高亮警告（剩余百分比低于阈值或任意窗口剩余百分比低于阈值）
      */
     protected shouldHighlightWarning(data: KimiStatusData): boolean {
         const { summary, windows } = data;
 
-        // 检查总体百分比是否高于阈值
-        if (summary.usage_percentage >= this.HIGH_USAGE_THRESHOLD) {
+        // 检查总体剩余百分比是否低于阈值（已使用百分比高于阈值）
+        const usedPercentage = summary.used;
+        if (usedPercentage >= this.HIGH_USAGE_THRESHOLD) {
             return true;
         }
 
-        // 检查是否存在任意窗口已使用高于阈值
+        // 检查是否存在任意窗口剩余百分比低于阈值
         if (windows.length > 0) {
             for (const window of windows) {
-                const windowPercentage = window.detail.limit > 0 ? (window.detail.used / window.detail.limit) * 100 : 0;
-                if (windowPercentage >= this.HIGH_USAGE_THRESHOLD) {
+                const windowUsedPercentage = window.detail.used;
+                if (windowUsedPercentage >= this.HIGH_USAGE_THRESHOLD) {
                     return true;
                 }
             }
@@ -390,6 +388,17 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
             TIME_UNIT_YEAR: '年'
         };
         return unitMap[timeUnit] || timeUnit;
+    }
+
+    /**
+     * 格式化日期时间为 MM/DD HH:mm 格式
+     */
+    private formatDateTime(date: Date): string {
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${month}/${day} ${hours}:${minutes}`;
     }
 
     /**

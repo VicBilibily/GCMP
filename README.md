@@ -44,7 +44,7 @@
 - [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：
     - 智能调度模型：[**Ark-Code-Latest**](https://www.volcengine.com/docs/82379/1925114?lang=zh#51b87c17)
     - 指定模型支持：**Doubao-Seed-Code**、**Kimi-K2.5**、**GLM 4.7**、**Deepseek v3.2**、**Kimi-K2-Thinking**
-        - 注：`Kimi-K2.5` 模型支持多模态输入（已预设 `"imageInput": true`），需等待火山方舟完成适配后才支持`视觉识别`功能。
+        - 注：`Kimi-K2.5` 模型当前提供商暂不支持多模态输入，需等待火山方舟完成适配后才支持`视觉识别`功能。
     - 思考模式变体：除了 **Kimi-K2-Thinking** 外，所有模型均提供 Thinking 思考模式变体模型。
 - **豆包系列**：**Doubao-Seed-1.8**、**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**
 - **协作奖励计划**：**GLM-4.7**、**DeepSeek-V3.2**(Thinking)、**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**
@@ -64,7 +64,7 @@
 ### [**MoonshotAI**](https://platform.moonshot.cn/) - Kimi K2系列
 
 - [**会员权益**](https://www.kimi.com/coding)：Kimi `会员计划` 套餐的附带的 `Kimi For Coding`，当前使用 Roo Code 发送 Anthropic 请求。
-    - **用量查询**：已支持状态栏显示周期剩余额度，可查看赠送的每周剩余用量及每周重置时间。
+    - **用量查询**：已支持状态栏显示周期剩余用量，可查看套餐的剩余用量及限频重置时间。
 - 预置模型：**Kimi-K2.5**(Thinking)、**Kimi-K2-0905-Preview**、**Kimi-K2-Turbo-Preview**、**Kimi-Latest**
     - **余额查询**：已支持状态栏显示当前账户额度，可查看账户余额状况。
 - 思考模型：**Kimi-K2-Thinking**、**Kimi-K2-Thinking-Turbo**
