@@ -2,8 +2,8 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.18.15",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼、NVIDIA NIM 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
+    "version": "0.18.16",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -19,6 +19,7 @@
         "deepseek",
         "streamlake",
         "dashscope",
+        "nvidia",
         "OpenAI Compatible",
         "Anthropic Compatible",
         "智谱AI",
@@ -62,6 +63,7 @@
         "onLanguageModelProvider:gcmp.deepseek",
         "onLanguageModelProvider:gcmp.streamlake",
         "onLanguageModelProvider:gcmp.dashscope",
+        "onLanguageModelProvider:gcmp.nvidia",
         "onLanguageModelProvider:gcmp.compatible",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
         "onLanguageModelTool:gcmp_minimaxWebSearch",
@@ -162,6 +164,11 @@
             {
                 "command": "gcmp.dashscope.configWizard",
                 "title": "启动 阿里云百炼 配置向导",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.nvidia.setApiKey",
+                "title": "设置 NVIDIA NIM API密钥",
                 "category": "GCMP"
             },
             {
@@ -574,6 +581,11 @@
                 "vendor": "gcmp.dashscope",
                 "displayName": "⦿ 阿里云百炼 (Coding Plan)",
                 "managementCommand": "gcmp.dashscope.configWizard"
+            },
+            {
+                "vendor": "gcmp.nvidia",
+                "displayName": "⦿ NVIDIA NIM",
+                "managementCommand": "gcmp.nvidia.setApiKey"
             },
             {
                 "vendor": "gcmp.compatible",
