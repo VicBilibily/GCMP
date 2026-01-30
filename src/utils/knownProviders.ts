@@ -37,5 +37,6 @@ export const KnownProviders: Record<string, KnownProviderConfig> = {
     modelscope: { displayName: '魔搭社区' },
     openrouter: { displayName: 'OpenRouter' },
     siliconflow: { displayName: '硅基流动' },
-    tbox: { displayName: '百灵大模型' }
+    tbox: { displayName: '百灵大模型' },
+    mistral: { displayName: 'MistralAI' }
 };

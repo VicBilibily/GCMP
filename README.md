@@ -334,6 +334,50 @@ FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimC
 | `Alt+/`       | 手动触发补全建议（NES 模式） |
 | `Shift+Alt+/` | 切换 NES 手动触发模式        |
 
+### 其他示例配置
+
+#### [MistralAI Coding](https://console.mistral.ai/codestral)
+
+```json
+{
+    "gcmp.compatibleModels": [
+        {
+            "id": "codestral-latest",
+            "name": "codestral-latest",
+            "provider": "mistral",
+            "baseUrl": "https://codestral.mistral.ai/v1",
+            "sdkMode": "openai",
+            "maxInputTokens": 32000,
+            "maxOutputTokens": 4096,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        }
+    ],
+    "gcmp.fimCompletion.enabled": true,
+    "gcmp.fimCompletion.debounceMs": 500,
+    "gcmp.fimCompletion.timeoutMs": 5000,
+    "gcmp.fimCompletion.modelConfig": {
+        "provider": "mistral",
+        "baseUrl": "https://codestral.mistral.ai/v1/fim",
+        "model": "codestral-latest",
+        "extraBody": { "code_annotations": null },
+        "maxTokens": 100
+    },
+    "gcmp.nesCompletion.enabled": false,
+    "gcmp.nesCompletion.debounceMs": 500,
+    "gcmp.nesCompletion.timeoutMs": 10000,
+    "gcmp.nesCompletion.manualOnly": false,
+    "gcmp.nesCompletion.modelConfig": {
+        "provider": "mistral",
+        "baseUrl": "https://codestral.mistral.ai/v1",
+        "model": "codestral-latest",
+        "maxTokens": 200
+    }
+}
+```
+
 </details>
 
 ## 🪟 上下文窗口占用比例状态栏

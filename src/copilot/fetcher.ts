@@ -155,7 +155,12 @@ export class Fetcher implements IFetcher {
 
             if (extraBody) {
                 for (const key in extraBody) {
-                    requestBody[key] = extraBody[key];
+                    const value = extraBody[key];
+                    if (value) {
+                        requestBody[key] = value;
+                    } else {
+                        delete requestBody[key];
+                    }
                 }
             }
             // if (Array.isArray(requestBody.messages)) {

@@ -2,6 +2,21 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.18.14] - 2026-01-30
+
+### 新增
+
+- **MistralAI**：新增 MistralAI 提供商支持
+    - 支持 **Codestral** 系列模型（MistralAI 代码补全专用模型）
+    - 支持 FIM（Fill In the Middle）代码补全功能
+    - 支持 NES（Next Edit Suggestions）代码补全功能
+
+### 完善
+
+- **FIM/NES 参数处理**：完善 `extraBody` 参数的处理逻辑
+    - 当 `extraBody` 中的参数值为 `null` 时，自动从请求体中删除该参数
+    - 避免传递 `null` 值导致部分提供商 API 报错
+
 ## [0.18.13] - 2026-01-29
 
 ### 完善
