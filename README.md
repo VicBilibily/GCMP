@@ -39,20 +39,6 @@
     - 默认启用 `联网搜索MCP` 模式，编程套餐支持：Lite(100次/月)、Pro(1000次/月)、Max(4000次/月)。
     - 可通过设置关闭 `联网搜索MCP` 模式以使用 `Web Search API` 按次计费。
 
-### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
-
-- [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：
-    - 智能调度模型：[**Ark-Code-Latest**](https://www.volcengine.com/docs/82379/1925114?lang=zh#51b87c17)
-    - 指定模型支持：**Doubao-Seed-Code**、**Kimi-K2.5**、**GLM 4.7**、**Deepseek v3.2**、**Kimi-K2-Thinking**
-        - 注：`Kimi-K2.5` 模型当前提供商暂不支持多模态输入，需等待火山方舟完成适配后才支持`视觉识别`功能。
-    - 思考模式变体：除了 **Kimi-K2-Thinking** 外，所有模型均提供 Thinking 思考模式变体模型。
-- **豆包系列**：**Doubao-Seed-1.8**、**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**
-- **协作奖励计划**：**GLM-4.7**、**DeepSeek-V3.2**(Thinking)、**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**
-- **上下文缓存实验性支持**：**Doubao-Seed-1.8**(Caching)、**GLM-4.7**(Caching)
-    - 使用此模式需要在后台手动开通模型的[上下文缓存功能](https://www.volcengine.com/docs/82379/1602228?lang=zh)。
-    - 当前内置实现使用 Responses API 的 [`previous_response_id`](https://www.volcengine.com/docs/82379/1398933?lang=zh#51929890) 模式。
-    - 在首次对话请求时默认创建 1h 上下文缓存窗口，本地命中时额外增加 5m 缓存时间差异窗口（即首次对话 55m 后重建 1h 缓存）。
-
 ### [**MiniMax**](https://platform.minimaxi.com/login)
 
 - [**Coding Plan 编程套餐**](https://platform.minimaxi.com/subscribe/coding-plan)：**MiniMax-M2.1**、**MiniMax-M2**
@@ -78,16 +64,30 @@
   "chat.agent.thinkingStyle": "expanded", // 使用 DeepSeek-V3.2 (Reasoner) 时建议展开思考内容
 ```
 
+### [**阿里云百炼**](https://bailian.console.aliyun.com/) - 通义大模型
+
+- [**Coding Plan 套餐**](https://bailian.console.aliyun.com/cn-beijing/?tab=globalset#/efm/coding_plan)：**Qwen3-Coder-Plus**
+- **通义千问系列**：**Qwen3-Max**(Thinking)、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
+
+### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
+
+- [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：**暂不推荐**，普遍不足 60token/s，频发 429 ServerOverloaded。
+    - 智能调度模型：[**Ark-Code-Latest**](https://www.volcengine.com/docs/82379/1925114?lang=zh#51b87c17)
+    - 指定模型支持：**Doubao-Seed-Code**、**Kimi-K2.5**、**GLM-4.7**、**Deepseek v3.2**、**Kimi-K2-Thinking**
+        - 注1：若使用 **Kimi-K2.5** 和 **GLM-4.7**，建议使用官方的订阅套餐，火山方舟提供的模型展无针对性优化，无法作为平替提供商。
+        - 注2：**Kimi-K2.5** 模型当前提供商暂不支持多模态输入，需等待火山方舟完成适配后才支持`视觉识别`功能。
+- **豆包系列**：**Doubao-Seed-1.8**、**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**
+- **协作奖励计划**：**GLM-4.7**、**DeepSeek-V3.2**(Thinking)、**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**
+- **上下文缓存实验性支持**：**Doubao-Seed-1.8**(Caching)、**GLM-4.7**(Caching)
+    - 使用此模式需要在后台手动开通模型的[上下文缓存功能](https://www.volcengine.com/docs/82379/1602228?lang=zh)。
+    - 当前内置实现使用 Responses API 的 [`previous_response_id`](https://www.volcengine.com/docs/82379/1398933?lang=zh#51929890) 模式。
+    - 在首次对话请求时默认创建 1h 上下文缓存窗口，本地命中时额外增加 5m 缓存时间差异窗口（即首次对话 55m 后重建 1h 缓存）。
+
 ### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
 
 - [**KwaiKAT Coding Plan**](https://streamlake.com/marketing/coding-plan)：**KAT-Coder-Pro-V1**
 
 - **KAT-Coder系列**：**KAT-Coder-Pro-V1**(按量付费)、**KAT-Coder-Air-V1**
-
-### [**阿里云百炼**](https://bailian.console.aliyun.com/) - 通义大模型
-
-- [**Coding Plan 套餐**](https://bailian.console.aliyun.com/cn-beijing/?tab=globalset#/efm/coding_plan)：**Qwen3-Coder-Plus**
-- **通义千问系列**：**Qwen3-Max**(Thinking)、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
 
 ### 实验性支持 CLI 认证提供商
 
