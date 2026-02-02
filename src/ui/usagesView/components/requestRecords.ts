@@ -138,7 +138,8 @@ function createRequestRecordsTable(records: ExtendedTokenRequestLog[]): HTMLElem
         '缓存命中',
         '输出Tokens',
         '消耗Tokens',
-        '输出速度',
+        '首Token延迟',
+        '平均输出速度',
         '状态'
     ];
     headers.forEach(h => {
@@ -209,6 +210,22 @@ function createRequestRecordsTable(records: ExtendedTokenRequestLog[]): HTMLElem
                 total.textContent = '-';
             }
 
+            const firstTokenLatency = createElement('td');
+            if (record.streamStartTime !== undefined && record.timestamp !== undefined) {
+                const latency = record.streamStartTime - record.timestamp;
+                if (Number.isFinite(latency) && latency >= 0) {
+                    if (latency >= 1000) {
+                        firstTokenLatency.textContent = `${(latency / 1000).toFixed(1)} s`;
+                    } else {
+                        firstTokenLatency.textContent = `${Math.round(latency)} ms`;
+                    }
+                } else {
+                    firstTokenLatency.textContent = '-';
+                }
+            } else {
+                firstTokenLatency.textContent = '-';
+            }
+
             const status = createElement('td');
             status.className = record.status === 'completed' ? 'status-completed' : '';
             status.textContent = record.status === 'completed' ? '✅' : record.status === 'failed' ? '❌' : '⏳';
@@ -227,13 +244,14 @@ function createRequestRecordsTable(records: ExtendedTokenRequestLog[]): HTMLElem
             row.appendChild(cache);
             row.appendChild(output);
             row.appendChild(total);
+            row.appendChild(firstTokenLatency);
             row.appendChild(speed);
             row.appendChild(status);
             tbody.appendChild(row);
         });
     } else {
         const emptyRow = createElement('tr');
-        const emptyCell = createElement('td', '', { colSpan: 9 });
+        const emptyCell = createElement('td', '', { colSpan: 10 });
         emptyCell.textContent = '暂无请求记录';
         emptyCell.style.textAlign = 'center';
         emptyRow.appendChild(emptyCell);

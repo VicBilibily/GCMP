@@ -45,6 +45,26 @@ export function calculateAverageSpeed(stats: BaseStats): string {
 }
 
 /**
+ * 计算平均首Token延迟
+ */
+export function calculateAverageFirstTokenLatency(stats: BaseStats): string {
+    if (
+        !stats.totalFirstTokenLatency ||
+        stats.totalFirstTokenLatency <= 0 ||
+        !stats.validStreamRequests ||
+        stats.validStreamRequests <= 0
+    ) {
+        return '-';
+    }
+    // 计算平均延迟: 总延迟 / 有效请求数
+    const avgLatency = stats.totalFirstTokenLatency / stats.validStreamRequests;
+    if (avgLatency >= 1000) {
+        return `${(avgLatency / 1000).toFixed(1)} s`;
+    }
+    return `${Math.round(avgLatency)} ms`;
+}
+
+/**
  * 获取今日日期字符串
  */
 export function getTodayDateString(): string {

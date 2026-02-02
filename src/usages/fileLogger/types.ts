@@ -120,10 +120,12 @@ export interface BaseStats {
     cacheTokens: number;
     /** 总输出耗时(毫秒) - 用于计算平均输出速度 */
     totalStreamDuration?: number;
-    /** 有效的请求次数(有时间记录的完成请求) - 用于计算平均输出速度 */
+    /** 有效的请求次数(有时间记录的完成请求) - 用于计算平均输出速度和平均首Token延迟 */
     validStreamRequests?: number;
     /** 有时间记录的输出 tokens - 用于计算平均输出速度（避免历史数据影响） */
     validStreamOutputTokens?: number;
+    /** 总首Token延迟(毫秒) - 用于计算平均首Token延迟 */
+    totalFirstTokenLatency?: number;
     outputTokens: number;
     requests: number;
 }

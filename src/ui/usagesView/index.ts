@@ -232,9 +232,7 @@ export class TokenUsagesView {
                 date: displayDate,
                 isToday: displayDate === today,
                 providers: providers,
-                hourlyStats: Object.entries(dateStats.hourly || {})
-                    .map(([hour, { providers: _providers, ...stat }]) => ({ [hour]: stat }))
-                    .reduce((acc, curr) => ({ ...acc, ...curr }), {}),
+                hourlyStats: dateStats.hourly || {},
                 records: dateRecords, // getDateRecords 已经返回扩展后的记录
                 currentPage: 1
             } as UpdateDateDetailsMessage);
@@ -303,9 +301,7 @@ export class TokenUsagesView {
                     date,
                     isToday: date === today,
                     providers: providers,
-                    hourlyStats: Object.entries(dateStats.hourly || {})
-                        .map(([hour, { providers: _providers, ...stat }]) => ({ [hour]: stat }))
-                        .reduce((acc, curr) => ({ ...acc, ...curr }), {}),
+                    hourlyStats: dateStats.hourly || {},
                     records: dateRecords, // getDateRecords 已经返回扩展后的记录
                     currentPage: this.currentPage
                 } as UpdateDateDetailsMessage);

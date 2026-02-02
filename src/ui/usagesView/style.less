@@ -117,27 +117,6 @@ body {
                 }
             }
         }
-
-        .load-more-container {
-            padding: 6px 12px;
-            text-align: center;
-            border-bottom: 1px solid var(--vscode-panel-border);
-
-            .load-more-button {
-                width: 100%;
-                background-color: var(--vscode-button-secondaryBackground);
-                color: var(--vscode-button-secondaryForeground);
-                border: none;
-                padding: 4px 8px;
-                cursor: pointer;
-                border-radius: 2px;
-                font-size: 10px;
-
-                &:hover {
-                    background-color: var(--vscode-button-secondaryHoverBackground);
-                }
-            }
-        }
     }
 
     .content {
@@ -190,7 +169,7 @@ body {
 
             th,
             td {
-                padding: 3px 5px;
+                padding: 3px;
                 text-align: left;
                 border-bottom: 1px solid var(--vscode-panel-border);
                 white-space: nowrap;
@@ -204,16 +183,13 @@ body {
                 position: sticky;
                 top: 0;
                 z-index: 10;
-
-                /* 提供商表格和小时表格：数值列右对齐（第2-7列） */
-                &:nth-child(n + 2):nth-child(-n + 7) {
-                    text-align: right;
-                }
             }
 
+            th,
             td {
-                /* 提供商表格和小时表格：数值列右对齐（第2-7列） */
-                &:nth-child(n + 2):nth-child(-n + 7) {
+                /* 提供商表格和小时表格：数值列右对齐（第2-8列） */
+                &:nth-child(n + 2):nth-child(-n + 8) {
+                    width: 60px;
                     text-align: right;
                 }
             }
@@ -224,23 +200,41 @@ body {
                 }
             }
         }
+    }
+}
 
-        /* 提供商统计表格特定样式 */
-        .provider-stats-table {
-            /* 第1列（提供商/模型）占较大比例 */
-            th:nth-child(1),
-            td:nth-child(1) {
-                width: 33%;
-                min-width: 150px;
-            }
+/* 小时统计表格嵌套样式 */
+.hourly-stats-table {
+    .hour-row {
+        background-color: var(--vscode-editor-selectionBackground);
+        font-weight: bold;
 
-            /* 数值列平均分配剩余空间 */
-            th:nth-child(n + 2):nth-child(-n + 7),
-            td:nth-child(n + 2):nth-child(-n + 7) {
-                width: 11%;
-                min-width: 80px;
-            }
+        .hour-title {
+            color: var(--vscode-foreground);
         }
+    }
+
+    .provider-row {
+        background-color: var(--vscode-sideBar-background);
+
+        .provider-name {
+            color: var(--vscode-charts-blue);
+        }
+    }
+
+    .model-row {
+        background-color: transparent;
+
+        .model-name {
+            color: var(--vscode-descriptionForeground);
+            padding-left: 8px;
+        }
+    }
+
+    /* 嵌套行悬停效果 */
+    .provider-row:hover,
+    .model-row:hover {
+        background-color: var(--vscode-list-hoverBackground);
     }
 }
 
@@ -248,14 +242,13 @@ body {
 #records-container {
     /* 列宽分配 */
     .records-table {
-        /* 第1列（时间） */
+        /* 第1列（时间）固定宽度 */
         th:nth-child(1),
         td:nth-child(1) {
-            width: 10%;
-            min-width: 70px;
+            width: 50px;
         }
 
-        /* 第2列（提供商） */
+        /* 第2列（提供商）*/
         th:nth-child(2),
         td:nth-child(2) {
             width: 12%;
@@ -265,22 +258,28 @@ body {
         /* 第3列（模型） */
         th:nth-child(3),
         td:nth-child(3) {
-            width: 20%;
+            width: 24%;
             min-width: 120px;
         }
 
-        /* 第4-8列（输入、缓存、输出、消耗、速度）数值列 */
-        th:nth-child(n + 4):nth-child(-n + 8),
-        td:nth-child(n + 4):nth-child(-n + 8) {
-            width: 10%;
-            min-width: 80px;
+        /* 第4-7列（输入、缓存、输出、消耗）数值列固定宽度 */
+        th:nth-child(n + 4):nth-child(-n + 7),
+        td:nth-child(n + 4):nth-child(-n + 7) {
+            width: 60px;
         }
 
-        /* 第9列（状态） */
-        th:nth-child(9),
-        td:nth-child(9) {
-            width: 8%;
-            min-width: 60px;
+        /* 第8-9列（首Token延迟、输出速度）特殊宽度 */
+        th:nth-child(n + 8):nth-child(-n + 9),
+        td:nth-child(n + 8):nth-child(-n + 9) {
+            width: 66px;
+            font-stretch: condensed;
+            letter-spacing: -0.8px;
+        }
+
+        /* 第10列（状态）固定宽度 */
+        th:last-child,
+        td:last-child {
+            width: 40px;
         }
     }
 
@@ -297,13 +296,13 @@ body {
             text-align: left;
         }
 
-        /* 第4-8列（输入、缓存、输出、消耗、速度）右对齐 */
-        &:nth-child(n + 4):nth-child(-n + 8) {
+        /* 第4-9列（输入、缓存、输出、消耗、首Token、速度）右对齐 */
+        &:nth-child(n + 4):nth-child(-n + 9) {
             text-align: right;
         }
 
-        /* 第9列（状态）居中对齐 */
-        &:nth-child(9) {
+        /* 第10列（状态）居中对齐 */
+        &:nth-child(10) {
             text-align: center;
         }
     }

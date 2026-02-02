@@ -136,10 +136,19 @@ export abstract class StatsCalculator {
             stats.total.outputTokens += parsed.outputTokens;
 
             // 累加流耗时信息用于计算平均输出速度（只统计有完整时间记录的）
+            // 累加首Token延迟信息用于计算平均首Token延迟（只统计有完整时间记录的）
             if (parsed.streamDuration && parsed.streamDuration > 0) {
                 stats.total.totalStreamDuration = (stats.total.totalStreamDuration || 0) + parsed.streamDuration;
                 stats.total.validStreamRequests = (stats.total.validStreamRequests || 0) + 1;
                 stats.total.validStreamOutputTokens = (stats.total.validStreamOutputTokens || 0) + parsed.outputTokens;
+
+                if (log.streamStartTime !== undefined && log.timestamp !== undefined) {
+                    const firstTokenLatency = log.streamStartTime - log.timestamp;
+                    if (Number.isFinite(firstTokenLatency) && firstTokenLatency >= 0) {
+                        stats.total.totalFirstTokenLatency =
+                            (stats.total.totalFirstTokenLatency || 0) + firstTokenLatency;
+                    }
+                }
             }
 
             // 更新提供商的 token 统计
@@ -149,11 +158,20 @@ export abstract class StatsCalculator {
             providerStats.outputTokens += parsed.outputTokens;
 
             // 累加提供商级别的流耗时信息（只统计有完整时间记录的）
+            // 累加提供商级别的首Token延迟信息（只统计有完整时间记录的）
             if (parsed.streamDuration && parsed.streamDuration > 0) {
                 providerStats.totalStreamDuration = (providerStats.totalStreamDuration || 0) + parsed.streamDuration;
                 providerStats.validStreamRequests = (providerStats.validStreamRequests || 0) + 1;
                 providerStats.validStreamOutputTokens =
                     (providerStats.validStreamOutputTokens || 0) + parsed.outputTokens;
+
+                if (log.streamStartTime !== undefined && log.timestamp !== undefined) {
+                    const firstTokenLatency = log.streamStartTime - log.timestamp;
+                    if (Number.isFinite(firstTokenLatency) && firstTokenLatency >= 0) {
+                        providerStats.totalFirstTokenLatency =
+                            (providerStats.totalFirstTokenLatency || 0) + firstTokenLatency;
+                    }
+                }
             }
 
             // 按模型聚合(仅成功的请求)
@@ -176,10 +194,19 @@ export abstract class StatsCalculator {
             modelStats.requests++;
 
             // 累加模型级别的流耗时信息（只统计有完整时间记录的）
+            // 累加模型级别的首Token延迟信息（只统计有完整时间记录的）
             if (parsed.streamDuration && parsed.streamDuration > 0) {
                 modelStats.totalStreamDuration = (modelStats.totalStreamDuration || 0) + parsed.streamDuration;
                 modelStats.validStreamRequests = (modelStats.validStreamRequests || 0) + 1;
                 modelStats.validStreamOutputTokens = (modelStats.validStreamOutputTokens || 0) + parsed.outputTokens;
+
+                if (log.streamStartTime !== undefined && log.timestamp !== undefined) {
+                    const firstTokenLatency = log.streamStartTime - log.timestamp;
+                    if (Number.isFinite(firstTokenLatency) && firstTokenLatency >= 0) {
+                        modelStats.totalFirstTokenLatency =
+                            (modelStats.totalFirstTokenLatency || 0) + firstTokenLatency;
+                    }
+                }
             }
         }
 

@@ -46,7 +46,7 @@ export interface UpdateDateDetailsMessage {
     date: string;
     isToday: boolean;
     providers: ProviderData[];
-    hourlyStats: Record<string, Omit<HourlyStats, 'providers'>>;
+    hourlyStats: Record<string, HourlyStats>;
     records: ExtendedTokenRequestLog[];
     currentPage: number;
 }
@@ -60,7 +60,7 @@ export interface UpdatePageRecordsMessage {
 export interface UpdateStatsOnlyMessage {
     command: 'updateStatsOnly';
     providers: ProviderData[];
-    hourlyStats: Record<string, Omit<HourlyStats, 'providers'>>;
+    hourlyStats: Record<string, HourlyStats>;
 }
 
 export type HostMessage =
@@ -92,7 +92,7 @@ export interface DateDetails {
     date: string;
     isToday: boolean;
     providers: ProviderData[];
-    hourlyStats: Record<string, Omit<HourlyStats, 'providers'>>;
+    hourlyStats: Record<string, HourlyStats>;
     records: ExtendedTokenRequestLog[];
     currentPage: number;
 }

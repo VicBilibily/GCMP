@@ -142,6 +142,9 @@ export class LogStatsManager {
             total.validStreamRequests = (total.validStreamRequests || 0) + (hourStats.validStreamRequests || 0);
             total.validStreamOutputTokens =
                 (total.validStreamOutputTokens || 0) + (hourStats.validStreamOutputTokens || 0);
+            // 累加首Token延迟信息
+            total.totalFirstTokenLatency =
+                (total.totalFirstTokenLatency || 0) + (hourStats.totalFirstTokenLatency || 0);
 
             // 聚合提供商统计
             if (hourStats.providers) {
@@ -176,6 +179,9 @@ export class LogStatsManager {
                         (provider.validStreamRequests || 0) + (providerStats.validStreamRequests || 0);
                     provider.validStreamOutputTokens =
                         (provider.validStreamOutputTokens || 0) + (providerStats.validStreamOutputTokens || 0);
+                    // 累加提供商级别的首Token延迟信息
+                    provider.totalFirstTokenLatency =
+                        (provider.totalFirstTokenLatency || 0) + (providerStats.totalFirstTokenLatency || 0);
 
                     // 聚合模型统计
                     if (providerStats.models) {
@@ -205,6 +211,9 @@ export class LogStatsManager {
                                 (model.validStreamRequests || 0) + (modelStats.validStreamRequests || 0);
                             model.validStreamOutputTokens =
                                 (model.validStreamOutputTokens || 0) + (modelStats.validStreamOutputTokens || 0);
+                            // 累加模型级别的首Token延迟信息
+                            model.totalFirstTokenLatency =
+                                (model.totalFirstTokenLatency || 0) + (modelStats.totalFirstTokenLatency || 0);
                         }
                     }
                 }
