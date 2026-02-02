@@ -179,6 +179,8 @@ const extensionBuildOptions = {
     entryPoints: ['./src/extension.ts'],
     outfile: 'dist/extension.js',
     // 排除 copilot.bundle 模块和 @vscode/chat-lib，避免重复打包
+    // 注意：ui/usagesView/index.ts 会被打包到 extension.js 中（后端逻辑）
+    // 只有 ui/usagesView/app.ts 会独立编译成 usagesView.js（前端逻辑）
     external: [...commonOptions.external, './copilot.bundle', '@vscode/chat-lib']
 };
 
@@ -263,7 +265,7 @@ function buildUiConfigs() {
         resolveExtensions: ['.ts', '.js', '.mjs', '.json'],
         logLevel: 'info',
         plugins: [inlineLessPlugin],
-        tsconfig: './tsconfig.json',
+        tsconfig: './tsconfig.ui.json',
         define: {
             'process.env.NODE_ENV': isDev ? '"development"' : '"production"'
         }

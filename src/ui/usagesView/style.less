@@ -203,17 +203,130 @@ body {
     }
 }
 
-/* 小时统计表格嵌套样式 */
-.hourly-stats-table {
-    .hour-row {
-        background-color: var(--vscode-editor-selectionBackground);
-        font-weight: bold;
+/* 小时统计图表样式 */
+.hourly-chart-section {
+    margin: 20px 0;
+    padding: 15px;
+    background-color: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px;
+    position: relative;
 
-        .hour-title {
+    h2 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--vscode-foreground);
+        padding-right: 150px;
+    }
+
+    .chart-toggle-container {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        display: flex;
+        gap: 8px;
+        z-index: 10;
+    }
+
+    .chart-toggle-button {
+        background-color: var(--vscode-button-secondaryBackground);
+        color: var(--vscode-button-secondaryForeground);
+        border: 1px solid var(--vscode-panel-border);
+        padding: 4px 12px;
+        cursor: pointer;
+        border-radius: 3px;
+        font-size: 12px;
+        transition: background-color 0.2s;
+
+        &:hover {
+            background-color: var(--vscode-button-secondaryHoverBackground);
+        }
+
+        &.active {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border-color: var(--vscode-button-background);
+        }
+    }
+
+    .chart-item {
+        &.chart-visible {
+            display: block;
+        }
+
+        &.chart-hidden {
+            display: none;
+        }
+
+        h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 12px;
+            font-weight: 600;
             color: var(--vscode-foreground);
         }
     }
 
+    .chart-container {
+        position: relative;
+        width: 100%;
+        height: auto;
+        min-height: 300px;
+        padding: 10px 0;
+
+        canvas {
+            max-width: 100%;
+        }
+    }
+}
+
+/* 小时统计区域样式 */
+.hourly-stats-section {
+    position: relative;
+
+    h2 {
+        padding-right: 200px;
+    }
+
+    .stats-toggle-container {
+        position: absolute;
+        top: 0;
+        right: 0;
+        display: flex;
+        gap: 8px;
+        z-index: 10;
+    }
+
+    .stats-toggle-button {
+        background-color: var(--vscode-button-secondaryBackground);
+        color: var(--vscode-button-secondaryForeground);
+        border: 1px solid var(--vscode-panel-border);
+        padding: 4px 12px;
+        cursor: pointer;
+        border-radius: 3px;
+        font-size: 12px;
+        transition: background-color 0.2s;
+
+        &:hover {
+            background-color: var(--vscode-button-secondaryHoverBackground);
+        }
+
+        &.active {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border-color: var(--vscode-button-background);
+        }
+    }
+
+    .table-container {
+        margin-top: 15px;
+    }
+}
+
+/* 小时统计表格嵌套样式 */
+.hourly-stats-table {
     .provider-row {
         background-color: var(--vscode-sideBar-background);
 
@@ -223,11 +336,24 @@ body {
     }
 
     .model-row {
-        background-color: transparent;
+        background-color: rgba(255, 255, 255, 0.03);
 
         .model-name {
-            color: var(--vscode-descriptionForeground);
+            color: var(--vscode-foreground);
             padding-left: 8px;
+        }
+    }
+
+    .hour-detail-row {
+        .hour-detail {
+            color: var(--vscode-descriptionForeground);
+            padding-left: 12px;
+        }
+
+        &.model-hour-detail {
+            .hour-detail {
+                padding-left: 24px;
+            }
         }
     }
 
@@ -272,6 +398,10 @@ body {
         th:nth-child(n + 8):nth-child(-n + 9),
         td:nth-child(n + 8):nth-child(-n + 9) {
             width: 66px;
+        }
+
+        /* 第8-9列（首Token延迟、输出速度）字体压缩 */
+        th:nth-child(n + 8):nth-child(-n + 9) {
             font-stretch: condensed;
             letter-spacing: -0.8px;
         }

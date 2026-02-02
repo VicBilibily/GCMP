@@ -26,9 +26,8 @@ export type { ExtendedTokenRequestLog };
  */
 export type WebViewMessage =
     | { command: 'getInitialData' }
-    | { command: 'refresh'; date?: string; page?: number }
+    | { command: 'refresh'; date?: string }
     | { command: 'selectDate'; date: string }
-    | { command: 'changePage'; date: string; page: number }
     | { command: 'openStorageDir' };
 
 /**
@@ -48,26 +47,9 @@ export interface UpdateDateDetailsMessage {
     providers: ProviderData[];
     hourlyStats: Record<string, HourlyStats>;
     records: ExtendedTokenRequestLog[];
-    currentPage: number;
 }
 
-export interface UpdatePageRecordsMessage {
-    command: 'updatePageRecords';
-    records: ExtendedTokenRequestLog[];
-    page: number;
-}
-
-export interface UpdateStatsOnlyMessage {
-    command: 'updateStatsOnly';
-    providers: ProviderData[];
-    hourlyStats: Record<string, HourlyStats>;
-}
-
-export type HostMessage =
-    | UpdateDateListMessage
-    | UpdateDateDetailsMessage
-    | UpdatePageRecordsMessage
-    | UpdateStatsOnlyMessage;
+export type HostMessage = UpdateDateListMessage | UpdateDateDetailsMessage;
 
 // ============= 应用状态类型 =============
 
@@ -81,7 +63,6 @@ export interface State {
     dateDetails: DateDetails | null;
     loading: {
         dateDetails: boolean;
-        pageRecords: boolean;
     };
 }
 
@@ -94,7 +75,6 @@ export interface DateDetails {
     providers: ProviderData[];
     hourlyStats: Record<string, HourlyStats>;
     records: ExtendedTokenRequestLog[];
-    currentPage: number;
 }
 
 /**
@@ -103,6 +83,6 @@ export interface DateDetails {
 declare global {
     interface Window {
         usagesState: State;
-        usagesSetLoading: (type: 'dateDetails' | 'pageRecords', isLoading: boolean) => void;
+        usagesSetLoading: (type: 'dateDetails', isLoading: boolean) => void;
     }
 }

@@ -5,19 +5,31 @@
 
 import type { ExtendedTokenRequestLog } from '../types';
 import { createElement } from '../../utils';
-import { formatTokens, postToVSCode } from '../utils';
+import { formatTokens } from '../utils';
+
+// ============= 全局状态 =============
+
+// 保存当前页码
+let currentPage = 1;
 
 // ============= 工具函数 =============
 
 /**
- * 改变页码
+ * 改变页码（直接更新 DOM，不通过 VS Code 通讯）
  */
-export function changePage(date: string, page: number): void {
-    // 设置加载状态
-    if (window.usagesSetLoading) {
-        window.usagesSetLoading('pageRecords', true);
+export function changePage(page: number): void {
+    if (!window.usagesState?.dateDetails?.records) {
+        return;
     }
-    postToVSCode({ command: 'changePage', date, page });
+
+    // 更新全局页码
+    currentPage = page;
+
+    // 重新渲染请求记录区域（使用容器复用）
+    const recordsContainer = document.querySelector('#records-container') as HTMLElement;
+    if (recordsContainer) {
+        createRequestRecordsSection(window.usagesState.dateDetails.records, currentPage, recordsContainer);
+    }
 }
 
 /**
@@ -31,8 +43,8 @@ function createPagination(currentPage: number, totalPages: number, totalRecords:
     prevBtn.textContent = '上一页';
     prevBtn.disabled = currentPage <= 1;
     prevBtn.onclick = () => {
-        if (currentPage > 1 && window.usagesState?.selectedDate) {
-            changePage(window.usagesState.selectedDate, currentPage - 1);
+        if (currentPage > 1) {
+            changePage(currentPage - 1);
         }
     };
     container.appendChild(prevBtn);
@@ -42,8 +54,8 @@ function createPagination(currentPage: number, totalPages: number, totalRecords:
     firstPageBtn.textContent = '1';
     firstPageBtn.className = `page-number${currentPage === 1 ? ' active' : ''}`;
     firstPageBtn.onclick = () => {
-        if (currentPage !== 1 && window.usagesState?.selectedDate) {
-            changePage(window.usagesState.selectedDate, 1);
+        if (currentPage !== 1) {
+            changePage(1);
         }
     };
     container.appendChild(firstPageBtn);
@@ -70,8 +82,8 @@ function createPagination(currentPage: number, totalPages: number, totalRecords:
         pageBtn.textContent = String(i);
         pageBtn.className = `page-number${i === currentPage ? ' active' : ''}`;
         pageBtn.onclick = () => {
-            if (i !== currentPage && window.usagesState?.selectedDate) {
-                changePage(window.usagesState.selectedDate, i);
+            if (i !== currentPage) {
+                changePage(i);
             }
         };
         container.appendChild(pageBtn);
@@ -90,8 +102,8 @@ function createPagination(currentPage: number, totalPages: number, totalRecords:
         lastPageBtn.textContent = String(totalPages);
         lastPageBtn.className = `page-number${currentPage === totalPages ? ' active' : ''}`;
         lastPageBtn.onclick = () => {
-            if (currentPage !== totalPages && window.usagesState?.selectedDate) {
-                changePage(window.usagesState.selectedDate, totalPages);
+            if (currentPage !== totalPages) {
+                changePage(totalPages);
             }
         };
         container.appendChild(lastPageBtn);
@@ -102,8 +114,8 @@ function createPagination(currentPage: number, totalPages: number, totalRecords:
     nextBtn.textContent = '下一页';
     nextBtn.disabled = currentPage >= totalPages;
     nextBtn.onclick = () => {
-        if (currentPage < totalPages && window.usagesState?.selectedDate) {
-            changePage(window.usagesState.selectedDate, currentPage + 1);
+        if (currentPage < totalPages) {
+            changePage(currentPage + 1);
         }
     };
     container.appendChild(nextBtn);
@@ -265,8 +277,52 @@ function createRequestRecordsTable(records: ExtendedTokenRequestLog[]): HTMLElem
 
 /**
  * 创建请求记录区域
+ * @param records 所有请求记录
+ * @param page 当前页码（可选，不传则使用当前保存的页码）
+ * @param existingContainer 已存在的容器（用于复用，避免闪烁）
  */
-export function createRequestRecordsSection(records: ExtendedTokenRequestLog[], currentPage: number): HTMLElement {
+export function createRequestRecordsSection(
+    records: ExtendedTokenRequestLog[],
+    page?: number,
+    existingContainer?: HTMLElement
+): HTMLElement {
+    // 如果传入了页码，更新全局页码；否则使用当前保存的页码
+    if (page !== undefined) {
+        currentPage = page;
+    }
+
+    // 如果有已存在的容器，直接复用
+    if (existingContainer) {
+        existingContainer.innerHTML = '';
+        const wrapper = createElement('div');
+
+        const totalRecords = records.length;
+        const totalPages = Math.ceil(totalRecords / 20) || 1;
+
+        // 确保当前页码在有效范围内
+        if (currentPage > totalPages) {
+            currentPage = Math.max(1, totalPages);
+        }
+
+        // 分页组件
+        const paginationTop = createPagination(currentPage, totalPages, totalRecords);
+        wrapper.appendChild(paginationTop);
+
+        // 表格
+        const startIndex = (currentPage - 1) * 20;
+        const endIndex = Math.min(startIndex + 20, totalRecords);
+        const pageRecords = records.slice(startIndex, endIndex);
+        wrapper.appendChild(createRequestRecordsTable(pageRecords));
+
+        // 分页组件（底部）
+        const paginationBottom = createPagination(currentPage, totalPages, totalRecords);
+        wrapper.appendChild(paginationBottom);
+
+        existingContainer.appendChild(wrapper);
+        return existingContainer;
+    }
+
+    // 创建新的容器
     const section = createElement('div');
     section.id = 'records-container';
 
@@ -274,6 +330,11 @@ export function createRequestRecordsSection(records: ExtendedTokenRequestLog[], 
 
     const totalRecords = records.length;
     const totalPages = Math.ceil(totalRecords / 20) || 1;
+
+    // 确保当前页码在有效范围内
+    if (currentPage > totalPages) {
+        currentPage = Math.max(1, totalPages);
+    }
 
     // 分页组件
     const paginationTop = createPagination(currentPage, totalPages, totalRecords);

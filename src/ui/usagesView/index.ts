@@ -16,9 +16,8 @@ import { getTodayDateString } from './utils';
  */
 type WebViewMessage =
     | { command: 'getInitialData' }
-    | { command: 'refresh'; date?: string; page?: number }
+    | { command: 'refresh'; date?: string }
     | { command: 'selectDate'; date: string }
-    | { command: 'changePage'; date: string; page: number }
     | { command: 'openStorageDir' };
 
 /**
@@ -29,7 +28,6 @@ export class TokenUsagesView {
     private usagesManager: TokenUsagesManager;
     private updateDisposable: vscode.Disposable | undefined;
     private currentSelectedDate: string | undefined; // 当前查看的日期
-    private currentPage: number = 1; // 当前页码
     private hasCheckedOutdatedStats: boolean = false; // 是否已检查过过期统计
 
     constructor(private context: vscode.ExtensionContext) {
@@ -88,7 +86,7 @@ export class TokenUsagesView {
     /**
      * 更新视图内容
      */
-    private async updateView(selectedDate?: string, page: number = 1): Promise<void> {
+    private async updateView(selectedDate?: string): Promise<void> {
         if (!this.panel) {
             return;
         }
@@ -107,9 +105,8 @@ export class TokenUsagesView {
             const today = getTodayDateString();
             const displayDate = selectedDate || today;
 
-            // 记录当前查看的日期和页码
+            // 记录当前查看的日期
             this.currentSelectedDate = displayDate;
-            this.currentPage = page;
 
             this.panel.webview.html = this.getWebviewContent();
         } catch (err) {
@@ -137,7 +134,7 @@ export class TokenUsagesView {
         if (isViewingToday) {
             // 查看今日 - 刷新整个详情（包括请求记录）+ 更新日期列表
             StatusLogger.debug('[TokenUsagesView] 刷新今日详情 + 日期列表');
-            await this.updateDateDetails(today, false); // false = 不重置页码
+            await this.updateDateDetails(today);
             await this.updateDateListOnly();
         } else {
             // 查看其他日期 - 只刷新日期列表统计
@@ -170,32 +167,6 @@ export class TokenUsagesView {
     }
 
     /**
-     * 只更新统计数据（提供商统计、小时统计），不更新记录列表
-     */
-    private async updateStatsOnly(date: string): Promise<void> {
-        if (!this.panel) {
-            return;
-        }
-
-        try {
-            // 从文件直接读取统计数据
-            const dateStats = await this.usagesManager.getDateStatsFromFile(date);
-            const providers = Object.values(dateStats.providers);
-
-            // 发送消息给 WebView，只更新统计数据
-            this.panel.webview.postMessage({
-                command: 'updateStatsOnly',
-                providers: providers,
-                hourlyStats: dateStats.hourly
-            });
-
-            StatusLogger.debug(`[TokenUsagesView] 已更新统计数据: ${date}, 提供商数=${providers.length}`);
-        } catch (err) {
-            StatusLogger.error('[TokenUsagesView] 更新统计数据失败:', err);
-        }
-    }
-
-    /**
      * 发送初始数据给 WebView
      */
     private async sendInitialData(): Promise<void> {
@@ -216,7 +187,6 @@ export class TokenUsagesView {
 
             // 更新当前状态
             this.currentSelectedDate = displayDate;
-            this.currentPage = 1;
 
             // 发送日期列表（直接发送原始数据，全量）
             this.panel.webview.postMessage({
@@ -233,8 +203,7 @@ export class TokenUsagesView {
                 isToday: displayDate === today,
                 providers: providers,
                 hourlyStats: dateStats.hourly || {},
-                records: dateRecords, // getDateRecords 已经返回扩展后的记录
-                currentPage: 1
+                records: dateRecords // getDateRecords 已经返回扩展后的记录
             } as UpdateDateDetailsMessage);
 
             StatusLogger.debug('[TokenUsagesView] 已发送初始数据');
@@ -253,15 +222,11 @@ export class TokenUsagesView {
                 break;
 
             case 'refresh':
-                await this.updateView(message.date, message.page || 1);
+                await this.updateView(message.date);
                 break;
 
             case 'selectDate':
                 await this.updateDateDetails(message.date);
-                break;
-
-            case 'changePage':
-                await this.updatePageRecords(message.date, message.page);
                 break;
 
             case 'openStorageDir':
@@ -273,7 +238,7 @@ export class TokenUsagesView {
     /**
      * 更新日期详情（动态更新）
      */
-    private async updateDateDetails(date: string, resetPage: boolean = true): Promise<void> {
+    private async updateDateDetails(date: string): Promise<void> {
         try {
             const today = getTodayDateString();
 
@@ -285,9 +250,6 @@ export class TokenUsagesView {
 
             // 更新当前状态
             this.currentSelectedDate = date;
-            if (resetPage) {
-                this.currentPage = 1;
-            }
 
             // 更新面板标题
             if (this.panel) {
@@ -302,42 +264,13 @@ export class TokenUsagesView {
                     isToday: date === today,
                     providers: providers,
                     hourlyStats: dateStats.hourly || {},
-                    records: dateRecords, // getDateRecords 已经返回扩展后的记录
-                    currentPage: this.currentPage
+                    records: dateRecords // getDateRecords 已经返回扩展后的记录
                 } as UpdateDateDetailsMessage);
             }
 
-            StatusLogger.debug(
-                `[TokenUsagesView] 已更新日期详情: ${date}, 记录数=${dateRecords.length}, 当前页=${this.currentPage}`
-            );
+            StatusLogger.debug(`[TokenUsagesView] 已更新日期详情: ${date}, 记录数=${dateRecords.length}`);
         } catch (err) {
             StatusLogger.error('[TokenUsagesView] 更新日期详情失败:', err);
-        }
-    }
-
-    /**
-     * 更新分页记录（动态更新，不重新渲染整个页面）
-     */
-    private async updatePageRecords(date: string, page: number): Promise<void> {
-        try {
-            // 更新当前页码和日期
-            this.currentPage = page;
-            this.currentSelectedDate = date;
-
-            const dateRecords = await this.usagesManager.getDateRecords(date);
-
-            // 发送消息给 WebView，让它更新记录列表
-            if (this.panel) {
-                this.panel.webview.postMessage({
-                    command: 'updatePageRecords',
-                    records: dateRecords, // getDateRecords 已经返回扩展后的记录
-                    page
-                });
-            }
-
-            StatusLogger.debug(`[TokenUsagesView] 已更新分页记录: ${date}, page=${page}`);
-        } catch (err) {
-            StatusLogger.error('[TokenUsagesView] 更新分页记录失败:', err);
         }
     }
 
@@ -388,21 +321,6 @@ export class TokenUsagesView {
 
 		// 加载应用（IIFE，已包含框架和应用代码）
 		${usagesViewJs}
-
-		console.log('[UsagesView] Initializing WebView');
-
-		// 启动视图（不传递任何参数，初始数据通过消息桥加载）
-		if (window.initializeUsagesView) {
-			try {
-				window.initializeUsagesView();
-			} catch (error) {
-				console.error('[UsagesView] Initialization failed:', error);
-				document.getElementById('app').innerHTML = '<div style="color: red; padding: 20px;">Failed to initialize view: ' + error.message + '</div>';
-			}
-		} else {
-			console.error('[UsagesView] initializeUsagesView function not found');
-			document.getElementById('app').innerHTML = '<div style="color: red; padding: 20px;">Failed to load view initialization function</div>';
-		}
 	</script>
 </body>
 </html>`;

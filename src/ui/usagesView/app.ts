@@ -3,9 +3,11 @@
  */
 
 import './style.less';
+import 'chart.js/auto'; // 导入 Chart.js
 
 import type { HostMessage, State } from './types';
 import { getTodayDateString, postToVSCode } from './utils';
+import { createElement } from '../utils';
 
 // 导入组件
 import { createSidebar, updateDateList } from './components/dateList';
@@ -23,10 +25,12 @@ const state: State = {
     dateList: [],
     dateDetails: null,
     loading: {
-        dateDetails: false,
-        pageRecords: false
+        dateDetails: false
     }
 };
+
+// 跟踪上一次的日期，用于检测日期变化
+let lastDateDetailsDate: string | null = null;
 
 /**
  * 状态监听器列表
@@ -62,7 +66,7 @@ function subscribeState(listener: (state: State) => void): () => void {
 /**
  * 设置加载状态
  */
-function setLoading(type: 'dateDetails' | 'pageRecords', isLoading: boolean): void {
+function setLoading(type: 'dateDetails', isLoading: boolean): void {
     setState({
         loading: {
             ...state.loading,
@@ -81,7 +85,7 @@ function updateLoadingOverlay(): void {
     let overlay = document.getElementById('loading-overlay');
 
     // 如果需要显示loading且overlay不存在，则创建
-    const isLoading = state.loading.dateDetails || state.loading.pageRecords;
+    const isLoading = state.loading.dateDetails;
 
     if (isLoading) {
         if (!overlay) {
@@ -137,8 +141,7 @@ function handleVSCodeMessage(event: MessageEvent): void {
                     isToday: message.isToday,
                     providers: message.providers,
                     hourlyStats: message.hourlyStats,
-                    records: message.records,
-                    currentPage: message.currentPage
+                    records: message.records
                 },
                 loading: {
                     ...state.loading,
@@ -151,49 +154,7 @@ function handleVSCodeMessage(event: MessageEvent): void {
                 toggleSidebar(false);
             }
             break;
-
-        case 'updatePageRecords':
-            if (state.dateDetails) {
-                setState({
-                    dateDetails: {
-                        ...state.dateDetails,
-                        records: message.records,
-                        currentPage: message.page
-                    },
-                    loading: {
-                        ...state.loading,
-                        pageRecords: false
-                    }
-                });
-            }
-            break;
-
-        case 'updateStatsOnly':
-            if (state.dateDetails) {
-                setState({
-                    dateDetails: {
-                        ...state.dateDetails,
-                        providers: message.providers,
-                        hourlyStats: message.hourlyStats
-                    }
-                });
-            }
-            break;
     }
-}
-
-// ============= DOM 工具函数 =============
-
-/**
- * 创建元素
- */
-function createElement(tag: string, className: string = '', attributes: Record<string, unknown> = {}): HTMLElement {
-    const element = document.createElement(tag);
-    if (className) {
-        element.className = className;
-    }
-    Object.assign(element, attributes);
-    return element;
 }
 
 // ============= 视图更新 =============
@@ -218,11 +179,20 @@ function updateRequestRecords(): void {
     }
 
     if (recordsSection) {
-        const container = recordsSection.querySelector('#records-container') || recordsSection.querySelector('div');
-        if (container && state.dateDetails) {
-            container.innerHTML = '';
-            container.appendChild(
-                createRequestRecordsSection(state.dateDetails.records, state.dateDetails.currentPage)
+        const existingContainer = recordsSection.querySelector('#records-container') as HTMLElement;
+        if (existingContainer && state.dateDetails) {
+            // 检测日期是否变化
+            const dateChanged = lastDateDetailsDate !== state.dateDetails.date;
+            lastDateDetailsDate = state.dateDetails.date;
+
+            // 如果日期变化了，重置页码；否则保持当前页码
+            const page = dateChanged ? 1 : undefined;
+
+            // 使用容器复用
+            createRequestRecordsSection(
+                state.dateDetails.records,
+                page, // 日期变化时重置页码，否则保持当前页码
+                existingContainer
             );
         }
     }

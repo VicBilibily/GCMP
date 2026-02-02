@@ -5,6 +5,7 @@
 
 import { createProviderStats } from './providerStats';
 import { createHourlyStats } from './hourlyStats';
+import { createHourlyChart } from './hourlyChart';
 import { createElement } from '../../utils';
 
 // ============= 工具函数 =============
@@ -63,12 +64,32 @@ export function updateMainContent(): void {
 
     // 更新内容
     if (dateDetails && dateDetails.providers && dateDetails.providers.length > 0) {
+        // 查找并移除已存在的容器（避免被 innerHTML 清空）
+        const existingChartSection = detailsContent.querySelector('.hourly-chart-section') as HTMLElement;
+        const existingStatsSection = detailsContent.querySelector('.hourly-stats-section') as HTMLElement;
+
+        if (existingChartSection) {
+            existingChartSection.remove();
+        }
+        if (existingStatsSection) {
+            existingStatsSection.remove();
+        }
+
+        // 清空内容
         detailsContent.innerHTML = '';
 
+        // 创建各部分内容
         const providerSection = createProviderStats(dateDetails.providers);
-        const hourlySection = createHourlyStats(dateDetails.hourlyStats);
+        const hourlyChartSection = createHourlyChart(dateDetails.hourlyStats, existingChartSection || undefined);
+        const hourlySection = createHourlyStats(
+            dateDetails.providers,
+            dateDetails.hourlyStats,
+            existingStatsSection || undefined
+        );
 
+        // 添加到 DOM
         detailsContent.appendChild(providerSection);
+        detailsContent.appendChild(hourlyChartSection);
         detailsContent.appendChild(hourlySection);
     } else {
         const displayText2 = dateDetails?.date && isToday(dateDetails.date) ? '今日' : dateDetails?.date || '今日';
