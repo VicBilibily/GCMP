@@ -394,8 +394,7 @@ function createSingleChart(
         },
         options: {
             responsive: true,
-            maintainAspectRatio: true,
-            aspectRatio: 2.5,
+            maintainAspectRatio: false, // 禁用自动宽高比，使用固定高度
             animation: false, // 禁用所有动画
             interaction: {
                 mode: 'index',
