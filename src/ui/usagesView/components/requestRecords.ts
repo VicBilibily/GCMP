@@ -5,7 +5,7 @@
 
 import type { ExtendedTokenRequestLog } from '../types';
 import { createElement } from '../../utils';
-import { formatTokens } from '../utils';
+import { formatTokens, getProviderDisplayName } from '../utils';
 
 // ============= 全局状态 =============
 
@@ -182,7 +182,7 @@ function createRequestRecordsTable(records: ExtendedTokenRequestLog[]): HTMLElem
             }
 
             const provider = createElement('td');
-            provider.textContent = record.providerName || '-';
+            provider.textContent = getProviderDisplayName(record.providerKey, record.providerName) || '-';
 
             const model = createElement('td');
             model.textContent = record.modelName || '-';

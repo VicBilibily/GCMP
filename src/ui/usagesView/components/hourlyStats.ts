@@ -5,7 +5,12 @@
 
 import type { HourlyStats, ModelData, ProviderData } from '../types';
 import { createElement } from '../../utils';
-import { formatTokens, calculateAverageSpeed, calculateAverageFirstTokenLatency } from '../utils';
+import {
+    formatTokens,
+    calculateAverageSpeed,
+    calculateAverageFirstTokenLatency,
+    getProviderDisplayName
+} from '../utils';
 
 // ============= 类型定义 =============
 
@@ -128,7 +133,7 @@ function renderTable(
 
             const providerRow = createElement('tr', 'provider-row') as HTMLTableRowElement;
             const nameCell = createElement('td');
-            nameCell.innerHTML = `<strong class="provider-name">📦 ${provider.providerName}</strong>`;
+            nameCell.innerHTML = `<strong class="provider-name">📦 ${getProviderDisplayName(provider.providerKey, provider.providerName)}</strong>`;
             providerRow.appendChild(nameCell);
 
             appendStatCells(providerRow, provider, true);
@@ -141,11 +146,11 @@ function renderTable(
                 if (!stats.providers) {
                     return;
                 }
-                const providerInHour = Object.values(stats.providers).find(
-                    p => p.providerName === provider.providerName
-                );
+                // 使用 providerKey 查找
+                const providerInHour = provider.providerKey ? stats.providers[provider.providerKey] : undefined;
                 if (providerInHour && providerInHour.requests > 0) {
-                    providerHourlyData.push([hour, providerInHour]);
+                    // 添加 providerKey 字段，转换为 ProviderData 类型
+                    providerHourlyData.push([hour, { ...providerInHour, providerKey: provider.providerKey }]);
                 }
             });
 
@@ -164,7 +169,7 @@ function renderTable(
 
             const providerRow = createElement('tr', 'provider-row') as HTMLTableRowElement;
             const nameCell = createElement('td');
-            nameCell.innerHTML = `<strong class="provider-name">📦 ${provider.providerName}</strong>`;
+            nameCell.innerHTML = `<strong class="provider-name">📦 ${getProviderDisplayName(provider.providerKey, provider.providerName)}</strong>`;
             providerRow.appendChild(nameCell);
 
             appendStatCells(providerRow, provider, true);
@@ -195,9 +200,7 @@ function renderTable(
                     if (!stats.providers) {
                         return;
                     }
-                    const providerInHour = Object.values(stats.providers).find(
-                        p => p.providerName === provider.providerName
-                    );
+                    const providerInHour = provider.providerKey ? stats.providers[provider.providerKey] : undefined;
                     if (providerInHour && providerInHour.models && providerInHour.models[modelId]) {
                         const modelStats = providerInHour.models[modelId];
                         if (modelStats.requests > 0) {

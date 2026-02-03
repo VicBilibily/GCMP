@@ -7,16 +7,27 @@
 
 import type { DateSummary } from '../../usages/types';
 import type {
-    FileLoggerProviderStats as ProviderData,
+    FileLoggerProviderStats,
     FileLoggerModelStats as ModelData,
     HourlyStats,
     TokenRequestLog as RequestRecord
 } from '../../usages/fileLogger/types';
 import type { ExtendedTokenRequestLog } from '../../usages/fileLogger/usageParser';
 
+// ============= UI 层数据类型 =============
+
+/**
+ * UI 层的提供商数据类型
+ * 扩展自 FileLoggerProviderStats，添加 providerKey 字段
+ * 因为在 UI 层使用数组形式，需要保留 providerKey 信息
+ */
+export interface ProviderData extends FileLoggerProviderStats {
+    providerKey: string;
+}
+
 // ============= 重新导出类型供外部使用 =============
 
-export type { DateSummary, ProviderData, ModelData, HourlyStats, RequestRecord };
+export type { DateSummary, ModelData, HourlyStats, RequestRecord };
 export type { ExtendedTokenRequestLog };
 
 // ============= 消息类型定义 =============

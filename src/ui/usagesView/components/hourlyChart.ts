@@ -5,6 +5,7 @@
 
 import type { HourlyStats } from '../types';
 import { createElement } from '../../utils';
+import { getProviderDisplayName } from '../utils';
 import { Chart } from 'chart.js/auto';
 
 // 保存图表实例引用，避免重复创建导致闪烁
@@ -145,7 +146,9 @@ function calcOutputSpeed(stats: { totalStreamDuration?: number; validStreamOutpu
     if (!stats.totalStreamDuration || !stats.validStreamOutputTokens || stats.totalStreamDuration <= 0) {
         return 0;
     }
-    return (stats.validStreamOutputTokens / stats.totalStreamDuration) * 1000; // tokens/秒
+    const speed = (stats.validStreamOutputTokens / stats.totalStreamDuration) * 1000; // tokens/秒
+    // 如果速度 > 1000，认为是异常数据，返回 0（后续会被转为 null）
+    return speed > 1000 ? 0 : speed;
 }
 
 /**
@@ -170,19 +173,23 @@ function initSpeedChart(canvas: HTMLCanvasElement, hourlyStats: Record<string, H
 
     const hours = hourKeys.map(h => parseInt(h, 10));
 
-    const providerMap = new Map<string, Map<number, number>>();
+    // Map 结构: providerId -> { name: string, data: Map<hour, value> }
+    const providerMap = new Map<string, { name: string; data: Map<number, number> }>();
 
     hourKeys.forEach(hourKey => {
         const stats = hourlyStats[hourKey];
         if (stats && stats.providers) {
             const hour = parseInt(hourKey, 10);
-            Object.entries(stats.providers).forEach(([, providerStats]) => {
-                const providerName = providerStats.providerName;
-                if (!providerMap.has(providerName)) {
-                    providerMap.set(providerName, new Map());
+            Object.entries(stats.providers).forEach(([providerId, providerStats]) => {
+                // 使用 providerId 作为唯一标识，避免相同名称的 provider 被合并
+                if (!providerMap.has(providerId)) {
+                    providerMap.set(providerId, {
+                        name: getProviderDisplayName(providerId, providerStats.providerName),
+                        data: new Map()
+                    });
                 }
                 const outputSpeed = calcOutputSpeed(providerStats);
-                providerMap.get(providerName)!.set(hour, outputSpeed);
+                providerMap.get(providerId)!.data.set(hour, outputSpeed);
             });
         }
     });
@@ -214,19 +221,23 @@ function initLatencyChart(canvas: HTMLCanvasElement, hourlyStats: Record<string,
 
     const hours = hourKeys.map(h => parseInt(h, 10));
 
-    const providerMap = new Map<string, Map<number, number>>();
+    // Map 结构: providerId -> { name: string, data: Map<hour, value> }
+    const providerMap = new Map<string, { name: string; data: Map<number, number> }>();
 
     hourKeys.forEach(hourKey => {
         const stats = hourlyStats[hourKey];
         if (stats && stats.providers) {
             const hour = parseInt(hourKey, 10);
-            Object.entries(stats.providers).forEach(([, providerStats]) => {
-                const providerName = providerStats.providerName;
-                if (!providerMap.has(providerName)) {
-                    providerMap.set(providerName, new Map());
+            Object.entries(stats.providers).forEach(([providerId, providerStats]) => {
+                // 使用 providerId 作为唯一标识，避免相同名称的 provider 被合并
+                if (!providerMap.has(providerId)) {
+                    providerMap.set(providerId, {
+                        name: getProviderDisplayName(providerId, providerStats.providerName),
+                        data: new Map()
+                    });
                 }
                 const latency = calcFirstTokenLatency(providerStats);
-                providerMap.get(providerName)!.set(hour, latency);
+                providerMap.get(providerId)!.data.set(hour, latency);
             });
         }
     });
@@ -250,7 +261,7 @@ function initLatencyChart(canvas: HTMLCanvasElement, hourlyStats: Record<string,
  * 从数据映射创建数据集
  */
 function createDatasetsFromMap(
-    providerMap: Map<string, Map<number, number>>,
+    providerMap: Map<string, { name: string; data: Map<number, number> }>,
     hours: number[]
 ): Array<{
     label: string;
@@ -292,16 +303,17 @@ function createDatasetsFromMap(
     ];
 
     let colorIndex = 0;
-    providerMap.forEach((hourData, providerId) => {
+    providerMap.forEach((providerInfo, _providerId) => {
+        const { name: providerName, data: hourData } = providerInfo;
         const data = hours.map(hour => {
             const value = hourData.get(hour) || 0;
-            return value > 0 ? value : null;
+            return value > 0 ? value : null; // null 会让 Chart.js 跳过该点并连接相邻有效点
         });
 
         if (data.some(v => v !== null && v > 0)) {
             const color = providerColors[colorIndex % providerColors.length];
             datasets.push({
-                label: providerId,
+                label: providerName, // 使用友好名称作为显示标签
                 data: data,
                 borderColor: color.border,
                 backgroundColor: color.bg,
@@ -396,6 +408,7 @@ function createSingleChart(
             responsive: true,
             maintainAspectRatio: false, // 禁用自动宽高比，使用固定高度
             animation: false, // 禁用所有动画
+            spanGaps: true, // 自动跳过 null 值并连接相邻有效数据点
             interaction: {
                 mode: 'index',
                 intersect: false

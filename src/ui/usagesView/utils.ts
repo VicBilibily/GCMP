@@ -6,6 +6,21 @@ import { BaseStats } from '../../usages/fileLogger/types';
 import { WebViewMessage } from './types';
 
 /**
+ * 获取提供商显示名称（处理特殊情况）
+ * 例如：providerKey 为 "kimi" 时，显示名称应为 "Kimi"
+ * @param providerKey - 提供商唯一标识
+ * @param providerName - 原始提供商名称
+ * @returns 显示名称
+ */
+export function getProviderDisplayName(providerKey: string, providerName: string): string {
+    // 特殊处理：kimi 显示为 Kimi
+    if (providerKey === 'kimi') {
+        return 'Kimi';
+    }
+    return providerName;
+}
+
+/**
  * 格式化 Token 数量显示
  */
 export function formatTokens(tokens: number | undefined | null): string {
@@ -41,6 +56,10 @@ export function calculateAverageSpeed(stats: BaseStats): string {
     }
     // 计算平均速度: 有时间记录的输出tokens / 总耗时(秒)
     const avgSpeed = (stats.validStreamOutputTokens / stats.totalStreamDuration) * 1000;
+    // 如果速度大于 1000，认为数据异常，返回 "-"
+    if (avgSpeed > 1000) {
+        return '-';
+    }
     return `${avgSpeed.toFixed(1)} t/s`;
 }
 

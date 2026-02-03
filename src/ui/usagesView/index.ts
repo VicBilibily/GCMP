@@ -183,7 +183,11 @@ export class TokenUsagesView {
             const dateStats = await this.usagesManager.getDateStatsFromFile(displayDate);
             const dateRecords = await this.usagesManager.getDateRecords(displayDate);
 
-            const providers = Object.values(dateStats.providers);
+            // 转换 providers 为数组，同时添加 providerKey 字段（因为 Object.values 会丢失 key）
+            const providers = Object.entries(dateStats.providers).map(([key, value]) => ({
+                ...value,
+                providerKey: key
+            }));
 
             // 更新当前状态
             this.currentSelectedDate = displayDate;
@@ -246,7 +250,11 @@ export class TokenUsagesView {
             const dateStats = await this.usagesManager.getDateStatsFromFile(date);
             const dateRecords = await this.usagesManager.getDateRecords(date);
 
-            const providers = Object.values(dateStats.providers);
+            // 转换 providers 为数组，同时添加 providerKey 字段（因为 Object.values 会丢失 key）
+            const providers = Object.entries(dateStats.providers).map(([key, value]) => ({
+                ...value,
+                providerKey: key
+            }));
 
             // 更新当前状态
             this.currentSelectedDate = date;

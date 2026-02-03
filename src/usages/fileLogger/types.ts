@@ -150,6 +150,7 @@ export interface FileLoggerModelStats extends BaseStats {
 /**
  * FileLogger 内部使用的提供商统计
  * 扩展基础统计，添加提供商名称和模型分组
+ * 注意：providerKey 已作为 Record 的 key，无需在对象内重复存储
  */
 export interface FileLoggerProviderStats extends TokenStats {
     providerName: string;

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 提供商统计组件
  * 负责渲染提供商和模型列表
  */
@@ -6,7 +6,13 @@
 import type { ProviderData } from '../types';
 import { createElement } from '../../utils';
 import { TokenStats } from '../../../usages/fileLogger/types';
-import { calculateTotalTokens, formatTokens, calculateAverageSpeed, calculateAverageFirstTokenLatency } from '../utils';
+import {
+    calculateTotalTokens,
+    formatTokens,
+    calculateAverageSpeed,
+    calculateAverageFirstTokenLatency,
+    getProviderDisplayName
+} from '../utils';
 
 // ============= 工具函数 =============
 
@@ -79,7 +85,7 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
 
             const totalTokens = calculateTotalTokens(provider);
 
-            providerRow.appendChild(createCell(provider.providerName));
+            providerRow.appendChild(createCell(getProviderDisplayName(provider.providerKey, provider.providerName)));
             providerRow.appendChild(createCell(formatTokens(provider.actualInput)));
             providerRow.appendChild(createCell(formatTokens(provider.cacheTokens)));
             providerRow.appendChild(createCell(formatTokens(provider.outputTokens)));

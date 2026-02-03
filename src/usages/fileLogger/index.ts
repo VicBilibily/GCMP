@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Token文件日志系统 - 主管理器
  *  整合路径管理、写入管理、读取管理、统计管理
  *--------------------------------------------------------------------------------------------*/
@@ -114,6 +114,18 @@ export class TokenFileLogger {
     // ==================== 写入操作 ====================
 
     /**
+     * 获取提供商显示名称（处理特殊情况）
+     * 例如：providerKey 为 "kimi" 时，显示名称应为 "Kimi"
+     */
+    private getProviderDisplayName(providerKey: string, providerName: string): string {
+        // 特殊处理：kimi 显示为 Kimi
+        if (providerKey === 'kimi') {
+            return 'Kimi';
+        }
+        return providerName;
+    }
+
+    /**
      * 记录预估token(请求前调用)
      */
     async recordEstimatedTokens(params: {
@@ -129,12 +141,15 @@ export class TokenFileLogger {
     }): Promise<void> {
         const now = params.timestamp ?? Date.now();
 
+        // 获取显示名称（处理特殊情况）
+        const displayName = this.getProviderDisplayName(params.providerKey, params.providerName);
+
         const log: TokenRequestLog = {
             requestId: params.requestId,
             timestamp: now,
             isoTime: new Date(now).toISOString(),
             providerKey: params.providerKey,
-            providerName: params.providerName,
+            providerName: displayName,
             modelId: params.modelId,
             modelName: params.modelName,
             estimatedInput: params.estimatedInput,
