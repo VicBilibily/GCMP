@@ -19,6 +19,39 @@
             }
         },
         {
+            "id": "qwen3-coder-max-thinking",
+            "name": "Qwen3-Max (Thinking) (Coding Plan)",
+            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "sdkMode": "anthropic",
+            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+            "provider": "dashscope-coding",
+            "model": "qwen3-max-2026-01-23",
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
+        },
+        {
+            "id": "qwen3-coder-max",
+            "name": "Qwen3-Max (Coding Plan)",
+            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 64000,
+            "sdkMode": "anthropic",
+            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+            "provider": "dashscope-coding",
+            "model": "qwen3-max-2026-01-23",
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
             "id": "qwen3-max-thinking",
             "model": "qwen3-max-2026-01-23",
             "name": "通义千问3-Max (Thinking)",
