@@ -40,6 +40,7 @@ export class CliModelProvider extends GenericModelProvider {
             // 非静默模式下，直接触发用户交互确保有密钥
             await vscode.commands.executeCommand(`gcmp.${this.providerKey}.configWizard`);
             hasApiKey = await ApiKeyManager.ensureApiKey(this.providerKey, this.providerConfig.displayName, false);
+            options.silent = true; // 后续调用调整为静默模式
         }
         if (!hasApiKey) {
             // 如果是静默模式（如扩展启动时），不触发用户交互，直接返回空列表
