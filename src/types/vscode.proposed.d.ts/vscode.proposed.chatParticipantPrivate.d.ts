@@ -6,347 +6,326 @@
 // version: 11
 
 declare module 'vscode' {
-    /**
-     * The location at which the chat is happening.
-     */
-    export enum ChatLocation {
-        /**
-         * The chat panel
-         */
-        Panel = 1,
-        /**
-         * Terminal inline chat
-         */
-        Terminal = 2,
-        /**
-         * Notebook inline chat
-         */
-        Notebook = 3,
-        /**
-         * Code editor inline chat
-         */
-        Editor = 4
-    }
 
-    export class ChatRequestEditorData {
-        //TODO@API should be the editor
-        document: TextDocument;
-        selection: Selection;
-        wholeRange: Range;
+	/**
+	 * The location at which the chat is happening.
+	 */
+	export enum ChatLocation {
+		/**
+		 * The chat panel
+		 */
+		Panel = 1,
+		/**
+		 * Terminal inline chat
+		 */
+		Terminal = 2,
+		/**
+		 * Notebook inline chat
+		 */
+		Notebook = 3,
+		/**
+		 * Code editor inline chat
+		 */
+		Editor = 4,
+	}
 
-        constructor(document: TextDocument, selection: Selection, wholeRange: Range);
-    }
+	export class ChatRequestEditorData {
+		//TODO@API should be the editor
+		document: TextDocument;
+		selection: Selection;
+		wholeRange: Range;
 
-    export class ChatRequestNotebookData {
-        //TODO@API should be the editor
-        readonly cell: TextDocument;
+		constructor(document: TextDocument, selection: Selection, wholeRange: Range);
+	}
 
-        constructor(cell: TextDocument);
-    }
+	export class ChatRequestNotebookData {
+		//TODO@API should be the editor
+		readonly cell: TextDocument;
 
-    export interface ChatRequest {
-        /**
-         * The id of the chat request. Used to identity an interaction with any of the chat surfaces.
-         */
-        readonly id: string;
-        /**
-         * The attempt number of the request. The first request has attempt number 0.
-         */
-        readonly attempt: number;
+		constructor(cell: TextDocument);
+	}
 
-        /**
-         * The session identifier for this chat request
-         */
-        readonly sessionId: string;
+	export interface ChatRequest {
+		/**
+		 * The id of the chat request. Used to identity an interaction with any of the chat surfaces.
+		 */
+		readonly id: string;
+		/**
+		 * The attempt number of the request. The first request has attempt number 0.
+		 */
+		readonly attempt: number;
 
-        /**
-         * If automatic command detection is enabled.
-         */
-        readonly enableCommandDetection: boolean;
+		/**
+		 * The session identifier for this chat request
+		 */
+		readonly sessionId: string;
 
-        /**
-         * If the chat participant or command was automatically assigned.
-         */
-        readonly isParticipantDetected: boolean;
+		/**
+		 * If automatic command detection is enabled.
+		 */
+		readonly enableCommandDetection: boolean;
 
-        /**
-         * The location at which the chat is happening. This will always be one of the supported values
-         *
-         * @deprecated
-         */
-        readonly location: ChatLocation;
+		/**
+		 * If the chat participant or command was automatically assigned.
+		 */
+		readonly isParticipantDetected: boolean;
 
-        /**
-         * Information that is specific to the location at which chat is happening, e.g within a document, notebook,
-         * or terminal. Will be `undefined` for the chat panel.
-         */
-        readonly location2: ChatRequestEditorData | ChatRequestNotebookData | undefined;
+		/**
+		 * The location at which the chat is happening. This will always be one of the supported values
+		 *
+		 * @deprecated
+		 */
+		readonly location: ChatLocation;
 
-        /**
-         * Events for edited files in this session collected since the last request.
-         */
-        readonly editedFileEvents?: ChatRequestEditedFileEvent[];
+		/**
+		 * Information that is specific to the location at which chat is happening, e.g within a document, notebook,
+		 * or terminal. Will be `undefined` for the chat panel.
+		 */
+		readonly location2: ChatRequestEditorData | ChatRequestNotebookData | undefined;
 
-        /**
-         * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
-         * Pass this to tool invocations when calling tools from within a subagent context.
-         */
-        readonly subAgentInvocationId?: string;
-    }
+		/**
+		 * Events for edited files in this session collected since the last request.
+		 */
+		readonly editedFileEvents?: ChatRequestEditedFileEvent[];
 
-    export enum ChatRequestEditedFileEventKind {
-        Keep = 1,
-        Undo = 2,
-        UserModification = 3
-    }
+		/**
+		 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
+		 * Pass this to tool invocations when calling tools from within a subagent context.
+		 */
+		readonly subAgentInvocationId?: string;
 
-    export interface ChatRequestEditedFileEvent {
-        readonly uri: Uri;
-        readonly eventKind: ChatRequestEditedFileEventKind;
-    }
+		/**
+		 * The name of the subagent, used for logging and debugging purposes.
+		 */
+		readonly subAgentName?: string;
 
-    /**
-     * ChatRequestTurn + private additions. Note- at runtime this is the SAME as ChatRequestTurn and instanceof is safe.
-     */
-    export class ChatRequestTurn2 {
-        /**
-         * The id of the chat request. Used to identity an interaction with any of the chat surfaces.
-         */
-        readonly id?: string;
-        /**
-         * The prompt as entered by the user.
-         *
-         * Information about references used in this request is stored in {@link ChatRequestTurn.references}.
-         *
-         * *Note* that the {@link ChatParticipant.name name} of the participant and the {@link ChatCommand.name command}
-         * are not part of the prompt.
-         */
-        readonly prompt: string;
+		/**
+		 * The request ID of the parent request that invoked this subagent.
+		 */
+		readonly parentRequestId?: string;
+	}
 
-        /**
-         * The id of the chat participant to which this request was directed.
-         */
-        readonly participant: string;
+	export enum ChatRequestEditedFileEventKind {
+		Keep = 1,
+		Undo = 2,
+		UserModification = 3,
+	}
 
-        /**
-         * The name of the {@link ChatCommand command} that was selected for this request.
-         */
-        readonly command?: string;
+	export interface ChatRequestEditedFileEvent {
+		readonly uri: Uri;
+		readonly eventKind: ChatRequestEditedFileEventKind;
+	}
 
-        /**
-         * The references that were used in this message.
-         */
-        readonly references: ChatPromptReference[];
+	/**
+	 * ChatRequestTurn + private additions. Note- at runtime this is the SAME as ChatRequestTurn and instanceof is safe.
+	 */
+	export class ChatRequestTurn2 {
+		/**
+		 * The prompt as entered by the user.
+		 *
+		 * Information about references used in this request is stored in {@link ChatRequestTurn.references}.
+		 *
+		 * *Note* that the {@link ChatParticipant.name name} of the participant and the {@link ChatCommand.name command}
+		 * are not part of the prompt.
+		 */
+		readonly prompt: string;
 
-        /**
-         * The list of tools were attached to this request.
-         */
-        readonly toolReferences: readonly ChatLanguageModelToolReference[];
+		/**
+		 * The id of the chat participant to which this request was directed.
+		 */
+		readonly participant: string;
 
-        /**
-         * Events for edited files in this session collected between the previous request and this one.
-         */
-        readonly editedFileEvents?: ChatRequestEditedFileEvent[];
+		/**
+		 * The name of the {@link ChatCommand command} that was selected for this request.
+		 */
+		readonly command?: string;
 
-        /**
-         * @hidden
-         */
-        constructor(
-            prompt: string,
-            command: string | undefined,
-            references: ChatPromptReference[],
-            participant: string,
-            toolReferences: ChatLanguageModelToolReference[],
-            editedFileEvents: ChatRequestEditedFileEvent[] | undefined,
-            id: string | undefined
-        );
-    }
+		/**
+		 * The references that were used in this message.
+		 */
+		readonly references: ChatPromptReference[];
 
-    export class ChatResponseTurn2 {
-        /**
-         * The content that was received from the chat participant. Only the stream parts that represent actual content (not metadata) are represented.
-         */
-        readonly response: ReadonlyArray<
-            | ChatResponseMarkdownPart
-            | ChatResponseFileTreePart
-            | ChatResponseAnchorPart
-            | ChatResponseCommandButtonPart
-            | ExtendedChatResponsePart
-            | ChatToolInvocationPart
-        >;
+		/**
+		 * The list of tools were attached to this request.
+		 */
+		readonly toolReferences: readonly ChatLanguageModelToolReference[];
 
-        /**
-         * The result that was received from the chat participant.
-         */
-        readonly result: ChatResult;
+		/**
+		 * Events for edited files in this session collected between the previous request and this one.
+		 */
+		readonly editedFileEvents?: ChatRequestEditedFileEvent[];
 
-        /**
-         * The id of the chat participant that this response came from.
-         */
-        readonly participant: string;
+		/**
+		 * @hidden
+		 */
+		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined);
+	}
 
-        /**
-         * The name of the command that this response came from.
-         */
-        readonly command?: string;
+	export class ChatResponseTurn2 {
+		/**
+		 * The id of the chat response. Used to identity an interaction with any of the chat surfaces.
+		 */
+		readonly id?: string;
 
-        constructor(
-            response: ReadonlyArray<
-                | ChatResponseMarkdownPart
-                | ChatResponseFileTreePart
-                | ChatResponseAnchorPart
-                | ChatResponseCommandButtonPart
-                | ExtendedChatResponsePart
-            >,
-            result: ChatResult,
-            participant: string
-        );
-    }
+		/**
+		 * The content that was received from the chat participant. Only the stream parts that represent actual content (not metadata) are represented.
+		 */
+		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart | ExtendedChatResponsePart | ChatToolInvocationPart>;
 
-    export interface ChatParticipant {
-        supportIssueReporting?: boolean;
-    }
+		/**
+		 * The result that was received from the chat participant.
+		 */
+		readonly result: ChatResult;
 
-    export enum ChatErrorLevel {
-        Info = 0,
-        Warning = 1,
-        Error = 2
-    }
+		/**
+		 * The id of the chat participant that this response came from.
+		 */
+		readonly participant: string;
 
-    export interface ChatErrorDetails {
-        /**
-         * If set to true, the message content is completely hidden. Only ChatErrorDetails#message will be shown.
-         */
-        responseIsRedacted?: boolean;
+		/**
+		 * The name of the command that this response came from.
+		 */
+		readonly command?: string;
 
-        isQuotaExceeded?: boolean;
+		constructor(response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart | ExtendedChatResponsePart>, result: ChatResult, participant: string);
+	}
 
-        isRateLimited?: boolean;
+	export interface ChatParticipant {
+		supportIssueReporting?: boolean;
+	}
 
-        level?: ChatErrorLevel;
+	export enum ChatErrorLevel {
+		Info = 0,
+		Warning = 1,
+		Error = 2,
+	}
 
-        code?: string;
-    }
+	export interface ChatErrorDetails {
+		/**
+		 * If set to true, the message content is completely hidden. Only ChatErrorDetails#message will be shown.
+		 */
+		responseIsRedacted?: boolean;
 
-    export namespace chat {
-        export function createDynamicChatParticipant(
-            id: string,
-            dynamicProps: DynamicChatParticipantProps,
-            handler: ChatExtendedRequestHandler
-        ): ChatParticipant;
-    }
+		isQuotaExceeded?: boolean;
 
-    /**
-     * These don't get set on the ChatParticipant after creation, like other props, because they are typically defined in package.json and we want them at the time of creation.
-     */
-    export interface DynamicChatParticipantProps {
-        name: string;
-        publisherName: string;
-        description?: string;
-        fullName?: string;
-    }
+		isRateLimited?: boolean;
 
-    export namespace lm {
-        export function registerIgnoredFileProvider(provider: LanguageModelIgnoredFileProvider): Disposable;
-    }
+		level?: ChatErrorLevel;
 
-    export interface LanguageModelIgnoredFileProvider {
-        provideFileIgnored(uri: Uri, token: CancellationToken): ProviderResult<boolean>;
-    }
+		code?: string;
+	}
 
-    export interface LanguageModelToolInvocationOptions<T> {
-        chatRequestId?: string;
-        chatSessionId?: string;
-        chatInteractionId?: string;
-        terminalCommand?: string;
-        subAgentInvocationId?: string;
-    }
+	export namespace chat {
+		export function createDynamicChatParticipant(id: string, dynamicProps: DynamicChatParticipantProps, handler: ChatExtendedRequestHandler): ChatParticipant;
+	}
 
-    export interface LanguageModelToolInvocationPrepareOptions<T> {
-        /**
-         * The input that the tool is being invoked with.
-         */
-        input: T;
-        chatRequestId?: string;
-        chatSessionId?: string;
-        chatInteractionId?: string;
-    }
+	/**
+	 * These don't get set on the ChatParticipant after creation, like other props, because they are typically defined in package.json and we want them at the time of creation.
+	 */
+	export interface DynamicChatParticipantProps {
+		name: string;
+		publisherName: string;
+		description?: string;
+		fullName?: string;
+	}
 
-    export interface PreparedToolInvocation {
-        pastTenseMessage?: string | MarkdownString;
-        presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
-    }
+	export namespace lm {
+		export function registerIgnoredFileProvider(provider: LanguageModelIgnoredFileProvider): Disposable;
+	}
 
-    export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
-        toolResultMessage?: string | MarkdownString;
-        toolResultDetails?: Array<Uri | Location>;
-        toolMetadata?: unknown;
-        /** Whether there was an error calling the tool. The tool may still have partially succeeded. */
-        hasError?: boolean;
-    }
+	export interface LanguageModelIgnoredFileProvider {
+		provideFileIgnored(uri: Uri, token: CancellationToken): ProviderResult<boolean>;
+	}
 
-    // #region Chat participant detection
+	export interface LanguageModelToolInvocationOptions<T> {
+		chatRequestId?: string;
+		chatSessionId?: string;
+		chatSessionResource?: string;
+		chatInteractionId?: string;
+		terminalCommand?: string;
+		subAgentInvocationId?: string;
+		subAgentName?: string;
+	}
 
-    export interface ChatParticipantMetadata {
-        participant: string;
-        command?: string;
-        disambiguation: { category: string; description: string; examples: string[] }[];
-    }
+	export interface LanguageModelToolInvocationPrepareOptions<T> {
+		/**
+		 * The input that the tool is being invoked with.
+		 */
+		input: T;
+		chatRequestId?: string;
+		chatSessionId?: string;
+		chatSessionResource?: string;
+		chatInteractionId?: string;
+	}
 
-    export interface ChatParticipantDetectionResult {
-        participant: string;
-        command?: string;
-    }
+	export interface PreparedToolInvocation {
+		pastTenseMessage?: string | MarkdownString;
+		presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
+	}
 
-    export interface ChatParticipantDetectionProvider {
-        provideParticipantDetection(
-            chatRequest: ChatRequest,
-            context: ChatContext,
-            options: { participants?: ChatParticipantMetadata[]; location: ChatLocation },
-            token: CancellationToken
-        ): ProviderResult<ChatParticipantDetectionResult>;
-    }
+	export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
+		toolResultMessage?: string | MarkdownString;
+		toolResultDetails?: Array<Uri | Location>;
+		toolMetadata?: unknown;
+		/** Whether there was an error calling the tool. The tool may still have partially succeeded. */
+		hasError?: boolean;
+	}
 
-    export namespace chat {
-        export function registerChatParticipantDetectionProvider(
-            participantDetectionProvider: ChatParticipantDetectionProvider
-        ): Disposable;
+	// #region Chat participant detection
 
-        export const onDidDisposeChatSession: Event<string>;
-    }
+	export interface ChatParticipantMetadata {
+		participant: string;
+		command?: string;
+		disambiguation: { category: string; description: string; examples: string[] }[];
+	}
 
-    // #endregion
+	export interface ChatParticipantDetectionResult {
+		participant: string;
+		command?: string;
+	}
 
-    // #region ChatErrorDetailsWithConfirmation
+	export interface ChatParticipantDetectionProvider {
+		provideParticipantDetection(chatRequest: ChatRequest, context: ChatContext, options: { participants?: ChatParticipantMetadata[]; location: ChatLocation }, token: CancellationToken): ProviderResult<ChatParticipantDetectionResult>;
+	}
 
-    export interface ChatErrorDetails {
-        confirmationButtons?: ChatErrorDetailsConfirmationButton[];
-    }
+	export namespace chat {
+		export function registerChatParticipantDetectionProvider(participantDetectionProvider: ChatParticipantDetectionProvider): Disposable;
 
-    export interface ChatErrorDetailsConfirmationButton {
-        data: any;
-        label: string;
-    }
+		export const onDidDisposeChatSession: Event<string>;
+	}
 
-    // #endregion
+	// #endregion
 
-    // #region LanguageModelProxyProvider
+	// #region ChatErrorDetailsWithConfirmation
 
-    /**
-     * Duplicated so that this proposal and languageModelProxy can be independent.
-     */
-    export interface LanguageModelProxy extends Disposable {
-        readonly uri: Uri;
-        readonly key: string;
-    }
+	export interface ChatErrorDetails {
+		confirmationButtons?: ChatErrorDetailsConfirmationButton[];
+	}
 
-    export interface LanguageModelProxyProvider {
-        provideModelProxy(forExtensionId: string, token: CancellationToken): ProviderResult<LanguageModelProxy>;
-    }
+	export interface ChatErrorDetailsConfirmationButton {
+		data: any;
+		label: string;
+	}
 
-    export namespace lm {
-        export function registerLanguageModelProxyProvider(provider: LanguageModelProxyProvider): Disposable;
-    }
+	// #endregion
 
-    // #endregion
+	// #region LanguageModelProxyProvider
+
+	/**
+	 * Duplicated so that this proposal and languageModelProxy can be independent.
+	 */
+	export interface LanguageModelProxy extends Disposable {
+		readonly uri: Uri;
+		readonly key: string;
+	}
+
+	export interface LanguageModelProxyProvider {
+		provideModelProxy(forExtensionId: string, token: CancellationToken): ProviderResult<LanguageModelProxy>;
+	}
+
+	export namespace lm {
+		export function registerLanguageModelProxyProvider(provider: LanguageModelProxyProvider): Disposable;
+	}
+
+	// #endregion
 }

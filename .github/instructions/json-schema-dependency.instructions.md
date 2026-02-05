@@ -1,4 +1,8 @@
-﻿# JSON Schema 依赖选项联动
+﻿---
+description: JSON Schema 条件依赖/联动写法（if/then、allOf、oneOf 等）及在 VS Code settings.json 中的落地与验证。
+---
+
+# JSON Schema 依赖选项联动
 
 ## 目标
 

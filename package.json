@@ -36,7 +36,7 @@
         "url": "https://github.com/VicBilibily/gcmp.git"
     },
     "engines": {
-        "vscode": ">=1.104.0",
+        "vscode": ">=1.109.0",
         "node": ">=20.0.0",
         "npm": ">=9.0.0"
     },
@@ -860,7 +860,7 @@
         "@stylistic/eslint-plugin": "^5.4.0",
         "@types/json-schema": "^7.0.15",
         "@types/node": "^20.0.0",
-        "@types/vscode": "^1.104.0",
+        "@types/vscode": "^1.109.0",
         "@vscode/vsce": "^3.7.1",
         "esbuild": "^0.25.10",
         "eslint": "^9.13.0",

@@ -6,112 +6,110 @@
 // version: 4
 
 declare module 'vscode' {
-    /**
-     * The provider version of {@linkcode LanguageModelChatRequestOptions}
-     */
-    export interface ProvideLanguageModelChatResponseOptions {
-        /**
-         * What extension initiated the request to the language model
-         */
-        readonly requestInitiator: string;
-    }
 
-    /**
-     * All the information representing a single language model contributed by a {@linkcode LanguageModelChatProvider}.
-     */
-    export interface LanguageModelChatInformation {
-        /**
-         * When present, this gates the use of `requestLanguageModelAccess` behind an authorization flow where
-         * the user must approve of another extension accessing the models contributed by this extension.
-         * Additionally, the extension can provide a label that will be shown in the UI.
-         * A common example of a label is an account name that is signed in.
-         *
-         */
-        requiresAuthorization?: true | { label: string };
+	/**
+	* The provider version of {@linkcode LanguageModelChatRequestOptions}
+	*/
+	export interface ProvideLanguageModelChatResponseOptions {
 
-        /**
-         * Whether or not this will be selected by default in the model picker
-         * NOT BEING FINALIZED
-         */
-        readonly isDefault?: boolean | { [K in ChatLocation]?: boolean };
+		/**
+		 * What extension initiated the request to the language model
+		 */
+		readonly requestInitiator: string;
+	}
 
-        /**
-         * Whether or not the model will show up in the model picker immediately upon being made known via {@linkcode LanguageModelChatProvider.provideLanguageModelChatInformation}.
-         * NOT BEING FINALIZED
-         */
-        readonly isUserSelectable?: boolean;
+	/**
+	 * All the information representing a single language model contributed by a {@linkcode LanguageModelChatProvider}.
+	 */
+	export interface LanguageModelChatInformation {
 
-        /**
-         * Optional category to group models by in the model picker.
-         * The lower the order, the higher the category appears in the list.
-         * Has no effect if `isUserSelectable` is `false`.
-         *
-         * WONT BE FINALIZED
-         */
-        readonly category?: { label: string; order: number };
+		/**
+		 * When present, this gates the use of `requestLanguageModelAccess` behind an authorization flow where
+		 * the user must approve of another extension accessing the models contributed by this extension.
+		 * Additionally, the extension can provide a label that will be shown in the UI.
+		 * A common example of a label is an account name that is signed in.
+		 *
+		 */
+		requiresAuthorization?: true | { label: string };
 
-        readonly statusIcon?: ThemeIcon;
-    }
+		/**
+		 * A multiplier indicating how many requests this model counts towards a quota.
+		 * For example, "2x" means each request counts twice.
+		 */
+		readonly multiplier?: string;
 
-    export interface LanguageModelChatCapabilities {
-        /**
-         * The tools the model prefers for making file edits. If not provided or if none of the tools,
-         * are recognized, the editor will try multiple edit tools and pick the best one. The available
-         * edit tools WILL change over time and this capability only serves as a hint to the editor.
-         *
-         * Edit tools currently recognized include:
-         * - 'find-replace': Find and replace text in a document.
-         * - 'multi-find-replace': Find and replace multiple text snippets across documents.
-         * - 'apply-patch': A file-oriented diff format used by some OpenAI models
-         * - 'code-rewrite': A general but slower editing tool that allows the model
-         *   to rewrite and code snippet and provide only the replacement to the editor.
-         *
-         * The order of edit tools in this array has no significance; all of the recognized edit
-         * tools will be made available to the model.
-         */
-        readonly editTools?: string[];
-    }
+		/**
+		 * Whether or not this will be selected by default in the model picker
+		 * NOT BEING FINALIZED
+		 */
+		readonly isDefault?: boolean | { [K in ChatLocation]?: boolean };
 
-    export type LanguageModelResponsePart2 =
-        | LanguageModelResponsePart
-        | LanguageModelDataPart
-        | LanguageModelThinkingPart;
+		/**
+		 * Whether or not the model will show up in the model picker immediately upon being made known via {@linkcode LanguageModelChatProvider.provideLanguageModelChatInformation}.
+		 * NOT BEING FINALIZED
+		 */
+		readonly isUserSelectable?: boolean;
 
-    export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
-        provideLanguageModelChatInformation(
-            options: PrepareLanguageModelChatModelOptions,
-            token: CancellationToken
-        ): ProviderResult<T[]>;
-        provideLanguageModelChatResponse(
-            model: T,
-            messages: readonly LanguageModelChatRequestMessage[],
-            options: ProvideLanguageModelChatResponseOptions,
-            progress: Progress<LanguageModelResponsePart2>,
-            token: CancellationToken
-        ): Thenable<void>;
-    }
+		/**
+		 * Optional category to group models by in the model picker.
+		 * The lower the order, the higher the category appears in the list.
+		 * Has no effect if `isUserSelectable` is `false`.
+		 *
+		 * WONT BE FINALIZED
+		 */
+		readonly category?: { label: string; order: number };
 
-    /**
-     * The list of options passed into {@linkcode LanguageModelChatProvider.provideLanguageModelChatInformation}
-     */
-    export interface PrepareLanguageModelChatModelOptions {
-        /**
-         * Configuration for the model. This is only present if the provider has declared that it requires configuration via the `configuration` property.
-         * The object adheres to the schema that the extension provided during declaration.
-         */
-        readonly configuration?: unknown;
-    }
+		readonly statusIcon?: ThemeIcon;
+	}
 
-    /**
-     * The list of options passed into {@linkcode LanguageModelChatProvider.provideLanguageModelChatInformation}
-     */
-    export interface PrepareLanguageModelChatModelOptions {
-        /**
-         * Configuration for the model. This is only present if the provider has declared that it requires configuration via the `configuration` property.
-         * The object adheres to the schema that the extension provided during declaration.
-         */
-        readonly configuration?: {
-            readonly [key: string]: any;
-        };
-    }
+	export interface LanguageModelChatCapabilities {
+		/**
+		 * The tools the model prefers for making file edits. If not provided or if none of the tools,
+		 * are recognized, the editor will try multiple edit tools and pick the best one. The available
+		 * edit tools WILL change over time and this capability only serves as a hint to the editor.
+		 *
+		 * Edit tools currently recognized include:
+		 * - 'find-replace': Find and replace text in a document.
+		 * - 'multi-find-replace': Find and replace multiple text snippets across documents.
+		 * - 'apply-patch': A file-oriented diff format used by some OpenAI models
+		 * - 'code-rewrite': A general but slower editing tool that allows the model
+		 *   to rewrite and code snippet and provide only the replacement to the editor.
+		 *
+		 * The order of edit tools in this array has no significance; all of the recognized edit
+		 * tools will be made available to the model.
+		 */
+		readonly editTools?: string[];
+	}
+
+	export type LanguageModelResponsePart2 = LanguageModelResponsePart | LanguageModelDataPart | LanguageModelThinkingPart;
+
+	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
+		provideLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
+		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Thenable<void>;
+		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Thenable<void>;
+	}
+
+	/**
+	 * The list of options passed into {@linkcode LanguageModelChatProvider.provideLanguageModelChatInformation}
+	 */
+	export interface PrepareLanguageModelChatModelOptions {
+		/**
+		 * Configuration for the model. This is only present if the provider has declared that it requires configuration via the `configuration` property.
+		 * The object adheres to the schema that the extension provided during declaration.
+		 */
+		readonly configuration?: unknown;
+	}
+
+	/**
+	 * The list of options passed into {@linkcode LanguageModelChatProvider.provideLanguageModelChatInformation}
+	 */
+	export interface PrepareLanguageModelChatModelOptions {
+		/**
+		 * Configuration for the model. This is only present if the provider has declared that it requires configuration via the `configuration` property.
+		 * The object adheres to the schema that the extension provided during declaration.
+		 */
+		readonly configuration?: {
+			readonly [key: string]: any;
+		};
+	}
 }

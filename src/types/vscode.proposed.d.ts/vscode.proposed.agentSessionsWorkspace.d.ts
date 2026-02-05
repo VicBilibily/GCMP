@@ -3,12 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// https://github.com/microsoft/vscode/issues/166971
-
 declare module 'vscode' {
 
 	export namespace workspace {
-
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options?: { readonly isCaseSensitive?: boolean; readonly isReadonly?: boolean | MarkdownString }): Disposable;
+		/**
+		 * Indicates whether the current workspace is an agent sessions workspace.
+		 *
+		 * When this is `true`, session providers should return all sessions
+		 * irrespective of the currently opened workspace folders. This is used
+		 * for dedicated agent sessions views that want to show all available
+		 * sessions across all workspaces.
+		 */
+		export const isAgentSessionsWorkspace: boolean;
 	}
 }

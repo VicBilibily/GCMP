@@ -4,27 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
-    // @alexr00 https://github.com/microsoft/vscode/issues/167253
 
-    /**
-     * Options to reveal a comment thread in an editor.
-     */
-    export interface CommentThreadRevealOptions {
-        /**
-         * By default, the comment thread will be focused. Set `preserveFocus` to `true` to maintain the original focus.
-         */
-        preserveFocus?: boolean;
+	// @alexr00 https://github.com/microsoft/vscode/issues/167253
 
-        /**
-         * Focus the comment thread reply editor, if the thread supports replying.
-         */
-        focusReply?: boolean;
-    }
+	/**
+	 * Options to reveal a comment thread in an editor.
+	 */
+	export interface CommentThreadRevealOptions {
+		/**
+		 * By default, the comment thread will be focused. Set `preserveFocus` to `true` to maintain the original focus.
+		 */
+		preserveFocus?: boolean;
 
-    export interface CommentThread {
-        /**
-         * Reveal the comment thread in an editor.
-         */
-        reveal(options?: CommentThreadRevealOptions): Thenable<void>;
-    }
+		/**
+		 * Focus the comment thread reply editor, if the thread supports replying.
+		 */
+		focusReply?: boolean;
+	}
+
+	export interface CommentThread {
+		/**
+		 * Reveal the comment thread in an editor.
+		 */
+		reveal(options?: CommentThreadRevealOptions): Thenable<void>;
+	}
+
 }

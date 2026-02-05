@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// https://github.com/microsoft/vscode/issues/206411
+
 declare module 'vscode' {
 
-	export namespace env {
-		export function getDataChannel<T>(channelId: string): DataChannel<T>;
+	export class TabInputTextMultiDiff {
+
+		readonly textDiffs: TabInputTextDiff[];
+
+		constructor(textDiffs: TabInputTextDiff[]);
 	}
 
-	export interface DataChannel<T = unknown> {
-		onDidReceiveData: Event<DataChannelEvent<T>>;
-	}
+	export interface Tab {
 
-	export interface DataChannelEvent<T> {
-		data: T;
+		readonly input: TabInputText | TabInputTextDiff | TabInputTextMultiDiff | TabInputCustom | TabInputWebview | TabInputNotebook | TabInputNotebookDiff | TabInputTerminal | unknown;
+
 	}
 }
