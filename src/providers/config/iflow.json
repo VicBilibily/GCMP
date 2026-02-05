@@ -113,8 +113,8 @@
             "model": "kimi-k2.5",
             "name": "Kimi-K2.5 (iFlow)",
             "tooltip": "Kimi-K2.5 (iFlow)",
-            "maxInputTokens": 262144,
-            "maxOutputTokens": 32768,
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 32000,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -128,10 +128,10 @@
         {
             "id": "kimi-k2.5-thinking",
             "model": "kimi-k2.5",
-            "name": "Kimi-2.5 (Thinking) (iFlow)",
-            "tooltip": "Kimi-2.5 (Thinking) (iFlow)",
-            "maxInputTokens": 262144,
-            "maxOutputTokens": 32768,
+            "name": "Kimi-K2.5 (Thinking) (iFlow)",
+            "tooltip": "Kimi-K2.5 (Thinking) (iFlow)",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 32000,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true

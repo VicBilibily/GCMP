@@ -111,8 +111,7 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
             return [];
         }
 
-        if (!options.silent && !hasAnyKey) {
-            Logger.info(`${this.providerConfig.displayName}: 检测到未配置任何密钥，启动配置向导`);
+        if (!options.silent) {
             await DashscopeWizard.startWizard(this.providerConfig.displayName, this.providerConfig.apiKeyTemplate);
 
             const normalKeyValid = await ApiKeyManager.hasValidApiKey(this.providerKey);

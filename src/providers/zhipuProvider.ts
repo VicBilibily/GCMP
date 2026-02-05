@@ -73,6 +73,20 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
     }
 
     /**
+     * 临时重写 provideLanguageModelChatInformation 以支持非静默模式触发向导
+     */
+    override async provideLanguageModelChatInformation(
+        options: { silent: boolean },
+        _token: CancellationToken
+    ): Promise<LanguageModelChatInformation[]> {
+        if (!options.silent) {
+            await vscode.commands.executeCommand(`gcmp.${this.providerKey}.configWizard`);
+            return super.provideLanguageModelChatInformation({ silent: true }, _token);
+        }
+        return super.provideLanguageModelChatInformation(options, _token);
+    }
+
+    /**
      * 覆盖 provideChatResponse 以在请求完成后更新状态栏
      */
     override async provideLanguageModelChatResponse(

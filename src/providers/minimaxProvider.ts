@@ -171,9 +171,8 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             return [];
         }
 
-        // 非静默模式：如果没有任何密钥，启动配置向导
-        if (!options.silent && !hasAnyKey) {
-            Logger.info(`${this.providerConfig.displayName}: 检测到未配置任何密钥，启动配置向导`);
+        // 非静默模式：启动配置向导
+        if (!options.silent) {
             await MiniMaxWizard.startWizard(this.providerConfig.displayName, this.providerConfig.apiKeyTemplate);
 
             // 重新检查是否设置了密钥

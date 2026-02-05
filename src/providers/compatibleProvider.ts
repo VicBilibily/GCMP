@@ -149,7 +149,7 @@ export class CompatibleProvider extends GenericModelProvider {
 
             // 快速路径：检查缓存
             let cachedModels = await this.modelInfoCache?.getCachedModels(CompatibleProvider.PROVIDER_KEY, apiKeyHash);
-            if (cachedModels) {
+            if (options.silent && cachedModels) {
                 Logger.trace(`✓ Compatible Provider 缓存命中: ${cachedModels.length} 个模型`);
 
                 // 读取用户上次选择的模型并标记为默认（仅当启用记忆功能时）
@@ -172,7 +172,7 @@ export class CompatibleProvider extends GenericModelProvider {
             // 获取最新的动态配置
             const currentConfig = this.providerConfig;
             // 如果没有模型，直接返回空列表
-            if (currentConfig.models.length === 0) {
+            if (currentConfig.models.length === 0 || options.silent === false) {
                 // 异步触发新增模型流程，但不阻塞配置获取
                 if (!options.silent) {
                     setImmediate(async () => {
@@ -182,6 +182,9 @@ export class CompatibleProvider extends GenericModelProvider {
                             Logger.debug('自动触发新增模型失败或被用户取消');
                         }
                     });
+                } else {
+                    // 非静默模式下，启动配置向导
+                    await CompatibleModelManager.configureModelOrUpdateAPIKey();
                 }
                 return [];
             }

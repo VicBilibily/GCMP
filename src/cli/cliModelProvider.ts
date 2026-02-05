@@ -37,6 +37,8 @@ export class CliModelProvider extends GenericModelProvider {
                 new Promise<boolean>(resolve => setTimeout(() => resolve(false), 500)) // 500ms timeout
             ]);
         } else {
+            // 非静默模式下，直接触发用户交互确保有密钥
+            await vscode.commands.executeCommand(`gcmp.${this.providerKey}.configWizard`);
             hasApiKey = await ApiKeyManager.ensureApiKey(this.providerKey, this.providerConfig.displayName, false);
         }
         if (!hasApiKey) {

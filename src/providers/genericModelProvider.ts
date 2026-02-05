@@ -9,8 +9,9 @@ import {
     LanguageModelChatInformation,
     LanguageModelChatMessage,
     LanguageModelChatProvider,
-    Progress,
-    ProvideLanguageModelChatResponseOptions
+    PrepareLanguageModelChatModelOptions,
+    ProvideLanguageModelChatResponseOptions,
+    Progress
 } from 'vscode';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { ApiKeyManager, ConfigManager, Logger, ModelInfoCache, TokenCounter, PromptAnalyzer } from '../utils';
@@ -173,9 +174,33 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     }
 
     async provideLanguageModelChatInformation(
-        options: { silent: boolean },
+        options: PrepareLanguageModelChatModelOptions,
         _token: CancellationToken
     ): Promise<LanguageModelChatInformation[]> {
+        Logger.trace(`[${this.providerKey}] 提供模型列表请求，选项: ` + JSON.stringify(options));
+
+        // 检查 API 密钥
+        const hasApiKey = await ApiKeyManager.hasValidApiKey(this.providerKey);
+        if (!options.silent || !hasApiKey) {
+            Logger.debug(`[${this.providerKey}] 检查 API 密钥: ${hasApiKey ? '已配置' : '未配置'}`);
+
+            // 如果是静默模式（如扩展启动时），不触发用户交互，直接返回空列表
+            if (!hasApiKey && options.silent) {
+                return [];
+            }
+
+            Logger.info(`[${this.providerKey}] 需要配置 API 密钥`);
+
+            // 非静默模式下，直接触发API密钥设置
+            await vscode.commands.executeCommand(`gcmp.${this.providerKey}.setApiKey`);
+            // 重新检查API密钥
+            const hasApiKeyAfterSet = await ApiKeyManager.hasValidApiKey(this.providerKey);
+            if (!hasApiKeyAfterSet) {
+                // 如果用户取消设置或设置失败，返回空列表
+                return [];
+            }
+        }
+
         // 快速路径：检查缓存
         try {
             const apiKeyHash = await this.getApiKeyHash();
@@ -208,22 +233,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             );
         }
 
-        // 原始逻辑：检查 API 密钥并构建模型列表
-        const hasApiKey = await ApiKeyManager.hasValidApiKey(this.providerKey);
-        if (!hasApiKey) {
-            // 如果是静默模式（如扩展启动时），不触发用户交互，直接返回空列表
-            if (options.silent) {
-                return [];
-            }
-            // 非静默模式下，直接触发API密钥设置
-            await vscode.commands.executeCommand(`gcmp.${this.providerKey}.setApiKey`);
-            // 重新检查API密钥
-            const hasApiKeyAfterSet = await ApiKeyManager.hasValidApiKey(this.providerKey);
-            if (!hasApiKeyAfterSet) {
-                // 如果用户取消设置或设置失败，返回空列表
-                return [];
-            }
-        }
         // 将配置中的模型转换为VS Code所需的格式
         let models = this.providerConfig.models.map(model => this.modelConfigToInfo(model));
 
