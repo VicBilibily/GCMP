@@ -107,6 +107,40 @@
                 "toolCalling": true,
                 "imageInput": false
             }
+        },
+        {
+            "id": "kimi-k2.5",
+            "model": "kimi-k2.5",
+            "name": "Kimi-K2.5 (iFlow)",
+            "tooltip": "Kimi-K2.5 (iFlow)",
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "chat_template_kwargs": {
+                    "enable_thinking": false
+                }
+            }
+        },
+        {
+            "id": "kimi-k2.5-thinking",
+            "model": "kimi-k2.5",
+            "name": "Kimi-2.5 (Thinking) (iFlow)",
+            "tooltip": "Kimi-2.5 (Thinking) (iFlow)",
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "chat_template_kwargs": {
+                    "enable_thinking": true
+                }
+            }
         }
     ]
 }
