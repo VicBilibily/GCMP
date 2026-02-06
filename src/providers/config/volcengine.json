@@ -4,40 +4,6 @@
     "apiKeyTemplate": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
     "models": [
         {
-            "id": "ark-code-latest",
-            "name": "Ark-Code-Latest",
-            "model": "ark-code-latest",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。支持选用 Doubao-Seed-Code、DeepSeek-V3.2、GLM-4.7、Kimi-k2-thinking、Kimi-K2.5 模型，也可开启Auto模式，根据场景选择最优模型。",
-            "maxInputTokens": 96000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
-            "extraBody": {
-                "thinking": { "type": "disabled" }
-            }
-        },
-        {
-            "id": "ark-code-latest-thinking",
-            "name": "Ark-Code-Latest (Thinking)",
-            "model": "ark-code-latest",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。支持选用 Doubao-Seed-Code、DeepSeek-V3.2、GLM-4.7、Kimi-k2-thinking、Kimi-K2.5 模型，也可开启Auto模式，根据场景选择最优模型。",
-            "maxInputTokens": 96000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
-            "extraBody": {
-                "thinking": { "type": "enabled" }
-            }
-        },
-        {
             "id": "ark-code-doubao-seed-code",
             "name": "Doubao-Seed-Code (Coding Plan)",
             "model": "doubao-seed-code",

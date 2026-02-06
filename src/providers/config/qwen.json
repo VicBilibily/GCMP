@@ -3,7 +3,7 @@
     "baseUrl": "https://portal.qwen.ai/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "customHeader": {
-        "User-Agent": "QwenCode/0.7.1 (win32; x64)"
+        "User-Agent": "QwenCode/0.9.1 (win32; x64)"
     },
     "models": [
         {

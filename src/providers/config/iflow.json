@@ -113,16 +113,16 @@
             "model": "kimi-k2.5",
             "name": "Kimi-K2.5 (iFlow)",
             "tooltip": "Kimi-K2.5 (iFlow)",
-            "maxInputTokens": 128000,
+            "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
             },
             "extraBody": {
-                "chat_template_kwargs": {
-                    "enable_thinking": false
-                }
+                "top_p": 0.95,
+                "temperature": 0.6,
+                "thinking": { "type": "disabled" }
             }
         },
         {
@@ -130,16 +130,16 @@
             "model": "kimi-k2.5",
             "name": "Kimi-K2.5 (Thinking) (iFlow)",
             "tooltip": "Kimi-K2.5 (Thinking) (iFlow)",
-            "maxInputTokens": 128000,
+            "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
             },
             "extraBody": {
-                "chat_template_kwargs": {
-                    "enable_thinking": true
-                }
+                "top_p": 0.95,
+                "temperature": 1.0,
+                "thinking": { "type": "enabled" }
             }
         }
     ]

@@ -2,6 +2,21 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.18.25] - 2026-02-06
+
+### 新增
+
+- **iFlow**：确认新增模型 **Kimi-K2.5**
+    - 模型已测试上线，上下文确认为 256K，支持图片识别
+
+### 移除
+
+- **MoonshotAI**：移除以下旧版模型
+    - `Kimi-K2-Thinking` / `Kimi-K2-Thinking-Turbo`：思考模型
+    - `Kimi-K2-0905-Preview` / `Kimi-K2-Turbo-Preview`：预览版模型
+    - `Kimi-Latest`：视觉模型
+- **火山方舟**：移除 `Ark-Code-Latest` 自动模型
+
 ## [0.18.24] - 2026-02-05
 
 ### 完善

@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.18.24",
+    "version": "0.18.25",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -55,16 +55,16 @@
     "activationEvents": [
         "onStartupFinished",
         "onLanguageModelProvider:gcmp.zhipu",
-        "onLanguageModelProvider:gcmp.volcengine",
         "onLanguageModelProvider:gcmp.minimax",
+        "onLanguageModelProvider:gcmp.moonshot",
+        "onLanguageModelProvider:gcmp.deepseek",
+        "onLanguageModelProvider:gcmp.dashscope",
+        "onLanguageModelProvider:gcmp.volcengine",
+        "onLanguageModelProvider:gcmp.streamlake",
+        "onLanguageModelProvider:gcmp.mthreads",
         "onLanguageModelProvider:gcmp.iflow",
         "onLanguageModelProvider:gcmp.qwen",
         "onLanguageModelProvider:gcmp.gemini",
-        "onLanguageModelProvider:gcmp.moonshot",
-        "onLanguageModelProvider:gcmp.deepseek",
-        "onLanguageModelProvider:gcmp.streamlake",
-        "onLanguageModelProvider:gcmp.dashscope",
-        "onLanguageModelProvider:gcmp.mthreads",
         "onLanguageModelProvider:gcmp.compatible",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
         "onLanguageModelTool:gcmp_minimaxWebSearch",
@@ -80,11 +80,6 @@
             {
                 "command": "gcmp.zhipu.configWizard",
                 "title": "智谱AI 配置向导（API密钥 & 搜索 MCP 模式）",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.volcengine.setApiKey",
-                "title": "设置 火山方舟 API密钥",
                 "category": "GCMP"
             },
             {
@@ -108,26 +103,6 @@
                 "category": "GCMP"
             },
             {
-                "command": "gcmp.iflow.setApiKey",
-                "title": "设置 心流AI API密钥",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.iflow.configWizard",
-                "title": "iFlow CLI 配置向导（CLI 认证）",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.qwen.configWizard",
-                "title": "Qwen Code CLI 配置向导（CLI 认证）",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.gemini.configWizard",
-                "title": "Gemini CLI 配置向导（CLI 认证）",
-                "category": "GCMP"
-            },
-            {
                 "command": "gcmp.kimi.setApiKey",
                 "title": "设置 Kimi API密钥",
                 "category": "GCMP"
@@ -145,6 +120,11 @@
             {
                 "command": "gcmp.deepseek.setApiKey",
                 "title": "设置 DeepSeek API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.volcengine.setApiKey",
+                "title": "设置 火山方舟 API密钥",
                 "category": "GCMP"
             },
             {
@@ -170,6 +150,26 @@
             {
                 "command": "gcmp.mthreads.setApiKey",
                 "title": "设置 摩尔线程 API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.iflow.setApiKey",
+                "title": "设置 心流AI API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.iflow.configWizard",
+                "title": "iFlow CLI 配置向导（CLI 认证）",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.qwen.configWizard",
+                "title": "Qwen Code CLI 配置向导（CLI 认证）",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.gemini.configWizard",
+                "title": "Gemini CLI 配置向导（CLI 认证）",
                 "category": "GCMP"
             },
             {
@@ -539,14 +539,39 @@
                 "managementCommand": "gcmp.zhipu.configWizard"
             },
             {
+                "vendor": "gcmp.minimax",
+                "displayName": "⦿ MiniMax (Coding Plan)",
+                "managementCommand": "gcmp.minimax.configWizard"
+            },
+            {
+                "vendor": "gcmp.moonshot",
+                "displayName": "⦿ MoonshotAI (Kimi For Coding)",
+                "managementCommand": "gcmp.moonshot.configWizard"
+            },
+            {
+                "vendor": "gcmp.deepseek",
+                "displayName": "⦿ DeepSeek",
+                "managementCommand": "gcmp.deepseek.setApiKey"
+            },
+            {
+                "vendor": "gcmp.dashscope",
+                "displayName": "⦿ 阿里云百炼 (Coding Plan)",
+                "managementCommand": "gcmp.dashscope.configWizard"
+            },
+            {
                 "vendor": "gcmp.volcengine",
                 "displayName": "⦿ 火山方舟 (Coding Plan)",
                 "managementCommand": "gcmp.volcengine.setApiKey"
             },
             {
-                "vendor": "gcmp.minimax",
-                "displayName": "⦿ MiniMax (Coding Plan)",
-                "managementCommand": "gcmp.minimax.configWizard"
+                "vendor": "gcmp.streamlake",
+                "displayName": "⦿ 快手万擎 (KAT-Coder)",
+                "managementCommand": "gcmp.streamlake.setApiKey"
+            },
+            {
+                "vendor": "gcmp.mthreads",
+                "displayName": "⨮ 摩尔线程 (AI Coding Plan)",
+                "managementCommand": "gcmp.mthreads.setApiKey"
             },
             {
                 "vendor": "gcmp.iflow",
@@ -562,31 +587,6 @@
                 "vendor": "gcmp.gemini",
                 "displayName": "⨮ Gemini CLI",
                 "managementCommand": "gcmp.gemini.configWizard"
-            },
-            {
-                "vendor": "gcmp.moonshot",
-                "displayName": "⦿ MoonshotAI (Kimi For Coding)",
-                "managementCommand": "gcmp.moonshot.configWizard"
-            },
-            {
-                "vendor": "gcmp.deepseek",
-                "displayName": "⦿ DeepSeek",
-                "managementCommand": "gcmp.deepseek.setApiKey"
-            },
-            {
-                "vendor": "gcmp.streamlake",
-                "displayName": "⦿ 快手万擎 (KAT-Coder)",
-                "managementCommand": "gcmp.streamlake.setApiKey"
-            },
-            {
-                "vendor": "gcmp.dashscope",
-                "displayName": "⦿ 阿里云百炼 (Coding Plan)",
-                "managementCommand": "gcmp.dashscope.configWizard"
-            },
-            {
-                "vendor": "gcmp.mthreads",
-                "displayName": "⨮ 摩尔线程 (AI Coding Plan)",
-                "managementCommand": "gcmp.mthreads.setApiKey"
             },
             {
                 "vendor": "gcmp.compatible",
