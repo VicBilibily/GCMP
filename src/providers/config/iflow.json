@@ -4,22 +4,54 @@
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
-            "id": "glm-4.6",
-            "name": "GLM-4.6 (iFlow)",
-            "tooltip": "GLM-4.6 (iFlow)",
+            "id": "glm-4.7",
+            "name": "GLM-4.7 (iFlow)",
+            "tooltip": "GLM-4.7 (iFlow)",
             "maxInputTokens": 200000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "chat_template_kwargs": {
+                    "enable_thinking": false
+                }
+            }
+        },
+        {
+            "id": "glm-4.7-thinking",
+            "model": "glm-4.7",
+            "name": "GLM-4.7 (Thinking) (iFlow)",
+            "tooltip": "GLM-4.7 (Thinking) (iFlow)",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "chat_template_kwargs": {
+                    "enable_thinking": true
+                }
+            }
+        },
+        {
+            "id": "iFlow-ROME-30BA3B",
+            "name": "iFlow-ROME-30BA3B (Preview)",
+            "tooltip": "iFlow-ROME-30BA3B (Preview)",
+            "maxInputTokens": 256000,
             "maxOutputTokens": 64000,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
             }
         },
-
         {
-            "id": "iFlow-ROME-30BA3B",
-            "name": "iFlow-ROME",
-            "tooltip": "iFlow-ROME",
-            "maxInputTokens": 256000,
+            "id": "deepseek-v3.2-reasoner",
+            "name": "DeepSeek-V3.2-Reasoner (iFlow)",
+            "tooltip": "DeepSeek-V3.2-Reasoner (iFlow)",
+            "maxInputTokens": 128000,
             "maxOutputTokens": 64000,
             "capabilities": {
                 "toolCalling": true,
@@ -37,7 +69,31 @@
                 "imageInput": false
             }
         },
-
+        {
+            "id": "kimi-k2-thinking",
+            "name": "Kimi-K2-Thinking (iFlow)",
+            "tooltip": "Kimi-K2-Thinking (iFlow)",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "minimax-m2.1",
+            "name": "MiniMax-M2.1 (iFlow)",
+            "tooltip": "MiniMax-M2.1 (iFlow)",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "reasoning_split": true
+            }
+        },
         {
             "id": "kimi-k2-0905",
             "name": "Kimi-K2-0905 (iFlow)",
@@ -47,6 +103,40 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
+            }
+        },
+        {
+            "id": "kimi-k2.5",
+            "model": "kimi-k2.5",
+            "name": "Kimi-K2.5 (iFlow)",
+            "tooltip": "Kimi-K2.5 (iFlow)",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "top_p": 0.95,
+                "temperature": 0.6,
+                "thinking": { "type": "disabled" }
+            }
+        },
+        {
+            "id": "kimi-k2.5-thinking",
+            "model": "kimi-k2.5",
+            "name": "Kimi-K2.5 (Thinking) (iFlow)",
+            "tooltip": "Kimi-K2.5 (Thinking) (iFlow)",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "top_p": 0.95,
+                "temperature": 1.0,
+                "thinking": { "type": "enabled" }
             }
         }
     ]

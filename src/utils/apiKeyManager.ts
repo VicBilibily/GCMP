@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as crypto from 'node:crypto';
 import { ApiKeyValidation } from '../types/sharedTypes';
 import { Logger } from './logger';
 import { StatusBarManager } from '../status';
@@ -95,6 +96,20 @@ export class ApiKeyManager {
     static async deleteApiKey(provider: string): Promise<void> {
         const secretKey = this.getSecretKey(provider);
         await this.context.secrets.delete(secretKey);
+    }
+
+    /**
+     * 获取或创建会话ID（用于iFlow网关签名）
+     * 存储在 SecretStorage 中，键名为 {provider}.session_id
+     */
+    static async getOrCreateSessionId(provider: string): Promise<string> {
+        const key = `${provider}.session_id`;
+        let sessionId = await this.context.secrets.get(key);
+        if (!sessionId) {
+            sessionId = crypto.randomUUID();
+            await this.context.secrets.store(key, sessionId);
+        }
+        return sessionId;
     }
 
     /**

@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
-import { Logger, VersionManager } from '../utils';
+import { Logger, VersionManager, isIFlowGatewayURL, applyIFlowGatewayHeaders } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
@@ -102,6 +102,11 @@ export class OpenAIHandler {
         const defaultHeaders: Record<string, string> = {
             'User-Agent': VersionManager.getUserAgent('OpenAI')
         };
+
+        // 注入 iFlow 网关签名头
+        if (baseURL && isIFlowGatewayURL(baseURL)) {
+            await applyIFlowGatewayHeaders(defaultHeaders, currentApiKey, providerKey);
+        }
 
         // 合并提供商级别和模型级别的 customHeader
         // 模型级别的 customHeader 会覆盖提供商级别的同名头部
