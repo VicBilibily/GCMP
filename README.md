@@ -59,10 +59,6 @@
 - 预置模型：**DeepSeek-V3.2**(Reasoner)
     - **余额查询**：已支持状态栏显示当前账户额度，可查看账户余额详情。
 
-```json
-  "chat.agent.thinkingStyle": "expanded", // 使用 DeepSeek-V3.2 (Reasoner) 时建议展开思考内容
-```
-
 ### [**阿里云百炼**](https://bailian.console.aliyun.com/) - 通义大模型
 
 - [**Coding Plan 套餐**](https://bailian.console.aliyun.com/cn-beijing/?tab=globalset#/efm/coding_plan)：**Qwen3-Max**(Thinking)、**Qwen3-Coder-Plus**
@@ -101,16 +97,13 @@
 
 阿里巴巴旗下的AI平台，支持通过 `iFlow CLI` 进行 `使用 iFlow 登录` 认证（需要本地安装 `iFlow CLI`）。
 
+> 由于 iFlow 接口针对 CLI 专有模型增加了请求签名验证，已不再允许外部调用这些模型（虽可逆向，但求合规），只在 CLI 可用的模型不再内置。
+
 ```bash
 npm install -g @iflow-ai/iflow-cli@latest
 ```
 
-- **智谱AI系列**：**GLM-4.7**(Thinking)
-- **DeepSeek系列**：**DeepSeek-V3.2-Reasoner**
-- **通义千问系列**：**Qwen3-Coder-Plus**
-- **Kimi系列**：**Kimi-K2.5**(Thinking)、**Kimi-K2-Thinking**、**Kimi-K2-0905**
-- **MiniMax系列**：**MiniMax-2.1**
-- **iFlow系列**：**iFlow-ROME-30BA3B**(Preview)
+- **支持模型**：**GLM-4.6**、**iFlow-ROME**、**Qwen3-Coder-Plus**、**Kimi-K2-0905**
 
 ### [**Qwen Code**](https://qwenlm.github.io/qwen-code-docs/zh/users/overview/) - Qwen Code CLI
 
@@ -609,12 +602,6 @@ npm install
 ## 💰 赞助
 
 如果您觉得这个项目对您有帮助，欢迎通过 [查看赞助二维码](donate.jpg) 支持项目的持续开发。
-
-## 🙏 致谢
-
-感谢以下组织对本项目的支持：
-
-- 0.18.0 之前的项目Logo 来源于 [三花AI](https://sanhua.himrr.com/)，版权归 重庆毛茸茸科技有限责任公司 所有。
 
 ## 📄 许可证
 

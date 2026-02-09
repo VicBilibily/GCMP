@@ -2,6 +2,15 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.18.26] - 2026-02-09
+
+### 移除
+
+- **iFlow CLI**：移除受签名验证保护的 CLI 专有模型
+    - 移除模型：`GLM-4.7`、`GLM-4.7 (Thinking)`、`DeepSeek-V3.2-Reasoner`、`Kimi-K2-Thinking`、`Kimi-K2.5`、`Kimi-K2.5 (Thinking)`、`MiniMax-M2.1`
+    - 保留模型：`GLM-4.6`、`iFlow-ROME`、`Qwen3-Coder-Plus`、`Kimi-K2-0905`
+    - 原因：iFlow 接口针对 CLI 专有模型增加了请求签名验证，这些模型只能通过 iFlow CLI 使用，不再支持外部 API 调用
+
 ## [0.18.25] - 2026-02-06
 
 ### 新增
