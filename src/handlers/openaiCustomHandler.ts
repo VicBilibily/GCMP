@@ -1,11 +1,11 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  OpenAI 自定义 SSE 处理器
  *  使用原生 fetch API 和自定义 SSE 流处理，支持 reasoning_content 等扩展字段
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
-import { Logger } from '../utils';
+import { Logger, isIFlowGatewayURL, applyIFlowGatewayHeaders } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
@@ -123,13 +123,20 @@ export class OpenAICustomHandler {
             // 处理合并后的 customHeader 中的 API 密钥替换
             const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, apiKey);
 
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${apiKey}`,
+                ...processedCustomHeader
+            };
+
+            // 注入 iFlow 网关签名头
+            if (baseURL && isIFlowGatewayURL(baseURL)) {
+                await applyIFlowGatewayHeaders(headers, apiKey, provider);
+            }
+
             const response = await fetch(url, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${apiKey}`,
-                    ...processedCustomHeader
-                },
+                headers: headers,
                 body: JSON.stringify(requestBody),
                 signal: abortController.signal
             });

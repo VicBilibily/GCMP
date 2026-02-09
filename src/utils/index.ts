@@ -16,6 +16,7 @@ export { ZhipuWizard } from './zhipuWizard';
 export { MiniMaxWizard } from './minimaxWizard';
 export { MoonshotWizard } from './moonshotWizard';
 export { DashscopeWizard } from './dashscopeWizard';
+export { applyIFlowGatewayHeaders, isIFlowGatewayURL } from './iflowGatewaySigning';
 export { JsonSchemaProvider } from './jsonSchemaProvider';
 export { RetryManager } from './retryManager';
 export { ModelInfoCache } from './modelInfoCache';
