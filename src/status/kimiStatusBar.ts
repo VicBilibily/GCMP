@@ -20,11 +20,11 @@ export interface KimiUsageWindow {
     timeUnit: string;
     /** 详细信息 */
     detail: {
-        /** 限制百分比 */
+        /** 限制值（可能是百分比100或Token量） */
         limit: number;
-        /** 已使用百分比 */
+        /** 已使用值 */
         used: number;
-        /** 剩余百分比 */
+        /** 剩余值 */
         remaining: number;
         /** 重置时间 */
         resetTime?: string;
@@ -35,14 +35,16 @@ export interface KimiUsageWindow {
  * Kimi 使用量摘要数据
  */
 export interface KimiUsageSummary {
-    /** 总百分比（100%） */
+    /** 总限制值（可能是百分比100或Token量） */
     limit: number;
-    /** 已使用百分比 */
+    /** 已使用值 */
     used: number;
-    /** 剩余百分比 */
+    /** 剩余值 */
     remaining: number;
     /** 重置时间 */
     resetTime: string;
+    /** 是否为百分比模式（limit为100时为true） */
+    isPercentage: boolean;
 }
 
 /**
@@ -82,18 +84,43 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
      * 获取显示文本
      */
     protected getDisplayText(data: KimiStatusData): string {
-        const remaining = data.summary.remaining;
-        let displayText = `${this.config.icon} ${remaining}%`;
+        const { summary, windows } = data;
+        let displayText: string;
+
+        if (summary.isPercentage) {
+            // 百分比模式：显示百分比
+            displayText = `${this.config.icon} ${summary.remaining}%`;
+        } else {
+            // Token模式：显示剩余Token量（格式化为百万或千）
+            const remainingTokens = summary.remaining;
+            displayText = `${this.config.icon} ${this.formatTokenCount(remainingTokens)}`;
+        }
 
         // 如果有窗口数据，添加每个窗口的剩余
-        if (data.windows.length > 0) {
-            const windowTexts = data.windows.map(window => {
-                return `${window.detail.remaining}%`;
+        if (windows.length > 0) {
+            const windowTexts = windows.map(window => {
+                if (summary.isPercentage) {
+                    return `${window.detail.remaining}%`;
+                } else {
+                    return this.formatTokenCount(window.detail.remaining);
+                }
             });
             displayText += ` (${windowTexts.join(',')})`;
         }
 
         return displayText;
+    }
+
+    /**
+     * 格式化Token数量显示
+     */
+    private formatTokenCount(tokens: number): string {
+        if (tokens >= 1000000) {
+            return `${(tokens / 1000000).toFixed(1)}M`;
+        } else if (tokens >= 1000) {
+            return `${(tokens / 1000).toFixed(1)}K`;
+        }
+        return tokens.toString();
     }
 
     /**
@@ -103,24 +130,55 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
         const md = new vscode.MarkdownString();
         md.supportHtml = true;
 
-        const { summary } = data;
+        const { summary, windows } = data;
         md.appendMarkdown('#### Kimi For Coding 使用情况\n\n');
-        md.appendMarkdown('| 频限类型 | 余量 | 重置时间 |\n');
-        md.appendMarkdown('| :----: | ----: | :----: |\n');
 
-        // 添加每周额度
-        const resetTime = new Date(summary.resetTime);
-        const resetTimeStr = this.formatDateTime(resetTime);
-        md.appendMarkdown(`| **每周额度** | ${summary.remaining}% | ${resetTimeStr} |\n`);
+        // 根据模式选择不同的表格格式
+        if (summary.isPercentage) {
+            // 百分比模式：显示频限类型、余量、重置时间
+            md.appendMarkdown('| 频限类型 | 余量 | 重置时间 |\n');
+            md.appendMarkdown('| :----: | ----: | :----: |\n');
 
-        // 添加窗口限制
-        if (data.windows.length > 0) {
-            for (const window of data.windows) {
-                const timeUnit = this.translateTimeUnit(window.timeUnit);
-                const { detail, duration } = window;
-                const windowResetTime = detail.resetTime ? new Date(detail.resetTime) : undefined;
-                const windowResetTimeStr = windowResetTime ? this.formatDateTime(windowResetTime) : 'N/A';
-                md.appendMarkdown(`| **${duration} ${timeUnit}** | ${detail.remaining}% | ${windowResetTimeStr} |\n`);
+            // 添加每周额度
+            const resetTime = new Date(summary.resetTime);
+            const resetTimeStr = this.formatDateTime(resetTime);
+            md.appendMarkdown(`| **每周额度** | ${summary.remaining}% | ${resetTimeStr} |\n`);
+
+            // 添加窗口限制
+            if (windows.length > 0) {
+                for (const window of windows) {
+                    const timeUnit = this.translateTimeUnit(window.timeUnit);
+                    const { detail, duration } = window;
+                    const windowResetTime = detail.resetTime ? new Date(detail.resetTime) : undefined;
+                    const windowResetTimeStr = windowResetTime ? this.formatDateTime(windowResetTime) : 'N/A';
+                    md.appendMarkdown(
+                        `| **${duration} ${timeUnit}** | ${detail.remaining}% | ${windowResetTimeStr} |\n`
+                    );
+                }
+            }
+        } else {
+            // Token模式：显示频限类型、总上限、消耗量、可用量、重置时间
+            md.appendMarkdown('| 频限类型 | 总上限 | 消耗量 | 可用量 | 重置时间 |\n');
+            md.appendMarkdown('| :----: | ----: | ----: | ----: | :----: |\n');
+
+            // 添加每周额度
+            const resetTime = new Date(summary.resetTime);
+            const resetTimeStr = this.formatDateTime(resetTime);
+            md.appendMarkdown(
+                `| **每周额度** | ${this.formatTokenCount(summary.limit)} | ${this.formatTokenCount(summary.used)} | ${this.formatTokenCount(summary.remaining)} | ${resetTimeStr} |\n`
+            );
+
+            // 添加窗口限制
+            if (windows.length > 0) {
+                for (const window of windows) {
+                    const timeUnit = this.translateTimeUnit(window.timeUnit);
+                    const { detail, duration } = window;
+                    const windowResetTime = detail.resetTime ? new Date(detail.resetTime) : undefined;
+                    const windowResetTimeStr = windowResetTime ? this.formatDateTime(windowResetTime) : 'N/A';
+                    md.appendMarkdown(
+                        `| **${duration} ${timeUnit}** | ${this.formatTokenCount(detail.limit)} | ${this.formatTokenCount(detail.used)} | ${this.formatTokenCount(detail.remaining)} | ${windowResetTimeStr} |\n`
+                    );
+                }
             }
         }
 
@@ -273,18 +331,22 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
 
             const usage = parsedResponse.usage;
 
-            // 解析百分比数值
+            // 解析数值
             const used = typeof usage.used === 'string' ? parseInt(usage.used, 10) : (usage.used ?? 0);
             const limit = typeof usage.limit === 'string' ? parseInt(usage.limit, 10) : usage.limit;
             const remaining =
                 typeof usage.remaining === 'string' ? parseInt(usage.remaining, 10) : (usage.remaining ?? 0);
 
-            // 总体用量信息（limit、used、remaining 都是百分比）
+            // 判断是否为百分比模式（limit为100时为百分比模式）
+            const isPercentage = limit === 100;
+
+            // 总体用量信息
             const summary: KimiUsageSummary = {
                 limit,
                 used,
                 remaining,
-                resetTime: usage.resetTime
+                resetTime: usage.resetTime,
+                isPercentage
             };
 
             // 详细使用限制
@@ -333,16 +395,32 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
     protected shouldHighlightWarning(data: KimiStatusData): boolean {
         const { summary, windows } = data;
 
-        // 检查总体剩余百分比是否低于阈值（已使用百分比高于阈值）
-        const usedPercentage = summary.used;
+        // 检查总体剩余是否低于阈值
+        let usedPercentage: number;
+        if (summary.isPercentage) {
+            // 百分比模式：直接使用 used 值
+            usedPercentage = summary.used;
+        } else {
+            // Token模式：计算已使用百分比
+            usedPercentage = (summary.used / summary.limit) * 100;
+        }
+
         if (usedPercentage >= this.HIGH_USAGE_THRESHOLD) {
             return true;
         }
 
-        // 检查是否存在任意窗口剩余百分比低于阈值
+        // 检查是否存在任意窗口剩余低于阈值
         if (windows.length > 0) {
             for (const window of windows) {
-                const windowUsedPercentage = window.detail.used;
+                let windowUsedPercentage: number;
+                if (summary.isPercentage) {
+                    // 百分比模式：直接使用 used 值
+                    windowUsedPercentage = window.detail.used;
+                } else {
+                    // Token模式：计算已使用百分比
+                    windowUsedPercentage = (window.detail.used / window.detail.limit) * 100;
+                }
+
                 if (windowUsedPercentage >= this.HIGH_USAGE_THRESHOLD) {
                     return true;
                 }
