@@ -146,12 +146,12 @@ function createRequestRecordsTable(records: ExtendedTokenRequestLog[]): HTMLElem
         '时间',
         '提供商',
         '模型',
-        '输入Tokens',
+        '输入令牌',
         '缓存命中',
-        '输出Tokens',
-        '消耗Tokens',
-        '首Token延迟',
-        '平均输出速度',
+        '输出令牌',
+        '消耗令牌',
+        '首令延迟 + 输出耗时',
+        '输出速度',
         '状态'
     ];
     headers.forEach(h => {
@@ -226,11 +226,26 @@ function createRequestRecordsTable(records: ExtendedTokenRequestLog[]): HTMLElem
             if (record.streamStartTime !== undefined && record.timestamp !== undefined) {
                 const latency = record.streamStartTime - record.timestamp;
                 if (Number.isFinite(latency) && latency >= 0) {
+                    // 格式化延迟
+                    let latencyStr;
                     if (latency >= 1000) {
-                        firstTokenLatency.textContent = `${(latency / 1000).toFixed(1)} s`;
+                        latencyStr = `<span>${(latency / 1000).toFixed(1)}s</span>`;
                     } else {
-                        firstTokenLatency.textContent = `${Math.round(latency)} ms`;
+                        latencyStr = `<span>${Math.round(latency)}ms</span>`;
                     }
+                    // 计算总耗时 (streamEndTime - streamStartTime)
+                    let durationStr = '';
+                    if (record.streamEndTime !== undefined) {
+                        const duration = record.streamEndTime - record.streamStartTime;
+                        if (Number.isFinite(duration) && duration >= 0) {
+                            if (duration >= 1000) {
+                                durationStr = ` + <span>${(duration / 1000).toFixed(1)}s</span>`;
+                            } else {
+                                durationStr = ` + <span>${Math.round(duration)}ms</span>`;
+                            }
+                        }
+                    }
+                    firstTokenLatency.innerHTML = latencyStr + durationStr;
                 } else {
                     firstTokenLatency.textContent = '-';
                 }

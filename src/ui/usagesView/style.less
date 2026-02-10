@@ -392,25 +392,31 @@ body {
         /* 第4-7列（输入、缓存、输出、消耗）数值列固定宽度 */
         th:nth-child(n + 4):nth-child(-n + 7),
         td:nth-child(n + 4):nth-child(-n + 7) {
-            width: 60px;
+            width: 55px;
         }
 
-        /* 第8-9列（首Token延迟、输出速度）特殊宽度 */
-        th:nth-child(n + 8):nth-child(-n + 9),
-        td:nth-child(n + 8):nth-child(-n + 9) {
-            width: 66px;
+        /* 第8列（首Token延迟）特殊宽度 */
+        th:nth-child(n + 8),
+        td:nth-child(n + 8) {
+            width: 110px;
         }
 
-        /* 第8-9列（首Token延迟、输出速度）字体压缩 */
-        th:nth-child(n + 8):nth-child(-n + 9) {
-            font-stretch: condensed;
-            letter-spacing: -0.8px;
+        /* 第9列（输出速度）特殊宽度 */
+        th:nth-child(n + 9),
+        td:nth-child(n + 9) {
+            width: 55px;
         }
 
-        /* 第10列（状态）固定宽度 */
+        /* 第8-9列（首Token延迟、输出速度）文本宽度 */
+        td:nth-child(n + 8):nth-child(-n + 9) span {
+            display: inline-block;
+            width: 4em;
+        }
+
+        /* 最后末尾（状态）固定宽度 */
         th:last-child,
         td:last-child {
-            width: 40px;
+            width: 38px;
         }
     }
 
