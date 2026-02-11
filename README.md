@@ -6,7 +6,7 @@
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/vicanent.gcmp?color=green&label=Downloads)](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp)
 [![License](https://img.shields.io/github/license/VicBilibily/GCMP?color=orange&label=License)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
-通过集成国内主流原生大模型提供商，为开发者提供更加丰富、更适合本土需求的 AI 编程助手选择。目前已内置支持 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼、摩尔线程 等**原生大模型**提供商。此外，扩展插件已适配支持 OpenAI 与 Anthropic 的 API 接口兼容模型，支持自定义接入任何提供兼容接口的第三方**云服务模型**。
+通过集成国内主流原生大模型提供商，为开发者提供更加丰富、更适合本土需求的 AI 编程助手选择。目前已内置支持 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 等**原生大模型**提供商。此外，扩展插件已适配支持 OpenAI 与 Anthropic 的 API 接口兼容模型，支持自定义接入任何提供兼容接口的第三方**云服务模型**。
 
 #### 📣 参数调整公告
 
@@ -66,10 +66,8 @@
 
 ### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
 
-- [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：**暂不推荐**，普遍不足 60token/s，频发 429 ServerOverloaded。
+- [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：
     - 支持模型：**Doubao-Seed-Code**、**Kimi-K2.5**、**GLM-4.7**、**Deepseek v3.2**、**Kimi-K2-Thinking**
-        - 注1：若使用 **Kimi-K2.5** 和 **GLM-4.7**，建议使用官方的订阅套餐，火山方舟提供的模型展无针对性优化，无法作为平替提供商。
-        - 注2：**Kimi-K2.5** 模型当前提供商暂不支持多模态输入，需等待火山方舟完成适配后才支持`视觉识别`功能。
 - **豆包系列**：**Doubao-Seed-1.8**、**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**
 - **协作奖励计划**：**GLM-4.7**、**DeepSeek-V3.2**(Thinking)、**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**
 - **上下文缓存实验性支持**：**Doubao-Seed-1.8**(Caching)、**GLM-4.7**(Caching)
@@ -81,12 +79,6 @@
 - [**KwaiKAT Coding Plan**](https://streamlake.com/marketing/coding-plan)：**KAT-Coder-Pro-V1**
 
 - **KAT-Coder系列**：**KAT-Coder-Pro-V1**(按量付费)、**KAT-Coder-Air-V1**
-
-### [**摩尔线程**](https://code.mthreads.com/) - Mthreads
-
-- [**AI Coding Plan**](https://code.mthreads.com/)：**GLM-4.7**
-    - 目前仅提供智谱 GLM-4.7 模型，暂时不可关闭思考，模型服务频繁过载。
-    - **如果你已有智谱CodingPlan套餐，暂不推荐购买（30+token/s）**
 
 ### 实验性支持 CLI 认证提供商
 

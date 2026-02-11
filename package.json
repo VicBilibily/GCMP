@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.18.29",
+    "version": "0.18.30",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -19,7 +19,6 @@
         "deepseek",
         "streamlake",
         "dashscope",
-        "mthreads",
         "OpenAI Compatible",
         "Anthropic Compatible",
         "智谱AI",
@@ -28,7 +27,6 @@
         "深度求索",
         "快手万擎",
         "阿里云百炼",
-        "摩尔线程",
         "Coding Plan 编程套餐"
     ],
     "repository": {
@@ -61,7 +59,6 @@
         "onLanguageModelProvider:gcmp.dashscope",
         "onLanguageModelProvider:gcmp.volcengine",
         "onLanguageModelProvider:gcmp.streamlake",
-        "onLanguageModelProvider:gcmp.mthreads",
         "onLanguageModelProvider:gcmp.iflow",
         "onLanguageModelProvider:gcmp.qwen",
         "onLanguageModelProvider:gcmp.gemini",
@@ -145,11 +142,6 @@
             {
                 "command": "gcmp.dashscope.configWizard",
                 "title": "启动 阿里云百炼 配置向导",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.mthreads.setApiKey",
-                "title": "设置 摩尔线程 API密钥",
                 "category": "GCMP"
             },
             {
@@ -567,11 +559,6 @@
                 "vendor": "gcmp.streamlake",
                 "displayName": "⦿ 快手万擎 (KAT-Coder)",
                 "managementCommand": "gcmp.streamlake.setApiKey"
-            },
-            {
-                "vendor": "gcmp.mthreads",
-                "displayName": "⨮ 摩尔线程 (AI Coding Plan)",
-                "managementCommand": "gcmp.mthreads.setApiKey"
             },
             {
                 "vendor": "gcmp.iflow",

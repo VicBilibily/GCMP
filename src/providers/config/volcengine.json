@@ -48,7 +48,7 @@
             "maxOutputTokens": 32000,
             "capabilities": {
                 "toolCalling": true,
-                "imageInput": false
+                "imageInput": true
             },
             "extraBody": {
                 "thinking": { "type": "disabled" }
@@ -65,7 +65,7 @@
             "maxOutputTokens": 32000,
             "capabilities": {
                 "toolCalling": true,
-                "imageInput": false
+                "imageInput": true
             },
             "extraBody": {
                 "thinking": { "type": "enabled" }
