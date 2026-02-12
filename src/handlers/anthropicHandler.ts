@@ -134,9 +134,7 @@ export class AnthropicHandler {
                 model: modelId,
                 max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
                 messages: anthropicMessages,
-                stream: true,
-                temperature: ConfigManager.getTemperature(),
-                top_p: ConfigManager.getTopP()
+                stream: true
             };
 
             // Anthropic 兼容接口的会话缓存：使用本地 sessionKey 写入 metadata.user_id，

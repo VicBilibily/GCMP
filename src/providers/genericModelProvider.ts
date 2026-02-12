@@ -204,25 +204,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 快速路径：检查缓存
         try {
             const apiKeyHash = await this.getApiKeyHash();
-            let cachedModels = await this.modelInfoCache?.getCachedModels(this.providerKey, apiKeyHash);
+            const cachedModels = await this.modelInfoCache?.getCachedModels(this.providerKey, apiKeyHash);
 
             if (cachedModels) {
                 Logger.trace(`✓ [${this.providerKey}] 从缓存返回模型列表 ` + `(${cachedModels.length} 个模型)`);
-
-                // 读取用户上次选择的模型并标记为默认（仅当启用记忆功能时）
-                const rememberLastModel = ConfigManager.getRememberLastModel();
-                if (rememberLastModel) {
-                    const lastSelectedId = this.modelInfoCache?.getLastSelectedModel(this.providerKey);
-                    if (lastSelectedId) {
-                        cachedModels = cachedModels.map(model => ({
-                            ...model,
-                            isDefault: model.id === lastSelectedId
-                        }));
-                    }
-                }
-
-                // 后台异步更新缓存（不阻塞返回，不等待 await）
-                this.updateModelCacheAsync(apiKeyHash);
 
                 return cachedModels;
             }
@@ -234,19 +219,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         }
 
         // 将配置中的模型转换为VS Code所需的格式
-        let models = this.providerConfig.models.map(model => this.modelConfigToInfo(model));
-
-        // 读取用户上次选择的模型并标记为默认（仅当启用记忆功能且提供商匹配时）
-        const rememberLastModel = ConfigManager.getRememberLastModel();
-        if (rememberLastModel) {
-            const lastSelectedId = this.modelInfoCache?.getLastSelectedModel(this.providerKey);
-            if (lastSelectedId) {
-                models = models.map(model => ({
-                    ...model,
-                    isDefault: model.id === lastSelectedId
-                }));
-            }
-        }
+        const models = this.providerConfig.models.map(model => this.modelConfigToInfo(model));
 
         // 异步缓存结果（不阻塞返回）
         try {
@@ -305,14 +278,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         progress: Progress<vscode.LanguageModelResponsePart>,
         token: CancellationToken
     ): Promise<void> {
-        // 保存用户选择的模型及其提供商（仅当启用记忆功能时）
-        const rememberLastModel = ConfigManager.getRememberLastModel();
-        if (rememberLastModel) {
-            this.modelInfoCache
-                ?.saveLastSelectedModel(this.providerKey, model.id)
-                .catch(err => Logger.warn(`[${this.providerKey}] 保存模型选择失败:`, err));
-        }
-
         // 查找对应的模型配置
         const modelConfig = this.providerConfig.models.find((m: ModelConfig) => m.id === model.id);
         if (!modelConfig) {

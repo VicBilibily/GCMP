@@ -61,14 +61,12 @@
                 "imageInput": true
             },
             "extraBody": {
-                "top_p": 0.95,
-                "temperature": 0.6,
                 "thinking": { "type": "disabled" }
             }
         },
         {
             "id": "kimi-k2.5-thinking",
-            "name": "Kimi-K2.5-Thinking",
+            "name": "Kimi-K2.5 (Thinking)",
             "model": "kimi-k2.5",
             "sdkMode": "anthropic",
             "baseUrl": "https://api.moonshot.cn/anthropic",
@@ -80,8 +78,6 @@
                 "imageInput": true
             },
             "extraBody": {
-                "top_p": 0.95,
-                "temperature": 1.0,
                 "thinking": { "type": "enabled" }
             }
         }

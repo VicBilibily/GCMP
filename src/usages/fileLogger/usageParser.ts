@@ -67,7 +67,7 @@ export class UsageParser {
 
             // Responses API: cached_tokens 已包含在 input_tokens 中，无需重复增加
             // Anthropic API: cache_read_input_tokens 和 cache_creation_input_tokens 不包含在 input_tokens 中
-            const isResponsesApi = cachedTokens > 0;
+            const isResponsesApi = !!rawUsage.input_tokens_details?.cached_tokens;
             const actualCacheReadTokens = isResponsesApi ? cachedTokens : cacheReadTokens;
             const actualCacheCreationTokens = isResponsesApi ? 0 : cacheCreationTokens;
 
@@ -82,7 +82,7 @@ export class UsageParser {
                 cacheReadTokens: actualCacheReadTokens,
                 cacheCreationTokens: actualCacheCreationTokens,
                 outputTokens,
-                totalTokens: rawUsage.total_tokens || 0 || actualInput + outputTokens
+                totalTokens: rawUsage.total_tokens || actualInput + outputTokens
             };
         }
 

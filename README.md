@@ -8,11 +8,6 @@
 
 通过集成国内主流原生大模型提供商，为开发者提供更加丰富、更适合本土需求的 AI 编程助手选择。目前已内置支持 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 等**原生大模型**提供商。此外，扩展插件已适配支持 OpenAI 与 Anthropic 的 API 接口兼容模型，支持自定义接入任何提供兼容接口的第三方**云服务模型**。
 
-#### 📣 参数调整公告
-
-- `outputThinking` / `includeThinking` 已移除：历史配置将被忽略；只要模型/网关返回了 thinking（思考内容），扩展将默认输出思考内容，并在多轮对话中默认携带对应 thinking 作为上下文。
-- `gcmp.temperature` 与 `gcmp.topP` 计划在 `0.19.0` 版本移除：通用设置已不再符合各大模型的差异化参数行为；如需专属设置，请通过模型的 `extraBody` 传递。
-
 ## 🚀 快速开始
 
 ### 1. 安装扩展
@@ -30,9 +25,9 @@
 
 ### [**智谱AI**](https://bigmodel.cn/) - GLM系列
 
-- [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-4.7**(Thinking)、**GLM-4.6**、**GLM-4.6V**(Thinking)、**GLM-4.5-Air**
+- [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-5**(Thinking)、**GLM-4.7**(Thinking)、**GLM-4.6**、**GLM-4.6V**(Thinking)、**GLM-4.5-Air**
     - **用量查询**：已支持状态栏显示周期剩余用量，可查看 GLM Coding Plan 用量信息。
-- **按量计费**：**GLM-4.7**、**GLM-4.7-FlashX**、**GLM-4.6**、**GLM-4.6V**、**GLM-4.5-Air**
+- **按量计费**：**GLM-5**(Thinking)、**GLM-4.7**、**GLM-4.7-FlashX**、**GLM-4.6**、**GLM-4.6V**、**GLM-4.5-Air**
 - **免费模型**：**GLM-4.7-Flash**、**GLM-4.6V-Flash**
 - [**国际站点**](https://z.ai/model-api)：已支持国际站(z.ai)切换设置。
 - **搜索功能**：集成 `联网搜索MCP` 及 `Web Search API`，支持 `#zhipuWebSearch` 进行联网搜索。
@@ -64,6 +59,12 @@
 - [**Coding Plan 套餐**](https://bailian.console.aliyun.com/cn-beijing/?tab=globalset#/efm/coding_plan)：**Qwen3-Max**(Thinking)、**Qwen3-Coder-Plus**
 - **通义千问系列**：**Qwen3-Max**(Thinking)、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
 
+### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
+
+- [**KwaiKAT Coding Plan**](https://streamlake.com/marketing/coding-plan)：**KAT-Coder-Pro-V1**
+
+- **KAT-Coder系列**：**KAT-Coder-Pro-V1**(按量付费)、**KAT-Coder-Air-V1**
+
 ### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
 
 - [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：
@@ -73,12 +74,6 @@
 - **上下文缓存实验性支持**：**Doubao-Seed-1.8**(Caching)、**GLM-4.7**(Caching)
     - 使用此模式需要在后台手动开通模型的[上下文缓存功能](https://www.volcengine.com/docs/82379/1602228?lang=zh)。
     - 在首次对话请求时默认创建 1h 上下文缓存窗口，本地命中时额外增加 5m 缓存时间差异窗口（即首次对话 55m 后重建 1h 缓存）。
-
-### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
-
-- [**KwaiKAT Coding Plan**](https://streamlake.com/marketing/coding-plan)：**KAT-Coder-Pro-V1**
-
-- **KAT-Coder系列**：**KAT-Coder-Pro-V1**(按量付费)、**KAT-Coder-Air-V1**
 
 ### 实验性支持 CLI 认证提供商
 
@@ -133,11 +128,8 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 
 ```json
 {
-    "gcmp.temperature": 0.1, // 0.0-2.0
-    "gcmp.topP": 1.0, // 0.0-1.0
     "gcmp.maxTokens": 16000, // 32-256000
     "gcmp.editToolMode": "claude", // claude/gpt-5/none
-    "gcmp.rememberLastModel": true, // 记住上次使用的模型
     "gcmp.zhipu.search.enableMCP": true // 启用`联网搜索MCP`（Coding Plan专属）
 }
 ```
@@ -238,13 +230,12 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
 
 - `openai-responses`：OpenAI Responses API 模式（实验性）
     - 使用 OpenAI SDK 的 Responses API（`/responses`）进行请求与流式处理。
-    - 适用：你的服务端/网关明确支持 Responses API（而不仅是 Chat Completions）。
-    - 参数：默认不再传递 `temperature`、`top_p`、`max_output_tokens`，若需设置通过 `extraBody` 单独设置
-    - Codex：默认通过请求头传递 `conversation_id`、`session_id`，请求体传递 `prompt_cache_key`（火山方舟传递`previous_response_id`除外）。
+    - 参数：默认不传递 `max_output_tokens`，若需设置通过 `extraBody` 单独设置
+    - Codex：默认通过请求头传递 `conversation_id`、`session_id`，请求体传递 `prompt_cache_key`（火山方舟传递 `previous_response_id` 除外）。
     - 注意：并非所有 OpenAI 兼容服务都实现 `/responses`；若报 404/不兼容，请切回 `openai` 或 `openai-sse`。
     - `useInstructions`（仅对 `openai-responses` 生效）：是否使用 Responses API 的 `instructions` 参数传递系统指令。
         - `false`：用“用户消息”承载系统指令（默认，兼容性更好）
-        - `true`：用 `instructions` 传递系统指令（更贴近 Responses API 语义，但部分网关可能不支持/行为不同）
+        - `true`：用 `instructions` 传递系统指令（部分网关可能不支持）
 
 - `gemini-sse`：Gemini HTTP SSE 模式（实验性）
     - 使用纯 HTTP + SSE（`data:`）/ JSON 行流解析，不依赖 Google SDK，主要用于兼容第三方 Gemini 网关。
@@ -319,16 +310,7 @@ FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimC
 > - **手动触发**（按 `Alt+/`）：直接调用 NES，不发起 FIM
 > - **模式切换**（按 `Shift+Alt+/`）：在自动/手动间切换（仅影响 NES）
 
-### 快捷键与操作
-
-| 快捷键        | 操作说明                     |
-| ------------- | ---------------------------- |
-| `Alt+/`       | 手动触发补全建议（NES 模式） |
-| `Shift+Alt+/` | 切换 NES 手动触发模式        |
-
-### 其他示例配置
-
-#### [MistralAI Coding](https://console.mistral.ai/codestral)
+#### [MistralAI Coding](https://console.mistral.ai/codestral) 示例配置
 
 ```json
 {
@@ -369,6 +351,13 @@ FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimC
     }
 }
 ```
+
+### 快捷键与操作
+
+| 快捷键        | 操作说明                     |
+| ------------- | ---------------------------- |
+| `Alt+/`       | 手动触发补全建议（NES 模式） |
+| `Shift+Alt+/` | 切换 NES 手动触发模式        |
 
 </details>
 
@@ -486,34 +475,9 @@ GCMP 支持在提交前自动读取当前仓库的改动（已暂存/未暂存/�
 
 - `auto`：自动推断（会参考仓库历史的语言/风格；不明确时回退为 `plain` + `gcmp.commit.language`），默认推荐。
 
-```text
-✨ 新增提交消息生成
-
-- 支持在“暂存的更改 / 未暂存的更改”分别生成
-- 自动截断过长 diff，保留关键片段
-```
-
-（也可能推断成 Conventional/Angular 这类风格，例如：）
-
-```text
-feat(commit): 新增提交消息生成
-
-- 增加多仓库推断与选择提示
-```
-
 - `plain`：简洁一句话，不含 type/scope/emoji（适合快速提交）。
 
-```text
-新增提交消息生成功能
-```
-
 - `custom`：完全由你的自定义指令控制（`gcmp.commit.customInstructions`）。
-
-```text
-[Commit] 新增提交消息生成
-
-- 按团队模板输出：模块/影响范围/注意事项等
-```
 
 - `conventional`：Conventional Commits（可带 scope，常见写法是“标题 + 可选正文要点”）。
 

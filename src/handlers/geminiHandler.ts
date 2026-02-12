@@ -348,8 +348,7 @@ export class GeminiHandler {
         }
 
         let generationConfig: GeminiGenerationConfig = {
-            maxOutputTokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
-            temperature: ConfigManager.getTemperature()
+            maxOutputTokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens)
         };
         generationConfig.thinkingConfig = { includeThoughts: true };
 

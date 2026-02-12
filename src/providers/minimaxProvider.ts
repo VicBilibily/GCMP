@@ -14,7 +14,7 @@ import {
 } from 'vscode';
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { Logger, ApiKeyManager, MiniMaxWizard, ConfigManager } from '../utils';
+import { Logger, ApiKeyManager, MiniMaxWizard } from '../utils';
 import { StatusBarManager } from '../status';
 import { TokenUsagesManager } from '../usages/usagesManager';
 
@@ -191,19 +191,7 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         Logger.debug(`${this.providerConfig.displayName}: 返回全部 ${this.providerConfig.models.length} 个模型`);
 
         // 将配置中的模型转换为 VS Code 所需的格式
-        let models = this.providerConfig.models.map(model => this.modelConfigToInfo(model));
-
-        // 读取用户上次选择的模型并标记为默认（仅当启用记忆功能且提供商匹配时）
-        const rememberLastModel = ConfigManager.getRememberLastModel();
-        if (rememberLastModel) {
-            const lastSelectedId = this.modelInfoCache?.getLastSelectedModel(this.providerKey);
-            if (lastSelectedId) {
-                models = models.map(model => ({
-                    ...model,
-                    isDefault: model.id === lastSelectedId
-                }));
-            }
-        }
+        const models = this.providerConfig.models.map(model => this.modelConfigToInfo(model));
 
         return models;
     }
@@ -219,14 +207,6 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         progress: Progress<vscode.LanguageModelResponsePart>,
         _token: CancellationToken
     ): Promise<void> {
-        // 保存用户选择的模型及其提供商（仅当启用记忆功能时）
-        const rememberLastModel = ConfigManager.getRememberLastModel();
-        if (rememberLastModel) {
-            this.modelInfoCache
-                ?.saveLastSelectedModel(this.providerKey, model.id)
-                .catch(err => Logger.warn(`[${this.providerKey}] 保存模型选择失败:`, err));
-        }
-
         // 查找对应的模型配置
         const modelConfig = this.providerConfig.models.find((m: ModelConfig) => m.id === model.id);
         if (!modelConfig) {

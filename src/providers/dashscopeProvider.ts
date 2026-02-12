@@ -14,7 +14,7 @@ import {
 } from 'vscode';
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { Logger, ApiKeyManager, ConfigManager, DashscopeWizard } from '../utils';
+import { Logger, ApiKeyManager, DashscopeWizard } from '../utils';
 import { TokenUsagesManager } from '../usages/usagesManager';
 
 export class DashscopeProvider extends GenericModelProvider implements LanguageModelChatProvider {
@@ -122,18 +122,7 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
             }
         }
 
-        let models = this.providerConfig.models.map(m => this.modelConfigToInfo(m));
-
-        const rememberLastModel = ConfigManager.getRememberLastModel();
-        if (rememberLastModel) {
-            const lastSelectedId = this.modelInfoCache?.getLastSelectedModel(this.providerKey);
-            if (lastSelectedId) {
-                models = models.map(model => ({
-                    ...model,
-                    isDefault: model.id === lastSelectedId
-                }));
-            }
-        }
+        const models = this.providerConfig.models.map(m => this.modelConfigToInfo(m));
 
         return models;
     }
@@ -145,13 +134,6 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         progress: Progress<vscode.LanguageModelResponsePart>,
         _token: CancellationToken
     ): Promise<void> {
-        const rememberLastModel = ConfigManager.getRememberLastModel();
-        if (rememberLastModel) {
-            this.modelInfoCache
-                ?.saveLastSelectedModel(this.providerKey, model.id)
-                .catch(err => Logger.warn(`[${this.providerKey}] 保存模型选择失败:`, err));
-        }
-
         const modelConfig = this.providerConfig.models.find((m: ModelConfig) => m.id === model.id);
         if (!modelConfig) {
             const errorMessage = `未找到模型: ${model.id}`;

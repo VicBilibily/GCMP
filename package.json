@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.18.30",
+    "version": "0.19.0",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -211,22 +211,6 @@
         "configuration": {
             "title": "GCMP - AI Chat Models",
             "properties": {
-                "gcmp.temperature": {
-                    "type": "number",
-                    "default": 0.1,
-                    "minimum": 0,
-                    "maximum": 2,
-                    "description": "控制AI模型输出的随机性。较低的值（如0.1）产生更确定性的输出，较高的值（如1.0）产生更有创意的输出。",
-                    "scope": "application"
-                },
-                "gcmp.topP": {
-                    "type": "number",
-                    "default": 1,
-                    "minimum": 0,
-                    "maximum": 1,
-                    "description": "控制AI模型输出的多样性。使用较小的值（如0.9）会减少输出的随机性。",
-                    "scope": "application"
-                },
                 "gcmp.maxTokens": {
                     "type": "number",
                     "default": 16000,
@@ -249,12 +233,6 @@
                     ],
                     "default": "claude",
                     "description": "选择编辑工具模式。Claude 使用高效的ReplaceString，GPT-5 使用ApplyPatch进行批量编辑，None 直接使用基础文件编辑。",
-                    "scope": "application"
-                },
-                "gcmp.rememberLastModel": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "启用后，会记录并自动恢复上次使用的扩展提供的模型。(VSCode1.106.0版本会重置为默认最优模型[eg：Claude Sonnet 4.5])",
                     "scope": "application"
                 },
                 "gcmp.zhipu.search.enableMCP": {

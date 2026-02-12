@@ -90,9 +90,7 @@ export class OpenAICustomHandler {
             messages: this.openaiHandler.convertMessagesToOpenAI(messages, modelConfig),
             max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
             stream: true,
-            stream_options: { include_usage: true },
-            temperature: ConfigManager.getTemperature(),
-            top_p: ConfigManager.getTopP()
+            stream_options: { include_usage: true }
         };
 
         // 添加工具支持（如果有）

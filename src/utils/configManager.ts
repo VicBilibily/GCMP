@@ -67,14 +67,8 @@ export interface CommitConfig {
  * GCMP配置接口
  */
 export interface GCMPConfig {
-    /** 温度参数，控制输出随机性 (0.0-2.0) */
-    temperature: number;
-    /** Top-p参数，控制输出多样性 (0.0-1.0) */
-    topP: number;
     /** 最大输出token数量 */
     maxTokens: number;
-    /** 是否记住上次选择的模型 */
-    rememberLastModel: boolean;
     /** 智谱AI配置 */
     zhipu: ZhipuConfig;
     /** MiniMax配置 */
@@ -132,10 +126,7 @@ export class ConfigManager {
         const config = vscode.workspace.getConfiguration(this.CONFIG_SECTION);
 
         this.cache = {
-            temperature: this.validateTemperature(config.get<number>('temperature', 0.1)),
-            topP: this.validateTopP(config.get<number>('topP', 1.0)),
             maxTokens: this.validateMaxTokens(config.get<number>('maxTokens', 256000)),
-            rememberLastModel: config.get<boolean>('rememberLastModel', true),
             zhipu: {
                 search: {
                     enableMCP: config.get<boolean>('zhipu.search.enableMCP', true) // 默认启用MCP模式（Coding Plan专属）
@@ -189,31 +180,10 @@ export class ConfigManager {
     }
 
     /**
-     * 获取温度参数
-     */
-    static getTemperature(): number {
-        return this.getConfig().temperature;
-    }
-
-    /**
-     * 获取Top-p参数
-     */
-    static getTopP(): number {
-        return this.getConfig().topP;
-    }
-
-    /**
      * 获取最大token数量
      */
     static getMaxTokens(): number {
         return this.getConfig().maxTokens;
-    }
-
-    /**
-     * 获取是否记住上次选择的模型
-     */
-    static getRememberLastModel(): boolean {
-        return this.getConfig().rememberLastModel;
     }
 
     /**
@@ -274,28 +244,6 @@ export class ConfigManager {
     static getMaxTokensForModel(modelMaxTokens: number): number {
         const configMaxTokens = this.getMaxTokens();
         return Math.min(modelMaxTokens, configMaxTokens);
-    }
-
-    /**
-     * 验证温度参数
-     */
-    private static validateTemperature(value: number): number {
-        if (isNaN(value) || value < 0 || value > 2) {
-            Logger.warn(`无效的temperature值: ${value}，使用默认值0.1`);
-            return 0.1;
-        }
-        return value;
-    }
-
-    /**
-     * 验证Top-p参数
-     */
-    private static validateTopP(value: number): number {
-        if (isNaN(value) || value < 0 || value > 1) {
-            Logger.warn(`无效的topP值: ${value}，使用默认值1.0`);
-            return 1.0;
-        }
-        return value;
     }
 
     /**
