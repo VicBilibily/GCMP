@@ -158,6 +158,66 @@
                 "toolCalling": true,
                 "imageInput": true
             }
+        },
+        {
+            "id": "glm-5",
+            "name": "GLM-5 (Coding Plan)",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://open.bigmodel.cn/api/anthropic",
+            "tooltip": "GLM-5 是智谱新一代的旗舰基座模型，面向 Agentic Engineering 打造，能够在复杂系统工程与长程 Agent 任务中提供可靠生产力。在 Coding 与 Agent 能力上，GLM-5 取得开源 SOTA 表现，在真实编程场景的使用体感逼近 Claude Opus 4.5，擅长复杂系统工程与长程 Agent 任务，是通用 Agent 助手的理想基座。",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": { "type": "disabled" }
+            }
+        },
+        {
+            "id": "glm-5-thinking",
+            "name": "GLM-5 (Thinking) (Coding Plan)",
+            "model": "glm-5",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://open.bigmodel.cn/api/anthropic",
+            "tooltip": "GLM-5 是智谱新一代的旗舰基座模型，面向 Agentic Engineering 打造，能够在复杂系统工程与长程 Agent 任务中提供可靠生产力。在 Coding 与 Agent 能力上，GLM-5 取得开源 SOTA 表现，在真实编程场景的使用体感逼近 Claude Opus 4.5，擅长复杂系统工程与长程 Agent 任务，是通用 Agent 助手的理想基座。",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
+        },
+        {
+            "id": "glm-5-billing",
+            "model": "glm-5",
+            "name": "GLM-5 (按量计费)",
+            "tooltip": "GLM-5 是智谱新一代的旗舰基座模型，面向 Agentic Engineering 打造，能够在复杂系统工程与长程 Agent 任务中提供可靠生产力。在 Coding 与 Agent 能力上，GLM-5 取得开源 SOTA 表现，在真实编程场景的使用体感逼近 Claude Opus 4.5，擅长复杂系统工程与长程 Agent 任务，是通用 Agent 助手的理想基座。",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "glm-5-thinking-billing",
+            "model": "glm-5",
+            "name": "GLM-5 (Thinking) (按量计费)",
+            "tooltip": "GLM-5 是智谱新一代的旗舰基座模型，面向 Agentic Engineering 打造，能够在复杂系统工程与长程 Agent 任务中提供可靠生产力。在 Coding 与 Agent 能力上，GLM-5 取得开源 SOTA 表现，在真实编程场景的使用体感逼近 Claude Opus 4.5，擅长复杂系统工程与长程 Agent 任务，是通用 Agent 助手的理想基座。",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
         }
     ]
 }
