@@ -163,7 +163,7 @@ export class CompatibleProvider extends GenericModelProvider {
             // 获取最新的动态配置
             const currentConfig = this.providerConfig;
             // 如果没有模型，直接返回空列表
-            if (currentConfig.models.length === 0 || options.silent === false) {
+            if (currentConfig.models.length === 0) {
                 // 异步触发新增模型流程，但不阻塞配置获取
                 if (!options.silent) {
                     setImmediate(async () => {
@@ -173,11 +173,10 @@ export class CompatibleProvider extends GenericModelProvider {
                             Logger.debug('自动触发新增模型失败或被用户取消');
                         }
                     });
-                } else {
-                    // 非静默模式下，启动配置向导
-                    await CompatibleModelManager.configureModelOrUpdateAPIKey();
                 }
                 return [];
+            } else if (options.silent === false) {
+                await CompatibleModelManager.configureModelOrUpdateAPIKey();
             }
 
             // 获取所有模型涉及的提供商（去重）

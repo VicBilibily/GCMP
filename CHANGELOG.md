@@ -2,6 +2,12 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.19.1] - 2026-02-12
+
+### 修复
+
+- **Compatible Provider**：修复静默模式下错误触发配置向导的问题 [#80](https://github.com/VicBilibily/GCMP/issues/80)
+
 ## [0.19.0] - 2026-02-12
 
 ### 新增
