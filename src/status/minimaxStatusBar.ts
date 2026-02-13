@@ -66,8 +66,9 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
      * 获取显示文本
      */
     protected getDisplayText(data: MiniMaxStatusData): string {
-        const { usage, percentage } = data.maxUsageModel;
-        return `${this.config.icon} ${usage} (${percentage}%)`;
+        const { percentage } = data.maxUsageModel;
+        const remainPercentage = 100 - (percentage || 0);
+        return `${this.config.icon} ${remainPercentage}%`;
     }
 
     /**
