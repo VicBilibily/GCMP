@@ -68,8 +68,8 @@
 ### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
 
 - [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：
-    - 支持模型：**Doubao-Seed-Code**、**Kimi-K2.5**、**GLM-4.7**、**Deepseek v3.2**、**Kimi-K2-Thinking**
-- **豆包系列**：**Doubao-Seed-1.8**、**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**
+    - 支持模型：**Doubao-Seed-2.0-Code**、**Doubao-Seed-Code**、**Kimi-K2.5**、**GLM-4.7**、**Deepseek v3.2**、**Kimi-K2-Thinking**
+- **豆包系列**：**Doubao-Seed-2.0**(lite/mini/pro/Code)、**Doubao-Seed-1.8**、**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**
 - **协作奖励计划**：**GLM-4.7**、**DeepSeek-V3.2**(Thinking)、**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**
 - **上下文缓存实验性支持**：**Doubao-Seed-1.8**(Caching)、**GLM-4.7**(Caching)
     - 使用此模式需要在后台手动开通模型的[上下文缓存功能](https://www.volcengine.com/docs/82379/1602228?lang=zh)。

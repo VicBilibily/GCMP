@@ -2,6 +2,14 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.19.3] - 2026-02-14
+
+### 新增
+
+- **火山方舟**：
+    - Coding Plan 新增模型：**Doubao-Seed-2.0-Code**(Thinking)
+    - 新增 `Doubao-Seed-2.0` 系列模型：**lite**、**mini**、**pro**、**Code**
+
 ## [0.19.2] - 2026-02-13
 
 ### 新增
