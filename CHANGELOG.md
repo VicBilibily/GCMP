@@ -2,6 +2,12 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.19.4] - 2026-02-16
+
+### 修复
+
+- **Anthropic 消息转换器**：缓解 `cache_control` 在部分中转 API 未正确计算限制导致请求失败的问题 [#81](https://github.com/VicBilibily/GCMP/issues/81)
+
 ## [0.19.3] - 2026-02-14
 
 ### 新增
