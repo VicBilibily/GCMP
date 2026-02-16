@@ -19,6 +19,21 @@
             }
         },
         {
+            "id": "MiniMax-M2.5-HighSpeed-Coding-Plan",
+            "name": "MiniMax-M2.5 极速版 (Coding Plan)",
+            "model": "MiniMax-M2.5-HighSpeed",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.minimaxi.com/anthropic",
+            "tooltip": "M2.5 极速版：效果不变，更快，更敏捷（输出速度约 100 TPS）",
+            "provider": "minimax-coding",
+            "maxInputTokens": 204800,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
             "id": "MiniMax-M2.1-Coding-Plan",
             "name": "MiniMax-M2.1 (Coding Plan)",
             "model": "MiniMax-M2.1",
@@ -53,7 +68,7 @@
             "name": "MiniMax-M2.5 (按量计费)",
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
-            "tooltip": "MiniMax-M2.5 - 强大多语言编程能力，全面升级编程体验",
+            "tooltip": "顶尖性能与极致性价比，轻松驾驭复杂任务（输出速度约 60 TPS）",
             "maxInputTokens": 204800,
             "maxOutputTokens": 128000,
             "capabilities": {
@@ -62,11 +77,11 @@
             }
         },
         {
-            "id": "MiniMax-M2.5-Lightning",
-            "name": "MiniMax-M2.5-Lightning (双倍速费)",
+            "id": "MiniMax-M2.5-HighSpeed",
+            "name": "MiniMax-M2.5 极速版 (按量计费)",
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
-            "tooltip": "MiniMax-M2.5 - 更快，更高效 - 强大多语言编程能力，全面升级编程体验",
+            "tooltip": "M2.5 极速版：效果不变，更快，更敏捷（输出速度约 100 TPS）",
             "maxInputTokens": 204800,
             "maxOutputTokens": 128000,
             "capabilities": {
@@ -79,7 +94,7 @@
             "name": "MiniMax-M2.1 (按量计费)",
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
-            "tooltip": "MiniMax-M2.1 - 强大多语言编程能力，全面升级编程体验",
+            "tooltip": "强大多语言编程能力，全面升级编程体验（输出速度约 60 TPS）",
             "maxInputTokens": 204800,
             "maxOutputTokens": 128000,
             "capabilities": {
@@ -88,11 +103,11 @@
             }
         },
         {
-            "id": "MiniMax-M2.1-Lightning",
-            "name": "MiniMax-M2.1-Lightning (双倍速费)",
+            "id": "MiniMax-M2.1-HighSpeed",
+            "name": "MiniMax-M2.1 极速版 (按量计费)",
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
-            "tooltip": "MiniMax-M2.1 - 更快，更高效 - 强大多语言编程能力，全面升级编程体验",
+            "tooltip": "M2.1 极速版：效果不变，更快，更敏捷（输出速度约 100 TPS）",
             "maxInputTokens": 204800,
             "maxOutputTokens": 128000,
             "capabilities": {
@@ -105,7 +120,7 @@
             "name": "MiniMax-M2 (按量计费)",
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
-            "tooltip": "MiniMax-M2 - 专为高效编码与Agent工作流而生",
+            "tooltip": "专为高效编码与Agent工作流而生",
             "maxInputTokens": 204800,
             "maxOutputTokens": 64000,
             "capabilities": {

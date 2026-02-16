@@ -2,6 +2,19 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.19.5] - 2026-02-16
+
+### 新增
+
+- **MiniMax**：
+    - Coding Plan 新增极速版模型：**MiniMax-M2.5 极速版**
+
+### 调整
+
+- **MiniMax**：同步官方调整模型命名，"Lightning"更名为"极速版"
+    - `MiniMax-M2.5-Lightning` → `MiniMax-M2.5-HighSpeed` (极速版)
+    - `MiniMax-M2.1-Lightning` → `MiniMax-M2.1-HighSpeed` (极速版)
+
 ## [0.19.4] - 2026-02-16
 
 ### 修复
