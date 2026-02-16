@@ -69,6 +69,8 @@ export interface CommitConfig {
 export interface GCMPConfig {
     /** 最大输出token数量 */
     maxTokens: number;
+    /** Anthropic cache_control 断点额外上限 */
+    anthropicCacheLimit: number;
     /** 智谱AI配置 */
     zhipu: ZhipuConfig;
     /** MiniMax配置 */
@@ -127,6 +129,7 @@ export class ConfigManager {
 
         this.cache = {
             maxTokens: this.validateMaxTokens(config.get<number>('maxTokens', 256000)),
+            anthropicCacheLimit: config.get<number>('anthropicCacheLimit', 4),
             zhipu: {
                 search: {
                     enableMCP: config.get<boolean>('zhipu.search.enableMCP', true) // 默认启用MCP模式（Coding Plan专属）

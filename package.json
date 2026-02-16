@@ -219,6 +219,14 @@
                     "description": "控制AI模型输出的最大token数量。较大的值允许更长的响应。",
                     "scope": "application"
                 },
+                "gcmp.anthropicCacheLimit": {
+                    "type": "number",
+                    "default": 0,
+                    "minimum": 0,
+                    "maximum": 10,
+                    "description": "Anthropic API 请求中 cache_control 断点的最大数量，若遇到 cache_control 超限错误可适当降低此值。设为 0 则不限制。",
+                    "scope": "application"
+                },
                 "gcmp.editToolMode": {
                     "type": "string",
                     "enum": [

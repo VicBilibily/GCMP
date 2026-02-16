@@ -165,6 +165,32 @@ export class AnthropicHandler {
             Logger.debug(
                 `[${model.name}] 发送 Anthropic API 请求，包含 ${anthropicMessages.length} 条消息，使用模型: ${modelId}`
             );
+
+            // cache_control 安全网：Anthropic API 上限 4 个，可通过配置调整（0=不限制）
+            const cacheLimit = ConfigManager.getConfig().anthropicCacheLimit;
+            if (cacheLimit > 0) {
+                const cacheCount = (JSON.stringify(createParams).match(/"cache_control"\s*:/g) || []).length;
+                if (cacheCount > cacheLimit) {
+                    let excess = cacheCount - cacheLimit;
+                    for (const msg of createParams.messages) {
+                        if (excess <= 0) { break; }
+                        if (!Array.isArray(msg.content)) { continue; }
+                        for (const block of msg.content) {
+                            if (excess <= 0) { break; }
+                            const b = block as unknown as Record<string, unknown>;
+                            if (Array.isArray(b.content)) {
+                                for (const n of b.content as Record<string, unknown>[]) {
+                                    if (excess <= 0) { break; }
+                                    if (n.cache_control) { delete n.cache_control; excess--; }
+                                }
+                            }
+                            if (excess > 0 && b.cache_control) { delete b.cache_control; excess--; }
+                        }
+                    }
+                    Logger.warn(`[${model.name}] cache_control 超限已修复: ${cacheCount} → ${cacheLimit}`);
+                }
+            }
+
             const stream = await client.messages.create(createParams, { signal: abortController.signal });
 
             // 创建统一的流报告器
