@@ -165,6 +165,10 @@ export class AnthropicHandler {
             Logger.debug(
                 `[${model.name}] 发送 Anthropic API 请求，包含 ${anthropicMessages.length} 条消息，使用模型: ${modelId}`
             );
+
+            // const cacheCount = (JSON.stringify(createParams).match(/"cache_control"\s*:/g) || []).length;
+            // Logger.warn(`[${model.name}] cache_control 数量: ${cacheCount}`);
+
             const stream = await client.messages.create(createParams, { signal: abortController.signal });
 
             // 创建统一的流报告器

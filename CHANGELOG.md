@@ -2,6 +2,12 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.19.6] - 2026-02-16
+
+### 优化
+
+- **Anthropic 消息转换器**：优化 `cache_control` 清理逻辑，支持嵌套内容处理 [#81](https://github.com/VicBilibily/GCMP/issues/81)
+
 ## [0.19.5] - 2026-02-16
 
 ### 新增

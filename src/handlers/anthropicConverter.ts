@@ -297,37 +297,53 @@ export function apiMessageToAnthropicMessage(
         }
     }
 
-    // 统一清理 cache_control：
-    // 从后往前遍历，每个块内只保留最后一个，同时全局只保留最后一个有效 block 的 cache_control
-    let foundLastCache = false;
+    // 清理 cache_control 的统一逻辑
+    // 1. 嵌套+每个 block 内：把嵌套内的 cache_control 移到外层，同时每个 block 内只保留最后一个
+    // 2. 全局：每个 message 的 blocks 内只保留最后一个（i>0 时跨 message 也只保留一个）
+    let foundLastBlock = false;
     for (let i = mergedMessages.length - 1; i >= 0; i--) {
         const msg = mergedMessages[i];
         if (!Array.isArray(msg.content)) {
             continue;
         }
-        const blocks = msg.content as (ContentBlockParam & { cache_control?: { type: string } })[];
-        // 先清理该块内多余的 cache_control，只保留最后一个
-        let lastCacheIndex = -1;
+        const blocks = msg.content;
+
+        // 1. 处理嵌套 content，同时每个 block 内只保留最后一个 cache
+        for (const block of blocks) {
+            if ('content' in block && Array.isArray(block.content)) {
+                let foundInBlock = false;
+                for (let k = block.content.length - 1; k >= 0; k--) {
+                    const nested = block.content[k];
+                    if ('cache_control' in nested && nested.cache_control) {
+                        if (!foundInBlock) {
+                            block.cache_control = nested.cache_control;
+                            foundInBlock = true;
+                        }
+                        delete nested.cache_control;
+                    }
+                }
+            }
+        }
+
+        // 2. 全局：每个 message 的 blocks 内只保留最后一个（i>0 时跨 message 也只保留一个）
+        let foundInMessage = false;
         for (let k = blocks.length - 1; k >= 0; k--) {
-            if (blocks[k].cache_control) {
-                lastCacheIndex = k;
-                break;
-            }
-        }
-        for (let k = 0; k < lastCacheIndex; k++) {
-            if ('cache_control' in blocks[k]) {
-                delete blocks[k].cache_control;
-            }
-        }
-        // 然后全局清理：从后往前，只保留最后一个有效 block 的 cache_control
-        // 跳过第一个块（i === 0）环境信息不参与全局清理
-        if (i > 0) {
-            for (let j = blocks.length - 1; j >= 0; j--) {
-                if (blocks[j].cache_control) {
-                    if (!foundLastCache) {
-                        foundLastCache = true;
+            const block = blocks[k];
+            if ('cache_control' in block && block.cache_control) {
+                if (i === 0) {
+                    // i=0 时，每个 message 内部只保留最后一个
+                    if (foundInMessage) {
+                        delete block.cache_control;
                     } else {
-                        delete blocks[j].cache_control;
+                        foundInMessage = true;
+                    }
+                } else {
+                    // i>0 时，跨 message 只保留一个
+                    if (foundLastBlock || foundInMessage) {
+                        delete block.cache_control;
+                    } else {
+                        foundInMessage = true;
+                        foundLastBlock = true;
                     }
                 }
             }
