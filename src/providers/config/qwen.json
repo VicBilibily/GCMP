@@ -3,18 +3,18 @@
     "baseUrl": "https://portal.qwen.ai/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "customHeader": {
-        "User-Agent": "QwenCode/0.10.0 (win32; x64)",
+        "User-Agent": "QwenCode/0.10.3 (win32; x64)",
         "X-DashScope-CacheControl": "enable",
-        "X-DashScope-UserAgent": "QwenCode/0.10.0 (win32; x64)",
+        "X-DashScope-UserAgent": "QwenCode/0.10.3 (win32; x64)",
         "X-DashScope-AuthType": "qwen-oauth"
     },
     "models": [
         {
             "id": "coder-model",
             "model": "coder-model",
-            "name": "Qwen3-Coder-Plus (QwenCode)",
-            "tooltip": "Qwen3-Coder-Plus (QwenCode)",
-            "maxInputTokens": 256000,
+            "name": "Qwen3.5-Plus (Qwen)",
+            "tooltip": "Qwen 3.5 Plus — efficient hybrid model with leading coding performance",
+            "maxInputTokens": 991000,
             "maxOutputTokens": 64000,
             "capabilities": {
                 "toolCalling": true,
@@ -24,8 +24,8 @@
         {
             "id": "vision-model",
             "model": "vision-model",
-            "name": "Qwen3-VL-Plus (QwenCode)",
-            "tooltip": "Qwen3-VL-Plus (QwenCode)",
+            "name": "Qwen3-VL-Plus (Qwen)",
+            "tooltip": "The latest Qwen Vision model from Alibaba Cloud ModelStudio",
             "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
             "capabilities": {

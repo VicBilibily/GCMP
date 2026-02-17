@@ -19,6 +19,21 @@
             }
         },
         {
+            "id": "qwen3-coder-max",
+            "name": "Qwen3-Max (Coding Plan)",
+            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 64000,
+            "sdkMode": "anthropic",
+            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+            "provider": "dashscope-coding",
+            "model": "qwen3-max-2026-01-23",
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
             "id": "qwen3-coder-max-thinking",
             "name": "Qwen3-Max (Thinking) (Coding Plan)",
             "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
@@ -37,15 +52,44 @@
             }
         },
         {
-            "id": "qwen3-coder-max",
-            "name": "Qwen3-Max (Coding Plan)",
-            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 64000,
+            "id": "qwen3.5-plus",
+            "name": "Qwen3.5-Plus",
             "sdkMode": "anthropic",
-            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
-            "provider": "dashscope-coding",
-            "model": "qwen3-max-2026-01-23",
+            "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "tooltip": "Qwen3.5原生视觉语言系列Plus模型，基于混合架构设计，融合了线性注意力机制与稀疏混合专家模型，实现了更高的推理效率。在多项任务评测中，3.5系列均展现出与当前顶尖前沿模型相媲美的卓越性能，模型效果在纯文本与多模态方面相较3系列均实现飞跃式进步。",
+            "maxInputTokens": 991000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "thinking": { "type": "disabled" }
+            }
+        },
+        {
+            "id": "qwen3.5-plus-thinking",
+            "model": "qwen3.5-plus",
+            "name": "Qwen3.5-Plus (Thinking)",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "tooltip": "Qwen3.5原生视觉语言系列Plus模型，基于混合架构设计，融合了线性注意力机制与稀疏混合专家模型，实现了更高的推理效率。在多项任务评测中，3.5系列均展现出与当前顶尖前沿模型相媲美的卓越性能，模型效果在纯文本与多模态方面相较3系列均实现飞跃式进步。",
+            "maxInputTokens": 983000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
+        },
+        {
+            "id": "qwen3-max",
+            "name": "Qwen3-Max",
+            "tooltip": "通义千问3系列Max模型，相较preview版本在智能体编程与工具调用方向进行了专项升级。本次发布的正式版模型达到领域SOTA水平，适配场景更加复杂的智能体需求。",
+            "maxInputTokens": 252000,
+            "maxOutputTokens": 64000,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -54,7 +98,7 @@
         {
             "id": "qwen3-max-thinking",
             "model": "qwen3-max-2026-01-23",
-            "name": "通义千问3-Max (Thinking)",
+            "name": "Qwen3-Max (Thinking)",
             "sdkMode": "anthropic",
             "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
             "tooltip": "Qwen3-Max-Thinking总参数量超万亿，预训练数据量达36T Tokens，原生Agent能力大幅增强。在涵盖事实知识、复杂推理、指令遵循、人类偏好对齐、Agent能力等19项公认基准测试中，Qwen3-Max-Thinking整体性能可媲美国际顶尖模型。",
@@ -69,19 +113,8 @@
             }
         },
         {
-            "id": "qwen3-max",
-            "name": "通义千问3-Max",
-            "tooltip": "通义千问3系列Max模型，相较preview版本在智能体编程与工具调用方向进行了专项升级。本次发布的正式版模型达到领域SOTA水平，适配场景更加复杂的智能体需求。",
-            "maxInputTokens": 252000,
-            "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
             "id": "qwen3-vl-plus",
-            "name": "通义千问3-VL-Plus",
+            "name": "Qwen3-VL-Plus",
             "tooltip": "Qwen3系列视觉理解模型，实现思考模式和非思考模式的有效融合，视觉智能体能力在OS World等公开测试集上达到世界顶尖水平。此版本在视觉coding、空间感知、多模态思考等方向全面升级；视觉感知与识别能力大幅提升，支持超长视频理解。",
             "maxInputTokens": 254000,
             "maxOutputTokens": 32000,
@@ -92,7 +125,7 @@
         },
         {
             "id": "qwen3-vl-flash",
-            "name": "通义千问3-VL-Flash",
+            "name": "Qwen3-VL-Flash",
             "tooltip": "Qwen3系列小尺寸视觉理解模型，实现思考模式和非思考模式的有效融合，效果优于开源版Qwen3-VL-30B-A3B，响应速度快。全面升级图像/视频理解，支持长视频长文档等超长上下文、空间感知与万物识别；具备视觉2D/3D定位能力，胜任复杂现实任务。",
             "maxInputTokens": 254000,
             "maxOutputTokens": 32000,
@@ -103,7 +136,7 @@
         },
         {
             "id": "qwen-plus",
-            "name": "通义千问-Plus",
+            "name": "Qwen-Plus",
             "tooltip": "Qwen3系列Plus模型，实现思考模式和非思考模式的有效融合，可在对话中切换模式。推理能力显著超过QwQ、通用能力显著超过Qwen2.5-Plus，达到同规模业界SOTA水平。",
             "maxInputTokens": 960000,
             "maxOutputTokens": 16000,
@@ -114,7 +147,7 @@
         },
         {
             "id": "qwen-plus-latest",
-            "name": "通义千问-Plus-Latest",
+            "name": "Qwen-Plus-Latest",
             "tooltip": "通义千问系列能力均衡的模型，推理效果和速度介于通义千问-Max和通义千问-Turbo之间，适合中等复杂任务。本模型是动态更新版本，模型更新不会提前通知。",
             "maxInputTokens": 960000,
             "maxOutputTokens": 32000,
@@ -125,7 +158,7 @@
         },
         {
             "id": "qwen-flash",
-            "name": "通义千问-Flash",
+            "name": "Qwen-Flash",
             "tooltip": "Qwen3系列Flash模型，实现思考模式和非思考模式的有效融合，可在对话中切换模式。复杂推理类任务性能优秀，指令遵循、文本理解等能力显著提高。支持1M上下文长度，按照上下文长度进行阶梯计费。",
             "maxInputTokens": 960000,
             "maxOutputTokens": 32000,

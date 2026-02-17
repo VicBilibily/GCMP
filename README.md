@@ -57,7 +57,7 @@
 ### [**阿里云百炼**](https://bailian.console.aliyun.com/) - 通义大模型
 
 - [**Coding Plan 套餐**](https://bailian.console.aliyun.com/cn-beijing/?tab=globalset#/efm/coding_plan)：**Qwen3-Max**(Thinking)、**Qwen3-Coder-Plus**
-- **通义千问系列**：**Qwen3-Max**(Thinking)、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
+- **通义千问系列**：**Qwen3.5-Plus**(Thinking)、**Qwen3-Max**(Thinking)、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
 
 ### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
 
@@ -100,7 +100,7 @@ npm install -g @iflow-ai/iflow-cli@latest
 npm install -g @qwen-code/qwen-code@latest
 ```
 
-- **支持模型**：**Qwen3-Coder-Plus**、**Qwen3-VL-Plus**
+- **支持模型**：**Qwen3.5-Plus**、**Qwen3-VL-Plus**
 
 ### [**Gemini**](https://geminicli.com/docs/) - Gemini CLI
 
