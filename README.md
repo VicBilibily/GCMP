@@ -23,7 +23,7 @@
 
 ## 🤖 内置的AI大模型提供商
 
-### [**智谱AI**](https://bigmodel.cn/) - GLM系列
+### [**智谱AI**](https://bigmodel.cn/)
 
 - [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-5**(Thinking)、**GLM-4.7**(Thinking)、**GLM-4.6**、**GLM-4.6V**(Thinking)、**GLM-4.5-Air**
     - **用量查询**：已支持状态栏显示周期剩余用量，可查看 GLM Coding Plan 用量信息。
@@ -42,21 +42,21 @@
     - **[国际站点](https://platform.minimax.io/subscribe/coding-plan)**：已支持国际站 Coding Plan 编程套餐使用。
 - **按量计费**：**MiniMax-M2.5**(极速版)、**MiniMax-M2.1**(极速版)、**MiniMax-M2**
 
-### [**MoonshotAI**](https://platform.moonshot.cn/) - Kimi K2系列
+### [**MoonshotAI**](https://platform.moonshot.cn/)
 
 - [**会员权益**](https://www.kimi.com/coding)：Kimi `会员计划` 套餐的附带的 `Kimi For Coding`，当前使用 Roo Code 发送 Anthropic 请求。
     - **用量查询**：已支持状态栏显示周期剩余用量，可查看套餐的剩余用量及限频重置时间。
 - 预置模型：**Kimi-K2.5**(Thinking)
     - **余额查询**：已支持状态栏显示当前账户额度，可查看账户余额状况。
 
-### [**DeepSeek**](https://platform.deepseek.com/) - 深度求索
+### [**DeepSeek**](https://platform.deepseek.com/)
 
 - 预置模型：**DeepSeek-V3.2**(Reasoner)
     - **余额查询**：已支持状态栏显示当前账户额度，可查看账户余额详情。
 
-### [**阿里云百炼**](https://bailian.console.aliyun.com/) - 通义大模型
+### [**阿里云百炼**](https://bailian.console.aliyun.com/)
 
-- [**Coding Plan 套餐**](https://bailian.console.aliyun.com/cn-beijing/?tab=globalset#/efm/coding_plan)：**Qwen3-Max**(Thinking)、**Qwen3-Coder-Plus**
+- [**Coding Plan 套餐**](https://www.aliyun.com/benefit/scene/codingplan)：**Qwen3.5-Plus**(Thinking)、**Qwen3-Max**(Thinking)、**Qwen3-Coder-Next**、**Qwen3-Coder-Plus**、**GLM-4.7**(Thinking)、**Kimi-K2.5**(Thinking)
 - **通义千问系列**：**Qwen3.5-Plus**(Thinking)、**Qwen3-Max**(Thinking)、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
 
 ### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
@@ -65,7 +65,7 @@
 
 - **KAT-Coder系列**：**KAT-Coder-Pro-V1**(按量付费)、**KAT-Coder-Air-V1**
 
-### [**火山方舟**](https://www.volcengine.com/product/ark) - 豆包大模型
+### [**火山方舟**](https://www.volcengine.com/product/ark)
 
 - [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：
     - 支持模型：**Doubao-Seed-2.0-Code**、**Doubao-Seed-Code**、**Kimi-K2.5**、**GLM-4.7**、**Deepseek v3.2**、**Kimi-K2-Thinking**

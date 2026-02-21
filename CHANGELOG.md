@@ -2,6 +2,14 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.19.8] - 2026-02-21
+
+### 新增
+
+- **阿里云百炼**：Coding Plan 同步新增模型支持
+    - **Qwen3.5-Plus**(Thinking)、**Qwen3-Coder-Next**
+    - **GLM-4.7**(Thinking)、**Kimi-K2.5**(Thinking)
+
 ## [0.19.7] - 2026-02-17
 
 ### 新增

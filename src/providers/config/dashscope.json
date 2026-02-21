@@ -4,48 +4,171 @@
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
-            "id": "qwen3-coder-plus",
+            "id": "qwen3.5-plus-coding-plan",
+            "name": "Qwen3.5-Plus (Coding Plan)",
+            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-coding",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+            "model": "qwen3.5-plus",
+            "maxInputTokens": 991000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "thinking": { "type": "disabled" }
+            }
+        },
+        {
+            "id": "qwen3.5-plus-thinking-coding-plan",
+            "name": "Qwen3.5-Plus (Thinking) (Coding Plan)",
+            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-coding",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+            "model": "qwen3.5-plus",
+            "maxInputTokens": 983000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
+        },
+        {
+            "id": "qwen3-max-coding-plan",
+            "name": "Qwen3-Max (Coding Plan)",
+            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+            "provider": "dashscope-coding",
+            "model": "qwen3-max-2026-01-23",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-max-thinking-coding-plan",
+            "name": "Qwen3-Max (Thinking) (Coding Plan)",
+            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+            "provider": "dashscope-coding",
+            "model": "qwen3-max-2026-01-23",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
+        },
+        {
+            "id": "qwen3-coder-next-coding-plan",
+            "name": "Qwen3-Coder-Next (Coding Plan)",
+            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+            "provider": "dashscope-coding",
+            "model": "qwen3-coder-next",
+            "maxInputTokens": 204800,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-coder-plus-coding-plan",
             "name": "Qwen3-Coder-Plus (Coding Plan)",
             "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 64000,
             "sdkMode": "anthropic",
             "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
             "provider": "dashscope-coding",
             "model": "qwen3-coder-plus",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 64000,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
             }
         },
         {
-            "id": "qwen3-coder-max",
-            "name": "Qwen3-Max (Coding Plan)",
+            "id": "glm-4.7-coding-plan",
+            "name": "GLM-4.7 (Coding Plan)",
             "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 64000,
+            "provider": "dashscope-coding",
             "sdkMode": "anthropic",
             "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
-            "provider": "dashscope-coding",
-            "model": "qwen3-max-2026-01-23",
+            "model": "glm-4.7",
+            "maxInputTokens": 166000,
+            "maxOutputTokens": 16000,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
+            },
+            "extraBody": {
+                "thinking": { "type": "disabled" }
             }
         },
         {
-            "id": "qwen3-coder-max-thinking",
-            "name": "Qwen3-Max (Thinking) (Coding Plan)",
+            "id": "glm-4.7-thinking-coding-plan",
+            "name": "GLM-4.7 (Thinking) (Coding Plan)",
             "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-coding",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+            "model": "glm-4.7",
+            "maxInputTokens": 166000,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
+        },
+        {
+            "id": "kimi-k2.5-coding-plan",
+            "name": "Kimi-K2.5 (Coding Plan)",
+            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-coding",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+            "model": "kimi-k2.5",
             "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
-            "sdkMode": "anthropic",
-            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
-            "provider": "dashscope-coding",
-            "model": "qwen3-max-2026-01-23",
             "capabilities": {
                 "toolCalling": true,
-                "imageInput": false
+                "imageInput": true
+            },
+            "extraBody": {
+                "thinking": { "type": "disabled" }
+            }
+        },
+        {
+            "id": "kimi-k2.5-thinking-coding-plan",
+            "name": "Kimi-K2.5 (Thinking) (Coding Plan)",
+            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-coding",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+            "model": "kimi-k2.5",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
             },
             "extraBody": {
                 "thinking": { "type": "enabled" }
