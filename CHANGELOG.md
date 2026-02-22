@@ -2,6 +2,16 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.19.9] - 2026-02-23
+
+### 新增
+
+- **OpenAI 自定义处理程序**：新增 `endpoint` 配置字段，支持自定义 API 端点 [#82](https://github.com/VicBilibily/GCMP/issues/82)
+
+### 优化
+
+- **OpenAI Responses API**：完善加密思考内容（`encrypted_thinking`）回传与流式处理逻辑 [#84](https://github.com/VicBilibily/GCMP/issues/84)
+
 ## [0.19.8] - 2026-02-21
 
 ### 新增

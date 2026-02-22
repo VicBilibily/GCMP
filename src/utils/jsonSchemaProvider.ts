@@ -284,6 +284,16 @@ export class JsonSchemaProvider {
                                 additionalProperties: {
                                     description: '额外的请求体参数值'
                                 }
+                            },
+                            includeThinking: {
+                                type: 'boolean',
+                                description: '是否包含思考内容（已弃用，此参数已移除）',
+                                deprecationMessage: 'includeThinking 已被弃用，此参数不再被支持'
+                            },
+                            outputThinking: {
+                                type: 'boolean',
+                                description: '是否输出思考内容（已弃用，此参数已移除）',
+                                deprecationMessage: 'outputThinking 已被弃用，此参数不再被支持'
                             }
                         },
                         required: ['id', 'name', 'maxInputTokens', 'maxOutputTokens', 'capabilities'],
@@ -462,6 +472,16 @@ export class JsonSchemaProvider {
                                 additionalProperties: {
                                     description: '额外的请求体参数值'
                                 }
+                            },
+                            includeThinking: {
+                                type: 'boolean',
+                                description: '是否包含思考内容（已弃用，此参数已移除）',
+                                deprecationMessage: 'includeThinking 已被弃用，此参数不再被支持'
+                            },
+                            outputThinking: {
+                                type: 'boolean',
+                                description: '是否输出思考内容（已弃用，此参数已移除）',
+                                deprecationMessage: 'outputThinking 已被弃用，此参数不再被支持'
                             }
                         },
                         required: ['id'],

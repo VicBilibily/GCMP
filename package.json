@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.19.8",
+    "version": "0.19.9",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -217,6 +217,24 @@
                     "minimum": 32,
                     "maximum": 256000,
                     "description": "控制AI模型输出的最大token数量。较大的值允许更长的响应。",
+                    "scope": "application"
+                },
+                "gcmp.temperature": {
+                    "type": "number",
+                    "deprecationMessage": "temperature 已被弃用，请改用模型的 extraBody 参数传递",
+                    "description": "模型采样温度（已弃用）",
+                    "scope": "application"
+                },
+                "gcmp.topP": {
+                    "type": "number",
+                    "deprecationMessage": "topP 已被弃用，请改用模型的 extraBody 参数传递",
+                    "description": "模型采样 top-p 参数（已弃用）",
+                    "scope": "application"
+                },
+                "gcmp.rememberLastModel": {
+                    "type": "boolean",
+                    "deprecationMessage": "rememberLastModel 已被弃用，此功能不再被支持",
+                    "description": "是否记住上次选择的模型（已弃用）",
                     "scope": "application"
                 },
                 "gcmp.editToolMode": {
