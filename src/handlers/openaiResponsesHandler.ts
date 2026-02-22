@@ -18,9 +18,21 @@ type ResponseInputItem = OpenAI.Responses.ResponseInputItem;
 type ResponseInputMessageItem = OpenAI.Responses.ResponseInputMessageItem;
 type ResponseInputText = OpenAI.Responses.ResponseInputText;
 type ResponseInputImage = OpenAI.Responses.ResponseInputImage;
+type ResponseReasoningItem = OpenAI.Responses.ResponseReasoningItem;
 type ResponseFunctionToolCall = OpenAI.Responses.ResponseFunctionToolCall;
 type ResponseFunctionToolCallOutputItem = OpenAI.Responses.ResponseFunctionToolCallOutputItem;
 type FunctionTool = OpenAI.Responses.FunctionTool;
+
+/**
+ * OpenAI Responses API ThinkingPart 元数据接口
+ * 用于在多轮对话中传递加密思考内容 (encrypted_content)
+ */
+interface OpenAIResponsesThinkingMetadata {
+    /** 加密的思考内容，由 OpenAI Responses API 在 include=["reasoning.encrypted_content"] 时返回 */
+    redactedData?: string;
+    /** 推理项的原始 id，用于回传给 API 重建 reasoning 输入项 */
+    reasoningId?: string;
+}
 
 /**
  * OpenAI API 错误详情类型
@@ -78,6 +90,7 @@ export class OpenAIResponsesHandler {
             const toolCalls: Array<{ id: string; name: string; args: string }> = [];
             const toolResults: Array<{ callId: string; content: string }> = [];
             const thinkingParts: string[] = [];
+            const encryptedReasonings: Array<{ encryptedContent: string; reasoningId?: string }> = []; // 收集加密的思考内容
 
             // 提取各类内容
             for (const part of message.content) {
@@ -107,8 +120,17 @@ export class OpenAIResponsesHandler {
                     const content = this.collectToolResultText(part);
                     toolResults.push({ callId, content });
                 } else if (part instanceof vscode.LanguageModelThinkingPart) {
-                    const content = Array.isArray(part.value) ? part.value.join('') : part.value;
-                    thinkingParts.push(content);
+                    // 检查是否包含加密思考内容 (由 include=["reasoning.encrypted_content"] 时返回)
+                    const metadata = (part as unknown as { metadata?: OpenAIResponsesThinkingMetadata }).metadata;
+                    if (metadata?.redactedData) {
+                        encryptedReasonings.push({
+                            encryptedContent: metadata.redactedData,
+                            reasoningId: metadata.reasoningId
+                        });
+                    } else {
+                        const content = Array.isArray(part.value) ? part.value.join('') : part.value;
+                        thinkingParts.push(content);
+                    }
                 }
             }
 
@@ -117,6 +139,19 @@ export class OpenAIResponsesHandler {
 
             // 处理 assistant 消息
             if (role === 'assistant') {
+                // 先推送加密思考内容项（reasoning items with encrypted_content）
+                // 这些需要在 assistant text 消息之前
+                for (const { encryptedContent, reasoningId } of encryptedReasonings) {
+                    out.push({
+                        type: 'reasoning' as const,
+                        // 使用保存的原始 id（官方实现使用 thinkingData.id）
+                        id: reasoningId || `rsn_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                        summary: [],
+                        encrypted_content: encryptedContent
+                        // 注意：reasoning 输入项不接受 status 字段，API 会报 Unknown parameter 错误
+                    } as unknown as ResponseReasoningItem);
+                }
+
                 const assistantText = joinedText || joinedThinking;
                 if (assistantText) {
                     // Responses API 中，assistant 消息使用 output_text 类型
@@ -367,6 +402,7 @@ export class OpenAIResponsesHandler {
 
             // Responses API 专属：追踪 delta/done 事件，避免重复输出
             let hasReceivedTextDelta = false; // 标记是否已接收文本增量
+            let hasReceivedReasoningSummary = false; // 标记是否已经流式接收推理摘要（防止 output_item.done 重复传递文本）
 
             // 工具调用缓冲区 - 使用索引跟踪，支持累积
             const toolCallBuffers = new Map<number, { id: string; name: string; args: string }>();
@@ -398,7 +434,14 @@ export class OpenAIResponsesHandler {
                 };
 
                 const modelId = (modelConfig.model || model.id).toLowerCase();
+                const isGptModel = modelId.includes('gpt');
                 const isDoubaoOrVolcengine = modelId.includes('doubao') || modelConfig?.provider === 'volcengine';
+
+                // 仅对 GPT 模型且 extraBody 配置了 reasoning 时自动添加 include
+                // extraBody.include 可在后续 Object.assign 中覆盖此值（包括设为 null 来禁用）
+                if (isGptModel && !isDoubaoOrVolcengine && modelConfig?.extraBody?.reasoning) {
+                    requestBody.include = ['reasoning.encrypted_content'];
+                }
 
                 // 使用 statefulMarker 获取会话状态
                 const markerAndIndex = getStatefulMarkerAndIndex(model.id, 'openai-responses', messages);
@@ -569,7 +612,8 @@ export class OpenAIResponsesHandler {
                         reporter.endThinkingChain();
                     })
                     .on('response.reasoning_summary_text.delta', event => {
-                        // 处理思维链摘要增量
+                        // 处理思维链摘要增量（与官方实现一致：记录展示过摘要防止重复）
+                        hasReceivedReasoningSummary = true;
                         if (token.isCancellationRequested) {
                             abortController.abort();
                             return;
@@ -581,6 +625,7 @@ export class OpenAIResponsesHandler {
                     })
                     .on('response.reasoning_summary_text.done', event => {
                         // 处理思维链摘要完成
+                        hasReceivedReasoningSummary = true;
                         if (token.isCancellationRequested) {
                             return;
                         }
@@ -590,6 +635,11 @@ export class OpenAIResponsesHandler {
                         }
                         reporter.flushThinking('reasoning_summary 完成');
                         reporter.endThinkingChain();
+                    })
+                    .on('response.reasoning_summary_part.done', _event => {
+                        // 推理摘要 part 完成（与官方实现对齐）
+                        // 官方在此事件设置 hasReceivedReasoningSummary = true 作为最终确认
+                        hasReceivedReasoningSummary = true;
                     })
                     .on('response.function_call_arguments.delta', () => {
                         // SDK 会在 done 事件中提供完整的 arguments，这里不需要处理
@@ -646,6 +696,7 @@ export class OpenAIResponsesHandler {
                             return;
                         }
                         const item = event.item;
+                        // 官方实现：output_item.added 仅处理 function_call，reasoning 在 output_item.done 中处理
                         if (item && item.type === 'function_call') {
                             const itemId = item.id;
                             if (!itemId) {
@@ -700,6 +751,24 @@ export class OpenAIResponsesHandler {
                             return;
                         }
                         const item = event.item;
+                        // 推理项完成：与官方实现对齐，在 output_item.done 处理 reasoning
+                        // 官方对所有 reasoning 项都进入此分支，有加密内容时输出，无加密内容时为 no-op
+                        if (item && item.type === 'reasoning') {
+                            const reasoningItem = item as unknown as ResponseReasoningItem;
+                            if (reasoningItem.encrypted_content) {
+                                // 仅当摘要文本未经流式传输时才包含
+                                // （参照官方实现: hasReceivedReasoningSummary 为 true 时传 undefined 避免重复）
+                                const summaryText = hasReceivedReasoningSummary
+                                    ? undefined
+                                    : reasoningItem.summary?.map(s => s.text);
+                                reporter.reportEncryptedThinking(
+                                    reasoningItem.encrypted_content,
+                                    reasoningItem.id,
+                                    summaryText
+                                );
+                            }
+                            // else: 无加密内容，no-op（与官方 onProgress({ thinking: undefined }) 行为一致）
+                        }
                         if (item && typeof item === 'object' && item.type === 'function_call') {
                             const itemObj = item as unknown as Record<string, unknown>;
                             const callId = itemObj.call_id || itemObj.id;

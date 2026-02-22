@@ -332,6 +332,32 @@ export class StreamReporter {
     }
 
     /**
+     * OpenAI Responses API 专用：输出加密思考内容
+     * 同时作为占位符显示给用户，并将 encryptedContent 存入 metadata 供下轮对话传回
+     * @param encryptedContent 加密内容 (encrypted_content)
+     * @param reasoningId 推理项的原始 id，官方实现必须保留此 id 用于回传 (extractThinkingData)
+     * @param summaryText 摘要文本，仅当未经流式传输时传入避免重复（默认显示为占位）
+     */
+    reportEncryptedThinking(encryptedContent: string, reasoningId?: string, summaryText?: string[]): void {
+        if (!encryptedContent) {
+            return;
+        }
+        // 确保先结束之前的思维链
+        this.flushThinking('encrypted thinking');
+        this.endThinkingChain();
+        // 占位符文本 + redactedData + reasoningId metadata 合并输出一个 ThinkingPart
+        // id 使用 undefined（不加入 streaming chain），reasoningId 仅存于 metadata 用于重建
+        const text = summaryText?.join('\n') || '';
+        this.progress.report(
+            new vscode.LanguageModelThinkingPart(text, undefined, {
+                redactedData: encryptedContent,
+                reasoningId: reasoningId
+            })
+        );
+        this.hasThinkingContent = true;
+    }
+
+    /**
      * 结束当前思维链（输出空的 ThinkingPart）
      * 公开方法，允许在 Responses API 等场景中手动结束思维链
      */
