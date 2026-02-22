@@ -118,7 +118,7 @@ export class OpenAIHandler {
         }
 
         let customFetch: typeof fetch | undefined = undefined; // 使用默认 fetch 实现
-        customFetch = this.createCustomFetch(); // 使用自定义 fetch 解决 SSE 格式问题
+        customFetch = this.createCustomFetch(modelConfig, baseURL); // 使用自定义 fetch 解决 SSE 格式问题
         const client = new OpenAI({
             apiKey: currentApiKey,
             baseURL: baseURL,
@@ -132,11 +132,26 @@ export class OpenAIHandler {
     /**
      * 创建自定义 fetch 函数来处理非标准 SSE 格式
      * 修复部分模型输出 "data:" 后不带空格的问题
+     * 若 modelConfig.endpoint 已设置，则将 SDK 内部构造的请求 URL 替换为自定义端点
      */
-    private createCustomFetch(): typeof fetch {
+    private createCustomFetch(modelConfig?: ModelConfig, resolvedBaseURL?: string): typeof fetch {
         return async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+            let requestUrl: string | URL | Request = url;
+            // 若配置了自定义 endpoint，则覆盖 SDK 内部构造的请求 URL
+            if (modelConfig?.endpoint) {
+                const customEndpoint = modelConfig.endpoint;
+                if (customEndpoint.startsWith('http://') || customEndpoint.startsWith('https://')) {
+                    // 完整 URL，直接使用
+                    requestUrl = customEndpoint;
+                } else {
+                    // 相对路径，拼接到 baseURL
+                    const base = (resolvedBaseURL || '').replace(/\/$/, '');
+                    requestUrl = `${base}${customEndpoint.startsWith('/') ? customEndpoint : `/${customEndpoint}`}`;
+                }
+                Logger.debug(`自定义 endpoint: ${String(url)} -> ${String(requestUrl)}`);
+            }
             // 调用原始 fetch
-            const response = await fetch(url, init);
+            const response = await fetch(requestUrl, init);
             // 当前插件的所有调用都是流请求，直接预处理所有响应
             // preprocessSSEResponse 现在是异步的，可能会抛出错误以便上层捕获
             return await this.preprocessSSEResponse(response);

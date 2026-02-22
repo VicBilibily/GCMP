@@ -17,6 +17,7 @@ import { CompatibleModelManager } from './compatibleModelManager';
 declare module 'json-schema' {
     interface JSONSchema7 {
         enumDescriptions?: string[];
+        deprecationMessage?: string;
     }
 }
 
@@ -285,7 +286,46 @@ export class JsonSchemaProvider {
                                 }
                             }
                         },
-                        required: ['id', 'name', 'maxInputTokens', 'maxOutputTokens', 'capabilities']
+                        required: ['id', 'name', 'maxInputTokens', 'maxOutputTokens', 'capabilities'],
+                        allOf: [
+                            {
+                                // endpoint 仅对 openai / openai-sse / openai-responses 生效
+                                // anthropic 和 gemini-sse 不提示，且已配置时标红警告
+                                if: {
+                                    anyOf: [
+                                        { not: { required: ['sdkMode'] } },
+                                        {
+                                            properties: {
+                                                sdkMode: { enum: ['openai', 'openai-sse', 'openai-responses'] }
+                                            },
+                                            required: ['sdkMode']
+                                        }
+                                    ]
+                                },
+                                then: {
+                                    properties: {
+                                        endpoint: {
+                                            type: 'string',
+                                            description: [
+                                                '自定义 API 端点路径（可选）。',
+                                                '用于替换默认附加到 baseUrl 后的路径（如 /chat/completions、/responses）。',
+                                                '- 相对路径（如 /custom/path）：与 baseUrl 拼接使用',
+                                                '- 完整 URL：直接填写完整的地址作为请求地址',
+                                                '仅对 openai、openai-sse、openai-responses 模式生效'
+                                            ].join('\n')
+                                        }
+                                    }
+                                },
+                                else: {
+                                    properties: {
+                                        endpoint: {
+                                            deprecationMessage:
+                                                'endpoint 仅对 openai、openai-sse、openai-responses 模式生效'
+                                        }
+                                    }
+                                }
+                            }
+                        ]
                     }
                 },
                 // Commit 模型选择：保存 provider + model

@@ -39,6 +39,14 @@ export interface CompatibleModelConfig {
     tooltip?: string;
     /** API基础URL */
     baseUrl?: string;
+    /**
+     * 自定义 API 端点路径（可选）
+     * 用于替换默认附加到 baseUrl 后的路径（如 /chat/completions、/responses）。
+     * - 相对路径（如 /custom/path）：与 baseUrl 拼接使用
+     * - 完整 URL（如 https://api.example.com/custom）：直接作为请求地址
+     * 仅对 openai、openai-sse、openai-responses 模式生效。
+     */
+    endpoint?: string;
     /** API请求时使用的模型名称（可选） */
     model?: string;
     /** 最大输入token数 */
