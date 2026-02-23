@@ -52,7 +52,7 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
             id: 'gcmp.statusBar.minimax',
             name: 'GCMP: MiniMax Coding Plan',
             alignment: vscode.StatusBarAlignment.Right,
-            priority: 100,
+            priority: 98,
             refreshCommand: 'gcmp.refreshMiniMaxUsage',
             apiKeyProvider: 'minimax-coding',
             cacheKeyPrefix: 'minimax',
@@ -78,7 +78,7 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
         const md = new vscode.MarkdownString();
         md.supportHtml = true;
         md.appendMarkdown('#### MiniMax Coding Plan 使用情况\n\n');
-        md.appendMarkdown('| 模型 | 上限 | 剩余 | 使用率 |\n');
+        md.appendMarkdown('| 模型系列 | 上限值 | 剩余量 | 使用率 |\n');
         md.appendMarkdown('| :--- | ----: | ----: | ---: |\n');
         for (const info of data.formatted) {
             md.appendMarkdown(`| ${info.model} | ${info.total} | ${info.usage} | ${info.percentage}% |\n`);
