@@ -54,7 +54,7 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         const setCodingKeyCommand = vscode.commands.registerCommand(
             `gcmp.${providerKey}.setCodingPlanApiKey`,
             async () => {
-                await MiniMaxWizard.setCodingPlanApiKey(providerConfig.displayName, providerConfig.apiKeyTemplate);
+                await MiniMaxWizard.setCodingPlanApiKey(providerConfig.displayName, providerConfig.codingKeyTemplate);
                 // API 密钥变更后清除缓存
                 await provider.modelInfoCache?.invalidateCache('minimax-coding');
                 // 触发模型信息变更事件
@@ -74,7 +74,11 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         // 注册配置向导命令
         const configWizardCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.configWizard`, async () => {
             Logger.info(`启动 ${providerConfig.displayName} 配置向导`);
-            await MiniMaxWizard.startWizard(providerConfig.displayName, providerConfig.apiKeyTemplate);
+            await MiniMaxWizard.startWizard(
+                providerConfig.displayName,
+                providerConfig.apiKeyTemplate,
+                providerConfig.codingKeyTemplate
+            );
         });
 
         const disposables = [
@@ -133,7 +137,7 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             // Coding Plan 模型直接进入专用密钥设置
             await MiniMaxWizard.setCodingPlanApiKey(
                 this.providerConfig.displayName,
-                this.providerConfig.apiKeyTemplate
+                this.providerConfig.codingKeyTemplate
             );
         } else {
             // 普通模型直接进入普通密钥设置
@@ -173,7 +177,11 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
 
         // 非静默模式：启动配置向导
         if (!options.silent) {
-            await MiniMaxWizard.startWizard(this.providerConfig.displayName, this.providerConfig.apiKeyTemplate);
+            await MiniMaxWizard.startWizard(
+                this.providerConfig.displayName,
+                this.providerConfig.apiKeyTemplate,
+                this.providerConfig.codingKeyTemplate
+            );
 
             // 重新检查是否设置了密钥
             const normalKeyValid = await ApiKeyManager.hasValidApiKey(this.providerKey);

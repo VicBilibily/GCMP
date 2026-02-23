@@ -5,6 +5,7 @@ description: 创建新模型提供商（provider）时的改动清单与验证�
 创建新模型提供商的简要要点：
 
 - 在 `src/providers/config/` 添加提供商配置 JSON 文件，包含 displayName、baseUrl、apiKeyTemplate、models 等必要字段。
+    - 如支持 Coding Plan 等专用密钥，可添加可选字段 `codingKeyTemplate` 用于指示专用 API Key 格式。
 - 在 `src/providers/config/index.ts` 导入并导出该配置，使 `ConfigManager` 能自动读取。
 - 在 `package.json` 中同步注册：
     - 在 `activationEvents` 添加 `onLanguageModelProvider:gcmp.<providerKey>`。

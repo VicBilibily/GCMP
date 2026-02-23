@@ -51,7 +51,7 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
 
         // 注册设置 Kimi API 密钥命令
         const setKimiApiKeyCommand = vscode.commands.registerCommand('gcmp.kimi.setApiKey', async () => {
-            await MoonshotWizard.setKimiApiKey(providerConfig.displayName);
+            await MoonshotWizard.setKimiApiKey(providerConfig.displayName, providerConfig.codingKeyTemplate);
             // API 密钥变更后清除缓存
             await provider.modelInfoCache?.invalidateCache('kimi');
             // 触发模型信息变更事件
@@ -61,7 +61,11 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
         // 注册配置向导命令
         const configWizardCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.configWizard`, async () => {
             Logger.info(`启动 ${providerConfig.displayName} 配置向导`);
-            await MoonshotWizard.startWizard(providerConfig.displayName, providerConfig.apiKeyTemplate);
+            await MoonshotWizard.startWizard(
+                providerConfig.displayName,
+                providerConfig.apiKeyTemplate,
+                providerConfig.codingKeyTemplate
+            );
         });
 
         const disposables = [providerDisposable, setApiKeyCommand, setKimiApiKeyCommand, configWizardCommand];
@@ -109,7 +113,7 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
 
         if (isKimi) {
             // Kimi For Coding 模型直接进入专用密钥设置
-            await MoonshotWizard.setKimiApiKey(this.providerConfig.displayName);
+            await MoonshotWizard.setKimiApiKey(this.providerConfig.displayName, this.providerConfig.codingKeyTemplate);
         } else {
             // Moonshot 模型直接进入普通密钥设置
             await MoonshotWizard.setMoonshotApiKey(this.providerConfig.displayName, this.providerConfig.apiKeyTemplate);
@@ -148,7 +152,11 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
 
         // 非静默模式：启动配置向导
         if (!options.silent) {
-            await MoonshotWizard.startWizard(this.providerConfig.displayName, this.providerConfig.apiKeyTemplate);
+            await MoonshotWizard.startWizard(
+                this.providerConfig.displayName,
+                this.providerConfig.apiKeyTemplate,
+                this.providerConfig.codingKeyTemplate
+            );
 
             // 重新检查是否设置了密钥
             const moonshotKeyValid = await ApiKeyManager.hasValidApiKey(this.providerKey);

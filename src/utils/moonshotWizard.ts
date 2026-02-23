@@ -17,7 +17,7 @@ export class MoonshotWizard {
      * 启动 MoonshotAI 配置向导
      * 允许用户选择配置哪种密钥类型
      */
-    static async startWizard(displayName: string, apiKeyTemplate: string): Promise<void> {
+    static async startWizard(displayName: string, apiKeyTemplate: string, codingKeyTemplate?: string): Promise<void> {
         try {
             const choice = await vscode.window.showQuickPick(
                 [
@@ -50,7 +50,7 @@ export class MoonshotWizard {
             }
 
             if (choice.value === 'kimi' || choice.value === 'both') {
-                await this.setKimiApiKey(displayName);
+                await this.setKimiApiKey(displayName, codingKeyTemplate);
             }
         } catch (error) {
             Logger.error(`MoonshotAI 配置向导出错: ${error instanceof Error ? error.message : '未知错误'}`);
@@ -103,11 +103,11 @@ export class MoonshotWizard {
     /**
      * 设置 Kimi For Coding 专用密钥
      */
-    static async setKimiApiKey(_displayName: string): Promise<void> {
+    static async setKimiApiKey(_displayName: string, codingKeyTemplate?: string): Promise<void> {
         const result = await vscode.window.showInputBox({
             prompt: '请输入 Kimi For Coding 专用 API Key(留空可清除)',
             title: '设置 Kimi For Coding 专用 API Key',
-            placeHolder: 'sk-kimi-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+            placeHolder: codingKeyTemplate,
             password: true,
             validateInput: (value: string) => {
                 // 允许空值，用于清除 API Key

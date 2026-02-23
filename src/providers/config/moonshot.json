@@ -2,6 +2,7 @@
     "displayName": "MoonshotAI",
     "baseUrl": "https://api.moonshot.cn/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "codingKeyTemplate": "sk-kimi-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
             "id": "kimi-for-coding",

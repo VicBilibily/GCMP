@@ -14,7 +14,7 @@ export class DashscopeWizard {
     /**
      * 启动 Dashscope 配置向导
      */
-    static async startWizard(displayName: string, apiKeyTemplate: string): Promise<void> {
+    static async startWizard(displayName: string, apiKeyTemplate: string, codingKeyTemplate?: string): Promise<void> {
         try {
             const choice = await vscode.window.showQuickPick(
                 [
@@ -47,7 +47,7 @@ export class DashscopeWizard {
             }
 
             if (choice.value === 'coding' || choice.value === 'both') {
-                await this.setCodingPlanApiKey(displayName, apiKeyTemplate);
+                await this.setCodingPlanApiKey(displayName, codingKeyTemplate || apiKeyTemplate);
             }
         } catch (error) {
             Logger.error(`Dashscope 配置向导出错: ${error instanceof Error ? error.message : '未知错误'}`);
@@ -89,11 +89,11 @@ export class DashscopeWizard {
     /**
      * 设置 Dashscope Coding Plan 专用密钥
      */
-    static async setCodingPlanApiKey(displayName: string, apiKeyTemplate: string): Promise<void> {
+    static async setCodingPlanApiKey(displayName: string, codingKeyTemplate?: string): Promise<void> {
         const result = await vscode.window.showInputBox({
             prompt: `请输入 ${displayName} 的 Coding Plan 专用 API Key（留空可清除）`,
             title: `设置 ${displayName} Coding Plan 专用 API Key`,
-            placeHolder: apiKeyTemplate,
+            placeHolder: codingKeyTemplate,
             password: true,
             validateInput: (_value: string) => null
         });

@@ -113,12 +113,13 @@ export interface ProviderOverride {
 }
 
 /**
- * 提供商配置接口 - 来自package.json
+ * 提供商配置接口
  */
 export interface ProviderConfig {
     displayName: string;
     baseUrl: string;
     apiKeyTemplate: string;
+    codingKeyTemplate: string;
     models: ModelConfig[];
     /**
      * 提供商级别的自定义HTTP头部（可选）
@@ -129,7 +130,7 @@ export interface ProviderConfig {
 }
 
 /**
- * 完整的配置提供者结构 - 来自package.json
+ * 完整的配置提供者结构
  */
 export type ConfigProvider = Record<string, ProviderConfig>;
 

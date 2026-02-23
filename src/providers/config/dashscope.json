@@ -2,6 +2,7 @@
     "displayName": "阿里云百炼",
     "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "codingKeyTemplate": "sk-sp-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
             "id": "qwen3.5-plus-coding-plan",

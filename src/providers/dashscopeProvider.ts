@@ -43,7 +43,7 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         const setCodingPlanApiKeyCommand = vscode.commands.registerCommand(
             `gcmp.${providerKey}.setCodingPlanApiKey`,
             async () => {
-                await DashscopeWizard.setCodingPlanApiKey(providerConfig.displayName, providerConfig.apiKeyTemplate);
+                await DashscopeWizard.setCodingPlanApiKey(providerConfig.displayName, providerConfig.codingKeyTemplate);
                 await provider.modelInfoCache?.invalidateCache('dashscope-coding');
                 provider._onDidChangeLanguageModelChatInformation.fire();
             }
@@ -51,7 +51,11 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
 
         const configWizardCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.configWizard`, async () => {
             Logger.info(`启动 ${providerConfig.displayName} 配置向导`);
-            await DashscopeWizard.startWizard(providerConfig.displayName, providerConfig.apiKeyTemplate);
+            await DashscopeWizard.startWizard(
+                providerConfig.displayName,
+                providerConfig.apiKeyTemplate,
+                providerConfig.codingKeyTemplate
+            );
             await provider.modelInfoCache?.invalidateCache(providerKey);
             provider._onDidChangeLanguageModelChatInformation.fire();
         });
@@ -83,7 +87,7 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         if (isCodingPlan) {
             await DashscopeWizard.setCodingPlanApiKey(
                 this.providerConfig.displayName,
-                this.providerConfig.apiKeyTemplate
+                this.providerConfig.codingKeyTemplate
             );
         } else {
             await DashscopeWizard.setNormalApiKey(this.providerConfig.displayName, this.providerConfig.apiKeyTemplate);
@@ -112,7 +116,11 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         }
 
         if (!options.silent) {
-            await DashscopeWizard.startWizard(this.providerConfig.displayName, this.providerConfig.apiKeyTemplate);
+            await DashscopeWizard.startWizard(
+                this.providerConfig.displayName,
+                this.providerConfig.apiKeyTemplate,
+                this.providerConfig.codingKeyTemplate
+            );
 
             const normalKeyValid = await ApiKeyManager.hasValidApiKey(this.providerKey);
             const codingKeyValid = await ApiKeyManager.hasValidApiKey('dashscope-coding');

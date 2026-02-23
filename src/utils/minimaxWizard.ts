@@ -18,7 +18,7 @@ export class MiniMaxWizard {
      * 启动 MiniMax 配置向导
      * 允许用户选择配置哪种密钥类型
      */
-    static async startWizard(displayName: string, apiKeyTemplate: string): Promise<void> {
+    static async startWizard(displayName: string, apiKeyTemplate: string, codingKeyTemplate?: string): Promise<void> {
         try {
             // 获取当前接入站点
             const currentEndpoint = ConfigManager.getMinimaxEndpoint();
@@ -61,7 +61,7 @@ export class MiniMaxWizard {
             }
 
             if (choice.value === 'coding' || choice.value === 'both') {
-                await this.setCodingPlanApiKey(displayName, apiKeyTemplate);
+                await this.setCodingPlanApiKey(displayName, codingKeyTemplate || apiKeyTemplate);
             }
 
             if (choice.value === 'endpoint') {
@@ -115,11 +115,11 @@ export class MiniMaxWizard {
     /**
      * 设置 Coding Plan 专用密钥
      */
-    static async setCodingPlanApiKey(displayName: string, apiKeyTemplate: string): Promise<void> {
+    static async setCodingPlanApiKey(displayName: string, codingKeyTemplate?: string): Promise<void> {
         const result = await vscode.window.showInputBox({
             prompt: `请输入 ${displayName} 的 Coding Plan 专用 API Key（留空可清除）`,
             title: `设置 ${displayName} Coding Plan 专用 API Key`,
-            placeHolder: apiKeyTemplate,
+            placeHolder: codingKeyTemplate,
             password: true,
             validateInput: (value: string) => {
                 // 允许空值，用于清除 API Key

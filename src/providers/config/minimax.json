@@ -1,7 +1,8 @@
 {
     "displayName": "MiniMax",
     "baseUrl": "https://api.minimaxi.com/v1",
-    "apiKeyTemplate": "这个 ApiKey密钥 是一个很长一串的类似JWT结构字符串",
+    "apiKeyTemplate": "这个 ApiKey 密钥 是一个很长一串的类似 JWT 结构字符串",
+    "codingKeyTemplate": "sk-cp-xxxx-CP-xxxxxxxx-xxxxxx",
     "models": [
         {
             "id": "MiniMax-M2.5-Coding-Plan",
