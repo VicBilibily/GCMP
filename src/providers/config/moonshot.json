@@ -20,7 +20,7 @@
             "customHeader": {
                 "HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
                 "X-Title": "Roo Code",
-                "User-Agent": "RooCode/3.47.2"
+                "User-Agent": "RooCode/3.50.5"
             },
             "extraBody": {
                 "thinking": { "type": "disabled" }
@@ -43,7 +43,7 @@
             "customHeader": {
                 "HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
                 "X-Title": "Roo Code",
-                "User-Agent": "RooCode/3.47.2"
+                "User-Agent": "RooCode/3.50.5"
             },
             "extraBody": {
                 "thinking": { "type": "enabled" }

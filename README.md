@@ -56,8 +56,8 @@
 
 ### [**阿里云百炼**](https://bailian.console.aliyun.com/)
 
-- [**Coding Plan 套餐**](https://www.aliyun.com/benefit/scene/codingplan)：**Qwen3.5-Plus**(Thinking)、**Qwen3-Max**(Thinking)、**Qwen3-Coder-Next**、**Qwen3-Coder-Plus**、**GLM-4.7**(Thinking)、**Kimi-K2.5**(Thinking)
-- **通义千问系列**：**Qwen3.5-Plus**(Thinking)、**Qwen3-Max**(Thinking)、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
+- [**Coding Plan 套餐**](https://www.aliyun.com/benefit/scene/codingplan)：**Qwen3.5-Plus**(Thinking)、**Qwen3-Max**(Thinking)、**Qwen3-Coder-Next**、**Qwen3-Coder-Plus**、**MiniMax-M2.5**、**GLM-5**(Thinking)、**GLM-4.7**(Thinking)、**Kimi-K2.5**(Thinking)
+- **通义千问系列**：**Qwen3.5-Plus**(Thinking)、**Qwen3.5-Flash**(Thinking)、**Qwen3-Max**(Thinking)、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
 
 ### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
 

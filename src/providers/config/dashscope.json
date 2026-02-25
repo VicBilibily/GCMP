@@ -260,6 +260,39 @@
             }
         },
         {
+            "id": "qwen3.5-flash",
+            "name": "Qwen3.5-Flash",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "tooltip": "Qwen3.5原生视觉语言系列Flash模型，基于混合架构设计，融合了线性注意力机制与稀疏混合专家模型，实现了更高的推理效率。模型效果在纯文本与多模态方面相较3系列均实现飞跃式进步；响应速度快，兼具推理速度和性能。",
+            "maxInputTokens": 991000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "thinking": { "type": "disabled" }
+            }
+        },
+        {
+            "id": "qwen3.5-flash-thinking",
+            "model": "qwen3.5-flash",
+            "name": "Qwen3.5-Flash (Thinking)",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "tooltip": "Qwen3.5原生视觉语言系列Flash模型，基于混合架构设计，融合了线性注意力机制与稀疏混合专家模型，实现了更高的推理效率。模型效果在纯文本与多模态方面相较3系列均实现飞跃式进步；响应速度快，兼具推理速度和性能。",
+            "maxInputTokens": 983000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
+        },
+        {
             "id": "qwen3-max",
             "name": "Qwen3-Max",
             "tooltip": "通义千问3系列Max模型，相较preview版本在智能体编程与工具调用方向进行了专项升级。本次发布的正式版模型达到领域SOTA水平，适配场景更加复杂的智能体需求。",

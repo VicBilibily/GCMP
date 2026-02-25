@@ -3,9 +3,9 @@
     "baseUrl": "https://portal.qwen.ai/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "customHeader": {
-        "User-Agent": "QwenCode/0.10.3 (win32; x64)",
+        "User-Agent": "QwenCode/0.10.6 (win32; x64)",
         "X-DashScope-CacheControl": "enable",
-        "X-DashScope-UserAgent": "QwenCode/0.10.3 (win32; x64)",
+        "X-DashScope-UserAgent": "QwenCode/0.10.6 (win32; x64)",
         "X-DashScope-AuthType": "qwen-oauth"
     },
     "models": [
