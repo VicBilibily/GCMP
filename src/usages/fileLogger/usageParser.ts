@@ -164,6 +164,7 @@ export class UsageParser {
             // 如果流耗时小于 10ms，使用整个请求的耗时
             if (duration < 10 && log.timestamp) {
                 duration = log.streamEndTime - log.timestamp;
+                log.streamStartTime = undefined; // 不可信，重置流开始时间
             }
         } else if (log.streamEndTime) {
             // 如果只有流结束时间，使用流结束时间和请求时间的差值作为耗时
