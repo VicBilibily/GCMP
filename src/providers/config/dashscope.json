@@ -104,6 +104,57 @@
             }
         },
         {
+            "id": "minimax-m2.5-coding-plan",
+            "name": "MiniMax-M2.5 (Coding Plan)",
+            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-coding",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+            "model": "MiniMax-M2.5",
+            "maxInputTokens": 204800,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "glm-5-coding-plan",
+            "name": "GLM-5 (Coding Plan)",
+            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-coding",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+            "model": "glm-5",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": { "type": "disabled" }
+            }
+        },
+        {
+            "id": "glm-5-thinking-coding-plan",
+            "name": "GLM-5 (Thinking) (Coding Plan)",
+            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-coding",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+            "model": "glm-5",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
+        },
+        {
             "id": "glm-4.7-coding-plan",
             "name": "GLM-4.7 (Coding Plan)",
             "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
@@ -111,7 +162,7 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
             "model": "glm-4.7",
-            "maxInputTokens": 166000,
+            "maxInputTokens": 200000,
             "maxOutputTokens": 16000,
             "capabilities": {
                 "toolCalling": true,
@@ -129,7 +180,7 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
             "model": "glm-4.7",
-            "maxInputTokens": 166000,
+            "maxInputTokens": 200000,
             "maxOutputTokens": 16000,
             "capabilities": {
                 "toolCalling": true,
