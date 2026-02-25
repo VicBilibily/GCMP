@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  日志统计管理器
  *  统一管理统计数据的查询、计算和持久化
  *  目录结构:
@@ -25,6 +25,10 @@ import type { TokenUsageStatsFromFile, HourlyStats, FileLoggerProviderStats, Tok
 export class LogStatsManager {
     private readonly baseDir: string;
     private readonly indexManager: LogIndexManager;
+    // 缓存创建时间戳：用于判断缓存是否比日志文件更新
+    private _cacheVersionTimestamp: number = 0;
+    // 代码版本时间戳：用于判断缓存是否由当前版本代码生成
+    private _codeVersionTimestamp: number = 0;
 
     constructor(
         private readManager: LogReadManager,
@@ -36,8 +40,33 @@ export class LogStatsManager {
     }
 
     /**
+     * 更新缓存版本时间戳
+     * @param cacheTimestamp 缓存创建时间戳
+     * @param codeVersionTimestamp 代码版本时间戳
+     */
+    updateCacheVersionTimestamp(cacheTimestamp: number, codeVersionTimestamp: number): void {
+        this._cacheVersionTimestamp = cacheTimestamp;
+        this._codeVersionTimestamp = codeVersionTimestamp;
+    }
+
+    /**
+     * 获取当前缓存创建时间戳
+     */
+    private getCacheVersionTimestamp(): number {
+        return this._cacheVersionTimestamp;
+    }
+
+    /**
+     * 获取当前代码版本时间戳
+     */
+    private getCodeVersionTimestamp(): number {
+        return this._codeVersionTimestamp;
+    }
+
+    /**
      * 获取日期统计
-     * 优先尝试从持久化文件读取，否则进行增量差分计算并保存
+     * 优先尝试从持久化文件读取，否则进行全量计算并保存
+     * 如果版本时间戳变化或缓存过期，则全量重新计算
      * @param dateStr 日期字符串 (YYYY-MM-DD)
      * @param ignoreCache 是否忽略缓存，强制重新计算
      */
@@ -46,8 +75,14 @@ export class LogStatsManager {
         if (!ignoreCache) {
             const saved = await this.loadStats(dateStr);
             if (saved) {
-                StatusLogger.debug(`[LogStatsManager] 从缓存读取统计: ${dateStr}`);
-                return saved;
+                // 检查版本时间戳是否有效，如果无效需要全量重新计算
+                const needsRegen = await this.needsRegeneration(dateStr);
+                if (!needsRegen) {
+                    StatusLogger.debug(`[LogStatsManager] 从缓存读取统计: ${dateStr}`);
+                    return saved;
+                }
+                // 版本变化或缓存过期，需要全量重新计算
+                StatusLogger.debug(`[LogStatsManager] 缓存已过期，全量重新计算: ${dateStr}`);
             }
         }
 
@@ -62,15 +97,26 @@ export class LogStatsManager {
     /**
      * 计算指定日期的统计（包含小时统计和日期统计）
      * 支持增量更新：根据小时文件的修改时间戳判断是否需要重新计算
-     * 自动遍历所有小时文件，只重新计算已改变的小时
-     * 日期统计（total 和 providers）从小时缓存结果聚合计算
-     * 返回: 包含日期统计、所有小时统计（含 modifiedTime 和 providers）的完整对象
+     * 如果版本变化，则跳过旧的 hourly 缓存，全部重新计算
+     * 日期统计（total 和 providers）从小时缓存聚合计算
      * @private 内部使用，通过 getDateStats 访问
      */
     private async calculateDateStats(dateStr: string): Promise<TokenUsageStatsFromFile> {
         // 读取现有的统计数据
         const existingStats = await this.loadStats(dateStr);
-        const existingHourly = existingStats?.hourly || {};
+
+        // 检查是否需要跳过旧缓存：
+        // - 没有缓存
+        // - 缓存没有 versionTimestamp（旧格式）
+        // - 缓存版本 < 当前代码版本
+        const hasValidCache =
+            existingStats &&
+            existingStats.versionTimestamp !== undefined &&
+            existingStats.versionTimestamp >= this.getCodeVersionTimestamp();
+        const existingHourly = hasValidCache ? existingStats.hourly || {} : {};
+        if (!hasValidCache) {
+            StatusLogger.debug(`[LogStatsManager] 版本无效，不使用旧缓存，全量重新计算: ${dateStr}`);
+        }
 
         // 获取日期文件夹中所有存在的小时文件
         const dateFolder = path.join(this.baseDir, dateStr);
@@ -93,15 +139,20 @@ export class LogStatsManager {
         for (const hour of hourFiles) {
             const hourKey = String(hour).padStart(2, '0');
             const hourFileModified = await this.readManager.getHourFileModifiedTime(dateStr, hour);
-            const existingModified = existingHourly[hourKey]?.modifiedTime;
-            // 检查时间戳：如果一致，说明文件未改变，可以跳过此小时的计算
-            if (existingModified !== undefined && existingModified === hourFileModified) {
-                // 时间戳一致，保留现有统计
+            const existingHourlyStats = existingHourly[hourKey];
+            const existingModified = existingHourlyStats?.modifiedTime;
+
+            // 检查是否需要重新计算：
+            // 1. 如果没有现有统计，需要计算
+            // 2. 如果文件修改时间变了，需要重新计算
+            const needsRecalculate = !existingHourlyStats || existingModified !== hourFileModified;
+            if (!needsRecalculate) {
+                // 文件未改变，保留现有统计
                 StatusLogger.trace(`[LogStatsManager] 小时文件未改变，跳过计算: ${dateStr} ${hourKey}:00`);
                 continue;
             }
 
-            // 时间戳不一致或不存在，需要读取并计算
+            // 需要重新计算
             StatusLogger.debug(`[LogStatsManager] 小时文件已改变，重新计算: ${dateStr} ${hourKey}:00`);
             const logs = await this.readManager.readHourLogs(dateStr, hour);
             const hourStats = StatsCalculator.aggregateLogs(logs);
@@ -145,6 +196,8 @@ export class LogStatsManager {
             // 累加首Token延迟信息
             total.totalFirstTokenLatency =
                 (total.totalFirstTokenLatency || 0) + (hourStats.totalFirstTokenLatency || 0);
+            // 累加输出速度信息（用于按算术平均计算平均输出速度）
+            total.totalOutputSpeeds = (total.totalOutputSpeeds || 0) + (hourStats.totalOutputSpeeds || 0);
 
             // 聚合提供商统计
             if (hourStats.providers) {
@@ -182,6 +235,9 @@ export class LogStatsManager {
                     // 累加提供商级别的首Token延迟信息
                     provider.totalFirstTokenLatency =
                         (provider.totalFirstTokenLatency || 0) + (providerStats.totalFirstTokenLatency || 0);
+                    // 累加提供商级别的输出速度信息（用于按算术平均计算平均输出速度）
+                    provider.totalOutputSpeeds =
+                        (provider.totalOutputSpeeds || 0) + (providerStats.totalOutputSpeeds || 0);
 
                     // 聚合模型统计
                     if (providerStats.models) {
@@ -214,6 +270,9 @@ export class LogStatsManager {
                             // 累加模型级别的首Token延迟信息
                             model.totalFirstTokenLatency =
                                 (model.totalFirstTokenLatency || 0) + (modelStats.totalFirstTokenLatency || 0);
+                            // 累加模型级别的输出速度信息（用于按算术平均计算平均输出速度）
+                            model.totalOutputSpeeds =
+                                (model.totalOutputSpeeds || 0) + (modelStats.totalOutputSpeeds || 0);
                         }
                     }
                 }
@@ -238,13 +297,18 @@ export class LogStatsManager {
             const dateFolder = path.join(this.baseDir, dateStr);
             await this.ensureDirectoryExists(dateFolder);
 
+            // 写入版本时间戳
+            stats.versionTimestamp = this.getCodeVersionTimestamp();
+
             // 写入完整的统计数据
             await fs.writeFile(filePath, JSON.stringify(stats, null, 2), 'utf-8');
 
             // 更新索引文件
             await this.indexManager.updateIndex(dateStr, stats.total);
 
-            StatusLogger.debug(`[LogStatsManager] 已保存日期统计到 stats.json: ${dateStr}`);
+            StatusLogger.debug(
+                `[LogStatsManager] 已保存日期统计到 stats.json: ${dateStr}, version=${new Date(stats.versionTimestamp).toISOString()}`
+            );
         } catch (err) {
             StatusLogger.error(`[LogStatsManager] 保存日期统计失败: ${dateStr}`, err);
             throw err;
@@ -358,8 +422,12 @@ export class LogStatsManager {
 
     /**
      * 检查指定日期的统计文件是否需要重新生成
-     * 通过比较日志文件(.jsonl)与统计文件(stats.json)的修改时间来判断
-     * 如果 stats.json 不存在或任何日志文件的修改时间晚于 stats.json，则需要重新生成
+     * 判断逻辑：
+     * 1. 如果 stats.json 不存在，需要生成
+     * 2. 如果没有 versionTimestamp（旧格式缓存），需要重新生成
+     * 3. 如果 versionTimestamp < 代码版本时间戳，需要重新生成（代码更新了）
+     * 4. 如果 stats.json 修改时间 < 缓存创建时间，说明是缓存重建前生成的旧统计，需要重新生成
+     * 5. 如果 stats.json 修改时间 >= 缓存创建时间，检查是否有更新的日志文件
      * @param dateStr 日期字符串 (YYYY-MM-DD)
      * @returns true 表示需要重新生成，false 表示无需重新生成
      */
@@ -371,13 +439,42 @@ export class LogStatsManager {
         }
 
         try {
-            // 获取 stats.json 的修改时间
+            // 读取 stats.json 内容，检查 versionTimestamp
+            const content = await fs.readFile(statsFilePath, 'utf-8');
+            const statsData: TokenUsageStatsFromFile = JSON.parse(content);
+
+            // 检查版本时间戳
+            const savedVersionTimestamp = statsData.versionTimestamp;
+            const codeVersionTimestamp = this.getCodeVersionTimestamp();
+
+            // 步骤2: 如果没有 versionTimestamp（旧格式缓存），需要重新生成
+            if (savedVersionTimestamp === undefined) {
+                StatusLogger.debug(
+                    `[LogStatsManager] 日期 ${dateStr} 的 stats.json 需要重新计算 (无版本时间戳，旧格式缓存)`
+                );
+                return true;
+            }
+
+            // 步骤3: 如果缓存版本 < 代码版本，需要重新生成
+            if (savedVersionTimestamp < codeVersionTimestamp) {
+                StatusLogger.debug(
+                    `[LogStatsManager] 日期 ${dateStr} 的 stats.json 需要重新计算 (缓存版本: ${new Date(savedVersionTimestamp).toISOString()}, 代码版本: ${new Date(codeVersionTimestamp).toISOString()})`
+                );
+                return true;
+            }
+
+            // 步骤4: 检查缓存是否比日志文件更新
             const statsStats = fsSync.statSync(statsFilePath);
             const statsMtime = statsStats.mtimeMs;
+            const cacheVersionTimestamp = this.getCacheVersionTimestamp();
 
-            // 获取日期文件夹路径
+            // 如果 stats.json 修改时间 < 缓存创建时间，说明是缓存重建前生成的旧统计，需要重新生成
+            if (statsMtime < cacheVersionTimestamp) {
+                return true;
+            }
+
+            // stats.json 修改时间 >= 缓存创建时间，检查是否有更新的日志文件
             const dateFolder = path.join(this.baseDir, dateStr);
-            // 检查日期文件夹是否存在
             if (!fsSync.existsSync(dateFolder)) {
                 return false;
             }
@@ -391,12 +488,13 @@ export class LogStatsManager {
                 const logStats = fsSync.statSync(logFilePath);
                 if (logStats.mtimeMs > statsMtime) {
                     StatusLogger.debug(
-                        `[LogStatsManager] 日期 ${dateStr} 的 stats.json 过期 (日志文件 ${logFile} 更新时间: ${new Date(logStats.mtimeMs).toISOString()})`
+                        `[LogStatsManager] 日期 ${dateStr} 的 stats.json 过期 (日志文件 ${logFile} 更新)`
                     );
                     return true;
                 }
             }
 
+            // 没有更新的日志文件，缓存有效
             return false;
         } catch (err) {
             StatusLogger.warn(`[LogStatsManager] 检查日期 ${dateStr} 是否需要更新失败:`, err);

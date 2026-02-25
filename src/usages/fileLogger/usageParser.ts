@@ -157,12 +157,23 @@ export class UsageParser {
             };
         }
 
-        // 计算流耗时和输出速度
+        // 计算流耗时
+        let duration: number | undefined;
         if (log.streamStartTime && log.streamEndTime) {
-            const duration = log.streamEndTime - log.streamStartTime;
+            duration = log.streamEndTime - log.streamStartTime;
+            // 如果流耗时小于 10ms，使用整个请求的耗时
+            if (duration < 10 && log.timestamp) {
+                duration = log.streamEndTime - log.timestamp;
+            }
+        } else if (log.streamEndTime) {
+            // 如果只有流结束时间，使用流结束时间和请求时间的差值作为耗时
+            duration = log.streamEndTime - log.timestamp;
+        }
+
+        // 计算输出速度
+        if (duration && duration > 0) {
             result.streamDuration = duration;
-            // 持续时间最少为 200ms，且必须有输出 tokens
-            if (duration >= 200 && result.outputTokens > 0) {
+            if (result.outputTokens > 0) {
                 const speed = (result.outputTokens / duration) * 1000; // tokens/s
                 // 速度 > 1000 认为可能有误，直接抛弃
                 if (speed <= 1000) {

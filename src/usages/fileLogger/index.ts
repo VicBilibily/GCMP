@@ -3,6 +3,14 @@
  *  整合路径管理、写入管理、读取管理、统计管理
  *--------------------------------------------------------------------------------------------*/
 
+/**
+ * 用量缓存版本时间戳
+ * ⚠️ 手动更新：当代码有导致缓存格式不兼容的变更时，需要手动更新此时间戳
+ * 缓存判断逻辑：stats.json 修改时间 >= 缓存时间时，需要重新计算
+ * 更新后首次运行会自动用当前时间创建新缓存，后续使用存储的缓存时间
+ */
+const USAGES_CACHE_VERSION_TIMESTAMP = new Date('2026-02-25T23:00:00+08:00').getTime();
+
 import * as vscode from 'vscode';
 import { StatusLogger } from '../../utils/statusLogger';
 import { LogPathManager } from './logPathManager';
@@ -36,6 +44,10 @@ export class TokenFileLogger {
     private readonly pendingLogsTTL: number = 5 * 60 * 1000; // 5分钟 TTL
     private readonly pendingLogsCleanupInterval: number = 60 * 1000; // 1分钟检查一次
 
+    // 缓存版本时间戳：早于此时间的缓存都会重新计算
+    // 由常量 USAGES_CACHE_VERSION_TIMESTAMP 手动控制，在 initialize() 中从 index.json 读取或更新
+    cacheVersionTimestamp: number = 0;
+
     constructor(private context: vscode.ExtensionContext) {
         const storageDir = context.globalStorageUri.fsPath;
 
@@ -58,11 +70,51 @@ export class TokenFileLogger {
         const baseDir = this.pathManager.getBaseDir();
         StatusLogger.info(`[TokenFileLogger] 基础目录: ${baseDir}`);
 
+        // 初始化缓存版本时间戳
+        await this.initCacheVersionTimestamp();
+
         // 启动 pendingLogs 清理任务
         this.startPendingLogsCleanup();
 
         const elapsed = Date.now() - startTime;
         StatusLogger.info(`[TokenFileLogger] 文件日志系统初始化完成 (耗时: ${elapsed}ms)`);
+    }
+
+    /**
+     * 初始化缓存版本时间戳
+     * 从 index.json 读取缓存创建时间，若不存在则创建当前时间
+     * 判断逻辑：
+     * - 如果没有版本时间戳（旧缓存），需要重新计算
+     * - 如果版本时间戳 < 代码版本时间，需要重新计算
+     * - 否则使用缓存时间戳判断
+     */
+    private async initCacheVersionTimestamp(): Promise<void> {
+        // 读取 index.json 中存储的时间戳
+        const { versionTimestamp, cacheTimestamp } = await this.indexManager.getCacheTimestamps();
+
+        // 判断是否需要重新创建缓存
+        // 条件：没有版本时间戳（旧缓存）或版本时间戳小于代码版本时间
+        const needsRecreate = !versionTimestamp || versionTimestamp < USAGES_CACHE_VERSION_TIMESTAMP;
+
+        if (needsRecreate) {
+            // 创建当前时间作为缓存时间
+            const now = Date.now();
+            await this.indexManager.setCacheTimestamps(USAGES_CACHE_VERSION_TIMESTAMP, now);
+            this.cacheVersionTimestamp = now;
+            StatusLogger.debug(
+                `[TokenFileLogger] 已创建新缓存: version=${new Date(USAGES_CACHE_VERSION_TIMESTAMP).toISOString()}, cache=${new Date(this.cacheVersionTimestamp).toISOString()}`
+            );
+        } else {
+            // 使用存储的缓存时间
+            this.cacheVersionTimestamp = cacheTimestamp || 0;
+            StatusLogger.debug(
+                `[TokenFileLogger] 使用现有缓存: version=${new Date(versionTimestamp).toISOString()}, cache=${new Date(this.cacheVersionTimestamp).toISOString()}`
+            );
+        }
+
+        // 同步更新 LogStatsManager 中的时间戳
+        // 同时传递代码版本时间戳和缓存创建时间戳
+        this.logStatsManager.updateCacheVersionTimestamp(this.cacheVersionTimestamp, USAGES_CACHE_VERSION_TIMESTAMP);
     }
 
     /**

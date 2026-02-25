@@ -38,5 +38,8 @@ export const KnownProviders: Record<string, KnownProviderConfig> = {
     openrouter: { displayName: 'OpenRouter' },
     siliconflow: { displayName: '硅基流动' },
     tbox: { displayName: '百灵大模型' },
+    mthreads: { displayName: '摩尔线程' },
+    infini: { displayName: '无问芯穹' },
+    rightcode: { displayName: 'RightCode' },
     mistral: { displayName: 'MistralAI' }
 };

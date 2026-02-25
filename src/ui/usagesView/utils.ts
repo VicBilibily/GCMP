@@ -42,24 +42,13 @@ export function calculateTotalTokens(stats: BaseStats): number {
 
 /**
  * 计算平均输出速度
+ * 使用缓存的 totalOutputSpeeds / validStreamRequests
  */
 export function calculateAverageSpeed(stats: BaseStats): string {
-    if (
-        !stats.totalStreamDuration ||
-        stats.totalStreamDuration <= 0 ||
-        !stats.validStreamRequests ||
-        stats.validStreamRequests <= 0 ||
-        !stats.validStreamOutputTokens ||
-        stats.validStreamOutputTokens <= 0
-    ) {
+    if (!stats.totalOutputSpeeds || !stats.validStreamRequests || stats.validStreamRequests <= 0) {
         return '-';
     }
-    // 计算平均速度: 有时间记录的输出tokens / 总耗时(秒)
-    const avgSpeed = (stats.validStreamOutputTokens / stats.totalStreamDuration) * 1000;
-    // 如果速度大于 1000，认为数据异常，返回 "-"
-    if (avgSpeed > 1000) {
-        return '-';
-    }
+    const avgSpeed = stats.totalOutputSpeeds / stats.validStreamRequests;
     return `${avgSpeed.toFixed(1)} t/s`;
 }
 

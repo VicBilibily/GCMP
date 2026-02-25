@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  小时统计图表组件
  *  使用 Chart.js 展示提供商的性能指标趋势
  *--------------------------------------------------------------------------------------------*/
@@ -140,18 +140,6 @@ export function createHourlyChart(
 }
 
 /**
- * 计算平均输出速度
- */
-function calcOutputSpeed(stats: { totalStreamDuration?: number; validStreamOutputTokens?: number }): number {
-    if (!stats.totalStreamDuration || !stats.validStreamOutputTokens || stats.totalStreamDuration <= 0) {
-        return 0;
-    }
-    const speed = (stats.validStreamOutputTokens / stats.totalStreamDuration) * 1000; // tokens/秒
-    // 如果速度 > 1000，认为是异常数据，返回 0（后续会被转为 null）
-    return speed > 1000 ? 0 : speed;
-}
-
-/**
  * 计算平均首token延迟
  */
 function calcFirstTokenLatency(stats: { totalFirstTokenLatency?: number; validStreamRequests?: number }): number {
@@ -188,7 +176,12 @@ function initSpeedChart(canvas: HTMLCanvasElement, hourlyStats: Record<string, H
                         data: new Map()
                     });
                 }
-                const outputSpeed = calcOutputSpeed(providerStats);
+                const outputSpeed =
+                    providerStats.totalOutputSpeeds &&
+                    providerStats.validStreamRequests &&
+                    providerStats.validStreamRequests > 0
+                        ? providerStats.totalOutputSpeeds / providerStats.validStreamRequests
+                        : 0;
                 providerMap.get(providerId)!.data.set(hour, outputSpeed);
             });
         }
@@ -285,21 +278,21 @@ function createDatasetsFromMap(
     }> = [];
 
     const providerColors = [
-        { border: 'rgb(54, 162, 235)', bg: 'rgba(54, 162, 235, 0.1)' },
-        { border: 'rgb(255, 99, 132)', bg: 'rgba(255, 99, 132, 0.1)' },
-        { border: 'rgb(75, 192, 192)', bg: 'rgba(75, 192, 192, 0.1)' },
-        { border: 'rgb(255, 159, 64)', bg: 'rgba(255, 159, 64, 0.1)' },
-        { border: 'rgb(52, 152, 219)', bg: 'rgba(52, 152, 219, 0.1)' },
-        { border: 'rgb(255, 206, 86)', bg: 'rgba(255, 206, 86, 0.1)' },
-        { border: 'rgb(46, 204, 113)', bg: 'rgba(46, 204, 113, 0.1)' },
-        { border: 'rgb(155, 89, 182)', bg: 'rgba(155, 89, 182, 0.1)' },
-        { border: 'rgb(22, 160, 133)', bg: 'rgba(22, 160, 133, 0.1)' },
-        { border: 'rgb(231, 76, 60)', bg: 'rgba(231, 76, 60, 0.1)' },
-        { border: 'rgb(26, 188, 156)', bg: 'rgba(26, 188, 156, 0.1)' },
-        { border: 'rgb(230, 126, 34)', bg: 'rgba(230, 126, 34, 0.1)' },
-        { border: 'rgb(39, 174, 96)', bg: 'rgba(39, 174, 96, 0.1)' },
-        { border: 'rgb(243, 156, 18)', bg: 'rgba(243, 156, 18, 0.1)' },
-        { border: 'rgb(41, 128, 185)', bg: 'rgba(41, 128, 185, 0.1)' }
+        { border: 'rgb(59, 130, 246)', bg: 'rgba(59, 130, 246, 0.1)' }, // 蓝色
+        { border: 'rgb(34, 197, 94)', bg: 'rgba(34, 197, 94, 0.1)' }, // 绿色
+        { border: 'rgb(249, 115, 22)', bg: 'rgba(249, 115, 22, 0.1)' }, // 橙色
+        { border: 'rgb(234, 179, 8)', bg: 'rgba(234, 179, 8, 0.1)' }, // 黄色
+        { border: 'rgb(20, 184, 166)', bg: 'rgba(20, 184, 166, 0.1)' }, // 青色
+        { border: 'rgb(139, 92, 246)', bg: 'rgba(139, 92, 246, 0.1)' }, // 紫罗兰
+        { border: 'rgb(6, 182, 212)', bg: 'rgba(6, 182, 212, 0.1)' }, // 浅蓝
+        { border: 'rgb(132, 204, 22)', bg: 'rgba(132, 204, 22, 0.1)' }, // 青柠
+        { border: 'rgb(99, 102, 241)', bg: 'rgba(99, 102, 241, 0.1)' }, // 靛蓝
+        { border: 'rgb(21, 128, 61)', bg: 'rgba(21, 128, 61, 0.1)' }, // 深绿
+        { border: 'rgb(124, 45, 18)', bg: 'rgba(124, 45, 18, 0.1)' }, // 棕色
+        { border: 'rgb(107, 114, 128)', bg: 'rgba(107, 114, 128, 0.1)' }, // 灰色
+        { border: 'rgb(128, 0, 128)', bg: 'rgba(128, 0, 128, 0.1)' }, // 紫色
+        { border: 'rgb(0, 100, 0)', bg: 'rgba(0, 100, 0, 0.1)' }, // 暗绿
+        { border: 'rgb(70, 130, 180)', bg: 'rgba(70, 130, 180, 0.1)' } // 钢蓝
     ];
 
     let colorIndex = 0;

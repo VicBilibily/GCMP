@@ -223,31 +223,31 @@ function createRequestRecordsTable(records: ExtendedTokenRequestLog[]): HTMLElem
             }
 
             const firstTokenLatency = createElement('td');
-            if (record.streamStartTime !== undefined && record.timestamp !== undefined) {
-                const latency = record.streamStartTime - record.timestamp;
-                if (Number.isFinite(latency) && latency >= 0) {
-                    // 格式化延迟
-                    let latencyStr;
-                    if (latency >= 1000) {
-                        latencyStr = `<span>${(latency / 1000).toFixed(1)}s</span>`;
-                    } else {
-                        latencyStr = `<span>${Math.round(latency)}ms</span>`;
-                    }
-                    // 计算总耗时 (streamEndTime - streamStartTime)
-                    let durationStr = '';
-                    if (record.streamEndTime !== undefined) {
-                        const duration = record.streamEndTime - record.streamStartTime;
-                        if (Number.isFinite(duration) && duration >= 0) {
-                            if (duration >= 1000) {
-                                durationStr = ` + <span>${(duration / 1000).toFixed(1)}s</span>`;
-                            } else {
-                                durationStr = ` + <span>${Math.round(duration)}ms</span>`;
-                            }
-                        }
-                    }
-                    firstTokenLatency.innerHTML = latencyStr + durationStr;
+            // 优先使用 streamDuration（已计算好的耗时）
+            if (record.streamDuration !== undefined && record.streamDuration > 0) {
+                let durationStr: string;
+                if (record.streamDuration >= 1000) {
+                    durationStr = `<span>${(record.streamDuration / 1000).toFixed(1)}s</span>`;
                 } else {
-                    firstTokenLatency.textContent = '-';
+                    durationStr = `<span>${Math.round(record.streamDuration)}ms</span>`;
+                }
+                // 只有同时有首令延迟时才显示
+                if (record.streamStartTime !== undefined && record.timestamp !== undefined) {
+                    const latency = record.streamStartTime - record.timestamp;
+                    if (Number.isFinite(latency) && latency >= 0) {
+                        let latencyStr: string;
+                        if (latency >= 1000) {
+                            latencyStr = `<span>${(latency / 1000).toFixed(1)}s</span>`;
+                        } else {
+                            latencyStr = `<span>${Math.round(latency)}ms</span>`;
+                        }
+                        firstTokenLatency.innerHTML = latencyStr + ' + ' + durationStr;
+                    } else {
+                        firstTokenLatency.innerHTML = '- + ' + durationStr;
+                    }
+                } else {
+                    // 只有耗时，没有首令延迟
+                    firstTokenLatency.innerHTML = '- + ' + durationStr;
                 }
             } else {
                 firstTokenLatency.textContent = '-';

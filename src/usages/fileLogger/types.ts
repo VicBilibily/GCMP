@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Token文件日志系统 - 类型定义
  *  补充 globalState 存储,提供详细的请求日志记录
  *--------------------------------------------------------------------------------------------*/
@@ -118,14 +118,16 @@ export interface BaseStats {
     estimatedInput: number;
     actualInput: number;
     cacheTokens: number;
-    /** 总输出耗时(毫秒) - 用于计算平均输出速度 */
+    /** 总输出耗时(毫秒) - 用于耗时展示与兼容历史统计字段 */
     totalStreamDuration?: number;
-    /** 有效的请求次数(有时间记录的完成请求) - 用于计算平均输出速度和平均首Token延迟 */
+    /** 有效的请求次数(有时间记录的完成请求) - 用于算术平均速度和平均首Token延迟 */
     validStreamRequests?: number;
-    /** 有时间记录的输出 tokens - 用于计算平均输出速度（避免历史数据影响） */
+    /** 有时间记录的输出 tokens - 历史兼容字段（旧口径保留） */
     validStreamOutputTokens?: number;
     /** 总首Token延迟(毫秒) - 用于计算平均首Token延迟 */
     totalFirstTokenLatency?: number;
+    /** 总输出速度之和 (tokens/s) - 用于按算术平均计算平均输出速度 */
+    totalOutputSpeeds?: number;
     outputTokens: number;
     requests: number;
 }
@@ -173,6 +175,8 @@ export interface HourlyStats extends TokenStats {
  * 也是 stats.json 的文件结构
  */
 export interface TokenUsageStatsFromFile {
+    /** 代码版本时间戳 - 用于判断缓存是否由当前版本代码生成 */
+    versionTimestamp?: number;
     /** 总计 */
     total: TokenStats;
     /** 按提供商分组 (直接使用 providerId 作为 key) */
@@ -196,5 +200,9 @@ export interface DateIndexEntry {
  * 用于快速浏览日期列表，无需加载每个日期的完整统计
  */
 export interface DateIndex {
+    /** 代码版本时间戳 - 用于判断缓存是否由当前版本代码生成 */
+    versionTimestamp?: number;
+    /** 缓存创建时间戳 - 用于判断缓存是否比日志文件更新 */
+    cacheTimestamp?: number;
     dates: Record<string, DateIndexEntry>;
 }

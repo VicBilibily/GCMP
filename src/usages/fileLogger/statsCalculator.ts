@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  统计计算器
  *  专门负责日志聚合和统计计算，不涉及文件 I/O
  *  设计为静态类，所有方法直接调用，无需实例化
@@ -48,6 +48,10 @@ export abstract class StatsCalculator {
                 }
                 if (log.streamEndTime !== undefined) {
                     existing.streamEndTime = log.streamEndTime;
+                } else {
+                    // 旧数据兼容：历史记录可能只有最终状态更新而未单独记录 streamEndTime。
+                    // 此处用该条流水记录时间作为结束时间兜底，避免历史数据在耗时/速度统计中完全缺失。
+                    existing.streamEndTime = log.timestamp;
                 }
             }
         }
@@ -70,7 +74,12 @@ export abstract class StatsCalculator {
                 outputTokens: 0,
                 requests: 0,
                 completedRequests: 0,
-                failedRequests: 0
+                failedRequests: 0,
+                totalStreamDuration: 0,
+                validStreamRequests: 0,
+                validStreamOutputTokens: 0,
+                totalFirstTokenLatency: 0,
+                totalOutputSpeeds: 0
             },
             providers: {}
         };
@@ -101,6 +110,11 @@ export abstract class StatsCalculator {
                     requests: 0,
                     completedRequests: 0,
                     failedRequests: 0,
+                    totalStreamDuration: 0,
+                    validStreamRequests: 0,
+                    validStreamOutputTokens: 0,
+                    totalFirstTokenLatency: 0,
+                    totalOutputSpeeds: 0,
                     models: {}
                 };
             }
@@ -135,13 +149,16 @@ export abstract class StatsCalculator {
             stats.total.cacheTokens += parsed.cacheReadTokens;
             stats.total.outputTokens += parsed.outputTokens;
 
-            // 累加流耗时信息用于计算平均输出速度（只统计有完整时间记录的）
+            // 累加流耗时信息（用于耗时展示与兼容历史字段）
             // 累加首Token延迟信息用于计算平均首Token延迟（只统计有完整时间记录的）
             if (parsed.streamDuration && parsed.streamDuration > 0) {
                 stats.total.totalStreamDuration = (stats.total.totalStreamDuration || 0) + parsed.streamDuration;
                 stats.total.validStreamRequests = (stats.total.validStreamRequests || 0) + 1;
                 stats.total.validStreamOutputTokens = (stats.total.validStreamOutputTokens || 0) + parsed.outputTokens;
-
+                // 累加输出速度（用于后续计算平均速度）
+                if (parsed.outputSpeed && parsed.outputSpeed > 0) {
+                    stats.total.totalOutputSpeeds = (stats.total.totalOutputSpeeds || 0) + parsed.outputSpeed;
+                }
                 if (log.streamStartTime !== undefined && log.timestamp !== undefined) {
                     const firstTokenLatency = log.streamStartTime - log.timestamp;
                     if (Number.isFinite(firstTokenLatency) && firstTokenLatency >= 0) {
@@ -164,7 +181,10 @@ export abstract class StatsCalculator {
                 providerStats.validStreamRequests = (providerStats.validStreamRequests || 0) + 1;
                 providerStats.validStreamOutputTokens =
                     (providerStats.validStreamOutputTokens || 0) + parsed.outputTokens;
-
+                // 累加输出速度（用于后续计算平均速度）
+                if (parsed.outputSpeed && parsed.outputSpeed > 0) {
+                    providerStats.totalOutputSpeeds = (providerStats.totalOutputSpeeds || 0) + parsed.outputSpeed;
+                }
                 if (log.streamStartTime !== undefined && log.timestamp !== undefined) {
                     const firstTokenLatency = log.streamStartTime - log.timestamp;
                     if (Number.isFinite(firstTokenLatency) && firstTokenLatency >= 0) {
@@ -182,7 +202,12 @@ export abstract class StatsCalculator {
                     actualInput: 0,
                     cacheTokens: 0,
                     outputTokens: 0,
-                    requests: 0
+                    requests: 0,
+                    totalStreamDuration: 0,
+                    validStreamRequests: 0,
+                    validStreamOutputTokens: 0,
+                    totalFirstTokenLatency: 0,
+                    totalOutputSpeeds: 0
                 };
             }
 
@@ -199,7 +224,10 @@ export abstract class StatsCalculator {
                 modelStats.totalStreamDuration = (modelStats.totalStreamDuration || 0) + parsed.streamDuration;
                 modelStats.validStreamRequests = (modelStats.validStreamRequests || 0) + 1;
                 modelStats.validStreamOutputTokens = (modelStats.validStreamOutputTokens || 0) + parsed.outputTokens;
-
+                // 累加输出速度（用于后续计算平均速度）
+                if (parsed.outputSpeed && parsed.outputSpeed > 0) {
+                    modelStats.totalOutputSpeeds = (modelStats.totalOutputSpeeds || 0) + parsed.outputSpeed;
+                }
                 if (log.streamStartTime !== undefined && log.timestamp !== undefined) {
                     const firstTokenLatency = log.streamStartTime - log.timestamp;
                     if (Number.isFinite(firstTokenLatency) && firstTokenLatency >= 0) {

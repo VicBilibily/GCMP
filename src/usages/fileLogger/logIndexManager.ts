@@ -31,6 +31,54 @@ export class LogIndexManager {
     }
 
     /**
+     * 获取缓存时间戳信息
+     * @returns 版本时间戳和缓存创建时间戳
+     */
+    async getCacheTimestamps(): Promise<{ versionTimestamp: number | null; cacheTimestamp: number | null }> {
+        const index = await this.readIndex();
+        if (!index) {
+            return { versionTimestamp: null, cacheTimestamp: null };
+        }
+        return {
+            versionTimestamp: index.versionTimestamp ?? null,
+            cacheTimestamp: index.cacheTimestamp ?? null
+        };
+    }
+
+    /**
+     * 设置缓存时间戳
+     * 同时设置版本时间戳和缓存创建时间戳
+     * @param versionTimestamp 代码版本时间戳
+     * @param cacheTimestamp 缓存创建时间戳（通常为 Date.now()）
+     */
+    async setCacheTimestamps(versionTimestamp: number, cacheTimestamp: number): Promise<void> {
+        const indexPath = this.getIndexPath();
+
+        try {
+            // 读取现有索引
+            let index: DateIndex = { dates: {} };
+
+            if (fsSync.existsSync(indexPath)) {
+                const content = await fs.readFile(indexPath, 'utf-8');
+                index = JSON.parse(content);
+            }
+
+            // 更新两个时间戳
+            index.versionTimestamp = versionTimestamp;
+            index.cacheTimestamp = cacheTimestamp;
+
+            await this.ensureDirectoryExists(this.baseDir);
+            await fs.writeFile(indexPath, JSON.stringify(index, null, 2), 'utf-8');
+            StatusLogger.debug(
+                `[LogIndexManager] 已更新缓存时间戳: version=${new Date(versionTimestamp).toISOString()}, cache=${new Date(cacheTimestamp).toISOString()}`
+            );
+        } catch (err) {
+            StatusLogger.warn('[LogIndexManager] 设置缓存时间戳失败', err);
+            throw err;
+        }
+    }
+
+    /**
      * 读取日期索引
      * 用于快速获取所有日期的摘要信息
      */
@@ -176,7 +224,14 @@ export class LogIndexManager {
 
         // 如果有变化（新增或删除），更新索引文件
         if (hasChanges) {
-            await this.saveIndex({ dates: summaries });
+            const nextIndex: DateIndex = { dates: summaries };
+            if (index?.versionTimestamp !== undefined) {
+                nextIndex.versionTimestamp = index.versionTimestamp;
+            }
+            if (index?.cacheTimestamp !== undefined) {
+                nextIndex.cacheTimestamp = index.cacheTimestamp;
+            }
+            await this.saveIndex(nextIndex);
         }
         return summaries;
     }

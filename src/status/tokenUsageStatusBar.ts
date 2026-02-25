@@ -183,8 +183,7 @@ export class TokenUsageStatusBar {
             const providerTotal = providerStats.actualInput + providerStats.outputTokens;
             // 计算平均输出速度
             const avgSpeed = this.calculateAverageSpeed(
-                providerStats.validStreamOutputTokens,
-                providerStats.totalStreamDuration,
+                providerStats.totalOutputSpeeds,
                 providerStats.validStreamRequests
             );
             // 计算平均首Token延迟
@@ -203,8 +202,7 @@ export class TokenUsageStatusBar {
         if (providers.length > 1) {
             const total = stats.total.actualInput + stats.total.outputTokens;
             const avgSpeedTotal = this.calculateAverageSpeed(
-                stats.total.validStreamOutputTokens,
-                stats.total.totalStreamDuration,
+                stats.total.totalOutputSpeeds,
                 stats.total.validStreamRequests
             );
             const avgLatencyTotal = this.calculateAverageFirstTokenLatency(
@@ -305,25 +303,16 @@ export class TokenUsageStatusBar {
 
     /**
      * 计算平均输出速度
-     * @param validStreamOutputTokens 有时间记录的输出 token 数（优先使用，避免历史数据影响）
-     * @param totalStreamDuration 总流耗时(毫秒)
+     * 使用 totalOutputSpeeds / validStreamRequests
+     * @param totalOutputSpeeds 总输出速度之和
      * @param validStreamRequests 有效请求次数
      * @returns 格式化的平均速度字符串
      */
-    private calculateAverageSpeed(
-        validStreamOutputTokens: number | undefined,
-        totalStreamDuration?: number,
-        validStreamRequests?: number
-    ): string {
-        if (!totalStreamDuration || totalStreamDuration <= 0 || !validStreamRequests || validStreamRequests <= 0) {
+    private calculateAverageSpeed(totalOutputSpeeds?: number, validStreamRequests?: number): string {
+        if (!totalOutputSpeeds || !validStreamRequests || validStreamRequests <= 0) {
             return '-';
         }
-        // 使用有时间记录的 outputTokens（如果没有则返回 -）
-        if (!validStreamOutputTokens || validStreamOutputTokens <= 0) {
-            return '-';
-        }
-        // 计算平均速度: 有时间记录的输出tokens / 总耗时(秒)
-        const avgSpeed = (validStreamOutputTokens / totalStreamDuration) * 1000;
+        const avgSpeed = totalOutputSpeeds / validStreamRequests;
         return `${avgSpeed.toFixed(1)} t/s`;
     }
 
