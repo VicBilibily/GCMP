@@ -180,25 +180,6 @@ export class CompatibleProvider extends GenericModelProvider {
                 await CompatibleModelManager.configureModelOrUpdateAPIKey();
             }
 
-            // 获取所有模型涉及的提供商（去重）
-            const providers = new Set<string>();
-            for (const model of currentConfig.models) {
-                if (model.provider) {
-                    providers.add(model.provider);
-                }
-            }
-            // 检查每个提供商的 API Key
-            for (const provider of providers) {
-                if (!options.silent) {
-                    // 非静默模式下，使用 ensureApiKey 逐一确认和设置
-                    const hasValidKey = await ApiKeyManager.ensureApiKey(provider, provider, false);
-                    if (!hasValidKey) {
-                        Logger.warn(`Compatible Provider 用户未设置提供商 "${provider}" 的 API 密钥`);
-                        return [];
-                    }
-                }
-            }
-
             // 将最新配置中的模型转换为 VS Code 所需的格式
             const modelInfos = currentConfig.models.map(model => {
                 const info = this.modelConfigToInfo(model);

@@ -211,8 +211,10 @@ export class ApiKeyManager {
     static async promptAndSetApiKey(provider: string, displayName: string, placeHolder: string): Promise<void> {
         const apiKey = await vscode.window.showInputBox({
             prompt: `请输入您的 ${displayName} API密钥（留空则清除密钥）`,
+            title: `设置 ${displayName} API Key`,
+            placeHolder: placeHolder,
             password: true,
-            placeHolder: placeHolder
+            ignoreFocusOut: true
         });
         if (apiKey !== undefined) {
             const validation = this.validateApiKey(apiKey, provider);

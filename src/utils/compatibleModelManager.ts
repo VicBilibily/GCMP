@@ -370,6 +370,7 @@ export class CompatibleModelManager {
         } else if (selected?.action === 'configureModels') {
             await this.configureModels();
         }
+        this._onDidChangeModels.fire();
     }
 
     /**
@@ -475,13 +476,33 @@ export class CompatibleModelManager {
     }
 
     /**
+     * 获取提供商显示名称
+     */
+    private static getProviderDisplayName(provider: string): string {
+        const knownProvider = KnownProviders[provider];
+        if (knownProvider?.displayName) {
+            return knownProvider.displayName;
+        }
+
+        const builtinProvider = configProviders[provider as keyof typeof configProviders];
+        if (builtinProvider?.displayName) {
+            return builtinProvider.displayName;
+        }
+
+        return provider;
+    }
+
+    /**
      * 为指定提供商设置 API 密钥
      */
     private static async setApiKeyForProvider(provider: string): Promise<void> {
+        const displayName = this.getProviderDisplayName(provider);
         const apiKey = await vscode.window.showInputBox({
-            prompt: `请输入 "${provider}" 的 API 密钥（留空则清除密钥）`,
+            prompt: `请输入 "${displayName}" 的 API 密钥（留空则清除密钥）`,
+            title: `设置 ${displayName} API Key`,
             placeHolder: 'sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-            password: true
+            password: true,
+            ignoreFocusOut: true
         });
         if (apiKey === undefined) {
             return;

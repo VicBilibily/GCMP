@@ -81,13 +81,7 @@ export class MiniMaxWizard {
             title: `设置 ${displayName} 普通 API Key`,
             placeHolder: apiKeyTemplate,
             password: true,
-            validateInput: (value: string) => {
-                // 允许空值，用于清除 API Key
-                if (!value || value.trim() === '') {
-                    return null;
-                }
-                return null;
-            }
+            ignoreFocusOut: true
         });
 
         // 用户取消了输入
@@ -121,13 +115,7 @@ export class MiniMaxWizard {
             title: `设置 ${displayName} Coding Plan 专用 API Key`,
             placeHolder: codingKeyTemplate,
             password: true,
-            validateInput: (value: string) => {
-                // 允许空值，用于清除 API Key
-                if (!value || value.trim() === '') {
-                    return null;
-                }
-                return null;
-            }
+            ignoreFocusOut: true
         });
 
         // 用户取消了输入

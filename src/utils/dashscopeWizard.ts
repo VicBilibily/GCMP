@@ -63,7 +63,7 @@ export class DashscopeWizard {
             title: `设置 ${displayName} API Key`,
             placeHolder: apiKeyTemplate,
             password: true,
-            validateInput: (_value: string) => null
+            ignoreFocusOut: true
         });
 
         if (result === undefined) {
@@ -95,7 +95,7 @@ export class DashscopeWizard {
             title: `设置 ${displayName} Coding Plan 专用 API Key`,
             placeHolder: codingKeyTemplate,
             password: true,
-            validateInput: (_value: string) => null
+            ignoreFocusOut: true
         });
 
         if (result === undefined) {

@@ -99,13 +99,7 @@ export class ZhipuWizard {
             title: `设置 ${displayName} API Key`,
             placeHolder: apiKeyTemplate,
             password: true,
-            validateInput: (value: string) => {
-                // 允许空值，用于清除 API Key
-                if (!value || value.trim() === '') {
-                    return null;
-                }
-                return null;
-            }
+            ignoreFocusOut: true
         });
 
         // 用户取消了输入

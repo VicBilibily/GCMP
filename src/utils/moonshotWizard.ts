@@ -66,13 +66,7 @@ export class MoonshotWizard {
             title: `设置 ${displayName} API Key`,
             placeHolder: apiKeyTemplate,
             password: true,
-            validateInput: (value: string) => {
-                // 允许空值，用于清除 API Key
-                if (!value || value.trim() === '') {
-                    return null;
-                }
-                return null;
-            }
+            ignoreFocusOut: true
         });
 
         // 用户取消了输入
@@ -109,13 +103,7 @@ export class MoonshotWizard {
             title: '设置 Kimi For Coding 专用 API Key',
             placeHolder: codingKeyTemplate,
             password: true,
-            validateInput: (value: string) => {
-                // 允许空值，用于清除 API Key
-                if (!value || value.trim() === '') {
-                    return null;
-                }
-                return null;
-            }
+            ignoreFocusOut: true
         });
 
         // 用户取消了输入
