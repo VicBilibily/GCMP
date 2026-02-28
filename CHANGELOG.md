@@ -2,6 +2,12 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.19.17] - 2026-02-28
+
+### 修复
+
+- **会话 Marker 解析容错**：修复使用了 Copilot 提供的 GPT 模型对话后再使用插件提供的第三方模型时，在触发 `JSON.parse` 报错并导致请求失败的问题 [#88](https://github.com/VicBilibily/GCMP/issues/88)
+
 ## [0.19.16] - 2026-02-26
 
 ### 优化

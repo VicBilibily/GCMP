@@ -40,11 +40,16 @@ export function encodeStatefulMarker(modelId: string, marker: Omit<StatefulMarke
     return new TextEncoder().encode(modelId + '\\' + JSON.stringify({ ...marker, extension: StatefulMarkerExtension }));
 }
 
-export function decodeStatefulMarker(data: Uint8Array): StatefulMarkerWithModel {
+export function decodeStatefulMarker(data: Uint8Array): StatefulMarkerWithModel | undefined {
     const decoded = new TextDecoder().decode(data);
     // MARK: 这里获取到的 modelId 始终为 copilot 内部重置后的值
     const [modelId, markerStr] = decoded.split('\\');
-    return { modelId, marker: JSON.parse(markerStr) };
+    try {
+        const markerObj = JSON.parse(markerStr);
+        return { modelId, marker: markerObj };
+    } catch {
+        return undefined;
+    }
 }
 
 /** Gets stateful markers from the messages, from the most to least recent */
