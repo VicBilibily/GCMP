@@ -7,6 +7,7 @@ import { BaseCliAuth } from './baseCliAuth';
 import { IFlowCliAuth } from './iflowCliAuth';
 import { GeminiCliAuth } from './geminiCliAuth';
 import { QwenCodeCliAuth } from './qwenCodeCliAuth';
+import { CodexCliAuth } from './codexCliAuth';
 import { Logger } from '../../utils/logger';
 import { OAuthCredentials } from '../type';
 
@@ -36,6 +37,9 @@ export class CliAuthFactory {
                 break;
             case 'gemini':
                 instance = new GeminiCliAuth();
+                break;
+            case 'codex':
+                instance = new CodexCliAuth();
                 break;
             default:
                 Logger.warn(`[CliAuthFactory] 未知的 CLI 类型: ${cliType}`);
@@ -87,7 +91,8 @@ export class CliAuthFactory {
         return [
             { id: 'iflow', name: 'iFlow CLI' },
             { id: 'qwen', name: 'Qwen Code CLI' },
-            { id: 'gemini', name: 'Gemini CLI' }
+            { id: 'gemini', name: 'Gemini CLI' },
+            { id: 'codex', name: 'Codex CLI' }
         ];
     }
 }

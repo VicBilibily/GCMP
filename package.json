@@ -62,6 +62,7 @@
         "onLanguageModelProvider:gcmp.iflow",
         "onLanguageModelProvider:gcmp.qwen",
         "onLanguageModelProvider:gcmp.gemini",
+        "onLanguageModelProvider:gcmp.codex",
         "onLanguageModelProvider:gcmp.compatible",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
         "onLanguageModelTool:gcmp_minimaxWebSearch",
@@ -162,6 +163,11 @@
             {
                 "command": "gcmp.gemini.configWizard",
                 "title": "Gemini CLI 配置向导（CLI 认证）",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.codex.configWizard",
+                "title": "Codex CLI 配置向导（CLI 认证）",
                 "category": "GCMP"
             },
             {
@@ -570,6 +576,11 @@
                 "vendor": "gcmp.gemini",
                 "displayName": "⨮ Gemini CLI",
                 "managementCommand": "gcmp.gemini.configWizard"
+            },
+            {
+                "vendor": "gcmp.codex",
+                "displayName": "⨮ Codex CLI",
+                "managementCommand": "gcmp.codex.configWizard"
             },
             {
                 "vendor": "gcmp.compatible",

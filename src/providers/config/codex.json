@@ -1,0 +1,47 @@
+{
+    "displayName": "Codex",
+    "baseUrl": "https://chatgpt.com/backend-api/codex",
+    "apiKeyTemplate": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "customHeader": {
+        "originator": "opencode",
+        "Accept": "*/*"
+    },
+    "models": [
+        {
+            "id": "gpt-5.2",
+            "name": "GPT-5.2 (Codex)",
+            "sdkMode": "openai-responses",
+            "tooltip": "GPT-5.2 - OpenAI Codex 提供的新一代模型，支持代码生成与理解",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "gpt-5.2-codex",
+            "name": "GPT-5.2-Codex (Codex)",
+            "sdkMode": "openai-responses",
+            "tooltip": "GPT-5.2-Codex - 专为编程场景优化的 Codex 模型",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "gpt-5.3-codex",
+            "name": "GPT-5.3-Codex (Codex)",
+            "sdkMode": "openai-responses",
+            "tooltip": "GPT-5.3-Codex - 最新一代 Codex 编程模型，具备更强的代码推理能力",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 32768,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        }
+    ]
+}
