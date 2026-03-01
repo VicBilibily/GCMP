@@ -1,7 +1,7 @@
 {
     "displayName": "Codex",
     "baseUrl": "https://chatgpt.com/backend-api/codex",
-    "apiKeyTemplate": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "apiKeyTemplate": "eyJhbGciOiJSUzI1NiIsImtpZCI6I...",
     "customHeader": {
         "originator": "opencode",
         "Accept": "*/*"
