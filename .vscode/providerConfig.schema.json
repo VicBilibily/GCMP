@@ -134,8 +134,41 @@
                     "additionalProperties": {
                         "description": "额外的请求体参数值"
                     }
+                },
+                "useInstructions": {
+                    "type": "boolean",
+                    "description": "是否在 Responses API 中使用 instructions 参数（可选）\n- false: 使用用户消息传递系统消息（默认）\n- true: 使用 instructions 参数传递系统消息",
+                    "default": false
                 }
-            }
+            },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "sdkMode": {
+                                "const": "openai-responses"
+                            }
+                        },
+                        "required": ["sdkMode"]
+                    },
+                    "then": {
+                        "properties": {
+                            "useInstructions": {
+                                "type": "boolean",
+                                "description": "是否在 Responses API 中使用 instructions 参数（可选）\n- false: 使用用户消息传递系统消息（默认）\n- true: 使用 instructions 参数传递系统消息",
+                                "default": false
+                            }
+                        }
+                    },
+                    "else": {
+                        "properties": {
+                            "useInstructions": {
+                                "deprecationMessage": "useInstructions 仅对 openai-responses 模式生效"
+                            }
+                        }
+                    }
+                }
+            ]
         }
     }
 }

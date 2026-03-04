@@ -12,6 +12,8 @@ import { ModelConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { getStatefulMarkerAndIndex } from './statefulMarker';
 import { StreamReporter } from './streamReporter';
+import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
+import { CodexCliAuth } from '../cli/auth/codexCliAuth';
 
 // 使用 OpenAI SDK 的 Responses API 类型
 type ResponseInputItem = OpenAI.Responses.ResponseInputItem;
@@ -503,6 +505,14 @@ export class OpenAIResponsesHandler {
                 const { _options: clientOptions } = client as unknown as { _options: ClientOptions };
                 const { defaultHeaders: optHeaders } = clientOptions as { defaultHeaders: Record<string, string> };
                 optHeaders['conversation_id'] = optHeaders['session_id'] = sessionId;
+                if (this.providerKey === 'codex') {
+                    const codexAuth = CliAuthFactory.getInstance('codex') as CodexCliAuth;
+                    const accountId = await codexAuth?.getAccountId();
+                    if (accountId && accountId.trim()) {
+                        optHeaders['chatgpt-account-id'] = accountId.trim();
+                    }
+                }
+
                 Logger.info(`🎯 ${model.name} 使用 session_id: ${sessionId}`);
 
                 if (systemMessage) {

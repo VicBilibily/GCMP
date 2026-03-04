@@ -10,6 +10,7 @@ import { KimiStatusBar } from './kimiStatusBar';
 import { DeepSeekStatusBar } from './deepseekStatusBar';
 import { MoonshotStatusBar } from './moonshotStatusBar';
 import { ZhipuStatusBar } from './zhipuStatusBar';
+import { ChatGPTStatusBar } from './chatgptStatusBar';
 import { CompatibleStatusBar } from './compatibleStatusBar';
 import { ContextUsageStatusBar } from './contextUsageStatusBar';
 import { TokenUsageStatusBar } from './tokenUsageStatusBar';
@@ -46,6 +47,8 @@ export class StatusBarManager {
     static moonshot: IStatusBar | undefined;
     /** 智谱AI用量状态栏 */
     static zhipu: IStatusBar | undefined;
+    /** Codex 用量查询状态栏 */
+    static codex: IStatusBar | undefined;
     /** Compatible 提供商状态栏 */
     static compatible: ICompatibleStatusBar | undefined;
     /** 模型上下文窗口占用情况状态栏 */
@@ -81,6 +84,10 @@ export class StatusBarManager {
         // 创建并注册 Moonshot 状态栏
         const moonshotStatusBar = new MoonshotStatusBar();
         this.registerStatusBar('moonshot', moonshotStatusBar);
+
+        // 创建并注册 Codex 状态栏
+        const chatgptStatusBar = new ChatGPTStatusBar();
+        this.registerStatusBar('codex', chatgptStatusBar);
 
         // 创建并注册 Compatible 提供商状态栏
         const compatibleStatusBar = new CompatibleStatusBar();
@@ -123,6 +130,9 @@ export class StatusBarManager {
                 break;
             case 'moonshot':
                 this.moonshot = statusBar;
+                break;
+            case 'codex':
+                this.codex = statusBar;
                 break;
             case 'compatible':
                 this.compatible = statusBar as ICompatibleStatusBar;
@@ -235,6 +245,7 @@ export class StatusBarManager {
         this.kimi = undefined;
         this.deepseek = undefined;
         this.moonshot = undefined;
+        this.codex = undefined;
         this.compatible = undefined;
         this.contextUsage = undefined;
         this.tokenUsage = undefined;

@@ -5,11 +5,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import {
+    LanguageModelChatMessage,
+    LanguageModelChatInformation,
+    ProvideLanguageModelChatResponseOptions,
+    Progress,
+    CancellationToken
+} from 'vscode';
 import { ProviderConfig } from '../types/sharedTypes';
 import { ApiKeyManager, Logger } from '../utils';
 import { GenericModelProvider } from '../providers/genericModelProvider';
 import { CliWizard } from './cliWizard';
 import { CliAuthFactory } from './auth/cliAuthFactory';
+import { StatusBarManager } from '../status';
 
 /**
  * CLI 认证专用模型提供商类
@@ -137,5 +145,24 @@ export class CliModelProvider extends GenericModelProvider {
         }
         // 使用统一的 CLI 向导
         await CliWizard.startWizard(providerKey, displayName);
+    }
+
+    /**
+     * 覆盖 provideChatResponse 以在请求完成后更新状态栏
+     */
+    override async provideLanguageModelChatResponse(
+        model: LanguageModelChatInformation,
+        messages: Array<LanguageModelChatMessage>,
+        options: ProvideLanguageModelChatResponseOptions,
+        progress: Progress<vscode.LanguageModelResponsePart>,
+        token: CancellationToken
+    ): Promise<void> {
+        try {
+            // 调用父类的实现
+            await super.provideLanguageModelChatResponse(model, messages, options, progress, token);
+        } finally {
+            // 请求完成后，延时更新状态栏使用量
+            StatusBarManager.getStatusBar(this.providerKey)?.delayedUpdate(200);
+        }
     }
 }
