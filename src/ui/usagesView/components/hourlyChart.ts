@@ -56,13 +56,7 @@ export function createHourlyChart(
             return false;
         }
         // 检查是否有提供商包含速度相关数据
-        return Object.values(stats.providers).some(
-            provider =>
-                provider.totalStreamDuration !== undefined ||
-                provider.validStreamRequests !== undefined ||
-                provider.validStreamOutputTokens !== undefined ||
-                provider.totalFirstTokenLatency !== undefined
-        );
+        return Object.values(stats.providers).some(provider => provider.outputSpeeds || provider.firstTokenLatency);
     }).length;
 
     if (validHoursCount < 1) {
@@ -142,11 +136,11 @@ export function createHourlyChart(
 /**
  * 计算平均首token延迟
  */
-function calcFirstTokenLatency(stats: { totalFirstTokenLatency?: number; validStreamRequests?: number }): number {
-    if (!stats.totalFirstTokenLatency || !stats.validStreamRequests || stats.validStreamRequests <= 0) {
+function calcFirstTokenLatency(stats: { firstTokenLatency?: number }): number {
+    if (!stats.firstTokenLatency || stats.firstTokenLatency <= 0) {
         return 0;
     }
-    return stats.totalFirstTokenLatency / stats.validStreamRequests; // 毫秒
+    return stats.firstTokenLatency; // 毫秒
 }
 
 /**
@@ -177,11 +171,7 @@ function initSpeedChart(canvas: HTMLCanvasElement, hourlyStats: Record<string, H
                     });
                 }
                 const outputSpeed =
-                    providerStats.totalOutputSpeeds &&
-                    providerStats.validStreamRequests &&
-                    providerStats.validStreamRequests > 0
-                        ? providerStats.totalOutputSpeeds / providerStats.validStreamRequests
-                        : 0;
+                    providerStats.outputSpeeds && providerStats.outputSpeeds > 0 ? providerStats.outputSpeeds : 0;
                 providerMap.get(providerId)!.data.set(hour, outputSpeed);
             });
         }

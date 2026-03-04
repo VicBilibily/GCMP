@@ -130,23 +130,40 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
         totalRow.appendChild(createCell(formatTokens(totalOutput)));
         totalRow.appendChild(createCell(formatTokens(grandTotal)));
         totalRow.appendChild(createCell(totalRequests));
-        // 计算合计的平均速度和首Token延迟
-        let totalStreamDuration = 0;
-        let totalValidStreamRequests = 0;
-        let totalValidStreamOutputTokens = 0;
-        let totalFirstTokenLatency = 0;
+        const mean = (values: number[]): number => {
+            const cleaned = values.filter(v => Number.isFinite(v) && v > 0);
+            if (cleaned.length === 0) {
+                return 0;
+            }
+            return cleaned.reduce((sum, v) => sum + v, 0) / cleaned.length;
+        };
+
+        // 合计口径：对“所有模型”的已聚合指标做算术平均（与 speed 聚合口径保持一致）。
+        const allModelSpeeds: number[] = [];
+        const allModelLatencies: number[] = [];
         providers.forEach(provider => {
-            totalStreamDuration += provider.totalStreamDuration || 0;
-            totalValidStreamRequests += provider.validStreamRequests || 0;
-            totalValidStreamOutputTokens += provider.validStreamOutputTokens || 0;
-            totalFirstTokenLatency += provider.totalFirstTokenLatency || 0;
+            Object.values(provider.models).forEach(model => {
+                if (model.outputSpeeds && model.outputSpeeds > 0) {
+                    allModelSpeeds.push(model.outputSpeeds);
+                }
+                if (model.firstTokenLatency && model.firstTokenLatency > 0) {
+                    allModelLatencies.push(model.firstTokenLatency);
+                }
+            });
         });
+
         const totalStats = {
-            totalStreamDuration,
-            validStreamRequests: totalValidStreamRequests,
-            validStreamOutputTokens: totalValidStreamOutputTokens,
-            totalFirstTokenLatency
+            estimatedInput: 0,
+            actualInput: 0,
+            cacheTokens: 0,
+            outputTokens: 0,
+            requests: 0,
+            completedRequests: 0,
+            failedRequests: 0,
+            firstTokenLatency: mean(allModelLatencies),
+            outputSpeeds: mean(allModelSpeeds)
         } as TokenStats;
+
         totalRow.appendChild(createCell(calculateAverageFirstTokenLatency(totalStats)));
         totalRow.appendChild(createCell(calculateAverageSpeed(totalStats)));
 

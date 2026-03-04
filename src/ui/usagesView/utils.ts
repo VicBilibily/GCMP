@@ -2,7 +2,7 @@
  * UsagesView 工具函数
  */
 
-import { BaseStats } from '../../usages/fileLogger/types';
+import type { BaseStats, HourlyStats } from '../../usages/fileLogger/types';
 import { WebViewMessage } from './types';
 
 /**
@@ -42,30 +42,23 @@ export function calculateTotalTokens(stats: BaseStats): number {
 
 /**
  * 计算平均输出速度
- * 使用缓存的 totalOutputSpeeds / validStreamRequests
+ * 优先使用 outputSpeeds（已聚合后的平均速度，写入缓存）
  */
-export function calculateAverageSpeed(stats: BaseStats): string {
-    if (!stats.totalOutputSpeeds || !stats.validStreamRequests || stats.validStreamRequests <= 0) {
-        return '-';
+export function calculateAverageSpeed(stats: BaseStats | HourlyStats): string {
+    if (stats.outputSpeeds && stats.outputSpeeds > 0) {
+        return `${stats.outputSpeeds.toFixed(1)} t/s`;
     }
-    const avgSpeed = stats.totalOutputSpeeds / stats.validStreamRequests;
-    return `${avgSpeed.toFixed(1)} t/s`;
+    return '-';
 }
 
 /**
  * 计算平均首Token延迟
  */
 export function calculateAverageFirstTokenLatency(stats: BaseStats): string {
-    if (
-        !stats.totalFirstTokenLatency ||
-        stats.totalFirstTokenLatency <= 0 ||
-        !stats.validStreamRequests ||
-        stats.validStreamRequests <= 0
-    ) {
+    if (!stats.firstTokenLatency || stats.firstTokenLatency <= 0) {
         return '-';
     }
-    // 计算平均延迟: 总延迟 / 有效请求数
-    const avgLatency = stats.totalFirstTokenLatency / stats.validStreamRequests;
+    const avgLatency = stats.firstTokenLatency;
     if (avgLatency >= 1000) {
         return `${(avgLatency / 1000).toFixed(1)} s`;
     }

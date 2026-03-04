@@ -17,6 +17,101 @@ export abstract class StatsCalculator {
         // 私有构造函数，防止实例化
     }
 
+    /** 计算算术均值（忽略非正/非有限值） */
+    static calculateMean(values: number[]): number {
+        const cleaned = (values || []).filter(v => Number.isFinite(v) && v > 0);
+        if (cleaned.length === 0) {
+            return 0;
+        }
+        return cleaned.reduce((sum, v) => sum + v, 0) / cleaned.length;
+    }
+
+    /**
+     * 计算鲁棒均值：先在 log 空间用 MAD 过滤离群点；若出现明显断层则保留包含中位数的主簇。
+     */
+    static calculateRobustMean(values: number[]): number {
+        const cleaned = (values || []).filter(v => Number.isFinite(v) && v > 0);
+        if (cleaned.length === 0) {
+            return 0;
+        }
+
+        const mean = (arr: number[]): number => arr.reduce((sum, v) => sum + v, 0) / arr.length;
+        const medianOfSorted = (sorted: number[]): number => {
+            const mid = Math.floor(sorted.length / 2);
+            return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+        };
+
+        // 样本太少时直接算术平均
+        if (cleaned.length < 5) {
+            return mean(cleaned);
+        }
+
+        // 在 log 空间做鲁棒离群点检测（倍率异常更显著）
+        const pairs = cleaned.map(v => ({ v, log: Math.log(v) })).sort((a, b) => a.log - b.log);
+        const logs = pairs.map(p => p.log);
+        const medLog = medianOfSorted(logs);
+        const absDevs = logs.map(l => Math.abs(l - medLog));
+        const mad = medianOfSorted([...absDevs].sort((a, b) => a - b));
+
+        // MAD=0 说明数据极度集中，直接平均即可
+        if (!Number.isFinite(mad) || mad <= 0) {
+            return mean(cleaned);
+        }
+
+        // 将 MAD 标准化为近似标准差（正态近似常数）
+        const sigma = mad * 1.4826;
+        // 常用鲁棒阈值；越小越“严格”
+        const k = 3.5;
+
+        const madFiltered = pairs.filter(p => Math.abs(p.log - medLog) / sigma <= k).map(p => p.v);
+        // 过滤后仍保留足够样本就返回
+        if (madFiltered.length >= Math.max(3, Math.floor(cleaned.length * 0.6))) {
+            return mean(madFiltered);
+        }
+
+        // 断层识别：如果排序后存在巨大间隙，自动选主簇（包含中位数的簇）
+        const diffs: number[] = [];
+        for (let i = 0; i < logs.length - 1; i++) {
+            diffs.push(logs[i + 1] - logs[i]);
+        }
+        if (diffs.length === 0) {
+            return mean(cleaned);
+        }
+
+        const sortedDiffs = [...diffs].sort((a, b) => a - b);
+        const medDiff = medianOfSorted(sortedDiffs);
+        const absDiffDevs = sortedDiffs.map(d => Math.abs(d - medDiff));
+        const madDiff = medianOfSorted([...absDiffDevs].sort((a, b) => a - b));
+
+        // gapThreshold 同时考虑绝对倍率（>2x）和相对“异常间隙”
+        const minGap = Math.log(2); // 相邻点倍率 >= 2
+        const gapThreshold = Math.max(minGap, medDiff + 6 * (madDiff || 0));
+
+        let bestGapIndex = -1;
+        let bestGapValue = 0;
+        for (let i = 0; i < diffs.length; i++) {
+            if (diffs[i] >= gapThreshold && diffs[i] > bestGapValue) {
+                bestGapValue = diffs[i];
+                bestGapIndex = i;
+            }
+        }
+
+        if (bestGapIndex >= 0) {
+            // 以中位数所在位置确定保留哪一侧（主簇）
+            const midIndex = Math.floor((logs.length - 1) / 2);
+            const keepLeft = bestGapIndex >= midIndex;
+            const start = keepLeft ? 0 : bestGapIndex + 1;
+            const end = keepLeft ? bestGapIndex + 1 : pairs.length;
+            const cluster = pairs.slice(start, end).map(p => p.v);
+            if (cluster.length >= 3) {
+                return mean(cluster);
+            }
+        }
+
+        // 最终兜底：算术平均
+        return mean(cleaned);
+    }
+
     /**
      * 合并同一requestId的多条流水记录,取最终状态
      * 保留最后一条记录的状态（completed/failed），但使用第一条记录的时间戳（请求开始时间）
@@ -75,14 +170,16 @@ export abstract class StatsCalculator {
                 requests: 0,
                 completedRequests: 0,
                 failedRequests: 0,
-                totalStreamDuration: 0,
-                validStreamRequests: 0,
-                validStreamOutputTokens: 0,
-                totalFirstTokenLatency: 0,
-                totalOutputSpeeds: 0
+                firstTokenLatency: 0,
+                outputSpeeds: 0
             },
             providers: {}
         };
+
+        // 仅收集“模型级别”的请求速度；提供商/总计速度只对模型每小时速度做算术平均。
+        const modelSpeedValues: Record<string, Record<string, number[]>> = {};
+        // 首 Token 延迟不做置信处理：模型/提供商/总计均为算术平均。
+        const modelFirstTokenLatencyAcc: Record<string, Record<string, { sum: number; count: number }>> = {};
 
         // 1. 按requestId合并,取最终状态
         const mergedMap = this.mergeLogsByRequestId(logs);
@@ -110,11 +207,8 @@ export abstract class StatsCalculator {
                     requests: 0,
                     completedRequests: 0,
                     failedRequests: 0,
-                    totalStreamDuration: 0,
-                    validStreamRequests: 0,
-                    validStreamOutputTokens: 0,
-                    totalFirstTokenLatency: 0,
-                    totalOutputSpeeds: 0,
+                    firstTokenLatency: 0,
+                    outputSpeeds: 0,
                     models: {}
                 };
             }
@@ -149,50 +243,11 @@ export abstract class StatsCalculator {
             stats.total.cacheTokens += parsed.cacheReadTokens;
             stats.total.outputTokens += parsed.outputTokens;
 
-            // 累加流耗时信息（用于耗时展示与兼容历史字段）
-            // 累加首Token延迟信息用于计算平均首Token延迟（只统计有完整时间记录的）
-            if (parsed.streamDuration && parsed.streamDuration > 0) {
-                stats.total.totalStreamDuration = (stats.total.totalStreamDuration || 0) + parsed.streamDuration;
-                stats.total.validStreamRequests = (stats.total.validStreamRequests || 0) + 1;
-                stats.total.validStreamOutputTokens = (stats.total.validStreamOutputTokens || 0) + parsed.outputTokens;
-                // 累加输出速度（用于后续计算平均速度）
-                if (parsed.outputSpeed && parsed.outputSpeed > 0) {
-                    stats.total.totalOutputSpeeds = (stats.total.totalOutputSpeeds || 0) + parsed.outputSpeed;
-                }
-                if (log.streamStartTime !== undefined && log.timestamp !== undefined) {
-                    const firstTokenLatency = log.streamStartTime - log.timestamp;
-                    if (Number.isFinite(firstTokenLatency) && firstTokenLatency >= 0) {
-                        stats.total.totalFirstTokenLatency =
-                            (stats.total.totalFirstTokenLatency || 0) + firstTokenLatency;
-                    }
-                }
-            }
-
             // 更新提供商的 token 统计
             providerStats.estimatedInput += log.estimatedInput;
             providerStats.actualInput += parsed.actualInput;
             providerStats.cacheTokens += parsed.cacheReadTokens;
             providerStats.outputTokens += parsed.outputTokens;
-
-            // 累加提供商级别的流耗时信息（只统计有完整时间记录的）
-            // 累加提供商级别的首Token延迟信息（只统计有完整时间记录的）
-            if (parsed.streamDuration && parsed.streamDuration > 0) {
-                providerStats.totalStreamDuration = (providerStats.totalStreamDuration || 0) + parsed.streamDuration;
-                providerStats.validStreamRequests = (providerStats.validStreamRequests || 0) + 1;
-                providerStats.validStreamOutputTokens =
-                    (providerStats.validStreamOutputTokens || 0) + parsed.outputTokens;
-                // 累加输出速度（用于后续计算平均速度）
-                if (parsed.outputSpeed && parsed.outputSpeed > 0) {
-                    providerStats.totalOutputSpeeds = (providerStats.totalOutputSpeeds || 0) + parsed.outputSpeed;
-                }
-                if (log.streamStartTime !== undefined && log.timestamp !== undefined) {
-                    const firstTokenLatency = log.streamStartTime - log.timestamp;
-                    if (Number.isFinite(firstTokenLatency) && firstTokenLatency >= 0) {
-                        providerStats.totalFirstTokenLatency =
-                            (providerStats.totalFirstTokenLatency || 0) + firstTokenLatency;
-                    }
-                }
-            }
 
             // 按模型聚合(仅成功的请求)
             if (!providerStats.models[log.modelId]) {
@@ -203,11 +258,8 @@ export abstract class StatsCalculator {
                     cacheTokens: 0,
                     outputTokens: 0,
                     requests: 0,
-                    totalStreamDuration: 0,
-                    validStreamRequests: 0,
-                    validStreamOutputTokens: 0,
-                    totalFirstTokenLatency: 0,
-                    totalOutputSpeeds: 0
+                    firstTokenLatency: 0,
+                    outputSpeeds: 0
                 };
             }
 
@@ -218,23 +270,41 @@ export abstract class StatsCalculator {
             modelStats.outputTokens += parsed.outputTokens;
             modelStats.requests++;
 
-            // 累加模型级别的流耗时信息（只统计有完整时间记录的）
-            // 累加模型级别的首Token延迟信息（只统计有完整时间记录的）
-            if (parsed.streamDuration && parsed.streamDuration > 0) {
-                modelStats.totalStreamDuration = (modelStats.totalStreamDuration || 0) + parsed.streamDuration;
-                modelStats.validStreamRequests = (modelStats.validStreamRequests || 0) + 1;
-                modelStats.validStreamOutputTokens = (modelStats.validStreamOutputTokens || 0) + parsed.outputTokens;
-                // 累加输出速度（用于后续计算平均速度）
-                if (parsed.outputSpeed && parsed.outputSpeed > 0) {
-                    modelStats.totalOutputSpeeds = (modelStats.totalOutputSpeeds || 0) + parsed.outputSpeed;
+            // 速度样本仅收集到“模型”维度。
+            if (parsed.outputSpeed && parsed.outputSpeed > 0) {
+                if (!modelSpeedValues[log.providerKey]) {
+                    modelSpeedValues[log.providerKey] = {};
                 }
-                if (log.streamStartTime !== undefined && log.timestamp !== undefined) {
-                    const firstTokenLatency = log.streamStartTime - log.timestamp;
-                    if (Number.isFinite(firstTokenLatency) && firstTokenLatency >= 0) {
-                        modelStats.totalFirstTokenLatency =
-                            (modelStats.totalFirstTokenLatency || 0) + firstTokenLatency;
+                if (!modelSpeedValues[log.providerKey][log.modelId]) {
+                    modelSpeedValues[log.providerKey][log.modelId] = [];
+                }
+                modelSpeedValues[log.providerKey][log.modelId].push(parsed.outputSpeed);
+            }
+
+            // 首 Token 延迟样本同样仅收集到“模型”维度（不做置信处理）。
+            if (log.streamStartTime !== undefined && log.timestamp !== undefined) {
+                const firstTokenLatency = log.streamStartTime - log.timestamp;
+                if (Number.isFinite(firstTokenLatency) && firstTokenLatency >= 0) {
+                    if (!modelFirstTokenLatencyAcc[log.providerKey]) {
+                        modelFirstTokenLatencyAcc[log.providerKey] = {};
                     }
+                    if (!modelFirstTokenLatencyAcc[log.providerKey][log.modelId]) {
+                        modelFirstTokenLatencyAcc[log.providerKey][log.modelId] = { sum: 0, count: 0 };
+                    }
+                    modelFirstTokenLatencyAcc[log.providerKey][log.modelId].sum += firstTokenLatency;
+                    modelFirstTokenLatencyAcc[log.providerKey][log.modelId].count += 1;
                 }
+            }
+        }
+
+        // 仅计算并写入“模型级别”的聚合值；provider/total 的聚合由上层在 hourly 缓存完成后统一计算。
+        for (const [providerKey, providerStats] of Object.entries(stats.providers)) {
+            for (const [modelId, modelStats] of Object.entries(providerStats.models)) {
+                const speedValues = modelSpeedValues[providerKey]?.[modelId] || [];
+                modelStats.outputSpeeds = this.calculateRobustMean(speedValues);
+
+                const acc = modelFirstTokenLatencyAcc[providerKey]?.[modelId];
+                modelStats.firstTokenLatency = acc && acc.count > 0 ? acc.sum / acc.count : 0;
             }
         }
 

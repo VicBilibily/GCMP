@@ -15,7 +15,13 @@ import { StatusLogger } from '../../utils/statusLogger';
 import { LogReadManager } from './logReadManager';
 import { LogIndexManager } from './logIndexManager';
 import { StatsCalculator } from './statsCalculator';
-import type { TokenUsageStatsFromFile, HourlyStats, FileLoggerProviderStats, TokenStats } from './types';
+import type {
+    FileLoggerModelStats,
+    FileLoggerProviderStats,
+    HourlyStats,
+    TokenStats,
+    TokenUsageStatsFromFile
+} from './types';
 
 /**
  * 日志统计管理器
@@ -99,6 +105,15 @@ export class LogStatsManager {
      * 支持增量更新：根据小时文件的修改时间戳判断是否需要重新计算
      * 如果版本变化，则跳过旧的 hourly 缓存，全部重新计算
      * 日期统计（total 和 providers）从小时缓存聚合计算
+     *
+     * 口径说明：
+     * - `StatsCalculator.aggregateLogs()` 只负责计算并写入“模型级别”的聚合值：
+     *   - `outputSpeeds`: 模型小时内请求速度的鲁棒均值（用于规避极端值）。
+     *   - `firstTokenLatency`: 模型小时内首 token 延迟的算术平均（不做置信/鲁棒处理）。
+     * - 本方法在“小时缓存”就绪后，从 models 回填每小时 provider/hour 与 hour total 的聚合值。
+     * - daily 的 `outputSpeeds/firstTokenLatency` 均为“小时聚合值的算术平均”（均值的均值，不加权）。
+     * - `totalStreamDuration/validStreamRequests/...` 等中间计数仅用于运行时计算（已不再写入缓存）。
+     *
      * @private 内部使用，通过 getDateStats 访问
      */
     private async calculateDateStats(dateStr: string): Promise<TokenUsageStatsFromFile> {
@@ -126,16 +141,16 @@ export class LogStatsManager {
             hourFiles = files
                 .filter(f => f.endsWith('.jsonl'))
                 .map(f => parseInt(f.slice(0, 2), 10))
-                .filter(h => !isNaN(h) && h >= 0 && h <= 23)
+                .filter(h => !Number.isNaN(h) && h >= 0 && h <= 23)
                 .sort((a, b) => a - b);
         } catch {
-            // 日期文件夹不存在或无法读取
             StatusLogger.debug(`[LogStatsManager] 日期文件夹不存在或无法读取: ${dateStr}`);
         }
 
         // 初始化小时统计结果
         const hourly: Record<string, HourlyStats> = { ...existingHourly };
-        // 遍历所有小时文件，进行增量更新
+
+        // 遍历所有小时文件，增量更新 hourly cache
         for (const hour of hourFiles) {
             const hourKey = String(hour).padStart(2, '0');
             const hourFileModified = await this.readManager.getHourFileModifiedTime(dateStr, hour);
@@ -164,6 +179,21 @@ export class LogStatsManager {
             };
         }
 
+        // 小时缓存就绪后：
+        // 1) 先基于“小时+models”计算每小时的 provider/hour 与 hour total 聚合值
+        // 2) 再遍历小时计算 daily 的均值（均值的均值，不做加权）
+        interface AvgAcc {
+            mean: number;
+            n: number;
+        }
+        const addAvg = (acc: AvgAcc | undefined, value: number): AvgAcc => {
+            const next = acc ?? { mean: 0, n: 0 };
+            next.n += 1;
+            next.mean += (value - next.mean) / next.n;
+            return next;
+        };
+        const getAvg = (acc: AvgAcc | undefined): number => (acc && acc.n > 0 ? acc.mean : 0);
+
         // 从小时统计聚合计算日期统计（避免重复读取日志）
         // 初始化总计
         const total: TokenStats = {
@@ -173,14 +203,44 @@ export class LogStatsManager {
             outputTokens: 0,
             requests: 0,
             completedRequests: 0,
-            failedRequests: 0
+            failedRequests: 0,
+            firstTokenLatency: 0,
+            outputSpeeds: 0
         };
+
+        let totalSpeedAcc: AvgAcc | undefined;
+        let totalFirstTokenLatencyAcc: AvgAcc | undefined;
 
         // 初始化提供商统计
         const providers: Record<string, FileLoggerProviderStats> = {};
+        const providerMetricAccByDay = new WeakMap<FileLoggerProviderStats, { speed?: AvgAcc; latency?: AvgAcc }>();
+        const modelMetricAccByDay = new WeakMap<FileLoggerModelStats, { speed?: AvgAcc; latency?: AvgAcc }>();
         // 遍历所有小时统计，聚合计算
         for (const hourStats of Object.values(hourly)) {
-            // 累加总计
+            // 1) 回填每小时 provider/hour 的聚合值：只从模型的已聚合值计算
+            let hourTotalSpeedAcc: AvgAcc | undefined;
+            let hourTotalLatencyAcc: AvgAcc | undefined;
+            for (const providerStats of Object.values(hourStats.providers || {})) {
+                let providerSpeedAcc: AvgAcc | undefined;
+                let providerLatencyAcc: AvgAcc | undefined;
+                for (const modelStats of Object.values(providerStats.models || {})) {
+                    if (modelStats.firstTokenLatency && modelStats.firstTokenLatency > 0) {
+                        providerLatencyAcc = addAvg(providerLatencyAcc, modelStats.firstTokenLatency);
+                        hourTotalLatencyAcc = addAvg(hourTotalLatencyAcc, modelStats.firstTokenLatency);
+                    }
+                    if (modelStats.outputSpeeds && modelStats.outputSpeeds > 0) {
+                        providerSpeedAcc = addAvg(providerSpeedAcc, modelStats.outputSpeeds);
+                        hourTotalSpeedAcc = addAvg(hourTotalSpeedAcc, modelStats.outputSpeeds);
+                    }
+                }
+                providerStats.firstTokenLatency = getAvg(providerLatencyAcc);
+                providerStats.outputSpeeds = getAvg(providerSpeedAcc);
+            }
+
+            hourStats.firstTokenLatency = getAvg(hourTotalLatencyAcc);
+            hourStats.outputSpeeds = getAvg(hourTotalSpeedAcc);
+
+            // 2) tokens/requests 仍做累加
             total.estimatedInput += hourStats.estimatedInput;
             total.actualInput += hourStats.actualInput;
             total.cacheTokens += hourStats.cacheTokens;
@@ -188,98 +248,94 @@ export class LogStatsManager {
             total.requests += hourStats.requests;
             total.completedRequests += hourStats.completedRequests;
             total.failedRequests += hourStats.failedRequests;
-            // 累加流耗时信息
-            total.totalStreamDuration = (total.totalStreamDuration || 0) + (hourStats.totalStreamDuration || 0);
-            total.validStreamRequests = (total.validStreamRequests || 0) + (hourStats.validStreamRequests || 0);
-            total.validStreamOutputTokens =
-                (total.validStreamOutputTokens || 0) + (hourStats.validStreamOutputTokens || 0);
-            // 累加首Token延迟信息
-            total.totalFirstTokenLatency =
-                (total.totalFirstTokenLatency || 0) + (hourStats.totalFirstTokenLatency || 0);
-            // 累加输出速度信息（用于按算术平均计算平均输出速度）
-            total.totalOutputSpeeds = (total.totalOutputSpeeds || 0) + (hourStats.totalOutputSpeeds || 0);
 
-            // 聚合提供商统计
-            if (hourStats.providers) {
-                for (const [providerKey, providerStats] of Object.entries(hourStats.providers)) {
-                    if (!providers[providerKey]) {
-                        providers[providerKey] = {
-                            providerName: providerStats.providerName,
+            // 3) daily total：对每小时的聚合值做算术平均（不加权）
+            if (hourStats.firstTokenLatency && hourStats.firstTokenLatency > 0) {
+                totalFirstTokenLatencyAcc = addAvg(totalFirstTokenLatencyAcc, hourStats.firstTokenLatency);
+            }
+            if (hourStats.outputSpeeds && hourStats.outputSpeeds > 0) {
+                totalSpeedAcc = addAvg(totalSpeedAcc, hourStats.outputSpeeds);
+            }
+
+            // 4) providers/models：累加 tokens，并对每小时聚合值做均值
+            for (const [providerKey, providerHour] of Object.entries(hourStats.providers || {})) {
+                if (!providers[providerKey]) {
+                    providers[providerKey] = {
+                        providerName: providerHour.providerName,
+                        estimatedInput: 0,
+                        actualInput: 0,
+                        cacheTokens: 0,
+                        outputTokens: 0,
+                        requests: 0,
+                        completedRequests: 0,
+                        failedRequests: 0,
+                        models: {}
+                    };
+                }
+
+                const provider = providers[providerKey];
+                provider.estimatedInput += providerHour.estimatedInput;
+                provider.actualInput += providerHour.actualInput;
+                provider.cacheTokens += providerHour.cacheTokens;
+                provider.outputTokens += providerHour.outputTokens;
+                provider.requests += providerHour.requests;
+                provider.completedRequests += providerHour.completedRequests;
+                provider.failedRequests += providerHour.failedRequests;
+
+                const pAcc = providerMetricAccByDay.get(provider) ?? {};
+                if (providerHour.firstTokenLatency && providerHour.firstTokenLatency > 0) {
+                    pAcc.latency = addAvg(pAcc.latency, providerHour.firstTokenLatency);
+                }
+                if (providerHour.outputSpeeds && providerHour.outputSpeeds > 0) {
+                    pAcc.speed = addAvg(pAcc.speed, providerHour.outputSpeeds);
+                }
+                providerMetricAccByDay.set(provider, pAcc);
+
+                for (const [modelKey, modelHour] of Object.entries(providerHour.models || {})) {
+                    if (!provider.models[modelKey]) {
+                        provider.models[modelKey] = {
+                            modelName: modelHour.modelName,
                             estimatedInput: 0,
                             actualInput: 0,
                             cacheTokens: 0,
                             outputTokens: 0,
-                            requests: 0,
-                            completedRequests: 0,
-                            failedRequests: 0,
-                            models: {}
+                            requests: 0
                         };
                     }
 
-                    const provider = providers[providerKey];
-                    // 累加提供商统计
-                    provider.estimatedInput += providerStats.estimatedInput;
-                    provider.actualInput += providerStats.actualInput;
-                    provider.cacheTokens += providerStats.cacheTokens;
-                    provider.outputTokens += providerStats.outputTokens;
-                    provider.requests += providerStats.requests;
-                    provider.completedRequests += providerStats.completedRequests;
-                    provider.failedRequests += providerStats.failedRequests;
-                    // 累加提供商级别的流耗时信息
-                    provider.totalStreamDuration =
-                        (provider.totalStreamDuration || 0) + (providerStats.totalStreamDuration || 0);
-                    provider.validStreamRequests =
-                        (provider.validStreamRequests || 0) + (providerStats.validStreamRequests || 0);
-                    provider.validStreamOutputTokens =
-                        (provider.validStreamOutputTokens || 0) + (providerStats.validStreamOutputTokens || 0);
-                    // 累加提供商级别的首Token延迟信息
-                    provider.totalFirstTokenLatency =
-                        (provider.totalFirstTokenLatency || 0) + (providerStats.totalFirstTokenLatency || 0);
-                    // 累加提供商级别的输出速度信息（用于按算术平均计算平均输出速度）
-                    provider.totalOutputSpeeds =
-                        (provider.totalOutputSpeeds || 0) + (providerStats.totalOutputSpeeds || 0);
+                    const model = provider.models[modelKey];
+                    model.estimatedInput += modelHour.estimatedInput;
+                    model.actualInput += modelHour.actualInput;
+                    model.cacheTokens += modelHour.cacheTokens;
+                    model.outputTokens += modelHour.outputTokens;
+                    model.requests += modelHour.requests;
 
-                    // 聚合模型统计
-                    if (providerStats.models) {
-                        for (const [modelKey, modelStats] of Object.entries(providerStats.models)) {
-                            if (!provider.models[modelKey]) {
-                                provider.models[modelKey] = {
-                                    modelName: modelStats.modelName,
-                                    estimatedInput: 0,
-                                    actualInput: 0,
-                                    cacheTokens: 0,
-                                    outputTokens: 0,
-                                    requests: 0
-                                };
-                            }
-
-                            const model = provider.models[modelKey];
-                            // 累加模型统计
-                            model.estimatedInput += modelStats.estimatedInput;
-                            model.actualInput += modelStats.actualInput;
-                            model.cacheTokens += modelStats.cacheTokens;
-                            model.outputTokens += modelStats.outputTokens;
-                            model.requests += modelStats.requests;
-                            // 累加模型级别的流耗时信息
-                            model.totalStreamDuration =
-                                (model.totalStreamDuration || 0) + (modelStats.totalStreamDuration || 0);
-                            model.validStreamRequests =
-                                (model.validStreamRequests || 0) + (modelStats.validStreamRequests || 0);
-                            model.validStreamOutputTokens =
-                                (model.validStreamOutputTokens || 0) + (modelStats.validStreamOutputTokens || 0);
-                            // 累加模型级别的首Token延迟信息
-                            model.totalFirstTokenLatency =
-                                (model.totalFirstTokenLatency || 0) + (modelStats.totalFirstTokenLatency || 0);
-                            // 累加模型级别的输出速度信息（用于按算术平均计算平均输出速度）
-                            model.totalOutputSpeeds =
-                                (model.totalOutputSpeeds || 0) + (modelStats.totalOutputSpeeds || 0);
-                        }
+                    const mAcc = modelMetricAccByDay.get(model) ?? {};
+                    if (modelHour.firstTokenLatency && modelHour.firstTokenLatency > 0) {
+                        mAcc.latency = addAvg(mAcc.latency, modelHour.firstTokenLatency);
                     }
+                    if (modelHour.outputSpeeds && modelHour.outputSpeeds > 0) {
+                        mAcc.speed = addAvg(mAcc.speed, modelHour.outputSpeeds);
+                    }
+                    modelMetricAccByDay.set(model, mAcc);
                 }
             }
         }
 
-        // 返回完整的 TokenUsageStatsFromFile 结构
+        total.outputSpeeds = getAvg(totalSpeedAcc);
+        total.firstTokenLatency = getAvg(totalFirstTokenLatencyAcc);
+
+        for (const provider of Object.values(providers)) {
+            const pAcc = providerMetricAccByDay.get(provider);
+            provider.firstTokenLatency = getAvg(pAcc?.latency);
+            provider.outputSpeeds = getAvg(pAcc?.speed);
+            for (const model of Object.values(provider.models)) {
+                const mAcc = modelMetricAccByDay.get(model);
+                model.firstTokenLatency = getAvg(mAcc?.latency);
+                model.outputSpeeds = getAvg(mAcc?.speed);
+            }
+        }
+
         return { total, providers, hourly };
     }
 

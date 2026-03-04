@@ -9,7 +9,7 @@
  * 缓存判断逻辑：stats.json 修改时间 >= 缓存时间时，需要重新计算
  * 更新后首次运行会自动用当前时间创建新缓存，后续使用存储的缓存时间
  */
-const USAGES_CACHE_VERSION_TIMESTAMP = new Date('2026-02-25T23:00:00+08:00').getTime();
+const USAGES_CACHE_VERSION_TIMESTAMP = new Date('2026-03-04T17:50:00+08:00').getTime();
 
 import * as vscode from 'vscode';
 import { StatusLogger } from '../../utils/statusLogger';

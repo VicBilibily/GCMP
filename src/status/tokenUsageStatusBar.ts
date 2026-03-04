@@ -182,15 +182,9 @@ export class TokenUsageStatusBar {
         for (const providerStats of sortedProviders) {
             const providerTotal = providerStats.actualInput + providerStats.outputTokens;
             // 计算平均输出速度
-            const avgSpeed = this.calculateAverageSpeed(
-                providerStats.totalOutputSpeeds,
-                providerStats.validStreamRequests
-            );
+            const avgSpeed = this.calculateAverageSpeed(providerStats);
             // 计算平均首Token延迟
-            const avgLatency = this.calculateAverageFirstTokenLatency(
-                providerStats.totalFirstTokenLatency,
-                providerStats.validStreamRequests
-            );
+            const avgLatency = this.calculateAverageFirstTokenLatency(providerStats.firstTokenLatency);
             md.appendMarkdown(
                 `| ${providerStats.providerName} | ${this.formatTokens(providerStats.actualInput)} | ` +
                     `${this.formatTokens(providerStats.cacheTokens)} | ` +
@@ -201,14 +195,8 @@ export class TokenUsageStatusBar {
         // 合计行（仅当有多个提供商时显示）
         if (providers.length > 1) {
             const total = stats.total.actualInput + stats.total.outputTokens;
-            const avgSpeedTotal = this.calculateAverageSpeed(
-                stats.total.totalOutputSpeeds,
-                stats.total.validStreamRequests
-            );
-            const avgLatencyTotal = this.calculateAverageFirstTokenLatency(
-                stats.total.totalFirstTokenLatency,
-                stats.total.validStreamRequests
-            );
+            const avgSpeedTotal = this.calculateAverageSpeed(stats.total);
+            const avgLatencyTotal = this.calculateAverageFirstTokenLatency(stats.total.firstTokenLatency);
             md.appendMarkdown(
                 `| **合计** | **${this.formatTokens(stats.total.actualInput)}** | ` +
                     `**${this.formatTokens(stats.total.cacheTokens)}** | ` +
@@ -303,36 +291,27 @@ export class TokenUsageStatusBar {
 
     /**
      * 计算平均输出速度
-     * 使用 totalOutputSpeeds / validStreamRequests
-     * @param totalOutputSpeeds 总输出速度之和
-     * @param validStreamRequests 有效请求次数
+     * 优先使用 outputSpeeds（已聚合后的平均速度）
+     * @param stats 统计数据
      * @returns 格式化的平均速度字符串
      */
-    private calculateAverageSpeed(totalOutputSpeeds?: number, validStreamRequests?: number): string {
-        if (!totalOutputSpeeds || !validStreamRequests || validStreamRequests <= 0) {
-            return '-';
+    private calculateAverageSpeed(stats: { outputSpeeds?: number }): string {
+        if (stats.outputSpeeds && stats.outputSpeeds > 0) {
+            return `${stats.outputSpeeds.toFixed(1)} t/s`;
         }
-        const avgSpeed = totalOutputSpeeds / validStreamRequests;
-        return `${avgSpeed.toFixed(1)} t/s`;
+        return '-';
     }
 
     /**
      * 计算平均首Token延迟
-     * @param totalFirstTokenLatency 总首Token延迟(毫秒)
-     * @param validStreamRequests 有效请求次数
-     * @returns 格式化的平均首Token延迟字符串
+     * @param firstTokenLatency 平均首 Token 延迟(毫秒)
+     * @returns 格式化后的平均首 Token 延迟字符串
      */
-    private calculateAverageFirstTokenLatency(totalFirstTokenLatency?: number, validStreamRequests?: number): string {
-        if (
-            !totalFirstTokenLatency ||
-            totalFirstTokenLatency <= 0 ||
-            !validStreamRequests ||
-            validStreamRequests <= 0
-        ) {
+    private calculateAverageFirstTokenLatency(firstTokenLatency?: number): string {
+        if (!firstTokenLatency || firstTokenLatency <= 0) {
             return '-';
         }
-        // 计算平均延迟: 总延迟 / 有效请求数
-        const avgLatency = totalFirstTokenLatency / validStreamRequests;
+        const avgLatency = firstTokenLatency;
         if (avgLatency >= 1000) {
             return `${(avgLatency / 1000).toFixed(1)} s`;
         }

@@ -118,16 +118,10 @@ export interface BaseStats {
     estimatedInput: number;
     actualInput: number;
     cacheTokens: number;
-    /** 总输出耗时(毫秒) - 用于耗时展示与兼容历史统计字段 */
-    totalStreamDuration?: number;
-    /** 有效的请求次数(有时间记录的完成请求) - 用于算术平均速度和平均首Token延迟 */
-    validStreamRequests?: number;
-    /** 有时间记录的输出 tokens - 历史兼容字段（旧口径保留） */
-    validStreamOutputTokens?: number;
-    /** 总首Token延迟(毫秒) - 用于计算平均首Token延迟 */
-    totalFirstTokenLatency?: number;
-    /** 总输出速度之和 (tokens/s) - 用于按算术平均计算平均输出速度 */
-    totalOutputSpeeds?: number;
+    /** 平均首 Token 延迟(毫秒) - 已聚合后的结果，写入缓存文件 */
+    firstTokenLatency?: number;
+    /** 平均输出速度 (tokens/s) - 已聚合后的结果，写入缓存文件 */
+    outputSpeeds?: number;
     outputTokens: number;
     requests: number;
 }
