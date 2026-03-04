@@ -10,6 +10,7 @@ import dashscope from './dashscope.json';
 import iflow from './iflow.json';
 import qwen from './qwen.json';
 import gemini from './gemini.json';
+import codex from './codex.json';
 
 const providers = {
     zhipu,
@@ -21,7 +22,8 @@ const providers = {
     dashscope,
     iflow,
     qwen,
-    gemini
+    gemini,
+    codex
 };
 
 export type ProviderName = keyof typeof providers;
