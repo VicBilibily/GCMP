@@ -5,9 +5,12 @@
 
 import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
+import { parse as parsePartialJson } from 'best-effort-json-parser';
 import { Logger } from '../utils';
 import { encodeStatefulMarker, StatefulMarkerContainer } from './statefulMarker';
 import { CustomDataPartMimeTypes } from './types';
+
+const STREAM_ENABLED_TOOLS = new Set(['apply_patch', 'create_file', 'replace_string', 'multi_replace_string']);
 
 /** 思考内容缓冲阈值（字符数） */
 const THINKING_BUFFER_LENGTH = 20;
@@ -21,6 +24,7 @@ interface ToolCallBuffer {
     id?: string;
     name?: string;
     arguments: string;
+    lastStreamedArguments?: string;
 }
 
 /**
@@ -149,6 +153,69 @@ export class StreamReporter {
     }
 
     /**
+     * 检查是否应对该工具进行参数流式转发
+     * 与官方模式对齐：仅对已实现 handleToolStream 的工具启用。
+     */
+    private shouldStreamToolCall(name: string): boolean {
+        return STREAM_ENABLED_TOOLS.has(name);
+    }
+
+    /**
+     * 解析工具调用的部分输入（用于流式转发）
+     */
+    private tryParsePartialToolInput(raw: string | undefined): unknown {
+        if (!raw) {
+            return raw;
+        }
+
+        try {
+            return parsePartialJson(raw);
+        } catch {
+            return undefined;
+        }
+    }
+
+    /**
+     * 报告工具调用的增量参数（用于触发 VS Code tool handleToolStream）
+     */
+    private reportPartialToolCall(bufferedTool: ToolCallBuffer): void {
+        if (!bufferedTool.name || !bufferedTool.arguments || !this.shouldStreamToolCall(bufferedTool.name)) {
+            return;
+        }
+
+        if (bufferedTool.lastStreamedArguments === bufferedTool.arguments) {
+            return;
+        }
+
+        const partialInput = this.tryParsePartialToolInput(bufferedTool.arguments);
+        if (partialInput === undefined || typeof partialInput !== 'object' || partialInput === null) {
+            return;
+        }
+
+        const toolCallId = bufferedTool.id || crypto.randomUUID();
+        bufferedTool.id = toolCallId;
+
+        if (this.signatureBuffer) {
+            this.flushSignature();
+        }
+
+        if (this.thoughtSignature) {
+            this.progress.report(
+                new vscode.LanguageModelThinkingPart('', undefined, {
+                    signature: this.thoughtSignature
+                })
+            );
+            this.thoughtSignature = null;
+        }
+
+        this.progress.report(
+            new vscode.LanguageModelToolCallPart(toolCallId, bufferedTool.name, partialInput as object)
+        );
+        this.hasReceivedContent = true;
+        bufferedTool.lastStreamedArguments = bufferedTool.arguments;
+    }
+
+    /**
      * 缓冲思考内容（累积到阈值后输出，用于 delta 事件）
      */
     bufferThinking(content: string): void {
@@ -219,43 +286,70 @@ export class StreamReporter {
             bufferedTool.arguments = this.deduplicateToolArgs(bufferedTool.arguments, argsFragment);
         }
 
-        // 检测工具调用是否完成（有完整的 JSON）
-        if (bufferedTool.name && bufferedTool.arguments) {
-            try {
-                // 尝试解析参数，如果成功说明工具调用完成
-                const args = JSON.parse(bufferedTool.arguments);
+        // 通用场景下，转发增量参数给 VS Code 工具流
+        this.reportPartialToolCall(bufferedTool);
 
-                // 确保之前的思考和签名已输出
-                this.flushThinking('工具调用完成前');
-                if (this.signatureBuffer) {
-                    this.flushSignature();
-                }
+        // 非白名单工具：仅缓存参数，等待流结束后在 flushAll 中统一上报，
+        // 避免在流中途重复输出 ToolCallPart。
+        if (!bufferedTool.name || !this.shouldStreamToolCall(bufferedTool.name)) {
+            return;
+        }
+    }
 
-                // 使用 UUID 生成唯一 ID（如果没有 id）
-                const toolCallId = bufferedTool.id || crypto.randomUUID();
+    /**
+     * 在“工具调用结束事件”触发最终上报。
+     * - 白名单工具：可在流中提前完成；
+     * - 非白名单工具：应在结束事件中调用此方法；
+     * - flushAll 仅作为兜底。
+     */
+    finalizeToolCall(index: number, id?: string, name?: string, fullArgs?: string): boolean {
+        let bufferedTool = this.toolCallsBuffer.get(index);
+        if (!bufferedTool) {
+            bufferedTool = { arguments: '' };
+            this.toolCallsBuffer.set(index, bufferedTool);
+        }
 
-                // 如果有 thoughtSignature，输出一个带 signature 的空 ThinkingPart
-                if (this.thoughtSignature) {
-                    this.progress.report(
-                        new vscode.LanguageModelThinkingPart('', undefined, {
-                            signature: this.thoughtSignature
-                        })
-                    );
-                    this.thoughtSignature = null;
-                }
+        if (id) {
+            bufferedTool.id = id;
+        }
+        if (name) {
+            bufferedTool.name = name;
+        }
+        if (fullArgs !== undefined) {
+            bufferedTool.arguments = fullArgs;
+        }
 
-                // 立即报告工具调用
-                this.progress.report(new vscode.LanguageModelToolCallPart(toolCallId, bufferedTool.name, args));
-                this.hasReceivedContent = true;
+        if (!bufferedTool.name || !bufferedTool.arguments) {
+            return false;
+        }
 
-                // 从缓存中移除已处理的工具调用
-                this.toolCallsBuffer.delete(index);
+        try {
+            const args = JSON.parse(bufferedTool.arguments);
 
-                Logger.info(`[${this.modelName}] 成功处理工具调用: ${bufferedTool.name} toolCallId: ${toolCallId}`);
-            } catch {
-                // JSON 解析失败，工具调用还未完成，继续累积
-                // Logger.trace(`[${this.modelName}] 工具调用参数未完整，继续累积: ${bufferedTool.name}`);
+            this.flushThinking('工具调用完成前');
+            if (this.signatureBuffer) {
+                this.flushSignature();
             }
+
+            const toolCallId = bufferedTool.id || crypto.randomUUID();
+
+            if (this.thoughtSignature) {
+                this.progress.report(
+                    new vscode.LanguageModelThinkingPart('', undefined, {
+                        signature: this.thoughtSignature
+                    })
+                );
+                this.thoughtSignature = null;
+            }
+
+            this.progress.report(new vscode.LanguageModelToolCallPart(toolCallId, bufferedTool.name, args));
+            this.hasReceivedContent = true;
+            this.toolCallsBuffer.delete(index);
+
+            Logger.info(`[${this.modelName}] 成功处理工具调用: ${bufferedTool.name} toolCallId: ${toolCallId}`);
+            return true;
+        } catch {
+            return false;
         }
     }
 

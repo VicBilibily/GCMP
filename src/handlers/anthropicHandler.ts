@@ -250,7 +250,8 @@ export class AnthropicHandler {
         streamStartTime?: number;
         streamEndTime?: number;
     }> {
-        let pendingToolCall: { toolId?: string; name?: string; jsonInput?: string } | undefined;
+        let pendingToolCall: { index: number; toolId?: string; name?: string; jsonInput?: string } | undefined;
+        let nextToolCallIndex = 0;
         let usage: Anthropic.Messages.Usage | undefined;
         let responseId: string | undefined;
         // 记录流处理的开始时间（在 message_start 事件中设置）
@@ -337,6 +338,7 @@ export class AnthropicHandler {
                         // 内容块开始
                         if (chunk.content_block.type === 'tool_use') {
                             pendingToolCall = {
+                                index: nextToolCallIndex++,
                                 toolId: chunk.content_block.id,
                                 name: chunk.content_block.name,
                                 jsonInput: ''
@@ -352,17 +354,12 @@ export class AnthropicHandler {
                         } else if (chunk.delta.type === 'input_json_delta' && pendingToolCall) {
                             // 工具调用参数增量
                             pendingToolCall.jsonInput = (pendingToolCall.jsonInput || '') + chunk.delta.partial_json;
-
-                            // 尝试立即解析并报告工具调用（如果 JSON 已完整）
-                            try {
-                                const parsedJson = JSON.parse(pendingToolCall.jsonInput);
-                                // JSON 解析成功，立即报告工具调用
-                                reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson);
-                                Logger.trace(`[${reporter.getModelName()}] 工具调用完成: ${pendingToolCall.name}`);
-                                pendingToolCall = undefined; // 清除待处理的工具调用
-                            } catch {
-                                // JSON 还不完整，继续累积
-                            }
+                            reporter.accumulateToolCall(
+                                pendingToolCall.index,
+                                pendingToolCall.toolId,
+                                pendingToolCall.name,
+                                chunk.delta.partial_json
+                            );
                         } else if (chunk.delta.type === 'thinking_delta') {
                             // 思考内容增量
                             const thinkingDelta = chunk.delta.thinking || '';
@@ -384,16 +381,17 @@ export class AnthropicHandler {
                                     `[${reporter.getModelName()}] content_block_stop 兜底处理工具调用 (${pendingToolCall.name}): ${jsonInput.substring(0, 100)}${jsonInput.length > 100 ? '...' : ''}`
                                 );
 
-                                let parsedJson: Record<string, unknown>;
-                                try {
-                                    parsedJson = JSON.parse(jsonInput);
-                                } catch {
-                                    // JSON 解析失败，使用空对象
-                                    Logger.warn(`工具调用 JSON 不完整，使用空对象: ${jsonInput}`);
-                                    parsedJson = {};
+                                const finalized = reporter.finalizeToolCall(
+                                    pendingToolCall.index,
+                                    pendingToolCall.toolId,
+                                    pendingToolCall.name,
+                                    jsonInput
+                                );
+                                if (!finalized) {
+                                    Logger.warn(
+                                        `content_block_stop 工具调用参数仍不完整，将由 flushAll 兜底处理: ${pendingToolCall.name}`
+                                    );
                                 }
-
-                                reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson);
                             } catch (e) {
                                 Logger.error(`兜底处理工具调用失败 (${pendingToolCall.name}):`, e);
                             }

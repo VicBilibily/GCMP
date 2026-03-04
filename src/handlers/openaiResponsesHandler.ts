@@ -641,11 +641,33 @@ export class OpenAIResponsesHandler {
                         // 官方在此事件设置 hasReceivedReasoningSummary = true 作为最终确认
                         hasReceivedReasoningSummary = true;
                     })
-                    .on('response.function_call_arguments.delta', () => {
-                        // SDK 会在 done 事件中提供完整的 arguments，这里不需要处理
+                    .on('response.function_call_arguments.delta', event => {
                         if (token.isCancellationRequested) {
                             return;
                         }
+
+                        const itemId = event.item_id;
+                        const deltaArgs = event.delta || '';
+
+                        if (!itemId || !deltaArgs) {
+                            return;
+                        }
+
+                        const idx = getToolCallIndex(itemId);
+                        if (completedToolCallIndices.has(idx)) {
+                            return;
+                        }
+
+                        const existing = toolCallBuffers.get(idx);
+                        if (!existing) {
+                            return;
+                        }
+
+                        existing.args += deltaArgs;
+                        toolCallBuffers.set(idx, existing);
+
+                        // 直接走统一累积逻辑，以便将 apply_patch 的部分参数流式转发给宿主工具
+                        reporter.accumulateToolCall(idx, existing.id, existing.name, deltaArgs);
                     })
                     .on('response.function_call_arguments.done', event => {
                         if (token.isCancellationRequested) {
@@ -678,16 +700,15 @@ export class OpenAIResponsesHandler {
                             return;
                         }
 
-                        // 使用 done 事件的完整参数
+                        // 结束事件：直接触发最终调用（非白名单也应在结束时调用）
                         toolCallBuffers.set(idx, { id: callId, name, args });
-
-                        // 尝试发送工具调用
-                        try {
-                            const input = JSON.parse(args || '{}');
-                            reporter.reportToolCall(callId, name, input);
+                        const finalized = reporter.finalizeToolCall(idx, callId, name, args);
+                        if (finalized) {
                             completedToolCallIndices.add(idx);
-                        } catch (e) {
-                            Logger.warn(`解析工具调用参数失败: ${args}`, e);
+                        } else {
+                            Logger.warn(
+                                `工具调用 ${itemId} 的参数在 done 事件仍无法解析，将等待后续补充事件或 flushAll 兜底`
+                            );
                         }
                     })
                     .on('response.output_item.added', event => {
@@ -732,16 +753,9 @@ export class OpenAIResponsesHandler {
                             }
                             toolCallBuffers.set(idx, buf);
 
-                            // 只有当参数完整时才发送工具调用
-                            // 否则等待后续的 delta/done 事件
+                            // 对已有参数先进行一次累积，支持增量预览；最终完成由 done 事件收敛
                             if (args && name) {
-                                try {
-                                    const input = JSON.parse(args);
-                                    reporter.reportToolCall(callId, name, input);
-                                    completedToolCallIndices.add(idx);
-                                } catch (e) {
-                                    Logger.warn(`解析工具调用参数失败: ${args}`, e);
-                                }
+                                reporter.accumulateToolCall(idx, callId, name, args);
                             }
                         }
                     })
@@ -784,12 +798,11 @@ export class OpenAIResponsesHandler {
                                 return;
                             }
 
-                            try {
-                                const input = JSON.parse(args);
-                                reporter.reportToolCall(callId as string, name, input);
+                            const finalized = reporter.finalizeToolCall(idx, callId as string, name, args);
+                            if (finalized) {
                                 completedToolCallIndices.add(idx);
-                            } catch (e) {
-                                Logger.warn(`解析工具调用参数失败: ${args}`, e);
+                            } else {
+                                Logger.warn(`解析工具调用参数失败: ${args}`);
                             }
                         }
                     })
@@ -817,12 +830,12 @@ export class OpenAIResponsesHandler {
                                             continue;
                                         }
 
-                                        try {
-                                            const input = JSON.parse(item.arguments || '{}');
-                                            reporter.reportToolCall(callId, item.name, input);
+                                        const finalArgs = item.arguments || '{}';
+                                        const finalized = reporter.finalizeToolCall(idx, callId, item.name, finalArgs);
+                                        if (finalized) {
                                             completedToolCallIndices.add(idx);
-                                        } catch (e) {
-                                            Logger.warn(`解析工具调用参数失败: ${item.arguments}`, e);
+                                        } else {
+                                            Logger.warn(`解析工具调用参数失败: ${finalArgs}`);
                                         }
                                     }
                                 }
