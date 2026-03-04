@@ -68,14 +68,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 Logger.trace(`${this.providerKey} 配置已更新`);
                 this._onDidChangeLanguageModelChatInformation.fire();
             }
-            if (e.affectsConfiguration('gcmp.editToolMode')) {
-                Logger.trace(`${this.providerKey} 检测到 editToolMode 变更`);
-                // 清除缓存
-                this.modelInfoCache
-                    ?.invalidateCache(this.providerKey)
-                    .catch(err => Logger.warn(`[${this.providerKey}] 清除缓存失败:`, err));
-                this._onDidChangeLanguageModelChatInformation.fire();
-            }
         });
 
         // 创建 OpenAI SDK 处理器
@@ -146,18 +138,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
      * 将ModelConfig转换为LanguageModelChatInformation
      */
     protected modelConfigToInfo(model: ModelConfig): LanguageModelChatInformation {
-        // 读取编辑工具模式设置
-        const editToolMode = vscode.workspace.getConfiguration('gcmp').get('editToolMode', 'claude') as string;
-
-        let family: string;
-        if (editToolMode && editToolMode !== 'none') {
-            family = editToolMode.startsWith('claude') ? 'claude-sonnet-4.5' : editToolMode;
-        } else if (editToolMode === 'none') {
-            family = model.id;
-        } else {
-            family = model.id; // 回退到使用模型ID
-        }
-
+        // 确定 family：优先使用模型配置的 family 字段，否则根据 sdkMode 自动推断
+        const family = this.resolveFamily(model);
         const info: LanguageModelChatInformation = {
             id: model.id,
             name: model.name,
@@ -169,8 +151,35 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             version: model.id,
             capabilities: model.capabilities
         };
-
         return info;
+    }
+
+    /**
+     * 解析模型的 family 标识
+     * 优先级：模型配置的 family 字段 > 根据 sdkMode 和模型 ID 自动推断
+     */
+    protected resolveFamily(model: ModelConfig): string {
+        // 优先使用模型配置的 family 字段
+        if (model.family) {
+            return model.family;
+        }
+
+        // 根据 sdkMode 自动推断默认值
+        const sdkMode = model.sdkMode || 'openai';
+        const modelId = (model.model || model.id).toLowerCase();
+        switch (sdkMode) {
+            case 'anthropic':
+                return 'claude-sonnet-4.6';
+            case 'gemini-sse':
+                return 'gemini-3-pro';
+            case 'openai-responses':
+                return 'gpt-5.2';
+            case 'openai':
+            case 'openai-sse':
+            default:
+                // openai/openai-sse: 如果模型 ID/名称包含 gpt，使用 gpt-5.2，否则使用 claude-sonnet-4.6
+                return modelId.includes('gpt') ? 'gpt-5.2' : 'claude-sonnet-4.6';
+        }
     }
 
     async provideLanguageModelChatInformation(

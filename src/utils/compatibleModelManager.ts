@@ -49,6 +49,16 @@ export interface CompatibleModelConfig {
     endpoint?: string;
     /** API请求时使用的模型名称（可选） */
     model?: string;
+    /**
+     * 模型的 family 标识（可选）
+     * 用于确定模型使用的编辑工具模式
+     * 如果未设置，将根据 sdkMode 自动推断默认值：
+     * - anthropic → claude-sonnet-4.6
+     * - openai/openai-sse: id/model 包含 gpt → gpt-5.2，否则 → claude-sonnet-4.6
+     * - openai-responses → gpt-5.2
+     * - gemini-sse → gemini-3-pro
+     */
+    family?: string;
     /** 最大输入token数 */
     maxInputTokens: number;
     /** 最大输出token数 */

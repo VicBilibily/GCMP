@@ -42,7 +42,7 @@ export class JsonSchemaProvider {
         this.schemaProvider = vscode.workspace.registerTextDocumentContentProvider('gcmp-settings', {
             provideTextDocumentContent: (uri: vscode.Uri): string => {
                 if (uri.toString() === this.SCHEMA_URI) {
-                    const schema = this.getProviderOverridesSchema();
+                    const schema = this.getSettingsSchema();
                     return JSON.stringify(schema, null, 2);
                 }
                 return '';
@@ -80,7 +80,7 @@ export class JsonSchemaProvider {
     private static updateSchema(): void {
         try {
             // 生成新的 schema
-            const newSchema = this.getProviderOverridesSchema();
+            const newSchema = this.getSettingsSchema();
             const newHash = this.generateSchemaHash(newSchema);
 
             // 如果 schema 没有变化，跳过更新
@@ -115,9 +115,34 @@ export class JsonSchemaProvider {
     }
 
     /**
-     * 获取提供商覆盖配置的 JSON Schema
+     * 获取 family 字段的基础 JSON Schema
+     * 用于模型配置中的 family 字段定义
      */
-    static getProviderOverridesSchema(): JSONSchema7 {
+    private static getFamilySchema(): JSONSchema7 {
+        return {
+            type: 'string',
+            description: [
+                '模型的 family 标识，用于确定编辑工具模式。',
+                '如果未设置，将根据 sdkMode 自动推断默认值：',
+                '- anthropic → claude-sonnet-4.6',
+                '- openai/openai-sse: id/model 包含 gpt → gpt-5.2，否则 → claude-sonnet-4.6',
+                '- openai-responses → gpt-5.2',
+                '- gemini-sse → gemini-3-pro'
+            ].join('\n'),
+            enum: ['claude-sonnet-4.6', 'gpt-5.2', 'gemini-3-pro'],
+            enumDescriptions: [
+                'Claude 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换，支持多文件替换',
+                'GPT-5 风格编辑工具 (apply_patch) - 批量差异应用，支持复杂重构',
+                'Gemini 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换'
+            ]
+        };
+    }
+
+    /**
+     * 获取 GCMP 配置的完整 JSON Schema
+     * 为 settings.json 提供智能提示和验证
+     */
+    static getSettingsSchema(): JSONSchema7 {
         const providerConfigs = ConfigManager.getConfigProvider();
         const patternProperties: Record<string, JSONSchema7> = {};
         const propertyNames: JSONSchema7 = {
@@ -256,6 +281,7 @@ export class JsonSchemaProvider {
                                     '是否在 Responses API 中使用 instructions 参数（可选）\n- false: 使用用户消息传递系统消息（默认）\n- true: 使用 instructions 参数传递系统消息',
                                 default: false
                             },
+                            family: this.getFamilySchema(),
                             capabilities: {
                                 type: 'object',
                                 properties: {
@@ -331,6 +357,121 @@ export class JsonSchemaProvider {
                                         endpoint: {
                                             deprecationMessage:
                                                 'endpoint 仅对 openai、openai-sse、openai-responses 模式生效'
+                                        }
+                                    }
+                                }
+                            },
+                            // family 条件建议：根据 sdkMode 推荐默认值
+                            {
+                                // anthropic 模式推荐 claude-sonnet-4.6
+                                if: {
+                                    properties: {
+                                        sdkMode: { const: 'anthropic' }
+                                    },
+                                    required: ['sdkMode']
+                                },
+                                then: {
+                                    properties: {
+                                        family: {
+                                            type: 'string',
+                                            description: [
+                                                '模型的 family 标识。anthropic 模式默认: claude-sonnet-4.6',
+                                                'Claude 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换'
+                                            ].join('\n'),
+                                            default: 'claude-sonnet-4.6',
+                                            enum: ['claude-sonnet-4.6', 'gpt-5.2', 'gemini-3-pro'],
+                                            enumDescriptions: [
+                                                'Claude 风格编辑工具 (replace_string_in_file) - 推荐',
+                                                'GPT-5 风格编辑工具 (apply_patch)',
+                                                'Gemini 风格编辑工具 (replace_string_in_file)'
+                                            ]
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                // gemini-sse 模式推荐 gemini-3-pro
+                                if: {
+                                    properties: {
+                                        sdkMode: { const: 'gemini-sse' }
+                                    },
+                                    required: ['sdkMode']
+                                },
+                                then: {
+                                    properties: {
+                                        family: {
+                                            type: 'string',
+                                            description: [
+                                                '模型的 family 标识。gemini-sse 模式默认: gemini-3-pro',
+                                                'Gemini 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换'
+                                            ].join('\n'),
+                                            default: 'gemini-3-pro',
+                                            enum: ['gemini-3-pro', 'claude-sonnet-4.6', 'gpt-5.2'],
+                                            enumDescriptions: [
+                                                'Gemini 风格编辑工具 (replace_string_in_file) - 推荐',
+                                                'Claude 风格编辑工具 (replace_string_in_file)',
+                                                'GPT-5 风格编辑工具 (apply_patch)'
+                                            ]
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                // openai-responses 模式推荐 gpt-5.2
+                                if: {
+                                    properties: {
+                                        sdkMode: { const: 'openai-responses' }
+                                    },
+                                    required: ['sdkMode']
+                                },
+                                then: {
+                                    properties: {
+                                        family: {
+                                            type: 'string',
+                                            description: [
+                                                '模型的 family 标识。openai-responses 模式默认: gpt-5.2',
+                                                'GPT-5 风格编辑工具 (apply_patch) - 批量差异应用，支持复杂重构'
+                                            ].join('\n'),
+                                            default: 'gpt-5.2',
+                                            enum: ['gpt-5.2', 'claude-sonnet-4.6', 'gemini-3-pro'],
+                                            enumDescriptions: [
+                                                'GPT-5 风格编辑工具 (apply_patch) - 推荐',
+                                                'Claude 风格编辑工具 (replace_string_in_file)',
+                                                'Gemini 风格编辑工具 (replace_string_in_file)'
+                                            ]
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                // openai/openai-sse 模式（默认）：根据模型 ID 判断
+                                if: {
+                                    anyOf: [
+                                        { not: { required: ['sdkMode'] } },
+                                        {
+                                            properties: {
+                                                sdkMode: { enum: ['openai', 'openai-sse'] }
+                                            },
+                                            required: ['sdkMode']
+                                        }
+                                    ]
+                                },
+                                then: {
+                                    properties: {
+                                        family: {
+                                            type: 'string',
+                                            description: [
+                                                '模型的 family 标识。',
+                                                'openai/openai-sse 模式默认规则：',
+                                                '- id/model 包含 gpt → gpt-5.2 (apply_patch)',
+                                                '- 否则 → claude-sonnet-4.6 (replace_string_in_file)'
+                                            ].join('\n'),
+                                            enum: ['claude-sonnet-4.6', 'gpt-5.2', 'gemini-3-pro'],
+                                            enumDescriptions: [
+                                                'Claude 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换',
+                                                'GPT-5 风格编辑工具 (apply_patch) - 批量差异应用',
+                                                'Gemini 风格编辑工具 (replace_string_in_file)'
+                                            ]
                                         }
                                     }
                                 }
@@ -473,6 +614,7 @@ export class JsonSchemaProvider {
                                     description: '额外的请求体参数值'
                                 }
                             },
+                            family: this.getFamilySchema(),
                             includeThinking: {
                                 type: 'boolean',
                                 description: '是否包含思考内容（已弃用，此参数已移除）',
