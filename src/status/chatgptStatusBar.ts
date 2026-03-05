@@ -105,7 +105,7 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
             id: 'gcmp.statusBar.chatgpt',
             name: 'GCMP: ChatGPT Usage',
             alignment: vscode.StatusBarAlignment.Right,
-            priority: 85, // 优先级
+            priority: 15,
             refreshCommand: 'gcmp.chatgpt.refreshUsage',
             apiKeyProvider: 'codex',
             cacheKeyPrefix: 'chatgpt',

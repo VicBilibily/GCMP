@@ -77,6 +77,8 @@
 
 ### 实验性支持 CLI 认证提供商
 
+> ⚠️ **风险警告**：以下 CLI 认证方式通过模拟官方 CLI 工具的调用方式来实现对应的 API 访问，**可能涉嫌滥用第三方服务条款，存在被官方检测封禁账号的风险**。请仅在确保知情并自愿承担风险的前提下使用。
+
 <details>
 <summary>展开查看 CLI 认证支持提供商说明</summary>
 
@@ -90,7 +92,7 @@
 npm install -g @iflow-ai/iflow-cli@latest
 ```
 
-- **支持模型**：**GLM-4.6**、**iFlow-ROME**、**Qwen3-Coder-Plus**、**Kimi-K2-0905**
+- **支持模型**：**iFlow-ROME**、**Qwen3-Coder-Plus**
 
 ### [**Qwen Code**](https://qwenlm.github.io/qwen-code-docs/zh/users/overview/) - Qwen Code CLI
 
@@ -101,6 +103,17 @@ npm install -g @qwen-code/qwen-code@latest
 ```
 
 - **支持模型**：**Qwen3.5-Plus**、**Qwen3-VL-Plus**
+
+### [**Codex CLI**](https://codexcli.com/) - OpenAI Codex
+
+OpenAI 官方编程助手 Codex 的命令行工具，支持通过 `codex` CLI 进行身份验证（需要本地安装 `codex` CLI）。
+
+```bash
+npm install -g @openai/codex@latest
+```
+
+- **支持模型**：**GPT-5.2**、**GPT-5.2-Codex**、**GPT-5.3-Codex**
+- **用量查询**：已支持状态栏显示 ChatGPT 订阅周期剩余用量，可查看订阅余量信息。
 
 ### [**Gemini**](https://geminicli.com/docs/) - Gemini CLI
 

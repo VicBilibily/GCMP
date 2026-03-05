@@ -4,18 +4,6 @@
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
-            "id": "glm-4.6",
-            "name": "GLM-4.6 (iFlow)",
-            "tooltip": "GLM-4.6 (iFlow)",
-            "maxInputTokens": 200000,
-            "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-
-        {
             "id": "iFlow-ROME-30BA3B",
             "name": "iFlow-ROME",
             "tooltip": "iFlow-ROME",
@@ -32,18 +20,6 @@
             "tooltip": "Qwen3-Coder-Plus (iFlow)",
             "maxInputTokens": 256000,
             "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-
-        {
-            "id": "kimi-k2-0905",
-            "name": "Kimi-K2-0905 (iFlow)",
-            "tooltip": "Kimi-K2-0905 (iFlow)",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 32000,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false

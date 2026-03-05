@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.20.0] - 2026-03-05
+
+### 新增
+
+- **Codex CLI 认证支持**：新增 OpenAI Codex (Codex CLI) 提供商支持，通过 `codex` CLI 命令行工具进行身份验证 [#89](https://github.com/VicBilibily/GCMP/issues/89)
+- **ChatGPT 状态栏**：新增 Codex CLI 用量显示支持
+- **模型 Family 配置**：新增模型级别的 `family` 配置项，用于在多模型共享同一 API Key 时进行区分，替代原有的全局 `editToolMode` 配置
+
+### 重构
+
+- **用量统计重构**：重构统计聚合口径与字段结构
+    - 移除中间字段落盘，仅保留 `firstTokenLatency`/`outputSpeeds` 聚合字段
+    - 速度计算改用鲁棒均值（log 空间 MAD + gap），提升数据准确性
+
 ## [0.19.17] - 2026-02-28
 
 ### 修复
