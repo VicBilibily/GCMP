@@ -12,6 +12,34 @@ import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
 
 /**
+ * 速率限制窗口结构
+ */
+interface RateLimitWindow {
+    /** 已使用百分比 */
+    used_percent: number;
+    /** 限制窗口秒数 */
+    limit_window_seconds: number;
+    /** 剩余重置秒数 */
+    reset_after_seconds: number;
+    /** 重置时间戳 */
+    reset_at: number;
+}
+
+/**
+ * 速率限制信息结构
+ */
+interface RateLimitInfo {
+    /** 是否允许 */
+    allowed: boolean;
+    /** 是否达到限制 */
+    limit_reached: boolean;
+    /** 主时间窗口 */
+    primary_window: RateLimitWindow;
+    /** 备用时间窗口 */
+    secondary_window?: RateLimitWindow;
+}
+
+/**
  * ChatGPT 用量信息数据结构（API响应格式）
  */
 export interface ChatGPTUsageResponse {
@@ -24,37 +52,9 @@ export interface ChatGPTUsageResponse {
     /** 计划类型：free, plus, pro 等 */
     plan_type: string;
     /** 速率限制信息 */
-    rate_limit: {
-        /** 是否允许 */
-        allowed: boolean;
-        /** 是否达到限制 */
-        limit_reached: boolean;
-        /** 主时间窗口 */
-        primary_window: {
-            /** 已使用百分比 */
-            used_percent: number;
-            /** 限制窗口秒数 */
-            limit_window_seconds: number;
-            /** 剩余重置秒数 */
-            reset_after_seconds: number;
-            /** 重置时间戳 */
-            reset_at: number;
-        } | null;
-        /** 备用时间窗口 */
-        secondary_window: unknown | null;
-    };
+    rate_limit: RateLimitInfo;
     /** 代码审查速率限制 */
-    code_review_rate_limit?: {
-        allowed: boolean;
-        limit_reached: boolean;
-        primary_window: {
-            used_percent: number;
-            limit_window_seconds: number;
-            reset_after_seconds: number;
-            reset_at: number;
-        } | null;
-        secondary_window: unknown | null;
-    };
+    code_review_rate_limit?: RateLimitInfo;
     /** 额外速率限制 */
     additional_rate_limits: unknown | null;
     /** 积分/余额信息 */
@@ -75,20 +75,32 @@ export interface ChatGPTStatusData {
     email: string;
     /** 计划类型 */
     planType: string;
-    /** 已使用百分比 */
-    usedPercent: number;
-    /** 是否允许请求 */
-    allowed: boolean;
-    /** 是否达到限制 */
-    limitReached: boolean;
-    /** 剩余重置秒数 */
-    resetAfterSeconds: number;
-    /** 重置时间戳 */
-    resetAt: number;
+    /** 速率限制信息 */
+    rateLimit: RateLimitInfo;
     /** 代码审查已使用百分比 */
     codeReviewUsedPercent: number;
     /** 最后更新时间 */
     lastUpdated: string;
+}
+
+/**
+ * 根据 limit_window_seconds 判断窗口类型
+ * 只处理 300分钟(5小时) 和 1周 两种情况
+ */
+function getWindowType(limitWindowSeconds: number): { type: string; label: string } {
+    // 300分钟 = 5小时 = 18000 秒
+    const FIVE_HOURS = 5 * 60 * 60;
+    // 1周 = 7 * 24 * 60 * 60 = 604800 秒
+    const WEEK = 7 * 24 * 60 * 60;
+
+    if (limitWindowSeconds === FIVE_HOURS) {
+        return { type: 'hourly', label: '300 分钟' };
+    } else if (limitWindowSeconds === WEEK) {
+        return { type: 'weekly', label: '每周额度' };
+    } else {
+        // 默认按每周处理
+        return { type: 'weekly', label: '每周额度' };
+    }
 }
 
 /**
@@ -116,31 +128,54 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
     }
 
     /**
-     * 获取显示文本（显示剩余百分比）
+     * 获取显示文本
+     * 格式: "$(icon) 85% (92%)" - 括号内是5小时额度，外面是每周额度
+     * 只显示 300分钟 和 每周 两种窗口
      */
     protected getDisplayText(data: ChatGPTStatusData): string {
-        const remaining = Math.max(0, 100 - data.usedPercent);
-        return `${this.config.icon} ${remaining.toFixed(0)}%`;
+        const primaryWindow = data.rateLimit.primary_window;
+        const secondaryWindow = data.rateLimit.secondary_window;
+
+        // 获取窗口类型
+        const primaryType = getWindowType(primaryWindow.limit_window_seconds);
+        const secondaryType = secondaryWindow ? getWindowType(secondaryWindow.limit_window_seconds) : null;
+
+        // 确定哪个是每周，哪个是每小时
+        let weeklyRemaining = 0;
+        let hourlyRemaining = 0;
+
+        if (primaryType.type === 'weekly') {
+            weeklyRemaining = Math.max(0, 100 - primaryWindow.used_percent);
+            if (secondaryType && secondaryType.type === 'hourly' && secondaryWindow) {
+                hourlyRemaining = Math.max(0, 100 - secondaryWindow.used_percent);
+            }
+        } else if (primaryType.type === 'hourly') {
+            hourlyRemaining = Math.max(0, 100 - primaryWindow.used_percent);
+            if (secondaryType && secondaryType.type === 'weekly' && secondaryWindow) {
+                weeklyRemaining = Math.max(0, 100 - secondaryWindow.used_percent);
+            }
+        }
+
+        // 括号内是5小时额度，外面是每周额度
+        if (hourlyRemaining > 0) {
+            return `${this.config.icon} ${weeklyRemaining.toFixed(0)}% (${hourlyRemaining.toFixed(0)}%)`;
+        }
+
+        return `${this.config.icon} ${weeklyRemaining.toFixed(0)}%`;
     }
 
     /**
-     * 生成 Tooltip 内容（显示用量剩余和重置时间）
+     * 生成 Tooltip 内容
      */
     protected generateTooltip(data: ChatGPTStatusData): vscode.MarkdownString {
         const md = new vscode.MarkdownString();
         md.supportHtml = true;
 
-        // 计算剩余量
-        const remaining = Math.max(0, 100 - data.usedPercent);
+        const primaryWindow = data.rateLimit.primary_window;
+        const secondaryWindow = data.rateLimit.secondary_window;
 
-        // 格式化重置时间
-        const resetDate = new Date(data.resetAt * 1000);
-        const resetTimeStr = resetDate.toLocaleString('zh-CN', {
-            month: 'numeric',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
+        const primaryType = getWindowType(primaryWindow.limit_window_seconds);
+        const secondaryType = secondaryWindow ? getWindowType(secondaryWindow.limit_window_seconds) : null;
 
         // 计划类型映射
         const planTypeMap: Record<string, string> = {
@@ -148,14 +183,41 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
             plus: 'Plus',
             pro: 'Pro',
             team: 'Team',
-            enterprise: 'Ent'
+            enterprise: 'Enterprise'
         };
         const planTypeDisplay = planTypeMap[data.planType] || data.planType;
 
         md.appendMarkdown(`#### ChatGPT ${planTypeDisplay}\n\n`);
         md.appendMarkdown('| 限频类型 | 剩余量 | 重置时间 |\n');
         md.appendMarkdown('| :----: | ----: | :------: |\n');
-        md.appendMarkdown(`| **每周额度** | **${remaining.toFixed(0)}%** | ${resetTimeStr} |\n`);
+
+        // 主窗口
+        const primaryRemaining = Math.max(0, 100 - primaryWindow.used_percent);
+        const primaryResetDate = new Date(primaryWindow.reset_at * 1000);
+        const primaryResetTimeStr = primaryResetDate.toLocaleString('zh-CN', {
+            month: 'numeric',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        md.appendMarkdown(
+            `| **${primaryType.label}** | **${primaryRemaining.toFixed(0)}%** | ${primaryResetTimeStr} |\n`
+        );
+
+        // 备用窗口（如果是有效类型）
+        if (secondaryWindow && secondaryType) {
+            const secondaryRemaining = Math.max(0, 100 - secondaryWindow.used_percent);
+            const secondaryResetDate = new Date(secondaryWindow.reset_at * 1000);
+            const secondaryResetTimeStr = secondaryResetDate.toLocaleString('zh-CN', {
+                month: 'numeric',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            md.appendMarkdown(
+                `| **${secondaryType.label}** | **${secondaryRemaining.toFixed(0)}%** | ${secondaryResetTimeStr} |\n`
+            );
+        }
 
         md.appendMarkdown('\n');
         md.appendMarkdown('---\n');
@@ -265,7 +327,6 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
             }
 
             const rateLimit = parsedResponse.rate_limit;
-            const primaryWindow = rateLimit.primary_window!;
 
             // 格式化最后更新时间
             const lastUpdated = new Date().toLocaleString('zh-CN');
@@ -286,11 +347,7 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
                     accountId: parsedResponse.account_id,
                     email: parsedResponse.email,
                     planType: parsedResponse.plan_type,
-                    usedPercent: primaryWindow.used_percent,
-                    allowed: rateLimit.allowed,
-                    limitReached: rateLimit.limit_reached,
-                    resetAfterSeconds: primaryWindow.reset_after_seconds,
-                    resetAt: primaryWindow.reset_at,
+                    rateLimit: rateLimit,
                     codeReviewUsedPercent,
                     lastUpdated
                 }
@@ -307,10 +364,27 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
 
     /**
      * 检查是否需要高亮警告
-     * 当使用率超过 80% 时高亮显示
+     * 当每周使用率超过 80% 时高亮显示
      */
     protected shouldHighlightWarning(data: ChatGPTStatusData): boolean {
-        return data.usedPercent >= this.HIGH_USAGE_THRESHOLD;
+        const primaryWindow = data.rateLimit.primary_window;
+        const secondaryWindow = data.rateLimit.secondary_window;
+
+        // 检查每周额度的使用率
+        const primaryType = getWindowType(primaryWindow.limit_window_seconds);
+        if (primaryType.type === 'weekly') {
+            return primaryWindow.used_percent >= this.HIGH_USAGE_THRESHOLD;
+        }
+
+        // 如果主窗口不是每周，检查备用窗口
+        if (secondaryWindow) {
+            const secondaryType = getWindowType(secondaryWindow.limit_window_seconds);
+            if (secondaryType.type === 'weekly') {
+                return secondaryWindow.used_percent >= this.HIGH_USAGE_THRESHOLD;
+            }
+        }
+
+        return false;
     }
 
     /**

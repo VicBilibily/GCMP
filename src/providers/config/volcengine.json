@@ -72,6 +72,74 @@
             }
         },
         {
+            "id": "ark-code-doubao-seed-2.0-lite",
+            "name": "Doubao-Seed-2.0-lite (Coding Plan)",
+            "model": "doubao-seed-2.0-lite",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。兼顾生成质量与响应速度，适合作为通用生产级模型，胜任非结构化信息处理、内容创作、搜索推荐、数据分析等生产型工作。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "thinking": { "type": "disabled" }
+            }
+        },
+        {
+            "id": "ark-code-doubao-seed-2.0-lite-thinking",
+            "name": "Doubao-Seed-2.0-lite (Thinking) (Coding Plan)",
+            "model": "doubao-seed-2.0-lite",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。兼顾生成质量与响应速度，适合作为通用生产级模型，胜任非结构化信息处理、内容创作、搜索推荐、数据分析等生产型工作。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
+        },
+        {
+            "id": "ark-code-doubao-seed-2.0-pro",
+            "name": "Doubao-Seed-2.0-pro (Coding Plan)",
+            "model": "doubao-seed-2.0-pro",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。旗舰级全能通用模型，适合复杂推理与长链路任务执行场景，强调多模态理解、长上下文推理、结构化生成与工具增强执行。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "thinking": { "type": "disabled" }
+            }
+        },
+        {
+            "id": "ark-code-doubao-seed-2.0-pro-thinking",
+            "name": "Doubao-Seed-2.0-pro (Thinking) (Coding Plan)",
+            "model": "doubao-seed-2.0-pro",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。旗舰级全能通用模型，适合复杂推理与长链路任务执行场景，强调多模态理解、长上下文推理、结构化生成与工具增强执行。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
+        },
+        {
             "id": "ark-code-kimi-k2.5",
             "name": "Kimi-K2.5 (Coding Plan)",
             "model": "kimi-k2.5",
@@ -139,7 +207,20 @@
                 "thinking": { "type": "enabled" }
             }
         },
-
+        {
+            "id": "ark-code-MiniMax-M2.5",
+            "name": "MiniMax-M2.5 (Coding Plan)",
+            "model": "MiniMax-M2.5",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。MiniMax 旗舰级开源大模型，在编程、工具调用和搜索、办公等生产力场景都达到或者刷新了行业的 SOTA。",
+            "maxInputTokens": 204800,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
         {
             "id": "ark-code-deepseek-v3.2",
             "name": "Deepseek V3.2 (Coding Plan)",
@@ -172,20 +253,6 @@
             },
             "extraBody": {
                 "thinking": { "type": "enabled" }
-            }
-        },
-        {
-            "id": "ark-code-kimi-k2-thinking",
-            "name": "Kimi-K2-Thinking (Coding Plan)",
-            "model": "kimi-k2-thinking",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。Moonshot AI 推出的 MoE 混合专家架构大模型，在复杂代码开发、Agent 全链路任务中具备强逻辑推理与多任务协同能力。",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
             }
         },
         {
