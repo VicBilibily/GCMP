@@ -54,6 +54,10 @@
         {
             "fileMatch": ["src/providers/config/*.json"],
             "url": "./.vscode/providerConfig.schema.json"
+        },
+        {
+            "fileMatch": ["src/providers/known/*.json"],
+            "url": "./.vscode/knownProviderConfig.schema.json"
         }
     ]
 }

@@ -10,7 +10,7 @@ import { StatusLogger } from '../utils/statusLogger';
 import { CompatibleModelManager } from '../utils/compatibleModelManager';
 import { BalanceQueryManager } from './compatible/balanceQueryManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
-import { KnownProviders } from '../utils/knownProviders';
+import KnownProviders from '../providers/known';
 
 /**
  * Compatible 提供商余额信息

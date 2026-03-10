@@ -15,8 +15,8 @@ import { Logger, ApiKeyManager, CompatibleModelManager, RetryManager } from '../
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status';
-import { KnownProviders } from '../utils';
 import { configProviders } from './config';
+import KnownProviders from './known';
 
 /**
  * 独立兼容模型提供商类
@@ -66,14 +66,75 @@ export class CompatibleProvider extends GenericModelProvider {
     }
 
     /**
+     * 获取 KnownProviders 中定义的所有模型
+     * 合并 KnownProviders 的模型配置（包括 SDK 模式级别的配置）
+     */
+    private getKnownProviderModels(): ModelConfig[] {
+        const knownModels: ModelConfig[] = [];
+
+        for (const [providerId, providerConfig] of Object.entries(KnownProviders)) {
+            if (!providerConfig.models || providerConfig.models.length === 0) {
+                continue;
+            }
+
+            for (const model of providerConfig.models) {
+                // 根据 sdkMode 选择对应的基础配置
+                let sdkModeConfig: Omit<ModelOverride, 'id'> | undefined;
+                if (model.sdkMode === 'anthropic' && providerConfig.anthropic) {
+                    sdkModeConfig = providerConfig.anthropic;
+                } else if (model.sdkMode !== 'anthropic' && providerConfig.openai) {
+                    sdkModeConfig = providerConfig.openai;
+                }
+
+                // 合并 customHeader：提供商级别 < SDK 模式级别 < 模型级别
+                const mergedCustomHeader = {
+                    ...(providerConfig.customHeader || {}),
+                    ...(sdkModeConfig?.customHeader || {}),
+                    ...(model.customHeader || {})
+                };
+
+                // 合并 extraBody：SDK 模式级别 < 模型级别
+                const mergedExtraBody = {
+                    ...(sdkModeConfig?.extraBody || {}),
+                    ...(model.extraBody || {})
+                };
+
+                // 合并 baseUrl：SDK 模式级别 < 提供商级别 < 模型级别
+                const mergedBaseUrl = model.baseUrl || sdkModeConfig?.baseUrl || providerConfig.baseUrl;
+
+                knownModels.push({
+                    ...model,
+                    provider: model.provider || providerId,
+                    ...(mergedBaseUrl && { baseUrl: mergedBaseUrl }),
+                    ...(Object.keys(mergedCustomHeader).length > 0 && { customHeader: mergedCustomHeader }),
+                    ...(Object.keys(mergedExtraBody).length > 0 && { extraBody: mergedExtraBody })
+                });
+            }
+        }
+
+        return knownModels;
+    }
+
+    /**
      * 重写：获取动态的提供商配置
-     * 从 CompatibleModelManager 获取用户配置的模型
+     * 从 CompatibleModelManager 获取用户配置的模型（包括 compatibleModels 和 compatibleProviders）
+     * 以及 KnownProviders 中预定义的模型
      */
     getProviderConfig(): ProviderConfig {
         try {
-            const models = CompatibleModelManager.getModels();
+            // 获取来自 compatibleModels 的模型
+            const standaloneModels = CompatibleModelManager.getModels();
+            // 获取来自 compatibleProviders 的模型（已合并提供商级别配置）
+            const providerModels = CompatibleModelManager.getProviderModels();
+            // 合并两个来源的模型
+            // 获取 KnownProviders 中预定义的模型
+            const knownProviderModels = this.getKnownProviderModels();
+
+            // 合并三个来源的模型：compatibleModels, compatibleProviders, knownProviders
+            const allModels = [...standaloneModels, ...providerModels, ...knownProviderModels];
+
             // 将 CompatibleModelManager 的模型转换为 ModelConfig 格式
-            const modelConfigs: ModelConfig[] = models.map(model => {
+            const modelConfigs: ModelConfig[] = allModels.map(model => {
                 let customHeader = model.customHeader;
                 if (model.provider) {
                     const provider = KnownProviders[model.provider];
@@ -99,7 +160,7 @@ export class CompatibleProvider extends GenericModelProvider {
                     id: model.id,
                     name: model.name,
                     provider: model.provider,
-                    tooltip: model.tooltip || `${model.name} (${model.sdkMode})`,
+                    tooltip: model.tooltip || `${model.name} (${model.sdkMode || 'openai'})`,
                     maxInputTokens: model.maxInputTokens,
                     maxOutputTokens: model.maxOutputTokens,
                     sdkMode: model.sdkMode,
@@ -114,7 +175,9 @@ export class CompatibleProvider extends GenericModelProvider {
                 };
             });
 
-            Logger.debug(`Compatible Provider 加载了 ${modelConfigs.length} 个用户配置的模型`);
+            Logger.debug(
+                `Compatible Provider 加载了 ${modelConfigs.length} 个模型 (compatibleModels: ${standaloneModels.length}, compatibleProviders: ${providerModels.length}, knownProviders: ${knownProviderModels.length})`
+            );
 
             this.cachedProviderConfig = {
                 displayName: 'Compatible',

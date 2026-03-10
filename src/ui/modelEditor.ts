@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { CompatibleModelConfig } from '../utils/compatibleModelManager';
 import { configProviders } from '../providers/config';
-import { KnownProviders } from '../utils/knownProviders';
+import KnownProviders from '../providers/known';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { VersionManager } from '../utils/versionManager';
 import modelEditorCss from './modelEditor.css?raw';

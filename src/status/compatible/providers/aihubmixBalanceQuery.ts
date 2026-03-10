@@ -5,7 +5,8 @@
 import { IBalanceQuery, BalanceQueryResult } from '../balanceQuery';
 import { StatusLogger } from '../../../utils/statusLogger';
 import { ApiKeyManager } from '../../../utils/apiKeyManager';
-import { Logger, KnownProviders } from '../../../utils';
+import { Logger } from '../../../utils';
+import KnownProviders from '../../../providers/known';
 
 /**
  * AIHubMix API 响应类型

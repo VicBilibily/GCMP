@@ -6,7 +6,6 @@
 export { ApiKeyManager } from './apiKeyManager';
 export { ConfigManager } from './configManager';
 export { CompatibleModelManager } from './compatibleModelManager';
-export { KnownProviderConfig, KnownProviders } from './knownProviders';
 export { Logger } from './logger';
 export { StatusLogger } from './statusLogger';
 export { CompletionLogger } from './completionLogger';

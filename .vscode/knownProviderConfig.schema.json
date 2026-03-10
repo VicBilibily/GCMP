@@ -1,0 +1,75 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://gcmp.dev/schemas/known-provider-config.schema.json",
+    "title": "GCMP Known Provider Configuration",
+    "description": "已知兼容提供商的配置 Schema，用于提供智能提示。",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+        "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "description": "在提供商选择器中显示的用户友好名称。"
+        },
+        "baseUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "OpenAI 兼容请求的基础 URL（通用默认值）。"
+        },
+        "customHeader": {
+            "type": "object",
+            "description": "可选的自定义HTTP头部，将在该提供商的所有API请求中附加。模型级别的 customHeader 会覆盖提供商级别的设置。",
+            "additionalProperties": {
+                "type": "string",
+                "description": "HTTP头部值",
+                "minLength": 1
+            }
+        },
+        "models": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "$ref": "./model.schema.json"
+            },
+            "description": "该提供商预定义的模型列表。"
+        },
+        "openai": {
+            "$ref": "#/$defs/sdkModeConfig",
+            "description": "OpenAI 模式的基础配置（适用于 openai / openai-sse / openai-responses 模式的模型）。"
+        },
+        "anthropic": {
+            "$ref": "#/$defs/sdkModeConfig",
+            "description": "Anthropic 模式的基础配置（适用于 anthropic 模式的模型）。"
+        },
+        "gemini": {
+            "$ref": "#/$defs/sdkModeConfig",
+            "description": "Gemini 模式的基础配置（适用于 gemini-sse 模式的模型）。"
+        }
+    },
+    "$defs": {
+        "sdkModeConfig": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "baseUrl": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "该模式下的 API 基础 URL（覆盖提供商通用 baseUrl）。"
+                },
+                "customHeader": {
+                    "type": "object",
+                    "description": "该模式下的自定义 HTTP 头部（合并到提供商通用 customHeader）。",
+                    "additionalProperties": {
+                        "type": "string",
+                        "description": "HTTP 头部值"
+                    }
+                },
+                "extraBody": {
+                    "type": "object",
+                    "description": "该模式下的额外请求体参数（合并到模型 extraBody）。",
+                    "additionalProperties": true
+                }
+            }
+        }
+    }
+}

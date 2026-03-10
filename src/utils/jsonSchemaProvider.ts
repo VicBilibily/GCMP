@@ -8,7 +8,7 @@ import { ProviderConfig } from '../types/sharedTypes';
 import { ConfigManager } from './configManager';
 import { Logger } from './logger';
 import type { JSONSchema7 } from 'json-schema';
-import { KnownProviders } from './knownProviders';
+import KnownProviders from '../providers/known';
 import { CompatibleModelManager } from './compatibleModelManager';
 
 /**
@@ -139,6 +139,328 @@ export class JsonSchemaProvider {
     }
 
     /**
+     * 获取 SDK 模式级别基础配置的 JSON Schema
+     * 用于 compatibleProviders 的 openai/anthropic/gemini 字段
+     */
+    private static getSdkModeBaseConfigSchema(): JSONSchema7 {
+        return {
+            type: 'object',
+            description: 'SDK 模式级别的基础配置',
+            properties: {
+                baseUrl: {
+                    type: 'string',
+                    description: '该模式下的 API 基础 URL（覆盖提供商通用 baseUrl）',
+                    format: 'uri'
+                },
+                customHeader: {
+                    type: 'object',
+                    description: '该模式下的自定义 HTTP 头部（合并到提供商通用 customHeader）',
+                    additionalProperties: {
+                        type: 'string',
+                        description: 'HTTP 头部值'
+                    }
+                },
+                extraBody: {
+                    type: 'object',
+                    description: '该模式下的额外请求体参数（合并到模型 extraBody）',
+                    additionalProperties: {
+                        description: '额外的请求体参数值'
+                    }
+                }
+            },
+            additionalProperties: false
+        };
+    }
+
+    /**
+     * 获取兼容模型配置的 JSON Schema（可复用于 compatibleModels 和 compatibleProviders.models）
+     * @param includeProviderField 是否包含 provider 字段（compatibleModels 需要，compatibleProviders 不需要）
+     * @param providerIds 可选的提供商ID列表（用于 provider 字段的枚举）
+     * @param providerDescriptions 可选的提供商描述列表（暂未使用）
+     */
+    private static getCompatibleModelItemSchema(
+        includeProviderField: boolean,
+        providerIds?: string[],
+        _providerDescriptions?: string[]
+    ): JSONSchema7 {
+        const properties: Record<string, JSONSchema7> = {
+            id: {
+                type: 'string',
+                description: '模型ID',
+                minLength: 1
+            },
+            name: {
+                type: 'string',
+                description: '模型显示名称',
+                minLength: 1
+            },
+            tooltip: {
+                type: 'string',
+                description: '模型描述'
+            },
+            sdkMode: {
+                type: 'string',
+                enum: ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini-sse'],
+                enumDescriptions: [
+                    'OpenAI SDK 标准模式，使用官方 OpenAI SDK 进行请求响应处理',
+                    'OpenAI SSE 兼容模式，使用插件内实现的SSE解析逻辑进行流式响应处理',
+                    'OpenAI Responses API 模式，使用 Responses API 进行请求响应处理',
+                    'Anthropic SDK 标准模式，使用官方 Anthropic SDK 进行请求响应处理',
+                    'Gemini HTTP SSE 模式（实验性），使用纯 HTTP + SSE 解析，兼容第三方 Gemini 网关'
+                ],
+                description: 'SDK模式默认为 openai。',
+                default: 'openai'
+            },
+            baseUrl: {
+                type: 'string',
+                description: 'API基础URL',
+                format: 'uri'
+            },
+            model: {
+                type: 'string',
+                description: 'API请求时使用的模型名称（可选，默认使用模型ID）'
+            },
+            maxInputTokens: {
+                type: 'number',
+                description: '最大输入token数量',
+                minimum: 128
+            },
+            maxOutputTokens: {
+                type: 'number',
+                description: '最大输出token数量',
+                minimum: 8
+            },
+            useInstructions: {
+                type: 'boolean',
+                description:
+                    '是否在 Responses API 中使用 instructions 参数（可选）\n- false: 使用用户消息传递系统消息（默认）\n- true: 使用 instructions 参数传递系统消息',
+                default: false
+            },
+            family: this.getFamilySchema(),
+            capabilities: {
+                type: 'object',
+                properties: {
+                    toolCalling: {
+                        type: 'boolean',
+                        description: '是否支持工具调用'
+                    },
+                    imageInput: {
+                        type: 'boolean',
+                        description: '是否支持图像输入'
+                    }
+                },
+                required: ['toolCalling', 'imageInput']
+            },
+            customHeader: {
+                type: 'object',
+                description: '自定义HTTP头部配置，支持 ${APIKEY} 占位符替换',
+                additionalProperties: {
+                    type: 'string',
+                    description: 'HTTP头部值'
+                }
+            },
+            extraBody: {
+                type: 'object',
+                description: '额外的请求体参数，将在API请求中合并到请求体中',
+                additionalProperties: {
+                    description: '额外的请求体参数值'
+                }
+            },
+            includeThinking: {
+                type: 'boolean',
+                description: '是否包含思考内容（已弃用，此参数已移除）',
+                deprecationMessage: 'includeThinking 已被弃用，此参数不再被支持'
+            },
+            outputThinking: {
+                type: 'boolean',
+                description: '是否输出思考内容（已弃用，此参数已移除）',
+                deprecationMessage: 'outputThinking 已被弃用，此参数不再被支持'
+            }
+        };
+
+        // 如果需要 provider 字段，添加到 properties
+        if (includeProviderField) {
+            properties.provider = {
+                type: 'string',
+                description: '模型提供商标识符。从下拉列表选择现有提供商ID，或输入新ID创建自定义提供商。',
+                anyOf: [
+                    {
+                        type: 'string',
+                        enum: providerIds || [],
+                        description: '选择现有提供商ID'
+                    },
+                    {
+                        type: 'string',
+                        minLength: 3,
+                        maxLength: 100,
+                        pattern: '^[a-zA-Z0-9_-]+$',
+                        description: '新增自定义提供商ID（允许字母、数字、下划线、连字符）'
+                    }
+                ]
+            };
+        }
+
+        return {
+            type: 'object',
+            properties,
+            required: ['id', 'name', 'maxInputTokens', 'maxOutputTokens', 'capabilities'],
+            allOf: [
+                {
+                    // endpoint 仅对 openai / openai-sse / openai-responses 生效
+                    // anthropic 和 gemini-sse 不提示，且已配置时标红警告
+                    if: {
+                        anyOf: [
+                            { not: { required: ['sdkMode'] } },
+                            {
+                                properties: {
+                                    sdkMode: { enum: ['openai', 'openai-sse', 'openai-responses'] }
+                                },
+                                required: ['sdkMode']
+                            }
+                        ]
+                    },
+                    then: {
+                        properties: {
+                            endpoint: {
+                                type: 'string',
+                                description: [
+                                    '自定义 API 端点路径（可选）。',
+                                    '用于替换默认附加到 baseUrl 后的路径（如 /chat/completions、/responses）。',
+                                    '- 相对路径（如 /custom/path）：与 baseUrl 拼接使用',
+                                    '- 完整 URL：直接填写完整的地址作为请求地址',
+                                    '仅对 openai、openai-sse、openai-responses 模式生效'
+                                ].join('\n')
+                            }
+                        }
+                    },
+                    else: {
+                        properties: {
+                            endpoint: {
+                                deprecationMessage: 'endpoint 仅对 openai、openai-sse、openai-responses 模式生效'
+                            }
+                        }
+                    }
+                },
+                // family 条件建议：根据 sdkMode 推荐默认值
+                {
+                    // anthropic 模式推荐 claude-sonnet-4.6
+                    if: {
+                        properties: {
+                            sdkMode: { const: 'anthropic' }
+                        },
+                        required: ['sdkMode']
+                    },
+                    then: {
+                        properties: {
+                            family: {
+                                type: 'string',
+                                description: [
+                                    '模型的 family 标识。anthropic 模式默认: claude-sonnet-4.6',
+                                    'Claude 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换'
+                                ].join('\n'),
+                                default: 'claude-sonnet-4.6',
+                                enum: ['claude-sonnet-4.6', 'gpt-5.2', 'gemini-3-pro'],
+                                enumDescriptions: [
+                                    'Claude 风格编辑工具 (replace_string_in_file) - 推荐',
+                                    'GPT-5 风格编辑工具 (apply_patch)',
+                                    'Gemini 风格编辑工具 (replace_string_in_file)'
+                                ]
+                            }
+                        }
+                    }
+                },
+                {
+                    // gemini-sse 模式推荐 gemini-3-pro
+                    if: {
+                        properties: {
+                            sdkMode: { const: 'gemini-sse' }
+                        },
+                        required: ['sdkMode']
+                    },
+                    then: {
+                        properties: {
+                            family: {
+                                type: 'string',
+                                description: [
+                                    '模型的 family 标识。gemini-sse 模式默认: gemini-3-pro',
+                                    'Gemini 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换'
+                                ].join('\n'),
+                                default: 'gemini-3-pro',
+                                enum: ['gemini-3-pro', 'claude-sonnet-4.6', 'gpt-5.2'],
+                                enumDescriptions: [
+                                    'Gemini 风格编辑工具 (replace_string_in_file) - 推荐',
+                                    'Claude 风格编辑工具 (replace_string_in_file)',
+                                    'GPT-5 风格编辑工具 (apply_patch)'
+                                ]
+                            }
+                        }
+                    }
+                },
+                {
+                    // openai-responses 模式推荐 gpt-5.2
+                    if: {
+                        properties: {
+                            sdkMode: { const: 'openai-responses' }
+                        },
+                        required: ['sdkMode']
+                    },
+                    then: {
+                        properties: {
+                            family: {
+                                type: 'string',
+                                description: [
+                                    '模型的 family 标识。openai-responses 模式默认: gpt-5.2',
+                                    'GPT-5 风格编辑工具 (apply_patch) - 批量差异应用，支持复杂重构'
+                                ].join('\n'),
+                                default: 'gpt-5.2',
+                                enum: ['gpt-5.2', 'claude-sonnet-4.6', 'gemini-3-pro'],
+                                enumDescriptions: [
+                                    'GPT-5 风格编辑工具 (apply_patch) - 推荐',
+                                    'Claude 风格编辑工具 (replace_string_in_file)',
+                                    'Gemini 风格编辑工具 (replace_string_in_file)'
+                                ]
+                            }
+                        }
+                    }
+                },
+                {
+                    // openai/openai-sse 模式（默认）：根据模型 ID 判断
+                    if: {
+                        anyOf: [
+                            { not: { required: ['sdkMode'] } },
+                            {
+                                properties: {
+                                    sdkMode: { enum: ['openai', 'openai-sse'] }
+                                },
+                                required: ['sdkMode']
+                            }
+                        ]
+                    },
+                    then: {
+                        properties: {
+                            family: {
+                                type: 'string',
+                                description: [
+                                    '模型的 family 标识。',
+                                    'openai/openai-sse 模式默认规则：',
+                                    '- id/model 包含 gpt → gpt-5.2 (apply_patch)',
+                                    '- 否则 → claude-sonnet-4.6 (replace_string_in_file)'
+                                ].join('\n'),
+                                enum: ['claude-sonnet-4.6', 'gpt-5.2', 'gemini-3-pro'],
+                                enumDescriptions: [
+                                    'Claude 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换',
+                                    'GPT-5 风格编辑工具 (apply_patch) - 批量差异应用',
+                                    'Gemini 风格编辑工具 (replace_string_in_file)'
+                                ]
+                            }
+                        }
+                    }
+                }
+            ]
+        };
+    }
+
+    /**
      * 获取 GCMP 配置的完整 JSON Schema
      * 为 settings.json 提供智能提示和验证
      */
@@ -207,276 +529,120 @@ export class JsonSchemaProvider {
                     type: 'array',
                     description: 'Compatible Provider 的自定义模型配置。',
                     default: [],
-                    items: {
+                    items: this.getCompatibleModelItemSchema(true, providerIds, allProviderDescriptions)
+                },
+                'gcmp.compatibleProviders': {
+                    type: 'object',
+                    description: '兼容提供商配置。允许定义自定义兼容提供商，key 为提供商 ID，value 为提供商配置。',
+                    default: {},
+                    additionalProperties: {
                         type: 'object',
+                        required: ['displayName', 'models'],
                         properties: {
-                            id: {
+                            displayName: {
                                 type: 'string',
-                                description: '模型ID',
+                                description: '提供商显示名称（在模型选择器中显示）',
                                 minLength: 1
-                            },
-                            name: {
-                                type: 'string',
-                                description: '模型显示名称',
-                                minLength: 1
-                            },
-                            tooltip: {
-                                type: 'string',
-                                description: '模型描述'
-                            },
-                            provider: {
-                                type: 'string',
-                                description:
-                                    '模型提供商标识符。从下拉列表选择现有提供商ID，或输入新ID创建自定义提供商。',
-                                anyOf: [
-                                    {
-                                        type: 'string',
-                                        enum: providerIds,
-                                        description: '选择现有提供商ID'
-                                    },
-                                    {
-                                        type: 'string',
-                                        minLength: 3,
-                                        maxLength: 100,
-                                        pattern: '^[a-zA-Z0-9_-]+$',
-                                        description: '新增自定义提供商ID（允许字母、数字、下划线、连字符）'
-                                    }
-                                ]
-                            },
-                            sdkMode: {
-                                type: 'string',
-                                enum: ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini-sse'],
-                                enumDescriptions: [
-                                    'OpenAI SDK 标准模式，使用官方 OpenAI SDK 进行请求响应处理',
-                                    'OpenAI SSE 兼容模式，使用插件内实现的SSE解析逻辑进行流式响应处理',
-                                    'OpenAI Responses API 模式，使用 Responses API 进行请求响应处理',
-                                    'Anthropic SDK 标准模式，使用官方 Anthropic SDK 进行请求响应处理',
-                                    'Gemini HTTP SSE 模式（实验性），使用纯 HTTP + SSE 解析，兼容第三方 Gemini 网关'
-                                ],
-                                description: 'SDK模式默认为 openai。',
-                                default: 'openai'
                             },
                             baseUrl: {
                                 type: 'string',
-                                description: 'API基础URL',
+                                description: 'API基础URL（作为该提供商下所有模型的默认 baseUrl）',
                                 format: 'uri'
-                            },
-                            model: {
-                                type: 'string',
-                                description: 'API请求时使用的模型名称（可选，默认使用模型ID）'
-                            },
-                            maxInputTokens: {
-                                type: 'number',
-                                description: '最大输入token数量',
-                                minimum: 128
-                            },
-                            maxOutputTokens: {
-                                type: 'number',
-                                description: '最大输出token数量',
-                                minimum: 8
-                            },
-                            useInstructions: {
-                                type: 'boolean',
-                                description:
-                                    '是否在 Responses API 中使用 instructions 参数（可选）\n- false: 使用用户消息传递系统消息（默认）\n- true: 使用 instructions 参数传递系统消息',
-                                default: false
-                            },
-                            family: this.getFamilySchema(),
-                            capabilities: {
-                                type: 'object',
-                                properties: {
-                                    toolCalling: {
-                                        type: 'boolean',
-                                        description: '是否支持工具调用'
-                                    },
-                                    imageInput: {
-                                        type: 'boolean',
-                                        description: '是否支持图像输入'
-                                    }
-                                },
-                                required: ['toolCalling', 'imageInput']
                             },
                             customHeader: {
                                 type: 'object',
-                                description: '自定义HTTP头部配置，支持 ${APIKEY} 占位符替换',
+                                description: '提供商级别的自定义HTTP头部（将合并到该提供商下所有模型的请求中）',
                                 additionalProperties: {
                                     type: 'string',
                                     description: 'HTTP头部值'
                                 }
                             },
-                            extraBody: {
-                                type: 'object',
-                                description: '额外的请求体参数，将在API请求中合并到请求体中',
-                                additionalProperties: {
-                                    description: '额外的请求体参数值'
+                            openai: {
+                                ...this.getSdkModeBaseConfigSchema(),
+                                description:
+                                    'OpenAI 模式的基础配置（适用于 openai / openai-sse / openai-responses 模式的模型）',
+                                properties: {
+                                    baseUrl: {
+                                        type: 'string',
+                                        description: 'OpenAI 模式的 API 基础 URL',
+                                        format: 'uri'
+                                    },
+                                    customHeader: {
+                                        type: 'object',
+                                        description: 'OpenAI 模式的自定义 HTTP 头部',
+                                        additionalProperties: {
+                                            type: 'string',
+                                            description: 'HTTP 头部值'
+                                        }
+                                    },
+                                    extraBody: {
+                                        type: 'object',
+                                        description: 'OpenAI 模式的额外请求体参数',
+                                        additionalProperties: {
+                                            description: '额外的请求体参数值'
+                                        }
+                                    }
                                 }
                             },
-                            includeThinking: {
-                                type: 'boolean',
-                                description: '是否包含思考内容（已弃用，此参数已移除）',
-                                deprecationMessage: 'includeThinking 已被弃用，此参数不再被支持'
+                            anthropic: {
+                                ...this.getSdkModeBaseConfigSchema(),
+                                description: 'Anthropic 模式的基础配置（适用于 anthropic 模式的模型）',
+                                properties: {
+                                    baseUrl: {
+                                        type: 'string',
+                                        description: 'Anthropic 模式的 API 基础 URL',
+                                        format: 'uri'
+                                    },
+                                    customHeader: {
+                                        type: 'object',
+                                        description: 'Anthropic 模式的自定义 HTTP 头部',
+                                        additionalProperties: {
+                                            type: 'string',
+                                            description: 'HTTP 头部值'
+                                        }
+                                    },
+                                    extraBody: {
+                                        type: 'object',
+                                        description: 'Anthropic 模式的额外请求体参数',
+                                        additionalProperties: {
+                                            description: '额外的请求体参数值'
+                                        }
+                                    }
+                                }
                             },
-                            outputThinking: {
-                                type: 'boolean',
-                                description: '是否输出思考内容（已弃用，此参数已移除）',
-                                deprecationMessage: 'outputThinking 已被弃用，此参数不再被支持'
+                            gemini: {
+                                ...this.getSdkModeBaseConfigSchema(),
+                                description: 'Gemini 模式的基础配置（适用于 gemini-sse 模式的模型）',
+                                properties: {
+                                    baseUrl: {
+                                        type: 'string',
+                                        description: 'Gemini 模式的 API 基础 URL',
+                                        format: 'uri'
+                                    },
+                                    customHeader: {
+                                        type: 'object',
+                                        description: 'Gemini 模式的自定义 HTTP 头部',
+                                        additionalProperties: {
+                                            type: 'string',
+                                            description: 'HTTP 头部值'
+                                        }
+                                    },
+                                    extraBody: {
+                                        type: 'object',
+                                        description: 'Gemini 模式的额外请求体参数',
+                                        additionalProperties: {
+                                            description: '额外的请求体参数值'
+                                        }
+                                    }
+                                }
+                            },
+                            models: {
+                                type: 'array',
+                                description: '该提供商下的模型列表',
+                                minItems: 1,
+                                items: this.getCompatibleModelItemSchema(false)
                             }
-                        },
-                        required: ['id', 'name', 'maxInputTokens', 'maxOutputTokens', 'capabilities'],
-                        allOf: [
-                            {
-                                // endpoint 仅对 openai / openai-sse / openai-responses 生效
-                                // anthropic 和 gemini-sse 不提示，且已配置时标红警告
-                                if: {
-                                    anyOf: [
-                                        { not: { required: ['sdkMode'] } },
-                                        {
-                                            properties: {
-                                                sdkMode: { enum: ['openai', 'openai-sse', 'openai-responses'] }
-                                            },
-                                            required: ['sdkMode']
-                                        }
-                                    ]
-                                },
-                                then: {
-                                    properties: {
-                                        endpoint: {
-                                            type: 'string',
-                                            description: [
-                                                '自定义 API 端点路径（可选）。',
-                                                '用于替换默认附加到 baseUrl 后的路径（如 /chat/completions、/responses）。',
-                                                '- 相对路径（如 /custom/path）：与 baseUrl 拼接使用',
-                                                '- 完整 URL：直接填写完整的地址作为请求地址',
-                                                '仅对 openai、openai-sse、openai-responses 模式生效'
-                                            ].join('\n')
-                                        }
-                                    }
-                                },
-                                else: {
-                                    properties: {
-                                        endpoint: {
-                                            deprecationMessage:
-                                                'endpoint 仅对 openai、openai-sse、openai-responses 模式生效'
-                                        }
-                                    }
-                                }
-                            },
-                            // family 条件建议：根据 sdkMode 推荐默认值
-                            {
-                                // anthropic 模式推荐 claude-sonnet-4.6
-                                if: {
-                                    properties: {
-                                        sdkMode: { const: 'anthropic' }
-                                    },
-                                    required: ['sdkMode']
-                                },
-                                then: {
-                                    properties: {
-                                        family: {
-                                            type: 'string',
-                                            description: [
-                                                '模型的 family 标识。anthropic 模式默认: claude-sonnet-4.6',
-                                                'Claude 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换'
-                                            ].join('\n'),
-                                            default: 'claude-sonnet-4.6',
-                                            enum: ['claude-sonnet-4.6', 'gpt-5.2', 'gemini-3-pro'],
-                                            enumDescriptions: [
-                                                'Claude 风格编辑工具 (replace_string_in_file) - 推荐',
-                                                'GPT-5 风格编辑工具 (apply_patch)',
-                                                'Gemini 风格编辑工具 (replace_string_in_file)'
-                                            ]
-                                        }
-                                    }
-                                }
-                            },
-                            {
-                                // gemini-sse 模式推荐 gemini-3-pro
-                                if: {
-                                    properties: {
-                                        sdkMode: { const: 'gemini-sse' }
-                                    },
-                                    required: ['sdkMode']
-                                },
-                                then: {
-                                    properties: {
-                                        family: {
-                                            type: 'string',
-                                            description: [
-                                                '模型的 family 标识。gemini-sse 模式默认: gemini-3-pro',
-                                                'Gemini 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换'
-                                            ].join('\n'),
-                                            default: 'gemini-3-pro',
-                                            enum: ['gemini-3-pro', 'claude-sonnet-4.6', 'gpt-5.2'],
-                                            enumDescriptions: [
-                                                'Gemini 风格编辑工具 (replace_string_in_file) - 推荐',
-                                                'Claude 风格编辑工具 (replace_string_in_file)',
-                                                'GPT-5 风格编辑工具 (apply_patch)'
-                                            ]
-                                        }
-                                    }
-                                }
-                            },
-                            {
-                                // openai-responses 模式推荐 gpt-5.2
-                                if: {
-                                    properties: {
-                                        sdkMode: { const: 'openai-responses' }
-                                    },
-                                    required: ['sdkMode']
-                                },
-                                then: {
-                                    properties: {
-                                        family: {
-                                            type: 'string',
-                                            description: [
-                                                '模型的 family 标识。openai-responses 模式默认: gpt-5.2',
-                                                'GPT-5 风格编辑工具 (apply_patch) - 批量差异应用，支持复杂重构'
-                                            ].join('\n'),
-                                            default: 'gpt-5.2',
-                                            enum: ['gpt-5.2', 'claude-sonnet-4.6', 'gemini-3-pro'],
-                                            enumDescriptions: [
-                                                'GPT-5 风格编辑工具 (apply_patch) - 推荐',
-                                                'Claude 风格编辑工具 (replace_string_in_file)',
-                                                'Gemini 风格编辑工具 (replace_string_in_file)'
-                                            ]
-                                        }
-                                    }
-                                }
-                            },
-                            {
-                                // openai/openai-sse 模式（默认）：根据模型 ID 判断
-                                if: {
-                                    anyOf: [
-                                        { not: { required: ['sdkMode'] } },
-                                        {
-                                            properties: {
-                                                sdkMode: { enum: ['openai', 'openai-sse'] }
-                                            },
-                                            required: ['sdkMode']
-                                        }
-                                    ]
-                                },
-                                then: {
-                                    properties: {
-                                        family: {
-                                            type: 'string',
-                                            description: [
-                                                '模型的 family 标识。',
-                                                'openai/openai-sse 模式默认规则：',
-                                                '- id/model 包含 gpt → gpt-5.2 (apply_patch)',
-                                                '- 否则 → claude-sonnet-4.6 (replace_string_in_file)'
-                                            ].join('\n'),
-                                            enum: ['claude-sonnet-4.6', 'gpt-5.2', 'gemini-3-pro'],
-                                            enumDescriptions: [
-                                                'Claude 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换',
-                                                'GPT-5 风格编辑工具 (apply_patch) - 批量差异应用',
-                                                'Gemini 风格编辑工具 (replace_string_in_file)'
-                                            ]
-                                        }
-                                    }
-                                }
-                            }
-                        ]
+                        }
                     }
                 },
                 // Commit 模型选择：保存 provider + model

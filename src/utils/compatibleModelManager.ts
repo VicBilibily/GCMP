@@ -7,8 +7,8 @@ import * as vscode from 'vscode';
 import { Logger } from './logger';
 import { ApiKeyManager } from './apiKeyManager';
 import { StatusBarManager } from '../status';
-import { KnownProviders } from './knownProviders';
 import { configProviders } from '../providers/config';
+import KnownProviders from '../providers/known';
 import { ModelEditor } from '../ui/modelEditor';
 
 /**
@@ -87,10 +87,71 @@ export interface CompatibleModelConfig {
 }
 
 /**
+ * SDK 模式级别的基础配置
+ * 用于在不同 SDK 模式下提供不同的 baseUrl、customHeader、extraBody
+ */
+export interface SdkModeBaseConfig {
+    /** 该模式下的 API 基础 URL */
+    baseUrl?: string;
+    /** 该模式下的自定义 HTTP 头部 */
+    customHeader?: Record<string, string>;
+    /** 该模式下的额外请求体参数 */
+    extraBody?: Record<string, unknown>;
+}
+
+/**
+ * 兼容提供商配置接口
+ * 用于定义用户自定义的兼容提供商
+ */
+export interface CompatibleProviderConfig {
+    /** 提供商显示名称 */
+    displayName: string;
+    /** API基础URL（通用默认值） */
+    baseUrl?: string;
+    /** 提供商级别的自定义HTTP头部（通用默认值） */
+    customHeader?: Record<string, string>;
+    /** OpenAI 模式的基础配置（适用于 openai / openai-sse / openai-responses） */
+    openai?: SdkModeBaseConfig;
+    /** Anthropic 模式的基础配置 */
+    anthropic?: SdkModeBaseConfig;
+    /** Gemini 模式的基础配置（适用于 gemini-sse） */
+    gemini?: SdkModeBaseConfig;
+    /** 该提供商下的模型列表（provider 字段可选，默认使用父级 id） */
+    models: CompatibleProviderModelConfig[];
+}
+
+/**
+ * 兼容提供商配置映射（key 为提供商 ID）
+ */
+export type CompatibleProvidersConfig = Record<string, CompatibleProviderConfig>;
+
+/**
+ * 兼容提供商模型配置接口
+ * 与 CompatibleModelConfig 类似，但 provider 字段可选（默认使用父级 CompatibleProviderConfig.id）
+ */
+export interface CompatibleProviderModelConfig extends Omit<
+    CompatibleModelConfig,
+    'provider' | 'baseUrl' | 'customHeader'
+> {
+    /** 提供商标识符（可选，默认使用父级提供商 id） */
+    provider?: string;
+    /** API基础URL（可选，默认使用父级提供商 baseUrl） */
+    baseUrl?: string;
+    /** 自定义HTTP头部（可选，会与父级提供商 customHeader 合并） */
+    customHeader?: Record<string, string>;
+}
+
+/** 内部使用的提供商配置（包含从对象 key 提取的 id 字段） */
+interface ProviderWithId extends CompatibleProviderConfig {
+    id: string;
+}
+
+/**
  * 自定义模型管理器类
  */
 export class CompatibleModelManager {
     private static models: CompatibleModelConfig[] = [];
+    private static providers: ProviderWithId[] = [];
     private static configListener: vscode.Disposable | null = null;
     private static _onDidChangeModels = new vscode.EventEmitter<void>();
     static readonly onDidChangeModels = CompatibleModelManager._onDidChangeModels.event;
@@ -115,6 +176,7 @@ export class CompatibleModelManager {
      */
     static initialize(): void {
         this.loadModels();
+        this.loadProviders();
         this.setupConfigListener();
         Logger.debug('自定义模型管理器已初始化');
     }
@@ -141,14 +203,18 @@ export class CompatibleModelManager {
         }
         // 监听 gcmp 配置变化
         this.configListener = vscode.workspace.onDidChangeConfiguration(event => {
-            if (event.affectsConfiguration('gcmp.compatibleModels')) {
+            if (
+                event.affectsConfiguration('gcmp.compatibleModels') ||
+                event.affectsConfiguration('gcmp.compatibleProviders')
+            ) {
                 // 如果正在保存，忽略配置变化（避免重新加载覆盖内存中的数据）
                 if (this.isSaving) {
                     Logger.debug('正在保存配置，跳过重新加载');
                     return;
                 }
-                Logger.info('检测到自定义模型配置变化，正在重新加载...');
+                Logger.info('检测到兼容配置变化，正在重新加载...');
                 this.loadModels();
+                this.loadProviders();
                 this._onDidChangeModels.fire();
             }
         });
@@ -169,6 +235,101 @@ export class CompatibleModelManager {
             Logger.error('加载自定义模型失败:', error);
             this.models = [];
         }
+    }
+
+    /**
+     * 从配置中加载兼容提供商
+     */
+    private static loadProviders(): void {
+        try {
+            const config = vscode.workspace.getConfiguration('gcmp');
+            const providersData = config.get<CompatibleProvidersConfig>('compatibleProviders', {});
+            // 将对象结构转换为数组，并添加 id 字段
+            this.providers = Object.entries(providersData || {})
+                .filter(
+                    ([, provider]) =>
+                        provider != null &&
+                        typeof provider === 'object' &&
+                        provider.displayName &&
+                        Array.isArray(provider.models)
+                )
+                .map(([id, provider]) => ({ ...provider, id }));
+            Logger.debug(`已加载 ${this.providers.length} 个兼容提供商`);
+        } catch (error) {
+            Logger.error('加载兼容提供商失败:', error);
+            this.providers = [];
+        }
+    }
+
+    /**
+     * 获取所有兼容提供商配置
+     */
+    static getProviders(): CompatibleProviderConfig[] {
+        return [...this.providers];
+    }
+
+    /**
+     * 获取兼容提供商下的所有模型（合并提供商级别的配置）
+     * 合并优先级：模型配置 > SDK 模式级别配置 > 提供商通用配置
+     */
+    static getProviderModels(): CompatibleModelConfig[] {
+        const allModels: CompatibleModelConfig[] = [];
+
+        for (const provider of this.providers) {
+            for (const model of provider.models) {
+                // 根据 sdkMode 选择对应的基础配置
+                const sdkModeConfig = this.getSdkModeConfig(provider, model.sdkMode);
+
+                // 合并提供商级别和 SDK 模式级别的 customHeader
+                const mergedCustomHeader = {
+                    ...(provider.customHeader || {}),
+                    ...(sdkModeConfig?.customHeader || {}),
+                    ...(model.customHeader || {})
+                };
+
+                // 合并提供商级别和 SDK 模式级别的 extraBody
+                const mergedExtraBody = {
+                    ...(sdkModeConfig?.extraBody || {}),
+                    ...(model.extraBody || {})
+                };
+
+                // 合并 baseUrl：模型 > SDK 模式级别 > 提供商通用
+                const mergedBaseUrl = model.baseUrl || sdkModeConfig?.baseUrl || provider.baseUrl;
+
+                const mergedModel: CompatibleModelConfig = {
+                    ...model,
+                    provider: model.provider || provider.id,
+                    ...(mergedBaseUrl && { baseUrl: mergedBaseUrl }),
+                    ...(Object.keys(mergedCustomHeader).length > 0 && { customHeader: mergedCustomHeader }),
+                    ...(Object.keys(mergedExtraBody).length > 0 && { extraBody: mergedExtraBody })
+                };
+                allModels.push(mergedModel);
+            }
+        }
+
+        return allModels;
+    }
+
+    /**
+     * 根据 sdkMode 获取对应的 SDK 模式级别配置
+     * @param provider 提供商配置
+     * @param sdkMode SDK 模式
+     * @returns 对应的 SDK 模式级别配置，如果没有则返回 undefined
+     */
+    private static getSdkModeConfig(
+        provider: CompatibleProviderConfig,
+        sdkMode?: CompatibleModelConfig['sdkMode']
+    ): SdkModeBaseConfig | undefined {
+        if (!sdkMode || sdkMode === 'openai' || sdkMode === 'openai-sse' || sdkMode === 'openai-responses') {
+            return provider.openai;
+        }
+        if (sdkMode === 'anthropic') {
+            return provider.anthropic;
+        }
+        if (sdkMode === 'gemini-sse') {
+            return provider.gemini;
+        }
+        return undefined;
     }
 
     /**

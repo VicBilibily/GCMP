@@ -1,0 +1,15 @@
+{
+    "displayName": "AIHubMix",
+    "customHeader": {
+        "APP-Code": "TFUV4759"
+    },
+    "openai": {
+        "baseUrl": "https://aihubmix.com/v1"
+    },
+    "anthropic": {
+        "baseUrl": "https://aihubmix.com",
+        "extraBody": {
+            "top_p": null
+        }
+    }
+}
