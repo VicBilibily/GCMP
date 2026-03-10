@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.20.2] - 2026-03-10
+
+### 新增
+
+- **腾讯云**：新增提供商支持
+    - **混元模型**：`Tencent HY 2.0 Instruct`、`Tencent HY 2.0 Think`、`Hunyuan-T1`、`Hunyuan-TurboS`
+    - **Coding Plan 编程套餐**：同步支持 GLM-5、MiniMax-M2.5、Kimi-K2.5 等模型
+    - **DeepSeek**：支持通过腾讯云 DeepSeek API 专用密钥接入 DeepSeek-V3.2
+    - **多密钥管理**：支持付费模型 API Key、Coding Plan 专用密钥、DeepSeek API 专用密钥三种模式
+
+### 优化
+
+- **智谱联网搜索**：更新工具名称以适配新版 MCP WebSearch 服务 (`webSearchPrime` → `web_search_prime`)
+
 ## [0.20.1] - 2026-03-06
 
 ### 新增

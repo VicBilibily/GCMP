@@ -5,6 +5,7 @@ import { MoonshotProvider } from './providers/moonshotProvider';
 import { CliModelProvider } from './cli/cliModelProvider';
 import { MiniMaxProvider } from './providers/minimaxProvider';
 import { DashscopeProvider } from './providers/dashscopeProvider';
+import { TencentProvider } from './providers/tencentProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
 import { InlineCompletionShim } from './copilot/inlineCompletionShim';
 import { Logger, StatusLogger, CompletionLogger, TokenCounter } from './utils';
@@ -23,7 +24,13 @@ import { registerCommitCommands, checkGitAvailability } from './commit';
  */
 const registeredProviders: Record<
     string,
-    GenericModelProvider | ZhipuProvider | MoonshotProvider | CliModelProvider | MiniMaxProvider | CompatibleProvider
+    | GenericModelProvider
+    | ZhipuProvider
+    | MoonshotProvider
+    | CliModelProvider
+    | MiniMaxProvider
+    | TencentProvider
+    | CompatibleProvider
 > = {};
 const registeredDisposables: vscode.Disposable[] = [];
 
@@ -57,7 +64,13 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
             Logger.trace(`正在注册提供商: ${providerConfig.displayName} (${providerKey})`);
             const providerStartTime = Date.now();
 
-            let provider: GenericModelProvider | ZhipuProvider | MoonshotProvider | CliModelProvider | MiniMaxProvider;
+            let provider:
+                | GenericModelProvider
+                | ZhipuProvider
+                | MoonshotProvider
+                | CliModelProvider
+                | MiniMaxProvider
+                | TencentProvider;
             let disposables: vscode.Disposable[];
 
             if (providerKey === 'zhipu') {
@@ -78,6 +91,11 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
             } else if (providerKey === 'dashscope') {
                 // 对 dashscope 使用专门的 provider（多密钥管理和配置向导）
                 const result = DashscopeProvider.createAndActivate(context, providerKey, providerConfig);
+                provider = result.provider;
+                disposables = result.disposables;
+            } else if (providerKey === 'tencent') {
+                // 对 tencent 使用专门的 provider（三类密钥和协议切换）
+                const result = TencentProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
             } else if (cliAuthProviders.includes(providerKey)) {

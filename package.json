@@ -2,8 +2,8 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、火山方舟、MiniMax、MoonshotAI、DeepSeek、快手万擎、阿里云百炼 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.20.1",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
+    "version": "0.20.2",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -19,6 +19,7 @@
         "deepseek",
         "streamlake",
         "dashscope",
+        "tencent",
         "OpenAI Compatible",
         "Anthropic Compatible",
         "智谱AI",
@@ -27,6 +28,7 @@
         "深度求索",
         "快手万擎",
         "阿里云百炼",
+        "腾讯云",
         "Coding Plan 编程套餐"
     ],
     "repository": {
@@ -57,8 +59,9 @@
         "onLanguageModelProvider:gcmp.moonshot",
         "onLanguageModelProvider:gcmp.deepseek",
         "onLanguageModelProvider:gcmp.dashscope",
-        "onLanguageModelProvider:gcmp.volcengine",
         "onLanguageModelProvider:gcmp.streamlake",
+        "onLanguageModelProvider:gcmp.volcengine",
+        "onLanguageModelProvider:gcmp.tencent",
         "onLanguageModelProvider:gcmp.iflow",
         "onLanguageModelProvider:gcmp.qwen",
         "onLanguageModelProvider:gcmp.gemini",
@@ -143,6 +146,26 @@
             {
                 "command": "gcmp.dashscope.configWizard",
                 "title": "启动 阿里云百炼 配置向导",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.tencent.setApiKey",
+                "title": "设置 腾讯云大模型 API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.tencent.setCodingPlanApiKey",
+                "title": "设置 腾讯云 Coding Plan 专用密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.tencent.setDeepSeekApiKey",
+                "title": "设置 腾讯云 DeepSeek 专用密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.tencent.configWizard",
+                "title": "启动 腾讯云 配置向导",
                 "category": "GCMP"
             },
             {
@@ -554,14 +577,19 @@
                 "managementCommand": "gcmp.dashscope.configWizard"
             },
             {
+                "vendor": "gcmp.streamlake",
+                "displayName": "⦿ 快手万擎 (KAT-Coder)",
+                "managementCommand": "gcmp.streamlake.setApiKey"
+            },
+            {
                 "vendor": "gcmp.volcengine",
                 "displayName": "⦿ 火山方舟 (Coding Plan)",
                 "managementCommand": "gcmp.volcengine.setApiKey"
             },
             {
-                "vendor": "gcmp.streamlake",
-                "displayName": "⦿ 快手万擎 (KAT-Coder)",
-                "managementCommand": "gcmp.streamlake.setApiKey"
+                "vendor": "gcmp.tencent",
+                "displayName": "⦿ 腾讯云 (Coding Plan / DeepSeek)",
+                "managementCommand": "gcmp.tencent.configWizard"
             },
             {
                 "vendor": "gcmp.iflow",

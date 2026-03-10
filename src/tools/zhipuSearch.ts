@@ -79,8 +79,6 @@ export class ZhipuSearchTool {
      * 通过 MCP 搜索
      */
     private async searchViaMCP(params: ZhipuSearchRequest): Promise<ZhipuSearchResult[]> {
-        Logger.info(`🔄 [智谱搜索] 使用MCP模式搜索: "${params.search_query}"`);
-
         // 获取 MCP 客户端实例（单例模式，带缓存）
         const mcpClient = await MCPWebSearchClient.getInstance();
 
@@ -207,7 +205,7 @@ export class ZhipuSearchTool {
             // 根据配置选择搜索模式
             let searchResults: ZhipuSearchResult[];
             if (this.isMCPEnabled()) {
-                Logger.info('🔄 [智谱搜索] 使用MCP模式搜索');
+                Logger.info(`🔄 [智谱搜索] 使用MCP模式搜索: "${params.search_query}"`);
                 searchResults = await this.searchViaMCP(params);
             } else {
                 Logger.info('🔄 [智谱搜索] 使用标准计费接口搜索（按次计费）');

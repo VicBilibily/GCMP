@@ -317,15 +317,15 @@ export class MCPWebSearchClient {
             const tools = await this.client.listTools();
             Logger.debug(`📋 [MCP WebSearch] 可用工具: ${tools.tools.map(t => t.name).join(', ')}`);
 
-            // 查找 webSearchPrime 工具
-            const webSearchTool = tools.tools.find(t => t.name === 'webSearchPrime');
+            // 查找 web_search_prime 工具
+            const webSearchTool = tools.tools.find(t => t.name === 'web_search_prime');
             if (!webSearchTool) {
-                throw new Error('未找到 webSearchPrime 工具');
+                throw new Error('未找到 web_search_prime 工具');
             }
 
             // 调用搜索工具
             const result = await this.client.callTool({
-                name: 'webSearchPrime',
+                name: 'web_search_prime',
                 arguments: {
                     search_query: params.search_query,
                     search_engine: params.search_engine || 'search_std',

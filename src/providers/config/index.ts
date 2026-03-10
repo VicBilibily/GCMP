@@ -7,6 +7,7 @@ import moonshot from './moonshot.json';
 import deepseek from './deepseek.json';
 import streamlake from './streamlake.json';
 import dashscope from './dashscope.json';
+import tencent from './tencent.json';
 import iflow from './iflow.json';
 import qwen from './qwen.json';
 import gemini from './gemini.json';
@@ -20,6 +21,7 @@ const providers = {
     deepseek,
     streamlake,
     dashscope,
+    tencent,
     iflow,
     qwen,
     gemini,
