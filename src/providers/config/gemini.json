@@ -2,10 +2,32 @@
     "displayName": "Gemini",
     "baseUrl": "https://cloudcode-pa.googleapis.com",
     "apiKeyTemplate": "ya29.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    "customHeader": {
-        "x-goog-api-client": "gl-node/20.19.5"
-    },
+    "customHeader": {},
     "models": [
+        {
+            "id": "gemini-3.1-pro-preview",
+            "name": "Gemini 3.1 Pro (Preview)",
+            "tooltip": "Gemini 3.1 Pro is the newest generation model with enhanced reasoning and 1M token context window.",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 131072,
+            "sdkMode": "gemini-sse",
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "gemini-3.1-pro-preview-customtools",
+            "name": "Gemini 3.1 Pro (Custom Tools)",
+            "tooltip": "Gemini 3.1 Pro with custom tools support for advanced use cases.",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 131072,
+            "sdkMode": "gemini-sse",
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
         {
             "id": "gemini-2.5-pro",
             "name": "Gemini 2.5 Pro",
@@ -16,9 +38,6 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
-            },
-            "customHeader": {
-                "User-Agent": "GeminiCLI/0.32.1/gemini-2.5-pro (win32; x64) google-api-nodejs-client/10.6.1"
             }
         },
         {
@@ -31,9 +50,6 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
-            },
-            "customHeader": {
-                "User-Agent": "GeminiCLI/0.32.1/gemini-2.5-flash (win32; x64) google-api-nodejs-client/10.6.1"
             }
         },
         {
@@ -46,9 +62,6 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
-            },
-            "customHeader": {
-                "User-Agent": "GeminiCLI/0.32.1/gemini-3-pro-preview (win32; x64) google-api-nodejs-client/10.6.1"
             }
         },
         {
@@ -61,9 +74,18 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
-            },
-            "customHeader": {
-                "User-Agent": "GeminiCLI/0.32.1/gemini-3-flash-preview (win32; x64) google-api-nodejs-client/10.6.1"
+            }
+        },
+        {
+            "id": "gemini-2.5-flash-lite",
+            "name": "Gemini 2.5 Flash Lite",
+            "tooltip": "Gemini 2.5 Flash Lite is a lightweight AI model provided by google, optimized for fast inference.",
+            "maxInputTokens": 1048576,
+            "maxOutputTokens": 65536,
+            "sdkMode": "gemini-sse",
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
             }
         }
     ]

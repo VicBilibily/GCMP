@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
+import { execSync } from 'node:child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -26,10 +27,19 @@ import type {
 } from './geminiType';
 
 export class GeminiHandler {
+    /** 缓存 loadCodeAssist 获取到的托管 project（key = baseUrl:tokenSuffix） */
+    private readonly codeAssistProjectCache = new Map<string, string>();
+
+    /** 缓存扩展版本号 */
+    private static extensionVersion: string | null = null;
+
+    /** 缓存可用的 Gemini 模型列表 */
+    private static availableModels: string[] | null = null;
+
     constructor(
         public readonly provider: string,
         private readonly providerConfig?: ProviderConfig
-    ) {}
+    ) { }
 
     private get displayName(): string {
         return this.providerConfig?.displayName || this.provider;
@@ -303,6 +313,172 @@ export class GeminiHandler {
         return undefined;
     }
 
+    /**
+     * 构建 Code Assist 请求所用的 User-Agent（与 Gemini CLI 对齐）。
+     */
+    /**
+     * 获取 Gemini CLI 真实版本号（通过执行 `gemini --version`）。
+     * 这样可以完全模仿 Gemini CLI，并在 CLI 更新时自动使用新版本。
+     */
+    private static async getGeminiCliVersion(): Promise<string> {
+        if (GeminiHandler.extensionVersion) {
+            return GeminiHandler.extensionVersion;
+        }
+        try {
+            const output = execSync('gemini --version', { encoding: 'utf-8', timeout: 5000 }).trim();
+            // Gemini CLI --version 通常输出格式为 "0.33.0" 或 "gemini-cli v0.33.0" 等
+            const versionMatch = output.match(/(\d+\.\d+\.\d+)/);
+            if (versionMatch) {
+                const version = versionMatch[1];
+                GeminiHandler.extensionVersion = version;
+                Logger.info(`[Gemini] 检测到 Gemini CLI 版本: ${version}`);
+                return version;
+            }
+        } catch (e) {
+            Logger.warn('[Gemini] 无法获取 Gemini CLI 版本，将使用默认版本', e);
+        }
+        // 默认版本号：与当前 Gemini CLI 最新版本对齐
+        const defaultVersion = '0.33.0';
+        GeminiHandler.extensionVersion = defaultVersion;
+        return defaultVersion;
+    }
+
+    private buildCodeAssistUserAgent(modelId: string): string {
+        const platform = process.platform;
+        const arch = process.arch;
+        // 注意：版本号应该在运行时动态获取，但这是同步方法
+        // 为了兼容现有代码结构，这里使用缓存的版本（异步初始化）
+        const version = GeminiHandler.extensionVersion || '0.33.0';
+        return `GeminiCLI/${version}/${modelId} (${platform}; ${arch})`;
+    }
+
+    /**
+     * 调用 loadCodeAssist 接口，获取 Google 托管的 cloudaicompanionProject。
+     * 模仿 Gemini CLI 个人 OAuth 模式的行为：首次请求前先通过该接口让服务端分配项目。
+     * 结果按 baseUrl+token 末位缓存，避免每次请求都调用。
+     */
+    private async callLoadCodeAssist(
+        baseUrl: string,
+        accessToken: string,
+        modelId: string
+    ): Promise<string | undefined> {
+        const cacheKey = `${baseUrl}::${accessToken.slice(-12)}`;
+        const cached = this.codeAssistProjectCache.get(cacheKey);
+        if (cached) {
+            return cached;
+        }
+        const endpoint = `${baseUrl}/v1internal:loadCodeAssist`;
+        try {
+            const body = {
+                metadata: {
+                    ideType: 'IDE_UNSPECIFIED',
+                    platform: 'PLATFORM_UNSPECIFIED',
+                    pluginType: 'GEMINI'
+                }
+            };
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${accessToken}`,
+                    'User-Agent': this.buildCodeAssistUserAgent(modelId)
+                },
+                body: JSON.stringify(body)
+            });
+            const text = await res.text();
+            if (!res.ok) {
+                Logger.warn(`[Gemini] loadCodeAssist 失败 (${res.status}): ${text.slice(0, 200)}`);
+                return undefined;
+            }
+            let data: Record<string, unknown> = {};
+            try {
+                data = JSON.parse(text) as Record<string, unknown>;
+            } catch {
+                return undefined;
+            }
+            const project = data.cloudaicompanionProject;
+            if (typeof project === 'string' && project.trim()) {
+                const projectId = project.trim();
+                this.codeAssistProjectCache.set(cacheKey, projectId);
+                Logger.info(`[Gemini] loadCodeAssist 获取到托管 project: ${projectId}`);
+                return projectId;
+            }
+            return undefined;
+        } catch (err) {
+            Logger.warn('[Gemini] callLoadCodeAssist 异常:', err);
+            return undefined;
+        }
+    }
+
+    /**
+     * Code Assist 专用 project 发现逻辑。
+     * 优先级：静态配置 > loadCodeAssist API（模仿 Gemini CLI 个人 OAuth 流程）。
+     */
+    private async discoverCodeAssistProjectId(
+        modelConfig: ModelConfig,
+        accessToken: string,
+        modelId: string,
+        baseUrl: string
+    ): Promise<string | undefined> {
+        const staticProject = await this.discoverProjectId(modelConfig);
+        if (staticProject) {
+            return staticProject;
+        }
+        return this.callLoadCodeAssist(baseUrl, accessToken, modelId);
+    }
+
+    /**
+     * 确保 Gemini CLI 版本号已加载（异步初始化）。
+     * 首次调用时会真正执行 `gemini --version`，后续调用返回缓存。
+     */
+    private static async ensureCliVersionLoaded(): Promise<void> {
+        if (!GeminiHandler.extensionVersion) {
+            await GeminiHandler.getGeminiCliVersion();
+        }
+    }
+
+    /**
+     * 获取 Gemini 可用模型列表。
+     * 当前使用静态列表（从 gemini.json 提取）作为 fallback。
+     * 
+     * 注意：如果在 dependencies 中安装 @google/genai SDK，可以升级此方法
+     * 改为调用 models.list() API 以获取实时模型列表：
+     * 
+     *   const { GoogleAIFileManager } = require('@google/genai');
+     *   const fileManager = new GoogleAIFileManager(accessToken);
+     *   const { models } = await fileManager.listCachedFiles();
+     * 
+     * 目前 Gemini CLI 0.33.0 使用的模型列表为：
+     * - gemini-3.1-pro-preview
+     * - gemini-3.1-pro-preview-customtools
+     * - gemini-3-pro-preview
+     * - gemini-3-flash-preview
+     * - gemini-2.5-pro
+     * - gemini-2.5-flash
+     * - gemini-2.5-flash-lite
+     */
+    static async getAvailableModels(
+        _accessToken?: string  // 预留参数，如果升级为 SDK API 调用时使用
+    ): Promise<string[]> {
+        if (GeminiHandler.availableModels) {
+            return GeminiHandler.availableModels;
+        }
+
+        // 静态模型列表（当前方案）
+        const staticModels = [
+            'gemini-3.1-pro-preview',
+            'gemini-3.1-pro-preview-customtools',
+            'gemini-3-pro-preview',
+            'gemini-3-flash-preview',
+            'gemini-2.5-pro',
+            'gemini-2.5-flash',
+            'gemini-2.5-flash-lite'
+        ];
+
+        GeminiHandler.availableModels = staticModels;
+        return staticModels;
+    }
+
     private async getApiKey(modelConfig?: ModelConfig): Promise<string> {
         const providerKey = modelConfig?.provider || this.provider;
         const currentApiKey = await ApiKeyManager.getApiKey(providerKey);
@@ -321,6 +497,9 @@ export class GeminiHandler {
         token: vscode.CancellationToken,
         requestId?: string | null
     ): Promise<void> {
+        // 确保 Gemini CLI 版本号已加载（首次调用时会执行 `gemini --version`，后续调用返回缓存）。
+        await GeminiHandler.ensureCliVersionLoaded();
+
         const apiKey = await this.getApiKey(modelConfig);
 
         // Gemini HTTP 模式要求存在 baseUrl：优先使用模型级别 baseUrl，缺省回退到提供商级别 baseUrl。
@@ -342,6 +521,10 @@ export class GeminiHandler {
         const cancelSub = token.onCancellationRequested(() => abortController.abort());
 
         const modelId = modelConfig.model || model.id;
+
+        // 覆盖 User-Agent 使用动态版本（而不是 customHeader 中可能的硬编码值）
+        const dynamicUserAgent = this.buildCodeAssistUserAgent(modelId);
+        const headersWithDynamicUA = { ...processedHeaders, 'User-Agent': dynamicUserAgent };
         const normalizedBaseUrl = this.normalizeBaseUrl(baseUrl);
         if (!normalizedBaseUrl) {
             throw new Error('Gemini 模式需要在 modelInfo 中指定 baseUrl');
@@ -350,7 +533,6 @@ export class GeminiHandler {
         let generationConfig: GeminiGenerationConfig = {
             maxOutputTokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens)
         };
-        generationConfig.thinkingConfig = { includeThoughts: true };
 
         // extraBody：不再合并到 request body 顶层，而是合并到 generationConfig。
         // 合并策略：若 value 是对象，则做对象合并覆盖（而不是直接替换对象）。
@@ -377,14 +559,16 @@ export class GeminiHandler {
             session_id: sessionId
         };
 
-        // Code Assist 期望包装格式：{ model, project, request: { ... } }
+        // Code Assist 期望包装格式：{ model, project, user_prompt_id, request: { ... } }
         // 保持 Gemini v1beta 为直接请求体。
         let requestBody: unknown = baseRequest;
         if (this.isCodeAssistBaseUrl(normalizedBaseUrl)) {
-            const projectId = await this.discoverProjectId(modelConfig);
+            const projectId = await this.discoverCodeAssistProjectId(modelConfig, apiKey, modelId, normalizedBaseUrl);
+            const userPromptId = crypto.randomUUID();
             requestBody = {
                 model: modelId,
                 ...(projectId ? { project: projectId } : {}),
+                user_prompt_id: userPromptId,
                 request: baseRequest
             };
         }
@@ -414,7 +598,7 @@ export class GeminiHandler {
                 headers: {
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${apiKey}`,
-                    ...processedHeaders
+                    ...headersWithDynamicUA
                 },
                 body: JSON.stringify(requestBody),
                 signal: abortController.signal
