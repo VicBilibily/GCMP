@@ -137,7 +137,7 @@ npm install -g @google/gemini-cli@latest
 ```
 
 - **支持模型**：**Gemini 2.5 Pro**、**Gemini 2.5 Flash**
-- **预览模型**：**Gemini 3 Pro Preview**、**Gemini 3 Flash Preview**
+- **预览模型**：**Gemini 3.1 Pro (Preview)**、**Gemini 3.1 Pro (Custom Tools)**、**Gemini 3 Pro (Preview)**、**Gemini 3 Flash (Preview)**
 
 </details>
 
@@ -315,12 +315,10 @@ GCMP 提供 **OpenAI / Anthropic Compatible** Provider，用于支持任何 Open
 
 ## 💡 FIM / NES 内联补全建议功能
 
-- **FIM** (Fill In the Middle) 是一种代码补全技术，模型通过上下文预测中间缺失的代码，适合快速补全单行或短片段代码。
-- **NES** (Next Edit Suggestions) 是一个智能代码建议功能，根据当前编辑上下文提供更精准的代码补全建议，支持多行代码生成。
+- **FIM**：根据上下文预测并补全光标处缺失的代码，适合单行/短片段补全。
+- **NES**：基于编辑上下文提供智能代码建议，支持多行代码生成。
 
-> - 使用 FIM/NES 补全功能前，**必须先在对话模型配置中设置对应提供商的 ApiKey 并验证可用**。补全功能复用对话模型的 ApiKey 配置。
-> - 在输出面板选择 **`GitHub Copilot Inline Completion via GCMP`** 输出通道，可查看具体补全运行情况和调试信息。
-> - 目前能接入的都是通用大语言模型，**没有经过专门的补全训练调优**，效果可能不如 Copilot 自带的 Tab 补全。
+> **使用前必读**：需先在对话模型中配置并验证 ApiKey；在输出面板选择 `GitHub Copilot Inline Completion via GCMP` 可查看调试信息。接入的是通用大模型，**未针对代码补全专门训练**，效果可能不及 Copilot 原生 Tab 补全。
 
 <details>
 <summary>展开查看详细配置说明</summary>

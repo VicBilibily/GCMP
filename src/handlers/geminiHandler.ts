@@ -18,6 +18,7 @@ import type { GenericUsageData, RawUsageData } from '../usages/fileLogger/types'
 import { convertMessagesToGemini, convertToolsToGemini } from './geminiConverter';
 import { getStatefulMarkerAndIndex } from './statefulMarker';
 import { StreamReporter } from './streamReporter';
+import type { GenericModelProvider } from '../providers/genericModelProvider';
 import type {
     GeminiGenerationConfig,
     GeminiGenerateContentRequest,
@@ -29,18 +30,22 @@ import type {
 export class GeminiHandler {
     /** 缓存 loadCodeAssist 获取到的托管 project（key = baseUrl:tokenSuffix） */
     private readonly codeAssistProjectCache = new Map<string, string>();
-
     /** 缓存扩展版本号 */
     private static extensionVersion: string | null = null;
-
     /** 缓存可用的 Gemini 模型列表 */
     private static availableModels: string[] | null = null;
 
-    constructor(
-        public readonly provider: string,
-        private readonly providerConfig?: ProviderConfig
-    ) { }
+    /** 默认 Gemini CLI 版本 */
+    private static readonly defaultCliVersion = '0.32.1';
 
+    constructor(private readonly providerInstance: GenericModelProvider) {}
+
+    private get provider(): string {
+        return this.providerInstance.provider;
+    }
+    private get providerConfig(): ProviderConfig | undefined {
+        return this.providerInstance.providerConfig;
+    }
     private get displayName(): string {
         return this.providerConfig?.displayName || this.provider;
     }
@@ -338,7 +343,7 @@ export class GeminiHandler {
             Logger.warn('[Gemini] 无法获取 Gemini CLI 版本，将使用默认版本', e);
         }
         // 默认版本号：与当前 Gemini CLI 最新版本对齐
-        const defaultVersion = '0.33.0';
+        const defaultVersion = GeminiHandler.defaultCliVersion;
         GeminiHandler.extensionVersion = defaultVersion;
         return defaultVersion;
     }
@@ -346,9 +351,7 @@ export class GeminiHandler {
     private buildCodeAssistUserAgent(modelId: string): string {
         const platform = process.platform;
         const arch = process.arch;
-        // 注意：版本号应该在运行时动态获取，但这是同步方法
-        // 为了兼容现有代码结构，这里使用缓存的版本（异步初始化）
-        const version = GeminiHandler.extensionVersion || '0.33.0';
+        const version = GeminiHandler.extensionVersion || GeminiHandler.defaultCliVersion;
         return `GeminiCLI/${version}/${modelId} (${platform}; ${arch})`;
     }
 
@@ -440,14 +443,14 @@ export class GeminiHandler {
     /**
      * 获取 Gemini 可用模型列表。
      * 当前使用静态列表（从 gemini.json 提取）作为 fallback。
-     * 
+     *
      * 注意：如果在 dependencies 中安装 @google/genai SDK，可以升级此方法
      * 改为调用 models.list() API 以获取实时模型列表：
-     * 
+     *
      *   const { GoogleAIFileManager } = require('@google/genai');
      *   const fileManager = new GoogleAIFileManager(accessToken);
      *   const { models } = await fileManager.listCachedFiles();
-     * 
+     *
      * 目前 Gemini CLI 0.33.0 使用的模型列表为：
      * - gemini-3.1-pro-preview
      * - gemini-3.1-pro-preview-customtools
@@ -458,7 +461,7 @@ export class GeminiHandler {
      * - gemini-2.5-flash-lite
      */
     static async getAvailableModels(
-        _accessToken?: string  // 预留参数，如果升级为 SDK API 调用时使用
+        _accessToken?: string // 预留参数，如果升级为 SDK API 调用时使用
     ): Promise<string[]> {
         if (GeminiHandler.availableModels) {
             return GeminiHandler.availableModels;
@@ -474,7 +477,6 @@ export class GeminiHandler {
             'gemini-2.5-flash',
             'gemini-2.5-flash-lite'
         ];
-
         GeminiHandler.availableModels = staticModels;
         return staticModels;
     }

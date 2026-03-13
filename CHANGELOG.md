@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.20.3] - 2026-03-13
+
+### 新增
+
+- **Gemini CLI**：新增预览模型支持，默认 CLI 版本更新至 0.32.1 [#97](https://github.com/VicBilibily/GCMP/pull/97)
+    - **Gemini 3.1 Pro (Preview)**：最新的 Gemini 3.1 Pro 预览版
+    - **Gemini 3.1 Pro (Custom Tools)**：自定义工具优先的 Gemini 3.1 Pro 版本
+
+### 重构
+
+- **Handler 架构优化**：重构所有处理器以支持配置动态更新
+    - OpenAI、Anthropic、Gemini 等处理器现在通过 `GenericModelProvider` 实例动态获取配置
+    - 配置变更时无需重新初始化处理器，提升响应速度和代码可维护性
+
 ## [0.20.2] - 2026-03-10
 
 ### 新增
@@ -44,148 +58,12 @@
     - 移除中间字段落盘，仅保留 `firstTokenLatency`/`outputSpeeds` 聚合字段
     - 速度计算改用鲁棒均值（log 空间 MAD + gap），提升数据准确性
 
-## [0.19.17] - 2026-02-28
-
-### 修复
-
-- **会话 Marker 解析容错**：修复使用了 Copilot 提供的 GPT 模型对话后再使用插件提供的第三方模型时，在触发 `JSON.parse` 报错并导致请求失败的问题 [#88](https://github.com/VicBilibily/GCMP/issues/88)
-
-## [0.19.16] - 2026-02-26
-
-### 优化
-
-- **API Key 输入体验**：防止用户切换窗口时输入框意外关闭
-- **配置向导代码简化**：移除各提供商向导中无效的 `validateInput` 实现
-
-## [0.19.15] - 2026-02-25
-
-### 修复
-
-- **Token 统计**：修复流耗时异常短场景下输出速度统计可能失真的问题
-
-## [0.19.14] - 2026-02-25
-
-### 优化
-
-- **Token统计缓存**：重构缓存机制，提升统计数据读取性能
-    - 优化输出速度（Tokens/s）的计算逻辑，数据更准确
-    - 改进按小时统计图表与请求记录的数据处理
-
-## [0.19.13] - 2026-02-25
-
-### 新增
-
-- **阿里云百炼**：新增 **Qwen3.5-Flash**(Thinking) 模型
-
-## [0.19.12] - 2026-02-25
-
-### 新增
-
-- **阿里云百炼**：Coding Plan 同步新增模型支持
-    - **MiniMax-M2.5**、**GLM-5**(Thinking)：带思考能力的编程套餐专属接入点
-
-## [0.19.11] - 2026-02-23
-
-### 优化
-
-- **智谱AI状态栏**：适配官方用量接口变更新用户可能会显示周限，另官方已不再输出具体可用值，改为仅显示剩余百分比
-- **Kimi 状态栏**：简化代码逻辑，统一使用百分比模式显示（移除 isPercentage 判断）
-
-## [0.19.10] - 2026-02-23
-
-### 优化
-
-- **配置向导**：优化 MiniMax、阿里云百炼、MoonshotAI 的 Coding Plan 密钥配置提示
-
-## [0.19.9] - 2026-02-22
-
-### 新增
-
-- **OpenAI 自定义处理程序**：新增 `endpoint` 配置字段，支持自定义 API 端点 [#82](https://github.com/VicBilibily/GCMP/issues/82)
-
-### 优化
-
-- **OpenAI Responses API**：完善加密思考内容（`encrypted_thinking`）回传与流式处理逻辑 [#84](https://github.com/VicBilibily/GCMP/issues/84)
-
-## [0.19.8] - 2026-02-21
-
-### 新增
-
-- **阿里云百炼**：Coding Plan 同步新增模型支持
-    - **Qwen3.5-Plus**(Thinking)、**Qwen3-Coder-Next**
-    - **GLM-4.7**(Thinking)、**Kimi-K2.5**(Thinking)
-
-## [0.19.7] - 2026-02-17
-
-### 新增
-
-- **阿里云百炼**：新增模型 **Qwen3.5-Plus**(Thinking)
-
-### 调整
-
-- **Qwen Code CLI**：调整模型名称 **Qwen3.5-Plus**（原 Qwen3-Coder-Plus）
-
-## [0.19.6] - 2026-02-16
-
-### 优化
-
-- **Anthropic 消息转换器**：优化 `cache_control` 清理逻辑，支持嵌套内容处理 [#81](https://github.com/VicBilibily/GCMP/issues/81)
-
-## [0.19.5] - 2026-02-16
-
-### 新增
-
-- **MiniMax**：
-    - Coding Plan 新增极速版模型：**MiniMax-M2.5 极速版**
-
-### 调整
-
-- **MiniMax**：同步官方调整模型命名，"Lightning"更名为"极速版"
-    - `MiniMax-M2.5-Lightning` → `MiniMax-M2.5-HighSpeed` (极速版)
-    - `MiniMax-M2.1-Lightning` → `MiniMax-M2.1-HighSpeed` (极速版)
-
-## [0.19.4] - 2026-02-16
-
-### 修复
-
-- **Anthropic 消息转换器**：缓解 `cache_control` 在部分中转 API 未正确计算限制导致请求失败的问题 [#81](https://github.com/VicBilibily/GCMP/issues/81)
-
-## [0.19.3] - 2026-02-14
-
-### 新增
-
-- **火山方舟**：
-    - Coding Plan 新增模型：**Doubao-Seed-2.0-Code**(Thinking)
-    - 新增 `Doubao-Seed-2.0` 系列模型：**lite**、**mini**、**pro**、**Code**
-
-## [0.19.2] - 2026-02-13
-
-### 新增
-
-- **MiniMax**：新增 **MiniMax-M2.5** 模型
-
-### 调整
-
-- **MiniMax状态栏**：显示剩余百分比而非已使用百分比，与其他提供商状态栏保持一致
-
-## [0.19.1] - 2026-02-12
-
-### 修复
-
-- **Compatible Provider**：修复静默模式下错误触发配置向导的问题 [#80](https://github.com/VicBilibily/GCMP/issues/80)
-
-## [0.19.0] - 2026-02-12
-
-### 新增
-
-- **智谱AI**：新增 GLM-5 模型
-
-### 移除
-
-- **配置项移除**：移除 `gcmp.temperature`、`gcmp.topP` 配置项，另移除已不再适用的 `gcmp.rememberLastModel` 配置项及功能实现
-    - **替代方案**：如需专属设置，请通过模型的 `extraBody` 参数传递
-
 ## 历史版本
+
+### 0.19.0 - 0.19.17 (2026-02-12 - 2026-02-28)
+
+- **模型与提供商**：智谱AI 新增 GLM-5；MiniMax 新增 M2.5 系列及极速版；阿里云百炼 Coding Plan 新增 Qwen3.5、GLM-4.7、Kimi-K2.5
+- **功能优化**：重构 Token 统计缓存机制、优化状态栏统一显示剩余百分比、API Key 输入体验优化、Anthropic cache_control 兼容性改进
 
 ### 0.18.0 - 0.18.30 (2026-01-23 - 2026-02-11)
 
@@ -197,7 +75,6 @@
 ### 0.17.0 - 0.17.11 (2026-01-16 - 2026-01-22)
 
 - **Commit 消息生成**：新增 AI 驱动的提交消息生成功能，支持多仓库场景和自动推断提交风格
-- **模型编辑器**：新增从 API 获取模型列表功能，支持多种响应格式解析
 - **阿里云百炼**：新增 Coding Plan 套餐专属模型接入，支持专属 API Key 和 Usage Token 统计
 - **Anthropic Compatible**：支持流式请求的会话粘性缓存（客户端驱动）
 - **火山方舟**：新增 Responses API 上下文缓存模型适配，支持缓存续接和过期时间管理
@@ -209,18 +86,16 @@
 - **CLI 认证支持**：新增 CLI 工具认证模式，支持 iFlow CLI、Qwen Code CLI、Gemini CLI 进行 OAuth 认证
 - **Gemini HTTP SSE 模式**(实验性)：新增纯 HTTP + SSE 流式实现，兼容第三方 Gemini 网关，支持自定义端点、鉴权、流式输出、思维链、工具调用、多模态输入等
 - **OpenAI Responses API 支持**(实验性)：新增 `openai-responses` SDK 模式，支持思维链、拒绝内容处理、Token 统计和缓存增量传递
-- **Token计数**：完善图片附件 token 估算逻辑
 
 ### 0.14.0 - 0.15.23 (2025-11-30 - 2025-12-23)
 
 - **NES 代码补全**：新增 Next Edit Suggestions (NES) 代码补全功能，整合 FIM 和 NES 两种模式
 - **上下文窗口占用比例状态栏**：新增上下文窗口占用比例显示功能
-- **兼容模式成熟化**：OpenAI/Anthropic Compatible Provider 正式发布，支持 openai-sse 响应格式
 - **性能优化**：FIM/NES 内联提示采用懒加载机制，模块分包编译
 
 ### 0.9.0 - 0.13.6 (2025-10-29 - 2025-11-29)
 
-- **核心架构演进**：新增 `OpenAI / Anthropic Compatible` Provider，支持 `extraBody` 和自定义 Header，新增模型缓存系统和记忆功能
+- **核心架构演进**：新增 `OpenAI / Anthropic Compatible` Provider，支持 `extraBody` 和自定义 Header
 - **提供商扩展**：MiniMax、智谱AI、MoonshotAI、火山方舟、快手万擎等提供商新增模型和功能
 
 ### 早期版本 (0.1.0 - 0.8.2)

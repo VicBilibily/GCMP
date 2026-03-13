@@ -14,6 +14,7 @@ import { getStatefulMarkerAndIndex } from './statefulMarker';
 import { StreamReporter } from './streamReporter';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
+import type { GenericModelProvider } from '../providers/genericModelProvider';
 
 // 使用 OpenAI SDK 的 Responses API 类型
 type ResponseInputItem = OpenAI.Responses.ResponseInputItem;
@@ -61,13 +62,17 @@ interface APIErrorWithError extends Error {
  */
 export class OpenAIResponsesHandler {
     private handler: OpenAIHandler;
-    private displayName: string;
-    private providerKey: string;
-
-    constructor(providerKey: string, displayName: string, handler: OpenAIHandler) {
-        this.providerKey = providerKey;
-        this.displayName = displayName;
+    constructor(
+        private providerInstance: GenericModelProvider,
+        handler: OpenAIHandler
+    ) {
         this.handler = handler;
+    }
+    private get providerKey(): string {
+        return this.providerInstance.provider;
+    }
+    private get displayName(): string {
+        return this.providerInstance.providerConfig.displayName;
     }
 
     /**

@@ -48,8 +48,7 @@ interface CachedModelInfo {
  */
 export class ModelInfoCache {
     private readonly context: vscode.ExtensionContext;
-    // 增加版本号以强制失效所有旧缓存
-    private readonly cacheVersion = '2';
+    private readonly cacheVersion = '1';
     private readonly cacheExpiryMs = 24 * 60 * 60 * 1000; // 24 hours
     private static readonly SELECTED_MODEL_KEY = 'gcmp_selected_model'; // 全局模型选择存储键
 
@@ -92,7 +91,7 @@ export class ModelInfoCache {
             if (cached.extensionVersion !== currentVersion) {
                 Logger.trace(
                     `[ModelInfoCache] ${providerKey}: 版本不匹配 ` +
-                    `(缓存: ${cached.extensionVersion}, 当前: ${currentVersion})`
+                        `(缓存: ${cached.extensionVersion}, 当前: ${currentVersion})`
                 );
                 return null;
             }
@@ -114,7 +113,7 @@ export class ModelInfoCache {
 
             Logger.trace(
                 `[ModelInfoCache] ${providerKey}: 缓存命中 ` +
-                `(${cached.models.length} 个模型, 存活 ${(ageMs / 1000).toFixed(1)}s)`
+                    `(${cached.models.length} 个模型, 存活 ${(ageMs / 1000).toFixed(1)}s)`
             );
             return cached.models;
         } catch (err) {
@@ -275,7 +274,7 @@ export class ModelInfoCache {
             if (saved) {
                 Logger.trace(
                     `[ModelInfoCache] ${providerKey}: 跳过其他提供商的默认选择 (` +
-                    `已保存: ${saved.providerKey}/${saved.modelId})`
+                        `已保存: ${saved.providerKey}/${saved.modelId})`
                 );
             }
             return null;

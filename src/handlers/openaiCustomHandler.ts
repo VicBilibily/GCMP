@@ -11,6 +11,7 @@ import { ApiKeyManager } from '../utils/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';
+import type { GenericModelProvider } from '../providers/genericModelProvider';
 
 /**
  * OpenAI Handler 接口（用于类型安全的消息和工具转换）
@@ -52,10 +53,15 @@ interface ExtendedCompletionUsage extends OpenAI.Completions.CompletionUsage {
  */
 export class OpenAICustomHandler {
     constructor(
-        private provider: string,
-        private providerConfig: ProviderConfig,
+        private providerInstance: GenericModelProvider,
         private openaiHandler: IOpenAIHandler
     ) {}
+    private get provider(): string {
+        return this.providerInstance.provider;
+    }
+    private get providerConfig(): ProviderConfig {
+        return this.providerInstance.providerConfig;
+    }
 
     /**
      * 使用自定义 SSE 流处理的请求方法

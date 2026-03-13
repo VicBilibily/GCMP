@@ -29,30 +29,6 @@
             }
         },
         {
-            "id": "gemini-2.5-pro",
-            "name": "Gemini 2.5 Pro",
-            "tooltip": "Gemini 2.5 Pro is an AI model provided by google.",
-            "maxInputTokens": 1048576,
-            "maxOutputTokens": 65536,
-            "sdkMode": "gemini-sse",
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "gemini-2.5-flash",
-            "name": "Gemini 2.5 Flash",
-            "tooltip": "Gemini 2.5 Flash is an AI model provided by google.",
-            "maxInputTokens": 1048576,
-            "maxOutputTokens": 65536,
-            "sdkMode": "gemini-sse",
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
             "id": "gemini-3-pro-preview",
             "name": "Gemini 3 Pro (Preview)",
             "tooltip": "Gemini 3 Pro (Preview) is an AI model provided by google.",
@@ -68,6 +44,30 @@
             "id": "gemini-3-flash-preview",
             "name": "Gemini 3 Flash (Preview)",
             "tooltip": "Gemini 3 Flash (Preview) is an AI model provided by google.",
+            "maxInputTokens": 1048576,
+            "maxOutputTokens": 65536,
+            "sdkMode": "gemini-sse",
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "gemini-2.5-pro",
+            "name": "Gemini 2.5 Pro",
+            "tooltip": "Gemini 2.5 Pro is an AI model provided by google.",
+            "maxInputTokens": 1048576,
+            "maxOutputTokens": 65536,
+            "sdkMode": "gemini-sse",
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "gemini-2.5-flash",
+            "name": "Gemini 2.5 Flash",
+            "tooltip": "Gemini 2.5 Flash is an AI model provided by google.",
             "maxInputTokens": 1048576,
             "maxOutputTokens": 65536,
             "sdkMode": "gemini-sse",

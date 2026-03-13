@@ -11,6 +11,7 @@ import { ApiKeyManager } from '../utils/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';
+import type { GenericModelProvider } from '../providers/genericModelProvider';
 
 /**
  * 扩展Delta类型以支持reasoning_content字段
@@ -63,12 +64,14 @@ export class OpenAIHandler {
     // SDK事件去重跟踪器（基于请求级别）
     private currentRequestProcessedEvents = new Set<string>();
 
-    constructor(
-        private provider: string,
-        private providerConfig?: ProviderConfig
-    ) {
-        // provider 和 providerConfig 由调用方传入
-        // displayName 和 baseURL 从 providerConfig 获取
+    constructor(private providerInstance: GenericModelProvider) {
+        // providerInstance 提供动态获取 providerConfig 和 providerKey 的能力
+    }
+    private get provider(): string {
+        return this.providerInstance.provider;
+    }
+    private get providerConfig(): ProviderConfig | undefined {
+        return this.providerInstance.providerConfig;
     }
     private get displayName(): string {
         return this.providerConfig?.displayName || this.provider;

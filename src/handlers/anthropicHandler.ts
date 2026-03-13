@@ -16,18 +16,21 @@ import type { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { getStatefulMarkerAndIndex } from './statefulMarker';
 import { StreamReporter } from './streamReporter';
+import type { GenericModelProvider } from '../providers/genericModelProvider';
 
 /**
  * Anthropic 兼容处理器类
  * 接收完整的提供商配置，使用 Anthropic SDK 处理流式聊天完成
  */
 export class AnthropicHandler {
-    constructor(
-        public readonly provider: string,
-        private readonly providerConfig?: ProviderConfig
-    ) {
-        // provider 和 providerConfig 由调用方传入
-        // displayName 和 baseURL 从 providerConfig 获取
+    constructor(private readonly providerInstance: GenericModelProvider) {
+        // providerInstance 提供动态获取 providerConfig 和 providerKey 的能力
+    }
+    private get provider(): string {
+        return this.providerInstance.provider;
+    }
+    private get providerConfig(): ProviderConfig | undefined {
+        return this.providerInstance.providerConfig;
     }
     private get displayName(): string {
         return this.providerConfig?.displayName || this.provider;
