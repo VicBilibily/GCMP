@@ -28,11 +28,11 @@ import { OpenAIResponsesHandler } from '../handlers/openaiResponsesHandler';
  * 基于配置文件动态创建提供商实现
  */
 export class GenericModelProvider implements LanguageModelChatProvider {
-    protected readonly openaiHandler: OpenAIHandler;
-    protected readonly openaiCustomHandler: OpenAICustomHandler;
-    protected readonly openaiResponsesHandler: OpenAIResponsesHandler;
-    protected readonly anthropicHandler: AnthropicHandler;
-    protected readonly geminiHandler: GeminiHandler;
+    protected openaiHandler: OpenAIHandler;
+    protected openaiCustomHandler: OpenAICustomHandler;
+    protected openaiResponsesHandler: OpenAIResponsesHandler;
+    protected anthropicHandler: AnthropicHandler;
+    protected geminiHandler: GeminiHandler;
     protected readonly providerKey: string;
     protected baseProviderConfig: ProviderConfig; // protected 以支持子类访问
     protected cachedProviderConfig: ProviderConfig; // 缓存的配置
@@ -52,6 +52,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 初始化模型信息缓存
         this.modelInfoCache = new ModelInfoCache(context);
 
+        this.initHandlers();
+
         // 监听配置变更
         this.configListener = vscode.workspace.onDidChangeConfiguration(e => {
             // 检查是否是 providerOverrides 的变更
@@ -61,6 +63,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     this.providerKey,
                     this.baseProviderConfig
                 );
+
+                // 重新初始化处理器以应用新配置
+                this.initHandlers();
+
                 // 清除缓存
                 this.modelInfoCache
                     ?.invalidateCache(this.providerKey)
@@ -69,21 +75,25 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 this._onDidChangeLanguageModelChatInformation.fire();
             }
         });
+    }
+
+    protected initHandlers(): void {
+        const config = this.providerConfig;
 
         // 创建 OpenAI SDK 处理器
-        this.openaiHandler = new OpenAIHandler(providerKey, providerConfig);
+        this.openaiHandler = new OpenAIHandler(this.providerKey, config);
         // 创建 OpenAI 自定义 SSE 处理器
-        this.openaiCustomHandler = new OpenAICustomHandler(providerKey, providerConfig, this.openaiHandler);
+        this.openaiCustomHandler = new OpenAICustomHandler(this.providerKey, config, this.openaiHandler);
         // 创建 OpenAI Responses API 处理器
         this.openaiResponsesHandler = new OpenAIResponsesHandler(
-            providerKey,
-            this.providerConfig.displayName,
+            this.providerKey,
+            config.displayName,
             this.openaiHandler
         );
         // 创建 Anthropic SDK 处理器
-        this.anthropicHandler = new AnthropicHandler(providerKey, providerConfig);
+        this.anthropicHandler = new AnthropicHandler(this.providerKey, config);
         // 创建 Gemini HTTP SSE 处理器
-        this.geminiHandler = new GeminiHandler(providerKey, providerConfig);
+        this.geminiHandler = new GeminiHandler(this.providerKey, config);
     }
 
     /**
