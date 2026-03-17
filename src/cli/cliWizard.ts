@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { Logger } from '../utils/logger';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { CliAuthFactory } from './auth/cliAuthFactory';
@@ -26,26 +27,32 @@ export class CliWizard {
             const credentialStatus = await this.getCredentialStatus(provider);
             // 获取 CLI 显示名称
             const cliName = this.getCliName(provider);
-            const choice = await vscode.window.showQuickPick(
-                [
-                    {
-                        label: '$(sign-in) 登录 CLI',
-                        description: this.formatCredentialStatus(credentialStatus),
-                        detail: `通过 ${cliName} 进行 OAuth 认证登录`,
-                        action: 'login'
-                    },
-                    {
-                        label: '$(refresh) 刷新认证状态',
-                        detail: `重新从 ${cliName} 加载认证凭证`,
-                        action: 'refresh'
-                    }
-                ],
-                {
-                    title: `${displayName} 配置菜单`,
-                    placeHolder: '选择要执行的操作'
-                }
-            );
 
+            const items: Array<vscode.QuickPickItem & { action: string }> = [
+                {
+                    label: '$(sign-in) 登录 CLI',
+                    description: this.formatCredentialStatus(credentialStatus),
+                    detail: `通过 ${cliName} 进行 OAuth 认证登录`,
+                    action: 'login'
+                },
+                {
+                    label: '$(refresh) 刷新认证状态',
+                    detail: `重新从 ${cliName} 加载认证凭证`,
+                    action: 'refresh'
+                }
+            ];
+            if (credentialStatus.hasCredentials) {
+                items.push({
+                    label: '$(trash) 移除 OAuth 认证凭证',
+                    detail: '打开凭证文件所在位置，手动删除凭证',
+                    action: 'remove'
+                });
+            }
+
+            const choice = await vscode.window.showQuickPick(items, {
+                title: `${displayName} 配置菜单`,
+                placeHolder: '选择要执行的操作'
+            });
             if (!choice) {
                 Logger.debug('用户取消了 CLI 配置向导');
                 return;
@@ -57,6 +64,9 @@ export class CliWizard {
                     break;
                 case 'refresh':
                     await this.refreshAuth(provider, displayName);
+                    break;
+                case 'remove':
+                    await this.handleRemoveCredential(provider, displayName);
                     break;
             }
         } catch (error) {
@@ -138,6 +148,31 @@ export class CliWizard {
             const terminal = vscode.window.createTerminal(cliCommand);
             terminal.sendText(cliCommand);
             terminal.show();
+        }
+    }
+
+    /**
+     * 处理移除凭证：打开凭证文件所在目录，提示用户手动删除
+     */
+    private static async handleRemoveCredential(providerKey: string, displayName: string): Promise<void> {
+        const credentialPath = CliAuthFactory.getCredentialPath(providerKey);
+        if (!credentialPath) {
+            await vscode.window.showErrorMessage(`无法获取 ${displayName} 的凭证文件路径`);
+            return;
+        }
+
+        const fileName = path.basename(credentialPath);
+        const result = await vscode.window.showWarningMessage(
+            `即将在资源管理器中打开凭证文件所在目录：\n\n${credentialPath}\n\n请手动删除凭证文件（${fileName}）以移除 OAuth 认证。`,
+            { modal: true },
+            '打开文件夹'
+        );
+        if (result === '打开文件夹') {
+            try {
+                await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(credentialPath));
+            } catch {
+                await vscode.window.showErrorMessage('无法打开凭证文件所在目录');
+            }
         }
     }
 

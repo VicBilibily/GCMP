@@ -10,6 +10,10 @@
 目前已内置支持 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云 等**原生大模型**提供商。
 此外，扩展插件已适配支持 OpenAI 与 Anthropic 的 API 接口兼容模型，支持自定义接入任何提供兼容接口的第三方**云服务模型**。
 
+#### 📢 公告
+
+- [**计划在 0.21.0 移除 iFlow CLI 认证提供商**](https://github.com/VicBilibily/GCMP/discussions/102) - 欢迎受影响用户参与讨论并反馈意见。
+
 ## 🚀 快速开始
 
 ### 1. 安装扩展

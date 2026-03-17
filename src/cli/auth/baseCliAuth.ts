@@ -105,6 +105,13 @@ export abstract class BaseCliAuth {
     }
 
     /**
+     * 获取凭证文件的完整路径
+     */
+    getCredentialPath(): string {
+        return this.resolvePath(this.config.credentialPathPattern);
+    }
+
+    /**
      * 解析路径模式，支持 ~ 展开
      */
     protected resolvePath(pattern: string): string {

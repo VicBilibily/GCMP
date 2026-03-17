@@ -220,14 +220,12 @@ export class ModelEditor {
             });
         });
 
-        // 添加已知提供商 (KnownProviders)，避免重复
+        // 添加已知提供商 (KnownProviders)
         Object.entries(KnownProviders).forEach(([key, config]) => {
-            if (!providersMap.has(key)) {
-                providersMap.set(key, {
-                    id: key,
-                    name: config.displayName || key
-                });
-            }
+            providersMap.set(key, {
+                id: key,
+                name: config.displayName || key
+            });
         });
 
         webview.postMessage({

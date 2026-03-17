@@ -48,6 +48,9 @@ let isCreateMode = false;
 /** @type {boolean} */
 let isLoadingModels = false;
 
+/** CLI 专用的提供商 ID，禁止在通用配置中使用 */
+const CLI_RESERVED_PROVIDERS = ['codex', 'gemini'];
+
 /**
  * 初始化编辑器
  * @param {ModelData} data - 模型数据
@@ -732,13 +735,22 @@ function bindEvents() {
 
     providerInput.addEventListener('input', function () {
         const searchText = this.value.toLowerCase();
-        if (searchText) {
+
+        // 检查是否输入了 CLI 专用的 provider ID
+        if (CLI_RESERVED_PROVIDERS.some(reserved => reserved.toLowerCase() === searchText)) {
+            this.classList.add('invalid');
+            showGlobalError(`提供商 "${this.value}" 为 CLI 专用，不可在自定义模型中使用`);
+        } else if (searchText) {
+            this.classList.remove('invalid');
+            hideGlobalError();
             const filtered = allProviders.filter(
                 p => p.id.toLowerCase().includes(searchText) || p.name.toLowerCase().includes(searchText)
             );
             renderProviderList(filtered);
             providerList.classList.add('show');
         } else {
+            this.classList.remove('invalid');
+            hideGlobalError();
             providerList.classList.remove('show');
         }
     });
@@ -1005,7 +1017,10 @@ function clearJSON(fieldId) {
  * @returns {void}
  */
 function updateProviderList(providers) {
-    allProviders = providers || [];
+    // 过滤掉 CLI 专用的提供商
+    allProviders = (providers || []).filter(
+        p => !CLI_RESERVED_PROVIDERS.includes(p.id.toLowerCase())
+    );
     renderProviderList(allProviders);
 }
 
@@ -1104,6 +1119,13 @@ function validateForm() {
     }
     if (!provider) {
         showGlobalError('请输入提供商');
+        document.getElementById('provider').focus();
+        return false;
+    }
+
+    // 验证 provider 不是 CLI 专用标识符
+    if (CLI_RESERVED_PROVIDERS.includes(provider.toLowerCase())) {
+        showGlobalError(`提供商 "${provider}" 为 CLI 专用，不可在自定义模型中使用`);
         document.getElementById('provider').focus();
         return false;
     }

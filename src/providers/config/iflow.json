@@ -1,5 +1,5 @@
 {
-    "displayName": "iFlow",
+    "displayName": "iFlow CLI (EOL)",
     "baseUrl": "https://apis.iflow.cn/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [

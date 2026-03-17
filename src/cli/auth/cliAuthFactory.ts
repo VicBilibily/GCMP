@@ -85,6 +85,14 @@ export class CliAuthFactory {
     }
 
     /**
+     * 获取凭证文件路径
+     */
+    static getCredentialPath(cliType: string): string | null {
+        const instance = this.getInstance(cliType);
+        return instance ? instance.getCredentialPath() : null;
+    }
+
+    /**
      * 获取支持的 CLI 类型列表
      */
     static getSupportedCliTypes(): Array<{ id: string; name: string }> {

@@ -18,6 +18,7 @@ declare module 'json-schema' {
     interface JSONSchema7 {
         enumDescriptions?: string[];
         deprecationMessage?: string;
+        errorMessage?: string;
     }
 }
 
@@ -225,21 +226,30 @@ export class JsonSchemaProvider {
                                 description: '模型描述'
                             },
                             provider: {
-                                type: 'string',
                                 description:
                                     '模型提供商标识符。从下拉列表选择现有提供商ID，或输入新ID创建自定义提供商。',
-                                anyOf: [
+                                allOf: [
                                     {
-                                        type: 'string',
-                                        enum: providerIds,
-                                        description: '选择现有提供商ID'
+                                        anyOf: [
+                                            {
+                                                type: 'string',
+                                                enum: providerIds,
+                                                description: '选择现有提供商ID'
+                                            },
+                                            {
+                                                type: 'string',
+                                                minLength: 3,
+                                                maxLength: 100,
+                                                pattern: '^[a-zA-Z0-9_-]+$',
+                                                description: '新增自定义提供商ID（允许字母、数字、下划线、连字符）'
+                                            }
+                                        ]
                                     },
                                     {
-                                        type: 'string',
-                                        minLength: 3,
-                                        maxLength: 100,
-                                        pattern: '^[a-zA-Z0-9_-]+$',
-                                        description: '新增自定义提供商ID（允许字母、数字、下划线、连字符）'
+                                        not: {
+                                            anyOf: [{ const: 'codex' }, { const: 'gemini' }]
+                                        },
+                                        errorMessage: '"codex" 和 "gemini" 为 CLI 专用提供商，不可在自定义模型中使用'
                                     }
                                 ]
                             },
@@ -635,8 +645,12 @@ export class JsonSchemaProvider {
         };
     }
 
+    /** CLI 专用的提供商 ID，禁止在通用配置中使用 */
+    private static readonly CLI_RESERVED_PROVIDERS = ['codex', 'gemini'];
+
     /**
      * 获取所有可用的提供商ID（包括内置、已知、自定义和历史提供商）
+     * 注意：会过滤掉 CLI 专用的提供商（codex、gemini）
      */
     private static getAllAvailableProviders(): { providerIds: string[]; enumDescriptions: string[] } {
         const providerIds: string[] = [];
@@ -645,6 +659,9 @@ export class JsonSchemaProvider {
         try {
             // 1. 获取内置提供商
             for (const [providerId, config] of Object.entries(ConfigManager.getConfigProvider())) {
+                if (this.CLI_RESERVED_PROVIDERS.includes(providerId)) {
+                    continue;
+                }
                 providerIds.push(providerId);
                 enumDescriptions.push(config.displayName || providerId);
             }
@@ -662,8 +679,13 @@ export class JsonSchemaProvider {
             const customProviders = new Set<string>();
 
             for (const model of customModels) {
-                if (model.provider && model.provider.trim() && !providerIds.includes(model.provider)) {
-                    customProviders.add(model.provider.trim());
+                const p = (model.provider || '').trim().toLowerCase();
+                if (
+                    p &&
+                    !providerIds.map(id => id.toLowerCase()).includes(p) &&
+                    !this.CLI_RESERVED_PROVIDERS.includes(p)
+                ) {
+                    customProviders.add(p);
                 }
             }
 
