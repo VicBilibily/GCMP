@@ -28,41 +28,97 @@ declare module 'json-schema' {
  */
 export class JsonSchemaProvider {
     private static readonly SCHEMA_URI = 'gcmp-settings://root/schema.json';
-    private static schemaProvider: vscode.Disposable | null = null;
-    private static lastSchemaHash: string | null = null;
+    private static readonly SCHEMA_VSCODE_URI = vscode.Uri.parse(JsonSchemaProvider.SCHEMA_URI);
+    private static fsProviderDisposable: vscode.Disposable | null = null;
+    private static onDidChangeFileEmitter: vscode.EventEmitter<vscode.FileChangeEvent[]> | null = null;
+    private static eventDisposables: vscode.Disposable[] = [];
+
+    // 仅用于 FileSystemProvider.stat 的文件元信息：避免每次 stat 都 Date.now() 抖动
+    private static schemaCtime = Date.now();
+    private static schemaMtime = Date.now();
+
+    private static isSchemaUri(uri: vscode.Uri): boolean {
+        return uri.scheme === 'gcmp-settings' && uri.authority === 'root' && uri.path === '/schema.json';
+    }
+    private static throwReadOnly(): never {
+        throw vscode.FileSystemError.NoPermissions('gcmp-settings is read-only');
+    }
 
     /**
      * 初始化 JSON Schema 提供者
      */
     static initialize(): void {
-        if (this.schemaProvider) {
-            this.schemaProvider.dispose();
+        if (this.fsProviderDisposable) {
+            this.fsProviderDisposable.dispose();
         }
 
-        // 注册 JSON Schema 内容提供者，使用正确的 scheme
-        this.schemaProvider = vscode.workspace.registerTextDocumentContentProvider('gcmp-settings', {
-            provideTextDocumentContent: (uri: vscode.Uri): string => {
-                if (uri.toString() === this.SCHEMA_URI) {
-                    const schema = this.getSettingsSchema();
-                    return JSON.stringify(schema, null, 2);
-                }
-                return '';
-            }
-        });
+        this.schemaCtime = Date.now();
+        this.schemaMtime = Date.now();
 
-        // 监听文件系统访问，动态更新 schema
-        vscode.workspace.onDidOpenTextDocument(document => {
-            if (document.uri.scheme === 'gcmp-settings') {
-                this.updateSchema();
-            }
+        // 清理之前注册的事件监听
+        this.eventDisposables.forEach(d => d.dispose());
+        this.eventDisposables = [];
+
+        // 重建文件变更通知 emitter
+        if (this.onDidChangeFileEmitter) {
+            this.onDidChangeFileEmitter.dispose();
+        }
+        this.onDidChangeFileEmitter = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
+
+        // 注册只读文件系统提供者：让 JSON 语言服务用“文件读取”的方式获取 schema
+        const provider: vscode.FileSystemProvider = {
+            onDidChangeFile: this.onDidChangeFileEmitter.event,
+            watch: () => new vscode.Disposable(() => undefined),
+            stat: (uri: vscode.Uri) => {
+                if (!this.isSchemaUri(uri)) {
+                    throw vscode.FileSystemError.FileNotFound(uri);
+                }
+                return {
+                    type: vscode.FileType.File,
+                    ctime: this.schemaCtime,
+                    mtime: this.schemaMtime,
+                    // schema 实际是动态内容；这里给一个非 0 的 size，避免被误判为空文件
+                    size: 1
+                };
+            },
+            readDirectory: (uri: vscode.Uri) => {
+                // 仅支持 root 目录
+                if (
+                    uri.scheme !== 'gcmp-settings' ||
+                    uri.authority !== 'root' ||
+                    (uri.path !== '/' && uri.path !== '')
+                ) {
+                    throw vscode.FileSystemError.FileNotFound(uri);
+                }
+                return [['schema.json', vscode.FileType.File]];
+            },
+            createDirectory: () => this.throwReadOnly(),
+            readFile: (uri: vscode.Uri) => {
+                if (!this.isSchemaUri(uri)) {
+                    throw vscode.FileSystemError.FileNotFound(uri);
+                }
+                const schema = this.getSettingsSchema();
+                const text = JSON.stringify(schema, null, 2);
+                return Buffer.from(text, 'utf8');
+            },
+            writeFile: () => this.throwReadOnly(),
+            delete: () => this.throwReadOnly(),
+            rename: () => this.throwReadOnly()
+        };
+
+        this.fsProviderDisposable = vscode.workspace.registerFileSystemProvider('gcmp-settings', provider, {
+            isReadonly: true,
+            isCaseSensitive: true
         });
 
         // 监听配置变化，及时更新 schema
-        vscode.workspace.onDidChangeConfiguration(e => {
-            if (e.affectsConfiguration('gcmp')) {
-                this.invalidateCache();
-            }
-        });
+        this.eventDisposables.push(
+            vscode.workspace.onDidChangeConfiguration(e => {
+                if (e.affectsConfiguration('gcmp')) {
+                    this.invalidateCache();
+                }
+            })
+        );
 
         Logger.debug('动态 JSON Schema 提供者已初始化');
     }
@@ -71,7 +127,6 @@ export class JsonSchemaProvider {
      * 使缓存失效，触发 schema 更新
      */
     private static invalidateCache(): void {
-        this.lastSchemaHash = null;
         this.updateSchema();
     }
 
@@ -80,39 +135,18 @@ export class JsonSchemaProvider {
      */
     private static updateSchema(): void {
         try {
-            // 生成新的 schema
-            const newSchema = this.getSettingsSchema();
-            const newHash = this.generateSchemaHash(newSchema);
-
-            // 如果 schema 没有变化，跳过更新
-            if (this.lastSchemaHash === newHash) {
-                return;
-            }
-
-            this.lastSchemaHash = newHash;
-
-            // 触发内容更新
-            const uri = vscode.Uri.parse(this.SCHEMA_URI);
-            vscode.workspace.textDocuments.forEach(doc => {
-                if (doc.uri.toString() === this.SCHEMA_URI) {
-                    // 重新生成 schema 内容
-                    const newContent = JSON.stringify(newSchema, null, 2);
-                    const edit = new vscode.WorkspaceEdit();
-                    edit.replace(uri, new vscode.Range(0, 0, doc.lineCount, 0), newContent);
-                    vscode.workspace.applyEdit(edit);
-                    Logger.info('JSON Schema 已更新');
+            // 配置变更是小概率事件：直接通知 VS Code 重新获取 schema 内容
+            this.schemaMtime = Date.now();
+            this.onDidChangeFileEmitter?.fire([
+                {
+                    type: vscode.FileChangeType.Changed,
+                    uri: this.SCHEMA_VSCODE_URI
                 }
-            });
+            ]);
+            Logger.info('JSON Schema 已更新');
         } catch (error) {
             Logger.error('更新 JSON Schema 失败:', error);
         }
-    }
-
-    /**
-     * 生成 schema 的哈希值用于缓存比较
-     */
-    private static generateSchemaHash(schema: JSONSchema7): string {
-        return JSON.stringify(schema, Object.keys(schema).sort());
     }
 
     /**
@@ -787,10 +821,19 @@ export class JsonSchemaProvider {
      * 清理资源
      */
     static dispose(): void {
-        if (this.schemaProvider) {
-            this.schemaProvider.dispose();
-            this.schemaProvider = null;
+        if (this.fsProviderDisposable) {
+            this.fsProviderDisposable.dispose();
+            this.fsProviderDisposable = null;
         }
+
+        this.eventDisposables.forEach(d => d.dispose());
+        this.eventDisposables = [];
+
+        if (this.onDidChangeFileEmitter) {
+            this.onDidChangeFileEmitter.dispose();
+            this.onDidChangeFileEmitter = null;
+        }
+
         Logger.trace('动态 JSON Schema 提供者已清理');
     }
 }

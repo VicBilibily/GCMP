@@ -2,6 +2,17 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.20.6] - 2026-03-18
+
+### 新增
+
+- **MiniMax**：新增 **MiniMax-M2.7** 模型
+
+### 优化
+
+- **JSON Schema 提供者**：重构为只读 `FileSystemProvider` 实现，替代原有的 `TextDocumentContentProvider`
+- **Kimi 状态栏**：优化用量显示逻辑，暂时隐藏始终返回 5 小时剩余 100% 的窗口数据减少干扰
+
 ## [0.20.5] - 2026-03-17
 
 ### 优化

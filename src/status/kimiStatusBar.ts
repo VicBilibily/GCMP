@@ -22,7 +22,7 @@ export interface KimiUsageWindow {
     detail: {
         /** 限制值（可能是百分比100或Token量） */
         limit: number;
-        /** 已使用值 */
+        /** 已使用值（API不返回时默认为0） */
         used: number;
         /** 剩余值 */
         remaining: number;
@@ -84,12 +84,14 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
     protected getDisplayText(data: KimiStatusData): string {
         const { summary, windows } = data;
         let displayText = `${this.config.icon} ${summary.remaining}%`;
-        // 如果有窗口数据，添加每个窗口的剩余
+        // 如果有窗口数据，添加每个窗口的剩余（排除剩余100%的窗口）
         if (windows.length > 0) {
-            const windowTexts = windows.map(window => {
-                return `${window.detail.remaining}%`;
-            });
-            displayText += ` (${windowTexts.join(',')})`;
+            const windowTexts = windows
+                .filter(window => window.detail.remaining < 100)
+                .map(window => `${window.detail.remaining}%`);
+            if (windowTexts.length > 0) {
+                displayText += ` (${windowTexts.join(',')})`;
+            }
         }
         return displayText;
     }
@@ -198,11 +200,12 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
                     membership: {
                         level: string;
                     };
+                    businessId?: string;
                 };
                 usage?: {
-                    limit: number;
-                    used?: number;
-                    remaining?: number;
+                    limit: string | number;
+                    used?: string | number;
+                    remaining?: string | number;
                     resetTime: string;
                 };
                 limits?: {
@@ -211,9 +214,9 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
                         timeUnit: string;
                     };
                     detail: {
-                        limit: number;
-                        used?: number;
-                        remaining?: number;
+                        limit: string | number;
+                        used?: string | number;
+                        remaining?: string | number;
                         resetTime?: string;
                     };
                 }[];
