@@ -1,0 +1,100 @@
+﻿{
+    "displayName": "Xiaomi MiMo",
+    "baseUrl": "https://api.xiaomimimo.com/anthropic",
+    "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "models": [
+        {
+            "id": "mimo-v2-pro",
+            "name": "MiMo-V2-Pro",
+            "tooltip": "小米MiMo-V2-Pro 通用大语言模型，支持文本生成、深度思考、流式输出、函数调用、结构化输出、联网搜索。上下文长度 1M，最大输出 128K。",
+            "sdkMode": "anthropic",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": { "type": "disabled" }
+            }
+        },
+        {
+            "id": "mimo-v2-pro-thinking",
+            "name": "MiMo-V2-Pro (Thinking)",
+            "model": "mimo-v2-pro",
+            "tooltip": "小米MiMo-V2-Pro 思考模式，启用深度思考能力，适合复杂推理任务。上下文长度 1M，最大输出 128K。",
+            "sdkMode": "anthropic",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
+        },
+        {
+            "id": "mimo-v2-omni",
+            "name": "MiMo-V2-Omni",
+            "tooltip": "小米MiMo-V2-Omni 全模态理解模型，支持全模态理解、深度思考、流式输出、函数调用、结构化输出、联网搜索。上下文长度 256K，最大输出 128K。",
+            "sdkMode": "anthropic",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "thinking": { "type": "disabled" }
+            }
+        },
+        {
+            "id": "mimo-v2-omni-thinking",
+            "name": "MiMo-V2-Omni (Thinking)",
+            "model": "mimo-v2-omni",
+            "tooltip": "小米MiMo-V2-Omni 思考模式，启用深度思考能力，适合复杂多模态推理任务。上下文长度 256K，最大输出 128K。",
+            "sdkMode": "anthropic",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
+        },
+        {
+            "id": "mimo-v2-flash",
+            "name": "MiMo-V2-Flash",
+            "tooltip": "小米MiMo-V2-Flash 通用大语言模型，支持文本生成、深度思考、流式输出、函数调用、结构化输出、联网搜索。上下文长度 256K，最大输出 64K。高性价比选择。",
+            "sdkMode": "anthropic",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": { "type": "disabled" }
+            }
+        },
+        {
+            "id": "mimo-v2-flash-thinking",
+            "name": "MiMo-V2-Flash (Thinking)",
+            "model": "mimo-v2-flash",
+            "tooltip": "小米MiMo-V2-Flash 思考模式，启用深度思考能力，适合复杂推理任务。高性价比选择。上下文长度 256K，最大输出 64K。",
+            "sdkMode": "anthropic",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            },
+            "extraBody": {
+                "thinking": { "type": "enabled" }
+            }
+        }
+    ]
+}

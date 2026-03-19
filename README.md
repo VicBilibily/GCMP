@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/github/license/VicBilibily/GCMP?color=orange&label=License)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
 通过集成国内主流原生大模型提供商，为开发者提供更加丰富、更适合本土需求的 AI 编程助手选择。
-目前已内置支持 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云 等**原生大模型**提供商。
+目前已内置支持 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云、Xiaomi MiMo 等**原生大模型**提供商。
 此外，扩展插件已适配支持 OpenAI 与 Anthropic 的 API 接口兼容模型，支持自定义接入任何提供兼容接口的第三方**云服务模型**。
 
 #### 📢 公告
@@ -95,6 +95,10 @@
     - 开源模型：**GLM-5**(Thinking)、**Kimi-K2.5**(Thinking)、**MiniMax-M2.5**
 - **DeepSeek API**：**DeepSeek-V3.2**(Thinking)
 - **密钥配置**：腾讯云API密钥分为 [腾讯云付费模型 API Key](https://hunyuan.cloud.tencent.com/#/app/apiKeyManage)、[Coding Plan 专用 API Key](https://hunyuan.cloud.tencent.com/#/app/subscription)、[DeepSeek 专用 API Key](https://console.cloud.tencent.com/lkeap/api)，需要进入正确的密钥获取界面生成密钥。
+
+### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)
+
+- 预置模型：**MiMo-V2-Pro**(Thinking)、**MiMo-V2-Omni**(Thinking)、**MiMo-V2-Flash**(Thinking)
 
 ### 实验性支持 CLI 认证提供商
 

@@ -97,7 +97,7 @@ export class OpenAICustomHandler {
 
         // 构建请求参数
         const requestBody: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
-            model: modelConfig.model || model.id,
+            model: modelConfig.model || modelConfig.id,
             messages: this.openaiHandler.convertMessagesToOpenAI(messages, modelConfig),
             max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
             stream: true,

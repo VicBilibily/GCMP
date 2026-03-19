@@ -131,7 +131,7 @@ export class AnthropicHandler {
             const tools: Anthropic.Messages.Tool[] = options.tools ? convertToAnthropicTools([...options.tools]) : [];
 
             // 使用模型配置中的 model 字段，如果没有则使用 model.id
-            const modelId = modelConfig.model || model.id;
+            const modelId = modelConfig.model || modelConfig.id;
 
             const createParams: Anthropic.MessageCreateParamsStreaming = {
                 model: modelId,

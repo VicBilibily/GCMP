@@ -2,8 +2,8 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.20.8",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云、Xiaomi MiMo 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
+    "version": "0.20.9",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -20,6 +20,7 @@
         "streamlake",
         "dashscope",
         "tencent",
+        "Xiaomi MiMo",
         "OpenAI Compatible",
         "Anthropic Compatible",
         "智谱AI",
@@ -62,6 +63,7 @@
         "onLanguageModelProvider:gcmp.streamlake",
         "onLanguageModelProvider:gcmp.volcengine",
         "onLanguageModelProvider:gcmp.tencent",
+        "onLanguageModelProvider:gcmp.xiaomimimo",
         "onLanguageModelProvider:gcmp.iflow",
         "onLanguageModelProvider:gcmp.qwen",
         "onLanguageModelProvider:gcmp.gemini",
@@ -166,6 +168,11 @@
             {
                 "command": "gcmp.tencent.configWizard",
                 "title": "启动 腾讯云 配置向导",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.xiaomimimo.setApiKey",
+                "title": "设置 Xiaomi MiMo API密钥",
                 "category": "GCMP"
             },
             {
@@ -596,6 +603,11 @@
                 "vendor": "gcmp.tencent",
                 "displayName": "⦿ 腾讯云 (Coding Plan / DeepSeek)",
                 "managementCommand": "gcmp.tencent.configWizard"
+            },
+            {
+                "vendor": "gcmp.xiaomimimo",
+                "displayName": "⨮ Xiaomi MiMo",
+                "managementCommand": "gcmp.xiaomimimo.setApiKey"
             },
             {
                 "vendor": "gcmp.iflow",

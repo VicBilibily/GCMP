@@ -433,7 +433,7 @@ export class OpenAIHandler {
             const client = await this.createOpenAIClient(modelConfig);
             Logger.debug(`${model.name} 发送 ${messages.length} 条消息，使用 ${this.displayName}`);
             // 优先使用模型特定的请求模型名称，如果没有则使用模型ID
-            const requestModel = modelConfig.model || model.id;
+            const requestModel = modelConfig.model || modelConfig.id;
             const createParams: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
                 model: requestModel,
                 // capabilities 已包含在 modelConfig 中，优先以配置为准做消息转换

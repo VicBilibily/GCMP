@@ -522,7 +522,7 @@ export class GeminiHandler {
         const abortController = new AbortController();
         const cancelSub = token.onCancellationRequested(() => abortController.abort());
 
-        const modelId = modelConfig.model || model.id;
+        const modelId = modelConfig.model || modelConfig.id;
 
         // 覆盖 User-Agent 使用动态版本（而不是 customHeader 中可能的硬编码值）
         const dynamicUserAgent = this.buildCodeAssistUserAgent(modelId);

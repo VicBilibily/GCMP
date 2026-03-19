@@ -2,11 +2,22 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.20.9] - 2026-03-19
+
+### 新增
+
+- **Xiaomi MIMO**：新增提供商支持
+    - 预置模型：**MiMo-V2-Pro**(Thinking)、**MiMo-V2-Omni**(Thinking)、**MiMo-V2-Flash**(Thinking)
+
+### 修复
+
+- **模型配置查找**：修复 0.20.7 遗留问题，确保模型配置中无 `model` 字段时正确回退到正确的 `id` 字段
+
 ## [0.20.8] - 2026-03-19
 
 ### 优化
 
-- **模型 ID 前缀解析**：支持解析带前缀的模型 ID（如 `zhipu:::glm-4.6:::extra`），适配 `gcmp.autoPrefixModelId` 配置项
+- **模型 ID 前缀解析**：支持解析带前缀的模型 ID（如 `zhipu:::glm-4.6`），适配 `gcmp.autoPrefixModelId` 配置项
 
 ## [0.20.7] - 2026-03-19
 

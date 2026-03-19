@@ -396,7 +396,7 @@ export class OpenAIResponsesHandler {
                 progress
             });
 
-            const requestModel = modelConfig.model || model.id;
+            const requestModel = modelConfig.model || modelConfig.id;
 
             // 将 vscode.CancellationToken 转换为 AbortSignal
             const abortController = new AbortController();
@@ -440,7 +440,7 @@ export class OpenAIResponsesHandler {
                     stream: true
                 };
 
-                const modelId = (modelConfig.model || model.id).toLowerCase();
+                const modelId = (modelConfig.model || modelConfig.id).toLowerCase();
                 const isGptModel = modelId.includes('gpt');
                 const isDoubaoOrVolcengine = modelId.includes('doubao') || modelConfig?.provider === 'volcengine';
 
