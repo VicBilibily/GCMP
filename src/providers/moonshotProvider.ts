@@ -191,7 +191,8 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
         _token: CancellationToken
     ): Promise<void> {
         // 查找对应的模型配置
-        const modelConfig = this.providerConfig.models.find((m: ModelConfig) => m.id === model.id);
+        // 查找对应的模型配置
+        const modelConfig = this.findModelConfigById(model);
         if (!modelConfig) {
             const errorMessage = `未找到模型: ${model.id}`;
             Logger.error(errorMessage);

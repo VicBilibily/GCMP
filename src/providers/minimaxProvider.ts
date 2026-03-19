@@ -216,7 +216,7 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         _token: CancellationToken
     ): Promise<void> {
         // 查找对应的模型配置
-        const modelConfig = this.providerConfig.models.find((m: ModelConfig) => m.id === model.id);
+        const modelConfig = this.findModelConfigById(model);
         if (!modelConfig) {
             const errorMessage = `未找到模型: ${model.id}`;
             Logger.error(errorMessage);

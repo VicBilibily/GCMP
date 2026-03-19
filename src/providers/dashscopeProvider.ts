@@ -142,7 +142,8 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         progress: Progress<vscode.LanguageModelResponsePart>,
         _token: CancellationToken
     ): Promise<void> {
-        const modelConfig = this.providerConfig.models.find((m: ModelConfig) => m.id === model.id);
+        // 查找对应的模型配置
+        const modelConfig = this.findModelConfigById(model);
         if (!modelConfig) {
             const errorMessage = `未找到模型: ${model.id}`;
             Logger.error(errorMessage);

@@ -282,7 +282,8 @@ export class CompatibleProvider extends GenericModelProvider {
             const currentConfig = this.providerConfig;
 
             // 查找对应的模型配置
-            const modelConfig = currentConfig.models.find(m => m.id === model.id);
+            // 查找对应的模型配置
+            const modelConfig = this.findModelConfigById(model);
             if (!modelConfig) {
                 const errorMessage = `Compatible Provider 未找到模型: ${model.id}`;
                 Logger.error(errorMessage);
