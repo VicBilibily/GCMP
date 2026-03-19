@@ -241,9 +241,66 @@ export class GeneratorService {
             }
         };
 
+        /**
+         * 独立分支：处理 autoPrefixModelId 和 compatible 提供商的特殊场景。
+         * - autoPrefixModelId 启用时，查询 ID 需要加上 `${provider}:::${modelId}` 前缀
+         * - compatible 提供商：先从 CompatibleModelManager 获取模型列表匹配，再构造查询
+         * 不涉及特殊场景时返回 null，交由原流程处理。
+         */
+        const resolveConfiguredModelCompat = async (
+            selection: { provider?: string; model?: string } | undefined
+        ): Promise<vscode.LanguageModelChat | null> => {
+            const provider = (selection?.provider ?? '').trim();
+            const modelId = (selection?.model ?? '').trim();
+            if (!provider || !modelId) {
+                return null;
+            }
+
+            const autoPrefix = ConfigManager.getAutoPrefixModelId();
+            const isCompatible = provider === 'compatible';
+            if (!autoPrefix && !isCompatible) {
+                return null;
+            }
+
+            try {
+                if (isCompatible) {
+                    const models = CompatibleModelManager.getModels();
+                    const matched = models.find(m => m.id === modelId);
+                    if (!matched) {
+                        return null;
+                    }
+                    const queryId = autoPrefix ? `${matched.provider || 'compatible'}:::${modelId}` : modelId;
+                    const candidates = await vscode.lm.selectChatModels({
+                        id: queryId,
+                        vendor: 'gcmp.compatible'
+                    });
+                    return candidates?.[0] ?? null;
+                }
+
+                // autoPrefix 启用但非 compatible：直接加前缀查询
+                const queryId = `${provider}:::${modelId}`;
+                const candidates = await vscode.lm.selectChatModels({
+                    id: queryId,
+                    vendor: `gcmp.${provider}`
+                });
+                return candidates?.[0] ?? null;
+            } catch {
+                return null;
+            }
+        };
+
+        /**
+         * 综合解析：先尝试 compat 分支，不命中时回退到原流程。
+         */
+        const resolveModel = async (
+            selection: { provider?: string; model?: string } | undefined
+        ): Promise<vscode.LanguageModelChat | null> => {
+            return (await resolveConfiguredModelCompat(selection)) ?? (await resolveConfiguredModel(selection));
+        };
+
         // 1) 优先使用已配置且可用的模型
         const configuredSelection = ConfigManager.getCommitConfig().model;
-        const configuredModel = await resolveConfiguredModel(configuredSelection);
+        const configuredModel = await resolveModel(configuredSelection);
         if (configuredModel) {
             Logger.trace(`[GeneratorService] 使用配置的模型: ${configuredModel.name}`);
             return configuredModel;
@@ -260,7 +317,7 @@ export class GeneratorService {
             throw new UserCancelledError();
         }
 
-        const selectedModel = await resolveConfiguredModel(afterSelection);
+        const selectedModel = await resolveModel(afterSelection);
         if (selectedModel) {
             Logger.trace(`[GeneratorService] 使用用户选择的模型: ${selectedModel.name}`);
             return selectedModel;

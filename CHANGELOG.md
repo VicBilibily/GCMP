@@ -2,6 +2,12 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.20.10] - 2026-03-19
+
+### 优化
+
+- **Commit 模型选择**：`selectModel` 流程适配 `gcmp.autoPrefixModelId` 配置
+
 ## [0.20.9] - 2026-03-19
 
 ### 新增
