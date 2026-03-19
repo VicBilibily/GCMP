@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.20.6",
+    "version": "0.20.7",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -281,6 +281,12 @@
                     "default": "claude",
                     "deprecationMessage": "editToolMode 已被弃用，请在模型配置中使用 family 字段代替。此配置将在未来版本中移除。",
                     "description": "选择编辑工具模式。Claude 使用高效的ReplaceString，GPT-5 使用ApplyPatch进行批量编辑，None 直接使用基础文件编辑。",
+                    "scope": "application"
+                },
+                "gcmp.autoPrefixModelId": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "在模型列表中为模型ID自动添加提供商前缀（例如：zhipu:::glm-5）。启用此选项可缓解 VS Code 模型选择器显示模型不全的问题。",
                     "scope": "application"
                 },
                 "gcmp.zhipu.search.enableMCP": {

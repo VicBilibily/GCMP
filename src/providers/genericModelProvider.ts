@@ -68,6 +68,11 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 Logger.trace(`${this.providerKey} 配置已更新`);
                 this._onDidChangeLanguageModelChatInformation.fire();
             }
+            // 检查是否是 autoPrefixModelId 的变更
+            if (e.affectsConfiguration('gcmp.autoPrefixModelId')) {
+                Logger.trace(`[${this.providerKey}] autoPrefixModelId 配置已更新，刷新模型列表`);
+                this._onDidChangeLanguageModelChatInformation.fire();
+            }
         });
 
         // 创建 OpenAI SDK 处理器
@@ -138,8 +143,12 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     protected modelConfigToInfo(model: ModelConfig): LanguageModelChatInformation {
         // 确定 family：优先使用模型配置的 family 字段，否则根据 sdkMode 自动推断
         const family = this.resolveFamily(model);
+        let modelId = model.id;
+        if (ConfigManager.getAutoPrefixModelId()) {
+            modelId = `${model.provider || this.providerKey}:::${modelId}`;
+        }
         const info: LanguageModelChatInformation = {
-            id: model.id,
+            id: modelId,
             name: model.name,
             detail: this.providerConfig.displayName,
             tooltip: model.tooltip,

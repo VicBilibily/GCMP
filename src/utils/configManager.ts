@@ -69,6 +69,8 @@ export interface CommitConfig {
 export interface GCMPConfig {
     /** 最大输出token数量 */
     maxTokens: number;
+    /** 自动为模型ID添加提供商前缀 */
+    autoPrefixModelId: boolean;
     /** 智谱AI配置 */
     zhipu: ZhipuConfig;
     /** MiniMax配置 */
@@ -127,6 +129,7 @@ export class ConfigManager {
 
         this.cache = {
             maxTokens: this.validateMaxTokens(config.get<number>('maxTokens', 256000)),
+            autoPrefixModelId: config.get<boolean>('autoPrefixModelId', false),
             zhipu: {
                 search: {
                     enableMCP: config.get<boolean>('zhipu.search.enableMCP', true) // 默认启用MCP模式（Coding Plan专属）
@@ -185,7 +188,12 @@ export class ConfigManager {
     static getMaxTokens(): number {
         return this.getConfig().maxTokens;
     }
-
+    /**
+     * 获取是否为模型ID自动添加提供商前缀的配置
+     */
+    static getAutoPrefixModelId(): boolean {
+        return this.getConfig().autoPrefixModelId;
+    }
     /**
      * 获取智谱AI搜索配置
      */
