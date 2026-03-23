@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.20.11] - 2026-03-23
+
+### 新增
+
+- **Codex CLI**：新增 **GPT-5.4-mini** 模型
+
+### 调整
+
+- **Qwen Code**：更新 QwenCode 版本至 0.12.6，仅保留 `Qwen3.5-Plus` 模型
+- **Gemini CLI**：更新默认版本至 0.34.0，调整 Gemini 3.1 Pro 模型 maxInputTokens 为 1048576
+- **MiniMax 状态栏**：优化用量显示逻辑，仅显示 MiniMax-M 系列模型数据
+
 ## [0.20.10] - 2026-03-19
 
 ### 优化

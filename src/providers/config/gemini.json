@@ -8,7 +8,7 @@
             "id": "gemini-3.1-pro-preview",
             "name": "Gemini 3.1 Pro (Preview)",
             "tooltip": "Gemini 3.1 Pro is the newest generation model with enhanced reasoning and 1M token context window.",
-            "maxInputTokens": 1000000,
+            "maxInputTokens": 1048576,
             "maxOutputTokens": 131072,
             "sdkMode": "gemini-sse",
             "capabilities": {
@@ -20,7 +20,7 @@
             "id": "gemini-3.1-pro-preview-customtools",
             "name": "Gemini 3.1 Pro (Custom Tools)",
             "tooltip": "Gemini 3.1 Pro with custom tools support for advanced use cases.",
-            "maxInputTokens": 1000000,
+            "maxInputTokens": 1048576,
             "maxOutputTokens": 131072,
             "sdkMode": "gemini-sse",
             "capabilities": {

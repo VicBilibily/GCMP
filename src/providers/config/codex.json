@@ -3,8 +3,8 @@
     "baseUrl": "https://chatgpt.com/backend-api/codex",
     "apiKeyTemplate": "eyJhbGciOiJSUzI1NiIsImtpZCI6I...",
     "customHeader": {
-        "version": "0.111.0",
-        "user-agent": "codex_cli_rs/0.111.0 (Windows 10.0.26200; x86_64) unknown",
+        "version": "0.116.0",
+        "user-agent": "codex_cli_rs/0.116.0 (Windows 10.0.26200; x86_64) unknown",
         "originator": "codex_cli_rs"
     },
     "models": [
@@ -12,7 +12,7 @@
             "id": "gpt-5.2",
             "name": "GPT-5.2 (ChatGPT)",
             "sdkMode": "openai-responses",
-            "tooltip": "GPT-5.2 - OpenAI Codex 提供的模型，支持代码生成与理解",
+            "tooltip": "ChatGPT 提供的 GPT-5.2 模型，通过 Codex 端点访问，适合代码生成与理解任务",
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "useInstructions": true,
@@ -33,7 +33,7 @@
             "id": "gpt-5.2-codex",
             "name": "GPT-5.2-Codex (ChatGPT)",
             "sdkMode": "openai-responses",
-            "tooltip": "GPT-5.2-Codex - 专为编程场景优化的 Codex 模型",
+            "tooltip": "OpenAI 迄今最前沿的智能体编码模型，赋能复杂软件工程实践",
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "useInstructions": true,
@@ -54,7 +54,7 @@
             "id": "gpt-5.3-codex",
             "name": "GPT-5.3-Codex (ChatGPT)",
             "sdkMode": "openai-responses",
-            "tooltip": "GPT-5.3-Codex - 最新一代 Codex 编程模型，具备更强的代码推理能力",
+            "tooltip": "OpenAI 迄今能力最强的智能体编程模型，运行速度提升25%，支持跨电脑专业工作",
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "useInstructions": true,
@@ -71,12 +71,32 @@
                 }
             }
         },
-
         {
             "id": "gpt-5.4",
             "name": "GPT-5.4 (ChatGPT)",
             "sdkMode": "openai-responses",
-            "tooltip": "GPT-5.4 - OpenAI Codex 提供的新一代模型，支持代码生成与理解",
+            "tooltip": "OpenAI 针对专业化工作负载能力最强、效率最高的前沿模型，整合GPT-5.3-Codex编程能力",
+            "maxInputTokens": 192000,
+            "maxOutputTokens": 64000,
+            "useInstructions": true,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "extraBody": {
+                "store": false,
+                "tool_choice": "auto",
+                "reasoning": {
+                    "effort": "medium",
+                    "summary": "auto"
+                }
+            }
+        },
+        {
+            "id": "gpt-5.4-mini",
+            "name": "GPT-5.4 mini (ChatGPT)",
+            "sdkMode": "openai-responses",
+            "tooltip": "OpenAI 迄今能力最强的小型模型，快速高效，专为代码编写与子智能体优化，Codex中仅消耗GPT-5.4配额的30%",
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "useInstructions": true,

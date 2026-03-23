@@ -12,8 +12,8 @@
 
 #### 📢 公告
 
-- [**计划在 0.21.0 移除 iFlow CLI 认证提供商**](https://github.com/VicBilibily/GCMP/discussions/102) - 欢迎受影响用户参与讨论并反馈意见。
-- **0.20.8：临时兼容项**：针对 VS Code 模型选择器显示模型不全的问题，新增 `gcmp.autoPrefixModelId` 配置项作为临时解决方案。
+- **计划在 0.21.0 移除 iFlow CLI 认证提供商** - [iFlow CLI 于3月20日起停止维护并在4月17日停止服务](https://platform.iflow.cn/email-collect)。
+- **0.20.8 临时兼容项**：针对 VS Code 模型选择器显示模型不全的问题，新增 `gcmp.autoPrefixModelId` 配置项作为临时解决方案。
     - **问题原因**：VS Code 1.111.0 引入模型折叠模式后，当多个提供商存在相同模型 ID 时，选中模型后的可用模型过滤逻辑异常（选中后模型移至顶部，下方列表过滤掉该 modelId，导致同 modelId 的其他提供商的此个模型无法选中）。
     - **解决方案**：启用 `gcmp.autoPrefixModelId` 后，模型 ID 将自动添加提供商前缀（如 `zhipu:::glm-5`），避免 ID 冲突。（若仅使用单一提供商或未遇到此类问题，可无视此临时兼容项）
     - **注意事项**：切换此开关后模型 ID 会变更，需重新在「语言模型」管理页面勾选需要使用的模型。
@@ -107,18 +107,6 @@
 <details>
 <summary>展开查看 CLI 认证支持提供商说明</summary>
 
-### [**心流AI**](https://platform.iflow.cn/cli/quickstart) - iFlow CLI
-
-阿里巴巴旗下的AI平台，支持通过 `iFlow CLI` 进行 `使用 iFlow 登录` 认证（需要本地安装 `iFlow CLI`）。
-
-> 由于 iFlow 接口针对 CLI 专有模型增加了请求签名验证，已不再允许外部调用这些模型（虽可逆向，但求合规），只在 CLI 可用的模型不再内置。
-
-```bash
-npm install -g @iflow-ai/iflow-cli@latest
-```
-
-- **支持模型**：**iFlow-ROME**、**Qwen3-Coder-Plus**
-
 ### [**Qwen Code**](https://qwenlm.github.io/qwen-code-docs/zh/users/overview/) - Qwen Code CLI
 
 阿里云通义千问官方编程助手，支持通过 `Qwen Code CLI` 进行 `Qwen Auth` 认证（需要本地安装 `Qwen Code CLI`）。
@@ -127,9 +115,9 @@ npm install -g @iflow-ai/iflow-cli@latest
 npm install -g @qwen-code/qwen-code@latest
 ```
 
-- **支持模型**：**Qwen3.5-Plus**、**Qwen3-VL-Plus**
+- **支持模型**：**Qwen3.5-Plus**
 
-### [**Codex CLI**](https://codexcli.com/) - OpenAI Codex
+### [**Codex CLI**](https://chatgpt.com/codex) - OpenAI Codex
 
 OpenAI 官方编程助手 Codex 的命令行工具，支持通过 `codex` CLI 进行身份验证（需要本地安装 `codex` CLI）。
 

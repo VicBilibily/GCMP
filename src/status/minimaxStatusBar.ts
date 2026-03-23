@@ -215,52 +215,54 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
                 };
             }
 
-            const formatted: ModelRemainItem[] = modelRemains.map(modelRemain => {
-                const {
-                    start_time,
-                    end_time,
-                    remains_time,
-                    current_interval_usage_count,
-                    current_interval_total_count,
-                    model_name
-                } = modelRemain;
+            const formatted: ModelRemainItem[] = modelRemains
+                .filter(m => m.model_name?.startsWith('MiniMax-M'))
+                .map(modelRemain => {
+                    const {
+                        start_time,
+                        end_time,
+                        remains_time,
+                        current_interval_usage_count,
+                        current_interval_total_count,
+                        model_name
+                    } = modelRemain;
 
-                // 1. 统计时间周期
-                let range = '';
-                if (start_time && end_time) {
-                    const startTime = new Date(start_time);
-                    const endTime = new Date(end_time);
-                    const startFormatted = startTime.toLocaleTimeString('zh-CN', {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                    });
-                    const endFormatted = endTime.toLocaleTimeString('zh-CN', {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                    });
-                    range = `${startFormatted}-${endFormatted} (UTC+8)`;
-                }
+                    // 1. 统计时间周期
+                    let range = '';
+                    if (start_time && end_time) {
+                        const startTime = new Date(start_time);
+                        const endTime = new Date(end_time);
+                        const startFormatted = startTime.toLocaleTimeString('zh-CN', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+                        const endFormatted = endTime.toLocaleTimeString('zh-CN', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+                        range = `${startFormatted}-${endFormatted} (UTC+8)`;
+                    }
 
-                // 2. 使用信息
-                let usageStatus = '';
-                let percentage = 0;
-                if (current_interval_total_count && current_interval_usage_count !== undefined) {
-                    // current_interval_usage_count 是剩余可用数量，current_interval_total_count 是总可用数量
-                    const usedQuantity = current_interval_total_count - current_interval_usage_count; // 计算已使用数量
-                    percentage = parseFloat(((usedQuantity / current_interval_total_count) * 100).toFixed(1));
-                    usageStatus = `${current_interval_usage_count}/${current_interval_total_count}`;
-                }
+                    // 2. 使用信息
+                    let usageStatus = '';
+                    let percentage = 0;
+                    if (current_interval_total_count && current_interval_usage_count !== undefined) {
+                        // current_interval_usage_count 是剩余可用数量，current_interval_total_count 是总可用数量
+                        const usedQuantity = current_interval_total_count - current_interval_usage_count; // 计算已使用数量
+                        percentage = parseFloat(((usedQuantity / current_interval_total_count) * 100).toFixed(1));
+                        usageStatus = `${current_interval_usage_count}/${current_interval_total_count}`;
+                    }
 
-                return {
-                    model: model_name,
-                    range,
-                    remainMs: remains_time,
-                    percentage,
-                    usageStatus,
-                    usage: current_interval_usage_count || 0,
-                    total: current_interval_total_count || 0
-                };
-            });
+                    return {
+                        model: model_name,
+                        range,
+                        remainMs: remains_time,
+                        percentage,
+                        usageStatus,
+                        usage: current_interval_usage_count || 0,
+                        total: current_interval_total_count || 0
+                    };
+                });
 
             // 找出使用量最大的模型
             const maxUsageModel = formatted.reduce((max: ModelRemainItem, current: ModelRemainItem) =>
