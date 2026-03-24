@@ -32,6 +32,7 @@ const vscode = acquireVsCodeApi();
  * @property {number} maxOutputTokens - 最大输出Token
  * @property {ModelCapabilities} capabilities - 能力配置
  * @property {boolean} useInstructions - 是否使用 instructions 参数（仅 openai-responses 有效）
+ * @property {boolean} webSearchTool - 是否启用 Anthropic 原生 web_search 工具（仅 anthropic 有效）
  * @property {Object} [customHeader] - 自定义HTTP头部（可选）
  * @property {Object} [extraBody] - 额外请求体参数（可选）
  */
@@ -162,6 +163,13 @@ function createDOM() {
             'useInstructions',
             modelData.useInstructions,
             '当 SDK 模式为 openai-responses 时，使用 instructions 参数传递系统消息（默认使用用户消息传递）。'
+        ),
+        createCheckboxFormGroup(
+            'webSearchTool',
+            '启用 Anthropic 原生 web_search 工具（仅 anthropic 有效）',
+            'webSearchTool',
+            modelData.webSearchTool,
+            '当接口兼容 Anthropic 原生 web_search 工具时启用。启用后会自动向模型暴露 web_search。'
         ),
         createJSONFormGroup('customHeader', '自定义HTTP头部（JSON格式）', 'customHeader', modelData.customHeader,
             '{"Authorization": "Bearer ${APIKEY}", "X-Custom-Header": "value"}',
@@ -782,22 +790,26 @@ function bindEvents() {
         }
     });
 
-    // SDK 模式切换事件 - 控制 useInstructions 选项的显示
+    // SDK 模式切换事件 - 控制特定选项的显示
     const sdkModeSelect = document.getElementById('sdkMode');
     const useInstructionsContainer = document.getElementById('useInstructions')?.closest('.form-group');
-    if (sdkModeSelect && useInstructionsContainer) {
-        // 初始状态检查
-        const updateUseInstructionsVisibility = function () {
+    const webSearchToolContainer = document.getElementById('webSearchTool')?.closest('.form-group');
+    if (sdkModeSelect && useInstructionsContainer && webSearchToolContainer) {
+        const updateSdkSpecificOptionsVisibility = function () {
             if (sdkModeSelect.value === 'openai-responses') {
                 useInstructionsContainer.style.display = '';
             } else {
                 useInstructionsContainer.style.display = 'none';
             }
+
+            if (sdkModeSelect.value === 'anthropic') {
+                webSearchToolContainer.style.display = '';
+            } else {
+                webSearchToolContainer.style.display = 'none';
+            }
         };
-        // 监听 SDK 模式变化
-        sdkModeSelect.addEventListener('change', updateUseInstructionsVisibility);
-        // 初始化时执行一次
-        updateUseInstructionsVisibility();
+        sdkModeSelect.addEventListener('change', updateSdkSpecificOptionsVisibility);
+        updateSdkSpecificOptionsVisibility();
     }
 
     // 请求模型ID输入事件
@@ -1210,6 +1222,8 @@ function saveModel() {
     const baseUrlText = document.getElementById('baseUrl').value.trim();
     const apiKeyText = document.getElementById('apiKey').value.trim();
 
+    const sdkMode = document.getElementById('sdkMode').value || 'openai';
+
     const model = {
         id: modelId,
         name: modelName,
@@ -1222,15 +1236,30 @@ function saveModel() {
         apiKey: apiKeyText || null,
         // model: 使用 null 表示清空
         model: requestModelText || null,
-        sdkMode: document.getElementById('sdkMode').value || 'openai',
+        sdkMode: sdkMode,
         maxInputTokens: parseInt(document.getElementById('maxInputTokens').value) || 12800,
         maxOutputTokens: parseInt(document.getElementById('maxOutputTokens').value) || 8192,
         capabilities: {
             toolCalling: document.getElementById('toolCalling').checked,
             imageInput: document.getElementById('imageInput').checked
-        },
-        useInstructions: document.getElementById('useInstructions')?.checked || false
+        }
     };
+
+    // 仅当 sdkMode 为 openai-responses 时才保存 useInstructions 字段（无论 true/false）
+    if (sdkMode === 'openai-responses') {
+        model.useInstructions = document.getElementById('useInstructions')?.checked || false;
+    }
+    else if (!model.useInstructions) {
+        model.useInstructions = null; // 明确设置为 null 以表示未使用
+    }
+
+    // 仅当 sdkMode 为 anthropic 时才保存 webSearchTool 字段（无论 true/false）
+    if (sdkMode === 'anthropic') {
+        model.webSearchTool = document.getElementById('webSearchTool')?.checked || false;
+    }
+    else if (!model.webSearchTool) {
+        model.webSearchTool = null; // 明确设置为 null 以表示未使用
+    }
 
     const customHeaderText = document.getElementById('customHeader').value.trim();
     const customHeader = parseJSON(customHeaderText);

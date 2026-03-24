@@ -82,6 +82,8 @@ export interface CompatibleModelConfig {
      *  - 当设置为 false 时，使用用户消息传递系统消息指令
      */
     useInstructions?: boolean;
+    /** 是否启用 Anthropic 原生 web_search 工具（仅 sdkMode=anthropic 生效） */
+    webSearchTool?: boolean;
     /** 是否由向导创建（内部标记，不持久化） */
     _isFromWizard?: boolean;
 }

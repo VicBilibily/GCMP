@@ -76,6 +76,11 @@ export interface ModelConfig {
      *  - 当设置为 true 时，使用 instructions 参数传递系统指令
      */
     useInstructions?: boolean;
+    /**
+     * 是否启用 Anthropic 原生 web_search 工具（可选）
+     * 仅对 sdkMode=anthropic 的模型生效。
+     */
+    webSearchTool?: boolean;
 }
 
 /**
@@ -108,6 +113,8 @@ export interface ModelOverride {
      * 如果提供，将在API请求中合并到请求体中
      */
     extraBody?: Record<string, unknown>;
+    /** 是否启用 Anthropic 原生 web_search 工具（仅 sdkMode=anthropic 生效） */
+    webSearchTool?: boolean;
 }
 
 /**

@@ -110,6 +110,7 @@ export class CompatibleProvider extends GenericModelProvider {
                     ...(customHeader && { customHeader: customHeader }),
                     ...(model.extraBody && { extraBody: model.extraBody }),
                     ...(model.useInstructions !== undefined && { useInstructions: model.useInstructions }),
+                    ...(model.webSearchTool !== undefined && { webSearchTool: model.webSearchTool }),
                     ...(model.family && { family: model.family })
                 };
             });

@@ -366,6 +366,10 @@ export class ConfigManager {
                         existingModel.baseUrl = modelOverride.baseUrl;
                         Logger.debug(`  模型 ${modelOverride.id}: 覆盖 baseUrl = ${modelOverride.baseUrl}`);
                     }
+                    if (modelOverride.webSearchTool !== undefined) {
+                        existingModel.webSearchTool = modelOverride.webSearchTool;
+                        Logger.debug(`  模型 ${modelOverride.id}: 覆盖 webSearchTool = ${modelOverride.webSearchTool}`);
+                    }
                     // 合并 capabilities
                     if (modelOverride.capabilities) {
                         existingModel.capabilities = {
@@ -406,6 +410,9 @@ export class ConfigManager {
                         ...(modelOverride.model && { model: modelOverride.model }),
                         ...(modelOverride.sdkMode && { sdkMode: modelOverride.sdkMode }),
                         ...(modelOverride.baseUrl && { baseUrl: modelOverride.baseUrl }),
+                        ...(modelOverride.webSearchTool !== undefined && {
+                            webSearchTool: modelOverride.webSearchTool
+                        }),
                         ...(modelOverride.customHeader && { customHeader: modelOverride.customHeader }),
                         ...(modelOverride.extraBody && { extraBody: modelOverride.extraBody })
                     };

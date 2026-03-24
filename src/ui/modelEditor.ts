@@ -151,6 +151,7 @@ export class ModelEditor {
             toolCalling: model?.capabilities?.toolCalling || false,
             imageInput: model?.capabilities?.imageInput || false,
             useInstructions: model?.useInstructions,
+            webSearchTool: model?.webSearchTool,
             customHeader: model?.customHeader ? JSON.stringify(model.customHeader, null, 2) : '',
             extraBody: model?.extraBody ? JSON.stringify(model.extraBody, null, 2) : ''
         };

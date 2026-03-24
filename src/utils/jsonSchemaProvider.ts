@@ -325,6 +325,11 @@ export class JsonSchemaProvider {
                                     '是否在 Responses API 中使用 instructions 参数（可选）\n- false: 使用用户消息传递系统消息（默认）\n- true: 使用 instructions 参数传递系统消息',
                                 default: false
                             },
+                            webSearchTool: {
+                                type: 'boolean',
+                                description: '是否启用 Anthropic 原生 web_search 工具（仅 sdkMode=anthropic 时生效）',
+                                default: false
+                            },
                             family: this.getFamilySchema(),
                             capabilities: {
                                 type: 'object',
@@ -401,6 +406,32 @@ export class JsonSchemaProvider {
                                         endpoint: {
                                             deprecationMessage:
                                                 'endpoint 仅对 openai、openai-sse、openai-responses 模式生效'
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                // webSearchTool 仅对 anthropic 生效
+                                if: {
+                                    properties: {
+                                        sdkMode: { const: 'anthropic' }
+                                    },
+                                    required: ['sdkMode']
+                                },
+                                then: {
+                                    properties: {
+                                        webSearchTool: {
+                                            type: 'boolean',
+                                            description:
+                                                '是否启用 Anthropic 原生 web_search 工具。启用后会自动向模型暴露 web_search。',
+                                            default: false
+                                        }
+                                    }
+                                },
+                                else: {
+                                    properties: {
+                                        webSearchTool: {
+                                            deprecationMessage: 'webSearchTool 仅对 anthropic 模式生效'
                                         }
                                     }
                                 }
@@ -658,6 +689,11 @@ export class JsonSchemaProvider {
                                     description: '额外的请求体参数值'
                                 }
                             },
+                            webSearchTool: {
+                                type: 'boolean',
+                                description: '是否启用 Anthropic 原生 web_search 工具（仅 sdkMode=anthropic 时生效）',
+                                default: false
+                            },
                             family: this.getFamilySchema(),
                             includeThinking: {
                                 type: 'boolean',
@@ -671,6 +707,33 @@ export class JsonSchemaProvider {
                             }
                         },
                         required: ['id'],
+                        allOf: [
+                            {
+                                if: {
+                                    properties: {
+                                        sdkMode: { const: 'anthropic' }
+                                    },
+                                    required: ['sdkMode']
+                                },
+                                then: {
+                                    properties: {
+                                        webSearchTool: {
+                                            type: 'boolean',
+                                            description:
+                                                '是否启用 Anthropic 原生 web_search 工具。启用后会自动向模型暴露 web_search。',
+                                            default: false
+                                        }
+                                    }
+                                },
+                                else: {
+                                    properties: {
+                                        webSearchTool: {
+                                            deprecationMessage: 'webSearchTool 仅对 anthropic 模式生效'
+                                        }
+                                    }
+                                }
+                            }
+                        ],
                         additionalProperties: false
                     }
                 }

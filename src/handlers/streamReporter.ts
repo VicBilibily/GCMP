@@ -149,6 +149,19 @@ export class StreamReporter {
     }
 
     /**
+     * 直接报告完整的工具结果（用于原生 server tool 等场景）
+     */
+    reportToolResult(callId: string, content: string | vscode.LanguageModelTextPart[]): void {
+        this.flushThinking('输出工具结果前');
+        this.flushText('输出工具结果前');
+        this.endThinkingChain();
+
+        const parts = typeof content === 'string' ? [new vscode.LanguageModelTextPart(content)] : content;
+        this.progress.report(new vscode.LanguageModelToolResultPart(callId, parts));
+        this.hasReceivedContent = true;
+    }
+
+    /**
      * 缓冲思考内容（累积到阈值后输出，用于 delta 事件）
      */
     bufferThinking(content: string): void {

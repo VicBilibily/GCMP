@@ -48,6 +48,57 @@ export class AnthropicHandler {
         return `user_${userHash}_account__session_${sessionUuid}`;
     }
 
+    private createAnthropicWebSearchTool(): Anthropic.Messages.WebSearchTool20250305 {
+        return {
+            name: 'web_search',
+            type: 'web_search_20250305'
+        };
+    }
+    private formatWebSearchToolResult(resultBlock: Anthropic.Messages.WebSearchToolResultBlock): string {
+        if (!Array.isArray(resultBlock.content)) {
+            return JSON.stringify(
+                {
+                    type: 'web_search_tool_result_error',
+                    tool_use_id: resultBlock.tool_use_id,
+                    error: resultBlock.content.error_code
+                },
+                null,
+                2
+            );
+        }
+        return JSON.stringify(
+            {
+                type: 'web_search_tool_result',
+                tool_use_id: resultBlock.tool_use_id,
+                content: resultBlock.content.map(result => ({
+                    type: 'web_search_result',
+                    url: result.url,
+                    title: result.title,
+                    page_age: result.page_age,
+                    encrypted_content: result.encrypted_content
+                }))
+            },
+            null,
+            2
+        );
+    }
+    private formatCitationDelta(citation: Anthropic.Messages.CitationsDelta['citation']): string | undefined {
+        if (citation.type !== 'web_search_result_location') {
+            return undefined;
+        }
+        return JSON.stringify(
+            {
+                type: 'web_search_result_location',
+                url: citation.url,
+                title: citation.title,
+                cited_text: citation.cited_text,
+                encrypted_index: citation.encrypted_index
+            },
+            null,
+            2
+        );
+    }
+
     /**
      * 创建 Anthropic 客户端
      * 每次都创建新的客户端实例，与 OpenAIHandler 保持一致
@@ -128,7 +179,12 @@ export class AnthropicHandler {
             const { messages: anthropicMessages, system } = apiMessageToAnthropicMessage(modelConfig, messages);
 
             // 准备工具定义
-            const tools: Anthropic.Messages.Tool[] = options.tools ? convertToAnthropicTools([...options.tools]) : [];
+            const tools: Anthropic.Messages.ToolUnion[] = options.tools
+                ? convertToAnthropicTools([...options.tools])
+                : [];
+            if (modelConfig.webSearchTool && !tools.some(tool => tool.name === 'web_search')) {
+                tools.push(this.createAnthropicWebSearchTool());
+            }
 
             // 使用模型配置中的 model 字段，如果没有则使用 model.id
             const modelId = modelConfig.model || modelConfig.id;
@@ -254,6 +310,8 @@ export class AnthropicHandler {
         streamEndTime?: number;
     }> {
         let pendingToolCall: { toolId?: string; name?: string; jsonInput?: string } | undefined;
+        let pendingServerToolCall: { toolId?: string; name?: string; jsonInput?: string } | undefined;
+        const completedServerToolCalls = new Map<string, { toolId?: string; name?: string; jsonInput?: string }>();
         let usage: Anthropic.Messages.Usage | undefined;
         let responseId: string | undefined;
         // 记录流处理的开始时间（在 message_start 事件中设置）
@@ -269,56 +327,6 @@ export class AnthropicHandler {
                     reporter.flushAll(null);
                     break;
                 }
-
-                // 处理特殊类型 - web_search_tool_result (暂不支持)
-                /*
-                if (
-                    chunk.type === 'content_block_start' &&
-                    'content_block' in chunk &&
-                    chunk.content_block.type === 'web_search_tool_result'
-                ) {
-                    if (!pendingServerToolCall || !pendingServerToolCall.toolId) {
-                        Logger.warn('收到web_search_tool_result但没有待处理的服务器工具调用');
-                        continue;
-                    }
-
-                    const resultBlock = chunk.content_block as Anthropic.Messages.WebSearchToolResultBlock;
-                    // 处理web搜索中的潜在错误
-                    if (!Array.isArray(resultBlock.content)) {
-                        Logger.error(
-                            `Web搜索错误: ${(resultBlock.content as Anthropic.Messages.WebSearchToolResultError).error_code}`
-                        );
-                        continue;
-                    }
-
-                    const results = resultBlock.content.map((result: Anthropic.Messages.WebSearchResultBlock) => ({
-                        type: 'web_search_result',
-                        url: result.url,
-                        title: result.title,
-                        page_age: result.page_age,
-                        encrypted_content: result.encrypted_content
-                    }));
-
-                    // 根据Anthropic的web_search_tool_result规范格式化
-                    const toolResult = {
-                        type: 'web_search_tool_result',
-                        tool_use_id: pendingServerToolCall.toolId,
-                        content: results
-                    };
-
-                    const searchResults = JSON.stringify(toolResult, null, 2);
-
-                    // 向用户报告搜索结果
-                    progress.report(
-                        new vscode.LanguageModelToolResultPart(pendingServerToolCall.toolId!, [
-                            new vscode.LanguageModelTextPart(searchResults)
-                        ])
-                    );
-
-                    pendingServerToolCall = undefined;
-                    continue;
-                }
-                */
 
                 switch (chunk.type) {
                     case 'message_start':
@@ -344,6 +352,40 @@ export class AnthropicHandler {
                                 name: chunk.content_block.name,
                                 jsonInput: ''
                             };
+                        } else if (chunk.content_block.type === 'server_tool_use') {
+                            pendingServerToolCall = {
+                                toolId: chunk.content_block.id,
+                                name: chunk.content_block.name,
+                                jsonInput: JSON.stringify(chunk.content_block.input ?? {})
+                            };
+                        } else if (chunk.content_block.type === 'web_search_tool_result') {
+                            const serverToolCall =
+                                completedServerToolCalls.get(chunk.content_block.tool_use_id) ?? pendingServerToolCall;
+                            if (!serverToolCall?.toolId) {
+                                Logger.warn('收到 web_search_tool_result 但没有对应的 server_tool_use');
+                                break;
+                            }
+
+                            const searchResults = this.formatWebSearchToolResult(chunk.content_block);
+                            // Logger.trace(
+                            //     `[${reporter.getModelName()}] 收到原生 web_search_tool_result: ${searchResults}`
+                            // );
+                            if (!Array.isArray(chunk.content_block.content)) {
+                                Logger.warn(
+                                    `[${reporter.getModelName()}] web_search_tool_result 返回错误: ${chunk.content_block.content.error_code}`
+                                );
+                                completedServerToolCalls.delete(chunk.content_block.tool_use_id);
+                                if (pendingServerToolCall?.toolId === chunk.content_block.tool_use_id) {
+                                    pendingServerToolCall = undefined;
+                                }
+                                break;
+                            }
+
+                            reporter.reportToolResult(serverToolCall.toolId, searchResults);
+                            completedServerToolCalls.delete(chunk.content_block.tool_use_id);
+                            if (pendingServerToolCall?.toolId === chunk.content_block.tool_use_id) {
+                                pendingServerToolCall = undefined;
+                            }
                         }
                         break;
 
@@ -366,10 +408,25 @@ export class AnthropicHandler {
                             } catch {
                                 // JSON 还不完整，继续累积
                             }
+                        } else if (chunk.delta.type === 'input_json_delta' && pendingServerToolCall) {
+                            pendingServerToolCall.jsonInput =
+                                (pendingServerToolCall.jsonInput || '') + chunk.delta.partial_json;
                         } else if (chunk.delta.type === 'thinking_delta') {
                             // 思考内容增量
                             const thinkingDelta = chunk.delta.thinking || '';
                             reporter.bufferThinking(thinkingDelta);
+                        } else if (chunk.delta.type === 'citations_delta') {
+                            if (!('citation' in chunk.delta)) {
+                                break;
+                            }
+
+                            const citationContent = this.formatCitationDelta(chunk.delta.citation);
+                            if (citationContent) {
+                                // Logger.trace(
+                                //     `[${reporter.getModelName()}] 收到 web_search citation: ${citationContent}`
+                                // );
+                                reporter.reportToolResult('citation', citationContent);
+                            }
                         } else if (chunk.delta.type === 'signature_delta') {
                             // 累积签名
                             const signatureDelta = chunk.delta.signature || '';
@@ -384,7 +441,7 @@ export class AnthropicHandler {
                             try {
                                 const jsonInput = pendingToolCall.jsonInput || '{}';
                                 Logger.trace(
-                                    `[${reporter.getModelName()}] content_block_stop 兜底处理工具调用 (${pendingToolCall.name}): ${jsonInput.substring(0, 100)}${jsonInput.length > 100 ? '...' : ''}`
+                                    `[${reporter.getModelName()}] content_block_stop 兜底处理工具调用 (${pendingToolCall.name}): ${jsonInput}`
                                 );
 
                                 let parsedJson: Record<string, unknown>;
@@ -401,6 +458,15 @@ export class AnthropicHandler {
                                 Logger.error(`兜底处理工具调用失败 (${pendingToolCall.name}):`, e);
                             }
                             pendingToolCall = undefined;
+                        } else if (pendingServerToolCall) {
+                            const jsonInput = pendingServerToolCall.jsonInput || '{}';
+                            Logger.trace(
+                                `[${reporter.getModelName()}] server_tool_use 完成 (${pendingServerToolCall.name || 'web_search'}): ${jsonInput}`
+                            );
+                            if (pendingServerToolCall.toolId) {
+                                completedServerToolCalls.set(pendingServerToolCall.toolId, pendingServerToolCall);
+                            }
+                            pendingServerToolCall = undefined;
                         } else {
                             // 思考块结束时输出剩余思考内容和签名
                             reporter.flushThinking('思考块完成');
