@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// #234440
 declare module 'vscode' {
-    export interface ChatPromptReference {
+    export interface TaskExecution {
         /**
-         * When true, the user has indicated at the reference is informational only.
-         * The model should avoid changing or suggesting changes to the reference.
+         * The terminal associated with this task execution, if any.
          */
-        readonly isReadonly?: boolean;
+        terminal?: Terminal;
     }
 }

@@ -6,9 +6,11 @@
 // https://github.com/microsoft/vscode/issues/166971
 
 declare module 'vscode' {
-
-	export namespace workspace {
-
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options?: { readonly isCaseSensitive?: boolean; readonly isReadonly?: boolean | MarkdownString }): Disposable;
-	}
+    export namespace workspace {
+        export function registerFileSystemProvider(
+            scheme: string,
+            provider: FileSystemProvider,
+            options?: { readonly isCaseSensitive?: boolean; readonly isReadonly?: boolean | MarkdownString }
+        ): Disposable;
+    }
 }
