@@ -28,6 +28,7 @@ import { CopilotLogTarget } from './logTarget';
 import { DocumentManager } from './documentManager';
 import { MutableObservableWorkspace } from '@vscode/chat-lib/dist/src/_internal/platform/inlineEdits/common/observableWorkspace';
 import { CopilotTextDocument } from '@vscode/chat-lib/dist/src/_internal/extension/completions-core/vscode-node/lib/src/textDocument';
+import { NullTerminalService } from '@vscode/chat-lib/dist/src/_internal/platform/terminal/common/terminalService';
 import { getCompletionLogger, getConfigManager } from './singletons';
 
 // ========================================================================
@@ -163,6 +164,7 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                 copilotTokenManager: this._authService,
                 telemetrySender: this._telemetrySender,
                 logTarget: this._logTarget,
+                terminalService: new NullTerminalService(),
                 waitForTreatmentVariables: false
             });
 

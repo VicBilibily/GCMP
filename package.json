@@ -896,10 +896,10 @@
         "test": "echo \"No tests specified\" && exit 0"
     },
     "dependencies": {
-        "@anthropic-ai/sdk": "^0.67.0",
+        "@anthropic-ai/sdk": "^0.80.0",
         "@microsoft/tiktokenizer": "^1.0.10",
         "@modelcontextprotocol/sdk": "^1.20.2",
-        "@vscode/chat-lib": "^0.3.0",
+        "@vscode/chat-lib": "^0.41.1",
         "chart.js": "^4.5.1",
         "openai": "^6.7.0"
     },

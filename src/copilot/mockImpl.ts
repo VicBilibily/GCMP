@@ -13,7 +13,10 @@
 import type { AuthenticationGetSessionOptions, AuthenticationSession, ChatRequest, LanguageModelChat } from 'vscode';
 import { IAuthenticationService, IEndpointProvider, ITelemetrySender } from '@vscode/chat-lib';
 import { ICopilotTokenManager } from '@vscode/chat-lib/dist/src/_internal/platform/authentication/common/copilotTokenManager';
-import { CopilotToken } from '@vscode/chat-lib/dist/src/_internal/platform/authentication/common/copilotToken';
+import {
+    CopilotToken,
+    createTestExtendedTokenInfo
+} from '@vscode/chat-lib/dist/src/_internal/platform/authentication/common/copilotToken';
 import { Emitter, Event } from '@vscode/chat-lib/dist/src/_internal/util/vs/base/common/event';
 import { Disposable } from '@vscode/chat-lib/dist/src/_internal/util/vs/base/common/lifecycle';
 import {
@@ -38,14 +41,13 @@ export class AuthenticationService extends Disposable implements IAuthentication
     readonly isMinimalMode = true; // 标识非官方模式，不请求 GHToken
     readonly anyGitHubSession = undefined;
     readonly permissiveGitHubSession = undefined;
-    readonly copilotToken = new CopilotToken({
-        token: `gcmp-token-${Math.ceil(Math.random() * 100)}`,
-        refresh_in: 0,
-        expires_at: 0,
-        username: 'gcmpuser',
-        isVscodeTeamMember: false,
-        copilot_plan: 'individual'
-    });
+    readonly copilotToken = new CopilotToken(
+        createTestExtendedTokenInfo({
+            token: `gcmp-token-${Math.ceil(Math.random() * 100)}`,
+            username: 'gcmpuser',
+            copilot_plan: 'individual'
+        })
+    );
     speculativeDecodingEndpointToken: string | undefined;
 
     private readonly _onDidCopilotTokenRefresh = this._register(new Emitter<void>());
@@ -110,8 +112,11 @@ export class TelemetrySender implements ITelemetrySender {
 /**
  * 端点提供者实现
  */
-export class EndpointProvider implements IEndpointProvider {
+export class EndpointProvider extends Disposable implements IEndpointProvider {
     readonly _serviceBrand: undefined;
+
+    private readonly _onDidModelsRefresh = this._register(new Emitter<void>());
+    readonly onDidModelsRefresh: Event<void> = this._onDidModelsRefresh.event;
 
     async getAllCompletionModels(_forceRefresh?: boolean): Promise<ICompletionModelInformation[]> {
         return [];
