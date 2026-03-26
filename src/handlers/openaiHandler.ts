@@ -9,7 +9,7 @@ import { Logger, VersionManager } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
-import { ModelConfig, ProviderConfig } from '../types/sharedTypes';
+import { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 
@@ -456,6 +456,29 @@ export class OpenAIHandler {
                 Object.assign(createParams, filteredExtraBody);
                 if (Object.keys(filteredExtraBody).length > 0) {
                     Logger.trace(`${model.name} 合并了 extraBody 参数: ${JSON.stringify(filteredExtraBody)}`);
+                }
+            }
+
+            // 根据模型配置设置思考模式和推理长度
+            const settings = options.modelConfiguration as ModelChatResponseOptions;
+            if (settings) {
+                const customParams = createParams as unknown as {
+                    thinking?: { type: string };
+                    reasoning_effort?: string;
+                };
+                if (settings.thinking) {
+                    const thinking: { type: string } = customParams.thinking || { type: 'disabled' };
+                    thinking.type = settings.thinking;
+                    customParams.thinking = thinking;
+                } else if (settings.reasoningEffort) {
+                    const thinking: { type: string } = customParams.thinking || { type: 'enabled' };
+                    thinking.type = 'enabled';
+                    if (settings.reasoningEffort === 'minimal') {
+                        thinking.type = 'disabled';
+                        customParams.reasoning_effort = undefined;
+                    }
+                    customParams.thinking = thinking;
+                    customParams.reasoning_effort = settings.reasoningEffort;
                 }
             }
 

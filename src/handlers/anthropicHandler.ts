@@ -12,7 +12,7 @@ import { Logger } from '../utils/logger';
 import { ConfigManager } from '../utils/configManager';
 import { VersionManager } from '../utils/versionManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
-import type { ModelConfig, ProviderConfig } from '../types/sharedTypes';
+import type { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { getStatefulMarkerAndIndex } from './statefulMarker';
 import { StreamReporter } from './streamReporter';
@@ -210,6 +210,24 @@ export class AnthropicHandler {
                 if (Object.keys(filteredExtraBody).length > 0) {
                     Logger.trace(`${model.name} 合并了 extraBody 参数: ${JSON.stringify(filteredExtraBody)}`);
                 }
+            }
+
+            // 根据模型配置设置思考模式和推理长度
+            const settings = options.modelConfiguration as ModelChatResponseOptions;
+            if (settings?.thinking) {
+                const thinking: { type: string } = createParams.thinking || { type: 'disabled' };
+                thinking.type = settings.thinking;
+                createParams.thinking = thinking as Anthropic.MessageCreateParamsStreaming['thinking'];
+            } else if (settings?.reasoningEffort) {
+                const thinking: { type: string } = createParams.thinking || { type: 'enabled' };
+                thinking.type = 'enabled';
+                const reasoning = createParams.output_config || { effort: 'medium' };
+                reasoning.effort = settings.reasoningEffort as unknown as Anthropic.Messages.OutputConfig['effort'];
+                if (settings.reasoningEffort === 'minimal') {
+                    thinking.type = 'disabled';
+                }
+                createParams.thinking = thinking as Anthropic.MessageCreateParamsStreaming['thinking'];
+                createParams.output_config = reasoning as Anthropic.MessageCreateParamsStreaming['output_config'];
             }
 
             // 添加系统消息（如果有）
