@@ -9,8 +9,9 @@ import {
     LanguageModelChatInformation,
     LanguageModelChatMessage,
     LanguageModelChatProvider,
-    Progress,
-    ProvideLanguageModelChatResponseOptions
+    PrepareLanguageModelChatModelOptions,
+    ProvideLanguageModelChatResponseOptions,
+    Progress
 } from 'vscode';
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
@@ -79,9 +80,14 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
     }
 
     override async provideLanguageModelChatInformation(
-        options: { silent: boolean },
+        options: PrepareLanguageModelChatModelOptions,
         _token: CancellationToken
     ): Promise<LanguageModelChatInformation[]> {
+        if (options.configuration) {
+            // 如果请求中包含 configuration，不返回模型列表
+            return [];
+        }
+
         const hasNormalKey = await ApiKeyManager.hasValidApiKey(this.providerKey);
         const hasCodingKey = await ApiKeyManager.hasValidApiKey('tencent-coding');
         const hasDeepSeekKey = await ApiKeyManager.hasValidApiKey('tencent-deepseek');

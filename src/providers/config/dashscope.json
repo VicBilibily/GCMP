@@ -14,12 +14,10 @@
             "model": "qwen3.5-plus",
             "maxInputTokens": 991000,
             "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
-            },
-            "extraBody": {
-                "thinking": { "type": "disabled" }
             }
         },
         {
@@ -32,6 +30,7 @@
             "model": "qwen3.5-plus",
             "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
+            "endOfLife": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -128,12 +127,10 @@
             "model": "glm-5",
             "maxInputTokens": 200000,
             "maxOutputTokens": 16000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
-            },
-            "extraBody": {
-                "thinking": { "type": "disabled" }
             }
         },
         {
@@ -146,6 +143,7 @@
             "model": "glm-5",
             "maxInputTokens": 200000,
             "maxOutputTokens": 16000,
+            "endOfLife": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -164,12 +162,10 @@
             "model": "glm-4.7",
             "maxInputTokens": 200000,
             "maxOutputTokens": 16000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
-            },
-            "extraBody": {
-                "thinking": { "type": "disabled" }
             }
         },
         {
@@ -182,6 +178,7 @@
             "model": "glm-4.7",
             "maxInputTokens": 200000,
             "maxOutputTokens": 16000,
+            "endOfLife": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -200,12 +197,10 @@
             "model": "kimi-k2.5",
             "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
-            },
-            "extraBody": {
-                "thinking": { "type": "disabled" }
             }
         },
         {
@@ -218,6 +213,7 @@
             "model": "kimi-k2.5",
             "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
+            "endOfLife": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -234,6 +230,7 @@
             "tooltip": "Qwen3.5原生视觉语言系列Plus模型，基于混合架构设计，融合了线性注意力机制与稀疏混合专家模型，实现了更高的推理效率。在多项任务评测中，3.5系列均展现出与当前顶尖前沿模型相媲美的卓越性能，模型效果在纯文本与多模态方面相较3系列均实现飞跃式进步。",
             "maxInputTokens": 991000,
             "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -251,6 +248,7 @@
             "tooltip": "Qwen3.5原生视觉语言系列Plus模型，基于混合架构设计，融合了线性注意力机制与稀疏混合专家模型，实现了更高的推理效率。在多项任务评测中，3.5系列均展现出与当前顶尖前沿模型相媲美的卓越性能，模型效果在纯文本与多模态方面相较3系列均实现飞跃式进步。",
             "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
+            "endOfLife": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -267,6 +265,7 @@
             "tooltip": "Qwen3.5原生视觉语言系列Flash模型，基于混合架构设计，融合了线性注意力机制与稀疏混合专家模型，实现了更高的推理效率。模型效果在纯文本与多模态方面相较3系列均实现飞跃式进步；响应速度快，兼具推理速度和性能。",
             "maxInputTokens": 991000,
             "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -284,6 +283,7 @@
             "tooltip": "Qwen3.5原生视觉语言系列Flash模型，基于混合架构设计，融合了线性注意力机制与稀疏混合专家模型，实现了更高的推理效率。模型效果在纯文本与多模态方面相较3系列均实现飞跃式进步；响应速度快，兼具推理速度和性能。",
             "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
+            "endOfLife": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -348,6 +348,7 @@
             "tooltip": "Qwen3系列Plus模型，实现思考模式和非思考模式的有效融合，可在对话中切换模式。推理能力显著超过QwQ、通用能力显著超过Qwen2.5-Plus，达到同规模业界SOTA水平。",
             "maxInputTokens": 960000,
             "maxOutputTokens": 16000,
+            "thinking": ["disabled", "enabled"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -359,6 +360,7 @@
             "tooltip": "通义千问系列能力均衡的模型，推理效果和速度介于通义千问-Max和通义千问-Turbo之间，适合中等复杂任务。本模型是动态更新版本，模型更新不会提前通知。",
             "maxInputTokens": 960000,
             "maxOutputTokens": 32000,
+            "thinking": ["disabled", "enabled"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -370,6 +372,7 @@
             "tooltip": "Qwen3系列Flash模型，实现思考模式和非思考模式的有效融合，可在对话中切换模式。复杂推理类任务性能优秀，指令遵循、文本理解等能力显著提高。支持1M上下文长度，按照上下文长度进行阶梯计费。",
             "maxInputTokens": 960000,
             "maxOutputTokens": 32000,
+            "thinking": ["disabled", "enabled"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false

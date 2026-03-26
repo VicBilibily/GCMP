@@ -36,10 +36,10 @@
 
 ### [**智谱AI**](https://bigmodel.cn/)
 
-- [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-5-Turbo**(Thinking)、**GLM-5**(Thinking)、**GLM-4.7**(Thinking)、**GLM-4.6**、**GLM-4.6V**(Thinking)、**GLM-4.5-Air**
+- [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-5-Turbo**、**GLM-5**、**GLM-4.7**、**GLM-4.6**、**GLM-4.6V**、**GLM-4.5-Air**
     - **用量查询**：已支持状态栏显示周期剩余用量，可查看 GLM Coding Plan 用量信息。
-- **按量计费**：**GLM-5-Turbo**(Thinking)、**GLM-5**(Thinking)、**GLM-4.7**、**GLM-4.7-FlashX**、**GLM-4.6**、**GLM-4.6V**、**GLM-4.5-Air**
-- **免费模型**：**GLM-4.7-Flash**、**GLM-4.6V-Flash**
+- **按量计费**：**GLM-5-Turbo**、**GLM-5**、**GLM-4.7**、**GLM-4.7-Flash**、**GLM-4.6**、**GLM-4.6V**、**GLM-4.5-Air**
+- **免费模型**：**GLM-4.6V-Flash**、**GLM-4.7-FlashX**
 - [**国际站点**](https://z.ai/model-api)：已支持国际站(z.ai)切换设置。
 - **搜索功能**：集成 `联网搜索MCP` 及 `Web Search API`，支持 `#zhipuWebSearch` 进行联网搜索。
     - 默认启用 `联网搜索MCP` 模式，编程套餐支持：Lite(100次/月)、Pro(1000次/月)、Max(4000次/月)。
@@ -92,7 +92,7 @@
 - [**Coding Plan 编程套餐**](https://cloud.tencent.com/act/pro/codingplan)：
     - 混元模型：**Tencent HY 2.0 Instruct**、**Tencent HY 2.0 Think**、**Hunyuan-T1**、**Hunyuan-TurboS**
     - 开源模型：**GLM-5**(Thinking)、**Kimi-K2.5**(Thinking)、**MiniMax-M2.5**
-- **DeepSeek API**：**DeepSeek-V3.2**(Thinking)
+- **DeepSeek API**：**DeepSeek-V3.2**
 - **密钥配置**：腾讯云API密钥分为 [腾讯云付费模型 API Key](https://hunyuan.cloud.tencent.com/#/app/apiKeyManage)、[Coding Plan 专用 API Key](https://hunyuan.cloud.tencent.com/#/app/subscription)、[DeepSeek 专用 API Key](https://console.cloud.tencent.com/lkeap/api)，需要进入正确的密钥获取界面生成密钥。
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)

@@ -119,6 +119,42 @@
                     "minLength": 1,
                     "description": "当与 ID 不同时的可选请求模型名称。"
                 },
+                "thinking": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": ["disabled", "enabled", "auto", "adaptive"],
+                        "enumDescriptions": [
+                            "强制关闭深度思考能力，模型不输出思维链内容",
+                            "强制开启深度思考能力，模型强制输出思维链内容",
+                            "模型自行判断是否需要进行深度思考",
+                            "模型根据上下文自适应调整深度思考模式"
+                        ]
+                    },
+                    "description": "深度思考配置，控制模型是否输出思维链内容"
+                },
+                "reasoningEffort": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": ["none", "minimal", "low", "medium", "high", "max"],
+                        "enumDescriptions": [
+                            "关闭思考，直接回答",
+                            "关闭思考，直接回答",
+                            "轻量思考，侧重快速响应",
+                            "均衡模式，兼顾速度与深度",
+                            "深度分析，处理复杂问题",
+                            "绝对最高能力，对 token 消耗没有限制"
+                        ]
+                    },
+                    "description": "调节思维链长度，平衡不同场景对效果、时延、成本的需求"
+                },
+                "endOfLife": {
+                    "type": "boolean",
+                    "enum": [true],
+                    "default": true,
+                    "description": "将该模型标记为即将淘汰（EOL）。"
+                },
                 "customHeader": {
                     "type": "object",
                     "description": "可选的自定义HTTP头部，将在API请求中附加。",

@@ -62,8 +62,8 @@
             "model": "glm-5",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "extraBody": { "thinking": { "type": "disabled" } }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-5-thinking-coding-plan",
@@ -75,6 +75,7 @@
             "model": "glm-5",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
+            "endOfLife": true,
             "capabilities": { "toolCalling": true, "imageInput": false },
             "extraBody": { "thinking": { "type": "enabled" } }
         },
@@ -99,8 +100,8 @@
             "model": "kimi-k2.5",
             "maxInputTokens": 256000,
             "maxOutputTokens": 256000,
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "extraBody": { "thinking": { "type": "disabled" } }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "kimi-k2.5-thinking-coding-plan",
@@ -111,6 +112,7 @@
             "model": "kimi-k2.5",
             "maxInputTokens": 256000,
             "maxOutputTokens": 256000,
+            "endOfLife": true,
             "capabilities": { "toolCalling": true, "imageInput": true },
             "extraBody": { "thinking": { "type": "enabled" } }
         },
@@ -157,8 +159,8 @@
             "baseUrl": "https://api.lkeap.cloud.tencent.com/v3",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "extraBody": { "thinking": { "type": "disabled" } }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-5-thinking",
@@ -170,6 +172,7 @@
             "model": "glm-5",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
+            "endOfLife": true,
             "capabilities": { "toolCalling": true, "imageInput": false },
             "extraBody": { "thinking": { "type": "enabled" } }
         },
@@ -193,8 +196,8 @@
             "baseUrl": "https://api.lkeap.cloud.tencent.com/v3",
             "maxInputTokens": 256000,
             "maxOutputTokens": 256000,
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "extraBody": { "thinking": { "type": "disabled" } }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "kimi-k2.5-thinking",
@@ -206,6 +209,7 @@
             "model": "kimi-k2.5",
             "maxInputTokens": 256000,
             "maxOutputTokens": 256000,
+            "endOfLife": true,
             "capabilities": { "toolCalling": true, "imageInput": true },
             "extraBody": { "thinking": { "type": "enabled" } }
         },
@@ -218,8 +222,8 @@
             "baseUrl": "https://api.lkeap.cloud.tencent.com/v1",
             "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "extraBody": { "thinking": { "type": "disabled" } }
+            "thinking": ["disabled", "enabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "deepseek-v3.2-thinking",
@@ -231,6 +235,7 @@
             "model": "deepseek-v3.2",
             "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
+            "endOfLife": true,
             "capabilities": { "toolCalling": true, "imageInput": false },
             "extraBody": { "thinking": { "type": "enabled" } }
         }

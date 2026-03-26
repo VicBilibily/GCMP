@@ -8,7 +8,7 @@ import * as crypto from 'node:crypto';
 import OpenAI, { ClientOptions } from 'openai';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { Logger } from '../utils/logger';
-import { ModelConfig } from '../types/sharedTypes';
+import { ModelChatResponseOptions, ModelConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { getStatefulMarkerAndIndex } from './statefulMarker';
 import { StreamReporter } from './streamReporter';
@@ -553,6 +553,33 @@ export class OpenAIResponsesHandler {
                     // 过滤掉不可修改的核心参数
                     const filteredExtraBody = this.filterExtraBodyParams(modelConfig.extraBody);
                     Object.assign(requestBody, filteredExtraBody);
+                }
+
+                // 根据模型配置设置思考模式和推理长度
+                const settings = options.modelConfiguration as ModelChatResponseOptions;
+                if (settings) {
+                    const customParams = requestBody as unknown as {
+                        thinking?: { type: string };
+                        reasoning?: { effort: string };
+                    };
+                    if (settings.thinking) {
+                        const thinking: { type: string } = customParams.thinking || { type: 'disabled' };
+                        thinking.type = settings.thinking;
+                        customParams.thinking = thinking;
+                    } else if (settings.reasoningEffort) {
+                        const thinking: { type: string } = customParams.thinking || { type: 'enabled' };
+                        thinking.type = 'enabled';
+                        const reasoning = customParams.reasoning || { effort: 'medium' };
+                        reasoning.effort = settings.reasoningEffort as string;
+                        if (settings.reasoningEffort === 'minimal') {
+                            thinking.type = 'disabled';
+                        }
+                        customParams.thinking = thinking;
+                        customParams.reasoning = reasoning;
+                        if (model.id.toLowerCase().includes('gpt')) {
+                            customParams.thinking = undefined;
+                        }
+                    }
                 }
 
                 // 调用 Responses API 的流式方法

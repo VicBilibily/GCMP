@@ -3,6 +3,27 @@
  *  支持多提供商的通用类型定义
  *--------------------------------------------------------------------------------------------*/
 
+export interface ModelChatResponseOptions {
+    /**
+     * 深度思考模式
+     * - disabled: 强制关闭深度思考能力，模型不输出思维链内容
+     * - enabled: 强制开启深度思考能力，模型强制输出思维链内容
+     * - auto: 模型自行判断是否需要进行深度思考
+     * - adaptive: 模型根据上下文自适应调整深度思考模式
+     */
+    readonly thinking?: 'disabled' | 'enabled' | 'auto' | 'adaptive';
+    /**
+     * 思维链长度调节
+     * - none: 关闭思考，直接回答
+     * - minimal: 关闭思考，直接回答
+     * - low: 轻量思考，侧重快速响应
+     * - medium: 均衡模式，兼顾速度与深度
+     * - high: 深度分析，处理复杂问题
+     * - max: 绝对最高能力，对 token 消耗没有限制
+     */
+    readonly reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'max';
+}
+
 /**
  * 模型配置接口
  */
@@ -54,6 +75,26 @@ export interface ModelConfig {
      * - gemini-sse → gemini-3-pro
      */
     family?: string;
+    /**
+     * 深度思考模式选项列表（可选）
+     * 用于 UI 配置选择，决定用户可选择的思考模式范围：
+     * - disabled: 强制关闭深度思考能力，模型不输出思维链内容
+     * - enabled: 强制开启深度思考能力，模型强制输出思维链内容
+     * - auto: 模型自行判断是否需要进行深度思考
+     */
+    thinking?: Required<ModelChatResponseOptions>['thinking'][];
+    /**
+     * 思维链长度调节选项列表（可选）
+     * 用于 UI 配置选择，平衡不同场景对效果、时延、成本的需求：
+     * - none: 关闭思考，直接回答
+     * - minimal: 关闭思考，直接回答
+     * - low: 轻量思考，侧重快速响应
+     * - medium: 均衡模式，兼顾速度与深度
+     * - high: 深度分析，处理复杂问题
+     */
+    reasoningEffort?: Required<ModelChatResponseOptions>['reasoningEffort'][];
+    /** 内置模型即将移除 */
+    endOfLife?: true;
     /**
      * 模型特定的自定义HTTP头部（可选）
      * 如果提供，将在API请求中附加这些自定义头部

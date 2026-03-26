@@ -13,6 +13,7 @@
             "tooltip": "Kimi For Coding - 月之暗面推出的专业编程模型，提供强大的代码生成和理解能力",
             "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -21,9 +22,6 @@
                 "HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
                 "X-Title": "Roo Code",
                 "User-Agent": "RooCode/3.51.1"
-            },
-            "extraBody": {
-                "thinking": { "type": "disabled" }
             }
         },
         {
@@ -36,6 +34,7 @@
             "tooltip": "Kimi For Coding - 月之暗面推出的专业编程模型，提供强大的代码生成和理解能力",
             "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
+            "endOfLife": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -57,12 +56,10 @@
             "tooltip": "Kimi K2.5 是 Kimi 迄今最智能的模型，在 Agent、代码、视觉理解及一系列通用智能任务上取得开源 SoTA 表现。同时 Kimi K2.5 也是 Kimi 迄今最全能的模型，原生的多模态架构设计，同时支持视觉与文本输入、思考与非思考模式、对话与 Agent 任务。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
-            },
-            "extraBody": {
-                "thinking": { "type": "disabled" }
             }
         },
         {
@@ -74,6 +71,7 @@
             "tooltip": "Kimi K2.5 是 Kimi 迄今最智能的模型，在 Agent、代码、视觉理解及一系列通用智能任务上取得开源 SoTA 表现。同时 Kimi K2.5 也是 Kimi 迄今最全能的模型，原生的多模态架构设计，同时支持视觉与文本输入、思考与非思考模式、对话与 Agent 任务。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
+            "endOfLife": true,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true

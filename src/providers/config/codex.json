@@ -16,6 +16,7 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "useInstructions": true,
+            "reasoningEffort": ["none", "low", "medium", "high"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -37,6 +38,7 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "useInstructions": true,
+            "reasoningEffort": ["none", "low", "medium", "high"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -58,6 +60,7 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "useInstructions": true,
+            "reasoningEffort": ["none", "low", "medium", "high"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -79,6 +82,7 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "useInstructions": true,
+            "reasoningEffort": ["none", "low", "medium", "high"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -100,6 +104,7 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "useInstructions": true,
+            "reasoningEffort": ["none", "low", "medium", "high"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true

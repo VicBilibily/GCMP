@@ -22,6 +22,7 @@ import { GeminiHandler } from '../handlers/geminiHandler';
 import { ContextUsageStatusBar } from '../status/contextUsageStatusBar';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { OpenAIResponsesHandler } from '../handlers/openaiResponsesHandler';
+import { JSONSchema7 } from 'json-schema';
 
 /**
  * 通用模型提供商类
@@ -147,16 +148,84 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         if (ConfigManager.getAutoPrefixModelId()) {
             modelId = `${model.provider || this.providerKey}:::${modelId}`;
         }
+
+        // 动态构建 configurationSchema
+        type PropertySchema = JSONSchema7 & NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string];
+        const properties: Record<string, PropertySchema> = {};
+        // 根据模型配置添加 thinking 选项
+        if (model.thinking && model.thinking.length > 0) {
+            const schema: PropertySchema = {
+                type: 'string',
+                title: '深度思考',
+                enum: model.thinking,
+                enumItemLabels: model.thinking.map(
+                    t => ({ disabled: '关', enabled: '开', auto: 'Auto', adaptive: 'Adaptive' })[t] || t
+                ),
+                enumDescriptions: model.thinking.map(
+                    t =>
+                        ({
+                            disabled: '关闭思考模式',
+                            enabled: '开启思考模式',
+                            auto: '模型自行判断',
+                            adaptive: '上下文自适应'
+                        })[t] || t
+                ),
+                default: model.thinking[0],
+                group: 'navigation'
+            };
+            if (model.thinking?.includes('auto')) {
+                schema.default = 'auto';
+            } else if (model.thinking?.includes('adaptive')) {
+                schema.default = 'adaptive';
+            }
+            properties.thinking = schema;
+        }
+        // 根据模型配置添加 reasoningEffort 选项
+        if (model.reasoningEffort && model.reasoningEffort.length > 0) {
+            delete properties.thinking; // 与 thinking 选项冲突
+            const schema: PropertySchema = {
+                type: 'string',
+                title: '思考长度',
+                enum: model.reasoningEffort,
+                enumItemLabels: model.reasoningEffort.map(
+                    level =>
+                        ({ none: '关', minimal: '关', low: '低', medium: '中', high: '高', max: '超' })[level] || level
+                ),
+                enumDescriptions: model.reasoningEffort.map(
+                    level =>
+                        ({
+                            none: '关闭思考，直接回答',
+                            minimal: '关闭思考，直接回答',
+                            low: '轻量思考，快速响应',
+                            medium: '均衡模式，兼顾速度与深度',
+                            high: '深度分析，处理复杂问题',
+                            max: '绝对最高能力，对 token 消耗没有限制'
+                        })[level] || level
+                ),
+                default: model.reasoningEffort[0],
+                group: 'navigation'
+            };
+            if (model.reasoningEffort?.includes('medium')) {
+                schema.default = 'medium';
+            }
+            properties.reasoningEffort = schema;
+        }
+
         const info: LanguageModelChatInformation = {
             id: modelId,
             name: model.name,
             detail: this.providerConfig.displayName,
-            tooltip: model.tooltip,
+            tooltip: model.endOfLife
+                ? '此模型变体将在后续版本中移除，请切换并使用原始模型，然后按需调整思考模式或思考长度。'
+                : model.tooltip,
             family: family,
             maxInputTokens: model.maxInputTokens,
             maxOutputTokens: model.maxOutputTokens,
             version: model.id,
-            capabilities: model.capabilities
+            category: { label: this.providerConfig.displayName, order: 3 },
+            capabilities: model.capabilities,
+            statusIcon: model.endOfLife ? new vscode.ThemeIcon('warning') : undefined,
+            configurationSchema: Object.keys(properties).length > 0 ? { properties } : undefined
         };
         return info;
     }
@@ -227,11 +296,18 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         }
     }
 
+    static configedProviders = new Set<string>();
+
     async provideLanguageModelChatInformation(
         options: PrepareLanguageModelChatModelOptions,
         _token: CancellationToken
     ): Promise<LanguageModelChatInformation[]> {
-        Logger.trace(`[${this.providerKey}] 提供模型列表请求，选项: ` + JSON.stringify(options));
+        // Logger.trace(`[${this.providerKey}] 提供模型列表请求，选项: ` + JSON.stringify(options));
+
+        if (options.configuration) {
+            // 如果请求中包含 configuration，不返回模型列表
+            return [];
+        }
 
         // 检查 API 密钥
         const hasApiKey = await ApiKeyManager.hasValidApiKey(this.providerKey);

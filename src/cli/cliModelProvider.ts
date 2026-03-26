@@ -10,7 +10,8 @@ import {
     LanguageModelChatInformation,
     ProvideLanguageModelChatResponseOptions,
     Progress,
-    CancellationToken
+    CancellationToken,
+    PrepareLanguageModelChatModelOptions
 } from 'vscode';
 import { ProviderConfig } from '../types/sharedTypes';
 import { ApiKeyManager, Logger } from '../utils';
@@ -34,9 +35,14 @@ export class CliModelProvider extends GenericModelProvider {
      * 当没有 API 密钥时，启动配置向导而不是要求输入 API 密钥
      */
     async provideLanguageModelChatInformation(
-        options: { silent: boolean },
+        options: PrepareLanguageModelChatModelOptions & { silent: boolean },
         token: vscode.CancellationToken
     ): Promise<vscode.LanguageModelChatInformation[]> {
+        if (options.configuration) {
+            // 如果请求中包含 configuration，不返回模型列表
+            return [];
+        }
+
         // 检查是否有有效的 API 密钥
         let hasApiKey: boolean;
         if (options.silent) {

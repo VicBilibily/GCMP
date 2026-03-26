@@ -9,7 +9,7 @@ import { Logger, VersionManager } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
-import { ModelConfig, ProviderConfig } from '../types/sharedTypes';
+import { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 
@@ -456,6 +456,25 @@ export class OpenAIHandler {
                 Object.assign(createParams, filteredExtraBody);
                 if (Object.keys(filteredExtraBody).length > 0) {
                     Logger.trace(`${model.name} 合并了 extraBody 参数: ${JSON.stringify(filteredExtraBody)}`);
+                }
+            }
+
+            // 根据模型配置设置思考模式和推理长度
+            const settings = options.modelConfiguration as ModelChatResponseOptions;
+            if (settings) {
+                const customParams = createParams as unknown as {
+                    enable_thinking?: boolean;
+                    reasoning_effort?: string;
+                };
+                if (settings.thinking) {
+                    if (settings.thinking === 'enabled') {
+                        customParams.enable_thinking = true;
+                    } else {
+                        customParams.enable_thinking = undefined;
+                    }
+                } else if (settings.reasoningEffort) {
+                    customParams.reasoning_effort =
+                        settings.reasoningEffort !== 'minimal' ? settings.reasoningEffort : undefined;
                 }
             }
 

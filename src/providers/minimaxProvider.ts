@@ -9,8 +9,9 @@ import {
     LanguageModelChatInformation,
     LanguageModelChatMessage,
     LanguageModelChatProvider,
-    Progress,
-    ProvideLanguageModelChatResponseOptions
+    PrepareLanguageModelChatModelOptions,
+    ProvideLanguageModelChatResponseOptions,
+    Progress
 } from 'vscode';
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
@@ -161,9 +162,14 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
      * 具体的密钥验证在实际使用时（provideLanguageModelChatResponse）进行
      */
     override async provideLanguageModelChatInformation(
-        options: { silent: boolean },
+        options: PrepareLanguageModelChatModelOptions,
         _token: CancellationToken
     ): Promise<LanguageModelChatInformation[]> {
+        if (options.configuration) {
+            // 如果请求中包含 configuration，不返回模型列表
+            return [];
+        }
+
         // 检查是否有任意密钥
         const hasNormalKey = await ApiKeyManager.hasValidApiKey(this.providerKey);
         const hasCodingKey = await ApiKeyManager.hasValidApiKey('minimax-coding');

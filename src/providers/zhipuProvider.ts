@@ -9,6 +9,7 @@ import {
     LanguageModelChatMessage,
     LanguageModelChatInformation,
     ProvideLanguageModelChatResponseOptions,
+    PrepareLanguageModelChatModelOptions,
     Progress,
     CancellationToken
 } from 'vscode';
@@ -76,9 +77,14 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
      * 临时重写 provideLanguageModelChatInformation 以支持非静默模式触发向导
      */
     override async provideLanguageModelChatInformation(
-        options: { silent: boolean },
+        options: PrepareLanguageModelChatModelOptions,
         _token: CancellationToken
     ): Promise<LanguageModelChatInformation[]> {
+        if (options.configuration) {
+            // 如果请求中包含 configuration，不返回模型列表
+            return [];
+        }
+
         if (!options.silent) {
             await vscode.commands.executeCommand(`gcmp.${this.providerKey}.configWizard`);
             return super.provideLanguageModelChatInformation({ silent: true }, _token);
