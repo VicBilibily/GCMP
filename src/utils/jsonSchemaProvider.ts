@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { ProviderConfig } from '../types/sharedTypes';
 import { ConfigManager } from './configManager';
+import { GCMPProviderConfigManager } from './gcmpProviderConfigManager';
 import { Logger } from './logger';
 import type { JSONSchema7 } from 'json-schema';
 import { KnownProviders } from './knownProviders';
@@ -27,7 +28,7 @@ declare module 'json-schema' {
  * 动态生成 GCMP 配置的 JSON Schema，为 settings.json 提供智能提示
  */
 export class JsonSchemaProvider {
-    private static readonly SCHEMA_URI = 'gcmp-settings://root/schema.json';
+    private static readonly SCHEMA_URI = 'gcmp://root/schema.json';
     private static readonly SCHEMA_VSCODE_URI = vscode.Uri.parse(JsonSchemaProvider.SCHEMA_URI);
     private static fsProviderDisposable: vscode.Disposable | null = null;
     private static onDidChangeFileEmitter: vscode.EventEmitter<vscode.FileChangeEvent[]> | null = null;
@@ -38,10 +39,10 @@ export class JsonSchemaProvider {
     private static schemaMtime = Date.now();
 
     private static isSchemaUri(uri: vscode.Uri): boolean {
-        return uri.scheme === 'gcmp-settings' && uri.authority === 'root' && uri.path === '/schema.json';
+        return uri.scheme === 'gcmp' && uri.authority === 'root' && uri.path === '/schema.json';
     }
     private static throwReadOnly(): never {
-        throw vscode.FileSystemError.NoPermissions('gcmp-settings is read-only');
+        throw vscode.FileSystemError.NoPermissions('gcmp is read-only');
     }
 
     /**
@@ -83,11 +84,7 @@ export class JsonSchemaProvider {
             },
             readDirectory: (uri: vscode.Uri) => {
                 // 仅支持 root 目录
-                if (
-                    uri.scheme !== 'gcmp-settings' ||
-                    uri.authority !== 'root' ||
-                    (uri.path !== '/' && uri.path !== '')
-                ) {
+                if (uri.scheme !== 'gcmp' || uri.authority !== 'root' || (uri.path !== '/' && uri.path !== '')) {
                     throw vscode.FileSystemError.FileNotFound(uri);
                 }
                 return [['schema.json', vscode.FileType.File]];
@@ -106,7 +103,7 @@ export class JsonSchemaProvider {
             rename: () => this.throwReadOnly()
         };
 
-        this.fsProviderDisposable = vscode.workspace.registerFileSystemProvider('gcmp-settings', provider, {
+        this.fsProviderDisposable = vscode.workspace.registerFileSystemProvider('gcmp', provider, {
             isReadonly: true,
             isCaseSensitive: true
         });
@@ -173,6 +170,181 @@ export class JsonSchemaProvider {
         };
     }
 
+    private static getUnifiedProviderConfigSchema(): JSONSchema7 {
+        const knownProviderIds = GCMPProviderConfigManager.getProviderIds();
+        const knownProviderDescription =
+            knownProviderIds.length > 0
+                ? `预置 provider: ${knownProviderIds.join(', ')}`
+                : '可通过任意 provider key 新增 provider';
+
+        return {
+            type: 'object',
+            description:
+                '实验性统一 Provider 配置。键为 provider 标识符，值为 provider 配置。已知 provider 可直接覆盖，未知 provider 会作为新 provider 添加。\n' +
+                knownProviderDescription,
+            propertyNames: {
+                type: 'string',
+                pattern: '^[a-zA-Z0-9_-]+$',
+                description: 'provider 标识符，只允许字母、数字、下划线与连字符'
+            },
+            additionalProperties: this.getUnifiedSingleProviderSchema()
+        };
+    }
+
+    private static getUnifiedSingleProviderSchema(): JSONSchema7 {
+        return {
+            type: 'object',
+            properties: {
+                displayName: {
+                    type: 'string',
+                    description: 'provider 显示名称'
+                },
+                baseUrl: {
+                    type: 'string',
+                    description: 'provider 默认 API Base URL',
+                    format: 'uri'
+                },
+                apiKeyTemplate: {
+                    type: 'string',
+                    description: 'API Key 输入提示模板'
+                },
+                codingKeyTemplate: {
+                    type: 'string',
+                    description: '额外密钥输入提示模板（如果 provider 需要）'
+                },
+                customHeader: {
+                    type: 'object',
+                    description: 'provider 级自定义请求头',
+                    additionalProperties: {
+                        type: 'string'
+                    }
+                },
+                openai: this.getUnifiedStrategySchema('OpenAI 兼容策略'),
+                anthropic: this.getUnifiedStrategySchema('Anthropic 兼容策略'),
+                models: {
+                    type: 'array',
+                    description: '该 provider 下暴露的模型列表',
+                    items: this.getUnifiedModelSchema()
+                }
+            },
+            additionalProperties: false
+        };
+    }
+
+    private static getUnifiedStrategySchema(title: string): JSONSchema7 {
+        return {
+            type: 'object',
+            description: title,
+            properties: {
+                baseUrl: {
+                    type: 'string',
+                    format: 'uri',
+                    description: '针对该协议模式的默认 Base URL'
+                },
+                customHeader: {
+                    type: 'object',
+                    description: '协议模式级自定义请求头',
+                    additionalProperties: {
+                        type: 'string'
+                    }
+                },
+                extraBody: {
+                    type: 'object',
+                    description: '协议模式级额外请求体字段',
+                    additionalProperties: true
+                }
+            },
+            additionalProperties: false
+        };
+    }
+
+    private static getUnifiedModelSchema(): JSONSchema7 {
+        return {
+            type: 'object',
+            properties: {
+                id: {
+                    type: 'string',
+                    description: '模型 ID',
+                    minLength: 1
+                },
+                name: {
+                    type: 'string',
+                    description: '模型显示名称'
+                },
+                tooltip: {
+                    type: 'string',
+                    description: '模型描述'
+                },
+                sdkMode: {
+                    type: 'string',
+                    enum: ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini-sse'],
+                    description: '模型的请求协议模式',
+                    default: 'openai'
+                },
+                baseUrl: {
+                    type: 'string',
+                    format: 'uri',
+                    description: '模型级 Base URL，优先级高于 provider 级 baseUrl'
+                },
+                endpoint: {
+                    type: 'string',
+                    description: '模型级自定义请求端点'
+                },
+                model: {
+                    type: 'string',
+                    description: '请求时实际发送给上游的模型名'
+                },
+                family: this.getFamilySchema(),
+                maxInputTokens: {
+                    type: 'number',
+                    description: '最大输入 token',
+                    minimum: 128
+                },
+                maxOutputTokens: {
+                    type: 'number',
+                    description: '最大输出 token',
+                    minimum: 8
+                },
+                capabilities: {
+                    type: 'object',
+                    properties: {
+                        toolCalling: {
+                            type: 'boolean',
+                            description: '是否支持工具调用'
+                        },
+                        imageInput: {
+                            type: 'boolean',
+                            description: '是否支持图像输入'
+                        }
+                    },
+                    additionalProperties: false
+                },
+                customHeader: {
+                    type: 'object',
+                    description: '模型级自定义请求头',
+                    additionalProperties: {
+                        type: 'string'
+                    }
+                },
+                extraBody: {
+                    type: 'object',
+                    description: '模型级额外请求体字段',
+                    additionalProperties: true
+                },
+                useInstructions: {
+                    type: 'boolean',
+                    description: 'Responses API 下是否使用 instructions 字段'
+                },
+                webSearchTool: {
+                    type: 'boolean',
+                    description: 'Anthropic 模式下是否启用原生 web_search 工具'
+                }
+            },
+            required: ['id'],
+            additionalProperties: false
+        };
+    }
+
     /**
      * 获取 GCMP 配置的完整 JSON Schema
      * 为 settings.json 提供智能提示和验证
@@ -205,6 +377,7 @@ export class JsonSchemaProvider {
             description: 'Schema for GCMP configuration with dynamic model ID suggestions',
             type: 'object',
             properties: {
+                'gcmp.providerConfig': this.getUnifiedProviderConfigSchema(),
                 'gcmp.providerOverrides': {
                     type: 'object',
                     description:
@@ -775,6 +948,15 @@ export class JsonSchemaProvider {
             const customModels = CompatibleModelManager.getModels();
             const customProviders = new Set<string>();
 
+            for (const providerId of GCMPProviderConfigManager.getProviderIds()) {
+                const normalizedId = providerId.trim().toLowerCase();
+                if (!normalizedId || providerIds.map(id => id.toLowerCase()).includes(normalizedId)) {
+                    continue;
+                }
+                providerIds.push(providerId);
+                enumDescriptions.push(GCMPProviderConfigManager.getProviderDisplayName(providerId));
+            }
+
             for (const model of customModels) {
                 const p = (model.provider || '').trim().toLowerCase();
                 if (
@@ -826,6 +1008,15 @@ export class JsonSchemaProvider {
             commitProviderDescriptions.push('OpenAI / Anthropic Compatible');
         }
         providerModelIdsMap['compatible'] = compatibleModelIds;
+
+        const experimentalModelIds = GCMPProviderConfigManager.getFlattenedModels()
+            .map(model => model.id)
+            .filter(Boolean);
+        if (!commitProviderIds.includes('gcmp')) {
+            commitProviderIds.push('gcmp');
+            commitProviderDescriptions.push('GCMP Experimental');
+        }
+        providerModelIdsMap['gcmp'] = experimentalModelIds;
 
         const base: JSONSchema7 = {
             type: 'object',

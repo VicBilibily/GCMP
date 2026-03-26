@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云、Xiaomi MiMo 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.20.11",
+    "version": "0.22.0-p1",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -55,6 +55,7 @@
     ],
     "activationEvents": [
         "onStartupFinished",
+        "onLanguageModelProvider:gcmp",
         "onLanguageModelProvider:gcmp.zhipu",
         "onLanguageModelProvider:gcmp.minimax",
         "onLanguageModelProvider:gcmp.moonshot",
@@ -70,7 +71,7 @@
         "onLanguageModelProvider:gcmp.compatible",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
         "onLanguageModelTool:gcmp_minimaxWebSearch",
-        "onFileSystem:gcmp-settings"
+        "onFileSystem:gcmp"
     ],
     "contributes": {
         "commands": [
@@ -538,6 +539,12 @@
                     "description": "提供商配置覆盖。允许覆盖提供商的baseUrl和模型配置，支持添加新模型或覆盖现有模型的参数。",
                     "scope": "application"
                 },
+                "gcmp.providerConfig": {
+                    "type": "object",
+                    "default": {},
+                    "description": "实验性统一 Provider 配置。使用 provider-first 结构定义或覆盖预置 provider，所有 provider 与 models 均通过此对象配置。",
+                    "scope": "application"
+                },
                 "gcmp.compatibleModels": {
                     "type": "array",
                     "default": [],
@@ -549,10 +556,14 @@
         "jsonValidation": [
             {
                 "fileMatch": "settings.json",
-                "url": "gcmp-settings://root/schema.json"
+                "url": "gcmp://root/schema.json"
             }
         ],
         "languageModelChatProviders": [
+            {
+                "vendor": "gcmp",
+                "displayName": "GCMP Experimental"
+            },
             {
                 "vendor": "gcmp.zhipu",
                 "displayName": "⦿ 智谱AI (GLM Coding Plan)",

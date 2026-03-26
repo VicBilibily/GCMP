@@ -7,9 +7,10 @@ import { MiniMaxProvider } from './providers/minimaxProvider';
 import { DashscopeProvider } from './providers/dashscopeProvider';
 import { TencentProvider } from './providers/tencentProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
+import { GCMPProvider } from './providers/gcmpProvider';
 import { InlineCompletionShim } from './copilot/inlineCompletionShim';
 import { Logger, StatusLogger, CompletionLogger, TokenCounter } from './utils';
-import { ApiKeyManager, ConfigManager, JsonSchemaProvider } from './utils';
+import { ApiKeyManager, ConfigManager, GCMPProviderConfigManager, JsonSchemaProvider } from './utils';
 import { registerCliAuthCommands } from './cli/cliAuthCommands';
 import { TokenUsagesManager } from './usages/usagesManager';
 import { TokenUsagesView } from './ui/usagesView';
@@ -30,6 +31,7 @@ const registeredProviders: Record<
     | CliModelProvider
     | MiniMaxProvider
     | TencentProvider
+    | GCMPProvider
     | CompatibleProvider
 > = {};
 const registeredDisposables: vscode.Disposable[] = [];
@@ -162,6 +164,25 @@ async function activateCompatibleProvider(context: vscode.ExtensionContext): Pro
 }
 
 /**
+ * 激活实验性统一 gcmp 提供商
+ */
+async function activateGCMPProvider(context: vscode.ExtensionContext): Promise<void> {
+    try {
+        Logger.trace('正在注册实验性统一 gcmp 提供商...');
+        const providerStartTime = Date.now();
+
+        const result = GCMPProvider.createAndActivate(context);
+        registeredProviders['gcmp'] = result.provider;
+        registeredDisposables.push(...result.disposables);
+
+        const providerTime = Date.now() - providerStartTime;
+        Logger.debug(`✅ 实验性 gcmp 提供商注册成功 (耗时: ${providerTime}ms)`);
+    } catch (error) {
+        Logger.error('❌ 注册实验性统一 gcmp 提供商失败:', error);
+    }
+}
+
+/**
  * 激活内联补全提供商（轻量级 Shim，延迟加载真正的补全引擎）
  */
 async function activateInlineCompletionProvider(context: vscode.ExtensionContext): Promise<void> {
@@ -223,6 +244,11 @@ export async function activate(context: vscode.ExtensionContext) {
         const configDisposable = ConfigManager.initialize();
         context.subscriptions.push(configDisposable);
         Logger.trace(`⏱️ 配置管理器初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        // 步骤2.1: 初始化实验性 gcmp provider 配置管理器
+        stepStartTime = Date.now();
+        GCMPProviderConfigManager.initialize();
+        context.subscriptions.push({ dispose: () => GCMPProviderConfigManager.dispose() });
+        Logger.trace(`⏱️ gcmp provider 配置管理器初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
         // 步骤2.1: 初始化 JSON Schema 提供者
         stepStartTime = Date.now();
         JsonSchemaProvider.initialize();
@@ -241,6 +267,10 @@ export async function activate(context: vscode.ExtensionContext) {
         stepStartTime = Date.now();
         await activateProviders(context);
         Logger.trace(`⏱️ 模型提供者注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        // 步骤3.05: 激活实验性统一 gcmp 提供商
+        stepStartTime = Date.now();
+        await activateGCMPProvider(context);
+        Logger.trace(`⏱️ 实验性 gcmp 提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
         // 步骤3.1: 激活兼容提供商
         stepStartTime = Date.now();
         await activateCompatibleProvider(context);

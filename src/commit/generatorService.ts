@@ -13,7 +13,7 @@ import {
 } from './types';
 import { PromptService } from './promptService';
 import type { GitDiffParts, GitDiffSection } from './gitService';
-import { CompatibleModelManager, ConfigManager, Logger } from '../utils';
+import { CompatibleModelManager, ConfigManager, GCMPProviderConfigManager, Logger } from '../utils';
 
 function throwIfCancelled(token: vscode.CancellationToken): void {
     if (token.isCancellationRequested) {
@@ -47,6 +47,14 @@ export class GeneratorService {
             });
         }
 
+        if (!results.some(p => p.providerKey === 'gcmp')) {
+            results.push({
+                providerKey: 'gcmp',
+                displayName: 'GCMP Experimental',
+                vendor: 'gcmp'
+            });
+        }
+
         // compatible 提供商（providerKey = compatible）
         if (!results.some(p => p.providerKey === 'compatible')) {
             results.push({
@@ -70,6 +78,12 @@ export class GeneratorService {
         const key = (providerKey || '').trim();
         if (!key) {
             return [];
+        }
+
+        if (key === 'gcmp') {
+            return GCMPProviderConfigManager.getFlattenedModels()
+                .map(model => ({ id: model.id, name: model.name || model.id }))
+                .filter(model => Boolean(model.id));
         }
 
         if (key === 'compatible') {
@@ -257,12 +271,27 @@ export class GeneratorService {
             }
 
             const autoPrefix = ConfigManager.getAutoPrefixModelId();
+            const isGCMP = provider === 'gcmp';
             const isCompatible = provider === 'compatible';
-            if (!autoPrefix && !isCompatible) {
+            if (!autoPrefix && !isCompatible && !isGCMP) {
                 return null;
             }
 
             try {
+                if (isGCMP) {
+                    const models = GCMPProviderConfigManager.getFlattenedModels();
+                    const matched = models.find(m => m.id === modelId);
+                    if (!matched) {
+                        return null;
+                    }
+                    const queryId = autoPrefix ? `${matched.provider || 'gcmp'}:::${modelId}` : modelId;
+                    const candidates = await vscode.lm.selectChatModels({
+                        id: queryId,
+                        vendor: 'gcmp'
+                    });
+                    return candidates?.[0] ?? null;
+                }
+
                 if (isCompatible) {
                     const models = CompatibleModelManager.getModels();
                     const matched = models.find(m => m.id === modelId);

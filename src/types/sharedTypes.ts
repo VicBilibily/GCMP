@@ -189,6 +189,66 @@ export interface ProviderConfig {
 export type ConfigProvider = Record<string, ProviderConfig>;
 
 /**
+ * 统一模型配置输入接口
+ * 用于实验性 gcmp 统一 Provider 的 settings.json 配置输入
+ */
+export interface UnifiedModelConfig {
+    id: string;
+    name?: string;
+    tooltip?: string;
+    maxInputTokens?: number;
+    maxOutputTokens?: number;
+    capabilities?: {
+        toolCalling?: boolean;
+        imageInput?: boolean;
+    };
+    sdkMode?: ModelConfig['sdkMode'];
+    baseUrl?: string;
+    endpoint?: string;
+    model?: string;
+    family?: string;
+    thinking?: Required<ModelChatResponseOptions>['thinking'][];
+    reasoningEffort?: Required<ModelChatResponseOptions>['reasoningEffort'][];
+    customHeader?: Record<string, string>;
+    extraBody?: Record<string, unknown>;
+    useInstructions?: boolean;
+    webSearchTool?: boolean;
+}
+
+/**
+ * 统一提供商配置输入接口
+ * 同时用于内置 known provider 默认值与用户 settings.json 覆盖
+ */
+export interface UnifiedProviderConfig {
+    displayName?: string;
+    baseUrl?: string;
+    apiKeyTemplate?: string;
+    codingKeyTemplate?: string;
+    customHeader?: Record<string, string>;
+    models?: UnifiedModelConfig[];
+    openai?: Omit<ModelOverride, 'id'>;
+    anthropic?: Omit<ModelOverride, 'id'>;
+}
+
+/**
+ * 统一提供商配置映射
+ */
+export type UnifiedProviderConfigMap = Record<string, UnifiedProviderConfig>;
+
+/**
+ * 归一化后的统一提供商配置
+ */
+export interface ResolvedUnifiedProviderConfig extends ProviderConfig {
+    openai?: Omit<ModelOverride, 'id'>;
+    anthropic?: Omit<ModelOverride, 'id'>;
+}
+
+/**
+ * 归一化后的统一提供商配置映射
+ */
+export type ResolvedUnifiedProviderConfigMap = Record<string, ResolvedUnifiedProviderConfig>;
+
+/**
  * 用户配置覆盖接口 - 来自VS Code设置
  */
 export type UserConfigOverrides = Record<string, ProviderOverride>;

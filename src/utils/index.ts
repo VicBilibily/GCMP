@@ -5,6 +5,7 @@
 
 export { ApiKeyManager } from './apiKeyManager';
 export { ConfigManager } from './configManager';
+export { GCMPProviderConfigManager } from './gcmpProviderConfigManager';
 export { CompatibleModelManager } from './compatibleModelManager';
 export { KnownProviderConfig, KnownProviders } from './knownProviders';
 export { Logger } from './logger';
