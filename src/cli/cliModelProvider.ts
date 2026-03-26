@@ -1,7 +1,7 @@
 /*---------------------------------------------------------------------------------------------
  *  CLI 认证专用 Provider
  *  继承 GenericModelProvider，支持 CLI 认证模式
- *  支持 iflow、qwen-code 等 CLI 认证提供商
+ *  支持 qwen-code、gemini、codex 等 CLI 认证提供商
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -22,7 +22,7 @@ import { StatusBarManager } from '../status';
 /**
  * CLI 认证专用模型提供商类
  * 继承 GenericModelProvider，支持 CLI 认证模式
- * 适用于所有使用 CLI 认证的提供商（iflow、qwen-code 等）
+ * 适用于所有使用 CLI 认证的提供商（qwen-code、gemini、codex 等）
  */
 export class CliModelProvider extends GenericModelProvider {
     constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
@@ -58,19 +58,7 @@ export class CliModelProvider extends GenericModelProvider {
             try {
                 const credentials = await CliAuthFactory.ensureAuthenticated(this.providerKey);
                 if (credentials) {
-                    if (this.providerKey === 'iflow') {
-                        const apiKey = await CliAuthFactory.getInstance(this.providerKey)?.getApiKey();
-                        if (apiKey) {
-                            await ApiKeyManager.setApiKey(this.providerKey, apiKey);
-                        } else {
-                            // 获取不到 API key，打开向导重新登录
-                            Logger.warn(`[CliModelProvider] 无法从 ${this.providerKey} CLI 获取 API key，启动配置向导`);
-                            await vscode.commands.executeCommand(`gcmp.${this.providerKey}.configWizard`);
-                            return [];
-                        }
-                    } else {
-                        await ApiKeyManager.setApiKey(this.providerKey, credentials.access_token);
-                    }
+                    await ApiKeyManager.setApiKey(this.providerKey, credentials.access_token);
                     Logger.info(`[CliModelProvider] 已从 ${this.providerKey} CLI 加载认证凭证`);
                 } else {
                     await vscode.commands.executeCommand(`gcmp.${this.providerKey}.configWizard`);

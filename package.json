@@ -64,7 +64,6 @@
         "onLanguageModelProvider:gcmp.volcengine",
         "onLanguageModelProvider:gcmp.tencent",
         "onLanguageModelProvider:gcmp.xiaomimimo",
-        "onLanguageModelProvider:gcmp.iflow",
         "onLanguageModelProvider:gcmp.qwen",
         "onLanguageModelProvider:gcmp.gemini",
         "onLanguageModelProvider:gcmp.codex",
@@ -173,16 +172,6 @@
             {
                 "command": "gcmp.xiaomimimo.setApiKey",
                 "title": "设置 Xiaomi MiMo API密钥",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.iflow.setApiKey",
-                "title": "设置 心流AI API密钥",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.iflow.configWizard",
-                "title": "iFlow CLI 配置向导（CLI 认证）",
                 "category": "GCMP"
             },
             {
@@ -608,11 +597,6 @@
                 "vendor": "gcmp.xiaomimimo",
                 "displayName": "⨮ Xiaomi MiMo",
                 "managementCommand": "gcmp.xiaomimimo.setApiKey"
-            },
-            {
-                "vendor": "gcmp.iflow",
-                "displayName": "⨮ iFlow CLI (EOL on 0.21.0)",
-                "managementCommand": "gcmp.iflow.configWizard"
             },
             {
                 "vendor": "gcmp.qwen",

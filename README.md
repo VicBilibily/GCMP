@@ -12,7 +12,6 @@
 
 #### 📢 公告
 
-- **计划在 0.21.0 移除 iFlow CLI 认证提供商** - [iFlow CLI 于3月20日起停止维护并在4月17日停止服务](https://platform.iflow.cn/email-collect)。
 - **0.20.8 临时兼容项**：针对 VS Code 模型选择器显示模型不全的问题，新增 `gcmp.autoPrefixModelId` 配置项作为临时解决方案。
     - **问题原因**：VS Code 1.111.0 引入模型折叠模式后，当多个提供商存在相同模型 ID 时，选中模型后的可用模型过滤逻辑异常（选中后模型移至顶部，下方列表过滤掉该 modelId，导致同 modelId 的其他提供商的此个模型无法选中）。
     - **解决方案**：启用 `gcmp.autoPrefixModelId` 后，模型 ID 将自动添加提供商前缀（如 `zhipu:::glm-5`），避免 ID 冲突。（若仅使用单一提供商或未遇到此类问题，可无视此临时兼容项）

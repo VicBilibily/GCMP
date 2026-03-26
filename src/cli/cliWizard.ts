@@ -18,7 +18,7 @@ interface CliCredentialStatus {
 export class CliWizard {
     /**
      * 启动 CLI 配置向导
-     * @param provider 提供商标识（如 'iflow', 'qwen' 等）
+     * @param provider 提供商标识（如 'qwen', 'gemini', 'codex' 等）
      * @param displayName 显示名称
      */
     static async startWizard(provider: string, displayName: string): Promise<void> {
