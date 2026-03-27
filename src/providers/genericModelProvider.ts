@@ -156,10 +156,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         if (model.thinking && model.thinking.length > 0) {
             const schema: PropertySchema = {
                 type: 'string',
-                title: '深度思考',
+                title: '思考模式',
                 enum: model.thinking,
                 enumItemLabels: model.thinking.map(
-                    t => ({ disabled: '关', enabled: '开', auto: 'Auto', adaptive: 'Adaptive' })[t] || t
+                    t => ({ disabled: '关', enabled: '思考', auto: 'Auto', adaptive: 'Adaptive' })[t] || t
                 ),
                 enumDescriptions: model.thinking.map(
                     t =>
@@ -199,7 +199,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             low: '轻量思考，快速响应',
                             medium: '均衡模式，兼顾速度与深度',
                             high: '深度分析，处理复杂问题',
-                            max: '绝对最高能力，对 token 消耗没有限制'
+                            max: '绝对最高能力，没有消耗限制'
                         })[level] || level
                 ),
                 default: model.reasoningEffort[0],
@@ -210,6 +210,15 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             }
             properties.reasoningEffort = schema;
         }
+
+        // let multiplier = this.providerConfig.displayName;
+        // if (model.provider?.endsWith('coding')) {
+        //     multiplier += 'CP';
+        // } else if (model.provider?.endsWith('token')) {
+        //     multiplier += 'TP';
+        // } else if (model.id?.endsWith('billing') || model.name?.includes('按量')) {
+        //     multiplier += 'PG';
+        // }
 
         const info: LanguageModelChatInformation = {
             id: modelId,
@@ -224,6 +233,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             version: model.id,
             category: { label: this.providerConfig.displayName, order: 3 },
             capabilities: model.capabilities,
+            // multiplier: multiplier,
             statusIcon: model.endOfLife ? new vscode.ThemeIcon('warning') : undefined,
             configurationSchema: Object.keys(properties).length > 0 ? { properties } : undefined
         };

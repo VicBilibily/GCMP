@@ -2,6 +2,22 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.21.0] - 2026-03-27
+
+### 新增
+
+- **腾讯云 Token Plan**：新增 Token Plan 套餐接入与专用 API Key 配置
+- **Anthropic 原生联网搜索**：Anthropic 模式新增 `webSearchTool` 配置（仅 Claude 模型）
+- **模型配置能力**：新增模型级 `thinking`、`reasoningEffort` 选项，允许手动调整模型思考模式及思考强度
+
+### 调整
+
+- **VS Code 兼容性**：同步 VS Code 1.110.0 API 定义，升级 `@vscode/chat-lib` 至 0.41.1 并适配接口变更
+
+### 移除
+
+- **iFlow CLI**：移除 iFlow CLI 认证提供商及相关配置入口
+
 ## [0.20.11] - 2026-03-23
 
 ### 新增

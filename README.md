@@ -82,18 +82,15 @@
     - 豆包模型：**Doubao-Seed-2.0-Code**、**Doubao-Seed-Code**、**Doubao-Seed-2.0-lite**、**Doubao-Seed-2.0-pro**
     - 开源模型：**MiniMax-M2.5**、**Kimi-K2.5**、**GLM-4.7**、**Deepseek v3.2**
 - **豆包系列**：**Doubao-Seed-2.0**(lite/mini/pro/Code)、**Doubao-Seed-1.8**、**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**
-- **协作奖励计划**：**GLM-4.7**、**DeepSeek-V3.2**(Thinking)、**DeepSeek-V3.1-terminus**、**Kimi-K2-250905**、**Kimi-K2-Thinking-251104**
-- **上下文缓存实验性支持**：**Doubao-Seed-1.8**(Caching)、**GLM-4.7**(Caching)
-    - 使用此模式需要在后台手动开通模型的[上下文缓存功能](https://www.volcengine.com/docs/82379/1602228?lang=zh)。
-    - 在首次对话请求时默认创建 1h 上下文缓存窗口，本地命中时额外增加 5m 缓存时间差异窗口（即首次对话 55m 后重建 1h 缓存）。
+- **协作奖励计划**：**GLM-4.7**、**DeepSeek-V3.2**(Thinking)、**DeepSeek-V3.1-terminus**
 
 ### [**腾讯云**](https://cloud.tencent.com/product/hunyuan)
 
-- [**Coding Plan 编程套餐**](https://cloud.tencent.com/act/pro/codingplan)：
+- [**Coding Plan**](https://cloud.tencent.com/act/pro/codingplan) / [**Token Plan**](https://cloud.tencent.com/act/pro/tokenplan)：
     - 混元模型：**Tencent HY 2.0 Instruct**、**Tencent HY 2.0 Think**、**Hunyuan-T1**、**Hunyuan-TurboS**
     - 开源模型：**GLM-5**(Thinking)、**Kimi-K2.5**(Thinking)、**MiniMax-M2.5**
 - **DeepSeek API**：**DeepSeek-V3.2**
-- **密钥配置**：腾讯云API密钥分为 [腾讯云付费模型 API Key](https://hunyuan.cloud.tencent.com/#/app/apiKeyManage)、[Coding Plan 专用 API Key](https://hunyuan.cloud.tencent.com/#/app/subscription)、[DeepSeek 专用 API Key](https://console.cloud.tencent.com/lkeap/api)，需要进入正确的密钥获取界面生成密钥。
+- **密钥配置**：腾讯云API密钥分为 [腾讯云付费模型 API Key](https://hunyuan.cloud.tencent.com/#/app/apiKeyManage)、[Coding Plan 专用 API Key](https://hunyuan.cloud.tencent.com/#/app/subscription)、[Token Plan 专用 API Key](https://hunyuan.cloud.tencent.com/#/app/tokenplan)、[DeepSeek 专用 API Key](https://console.cloud.tencent.com/lkeap/api)，需要进入正确的密钥获取界面生成密钥。
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)
 
