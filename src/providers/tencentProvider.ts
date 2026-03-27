@@ -1,6 +1,6 @@
 ﻿/*---------------------------------------------------------------------------------------------
  *  腾讯云专用 Provider
- *  为腾讯云付费模型、Coding Plan 与 DeepSeek 提供多密钥管理和协议切换功能
+ *  为腾讯云付费模型、Coding Plan、Token Plan 与 DeepSeek 提供多密钥管理和协议切换功能
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -46,6 +46,14 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             }
         );
 
+        const setTokenPlanApiKeyCommand = vscode.commands.registerCommand(
+            `gcmp.${providerKey}.setTokenPlanApiKey`,
+            async () => {
+                await TencentWizard.setTokenPlanApiKey(providerConfig.tokenKeyTemplate);
+                provider._onDidChangeLanguageModelChatInformation.fire();
+            }
+        );
+
         const setDeepSeekApiKeyCommand = vscode.commands.registerCommand(
             `gcmp.${providerKey}.setDeepSeekApiKey`,
             async () => {
@@ -59,7 +67,8 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             await TencentWizard.startWizard(
                 providerConfig.displayName,
                 providerConfig.apiKeyTemplate,
-                providerConfig.codingKeyTemplate
+                providerConfig.codingKeyTemplate,
+                providerConfig.tokenKeyTemplate
             );
             provider._onDidChangeLanguageModelChatInformation.fire();
         });
@@ -68,6 +77,7 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             providerDisposable,
             setApiKeyCommand,
             setCodingPlanApiKeyCommand,
+            setTokenPlanApiKeyCommand,
             setDeepSeekApiKeyCommand,
             configWizardCommand
         ];
@@ -90,8 +100,9 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
 
         const hasNormalKey = await ApiKeyManager.hasValidApiKey(this.providerKey);
         const hasCodingKey = await ApiKeyManager.hasValidApiKey('tencent-coding');
+        const hasTokenPlanKey = await ApiKeyManager.hasValidApiKey('tencent-token');
         const hasDeepSeekKey = await ApiKeyManager.hasValidApiKey('tencent-deepseek');
-        const hasAnyKey = hasNormalKey || hasCodingKey || hasDeepSeekKey;
+        const hasAnyKey = hasNormalKey || hasCodingKey || hasTokenPlanKey || hasDeepSeekKey;
 
         if (options.silent && !hasAnyKey) {
             Logger.debug(`${this.providerConfig.displayName}: 静默模式下，未检测到任何密钥，返回空模型列表`);
@@ -102,13 +113,15 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             await TencentWizard.startWizard(
                 this.providerConfig.displayName,
                 this.providerConfig.apiKeyTemplate,
-                this.providerConfig.codingKeyTemplate
+                this.providerConfig.codingKeyTemplate,
+                this.providerConfig.tokenKeyTemplate
             );
 
             const normalKeyValid = await ApiKeyManager.hasValidApiKey(this.providerKey);
             const codingKeyValid = await ApiKeyManager.hasValidApiKey('tencent-coding');
+            const tokenPlanKeyValid = await ApiKeyManager.hasValidApiKey('tencent-token');
             const deepSeekKeyValid = await ApiKeyManager.hasValidApiKey('tencent-deepseek');
-            if (!normalKeyValid && !codingKeyValid && !deepSeekKeyValid) {
+            if (!normalKeyValid && !codingKeyValid && !tokenPlanKeyValid && !deepSeekKeyValid) {
                 Logger.warn(`${this.providerConfig.displayName}: 用户未设置任何密钥，返回空模型列表`);
                 return [];
             }
@@ -204,6 +217,8 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
         switch (providerKey) {
             case 'tencent-coding':
                 return 'Coding Plan 专用';
+            case 'tencent-token':
+                return 'Token Plan 专用';
             case 'tencent-deepseek':
                 return 'DeepSeek 专用';
             default:
@@ -225,6 +240,8 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
 
         if (providerKey === 'tencent-coding') {
             await TencentWizard.setCodingPlanApiKey(this.providerConfig.codingKeyTemplate);
+        } else if (providerKey === 'tencent-token') {
+            await TencentWizard.setTokenPlanApiKey(this.providerConfig.tokenKeyTemplate);
         } else if (providerKey === 'tencent-deepseek') {
             await TencentWizard.setDeepSeekApiKey(this.providerConfig.apiKeyTemplate);
         } else {

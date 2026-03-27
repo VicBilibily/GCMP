@@ -1,6 +1,6 @@
 ﻿/*---------------------------------------------------------------------------------------------
  *  腾讯云配置向导
- *  提供交互式向导来配置付费模型、Coding Plan 和 DeepSeek 专用密钥
+ *  提供交互式向导来配置付费模型、Coding Plan、Token Plan 和 DeepSeek 专用密钥
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -10,9 +10,15 @@ import { ApiKeyManager } from './apiKeyManager';
 export class TencentWizard {
     private static readonly PROVIDER_KEY = 'tencent';
     private static readonly CODING_PLAN_KEY = 'tencent-coding';
+    private static readonly TOKEN_PLAN_KEY = 'tencent-token';
     private static readonly DEEPSEEK_KEY = 'tencent-deepseek';
 
-    static async startWizard(displayName: string, apiKeyTemplate: string, codingKeyTemplate?: string): Promise<void> {
+    static async startWizard(
+        displayName: string,
+        apiKeyTemplate: string,
+        codingKeyTemplate?: string,
+        tokenPlanKeyTemplate?: string
+    ): Promise<void> {
         try {
             const choice = await vscode.window.showQuickPick(
                 [
@@ -27,13 +33,18 @@ export class TencentWizard {
                         value: 'coding'
                     },
                     {
+                        label: '$(key) 设置 Token Plan 专用密钥',
+                        detail: '用于腾讯云 Token Plan 模型',
+                        value: 'tokenPlan'
+                    },
+                    {
                         label: '$(key) 设置 DeepSeek 专用密钥',
                         detail: '用于腾讯云知识引擎原子能力 DeepSeek 模型',
                         value: 'deepseek'
                     },
                     {
                         label: '$(check-all) 依次配置全部项目',
-                        detail: '按顺序配置付费密钥、Coding Plan 密钥和 DeepSeek 密钥',
+                        detail: '按顺序配置付费密钥、Coding Plan 密钥、Token Plan 密钥和 DeepSeek 密钥',
                         value: 'all'
                     }
                 ],
@@ -49,6 +60,9 @@ export class TencentWizard {
             }
             if (choice.value === 'coding' || choice.value === 'all') {
                 await this.setCodingPlanApiKey(codingKeyTemplate || apiKeyTemplate);
+            }
+            if (choice.value === 'tokenPlan' || choice.value === 'all') {
+                await this.setTokenPlanApiKey(tokenPlanKeyTemplate || apiKeyTemplate);
             }
             if (choice.value === 'deepseek' || choice.value === 'all') {
                 await this.setDeepSeekApiKey(apiKeyTemplate);
@@ -77,6 +91,17 @@ export class TencentWizard {
             placeHolder: codingKeyTemplate,
             successMessage: '腾讯云 Coding Plan 专用 API Key 已设置',
             clearMessage: '腾讯云 Coding Plan 专用 API Key 已清除'
+        });
+    }
+
+    static async setTokenPlanApiKey(tokenPlanKeyTemplate?: string): Promise<void> {
+        await this.promptForApiKey({
+            providerKey: this.TOKEN_PLAN_KEY,
+            prompt: '请输入 腾讯云 Token Plan 专用 API Key（留空可清除）',
+            title: '设置 腾讯云 Token Plan 专用 API Key',
+            placeHolder: tokenPlanKeyTemplate,
+            successMessage: '腾讯云 Token Plan 专用 API Key 已设置',
+            clearMessage: '腾讯云 Token Plan 专用 API Key 已清除'
         });
     }
 

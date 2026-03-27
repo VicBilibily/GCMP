@@ -160,6 +160,11 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.tencent.setTokenPlanApiKey",
+                "title": "设置 腾讯云 Token Plan 专用密钥",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.tencent.setDeepSeekApiKey",
                 "title": "设置 腾讯云 DeepSeek 专用密钥",
                 "category": "GCMP"
@@ -590,7 +595,7 @@
             },
             {
                 "vendor": "gcmp.tencent",
-                "displayName": "⦿ 腾讯云 (Coding Plan / DeepSeek)",
+                "displayName": "⦿ 腾讯云 (Coding / Token Plan)",
                 "managementCommand": "gcmp.tencent.configWizard"
             },
             {
@@ -610,7 +615,7 @@
             },
             {
                 "vendor": "gcmp.codex",
-                "displayName": "⨮ Codex CLI",
+                "displayName": "Codex CLI",
                 "managementCommand": "gcmp.codex.configWizard"
             },
             {

@@ -3,6 +3,7 @@
     "baseUrl": "https://api.hunyuan.cloud.tencent.com/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "codingKeyTemplate": "sk-sp-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "tokenKeyTemplate": "sk-tp-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
             "id": "hunyuan-2.0-instruct-coding-plan",
@@ -115,6 +116,92 @@
             "endOfLife": true,
             "capabilities": { "toolCalling": true, "imageInput": true },
             "extraBody": { "thinking": { "type": "enabled" } }
+        },
+        {
+            "id": "hunyuan-2.0-instruct-token-plan",
+            "name": "Tencent HY 2.0 Instruct (Token Plan)",
+            "tooltip": "腾讯云 Token Plan 专属接入点中的 Tencent HY 2.0 Instruct。",
+            "provider": "tencent-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
+            "model": "hunyuan-2.0-instruct",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 16000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "hunyuan-2.0-thinking-token-plan",
+            "name": "Tencent HY 2.0 Think (Token Plan)",
+            "tooltip": "腾讯云 Token Plan 专属接入点中的 Tencent HY 2.0 Think。",
+            "provider": "tencent-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
+            "model": "hunyuan-2.0-thinking",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "hunyuan-t1-token-plan",
+            "name": "Hunyuan-T1 (Token Plan)",
+            "tooltip": "腾讯云 Token Plan 专属接入点中的 Hunyuan-T1。",
+            "provider": "tencent-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
+            "model": "hunyuan-t1",
+            "maxInputTokens": 32000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "hunyuan-turbos-token-plan",
+            "name": "Hunyuan-TurboS (Token Plan)",
+            "tooltip": "腾讯云 Token Plan 专属接入点中的 Hunyuan-TurboS。",
+            "provider": "tencent-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
+            "model": "hunyuan-turbos",
+            "maxInputTokens": 32000,
+            "maxOutputTokens": 16000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "glm-5-token-plan",
+            "name": "GLM-5 (Token Plan)",
+            "tooltip": "腾讯云 Token Plan 专属接入点中的 GLM-5。",
+            "provider": "tencent-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
+            "model": "glm-5",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "minimax-m2.5-token-plan",
+            "name": "MiniMax-M2.5 (Token Plan)",
+            "tooltip": "腾讯云 Token Plan 专属接入点中的 MiniMax M2.5。",
+            "provider": "tencent-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
+            "model": "minimax-m2.5",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 192000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "kimi-k2.5-token-plan",
+            "name": "Kimi-K2.5 (Token Plan)",
+            "tooltip": "腾讯云 Token Plan 专属接入点中的 Kimi K2.5，默认关闭思考模式。",
+            "provider": "tencent-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
+            "model": "kimi-k2.5",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 256000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "hunyuan-2.0-instruct",

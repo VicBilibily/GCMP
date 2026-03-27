@@ -178,6 +178,7 @@ export interface ProviderConfig {
     baseUrl: string;
     apiKeyTemplate: string;
     codingKeyTemplate?: string;
+    tokenKeyTemplate?: string;
     models: ModelConfig[];
     /**
      * 提供商级别的自定义HTTP头部（可选）

@@ -94,7 +94,7 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
                 provider = result.provider;
                 disposables = result.disposables;
             } else if (providerKey === 'tencent') {
-                // 对 tencent 使用专门的 provider（三类密钥和协议切换）
+                // 对 tencent 使用专门的 provider（四类密钥和协议切换）
                 const result = TencentProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
