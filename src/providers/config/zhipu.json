@@ -4,6 +4,20 @@
     "apiKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "glm-5.1",
+            "name": "GLM-5.1 (Coding Plan)",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://open.bigmodel.cn/api/anthropic",
+            "tooltip": "GLM-5.1 已面向GLM Coding Plan全部用户(Lite/Pro/Max)开放",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
             "id": "glm-5-turbo",
             "name": "GLM-5-Turbo (Coding Plan)",
             "sdkMode": "anthropic",
