@@ -4,6 +4,33 @@
     "apiKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "KAT-Coder-Pro-V2-Coding-Plan",
+            "name": "KAT-Coder-Pro-V2 (Coding Plan)",
+            "model": "KAT-Coder-Pro-V2",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://wanqing.streamlakeapi.com/api/gateway/coding/kat-coder-pro-v2/claude-code-proxy",
+            "tooltip": "快手 Kwaipilot 团队最新高性能模型，适用于复杂企业项目与SaaS集成，代码场景表现优秀，适配多种类型 Agent 框架（claude code, opencode, kilocode），原生适配 openclaw，专为前端页面美学进行优化。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 80000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "KAT-Coder-Pro-V2",
+            "name": "KAT-Coder-Pro-V2 (按量付费)",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://wanqing.streamlakeapi.com/api/gateway/v1/endpoints/kat-coder-pro-v2/claude-code-proxy",
+            "tooltip": "快手 Kwaipilot 团队最新高性能模型，适用于复杂企业项目与SaaS集成，代码场景表现优秀，适配多种类型 Agent 框架（claude code, opencode, kilocode），原生适配 openclaw，专为前端页面美学进行优化。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 80000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
             "id": "KAT-Coder-Pro-V1-Coding-Plan",
             "name": "KAT-Coder-Pro-V1 (Coding Plan)",
             "model": "KAT-Coder-Pro-V1",

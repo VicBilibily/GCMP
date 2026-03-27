@@ -72,9 +72,9 @@
 
 ### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
 
-- [**KwaiKAT Coding Plan**](https://streamlake.com/marketing/coding-plan)：**KAT-Coder-Pro-V1**
+- [**KwaiKAT Coding Plan**](https://streamlake.com/marketing/coding-plan)：**KAT-Coder-Pro-V2**、**KAT-Coder-Pro-V1**
 
-- **KAT-Coder系列**：**KAT-Coder-Pro-V1**(按量付费)、**KAT-Coder-Air-V1**
+- **KAT-Coder系列**：**KAT-Coder-Pro-V2**(按量付费)、**KAT-Coder-Pro-V1**(按量付费)、**KAT-Coder-Air-V1**
 
 ### [**火山方舟**](https://www.volcengine.com/product/ark)
 
