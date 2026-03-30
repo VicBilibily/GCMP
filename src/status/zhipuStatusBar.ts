@@ -1,7 +1,10 @@
 /*---------------------------------------------------------------------------------------------
  *  智谱AI用量状态栏项
  *  继承 ProviderStatusBarItem，显示智谱AI Coding Plan 用量信息
- *  - 仅显示 TOKENS_LIMIT: 5小时代币用量限制（在 nextResetTime 时自动重置）
+ *  - 显示周限额 (unit=6): 7天代币用量限制
+ *  - 显示5小时限额 (unit=3): 5小时代币用量限制（在 nextResetTime 时自动重置）
+ *  - 显示MCP月度限额 (TIME_LIMIT): MCP搜索使用次数
+ *  参考实现验证: unit=3 对应5小时，unit=6 对应7天（周限额）
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -12,14 +15,17 @@ import { ConfigManager, ApiKeyManager, VersionManager } from '../utils';
 
 /**
  * 用量限制项数据结构
+ * 根据智谱API文档及开源实现验证：
+ * - unit=3: 5小时限额
+ * - unit=6: 7天限额（周限额）
  */
 export interface UsageLimitItem {
     /** 限制类型：
-     *  - TOKENS_LIMIT: 代币用量（根据 unit 和 number 判断时间窗口）
+     *  - TOKENS_LIMIT: 代币用量（根据 unit 判断时间窗口）
      *  - TIME_LIMIT: MCP 搜索使用次数
      */
     type: 'TIME_LIMIT' | 'TOKENS_LIMIT';
-    /** 时间单位 (分钟、小时等) */
+    /** 时间单位类型: 3=5小时限额, 6=7天周限额 */
     unit: number;
     /** 时间周期数 */
     number: number;
@@ -52,9 +58,10 @@ interface ZhipuStatusData {
 
 /**
  * 智谱AI Coding Plan 状态栏项
- * - 显示格式：剩余可用
- * - 单位：百万代币（M）
- * - 每5小时周期，在 nextResetTime 时自动重置
+ * - 显示格式：剩余可用百分比
+ * - 周限额 (unit=6): 显示为 "周限% (5h%)" 或 "周限%"
+ * - 5小时限额 (unit=3): 括号内显示
+ * - 优先显示周限额，其次是5小时限额
  */
 export class ZhipuStatusBar extends ProviderStatusBarItem<ZhipuStatusData> {
     constructor() {
@@ -77,8 +84,8 @@ export class ZhipuStatusBar extends ProviderStatusBarItem<ZhipuStatusData> {
      */
     protected getDisplayText(data: ZhipuStatusData): string {
         const tokensLimits = data.limits.filter(l => l.type === 'TOKENS_LIMIT');
-        const weeklyLimit = tokensLimits.find(l => l.unit === 1 && l.number === 7);
-        const hourlyLimit = tokensLimits.find(l => l.unit === 3 && l.number === 5);
+        const weeklyLimit = tokensLimits.find(l => l.unit === 6);
+        const hourlyLimit = tokensLimits.find(l => l.unit === 3);
         const formatPercentage = (limit: UsageLimitItem) => `${100 - (limit.percentage ?? 0)}%`;
         if (weeklyLimit && hourlyLimit) {
             return `${this.config.icon} ${formatPercentage(weeklyLimit)} (${formatPercentage(hourlyLimit)})`;
@@ -334,22 +341,15 @@ export class ZhipuStatusBar extends ProviderStatusBarItem<ZhipuStatusData> {
 
     /**
      * 获取时间窗口标签
-     * 根据 unit 和 number 生成时间窗口描述
-     * - unit=1, number=7: 7 天限额（周限额）
-     * - unit=3, number=5: 5 小时限额
-     * - unit=5, number=X: X 分钟限额
+     * 根据 unit 值生成时间窗口描述
+     * - unit=3: 5 小时限额
+     * - unit=6: 7 天限额（周限额）
      */
     private getWindowLabel(limit: UsageLimitItem, defaultLabel: string): string {
-        if (limit.unit === 1 && limit.number === 7) {
-            return '每 1 周期';
-        } else if (limit.unit === 3 && limit.number === 5) {
+        if (limit.unit === 3) {
             return '每 5 小时';
-        } else if (limit.unit === 1) {
-            return `每 ${limit.number} 天`;
-        } else if (limit.unit === 3) {
-            return `每 ${limit.number} 小时`;
-        } else if (limit.unit === 5) {
-            return `每 ${limit.number} 分钟`;
+        } else if (limit.unit === 6) {
+            return '每周限额';
         }
         return defaultLabel;
     }
