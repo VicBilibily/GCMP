@@ -1,0 +1,264 @@
+{
+    "displayName": "优云智算",
+    "baseUrl": "https://api.modelverse.cn",
+    "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "models": [
+        {
+            "id": "deepseek-v3.2",
+            "name": "DeepSeek-V3.2",
+            "tooltip": "DeepSeek-V3.2 为 685B 参数 MoE 模型，其引入的稀疏注意力架构使长文本处理更高效，并在推理评测中达到GPT-5水平。",
+            "sdkMode": "openai",
+            "model": "deepseek-ai/DeepSeek-V3.2",
+            "maxInputTokens": 96000,
+            "maxOutputTokens": 32000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "kimi-k2.5",
+            "name": "Kimi-K2.5",
+            "tooltip": "Kimi K2.5 月之暗面推出的长上下文推理模型。",
+            "sdkMode": "anthropic",
+            "model": "moonshotai/kimi-k2.5",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 256000,
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "glm-5",
+            "name": "GLM-5",
+            "tooltip": "GLM-5 智谱AI推出的多模态大模型。",
+            "sdkMode": "anthropic",
+            "model": "zai-org/glm-5",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "gpt-5.4",
+            "name": "GPT-5.4",
+            "tooltip": "GPT-5.4 OpenAI最新一代多模态大模型。",
+            "sdkMode": "anthropic",
+            "model": "gpt-5.4",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "MiniMax-M2.1",
+            "name": "MiniMax-M2.1",
+            "tooltip": "MiniMax M2.1 是一款高效的多语言编程模型，专为Agent工作流优化。",
+            "sdkMode": "anthropic",
+            "model": "MiniMax-M2.1",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 192000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "MiniMax-M2.5",
+            "name": "MiniMax-M2.5",
+            "tooltip": "MiniMax M2.5 是一款强大的多语言编程模型，全面升级编程体验。",
+            "sdkMode": "anthropic",
+            "model": "MiniMax-M2.5",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 192000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "claude-haiku-4-5-20251001",
+            "name": "Claude Haiku 4.5",
+            "tooltip": "Claude Haiku 4.5 是Anthropic推出的轻量级快速模型，适合低延迟场景。",
+            "sdkMode": "anthropic",
+            "model": "claude-haiku-4-5-20251001",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 16000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "claude-opus-4-5-20251101",
+            "name": "Claude Opus 4.5",
+            "tooltip": "Claude Opus 4.5 是Anthropic推出的旗舰大模型，具备最强的推理和生成能力。",
+            "sdkMode": "anthropic",
+            "model": "claude-opus-4-5-20251101",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "claude-opus-4-6",
+            "name": "Claude Opus 4.6",
+            "tooltip": "Claude Opus 4.6 是Anthropic推出的旗舰大模型最新版本，具备最强的推理和生成能力。",
+            "sdkMode": "anthropic",
+            "model": "claude-opus-4-6",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "claude-sonnet-4-5-20250929",
+            "name": "Claude Sonnet 4.5",
+            "tooltip": "Claude Sonnet 4.5 是Anthropic推出的中量级模型，在性能和速度间取得平衡。",
+            "sdkMode": "anthropic",
+            "model": "claude-sonnet-4-5-20250929",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 64000,
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "claude-sonnet-4-6",
+            "name": "Claude Sonnet 4.6",
+            "tooltip": "Claude Sonnet 4.6 是Anthropic推出的中量级模型最新版本，在性能和速度间取得平衡。",
+            "sdkMode": "anthropic",
+            "model": "claude-sonnet-4-6",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 64000,
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "gpt-5.1",
+            "name": "GPT-5.1",
+            "tooltip": "GPT-5.1 是OpenAI推出的新一代多模态大模型。",
+            "sdkMode": "anthropic",
+            "model": "gpt-5.1",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "gpt-5.1-codex-max",
+            "name": "GPT-5.1 Codex Max",
+            "tooltip": "GPT-5.1 Codex Max 是OpenAI推出的代码专用旗舰模型，具备最强代码能力。",
+            "sdkMode": "anthropic",
+            "model": "gpt-5.1-codex-max",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "gpt-5.1-codex-mini",
+            "name": "GPT-5.1 Codex Mini",
+            "tooltip": "GPT-5.1 Codex Mini 是OpenAI推出的代码专用轻量模型，平衡性能与成本。",
+            "sdkMode": "anthropic",
+            "model": "gpt-5.1-codex-mini",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "gpt-5.2",
+            "name": "GPT-5.2",
+            "tooltip": "GPT-5.2 是OpenAI推出的最新多模态大模型。",
+            "sdkMode": "anthropic",
+            "model": "gpt-5.2",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "gpt-5.2-codex",
+            "name": "GPT-5.2 Codex",
+            "tooltip": "GPT-5.2 Codex 是OpenAI推出的代码专用模型，具备优秀代码能力。",
+            "sdkMode": "anthropic",
+            "model": "gpt-5.2-codex",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "gpt-5.3-codex",
+            "name": "GPT-5.3 Codex",
+            "tooltip": "GPT-5.3 Codex 是OpenAI推出的最新代码专用模型，具备最强代码能力。",
+            "sdkMode": "anthropic",
+            "model": "gpt-5.3-codex",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        }
+    ]
+}

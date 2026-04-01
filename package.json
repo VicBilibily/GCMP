@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云、Xiaomi MiMo 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.21.3",
+    "version": "0.21.4",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -68,6 +68,7 @@
         "onLanguageModelProvider:gcmp.gemini",
         "onLanguageModelProvider:gcmp.codex",
         "onLanguageModelProvider:gcmp.compatible",
+        "onLanguageModelProvider:gcmp.compshare",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
         "onLanguageModelTool:gcmp_minimaxWebSearch",
         "onFileSystem:gcmp-settings"
@@ -117,6 +118,11 @@
             {
                 "command": "gcmp.moonshot.configWizard",
                 "title": "启动 MoonshotAI 配置向导",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.compshare.setApiKey",
+                "title": "设置 优云智算 API密钥",
                 "category": "GCMP"
             },
             {
@@ -622,6 +628,11 @@
                 "vendor": "gcmp.compatible",
                 "displayName": "⦿ OpenAI / Anthropic Compatible",
                 "managementCommand": "gcmp.compatible.manageModels"
+            },
+            {
+                "vendor": "gcmp.compshare",
+                "displayName": "⦿ 优云智算",
+                "managementCommand": "gcmp.compshare.setApiKey"
             }
         ],
         "languageModelTools": [

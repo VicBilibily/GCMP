@@ -12,6 +12,7 @@ import tencent from './tencent.json';
 import qwen from './qwen.json';
 import gemini from './gemini.json';
 import codex from './codex.json';
+import compshare from './compshare.json';
 
 const providers = {
     zhipu,
@@ -25,7 +26,8 @@ const providers = {
     tencent,
     qwen,
     gemini,
-    codex
+    codex,
+    compshare
 };
 
 export type ProviderName = keyof typeof providers;
