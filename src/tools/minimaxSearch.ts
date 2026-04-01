@@ -8,6 +8,7 @@ import * as https from 'https';
 import { ConfigManager, Logger } from '../utils';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { VersionManager } from '../utils/versionManager';
+import { StatusBarManager } from '../status';
 
 /**
  * MiniMax 搜索请求参数
@@ -137,33 +138,15 @@ export class MiniMaxSearchTool {
                 throw new Error('缺少必需参数: q');
             }
 
-            // 执行搜索
             const response = await this.search(params);
-            const searchResults = response.organic || [];
-
             Logger.info('✅ [工具调用] MiniMax网络搜索工具调用成功');
 
-            // 创建更丰富的搜索结果展示
-            const parts: vscode.LanguageModelTextPart[] = [];
+            StatusBarManager.minimax?.delayedUpdate();
 
-            // 添加搜索摘要
-            if (searchResults.length > 0) {
-                parts.push(new vscode.LanguageModelTextPart(`## 搜索结果 (${searchResults.length} 条)`));
-                // 为每个搜索结果创建结构化的展示
-                searchResults.forEach((result, index) => {
-                    // 创建格式化的搜索结果文本
-                    const formattedResult = `**${index + 1}. ${result.title}**\n\n${result.snippet}\n\n📅 ${result.date}\n\n🔗 [查看原文](${result.link})\n\n---\n`;
-                    parts.push(new vscode.LanguageModelTextPart(formattedResult));
-                });
-            } else {
-                if (response.base_resp?.status_code !== 0 && response.base_resp?.status_msg) {
-                    throw new vscode.LanguageModelError(response.base_resp.status_msg);
-                } else {
-                    parts.push(new vscode.LanguageModelTextPart('未找到相关搜索结果。'));
-                }
-            }
-
-            return new vscode.LanguageModelToolResult(parts);
+            const searchResults = response.organic;
+            return new vscode.LanguageModelToolResult([
+                new vscode.LanguageModelTextPart(JSON.stringify(searchResults))
+            ]);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : '未知错误';
             Logger.error('❌ [工具调用] MiniMax网络搜索工具调用失败', error instanceof Error ? error : undefined);

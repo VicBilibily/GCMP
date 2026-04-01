@@ -70,6 +70,7 @@
         "onLanguageModelProvider:gcmp.compatible",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
         "onLanguageModelTool:gcmp_minimaxWebSearch",
+        "onLanguageModelTool:gcmp_kimiWebSearch",
         "onFileSystem:gcmp-settings"
     ],
     "contributes": {
@@ -710,6 +711,38 @@
                     },
                     "required": [
                         "q"
+                    ]
+                },
+                "canBeReferencedInPrompt": true
+            },
+            {
+                "name": "gcmp_kimiWebSearch",
+                "displayName": "Kimi网络搜索",
+                "toolReferenceName": "kimiWebSearch",
+                "modelDescription": "使用 Kimi Code 提供的网络搜索功能获取实时信息。需要使用 Kimi For Coding 专用 API 密钥或 Moonshot API 密钥。",
+                "userDescription": "通过Kimi网络搜索获取最新信息",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "搜索查询字符串"
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "返回搜索结果数量",
+                            "minimum": 1,
+                            "maximum": 50,
+                            "default": 10
+                        },
+                        "includeContent": {
+                            "type": "boolean",
+                            "description": "是否抓取并返回页面完整内容",
+                            "default": false
+                        }
+                    },
+                    "required": [
+                        "query"
                     ]
                 },
                 "canBeReferencedInPrompt": true

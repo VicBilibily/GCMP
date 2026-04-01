@@ -7,10 +7,12 @@ import * as vscode from 'vscode';
 import { Logger } from '../utils';
 import { ZhipuSearchTool } from './zhipuSearch';
 import { MiniMaxSearchTool } from './minimaxSearch';
+import { KimiSearchTool } from './kimiSearch';
 
 // 全局工具实例管理
 let zhipuSearchTool: ZhipuSearchTool | undefined;
 let minimaxSearchTool: MiniMaxSearchTool | undefined;
+let kimiSearchTool: KimiSearchTool | undefined;
 
 /**
  * 注册所有工具
@@ -31,6 +33,13 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
         });
         context.subscriptions.push(minimaxToolDisposable);
 
+        // 注册Kimi网络搜索工具
+        kimiSearchTool = new KimiSearchTool();
+        const kimiToolDisposable = vscode.lm.registerTool('gcmp_kimiWebSearch', {
+            invoke: kimiSearchTool.invoke.bind(kimiSearchTool)
+        });
+        context.subscriptions.push(kimiToolDisposable);
+
         // 添加清理逻辑到context
         context.subscriptions.push({
             dispose: async () => {
@@ -40,6 +49,7 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
 
         Logger.debug('智谱AI联网搜索工具已注册: gcmp_zhipuWebSearch');
         Logger.debug('MiniMax网络搜索工具已注册: gcmp_minimaxWebSearch');
+        Logger.debug('Kimi网络搜索工具已注册: gcmp_kimiWebSearch');
     } catch (error) {
         Logger.error('工具注册失败', error instanceof Error ? error : undefined);
         throw error;
@@ -61,6 +71,12 @@ export async function cleanupAllTools(): Promise<void> {
             await minimaxSearchTool.cleanup();
             minimaxSearchTool = undefined;
             Logger.info('✅ MiniMax网络搜索工具资源已清理');
+        }
+
+        if (kimiSearchTool) {
+            await kimiSearchTool.cleanup();
+            kimiSearchTool = undefined;
+            Logger.info('✅ Kimi网络搜索工具资源已清理');
         }
     } catch (error) {
         Logger.error('❌ 工具清理失败', error instanceof Error ? error : undefined);
