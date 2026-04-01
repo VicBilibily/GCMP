@@ -48,7 +48,7 @@
 ### [**MiniMax**](https://platform.minimaxi.com/login)
 
 - [**Coding Plan 编程套餐**](https://platform.minimaxi.com/subscribe/coding-plan)：**MiniMax-M2.7**(极速版)、**MiniMax-M2.5**(极速版)、**MiniMax-M2.1**、**MiniMax-M2**
-    - **搜索功能**：集成 Coding Plan 联网搜索调用工具，支持通过 `#minimaxWebSearch` 进行联网搜索。
+    - **搜索功能**：集成 Coding Plan 联网搜索工具，支持通过 `#minimaxWebSearch` 进行联网搜索。
     - **用量查询**：已支持状态栏显示周期剩余用量，可查看 Coding Plan 编程套餐用量信息。
     - **[国际站点](https://platform.minimax.io/subscribe/coding-plan)**：已支持国际站 Coding Plan 编程套餐使用。
 - **按量计费**：**MiniMax-M2.7**(极速版)、**MiniMax-M2.5**(极速版)、**MiniMax-M2.1**(极速版)、**MiniMax-M2**
@@ -56,8 +56,9 @@
 ### [**MoonshotAI**](https://platform.moonshot.cn/)
 
 - [**会员权益**](https://www.kimi.com/coding)：Kimi `会员计划` 套餐的附带的 `Kimi For Coding`，当前使用 Roo Code 发送 Anthropic 请求。
+    - **搜索功能**：集成 Kimi Search 联网搜索工具，支持通过 `#kimiWebSearch` 进行联网搜索。
     - **用量查询**：已支持状态栏显示周期剩余用量，可查看套餐的剩余用量及限频重置时间。
-- 预置模型：**Kimi-K2.5**(Thinking)
+- 预置模型：**Kimi-K2.5**
     - **余额查询**：已支持状态栏显示当前账户额度，可查看账户余额状况。
 
 ### [**DeepSeek**](https://platform.deepseek.com/)
@@ -67,14 +68,14 @@
 
 ### [**阿里云百炼**](https://bailian.console.aliyun.com/)
 
-- [**Coding Plan 套餐**](https://www.aliyun.com/benefit/scene/codingplan)：**Qwen3.5-Plus**(Thinking)、**Qwen3-Max**(Thinking)、**Qwen3-Coder-Next**、**Qwen3-Coder-Plus**、**MiniMax-M2.5**、**GLM-5**(Thinking)、**GLM-4.7**(Thinking)、**Kimi-K2.5**(Thinking)
-- **通义千问系列**：**Qwen3.5-Plus**(Thinking)、**Qwen3.5-Flash**(Thinking)、**Qwen3-Max**(Thinking)、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
+- [**Coding Plan 套餐**](https://www.aliyun.com/benefit/scene/codingplan)：**Qwen3.5-Plus**、**Qwen3-Max**、**Qwen3-Coder-Next**、**Qwen3-Coder-Plus**、**MiniMax-M2.5**、**GLM-5**、**GLM-4.7**、**Kimi-K2.5**
+- **通义千问系列**：**Qwen3.5-Plus**、**Qwen3.5-Flash**、**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
 
 ### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
 
-- [**KwaiKAT Coding Plan**](https://streamlake.com/marketing/coding-plan)：**KAT-Coder-Pro-V2**、**KAT-Coder-Pro-V1**
+- [**KwaiKAT Coding Plan**](https://streamlake.com/marketing/coding-plan)：**KAT-Coder-Pro-V2**
 
-- **KAT-Coder系列**：**KAT-Coder-Pro-V2**(按量付费)、**KAT-Coder-Pro-V1**(按量付费)、**KAT-Coder-Air-V1**
+- **KAT-Coder系列**：**KAT-Coder-Pro-V2**(按量付费)
 
 ### [**火山方舟**](https://www.volcengine.com/product/ark)
 
@@ -82,19 +83,19 @@
     - 豆包模型：**Doubao-Seed-2.0-Code**、**Doubao-Seed-Code**、**Doubao-Seed-2.0-lite**、**Doubao-Seed-2.0-pro**
     - 开源模型：**MiniMax-M2.5**、**Kimi-K2.5**、**GLM-4.7**、**Deepseek v3.2**
 - **豆包系列**：**Doubao-Seed-2.0**(lite/mini/pro/Code)、**Doubao-Seed-1.8**、**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**
-- **协作奖励计划**：**GLM-4.7**、**DeepSeek-V3.2**(Thinking)、**DeepSeek-V3.1-terminus**
+- **协作奖励计划**：**GLM-4.7**、**DeepSeek-V3.2**、**DeepSeek-V3.1-terminus**
 
 ### [**腾讯云**](https://cloud.tencent.com/product/hunyuan)
 
 - [**Coding Plan**](https://cloud.tencent.com/act/pro/codingplan) / [**Token Plan**](https://cloud.tencent.com/act/pro/tokenplan)：
     - 混元模型：**Tencent HY 2.0 Instruct**、**Tencent HY 2.0 Think**、**Hunyuan-T1**、**Hunyuan-TurboS**
-    - 开源模型：**GLM-5**(Thinking)、**Kimi-K2.5**(Thinking)、**MiniMax-M2.5**
+    - 开源模型：**GLM-5**、**Kimi-K2.5**、**MiniMax-M2.5**
 - **DeepSeek API**：**DeepSeek-V3.2**
 - **密钥配置**：腾讯云API密钥分为 [腾讯云付费模型 API Key](https://hunyuan.cloud.tencent.com/#/app/apiKeyManage)、[Coding Plan 专用 API Key](https://hunyuan.cloud.tencent.com/#/app/subscription)、[Token Plan 专用 API Key](https://hunyuan.cloud.tencent.com/#/app/tokenplan)、[DeepSeek 专用 API Key](https://console.cloud.tencent.com/lkeap/api)，需要进入正确的密钥获取界面生成密钥。
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)
 
-- 预置模型：**MiMo-V2-Pro**(Thinking)、**MiMo-V2-Omni**(Thinking)、**MiMo-V2-Flash**(Thinking)
+- 预置模型：**MiMo-V2-Pro**、**MiMo-V2-Omni**、**MiMo-V2-Flash**
 
 ### 实验性支持 CLI 认证提供商
 
