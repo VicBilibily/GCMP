@@ -68,6 +68,7 @@
         "onLanguageModelProvider:gcmp.gemini",
         "onLanguageModelProvider:gcmp.codex",
         "onLanguageModelProvider:gcmp.compatible",
+        "onLanguageModelProvider:gcmp.compshare",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
         "onLanguageModelTool:gcmp_minimaxWebSearch",
         "onLanguageModelTool:gcmp_kimiWebSearch",
@@ -119,6 +120,11 @@
             {
                 "command": "gcmp.moonshot.configWizard",
                 "title": "启动 MoonshotAI 配置向导",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.compshare.setApiKey",
+                "title": "设置 优云智算 API密钥",
                 "category": "GCMP"
             },
             {
@@ -624,6 +630,11 @@
                 "vendor": "gcmp.compatible",
                 "displayName": "⦿ OpenAI / Anthropic Compatible",
                 "managementCommand": "gcmp.compatible.manageModels"
+            },
+            {
+                "vendor": "gcmp.compshare",
+                "displayName": "⦿ 优云智算",
+                "managementCommand": "gcmp.compshare.setApiKey"
             }
         ],
         "languageModelTools": [
