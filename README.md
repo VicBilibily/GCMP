@@ -70,6 +70,7 @@
 
 - [**Coding Plan 套餐**](https://www.aliyun.com/benefit/scene/codingplan)：**Qwen3.5-Plus**、**Qwen3-Max**、**Qwen3-Coder-Next**、**Qwen3-Coder-Plus**、**MiniMax-M2.5**、**GLM-5**、**GLM-4.7**、**Kimi-K2.5**
 - **通义千问系列**：**Qwen3.6-Plus**、**Qwen3.5-Plus**、**Qwen3.5-Flash**、**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
+    - **搜索功能**：集成 [联网搜索MCP](https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=3023217) 工具（2000次/月），支持通过 `#bailianWebSearch` 进行联网搜索。（使用[阿里云百炼ApiKey](https://bailian.console.aliyun.com/cn-beijing/?tab=model#/api-key)而非编程套餐的ApiKey）
 
 ### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
 
