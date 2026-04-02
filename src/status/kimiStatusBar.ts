@@ -46,6 +46,14 @@ export interface KimiUsageSummary {
 }
 
 /**
+ * Kimi 并发上限数据
+ */
+export interface KimiParallelInfo {
+    /** 并发上限 */
+    limit: number;
+}
+
+/**
  * Kimi 状态数据
  */
 export interface KimiStatusData {
@@ -53,6 +61,8 @@ export interface KimiStatusData {
     summary: KimiUsageSummary;
     /** 详细使用限制 */
     windows: KimiUsageWindow[];
+    /** 并发上限（可选） */
+    parallel?: KimiParallelInfo;
 }
 
 /**
@@ -138,6 +148,12 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
             }
         }
 
+        // 添加并发上限行
+        if (data.parallel) {
+            md.appendMarkdown('\n');
+            md.appendMarkdown(`**最高并发上限**：${data.parallel.limit}\n`);
+        }
+
         md.appendMarkdown('\n');
         md.appendMarkdown('---\n');
         md.appendMarkdown('点击状态栏可手动刷新\n');
@@ -220,6 +236,9 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
                         resetTime?: string;
                     };
                 }[];
+                parallel?: {
+                    limit: string | number;
+                };
                 code?: string;
                 details?: {
                     type: string;
@@ -325,11 +344,22 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
                 }
             }
 
+            // 并发上限
+            let parallel: KimiParallelInfo | undefined;
+            if (parsedResponse.parallel) {
+                const parallelLimit =
+                    typeof parsedResponse.parallel.limit === 'string'
+                        ? parseInt(parsedResponse.parallel.limit, 10)
+                        : parsedResponse.parallel.limit;
+                parallel = { limit: parallelLimit };
+            }
+
             return {
                 success: true,
                 data: {
                     summary,
-                    windows
+                    windows,
+                    parallel
                 }
             };
         } catch (error) {

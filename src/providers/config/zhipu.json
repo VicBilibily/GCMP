@@ -40,7 +40,6 @@
             "tooltip": "GLM-5-Turbo 是面向 OpenClaw 龙虾场景深度优化的基座模型。 其从训练阶段就针对龙虾任务的核心需求进行专项优化，增强如工具调用、指令遵循、定时与持续性任务、长链路执行等核心能力，使其在复杂、动态、长链路的任务中也真正具备可执行性。",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
             "endOfLife": true,
             "capabilities": {
                 "toolCalling": true,
@@ -73,7 +72,6 @@
             "tooltip": "GLM-5 是智谱新一代的旗舰基座模型，面向 Agentic Engineering 打造，能够在复杂系统工程与长程 Agent 任务中提供可靠生产力。在 Coding 与 Agent 能力上，GLM-5 取得开源 SOTA 表现，在真实编程场景的使用体感逼近 Claude Opus 4.5，擅长复杂系统工程与长程 Agent 任务，是通用 Agent 助手的理想基座。",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
             "endOfLife": true,
             "capabilities": {
                 "toolCalling": true,
@@ -106,7 +104,6 @@
             "tooltip": "GLM-4.7 是智谱最新旗舰模型，GLM-4.7 面向 Agentic Coding 场景强化了编码能力、长程任务规划与工具协同，并在多个公开基准的当期榜单中取得开源模型中的领先表现。通用能力提升，回复更简洁自然，写作更具沉浸感。在执行复杂智能体任务，在工具调用时指令遵循更强，Artifacts 与 Agentic Coding 的前端美感和长程任务完成效率进一步提升。",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
             "endOfLife": true,
             "capabilities": {
                 "toolCalling": true,
@@ -183,6 +180,19 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
+            }
+        },
+        {
+            "id": "glm-5v-turbo-billing",
+            "model": "glm-5v-turbo",
+            "name": "GLM-5V-Turbo (按量计费)",
+            "tooltip": "GLM-5V-Turbo 是智谱首个多模态 Coding 基座模型，面向视觉编程任务打造。能够原生处理图片、视频、文本等多模态输入，同时擅长长程规划、复杂编程和动作执行；深度适配 Agent 工作流，能够与 Claude Code、OpenClaw 等 Agent 深度协同，完成”看懂环境→规划动作→执行任务”的完整闭环。",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
             }
         },
         {

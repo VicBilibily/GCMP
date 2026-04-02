@@ -223,20 +223,29 @@
             }
         },
         {
-            "id": "qwen3.5-plus",
-            "name": "Qwen3.5-Plus",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
-            "tooltip": "Qwen3.5原生视觉语言系列Plus模型，基于混合架构设计，融合了线性注意力机制与稀疏混合专家模型，实现了更高的推理效率。在多项任务评测中，3.5系列均展现出与当前顶尖前沿模型相媲美的卓越性能，模型效果在纯文本与多模态方面相较3系列均实现飞跃式进步。",
-            "maxInputTokens": 991000,
+            "id": "qwen3.6-plus",
+            "name": "Qwen3.6-Plus",
+            "tooltip": "Qwen3.6原生视觉语言系列Plus模型，展现出与当前顶尖前沿模型相媲美的卓越性能，模型效果相较3.5系列显著提升。模型在Agentic coding、前端编程、Vibe coding等代码能力、多模态万物识别、OCR、物体定位等能力上显著增强。",
+            "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
-            },
-            "extraBody": {
-                "thinking": { "type": "disabled" }
+            }
+        },
+        {
+            "id": "qwen3.5-plus",
+            "name": "Qwen3.5-Plus",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "tooltip": "Qwen3.5原生视觉语言系列Plus模型，基于混合架构设计，融合了线性注意力机制与稀疏混合专家模型，实现了更高的推理效率。在多项任务评测中，3.5系列均展现出与当前顶尖前沿模型相媲美的卓越性能，模型效果在纯文本与多模态方面相较3系列均实现飞跃式进步。",
+            "maxInputTokens": 983000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
             }
         },
         {
@@ -269,9 +278,6 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
-            },
-            "extraBody": {
-                "thinking": { "type": "disabled" }
             }
         },
         {

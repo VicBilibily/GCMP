@@ -469,6 +469,8 @@ export class OpenAIHandler {
                 if (settings.thinking) {
                     if (settings.thinking === 'enabled') {
                         customParams.enable_thinking = true;
+                    } else if (settings.thinking === 'disabled') {
+                        customParams.enable_thinking = false;
                     } else {
                         customParams.enable_thinking = undefined;
                     }
