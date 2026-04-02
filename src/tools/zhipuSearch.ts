@@ -9,7 +9,7 @@ import { Logger } from '../utils';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { ConfigManager } from '../utils/configManager';
 import { VersionManager } from '../utils/versionManager';
-import { MCPWebSearchClient, type WebSearchRequest } from '../utils/mcpWebSearchClient';
+import { ZhipuMCPWebSearchClient, type ZhipuWebSearchRequest } from './mcp/zhipuMCPClient';
 import { StatusBarManager } from '../status/statusBarManager';
 
 /**
@@ -80,9 +80,9 @@ export class ZhipuSearchTool {
      */
     private async searchViaMCP(params: ZhipuSearchRequest): Promise<ZhipuSearchResult[]> {
         // 获取 MCP 客户端实例（单例模式，带缓存）
-        const mcpClient = await MCPWebSearchClient.getInstance();
+        const mcpClient = await ZhipuMCPWebSearchClient.getInstance();
 
-        const searchRequest: WebSearchRequest = {
+        const searchRequest: ZhipuWebSearchRequest = {
             search_query: params.search_query,
             search_engine: params.search_engine,
             search_intent: params.search_intent,
@@ -246,7 +246,7 @@ export class ZhipuSearchTool {
     async cleanup(): Promise<void> {
         try {
             // MCP 客户端使用单例模式，不需要在这里清理
-            // 如果需要清理所有 MCP 客户端缓存，可以调用 MCPWebSearchClient.clearCache()
+            // 如果需要清理所有 MCP 客户端缓存，可以调用 ZhipuMCPWebSearchClient.clearCache()
             Logger.info('✅ [智谱搜索] 工具资源已清理');
         } catch (error) {
             Logger.error('❌ [智谱搜索] 资源清理失败', error instanceof Error ? error : undefined);
@@ -257,13 +257,13 @@ export class ZhipuSearchTool {
      * 获取 MCP 客户端缓存统计信息
      */
     getMCPCacheStats() {
-        return MCPWebSearchClient.getCacheStats();
+        return ZhipuMCPWebSearchClient.getCacheStats();
     }
 
     /**
      * 清除 MCP 客户端缓存
      */
     async clearMCPCache(apiKey?: string): Promise<void> {
-        await MCPWebSearchClient.clearCache(apiKey);
+        await ZhipuMCPWebSearchClient.clearCache(apiKey);
     }
 }

@@ -8,11 +8,13 @@ import { Logger } from '../utils';
 import { ZhipuSearchTool } from './zhipuSearch';
 import { MiniMaxSearchTool } from './minimaxSearch';
 import { KimiSearchTool } from './kimiSearch';
+import { DashscopeSearchTool } from './dashscopeSearch';
 
 // 全局工具实例管理
 let zhipuSearchTool: ZhipuSearchTool | undefined;
 let minimaxSearchTool: MiniMaxSearchTool | undefined;
 let kimiSearchTool: KimiSearchTool | undefined;
+let dashscopeSearchTool: DashscopeSearchTool | undefined;
 
 /**
  * 注册所有工具
@@ -40,6 +42,13 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
         });
         context.subscriptions.push(kimiToolDisposable);
 
+        // 注册阿里云百炼联网搜索工具
+        dashscopeSearchTool = new DashscopeSearchTool();
+        const dashscopeToolDisposable = vscode.lm.registerTool('gcmp_dashscopeWebSearch', {
+            invoke: dashscopeSearchTool.invoke.bind(dashscopeSearchTool)
+        });
+        context.subscriptions.push(dashscopeToolDisposable);
+
         // 添加清理逻辑到context
         context.subscriptions.push({
             dispose: async () => {
@@ -50,6 +59,7 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
         Logger.debug('智谱AI联网搜索工具已注册: gcmp_zhipuWebSearch');
         Logger.debug('MiniMax网络搜索工具已注册: gcmp_minimaxWebSearch');
         Logger.debug('Kimi网络搜索工具已注册: gcmp_kimiWebSearch');
+        Logger.debug('阿里云百炼联网搜索工具已注册: gcmp_dashscopeWebSearch');
     } catch (error) {
         Logger.error('工具注册失败', error instanceof Error ? error : undefined);
         throw error;
@@ -77,6 +87,12 @@ export async function cleanupAllTools(): Promise<void> {
             await kimiSearchTool.cleanup();
             kimiSearchTool = undefined;
             Logger.info('✅ Kimi网络搜索工具资源已清理');
+        }
+
+        if (dashscopeSearchTool) {
+            await dashscopeSearchTool.cleanup();
+            dashscopeSearchTool = undefined;
+            Logger.info('✅ 阿里云百炼联网搜索工具资源已清理');
         }
     } catch (error) {
         Logger.error('❌ 工具清理失败', error instanceof Error ? error : undefined);

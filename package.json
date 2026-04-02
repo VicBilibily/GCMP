@@ -71,6 +71,7 @@
         "onLanguageModelTool:gcmp_zhipuWebSearch",
         "onLanguageModelTool:gcmp_minimaxWebSearch",
         "onLanguageModelTool:gcmp_kimiWebSearch",
+        "onLanguageModelTool:gcmp_dashscopeWebSearch",
         "onFileSystem:gcmp-settings"
     ],
     "contributes": {
@@ -616,7 +617,7 @@
             },
             {
                 "vendor": "gcmp.codex",
-                "displayName": "Codex CLI",
+                "displayName": "⨮ Codex CLI",
                 "managementCommand": "gcmp.codex.configWizard"
             },
             {
@@ -739,6 +740,33 @@
                             "type": "boolean",
                             "description": "是否抓取并返回页面完整内容",
                             "default": false
+                        }
+                    },
+                    "required": [
+                        "query"
+                    ]
+                },
+                "canBeReferencedInPrompt": true
+            },
+            {
+                "name": "gcmp_dashscopeWebSearch",
+                "displayName": "阿里云百炼联网搜索",
+                "toolReferenceName": "bailianWebSearch",
+                "modelDescription": "使用阿里云百炼提供的联网搜索MCP服务获取实时信息。需要订阅百炼Coding Plan并开通联网搜索MCP服务（限时免费，每月2000次免费额度），使用百炼通用API密钥（sk-xxx格式）进行鉴权。",
+                "userDescription": "通过阿里云百炼联网搜索获取最新信息",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "搜索查询字符串"
+                        },
+                        "count": {
+                            "type": "integer",
+                            "description": "返回搜索结果数量",
+                            "minimum": 1,
+                            "maximum": 20,
+                            "default": 10
                         }
                     },
                     "required": [

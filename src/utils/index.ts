@@ -10,7 +10,6 @@ export { KnownProviderConfig, KnownProviders } from './knownProviders';
 export { Logger } from './logger';
 export { StatusLogger } from './statusLogger';
 export { CompletionLogger } from './completionLogger';
-export { MCPWebSearchClient } from './mcpWebSearchClient';
 export { VersionManager } from './versionManager';
 export { ZhipuWizard } from './zhipuWizard';
 export { MiniMaxWizard } from './minimaxWizard';
