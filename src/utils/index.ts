@@ -16,6 +16,7 @@ export { MiniMaxWizard } from './minimaxWizard';
 export { MoonshotWizard } from './moonshotWizard';
 export { DashscopeWizard } from './dashscopeWizard';
 export { TencentWizard } from './tencentWizard';
+export { XiaomimimoWizard } from './xiaomimimoWizard';
 export { JsonSchemaProvider } from './jsonSchemaProvider';
 export { RetryManager } from './retryManager';
 export { ModelInfoCache } from './modelInfoCache';

@@ -126,6 +126,13 @@ export class AnthropicHandler {
                 baseUrl = baseUrl.replace('open.bigmodel.cn', 'api.z.ai');
             }
         }
+        if (providerKey === 'xiaomimimo-token') {
+            // 针对 Xiaomi MiMo Token Plan 接入点切换
+            const endpoint = ConfigManager.getXiaomimimoEndpoint();
+            if (baseUrl && endpoint && endpoint !== 'cn') {
+                baseUrl = baseUrl.replace('token-plan-cn', `token-plan-${endpoint}`);
+            }
+        }
         Logger.debug(`[${this.displayName}] 创建新的 Anthropic 客户端 (baseUrl: ${baseUrl})`);
 
         // 构建默认头部，包含提供商级别和模型级别的 customHeader

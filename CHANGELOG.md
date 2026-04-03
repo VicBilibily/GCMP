@@ -2,6 +2,15 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.21.6] - 2026-04-03
+
+### 新增
+
+- **Xiaomi MiMo Token Plan**：新增 Token Plan 套餐接入与专用 API Key 配置
+    - 新增 Token Plan 模型：**MiMo-V2-Pro**、**MiMo-V2-Omni**
+    - 支持双密钥管理：普通 API Key 与 Token Plan 专用 API Key 分别配置
+    - 支持接入点切换：可通过配置向导切换 `中国集群(cn)`、`新加坡集群(sgp)`、`欧洲集群(ams)`
+
 ## [0.21.5] - 2026-04-03
 
 ### 新增

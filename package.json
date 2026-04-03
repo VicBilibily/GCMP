@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云、Xiaomi MiMo 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.21.5",
+    "version": "0.21.6",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -182,6 +182,21 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.xiaomimimo.setTokenPlanApiKey",
+                "title": "设置 Xiaomi MiMo Token Plan 专用密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.xiaomimimo.setTokenPlanEndpoint",
+                "title": "设置 Xiaomi MiMo Token Plan 接入点",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.xiaomimimo.configWizard",
+                "title": "启动 Xiaomi MiMo 配置向导",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.qwen.configWizard",
                 "title": "Qwen Code CLI 配置向导（CLI 认证）",
                 "category": "GCMP"
@@ -316,6 +331,17 @@
                     ],
                     "default": "minimaxi.com",
                     "description": "MiniMax Coding Plan 接入站点。minimaxi.com 为国内站（推荐），minimax.io 为国际站。",
+                    "scope": "application"
+                },
+                "gcmp.xiaomimimo.endpoint": {
+                    "type": "string",
+                    "enum": [
+                        "cn",
+                        "sgp",
+                        "ams"
+                    ],
+                    "default": "cn",
+                    "description": "Xiaomi MiMo Token Plan 接入点。cn 为中国接入点（默认），sgp 为新加坡接入点，ams 为欧洲接入点。",
                     "scope": "application"
                 },
                 "gcmp.usages.retentionDays": {
@@ -602,8 +628,8 @@
             },
             {
                 "vendor": "gcmp.xiaomimimo",
-                "displayName": "⨮ Xiaomi MiMo",
-                "managementCommand": "gcmp.xiaomimimo.setApiKey"
+                "displayName": "⦿ Xiaomi MiMo (Token Plan)",
+                "managementCommand": "gcmp.xiaomimimo.configWizard"
             },
             {
                 "vendor": "gcmp.qwen",

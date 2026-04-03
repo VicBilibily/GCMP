@@ -36,6 +36,14 @@ export interface MiniMaxConfig {
 }
 
 /**
+ * Xiaomi MiMo 配置
+ */
+export interface XiaomimimoConfig {
+    /** Token Plan 接入点 */
+    endpoint: 'cn' | 'sgp' | 'ams';
+}
+
+/**
  * NES 补全配置
  */
 export interface NESCompletionConfig {
@@ -75,6 +83,8 @@ export interface GCMPConfig {
     zhipu: ZhipuConfig;
     /** MiniMax配置 */
     minimax: MiniMaxConfig;
+    /** Xiaomi MiMo配置 */
+    xiaomimimo: XiaomimimoConfig;
     /** FIM补全配置 */
     fimCompletion: FIMCompletionConfig;
     /** NES补全配置 */
@@ -138,6 +148,9 @@ export class ConfigManager {
             },
             minimax: {
                 endpoint: config.get<MiniMaxConfig['endpoint']>('minimax.endpoint', 'minimaxi.com')
+            },
+            xiaomimimo: {
+                endpoint: config.get<XiaomimimoConfig['endpoint']>('xiaomimimo.endpoint', 'cn')
             },
             fimCompletion: {
                 enabled: config.get<boolean>('fimCompletion.enabled', false),
@@ -222,6 +235,14 @@ export class ConfigManager {
      */
     static getMinimaxEndpoint(): 'minimaxi.com' | 'minimax.io' {
         return this.getConfig().minimax.endpoint;
+    }
+
+    /**
+     * 获取 Xiaomi MiMo Token Plan 接入点配置
+     * @returns 'cn' | 'sgp' | 'ams'，默认 'cn'
+     */
+    static getXiaomimimoEndpoint(): XiaomimimoConfig['endpoint'] {
+        return this.getConfig().xiaomimimo.endpoint;
     }
 
     /**

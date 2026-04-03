@@ -96,7 +96,10 @@
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)
 
-- 预置模型：**MiMo-V2-Pro**、**MiMo-V2-Omni**、**MiMo-V2-Flash**
+- 按量计费：**MiMo-V2-Pro**、**MiMo-V2-Omni**、**MiMo-V2-Flash**
+- [**Token Plan**](https://platform.xiaomimimo.com/#/token-plan)：**MiMo-V2-Pro**、**MiMo-V2-Omni**
+    - [区域集群](https://platform.xiaomimimo.com/#/docs/tokenplan/subscription?target=快速指南)：可切换选择`中国集群(cn)`、`新加坡集群(sgp)`、`欧洲集群(ams)`，按[订阅管理](https://platform.xiaomimimo.com/#/console/plan-manage)页面展示为准。
+- **密钥配置**：支持设置 [Xiaomi MiMo API Key](https://platform.xiaomimimo.com/#/console/api-keys) 与 [Token Plan 专用 API Key](https://platform.xiaomimimo.com/#/console/plan-manage) 分别设置。
 
 ### 实验性支持 CLI 认证提供商
 
