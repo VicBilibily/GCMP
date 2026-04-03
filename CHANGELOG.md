@@ -2,6 +2,17 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.21.5] - 2026-04-03
+
+### 新增
+
+- **智谱AI**：新增 **GLM-5V-Turbo** (Coding Plan) 多模态编程模型
+
+### 调整
+
+- **@vscode/chat-lib**：升级至 0.42.0
+- **Qwen Code**：默认模型 **Qwen3.5-Plus** → **Qwen3.6-Plus**
+
 ## [0.21.4] - 2026-04-02
 
 ### 新增

@@ -4,6 +4,20 @@
     "apiKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "glm-5v-turbo",
+            "name": "GLM-5V-Turbo (Coding Plan)",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://open.bigmodel.cn/api/anthropic",
+            "tooltip": "GLM-5V-Turbo 是智谱首个多模态 Coding 基座模型，面向视觉编程任务打造。能够原生处理图片、视频、文本等多模态输入，同时擅长长程规划、复杂编程和动作执行；深度适配 Agent 工作流，能够与 Claude Code、OpenClaw 等 Agent 深度协同，完成”看懂环境→规划动作→执行任务”的完整闭环。",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
             "id": "glm-5.1",
             "name": "GLM-5.1 (Coding Plan)",
             "sdkMode": "anthropic",
