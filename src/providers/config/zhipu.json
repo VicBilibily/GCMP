@@ -22,7 +22,7 @@
             "name": "GLM-5.1 (Coding Plan)",
             "sdkMode": "anthropic",
             "baseUrl": "https://open.bigmodel.cn/api/anthropic",
-            "tooltip": "GLM-5.1 已面向GLM Coding Plan全部用户(Lite/Pro/Max)开放",
+            "tooltip": "GLM-5.1 是智谱最新旗舰模型，代码能力大大增强，长程任务显著提升，能够在单次任务中持续、自主地工作长达 8 小时，完成从规划、执行到迭代优化的完整闭环，交付工程级成果。",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
@@ -191,6 +191,19 @@
             "maxInputTokens": 128000,
             "maxOutputTokens": 96000,
             "thinking": ["disabled", "enabled"],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "glm-5.1-billing",
+            "model": "glm-5.1",
+            "name": "GLM-5.1 (按量计费)",
+            "tooltip": "GLM-5.1 是智谱最新旗舰模型，代码能力大大增强，长程任务显著提升，能够在单次任务中持续、自主地工作长达 8 小时，完成从规划、执行到迭代优化的完整闭环，交付工程级成果。",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
