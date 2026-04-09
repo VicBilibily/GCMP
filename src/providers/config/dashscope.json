@@ -5,6 +5,22 @@
     "codingKeyTemplate": "sk-sp-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "qwen3.6-plus-coding-plan",
+            "name": "Qwen3.6-Plus (Coding Plan)",
+            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-coding",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+            "model": "qwen3.6-plus",
+            "maxInputTokens": 991000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
             "id": "qwen3.5-plus-coding-plan",
             "name": "Qwen3.5-Plus (Coding Plan)",
             "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
