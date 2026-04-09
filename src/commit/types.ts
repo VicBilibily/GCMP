@@ -105,3 +105,7 @@ export class EmptyCommitMessageError extends Error {
         this.name = 'EmptyCommitMessageError';
     }
 }
+
+export interface CommitChatModelOptions {
+    readonly commit?: boolean;
+}

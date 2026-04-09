@@ -12,6 +12,7 @@ import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
+import type { CommitChatModelOptions } from '../commit';
 
 /**
  * 扩展Delta类型以支持reasoning_content字段
@@ -461,11 +462,11 @@ export class OpenAIHandler {
 
             // 根据模型配置设置思考模式和推理长度
             const settings = options.modelConfiguration as ModelChatResponseOptions;
+            const customParams = createParams as unknown as {
+                enable_thinking?: boolean;
+                reasoning_effort?: string;
+            };
             if (settings) {
-                const customParams = createParams as unknown as {
-                    enable_thinking?: boolean;
-                    reasoning_effort?: string;
-                };
                 if (settings.thinking) {
                     if (settings.thinking === 'enabled') {
                         customParams.enable_thinking = true;
@@ -477,6 +478,24 @@ export class OpenAIHandler {
                 } else if (settings.reasoningEffort) {
                     customParams.reasoning_effort =
                         settings.reasoningEffort !== 'minimal' ? settings.reasoningEffort : undefined;
+                }
+            }
+            // 如果处于提交模式，模型支持思考的，不使用思考模式
+            const modelOpts = options.modelOptions as CommitChatModelOptions;
+            if (modelOpts?.commit) {
+                if (customParams.enable_thinking) {
+                    customParams.enable_thinking = false;
+                }
+                if (customParams.reasoning_effort !== undefined) {
+                    let effort: 'none' | 'minimal' | undefined;
+                    if (modelConfig.reasoningEffort?.includes('none')) {
+                        effort = 'none';
+                    } else if (modelConfig.reasoningEffort?.includes('minimal')) {
+                        effort = 'minimal';
+                    }
+                    if (effort) {
+                        customParams.reasoning_effort = effort;
+                    }
                 }
             }
 

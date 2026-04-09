@@ -15,6 +15,7 @@ import { StreamReporter } from './streamReporter';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
+import type { CommitChatModelOptions } from '../commit';
 
 // 使用 OpenAI SDK 的 Responses API 类型
 type ResponseInputItem = OpenAI.Responses.ResponseInputItem;
@@ -557,11 +558,11 @@ export class OpenAIResponsesHandler {
 
                 // 根据模型配置设置思考模式和推理长度
                 const settings = options.modelConfiguration as ModelChatResponseOptions;
+                const customParams = requestBody as unknown as {
+                    thinking?: { type: string };
+                    reasoning?: { effort: string };
+                };
                 if (settings) {
-                    const customParams = requestBody as unknown as {
-                        thinking?: { type: string };
-                        reasoning?: { effort: string };
-                    };
                     if (settings.thinking) {
                         const thinking: { type: string } = customParams.thinking || { type: 'disabled' };
                         thinking.type = settings.thinking;
@@ -571,13 +572,33 @@ export class OpenAIResponsesHandler {
                         thinking.type = 'enabled';
                         const reasoning = customParams.reasoning || { effort: 'medium' };
                         reasoning.effort = settings.reasoningEffort as string;
-                        if (settings.reasoningEffort === 'minimal') {
+                        if (settings.reasoningEffort === 'minimal' || settings.reasoningEffort === 'none') {
                             thinking.type = 'disabled';
                         }
                         customParams.thinking = thinking;
                         customParams.reasoning = reasoning;
                         if (model.id.toLowerCase().includes('gpt')) {
                             customParams.thinking = undefined;
+                        }
+                    }
+                }
+                // 如果处于提交模式，模型支持思考的，不使用思考模式
+                const modelOpts = options.modelOptions as CommitChatModelOptions;
+                if (modelOpts?.commit) {
+                    if (customParams.thinking) {
+                        customParams.thinking.type = 'disabled';
+                    }
+                    if (customParams.reasoning) {
+                        let effort: 'none' | 'minimal' | undefined;
+                        if (modelConfig.reasoningEffort?.includes('none')) {
+                            effort = 'none';
+                        } else if (modelConfig.reasoningEffort?.includes('minimal')) {
+                            effort = 'minimal';
+                        }
+                        if (effort) {
+                            customParams.reasoning.effort = effort;
+                        } else if (modelId.toLowerCase().includes('gpt-5')) {
+                            customParams.reasoning.effort = 'none';
                         }
                     }
                 }

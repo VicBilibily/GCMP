@@ -17,6 +17,7 @@ import { OpenAIHandler } from './openaiHandler';
 import { getStatefulMarkerAndIndex } from './statefulMarker';
 import { StreamReporter } from './streamReporter';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
+import type { CommitChatModelOptions } from '../commit';
 
 /**
  * Anthropic 兼容处理器类
@@ -235,6 +236,11 @@ export class AnthropicHandler {
                 }
                 createParams.thinking = thinking as Anthropic.MessageCreateParamsStreaming['thinking'];
                 createParams.output_config = reasoning as Anthropic.MessageCreateParamsStreaming['output_config'];
+            }
+            // 如果处于提交模式，模型支持思考的，不使用思考模式
+            const modelOpts = options.modelOptions as CommitChatModelOptions;
+            if (modelOpts?.commit && createParams.thinking) {
+                createParams.thinking.type = 'disabled';
             }
 
             // 添加系统消息（如果有）
