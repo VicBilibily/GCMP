@@ -142,13 +142,14 @@
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "enum": ["none", "minimal", "low", "medium", "high", "max"],
+                        "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
                         "enumDescriptions": [
                             "关闭思考，直接回答",
                             "关闭思考，直接回答",
                             "轻量思考，侧重快速响应",
                             "均衡模式，兼顾速度与深度",
                             "深度分析，处理复杂问题",
+                            "最大推理深度，速度较慢",
                             "绝对最高能力，对 token 消耗没有限制"
                         ]
                     },

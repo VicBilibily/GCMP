@@ -189,7 +189,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 enum: model.reasoningEffort,
                 enumItemLabels: model.reasoningEffort.map(
                     level =>
-                        ({ none: '关', minimal: '关', low: '低', medium: '中', high: '高', max: '超' })[level] || level
+                        ({ none: '关', minimal: '关', low: '低', medium: '中', high: '高', xhigh: '超', max: '超' })[
+                            level
+                        ] || level
                 ),
                 enumDescriptions: model.reasoningEffort.map(
                     level =>
@@ -199,6 +201,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             low: '轻量思考，快速响应',
                             medium: '均衡模式，兼顾速度与深度',
                             high: '深度分析，处理复杂问题',
+                            xhigh: '最大推理深度，速度较慢',
                             max: '绝对最高能力，没有消耗限制'
                         })[level] || level
                 ),

@@ -19,9 +19,10 @@ export interface ModelChatResponseOptions {
      * - low: 轻量思考，侧重快速响应
      * - medium: 均衡模式，兼顾速度与深度
      * - high: 深度分析，处理复杂问题
+     * - xhigh: 最大推理深度，速度较慢
      * - max: 绝对最高能力，对 token 消耗没有限制
      */
-    readonly reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'max';
+    readonly reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 }
 
 /**
