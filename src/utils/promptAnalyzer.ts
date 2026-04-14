@@ -266,6 +266,7 @@ export class PromptAnalyzer {
                 }
 
                 // ===== 检测 thinking 部分（LanguageModelThinkingPart） =====
+                let currentMessageThinkingTokens = 0;
                 if (Array.isArray(message.content)) {
                     for (const part of message.content) {
                         if (part instanceof LanguageModelThinkingPart) {
@@ -275,6 +276,9 @@ export class PromptAnalyzer {
                             if (thinkingText) {
                                 const thinkingTokens = await tokenCounter.countTokens(model, thinkingText);
                                 promptParts.thinking = (promptParts.thinking || 0) + thinkingTokens;
+                                if (lastUserTextMessageIndex !== -1 && i >= lastUserTextMessageIndex) {
+                                    currentMessageThinkingTokens += thinkingTokens;
+                                }
                                 // Logger.debug(
                                 //     `[${providerKey}] 检测到 LanguageModelThinkingPart, tokens=${thinkingTokens}`
                                 // );
@@ -313,14 +317,6 @@ export class PromptAnalyzer {
                     skippedMessageCount++;
                     continue;
                 }
-
-                // 使用与 countMessagesTokens 相同的方式计算消息 token
-                // 这样可以确保计算结果一致
-                const messageTokens = await tokenCounter.countTokens(
-                    model,
-                    message as unknown as string | vscode.LanguageModelChatMessage
-                );
-
                 // 本轮图片附件：如果消息 content 中包含图片 DataPart，则单独累计其 token
                 // 并且从 currentRoundMessages 中扣除（保证“本轮消息”展示为非图片部分）
                 let currentMessageImageTokens = 0;
@@ -342,6 +338,13 @@ export class PromptAnalyzer {
                     }
                 }
 
+                // 使用与 countMessagesTokens 相同的方式计算消息 token
+                // 这样可以确保计算结果一致
+                const messageTokens = await tokenCounter.countTokens(
+                    model,
+                    message as unknown as string | vscode.LanguageModelChatMessage
+                );
+
                 // Logger.debug(`[${providerKey}] 处理消息 [${i}] role=${role}, tokens=${messageTokens}`);
 
                 // 按官方标准合并：所有非系统、非压缩的消息都并入 userAssistantMessage
@@ -356,8 +359,11 @@ export class PromptAnalyzer {
                     // 根据消息索引判断是历史消息还是本轮消息
                     if (lastUserTextMessageIndex !== -1 && i >= lastUserTextMessageIndex) {
                         // 本轮消息
-                        const nonImageTokens = Math.max(0, messageTokens - currentMessageImageTokens);
-                        promptParts.currentRoundMessages = (promptParts.currentRoundMessages || 0) + nonImageTokens;
+                        const currTextTokens = Math.max(
+                            0,
+                            messageTokens - currentMessageImageTokens - currentMessageThinkingTokens
+                        );
+                        promptParts.currentRoundMessages = (promptParts.currentRoundMessages || 0) + currTextTokens;
                         if (currentMessageImageTokens > 0) {
                             promptParts.currentRoundImages =
                                 (promptParts.currentRoundImages || 0) + currentMessageImageTokens;
@@ -381,13 +387,12 @@ export class PromptAnalyzer {
             );
 
             // ===== 5. 计算上下文总占用 =====
-            // context = systemPrompt + availableTools + environment + userAssistantMessage + thinking + autoCompressed
+            // context = systemPrompt + availableTools + environment + userAssistantMessage + autoCompressed
             const contextTotal =
                 (promptParts.systemPrompt || 0) +
                 (promptParts.availableTools || 0) +
                 (promptParts.environment || 0) +
                 (promptParts.autoCompressed || 0) +
-                (promptParts.thinking || 0) +
                 (promptParts.userAssistantMessage || 0);
             promptParts.context = contextTotal;
             Logger.debug(
@@ -396,10 +401,10 @@ export class PromptAnalyzer {
                     `  可用工具: ${promptParts.availableTools} tokens (含 1.1x 安全系数)\n` +
                     `  环境消息: ${promptParts.environment} tokens (environment_info 和 workspace_info)\n` +
                     `  自动压缩: ${promptParts.autoCompressed} tokens (压缩历史消息体)\n` +
-                    `  思考过程: ${promptParts.thinking} tokens (LanguageModelThinkingPart)\n` +
                     `  对话消息: ${promptParts.userAssistantMessage} tokens (用户、助手及其他对话角色)\n` +
                     `    - 历史消息: ${promptParts.historyMessages} tokens (本轮对话之前的所有消息)\n` +
-                    `    - 本轮消息: ${promptParts.currentRoundMessages} tokens (从最后一个 user text 消息开始，不含图片)\n` +
+                    `    - 思考过程: ${promptParts.thinking} tokens (LanguageModelThinkingPart)\n` +
+                    `    - 本轮消息: ${promptParts.currentRoundMessages} tokens (从最后一个 user text 消息开始，不含图片和思考过程)\n` +
                     `    - 本轮图片: ${promptParts.currentRoundImages || 0} tokens (本轮消息中的图片附件)\n` +
                     `  = 总占用: ${promptParts.context} tokens`
             );

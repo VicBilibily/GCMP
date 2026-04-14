@@ -18,7 +18,7 @@
 
 ### 1. 安装扩展
 
-在VS Code扩展市场搜索 `GCMP` 并安装，或使用扩展标识符：`vicanent.gcmp`
+在VS Code扩展市场搜索 `GCMP` 并安装，或使用扩展标识符：[`vicanent.gcmp`](https://marketplace.visualstudio.com/items?itemName=vicanent.gcmp)
 
 ### 2. 开始使用
 
@@ -106,16 +106,6 @@
 
 <details>
 <summary>展开查看 CLI 认证支持提供商说明</summary>
-
-### [**Qwen Code**](https://qwenlm.github.io/qwen-code-docs/zh/users/overview/) - Qwen Code CLI
-
-阿里云通义千问官方编程助手，支持通过 `Qwen Code CLI` 进行 `Qwen Auth` 认证（需要本地安装 `Qwen Code CLI`）。
-
-```bash
-npm install -g @qwen-code/qwen-code@latest
-```
-
-- **支持模型**：**Qwen3.5-Plus**
 
 ### [**Codex CLI**](https://chatgpt.com/codex) - OpenAI Codex
 

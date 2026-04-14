@@ -13,6 +13,7 @@ import {
 } from 'vscode';
 import { createTokenizer, getRegexByEncoder, getSpecialTokensByEncoder, TikTokenizer } from '@microsoft/tiktokenizer';
 import { Logger } from './logger';
+import { CustomDataPartMimeTypes } from '../handlers/types';
 
 /* ---------------------------------------------------------------------------------------------
  *  Token Counter 主类
@@ -151,9 +152,14 @@ export class TokenCounter {
 
         const partObj = part as Record<string, unknown>;
 
-        // 处理 LanguageModelTextPart
-        if ('value' in partObj && typeof partObj.value === 'string') {
-            return partObj.value;
+        // 处理 LanguageModelTextPart / LanguageModelThinkingPart
+        if ('value' in partObj) {
+            if (typeof partObj.value === 'string') {
+                return partObj.value;
+            }
+            if (Array.isArray(partObj.value) && partObj.value.every(item => typeof item === 'string')) {
+                return partObj.value.join('');
+            }
         }
 
         // 处理二进制/DataPart（尤其是图片）：避免 JSON.stringify 把 Uint8Array/Buffer 展开成巨大数组导致 token 被夸大
@@ -230,8 +236,20 @@ export class TokenCounter {
      * 支持文本、图片、工具调用、思考内容等复杂内容
      */
     async countMessageObjectTokens(obj: Record<string, unknown>, depth: number = 0): Promise<number> {
+        // ThinkingPart: 仅统计文本内容，不递归 metadata
+        if (obj instanceof vscode.LanguageModelThinkingPart) {
+            const thinkingText = this.extractPartText(obj);
+            return thinkingText ? this.getTextTokenLength(thinkingText) : 0;
+        }
+
         // DataPart / 二进制 part：不要展开 data 数组逐字节计数
         if (obj && typeof obj.mimeType === 'string' && 'data' in obj) {
+            if (obj.mimeType === CustomDataPartMimeTypes.CacheControl) {
+                return 0; // cache_control 类型的 part 不计入 token
+            }
+            if (obj.mimeType === CustomDataPartMimeTypes.StatefulMarker) {
+                return 0; // stateful_marker 类型的 part 不计入 token
+            }
             const bytes = getBinaryUint8Array(obj.data);
             if (bytes) {
                 const mimeType = String(obj.mimeType);

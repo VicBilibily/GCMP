@@ -5,7 +5,6 @@
 
 import { BaseCliAuth } from './baseCliAuth';
 import { GeminiCliAuth } from './geminiCliAuth';
-import { QwenCodeCliAuth } from './qwenCodeCliAuth';
 import { CodexCliAuth } from './codexCliAuth';
 import { Logger } from '../../utils/logger';
 import { OAuthCredentials } from '../type';
@@ -28,9 +27,6 @@ export class CliAuthFactory {
         // 创建新实例
         let instance: BaseCliAuth | null = null;
         switch (cliType) {
-            case 'qwen':
-                instance = new QwenCodeCliAuth();
-                break;
             case 'gemini':
                 instance = new GeminiCliAuth();
                 break;
@@ -93,7 +89,6 @@ export class CliAuthFactory {
      */
     static getSupportedCliTypes(): Array<{ id: string; name: string }> {
         return [
-            { id: 'qwen', name: 'Qwen Code CLI' },
             { id: 'codex', name: 'Codex CLI' },
             { id: 'gemini', name: 'Gemini CLI' }
         ];

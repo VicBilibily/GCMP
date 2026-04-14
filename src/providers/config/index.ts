@@ -9,7 +9,6 @@ import xiaomimimo from './xiaomimimo.json';
 import streamlake from './streamlake.json';
 import dashscope from './dashscope.json';
 import tencent from './tencent.json';
-import qwen from './qwen.json';
 import gemini from './gemini.json';
 import codex from './codex.json';
 
@@ -23,7 +22,6 @@ const providers = {
     streamlake,
     dashscope,
     tencent,
-    qwen,
     gemini,
     codex
 };

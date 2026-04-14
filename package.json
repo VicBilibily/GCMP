@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云、Xiaomi MiMo 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.21.10",
+    "version": "0.21.11",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -34,7 +34,7 @@
     ],
     "repository": {
         "type": "git",
-        "url": "https://github.com/VicBilibily/gcmp.git"
+        "url": "https://github.com/VicBilibily/GCMP.git"
     },
     "engines": {
         "vscode": ">=1.110.0",
@@ -64,7 +64,6 @@
         "onLanguageModelProvider:gcmp.volcengine",
         "onLanguageModelProvider:gcmp.tencent",
         "onLanguageModelProvider:gcmp.xiaomimimo",
-        "onLanguageModelProvider:gcmp.qwen",
         "onLanguageModelProvider:gcmp.gemini",
         "onLanguageModelProvider:gcmp.codex",
         "onLanguageModelProvider:gcmp.compatible",
@@ -194,11 +193,6 @@
             {
                 "command": "gcmp.xiaomimimo.configWizard",
                 "title": "启动 Xiaomi MiMo 配置向导",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.qwen.configWizard",
-                "title": "Qwen Code CLI 配置向导（CLI 认证）",
                 "category": "GCMP"
             },
             {
@@ -630,11 +624,6 @@
                 "vendor": "gcmp.xiaomimimo",
                 "displayName": "⦿ Xiaomi MiMo (Token Plan)",
                 "managementCommand": "gcmp.xiaomimimo.configWizard"
-            },
-            {
-                "vendor": "gcmp.qwen",
-                "displayName": "⨮ Qwen Code CLI",
-                "managementCommand": "gcmp.qwen.configWizard"
             },
             {
                 "vendor": "gcmp.gemini",
