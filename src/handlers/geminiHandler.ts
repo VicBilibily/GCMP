@@ -36,7 +36,7 @@ export class GeminiHandler {
     private static availableModels: string[] | null = null;
 
     /** 默认 Gemini CLI 版本 */
-    private static readonly defaultCliVersion = '0.36.0';
+    private static readonly defaultCliVersion = '0.37.2';
 
     constructor(private readonly providerInstance: GenericModelProvider) {}
 

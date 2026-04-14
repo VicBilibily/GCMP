@@ -3,8 +3,8 @@
     "baseUrl": "https://chatgpt.com/backend-api/codex",
     "apiKeyTemplate": "eyJhbGciOiJSUzI1NiIsImtpZCI6I...",
     "customHeader": {
-        "version": "0.118.0",
-        "user-agent": "codex_cli_rs/0.118.0 (Windows 10.0.26200; x86_64) unknown",
+        "version": "0.120.0",
+        "user-agent": "codex_cli_rs/0.120.0 (Windows 10.0.26200; x86_64) unknown",
         "originator": "codex_cli_rs"
     },
     "models": [

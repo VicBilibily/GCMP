@@ -2,6 +2,19 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.21.12] - 2026-04-14
+
+### 新增
+
+- **请求重试配置**：新增 `gcmp.retry.maxAttempts` 配置项，可自定义可重试错误的最大自动重试次数（1-5 次）
+
+### 优化
+
+- **请求重试机制**：统一由通用 Provider 处理自动重试，按 `1s → 3s → 6s → 10s → 15s` 的累加延迟重试 429、限流和临时过载类错误
+- **智谱AI Agent 兼容性**：为智谱AI请求注入 Claude Code 风格系统提示前缀
+- **工具 Schema 清理**：新增统一的 `Schema Sanitizer`，清理 VS Code / JSON Schema 注解字段
+- **Gemini 工具调用**：完善 Gemini function declaration 对 `const`、`oneOf` / `anyOf`、`$ref`、可空类型、空对象 / 空数组等 Schema 的兼容问题
+
 ## [0.21.11] - 2026-04-14
 
 ### 移除
