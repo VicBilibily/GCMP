@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  重试管理器
- *  提供指数级延迟重试机制，专门处理 429 错误
+ *  提供累加延迟重试机制，专门处理可重试的限流错误
  *--------------------------------------------------------------------------------------------*/
 
 import { Logger } from './logger';
@@ -12,8 +12,6 @@ export interface RetryConfig {
     maxAttempts: number;
     initialDelayMs: number;
     maxDelayMs: number;
-    backoffMultiplier: number;
-    jitterEnabled: boolean;
 }
 
 /**
@@ -31,14 +29,12 @@ export type RetryableError = Error & {
 const DEFAULT_RETRY_CONFIG: RetryConfig = {
     maxAttempts: 3,
     initialDelayMs: 1000,
-    maxDelayMs: 30000,
-    backoffMultiplier: 2,
-    jitterEnabled: true
+    maxDelayMs: 30000
 };
 
 /**
  * 重试管理器类
- * 提供指数级延迟重试机制
+ * 提供递增累加延迟重试机制
  */
 export class RetryManager {
     private config: RetryConfig;
@@ -61,7 +57,6 @@ export class RetryManager {
     ): Promise<T> {
         let lastError: RetryableError | undefined;
         let attempt = 0;
-        let delayMs = this.config.initialDelayMs;
 
         // 首次请求
         Logger.trace(`[${providerName}] 开始首次请求`);
@@ -83,8 +78,7 @@ export class RetryManager {
             attempt++;
 
             // 计算延迟时间
-            const jitter = this.config.jitterEnabled ? Math.random() * 0.1 : 0;
-            const actualDelayMs = Math.min(delayMs * (1 + jitter), this.config.maxDelayMs);
+            const actualDelayMs = this.calculateDelayMs(attempt);
             Logger.info(`[${providerName}] ${actualDelayMs / 1000}秒后重试...`);
 
             // 等待延迟时间
@@ -106,9 +100,6 @@ export class RetryManager {
                 }
 
                 Logger.warn(`[${providerName}] 第 ${attempt} 次重试失败，准备下一次重试: ${lastError.message}`);
-
-                // 指数级增加延迟
-                delayMs *= this.config.backoffMultiplier;
             }
         }
 
@@ -126,7 +117,7 @@ export class RetryManager {
      * @param error 错误对象
      * @returns 是否是 429 错误
      */
-    static isRateLimitError(error: RetryableError): boolean {
+    static isRateLimitError(error: RetryableError, stopped = false): boolean {
         if (error instanceof Error) {
             // 检查错误消息中是否包含 429
             if (error.message.includes('429')) {
@@ -140,6 +131,22 @@ export class RetryManager {
             if ('statusCode' in error && error.statusCode === 429) {
                 return true;
             }
+
+            if (
+                // 一些提供商可能在错误消息中包含特定的速率限制提示
+                error.message.includes('Rate limit') ||
+                error.message.includes('请求过于频繁') ||
+                // 智谱的过载错误通常也是 429，可以特殊判断
+                error.message.includes('temporarily overloaded') ||
+                error.message.includes('访问量过大')
+            ) {
+                return true;
+            }
+
+            // 检查是否有嵌套的 error 对象
+            if (!stopped && 'error' in error && error.error instanceof Error) {
+                return this.isRateLimitError(error.error as RetryableError, true);
+            }
         }
         return false;
     }
@@ -151,5 +158,14 @@ export class RetryManager {
      */
     private delay(ms: number): Promise<void> {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    /**
+     * 计算第 N 次重试前的等待时间
+     * 1 -> 1s, 2 -> 3s, 3 -> 6s, 4 -> 10s, 5 -> 15s
+     */
+    private calculateDelayMs(attempt: number): number {
+        const triangularMultiplier = (attempt * (attempt + 1)) / 2;
+        return Math.min(this.config.initialDelayMs * triangularMultiplier, this.config.maxDelayMs);
     }
 }

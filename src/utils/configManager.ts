@@ -62,6 +62,13 @@ export interface NESCompletionConfig {
 export type FIMCompletionConfig = Omit<NESCompletionConfig, 'manualOnly'>;
 
 /**
+ * 请求重试配置
+ */
+export interface RequestRetryConfig {
+    maxAttempts: number;
+}
+
+/**
  * Commit 配置
  */
 export interface CommitConfig {
@@ -77,6 +84,8 @@ export interface CommitConfig {
 export interface GCMPConfig {
     /** 最大输出token数量 */
     maxTokens: number;
+    /** 请求失败重试配置 */
+    retry: RequestRetryConfig;
     /** 自动为模型ID添加提供商前缀 */
     autoPrefixModelId: boolean;
     /** 智谱AI配置 */
@@ -139,6 +148,9 @@ export class ConfigManager {
 
         this.cache = {
             maxTokens: this.validateMaxTokens(config.get<number>('maxTokens', 256000)),
+            retry: {
+                maxAttempts: this.validateRetryMaxAttempts(config.get<number>('retry.maxAttempts', 3))
+            },
             autoPrefixModelId: config.get<boolean>('autoPrefixModelId', false),
             zhipu: {
                 search: {
@@ -201,6 +213,21 @@ export class ConfigManager {
     static getMaxTokens(): number {
         return this.getConfig().maxTokens;
     }
+
+    /**
+     * 获取请求重试配置
+     */
+    static getRetryConfig(): RequestRetryConfig {
+        return this.getConfig().retry;
+    }
+
+    /**
+     * 获取最大重试次数
+     */
+    static getRetryMaxAttempts(): number {
+        return this.getRetryConfig().maxAttempts;
+    }
+
     /**
      * 获取是否为模型ID自动添加提供商前缀的配置
      */
@@ -282,6 +309,17 @@ export class ConfigManager {
         if (isNaN(value) || value < 32 || value > 256000) {
             Logger.warn(`无效的maxTokens值: ${value}，使用默认值16000`);
             return 16000;
+        }
+        return Math.floor(value);
+    }
+
+    /**
+     * 验证最大重试次数
+     */
+    private static validateRetryMaxAttempts(value: number): number {
+        if (isNaN(value) || value < 1 || value > 5) {
+            Logger.warn(`无效的retry.maxAttempts值: ${value}，使用默认值3`);
+            return 3;
         }
         return Math.floor(value);
     }

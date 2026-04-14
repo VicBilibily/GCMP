@@ -265,31 +265,20 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         // 注：此处不调用 super.provideLanguageModelChatResponse，而是直接处理
         // 避免双重密钥检查，因为我们已经在 ensureApiKeyForModel 中检查过了
         const sdkMode = modelConfig.sdkMode || 'openai';
-        const sdkName = sdkMode === 'anthropic' ? 'Anthropic SDK' : 'OpenAI SDK';
+        const sdkName = this.getSdkDisplayName(sdkMode);
         Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
 
         try {
-            if (sdkMode === 'anthropic') {
-                await this.anthropicHandler.handleRequest(
-                    model,
-                    modelConfig,
-                    messages,
-                    options,
-                    progress,
-                    _token,
-                    requestId
-                );
-            } else {
-                await this.openaiHandler.handleRequest(
-                    model,
-                    modelConfig,
-                    messages,
-                    options,
-                    progress,
-                    _token,
-                    requestId
-                );
-            }
+            await this.executeModelRequest(
+                model,
+                modelConfig,
+                messages,
+                options,
+                progress,
+                _token,
+                requestId,
+                providerKey
+            );
         } catch (error) {
             const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
             Logger.error(errorMessage);

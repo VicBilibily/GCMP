@@ -173,28 +173,20 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
         }
 
         const sdkMode = modelConfig.sdkMode || 'openai';
+        const sdkName = this.getSdkDisplayName(sdkMode);
+        Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
+
         try {
-            if (sdkMode === 'anthropic') {
-                await this.anthropicHandler.handleRequest(
-                    model,
-                    modelConfig,
-                    messages,
-                    options,
-                    progress,
-                    _token,
-                    requestId
-                );
-            } else {
-                await this.openaiHandler.handleRequest(
-                    model,
-                    modelConfig,
-                    messages,
-                    options,
-                    progress,
-                    _token,
-                    requestId
-                );
-            }
+            await this.executeModelRequest(
+                model,
+                modelConfig,
+                messages,
+                options,
+                progress,
+                _token,
+                requestId,
+                providerKey
+            );
         } catch (error) {
             if (requestId) {
                 try {

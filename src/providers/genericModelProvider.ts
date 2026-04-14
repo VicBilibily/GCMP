@@ -14,7 +14,16 @@ import {
     Progress
 } from 'vscode';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { ApiKeyManager, ConfigManager, Logger, ModelInfoCache, TokenCounter, PromptAnalyzer } from '../utils';
+import {
+    ApiKeyManager,
+    ConfigManager,
+    Logger,
+    ModelInfoCache,
+    PromptAnalyzer,
+    RetryManager,
+    TokenCounter
+} from '../utils';
+import type { RetryableError } from '../utils';
 import { OpenAIHandler } from '../handlers/openaiHandler';
 import { OpenAICustomHandler } from '../handlers/openaiCustomHandler';
 import { AnthropicHandler } from '../handlers/anthropicHandler';
@@ -414,6 +423,118 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         }
     }
 
+    /**
+     * 获取当前请求的重试配置
+     */
+    protected getRequestRetryConfig() {
+        return {
+            maxAttempts: ConfigManager.getRetryMaxAttempts(),
+            initialDelayMs: 1000,
+            maxDelayMs: 30000
+        };
+    }
+
+    /**
+     * 获取 SDK 显示名称
+     */
+    protected getSdkDisplayName(sdkMode: NonNullable<ModelConfig['sdkMode']> | 'openai'): string {
+        if (sdkMode === 'anthropic') {
+            return 'Anthropic SDK';
+        }
+        if (sdkMode === 'openai-sse') {
+            return 'OpenAI SSE';
+        }
+        if (sdkMode === 'openai-responses') {
+            return 'OpenAI Responses API';
+        }
+        if (sdkMode === 'gemini-sse') {
+            return 'Gemini SSE';
+        }
+        return 'OpenAI SDK';
+    }
+
+    /**
+     * 判断请求错误是否允许重试
+     */
+    protected shouldRetryRequest(error: RetryableError): boolean {
+        return RetryManager.isRateLimitError(error);
+    }
+
+    /**
+     * 执行模型请求，并统一应用重试机制
+     */
+    protected async executeModelRequest(
+        model: LanguageModelChatInformation,
+        modelConfig: ModelConfig,
+        messages: Array<LanguageModelChatMessage>,
+        options: ProvideLanguageModelChatResponseOptions,
+        progress: Progress<vscode.LanguageModelResponsePart>,
+        token: CancellationToken,
+        requestId: string | null,
+        effectiveProviderKey = modelConfig.provider || this.providerKey
+    ): Promise<void> {
+        const sdkMode = modelConfig.sdkMode || 'openai';
+        const retryManager = new RetryManager(this.getRequestRetryConfig());
+
+        await retryManager.executeWithRetry(
+            async () => {
+                if (sdkMode === 'anthropic') {
+                    await this.anthropicHandler.handleRequest(
+                        model,
+                        modelConfig,
+                        messages,
+                        options,
+                        progress,
+                        token,
+                        requestId
+                    );
+                } else if (sdkMode === 'gemini-sse') {
+                    await this.geminiHandler.handleRequest(
+                        model,
+                        modelConfig,
+                        messages,
+                        options,
+                        progress,
+                        token,
+                        requestId
+                    );
+                } else if (sdkMode === 'openai-sse') {
+                    await this.openaiCustomHandler.handleRequest(
+                        model,
+                        modelConfig,
+                        messages,
+                        options,
+                        progress,
+                        token,
+                        requestId
+                    );
+                } else if (sdkMode === 'openai-responses') {
+                    await this.openaiResponsesHandler.handleResponsesRequest(
+                        model,
+                        { ...modelConfig, provider: effectiveProviderKey },
+                        messages,
+                        options,
+                        progress,
+                        token,
+                        requestId
+                    );
+                } else {
+                    await this.openaiHandler.handleRequest(
+                        model,
+                        modelConfig,
+                        messages,
+                        options,
+                        progress,
+                        token,
+                        requestId
+                    );
+                }
+            },
+            error => this.shouldRetryRequest(error),
+            this.providerConfig.displayName
+        );
+    }
+
     async provideLanguageModelChatResponse(
         model: LanguageModelChatInformation,
         messages: Array<LanguageModelChatMessage>,
@@ -457,72 +578,20 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
         // 根据模型的 sdkMode 选择使用的 handler
         const sdkMode = modelConfig.sdkMode || 'openai';
-        let sdkName = 'OpenAI SDK';
-        if (sdkMode === 'anthropic') {
-            sdkName = 'Anthropic SDK';
-        } else if (sdkMode === 'openai-sse') {
-            sdkName = 'OpenAI SSE';
-        } else if (sdkMode === 'openai-responses') {
-            sdkName = 'OpenAI Responses API';
-        } else if (sdkMode === 'gemini-sse') {
-            sdkName = 'Gemini SSE';
-        }
+        const sdkName = this.getSdkDisplayName(sdkMode);
         Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
 
         try {
-            if (sdkMode === 'anthropic') {
-                await this.anthropicHandler.handleRequest(
-                    model,
-                    modelConfig,
-                    messages,
-                    options,
-                    progress,
-                    token,
-                    requestId
-                );
-            } else if (sdkMode === 'gemini-sse') {
-                await this.geminiHandler.handleRequest(
-                    model,
-                    modelConfig,
-                    messages,
-                    options,
-                    progress,
-                    token,
-                    requestId
-                );
-            } else if (sdkMode === 'openai-sse') {
-                // OpenAI SSE 模式：使用自定义 SSE 流处理
-                await this.openaiCustomHandler.handleRequest(
-                    model,
-                    modelConfig,
-                    messages,
-                    options,
-                    progress,
-                    token,
-                    requestId
-                );
-            } else if (sdkMode === 'openai-responses') {
-                // OpenAI Responses API 模式：使用 Responses API
-                await this.openaiResponsesHandler.handleResponsesRequest(
-                    model,
-                    { ...modelConfig, provider: effectiveProviderKey },
-                    messages,
-                    options,
-                    progress,
-                    token,
-                    requestId
-                );
-            } else {
-                await this.openaiHandler.handleRequest(
-                    model,
-                    modelConfig,
-                    messages,
-                    options,
-                    progress,
-                    token,
-                    requestId
-                );
-            }
+            await this.executeModelRequest(
+                model,
+                modelConfig,
+                messages,
+                options,
+                progress,
+                token,
+                requestId,
+                effectiveProviderKey
+            );
         } catch (error) {
             const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
             Logger.error(errorMessage);

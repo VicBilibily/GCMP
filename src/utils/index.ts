@@ -19,6 +19,7 @@ export { TencentWizard } from './tencentWizard';
 export { XiaomimimoWizard } from './xiaomimimoWizard';
 export { JsonSchemaProvider } from './jsonSchemaProvider';
 export { RetryManager } from './retryManager';
+export type { RetryableError } from './retryManager';
 export { ModelInfoCache } from './modelInfoCache';
 export { TokenCounter } from './tokenCounter';
 export { PromptAnalyzer } from './promptAnalyzer';

@@ -205,6 +205,13 @@ export class JsonSchemaProvider {
             description: 'Schema for GCMP configuration with dynamic model ID suggestions',
             type: 'object',
             properties: {
+                'gcmp.retry.maxAttempts': {
+                    type: 'number',
+                    description: '请求失败后的最大自动重试次数，仅对可重试错误生效。默认 3 次，最大 5 次。',
+                    default: 3,
+                    minimum: 1,
+                    maximum: 5
+                },
                 'gcmp.providerOverrides': {
                     type: 'object',
                     description:

@@ -11,7 +11,7 @@ import {
     Progress
 } from 'vscode';
 import { ProviderConfig, ModelConfig, ModelOverride } from '../types/sharedTypes';
-import { Logger, ApiKeyManager, CompatibleModelManager, RetryManager } from '../utils';
+import { Logger, ApiKeyManager, CompatibleModelManager } from '../utils';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status';
@@ -25,7 +25,6 @@ import { configProviders } from './config';
 export class CompatibleProvider extends GenericModelProvider {
     private static readonly PROVIDER_KEY = 'compatible';
     private modelsChangeListener?: vscode.Disposable;
-    private retryManager: RetryManager;
 
     constructor(context: vscode.ExtensionContext) {
         // 创建一个虚拟的 ProviderConfig，实际模型配置从 CompatibleModelManager 获取
@@ -36,15 +35,6 @@ export class CompatibleProvider extends GenericModelProvider {
             models: [] // 空模型列表，实际从 CompatibleModelManager 获取
         };
         super(context, CompatibleProvider.PROVIDER_KEY, virtualConfig);
-
-        // 为 Compatible 配置特定的重试参数
-        this.retryManager = new RetryManager({
-            maxAttempts: 3,
-            initialDelayMs: 1000,
-            maxDelayMs: 30000,
-            backoffMultiplier: 2,
-            jitterEnabled: true
-        });
 
         this.getProviderConfig(); // 初始化配置缓存
         // 监听 CompatibleModelManager 的变更事件
@@ -303,17 +293,7 @@ export class CompatibleProvider extends GenericModelProvider {
 
             // 根据模型的 sdkMode 选择使用的 handler
             const sdkMode = modelConfig.sdkMode || 'openai';
-            let sdkName = 'OpenAI SDK';
-            if (sdkMode === 'anthropic') {
-                sdkName = 'Anthropic SDK';
-            } else if (sdkMode === 'openai-sse') {
-                sdkName = 'OpenAI SSE';
-            } else if (sdkMode === 'openai-responses') {
-                sdkName = 'OpenAI Responses API';
-            } else if (sdkMode === 'gemini-sse') {
-                sdkName = 'Gemini HTTP';
-            }
-
+            const sdkName = this.getSdkDisplayName(sdkMode);
             Logger.info(`Compatible Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
 
             // 计算输入 token 数量并更新状态栏
@@ -342,65 +322,15 @@ export class CompatibleProvider extends GenericModelProvider {
             }
 
             try {
-                // 使用重试机制执行请求
-                await this.retryManager.executeWithRetry(
-                    async () => {
-                        if (sdkMode === 'anthropic') {
-                            await this.anthropicHandler.handleRequest(
-                                model,
-                                modelConfig,
-                                messages,
-                                options,
-                                progress,
-                                token,
-                                requestId
-                            );
-                        } else if (sdkMode === 'gemini-sse') {
-                            await this.geminiHandler.handleRequest(
-                                model,
-                                modelConfig,
-                                messages,
-                                options,
-                                progress,
-                                token,
-                                requestId
-                            );
-                        } else if (sdkMode === 'openai-sse') {
-                            // OpenAI 模式：使用自定义 SSE 流处理
-                            await this.openaiCustomHandler.handleRequest(
-                                model,
-                                modelConfig,
-                                messages,
-                                options,
-                                progress,
-                                token,
-                                requestId
-                            );
-                        } else if (sdkMode === 'openai-responses') {
-                            // OpenAI Responses API 模式：使用 Responses API
-                            await this.openaiResponsesHandler.handleResponsesRequest(
-                                model,
-                                modelConfig,
-                                messages,
-                                options,
-                                progress,
-                                token,
-                                requestId
-                            );
-                        } else {
-                            await this.openaiHandler.handleRequest(
-                                model,
-                                modelConfig,
-                                messages,
-                                options,
-                                progress,
-                                token,
-                                requestId
-                            );
-                        }
-                    },
-                    error => RetryManager.isRateLimitError(error),
-                    this.providerConfig.displayName
+                await this.executeModelRequest(
+                    model,
+                    modelConfig,
+                    messages,
+                    options,
+                    progress,
+                    token,
+                    requestId,
+                    modelConfig.provider || this.providerKey
                 );
             } catch (error) {
                 const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
