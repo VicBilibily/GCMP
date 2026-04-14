@@ -103,6 +103,19 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
         token: CancellationToken
     ): Promise<void> {
         try {
+            const systemMessage = messages.find(msg => msg.role === vscode.LanguageModelChatMessageRole.System);
+            if (systemMessage && Array.isArray(systemMessage.content)) {
+                const systemPrompt = systemMessage.content.find(
+                    msgPart => msgPart instanceof vscode.LanguageModelTextPart
+                );
+                if (systemPrompt?.value) {
+                    const promptText = systemPrompt.value;
+                    // eslint-disable-next-line @stylistic/quotes
+                    const applyPatch = "You are Claude Code, Anthropic's official CLI for Claude.\n\n";
+                    systemPrompt.value = applyPatch + promptText;
+                }
+            }
+
             // 调用父类的实现
             await super.provideLanguageModelChatResponse(model, messages, options, progress, token);
         } finally {
