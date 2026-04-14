@@ -11,8 +11,11 @@ import {
     LanguageModelTextPart,
     ProvideLanguageModelChatResponseOptions
 } from 'vscode';
+import { ModelConfig } from '../types/sharedTypes';
 import { PromptPartTokens } from '../status/contextUsageStatusBar';
-import { TokenCounter, Logger } from './index';
+import { Logger } from './logger';
+import { sanitizeToolSchemaForSdkMode } from './schemaSanitizer';
+import { TokenCounter } from './tokenCounter';
 
 /**
  * 提示词分析器
@@ -61,6 +64,7 @@ export class PromptAnalyzer {
         providerKey: string,
         model: LanguageModelChatInformation,
         messages: Array<LanguageModelChatMessage>,
+        modelConfig?: Pick<ModelConfig, 'sdkMode'>,
         options?: ProvideLanguageModelChatResponseOptions
     ): Promise<PromptPartTokens> {
         const promptParts: PromptPartTokens = {
@@ -124,7 +128,9 @@ export class PromptAnalyzer {
                     }
                     // 计算工具的 inputSchema（参数定义）
                     if ('inputSchema' in tool && tool.inputSchema) {
-                        const schemaJson = JSON.stringify(tool.inputSchema);
+                        const schemaJson = JSON.stringify(
+                            sanitizeToolSchemaForSdkMode(tool.inputSchema, modelConfig?.sdkMode)
+                        );
                         toolsTokens += await tokenCounter.countTokens(model, schemaJson);
                     }
                 }

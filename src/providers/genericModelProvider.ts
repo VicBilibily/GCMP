@@ -637,7 +637,13 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     ): Promise<number> {
         try {
             // 统计提示词各部分的占用（包含总 token 数）
-            const promptParts = await PromptAnalyzer.analyzePromptParts(this.providerKey, model, messages, options);
+            const promptParts = await PromptAnalyzer.analyzePromptParts(
+                this.providerKey,
+                model,
+                messages,
+                modelConfig,
+                options
+            );
 
             // 使用 promptParts.context 作为总 token 占用
             const totalInputTokens = promptParts.context || 0;

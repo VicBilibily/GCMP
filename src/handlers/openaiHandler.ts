@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
-import { Logger, VersionManager } from '../utils';
+import { Logger, VersionManager, sanitizeToolSchemaForTarget } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
@@ -1031,7 +1031,10 @@ export class OpenAIHandler {
             // 处理参数schema
             if (tool.inputSchema) {
                 if (typeof tool.inputSchema === 'object' && tool.inputSchema !== null) {
-                    functionDef.function.parameters = tool.inputSchema as Record<string, unknown>;
+                    functionDef.function.parameters = sanitizeToolSchemaForTarget(
+                        tool.inputSchema as Record<string, unknown>,
+                        'openai'
+                    );
                 } else {
                     // 如果不是对象，提供默认schema
                     functionDef.function.parameters = {

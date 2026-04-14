@@ -11,6 +11,7 @@
 
 import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
+import { sanitizeToolSchemaForTarget } from '../utils';
 import type {
     ContentBlockParam,
     ThinkingBlockParam,
@@ -372,15 +373,16 @@ export function convertToAnthropicTools(tools: readonly vscode.LanguageModelChat
             };
         }
 
+        const sanitized = sanitizeToolSchemaForTarget(inputSchema, 'anthropic');
         return {
             name: tool.name,
             description: tool.description || '',
             input_schema: {
                 type: 'object' as const,
-                properties: inputSchema.properties ?? {},
-                required: inputSchema.required ?? [],
-                ...(inputSchema.additionalProperties !== undefined && {
-                    additionalProperties: inputSchema.additionalProperties
+                properties: sanitized.properties ?? {},
+                required: sanitized.required ?? [],
+                ...(sanitized.additionalProperties !== undefined && {
+                    additionalProperties: sanitized.additionalProperties
                 })
             }
         };

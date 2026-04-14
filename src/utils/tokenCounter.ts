@@ -13,6 +13,7 @@ import {
 } from 'vscode';
 import { createTokenizer, getRegexByEncoder, getSpecialTokensByEncoder, TikTokenizer } from '@microsoft/tiktokenizer';
 import { Logger } from './logger';
+import { sanitizeToolSchemaForSdkMode } from './schemaSanitizer';
 import { CustomDataPartMimeTypes } from '../handlers/types';
 
 /* ---------------------------------------------------------------------------------------------
@@ -364,7 +365,7 @@ export class TokenCounter {
         }
 
         // 工具成本（都使用 1.1 倍）
-        const toolsTokens = this.countToolsTokens(options?.tools);
+        const toolsTokens = this.countToolsTokens(options?.tools, modelConfig);
         if (toolsTokens > 0) {
             totalTokens += toolsTokens;
             // Logger.trace(
@@ -418,7 +419,7 @@ export class TokenCounter {
      * - 每个工具：8 tokens + 对象内容 token 数
      * - 最后乘以 1.1 的安全系数（官方标准）
      */
-    private countToolsTokens(tools?: readonly LanguageModelChatTool[]): number {
+    private countToolsTokens(tools?: readonly LanguageModelChatTool[], modelConfig?: { sdkMode?: string }): number {
         const baseToolTokens = 16;
         let numTokens = 0;
         if (!tools || tools.length === 0) {
@@ -430,11 +431,14 @@ export class TokenCounter {
         const baseTokensPerTool = 8;
         for (const tool of tools) {
             numTokens += baseTokensPerTool;
+            const serializedSchema = tool.inputSchema
+                ? sanitizeToolSchemaForSdkMode(tool.inputSchema, modelConfig?.sdkMode)
+                : undefined;
             // 计算工具对象的 token 数（name、description、parameters）
             const toolObj = {
                 name: tool.name,
                 description: tool.description || '',
-                input_schema: tool.inputSchema
+                input_schema: serializedSchema
             };
             // 简单的启发式方法：遍历对象并计算 token（使用缓存）
             for (const [, value] of Object.entries(toolObj)) {

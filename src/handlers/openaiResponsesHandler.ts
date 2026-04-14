@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
 import OpenAI, { ClientOptions } from 'openai';
 import { TokenUsagesManager } from '../usages/usagesManager';
-import { Logger } from '../utils/logger';
+import { Logger, sanitizeToolSchemaForTarget } from '../utils';
 import { ModelChatResponseOptions, ModelConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { getStatefulMarkerAndIndex } from './statefulMarker';
@@ -291,7 +291,10 @@ export class OpenAIResponsesHandler {
             // 处理参数schema
             if (tool.inputSchema) {
                 if (typeof tool.inputSchema === 'object' && tool.inputSchema !== null) {
-                    functionTool.parameters = tool.inputSchema as Record<string, unknown>;
+                    functionTool.parameters = sanitizeToolSchemaForTarget(
+                        tool.inputSchema as Record<string, unknown>,
+                        'openai'
+                    );
                 } else {
                     // 如果不是对象，提供默认schema
                     functionTool.parameters = {
