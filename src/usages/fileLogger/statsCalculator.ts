@@ -60,12 +60,13 @@ export abstract class StatsCalculator {
 
         // 将 MAD 标准化为近似标准差（正态近似常数）
         const sigma = mad * 1.4826;
-        // 常用鲁棒阈值；越小越“严格”
-        const k = 3.5;
+        // 对速度类右偏数据，k=3.5 在 log 空间过于宽松（容忍 ~33x 倍率），
+        // 降至 1.5 可将过滤阈值控制在约 4.5x，能更严格地拦截极端离群值。
+        const k = 1.5;
 
         const madFiltered = pairs.filter(p => Math.abs(p.log - medLog) / sigma <= k).map(p => p.v);
-        // 过滤后仍保留足够样本就返回
-        if (madFiltered.length >= Math.max(3, Math.floor(cleaned.length * 0.6))) {
+        // 过滤后仍保留至少一半样本即可信任该结果，否则降级到断层识别
+        if (madFiltered.length >= Math.max(3, Math.floor(cleaned.length * 0.5))) {
             return mean(madFiltered);
         }
 

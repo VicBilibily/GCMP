@@ -19,6 +19,7 @@ import { ApiKeyManager } from '../utils/apiKeyManager';
 import { ZhipuWizard } from '../utils/zhipuWizard';
 import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status/statusBarManager';
+import { RetryableError } from '../utils';
 
 /**
  * 智谱AI 专用模型提供商类
@@ -103,16 +104,19 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
         token: CancellationToken
     ): Promise<void> {
         try {
-            const systemMessage = messages.find(msg => msg.role === vscode.LanguageModelChatMessageRole.System);
-            if (systemMessage && Array.isArray(systemMessage.content)) {
-                const systemPrompt = systemMessage.content.find(
-                    msgPart => msgPart instanceof vscode.LanguageModelTextPart
-                );
-                if (systemPrompt?.value) {
-                    const promptText = systemPrompt.value;
-                    // eslint-disable-next-line @stylistic/quotes
-                    const applyPatch = "You are Claude Code, Anthropic's official CLI for Claude.\n\n";
-                    systemPrompt.value = applyPatch + promptText;
+            const modelConfig = this.findModelConfigById(model);
+            if (modelConfig?.sdkMode === 'anthropic') {
+                const systemMessage = messages.find(msg => msg.role === vscode.LanguageModelChatMessageRole.System);
+                if (systemMessage && Array.isArray(systemMessage.content)) {
+                    const systemPrompt = systemMessage.content.find(
+                        msgPart => msgPart instanceof vscode.LanguageModelTextPart
+                    );
+                    if (systemPrompt?.value) {
+                        const promptText = systemPrompt.value;
+                        // eslint-disable-next-line @stylistic/quotes
+                        const applyPatch = "You are Claude Code, Anthropic's official CLI for Claude.\n\n";
+                        systemPrompt.value = applyPatch + promptText;
+                    }
                 }
             }
 
@@ -122,5 +126,36 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
             // 请求完成后，延时更新智谱AI状态栏使用量
             StatusBarManager.zhipu?.delayedUpdate();
         }
+    }
+
+    static isServerError(error: RetryableError, deep = 0): boolean {
+        // 智谱的服务器错误通常表示服务器过载，也可以重试
+        if (error.message && typeof error.message === 'string' && error.code) {
+            // 智谱特有的需要重试的服务器错误码
+            if (
+                error.code === '500' ||
+                (typeof error.code === 'string' &&
+                    error.code.length === 4 && // 4位错误码，类似于 1234、1305 等，表示服务器过载或临时通讯错误
+                    (error.code.startsWith('12') || error.code.startsWith('13')))
+            ) {
+                return true;
+            }
+        }
+        // 检查是否有嵌套的 error 对象
+        if (deep <= 3 && 'error' in error && typeof error.error === 'object' && error.error !== null) {
+            return this.isServerError(error.error as RetryableError, deep + 1);
+        }
+        return false;
+    }
+    protected override shouldRetryRequest(error: RetryableError): boolean {
+        if (super.shouldRetryRequest(error)) {
+            Logger.debug(`[${this.providerConfig.displayName}] 请求失败，符合请求频率限制重试条件，准备重试...`);
+            return true;
+        }
+        if (ZhipuProvider.isServerError(error)) {
+            Logger.debug(`[${this.providerConfig.displayName}] 请求失败，符合服务器端错误重试条件，准备重试...`);
+            return true;
+        }
+        return false;
     }
 }

@@ -138,7 +138,10 @@ export class AnthropicHandler {
 
         // 构建默认头部，包含提供商级别和模型级别的 customHeader
         const defaultHeaders: Record<string, string> = {
-            'User-Agent': VersionManager.getUserAgent(this.provider)
+            'User-Agent': VersionManager.getUserAgent(this.provider),
+            // 'User-Agent': 'claude-cli/2.1.108 (external, cli)',
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
         };
 
         // 合并提供商级别和模型级别的 customHeader
