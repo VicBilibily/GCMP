@@ -16,7 +16,7 @@
             "maxOutputTokens": 128000,
             "capabilities": {
                 "toolCalling": true,
-                "imageInput": false
+                "imageInput": true
             }
         },
         {
@@ -31,7 +31,7 @@
             "maxOutputTokens": 128000,
             "capabilities": {
                 "toolCalling": true,
-                "imageInput": false
+                "imageInput": true
             }
         },
         {
@@ -46,7 +46,7 @@
             "maxOutputTokens": 128000,
             "capabilities": {
                 "toolCalling": true,
-                "imageInput": false
+                "imageInput": true
             }
         },
         {
@@ -61,7 +61,7 @@
             "maxOutputTokens": 128000,
             "capabilities": {
                 "toolCalling": true,
-                "imageInput": false
+                "imageInput": true
             }
         },
         {
@@ -76,7 +76,7 @@
             "maxOutputTokens": 64000,
             "capabilities": {
                 "toolCalling": true,
-                "imageInput": false
+                "imageInput": true
             }
         },
         {
@@ -91,7 +91,7 @@
             "maxOutputTokens": 64000,
             "capabilities": {
                 "toolCalling": true,
-                "imageInput": false
+                "imageInput": true
             }
         },
         {
