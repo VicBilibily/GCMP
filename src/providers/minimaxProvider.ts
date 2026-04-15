@@ -129,11 +129,13 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
      * 注意：只处理当前轮次的新消息（最后一条用户消息），历史消息已在上一轮处理过
      * @param messages 原始消息列表
      * @param modelConfig 模型配置
+     * @param token 取消信号，用户取消请求时停止图片预处理
      * @returns 处理后的消息列表
      */
     private async preprocessImagesInMessages(
         messages: Array<LanguageModelChatMessage>,
-        modelConfig: ModelConfig
+        modelConfig: ModelConfig,
+        token: CancellationToken
     ): Promise<Array<LanguageModelChatMessage>> {
         // 只对 Coding Plan 模型启用图片桥接
         const providerKey = this.getProviderKeyForModel(modelConfig);
@@ -148,7 +150,17 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             return messages;
         }
 
+        // 用户取消时快速退出
+        if (token.isCancellationRequested) {
+            Logger.debug('MiniMax 图片桥接: 请求已取消，跳过图片预处理');
+            return messages;
+        }
+
         const visionTool = new MiniMaxVisionTool();
+        const abortController = new AbortController();
+        token.onCancellationRequested(() => {
+            abortController.abort();
+        });
 
         // 找到最后一条用户消息（当前轮次的新消息）
         let lastUserMessageIndex = -1;
@@ -192,6 +204,10 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         // 再处理图片部分
         const imageDescriptions: string[] = [];
         for (const part of lastUserMessage.content) {
+            if (token.isCancellationRequested) {
+                Logger.debug('MiniMax 图片桥接: 请求已取消，停止图片预处理');
+                return messages;
+            }
             if (part instanceof vscode.LanguageModelDataPart && part.mimeType.startsWith('image/')) {
                 if (!this.isImageMimeType(part.mimeType)) {
                     Logger.error(`不支持的图片格式: ${part.mimeType}`);
@@ -205,10 +221,14 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
                         const visionPrompt = originalQuestion
                             ? `这是第${processedCount}张（共${totalImages}张）。用户的问题是：${originalQuestion}\n\n请详细描述这张图片的内容，力求准确完整。`
                             : `这是第${processedCount}张（共${totalImages}张）。\n\n请详细描述这张图片的内容，力求准确完整。`;
-                        const response = await visionTool.understandImage(part.data, part.mimeType, visionPrompt);
+                        const response = await visionTool.understandImage(part.data, part.mimeType, visionPrompt, abortController.signal);
                         imageDescriptions.push(response.content);
                         Logger.info(`图片 ${processedCount}/${totalImages} 转换成功`);
                     } catch (error) {
+                        if (abortController.signal.aborted) {
+                            Logger.debug('MiniMax 图片桥接: 请求已取消');
+                            return messages;
+                        }
                         Logger.error(`图片 ${processedCount}/${totalImages} 转换失败`, error instanceof Error ? error : undefined);
                         imageDescriptions.push('[图片分析失败]');
                     }
@@ -232,11 +252,15 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         }
         bridgedContent.push(new vscode.LanguageModelTextPart(`\n用户问题：${originalQuestion}`));
 
-        // 直接修改原消息的内容，不创建新数组
-        // 使用类型断言因为 LanguageModelChatMessage 的 content 是只读的
-        (lastUserMessage as unknown as { content: typeof bridgedContent }).content = bridgedContent;
+        // 构造新的用户消息对象，不修改原始消息（避免只读属性问题）
+        const bridgedLastUserMessage = vscode.LanguageModelChatMessage.User(bridgedContent);
 
-        return messages;
+        // 返回新的 messages 数组
+        return [
+            ...messages.slice(0, lastUserMessageIndex),
+            bridgedLastUserMessage,
+            ...messages.slice(lastUserMessageIndex + 1)
+        ];
     }
 
     /**
@@ -373,7 +397,8 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         // 图片桥接：预处理消息中的图片
         // 当模型不支持图片输入但使用 Coding Plan 密钥时，自动将图片转换为文字描述
         // 注意：此操作在 Token 统计之前执行，确保统计的是模型实际收到的文本描述而非原始图片
-        const processedMessages = await this.preprocessImagesInMessages(messages, modelConfig);
+        // 同时透传 CancellationToken，用户取消请求时自动中止 Vision 预处理
+        const processedMessages = await this.preprocessImagesInMessages(messages, modelConfig, _token);
 
         // 计算输入 token 数量并更新状态栏（使用桥接后的消息，图片已被替换为文本描述）
         const totalInputTokens = await this.updateContextUsageStatusBar(
