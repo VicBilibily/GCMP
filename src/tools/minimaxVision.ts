@@ -39,8 +39,10 @@ export class MiniMaxVisionTool {
 
     /**
      * 执行图片理解
+     * @param params 请求参数
+     * @param abortSignal 取消信号
      */
-    async understand(params: MiniMaxVisionRequest): Promise<MiniMaxVisionResponse> {
+    async understand(params: MiniMaxVisionRequest, abortSignal?: AbortSignal): Promise<MiniMaxVisionResponse> {
         const apiKey = await ApiKeyManager.getApiKey('minimax-coding');
         if (!apiKey) {
             throw new Error('MiniMax Coding Plan API密钥未设置，请先运行命令"GCMP: 设置 MiniMax Coding Plan API密钥"');
@@ -63,8 +65,7 @@ export class MiniMaxVisionTool {
             }
         };
 
-        Logger.info(`🔍 [MiniMax 图片理解] 开始分析图片`);
-        Logger.debug(`📝 [MiniMax 图片理解] 请求数据: prompt="${params.prompt}", image_url=${params.image_url}`);
+        Logger.info('[MiniMax 图片理解] 开始分析图片');
 
         return new Promise((resolve, reject) => {
             const req = https.request(requestUrl, options, res => {
@@ -76,8 +77,7 @@ export class MiniMaxVisionTool {
 
                 res.on('end', () => {
                     try {
-                        Logger.debug(`📊 [MiniMax 图片理解] 响应状态码: ${res.statusCode}`);
-                        Logger.debug(`📄 [MiniMax 图片理解] 响应数据: ${data}`);
+                        Logger.debug(`[MiniMax 图片理解] 响应状态码: ${res.statusCode}`);
 
                         if (res.statusCode !== 200) {
                             let errorMessage = `MiniMax图片理解API错误 ${res.statusCode}`;
@@ -87,16 +87,16 @@ export class MiniMaxVisionTool {
                             } catch {
                                 errorMessage += `: ${data}`;
                             }
-                            Logger.error('❌ [MiniMax 图片理解] API返回错误', new Error(errorMessage));
+                            Logger.error('[MiniMax 图片理解] API返回错误', new Error(errorMessage));
                             reject(new Error(errorMessage));
                             return;
                         }
 
                         const response = JSON.parse(data) as MiniMaxVisionResponse;
-                        Logger.info(`✅ [MiniMax 图片理解] 分析完成`);
+                        Logger.info('[MiniMax 图片理解] 分析完成');
                         resolve(response);
                     } catch (error) {
-                        Logger.error('❌ [MiniMax 图片理解] 解析响应失败', error instanceof Error ? error : undefined);
+                        Logger.error('[MiniMax 图片理解] 解析响应失败', error instanceof Error ? error : undefined);
                         reject(
                             new Error(
                                 `解析MiniMax图片理解响应失败: ${error instanceof Error ? error.message : '未知错误'}`
@@ -107,9 +107,27 @@ export class MiniMaxVisionTool {
             });
 
             req.on('error', error => {
-                Logger.error('❌ [MiniMax 图片理解] 请求失败', error);
+                if (abortSignal?.aborted) {
+                    reject(new Error('用户取消了图片理解请求'));
+                    return;
+                }
+                Logger.error('[MiniMax 图片理解] 请求失败', error);
                 reject(new Error(`MiniMax图片理解请求失败: ${error.message}`));
             });
+
+            // 请求超时：60 秒
+            req.setTimeout(60000, () => {
+                req.destroy();
+                Logger.error('[MiniMax 图片理解] 请求超时（60秒）');
+                reject(new Error('MiniMax图片理解请求超时（60秒）'));
+            });
+
+            // 取消信号监听
+            if (abortSignal) {
+                abortSignal.addEventListener('abort', () => {
+                    req.destroy();
+                });
+            }
 
             req.write(requestData);
             req.end();
@@ -121,20 +139,23 @@ export class MiniMaxVisionTool {
      * @param imageData 图片的二进制数据
      * @param mimeType 图片的 MIME 类型
      * @param prompt 可选的提示词，默认是"描述这张图片"
+     * @param abortSignal 取消信号
      */
     async understandImage(
         imageData: Uint8Array,
         mimeType: string,
-        prompt = '描述这张图片'
+        prompt = '描述这张图片',
+        abortSignal?: AbortSignal
     ): Promise<MiniMaxVisionResponse> {
-        // 将图片数据转换为 data URL
+        // 将图片数据转换为 data URL（不记录完整 data URL，仅记录元信息）
         const base64Data = Buffer.from(imageData).toString('base64');
         const dataUrl = `data:${mimeType};base64,${base64Data}`;
+        Logger.debug(`[MiniMax 图片理解] 请求: prompt="${prompt}", mimeType=${mimeType}, data大小=${imageData.length}字节`);
 
         return this.understand({
             prompt,
             image_url: dataUrl
-        });
+        }, abortSignal);
     }
 
     /**
@@ -144,9 +165,15 @@ export class MiniMaxVisionTool {
         request: vscode.LanguageModelToolInvocationOptions<MiniMaxVisionRequest>
     ): Promise<vscode.LanguageModelToolResult> {
         try {
-            Logger.info(`🚀 [工具调用] MiniMax图片理解工具被调用: ${JSON.stringify(request.input)}`);
-
             const params = request.input as MiniMaxVisionRequest;
+            // 日志不输出完整 data URL，仅记录 prompt 和图片元信息
+            const imageMeta = params.image_url
+                ? params.image_url.length > 50
+                    ? `${params.image_url.substring(0, 20)}...${params.image_url.slice(-10)} (${params.image_url.length} chars)`
+                    : params.image_url
+                : '未提供';
+            Logger.info(`[工具调用] MiniMax图片理解工具被调用: prompt="${params.prompt}", image_url=${imageMeta}`);
+
             if (!params.prompt) {
                 throw new Error('缺少必需参数: prompt');
             }
