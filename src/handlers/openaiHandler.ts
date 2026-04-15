@@ -891,9 +891,15 @@ export class OpenAIHandler {
         message: vscode.LanguageModelChatMessage
     ): OpenAI.Chat.ChatCompletionToolMessageParam[] {
         const toolMessages: OpenAI.Chat.ChatCompletionToolMessageParam[] = [];
+        const seenCallIds = new Set<string>();
 
         for (const part of message.content) {
             if (part instanceof vscode.LanguageModelToolResultPart) {
+                if (seenCallIds.has(part.callId)) {
+                    Logger.warn(`跳过重复的 tool_result callId: ${part.callId}`);
+                    continue;
+                }
+                seenCallIds.add(part.callId);
                 const toolContent = this.convertToolResultContent(part.content);
                 // 使用 OpenAI SDK 标准的 ChatCompletionToolMessageParam 类型
                 const toolMessage: OpenAI.Chat.ChatCompletionToolMessageParam = {
@@ -920,9 +926,15 @@ export class OpenAIHandler {
         const toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = [];
         let thinkingContent: string | null = null;
 
-        // 处理工具调用和思考内容
+        // 处理工具调用和思考内容（去重：同一 callId 只保留第一个）
+        const seenCallIds = new Set<string>();
         for (const part of message.content) {
             if (part instanceof vscode.LanguageModelToolCallPart) {
+                if (seenCallIds.has(part.callId)) {
+                    Logger.warn(`跳过重复的 tool_call_id: ${part.callId} (${part.name})`);
+                    continue;
+                }
+                seenCallIds.add(part.callId);
                 toolCalls.push({
                     id: part.callId,
                     type: 'function',
