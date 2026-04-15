@@ -2,6 +2,12 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.21.13] - 2026-04-15
+
+### 修复
+
+- **工具调用去重**：[#120](https://github.com/VicBilibily/GCMP/pull/120) 修复当 VS Code 重复发送相同 `callId` 的 `tool_call` / `tool_result` 时，OpenAI 兼容接口报错的问题。现在自动跳过重复的工具调用，并记录警告日志
+
 ## [0.21.12] - 2026-04-14
 
 ### 新增
