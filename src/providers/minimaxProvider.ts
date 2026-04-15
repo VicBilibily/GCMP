@@ -129,7 +129,6 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
      * 注意：只处理当前轮次的新消息（最后一条用户消息），历史消息已在上一轮处理过
      * @param messages 原始消息列表
      * @param modelConfig 模型配置
-     * @param progress 可选的进度报告器，用于显示图片解析进度
      * @returns 处理后的消息列表
      */
     private async preprocessImagesInMessages(
