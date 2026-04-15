@@ -118,8 +118,9 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
      * MiniMax Vision API 仅支持 JPEG、PNG、WebP，不支持 GIF
      */
     private isImageMimeType(mimeType: string): boolean {
+        const normalizedMimeType = mimeType.toLowerCase() === 'image/jpg' ? 'image/jpeg' : mimeType.toLowerCase();
         const supportedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-        return supportedTypes.includes(mimeType.toLowerCase());
+        return supportedTypes.includes(normalizedMimeType);
     }
 
     /**
