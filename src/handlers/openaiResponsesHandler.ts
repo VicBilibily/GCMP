@@ -411,9 +411,26 @@ export class OpenAIResponsesHandler {
             let streamStartTime = Date.now();
             let streamEndTime: number | undefined = undefined;
 
-            // Responses API 专属：追踪 delta/done 事件，避免重复输出
-            let hasReceivedTextDelta = false; // 标记是否已接收文本增量
-            let hasReceivedReasoningSummary = false; // 标记是否已经流式接收推理摘要（防止 output_item.done 重复传递文本）
+            // Responses API 专属：按输出项追踪 delta/done 事件，避免跨 item 误去重导致后续文本被吞掉
+            const textDeltaKeys = new Set<string>();
+            const refusalDeltaKeys = new Set<string>();
+            const reasoningTextDeltaKeys = new Set<string>();
+            const reasoningSummaryDeltaKeys = new Set<string>();
+            const reasoningSummaryItemIds = new Set<string>();
+
+            const getContentEventKey = (itemId?: string, contentIndex?: number): string | undefined => {
+                if (!itemId) {
+                    return undefined;
+                }
+                return `${itemId}:${contentIndex ?? -1}`;
+            };
+
+            const getSummaryEventKey = (itemId?: string, summaryIndex?: number): string | undefined => {
+                if (!itemId) {
+                    return undefined;
+                }
+                return `${itemId}:summary:${summaryIndex ?? -1}`;
+            };
 
             // 工具调用缓冲区 - 使用索引跟踪，支持累积
             const toolCallBuffers = new Map<number, { id: string; name: string; args: string }>();
@@ -620,16 +637,20 @@ export class OpenAIResponsesHandler {
                             abortController.abort();
                             return;
                         }
+                        const eventKey = getContentEventKey(event.item_id, event.content_index);
+                        if (eventKey) {
+                            textDeltaKeys.add(eventKey);
+                        }
                         const delta = event.delta;
                         if (delta && typeof delta === 'string') {
                             reporter.reportText(delta);
-                            hasReceivedTextDelta = true; // 标记已接收文本增量
                         }
                     })
                     .on('response.output_text.done', event => {
-                        // 某些网关只发送最终的 done 事件（没有增量）
-                        if (hasReceivedTextDelta) {
-                            return; // 如果已经接收过增量，忽略 done 事件
+                        const eventKey = getContentEventKey(event.item_id, event.content_index);
+                        // 某些网关只发送最终的 done 事件（没有增量）；去重必须按 output item/content part 粒度处理
+                        if (eventKey && textDeltaKeys.has(eventKey)) {
+                            return;
                         }
                         const text = event.text || '';
                         if (text) {
@@ -642,16 +663,27 @@ export class OpenAIResponsesHandler {
                             abortController.abort();
                             return;
                         }
+                        const eventKey = getContentEventKey(event.item_id, event.content_index);
+                        if (eventKey) {
+                            refusalDeltaKeys.add(eventKey);
+                        }
                         const delta = event.delta;
                         if (delta && typeof delta === 'string') {
                             reporter.reportText(delta);
                         }
                     })
-                    .on('response.refusal.done', () => {
-                        // 处理拒绝完成（当作普通文本）
-                        // done 事件没有 text 属性，内容已在 delta 事件中处理
+                    .on('response.refusal.done', event => {
+                        // 某些网关只发送 refusal.done，需要按 item/content 粒度兜底输出
                         if (token.isCancellationRequested) {
                             return;
+                        }
+                        const eventKey = getContentEventKey(event.item_id, event.content_index);
+                        if (eventKey && refusalDeltaKeys.has(eventKey)) {
+                            return;
+                        }
+                        const refusal = event.refusal || '';
+                        if (refusal) {
+                            reporter.reportText(refusal);
                         }
                     })
                     .on('response.reasoning_text.delta', event => {
@@ -659,6 +691,10 @@ export class OpenAIResponsesHandler {
                         if (token.isCancellationRequested) {
                             abortController.abort();
                             return;
+                        }
+                        const eventKey = getContentEventKey(event.item_id, event.content_index);
+                        if (eventKey) {
+                            reasoningTextDeltaKeys.add(eventKey);
                         }
                         const delta = event.delta;
                         if (delta && typeof delta === 'string') {
@@ -670,16 +706,23 @@ export class OpenAIResponsesHandler {
                         if (token.isCancellationRequested) {
                             return;
                         }
+                        const eventKey = getContentEventKey(event.item_id, event.content_index);
                         // 某些网关只发送最终的 done 事件（没有增量）
-                        if (event.text) {
-                            reporter.bufferThinkingIfNotDelta(event.text);
+                        if ((!eventKey || !reasoningTextDeltaKeys.has(eventKey)) && event.text) {
+                            reporter.bufferThinking(event.text);
                         }
                         reporter.flushThinking('reasoning_text 完成');
                         reporter.endThinkingChain();
                     })
                     .on('response.reasoning_summary_text.delta', event => {
                         // 处理思维链摘要增量（与官方实现一致：记录展示过摘要防止重复）
-                        hasReceivedReasoningSummary = true;
+                        const eventKey = getSummaryEventKey(event.item_id, event.summary_index);
+                        if (eventKey) {
+                            reasoningSummaryDeltaKeys.add(eventKey);
+                        }
+                        if (event.item_id) {
+                            reasoningSummaryItemIds.add(event.item_id);
+                        }
                         if (token.isCancellationRequested) {
                             abortController.abort();
                             return;
@@ -691,21 +734,26 @@ export class OpenAIResponsesHandler {
                     })
                     .on('response.reasoning_summary_text.done', event => {
                         // 处理思维链摘要完成
-                        hasReceivedReasoningSummary = true;
+                        const eventKey = getSummaryEventKey(event.item_id, event.summary_index);
+                        if (event.item_id) {
+                            reasoningSummaryItemIds.add(event.item_id);
+                        }
                         if (token.isCancellationRequested) {
                             return;
                         }
                         // 某些网关只发送最终的 done 事件（没有增量）
-                        if (event.text) {
-                            reporter.bufferThinkingIfNotDelta(event.text);
+                        if ((!eventKey || !reasoningSummaryDeltaKeys.has(eventKey)) && event.text) {
+                            reporter.bufferThinking(event.text);
                         }
                         reporter.flushThinking('reasoning_summary 完成');
                         reporter.endThinkingChain();
                     })
-                    .on('response.reasoning_summary_part.done', _event => {
+                    .on('response.reasoning_summary_part.done', event => {
                         // 推理摘要 part 完成（与官方实现对齐）
-                        // 官方在此事件设置 hasReceivedReasoningSummary = true 作为最终确认
-                        hasReceivedReasoningSummary = true;
+                        // 官方在此事件记录摘要已出现，避免 output_item.done 再次带出同一 item 的摘要文本
+                        if (event.item_id) {
+                            reasoningSummaryItemIds.add(event.item_id);
+                        }
                     })
                     .on('response.function_call_arguments.delta', () => {
                         // SDK 会在 done 事件中提供完整的 arguments，这里不需要处理
@@ -730,15 +778,10 @@ export class OpenAIResponsesHandler {
                             return;
                         }
 
-                        // 从缓冲区获取之前保存的信息（来自 added 事件）
+                        // 优先复用 added 事件中的 call_id；如果网关没发 added，则退回 item_id 并使用 done 事件中的 name
                         const buf = toolCallBuffers.get(idx);
-                        if (!buf) {
-                            Logger.warn(`工具调用 ${itemId} 的 done 事件，但缓冲区中没有找到记录`);
-                            return;
-                        }
-
-                        const name = buf.name;
-                        const callId = buf.id; // 使用缓冲区中的 callId
+                        const name = buf?.name || event.name;
+                        const callId = buf?.id || itemId;
                         if (!name) {
                             Logger.warn(`工具调用 ${itemId} 没有名称`);
                             return;
@@ -824,9 +867,10 @@ export class OpenAIResponsesHandler {
                             if (reasoningItem.encrypted_content) {
                                 // 仅当摘要文本未经流式传输时才包含
                                 // （参照官方实现: hasReceivedReasoningSummary 为 true 时传 undefined 避免重复）
-                                const summaryText = hasReceivedReasoningSummary
-                                    ? undefined
-                                    : reasoningItem.summary?.map(s => s.text);
+                                const summaryText =
+                                    reasoningItem.id && reasoningSummaryItemIds.has(reasoningItem.id)
+                                        ? undefined
+                                        : reasoningItem.summary?.map(s => s.text);
                                 reporter.reportEncryptedThinking(
                                     reasoningItem.encrypted_content,
                                     reasoningItem.id,
@@ -837,15 +881,16 @@ export class OpenAIResponsesHandler {
                         }
                         if (item && typeof item === 'object' && item.type === 'function_call') {
                             const itemObj = item as unknown as Record<string, unknown>;
+                            const itemId = typeof itemObj.id === 'string' ? itemObj.id : '';
                             const callId = itemObj.call_id || itemObj.id;
                             const name = typeof itemObj.name === 'string' ? itemObj.name : '';
                             const args = typeof itemObj.arguments === 'string' ? itemObj.arguments : '';
 
-                            if (!callId || !name || !args) {
+                            if (!itemId || !callId || !name || !args) {
                                 return;
                             }
 
-                            const idx = getToolCallIndex(callId as string);
+                            const idx = getToolCallIndex(itemId);
                             if (completedToolCallIndices.has(idx)) {
                                 return;
                             }
@@ -877,8 +922,8 @@ export class OpenAIResponsesHandler {
                             if (Array.isArray(output)) {
                                 for (const item of output) {
                                     if (item.type === 'function_call' && item.id && item.name) {
-                                        const callId = item.id;
-                                        const idx = getToolCallIndex(callId);
+                                        const callId = item.call_id || item.id;
+                                        const idx = getToolCallIndex(item.id);
                                         if (completedToolCallIndices.has(idx)) {
                                             continue;
                                         }

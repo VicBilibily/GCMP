@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.21.15] - 2026-04-17
+
+### 修复
+
+- **Responses API 事件去重**：修复 `response.output_text.done` / `response.refusal.done` / `reasoning_text.done` 等事件的去重逻辑，改为按输出项+内容索引粒度追踪，避免跨 output item 误判导致后续文本被吞掉
+- **Responses API 推理摘要去重**：将推理摘要的 delta/done 去重从全局布尔标记改为按 item_id 粒度追踪，与官方实现对齐
+- **Responses API 工具调用判重**：统一使用 `item.id`（而非 `call_id`）作为工具调用缓冲区的判重索引，修复部分网关中 `call_id` 与 `item.id` 不一致时工具调用被重复上报或遗漏的问题
+- **Responses API 工具调用兜底**：`response.function_call_arguments.done` 事件不再强制要求 `output_item.added` 先行到达；当网关未发送 `added` 事件时，退回使用 `item_id` 和 `done` 事件中的字段完成工具调用
+- **SSE 控制字符兼容**：新增 JSON 字符串内控制字符（U+0000–U+001F）自动转义，修复部分网关在文本内容中直接输出原始换行/制表符导致 OpenAI SDK JSON 解析失败的问题
+
+### 优化
+
+- **SSE 预处理重构**：将 SSE 逐行预处理逻辑从正则批量替换重构为 `processSSELine` 逐行处理函数，统一覆盖正常 chunk 和 EOF 残留行的修复路径，降低边界场景下的遗漏风险
+
 ## [0.21.14] - 2026-04-15
 
 ### 优化

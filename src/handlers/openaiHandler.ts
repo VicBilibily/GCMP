@@ -31,6 +31,31 @@ interface ExtendedChoice extends OpenAI.Chat.Completions.ChatCompletionChunk.Cho
     };
 }
 
+interface ParsedSSEChoice {
+    message?: Record<string, unknown>;
+    delta?: Record<string, unknown>;
+    finish_reason?: unknown;
+    index?: number | null;
+}
+
+interface ParsedSSEResponsePayload {
+    object?: string;
+    output?: unknown[];
+}
+
+interface ParsedSSEItemPayload {
+    type?: string;
+    content?: unknown[];
+}
+
+interface ParsedSSEChunk {
+    choices?: ParsedSSEChoice[];
+    type?: string;
+    response?: ParsedSSEResponsePayload;
+    item?: ParsedSSEItemPayload;
+    output_index?: number | null;
+}
+
 /**
  * 扩展助手消息类型，支持 reasoning_content 字段
  */
@@ -163,6 +188,75 @@ export class OpenAIHandler {
     }
 
     /**
+     * 兼容部分网关在 JSON 字符串字面量中直接输出控制字符，导致 OpenAI SDK 的 SSE JSON.parse 提前失败。
+     * 仅在字符串上下文中转义 U+0000-U+001F，不改动正常 JSON 结构。
+     */
+    private escapeControlCharsInJsonString(input: string): { text: string; changed: boolean } {
+        let changed = false;
+        let inString = false;
+        let isEscaped = false;
+        let output = '';
+
+        for (const char of input) {
+            if (!inString) {
+                if (char === '"') {
+                    inString = true;
+                }
+                output += char;
+                continue;
+            }
+
+            if (isEscaped) {
+                output += char;
+                isEscaped = false;
+                continue;
+            }
+
+            if (char === '\\') {
+                output += char;
+                isEscaped = true;
+                continue;
+            }
+
+            if (char === '"') {
+                inString = false;
+                output += char;
+                continue;
+            }
+
+            const code = char.charCodeAt(0);
+            if (code <= 0x1f) {
+                changed = true;
+                switch (char) {
+                    case '\b':
+                        output += '\\b';
+                        break;
+                    case '\f':
+                        output += '\\f';
+                        break;
+                    case '\n':
+                        output += '\\n';
+                        break;
+                    case '\r':
+                        output += '\\r';
+                        break;
+                    case '\t':
+                        output += '\\t';
+                        break;
+                    default:
+                        output += `\\u${code.toString(16).padStart(4, '0')}`;
+                        break;
+                }
+                continue;
+            }
+
+            output += char;
+        }
+
+        return { text: output, changed };
+    }
+
+    /**
      * 预处理 SSE 响应，修复非标准格式
      * 修复部分模型输出 "data:" 后不带空格的问题
      */
@@ -224,12 +318,124 @@ export class OpenAIHandler {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         const encoder = new TextEncoder();
+        const displayName = this.displayName;
+        const escapeControlCharsInJsonString = this.escapeControlCharsInJsonString.bind(this);
+        const processSSELine = (line: string): string => {
+            const normalizedLine = line.replace(/^data:([^\s])/g, 'data: $1');
+            if (!normalizedLine.startsWith('data:')) {
+                return normalizedLine;
+            }
+
+            const dataMatch = normalizedLine.match(/^data:\s?(.*)$/);
+            if (!dataMatch) {
+                return normalizedLine;
+            }
+
+            const jsonStr = dataMatch[1];
+            if (!jsonStr || jsonStr === '[DONE]') {
+                return normalizedLine;
+            }
+
+            let candidateJson = jsonStr;
+            try {
+                let obj: ParsedSSEChunk;
+                try {
+                    obj = JSON.parse(candidateJson) as ParsedSSEChunk;
+                } catch (parseError) {
+                    const escaped = escapeControlCharsInJsonString(candidateJson);
+                    if (!escaped.changed) {
+                        throw parseError;
+                    }
+                    candidateJson = escaped.text;
+                    obj = JSON.parse(candidateJson) as ParsedSSEChunk;
+                    Logger.debug(`${displayName} SSE 事件包含未转义控制字符，已自动修复后继续解析`);
+                }
+
+                let objModified = false;
+
+                //#region OpenAI Chat Completion 兼容性处理
+                if (obj && Array.isArray(obj.choices)) {
+                    for (const ch of obj.choices) {
+                        if (ch && ch.message && (!ch.delta || Object.keys(ch.delta).length === 0)) {
+                            ch.delta = ch.message;
+                            delete ch.message;
+                            objModified = true;
+                        }
+                    }
+                }
+
+                if (obj.choices && obj.choices.length > 0) {
+                    for (let choiceIndex = obj.choices.length - 1; choiceIndex >= 0; choiceIndex--) {
+                        const choice = obj.choices[choiceIndex];
+                        if (choice?.finish_reason) {
+                            if (!choice.delta || Object.keys(choice.delta).length === 0) {
+                                Logger.trace(
+                                    `preprocessSSEResponse 仅有 finish_reason (choice ${choiceIndex})，为 delta 添加空 content`
+                                );
+                                choice.delta = { role: 'assistant', content: '' };
+                                objModified = true;
+                            }
+                            if (!choice.delta.role) {
+                                choice.delta.role = 'assistant';
+                                objModified = true;
+                            }
+                        }
+                        if (choice?.delta && Object.keys(choice.delta).length === 0) {
+                            if (choice?.finish_reason) {
+                                continue;
+                            }
+                            Logger.trace(`preprocessSSEResponse 移除无效的 delta (choice ${choiceIndex})`);
+                            obj.choices.splice(choiceIndex, 1);
+                            objModified = true;
+                        }
+                    }
+
+                    if (obj.choices.length === 1) {
+                        for (const choice of obj.choices) {
+                            if (choice.index == null || choice.index !== 0) {
+                                choice.index = 0;
+                                objModified = true;
+                            }
+                        }
+                    }
+                }
+                //#endregion
+
+                //#region OpenAI Response 事件兼容性处理
+                if (obj.type === 'response.created' && obj.response?.object === 'response') {
+                    if (!Array.isArray(obj.response.output)) {
+                        obj.response.output = [];
+                        objModified = true;
+                    }
+                } else if (
+                    obj.type === 'response.output_item.added' &&
+                    obj.item?.type === 'message' &&
+                    !Array.isArray(obj.item.content)
+                ) {
+                    obj.item.content = [];
+                    objModified = true;
+                } else if (obj.type === 'response.content_part.added' && obj.output_index == null) {
+                    obj.output_index = 0;
+                    objModified = true;
+                }
+                //#endregion
+
+                if (objModified || candidateJson !== jsonStr) {
+                    return `data: ${JSON.stringify(obj)}`;
+                }
+
+                return normalizedLine;
+            } catch (parseError) {
+                Logger.trace(`JSON 解析失败: ${parseError}`);
+                return normalizedLine;
+            }
+        };
 
         // 行缓冲区：用于累积不完整的 SSE 行
         let lineBuffer = '';
 
         const transformedStream = new ReadableStream({
-            async start(controller) {
+            start: async controller => {
                 try {
                     while (true) {
                         const { done, value } = await reader.read();
@@ -237,8 +443,7 @@ export class OpenAIHandler {
                             // 流结束时，处理缓冲区剩余的内容
                             if (lineBuffer.trim().length > 0) {
                                 Logger.trace(`流结束，处理缓冲区剩余内容: ${lineBuffer.length} 字符`);
-                                // 修复格式并输出剩余内容
-                                const remaining = lineBuffer.replace(/^data:([^\s])/gm, 'data: $1');
+                                const remaining = processSSELine(lineBuffer);
                                 controller.enqueue(encoder.encode(remaining));
                             }
                             controller.close();
@@ -258,137 +463,7 @@ export class OpenAIHandler {
 
                         // 处理完整的行
                         if (lines.length > 0) {
-                            let processedChunk = lines.join('\n') + '\n';
-
-                            // 修复 SSE 格式：确保 "data:" 后面有空格
-                            // 处理 "data:{json}" -> "data: {json}"
-                            processedChunk = processedChunk.replace(/^data:([^\s])/gm, 'data: $1');
-
-                            // Logger.trace(`接收到 SSE chunk: ${chunk.length} 字符，完整行数: ${lines.length}`);
-
-                            // 判断并处理 chunk 中所有的 data: {json} 对象，兼容部分模型使用旧格式把内容放在 choice.message
-                            try {
-                                const dataRegex = /^data: (.*)$/gm;
-                                let transformed = processedChunk;
-                                const matches = Array.from(processedChunk.matchAll(dataRegex));
-
-                                for (const m of matches) {
-                                    const jsonStr = m[1];
-                                    // 跳过 SSE 结束标记 [DONE]
-                                    if (jsonStr === '[DONE]') {
-                                        continue;
-                                    }
-                                    try {
-                                        const obj = JSON.parse(jsonStr);
-                                        let objModified = false;
-
-                                        //#region OpenAI Chat Completion 兼容性处理
-                                        // 转换旧格式: 如果 choice 中含有 message 而无 delta，则将 message 转为 delta
-                                        if (obj && Array.isArray(obj.choices)) {
-                                            for (const ch of obj.choices) {
-                                                if (
-                                                    ch &&
-                                                    ch.message &&
-                                                    (!ch.delta || Object.keys(ch.delta).length === 0)
-                                                ) {
-                                                    ch.delta = ch.message;
-                                                    delete ch.message;
-                                                    objModified = true;
-                                                }
-                                            }
-                                        }
-
-                                        // 处理 choices，确保每个 choice 都有正确的结构
-                                        if (obj.choices && obj.choices.length > 0) {
-                                            // 倒序处理choices，避免索引变化影响后续处理
-                                            for (
-                                                let choiceIndex = obj.choices.length - 1;
-                                                choiceIndex >= 0;
-                                                choiceIndex--
-                                            ) {
-                                                const choice = obj.choices[choiceIndex];
-                                                if (choice?.finish_reason) {
-                                                    if (!choice.delta || Object.keys(choice.delta).length === 0) {
-                                                        Logger.trace(
-                                                            `preprocessSSEResponse 仅有 finish_reason (choice ${choiceIndex})，为 delta 添加空 content`
-                                                        );
-                                                        choice.delta = { role: 'assistant', content: '' };
-                                                        objModified = true;
-                                                    }
-                                                    if (!choice.delta.role) {
-                                                        choice.delta.role = 'assistant';
-                                                        objModified = true;
-                                                    }
-                                                }
-                                                if (choice?.delta && Object.keys(choice.delta).length === 0) {
-                                                    if (choice?.finish_reason) {
-                                                        continue;
-                                                    } // 避免移除有效的空 delta
-                                                    Logger.trace(
-                                                        `preprocessSSEResponse 移除无效的 delta (choice ${choiceIndex})`
-                                                    );
-                                                    // 直接从数组中移除无效choice
-                                                    obj.choices.splice(choiceIndex, 1);
-                                                    objModified = true;
-                                                }
-                                            }
-
-                                            // 修复 choice index，部分模型会返回错误的 index，造成 OpenAI SDK 解析失败
-                                            if (obj.choices.length == 1) {
-                                                // 将 choice 的 index 改为 0
-                                                for (const choice of obj.choices) {
-                                                    // 部分模型返回index不存在或index值不为0
-                                                    if (choice.index == null || choice.index !== 0) {
-                                                        choice.index = 0;
-                                                        objModified = true;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        //#endregion
-
-                                        //#region OpenAI Response 事件兼容性处理
-                                        if (obj.type === 'response.created' && obj.response?.object === 'response') {
-                                            // 修复 response.created 事件中的 response 对象结构
-                                            if (!Array.isArray(obj.response.output)) {
-                                                // 火山引擎的 Response 并没有返回 output 字段，强制设置为空数组
-                                                obj.response.output = [];
-                                                objModified = true;
-                                            }
-                                        } else if (
-                                            obj.type === 'response.output_item.added' &&
-                                            obj.item?.type === 'message' &&
-                                            !Array.isArray(obj.item.content)
-                                        ) {
-                                            // 火山引擎的 Response output_item.added 事件中，message content 可能为null，强制设置为空数组
-                                            obj.item.content = [];
-                                            objModified = true;
-                                        } else if (
-                                            obj.type === 'response.content_part.added' &&
-                                            obj.output_index == null
-                                        ) {
-                                            // 火山引擎的 Response content_part.added 事件缺少 output_index 字段，强制设置为0
-                                            obj.output_index = 0;
-                                            objModified = true;
-                                        }
-                                        //#endregion
-
-                                        if (objModified) {
-                                            // 只有在对象被修改时才重新序列化
-                                            const newJson = JSON.stringify(obj);
-                                            transformed = transformed.replace(m[0], `data: ${newJson}`);
-                                        }
-                                    } catch (parseError) {
-                                        // 单个 data JSON 解析失败，不影响整个 chunk
-                                        Logger.trace(`JSON 解析失败: ${parseError}`);
-                                        continue;
-                                    }
-                                }
-                                processedChunk = transformed;
-                            } catch (error) {
-                                // 解析失败不影响正常流
-                                Logger.trace(`处理 SSE 行失败: ${error}`);
-                            }
+                            const processedChunk = `${lines.map(processSSELine).join('\n')}\n`;
 
                             // Logger.trace(`预处理后的 SSE chunk: ${processedChunk.length} 字符`);
                             // 重新编码并传递有效内容
