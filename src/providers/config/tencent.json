@@ -6,54 +6,6 @@
     "tokenKeyTemplate": "sk-tp-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
-            "id": "hunyuan-2.0-instruct-coding-plan",
-            "name": "Tencent HY 2.0 Instruct (Coding Plan)",
-            "tooltip": "腾讯云 Coding Plan 专属接入点中的 Tencent HY 2.0 Instruct。",
-            "provider": "tencent-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://api.lkeap.cloud.tencent.com/coding/anthropic",
-            "model": "hunyuan-2.0-instruct",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 16000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "hunyuan-2.0-thinking-coding-plan",
-            "name": "Tencent HY 2.0 Think (Coding Plan)",
-            "tooltip": "腾讯云 Coding Plan 专属接入点中的 Tencent HY 2.0 Think。",
-            "provider": "tencent-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://api.lkeap.cloud.tencent.com/coding/anthropic",
-            "model": "hunyuan-2.0-thinking",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "hunyuan-t1-coding-plan",
-            "name": "Hunyuan-T1 (Coding Plan)",
-            "tooltip": "腾讯云 Coding Plan 专属接入点中的 Hunyuan-T1。",
-            "provider": "tencent-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://api.lkeap.cloud.tencent.com/coding/anthropic",
-            "model": "hunyuan-t1",
-            "maxInputTokens": 32000,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "hunyuan-turbos-coding-plan",
-            "name": "Hunyuan-TurboS (Coding Plan)",
-            "tooltip": "腾讯云 Coding Plan 专属接入点中的 Hunyuan-TurboS。",
-            "provider": "tencent-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://api.lkeap.cloud.tencent.com/coding/anthropic",
-            "model": "hunyuan-turbos",
-            "maxInputTokens": 32000,
-            "maxOutputTokens": 16000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
             "id": "glm-5-coding-plan",
             "name": "GLM-5 (Coding Plan)",
             "tooltip": "腾讯云 Coding Plan 专属接入点中的 GLM-5。",
@@ -65,20 +17,6 @@
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "glm-5-thinking-coding-plan",
-            "name": "GLM-5 (Thinking) (Coding Plan)",
-            "tooltip": "腾讯云 Coding Plan 专属接入点中的 GLM-5 思考模式。",
-            "provider": "tencent-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://api.lkeap.cloud.tencent.com/coding/anthropic",
-            "model": "glm-5",
-            "maxInputTokens": 200000,
-            "maxOutputTokens": 128000,
-            "endOfLife": true,
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "extraBody": { "thinking": { "type": "enabled" } }
         },
         {
             "id": "minimax-m2.5-coding-plan",
@@ -105,64 +43,16 @@
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
-            "id": "kimi-k2.5-thinking-coding-plan",
-            "name": "Kimi-K2.5 (Thinking) (Coding Plan)",
-            "tooltip": "腾讯云 Coding Plan 专属接入点中的 Kimi K2.5 思考模式。",
-            "provider": "tencent-coding",
-            "baseUrl": "https://api.lkeap.cloud.tencent.com/coding/v3",
-            "model": "kimi-k2.5",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 256000,
-            "endOfLife": true,
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "extraBody": { "thinking": { "type": "enabled" } }
-        },
-        {
-            "id": "hunyuan-2.0-instruct-token-plan",
-            "name": "Tencent HY 2.0 Instruct (Token Plan)",
-            "tooltip": "腾讯云 Token Plan 专属接入点中的 Tencent HY 2.0 Instruct。",
+            "id": "glm-5.1-token-plan",
+            "name": "GLM-5.1 (Token Plan)",
+            "tooltip": "腾讯云 Token Plan 专属接入点中的 GLM-5.1。",
             "provider": "tencent-token",
             "sdkMode": "anthropic",
             "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
-            "model": "hunyuan-2.0-instruct",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 16000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "hunyuan-2.0-thinking-token-plan",
-            "name": "Tencent HY 2.0 Think (Token Plan)",
-            "tooltip": "腾讯云 Token Plan 专属接入点中的 Tencent HY 2.0 Think。",
-            "provider": "tencent-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
-            "model": "hunyuan-2.0-thinking",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "hunyuan-t1-token-plan",
-            "name": "Hunyuan-T1 (Token Plan)",
-            "tooltip": "腾讯云 Token Plan 专属接入点中的 Hunyuan-T1。",
-            "provider": "tencent-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
-            "model": "hunyuan-t1",
-            "maxInputTokens": 32000,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "hunyuan-turbos-token-plan",
-            "name": "Hunyuan-TurboS (Token Plan)",
-            "tooltip": "腾讯云 Token Plan 专属接入点中的 Hunyuan-TurboS。",
-            "provider": "tencent-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
-            "model": "hunyuan-turbos",
-            "maxInputTokens": 32000,
-            "maxOutputTokens": 16000,
+            "model": "glm-5.1",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -204,40 +94,6 @@
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
-            "id": "hunyuan-2.0-instruct",
-            "model": "hunyuan-2.0-instruct-20251111",
-            "name": "Tencent HY 2.0 Instruct (按量计费)",
-            "tooltip": "腾讯混元 2.0 快思考模型，适合需要稳定响应速度的通用与编码场景。",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 16000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "hunyuan-2.0-thinking",
-            "model": "hunyuan-2.0-thinking-20251109",
-            "name": "Tencent HY 2.0 Think (按量计费)",
-            "tooltip": "腾讯混元 2.0 深度推理模型，适合复杂任务、长文理解与代码 Agent 场景。",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "hunyuan-t1-latest",
-            "name": "Hunyuan-T1 (按量计费)",
-            "tooltip": "腾讯首个旗舰推理模型，强化学习驱动，适合数学、逻辑、代码推理任务。",
-            "maxInputTokens": 32000,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "hunyuan-turbos-latest",
-            "name": "Hunyuan-TurboS (按量计费)",
-            "tooltip": "腾讯混元新一代快思考模型，适合需要更低时延的编程与通用任务。",
-            "maxInputTokens": 32000,
-            "maxOutputTokens": 16000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
             "id": "glm-5",
             "name": "GLM-5 (按量计费)",
             "tooltip": "腾讯云第三方大模型 OpenAI 兼容接口中的 GLM-5。",
@@ -248,20 +104,6 @@
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "glm-5-thinking",
-            "name": "GLM-5 (Thinking) (按量计费)",
-            "tooltip": "腾讯云第三方大模型 OpenAI 兼容接口中的 GLM-5 思考模式。",
-            "provider": "tencent",
-            "sdkMode": "openai",
-            "baseUrl": "https://api.lkeap.cloud.tencent.com/v3",
-            "model": "glm-5",
-            "maxInputTokens": 200000,
-            "maxOutputTokens": 128000,
-            "endOfLife": true,
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "extraBody": { "thinking": { "type": "enabled" } }
         },
         {
             "id": "minimax-m2.5",
@@ -287,20 +129,6 @@
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
-            "id": "kimi-k2.5-thinking",
-            "name": "Kimi-K2.5 (Thinking) (按量计费)",
-            "tooltip": "腾讯云第三方大模型 OpenAI 兼容接口中的 Kimi K2.5 思考模式。",
-            "provider": "tencent",
-            "sdkMode": "openai",
-            "baseUrl": "https://api.lkeap.cloud.tencent.com/v3",
-            "model": "kimi-k2.5",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 256000,
-            "endOfLife": true,
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "extraBody": { "thinking": { "type": "enabled" } }
-        },
-        {
             "id": "deepseek-v3.2",
             "name": "DeepSeek-V3.2 (按量计费)",
             "tooltip": "DeepSeek-V3.2 为 685B 参数 MoE 模型，其引入的稀疏注意力架构使长文本处理更高效，并在推理评测中达到GPT-5水平。",
@@ -313,18 +141,92 @@
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
-            "id": "deepseek-v3.2-thinking",
-            "name": "DeepSeek-V3.2 (Thinking) (按量计费)",
-            "tooltip": "DeepSeek-V3.2 为 685B 参数 MoE 模型，其引入的稀疏注意力架构使长文本处理更高效，并在推理评测中达到GPT-5水平。",
-            "provider": "tencent-deepseek",
-            "sdkMode": "openai",
-            "baseUrl": "https://api.lkeap.cloud.tencent.com/v1",
+            "id": "glm-5.1-tokenhub",
+            "name": "GLM-5.1 (TokenHub计费)",
+            "tooltip": "腾讯云 TokenHub 按量付费中的 GLM-5.1。",
+            "provider": "tencent-tokenhub",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://tokenhub.tencentmaas.com",
+            "model": "glm-5.1",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "glm-5-turbo-tokenhub",
+            "name": "GLM-5-Turbo (TokenHub计费)",
+            "tooltip": "腾讯云 TokenHub 按量付费中的 GLM-5-Turbo。",
+            "provider": "tencent-tokenhub",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://tokenhub.tencentmaas.com",
+            "model": "glm-5-turbo",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "glm-5-tokenhub",
+            "name": "GLM-5 (TokenHub计费)",
+            "tooltip": "腾讯云 TokenHub 按量付费中的 GLM-5。",
+            "provider": "tencent-tokenhub",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://tokenhub.tencentmaas.com",
+            "model": "glm-5",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "deepseek-v3.2-tokenhub",
+            "name": "DeepSeek-V3.2 (TokenHub计费)",
+            "tooltip": "腾讯云 TokenHub 按量付费中的 DeepSeek-V3.2。",
+            "provider": "tencent-tokenhub",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://tokenhub.tencentmaas.com",
             "model": "deepseek-v3.2",
             "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
-            "endOfLife": true,
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "extraBody": { "thinking": { "type": "enabled" } }
+            "thinking": ["disabled", "enabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "kimi-k2.5-tokenhub",
+            "name": "Kimi-K2.5 (TokenHub计费)",
+            "tooltip": "腾讯云 TokenHub 按量付费中的 Kimi K2.5。",
+            "provider": "tencent-tokenhub",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://tokenhub.tencentmaas.com",
+            "model": "kimi-k2.5",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 16000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
+            "id": "minimax-m2.7-tokenhub",
+            "name": "MiniMax-M2.7 (TokenHub计费)",
+            "tooltip": "腾讯云 TokenHub 按量付费中的 MiniMax M2.7。",
+            "provider": "tencent-tokenhub",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://tokenhub.tencentmaas.com",
+            "model": "minimax-m2.7",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "minimax-m2.5-tokenhub",
+            "name": "MiniMax-M2.5 (TokenHub计费)",
+            "tooltip": "腾讯云 TokenHub 按量付费中的 MiniMax M2.5。",
+            "provider": "tencent-tokenhub",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://tokenhub.tencentmaas.com",
+            "model": "minimax-m2.5",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
         }
     ]
 }

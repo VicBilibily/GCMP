@@ -33,7 +33,7 @@
 
 ### [**智谱AI**](https://bigmodel.cn/)
 
-- [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-5V-Turbo**、**GLM-5.1**、**GLM-5-Turbo**、**GLM-5**、**GLM-4.7**、**GLM-4.6**、**GLM-4.6V**、**GLM-4.5-Air**
+- [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-5.1**、**GLM-5V-Turbo**、**GLM-5-Turbo**、**GLM-4.7**、**GLM-4.6**、**GLM-4.6V**、**GLM-4.5-Air**
     - **用量查询**：已支持状态栏显示周期剩余用量，可查看 GLM Coding Plan 用量信息。
 - **按量计费**：**GLM-5.1**、**GLM-5V-Turbo**、**GLM-5-Turbo**、**GLM-5**、**GLM-4.7**、**GLM-4.7-FlashX**、**GLM-4.6**、**GLM-4.6V**、**GLM-4.5-Air**
 - **免费模型**：**GLM-4.6V-Flash**、**GLM-4.7-Flash**
@@ -87,11 +87,10 @@
 
 ### [**腾讯云**](https://cloud.tencent.com/product/hunyuan)
 
-- [**Coding Plan**](https://cloud.tencent.com/act/pro/codingplan) / [**Token Plan**](https://cloud.tencent.com/act/pro/tokenplan)：
-    - 混元模型：**Tencent HY 2.0 Instruct**、**Tencent HY 2.0 Think**、**Hunyuan-T1**、**Hunyuan-TurboS**
-    - 开源模型：**GLM-5**、**Kimi-K2.5**、**MiniMax-M2.5**
-- **DeepSeek API**：**DeepSeek-V3.2**
-- **密钥配置**：腾讯云API密钥分为 [腾讯云付费模型 API Key](https://hunyuan.cloud.tencent.com/#/app/apiKeyManage)、[Coding Plan 专用 API Key](https://hunyuan.cloud.tencent.com/#/app/subscription)、[Token Plan 专用 API Key](https://hunyuan.cloud.tencent.com/#/app/tokenplan)、[DeepSeek 专用 API Key](https://console.cloud.tencent.com/lkeap/api)，需要进入正确的密钥获取界面生成密钥。
+- [**Coding Plan**](https://console.cloud.tencent.com/tokenhub/codingplan) / [**Token Plan**](https://console.cloud.tencent.com/tokenhub/tokenplan)：
+    - 开源模型：**GLM-5**、**Kimi-K2.5**、**MiniMax-M2.5**、**DeepSeek-V3.2**
+    - 计费模型：**GLM-5.1**、**GLM-5-Turbo**、**MiniMax-M2.7**
+- **密钥配置**：腾讯云API密钥分为 [腾讯云付费模型 API Key](https://hunyuan.cloud.tencent.com/#/app/apiKeyManage)、[Coding Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/codingplan)、[Token Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan)、[DeepSeek 专用 API Key](https://console.cloud.tencent.com/lkeap/api)、[TokenHub 付费 API Key](https://console.cloud.tencent.com/tokenhub/apikey)，需要进入正确的密钥获取界面生成密钥。
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)
 

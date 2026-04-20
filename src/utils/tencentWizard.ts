@@ -12,6 +12,7 @@ export class TencentWizard {
     private static readonly CODING_PLAN_KEY = 'tencent-coding';
     private static readonly TOKEN_PLAN_KEY = 'tencent-token';
     private static readonly DEEPSEEK_KEY = 'tencent-deepseek';
+    private static readonly TOKENHUB_KEY = 'tencent-tokenhub';
 
     static async startWizard(
         displayName: string,
@@ -43,8 +44,13 @@ export class TencentWizard {
                         value: 'deepseek'
                     },
                     {
+                        label: '$(key) 设置 TokenHub 计费密钥',
+                        detail: '用于腾讯云 TokenHub 按量付费模型',
+                        value: 'tokenhub'
+                    },
+                    {
                         label: '$(check-all) 依次配置全部项目',
-                        detail: '按顺序配置付费密钥、Coding Plan 密钥、Token Plan 密钥和 DeepSeek 密钥',
+                        detail: '按顺序配置付费密钥、Coding Plan 密钥、Token Plan 密钥、DeepSeek 密钥和 TokenHub 密钥',
                         value: 'all'
                     }
                 ],
@@ -66,6 +72,9 @@ export class TencentWizard {
             }
             if (choice.value === 'deepseek' || choice.value === 'all') {
                 await this.setDeepSeekApiKey(apiKeyTemplate);
+            }
+            if (choice.value === 'tokenhub' || choice.value === 'all') {
+                await this.setTokenHubApiKey(apiKeyTemplate);
             }
         } catch (error) {
             Logger.error(`腾讯云配置向导出错: ${error instanceof Error ? error.message : '未知错误'}`);
@@ -113,6 +122,17 @@ export class TencentWizard {
             placeHolder: apiKeyTemplate,
             successMessage: '腾讯云 DeepSeek 专用 API Key 已设置',
             clearMessage: '腾讯云 DeepSeek 专用 API Key 已清除'
+        });
+    }
+
+    static async setTokenHubApiKey(apiKeyTemplate?: string): Promise<void> {
+        await this.promptForApiKey({
+            providerKey: this.TOKENHUB_KEY,
+            prompt: '请输入 腾讯云 TokenHub API Key（留空可清除）',
+            title: '设置 腾讯云 TokenHub API Key',
+            placeHolder: apiKeyTemplate,
+            successMessage: '腾讯云 TokenHub API Key 已设置',
+            clearMessage: '腾讯云 TokenHub API Key 已清除'
         });
     }
 

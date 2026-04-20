@@ -62,6 +62,14 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             }
         );
 
+        const setTokenHubApiKeyCommand = vscode.commands.registerCommand(
+            `gcmp.${providerKey}.setTokenHubApiKey`,
+            async () => {
+                await TencentWizard.setTokenHubApiKey(providerConfig.apiKeyTemplate);
+                provider._onDidChangeLanguageModelChatInformation.fire();
+            }
+        );
+
         const configWizardCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.configWizard`, async () => {
             Logger.info(`启动 ${providerConfig.displayName} 配置向导`);
             await TencentWizard.startWizard(
@@ -79,6 +87,7 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             setCodingPlanApiKeyCommand,
             setTokenPlanApiKeyCommand,
             setDeepSeekApiKeyCommand,
+            setTokenHubApiKeyCommand,
             configWizardCommand
         ];
         disposables.forEach(disposable => context.subscriptions.push(disposable));
@@ -102,7 +111,8 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
         const hasCodingKey = await ApiKeyManager.hasValidApiKey('tencent-coding');
         const hasTokenPlanKey = await ApiKeyManager.hasValidApiKey('tencent-token');
         const hasDeepSeekKey = await ApiKeyManager.hasValidApiKey('tencent-deepseek');
-        const hasAnyKey = hasNormalKey || hasCodingKey || hasTokenPlanKey || hasDeepSeekKey;
+        const hasTokenHubKey = await ApiKeyManager.hasValidApiKey('tencent-tokenhub');
+        const hasAnyKey = hasNormalKey || hasCodingKey || hasTokenPlanKey || hasDeepSeekKey || hasTokenHubKey;
 
         if (options.silent && !hasAnyKey) {
             Logger.debug(`${this.providerConfig.displayName}: 静默模式下，未检测到任何密钥，返回空模型列表`);
@@ -121,7 +131,8 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             const codingKeyValid = await ApiKeyManager.hasValidApiKey('tencent-coding');
             const tokenPlanKeyValid = await ApiKeyManager.hasValidApiKey('tencent-token');
             const deepSeekKeyValid = await ApiKeyManager.hasValidApiKey('tencent-deepseek');
-            if (!normalKeyValid && !codingKeyValid && !tokenPlanKeyValid && !deepSeekKeyValid) {
+            const tokenHubKeyValid = await ApiKeyManager.hasValidApiKey('tencent-tokenhub');
+            if (!normalKeyValid && !codingKeyValid && !tokenPlanKeyValid && !deepSeekKeyValid && !tokenHubKeyValid) {
                 Logger.warn(`${this.providerConfig.displayName}: 用户未设置任何密钥，返回空模型列表`);
                 return [];
             }
@@ -213,6 +224,8 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
                 return 'Token Plan 专用';
             case 'tencent-deepseek':
                 return 'DeepSeek 专用';
+            case 'tencent-tokenhub':
+                return 'TokenHub 专用';
             default:
                 return '付费模型';
         }
@@ -236,6 +249,8 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             await TencentWizard.setTokenPlanApiKey(this.providerConfig.tokenKeyTemplate);
         } else if (providerKey === 'tencent-deepseek') {
             await TencentWizard.setDeepSeekApiKey(this.providerConfig.apiKeyTemplate);
+        } else if (providerKey === 'tencent-tokenhub') {
+            await TencentWizard.setTokenHubApiKey(this.providerConfig.apiKeyTemplate);
         } else {
             await TencentWizard.setApiKey(this.providerConfig.apiKeyTemplate);
         }
