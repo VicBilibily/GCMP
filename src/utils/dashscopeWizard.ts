@@ -10,11 +10,17 @@ import { ApiKeyManager } from './apiKeyManager';
 export class DashscopeWizard {
     private static readonly PROVIDER_KEY = 'dashscope';
     private static readonly CODING_PLAN_KEY = 'dashscope-coding';
+    private static readonly TOKEN_PLAN_KEY = 'dashscope-token';
 
     /**
      * 启动 Dashscope 配置向导
      */
-    static async startWizard(displayName: string, apiKeyTemplate: string, codingKeyTemplate?: string): Promise<void> {
+    static async startWizard(
+        displayName: string,
+        apiKeyTemplate: string,
+        codingKeyTemplate?: string,
+        tokenKeyTemplate?: string
+    ): Promise<void> {
         try {
             const choice = await vscode.window.showQuickPick(
                 [
@@ -29,9 +35,14 @@ export class DashscopeWizard {
                         value: 'coding'
                     },
                     {
-                        label: '$(check-all) 同时设置两种密钥',
-                        detail: '按顺序配置普通密钥与 Coding Plan 专用密钥',
-                        value: 'both'
+                        label: '$(key) 设置 Token Plan 专用密钥',
+                        detail: `用于 ${displayName} Token Plan 模型`,
+                        value: 'tokenPlan'
+                    },
+                    {
+                        label: '$(check-all) 依次配置全部项目',
+                        detail: '按顺序配置普通密钥、Coding Plan 专用密钥与 Token Plan 专用密钥',
+                        value: 'all'
                     }
                 ],
                 { title: `${displayName} 密钥配置`, placeHolder: '请选择要配置的项目' }
@@ -42,12 +53,16 @@ export class DashscopeWizard {
                 return;
             }
 
-            if (choice.value === 'normal' || choice.value === 'both') {
+            if (choice.value === 'normal' || choice.value === 'all') {
                 await this.setNormalApiKey(displayName, apiKeyTemplate);
             }
 
-            if (choice.value === 'coding' || choice.value === 'both') {
+            if (choice.value === 'coding' || choice.value === 'all') {
                 await this.setCodingPlanApiKey(displayName, codingKeyTemplate || apiKeyTemplate);
+            }
+
+            if (choice.value === 'tokenPlan' || choice.value === 'all') {
+                await this.setTokenPlanApiKey(displayName, tokenKeyTemplate || codingKeyTemplate || apiKeyTemplate);
             }
         } catch (error) {
             Logger.error(`Dashscope 配置向导出错: ${error instanceof Error ? error.message : '未知错误'}`);
@@ -115,6 +130,40 @@ export class DashscopeWizard {
         } catch (error) {
             Logger.error(
                 `Dashscope Coding Plan API Key 操作失败: ${error instanceof Error ? error.message : '未知错误'}`
+            );
+            vscode.window.showErrorMessage(`设置失败: ${error instanceof Error ? error.message : '未知错误'}`);
+        }
+    }
+
+    /**
+     * 设置 Dashscope Token Plan 专用密钥
+     */
+    static async setTokenPlanApiKey(displayName: string, tokenKeyTemplate?: string): Promise<void> {
+        const result = await vscode.window.showInputBox({
+            prompt: `请输入 ${displayName} 的 Token Plan 专用 API Key（留空可清除）`,
+            title: `设置 ${displayName} Token Plan 专用 API Key`,
+            placeHolder: tokenKeyTemplate,
+            password: true,
+            ignoreFocusOut: true
+        });
+
+        if (result === undefined) {
+            return;
+        }
+
+        try {
+            if (result.trim() === '') {
+                Logger.info(`${displayName} Token Plan 专用 API Key 已清除`);
+                await ApiKeyManager.deleteApiKey(this.TOKEN_PLAN_KEY);
+                vscode.window.showInformationMessage(`${displayName} Token Plan 专用 API Key 已清除`);
+            } else {
+                await ApiKeyManager.setApiKey(this.TOKEN_PLAN_KEY, result.trim());
+                Logger.info(`${displayName} Token Plan 专用 API Key 已设置`);
+                vscode.window.showInformationMessage(`${displayName} Token Plan 专用 API Key 已设置`);
+            }
+        } catch (error) {
+            Logger.error(
+                `Dashscope Token Plan API Key 操作失败: ${error instanceof Error ? error.message : '未知错误'}`
             );
             vscode.window.showErrorMessage(`设置失败: ${error instanceof Error ? error.message : '未知错误'}`);
         }

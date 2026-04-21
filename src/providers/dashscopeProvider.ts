@@ -50,18 +50,35 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
             }
         );
 
+        // Token Plan 专用 API Key
+        const setTokenPlanApiKeyCommand = vscode.commands.registerCommand(
+            `gcmp.${providerKey}.setTokenPlanApiKey`,
+            async () => {
+                await DashscopeWizard.setTokenPlanApiKey(providerConfig.displayName, providerConfig.tokenKeyTemplate);
+                await provider.modelInfoCache?.invalidateCache('dashscope-token');
+                provider._onDidChangeLanguageModelChatInformation.fire();
+            }
+        );
+
         const configWizardCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.configWizard`, async () => {
             Logger.info(`启动 ${providerConfig.displayName} 配置向导`);
             await DashscopeWizard.startWizard(
                 providerConfig.displayName,
                 providerConfig.apiKeyTemplate,
-                providerConfig.codingKeyTemplate
+                providerConfig.codingKeyTemplate,
+                providerConfig.tokenKeyTemplate
             );
             await provider.modelInfoCache?.invalidateCache(providerKey);
             provider._onDidChangeLanguageModelChatInformation.fire();
         });
 
-        const disposables = [providerDisposable, setApiKeyCommand, setCodingPlanApiKeyCommand, configWizardCommand];
+        const disposables = [
+            providerDisposable,
+            setApiKeyCommand,
+            setCodingPlanApiKeyCommand,
+            setTokenPlanApiKeyCommand,
+            configWizardCommand
+        ];
         disposables.forEach(d => context.subscriptions.push(d));
         return { provider, disposables };
     }
@@ -73,7 +90,8 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
     private async ensureApiKeyForModel(modelConfig: ModelConfig): Promise<string> {
         const providerKey = this.getProviderKeyForModel(modelConfig);
         const isCodingPlan = providerKey === 'dashscope-coding';
-        const keyType = isCodingPlan ? 'Coding Plan 专用' : '普通';
+        const isTokenPlan = providerKey === 'dashscope-token';
+        const keyType = isCodingPlan ? 'Coding Plan 专用' : isTokenPlan ? 'Token Plan 专用' : '普通';
 
         const hasApiKey = await ApiKeyManager.hasValidApiKey(providerKey);
         if (hasApiKey) {
@@ -89,6 +107,11 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
             await DashscopeWizard.setCodingPlanApiKey(
                 this.providerConfig.displayName,
                 this.providerConfig.codingKeyTemplate
+            );
+        } else if (isTokenPlan) {
+            await DashscopeWizard.setTokenPlanApiKey(
+                this.providerConfig.displayName,
+                this.providerConfig.tokenKeyTemplate
             );
         } else {
             await DashscopeWizard.setNormalApiKey(this.providerConfig.displayName, this.providerConfig.apiKeyTemplate);
@@ -114,7 +137,8 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
 
         const hasNormalKey = await ApiKeyManager.hasValidApiKey(this.providerKey);
         const hasCodingKey = await ApiKeyManager.hasValidApiKey('dashscope-coding');
-        const hasAnyKey = hasNormalKey || hasCodingKey;
+        const hasTokenPlanKey = await ApiKeyManager.hasValidApiKey('dashscope-token');
+        const hasAnyKey = hasNormalKey || hasCodingKey || hasTokenPlanKey;
 
         if (options.silent && !hasAnyKey) {
             Logger.debug(`${this.providerConfig.displayName}: 静默模式下，未检测到任何密钥，返回空模型列表`);
@@ -125,12 +149,14 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
             await DashscopeWizard.startWizard(
                 this.providerConfig.displayName,
                 this.providerConfig.apiKeyTemplate,
-                this.providerConfig.codingKeyTemplate
+                this.providerConfig.codingKeyTemplate,
+                this.providerConfig.tokenKeyTemplate
             );
 
             const normalKeyValid = await ApiKeyManager.hasValidApiKey(this.providerKey);
             const codingKeyValid = await ApiKeyManager.hasValidApiKey('dashscope-coding');
-            if (!normalKeyValid && !codingKeyValid) {
+            const tokenPlanKeyValid = await ApiKeyManager.hasValidApiKey('dashscope-token');
+            if (!normalKeyValid && !codingKeyValid && !tokenPlanKeyValid) {
                 Logger.warn(`${this.providerConfig.displayName}: 用户未设置任何密钥，返回空模型列表`);
                 return [];
             }
@@ -159,12 +185,23 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         const providerKey = this.getProviderKeyForModel(modelConfig);
         const apiKey = await this.ensureApiKeyForModel(modelConfig);
         if (!apiKey) {
-            const keyType = providerKey === 'dashscope-coding' ? 'Coding Plan 专用' : '普通';
+            const keyType =
+                providerKey === 'dashscope-coding'
+                    ? 'Coding Plan 专用'
+                    : providerKey === 'dashscope-token'
+                      ? 'Token Plan 专用'
+                      : '普通';
             throw new Error(`${this.providerConfig.displayName}: 无效的 ${keyType} API 密钥`);
         }
 
+        const keyLabel =
+            providerKey === 'dashscope-coding'
+                ? 'Coding Plan'
+                : providerKey === 'dashscope-token'
+                  ? 'Token Plan'
+                  : '普通';
         Logger.debug(
-            `${this.providerConfig.displayName}: 即将处理请求，使用 ${providerKey === 'dashscope-coding' ? 'Coding Plan' : '普通'} 密钥 - 模型: ${modelConfig.name}`
+            `${this.providerConfig.displayName}: 即将处理请求，使用 ${keyLabel} 密钥 - 模型: ${modelConfig.name}`
         );
 
         const totalInputTokens = await this.updateContextUsageStatusBar(model, messages, modelConfig, options);

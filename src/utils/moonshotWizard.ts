@@ -23,7 +23,7 @@ export class MoonshotWizard {
                 [
                     {
                         label: '$(key) 设置 Moonshot API 密钥',
-                        detail: '用于 Moonshot AI 开放平台调用 Kimi-K2 系列等模型的 API 密钥',
+                        detail: '用于 Moonshot AI 开放平台调用 Kimi-K2 系列付费模型的 API 密钥',
                         value: 'moonshot'
                     },
                     {

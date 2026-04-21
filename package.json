@@ -146,6 +146,11 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.dashscope.setTokenPlanApiKey",
+                "title": "设置 阿里云百炼 Token Plan 专用密钥",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.dashscope.configWizard",
                 "title": "启动 阿里云百炼 配置向导",
                 "category": "GCMP"
@@ -615,7 +620,7 @@
             },
             {
                 "vendor": "gcmp.dashscope",
-                "displayName": "⦿ 阿里云百炼 (Coding Plan)",
+                "displayName": "⦿ 阿里云百炼 (Coding / Token Plan)",
                 "managementCommand": "gcmp.dashscope.configWizard"
             },
             {

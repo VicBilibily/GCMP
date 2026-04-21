@@ -25,37 +25,13 @@
             }
         },
         {
-            "id": "kimi-for-coding-thinking",
-            "name": "Kimi For Coding (Thinking)",
-            "model": "kimi-for-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://api.kimi.com/coding",
-            "provider": "kimi",
-            "tooltip": "Kimi For Coding - 月之暗面推出的专业编程模型，提供强大的代码生成和理解能力",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 32000,
-            "endOfLife": true,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
-            "customHeader": {
-                "HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
-                "X-Title": "Roo Code",
-                "User-Agent": "RooCode/3.52.1"
-            },
-            "extraBody": {
-                "thinking": { "type": "enabled" }
-            }
-        },
-        {
             "id": "kimi-k2.5",
             "name": "Kimi-K2.5",
             "sdkMode": "anthropic",
             "baseUrl": "https://api.moonshot.cn/anthropic",
-            "tooltip": "Kimi K2.5 是 Kimi 迄今最智能的模型，在 Agent、代码、视觉理解及一系列通用智能任务上取得开源 SoTA 表现。同时 Kimi K2.5 也是 Kimi 迄今最全能的模型，原生的多模态架构设计，同时支持视觉与文本输入、思考与非思考模式、对话与 Agent 任务。",
+            "tooltip": "Kimi K2.5 是 Kimi 迄今最智能的模型，同时也是最全能的模型，原生的多模态架构设计，同时支持文本、图片与视频输入，思考与非思考模式，对话与 Agent 任务。",
             "maxInputTokens": 256000,
-            "maxOutputTokens": 32000,
+            "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
             "capabilities": {
                 "toolCalling": true,
@@ -63,21 +39,17 @@
             }
         },
         {
-            "id": "kimi-k2.5-thinking",
-            "name": "Kimi-K2.5 (Thinking)",
-            "model": "kimi-k2.5",
+            "id": "kimi-k2.6",
+            "name": "Kimi-K2.6",
             "sdkMode": "anthropic",
             "baseUrl": "https://api.moonshot.cn/anthropic",
-            "tooltip": "Kimi K2.5 是 Kimi 迄今最智能的模型，在 Agent、代码、视觉理解及一系列通用智能任务上取得开源 SoTA 表现。同时 Kimi K2.5 也是 Kimi 迄今最全能的模型，原生的多模态架构设计，同时支持视觉与文本输入、思考与非思考模式、对话与 Agent 任务。",
+            "tooltip": "Kimi K2.6 是 Kimi 最新最智能的模型，具备更强更稳的长程代码编写能力，指令遵循和自我纠错能力显著提升，同时支持文本、图片与视频输入，思考与非思考模式，对话与 Agent 任务。",
             "maxInputTokens": 256000,
-            "maxOutputTokens": 32000,
-            "endOfLife": true,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
-            },
-            "extraBody": {
-                "thinking": { "type": "enabled" }
             }
         }
     ]
