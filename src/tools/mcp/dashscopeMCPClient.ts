@@ -52,6 +52,9 @@ export class DashscopeMCPWebSearchClient {
     private currentApiKey: string | null = null;
     private isConnecting = false;
     private connectionPromise: Promise<void> | null = null;
+    private activeSearchCount = 0;
+    private cleanupTimer: ReturnType<typeof setTimeout> | null = null;
+    private cleanupPromise: Promise<void> | null = null;
 
     private constructor() {
         this.userAgent = VersionManager.getUserAgent('DashScopeMCPWebSearch');
@@ -122,6 +125,13 @@ export class DashscopeMCPWebSearchClient {
     }
 
     private async ensureConnected(): Promise<void> {
+        this.cancelPendingCleanup();
+
+        if (this.cleanupPromise) {
+            Logger.debug('⏳ [DashScope MCP] 等待连接清理完成...');
+            await this.cleanupPromise;
+        }
+
         if (this.isConnected()) {
             Logger.debug('✅ [DashScope MCP] 客户端已连接');
             return;
@@ -173,6 +183,12 @@ export class DashscopeMCPWebSearchClient {
                         Authorization: `Bearer ${apiKey}`,
                         'User-Agent': this.userAgent
                     }
+                },
+                reconnectionOptions: {
+                    maxRetries: 2,
+                    initialReconnectionDelay: 300, // 30秒初始重连延迟
+                    maxReconnectionDelay: 120000, // 最大2分钟
+                    reconnectionDelayGrowFactor: 2.0
                 }
             });
 
@@ -194,9 +210,13 @@ export class DashscopeMCPWebSearchClient {
     async search(params: DashscopeWebSearchRequest): Promise<DashscopeSearchPage[]> {
         Logger.info(`🔍 [DashScope MCP] 开始搜索: "${params.query}"`);
 
+        this.cancelPendingCleanup();
+        this.activeSearchCount++;
+
         await this.ensureConnected();
 
         if (!this.client) {
+            this.activeSearchCount = Math.max(0, this.activeSearchCount - 1);
             throw new Error('MCP 客户端未初始化');
         }
 
@@ -219,18 +239,14 @@ export class DashscopeMCPWebSearchClient {
 
             if (Array.isArray(result.content) && result.content.length > 0) {
                 const text = result.content.map(item => (item.type === 'text' ? item.text : '')).join('\n');
-
                 if (text.startsWith('MCP error')) {
                     throw new Error(text);
                 }
-
                 const response = JSON.parse(text) as DashscopeMCPResponse;
                 const pages = response.pages || [];
-
                 Logger.info(`✅ [DashScope MCP] 搜索完成: 找到 ${pages.length} 个结果`);
                 return pages;
             }
-
             Logger.debug('📊 [DashScope MCP] 工具调用结束: 无结果');
             return [];
         } catch (error) {
@@ -242,6 +258,9 @@ export class DashscopeMCPWebSearchClient {
             }
 
             throw new Error(`搜索失败: ${error instanceof Error ? error.message : '未知错误'}`);
+        } finally {
+            this.activeSearchCount = Math.max(0, this.activeSearchCount - 1);
+            this.scheduleCleanupAfterIdle();
         }
     }
 
@@ -269,7 +288,42 @@ export class DashscopeMCPWebSearchClient {
         }
     }
 
+    private cancelPendingCleanup(): void {
+        if (this.cleanupTimer) {
+            clearTimeout(this.cleanupTimer);
+            this.cleanupTimer = null;
+        }
+    }
+
+    private scheduleCleanupAfterIdle(): void {
+        if (this.activeSearchCount > 0 || this.cleanupTimer || this.cleanupPromise) {
+            return;
+        }
+
+        // 延迟到事件循环的下一拍再清理，避免并发搜索共享实例时互相关闭连接。
+        this.cleanupTimer = setTimeout(() => {
+            this.cleanupTimer = null;
+            void this.cleanupIfIdle();
+        }, 0);
+    }
+
+    private async cleanupIfIdle(): Promise<void> {
+        if (this.activeSearchCount > 0 || this.cleanupPromise) {
+            return;
+        }
+
+        this.cleanupPromise = (async () => {
+            await this.internalCleanup();
+            Logger.debug('🔌 [DashScope MCP] 空闲后已关闭连接');
+        })().finally(() => {
+            this.cleanupPromise = null;
+        });
+
+        await this.cleanupPromise;
+    }
+
     async cleanup(): Promise<void> {
+        this.cancelPendingCleanup();
         await this.internalCleanup();
     }
 }
