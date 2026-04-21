@@ -19,24 +19,6 @@
             }
         },
         {
-            "id": "ark-code-doubao-seed-code-thinking",
-            "name": "Doubao-Seed-Code (Thinking) (Coding Plan)",
-            "model": "doubao-seed-code",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。豆包编程模型，面向Agentic编程任务进行了深度优化，具备精准的代码生成、任务调度与逻辑协同能力。",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "endOfLife": true,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
-            "extraBody": {
-                "thinking": { "type": "enabled" }
-            }
-        },
-        {
             "id": "ark-code-doubao-seed-2.0-code",
             "name": "Doubao-Seed-2.0-Code (Coding Plan)",
             "model": "doubao-seed-2.0-code",
@@ -49,24 +31,6 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
-            }
-        },
-        {
-            "id": "ark-code-doubao-seed-2.0-code-thinking",
-            "name": "Doubao-Seed-2.0-Code (Thinking) (Coding Plan)",
-            "model": "doubao-seed-2.0-code",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。面向真实编程环境优化的 Coding 模型，能稳定调用 Claude Code 等常见 IDE 中的工具。模型特别优化了前端能力，在使用常见的前端框架时能有良好表现。模型支持使用 Skills，可以配合多种自定义技能使用。",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 128000,
-            "endOfLife": true,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
-            "extraBody": {
-                "thinking": { "type": "enabled" }
             }
         },
         {
@@ -85,24 +49,6 @@
             }
         },
         {
-            "id": "ark-code-doubao-seed-2.0-lite-thinking",
-            "name": "Doubao-Seed-2.0-lite (Thinking) (Coding Plan)",
-            "model": "doubao-seed-2.0-lite",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。兼顾生成质量与响应速度，适合作为通用生产级模型，胜任非结构化信息处理、内容创作、搜索推荐、数据分析等生产型工作。",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 128000,
-            "endOfLife": true,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
-            "extraBody": {
-                "thinking": { "type": "enabled" }
-            }
-        },
-        {
             "id": "ark-code-doubao-seed-2.0-pro",
             "name": "Doubao-Seed-2.0-pro (Coding Plan)",
             "model": "doubao-seed-2.0-pro",
@@ -115,24 +61,6 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
-            }
-        },
-        {
-            "id": "ark-code-doubao-seed-2.0-pro-thinking",
-            "name": "Doubao-Seed-2.0-pro (Thinking) (Coding Plan)",
-            "model": "doubao-seed-2.0-pro",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。旗舰级全能通用模型，适合复杂推理与长链路任务执行场景，强调多模态理解、长上下文推理、结构化生成与工具增强执行。",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 128000,
-            "endOfLife": true,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
-            "extraBody": {
-                "thinking": { "type": "enabled" }
             }
         },
         {
@@ -151,24 +79,6 @@
             }
         },
         {
-            "id": "ark-code-kimi-k2.5-thinking",
-            "name": "Kimi-K2.5 (Thinking) (Coding Plan)",
-            "model": "kimi-k2.5",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。Moonshot AI 最新编程模型，进一步强化前端代码质量与设计表现力前端能力。",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "endOfLife": true,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
-            "extraBody": {
-                "thinking": { "type": "enabled" }
-            }
-        },
-        {
             "id": "ark-code-glm-4.7",
             "name": "GLM-4.7 (Coding Plan)",
             "model": "glm-4.7",
@@ -181,24 +91,6 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
-            }
-        },
-        {
-            "id": "ark-code-glm-4.7-thinking",
-            "name": "GLM-4.7 (Thinking) (Coding Plan)",
-            "model": "glm-4.7",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。智谱 AI 旗舰代码大模型，可轻松解析超长代码库、处理复杂智能体（Agent）任务，在代码生成、调试、全链路理解场景中表现优异。",
-            "maxInputTokens": 200000,
-            "maxOutputTokens": 128000,
-            "endOfLife": true,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
-            "extraBody": {
-                "thinking": { "type": "enabled" }
             }
         },
         {
@@ -228,24 +120,6 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
-            }
-        },
-        {
-            "id": "ark-code-deepseek-v3.2-thinking",
-            "name": "Deepseek V3.2 (Thinking) (Coding Plan)",
-            "model": "deepseek-v3.2",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。DeepSeek-V3.2，平衡推理能力与输出长度，在通用问答、日常 Agent 任务、轻量级代码开发场景中稳定高效，适配多元AI 需求。",
-            "maxInputTokens": 96000,
-            "maxOutputTokens": 32000,
-            "endOfLife": true,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
-            "extraBody": {
-                "thinking": { "type": "enabled" }
             }
         },
         {
@@ -372,22 +246,6 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
-            }
-        },
-        {
-            "id": "deepseek-v3.2-thinking",
-            "name": "DeepSeek-V3.2-251201 (Thinking)",
-            "model": "deepseek-v3-2-251201",
-            "tooltip": "DeepSeek-V3.2正式版，平衡推理能力与输出长度，适合日常使用，例如问答场景和通用 Agent 任务场景",
-            "maxInputTokens": 96000,
-            "maxOutputTokens": 32000,
-            "endOfLife": true,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
-            "extraBody": {
-                "thinking": { "type": "enabled" }
             }
         },
         {

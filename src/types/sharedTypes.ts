@@ -101,8 +101,6 @@ export interface ModelConfig {
      * - high: 深度分析，处理复杂问题
      */
     reasoningEffort?: Required<ModelChatResponseOptions>['reasoningEffort'][];
-    /** 内置模型即将移除 */
-    endOfLife?: true;
     /**
      * 模型特定的自定义HTTP头部（可选）
      * 如果提供，将在API请求中附加这些自定义头部

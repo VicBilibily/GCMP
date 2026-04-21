@@ -236,9 +236,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             id: modelId,
             name: model.name,
             detail: this.providerConfig.displayName,
-            tooltip: model.endOfLife
-                ? '此模型变体将在后续版本中移除，请切换并使用原始模型，然后按需调整思考模式或思考长度。'
-                : model.tooltip,
+            tooltip: model.tooltip,
             family: family,
             maxInputTokens: model.maxInputTokens,
             maxOutputTokens: model.maxOutputTokens,
@@ -246,7 +244,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             category: { label: this.providerConfig.displayName, order: 3 },
             capabilities: model.capabilities,
             // multiplier: multiplier,
-            statusIcon: model.endOfLife ? new vscode.ThemeIcon('warning') : undefined,
             configurationSchema: Object.keys(properties).length > 0 ? { properties } : undefined
         };
         return info;

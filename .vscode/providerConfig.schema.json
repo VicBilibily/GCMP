@@ -1,4 +1,4 @@
-﻿{
+{
     "$schema": "http://json-schema.org/draft-07/schema#",
     "$id": "https://gcmp.dev/schemas/provider-config.schema.json",
     "title": "GCMP Provider Configuration",
@@ -164,12 +164,6 @@
                         ]
                     },
                     "description": "调节思维链长度，平衡不同场景对效果、时延、成本的需求"
-                },
-                "endOfLife": {
-                    "type": "boolean",
-                    "enum": [true],
-                    "default": true,
-                    "description": "将该模型标记为即将淘汰（EOL）。"
                 },
                 "customHeader": {
                     "type": "object",
