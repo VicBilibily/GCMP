@@ -7,6 +7,7 @@ import { MiniMaxProvider } from './providers/minimaxProvider';
 import { DashscopeProvider } from './providers/dashscopeProvider';
 import { TencentProvider } from './providers/tencentProvider';
 import { XiaomimimoProvider } from './providers/xiaomimimoProvider';
+import { BaiduProvider } from './providers/baiduProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
 import { InlineCompletionShim } from './copilot/inlineCompletionShim';
 import { Logger, StatusLogger, CompletionLogger, TokenCounter } from './utils';
@@ -34,6 +35,7 @@ const registeredProviders: Record<
     | TencentProvider
     | XiaomimimoProvider
     | CompatibleProvider
+    | BaiduProvider
 > = {};
 const registeredDisposables: vscode.Disposable[] = [];
 
@@ -75,7 +77,8 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
                 | MiniMaxProvider
                 | DashscopeProvider
                 | TencentProvider
-                | XiaomimimoProvider;
+                | XiaomimimoProvider
+                | BaiduProvider;
             let disposables: vscode.Disposable[];
 
             if (providerKey === 'zhipu') {
@@ -106,6 +109,11 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
             } else if (providerKey === 'xiaomimimo') {
                 // 对 xiaomimimo 使用专门的 provider（多密钥管理和配置向导）
                 const result = XiaomimimoProvider.createAndActivate(context, providerKey, providerConfig);
+                provider = result.provider;
+                disposables = result.disposables;
+            } else if (providerKey === 'baidu') {
+                // 对百度千帆使用专门的 provider（多密钥管理和配置向导）
+                const result = BaiduProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
             } else if (cliAuthProviders.includes(providerKey)) {

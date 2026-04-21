@@ -2,7 +2,7 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云、Xiaomi MiMo 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
+    "description": "为 GitHub Copilot Chat 提供 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云、Xiaomi MiMo、百度千帆 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
     "version": "0.21.16",
     "license": "MIT",
     "keywords": [
@@ -21,6 +21,9 @@
         "dashscope",
         "tencent",
         "Xiaomi MiMo",
+        "baidu",
+        "qianfan",
+        "百度千帆",
         "OpenAI Compatible",
         "Anthropic Compatible",
         "智谱AI",
@@ -30,6 +33,7 @@
         "快手万擎",
         "阿里云百炼",
         "腾讯云",
+        "百度千帆",
         "Coding Plan 编程套餐"
     ],
     "repository": {
@@ -66,6 +70,7 @@
         "onLanguageModelProvider:gcmp.xiaomimimo",
         "onLanguageModelProvider:gcmp.gemini",
         "onLanguageModelProvider:gcmp.codex",
+        "onLanguageModelProvider:gcmp.baidu",
         "onLanguageModelProvider:gcmp.compatible",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
         "onLanguageModelTool:gcmp_minimaxWebSearch",
@@ -203,6 +208,21 @@
             {
                 "command": "gcmp.xiaomimimo.configWizard",
                 "title": "启动 Xiaomi MiMo 配置向导",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.baidu.setApiKey",
+                "title": "设置 百度千帆 API密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.baidu.setCodingPlanApiKey",
+                "title": "设置 百度千帆 Coding Plan 专用密钥",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.baidu.configWizard",
+                "title": "启动 百度千帆 配置向导",
                 "category": "GCMP"
             },
             {
@@ -642,6 +662,11 @@
                 "vendor": "gcmp.xiaomimimo",
                 "displayName": "⦿ Xiaomi MiMo (Token Plan)",
                 "managementCommand": "gcmp.xiaomimimo.configWizard"
+            },
+            {
+                "vendor": "gcmp.baidu",
+                "displayName": "⦿ 百度千帆 (Coding Plan)",
+                "managementCommand": "gcmp.baidu.configWizard"
             },
             {
                 "vendor": "gcmp.gemini",

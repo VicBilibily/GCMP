@@ -85,6 +85,13 @@ export interface ModelConfig {
      */
     thinking?: Required<ModelChatResponseOptions>['thinking'][];
     /**
+     * 思考模式参数的传递格式（可选）
+     * - boolean: 使用布尔值格式 { enable_thinking: true/false }
+     * - object: 使用对象格式 { thinking: { type: 'enabled' | 'disabled' } }
+     * 默认值为 'boolean'
+     */
+    thinkingFormat?: 'boolean' | 'object';
+    /**
      * 思维链长度调节选项列表（可选）
      * 用于 UI 配置选择，平衡不同场景对效果、时延、成本的需求：
      * - none: 关闭思考，直接回答

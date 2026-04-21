@@ -1,4 +1,4 @@
-{
+﻿{
     "$schema": "http://json-schema.org/draft-07/schema#",
     "$id": "https://gcmp.dev/schemas/provider-config.schema.json",
     "title": "GCMP Provider Configuration",
@@ -138,6 +138,16 @@
                     },
                     "description": "深度思考配置，控制模型是否输出思维链内容"
                 },
+                "thinkingFormat": {
+                    "type": "string",
+                    "enum": ["boolean", "object"],
+                    "enumDescriptions": [
+                        "使用布尔值格式: { enable_thinking: true/false }",
+                        "使用对象格式: { thinking: { type: 'enabled' | 'disabled' }"
+                    ],
+                    "default": "boolean",
+                    "description": "思考模式参数的传递格式，用于兼容不同模型的API格式要求"
+                },
                 "reasoningEffort": {
                     "type": "array",
                     "items": {
@@ -237,6 +247,35 @@
                         "properties": {
                             "useInstructions": {
                                 "deprecationMessage": "useInstructions 仅对 openai-responses 模式生效"
+                            }
+                        }
+                    }
+                },
+                {
+                    "if": {
+                        "anyOf": [
+                            { "not": { "required": ["sdkMode"] } },
+                            { "properties": { "sdkMode": { "enum": ["openai", "openai-sse"] } } }
+                        ]
+                    },
+                    "then": {
+                        "properties": {
+                            "thinkingFormat": {
+                                "type": "string",
+                                "enum": ["boolean", "object"],
+                                "enumDescriptions": [
+                                    "使用布尔值格式: { enable_thinking: true/false }",
+                                    "使用对象格式: { thinking: { type: 'enabled' | 'disabled' }"
+                                ],
+                                "default": "boolean",
+                                "description": "思考模式参数的传递格式，用于兼容不同模型的API格式要求"
+                            }
+                        }
+                    },
+                    "else": {
+                        "properties": {
+                            "thinkingFormat": {
+                                "deprecationMessage": "thinkingFormat 仅对 openai 和 openai-sse 模式生效"
                             }
                         }
                     }

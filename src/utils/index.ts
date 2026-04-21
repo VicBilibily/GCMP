@@ -17,6 +17,7 @@ export { MoonshotWizard } from './moonshotWizard';
 export { DashscopeWizard } from './dashscopeWizard';
 export { TencentWizard } from './tencentWizard';
 export { XiaomimimoWizard } from './xiaomimimoWizard';
+export { BaiduWizard } from './baiduWizard';
 export { JsonSchemaProvider } from './jsonSchemaProvider';
 export { RetryManager } from './retryManager';
 export type { RetryableError } from './retryManager';

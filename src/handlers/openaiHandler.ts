@@ -539,16 +539,32 @@ export class OpenAIHandler {
             const settings = options.modelConfiguration as ModelChatResponseOptions;
             const customParams = createParams as unknown as {
                 enable_thinking?: boolean;
+                thinking?: { type: 'enabled' | 'disabled' };
                 reasoning_effort?: string;
             };
+            // 确定思考格式：默认使用 boolean 格式
+            const thinkingFormat = modelConfig.thinkingFormat ?? 'boolean';
             if (settings) {
                 if (settings.thinking) {
                     if (settings.thinking === 'enabled') {
-                        customParams.enable_thinking = true;
+                        if (thinkingFormat === 'object') {
+                            customParams.thinking = { type: 'enabled' };
+                        } else {
+                            customParams.enable_thinking = true;
+                        }
                     } else if (settings.thinking === 'disabled') {
-                        customParams.enable_thinking = false;
+                        if (thinkingFormat === 'object') {
+                            customParams.thinking = { type: 'disabled' };
+                        } else {
+                            customParams.enable_thinking = false;
+                        }
                     } else {
-                        customParams.enable_thinking = undefined;
+                        // auto/adaptive 模式不设置具体值
+                        if (thinkingFormat === 'object') {
+                            customParams.thinking = undefined;
+                        } else {
+                            customParams.enable_thinking = undefined;
+                        }
                     }
                 } else if (settings.reasoningEffort) {
                     customParams.reasoning_effort =
@@ -558,8 +574,14 @@ export class OpenAIHandler {
             // 如果处于提交模式，模型支持思考的，不使用思考模式
             const modelOpts = options.modelOptions as CommitChatModelOptions;
             if (modelOpts?.commit) {
-                if (customParams.enable_thinking) {
-                    customParams.enable_thinking = false;
+                if (thinkingFormat === 'object') {
+                    if (customParams.thinking) {
+                        customParams.thinking = { type: 'disabled' };
+                    }
+                } else {
+                    if (customParams.enable_thinking) {
+                        customParams.enable_thinking = false;
+                    }
                 }
                 if (customParams.reasoning_effort !== undefined) {
                     let effort: 'none' | 'minimal' | undefined;
