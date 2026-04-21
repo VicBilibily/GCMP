@@ -81,15 +81,16 @@
 
 - [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：
     - 豆包模型：**Doubao-Seed-2.0-Code**、**Doubao-Seed-Code**、**Doubao-Seed-2.0-lite**、**Doubao-Seed-2.0-pro**
-    - 开源模型：**MiniMax-M2.5**、**Kimi-K2.5**、**GLM-4.7**、**Deepseek v3.2**
-- **豆包系列**：**Doubao-Seed-2.0**(lite/mini/pro/Code)、**Doubao-Seed-1.8**、**Doubao-Seed-1.6**、**Doubao-Seed-1.6-Lite**
+    - 开源模型：**MiniMax-M2.7**、**MiniMax-M2.5**、**Kimi-K2.5**、**GLM-4.7**、**Deepseek v3.2**
+- **豆包系列**：**Doubao-Seed-2.0**(lite/mini/pro/Code)、**Doubao-Seed-1.8**、**Doubao-Seed-1.6**
 - **协作奖励计划**：**GLM-4.7**、**DeepSeek-V3.2**、**DeepSeek-V3.1-terminus**
 
 ### [**腾讯云**](https://cloud.tencent.com/product/hunyuan)
 
 - [**Coding Plan**](https://console.cloud.tencent.com/tokenhub/codingplan) / [**Token Plan**](https://console.cloud.tencent.com/tokenhub/tokenplan)：
+    - 混元模型：**Tencent HY 2.0 Instruct**、**Tencent HY 2.0 Think**
     - 开源模型：**GLM-5**、**Kimi-K2.5**、**MiniMax-M2.5**、**DeepSeek-V3.2**
-    - 计费模型：**GLM-5.1**、**GLM-5-Turbo**、**MiniMax-M2.7**
+    - 计费模型：**GLM-5.1**、**GLM-5-Turbo**、**MiniMax-M2.7**、**Kimi-K2.6**
 - **密钥配置**：腾讯云API密钥分为 [腾讯云付费模型 API Key](https://hunyuan.cloud.tencent.com/#/app/apiKeyManage)、[Coding Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/codingplan)、[Token Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan)、[DeepSeek 专用 API Key](https://console.cloud.tencent.com/lkeap/api)、[TokenHub 付费 API Key](https://console.cloud.tencent.com/tokenhub/apikey)，需要进入正确的密钥获取界面生成密钥。
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)

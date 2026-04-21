@@ -113,7 +113,6 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
                     );
                     if (systemPrompt?.value) {
                         const promptText = systemPrompt.value;
-                        // eslint-disable-next-line @stylistic/quotes
                         const applyPatch = "You are Claude Code, Anthropic's official CLI for Claude.\n\n";
                         systemPrompt.value = applyPatch + promptText;
                     }

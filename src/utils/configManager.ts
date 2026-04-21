@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Logger } from './logger';
-import { ConfigProvider, UserConfigOverrides, ProviderConfig, ModelConfig } from '../types/sharedTypes';
+import { ConfigProvider, UserConfigOverrides, ProviderConfig, ModelConfig, ModelOverride } from '../types/sharedTypes';
 import { configProviders } from '../providers/config';
 import { CommitFormat, CommitLanguage, CommitModelSelection } from '../commit/types';
 
@@ -387,10 +387,86 @@ export class ConfigManager {
         // 创建配置的深拷贝
         const config: ProviderConfig = JSON.parse(JSON.stringify(originalConfig));
 
+        const applyModelOverride = (target: ModelConfig, modelOverride: ModelOverride): void => {
+            if (modelOverride.name !== undefined) {
+                target.name = modelOverride.name;
+                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 name = ${modelOverride.name}`);
+            }
+            if (modelOverride.tooltip !== undefined) {
+                target.tooltip = modelOverride.tooltip;
+                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 tooltip = ${modelOverride.tooltip}`);
+            }
+            if (modelOverride.model !== undefined) {
+                target.model = modelOverride.model;
+                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 model = ${modelOverride.model}`);
+            }
+            if (modelOverride.maxInputTokens !== undefined) {
+                target.maxInputTokens = modelOverride.maxInputTokens;
+                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 maxInputTokens = ${modelOverride.maxInputTokens}`);
+            }
+            if (modelOverride.maxOutputTokens !== undefined) {
+                target.maxOutputTokens = modelOverride.maxOutputTokens;
+                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 maxOutputTokens = ${modelOverride.maxOutputTokens}`);
+            }
+            if (modelOverride.sdkMode !== undefined) {
+                target.sdkMode = modelOverride.sdkMode;
+                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 sdkMode = ${modelOverride.sdkMode}`);
+            }
+            if (modelOverride.baseUrl !== undefined) {
+                target.baseUrl = modelOverride.baseUrl;
+                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 baseUrl = ${modelOverride.baseUrl}`);
+            }
+            if (modelOverride.useInstructions !== undefined) {
+                target.useInstructions = modelOverride.useInstructions;
+                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 useInstructions = ${modelOverride.useInstructions}`);
+            }
+            if (modelOverride.webSearchTool !== undefined) {
+                target.webSearchTool = modelOverride.webSearchTool;
+                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 webSearchTool = ${modelOverride.webSearchTool}`);
+            }
+            if (modelOverride.family !== undefined) {
+                target.family = modelOverride.family;
+                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 family = ${modelOverride.family}`);
+            }
+            if (modelOverride.thinking !== undefined) {
+                target.thinking = [...modelOverride.thinking];
+                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 thinking = ${JSON.stringify(modelOverride.thinking)}`);
+            }
+            if (modelOverride.thinkingFormat !== undefined) {
+                target.thinkingFormat = modelOverride.thinkingFormat;
+                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 thinkingFormat = ${modelOverride.thinkingFormat}`);
+            }
+            if (modelOverride.reasoningEffort !== undefined) {
+                target.reasoningEffort = [...modelOverride.reasoningEffort];
+                Logger.debug(
+                    `  模型 ${modelOverride.id}: 覆盖 reasoningEffort = ${JSON.stringify(modelOverride.reasoningEffort)}`
+                );
+            }
+            if (modelOverride.capabilities) {
+                target.capabilities = {
+                    ...target.capabilities,
+                    ...modelOverride.capabilities
+                };
+                Logger.debug(`  模型 ${modelOverride.id}: 合并 capabilities = ${JSON.stringify(target.capabilities)}`);
+            }
+            if (modelOverride.customHeader) {
+                target.customHeader = { ...target.customHeader, ...modelOverride.customHeader };
+                Logger.debug(`  模型 ${modelOverride.id}: 合并 customHeader = ${JSON.stringify(target.customHeader)}`);
+            }
+            if (modelOverride.extraBody) {
+                target.extraBody = { ...target.extraBody, ...modelOverride.extraBody };
+                Logger.debug(`  模型 ${modelOverride.id}: 合并 extraBody = ${JSON.stringify(target.extraBody)}`);
+            }
+        };
+
         // 应用提供商级别的覆盖
         if (override.baseUrl) {
             config.baseUrl = override.baseUrl;
             Logger.debug(`  覆盖 baseUrl: ${override.baseUrl}`);
+        }
+        if (override.customHeader) {
+            config.customHeader = { ...config.customHeader, ...override.customHeader };
+            Logger.debug(`  覆盖 provider customHeader = ${JSON.stringify(config.customHeader)}`);
         }
 
         // 应用模型级别的覆盖
@@ -400,81 +476,21 @@ export class ConfigManager {
                 if (existingModelIndex >= 0) {
                     // 覆盖现有模型
                     const existingModel = config.models[existingModelIndex];
-                    if (modelOverride.model !== undefined) {
-                        existingModel.model = modelOverride.model;
-                        Logger.debug(`  模型 ${modelOverride.id}: 覆盖 model = ${modelOverride.model}`);
-                    }
-                    if (modelOverride.maxInputTokens !== undefined) {
-                        existingModel.maxInputTokens = modelOverride.maxInputTokens;
-                        Logger.debug(
-                            `  模型 ${modelOverride.id}: 覆盖 maxInputTokens = ${modelOverride.maxInputTokens}`
-                        );
-                    }
-                    if (modelOverride.maxOutputTokens !== undefined) {
-                        existingModel.maxOutputTokens = modelOverride.maxOutputTokens;
-                        Logger.debug(
-                            `  模型 ${modelOverride.id}: 覆盖 maxOutputTokens = ${modelOverride.maxOutputTokens}`
-                        );
-                    }
-                    // 覆盖 sdkMode
-                    if (modelOverride.sdkMode !== undefined) {
-                        existingModel.sdkMode = modelOverride.sdkMode;
-                        Logger.debug(`  模型 ${modelOverride.id}: 覆盖 sdkMode = ${modelOverride.sdkMode}`);
-                    }
-                    if (modelOverride.baseUrl !== undefined) {
-                        existingModel.baseUrl = modelOverride.baseUrl;
-                        Logger.debug(`  模型 ${modelOverride.id}: 覆盖 baseUrl = ${modelOverride.baseUrl}`);
-                    }
-                    if (modelOverride.webSearchTool !== undefined) {
-                        existingModel.webSearchTool = modelOverride.webSearchTool;
-                        Logger.debug(`  模型 ${modelOverride.id}: 覆盖 webSearchTool = ${modelOverride.webSearchTool}`);
-                    }
-                    // 合并 capabilities
-                    if (modelOverride.capabilities) {
-                        existingModel.capabilities = {
-                            ...existingModel.capabilities,
-                            ...modelOverride.capabilities
-                        };
-                        Logger.debug(
-                            `  模型 ${modelOverride.id}: 合并 capabilities = ${JSON.stringify(existingModel.capabilities)}`
-                        );
-                    }
-                    // 合并 customHeader（模型级别优先于提供商级别）
-                    if (modelOverride.customHeader) {
-                        existingModel.customHeader = { ...existingModel.customHeader, ...modelOverride.customHeader };
-                        Logger.debug(
-                            `  模型 ${modelOverride.id}: 合并 customHeader = ${JSON.stringify(existingModel.customHeader)}`
-                        );
-                    }
-                    // 合并 extraBody
-                    if (modelOverride.extraBody) {
-                        existingModel.extraBody = { ...existingModel.extraBody, ...modelOverride.extraBody };
-                        Logger.debug(
-                            `  模型 ${modelOverride.id}: 合并 extraBody = ${JSON.stringify(existingModel.extraBody)}`
-                        );
-                    }
+                    applyModelOverride(existingModel, modelOverride);
                 } else {
-                    const fullConfig = modelOverride as ModelConfig;
                     // 添加新模型
                     const newModel: ModelConfig = {
                         id: modelOverride.id,
-                        name: fullConfig?.name || modelOverride.id, // 默认使用ID作为名称
-                        tooltip: fullConfig?.tooltip || `用户自定义模型: ${modelOverride.id}`,
+                        name: modelOverride.name || modelOverride.id,
+                        tooltip: modelOverride.tooltip || `用户自定义模型: ${modelOverride.id}`,
                         maxInputTokens: modelOverride.maxInputTokens || 128000,
                         maxOutputTokens: modelOverride.maxOutputTokens || 8192,
                         capabilities: {
                             toolCalling: modelOverride.capabilities?.toolCalling ?? false,
                             imageInput: modelOverride.capabilities?.imageInput ?? false
-                        },
-                        ...(modelOverride.model && { model: modelOverride.model }),
-                        ...(modelOverride.sdkMode && { sdkMode: modelOverride.sdkMode }),
-                        ...(modelOverride.baseUrl && { baseUrl: modelOverride.baseUrl }),
-                        ...(modelOverride.webSearchTool !== undefined && {
-                            webSearchTool: modelOverride.webSearchTool
-                        }),
-                        ...(modelOverride.customHeader && { customHeader: modelOverride.customHeader }),
-                        ...(modelOverride.extraBody && { extraBody: modelOverride.extraBody })
+                        }
                     };
+                    applyModelOverride(newModel, modelOverride);
                     config.models.push(newModel);
                     Logger.info(`  添加新模型: ${modelOverride.id}`);
                 }

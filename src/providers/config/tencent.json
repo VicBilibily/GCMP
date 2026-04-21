@@ -6,6 +6,30 @@
     "tokenKeyTemplate": "sk-tp-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "hunyuan-2.0-instruct-coding-plan",
+            "name": "Tencent HY 2.0 Instruct (Coding Plan)",
+            "tooltip": "腾讯云 Coding Plan 专属接入点中的 Tencent HY 2.0 Instruct。",
+            "provider": "tencent-coding",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.lkeap.cloud.tencent.com/coding/anthropic",
+            "model": "hunyuan-2.0-instruct",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 16000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "hunyuan-2.0-thinking-coding-plan",
+            "name": "Tencent HY 2.0 Think (Coding Plan)",
+            "tooltip": "腾讯云 Coding Plan 专属接入点中的 Tencent HY 2.0 Think。",
+            "provider": "tencent-coding",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.lkeap.cloud.tencent.com/coding/anthropic",
+            "model": "hunyuan-2.0-thinking",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
             "id": "glm-5-coding-plan",
             "name": "GLM-5 (Coding Plan)",
             "tooltip": "腾讯云 Coding Plan 专属接入点中的 GLM-5。",
@@ -33,7 +57,7 @@
         {
             "id": "kimi-k2.5-coding-plan",
             "name": "Kimi-K2.5 (Coding Plan)",
-            "tooltip": "腾讯云 Coding Plan 专属接入点中的 Kimi K2.5，默认关闭思考模式。",
+            "tooltip": "腾讯云 Coding Plan 专属接入点中的 Kimi K2.5。",
             "provider": "tencent-coding",
             "baseUrl": "https://api.lkeap.cloud.tencent.com/coding/v3",
             "model": "kimi-k2.5",
@@ -69,6 +93,18 @@
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
+            "id": "minimax-m2.7-token-plan",
+            "name": "MiniMax-M2.7 (Token Plan)",
+            "tooltip": "腾讯云 Token Plan 专属接入点中的 MiniMax M2.7。",
+            "provider": "tencent-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
+            "model": "minimax-m2.7",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 192000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
             "id": "minimax-m2.5-token-plan",
             "name": "MiniMax-M2.5 (Token Plan)",
             "tooltip": "腾讯云 Token Plan 专属接入点中的 MiniMax M2.5。",
@@ -83,7 +119,7 @@
         {
             "id": "kimi-k2.5-token-plan",
             "name": "Kimi-K2.5 (Token Plan)",
-            "tooltip": "腾讯云 Token Plan 专属接入点中的 Kimi K2.5，默认关闭思考模式。",
+            "tooltip": "腾讯云 Token Plan 专属接入点中的 Kimi K2.5。",
             "provider": "tencent-token",
             "sdkMode": "anthropic",
             "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
@@ -141,6 +177,30 @@
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
+            "id": "hunyuan-2.0-instruct-tokenhub",
+            "name": "Tencent HY 2.0 Instruct (TokenHub计费)",
+            "tooltip": "腾讯云 TokenHub 按量付费中的 Tencent HY 2.0 Instruct。",
+            "provider": "tencent-tokenhub",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://tokenhub.tencentmaas.com",
+            "model": "hunyuan-2.0-instruct-20251111",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 16000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "hunyuan-2.0-thinking-tokenhub",
+            "name": "Tencent HY 2.0 Think (TokenHub计费)",
+            "tooltip": "腾讯云 TokenHub 按量付费中的 Tencent HY 2.0 Think。",
+            "provider": "tencent-tokenhub",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://tokenhub.tencentmaas.com",
+            "model": "hunyuan-2.0-thinking-20251109",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
             "id": "glm-5.1-tokenhub",
             "name": "GLM-5.1 (TokenHub计费)",
             "tooltip": "腾讯云 TokenHub 按量付费中的 GLM-5.1。",
@@ -190,6 +250,19 @@
             "maxOutputTokens": 32000,
             "thinking": ["disabled", "enabled"],
             "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "kimi-k2.6-tokenhub",
+            "name": "Kimi-K2.6 (TokenHub计费)",
+            "tooltip": "腾讯云 TokenHub 按量付费中的 Kimi K2.6。",
+            "provider": "tencent-tokenhub",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://tokenhub.tencentmaas.com",
+            "model": "kimi-k2.6",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 256000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "kimi-k2.5-tokenhub",

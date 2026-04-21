@@ -139,6 +139,7 @@ export class ModelEditor {
 
         // 准备模型数据
         const modelData = {
+            ...model,
             id: model?.id || '',
             name: model?.name || '',
             provider: model?.provider || '',
@@ -201,7 +202,6 @@ export class ModelEditor {
             '<': '&lt;',
             '>': '&gt;',
             '"': '&quot;',
-            // eslint-disable-next-line @stylistic/quotes
             "'": '&#039;'
         };
         return text.replace(/[&<>"']/g, char => map[char]);

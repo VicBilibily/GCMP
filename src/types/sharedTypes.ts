@@ -135,14 +135,18 @@ export interface ModelConfig {
  */
 export interface ModelOverride {
     id: string;
+    /** 覆盖显示名称（主要用于新增模型） */
+    name?: string;
+    /** 覆盖描述（主要用于新增模型） */
+    tooltip?: string;
     /** 覆盖模型名称 */
     model?: string;
     /** 覆盖最大输入token数 */
     maxInputTokens?: number;
     /** 覆盖最大输出token数 */
     maxOutputTokens?: number;
-    /** 覆盖SDK模式：openai（OpenAI兼容格式）或 anthropic（Anthropic兼容格式） */
-    sdkMode?: 'anthropic' | 'openai';
+    /** 覆盖SDK模式 */
+    sdkMode?: ModelConfig['sdkMode'];
     /** 合并capabilities（会与原有capabilities合并） */
     capabilities?: {
         toolCalling?: boolean;
@@ -150,6 +154,14 @@ export interface ModelOverride {
     };
     /** 覆盖baseUrl */
     baseUrl?: string;
+    /** 模型的 family 标识（可选） */
+    family?: string;
+    /** 深度思考模式选项列表（可选） */
+    thinking?: ModelConfig['thinking'];
+    /** 思考模式参数的传递格式（可选） */
+    thinkingFormat?: ModelConfig['thinkingFormat'];
+    /** 思维链长度调节选项列表（可选） */
+    reasoningEffort?: ModelConfig['reasoningEffort'];
     /**
      * 模型特定的自定义HTTP头部（可选）
      * 如果提供，将在API请求中附加这些自定义头部
@@ -160,6 +172,8 @@ export interface ModelOverride {
      * 如果提供，将在API请求中合并到请求体中
      */
     extraBody?: Record<string, unknown>;
+    /** 是否在 Responses API 中使用 instructions 参数（仅 sdkMode=openai-responses 生效） */
+    useInstructions?: boolean;
     /** 是否启用 Anthropic 原生 web_search 工具（仅 sdkMode=anthropic 生效） */
     webSearchTool?: boolean;
 }

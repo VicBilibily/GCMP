@@ -91,7 +91,10 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         const providerKey = this.getProviderKeyForModel(modelConfig);
         const isCodingPlan = providerKey === 'dashscope-coding';
         const isTokenPlan = providerKey === 'dashscope-token';
-        const keyType = isCodingPlan ? 'Coding Plan 专用' : isTokenPlan ? 'Token Plan 专用' : '普通';
+        const keyType =
+            isCodingPlan ? 'Coding Plan 专用'
+            : isTokenPlan ? 'Token Plan 专用'
+            : '普通';
 
         const hasApiKey = await ApiKeyManager.hasValidApiKey(providerKey);
         if (hasApiKey) {
@@ -186,20 +189,16 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         const apiKey = await this.ensureApiKeyForModel(modelConfig);
         if (!apiKey) {
             const keyType =
-                providerKey === 'dashscope-coding'
-                    ? 'Coding Plan 专用'
-                    : providerKey === 'dashscope-token'
-                      ? 'Token Plan 专用'
-                      : '普通';
+                providerKey === 'dashscope-coding' ? 'Coding Plan 专用'
+                : providerKey === 'dashscope-token' ? 'Token Plan 专用'
+                : '普通';
             throw new Error(`${this.providerConfig.displayName}: 无效的 ${keyType} API 密钥`);
         }
 
         const keyLabel =
-            providerKey === 'dashscope-coding'
-                ? 'Coding Plan'
-                : providerKey === 'dashscope-token'
-                  ? 'Token Plan'
-                  : '普通';
+            providerKey === 'dashscope-coding' ? 'Coding Plan'
+            : providerKey === 'dashscope-token' ? 'Token Plan'
+            : '普通';
         Logger.debug(
             `${this.providerConfig.displayName}: 即将处理请求，使用 ${keyLabel} 密钥 - 模型: ${modelConfig.name}`
         );

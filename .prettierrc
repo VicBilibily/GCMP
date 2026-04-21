@@ -10,5 +10,6 @@
     "endOfLine": "lf",
     "quoteProps": "as-needed",
     "bracketSameLine": false,
-    "htmlWhitespaceSensitivity": "ignore"
+    "htmlWhitespaceSensitivity": "ignore",
+    "experimentalTernaries": true
 }

@@ -84,6 +84,33 @@ export interface CompatibleModelConfig {
     useInstructions?: boolean;
     /** 是否启用 Anthropic 原生 web_search 工具（仅 sdkMode=anthropic 生效） */
     webSearchTool?: boolean;
+    /**
+     * 深度思考模式选项列表（可选）
+     * 用于 UI 配置选择，决定用户可选择的思考模式范围：
+     * - disabled: 强制关闭深度思考能力
+     * - enabled: 强制开启深度思考能力
+     * - auto: 模型自行判断是否需要进行深度思考
+     * - adaptive: 模型根据上下文自适应调整深度思考模式
+     */
+    thinking?: ('disabled' | 'enabled' | 'auto' | 'adaptive')[];
+    /**
+     * 思考模式参数的传递格式（可选）
+     * - boolean: 使用布尔值格式 { enable_thinking: true/false }
+     * - object: 使用对象格式 { thinking: { type: 'enabled' | 'disabled' } }
+     * 默认值为 'boolean'，仅对 openai/openai-sse 模式生效
+     */
+    thinkingFormat?: 'boolean' | 'object';
+    /**
+     * 思维链长度调节选项列表（可选）
+     * 用于 UI 配置选择，平衡不同场景对效果、时延、成本的需求：
+     * - none/minimal: 关闭思考，直接回答
+     * - low: 轻量思考，侧重快速响应
+     * - medium: 均衡模式，兼顾速度与深度
+     * - high: 深度分析，处理复杂问题
+     * - xhigh: 最大推理深度，速度较慢
+     * - max: 绝对最高能力，对 token 消耗没有限制
+     */
+    reasoningEffort?: ('none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max')[];
     /** 是否由向导创建（内部标记，不持久化） */
     _isFromWizard?: boolean;
 }

@@ -143,7 +143,7 @@
                     "enum": ["boolean", "object"],
                     "enumDescriptions": [
                         "使用布尔值格式: { enable_thinking: true/false }",
-                        "使用对象格式: { thinking: { type: 'enabled' | 'disabled' }"
+                        "使用对象格式: { thinking: { type: 'enabled' | 'disabled' } }"
                     ],
                     "default": "boolean",
                     "description": "思考模式参数的传递格式，用于兼容不同模型的API格式要求"
@@ -259,7 +259,7 @@
                                 "enum": ["boolean", "object"],
                                 "enumDescriptions": [
                                     "使用布尔值格式: { enable_thinking: true/false }",
-                                    "使用对象格式: { thinking: { type: 'enabled' | 'disabled' }"
+                                    "使用对象格式: { thinking: { type: 'enabled' | 'disabled' } }"
                                 ],
                                 "default": "boolean",
                                 "description": "思考模式参数的传递格式，用于兼容不同模型的API格式要求"

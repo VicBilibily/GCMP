@@ -27,7 +27,7 @@ const vscode = acquireVsCodeApi();
  * @property {string} provider - 提供商标识符
  * @property {string} [baseUrl] - API基础URL（可选）
  * @property {string} [model] - 请求模型ID（可选）
- * @property {'openai'|'openai-sse'|'openai-responses'|'anthropic'|'gemini'} sdkMode - SDK兼容模式
+ * @property {'openai'|'openai-sse'|'openai-responses'|'anthropic'|'gemini-sse'} sdkMode - SDK兼容模式
  * @property {number} maxInputTokens - 最大输入Token
  * @property {number} maxOutputTokens - 最大输出Token
  * @property {ModelCapabilities} capabilities - 能力配置
@@ -1224,40 +1224,43 @@ function saveModel() {
 
     const sdkMode = document.getElementById('sdkMode').value || 'openai';
 
-    const model = {
-        id: modelId,
-        name: modelName,
-        // tooltip: 使用 null 表示清空（undefined 会在 JSON 序列化时被忽略）
-        tooltip: tooltipText || null,
-        provider: provider,
-        // baseUrl: 使用 null 表示清空
-        baseUrl: baseUrlText || null,
-        // apiKey: 使用 null 表示清空
-        apiKey: apiKeyText || null,
-        // model: 使用 null 表示清空
-        model: requestModelText || null,
-        sdkMode: sdkMode,
-        maxInputTokens: parseInt(document.getElementById('maxInputTokens').value) || 12800,
-        maxOutputTokens: parseInt(document.getElementById('maxOutputTokens').value) || 8192,
-        capabilities: {
-            toolCalling: document.getElementById('toolCalling').checked,
-            imageInput: document.getElementById('imageInput').checked
-        }
+    const model = JSON.parse(JSON.stringify(modelData || {}));
+    delete model.toolCalling;
+    delete model.imageInput;
+
+    model.id = modelId;
+    model.name = modelName;
+    // tooltip: 使用 null 表示清空（undefined 会在 JSON 序列化时被忽略）
+    model.tooltip = tooltipText || null;
+    model.provider = provider;
+    // baseUrl: 使用 null 表示清空
+    model.baseUrl = baseUrlText || null;
+    // apiKey: 使用 null 表示清空
+    model.apiKey = apiKeyText || null;
+    // model: 使用 null 表示清空
+    model.model = requestModelText || null;
+    model.sdkMode = sdkMode;
+    model.maxInputTokens = parseInt(document.getElementById('maxInputTokens').value) || 12800;
+    model.maxOutputTokens = parseInt(document.getElementById('maxOutputTokens').value) || 8192;
+    model.capabilities = {
+        ...(model.capabilities || {}),
+        toolCalling: document.getElementById('toolCalling').checked,
+        imageInput: document.getElementById('imageInput').checked
     };
 
-    // 仅当 sdkMode 为 openai-responses 时才保存 useInstructions 字段（无论 true/false）
+    // 仅当 sdkMode 为 openai-responses 时才更新 useInstructions 字段。
+    // 若旧值为 true，则在切换到其它 sdkMode 时保留，避免用户切回 openai-responses 后丢失原有配置。
     if (sdkMode === 'openai-responses') {
         model.useInstructions = document.getElementById('useInstructions')?.checked || false;
-    }
-    else if (!model.useInstructions) {
+    } else if (!model.useInstructions) {
         model.useInstructions = null; // 明确设置为 null 以表示未使用
     }
 
-    // 仅当 sdkMode 为 anthropic 时才保存 webSearchTool 字段（无论 true/false）
+    // 仅当 sdkMode 为 anthropic 时才更新 webSearchTool 字段。
+    // 若旧值为 true，则在切换到其它 sdkMode 时保留，避免用户切回 anthropic 后丢失原有配置。
     if (sdkMode === 'anthropic') {
         model.webSearchTool = document.getElementById('webSearchTool')?.checked || false;
-    }
-    else if (!model.webSearchTool) {
+    } else if (!model.webSearchTool) {
         model.webSearchTool = null; // 明确设置为 null 以表示未使用
     }
 

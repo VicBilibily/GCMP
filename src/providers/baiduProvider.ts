@@ -65,6 +65,8 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
                 providerConfig.apiKeyTemplate,
                 providerConfig.codingKeyTemplate
             );
+            await provider.modelInfoCache?.invalidateCache(providerKey);
+            provider._onDidChangeLanguageModelChatInformation.fire();
         });
         const disposables = [providerDisposable, setApiKeyCommand, setCodingKeyCommand, configWizardCommand];
         disposables.forEach(disposable => context.subscriptions.push(disposable));

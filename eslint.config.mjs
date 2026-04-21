@@ -40,10 +40,10 @@ export default defineConfig(
                 'ArrayExpression': 1,
                 'ObjectExpression': 1,
                 'ImportDeclaration': 1,
-                'flatTernaryExpressions': false,
+                'flatTernaryExpressions': true,
                 'ignoreComments': false
             }],
-            '@stylistic/quotes': ['error', 'single'],
+            '@stylistic/quotes': ['error', 'single', { avoidEscape: true }],
             '@stylistic/comma-dangle': ['error', 'never'],
             '@typescript-eslint/no-empty-function': 'off',
             '@typescript-eslint/no-inferrable-types': 'off',

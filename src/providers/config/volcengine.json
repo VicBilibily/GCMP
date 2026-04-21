@@ -94,6 +94,20 @@
             }
         },
         {
+            "id": "ark-code-MiniMax-M2.7",
+            "name": "MiniMax-M2.7 (Coding Plan)",
+            "model": "MiniMax-M2.7",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。M2.7 能够自行构建复杂 Agent Harness，并基于 Agent Teams、复杂 Skills、Tool 等能力，完成高度复杂的生产力任务。",
+            "maxInputTokens": 204800,
+            "maxOutputTokens": 64000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
             "id": "ark-code-MiniMax-M2.5",
             "name": "MiniMax-M2.5 (Coding Plan)",
             "model": "MiniMax-M2.5",
@@ -214,19 +228,6 @@
             "name": "Doubao-Seed-1.6-251015",
             "model": "doubao-seed-1-6-251015",
             "tooltip": "Doubao-Seed-1.6全新多模态深度思考模型，同时支持minimal/low/medium/high 四种reasoning effort。更强模型效果，服务复杂任务和有挑战场景。支持 256k 上下文窗口，输出长度支持最大 32k tokens。",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "doubao-seed-1-6-lite",
-            "name": "Doubao-Seed-1.6-lite-251015",
-            "model": "doubao-seed-1-6-lite-251015",
-            "tooltip": "Doubao-Seed-1.6-lite 全新多模态深度思考模型，支持思考程度可调节（reasoning effort），即 Minimal、Low、Medium、High 四种模式，更强性价比，常见任务的最佳选择，上下文窗口至256k。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],

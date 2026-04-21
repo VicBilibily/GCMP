@@ -338,6 +338,48 @@ export class JsonSchemaProvider {
                                 default: false
                             },
                             family: this.getFamilySchema(),
+                            thinking: {
+                                type: 'array',
+                                items: {
+                                    type: 'string',
+                                    enum: ['disabled', 'enabled', 'auto', 'adaptive'],
+                                    enumDescriptions: [
+                                        '强制关闭深度思考能力，模型不输出思维链内容',
+                                        '强制开启深度思考能力，模型强制输出思维链内容',
+                                        '模型自行判断是否需要进行深度思考',
+                                        '模型根据上下文自适应调整深度思考模式'
+                                    ]
+                                },
+                                description: '深度思考配置，控制模型是否输出思维链内容'
+                            },
+                            thinkingFormat: {
+                                type: 'string',
+                                enum: ['boolean', 'object'],
+                                enumDescriptions: [
+                                    '使用布尔值格式: { enable_thinking: true/false }',
+                                    "使用对象格式: { thinking: { type: 'enabled' | 'disabled' } }"
+                                ],
+                                default: 'boolean',
+                                description:
+                                    '思考模式参数的传递格式，用于兼容不同模型的API格式要求（仅 openai/openai-sse 模式生效）'
+                            },
+                            reasoningEffort: {
+                                type: 'array',
+                                items: {
+                                    type: 'string',
+                                    enum: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
+                                    enumDescriptions: [
+                                        '关闭思考，直接回答',
+                                        '关闭思考，直接回答',
+                                        '轻量思考，侧重快速响应',
+                                        '均衡模式，兼顾速度与深度',
+                                        '深度分析，处理复杂问题',
+                                        '最大推理深度，速度较慢',
+                                        '绝对最高能力，对 token 消耗没有限制'
+                                    ]
+                                },
+                                description: '调节思维链长度，平衡不同场景对效果、时延、成本的需求'
+                            },
                             capabilities: {
                                 type: 'object',
                                 properties: {
@@ -378,7 +420,7 @@ export class JsonSchemaProvider {
                                 deprecationMessage: 'outputThinking 已被弃用，此参数不再被支持'
                             }
                         },
-                        required: ['id', 'name', 'maxInputTokens', 'maxOutputTokens', 'capabilities'],
+                        required: ['id', 'name', 'provider', 'maxInputTokens', 'maxOutputTokens', 'capabilities'],
                         allOf: [
                             {
                                 // endpoint 仅对 openai / openai-sse / openai-responses 生效
@@ -418,6 +460,32 @@ export class JsonSchemaProvider {
                                 }
                             },
                             {
+                                // useInstructions 仅对 openai-responses 生效
+                                if: {
+                                    properties: {
+                                        sdkMode: { const: 'openai-responses' }
+                                    },
+                                    required: ['sdkMode']
+                                },
+                                then: {
+                                    properties: {
+                                        useInstructions: {
+                                            type: 'boolean',
+                                            description:
+                                                '是否在 Responses API 中使用 instructions 参数（可选）\n- false: 使用用户消息传递系统消息（默认）\n- true: 使用 instructions 参数传递系统消息',
+                                            default: false
+                                        }
+                                    }
+                                },
+                                else: {
+                                    properties: {
+                                        useInstructions: {
+                                            deprecationMessage: 'useInstructions 仅对 openai-responses 模式生效'
+                                        }
+                                    }
+                                }
+                            },
+                            {
                                 // webSearchTool 仅对 anthropic 生效
                                 if: {
                                     properties: {
@@ -443,8 +511,43 @@ export class JsonSchemaProvider {
                                     }
                                 }
                             },
-                            // family 条件建议：根据 sdkMode 推荐默认值
                             {
+                                // thinkingFormat 仅对 openai/openai-sse 生效
+                                if: {
+                                    anyOf: [
+                                        { not: { required: ['sdkMode'] } },
+                                        {
+                                            properties: {
+                                                sdkMode: { enum: ['openai', 'openai-sse'] }
+                                            },
+                                            required: ['sdkMode']
+                                        }
+                                    ]
+                                },
+                                then: {
+                                    properties: {
+                                        thinkingFormat: {
+                                            type: 'string',
+                                            enum: ['boolean', 'object'],
+                                            enumDescriptions: [
+                                                '使用布尔值格式: { enable_thinking: true/false }',
+                                                "使用对象格式: { thinking: { type: 'enabled' | 'disabled' } }"
+                                            ],
+                                            default: 'boolean',
+                                            description: '思考模式参数的传递格式，用于兼容不同模型的API格式要求'
+                                        }
+                                    }
+                                },
+                                else: {
+                                    properties: {
+                                        thinkingFormat: {
+                                            deprecationMessage: 'thinkingFormat 仅对 openai 和 openai-sse 模式生效'
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                // family 条件建议：根据 sdkMode 推荐默认值
                                 // anthropic 模式推荐 claude-sonnet-4.6
                                 if: {
                                     properties: {
@@ -656,9 +759,15 @@ export class JsonSchemaProvider {
                             },
                             sdkMode: {
                                 type: 'string',
-                                enum: ['openai', 'anthropic', 'gemini-sse'],
-                                description:
-                                    '覆盖SDK模式：openai（OpenAI兼容格式）、anthropic（Anthropic兼容格式）或 gemini-sse（Gemini HTTP SSE 模式，实验性）'
+                                enum: ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini-sse'],
+                                enumDescriptions: [
+                                    'OpenAI SDK 标准模式',
+                                    'OpenAI SSE 兼容模式（自定义流式处理）',
+                                    'OpenAI Responses API 模式',
+                                    'Anthropic SDK 标准模式',
+                                    'Gemini HTTP SSE 模式（实验性）'
+                                ],
+                                description: '覆盖SDK模式，默认为 openai'
                             },
                             baseUrl: {
                                 type: 'string',
@@ -696,12 +805,60 @@ export class JsonSchemaProvider {
                                     description: '额外的请求体参数值'
                                 }
                             },
+                            useInstructions: {
+                                type: 'boolean',
+                                description:
+                                    '是否在 Responses API 中使用 instructions 参数（可选）\n- false: 使用用户消息传递系统消息（默认）\n- true: 使用 instructions 参数传递系统消息',
+                                default: false
+                            },
                             webSearchTool: {
                                 type: 'boolean',
                                 description: '是否启用 Anthropic 原生 web_search 工具（仅 sdkMode=anthropic 时生效）',
                                 default: false
                             },
                             family: this.getFamilySchema(),
+                            thinking: {
+                                type: 'array',
+                                items: {
+                                    type: 'string',
+                                    enum: ['disabled', 'enabled', 'auto', 'adaptive'],
+                                    enumDescriptions: [
+                                        '强制关闭深度思考能力，模型不输出思维链内容',
+                                        '强制开启深度思考能力，模型强制输出思维链内容',
+                                        '模型自行判断是否需要进行深度思考',
+                                        '模型根据上下文自适应调整深度思考模式'
+                                    ]
+                                },
+                                description: '深度思考配置，控制模型是否输出思维链内容'
+                            },
+                            thinkingFormat: {
+                                type: 'string',
+                                enum: ['boolean', 'object'],
+                                enumDescriptions: [
+                                    '使用布尔值格式: { enable_thinking: true/false }',
+                                    "使用对象格式: { thinking: { type: 'enabled' | 'disabled' } }"
+                                ],
+                                default: 'boolean',
+                                description:
+                                    '思考模式参数的传递格式，用于兼容不同模型的API格式要求（仅 openai/openai-sse 模式生效）'
+                            },
+                            reasoningEffort: {
+                                type: 'array',
+                                items: {
+                                    type: 'string',
+                                    enum: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
+                                    enumDescriptions: [
+                                        '关闭思考，直接回答',
+                                        '关闭思考，直接回答',
+                                        '轻量思考，侧重快速响应',
+                                        '均衡模式，兼顾速度与深度',
+                                        '深度分析，处理复杂问题',
+                                        '最大推理深度，速度较慢',
+                                        '绝对最高能力，对 token 消耗没有限制'
+                                    ]
+                                },
+                                description: '调节思维链长度，平衡不同场景对效果、时延、成本的需求'
+                            },
                             includeThinking: {
                                 type: 'boolean',
                                 description: '是否包含思考内容（已弃用，此参数已移除）',
@@ -736,6 +893,65 @@ export class JsonSchemaProvider {
                                     properties: {
                                         webSearchTool: {
                                             deprecationMessage: 'webSearchTool 仅对 anthropic 模式生效'
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                if: {
+                                    properties: {
+                                        sdkMode: { const: 'openai-responses' }
+                                    },
+                                    required: ['sdkMode']
+                                },
+                                then: {
+                                    properties: {
+                                        useInstructions: {
+                                            type: 'boolean',
+                                            description:
+                                                '是否在 Responses API 中使用 instructions 参数（可选）\n- false: 使用用户消息传递系统消息（默认）\n- true: 使用 instructions 参数传递系统消息',
+                                            default: false
+                                        }
+                                    }
+                                },
+                                else: {
+                                    properties: {
+                                        useInstructions: {
+                                            deprecationMessage: 'useInstructions 仅对 openai-responses 模式生效'
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                if: {
+                                    anyOf: [
+                                        { not: { required: ['sdkMode'] } },
+                                        {
+                                            properties: {
+                                                sdkMode: { enum: ['openai', 'openai-sse'] }
+                                            },
+                                            required: ['sdkMode']
+                                        }
+                                    ]
+                                },
+                                then: {
+                                    properties: {
+                                        thinkingFormat: {
+                                            type: 'string',
+                                            enum: ['boolean', 'object'],
+                                            enumDescriptions: [
+                                                '使用布尔值格式: { enable_thinking: true/false }',
+                                                "使用对象格式: { thinking: { type: 'enabled' | 'disabled' } }"
+                                            ],
+                                            default: 'boolean',
+                                            description: '思考模式参数的传递格式，用于兼容不同模型的API格式要求'
+                                        }
+                                    }
+                                },
+                                else: {
+                                    properties: {
+                                        thinkingFormat: {
+                                            deprecationMessage: 'thinkingFormat 仅对 openai 和 openai-sse 模式生效'
                                         }
                                     }
                                 }
