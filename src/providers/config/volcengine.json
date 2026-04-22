@@ -64,6 +64,21 @@
             }
         },
         {
+            "id": "ark-code-kimi-k2.6",
+            "name": "Kimi-K2.6 (Coding Plan)",
+            "model": "kimi-k2.6",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。具备强思考能力，支持多步工具调用和推理，擅长解决复杂问题，如复杂的逻辑推理、数学问题、代码编写等。",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
             "id": "ark-code-kimi-k2.5",
             "name": "Kimi-K2.5 (Coding Plan)",
             "model": "kimi-k2.5",
@@ -76,6 +91,21 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
+            }
+        },
+        {
+            "id": "ark-code-glm-5.1",
+            "name": "GLM-5.1 (Coding Plan)",
+            "model": "glm-5.1",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。智谱新一代旗舰模型，代码能力增强，长程任务显著提升，能够在单次任务中持续、自主地工作长达 8 小时。",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
             }
         },
         {
