@@ -16,6 +16,7 @@ import type { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../t
 import { OpenAIHandler } from './openaiHandler';
 import { getStatefulMarkerAndIndex } from './statefulMarker';
 import { StreamReporter } from './streamReporter';
+import { MiniMaxVisionBridge } from './visionBridge/minimaxVisionBridge';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import type { CommitChatModelOptions } from '../commit';
 
@@ -55,6 +56,7 @@ export class AnthropicHandler {
             type: 'web_search_20250305'
         };
     }
+
     private formatWebSearchToolResult(resultBlock: Anthropic.Messages.WebSearchToolResultBlock): string {
         if (!Array.isArray(resultBlock.content)) {
             return JSON.stringify(
@@ -206,6 +208,23 @@ export class AnthropicHandler {
                 stream: true
             };
 
+            // Minimax 图片桥接：添加模拟工具调用
+            if (modelConfig?.provider === 'minimax-coding') {
+                const realToolCount = tools.length;
+                const existingToolNames = new Set(tools.map(tool => tool.name));
+                const historicalTools = MiniMaxVisionBridge.collectHistoricalToolDefinitions(
+                    messages,
+                    existingToolNames
+                );
+                tools.push(...historicalTools);
+                if (realToolCount === 0 && historicalTools.length > 0) {
+                    createParams.tool_choice = { type: 'none' };
+                    Logger.info(
+                        `[${model.name}] 仅存在历史工具调用，设置 tool_choice=none 以避免 synthetic tool 再次触发`
+                    );
+                }
+            }
+
             // Anthropic 兼容接口的会话缓存：使用本地 sessionKey 写入 metadata.user_id，
             // 供“客户端传 session”的网关实现粘性会话。
             const statefulMarker = getStatefulMarkerAndIndex(model.id, 'anthropic', messages);
@@ -276,6 +295,13 @@ export class AnthropicHandler {
                 progress,
                 sessionId
             });
+
+            // 回放 MiniMax 图片桥接工具结果（如适用）
+            if (modelConfig?.provider === 'minimax-coding') {
+                MiniMaxVisionBridge.replayVisionBridge(messages, (callId, resultParts) =>
+                    reporter.reportToolResult(callId, resultParts)
+                );
+            }
 
             // 使用完整的流处理函数
             const result = await this.handleAnthropicStream(stream, reporter, token);

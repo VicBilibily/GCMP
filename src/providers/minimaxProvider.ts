@@ -18,7 +18,7 @@ import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { Logger, ApiKeyManager, MiniMaxWizard } from '../utils';
 import { StatusBarManager } from '../status';
 import { TokenUsagesManager } from '../usages/usagesManager';
-import { MiniMaxVisionTool } from '../tools/minimaxVision';
+import { MiniMaxVisionBridge } from '../handlers/visionBridge/minimaxVisionBridge';
 
 /**
  * MiniMax 专用模型提供商类
@@ -111,156 +111,6 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         }
         // 否则使用提供商默认的 provider key
         return this.providerKey;
-    }
-
-    /**
-     * 检查是否为支持的图片 MIME 类型
-     * MiniMax Vision API 仅支持 JPEG、PNG、WebP，不支持 GIF
-     */
-    private isImageMimeType(mimeType: string): boolean {
-        const normalizedMimeType = mimeType.toLowerCase() === 'image/jpg' ? 'image/jpeg' : mimeType.toLowerCase();
-        const supportedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-        return supportedTypes.includes(normalizedMimeType);
-    }
-
-    /**
-     * 预处理消息中的图片（图片桥接功能）
-     * 使用 MiniMax Vision API 将图片转换为文字描述后再发送给模型
-     * 注意：只处理当前轮次的新消息（最后一条用户消息），历史消息已在上一轮处理过
-     * @param messages 原始消息列表
-     * @param modelConfig 模型配置
-     * @param token 取消信号，用户取消请求时停止图片预处理
-     * @returns 处理后的消息列表
-     */
-    private async preprocessImagesInMessages(
-        messages: Array<LanguageModelChatMessage>,
-        modelConfig: ModelConfig,
-        token: CancellationToken
-    ): Promise<Array<LanguageModelChatMessage>> {
-        // 只对 Coding Plan 模型启用图片桥接
-        const providerKey = this.getProviderKeyForModel(modelConfig);
-        if (providerKey !== 'minimax-coding') {
-            return messages;
-        }
-
-        // 检查是否有 MiniMax Vision API 密钥
-        const hasApiKey = await ApiKeyManager.hasValidApiKey('minimax-coding');
-        if (!hasApiKey) {
-            Logger.debug('MiniMax 图片桥接: 未配置 Coding Plan API 密钥，跳过图片预处理');
-            return messages;
-        }
-
-        // 用户取消时快速退出
-        if (token.isCancellationRequested) {
-            Logger.debug('MiniMax 图片桥接: 请求已取消，跳过图片预处理');
-            return messages;
-        }
-
-        const visionTool = new MiniMaxVisionTool();
-        const abortController = new AbortController();
-        token.onCancellationRequested(() => {
-            abortController.abort();
-        });
-
-        // 找到最后一条用户消息（当前轮次的新消息）
-        let lastUserMessageIndex = -1;
-        for (let i = messages.length - 1; i >= 0; i--) {
-            if (messages[i].role === vscode.LanguageModelChatMessageRole.User) {
-                lastUserMessageIndex = i;
-                break;
-            }
-        }
-
-        // 统计需要处理的图片数量（包含所有 image/* 类型，确保 GIF 等不支持格式也进入桥接）
-        let totalImages = 0;
-        let processedCount = 0;
-        if (lastUserMessageIndex >= 0) {
-            const lastUserMessage = messages[lastUserMessageIndex];
-            for (const part of lastUserMessage.content) {
-                if (part instanceof vscode.LanguageModelDataPart && part.mimeType.startsWith('image/')) {
-                    totalImages++;
-                }
-            }
-        }
-
-        if (totalImages === 0) {
-            return messages;
-        }
-
-        Logger.info(`检测到 ${totalImages} 张图片需要分析`);
-
-        // 只处理最后一条用户消息
-        const lastUserMessage = messages[lastUserMessageIndex];
-
-        // 先提取用户原始问题（用于喂给视觉模型的提示词）
-        const originalTextParts: string[] = [];
-        for (const part of lastUserMessage.content) {
-            if (part instanceof vscode.LanguageModelTextPart) {
-                originalTextParts.push(part.value);
-            }
-        }
-        const originalQuestion = originalTextParts.join('\n').trim();
-
-        // 再处理图片部分
-        const imageDescriptions: string[] = [];
-        for (const part of lastUserMessage.content) {
-            if (token.isCancellationRequested) {
-                Logger.debug('MiniMax 图片桥接: 请求已取消，停止图片预处理');
-                return messages;
-            }
-            if (part instanceof vscode.LanguageModelDataPart && part.mimeType.startsWith('image/')) {
-                if (!this.isImageMimeType(part.mimeType)) {
-                    Logger.error(`不支持的图片格式: ${part.mimeType}`);
-                    throw new Error(`不支持的图片格式: ${part.mimeType}。MiniMax Vision 仅支持 JPEG、PNG、WebP。`);
-                } else {
-                    processedCount++;
-                    try {
-                        Logger.info(`正在分析图片 (${processedCount}/${totalImages}): mimeType=${part.mimeType}, data大小=${part.data.length}字节`);
-
-                        // 带上图片序号（共N张）和用户问题，让视觉模型给出结构化、有针对性的描述
-                        const visionPrompt = originalQuestion
-                            ? `这是第${processedCount}张（共${totalImages}张）。用户的问题是：${originalQuestion}\n\n请详细描述这张图片的内容，力求准确完整。`
-                            : `这是第${processedCount}张（共${totalImages}张）。\n\n请详细描述这张图片的内容，力求准确完整。`;
-                        const response = await visionTool.understandImage(part.data, part.mimeType, visionPrompt, abortController.signal);
-                        imageDescriptions.push(response.content);
-                        Logger.info(`图片 ${processedCount}/${totalImages} 转换成功`);
-                    } catch (error) {
-                        if (abortController.signal.aborted) {
-                            Logger.debug('MiniMax 图片桥接: 请求已取消');
-                            return messages;
-                        }
-                        Logger.error(`图片 ${processedCount}/${totalImages} 转换失败`, error instanceof Error ? error : undefined);
-                        imageDescriptions.push('[图片分析失败]');
-                    }
-                }
-            }
-        }
-
-        if (processedCount > 0) {
-            Logger.info(`全部 ${processedCount} 张图片解析完成`);
-        }
-
-        // 构造新的 content 数组：用 Vision 描述替换图片 parts，保留原始文本 parts
-        // 格式：先列出"你（主模型）不支持图片"，再逐张列出 Vision 描述，最后附用户问题
-        const bridgedContent: vscode.LanguageModelTextPart[] = [
-            new vscode.LanguageModelTextPart(
-                `你（主模型）不支持直接接收图片，用户共上传了${processedCount}张图片。以下是由视觉模型对这些图片的分析结果，以及用户的原始问题。\n\n图片内容（共${processedCount}张）：\n`
-            )
-        ];
-        for (let i = 0; i < imageDescriptions.length; i++) {
-            bridgedContent.push(new vscode.LanguageModelTextPart(`${i + 1}. ${imageDescriptions[i]}\n`));
-        }
-        bridgedContent.push(new vscode.LanguageModelTextPart(`\n用户问题：${originalQuestion}`));
-
-        // 构造新的用户消息对象，不修改原始消息（避免只读属性问题）
-        const bridgedLastUserMessage = vscode.LanguageModelChatMessage.User(bridgedContent);
-
-        // 返回新的 messages 数组
-        return [
-            ...messages.slice(0, lastUserMessageIndex),
-            bridgedLastUserMessage,
-            ...messages.slice(lastUserMessageIndex + 1)
-        ];
     }
 
     /**
@@ -395,18 +245,17 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         );
 
         // 图片桥接：预处理消息中的图片
-        // 当模型不支持图片输入但使用 Coding Plan 密钥时，自动将图片转换为文字描述
-        // 注意：此操作在 Token 统计之前执行，确保统计的是模型实际收到的文本描述而非原始图片
-        // 同时透传 CancellationToken，用户取消请求时自动中止 Vision 预处理
-        const processedMessages = await this.preprocessImagesInMessages(messages, modelConfig, _token);
+        // 注：当 MiniMax 模型支持视觉识别后，移除此桥接调用及 minimaxVisionBridge.ts
+        const visionBridgeResult = await MiniMaxVisionBridge.preprocessImages(
+            messages,
+            modelConfig,
+            providerKey,
+            _token
+        );
+        const processedMessages = visionBridgeResult.messages;
 
         // 计算输入 token 数量并更新状态栏（使用桥接后的消息，图片已被替换为文本描述）
-        const totalInputTokens = await this.updateContextUsageStatusBar(
-            model,
-            processedMessages,
-            modelConfig,
-            options
-        );
+        const totalInputTokens = await this.updateContextUsageStatusBar(model, processedMessages, modelConfig, options);
 
         // === Token 统计: 记录预估输入 token ===
         const usagesManager = TokenUsagesManager.instance;

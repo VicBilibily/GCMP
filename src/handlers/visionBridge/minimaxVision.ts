@@ -5,10 +5,10 @@
 
 import * as vscode from 'vscode';
 import * as https from 'https';
-import { ConfigManager, Logger } from '../utils';
-import { ApiKeyManager } from '../utils/apiKeyManager';
-import { VersionManager } from '../utils/versionManager';
-import { StatusBarManager } from '../status';
+import { ConfigManager } from '../../utils';
+import { ApiKeyManager } from '../../utils/apiKeyManager';
+import { VersionManager } from '../../utils/versionManager';
+import { StatusBarManager } from '../../status';
 
 /**
  * MiniMax 图片理解请求参数
@@ -65,8 +65,6 @@ export class MiniMaxVisionTool {
             }
         };
 
-        Logger.info('[MiniMax 图片理解] 开始分析图片');
-
         return new Promise((resolve, reject) => {
             const req = https.request(requestUrl, options, res => {
                 let data = '';
@@ -77,8 +75,6 @@ export class MiniMaxVisionTool {
 
                 res.on('end', () => {
                     try {
-                        Logger.debug(`[MiniMax 图片理解] 响应状态码: ${res.statusCode}`);
-
                         if (res.statusCode !== 200) {
                             let errorMessage = `MiniMax图片理解API错误 ${res.statusCode}`;
                             try {
@@ -87,16 +83,13 @@ export class MiniMaxVisionTool {
                             } catch {
                                 errorMessage += `: ${data}`;
                             }
-                            Logger.error('[MiniMax 图片理解] API返回错误', new Error(errorMessage));
                             reject(new Error(errorMessage));
                             return;
                         }
 
                         const response = JSON.parse(data) as MiniMaxVisionResponse;
-                        Logger.info('[MiniMax 图片理解] 分析完成');
                         resolve(response);
                     } catch (error) {
-                        Logger.error('[MiniMax 图片理解] 解析响应失败', error instanceof Error ? error : undefined);
                         reject(
                             new Error(
                                 `解析MiniMax图片理解响应失败: ${error instanceof Error ? error.message : '未知错误'}`
@@ -111,14 +104,12 @@ export class MiniMaxVisionTool {
                     reject(new Error('用户取消了图片理解请求'));
                     return;
                 }
-                Logger.error('[MiniMax 图片理解] 请求失败', error);
                 reject(new Error(`MiniMax图片理解请求失败: ${error.message}`));
             });
 
             // 请求超时：60 秒
             req.setTimeout(60000, () => {
                 req.destroy();
-                Logger.error('[MiniMax 图片理解] 请求超时（60秒）');
                 reject(new Error('MiniMax图片理解请求超时（60秒）'));
             });
 
@@ -150,12 +141,14 @@ export class MiniMaxVisionTool {
         // 将图片数据转换为 data URL（不记录完整 data URL，仅记录元信息）
         const base64Data = Buffer.from(imageData).toString('base64');
         const dataUrl = `data:${mimeType};base64,${base64Data}`;
-        Logger.debug(`[MiniMax 图片理解] 请求: prompt="${prompt}", mimeType=${mimeType}, data大小=${imageData.length}字节`);
 
-        return this.understand({
-            prompt,
-            image_url: dataUrl
-        }, abortSignal);
+        return this.understand(
+            {
+                prompt,
+                image_url: dataUrl
+            },
+            abortSignal
+        );
     }
 
     /**
@@ -166,13 +159,6 @@ export class MiniMaxVisionTool {
     ): Promise<vscode.LanguageModelToolResult> {
         try {
             const params = request.input as MiniMaxVisionRequest;
-            // 日志不输出完整 data URL，仅记录 prompt 和图片元信息
-            const imageMeta = params.image_url
-                ? params.image_url.length > 50
-                    ? `${params.image_url.substring(0, 20)}...${params.image_url.slice(-10)} (${params.image_url.length} chars)`
-                    : params.image_url
-                : '未提供';
-            Logger.info(`[工具调用] MiniMax图片理解工具被调用: prompt="${params.prompt}", image_url=${imageMeta}`);
 
             if (!params.prompt) {
                 throw new Error('缺少必需参数: prompt');
@@ -182,16 +168,12 @@ export class MiniMaxVisionTool {
             }
 
             const response = await this.understand(params);
-            Logger.info('✅ [工具调用] MiniMax图片理解工具调用成功');
 
             StatusBarManager.minimax?.delayedUpdate();
 
-            return new vscode.LanguageModelToolResult([
-                new vscode.LanguageModelTextPart(response.content)
-            ]);
+            return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(response.content)]);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : '未知错误';
-            Logger.error('❌ [工具调用] MiniMax图片理解工具调用失败', error instanceof Error ? error : undefined);
             throw new vscode.LanguageModelError(`MiniMax图片理解失败: ${errorMessage}`);
         }
     }
@@ -200,10 +182,6 @@ export class MiniMaxVisionTool {
      * 清理工具资源
      */
     async cleanup(): Promise<void> {
-        try {
-            Logger.info('✅ [MiniMax 图片理解] 工具资源已清理');
-        } catch (error) {
-            Logger.error('❌ [MiniMax 图片理解] 资源清理失败', error instanceof Error ? error : undefined);
-        }
+        // 目前无需清理的资源
     }
 }
