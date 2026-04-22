@@ -380,7 +380,7 @@ FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimC
 > - **手动触发**（按 `Alt+/`）：直接调用 NES，不发起 FIM
 > - **模式切换**（按 `Shift+Alt+/`）：在自动/手动间切换（仅影响 NES）
 
-#### [MistralAI Coding](https://console.mistral.ai/codestral) 示例配置
+#### [MistralAI Coding](https://console.mistral.ai/codestral) FIM 配置示例
 
 ```json
 {
@@ -408,16 +408,6 @@ FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimC
         "model": "codestral-latest",
         "extraBody": { "code_annotations": null },
         "maxTokens": 100
-    },
-    "gcmp.nesCompletion.enabled": false,
-    "gcmp.nesCompletion.debounceMs": 500,
-    "gcmp.nesCompletion.timeoutMs": 10000,
-    "gcmp.nesCompletion.manualOnly": false,
-    "gcmp.nesCompletion.modelConfig": {
-        "provider": "mistral",
-        "baseUrl": "https://codestral.mistral.ai/v1",
-        "model": "codestral-latest",
-        "maxTokens": 200
     }
 }
 ```

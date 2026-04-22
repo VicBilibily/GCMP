@@ -15,7 +15,6 @@ import {
 import { IFetcher } from '@vscode/chat-lib/dist/src/_internal/platform/networking/common/networking';
 import { StatusBarManager } from '../status';
 import { configProviders } from '../providers/config';
-import OpenAI from 'openai';
 import { getCompletionLogger, getApiKeyManager, getConfigManager } from './singletons';
 
 // ============================================================================
@@ -62,8 +61,22 @@ export class Fetcher implements IFetcher {
             throw new Error('Not Support Request');
         }
 
+        let isFimRequest = false; // FIM /completions (非 /chat/completions)
         let dashscopeStopChunk = false; // 只截取 stop 表示的 chunk, 阿里云百炼补全接口
-        const requestBody = { ...(options.json as Record<string, unknown>) } as Record<string, unknown>; // as OpenAI.Chat.ChatCompletionCreateParamsStreaming;
+
+        let fimSseBuffer = '';
+        const fimDecoder = new TextDecoder();
+
+        const requestBody: Record<string, unknown> = {}; // as OpenAI.Chat.ChatCompletionCreateParamsStreaming;
+        if (options.json) {
+            Object.assign(requestBody, options.json);
+        } else if (options.body) {
+            try {
+                Object.assign(requestBody, JSON.parse(options.body));
+            } catch (error) {
+                throw new Error('Failed to parse request body', { cause: error });
+            }
+        }
 
         const ConfigManager = getConfigManager();
         let modelConfig: NESCompletionConfig['modelConfig'];
@@ -80,6 +93,7 @@ export class Fetcher implements IFetcher {
                 logger.error('[Fetcher] FIM 模型配置缺失');
                 throw new Error('FIM model configuration is missing');
             }
+            isFimRequest = true;
             url = `${modelConfig.baseUrl}/completions`;
             if (modelConfig.provider === 'dashscope') {
                 const { prompt, suffix } = requestBody;
@@ -154,45 +168,74 @@ export class Fetcher implements IFetcher {
             // 将 Web ReadableStream 转换为 Web ReadableStream<Uint8Array>
             const reader = response.body.getReader();
             const encoder = new TextEncoder();
+            const enqueueFimLine = (controller: ReadableStreamDefaultController<Uint8Array>, rawLine: string): void => {
+                const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
+                if (line.trim() === '') {
+                    return;
+                }
+
+                if (!line.startsWith('data: ')) {
+                    controller.enqueue(encoder.encode(`${line}\n`));
+                    return;
+                }
+
+                const data = line.slice(6);
+                if (data === '[DONE]') {
+                    controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                    return;
+                }
+
+                try {
+                    const parsed = JSON.parse(data) as Record<string, unknown>;
+                    const choices = parsed.choices as Array<Record<string, unknown>> | undefined;
+                    const choice = choices?.[0];
+
+                    if (dashscopeStopChunk && choice?.finish_reason !== 'stop') {
+                        controller.enqueue(encoder.encode('\n\n'));
+                        return;
+                    }
+
+                    // 将 delta.content 转换为 text（部分 FIM 接口返回 chat completion chunk 格式）
+                    if (choice && 'delta' in choice) {
+                        const delta = choice.delta as Record<string, unknown> | undefined;
+                        if (delta && 'content' in delta) {
+                            const newChoice: Record<string, unknown> = { ...choice };
+                            delete newChoice.delta;
+                            newChoice.text = delta.content;
+                            const converted = { ...parsed, choices: [newChoice] };
+                            controller.enqueue(encoder.encode(`data: ${JSON.stringify(converted)}\n`));
+                            return;
+                        }
+                    }
+
+                    controller.enqueue(encoder.encode(`${line}\n`));
+                } catch {
+                    controller.enqueue(encoder.encode(`${line}\n`));
+                }
+            };
             const bodyStream = new ReadableStream<Uint8Array>({
                 async pull(controller) {
                     try {
                         const { done, value } = await reader.read();
                         if (done) {
+                            if (isFimRequest) {
+                                fimSseBuffer += fimDecoder.decode();
+                                if (fimSseBuffer.trim() !== '') {
+                                    enqueueFimLine(controller, fimSseBuffer);
+                                    fimSseBuffer = '';
+                                }
+                            }
                             controller.close();
                             return;
                         }
 
-                        if (dashscopeStopChunk) {
-                            const chunk = Buffer.from(value).toString('utf-8');
-                            // logger.trace(`[Fetcher] 收到 chunk: ${chunk}`);
+                        if (isFimRequest) {
+                            const chunk = fimSseBuffer + fimDecoder.decode(value, { stream: true });
                             const lines = chunk.split('\n');
+                            fimSseBuffer = lines.pop() ?? '';
 
                             for (const line of lines) {
-                                if (line.trim() === '') {
-                                    continue;
-                                }
-
-                                if (line.startsWith('data: ')) {
-                                    const data = line.slice(6);
-
-                                    if (data === '[DONE]') {
-                                        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-                                        continue;
-                                    }
-
-                                    try {
-                                        const parsed = JSON.parse(data) as OpenAI.Completion;
-                                        if (parsed?.choices?.[0]?.finish_reason === 'stop') {
-                                            controller.enqueue(encoder.encode(line + '\n'));
-                                            // logger.debug(`[Fetcher] 推送数据: ${line}`);
-                                        } else {
-                                            controller.enqueue(encoder.encode('\n\n'));
-                                        }
-                                    } catch {
-                                        logger.debug('[Fetcher] JSON 解析失败');
-                                    }
-                                }
+                                enqueueFimLine(controller, line);
                             }
                         } else {
                             controller.enqueue(new Uint8Array(value));

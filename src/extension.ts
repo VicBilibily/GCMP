@@ -20,23 +20,11 @@ import { LeaderElectionService, StatusBarManager } from './status';
 import { registerAllTools } from './tools';
 import { CliAuthFactory } from './cli/auth/cliAuthFactory';
 import { registerCommitCommands, checkGitAvailability } from './commit';
+import { clearRegisteredProviders, registerProvider, registeredProviders } from './utils/providerRegistry';
 
 /**
  * 全局变量 - 存储已注册的提供商实例，用于扩展卸载时的清理
  */
-const registeredProviders: Record<
-    string,
-    | GenericModelProvider
-    | ZhipuProvider
-    | MoonshotProvider
-    | CliModelProvider
-    | MiniMaxProvider
-    | DashscopeProvider
-    | TencentProvider
-    | XiaomimimoProvider
-    | CompatibleProvider
-    | BaiduProvider
-> = {};
 const registeredDisposables: vscode.Disposable[] = [];
 
 // 内联补全提供商实例（使用轻量级 Shim，延迟加载真正的补全引擎）
@@ -143,7 +131,7 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
     // 收集成功注册的提供商
     for (const result of results) {
         if (result) {
-            registeredProviders[result.providerKey] = result.provider;
+            registerProvider(result.providerKey, result.provider);
             registeredDisposables.push(...result.disposables);
         }
     }
@@ -169,7 +157,7 @@ async function activateCompatibleProvider(context: vscode.ExtensionContext): Pro
         const disposables = result.disposables;
 
         // 存储注册的提供商和 disposables
-        registeredProviders['compatible'] = provider;
+        registerProvider('compatible', provider);
         registeredDisposables.push(...disposables);
 
         const providerTime = Date.now() - providerStartTime;
@@ -370,6 +358,9 @@ export function deactivate() {
         }
         registeredDisposables.length = 0; // 清空数组
         Logger.trace('已清理所有 registered disposables');
+
+        clearRegisteredProviders();
+        Logger.trace('已清理所有 registered providers');
 
         // 清理兼容模型管理器
         CompatibleModelManager.dispose();

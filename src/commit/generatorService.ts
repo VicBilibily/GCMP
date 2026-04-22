@@ -15,6 +15,7 @@ import {
 import { PromptService } from './promptService';
 import type { GitDiffParts, GitDiffSection } from './gitService';
 import { CompatibleModelManager, ConfigManager, Logger } from '../utils';
+import { getRegisteredProvider } from '../utils/providerRegistry';
 
 function throwIfCancelled(token: vscode.CancellationToken): void {
     if (token.isCancellationRequested) {
@@ -28,6 +29,18 @@ function throwIfCancelled(token: vscode.CancellationToken): void {
  */
 export class GeneratorService {
     private static readonly MAX_CONTEXT_CHARS_PER_MESSAGE = 14000;
+
+    private static getEffectiveProviderConfig(providerKey: string) {
+        const registeredProvider = getRegisteredProvider(providerKey);
+        if (registeredProvider) {
+            return registeredProvider.providerConfig;
+        }
+
+        const providerConfigs = ConfigManager.getConfigProvider();
+        const providerConfig = providerConfigs[providerKey as keyof typeof providerConfigs];
+        return providerConfig ? ConfigManager.applyProviderOverrides(providerKey, providerConfig) : undefined;
+    }
+
     /**
      * 获取 Commit 可用提供商列表（providerKey + 展示名 + vendor）。
      * 逻辑参照 JsonSchemaProvider#getCommitModelSchema：
@@ -79,13 +92,11 @@ export class GeneratorService {
                 .filter(m => Boolean(m.id));
         }
 
-        const providerConfigs = ConfigManager.getConfigProvider();
-        const originalConfig = providerConfigs[key];
-        if (!originalConfig) {
+        const effectiveConfig = this.getEffectiveProviderConfig(key);
+        if (!effectiveConfig) {
             return [];
         }
 
-        const effectiveConfig = ConfigManager.applyProviderOverrides(key, originalConfig);
         return (effectiveConfig.models ?? []).map(m => ({ id: m.id, name: m.name || m.id })).filter(m => Boolean(m.id));
     }
 
@@ -278,8 +289,11 @@ export class GeneratorService {
                     return candidates?.[0] ?? null;
                 }
 
-                // autoPrefix 启用但非 compatible：直接加前缀查询
-                const queryId = `${provider}:::${modelId}`;
+                // autoPrefix 启用但非 compatible：需要检查模型是否有独立的 provider 字段
+                const effectiveConfig = this.getEffectiveProviderConfig(provider);
+                const matchedModel = effectiveConfig?.models.find(m => m.id === modelId);
+                const actualProvider = matchedModel?.provider || provider;
+                const queryId = `${actualProvider}:::${modelId}`;
                 const candidates = await vscode.lm.selectChatModels({
                     id: queryId,
                     vendor: `gcmp.${provider}`

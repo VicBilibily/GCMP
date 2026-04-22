@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云、Xiaomi MiMo、百度千帆 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.21.18",
+    "version": "0.21.19",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -41,7 +41,7 @@
         "url": "https://github.com/VicBilibily/GCMP.git"
     },
     "engines": {
-        "vscode": ">=1.110.0",
+        "vscode": ">=1.116.0",
         "node": ">=20.0.0",
         "npm": ">=9.0.0"
     },
@@ -1007,8 +1007,8 @@
     "dependencies": {
         "@anthropic-ai/sdk": "^0.80.0",
         "@microsoft/tiktokenizer": "^1.0.10",
-        "@modelcontextprotocol/sdk": "^1.20.2",
-        "@vscode/chat-lib": "^0.42.0",
+        "@modelcontextprotocol/sdk": "^1.29.0",
+        "@vscode/chat-lib": "^0.44.1",
         "chart.js": "^4.5.1",
         "openai": "^6.7.0"
     },
@@ -1017,8 +1017,8 @@
         "@stylistic/eslint-plugin": "^5.4.0",
         "@types/json-schema": "^7.0.15",
         "@types/node": "^20.0.0",
-        "@types/vscode": "^1.110.0",
-        "@vscode/vsce": "^3.7.1",
+        "@types/vscode": "^1.116.0",
+        "@vscode/vsce": "^3.9.1",
         "esbuild": "^0.25.10",
         "eslint": "^9.13.0",
         "less": "^4.5.1",

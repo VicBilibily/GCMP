@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.21.19] - 2026-04-22
+
+### 优化
+
+- **FIM 补全请求体解析**：重构 FIM 补全请求体解析逻辑，支持 `options.body`（字符串格式）与 `options.json`（对象格式）双模式，提升不同调用路径的兼容性
+- **FIM SSE 流处理**：优化 FIM 补全的 SSE 流式响应处理，新增 delta.content 到 text 字段的自动转换，兼容返回 Chat Completion chunk 格式的 FIM 接口
+- **Commit 模型选择**：优化 Commit 消息生成模型选择逻辑，支持 `autoPrefixModelId` 模式下对 provider 字段覆盖模型的正确识别与查询 [#136](https://github.com/VicBilibily/GCMP/issues/136)
+
+### 调整
+
+- **VS Code 兼容性**：VS Code 引擎版本要求 `>=1.116.0`，同步升级 `@vscode/chat-lib` 至 0.44.1、`@types/vscode` 至 1.116.0
+
 ## [0.21.18] - 2026-04-22
 
 ### 新增
