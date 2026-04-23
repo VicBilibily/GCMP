@@ -1,9 +1,35 @@
 ﻿{
     "displayName": "Xiaomi MiMo",
-    "baseUrl": "https://api.xiaomimimo.com/anthropic",
+    "baseUrl": "https://api.xiaomimimo.com/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "tokenKeyTemplate": "tp-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
+        {
+            "id": "mimo-v2.5-pro-token-plan",
+            "name": "MiMo-V2.5-Pro (Token Plan)",
+            "tooltip": "小米MiMo-V2.5-Pro Token Plan 专属接入点，支持文本生成、深度思考、流式输出、函数调用、结构化输出。上下文长度 1M，最大输出 128K。",
+            "provider": "xiaomimimo-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan-cn.xiaomimimo.com/anthropic",
+            "model": "mimo-v2.5-pro",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "mimo-v2.5-token-plan",
+            "name": "MiMo-V2.5 (Token Plan)",
+            "tooltip": "小米MiMo-V2.5 Token Plan 专属接入点，支持全模态理解、深度思考、流式输出、函数调用、结构化输出。上下文长度 1M，最大输出 128K。",
+            "provider": "xiaomimimo-token",
+            "baseUrl": "https://token-plan-cn.xiaomimimo.com/v1",
+            "model": "mimo-v2.5",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
+            "thinkingFormat": "object",
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
         {
             "id": "mimo-v2-pro-token-plan",
             "name": "MiMo-V2-Pro (Token Plan)",
@@ -15,65 +41,70 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "mimo-v2-omni-token-plan",
             "name": "MiMo-V2-Omni (Token Plan)",
             "tooltip": "小米MiMo-V2-Omni Token Plan 专属接入点，支持全模态理解、深度思考、流式输出、函数调用、结构化输出。上下文长度 256K，最大输出 128K。",
             "provider": "xiaomimimo-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan-cn.xiaomimimo.com/anthropic",
+            "baseUrl": "https://token-plan-cn.xiaomimimo.com/v1",
             "model": "mimo-v2-omni",
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "thinkingFormat": "object",
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
+            "id": "mimo-v2.5-pro",
+            "name": "MiMo-V2.5-Pro",
+            "tooltip": "小米MiMo-V2.5-Pro 通用大语言模型，支持文本生成、深度思考、流式输出、函数调用、结构化输出、联网搜索。上下文长度 1M，最大输出 128K。",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
+            "thinkingFormat": "object",
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "mimo-v2.5",
+            "name": "MiMo-V2.5",
+            "tooltip": "小米MiMo-V2.5 全模态理解模型，支持全模态理解、深度思考、流式输出、函数调用、结构化输出、联网搜索。上下文长度 1M，最大输出 128K。",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
+            "thinkingFormat": "object",
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "mimo-v2-pro",
             "name": "MiMo-V2-Pro",
             "tooltip": "小米MiMo-V2-Pro 通用大语言模型，支持文本生成、深度思考、流式输出、函数调用、结构化输出、联网搜索。上下文长度 1M，最大输出 128K。",
-            "sdkMode": "anthropic",
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "thinkingFormat": "object",
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "mimo-v2-omni",
             "name": "MiMo-V2-Omni",
             "tooltip": "小米MiMo-V2-Omni 全模态理解模型，支持全模态理解、深度思考、流式输出、函数调用、结构化输出、联网搜索。上下文长度 256K，最大输出 128K。",
-            "sdkMode": "anthropic",
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "thinkingFormat": "object",
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "mimo-v2-flash",
             "name": "MiMo-V2-Flash",
             "tooltip": "小米MiMo-V2-Flash 通用大语言模型，支持文本生成、深度思考、流式输出、函数调用、结构化输出、联网搜索。上下文长度 256K，最大输出 64K。高性价比选择。",
-            "sdkMode": "anthropic",
             "maxInputTokens": 256000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "thinking": ["disabled", "enabled"],
+            "thinkingFormat": "object",
+            "capabilities": { "toolCalling": true, "imageInput": false }
         }
     ]
 }
