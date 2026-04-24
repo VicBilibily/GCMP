@@ -12,6 +12,10 @@
     - 支持推理深度控制（`high` / `max` / `none`）
 - **腾讯云**：新增腾讯混元模型 **HY 3 Preview**
 
+### 优化
+
+- **Commit 提示词**：为 commit 消息生成添加 System Role 消息（[#138](https://github.com/VicBilibily/GCMP/issues/138)）
+
 ## [0.21.20] - 2026-04-23
 
 ### 新增
