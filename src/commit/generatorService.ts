@@ -120,6 +120,14 @@ export class GeneratorService {
         progress.report({ message: '正在提取关键变更片段...', increment: 10 });
         const messages: vscode.LanguageModelChatMessage[] = [];
 
+        // System Role 消息：部分模型要求首条消息为 system role
+        messages.push(
+            new vscode.LanguageModelChatMessage(
+                vscode.LanguageModelChatMessageRole.System,
+                PromptService.generateCommitSystemMessage()
+            )
+        );
+
         messages.push(...this.buildPerFileAttachmentMessages(diffParts.staged, 'staged'));
         messages.push(...this.buildPerFileAttachmentMessages(diffParts.tracked, 'tracked'));
         messages.push(...this.buildPerFileAttachmentMessages(diffParts.untracked, 'untracked'));

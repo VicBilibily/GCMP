@@ -110,6 +110,14 @@ IMPORTANT: Please provide ONLY the commit message, without any additional text, 
     }
 
     /**
+     * 生成 commit 场景的 System Role 消息。
+     * 部分模型要求首条消息为 system role，用于设定基本行为约束。
+     */
+    static generateCommitSystemMessage(): string {
+        return 'You are an expert at writing concise, accurate git commit messages. Analyze the provided diffs and generate a single commit message that summarizes the changes.';
+    }
+
+    /**
      * 规范化模型输出的提交消息。
      */
     static normalizeCommitMessage(message: string): string {
