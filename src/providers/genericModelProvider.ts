@@ -299,19 +299,13 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
         // 根据 sdkMode 自动推断默认值
         const sdkMode = model.sdkMode || 'openai';
-        const modelId = (model.model || model.id).toLowerCase();
         switch (sdkMode) {
-            case 'anthropic':
-                return 'claude-sonnet-4.6';
             case 'gemini-sse':
                 return 'gemini-3-pro';
-            case 'openai-responses':
-                return 'gpt-5.2';
-            case 'openai':
-            case 'openai-sse':
+            // 默认全部归为 claude-sonnet-4.6 系列，用户可以通过 family 字段覆盖
+            case 'anthropic':
             default:
-                // openai/openai-sse: 如果模型 ID/名称包含 gpt，使用 gpt-5.2，否则使用 claude-sonnet-4.6
-                return modelId.includes('gpt') ? 'gpt-5.2' : 'claude-sonnet-4.6';
+                return 'claude-sonnet-4.6';
         }
     }
 

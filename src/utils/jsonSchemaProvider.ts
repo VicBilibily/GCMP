@@ -160,8 +160,7 @@ export class JsonSchemaProvider {
                 '模型的 family 标识，用于确定编辑工具模式。',
                 '如果未设置，将根据 sdkMode 自动推断默认值：',
                 '- anthropic → claude-sonnet-4.6',
-                '- openai/openai-sse: id/model 包含 gpt → gpt-5.2，否则 → claude-sonnet-4.6',
-                '- openai-responses → gpt-5.2',
+                '- openai/openai-sse/openai-responses → claude-sonnet-4.6',
                 '- gemini-sse → gemini-3-pro'
             ].join('\n'),
             enum: ['claude-sonnet-4.6', 'gpt-5.2', 'gemini-3-pro'],
@@ -602,40 +601,13 @@ export class JsonSchemaProvider {
                                 }
                             },
                             {
-                                // openai-responses 模式推荐 gpt-5.2
-                                if: {
-                                    properties: {
-                                        sdkMode: { const: 'openai-responses' }
-                                    },
-                                    required: ['sdkMode']
-                                },
-                                then: {
-                                    properties: {
-                                        family: {
-                                            type: 'string',
-                                            description: [
-                                                '模型的 family 标识。openai-responses 模式默认: gpt-5.2',
-                                                'GPT-5 风格编辑工具 (apply_patch) - 批量差异应用，支持复杂重构'
-                                            ].join('\n'),
-                                            default: 'gpt-5.2',
-                                            enum: ['gpt-5.2', 'claude-sonnet-4.6', 'gemini-3-pro'],
-                                            enumDescriptions: [
-                                                'GPT-5 风格编辑工具 (apply_patch) - 推荐',
-                                                'Claude 风格编辑工具 (replace_string_in_file)',
-                                                'Gemini 风格编辑工具 (replace_string_in_file)'
-                                            ]
-                                        }
-                                    }
-                                }
-                            },
-                            {
-                                // openai/openai-sse 模式（默认）：根据模型 ID 判断
+                                // openai/openai-sse/openai-responses 模式（默认）
                                 if: {
                                     anyOf: [
                                         { not: { required: ['sdkMode'] } },
                                         {
                                             properties: {
-                                                sdkMode: { enum: ['openai', 'openai-sse'] }
+                                                sdkMode: { enum: ['openai', 'openai-sse', 'openai-responses'] }
                                             },
                                             required: ['sdkMode']
                                         }
@@ -647,13 +619,12 @@ export class JsonSchemaProvider {
                                             type: 'string',
                                             description: [
                                                 '模型的 family 标识。',
-                                                'openai/openai-sse 模式默认规则：',
-                                                '- id/model 包含 gpt → gpt-5.2 (apply_patch)',
-                                                '- 否则 → claude-sonnet-4.6 (replace_string_in_file)'
+                                                'openai/openai-sse/openai-responses 模式默认: claude-sonnet-4.6',
+                                                'Claude 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换'
                                             ].join('\n'),
                                             enum: ['claude-sonnet-4.6', 'gpt-5.2', 'gemini-3-pro'],
                                             enumDescriptions: [
-                                                'Claude 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换',
+                                                'Claude 风格编辑工具 (replace_string_in_file) - 推荐',
                                                 'GPT-5 风格编辑工具 (apply_patch) - 批量差异应用',
                                                 'Gemini 风格编辑工具 (replace_string_in_file)'
                                             ]
