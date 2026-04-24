@@ -2,6 +2,12 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.1] - 2026-04-24
+
+### 新增
+
+- **MiniMax**：[#122](https://github.com/VicBilibily/GCMP/pull/122) [#135](https://github.com/VicBilibily/GCMP/issues/135) Coding Plan 模型支持图片输入，通过对话图片桥接的独立模块实现，利用 Vision API 将图片自动转为文字描述
+
 ## [0.22.0] - 2026-04-24
 
 ### 新增
