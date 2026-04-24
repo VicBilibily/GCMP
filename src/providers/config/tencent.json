@@ -67,6 +67,18 @@
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
+            "id": "hy3-preview-token-plan",
+            "name": "HY 3 Preview (Token Plan)",
+            "tooltip": "腾讯云 Token Plan 按量付费中的 Hy3 preview。",
+            "provider": "tencent-token",
+            "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/v3",
+            "model": "hy3-preview",
+            "maxInputTokens": 192000,
+            "maxOutputTokens": 128000,
+            "thinking": ["disabled", "enabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
             "id": "glm-5.1-token-plan",
             "name": "GLM-5.1 (Token Plan)",
             "tooltip": "腾讯云 Token Plan 专属接入点中的 GLM-5.1。",
@@ -198,6 +210,18 @@
             "model": "hunyuan-2.0-thinking-20251109",
             "maxInputTokens": 128000,
             "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "hy3-preview-tokenhub",
+            "name": "HY 3 Preview (TokenHub计费)",
+            "tooltip": "腾讯云 TokenHub 按量付费中的 Hy3 preview。",
+            "provider": "tencent-tokenhub",
+            "baseUrl": "https://tokenhub.tencentmaas.com/v1",
+            "model": "hy3-preview",
+            "maxInputTokens": 192000,
+            "maxOutputTokens": 128000,
+            "thinking": ["disabled", "enabled"],
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {

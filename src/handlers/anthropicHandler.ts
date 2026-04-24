@@ -190,9 +190,8 @@ export class AnthropicHandler {
             const { messages: anthropicMessages, system } = apiMessageToAnthropicMessage(modelConfig, messages);
 
             // 准备工具定义
-            const tools: Anthropic.Messages.ToolUnion[] = options.tools
-                ? convertToAnthropicTools([...options.tools])
-                : [];
+            const tools: Anthropic.Messages.ToolUnion[] =
+                options.tools ? convertToAnthropicTools([...options.tools]) : [];
             if (modelConfig.webSearchTool && !tools.some(tool => tool.name === 'web_search')) {
                 tools.push(this.createAnthropicWebSearchTool());
             }
@@ -239,6 +238,10 @@ export class AnthropicHandler {
                 }
                 createParams.thinking = thinking as Anthropic.MessageCreateParamsStreaming['thinking'];
                 createParams.output_config = reasoning as Anthropic.MessageCreateParamsStreaming['output_config'];
+                if (settings.reasoningEffort === 'none') {
+                    thinking.type = 'disabled';
+                    createParams.output_config = undefined;
+                }
             }
             // 如果处于提交模式，模型支持思考的，不使用思考模式
             const modelOpts = options.modelOptions as CommitChatModelOptions;

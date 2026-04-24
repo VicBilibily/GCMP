@@ -567,8 +567,17 @@ export class OpenAIHandler {
                         }
                     }
                 } else if (settings.reasoningEffort) {
-                    customParams.reasoning_effort =
-                        settings.reasoningEffort !== 'minimal' ? settings.reasoningEffort : undefined;
+                    if (settings.reasoningEffort === 'none') {
+                        customParams.reasoning_effort = undefined;
+                        if (modelConfig.thinkingFormat === 'object') {
+                            customParams.thinking = { type: 'disabled' };
+                        }
+                    } else {
+                        customParams.reasoning_effort = settings.reasoningEffort;
+                        if (modelConfig.thinkingFormat === 'object' && settings.reasoningEffort !== 'minimal') {
+                            customParams.thinking = { type: 'enabled' };
+                        }
+                    }
                 }
             }
             // 如果处于提交模式，模型支持思考的，不使用思考模式
