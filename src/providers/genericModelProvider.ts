@@ -534,7 +534,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         token: CancellationToken
     ): Promise<void> {
         // 查找对应的模型配置
-        // 查找对应的模型配置
         const modelConfig = this.findModelConfigById(model);
         if (!modelConfig) {
             const errorMessage = `未找到模型: ${model.id}`;

@@ -9,6 +9,7 @@ import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import * as path from 'path';
 import { StatusLogger } from '../../utils/statusLogger';
+import { AtomicJsonFile } from '../atomicJsonFile';
 import type { DateIndex, DateIndexEntry, TokenUsageStatsFromFile, TokenStats } from './types';
 
 /**
@@ -55,20 +56,15 @@ export class LogIndexManager {
         const indexPath = this.getIndexPath();
 
         try {
-            // 读取现有索引
-            let index: DateIndex = { dates: {} };
+            await AtomicJsonFile.runExclusive(indexPath, async () => {
+                const index = (await this.readIndexFile(indexPath)) ?? { dates: {} };
 
-            if (fsSync.existsSync(indexPath)) {
-                const content = await fs.readFile(indexPath, 'utf-8');
-                index = JSON.parse(content);
-            }
+                index.versionTimestamp = versionTimestamp;
+                index.cacheTimestamp = cacheTimestamp;
 
-            // 更新两个时间戳
-            index.versionTimestamp = versionTimestamp;
-            index.cacheTimestamp = cacheTimestamp;
+                await this.saveIndexUnlocked(indexPath, index);
+            });
 
-            await this.ensureDirectoryExists(this.baseDir);
-            await fs.writeFile(indexPath, JSON.stringify(index, null, 2), 'utf-8');
             StatusLogger.debug(
                 `[LogIndexManager] 已更新缓存时间戳: version=${new Date(versionTimestamp).toISOString()}, cache=${new Date(cacheTimestamp).toISOString()}`
             );
@@ -84,6 +80,10 @@ export class LogIndexManager {
      */
     private async readIndex(): Promise<DateIndex | null> {
         const indexPath = this.getIndexPath();
+        return this.readIndexFile(indexPath);
+    }
+
+    private async readIndexFile(indexPath: string): Promise<DateIndex | null> {
         if (!fsSync.existsSync(indexPath)) {
             return null;
         }
@@ -99,19 +99,13 @@ export class LogIndexManager {
         }
     }
 
-    /**
-     * 保存日期索引
-     * 直接保存索引文件，不进行额外检查
-     */
-    private async saveIndex(index: DateIndex): Promise<void> {
-        const indexPath = this.getIndexPath();
-
+    private async saveIndexUnlocked(indexPath: string, index: DateIndex): Promise<void> {
         try {
             // 确保基础目录存在
             await this.ensureDirectoryExists(this.baseDir);
 
             // 写入索引文件
-            await fs.writeFile(indexPath, JSON.stringify(index, null, 2), 'utf-8');
+            await AtomicJsonFile.writeJsonAtomically(indexPath, index);
             StatusLogger.debug(`[LogIndexManager] 已保存日期索引，共 ${Object.keys(index.dates).length} 个日期`);
         } catch (err) {
             StatusLogger.warn('[LogIndexManager] 保存日期索引失败', err);
@@ -119,30 +113,40 @@ export class LogIndexManager {
         }
     }
 
+    private buildDateIndexEntry(total: TokenStats): DateIndexEntry {
+        return {
+            total_input: total.actualInput,
+            total_cache: total.cacheTokens,
+            total_output: total.outputTokens,
+            total_requests: total.requests
+        };
+    }
+
+    private isSameDateIndexEntry(left: DateIndexEntry | undefined, right: DateIndexEntry): boolean {
+        return (
+            !!left &&
+            left.total_input === right.total_input &&
+            left.total_cache === right.total_cache &&
+            left.total_output === right.total_output &&
+            left.total_requests === right.total_requests
+        );
+    }
+
     /**
      * 更新日期索引
      * 在保存统计数据后调用，更新索引文件
      */
     async updateIndex(dateStr: string, total: TokenStats): Promise<void> {
+        const indexPath = this.getIndexPath();
+
         try {
-            // 读取现有索引
-            let index: DateIndex = { dates: {} };
+            await AtomicJsonFile.runExclusive(indexPath, async () => {
+                const index = (await this.readIndexFile(indexPath)) ?? { dates: {} };
 
-            const existing = await this.readIndex();
-            if (existing) {
-                index = existing;
-            }
+                index.dates[dateStr] = this.buildDateIndexEntry(total);
 
-            // 更新索引条目
-            index.dates[dateStr] = {
-                total_input: total.actualInput,
-                total_cache: total.cacheTokens,
-                total_output: total.outputTokens,
-                total_requests: total.requests
-            };
-
-            // 保存索引
-            await this.saveIndex(index);
+                await this.saveIndexUnlocked(indexPath, index);
+            });
         } catch (err) {
             StatusLogger.warn(`[LogIndexManager] 更新日期索引失败: ${dateStr}`, err);
             // 不抛出错误，索引更新失败不影响主流程
@@ -160,14 +164,16 @@ export class LogIndexManager {
         }
 
         try {
-            const content = await fs.readFile(indexPath, 'utf-8');
-            const index: DateIndex = JSON.parse(content);
+            await AtomicJsonFile.runExclusive(indexPath, async () => {
+                const index = await this.readIndexFile(indexPath);
+                if (!index?.dates[dateStr]) {
+                    return;
+                }
 
-            if (index.dates[dateStr]) {
                 delete index.dates[dateStr];
-                await this.saveIndex(index);
+                await this.saveIndexUnlocked(indexPath, index);
                 StatusLogger.debug(`[LogIndexManager] 已从索引中删除日期: ${dateStr}`);
-            }
+            });
         } catch (err) {
             StatusLogger.warn(`[LogIndexManager] 从索引中删除日期失败: ${dateStr}`, err);
             // 不抛出错误，索引更新失败不影响主流程
@@ -179,61 +185,79 @@ export class LogIndexManager {
      * 自动同步索引与实际日期文件夹，添加缺失的日期，移除不存在的日期
      */
     async getIndex(): Promise<Record<string, DateIndexEntry>> {
-        // 获取所有实际的日期文件夹
-        const actualDates = await this.getAllStatsDates();
-        const actualDateSet = new Set(actualDates);
+        const indexPath = this.getIndexPath();
 
-        // 读取现有索引
-        const index = await this.readIndex();
-        const summaries: Record<string, DateIndexEntry> = {};
-        let hasChanges = false;
-        if (index) {
-            // 验证索引中的日期是否仍然存在，移除不存在的日期
-            for (const [dateStr, entry] of Object.entries(index.dates)) {
-                const dateFolder = path.join(this.baseDir, dateStr);
-                if (fsSync.existsSync(dateFolder)) {
-                    summaries[dateStr] = entry;
-                    actualDateSet.delete(dateStr); // 从待添加集合中移除已存在的
-                } else {
-                    hasChanges = true;
-                    StatusLogger.debug(`[LogIndexManager] 索引中的日期文件夹不存在，已移除: ${dateStr}`);
-                }
-            }
-        }
+        return AtomicJsonFile.runExclusive(indexPath, async () => {
+            // 获取所有实际的日期文件夹
+            const actualDates = await this.getAllStatsDates();
+            const actualDateSet = new Set(actualDates);
 
-        // 将新出现的日期文件夹添加到索引中
-        for (const dateStr of actualDates) {
-            if (actualDateSet.has(dateStr)) {
+            // 读取现有索引
+            const index = await this.readIndexFile(indexPath);
+            const summaries: Record<string, DateIndexEntry> = {};
+            let hasChanges = false;
+
+            // 基于实际 stats.json 对账全部索引条目，修复先前更新失败留下的脏摘要
+            for (const dateStr of actualDates) {
+                actualDateSet.delete(dateStr);
+
                 try {
                     const stats = await this.loadStats(dateStr);
-                    if (stats) {
-                        summaries[dateStr] = {
-                            total_input: stats.total.actualInput,
-                            total_cache: stats.total.cacheTokens,
-                            total_output: stats.total.outputTokens,
-                            total_requests: stats.total.requests
-                        };
+                    if (!stats) {
+                        continue;
+                    }
+
+                    const actualEntry = this.buildDateIndexEntry(stats.total);
+                    const indexedEntry = index?.dates[dateStr];
+                    summaries[dateStr] = actualEntry;
+
+                    if (!this.isSameDateIndexEntry(indexedEntry, actualEntry)) {
                         hasChanges = true;
-                        StatusLogger.debug(`[LogIndexManager] 新日期文件夹已添加到索引: ${dateStr}`);
+                        StatusLogger.debug(`[LogIndexManager] 日期摘要已对账修复: ${dateStr}`);
                     }
                 } catch (err) {
                     StatusLogger.warn(`[LogIndexManager] 获取日期摘要失败: ${dateStr}`, err);
                 }
             }
-        }
 
-        // 如果有变化（新增或删除），更新索引文件
-        if (hasChanges) {
-            const nextIndex: DateIndex = { dates: summaries };
-            if (index?.versionTimestamp !== undefined) {
-                nextIndex.versionTimestamp = index.versionTimestamp;
+            if (index) {
+                // 验证索引中的日期条目：移除目录不存在或 stats.json 缺失的脏条目
+                for (const dateStr of Object.keys(index.dates)) {
+                    // 已通过对账覆盖的条目无需再检
+                    if (dateStr in summaries) {
+                        continue;
+                    }
+
+                    const dateFolder = path.join(this.baseDir, dateStr);
+                    if (!fsSync.existsSync(dateFolder)) {
+                        hasChanges = true;
+                        StatusLogger.debug(`[LogIndexManager] 索引中的日期文件夹不存在，已移除: ${dateStr}`);
+                        continue;
+                    }
+
+                    // 目录在但 stats.json 缺失或不可读，也属于脏条目
+                    const statsFile = path.join(dateFolder, 'stats.json');
+                    if (!fsSync.existsSync(statsFile)) {
+                        hasChanges = true;
+                        StatusLogger.debug(`[LogIndexManager] 索引中日期的 stats.json 缺失，已移除: ${dateStr}`);
+                    }
+                }
             }
-            if (index?.cacheTimestamp !== undefined) {
-                nextIndex.cacheTimestamp = index.cacheTimestamp;
+
+            // 如果有变化（新增或删除），更新索引文件
+            if (hasChanges) {
+                const nextIndex: DateIndex = { dates: summaries };
+                if (index?.versionTimestamp !== undefined) {
+                    nextIndex.versionTimestamp = index.versionTimestamp;
+                }
+                if (index?.cacheTimestamp !== undefined) {
+                    nextIndex.cacheTimestamp = index.cacheTimestamp;
+                }
+                await this.saveIndexUnlocked(indexPath, nextIndex);
             }
-            await this.saveIndex(nextIndex);
-        }
-        return summaries;
+
+            return summaries;
+        });
     }
 
     /**

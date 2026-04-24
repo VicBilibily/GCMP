@@ -15,6 +15,7 @@ import { StatusLogger } from '../../utils/statusLogger';
 import { LogReadManager } from './logReadManager';
 import { LogIndexManager } from './logIndexManager';
 import { StatsCalculator } from './statsCalculator';
+import { AtomicJsonFile } from '../atomicJsonFile';
 import type {
     FileLoggerModelStats,
     FileLoggerProviderStats,
@@ -31,6 +32,7 @@ import type {
 export class LogStatsManager {
     private readonly baseDir: string;
     private readonly indexManager: LogIndexManager;
+    private readonly inFlightRegenerations = new Map<string, Promise<TokenUsageStatsFromFile>>();
     // 缓存创建时间戳：用于判断缓存是否比日志文件更新
     private _cacheVersionTimestamp: number = 0;
     // 代码版本时间戳：用于判断缓存是否由当前版本代码生成
@@ -92,12 +94,35 @@ export class LogStatsManager {
             }
         }
 
-        // 进行增量差分计算（仅重算改变的小时，从小时缓存聚合日期统计）
-        StatusLogger.debug(`[LogStatsManager] 增量计算统计: ${dateStr}`);
-        const stats = await this.calculateDateStats(dateStr);
-        // 保存到持久化文件
-        await this.saveDateStats(dateStr, stats);
-        return stats;
+        return this.getOrCreateDateRegeneration(dateStr);
+    }
+
+    /**
+     * 获取或创建指定日期的重算任务
+     * 避免同一天被多个调用方并发重算时，旧快照在后写入覆盖新快照
+     */
+    private getOrCreateDateRegeneration(dateStr: string): Promise<TokenUsageStatsFromFile> {
+        const inFlight = this.inFlightRegenerations.get(dateStr);
+        if (inFlight) {
+            StatusLogger.trace(`[LogStatsManager] 复用进行中的日期统计重算任务: ${dateStr}`);
+            return inFlight;
+        }
+
+        const regenerationPromise = (async () => {
+            StatusLogger.debug(`[LogStatsManager] 增量计算统计: ${dateStr}`);
+            const stats = await this.calculateDateStats(dateStr);
+            await this.saveDateStats(dateStr, stats);
+            return stats;
+        })();
+
+        const sharedPromise = regenerationPromise.finally(() => {
+            if (this.inFlightRegenerations.get(dateStr) === sharedPromise) {
+                this.inFlightRegenerations.delete(dateStr);
+            }
+        });
+
+        this.inFlightRegenerations.set(dateStr, sharedPromise);
+        return sharedPromise;
     }
 
     /**
@@ -349,15 +374,13 @@ export class LogStatsManager {
         const filePath = this.getStatsFilePath(dateStr);
 
         try {
-            // 确保日期目录存在
-            const dateFolder = path.join(this.baseDir, dateStr);
-            await this.ensureDirectoryExists(dateFolder);
-
             // 写入版本时间戳
             stats.versionTimestamp = this.getCodeVersionTimestamp();
 
-            // 写入完整的统计数据
-            await fs.writeFile(filePath, JSON.stringify(stats, null, 2), 'utf-8');
+            // 在目标文件路径上串行化写入，再通过临时文件 rename 原子替换，避免并发覆盖与半截 JSON
+            await AtomicJsonFile.runExclusive(filePath, async () => {
+                await AtomicJsonFile.writeJsonAtomically(filePath, stats);
+            });
 
             // 更新索引文件
             await this.indexManager.updateIndex(dateStr, stats.total);

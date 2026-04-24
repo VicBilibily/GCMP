@@ -123,7 +123,7 @@
             "name": "GPT-5.5 (ChatGPT)",
             "sdkMode": "openai-responses",
             "tooltip": "ChatGPT 提供的 GPT-5.5 模型，通过 Codex 端点访问，适合代码生成与理解任务",
-            "maxInputTokens": 920000,
+            "maxInputTokens": 272000,
             "maxOutputTokens": 128000,
             "useInstructions": true,
             "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
