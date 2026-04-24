@@ -12,6 +12,7 @@
 import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
 import { sanitizeToolSchemaForTarget } from '../utils';
+import { decodeStatefulMarker } from './statefulMarker';
 import type {
     ContentBlockParam,
     ThinkingBlockParam,
@@ -47,6 +48,33 @@ function getThinkingMetadata(part: vscode.LanguageModelThinkingPart): ThinkingPa
     return (part as unknown as { metadata?: ThinkingPartMetadata }).metadata ?? {};
 }
 
+function getStatefulMarkerThinking(content: vscode.LanguageModelChatMessage['content']) {
+    for (const part of content) {
+        if (
+            isDataPart(part) &&
+            part.mimeType === CustomDataPartMimeTypes.StatefulMarker &&
+            part.data instanceof Uint8Array
+        ) {
+            const marker = decodeStatefulMarker(part.data)?.marker;
+            if (marker?.completeThinking) {
+                return marker;
+            }
+        }
+    }
+
+    return undefined;
+}
+
+function getCompleteThinkingFromStatefulMarker(
+    content: vscode.LanguageModelChatMessage['content']
+): { thinking: string; signature: string } | undefined {
+    const marker = getStatefulMarkerThinking(content);
+    if (!marker?.completeThinking) {
+        return undefined;
+    }
+    return { thinking: marker.completeThinking, signature: marker.completeSignature || '' };
+}
+
 /**
  * 检查内容块是否支持缓存控制
  * thinking 和 redacted_thinking 块不支持缓存控制
@@ -61,10 +89,11 @@ function contentBlockSupportsCacheControl(
  * 将 VS Code API 消息内容转换为 Anthropic 格式
  * 支持 thinking 内容块以保持多轮对话中思维链的连续性
  */
-function apiContentToAnthropicContent(
-    content: vscode.LanguageModelChatMessage['content'],
+function apiMessageToAnthropicContent(
+    message: vscode.LanguageModelChatMessage,
     modelConfig: ModelConfig
 ): ContentBlockParam[] {
+    const content = message.content;
     const thinkingBlocks: ContentBlockParam[] = [];
     const otherBlocks: ContentBlockParam[] = [];
 
@@ -233,6 +262,19 @@ function apiContentToAnthropicContent(
         }
     }
 
+    if (message.role === vscode.LanguageModelChatMessageRole.Assistant) {
+        const modelId = modelConfig.model || modelConfig.id;
+        // 如果没有任何 thinking 块，并且模型是 DeepSeek V4，则添加一个空的 thinking 块以保持兼容性
+        if (thinkingBlocks.length === 0 && modelId.toLowerCase().includes('deepseek-v4')) {
+            const markerThinking = getCompleteThinkingFromStatefulMarker(content);
+            thinkingBlocks.push({
+                type: 'thinking',
+                thinking: markerThinking?.thinking || ' ', // Anthropic 不接受空字符串，使用空格
+                signature: markerThinking?.signature || ''
+            } as ThinkingBlockParam);
+        }
+    }
+
     // 重要：thinking 块必须在最前面（Anthropic API 要求）
     return [...thinkingBlocks, ...otherBlocks];
 }
@@ -257,12 +299,12 @@ export function apiMessageToAnthropicMessage(
         if (message.role === vscode.LanguageModelChatMessageRole.Assistant) {
             unmergedMessages.push({
                 role: 'assistant',
-                content: apiContentToAnthropicContent(message.content, model)
+                content: apiMessageToAnthropicContent(message, model)
             });
         } else if (message.role === vscode.LanguageModelChatMessageRole.User) {
             unmergedMessages.push({
                 role: 'user',
-                content: apiContentToAnthropicContent(message.content, model)
+                content: apiMessageToAnthropicContent(message, model)
             });
         } else if (message.role === vscode.LanguageModelChatMessageRole.System) {
             systemMessage.text += message.content

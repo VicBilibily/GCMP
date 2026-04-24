@@ -2,6 +2,16 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.0] - 2026-04-24
+
+### 新增
+
+- **DeepSeek**：全面升级至 DeepSeek V4 系列模型
+    - 新增模型：**DeepSeek-V4 Flash**（快速模式）、**DeepSeek-V4 Pro**（专家模式）
+    - 上下文窗口 1M tokens，最大输出 384K tokens
+    - 支持推理深度控制（`high` / `max` / `none`）
+- **腾讯云**：新增腾讯混元模型 **HY 3 Preview**
+
 ## [0.21.20] - 2026-04-23
 
 ### 新增

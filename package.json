@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云、Xiaomi MiMo、百度千帆 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.21.20",
+    "version": "0.22.0",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -1001,8 +1001,9 @@
         "package": "vsce package",
         "publish": "vsce publish --allow-proposed-apis chatProvider",
         "pretest": "npm run compile:dev",
-        "test": "npm run test:schema-sanitizer",
-        "test:schema-sanitizer": "tsx --test src/utils/schemaSanitizer.test.ts"
+        "test": "npm run test:schema-sanitizer && npm run test:stateful-marker",
+        "test:schema-sanitizer": "tsx --test src/utils/schemaSanitizer.test.ts",
+        "test:stateful-marker": "tsx --test src/handlers/statefulMarkerCodec.test.ts"
     },
     "dependencies": {
         "@anthropic-ai/sdk": "^0.80.0",

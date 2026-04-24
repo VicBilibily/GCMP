@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
 import { Logger } from '../utils';
 import { encodeStatefulMarker, StatefulMarkerContainer } from './statefulMarker';
+import { toOptionalStatefulMarkerField } from './statefulMarkerCodec';
 import { CustomDataPartMimeTypes } from './types';
 
 /** 思考内容缓冲阈值（字符数） */
@@ -68,12 +69,14 @@ export class StreamReporter {
     // 思维链状态
     private currentThinkingId: string | null = null;
     private thinkingBuffer = '';
+    private completeThinkingBuffer = '';
 
     // 文本缓冲状态
     private textBuffer = '';
 
     // 工具调用缓存
     private readonly toolCallsBuffer = new Map<number, ToolCallBuffer>();
+    private hasToolCalls = false;
 
     // 会话状态
     private sessionId: string;
@@ -81,6 +84,8 @@ export class StreamReporter {
 
     // Anthropic 特殊：签名缓冲
     private signatureBuffer = '';
+    // 签名累积缓冲（独立于 flush，用于 StatefulMarker 持久化）
+    private completeSignatureBuffer = '';
 
     // Gemini 特殊：思维签名
     private thoughtSignature: string | null = null;
@@ -144,6 +149,7 @@ export class StreamReporter {
 
         this.progress.report(new vscode.LanguageModelToolCallPart(callId, name, args));
         this.hasReceivedContent = true;
+        this.hasToolCalls = true;
 
         Logger.info(`[${this.modelName}] 成功处理工具调用: ${name} toolCallId: ${callId}`);
     }
@@ -172,6 +178,7 @@ export class StreamReporter {
         }
 
         this.thinkingBuffer += content;
+        this.completeThinkingBuffer += content;
         this.hasThinkingContent = true;
         this.hasReceivedThinkingDelta = true; // 标记已接收思考增量
 
@@ -260,6 +267,7 @@ export class StreamReporter {
                 // 立即报告工具调用
                 this.progress.report(new vscode.LanguageModelToolCallPart(toolCallId, bufferedTool.name, args));
                 this.hasReceivedContent = true;
+                this.hasToolCalls = true;
 
                 // 从缓存中移除已处理的工具调用
                 this.toolCallsBuffer.delete(index);
@@ -294,6 +302,7 @@ export class StreamReporter {
      */
     bufferSignature(content: string): void {
         this.signatureBuffer += content;
+        this.completeSignatureBuffer += content;
     }
 
     /**
@@ -396,6 +405,7 @@ export class StreamReporter {
                     const toolCallId = bufferedTool.id || crypto.randomUUID();
 
                     this.progress.report(new vscode.LanguageModelToolCallPart(toolCallId, bufferedTool.name, args));
+                    this.hasToolCalls = true;
 
                     Logger.info(`[${this.modelName}] 成功处理工具调用: ${bufferedTool.name} toolCallId: ${toolCallId}`);
                     toolProcessed = true;
@@ -415,21 +425,24 @@ export class StreamReporter {
      * 报告 StatefulMarker DataPart
      */
     private reportStatefulMarker(statefulMarkerData?: StatefulMarkerPartial): void {
-        if (statefulMarkerData) {
-            const marker = encodeStatefulMarker(this.modelId, {
-                ...Object.assign(
-                    {
-                        sessionId: this.sessionId,
-                        responseId: this.responseId
-                    },
-                    statefulMarkerData
-                ),
-                provider: this.provider,
-                modelId: this.modelId,
-                sdkMode: this.sdkMode
-            });
-            this.progress.report(new vscode.LanguageModelDataPart(marker, CustomDataPartMimeTypes.StatefulMarker));
-        }
+        const completeThinking = toOptionalStatefulMarkerField(this.completeThinkingBuffer);
+        const completeSignature = toOptionalStatefulMarkerField(this.completeSignatureBuffer);
+        const marker = encodeStatefulMarker(this.modelId, {
+            ...Object.assign(
+                {
+                    sessionId: this.sessionId,
+                    responseId: this.responseId
+                },
+                statefulMarkerData
+            ),
+            completeThinking,
+            completeSignature,
+            hasToolCalls: this.hasToolCalls,
+            provider: this.provider,
+            modelId: this.modelId,
+            sdkMode: this.sdkMode
+        });
+        this.progress.report(new vscode.LanguageModelDataPart(marker, CustomDataPartMimeTypes.StatefulMarker));
     }
 
     /**

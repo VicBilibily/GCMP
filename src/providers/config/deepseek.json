@@ -5,8 +5,8 @@
     "models": [
         {
             "id": "deepseek-v4-flash",
-            "name": "DeepSeek-V4 Flash",
-            "tooltip": "DeepSeek V4 快速模式",
+            "name": "DeepSeek-V4-Flash",
+            "tooltip": "DeepSeek-V4 快速模式",
             "sdkMode": "anthropic",
             "reasoningEffort": ["high", "max", "none"],
             "maxInputTokens": 1000000,
@@ -15,8 +15,8 @@
         },
         {
             "id": "deepseek-v4-pro",
-            "name": "DeepSeek-V4 Pro",
-            "tooltip": "DeepSeek V4 专家模式",
+            "name": "DeepSeek-V4-Pro",
+            "tooltip": "DeepSeek-V4 专家模式",
             "sdkMode": "anthropic",
             "reasoningEffort": ["high", "max", "none"],
             "maxInputTokens": 1000000,

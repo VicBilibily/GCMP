@@ -11,6 +11,8 @@ import { ApiKeyManager } from '../utils/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';
+import { decodeStatefulMarker } from './statefulMarker';
+import { CustomDataPartMimeTypes } from './types';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import type { CommitChatModelOptions } from '../commit';
 
@@ -1049,7 +1051,6 @@ export class OpenAIHandler {
                         arguments: JSON.stringify(part.input)
                     }
                 });
-                // Logger.debug(`添加工具调用: ${part.name} (ID: ${part.callId})`);
             }
         }
 
@@ -1064,6 +1065,22 @@ export class OpenAIHandler {
                 }
                 Logger.trace(`提取到思考内容: ${thinkingContent.length} 字符`);
                 break; // 只取第一个思考内容部分
+            }
+        }
+
+        // 如果 ThinkingPart 被 VS Code 剥离，仅 DeepSeek-V4 从 StatefulMarker 恢复
+        if (!thinkingContent) {
+            const modelId = _modelConfig?.model || _modelConfig?.id || '';
+            // 仅针对 DeepSeek-V4 模型尝试从 StatefulMarker 恢复思考内容，其他模型不处理
+            if (modelId.toLowerCase().includes('deepseek-v4')) {
+                const markerThinking = getMarkerThinking(message.content);
+                if (markerThinking) {
+                    thinkingContent = markerThinking;
+                    Logger.trace(`从 StatefulMarker 恢复 reasoning_content: ${thinkingContent.length} 字符`);
+                } else {
+                    thinkingContent = ' '; // 占位符，确保字段存在但不为空
+                    Logger.trace('未找到 StatefulMarker，使用占位符作为 reasoning_content');
+                }
             }
         }
 
@@ -1245,4 +1262,23 @@ export class OpenAIHandler {
 
         return filtered;
     }
+}
+
+/**
+ * 从消息内容的 StatefulMarker 中提取 completeThinking
+ */
+function getMarkerThinking(content: vscode.LanguageModelChatMessage['content']): string | undefined {
+    for (const part of content) {
+        if (
+            part instanceof vscode.LanguageModelDataPart &&
+            part.mimeType === CustomDataPartMimeTypes.StatefulMarker &&
+            part.data instanceof Uint8Array
+        ) {
+            const marker = decodeStatefulMarker(part.data)?.marker;
+            if (marker?.completeThinking) {
+                return marker.completeThinking;
+            }
+        }
+    }
+    return undefined;
 }

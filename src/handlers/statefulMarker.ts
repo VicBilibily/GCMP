@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { CustomDataPartMimeTypes } from './types';
+import { decodeStatefulMarkerPayload, encodeStatefulMarkerPayload } from './statefulMarkerCodec';
 
 export interface IStatefulMarkerContainer {
     type: typeof CustomDataPartMimeTypes.StatefulMarker;
@@ -24,6 +25,12 @@ export interface StatefulMarkerContainer {
     responseId: string;
     /** 记录过期时间，单位毫秒(豆包专用) */
     expireAt?: number;
+    /** 需要跨轮次稳定回传的完整思考内容 */
+    completeThinking?: string;
+    /** 需要跨轮次稳定回传的完整签名内容（signature_delta 累积） */
+    completeSignature?: string;
+    /** 当前 assistant 轮次是否发生过工具调用 */
+    hasToolCalls?: boolean;
 }
 
 export interface StatefulMarkerWithModel {
@@ -37,19 +44,12 @@ export function encodeStatefulMarker(modelId: string, marker: Omit<StatefulMarke
     // MARK: copilot 内部始终会自动处理 modelId, 这里无论传递什么 modelId 都会被重置
     //       我们只需要确保 marker 的数据传递即可
 
-    return new TextEncoder().encode(modelId + '\\' + JSON.stringify({ ...marker, extension: StatefulMarkerExtension }));
+    return encodeStatefulMarkerPayload(modelId, { ...marker, extension: StatefulMarkerExtension });
 }
 
 export function decodeStatefulMarker(data: Uint8Array): StatefulMarkerWithModel | undefined {
-    const decoded = new TextDecoder().decode(data);
     // MARK: 这里获取到的 modelId 始终为 copilot 内部重置后的值
-    const [modelId, markerStr] = decoded.split('\\');
-    try {
-        const markerObj = JSON.parse(markerStr);
-        return { modelId, marker: markerObj };
-    } catch {
-        return undefined;
-    }
+    return decodeStatefulMarkerPayload<StatefulMarkerContainer>(data);
 }
 
 /** Gets stateful markers from the messages, from the most to least recent */
