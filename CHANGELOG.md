@@ -2,6 +2,13 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.3] - 2026-04-25
+
+### 新增
+
+- **阿里云百炼**：新增 **DeepSeek-V4-Flash** 与 **DeepSeek-V4-Pro** 按量付费模型
+- **腾讯云 TokenHub**：新增 **DeepSeek-V4-Flash** 与 **DeepSeek-V4-Pro** 按量付费模型
+
 ## [0.22.2] - 2026-04-24
 
 ### 修复

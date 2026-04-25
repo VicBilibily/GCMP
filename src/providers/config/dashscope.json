@@ -290,6 +290,28 @@
             }
         },
         {
+            "id": "deepseek-v4-flash",
+            "name": "DeepSeek-V4-Flash",
+            "tooltip": "DeepSeek-V4 快速模式。高效轻量化MoE模型，总参284B，激活13B，原生支持百万超长上下文能力。推理速度快、延迟低、调用成本低廉，综合能力均衡，主打高并发、轻量化任务，适合日常对话、内容创作、基础 RAG、批量文案处理等普惠刚需场景。",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "reasoningEffort": ["high", "max", "none"],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 384000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "deepseek-v4-pro",
+            "name": "DeepSeek-V4-Pro",
+            "tooltip": "DeepSeek-V4 专家模式。旗舰级 MoE 大模型，总参1.6T、激活 49B，原生支持百万级超长上下文。依托海量高质量训练数据，具备顶尖数学逻辑、复杂推理、专业代码与长文本深度解析能力，适配高阶科研、复杂办公、深度智能代理等高难度场景。",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "reasoningEffort": ["high", "max", "none"],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 384000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
             "id": "qwen3.6-plus-token-plan",
             "name": "Qwen3.6-Plus (Token Plan)",
             "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",

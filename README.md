@@ -71,6 +71,7 @@
     - 更多模型：**Qwen3.5-Plus**、**Qwen3-Max**、**Qwen3-Coder-Next**、**Qwen3-Coder-Plus**、**GLM-4.7**
 - [**Token Plan**](https://www.aliyun.com/benefit/scene/tokenplan)：**Qwen3.6-Plus**、**GLM-5**、**MiniMax-M2.5**、**DeepSeek-V3.2**
 - **通义千问系列**：**Qwen3.6-Plus**、**Qwen3.5-Plus**、**Qwen3.5-Flash**、**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
+- **DeepSeek-V4**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**
     - **搜索功能**：集成 [联网搜索MCP](https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=3023217) 工具（2000次/月），支持通过 `#bailianWebSearch` 进行联网搜索。（使用[阿里云百炼ApiKey](https://bailian.console.aliyun.com/cn-beijing/?tab=model#/api-key)而非编程套餐的ApiKey）
 
 ### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
@@ -89,10 +90,11 @@
 
 ### [**腾讯云**](https://cloud.tencent.com/product/hunyuan)
 
-- [**Coding Plan**](https://console.cloud.tencent.com/tokenhub/codingplan) / [**Token Plan**](https://console.cloud.tencent.com/tokenhub/tokenplan)：
-    - 混元模型：**HY 3 Preview**、**Tencent HY 2.0 Instruct**、**Tencent HY 2.0 Think**
+- [**Coding Plan**](https://console.cloud.tencent.com/tokenhub/codingplan)
+    - 混元模型：**Tencent HY 2.0 Instruct**、**Tencent HY 2.0 Think**
     - 开源模型：**GLM-5**、**Kimi-K2.5**、**MiniMax-M2.5**、**DeepSeek-V3.2**
-    - 计费模型：**GLM-5.1**、**GLM-5-Turbo**、**MiniMax-M2.7**、**Kimi-K2.6**
+- [**Token Plan**](https://console.cloud.tencent.com/tokenhub/tokenplan)：**HY 3 Preview**、**GLM-5.1**、**GLM-5**、**Kimi-K2.5**、**MiniMax-M2.7**、**MiniMax-M2.5**
+- [**TokenHub**](https://console.cloud.tencent.com/tokenhub/models)：**HY 3 Preview**、**GLM-5.1**、**GLM-5-Turbo**、**GLM-5**、**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**DeepSeek-V3.2**、**Kimi-K2.6**、**Kimi-K2.5**、**MiniMax-M2.7**、**MiniMax-M2.5**
 - **密钥配置**：腾讯云API密钥分为 [腾讯云付费模型 API Key](https://hunyuan.cloud.tencent.com/#/app/apiKeyManage)、[Coding Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/codingplan)、[Token Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan)、[DeepSeek 专用 API Key](https://console.cloud.tencent.com/lkeap/api)、[TokenHub 付费 API Key](https://console.cloud.tencent.com/tokenhub/apikey)，需要进入正确的密钥获取界面生成密钥。
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)
