@@ -17,11 +17,6 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
-            },
-            "customHeader": {
-                "HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
-                "X-Title": "Roo Code",
-                "User-Agent": "RooCode/3.52.1"
             }
         },
         {

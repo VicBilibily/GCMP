@@ -2,6 +2,13 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.4] - 2026-04-25
+
+### 移除
+
+- **SiliconFlow 余额查询**：移除 SiliconFlow 余额查询功能及相关实现
+- **Moonshot**：移除 Moonshot 配置中的 `customHeader`（`HTTP-Referer`、`X-Title`、`User-Agent`）
+
 ## [0.22.3] - 2026-04-25
 
 ### 新增

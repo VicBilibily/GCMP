@@ -53,7 +53,7 @@
 
 ### [**MoonshotAI**](https://platform.moonshot.cn/)
 
-- [**会员权益**](https://www.kimi.com/coding)：Kimi `会员计划` 套餐的附带的 `Kimi For Coding`，当前使用 Roo Code 发送 Anthropic 请求。
+- [**会员权益**](https://www.kimi.com/coding)：Kimi `会员计划` 套餐的附带的 `Kimi For Coding`。
     - **搜索功能**：集成 Kimi Search 联网搜索工具，支持通过 `#kimiWebSearch` 进行联网搜索。
     - **用量查询**：已支持状态栏显示周期剩余用量，可查看套餐的剩余用量及限频重置时间。
 - 预置模型：**Kimi-K2.5**
@@ -72,12 +72,11 @@
 - [**Token Plan**](https://www.aliyun.com/benefit/scene/tokenplan)：**Qwen3.6-Plus**、**GLM-5**、**MiniMax-M2.5**、**DeepSeek-V3.2**
 - **通义千问系列**：**Qwen3.6-Plus**、**Qwen3.5-Plus**、**Qwen3.5-Flash**、**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
 - **DeepSeek-V4**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**
-    - **搜索功能**：集成 [联网搜索MCP](https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=3023217) 工具（2000次/月），支持通过 `#bailianWebSearch` 进行联网搜索。（使用[阿里云百炼ApiKey](https://bailian.console.aliyun.com/cn-beijing/?tab=model#/api-key)而非编程套餐的ApiKey）
+- **搜索功能**：集成 [联网搜索MCP](https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=3023217) 工具（2000次/月），支持通过 `#bailianWebSearch` 进行联网搜索。（使用[阿里云百炼ApiKey](https://bailian.console.aliyun.com/cn-beijing/?tab=model#/api-key)而非编程套餐的ApiKey）
 
 ### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
 
 - [**KwaiKAT Coding Plan**](https://streamlake.com/marketing/coding-plan)：**KAT-Coder-Pro-V2**
-
 - **KAT-Coder系列**：**KAT-Coder-Pro-V2**(按量付费)
 
 ### [**火山方舟**](https://www.volcengine.com/product/ark)
