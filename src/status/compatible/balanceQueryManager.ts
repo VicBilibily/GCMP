@@ -8,6 +8,7 @@ import { StatusLogger } from '../../utils/statusLogger';
 import { IBalanceQuery, BalanceQueryResult } from './balanceQuery';
 import { AiHubMixBalanceQuery } from './providers/aihubmixBalanceQuery';
 import { AiPingBalanceQuery } from './providers/aipingBalanceQuery';
+import { SiliconflowBalanceQuery } from './providers/siliconflowBalanceQuery';
 import { OpenrouterBalanceQuery } from './providers/openrouterBalanceQuery';
 
 /**
@@ -39,6 +40,7 @@ export class BalanceQueryManager {
     private static registerDefaultHandlers(): void {
         BalanceQueryManager.registerHandler('aihubmix', new AiHubMixBalanceQuery());
         BalanceQueryManager.registerHandler('aiping', new AiPingBalanceQuery());
+        BalanceQueryManager.registerHandler('siliconflow', new SiliconflowBalanceQuery());
         BalanceQueryManager.registerHandler('openrouter', new OpenrouterBalanceQuery());
     }
 
