@@ -257,7 +257,7 @@ export class AnthropicHandler {
                 }
                 createParams.thinking = thinking as Anthropic.MessageCreateParamsStreaming['thinking'];
                 createParams.output_config = reasoning as Anthropic.MessageCreateParamsStreaming['output_config'];
-                if (settings.reasoningEffort === 'none') {
+                if (settings.reasoningEffort === 'none' || settings.reasoningEffort === 'minimal') {
                     thinking.type = 'disabled';
                     createParams.output_config = undefined;
                 }

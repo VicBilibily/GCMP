@@ -2,6 +2,12 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.6] - 2026-04-28
+
+### 修复
+
+- **火山方舟 Seed 2.0 推理强度**：修复使用 Anthropic 接口的火山模型选择 `minimal` 推理强度时，错误地将 `minimal` 传递到请求体导致 API 报错的问题；`minimal` 现在正确映射为关闭思考模式（[#149](https://github.com/VicBilibily/GCMP/issues/149)）
+
 ## [0.22.5] - 2026-04-28
 
 ### 修复
