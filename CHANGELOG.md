@@ -2,11 +2,19 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.5] - 2026-04-28
+
+### 修复
+
+- **提交消息生成失败**：修复 DeepSeek-V4 等默认开启思考的模型在生成提交消息时报错 `thinking options type cannot be disabled when reasoning_effort is set` 的问题（[#148](https://github.com/VicBilibily/GCMP/issues/148)）
+    - Anthropic SDK：提交模式下禁用思考时同步移除 `output_config`，避免参数冲突
+    - OpenAI SDK：提交模式下 `thinkingFormat=object` 时同步移除 `reasoning_effort`；`thinkingFormat=boolean` 时仅当关闭选项为首项配置才传递 `reasoning_effort` 关闭思考，其余由 `enable_thinking=false` 直接关闭
+    - Responses API：提交模式下无条件设置 `thinking.type=disabled`，并显式补齐 `reasoning.effort` 关闭值（`none`/`minimal`），不再依赖请求中是否已有 reasoning 字段
+
 ## [0.22.4] - 2026-04-25
 
 ### 移除
 
-- **SiliconFlow 余额查询**：移除 SiliconFlow 余额查询功能及相关实现
 - **Moonshot**：移除 Moonshot 配置中的 `customHeader`（`HTTP-Referer`、`X-Title`、`User-Agent`）
 
 ## [0.22.3] - 2026-04-25

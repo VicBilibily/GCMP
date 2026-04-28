@@ -568,7 +568,8 @@ export class OpenAIHandler {
                             customParams.enable_thinking = undefined;
                         }
                     }
-                } else if (settings.reasoningEffort) {
+                }
+                if (settings.reasoningEffort) {
                     if (settings.reasoningEffort === 'none') {
                         customParams.reasoning_effort = undefined;
                         if (modelConfig.thinkingFormat === 'object') {
@@ -589,19 +590,23 @@ export class OpenAIHandler {
                     if (customParams.thinking) {
                         customParams.thinking = { type: 'disabled' };
                     }
+                    // 同时移除 reasoning_effort，避免 thinking=disabled 与 reasoning_effort 冲突
+                    customParams.reasoning_effort = undefined;
                 } else {
                     if (customParams.enable_thinking) {
                         customParams.enable_thinking = false;
                     }
                 }
-                if (customParams.reasoning_effort !== undefined) {
+                if (customParams.thinking === undefined && customParams.reasoning_effort) {
                     let effort: 'none' | 'minimal' | undefined;
                     if (modelConfig.reasoningEffort?.includes('none')) {
                         effort = 'none';
                     } else if (modelConfig.reasoningEffort?.includes('minimal')) {
                         effort = 'minimal';
                     }
-                    if (effort) {
+                    // 仅当关闭选项在模型第一个配置时才传递 reasoning_effort，避免与 thinking 冲突
+                    if (effort && modelConfig.reasoningEffort?.indexOf(effort) === 0) {
+                        customParams.enable_thinking = undefined;
                         customParams.reasoning_effort = effort;
                     }
                 }

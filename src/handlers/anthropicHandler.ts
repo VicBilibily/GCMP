@@ -266,6 +266,8 @@ export class AnthropicHandler {
             const modelOpts = options.modelOptions as CommitChatModelOptions;
             if (modelOpts?.commit && createParams.thinking) {
                 createParams.thinking.type = 'disabled';
+                // 同时移除 output_config，避免 thinking=disabled 与 reasoning_effort 冲突
+                createParams.output_config = undefined;
             }
 
             // 添加系统消息（如果有）

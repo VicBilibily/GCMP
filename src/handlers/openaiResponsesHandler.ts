@@ -587,7 +587,8 @@ export class OpenAIResponsesHandler {
                         const thinking: { type: string } = customParams.thinking || { type: 'disabled' };
                         thinking.type = settings.thinking;
                         customParams.thinking = thinking;
-                    } else if (settings.reasoningEffort) {
+                    }
+                    if (settings.reasoningEffort) {
                         const thinking: { type: string } = customParams.thinking || { type: 'enabled' };
                         thinking.type = 'enabled';
                         const reasoning = customParams.reasoning || { effort: 'medium' };
@@ -617,9 +618,11 @@ export class OpenAIResponsesHandler {
                         }
                         if (effort) {
                             customParams.reasoning.effort = effort;
-                        } else if (modelId.toLowerCase().includes('gpt-5')) {
+                        } else if (modelId.toLowerCase().includes('gpt')) {
                             customParams.reasoning.effort = 'none';
                         }
+                    } else if (modelId.toLowerCase().includes('gpt')) {
+                        customParams.reasoning = { effort: 'none' };
                     }
                 }
 
@@ -868,9 +871,9 @@ export class OpenAIResponsesHandler {
                                 // 仅当摘要文本未经流式传输时才包含
                                 // （参照官方实现: hasReceivedReasoningSummary 为 true 时传 undefined 避免重复）
                                 const summaryText =
-                                    reasoningItem.id && reasoningSummaryItemIds.has(reasoningItem.id)
-                                        ? undefined
-                                        : reasoningItem.summary?.map(s => s.text);
+                                    reasoningItem.id && reasoningSummaryItemIds.has(reasoningItem.id) ?
+                                        undefined
+                                    :   reasoningItem.summary?.map(s => s.text);
                                 reporter.reportEncryptedThinking(
                                     reasoningItem.encrypted_content,
                                     reasoningItem.id,
