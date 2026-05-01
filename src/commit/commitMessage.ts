@@ -170,11 +170,11 @@ export class CommitMessage {
         progress: vscode.Progress<{ message?: string; increment?: number }>,
         repository: Repository,
         token: vscode.CancellationToken,
-        scope: 'config' | 'staged' | 'workingTree' = 'config'
+        scope: 'config' | 'staged' | 'workingTree' = 'staged'
     ): Promise<{ message: string; model: string }> {
         const repoPath = repository.rootUri.fsPath;
         const commitConfig = ConfigManager.getCommitConfig();
-        // 仅 staged 入口才启用 staged-only；默认入口始终分析完整变更（staged + working tree）。
+        // 默认入口仅分析 staged 变更（与提交语义一致）。
         const onlyStagedChanges = scope === 'staged';
 
         // 1. 获取 Git 变更
