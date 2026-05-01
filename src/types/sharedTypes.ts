@@ -40,6 +40,19 @@ export interface ModelConfig {
         imageInput: boolean;
     };
     /**
+     * 模型是否支持推理/思考能力（可选）
+     * 来自 models.dev 的 reasoning 字段，用于在 AI SDK provider 层自动适配 thinking 或 reasoningEffort
+     */
+    reasoning?: boolean;
+    /**
+     * 推理模式类型（可选，AI SDK 场景自动填充）
+     * 由 modelsDevService 加载模型时根据 provider 的 npm 包自动推断：
+     * - 'thinking': anthropic / google(gemini 2.5) / openai-compatible 等使用 thinking 参数的模型
+     * - 'reasoningEffort': openai / xai / perplexity 等使用 reasoning_effort 参数的模型
+     * - 'thinkingLevel': google gemini-3 使用 thinkingLevel 参数的模型
+     */
+    thinkingMode?: 'thinking' | 'reasoningEffort' | 'thinkingLevel';
+    /**
      * SDK模式选择（可选）
      * - "anthropic": 使用 Anthropic SDK
      * - "openai": 使用 OpenAI SDK（默认）
@@ -101,6 +114,15 @@ export interface ModelConfig {
      * - high: 深度分析，处理复杂问题
      */
     reasoningEffort?: Required<ModelChatResponseOptions>['reasoningEffort'][];
+    /**
+     * Gemini 3 思考级别选项列表（可选）
+     * 用于 UI 配置选择，控制 Gemini 3 模型的推理深度：
+     * - minimal: 最小思考
+     * - low: 轻量思考
+     * - medium: 中等思考
+     * - high: 深度思考
+     */
+    thinkingLevel?: ('minimal' | 'low' | 'medium' | 'high')[];
     /**
      * 模型特定的自定义HTTP头部（可选）
      * 如果提供，将在API请求中附加这些自定义头部

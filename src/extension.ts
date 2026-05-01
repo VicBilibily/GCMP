@@ -9,6 +9,7 @@ import { TencentProvider } from './providers/tencentProvider';
 import { XiaomimimoProvider } from './providers/xiaomimimoProvider';
 import { BaiduProvider } from './providers/baiduProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
+import { createAndRegisterAiSdkProvider } from './providers/aiSdkProvider';
 import { InlineCompletionShim } from './copilot/inlineCompletionShim';
 import { Logger, StatusLogger, CompletionLogger, TokenCounter } from './utils';
 import { ApiKeyManager, ConfigManager, JsonSchemaProvider } from './utils';
@@ -168,6 +169,31 @@ async function activateCompatibleProvider(context: vscode.ExtensionContext): Pro
 }
 
 /**
+ * 激活 AI SDK Provider（models.dev 统一入口）
+ */
+async function activateAiSdkProvider(context: vscode.ExtensionContext): Promise<void> {
+    try {
+        Logger.trace('Registering AI SDK Provider...');
+        const providerStartTime = Date.now();
+
+        // 创建并激活 AI SDK Provider
+        const disposables = await createAndRegisterAiSdkProvider(context);
+
+        if (disposables && disposables.length > 0) {
+            // 将 disposables 添加到 context.subscriptions 和 registeredDisposables
+            disposables.forEach(disposable => context.subscriptions.push(disposable));
+            registeredDisposables.push(...disposables);
+            const providerTime = Date.now() - providerStartTime;
+            Logger.debug(`AI SDK Provider registered successfully in ${providerTime}ms`);
+        } else {
+            Logger.warn('AI SDK Provider was not registered, possibly because no API key is configured');
+        }
+    } catch (error) {
+        Logger.error('AI SDK Provider registration failed:', error);
+    }
+}
+
+/**
  * 激活内联补全提供商（轻量级 Shim，延迟加载真正的补全引擎）
  */
 async function activateInlineCompletionProvider(context: vscode.ExtensionContext): Promise<void> {
@@ -251,6 +277,11 @@ export async function activate(context: vscode.ExtensionContext) {
         stepStartTime = Date.now();
         await activateCompatibleProvider(context);
         Logger.trace(`⏱️ 兼容提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+
+        // 步骤3.1.1: 激活 AI SDK Provider
+        stepStartTime = Date.now();
+        await activateAiSdkProvider(context);
+        Logger.trace(`AI SDK Provider registration completed in ${Date.now() - stepStartTime}ms`);
 
         // 步骤3.2: 初始化所有状态栏（包含创建和注册）
         stepStartTime = Date.now();

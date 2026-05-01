@@ -72,6 +72,7 @@
         "onLanguageModelProvider:gcmp.codex",
         "onLanguageModelProvider:gcmp.baidu",
         "onLanguageModelProvider:gcmp.compatible",
+        "onLanguageModelProvider:gcmp.aiSdk",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
         "onLanguageModelTool:gcmp_minimaxWebSearch",
         "onLanguageModelTool:gcmp_kimiWebSearch",
@@ -276,6 +277,11 @@
             {
                 "command": "gcmp.commit.selectModel",
                 "title": "选择 Commit 消息生成模型",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.aiSdk.configWizard",
+                "title": "AI SDK Provider 配置向导",
                 "category": "GCMP"
             }
         ],
@@ -682,6 +688,11 @@
                 "vendor": "gcmp.compatible",
                 "displayName": "⦿ OpenAI / Anthropic Compatible",
                 "managementCommand": "gcmp.compatible.manageModels"
+            },
+            {
+                "vendor": "gcmp.aiSdk",
+                "displayName": "⦿ AI SDK Provider (models.dev)",
+                "managementCommand": "gcmp.aiSdk.configWizard"
             }
         ],
         "languageModelTools": [
@@ -1006,12 +1017,23 @@
         "test:stateful-marker": "tsx --test src/handlers/statefulMarkerCodec.test.ts"
     },
     "dependencies": {
+        "@ai-sdk/anthropic": "^1.0.0",
+        "@ai-sdk/deepinfra": "^2.0.47",
+        "@ai-sdk/google": "^3.0.66",
+        "@ai-sdk/openai": "^3.0.55",
+        "@ai-sdk/openai-compatible": "^0.2.16",
+        "@ai-sdk/perplexity": "^3.0.31",
+        "@ai-sdk/xai": "^3.0.85",
+        "@aihubmix/ai-sdk-provider": "0.0.1",
         "@anthropic-ai/sdk": "^0.80.0",
         "@microsoft/tiktokenizer": "^1.0.10",
         "@modelcontextprotocol/sdk": "^1.29.0",
+        "@openrouter/ai-sdk-provider": "0.7.5",
         "@vscode/chat-lib": "^0.44.1",
+        "ai": "^4.0.0",
         "chart.js": "^4.5.1",
-        "openai": "^6.7.0"
+        "openai": "^6.7.0",
+        "zod": "^3.25.76"
     },
     "devDependencies": {
         "@eslint/js": "^9.13.0",
