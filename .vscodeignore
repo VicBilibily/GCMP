@@ -3,12 +3,13 @@
 .vscode-test/**
 node_modules/**
 models/
+scripts/
 out/**
 src/**
 .gitignore
 .eslintignore
 esbuild.mjs
-**/tsconfig.json
+**/tsconfig*
 **/*.ts
 **/*.config.*
 **/.vscode-test.*

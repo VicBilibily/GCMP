@@ -2,6 +2,16 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.13] - 2026-05-15
+
+### 新增
+
+- **Release 自动填充更新日志**：在 GitHub Release 发布时，自动从 CHANGELOG 提取当前版本内容填充 Release 正文，无需手动复制粘贴
+
+### 恢复
+
+- **恢复 Copilot Chat 扩展依赖声明**：重新将 `github.copilot-chat` 加入 `extensionDependencies`，确保 VS Code 在激活 GCMP 前自动加载 Copilot Chat
+
 ## [0.22.12] - 2026-05-15
 
 ### 新增

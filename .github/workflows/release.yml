@@ -50,6 +50,19 @@ jobs:
               run: |
                   npx vsce publish --allow-proposed-apis chatProvider --pat $VSCE_PAT
 
+            - name: Extract changelog for release
+              run: |
+                  RELEASE_TAG="${{ github.event.release.tag_name }}"
+                  VERSION="${RELEASE_TAG#v}"
+                  node scripts/extract-changelog.mjs "$VERSION" > /tmp/release_body.md
+
+            - name: Update release body
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  gh release edit "${{ github.event.release.tag_name }}" \
+                      --notes-file /tmp/release_body.md
+
             - name: Upload VSIX as release asset
               uses: softprops/action-gh-release@v2
               with:
