@@ -255,7 +255,10 @@ function createRequestRecordsTable(records: ExtendedTokenRequestLog[]): HTMLElem
 
             const status = createElement('td');
             status.className = record.status === 'completed' ? 'status-completed' : '';
-            status.textContent = record.status === 'completed' ? '✅' : record.status === 'failed' ? '❌' : '⏳';
+            status.textContent =
+                record.status === 'completed' ? '✅'
+                : record.status === 'failed' ? '❌'
+                : '⏳';
 
             const speed = createElement('td');
             if (record.outputSpeed !== undefined && record.outputSpeed > 0) {

@@ -164,16 +164,150 @@
             }
         },
         {
+            "id": "qwen3.6-plus-token-plan",
+            "name": "Qwen3.6-Plus (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "qwen3.6-plus",
+            "maxInputTokens": 991000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
+            "id": "qwen3.6-flash-token-plan",
+            "name": "Qwen3.6-Flash (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "qwen3.6-flash",
+            "maxInputTokens": 991000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
+            "id": "glm-5.1-token-plan",
+            "name": "GLM-5.1 (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "glm-5.1",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 16000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "glm-5-token-plan",
+            "name": "GLM-5 (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "glm-5",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 16000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "kimi-k2.6-token-plan",
+            "name": "Kimi-K2.6 (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "kimi-k2.6",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
+            "id": "kimi-k2.5-token-plan",
+            "name": "Kimi-K2.5 (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "kimi-k2.5",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
+            "id": "minimax-m2.5-token-plan",
+            "name": "MiniMax-M2.5 (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "MiniMax-M2.5",
+            "maxInputTokens": 204800,
+            "maxOutputTokens": 128000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "deepseek-v4-pro-token-plan",
+            "name": "DeepSeek-V4-Pro (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "deepseek-v4-pro",
+            "reasoningEffort": ["high", "max", "none"],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 384000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "deepseek-v4-flash-token-plan",
+            "name": "DeepSeek-V4-Flash (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "deepseek-v4-flash",
+            "reasoningEffort": ["high", "max", "none"],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 384000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "deepseek-v3.2-token-plan",
+            "name": "DeepSeek-V3.2 (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "deepseek-v3.2",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
             "id": "qwen3.6-plus",
             "name": "Qwen3.6-Plus",
             "tooltip": "Qwen3.6原生视觉语言系列Plus模型，展现出与当前顶尖前沿模型相媲美的卓越性能，模型效果相较3.5系列显著提升。模型在Agentic coding、前端编程、Vibe coding等代码能力、多模态万物识别、OCR、物体定位等能力上显著增强。",
             "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
+            "id": "qwen3.6-flash",
+            "name": "Qwen3.6-Flash",
+            "tooltip": "Qwen3.6原生视觉语言系列Flash模型，模型效果相较3.5-Flash显著提升。本模型重点提升agentic coding能力（在多项代码智能体基准上大幅超越前代）、数学推理和代码推理能力；视觉方面在空间智能能力上显著增强，物体定位与目标检测提升尤为突出。",
+            "maxInputTokens": 983000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "qwen3.5-plus",
@@ -310,68 +444,6 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
             "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "qwen3.6-plus-token-plan",
-            "name": "Qwen3.6-Plus (TokenPlan)",
-            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
-            "model": "qwen3.6-plus",
-            "maxInputTokens": 991000,
-            "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "glm-5-token-plan",
-            "name": "GLM-5 (TokenPlan)",
-            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
-            "model": "glm-5",
-            "maxInputTokens": 200000,
-            "maxOutputTokens": 16000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "minimax-m2.5-token-plan",
-            "name": "MiniMax-M2.5 (TokenPlan)",
-            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
-            "model": "MiniMax-M2.5",
-            "maxInputTokens": 204800,
-            "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "deepseek-v3.2-token-plan",
-            "name": "DeepSeek-V3.2 (TokenPlan)",
-            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
-            "model": "deepseek-v3.2",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
         }
     ]
 }

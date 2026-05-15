@@ -7,13 +7,6 @@
 目前已内置支持 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云、Xiaomi MiMo、百度千帆 等**原生大模型**提供商。
 此外，扩展插件已适配支持 OpenAI 与 Anthropic 的 API 接口兼容模型，支持自定义接入任何提供兼容接口的第三方**云服务模型**。
 
-#### 📢 公告
-
-- **0.20.8 临时兼容项**：针对 VS Code 模型选择器显示模型不全的问题，新增 `gcmp.autoPrefixModelId` 配置项作为临时解决方案。
-    - **问题原因**：VS Code 1.111.0 引入模型折叠模式后，当多个提供商存在相同模型 ID 时，选中模型后的可用模型过滤逻辑异常（选中后模型移至顶部，下方列表过滤掉该 modelId，导致同 modelId 的其他提供商的此个模型无法选中）。
-    - **解决方案**：启用 `gcmp.autoPrefixModelId` 后，模型 ID 将自动添加提供商前缀（如 `zhipu:::glm-5`），避免 ID 冲突。（若仅使用单一提供商或未遇到此类问题，可无视此临时兼容项）
-    - **注意事项**：切换此开关后模型 ID 会变更，需重新在「语言模型」管理页面勾选需要使用的模型。
-
 ## 🚀 快速开始
 
 ### 1. 安装扩展
@@ -69,8 +62,8 @@
 - [**Coding Plan**](https://www.aliyun.com/benefit/scene/codingplan)
     - 推荐模型：**Qwen3.6-Plus**、**Kimi-K2.5**、**GLM-5**、**MiniMax-M2.5**
     - 更多模型：**Qwen3.5-Plus**、**Qwen3-Max**、**Qwen3-Coder-Next**、**Qwen3-Coder-Plus**、**GLM-4.7**
-- [**Token Plan**](https://www.aliyun.com/benefit/scene/tokenplan)：**Qwen3.6-Plus**、**GLM-5**、**MiniMax-M2.5**、**DeepSeek-V3.2**
-- **通义千问系列**：**Qwen3.6-Plus**、**Qwen3.5-Plus**、**Qwen3.5-Flash**、**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
+- [**Token Plan**](https://www.aliyun.com/benefit/scene/tokenplan)：**Qwen3.6-Plus**、**Qwen3.6-Flash**、**GLM-5.1**、**GLM-5**、**Kimi-K2.6**、**Kimi-K2.5**、**MiniMax-M2.5**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**、**DeepSeek-V3.2**
+- **通义千问系列**：**Qwen3.6-Plus**、**Qwen3.6-Flash**、**Qwen3.5-Plus**、**Qwen3.5-Flash**、**Qwen3-Max**、**Qwen3-VL-Plus**、**Qwen3-VL-Flash**、**Qwen-Plus**、**Qwen-Flash**
 - **DeepSeek-V4**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**
 - **搜索功能**：集成 [联网搜索MCP](https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=3023217) 工具（2000次/月），支持通过 `#bailianWebSearch` 进行联网搜索。（使用[阿里云百炼ApiKey](https://bailian.console.aliyun.com/cn-beijing/?tab=model#/api-key)而非编程套餐的ApiKey）
 
@@ -86,7 +79,7 @@
     - 开源模型：**GLM-5.1**、**Kimi-K2.6**、**MiniMax-M2.7**、**MiniMax-M2.5**、**Kimi-K2.5**、**GLM-4.7**、**Deepseek v3.2**
 - [**Agent Plan 套餐**](https://www.volcengine.com/activity/agentplan)：
     - 豆包模型：**Doubao-Seed-2.0**(Code/pro/lite/mini)
-    - 开源模型：**GLM-5.1**、**MiniMax-M2.7**、**Kimi-K2.6**、**DeepSeek-V3.2**
+    - 开源模型：**DeepSeek-V4-Flash-Beta**、**DeepSeek-V4-Pro-Beta**、**GLM-5.1**、**MiniMax-M2.7**、**Kimi-K2.6**、**DeepSeek-V3.2**
 - **豆包系列**：**Doubao-Seed-2.0**(lite/mini/pro/Code)、**Doubao-Seed-1.8**
 - **协作奖励计划**：**GLM-4.7**、**DeepSeek-V3.2**
 - **密钥配置**：支持设置 [Coding Plan API Key](https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey) 与 [Agent Plan 专用 API Key](https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=agentPlan) 分别设置，配置向导引导选择套餐类型。

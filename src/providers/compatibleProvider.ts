@@ -309,9 +309,10 @@ export class CompatibleProvider extends GenericModelProvider {
 
                 // 获取实际提供商的 key 和显示名称
                 const actualProviderKey = modelConfig.provider || this.providerKey;
-                const actualDisplayName = modelConfig.provider
-                    ? this.getProviderDisplayName(modelConfig.provider)
-                    : currentConfig.displayName;
+                const actualDisplayName =
+                    modelConfig.provider ?
+                        this.getProviderDisplayName(modelConfig.provider)
+                    :   currentConfig.displayName;
 
                 requestId = await usagesManager.recordEstimatedTokens({
                     providerKey: actualProviderKey,

@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "为 GitHub Copilot Chat 提供 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云、Xiaomi MiMo、百度千帆 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.22.11",
+    "version": "0.22.12",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -41,13 +41,10 @@
         "url": "https://github.com/VicBilibily/GCMP.git"
     },
     "engines": {
-        "vscode": ">=1.116.0",
+        "vscode": ">=1.120.0",
         "node": ">=20.0.0",
         "npm": ">=9.0.0"
     },
-    "extensionDependencies": [
-        "github.copilot-chat"
-    ],
     "categories": [
         "AI",
         "Chat"
@@ -345,9 +342,10 @@
                 },
                 "gcmp.autoPrefixModelId": {
                     "type": "boolean",
-                    "default": false,
-                    "description": "在模型列表中为模型ID自动添加提供商前缀（例如：zhipu:::glm-5）。启用此选项可缓解 VS Code 模型选择器显示模型不全的问题。",
-                    "scope": "application"
+                    "default": true,
+                    "description": "（已弃用）在模型列表中为模型ID自动添加提供商前缀（例如：gcmp.zhipu:::glm-5）。该选项现已默认启用，配置项将在未来版本移除。",
+                    "scope": "application",
+                    "deprecationMessage": "此配置已弃用，模型ID前缀模式现已默认启用。"
                 },
                 "gcmp.zhipu.search.enableMCP": {
                     "type": "boolean",
@@ -1005,8 +1003,8 @@
         "clean": "rimraf dist",
         "lint": "eslint",
         "lint:fix": "eslint --fix",
-        "format": "prettier --write \"src/**/*.{ts,js,json}\"",
-        "format:check": "prettier --check \"src/**/*.{ts,js,json}\"",
+        "format": "prettier --write \"src/**/*.{ts,json}\"",
+        "format:check": "prettier --check \"src/**/*.{ts,json}\"",
         "watch": "node esbuild.config.js --watch --dev",
         "package": "vsce package",
         "publish": "vsce publish --allow-proposed-apis chatProvider",
@@ -1030,7 +1028,7 @@
         "@stylistic/eslint-plugin": "^5.4.0",
         "@types/json-schema": "^7.0.15",
         "@types/node": "^20.0.0",
-        "@types/vscode": "^1.116.0",
+        "@types/vscode": "^1.120.0",
         "@vscode/vsce": "^3.9.1",
         "esbuild": "^0.25.10",
         "eslint": "^9.13.0",

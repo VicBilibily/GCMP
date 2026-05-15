@@ -83,11 +83,12 @@ export class OpenAICustomHandler {
 
         const baseURL = (modelConfig.baseUrl || 'https://api.openai.com/v1').replace(/\/$/, '');
         const customEndpoint = modelConfig.endpoint;
-        const url = customEndpoint
-            ? customEndpoint.startsWith('http://') || customEndpoint.startsWith('https://')
-                ? customEndpoint
-                : `${baseURL}${customEndpoint.startsWith('/') ? customEndpoint : `/${customEndpoint}`}`
-            : `${baseURL}/chat/completions`;
+        const url =
+            customEndpoint ?
+                customEndpoint.startsWith('http://') || customEndpoint.startsWith('https://') ?
+                    customEndpoint
+                :   `${baseURL}${customEndpoint.startsWith('/') ? customEndpoint : `/${customEndpoint}`}`
+            :   `${baseURL}/chat/completions`;
 
         Logger.info(`[${model.name}] 处理 ${messages.length} 条消息，使用自定义 SSE 处理`);
 

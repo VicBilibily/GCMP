@@ -151,9 +151,9 @@ export class GeminiCliAuth extends BaseCliAuth {
             return undefined;
         })();
         const refreshToken =
-            typeof responseData.refresh_token === 'string' && responseData.refresh_token
-                ? responseData.refresh_token
-                : credentials.refresh_token;
+            typeof responseData.refresh_token === 'string' && responseData.refresh_token ?
+                responseData.refresh_token
+            :   credentials.refresh_token;
         const tokenType = typeof responseData.token_type === 'string' ? responseData.token_type : undefined;
         const scope = typeof responseData.scope === 'string' ? responseData.scope : undefined;
         const idToken = typeof responseData.id_token === 'string' ? responseData.id_token : undefined;
@@ -163,9 +163,10 @@ export class GeminiCliAuth extends BaseCliAuth {
         }
 
         // 正常情况下 Google 总会返回 expires_in；缺失时保留原 expiry_date（避免立即进入刷新循环）
-        const expiryDate = Number.isFinite(expiresIn)
-            ? Date.now() + (expiresIn as number) * 1000
-            : credentials.expiry_date || Date.now() + 55 * 60 * 1000;
+        const expiryDate =
+            Number.isFinite(expiresIn) ?
+                Date.now() + (expiresIn as number) * 1000
+            :   credentials.expiry_date || Date.now() + 55 * 60 * 1000;
 
         const newCredentials: OAuthCredentials = {
             access_token: accessToken,

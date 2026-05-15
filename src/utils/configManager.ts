@@ -86,8 +86,6 @@ export interface GCMPConfig {
     maxTokens: number;
     /** 请求失败重试配置 */
     retry: RequestRetryConfig;
-    /** 自动为模型ID添加提供商前缀 */
-    autoPrefixModelId: boolean;
     /** 智谱AI配置 */
     zhipu: ZhipuConfig;
     /** MiniMax配置 */
@@ -151,7 +149,6 @@ export class ConfigManager {
             retry: {
                 maxAttempts: this.validateRetryMaxAttempts(config.get<number>('retry.maxAttempts', 3))
             },
-            autoPrefixModelId: config.get<boolean>('autoPrefixModelId', false),
             zhipu: {
                 search: {
                     enableMCP: config.get<boolean>('zhipu.search.enableMCP', true) // 默认启用MCP模式（Coding Plan专属）
@@ -228,12 +225,6 @@ export class ConfigManager {
         return this.getRetryConfig().maxAttempts;
     }
 
-    /**
-     * 获取是否为模型ID自动添加提供商前缀的配置
-     */
-    static getAutoPrefixModelId(): boolean {
-        return this.getConfig().autoPrefixModelId;
-    }
     /**
      * 获取智谱AI搜索配置
      */

@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.12] - 2026-05-15
+
+### 新增
+
+- **ChatGPT 用量重置倒计时**：在状态栏 Tooltip 的用量表格中增加倒计时列（如 `4d 13h`、`13m`、`30s`），便于直观感知额度重置时间（[#175](https://github.com/VicBilibily/GCMP/pull/175)）
+- **火山方舟 Agent Plan**：新增 **DeepSeek-V4-Flash-Beta**、**DeepSeek-V4-Pro-Beta** 模型
+- **阿里云百炼**：新增模型 **Qwen3.6-Flash**
+    - **Token Plan**：新增模型 **Qwen3.6-Flash**、**GLM-5.1**、**Kimi-K2.6**、**Kimi-K2.5**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**
+
+### 移除
+
+- **`autoPrefixModelId` 配置项**：模型 ID 前缀模式（`gcmp.${provider}:::${modelId}`）已作为默认行为内置，移除 `gcmp.autoPrefixModelId` 开关及其关联代码
+- **Copilot Chat 扩展依赖声明**：移除 `extensionDependencies` 中的 `github.copilot-chat` 硬依赖，改为激活时尝试拉起 Copilot Chat
+
 ## [0.22.11] - 2026-05-13
 
 ### 修复

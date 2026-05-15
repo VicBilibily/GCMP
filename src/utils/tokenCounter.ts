@@ -431,9 +431,8 @@ export class TokenCounter {
         const baseTokensPerTool = 8;
         for (const tool of tools) {
             numTokens += baseTokensPerTool;
-            const serializedSchema = tool.inputSchema
-                ? sanitizeToolSchemaForSdkMode(tool.inputSchema, modelConfig?.sdkMode)
-                : undefined;
+            const serializedSchema =
+                tool.inputSchema ? sanitizeToolSchemaForSdkMode(tool.inputSchema, modelConfig?.sdkMode) : undefined;
             // 计算工具对象的 token 数（name、description、parameters）
             const toolObj = {
                 name: tool.name,

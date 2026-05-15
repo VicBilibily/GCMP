@@ -297,9 +297,9 @@ export abstract class BaseStatusBarItem<T> {
 
         // 如果距离上次更新不足阈值，则等到满阈值再执行
         const finalDelayMs =
-            timeSinceLastUpdate < this.MIN_DELAYED_UPDATE_INTERVAL
-                ? this.MIN_DELAYED_UPDATE_INTERVAL - timeSinceLastUpdate
-                : delayMs;
+            timeSinceLastUpdate < this.MIN_DELAYED_UPDATE_INTERVAL ?
+                this.MIN_DELAYED_UPDATE_INTERVAL - timeSinceLastUpdate
+            :   delayMs;
 
         StatusLogger.debug(`[${this.config.logPrefix}] 设置延时更新，将在 ${finalDelayMs / 1000} 秒后执行`);
 

@@ -134,9 +134,10 @@ export class CliWizard {
             return;
         }
 
-        const tipInfo = status.hasCredentials
-            ? '在终端对话输入 /auth 后，选择 OAuth 认证重新登陆。'
-            : '首次运行选择 OAuth 认证，然后完成浏览器中的登录流程。';
+        const tipInfo =
+            status.hasCredentials ?
+                '在终端对话输入 /auth 后，选择 OAuth 认证重新登陆。'
+            :   '首次运行选择 OAuth 认证，然后完成浏览器中的登录流程。';
         // 提示用户在终端中运行 CLI 命令
         const result = await vscode.window.showInformationMessage(
             `请在终端中运行以下命令进行登录：\n\n${cliCommand}\n\n${tipInfo}`,

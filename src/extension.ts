@@ -205,6 +205,12 @@ export async function activate(context: vscode.ExtensionContext) {
         ConfigManager
     };
 
+    try {
+        await vscode.extensions.getExtension('github.copilot-chat')?.activate();
+    } catch {
+        Logger.warn('Copilot Chat activation unavailable; model picker refresh may be delayed');
+    }
+
     const activationStartTime = Date.now();
 
     try {

@@ -169,7 +169,7 @@
         },
         {
             "id": "ark-plan-doubao-seed-2.0-code",
-            "name": "Doubao-Seed-2.0-Code (Agent Plan)",
+            "name": "Doubao-Seed-2.0-Code (AgentPlan)",
             "model": "doubao-seed-2.0-code",
             "provider": "volcengine-agent",
             "sdkMode": "anthropic",
@@ -185,7 +185,7 @@
         },
         {
             "id": "ark-plan-doubao-seed-2.0-pro",
-            "name": "Doubao-Seed-2.0-pro (Agent Plan)",
+            "name": "Doubao-Seed-2.0-pro (AgentPlan)",
             "model": "doubao-seed-2.0-pro",
             "provider": "volcengine-agent",
             "sdkMode": "anthropic",
@@ -201,7 +201,7 @@
         },
         {
             "id": "ark-plan-doubao-seed-2.0-lite",
-            "name": "Doubao-Seed-2.0-lite (Agent Plan)",
+            "name": "Doubao-Seed-2.0-lite (AgentPlan)",
             "model": "doubao-seed-2.0-lite",
             "provider": "volcengine-agent",
             "sdkMode": "anthropic",
@@ -217,7 +217,7 @@
         },
         {
             "id": "ark-plan-doubao-seed-2.0-mini",
-            "name": "Doubao-Seed-2.0-mini (Agent Plan)",
+            "name": "Doubao-Seed-2.0-mini (AgentPlan)",
             "model": "doubao-seed-2.0-mini",
             "provider": "volcengine-agent",
             "sdkMode": "anthropic",
@@ -233,7 +233,7 @@
         },
         {
             "id": "ark-plan-glm-5.1",
-            "name": "GLM-5.1 (Agent Plan)",
+            "name": "GLM-5.1 (AgentPlan)",
             "model": "glm-5.1",
             "provider": "volcengine-agent",
             "sdkMode": "anthropic",
@@ -249,7 +249,7 @@
         },
         {
             "id": "ark-plan-minimax-m2.7",
-            "name": "MiniMax-M2.7 (Agent Plan)",
+            "name": "MiniMax-M2.7 (AgentPlan)",
             "model": "minimax-m2.7",
             "provider": "volcengine-agent",
             "sdkMode": "anthropic",
@@ -257,7 +257,6 @@
             "tooltip": "Agent Plan 模型。M2.7 能够自行构建复杂 Agent Harness，并基于 Agent Teams、复杂 Skills、Tool 等能力，完成高度复杂的生产力任务。默认 thinking，支持关闭深度思考。",
             "maxInputTokens": 204800,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": false
@@ -265,7 +264,7 @@
         },
         {
             "id": "ark-plan-kimi-k2.6",
-            "name": "Kimi-K2.6 (Agent Plan)",
+            "name": "Kimi-K2.6 (AgentPlan)",
             "model": "kimi-k2.6",
             "provider": "volcengine-agent",
             "sdkMode": "anthropic",
@@ -280,8 +279,34 @@
             }
         },
         {
+            "id": "ark-plan-deepseek-v4-flash-beta",
+            "name": "DeepSeek-V4-Flash-Beta (AgentPlan)",
+            "model": "deepseek-v4-flash-beta",
+            "provider": "volcengine-agent",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
+            "tooltip": "Agent Plan 模型。DeepSeek-V4-Flash，能够提供更加快捷、经济的 API 服务。相比 DeepSeek-V4-Pro,在世界知识储备方面稍逊一筹,但展现出了接近的推理能力。默认开启深度思考(thinking)，支持手动关闭。",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 384000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "ark-plan-deepseek-v4-pro-beta",
+            "name": "DeepSeek-V4-Pro-Beta (AgentPlan)",
+            "model": "deepseek-v4-pro-beta",
+            "provider": "volcengine-agent",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
+            "tooltip": "Agent Plan 模型。DeepSeek-V4-Pro，Agent 能力显著增强，具备丰富的世界知识，在数学、STEM、竞赛型代码的测评中取得了比肩世界顶级闭源模型的优异成绩。默认开启深度思考(thinking)，支持手动关闭。",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 384000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
             "id": "ark-plan-deepseek-v3.2",
-            "name": "DeepSeek-V3.2 (Agent Plan)",
+            "name": "DeepSeek-V3.2 (AgentPlan)",
             "model": "deepseek-v3.2",
             "provider": "volcengine-agent",
             "sdkMode": "anthropic",
@@ -290,10 +315,7 @@
             "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
             "thinking": ["disabled", "enabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "doubao-seed-2-0-code",

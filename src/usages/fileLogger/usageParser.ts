@@ -73,9 +73,8 @@ export class UsageParser {
 
             // Responses API: actualInput = inputTokens (已包含 cached_tokens)
             // Anthropic API: actualInput = inputTokens + cacheReadTokens + cacheCreationTokens
-            const actualInput = isResponsesApi
-                ? inputTokens
-                : inputTokens + actualCacheReadTokens + actualCacheCreationTokens;
+            const actualInput =
+                isResponsesApi ? inputTokens : inputTokens + actualCacheReadTokens + actualCacheCreationTokens;
 
             return {
                 actualInput,

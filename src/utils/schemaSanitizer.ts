@@ -174,9 +174,9 @@ export function jsonSchemaToGeminiSchema(
     }
 
     const root =
-        rootSchema && typeof rootSchema === 'object'
-            ? (rootSchema as Record<string, unknown>)
-            : (jsonSchema as Record<string, unknown>);
+        rootSchema && typeof rootSchema === 'object' ?
+            (rootSchema as Record<string, unknown>)
+        :   (jsonSchema as Record<string, unknown>);
     const stack = refStack instanceof Set ? refStack : new Set<string>();
 
     const refRaw = (jsonSchema as Record<string, unknown>).$ref;
@@ -341,9 +341,9 @@ export function jsonSchemaToGeminiSchema(
     if (input.items && typeof input.items === 'object') {
         const itemSchema = input.items as Record<string, unknown>;
         output.items =
-            Object.keys(itemSchema).length === 0
-                ? { type: 'OBJECT' }
-                : jsonSchemaToGeminiSchema(itemSchema, root, stack);
+            Object.keys(itemSchema).length === 0 ?
+                { type: 'OBJECT' }
+            :   jsonSchemaToGeminiSchema(itemSchema, root, stack);
     }
 
     if (input.properties && typeof input.properties === 'object' && !Array.isArray(input.properties)) {

@@ -348,9 +348,9 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
             let parallel: KimiParallelInfo | undefined;
             if (parsedResponse.parallel) {
                 const parallelLimit =
-                    typeof parsedResponse.parallel.limit === 'string'
-                        ? parseInt(parsedResponse.parallel.limit, 10)
-                        : parsedResponse.parallel.limit;
+                    typeof parsedResponse.parallel.limit === 'string' ?
+                        parseInt(parsedResponse.parallel.limit, 10)
+                    :   parsedResponse.parallel.limit;
                 parallel = { limit: parallelLimit };
             }
 

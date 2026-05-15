@@ -240,34 +240,12 @@ export class GeneratorService {
      * 选择语言模型
      */
     private static async selectModel(): Promise<vscode.LanguageModelChat> {
-        const resolveConfiguredModel = async (
-            selection: { provider?: string; model?: string } | undefined
-        ): Promise<vscode.LanguageModelChat | null> => {
-            const provider = (selection?.provider ?? '').trim();
-            const modelId = (selection?.model ?? '').trim();
-            if (!provider || !modelId) {
-                return null;
-            }
-
-            try {
-                const candidates = await vscode.lm.selectChatModels({
-                    id: modelId,
-                    vendor: `gcmp.${provider}`
-                });
-                return candidates?.[0] ?? null;
-            } catch {
-                // 查询失败视为模型不可用
-                return null;
-            }
-        };
-
         /**
-         * 独立分支：处理 autoPrefixModelId 和 compatible 提供商的特殊场景。
-         * - autoPrefixModelId 启用时，查询 ID 需要加上 `${provider}:::${modelId}` 前缀
+         * 统一使用 `gcmp.${provider}:::${modelId}` 前缀查询模型。
          * - compatible 提供商：先从 CompatibleModelManager 获取模型列表匹配，再构造查询
-         * 不涉及特殊场景时返回 null，交由原流程处理。
+         * - 其他提供商：检查模型是否有独立的 provider 字段，构造带前缀的查询
          */
-        const resolveConfiguredModelCompat = async (
+        const resolveModel = async (
             selection: { provider?: string; model?: string } | undefined
         ): Promise<vscode.LanguageModelChat | null> => {
             const provider = (selection?.provider ?? '').trim();
@@ -276,20 +254,14 @@ export class GeneratorService {
                 return null;
             }
 
-            const autoPrefix = ConfigManager.getAutoPrefixModelId();
-            const isCompatible = provider === 'compatible';
-            if (!autoPrefix && !isCompatible) {
-                return null;
-            }
-
             try {
-                if (isCompatible) {
+                if (provider === 'compatible') {
                     const models = CompatibleModelManager.getModels();
                     const matched = models.find(m => m.id === modelId);
                     if (!matched) {
                         return null;
                     }
-                    const queryId = autoPrefix ? `${matched.provider || 'compatible'}:::${modelId}` : modelId;
+                    const queryId = `gcmp.${matched.provider || 'compatible'}:::${modelId}`;
                     const candidates = await vscode.lm.selectChatModels({
                         id: queryId,
                         vendor: 'gcmp.compatible'
@@ -297,11 +269,11 @@ export class GeneratorService {
                     return candidates?.[0] ?? null;
                 }
 
-                // autoPrefix 启用但非 compatible：需要检查模型是否有独立的 provider 字段
+                // 非 compatible：检查模型是否有独立的 provider 字段
                 const effectiveConfig = this.getEffectiveProviderConfig(provider);
                 const matchedModel = effectiveConfig?.models.find(m => m.id === modelId);
                 const actualProvider = matchedModel?.provider || provider;
-                const queryId = `${actualProvider}:::${modelId}`;
+                const queryId = `gcmp.${actualProvider}:::${modelId}`;
                 const candidates = await vscode.lm.selectChatModels({
                     id: queryId,
                     vendor: `gcmp.${provider}`
@@ -310,15 +282,6 @@ export class GeneratorService {
             } catch {
                 return null;
             }
-        };
-
-        /**
-         * 综合解析：先尝试 compat 分支，不命中时回退到原流程。
-         */
-        const resolveModel = async (
-            selection: { provider?: string; model?: string } | undefined
-        ): Promise<vscode.LanguageModelChat | null> => {
-            return (await resolveConfiguredModelCompat(selection)) ?? (await resolveConfiguredModel(selection));
         };
 
         // 1) 优先使用已配置且可用的模型

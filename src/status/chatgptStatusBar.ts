@@ -88,7 +88,9 @@ export interface ChatGPTStatusData {
  * 例如: 780 -> "13m", 374400 -> "4d 13h", 30 -> "30s"
  */
 function formatCountdown(seconds: number): string {
-    if (seconds <= 0) return '即将重置';
+    if (seconds <= 0) {
+        return '即将重置';
+    }
 
     const days = Math.floor(seconds / 86400);
     const hours = Math.floor((seconds % 86400) / 3600);
@@ -96,16 +98,10 @@ function formatCountdown(seconds: number): string {
     const secs = Math.floor(seconds % 60);
 
     if (days > 0) {
-        const parts: string[] = [];
-        if (days > 0) parts.push(`${days}d`);
-        if (hours > 0) parts.push(`${hours}h`);
-        return parts.join(' ');
+        return `${days}d${hours > 0 ? ` ${String(hours).padStart(2, '0')}h` : ''}`;
     }
     if (hours > 0) {
-        const parts: string[] = [];
-        if (hours > 0) parts.push(`${hours}h`);
-        if (minutes > 0) parts.push(`${minutes}m`);
-        return parts.join(' ');
+        return `${hours}h${minutes > 0 ? ` ${String(minutes).padStart(2, '0')}m` : ''}`;
     }
     if (minutes > 0) {
         return `${minutes}m`;
@@ -218,36 +214,26 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
         const planTypeDisplay = planTypeMap[data.planType] || data.planType;
 
         md.appendMarkdown(`#### ChatGPT ${planTypeDisplay}\n\n`);
-        md.appendMarkdown('| 限频类型 | 剩余量 | 重置时间 |\n');
-        md.appendMarkdown('| :----: | ----: | :------: |\n');
+        md.appendMarkdown('| 限频类型 | 剩余量 | 倒计时 | 重置时间 |\n');
+        md.appendMarkdown('| :----: | ----: | ----: | :------: |\n');
 
         // 主窗口
         const primaryRemaining = Math.max(0, 100 - primaryWindow.used_percent);
         const primaryResetDate = new Date(primaryWindow.reset_at * 1000);
-        const primaryResetTimeStr = primaryResetDate.toLocaleString('zh-CN', {
-            month: 'numeric',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
+        const primaryResetTimeStr = this.formatDateTime(primaryResetDate);
         const primaryCountdown = formatCountdown(primaryWindow.reset_after_seconds);
         md.appendMarkdown(
-            `| **${primaryType.label}** | **${primaryRemaining.toFixed(0)}%** | ${primaryCountdown} (${primaryResetTimeStr}) |\n`
+            `| **${primaryType.label}** | **${primaryRemaining.toFixed(0)}%** | ${primaryCountdown} | ${primaryResetTimeStr} |\n`
         );
 
         // 备用窗口（如果是有效类型）
         if (secondaryWindow && secondaryType) {
             const secondaryRemaining = Math.max(0, 100 - secondaryWindow.used_percent);
             const secondaryResetDate = new Date(secondaryWindow.reset_at * 1000);
-            const secondaryResetTimeStr = secondaryResetDate.toLocaleString('zh-CN', {
-                month: 'numeric',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
+            const secondaryResetTimeStr = this.formatDateTime(secondaryResetDate);
             const secondaryCountdown = formatCountdown(secondaryWindow.reset_after_seconds);
             md.appendMarkdown(
-                `| **${secondaryType.label}** | **${secondaryRemaining.toFixed(0)}%** | ${secondaryCountdown} (${secondaryResetTimeStr}) |\n`
+                `| **${secondaryType.label}** | **${secondaryRemaining.toFixed(0)}%** | ${secondaryCountdown} | ${secondaryResetTimeStr} |\n`
             );
         }
 
@@ -457,6 +443,17 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
         } catch {
             return false;
         }
+    }
+
+    /**
+     * 格式化日期时间为 MM/DD HH:mm 格式
+     */
+    private formatDateTime(date: Date): string {
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${month}/${day} ${hours}:${minutes}`;
     }
 
     /**

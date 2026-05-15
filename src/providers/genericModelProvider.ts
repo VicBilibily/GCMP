@@ -79,11 +79,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 Logger.trace(`${this.providerKey} 配置已更新`);
                 this._onDidChangeLanguageModelChatInformation.fire();
             }
-            // 检查是否是 autoPrefixModelId 的变更
-            if (e.affectsConfiguration('gcmp.autoPrefixModelId')) {
-                Logger.trace(`[${this.providerKey}] autoPrefixModelId 配置已更新，刷新模型列表`);
-                this._onDidChangeLanguageModelChatInformation.fire();
-            }
         });
 
         // 创建 OpenAI SDK 处理器
@@ -96,6 +91,11 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         this.anthropicHandler = new AnthropicHandler(this);
         // 创建 Gemini HTTP SSE 处理器
         this.geminiHandler = new GeminiHandler(this);
+
+        // 延迟触发模型信息变更事件，确保所有提供商都已注册完成后重新报告一次模型列表
+        setTimeout(() => {
+            this._onDidChangeLanguageModelChatInformation.fire();
+        }, 2000);
     }
 
     /**
@@ -154,10 +154,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     protected modelConfigToInfo(model: ModelConfig): LanguageModelChatInformation {
         // 确定 family：优先使用模型配置的 family 字段，否则根据 sdkMode 自动推断
         const family = this.resolveFamily(model);
-        let modelId = model.id;
-        if (ConfigManager.getAutoPrefixModelId()) {
-            modelId = `${model.provider || this.providerKey}:::${modelId}`;
-        }
+        const modelId = `gcmp.${model.provider || this.providerKey}:::${model.id}`;
 
         // 动态构建 configurationSchema
         type PropertySchema = JSONSchema7 & NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string];
@@ -259,15 +256,15 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
     /**
      * 根据 LanguageModelChatInformation 查找对应的 ModelConfig
-     * 适配 autoPrefixModelId 模式：支持带前缀的模型ID解析（如 zhipu:::glm-4.6）
+     * 支持带前缀的模型ID解析（如 gcmp.zhipu:::glm-4.6）
      * @param model 从VS Code模型选择器获取的模型信息（model.id 可能带前缀）
      * @returns 找到的ModelConfig，若未找到则返回undefined
      */
     protected findModelConfigById(model: LanguageModelChatInformation): ModelConfig | undefined {
-        // 前缀格式：${provider}:::${modelId}
-        // 使用三个冒号作为分隔符，避免与用户输入的模型ID冲突
+        // 前缀格式：gcmp.${provider}:::${modelId}
         const prefixSeparator = ':::';
-        const prefixRegex = /^([a-zA-Z0-9_-]+):::(.+)$/;
+        // 直接捕获不带 gcmp. 前缀的 provider key
+        const prefixRegex = /^gcmp\.([a-zA-Z0-9_-]+):::(.+)$/;
 
         if (!model.id.includes(prefixSeparator)) {
             return this.providerConfig.models.find(m => m.id === model.id);

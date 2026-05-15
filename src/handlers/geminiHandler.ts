@@ -837,9 +837,9 @@ export class GeminiHandler {
                 // 使用 UUID 生成唯一 ID，避免并行调用时重复
                 const callId = crypto.randomUUID();
                 const args =
-                    part.functionCall.args && typeof part.functionCall.args === 'object'
-                        ? (part.functionCall.args as Record<string, unknown>)
-                        : {};
+                    part.functionCall.args && typeof part.functionCall.args === 'object' ?
+                        (part.functionCall.args as Record<string, unknown>)
+                    :   {};
                 // Gemini 直接输出 ToolCallPart，不需要累积
                 reporter.reportToolCall(callId, part.functionCall.name, args);
                 continue;
