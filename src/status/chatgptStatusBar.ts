@@ -84,6 +84,36 @@ export interface ChatGPTStatusData {
 }
 
 /**
+ * 格式化剩余时间为可读字符串
+ * 例如: 780 -> "13m", 374400 -> "4d 13h", 30 -> "30s"
+ */
+function formatCountdown(seconds: number): string {
+    if (seconds <= 0) return '即将重置';
+
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+
+    if (days > 0) {
+        const parts: string[] = [];
+        if (days > 0) parts.push(`${days}d`);
+        if (hours > 0) parts.push(`${hours}h`);
+        return parts.join(' ');
+    }
+    if (hours > 0) {
+        const parts: string[] = [];
+        if (hours > 0) parts.push(`${hours}h`);
+        if (minutes > 0) parts.push(`${minutes}m`);
+        return parts.join(' ');
+    }
+    if (minutes > 0) {
+        return `${minutes}m`;
+    }
+    return `${secs}s`;
+}
+
+/**
  * 根据 limit_window_seconds 判断窗口类型
  * 只处理 300分钟(5小时) 和 1周 两种情况
  */
@@ -200,8 +230,9 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
             hour: '2-digit',
             minute: '2-digit'
         });
+        const primaryCountdown = formatCountdown(primaryWindow.reset_after_seconds);
         md.appendMarkdown(
-            `| **${primaryType.label}** | **${primaryRemaining.toFixed(0)}%** | ${primaryResetTimeStr} |\n`
+            `| **${primaryType.label}** | **${primaryRemaining.toFixed(0)}%** | ${primaryCountdown} (${primaryResetTimeStr}) |\n`
         );
 
         // 备用窗口（如果是有效类型）
@@ -214,8 +245,9 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
                 hour: '2-digit',
                 minute: '2-digit'
             });
+            const secondaryCountdown = formatCountdown(secondaryWindow.reset_after_seconds);
             md.appendMarkdown(
-                `| **${secondaryType.label}** | **${secondaryRemaining.toFixed(0)}%** | ${secondaryResetTimeStr} |\n`
+                `| **${secondaryType.label}** | **${secondaryRemaining.toFixed(0)}%** | ${secondaryCountdown} (${secondaryResetTimeStr}) |\n`
             );
         }
 
