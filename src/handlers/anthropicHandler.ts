@@ -307,6 +307,7 @@ export class AnthropicHandler {
 
             // 使用完整的流处理函数
             const result = await this.handleAnthropicStream(stream, reporter, token);
+            reporter.reportUsage(result?.usage);
 
             Logger.info(`[${model.name}] Anthropic 请求完成`, result?.usage);
 

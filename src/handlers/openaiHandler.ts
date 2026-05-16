@@ -712,6 +712,8 @@ export class OpenAIHandler {
                     throw streamError;
                 }
 
+                reporter.reportUsage(finalUsage);
+
                 // 计算并记录输出速度
                 const usageData = finalUsage as OpenAI.Completions.CompletionUsage | undefined;
                 if (usageData && streamStartTime && streamEndTime) {

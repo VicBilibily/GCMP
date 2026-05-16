@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
+import { buildCopilotUsageData } from '../utils/copilotUsage';
 import { Logger } from '../utils';
 import { encodeStatefulMarker, StatefulMarkerContainer } from './statefulMarker';
 import { toOptionalStatefulMarkerField } from './statefulMarkerCodec';
@@ -14,6 +15,7 @@ import { CustomDataPartMimeTypes } from './types';
 const THINKING_BUFFER_LENGTH = 20;
 /** 文本内容缓冲阈值（字符数） */
 const TEXT_BUFFER_LENGTH = 20;
+const USAGE_DATA_ENCODER = new TextEncoder();
 
 /**
  * 工具调用缓存结构
@@ -165,6 +167,23 @@ export class StreamReporter {
         const parts = typeof content === 'string' ? [new vscode.LanguageModelTextPart(content)] : content;
         this.progress.report(new vscode.LanguageModelToolResultPart(callId, parts));
         this.hasReceivedContent = true;
+    }
+
+    /**
+     * 上报 Copilot 可识别的 usage DataPart，用于更新上下文窗口 token 统计。
+     */
+    reportUsage(rawUsage: unknown): void {
+        const usageData = buildCopilotUsageData(rawUsage);
+        if (!usageData) {
+            return;
+        }
+
+        this.progress.report(
+            new vscode.LanguageModelDataPart(
+                USAGE_DATA_ENCODER.encode(JSON.stringify(usageData)),
+                CustomDataPartMimeTypes.Usage
+            )
+        );
     }
 
     /**

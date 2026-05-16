@@ -766,6 +766,7 @@ export class GeminiHandler {
             sessionId: reporter.getSessionId(),
             responseId: reporter.getResponseId() as string
         });
+        reporter.reportUsage(finalUsage);
 
         // Token 统计: 更新实际 token
         if (finalUsage) {

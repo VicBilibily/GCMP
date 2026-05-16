@@ -308,6 +308,7 @@ export class OpenAICustomHandler {
 
         // 流结束，输出所有剩余内容
         reporter.flushAll(null);
+        reporter.reportUsage(finalUsage);
 
         Logger.trace(`[${model.name}] SSE 流处理统计: ${chunkCount} 个 chunk, hasContent=${reporter.hasContent}`);
         Logger.debug(`[${model.name}] 流处理完成`);

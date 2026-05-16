@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.14] - 2026-05-16
+
+### 新增
+
+- **Copilot 上下文窗口用量反馈**：在流式响应结束时向 Copilot 上下文窗口发送 usage DataPart（MIME type: `usage`），使 Copilot 能获取实际 prompt_tokens、completion_tokens 及缓存命中等信息
+
+---
+
+### Added
+
+- **Copilot context window usage reporting**: Send usage DataPart (MIME type: `usage`) to the Copilot context window at the end of each streaming response, enabling Copilot to access actual prompt_tokens, completion_tokens, and cache hit details
+
 ## [0.22.13] - 2026-05-15
 
 ### 新增

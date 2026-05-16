@@ -981,6 +981,8 @@ export class OpenAIResponsesHandler {
                     throw streamError;
                 }
 
+                reporter.reportUsage(finalUsage);
+
                 // 报告 usage 信息
                 Logger.info(`📊 ${model.name} Responses API 请求完成`, finalUsage);
 
