@@ -74,7 +74,7 @@ export class ModelInfoCache {
             // 开发模式下始终返回 null，强制重新获取模型列表
             const isDevelopment = this.context.extensionMode === vscode.ExtensionMode.Development;
             if (isDevelopment) {
-                Logger.trace(`[ModelInfoCache] ${providerKey}: 开发模式下跳过缓存`);
+                Logger.trace(`[ModelInfoCache] ${providerKey}: skipping cache in development mode`);
                 return null;
             }
 
@@ -82,7 +82,7 @@ export class ModelInfoCache {
             const cached = this.context.globalState.get<CachedModelInfo>(cacheKey);
 
             if (!cached) {
-                Logger.trace(`[ModelInfoCache] ${providerKey}: 无缓存`);
+                Logger.trace(`[ModelInfoCache] ${providerKey}: no cache`);
                 return null;
             }
 
@@ -90,15 +90,15 @@ export class ModelInfoCache {
             const currentVersion = vscode.extensions.getExtension('vicanent.gcmp')?.packageJSON.version || '';
             if (cached.extensionVersion !== currentVersion) {
                 Logger.trace(
-                    `[ModelInfoCache] ${providerKey}: 版本不匹配 ` +
-                        `(缓存: ${cached.extensionVersion}, 当前: ${currentVersion})`
+                    `[ModelInfoCache] ${providerKey}: version mismatch ` +
+                        `(cached: ${cached.extensionVersion}, current: ${currentVersion})`
                 );
                 return null;
             }
 
             // 检查 2: API 密钥匹配
             if (cached.apiKeyHash !== apiKeyHash) {
-                Logger.trace(`[ModelInfoCache] ${providerKey}: API 密钥已变更`);
+                Logger.trace(`[ModelInfoCache] ${providerKey}: API key changed`);
                 return null;
             }
 
@@ -107,19 +107,19 @@ export class ModelInfoCache {
             const ageMs = now - cached.timestamp;
             if (ageMs > this.cacheExpiryMs) {
                 const ageHours = (ageMs / (60 * 60 * 1000)).toFixed(1);
-                Logger.trace(`[ModelInfoCache] ${providerKey}: 缓存已过期 ` + `(${ageHours}小时前)`);
+                Logger.trace(`[ModelInfoCache] ${providerKey}: cache expired ` + `(${ageHours}h ago)`);
                 return null;
             }
 
             Logger.trace(
-                `[ModelInfoCache] ${providerKey}: 缓存命中 ` +
-                    `(${cached.models.length} 个模型, 存活 ${(ageMs / 1000).toFixed(1)}s)`
+                `[ModelInfoCache] ${providerKey}: cache hit ` +
+                    `(${cached.models.length} models, age ${(ageMs / 1000).toFixed(1)}s)`
             );
             return cached.models;
         } catch (err) {
             // 缓存读取错误不应该影响扩展运行
             Logger.warn(
-                `[ModelInfoCache] 读取 ${providerKey} 缓存失败:`,
+                `[ModelInfoCache] Failed to read cache for ${providerKey}:`,
                 err instanceof Error ? err.message : String(err)
             );
             return null;
@@ -149,10 +149,13 @@ export class ModelInfoCache {
             const cacheKey = this.getCacheKey(providerKey);
             await this.context.globalState.update(cacheKey, cacheData);
 
-            Logger.trace(`[ModelInfoCache] ${providerKey}: 缓存已保存 ` + `(${models.length} 个模型)`);
+            Logger.trace(`[ModelInfoCache] ${providerKey}: cache saved ` + `(${models.length} models)`);
         } catch (err) {
             // 缓存失败不应该阻塞扩展
-            Logger.warn(`[ModelInfoCache] 缓存 ${providerKey} 失败:`, err instanceof Error ? err.message : String(err));
+            Logger.warn(
+                `[ModelInfoCache] Failed to save cache for ${providerKey}:`,
+                err instanceof Error ? err.message : String(err)
+            );
         }
     }
 
@@ -170,10 +173,10 @@ export class ModelInfoCache {
         try {
             const cacheKey = this.getCacheKey(providerKey);
             await this.context.globalState.update(cacheKey, undefined);
-            Logger.trace(`[ModelInfoCache] ${providerKey}: 缓存已清除`);
+            Logger.trace(`[ModelInfoCache] ${providerKey}: cache cleared`);
         } catch (err) {
             Logger.warn(
-                `[ModelInfoCache] 清除 ${providerKey} 缓存失败:`,
+                `[ModelInfoCache] Failed to clear cache for ${providerKey}:`,
                 err instanceof Error ? err.message : String(err)
             );
         }
@@ -196,13 +199,13 @@ export class ModelInfoCache {
             } catch (err) {
                 // 继续清除其他缓存，不中断流程
                 Logger.warn(
-                    `[ModelInfoCache] 清除 ${key} 缓存时出错:`,
+                    `[ModelInfoCache] Error clearing cache for ${key}:`,
                     err instanceof Error ? err.message : String(err)
                 );
             }
         }
 
-        Logger.info(`[ModelInfoCache] 已清除全部缓存 (${clearedCount}/${allProviderKeys.length})`);
+        Logger.info(`[ModelInfoCache] Cleared all caches (${clearedCount}/${allProviderKeys.length})`);
     }
 
     /**
@@ -251,9 +254,12 @@ export class ModelInfoCache {
                 timestamp: Date.now()
             };
             await this.context.globalState.update(ModelInfoCache.SELECTED_MODEL_KEY, selection);
-            Logger.trace(`[ModelInfoCache] 已保存默认模型选择 (${providerKey}: ${modelId})`);
+            Logger.trace(`[ModelInfoCache] Saved default model selection (${providerKey}: ${modelId})`);
         } catch (err) {
-            Logger.warn('[ModelInfoCache] 保存模型选择失败:', err instanceof Error ? err.message : String(err));
+            Logger.warn(
+                '[ModelInfoCache] Failed to save model selection:',
+                err instanceof Error ? err.message : String(err)
+            );
         }
     }
 
@@ -268,18 +274,21 @@ export class ModelInfoCache {
         try {
             const saved = this.context.globalState.get<SavedModelSelection>(ModelInfoCache.SELECTED_MODEL_KEY);
             if (saved && saved.providerKey === providerKey) {
-                Logger.trace(`[ModelInfoCache] ${providerKey}: 读取到默认模型 (${saved.modelId})`);
+                Logger.trace(`[ModelInfoCache] ${providerKey}: loaded default model (${saved.modelId})`);
                 return saved.modelId;
             }
             if (saved) {
                 Logger.trace(
-                    `[ModelInfoCache] ${providerKey}: 跳过其他提供商的默认选择 (` +
-                        `已保存: ${saved.providerKey}/${saved.modelId})`
+                    `[ModelInfoCache] ${providerKey}: skipping default selection from another provider (` +
+                        `saved: ${saved.providerKey}/${saved.modelId})`
                 );
             }
             return null;
         } catch (err) {
-            Logger.warn('[ModelInfoCache] 读取模型选择失败:', err instanceof Error ? err.message : String(err));
+            Logger.warn(
+                '[ModelInfoCache] Failed to read model selection:',
+                err instanceof Error ? err.message : String(err)
+            );
             return null;
         }
     }

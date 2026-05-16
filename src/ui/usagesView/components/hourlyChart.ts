@@ -5,7 +5,7 @@
 
 import type { HourlyStats } from '../types';
 import { createElement } from '../../utils';
-import { getProviderDisplayName } from '../utils';
+import { getProviderDisplayName, t } from '../utils';
 import { Chart } from 'chart.js/auto';
 
 // 保存图表实例引用，避免重复创建导致闪烁
@@ -39,12 +39,12 @@ export function createHourlyChart(
     const section = createElement('section', 'hourly-chart-section');
 
     const h2 = createElement('h2');
-    h2.textContent = '📊 提供商性能指标趋势';
+    h2.textContent = `📊 ${t('Provider Performance Trends', '提供商性能指标趋势')}`;
     section.appendChild(h2);
 
     if (!hourlyStats || Object.keys(hourlyStats).length === 0) {
         const empty = createElement('div', 'empty-message');
-        empty.textContent = '暂无小时统计数据';
+        empty.textContent = t('No hourly statistics available', '暂无小时统计数据');
         section.appendChild(empty);
         return section;
     }
@@ -61,7 +61,7 @@ export function createHourlyChart(
 
     if (validHoursCount < 1) {
         const empty = createElement('div', 'empty-message');
-        empty.textContent = '暂无有效速度数据';
+        empty.textContent = t('No valid performance data available', '暂无有效速度数据');
         section.appendChild(empty);
         return section;
     }
@@ -69,9 +69,9 @@ export function createHourlyChart(
     // 创建切换按钮
     const toggleContainer = createElement('div', 'chart-toggle-container');
     const speedButton = createElement('button', 'chart-toggle-button active');
-    speedButton.textContent = '⚡ 速度';
+    speedButton.textContent = `⚡ ${t('Speed', '速度')}`;
     const latencyButton = createElement('button', 'chart-toggle-button');
-    latencyButton.textContent = '⏱️ 延迟';
+    latencyButton.textContent = `⏱️ ${t('Latency', '延迟')}`;
     toggleContainer.appendChild(speedButton);
     toggleContainer.appendChild(latencyButton);
     section.appendChild(toggleContainer);
@@ -82,7 +82,7 @@ export function createHourlyChart(
     // 1. 输出速度图表
     const speedSection = createElement('div', 'chart-item chart-visible');
     const speedTitle = createElement('h3');
-    speedTitle.textContent = '⚡ 平均输出速度 (tokens/秒)';
+    speedTitle.textContent = `⚡ ${t('Average Output Speed (tokens/s)', '平均输出速度 (tokens/秒)')}`;
     speedSection.appendChild(speedTitle);
     const speedContainer = createElement('div', 'chart-container');
     const speedCanvas = createElement('canvas', 'speed-chart') as HTMLCanvasElement;
@@ -94,7 +94,7 @@ export function createHourlyChart(
     // 2. 延迟图表
     const latencySection = createElement('div', 'chart-item chart-hidden');
     const latencyTitle = createElement('h3');
-    latencyTitle.textContent = '⏱️ 首 Token 平均延迟 (毫秒)';
+    latencyTitle.textContent = `⏱️ ${t('Average First Token Latency (ms)', '首 Token 平均延迟 (毫秒)')}`;
     latencySection.appendChild(latencyTitle);
     const latencyContainer = createElement('div', 'chart-container');
     const latencyCanvas = createElement('canvas', 'latency-chart') as HTMLCanvasElement;
@@ -188,7 +188,13 @@ function initSpeedChart(canvas: HTMLCanvasElement, hourlyStats: Record<string, H
             speedChartInstance.destroy();
             speedChartInstance = null;
         }
-        speedChartInstance = createSingleChart(canvas, hours, datasets, '输出速度 (tokens/秒)', 'tokens/秒');
+        speedChartInstance = createSingleChart(
+            canvas,
+            hours,
+            datasets,
+            t('Output Speed (tokens/s)', '输出速度 (tokens/秒)'),
+            'tokens/s'
+        );
     }
 }
 
@@ -236,7 +242,13 @@ function initLatencyChart(canvas: HTMLCanvasElement, hourlyStats: Record<string,
             latencyChartInstance.destroy();
             latencyChartInstance = null;
         }
-        latencyChartInstance = createSingleChart(canvas, hours, datasets, '首 Token 延迟 (毫秒)', '毫秒');
+        latencyChartInstance = createSingleChart(
+            canvas,
+            hours,
+            datasets,
+            t('First Token Latency (ms)', '首 Token 延迟 (毫秒)'),
+            'ms'
+        );
     }
 }
 
@@ -375,7 +387,7 @@ function createSingleChart(
     const labels = hours.map(h => `${String(h).padStart(2, '0')}:00`);
 
     // 根据图表类型设置不同的点样式
-    const isSpeedChart = unit === 'tokens/秒';
+    const isSpeedChart = unit === 'tokens/s';
     const pointStyle = isSpeedChart ? 'circle' : 'rectRot';
 
     const chart = new Chart(canvas, {
@@ -444,7 +456,7 @@ function createSingleChart(
                     display: true,
                     title: {
                         display: true,
-                        text: '时间',
+                        text: t('Time', '时间'),
                         font: {
                             size: 11,
                             weight: 'bold'
@@ -492,7 +504,7 @@ function createSingleChart(
  * 格式化数值显示
  */
 function formatValue(value: number, unit: string): string {
-    if (unit === 'Tokens') {
+    if (unit === 'tokens') {
         if (value >= 1e6) {
             return `${(value / 1e6).toFixed(1)}M`;
         }
@@ -502,14 +514,14 @@ function formatValue(value: number, unit: string): string {
         return String(value);
     }
 
-    if (unit === '毫秒') {
+    if (unit === 'ms') {
         if (value >= 1000) {
             return `${(value / 1000).toFixed(1)}s`;
         }
         return `${Math.round(value)}ms`;
     }
 
-    // tokens/秒
+    // tokens/s
     if (value >= 1000) {
         return `${(value / 1000).toFixed(1)}k`;
     }

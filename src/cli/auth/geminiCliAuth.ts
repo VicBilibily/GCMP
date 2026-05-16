@@ -73,9 +73,9 @@ export class GeminiCliAuth extends BaseCliAuth {
         if (isExpired && credentials.refresh_token) {
             try {
                 credentials = await this.refreshAccessToken(credentials);
-                Logger.info(`[${this.config.name}] 令牌已刷新`);
+                Logger.info(`[${this.config.name}] Token refreshed`);
             } catch (error) {
-                Logger.error(`[${this.config.name}] 令牌刷新失败:`, error);
+                Logger.error(`[${this.config.name}] Failed to refresh token:`, error);
                 return null;
             }
         }
@@ -88,7 +88,7 @@ export class GeminiCliAuth extends BaseCliAuth {
      */
     protected async refreshAccessToken(credentials: OAuthCredentials): Promise<OAuthCredentials> {
         if (!credentials.refresh_token) {
-            throw new Error('Gemini CLI OAuth 凭证缺少 refresh_token，无法刷新令牌');
+            throw new Error('Gemini CLI OAuth credentials are missing refresh_token and cannot refresh the token');
         }
 
         // 允许凭证文件中的 client_id/client_secret 覆盖内置配置
@@ -135,7 +135,7 @@ export class GeminiCliAuth extends BaseCliAuth {
                 (typeof responseData.error === 'string' && responseData.error) ||
                 rawText ||
                 'unknown error';
-            throw new Error(`Gemini CLI 令牌刷新失败 (${tokenRes.status}): ${errorMsg}`);
+            throw new Error(`Gemini CLI token refresh failed (${tokenRes.status}): ${errorMsg}`);
         }
 
         const accessToken = typeof responseData.access_token === 'string' ? responseData.access_token : '';
@@ -159,7 +159,7 @@ export class GeminiCliAuth extends BaseCliAuth {
         const idToken = typeof responseData.id_token === 'string' ? responseData.id_token : undefined;
 
         if (!accessToken) {
-            throw new Error('Gemini CLI OAuth 刷新响应缺少 access_token');
+            throw new Error('Gemini CLI OAuth refresh response is missing access_token');
         }
 
         // 正常情况下 Google 总会返回 expires_in；缺失时保留原 expiry_date（避免立即进入刷新循环）
@@ -182,7 +182,7 @@ export class GeminiCliAuth extends BaseCliAuth {
             ...(idToken ? { id_token: idToken } : {})
         } as unknown as Partial<OAuthCredentials>);
 
-        Logger.info('[Gemini CLI] 令牌刷新成功');
+        Logger.info('[Gemini CLI] Token refresh succeeded');
         return newCredentials;
     }
 }

@@ -35,7 +35,9 @@ export class TokenUsagesManager {
      */
     async initialize(context: vscode.ExtensionContext): Promise<void> {
         if (this.initialized) {
-            StatusLogger.trace('[UsagesManager] Token用量管理器已初始化，跳过重复初始化');
+            StatusLogger.trace(
+                '[UsagesManager] Token usage manager already initialized, skipping duplicate initialization'
+            );
             return;
         }
 
@@ -48,7 +50,7 @@ export class TokenUsagesManager {
         this.initialized = true;
 
         const elapsed = Date.now() - startTime;
-        StatusLogger.debug(`[UsagesManager] Token用量管理器初始化完成 (耗时: ${elapsed}ms)`);
+        StatusLogger.debug(`[UsagesManager] Token usage manager initialization completed (elapsed: ${elapsed}ms)`);
 
         // 异步后台清理过期数据（不阻塞初始化）
         this.scheduleBackgroundCleanup();
@@ -64,18 +66,22 @@ export class TokenUsagesManager {
                 const config = vscode.workspace.getConfiguration('gcmp.usages');
                 const retentionDays = config.get<number>('retentionDays', 100);
                 if (retentionDays > 0) {
-                    StatusLogger.trace(`[UsagesManager] 开始后台清理过期数据 (保留 ${retentionDays} 天)`);
+                    StatusLogger.trace(
+                        `[UsagesManager] Starting background cleanup for expired data (retaining ${retentionDays} days)`
+                    );
                     const deletedCount = await this.fileLogger.cleanupExpiredLogs(retentionDays);
                     if (deletedCount > 0) {
-                        StatusLogger.debug(`[UsagesManager] 后台清理完成: 删除了 ${deletedCount} 个过期日期的数据`);
+                        StatusLogger.debug(
+                            `[UsagesManager] Background cleanup completed: deleted data for ${deletedCount} expired dates`
+                        );
                     } else {
-                        StatusLogger.trace('[UsagesManager] 后台清理完成: 无需清理的数据');
+                        StatusLogger.trace('[UsagesManager] Background cleanup completed: no expired data to remove');
                     }
                 } else {
-                    StatusLogger.trace('[UsagesManager] 数据保留设置为永久保留，跳过清理');
+                    StatusLogger.trace('[UsagesManager] Data retention is set to keep forever, skipping cleanup');
                 }
             } catch (error) {
-                StatusLogger.warn(`[UsagesManager] 后台清理过期数据失败: ${error}`);
+                StatusLogger.warn(`[UsagesManager] Background cleanup for expired data failed: ${error}`);
             }
         });
     }
@@ -85,7 +91,7 @@ export class TokenUsagesManager {
      */
     getStorageDir(): string {
         if (!this.initialized) {
-            throw new Error('TokenUsagesManager 尚未初始化，请先调用 initialize() 方法');
+            throw new Error('TokenUsagesManager is not initialized. Call initialize() first.');
         }
         return this.fileLogger.getStorageDir();
     }
@@ -104,7 +110,7 @@ export class TokenUsagesManager {
         timestamp?: number; // 可选: 自定义时间戳(用于测试数据生成)
     }): Promise<string> {
         if (!this.initialized) {
-            throw new Error('TokenUsagesManager 尚未初始化，请先调用 initialize() 方法');
+            throw new Error('TokenUsagesManager is not initialized. Call initialize() first.');
         }
 
         const requestId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -129,12 +135,12 @@ export class TokenUsagesManager {
                 });
 
             StatusLogger.debug(
-                `[Usages] 记录预估 token: ${params.providerKey}/${params.modelName}, ${params.estimatedInputTokens} tokens, requestId=${requestId}`
+                `[Usages] Recorded estimated tokens: ${params.providerKey}/${params.modelName}, ${params.estimatedInputTokens} tokens, requestId=${requestId}`
             );
 
             return requestId;
         } catch (err) {
-            StatusLogger.warn('[Usages] 记录预估 token 失败:', err);
+            StatusLogger.warn('[Usages] Failed to record estimated tokens:', err);
             throw err;
         }
     }
@@ -152,7 +158,7 @@ export class TokenUsagesManager {
         streamEndTime?: number;
     }): Promise<void> {
         if (!this.initialized) {
-            StatusLogger.warn('TokenUsagesManager 尚未初始化，跳过 token 统计更新');
+            StatusLogger.warn('TokenUsagesManager is not initialized, skipping token usage update');
             return;
         }
 
@@ -186,11 +192,11 @@ export class TokenUsagesManager {
 
             StatusLogger.debug(
                 `[Usages] 更新实际 token: requestId=${params.requestId}, ` +
-                    `rawUsage=${params.rawUsage ? '已记录' : '未记录'}, ` +
+                    `rawUsage=${params.rawUsage ? 'recorded' : 'not recorded'}, ` +
                     `status=${params.status}${durationInfo}`
             );
         } catch (err) {
-            StatusLogger.warn('[Usages] 更新实际 token 失败:', err);
+            StatusLogger.warn('[Usages] Failed to update actual tokens:', err);
             // 即使更新失败也要通知，让状态栏反应错误状态
             this.notifyUpdate();
         }

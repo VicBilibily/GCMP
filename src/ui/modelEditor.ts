@@ -12,6 +12,7 @@ import { VersionManager } from '../utils/versionManager';
 import modelEditorCss from './modelEditor.css?raw';
 import modelEditorJs from './modelEditor.js?raw';
 import OpenAI from 'openai';
+import { t } from '../utils/l10n';
 
 interface EditedModelConfig extends CompatibleModelConfig {
     /** API密钥（可选，如果提供，将会自动设置API key） */
@@ -40,9 +41,12 @@ export class ModelEditor {
         model: CompatibleModelConfig,
         isCreateMode: boolean = false
     ): Promise<EditedModelConfig | DeleteModelMarker | undefined> {
+        const modelDisplayName = model.name || t('Untitled Model', '未命名模型');
         const panel = vscode.window.createWebviewPanel(
             'compatibleModelEditor',
-            isCreateMode ? '创建新模型' : `编辑模型: ${model.name || '未命名模型'}`,
+            isCreateMode ?
+                t('Create New Model', '创建新模型')
+            :   t('Edit Model: {0}', '编辑模型: {0}', modelDisplayName),
             vscode.ViewColumn.One,
             {
                 enableScripts: true,
@@ -84,7 +88,9 @@ export class ModelEditor {
                                 ) {
                                     resolve(message.model);
                                 } else {
-                                    vscode.window.showErrorMessage('保存的模型数据无效');
+                                    vscode.window.showErrorMessage(
+                                        t('The saved model data is invalid.', '保存的模型数据无效')
+                                    );
                                     resolve(undefined);
                                 }
                                 panel.dispose();
@@ -92,20 +98,23 @@ export class ModelEditor {
                             case 'delete':
                                 // 处理删除操作 - 显示确认对话框
                                 if (message.modelId && typeof message.modelId === 'string') {
-                                    const modelName = message.modelName || '该模型';
+                                    const modelName = message.modelName || t('this model', '该模型');
+                                    const deleteAction = t('Delete', '删除');
                                     const confirmed = await vscode.window.showWarningMessage(
-                                        `确定要删除模型"${modelName}"吗？`,
+                                        t('Delete model "{0}"?', '确定要删除模型"{0}"吗？', modelName),
                                         { modal: true },
-                                        '删除'
+                                        deleteAction
                                     );
-                                    if (confirmed === '删除') {
+                                    if (confirmed === deleteAction) {
                                         // 返回特殊的删除标记对象
                                         resolve({ _deleteModel: true, modelId: message.modelId });
                                         panel.dispose();
                                     }
                                     // 如果用户取消，不关闭面板，继续编辑
                                 } else {
-                                    vscode.window.showErrorMessage('删除失败:模型ID无效');
+                                    vscode.window.showErrorMessage(
+                                        t('Delete failed: invalid model ID.', '删除失败:模型ID无效')
+                                    );
                                 }
                                 break;
                             case 'cancel':
@@ -136,6 +145,7 @@ export class ModelEditor {
      */
     private static generateHTML(model: CompatibleModelConfig, isCreateMode: boolean, webview: vscode.Webview): string {
         const cspSource = webview.cspSource || '';
+        const htmlLang = vscode.env.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en';
 
         // 准备模型数据
         const modelData = {
@@ -157,10 +167,17 @@ export class ModelEditor {
             extraBody: model?.extraBody ? JSON.stringify(model.extraBody, null, 2) : ''
         };
 
-        const pageTitle = isCreateMode ? '创建新模型' : `编辑模型: ${this.escapeHtml(modelData.name)}`;
+        const pageTitle =
+            isCreateMode ?
+                t('Create New Model', '创建新模型')
+            :   t(
+                    'Edit Model: {0}',
+                    '编辑模型: {0}',
+                    this.escapeHtml(modelData.name || t('Untitled Model', '未命名模型'))
+                );
 
         return `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="${htmlLang}">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -249,7 +266,7 @@ export class ModelEditor {
             if (!baseUrl || !baseUrl.trim()) {
                 webview.postMessage({
                     command: 'modelsError',
-                    error: '请先输入 BASE URL'
+                    error: t('Enter BASE URL first.', '请先输入 BASE URL')
                 });
                 return;
             }
@@ -336,10 +353,10 @@ export class ModelEditor {
                 models: models
             });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : '未知错误';
+            const errorMessage = error instanceof Error ? error.message : t('Unknown error', '未知错误');
             webview.postMessage({
                 command: 'modelsError',
-                error: `获取模型列表失败: ${errorMessage}`
+                error: t('Failed to fetch model list: {0}', '获取模型列表失败: {0}', errorMessage)
             });
         }
     }

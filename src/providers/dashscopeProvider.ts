@@ -28,7 +28,7 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         providerKey: string,
         providerConfig: ProviderConfig
     ): { provider: DashscopeProvider; disposables: vscode.Disposable[] } {
-        Logger.trace(`${providerConfig.displayName} 专用模型扩展已激活!`);
+        Logger.trace(`${providerConfig.displayName} dedicated model extension activated`);
 
         const provider = new DashscopeProvider(context, providerKey, providerConfig);
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
@@ -61,7 +61,7 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         );
 
         const configWizardCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.configWizard`, async () => {
-            Logger.info(`启动 ${providerConfig.displayName} 配置向导`);
+            Logger.info(`Starting ${providerConfig.displayName} setup wizard`);
             await DashscopeWizard.startWizard(
                 providerConfig.displayName,
                 providerConfig.apiKeyTemplate,
@@ -92,9 +92,9 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         const isCodingPlan = providerKey === 'dashscope-coding';
         const isTokenPlan = providerKey === 'dashscope-token';
         const keyType =
-            isCodingPlan ? 'Coding Plan 专用'
-            : isTokenPlan ? 'Token Plan 专用'
-            : '普通';
+            isCodingPlan ? 'Coding Plan dedicated'
+            : isTokenPlan ? 'Token Plan dedicated'
+            : 'standard';
 
         const hasApiKey = await ApiKeyManager.hasValidApiKey(providerKey);
         if (hasApiKey) {
@@ -104,7 +104,7 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
             }
         }
 
-        Logger.warn(`模型 ${modelConfig.name} 缺少 ${keyType} API 密钥，进入设置流程`);
+        Logger.warn(`Model ${modelConfig.name} is missing the ${keyType} API key, entering setup flow`);
 
         if (isCodingPlan) {
             await DashscopeWizard.setCodingPlanApiKey(
@@ -122,11 +122,11 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
 
         const apiKey = await ApiKeyManager.getApiKey(providerKey);
         if (apiKey) {
-            Logger.info(`${keyType}密钥设置成功`);
+            Logger.info(`${keyType} API key configured successfully`);
             return apiKey;
         }
 
-        throw new Error(`${this.providerConfig.displayName}: 用户未设置 ${keyType} API 密钥`);
+        throw new Error(`${this.providerConfig.displayName}: user did not configure the ${keyType} API key`);
     }
 
     override async provideLanguageModelChatInformation(
@@ -144,7 +144,9 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         const hasAnyKey = hasNormalKey || hasCodingKey || hasTokenPlanKey;
 
         if (options.silent && !hasAnyKey) {
-            Logger.debug(`${this.providerConfig.displayName}: 静默模式下，未检测到任何密钥，返回空模型列表`);
+            Logger.debug(
+                `${this.providerConfig.displayName}: no keys detected in silent mode, returning empty model list`
+            );
             return [];
         }
 
@@ -160,7 +162,9 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
             const codingKeyValid = await ApiKeyManager.hasValidApiKey('dashscope-coding');
             const tokenPlanKeyValid = await ApiKeyManager.hasValidApiKey('dashscope-token');
             if (!normalKeyValid && !codingKeyValid && !tokenPlanKeyValid) {
-                Logger.warn(`${this.providerConfig.displayName}: 用户未设置任何密钥，返回空模型列表`);
+                Logger.warn(
+                    `${this.providerConfig.displayName}: user did not configure any keys, returning empty model list`
+                );
                 return [];
             }
         }
@@ -180,7 +184,7 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         // 查找对应的模型配置
         const modelConfig = this.findModelConfigById(model);
         if (!modelConfig) {
-            const errorMessage = `未找到模型: ${model.id}`;
+            const errorMessage = `Model not found: ${model.id}`;
             Logger.error(errorMessage);
             throw new Error(errorMessage);
         }
@@ -189,18 +193,18 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         const apiKey = await this.ensureApiKeyForModel(modelConfig);
         if (!apiKey) {
             const keyType =
-                providerKey === 'dashscope-coding' ? 'Coding Plan 专用'
-                : providerKey === 'dashscope-token' ? 'Token Plan 专用'
-                : '普通';
-            throw new Error(`${this.providerConfig.displayName}: 无效的 ${keyType} API 密钥`);
+                providerKey === 'dashscope-coding' ? 'Coding Plan dedicated'
+                : providerKey === 'dashscope-token' ? 'Token Plan dedicated'
+                : 'standard';
+            throw new Error(`${this.providerConfig.displayName}: invalid ${keyType} API key`);
         }
 
         const keyLabel =
             providerKey === 'dashscope-coding' ? 'Coding Plan'
             : providerKey === 'dashscope-token' ? 'Token Plan'
-            : '普通';
+            : 'standard';
         Logger.debug(
-            `${this.providerConfig.displayName}: 即将处理请求，使用 ${keyLabel} 密钥 - 模型: ${modelConfig.name}`
+            `${this.providerConfig.displayName}: about to handle request using ${keyLabel} key - model: ${modelConfig.name}`
         );
 
         const totalInputTokens = await this.updateContextUsageStatusBar(model, messages, modelConfig, options);
@@ -216,12 +220,14 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
                 estimatedInputTokens: totalInputTokens
             });
         } catch (err) {
-            Logger.warn('记录预估Token失败，继续执行请求:', err);
+            Logger.warn('Failed to record estimated tokens, continuing request:', err);
         }
 
         const sdkMode = modelConfig.sdkMode || 'openai';
         const sdkName = this.getSdkDisplayName(sdkMode);
-        Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
+        Logger.info(
+            `${this.providerConfig.displayName} Provider started handling request (${sdkName}): ${modelConfig.name}`
+        );
 
         try {
             await this.executeModelRequest(
@@ -239,12 +245,12 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
                 try {
                     await usagesManager.updateActualTokens({ requestId, status: 'failed' });
                 } catch (err) {
-                    Logger.warn('更新Token统计失败状态失败:', err);
+                    Logger.warn('Failed to update token usage failure status:', err);
                 }
             }
             throw error;
         } finally {
-            Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} 请求已完成`);
+            Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);
         }
     }
 }

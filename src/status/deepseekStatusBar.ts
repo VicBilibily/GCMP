@@ -9,6 +9,7 @@ import { StatusLogger } from '../utils/statusLogger';
 import { Logger } from '../utils/logger';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { VersionManager } from '../utils/versionManager';
+import { t } from '../utils/l10n';
 
 /**
  * DeepSeek 余额信息数据结构
@@ -64,7 +65,7 @@ export class DeepSeekStatusBar extends ProviderStatusBarItem<DeepSeekStatusData>
             refreshCommand: 'gcmp.deepseek.refreshBalance',
             apiKeyProvider: 'deepseek',
             cacheKeyPrefix: 'deepseek',
-            logPrefix: 'DeepSeek状态栏',
+            logPrefix: 'DeepSeek Status Bar',
             icon: '$(gcmp-deepseek)'
         };
         super(config);
@@ -98,9 +99,11 @@ export class DeepSeekStatusBar extends ProviderStatusBarItem<DeepSeekStatusData>
         const md = new vscode.MarkdownString();
         md.supportHtml = true;
 
-        md.appendMarkdown('#### DeepSeek 用户余额详情\n\n');
+        md.appendMarkdown(`#### ${t('DeepSeek Account Balance', 'DeepSeek 用户余额详情')}\n\n`);
 
-        md.appendMarkdown('| 货币 | 充值余额 | 赠金余额 | 可用余额 |\n');
+        md.appendMarkdown(
+            `| ${t('Currency', '货币')} | ${t('Paid Balance', '充值余额')} | ${t('Granted', '赠金余额')} | ${t('Available', '可用余额')} |\n`
+        );
         md.appendMarkdown('| :---: | ---: | ---: | ---: |\n');
         for (const balanceInfo of data.allBalances) {
             md.appendMarkdown(
@@ -109,10 +112,10 @@ export class DeepSeekStatusBar extends ProviderStatusBarItem<DeepSeekStatusData>
         }
 
         md.appendMarkdown('---\n');
-        md.appendMarkdown(`**最后更新** ${data.lastUpdated}\n`);
+        md.appendMarkdown(`**${t('Last updated', '最后更新')}** ${data.lastUpdated}\n`);
         md.appendMarkdown('\n');
         md.appendMarkdown('---\n');
-        md.appendMarkdown('点击状态栏可手动刷新\n');
+        md.appendMarkdown(`${t('Click the status bar to refresh manually', '点击状态栏可手动刷新')}\n`);
         return md;
     }
 
@@ -130,7 +133,10 @@ export class DeepSeekStatusBar extends ProviderStatusBarItem<DeepSeekStatusData>
             if (!hasApiKey) {
                 return {
                     success: false,
-                    error: 'DeepSeek API 密钥未配置，请先设置 DeepSeek API 密钥'
+                    error: t(
+                        'DeepSeek API key is not configured. Set the DeepSeek API key first.',
+                        'DeepSeek API 密钥未配置，请先设置 DeepSeek API 密钥'
+                    )
                 };
             }
 
@@ -139,12 +145,12 @@ export class DeepSeekStatusBar extends ProviderStatusBarItem<DeepSeekStatusData>
             if (!apiKey) {
                 return {
                     success: false,
-                    error: '无法获取 DeepSeek API 密钥'
+                    error: t('Unable to get the DeepSeek API key.', '无法获取 DeepSeek API 密钥')
                 };
             }
 
-            Logger.debug('触发查询 DeepSeek 余额');
-            StatusLogger.debug(`[${this.config.logPrefix}] 开始查询 DeepSeek 余额...`);
+            Logger.debug('Triggering DeepSeek balance query');
+            StatusLogger.debug(`[${this.config.logPrefix}] Starting DeepSeek balance query...`);
 
             // 构建请求
             const requestOptions: RequestInit = {
@@ -161,7 +167,7 @@ export class DeepSeekStatusBar extends ProviderStatusBarItem<DeepSeekStatusData>
             const responseText = await response.text();
 
             StatusLogger.debug(
-                `[${this.config.logPrefix}] 余额查询响应状态: ${response.status} ${response.statusText}`
+                `[${this.config.logPrefix}] Balance query response status: ${response.status} ${response.statusText}`
             );
 
             // 解析响应
@@ -169,10 +175,10 @@ export class DeepSeekStatusBar extends ProviderStatusBarItem<DeepSeekStatusData>
             try {
                 parsedResponse = JSON.parse(responseText);
             } catch (parseError) {
-                Logger.error(`解析响应 JSON 失败: ${parseError}`);
+                Logger.error(`Failed to parse response JSON: ${parseError}`);
                 return {
                     success: false,
-                    error: `响应格式错误: ${responseText.substring(0, 200)}`
+                    error: t('Invalid response format: {0}', '响应格式错误: {0}', responseText.substring(0, 200))
                 };
             }
 
@@ -189,10 +195,10 @@ export class DeepSeekStatusBar extends ProviderStatusBarItem<DeepSeekStatusData>
                         // 如果解析错误响应失败，使用默认错误信息
                     }
                 }
-                Logger.error(`余额查询失败: ${errorMessage}`);
+                Logger.error(`Balance query failed: ${errorMessage}`);
                 return {
                     success: false,
-                    error: `查询失败: ${errorMessage}`
+                    error: t('Query failed: {0}', '查询失败: {0}', errorMessage)
                 };
             }
 
@@ -202,15 +208,17 @@ export class DeepSeekStatusBar extends ProviderStatusBarItem<DeepSeekStatusData>
                 !Array.isArray(parsedResponse.balance_infos) ||
                 parsedResponse.balance_infos.length === 0
             ) {
-                Logger.error('未获取到余额数据');
+                Logger.error('No balance data retrieved');
                 return {
                     success: false,
-                    error: '未获取到余额数据'
+                    error: t('No balance data was returned.', '未获取到余额数据')
                 };
             }
 
             // 格式化最后更新时间
-            const lastUpdated = new Date().toLocaleString('zh-CN');
+            const lastUpdated = new Date().toLocaleString(
+                vscode.env.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
+            );
 
             // 选择主要余额（优先 CNY，其次 USD，最后第一个）
             let primaryBalance = parsedResponse.balance_infos.find(b => b.currency === 'CNY');
@@ -220,7 +228,7 @@ export class DeepSeekStatusBar extends ProviderStatusBarItem<DeepSeekStatusData>
             }
 
             // 解析成功响应
-            StatusLogger.debug(`[${this.config.logPrefix}] 余额查询成功`);
+            StatusLogger.debug(`[${this.config.logPrefix}] Balance query succeeded`);
 
             return {
                 success: true,
@@ -231,11 +239,11 @@ export class DeepSeekStatusBar extends ProviderStatusBarItem<DeepSeekStatusData>
                 }
             };
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : '未知错误';
-            Logger.error(`余额查询异常: ${errorMessage}`);
+            const errorMessage = error instanceof Error ? error.message : t('Unknown error', '未知错误');
+            Logger.error(`Balance query exception: ${errorMessage}`);
             return {
                 success: false,
-                error: `查询异常: ${errorMessage}`
+                error: t('Query error: {0}', '查询异常: {0}', errorMessage)
             };
         }
     }

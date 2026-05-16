@@ -6,6 +6,15 @@
 // VSCode API
 const vscode = acquireVsCodeApi();
 
+function isChineseLocale() {
+    return (document.documentElement.lang || '').toLowerCase().startsWith('zh');
+}
+
+function t(en, zh, ...args) {
+    const template = isChineseLocale() ? zh : en;
+    return args.reduce((result, arg, index) => result.replace(`{${index}}`, String(arg)), template);
+}
+
 // 类型定义
 /**
  * @typedef {Object} Provider
@@ -84,100 +93,171 @@ function createDOM() {
     const container = document.getElementById('app');
 
     // 创建基本信息部分
-    const basicSection = createSection('基本信息', [
+    const basicSection = createSection(t('Basic Info', '基本信息'), [
         createFormGroup(
             'modelId',
-            `模型ID${isCreateMode ? ' *' : ''}`,
+            isCreateMode ? t('Model ID *', '模型ID *') : t('Model ID', '模型ID'),
             'id',
             'input',
             {
                 type: 'text',
-                placeholder: '例如: zhipu:glm-4.6',
+                placeholder: t('e.g. zhipu:glm-4.6', '例如: zhipu:glm-4.6'),
                 value: modelData.id,
                 readonly: !isCreateMode
             },
-            isCreateMode ? '模型唯一标识符，创建后不可更改' : '模型唯一标识符，不支持更改，若需修改请直接编辑配置文件。'
+            isCreateMode
+                ? t(
+                    'Unique model identifier. It cannot be changed after creation.',
+                    '模型唯一标识符，创建后不可更改'
+                )
+                : t(
+                    'Unique model identifier. Editing is not supported here; edit the configuration file directly if needed.',
+                    '模型唯一标识符，不支持更改，若需修改请直接编辑配置文件。'
+                )
         ),
-        createFormGroup('modelName', '显示名称 *', 'name', 'input', {
+        createFormGroup('modelName', t('Display Name *', '显示名称 *'), 'name', 'input', {
             type: 'text',
-            placeholder: '例如: GLM-4.6 (智谱AI)',
+            placeholder: t('e.g. GLM-4.6 (Zhipu AI)', '例如: GLM-4.6 (智谱AI)'),
             value: modelData.name
-        }, '在模型选择器中显示的名称'),
-        createFormGroup('modelTooltip', '描述', 'tooltip', 'textarea', {
+        }, t('Name shown in the model picker.', '在模型选择器中显示的名称')),
+        createFormGroup('modelTooltip', t('Description', '描述'), 'tooltip', 'textarea', {
             rows: 2,
-            placeholder: '模型的详细描述（可选）',
+            placeholder: t('Detailed model description (optional).', '模型的详细描述（可选）'),
             value: modelData.tooltip
-        }, '悬停时显示的工具提示')
+        }, t('Tooltip shown on hover.', '悬停时显示的工具提示'))
     ]);
 
     // 创建 API 配置部分
-    const apiSection = createSection('API配置', [
+    const apiSection = createSection(t('API Settings', 'API配置'), [
         createProviderFormGroup(),
-        createFormGroup('sdkMode', 'SDK模式', 'sdkMode', 'select', {
+        createFormGroup('sdkMode', t('SDK Mode', 'SDK模式'), 'sdkMode', 'select', {
             options: [
-                { value: 'openai', label: 'OpenAI SDK (使用官方SDK进行流式传输数据处理)', selected: modelData.sdkMode === 'openai' },
-                { value: 'openai-sse', label: 'OpenAI SSE (使用内置兼容解析进行流式传输数据处理)', selected: modelData.sdkMode === 'openai-sse' },
-                { value: 'openai-responses', label: 'OpenAI Responses (实验性支持，使用 Responses API 进行请求响应处理)', selected: modelData.sdkMode === 'openai-responses' },
-                { value: 'anthropic', label: 'Anthropic SDK (使用官方SDK进行流式传输数据处理)', selected: modelData.sdkMode === 'anthropic' },
-                { value: 'gemini-sse', label: 'Gemini HTTP SSE (实验性支持，使用内置兼容解析进行流式传输数据处理，兼容第三方网关)', selected: modelData.sdkMode === 'gemini-sse' }
+                {
+                    value: 'openai',
+                    label: t(
+                        'OpenAI SDK (uses the official SDK for streaming responses)',
+                        'OpenAI SDK (使用官方SDK进行流式传输数据处理)'
+                    ),
+                    selected: modelData.sdkMode === 'openai'
+                },
+                {
+                    value: 'openai-sse',
+                    label: t(
+                        'OpenAI SSE (uses the built-in compatible parser for streaming responses)',
+                        'OpenAI SSE (使用内置兼容解析进行流式传输数据处理)'
+                    ),
+                    selected: modelData.sdkMode === 'openai-sse'
+                },
+                {
+                    value: 'openai-responses',
+                    label: t(
+                        'OpenAI Responses (experimental; uses the Responses API for request and response handling)',
+                        'OpenAI Responses (实验性支持，使用 Responses API 进行请求响应处理)'
+                    ),
+                    selected: modelData.sdkMode === 'openai-responses'
+                },
+                {
+                    value: 'anthropic',
+                    label: t(
+                        'Anthropic SDK (uses the official SDK for streaming responses)',
+                        'Anthropic SDK (使用官方SDK进行流式传输数据处理)'
+                    ),
+                    selected: modelData.sdkMode === 'anthropic'
+                },
+                {
+                    value: 'gemini-sse',
+                    label: t(
+                        'Gemini HTTP SSE (experimental; uses the built-in compatible parser for streaming responses and works with third-party gateways)',
+                        'Gemini HTTP SSE (实验性支持，使用内置兼容解析进行流式传输数据处理，兼容第三方网关)'
+                    ),
+                    selected: modelData.sdkMode === 'gemini-sse'
+                }
             ]
-        }, '模型通讯使用的兼容模式'),
+        }, t('Compatibility mode used for model communication.', '模型通讯使用的兼容模式')),
         createFormGroup('baseUrl', 'BASE URL *', 'baseUrl', 'input', {
             type: 'url',
-            placeholder: '例如：https://api.openai.com/v1 或 https://api.anthropic.com',
+            placeholder: t(
+                'e.g. https://api.openai.com/v1 or https://api.anthropic.com',
+                '例如：https://api.openai.com/v1 或 https://api.anthropic.com'
+            ),
             value: modelData.baseUrl
-        }, 'API请求的 baseUrl 地址，必须以 http:// 或 https:// 开头\r\n例如：https://api.openai.com/v1 或 https://api.anthropic.com'),
-        createFormGroup('apiKey', 'API 密钥', 'apiKey', 'input', {
+        }, t(
+            'Base URL used for API requests. It must start with http:// or https://.\r\nFor example: https://api.openai.com/v1 or https://api.anthropic.com',
+            'API请求的 baseUrl 地址，必须以 http:// 或 https:// 开头\r\n例如：https://api.openai.com/v1 或 https://api.anthropic.com'
+        )),
+        createFormGroup('apiKey', t('API Key', 'API 密钥'), 'apiKey', 'input', {
             type: 'password',
-            placeholder: '留空则保持已保存的密钥不变',
+            placeholder: t('Leave blank to keep the saved key unchanged', '留空则保持已保存的密钥不变'),
             value: modelData.apiKey
-        }, 'API 密钥（可选）。在此设置会自动更新密钥。'),
+        }, t('API key (optional). Setting it here updates the saved key automatically.', 'API 密钥（可选）。在此设置会自动更新密钥。')),
         createModelComboboxFormGroup()
     ]);
 
     // 创建性能设置部分
-    const perfSection = createSection('模型性能', [
-        createFormGroup('maxInputTokens', '最大请求输入Token', 'maxInputTokens', 'input', {
+    const perfSection = createSection(t('Model Limits', '模型性能'), [
+        createFormGroup('maxInputTokens', t('Max Input Tokens', '最大请求输入Token'), 'maxInputTokens', 'input', {
             type: 'number',
             min: 128,
             value: modelData.maxInputTokens
-        }, '模型支持的最大输入上下文限制'),
-        createFormGroup('maxOutputTokens', '最大响应输出Token', 'maxOutputTokens', 'input', {
+        }, t('Maximum input context supported by the model.', '模型支持的最大输入上下文限制')),
+        createFormGroup('maxOutputTokens', t('Max Output Tokens', '最大响应输出Token'), 'maxOutputTokens', 'input', {
             type: 'number',
             min: 8,
             value: modelData.maxOutputTokens
-        }, '模型支持的最大输出Token限制')
+        }, t('Maximum output tokens supported by the model.', '模型支持的最大输出Token限制'))
     ]);
 
     // 创建能力配置部分
-    const capSection = createSection('模型能力', [
-        createCheckboxFormGroup('toolCalling', '支持工具调用', 'capabilities.toolCalling', modelData.toolCalling),
-        createCheckboxFormGroup('imageInput', '支持图像输入', 'capabilities.imageInput', modelData.imageInput)
+    const capSection = createSection(t('Capabilities', '模型能力'), [
+        createCheckboxFormGroup(
+            'toolCalling',
+            t('Supports Tool Calling', '支持工具调用'),
+            'capabilities.toolCalling',
+            modelData.toolCalling
+        ),
+        createCheckboxFormGroup(
+            'imageInput',
+            t('Supports Image Input', '支持图像输入'),
+            'capabilities.imageInput',
+            modelData.imageInput
+        )
     ]);
 
     // 创建高级设置部分
-    const advSection = createSection('高级设置', [
+    const advSection = createSection(t('Advanced Settings', '高级设置'), [
         createCheckboxFormGroup(
             'useInstructions',
-            '使用 instructions 参数（仅 openai-responses 有效）',
+            t('Use instructions parameter (openai-responses only)', '使用 instructions 参数（仅 openai-responses 有效）'),
             'useInstructions',
             modelData.useInstructions,
-            '当 SDK 模式为 openai-responses 时，使用 instructions 参数传递系统消息（默认使用用户消息传递）。'
+            t(
+                'When SDK mode is openai-responses, use the instructions parameter for system messages (default uses user messages).',
+                '当 SDK 模式为 openai-responses 时，使用 instructions 参数传递系统消息（默认使用用户消息传递）。'
+            )
         ),
         createCheckboxFormGroup(
             'webSearchTool',
-            '启用 Anthropic 原生 web_search 工具（仅 anthropic 有效）',
+            t('Enable Anthropic native web_search tool (anthropic only)', '启用 Anthropic 原生 web_search 工具（仅 anthropic 有效）'),
             'webSearchTool',
             modelData.webSearchTool,
-            '当接口兼容 Anthropic 原生 web_search 工具时启用。启用后会自动向模型暴露 web_search。'
+            t(
+                'Enable this when the endpoint supports Anthropic native web_search. The tool is exposed to the model automatically.',
+                '当接口兼容 Anthropic 原生 web_search 工具时启用。启用后会自动向模型暴露 web_search。'
+            )
         ),
-        createJSONFormGroup('customHeader', '自定义HTTP头部（JSON格式）', 'customHeader', modelData.customHeader,
+        createJSONFormGroup('customHeader', t('Custom HTTP Headers (JSON)', '自定义HTTP头部（JSON格式）'), 'customHeader', modelData.customHeader,
             '{"Authorization": "Bearer ${APIKEY}", "X-Custom-Header": "value"}',
-            '可选的自定义HTTP头部配置。支持 ${APIKEY} 占位符自动替换为实际的API密钥。'
+            t(
+                'Optional custom HTTP headers. Supports ${APIKEY} placeholder replacement with the actual API key.',
+                '可选的自定义HTTP头部配置。支持 ${APIKEY} 占位符自动替换为实际的API密钥。'
+            )
         ),
-        createJSONFormGroup('extraBody', '额外请求体参数（JSON格式）', 'extraBody', modelData.extraBody,
+        createJSONFormGroup('extraBody', t('Extra Request Body (JSON)', '额外请求体参数（JSON格式）'), 'extraBody', modelData.extraBody,
             '{"temperature": 1, "top_p": null}',
-            '额外的请求体参数，将在API请求中合并到请求体中。若模型不支持某些参数，可设置为 null 以移除对应值。'
+            t(
+                'Extra request body parameters merged into API requests. Set unsupported parameters to null to remove them.',
+                '额外的请求体参数，将在API请求中合并到请求体中。若模型不支持某些参数，可设置为 null 以移除对应值。'
+            )
         )
     ]);
 
@@ -242,6 +322,8 @@ function createFormGroup(id, labelText, fieldName, elementType, attrs, helpText)
             if (key === 'readonly' && value) {
                 element.setAttribute('readonly', '');
                 element.classList.add('readonly');
+            } else if (key === 'placeholder') {
+                element.setAttribute(key, value || '');
             } else if (key !== 'readonly') {
                 element.setAttribute(key, value || '');
             }
@@ -251,6 +333,8 @@ function createFormGroup(id, labelText, fieldName, elementType, attrs, helpText)
         Object.entries(attrs).forEach(([key, value]) => {
             if (key === 'value') {
                 element.textContent = value || '';
+            } else if (key === 'placeholder') {
+                element.setAttribute(key, value || '');
             } else {
                 element.setAttribute(key, value || '');
             }
@@ -332,7 +416,7 @@ function createProviderFormGroup() {
 
     const label = document.createElement('label');
     label.htmlFor = 'provider';
-    label.innerHTML = '提供商 * <span class="field-name">(provider)</span>';
+    label.innerHTML = `${t('Provider *', '提供商 *')} <span class="field-name">(provider)</span>`;
     group.appendChild(label);
 
     const dropdown = document.createElement('div');
@@ -343,7 +427,7 @@ function createProviderFormGroup() {
     input.id = 'provider';
     input.className = 'provider-input';
     input.value = modelData.provider;
-    input.placeholder = '例如: zhipu';
+    input.placeholder = t('e.g. zhipu', '例如: zhipu');
     input.autocomplete = 'off';
 
     const list = document.createElement('div');
@@ -356,7 +440,10 @@ function createProviderFormGroup() {
 
     const help = document.createElement('div');
     help.className = 'help-text';
-    help.textContent = '模型提供商标识符（可选择内置/已知提供商或自定义输入）';
+    help.textContent = t(
+        'Model provider identifier. You can select a built-in or known provider, or enter a custom one.',
+        '模型提供商标识符（可选择内置/已知提供商或自定义输入）'
+    );
     group.appendChild(help);
 
     return group;
@@ -372,7 +459,7 @@ function createModelComboboxFormGroup() {
 
     const label = document.createElement('label');
     label.htmlFor = 'requestModel';
-    label.innerHTML = '请求模型ID <span class="field-name">(model)</span>';
+    label.innerHTML = `${t('Request Model ID', '请求模型ID')} <span class="field-name">(model)</span>`;
     group.appendChild(label);
 
     const dropdown = document.createElement('div');
@@ -386,7 +473,7 @@ function createModelComboboxFormGroup() {
     input.id = 'requestModel';
     input.className = 'model-input';
     input.value = modelData.model || '';
-    input.placeholder = '例如: gpt-4';
+    input.placeholder = t('e.g. gpt-4', '例如: gpt-4');
     input.autocomplete = 'off';
 
     const fetchButton = document.createElement('button');
@@ -394,8 +481,8 @@ function createModelComboboxFormGroup() {
     fetchButton.className = 'fetch-models-button';
     fetchButton.id = 'fetchModelsButton';
     fetchButton.onclick = fetchModelsFromAPI;
-    fetchButton.textContent = '获取模型';
-    fetchButton.title = '从 BASE URL 获取可用模型列表';
+    fetchButton.textContent = t('Fetch Models', '获取模型');
+    fetchButton.title = t('Fetch available model IDs from BASE URL', '从 BASE URL 获取可用模型列表');
 
     const spinner = document.createElement('span');
     spinner.className = 'fetch-spinner';
@@ -415,7 +502,10 @@ function createModelComboboxFormGroup() {
 
     const help = document.createElement('div');
     help.className = 'help-text detailed';
-    help.textContent = '发起请求时使用的模型ID（可选），若不填写则使用 模型ID (id) 的值。\r\n点击"获取模型"按钮从 BASE URL 自动获取可用模型列表（可能部分提供商不支持）。';
+    help.textContent = t(
+        'Model ID used in requests (optional). If empty, the Model ID (id) value is used.\r\nClick "Fetch Models" to load available model IDs from BASE URL automatically. Some providers may not support this.',
+        '发起请求时使用的模型ID（可选），若不填写则使用 模型ID (id) 的值。\r\n点击"获取模型"按钮从 BASE URL 自动获取可用模型列表（可能部分提供商不支持）。'
+    );
     group.appendChild(help);
 
     const statusDiv = document.createElement('div');
@@ -455,7 +545,7 @@ function createJSONFormGroup(id, labelText, fieldName, value, placeholder, helpT
     const formatBtn = document.createElement('button');
     formatBtn.type = 'button';
     formatBtn.className = 'json-button';
-    formatBtn.textContent = '格式化';
+    formatBtn.textContent = t('Format', '格式化');
     formatBtn.onclick = (e) => {
         e.preventDefault();
         formatJSON(id);
@@ -464,7 +554,7 @@ function createJSONFormGroup(id, labelText, fieldName, value, placeholder, helpT
     const clearBtn = document.createElement('button');
     clearBtn.type = 'button';
     clearBtn.className = 'json-button';
-    clearBtn.textContent = '清空';
+    clearBtn.textContent = t('Clear', '清空');
     clearBtn.onclick = (e) => {
         e.preventDefault();
         clearJSON(id);
@@ -479,7 +569,7 @@ function createJSONFormGroup(id, labelText, fieldName, value, placeholder, helpT
 
     const statusText = document.createElement('span');
     statusText.id = `${id}StatusText`;
-    statusText.textContent = '无内容';
+    statusText.textContent = t('Empty', '无内容');
 
     status.appendChild(indicator);
     status.appendChild(statusText);
@@ -562,19 +652,19 @@ function createButtonGroup() {
     if (!isCreateMode) {
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'delete-button';
-        deleteBtn.textContent = '删除';
+        deleteBtn.textContent = t('Delete', '删除');
         deleteBtn.onclick = deleteModel;
         leftButtons.appendChild(deleteBtn);
     }
 
     const saveBtn = document.createElement('button');
     saveBtn.className = 'primary-button';
-    saveBtn.textContent = isCreateMode ? '创建' : '更新';
+    saveBtn.textContent = isCreateMode ? t('Create', '创建') : t('Update', '更新');
     saveBtn.onclick = saveModel;
 
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'secondary-button';
-    cancelBtn.textContent = '取消';
+    cancelBtn.textContent = t('Cancel', '取消');
     cancelBtn.onclick = cancelEdit;
 
     rightButtons.appendChild(saveBtn);
@@ -747,7 +837,13 @@ function bindEvents() {
         // 检查是否输入了 CLI 专用的 provider ID
         if (CLI_RESERVED_PROVIDERS.some(reserved => reserved.toLowerCase() === searchText)) {
             this.classList.add('invalid');
-            showGlobalError(`提供商 "${this.value}" 为 CLI 专用，不可在自定义模型中使用`);
+            showGlobalError(
+                t(
+                    'Provider "{0}" is reserved for CLI use and cannot be used for custom models.',
+                    '提供商 "{0}" 为 CLI 专用，不可在自定义模型中使用',
+                    this.value
+                )
+            );
         } else if (searchText) {
             this.classList.remove('invalid');
             hideGlobalError();
@@ -934,7 +1030,7 @@ function validateJSON_UI(fieldId) {
     if (!content) {
         const indicator = statusDiv.querySelector('.json-status-indicator');
         indicator.className = 'json-status-indicator';
-        statusText.textContent = '无内容';
+        statusText.textContent = t('Empty', '无内容');
         return true;
     }
 
@@ -945,16 +1041,19 @@ function validateJSON_UI(fieldId) {
             // 验证通过 - 恢复默认状态（不添加绿色样式）
             const indicator = statusDiv.querySelector('.json-status-indicator');
             indicator.className = 'json-status-indicator';
-            statusText.textContent = '有效 ✓';
+            statusText.textContent = t('Valid ✓', '有效 ✓');
             return true;
         } else {
             // 不是对象类型 - 显示红色错误状态
             textarea.classList.add('json-invalid');
             const indicator = statusDiv.querySelector('.json-status-indicator');
             indicator.className = 'json-status-indicator invalid';
-            statusText.textContent = '无效 ✗';
+            statusText.textContent = t('Invalid ✗', '无效 ✗');
             if (errorDiv) {
-                errorDiv.textContent = '必须是对象类型（如 {"key": "value"}），不能是数组、数字或字符串';
+                errorDiv.textContent = t(
+                    'Must be an object (for example {"key": "value"}), not an array, number, or string.',
+                    '必须是对象类型（如 {"key": "value"}），不能是数组、数字或字符串'
+                );
                 errorDiv.classList.add('show');
             }
             return false;
@@ -964,9 +1063,9 @@ function validateJSON_UI(fieldId) {
         textarea.classList.add('json-invalid');
         const indicator = statusDiv.querySelector('.json-status-indicator');
         indicator.className = 'json-status-indicator invalid';
-        statusText.textContent = '无效 ✗';
+        statusText.textContent = t('Invalid ✗', '无效 ✗');
         if (errorDiv) {
-            errorDiv.textContent = '错误: ' + e.message;
+            errorDiv.textContent = t('Error: {0}', '错误: {0}', e.message);
             errorDiv.classList.add('show');
         }
         return false;
@@ -983,7 +1082,7 @@ function formatJSON(fieldId) {
     const content = textarea.value.trim();
 
     if (!content) {
-        showGlobalError('没有内容可以格式化');
+        showGlobalError(t('There is no content to format.', '没有内容可以格式化'));
         return;
     }
 
@@ -991,7 +1090,12 @@ function formatJSON(fieldId) {
         const parsed = JSON.parse(content);
         // 必须是对象类型，与 validateJSON 逻辑保持一致
         if (!isValidJSONObject(parsed)) {
-            showGlobalError('JSON格式错误：必须是对象类型（如 {"key": "value"}），不能是数组、数字或字符串');
+            showGlobalError(
+                t(
+                    'Invalid JSON: it must be an object (for example {"key": "value"}), not an array, number, or string.',
+                    'JSON格式错误：必须是对象类型（如 {"key": "value"}），不能是数组、数字或字符串'
+                )
+            );
             return;
         }
         textarea.value = JSON.stringify(parsed, null, 2);
@@ -1005,7 +1109,7 @@ function formatJSON(fieldId) {
         // 格式化成功时清除错误提示
         hideGlobalError();
     } catch (e) {
-        showGlobalError('JSON格式错误，无法格式化：\n' + e.message);
+        showGlobalError(t('Invalid JSON. Unable to format:\n{0}', 'JSON格式错误，无法格式化：\n{0}', e.message));
     }
 }
 
@@ -1050,7 +1154,7 @@ function renderProviderList(providers) {
     if (!providers || providers.length === 0) {
         const item = document.createElement('div');
         item.className = 'provider-list-item';
-        item.textContent = '无匹配的提供商';
+        item.textContent = t('No matching providers', '无匹配的提供商');
         item.style.pointerEvents = 'none';
         item.style.opacity = '0.5';
         providerListDiv.appendChild(item);
@@ -1120,29 +1224,35 @@ function validateForm() {
 
     // 验证必填字段
     if (!modelId) {
-        showGlobalError('请输入模型ID');
+        showGlobalError(t('Enter the model ID.', '请输入模型ID'));
         document.getElementById('modelId').focus();
         return false;
     }
     if (!modelName) {
-        showGlobalError('请输入显示名称');
+        showGlobalError(t('Enter the display name.', '请输入显示名称'));
         document.getElementById('modelName').focus();
         return false;
     }
     if (!provider) {
-        showGlobalError('请输入提供商');
+        showGlobalError(t('Enter the provider.', '请输入提供商'));
         document.getElementById('provider').focus();
         return false;
     }
 
     // 验证 provider 不是 CLI 专用标识符
     if (CLI_RESERVED_PROVIDERS.includes(provider.toLowerCase())) {
-        showGlobalError(`提供商 "${provider}" 为 CLI 专用，不可在自定义模型中使用`);
+        showGlobalError(
+            t(
+                'Provider "{0}" is reserved for CLI use and cannot be used for custom models.',
+                '提供商 "{0}" 为 CLI 专用，不可在自定义模型中使用',
+                provider
+            )
+        );
         document.getElementById('provider').focus();
         return false;
     }
     if (!baseUrl) {
-        showGlobalError('请输入 BASE URL');
+        showGlobalError(t('Enter BASE URL.', '请输入 BASE URL'));
         document.getElementById('baseUrl').focus();
         return false;
     }
@@ -1152,12 +1262,12 @@ function validateForm() {
         try {
             const urlObj = new URL(baseUrl);
             if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
-                showGlobalError('BASE URL 必须以 http:// 或 https:// 开头');
+                showGlobalError(t('BASE URL must start with http:// or https://.', 'BASE URL 必须以 http:// 或 https:// 开头'));
                 document.getElementById('baseUrl').focus();
                 return false;
             }
         } catch (e) {
-            showGlobalError('BASE URL 格式不正确，请输入有效的 URL');
+            showGlobalError(t('BASE URL is invalid. Enter a valid URL.', 'BASE URL 格式不正确，请输入有效的 URL'));
             document.getElementById('baseUrl').focus();
             return false;
         }
@@ -1165,12 +1275,12 @@ function validateForm() {
 
     // 验证 Token 数量
     if (!maxInputTokens || isNaN(parseInt(maxInputTokens)) || parseInt(maxInputTokens) <= 0) {
-        showGlobalError('最大输入Token必须是大于0的数字');
+        showGlobalError(t('Max input tokens must be a number greater than 0.', '最大输入Token必须是大于0的数字'));
         document.getElementById('maxInputTokens').focus();
         return false;
     }
     if (!maxOutputTokens || isNaN(parseInt(maxOutputTokens)) || parseInt(maxOutputTokens) <= 0) {
-        showGlobalError('最大输出Token必须是大于0的数字');
+        showGlobalError(t('Max output tokens must be a number greater than 0.', '最大输出Token必须是大于0的数字'));
         document.getElementById('maxOutputTokens').focus();
         return false;
     }
@@ -1178,14 +1288,24 @@ function validateForm() {
     // 验证 JSON 格式
     const customHeaderJson = document.getElementById('customHeader').value.trim();
     if (customHeaderJson && !validateJSON(customHeaderJson)) {
-        showGlobalError('自定义HTTP头部的JSON格式不正确，必须是对象类型');
+        showGlobalError(
+            t(
+                'Custom HTTP headers JSON must be a valid object.',
+                '自定义HTTP头部的JSON格式不正确，必须是对象类型'
+            )
+        );
         document.getElementById('customHeader').focus();
         return false;
     }
 
     const extraBodyJson = document.getElementById('extraBody').value.trim();
     if (extraBodyJson && !validateJSON(extraBodyJson)) {
-        showGlobalError('额外请求体参数的JSON格式不正确，必须是对象类型');
+        showGlobalError(
+            t(
+                'Extra request body JSON must be a valid object.',
+                '额外请求体参数的JSON格式不正确，必须是对象类型'
+            )
+        );
         document.getElementById('extraBody').focus();
         return false;
     }
@@ -1213,7 +1333,7 @@ function saveModel() {
     const provider = document.getElementById('provider').value.trim();
 
     if (!modelId || !modelName || !provider) {
-        showGlobalError('请填写所有必需字段');
+        showGlobalError(t('Fill in all required fields.', '请填写所有必需字段'));
         return;
     }
 
@@ -1275,7 +1395,7 @@ function saveModel() {
     model.extraBody = extraBody || null;
 
     if (!model.id || !model.name || !model.provider) {
-        showGlobalError('模型配置不完整，请重试');
+        showGlobalError(t('Model configuration is incomplete. Try again.', '模型配置不完整，请重试'));
         return;
     }
 
@@ -1318,7 +1438,7 @@ function fetchModelsFromAPI() {
     const provider = document.getElementById('provider').value.trim();
 
     if (!baseUrl) {
-        showGlobalError('请先输入 BASE URL');
+        showGlobalError(t('Enter BASE URL first.', '请先输入 BASE URL'));
         return;
     }
 
@@ -1326,11 +1446,11 @@ function fetchModelsFromAPI() {
     try {
         const urlObj = new URL(baseUrl);
         if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
-            showGlobalError('BASE URL 必须以 http:// 或 https:// 开头');
+            showGlobalError(t('BASE URL must start with http:// or https://.', 'BASE URL 必须以 http:// 或 https:// 开头'));
             return;
         }
     } catch (e) {
-        showGlobalError('BASE URL 格式不正确，请输入有效的 URL');
+        showGlobalError(t('BASE URL is invalid. Enter a valid URL.', 'BASE URL 格式不正确，请输入有效的 URL'));
         return;
     }
 
@@ -1357,7 +1477,7 @@ function handleModelsLoading() {
     button.classList.add('loading');
     spinner.style.display = 'inline-block';
 
-    statusDiv.textContent = '正在获取模型列表...';
+    statusDiv.textContent = t('Fetching model list...', '正在获取模型列表...');
     statusDiv.className = 'model-fetch-status loading';
     statusDiv.style.display = 'block';
 
@@ -1382,7 +1502,7 @@ function handleModelsLoaded(models) {
 
     if (models && models.length > 0) {
         availableModels = models;
-        statusDiv.textContent = `成功获取 ${models.length} 个模型`;
+        statusDiv.textContent = t('Fetched {0} models successfully', '成功获取 {0} 个模型', models.length);
         statusDiv.className = 'model-fetch-status success';
         statusDiv.style.display = 'block';
 
@@ -1396,7 +1516,7 @@ function handleModelsLoaded(models) {
         }, 3000);
     } else {
         availableModels = [];
-        statusDiv.textContent = '未找到可用模型';
+        statusDiv.textContent = t('No available models found', '未找到可用模型');
         statusDiv.className = 'model-fetch-status warning';
         statusDiv.style.display = 'block';
 
@@ -1421,7 +1541,7 @@ function handleModelsError(error) {
     button.classList.remove('loading');
     spinner.style.display = 'none';
 
-    statusDiv.textContent = error || '获取模型列表失败';
+    statusDiv.textContent = error || t('Failed to fetch model list', '获取模型列表失败');
     statusDiv.className = 'model-fetch-status error';
     statusDiv.style.display = 'block';
 
@@ -1445,7 +1565,7 @@ function renderModelList(models) {
     if (!models || models.length === 0) {
         const item = document.createElement('div');
         item.className = 'model-list-item';
-        item.textContent = '无可用模型';
+        item.textContent = t('No available models', '无可用模型');
         item.style.pointerEvents = 'none';
         item.style.opacity = '0.5';
         modelListDiv.appendChild(item);

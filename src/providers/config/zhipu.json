@@ -1,5 +1,5 @@
 {
-    "displayName": "智谱AI",
+    "displayName": "ZhipuAI",
     "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
     "apiKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxx",
     "models": [

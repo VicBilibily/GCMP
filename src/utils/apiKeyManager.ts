@@ -9,6 +9,7 @@ import { Logger } from './logger';
 import { StatusBarManager } from '../status';
 import { configProviders } from '../providers/config';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
+import { t } from './l10n';
 
 /**
  * API密钥安全存储管理器
@@ -35,7 +36,7 @@ export class ApiKeyManager {
         try {
             this.builtinProviders = new Set(Object.keys(configProviders));
         } catch (error) {
-            Logger.warn('无法获取内置提供商列表:', error);
+            Logger.warn('Failed to get builtin providers list:', error);
             this.builtinProviders = new Set();
         }
         return this.builtinProviders;
@@ -132,7 +133,7 @@ export class ApiKeyManager {
         // 验证设置后是否有效
         const isValid = await this.hasValidApiKey(provider);
         if (!isValid && throwError) {
-            throw new Error(`需要 API密钥 才能使用 ${displayName} 模型`);
+            throw new Error(`An API key is required to use the ${displayName} model.`);
         }
         return isValid;
     }
@@ -148,16 +149,16 @@ export class ApiKeyManager {
         const supportedCliTypes = CliAuthFactory.getSupportedCliTypes();
         const cliAuthProviders = supportedCliTypes.map(cli => cli.id);
         if (!cliAuthProviders.includes(provider)) {
-            Logger.warn(`[ApiKeyManager] ${provider} 不是 CLI 认证提供商`);
+            Logger.warn(`[ApiKeyManager] ${provider} is not a CLI-authenticated provider`);
             return false;
         }
 
         const apiKey = await CliAuthFactory.getInstance(provider)?.getApiKey(true);
         if (apiKey) {
-            Logger.info(`[ApiKeyManager] 已强制刷新 ${displayName} CLI 认证`);
+            Logger.info(`[ApiKeyManager] Force refreshed ${displayName} CLI authentication`);
             return true;
         }
-        Logger.warn(`[ApiKeyManager] 无法从 ${displayName} CLI 加载认证凭证`);
+        Logger.warn(`[ApiKeyManager] Unable to load credentials from ${displayName} CLI`);
         return false;
     }
 
@@ -173,12 +174,12 @@ export class ApiKeyManager {
         if (credentials) {
             const apiKey = await CliAuthFactory.getInstance(provider)?.getApiKey();
             if (!apiKey) {
-                Logger.warn(`[ApiKeyManager] ${displayName} CLI 加载认证凭证失败`);
+                Logger.warn(`[ApiKeyManager] Failed to load credentials from ${displayName} CLI`);
                 return false;
             }
             // Cli 访问密钥验证通过后保存到密钥存储
             await this.setApiKey(provider, apiKey);
-            Logger.info(`[ApiKeyManager] 已从 ${displayName} CLI 加载认证凭证`);
+            Logger.info(`[ApiKeyManager] Loaded credentials from ${displayName} CLI`);
             return true;
         }
         return false;
@@ -210,8 +211,12 @@ export class ApiKeyManager {
      */
     static async promptAndSetApiKey(provider: string, displayName: string, placeHolder: string): Promise<void> {
         const apiKey = await vscode.window.showInputBox({
-            prompt: `请输入您的 ${displayName} API密钥（留空则清除密钥）`,
-            title: `设置 ${displayName} API Key`,
+            prompt: t(
+                'Enter your {0} API key. Leave it empty to clear the key.',
+                '请输入您的 {0} API密钥（留空则清除密钥）。',
+                displayName
+            ),
+            title: t('Set {0} API Key', '设置 {0} API Key', displayName),
             placeHolder: placeHolder,
             password: true,
             ignoreFocusOut: true
@@ -220,20 +225,22 @@ export class ApiKeyManager {
             const validation = this.validateApiKey(apiKey, provider);
             if (validation.isEmpty) {
                 await this.deleteApiKey(provider);
-                vscode.window.showInformationMessage(`已清除 ${displayName} API密钥`);
+                vscode.window.showInformationMessage(
+                    t('Cleared the {0} API key.', '已清除 {0} API密钥。', displayName)
+                );
             } else {
                 await this.setApiKey(provider, apiKey.trim());
-                vscode.window.showInformationMessage(`已设置 ${displayName} API密钥`);
+                vscode.window.showInformationMessage(t('Saved the {0} API key.', '已设置 {0} API密钥。', displayName));
             }
             // API密钥更改后，相关组件会通过ConfigManager的配置监听器自动更新
-            Logger.debug(`API密钥已更新: ${provider}`);
+            Logger.debug(`API key updated: ${provider}`);
 
             // API密钥 设置后，更新状态栏
             if (provider === 'deepseek' || provider === 'moonshot') {
                 try {
                     StatusBarManager.checkAndShowStatus(provider);
                 } catch (error) {
-                    Logger.warn('更新状态栏失败:', provider, error);
+                    Logger.warn('Failed to update status bar:', provider, error);
                 }
             }
         }

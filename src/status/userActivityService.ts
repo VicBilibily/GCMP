@@ -71,7 +71,7 @@ export class UserActivityService {
         this.registerActivityListeners();
 
         this.initialized = true;
-        StatusLogger.debug('[UserActivityService] 用户活跃检测服务已初始化');
+        StatusLogger.debug('[UserActivityService] User activity detection service initialized');
     }
 
     /**
@@ -88,7 +88,7 @@ export class UserActivityService {
         this.lastRecordedActivityByType.clear();
 
         this.initialized = false;
-        StatusLogger.debug('[UserActivityService] 用户活跃检测服务已停止');
+        StatusLogger.debug('[UserActivityService] User activity detection service stopped');
     }
 
     /**
@@ -175,7 +175,9 @@ export class UserActivityService {
             this.recordUserActivity('windowFocus');
         }
 
-        StatusLogger.debug('[UserActivityService] 用户活跃状态监听器已注册（仅监听用户真实操作）');
+        StatusLogger.debug(
+            '[UserActivityService] User activity state listener registered (only listens to real user actions)'
+        );
     }
 
     /**

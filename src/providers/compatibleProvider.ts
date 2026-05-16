@@ -39,14 +39,14 @@ export class CompatibleProvider extends GenericModelProvider {
         this.getProviderConfig(); // 初始化配置缓存
         // 监听 CompatibleModelManager 的变更事件
         this.modelsChangeListener = CompatibleModelManager.onDidChangeModels(() => {
-            Logger.debug('[compatible] 接收到模型变化事件，刷新配置和缓存');
+            Logger.debug('[compatible] Received model change event, refreshing config and cache');
             this.getProviderConfig(); // 刷新配置缓存
             // 清除模型缓存
             this.modelInfoCache
                 ?.invalidateCache(CompatibleProvider.PROVIDER_KEY)
-                .catch(err => Logger.warn('[compatible] 清除缓存失败:', err));
+                .catch(err => Logger.warn('[compatible] Cache invalidation failed:', err));
             this._onDidChangeLanguageModelChatInformation.fire();
-            Logger.debug('[compatible] 已触发语言模型信息变化事件');
+            Logger.debug('[compatible] Language model info change event fired');
         });
     }
 
@@ -108,7 +108,7 @@ export class CompatibleProvider extends GenericModelProvider {
                 };
             });
 
-            Logger.debug(`Compatible Provider 加载了 ${modelConfigs.length} 个用户配置的模型`);
+            Logger.debug(`Compatible Provider loaded ${modelConfigs.length} user-configured models`);
 
             this.cachedProviderConfig = {
                 displayName: 'Compatible',
@@ -117,7 +117,7 @@ export class CompatibleProvider extends GenericModelProvider {
                 models: modelConfigs
             };
         } catch (error) {
-            Logger.error('获取 Compatible Provider 配置失败:', error);
+            Logger.error('Failed to get Compatible Provider config:', error);
             // 返回基础配置作为后备
             this.cachedProviderConfig = {
                 displayName: 'Compatible',
@@ -149,7 +149,7 @@ export class CompatibleProvider extends GenericModelProvider {
                 apiKeyHash
             );
             if (options.silent && cachedModels) {
-                Logger.trace(`✓ Compatible Provider 缓存命中: ${cachedModels.length} 个模型`);
+                Logger.trace(`✓ Compatible Provider cache hit: ${cachedModels.length} models`);
 
                 // 后台异步更新缓存
                 this.updateModelCacheAsync(apiKeyHash);
@@ -166,7 +166,7 @@ export class CompatibleProvider extends GenericModelProvider {
                         try {
                             await CompatibleModelManager.configureModelOrUpdateAPIKey();
                         } catch {
-                            Logger.debug('自动触发新增模型失败或被用户取消');
+                            Logger.debug('Auto-triggered model setup failed or cancelled by user');
                         }
                     });
                 }
@@ -194,12 +194,12 @@ export class CompatibleProvider extends GenericModelProvider {
                 return { ...info, detail: `${sdkModeDisplay} Compatible` };
             });
 
-            Logger.debug(`Compatible Provider 提供了 ${modelInfos.length} 个模型信息`); // 后台异步更新缓存
+            Logger.debug(`Compatible Provider returned ${modelInfos.length} model info entries`); // Update cache asynchronously in the background
             this.updateModelCacheAsync(apiKeyHash);
 
             return modelInfos;
         } catch (error) {
-            Logger.error('获取 Compatible Provider 模型信息失败:', error);
+            Logger.error('Failed to get Compatible Provider model info:', error);
             return [];
         }
     }
@@ -233,7 +233,10 @@ export class CompatibleProvider extends GenericModelProvider {
 
                 await this.modelInfoCache?.cacheModels(CompatibleProvider.PROVIDER_KEY, models, apiKeyHash);
             } catch (err) {
-                Logger.trace('[compatible] 后台缓存更新失败:', err instanceof Error ? err.message : String(err));
+                Logger.trace(
+                    '[compatible] Background cache update failed:',
+                    err instanceof Error ? err.message : String(err)
+                );
             }
         })();
     }
@@ -291,13 +294,13 @@ export class CompatibleProvider extends GenericModelProvider {
                 false
             );
             if (!hasValidKey) {
-                throw new Error(`模型 ${modelConfig.name} 的 API 密钥尚未设置`);
+                throw new Error(`API key for model ${modelConfig.name} is not configured`);
             }
 
             // 根据模型的 sdkMode 选择使用的 handler
             const sdkMode = modelConfig.sdkMode || 'openai';
             const sdkName = this.getSdkDisplayName(sdkMode);
-            Logger.info(`Compatible Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
+            Logger.info(`Compatible Provider started handling request (${sdkName}): ${modelConfig.name}`);
 
             // 计算输入 token 数量并更新状态栏
             const totalInputTokens = await this.updateContextUsageStatusBar(model, messages, modelConfig, options);
@@ -322,7 +325,7 @@ export class CompatibleProvider extends GenericModelProvider {
                     estimatedInputTokens: totalInputTokens
                 });
             } catch (err) {
-                Logger.warn('记录预估Token失败:', err);
+                Logger.warn('Failed to record estimated tokens:', err);
             }
 
             try {
@@ -337,7 +340,7 @@ export class CompatibleProvider extends GenericModelProvider {
                     modelConfig.provider || this.providerKey
                 );
             } catch (error) {
-                const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
+                const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
                 Logger.error(errorMessage);
 
                 // === Token 统计: 更新失败状态 ===
@@ -349,18 +352,18 @@ export class CompatibleProvider extends GenericModelProvider {
                             status: 'failed'
                         });
                     } catch (err) {
-                        Logger.warn('更新Token统计失败:', err);
+                        Logger.warn('Failed to update token stats:', err);
                     }
                 }
 
                 throw error;
             } finally {
-                Logger.info(`✅ Compatible Provider: ${model.name} 请求已完成`);
+                Logger.info(`✅ Compatible Provider: ${model.name} request completed`);
                 // 延时更新状态栏以反映最新余额
                 StatusBarManager.compatible?.delayedUpdate(modelConfig.provider!, 2000);
             }
         } catch (error) {
-            Logger.error('Compatible Provider 处理请求失败:', error);
+            Logger.error('Compatible Provider request processing failed:', error);
             throw error;
         }
     }
@@ -376,7 +379,7 @@ export class CompatibleProvider extends GenericModelProvider {
                 try {
                     await CompatibleModelManager.configureModelOrUpdateAPIKey();
                 } catch (error) {
-                    Logger.error('管理 Compatible 模型失败:', error);
+                    Logger.error('Failed to manage Compatible models:', error);
                     vscode.window.showErrorMessage(
                         `管理模型失败: ${error instanceof Error ? error.message : '未知错误'}`
                     );
@@ -384,7 +387,7 @@ export class CompatibleProvider extends GenericModelProvider {
             })
         );
         disposables.forEach(disposable => context.subscriptions.push(disposable));
-        Logger.debug('Compatible Provider 命令已注册');
+        Logger.debug('Compatible Provider commands registered');
         return disposables;
     }
 
@@ -395,7 +398,7 @@ export class CompatibleProvider extends GenericModelProvider {
         provider: CompatibleProvider;
         disposables: vscode.Disposable[];
     } {
-        Logger.trace('Compatible Provider 已激活!');
+        Logger.trace('Compatible Provider activated!');
         // 创建提供商实例
         const provider = new CompatibleProvider(context);
         // 注册语言模型聊天提供商

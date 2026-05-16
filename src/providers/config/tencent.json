@@ -1,5 +1,5 @@
 ﻿{
-    "displayName": "腾讯云",
+    "displayName": "Tencent",
     "baseUrl": "https://api.hunyuan.cloud.tencent.com/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "codingKeyTemplate": "sk-sp-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",

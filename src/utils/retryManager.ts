@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Logger } from './logger';
+import { t } from './l10n';
 
 /**
  * 重试配置接口
@@ -60,7 +61,7 @@ export class RetryManager {
         let attempt = 0;
 
         // 首次请求
-        Logger.trace(`[${providerName}] 开始首次请求`);
+        Logger.trace(`[${providerName}] Starting initial request`);
         try {
             const result = await operation();
             return result;
@@ -68,10 +69,10 @@ export class RetryManager {
             lastError = error as RetryableError;
             // 如果首次请求就失败且不可重试，直接抛出
             if (!isRetryable(lastError)) {
-                Logger.warn(`[${providerName}] 首次请求失败: ${lastError.message}`);
+                Logger.warn(`[${providerName}] Initial request failed: ${lastError.message}`);
                 throw lastError;
             }
-            Logger.warn(`[${providerName}] 首次请求失败，开始重试机制: ${lastError.message}`);
+            Logger.warn(`[${providerName}] Initial request failed, starting retry flow: ${lastError.message}`);
         }
 
         // 重试循环
@@ -80,36 +81,38 @@ export class RetryManager {
 
             // 计算延迟时间
             const actualDelayMs = this.calculateDelayMs(attempt);
-            Logger.info(`[${providerName}] ${actualDelayMs / 1000}秒后重试...`);
+            Logger.info(`[${providerName}] Retrying in ${actualDelayMs / 1000}s...`);
 
             // 等待延迟时间
             await this.delay(actualDelayMs);
 
             // 执行重试
-            Logger.info(`[${providerName}] 重试尝试 #${attempt}/${this.config.maxAttempts}`);
+            Logger.info(`[${providerName}] Retry attempt #${attempt}/${this.config.maxAttempts}`);
             try {
                 const result = await operation();
-                Logger.info(`[${providerName}] 重试成功！在第 ${attempt} 次重试后`);
+                Logger.info(`[${providerName}] Retry succeeded after attempt ${attempt}`);
                 return result;
             } catch (error) {
                 lastError = error as RetryableError;
 
                 // 如果不是可重试的错误，直接抛出
                 if (!isRetryable(lastError)) {
-                    Logger.warn(`[${providerName}] 第 ${attempt} 次重试失败: ${lastError.message}`);
+                    Logger.warn(`[${providerName}] Retry attempt ${attempt} failed: ${lastError.message}`);
                     throw lastError;
                 }
 
-                Logger.warn(`[${providerName}] 第 ${attempt} 次重试失败，准备下一次重试: ${lastError.message}`);
+                Logger.warn(
+                    `[${providerName}] Retry attempt ${attempt} failed, preparing the next retry: ${lastError.message}`
+                );
             }
         }
 
         // 所有重试都失败，抛出最后一个错误
         if (lastError) {
-            Logger.error(`[${providerName}] 所有重试尝试都失败了: ${lastError.message}`);
+            Logger.error(`[${providerName}] All retry attempts failed: ${lastError.message}`);
             throw lastError;
         } else {
-            throw new Error(`[${providerName}] 未知错误`);
+            throw new Error(t('[{0}] Unknown error', '[{0}] 未知错误', providerName));
         }
     }
 

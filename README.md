@@ -1,5 +1,7 @@
 # GCMP - 提供多个国内原生大模型提供商支持的扩展
 
+**[English](README.en.md)** | 中文
+
 [![CI](https://github.com/VicBilibily/GCMP/actions/workflows/ci.yml/badge.svg)](https://github.com/VicBilibily/GCMP/actions)
 [![License](https://img.shields.io/badge/License-MIT-orange)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
@@ -57,7 +59,7 @@
 - 预置模型：**DeepSeek-V4-Flash**(快速模式)、**DeepSeek-V4-Pro**(专家模式)
     - **余额查询**：已支持状态栏显示当前账户额度，可查看账户余额详情。
 
-### [**阿里云百炼**](https://bailian.console.aliyun.com/) - Aliyun DashScope
+### [**阿里云百炼**](https://bailian.console.aliyun.com/) - AliDashScope
 
 - [**Coding Plan**](https://www.aliyun.com/benefit/scene/codingplan)
     - 推荐模型：**Qwen3.6-Plus**、**Kimi-K2.5**、**GLM-5**、**MiniMax-M2.5**
@@ -84,7 +86,7 @@
 - **协作奖励计划**：**GLM-4.7**、**DeepSeek-V3.2**
 - **密钥配置**：支持设置 [Coding Plan API Key](https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey) 与 [Agent Plan 专用 API Key](https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=agentPlan) 分别设置，配置向导引导选择套餐类型。
 
-### [**腾讯云**](https://cloud.tencent.com/product/hunyuan) - Tencent Cloud
+### [**腾讯云**](https://cloud.tencent.com/product/hunyuan) - Tencent
 
 - [**Coding Plan**](https://console.cloud.tencent.com/tokenhub/codingplan)
     - 混元模型：**Tencent HY 2.0 Instruct**、**Tencent HY 2.0 Think**

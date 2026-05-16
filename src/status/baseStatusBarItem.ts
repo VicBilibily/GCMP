@@ -8,6 +8,7 @@
 import * as vscode from 'vscode';
 import { StatusLogger } from '../utils/statusLogger';
 import { LeaderElectionService } from './leaderElectionService';
+import { t } from '../utils/l10n';
 
 /**
  * 缓存数据结构
@@ -117,12 +118,12 @@ export abstract class BaseStatusBarItem<T> {
 
         for (const field of requiredFields) {
             if (!this.config[field]) {
-                throw new Error(`状态栏配置无效: ${field} 不能为空`);
+                throw new Error(`Invalid status bar configuration: ${field} cannot be empty.`);
             }
         }
 
         if (typeof this.config.priority !== 'number') {
-            throw new Error('状态栏配置无效: priority 必须是数字');
+            throw new Error('Invalid status bar configuration: priority must be a number.');
         }
     }
 
@@ -202,7 +203,9 @@ export abstract class BaseStatusBarItem<T> {
      */
     async initialize(context: vscode.ExtensionContext): Promise<void> {
         if (this.initialized) {
-            StatusLogger.warn(`[${this.config.logPrefix}] 状态栏项已初始化，跳过重复初始化`);
+            StatusLogger.warn(
+                `[${this.config.logPrefix}] Status bar item is already initialized. Skipping duplicate initialization.`
+            );
             return;
         }
 
@@ -226,11 +229,11 @@ export abstract class BaseStatusBarItem<T> {
                 if (shouldShow && this.statusBarItem) {
                     this.statusBarItem.show();
                 } else {
-                    StatusLogger.trace(`[${this.config.logPrefix}] 不满足显示条件，隐藏状态栏`);
+                    StatusLogger.trace(`[${this.config.logPrefix}] Display conditions not met. Hiding status bar.`);
                 }
             })
             .catch(error => {
-                StatusLogger.error(`[${this.config.logPrefix}] 检查显示条件失败`, error);
+                StatusLogger.error(`[${this.config.logPrefix}] Failed to evaluate display conditions`, error);
             });
 
         // 注册刷新命令
@@ -263,7 +266,7 @@ export abstract class BaseStatusBarItem<T> {
         // 调用初始化钩子
         await this.onInitialized();
 
-        StatusLogger.info(`[${this.config.logPrefix}] 状态栏项初始化完成`);
+        StatusLogger.info(`[${this.config.logPrefix}] Status bar item initialized`);
     }
 
     /**
@@ -301,16 +304,16 @@ export abstract class BaseStatusBarItem<T> {
                 this.MIN_DELAYED_UPDATE_INTERVAL - timeSinceLastUpdate
             :   delayMs;
 
-        StatusLogger.debug(`[${this.config.logPrefix}] 设置延时更新，将在 ${finalDelayMs / 1000} 秒后执行`);
+        StatusLogger.debug(`[${this.config.logPrefix}] Scheduled delayed update in ${finalDelayMs / 1000} seconds`);
 
         // 设置新的防抖定时器
         this.updateDebouncer = setTimeout(async () => {
             try {
-                StatusLogger.debug(`[${this.config.logPrefix}] 执行延时更新`);
+                StatusLogger.debug(`[${this.config.logPrefix}] Running delayed update`);
                 this.lastDelayedUpdateTime = Date.now();
                 await this.performInitialUpdate();
             } catch (error) {
-                StatusLogger.error(`[${this.config.logPrefix}] 延时更新失败`, error);
+                StatusLogger.error(`[${this.config.logPrefix}] Delayed update failed`, error);
             } finally {
                 this.updateDebouncer = undefined;
             }
@@ -346,7 +349,7 @@ export abstract class BaseStatusBarItem<T> {
 
         this.initialized = false;
 
-        StatusLogger.info(`[${this.config.logPrefix}] 状态栏项已销毁`);
+        StatusLogger.info(`[${this.config.logPrefix}] Status bar item disposed`);
     }
 
     // ==================== 私有方法 ====================
@@ -384,7 +387,7 @@ export abstract class BaseStatusBarItem<T> {
                 const previousText = this.getDisplayText(this.lastStatusData.data);
                 this.statusBarItem.text = `$(loading~spin) ${previousText.replace(this.config.icon, '').trim()}`;
                 this.statusBarItem.backgroundColor = undefined;
-                this.statusBarItem.tooltip = '加载中...';
+                this.statusBarItem.tooltip = t('Loading...', '加载中...');
             }
 
             // 检查是否应该显示状态栏
@@ -405,11 +408,15 @@ export abstract class BaseStatusBarItem<T> {
             // 执行 API 查询（手动刷新，失败时显示 ERR）
             await this.executeApiQuery(true);
         } catch (error) {
-            StatusLogger.error(`[${this.config.logPrefix}] 刷新失败`, error);
+            StatusLogger.error(`[${this.config.logPrefix}] Refresh failed`, error);
 
             if (this.statusBarItem) {
                 this.statusBarItem.text = `${this.config.icon} ERR`;
-                this.statusBarItem.tooltip = `获取失败: ${error instanceof Error ? error.message : '未知错误'}`;
+                this.statusBarItem.tooltip = t(
+                    'Failed to fetch: {0}',
+                    '获取失败: {0}',
+                    error instanceof Error ? error.message : t('Unknown error', '未知错误')
+                );
             }
         }
     }
@@ -421,7 +428,7 @@ export abstract class BaseStatusBarItem<T> {
     protected async executeApiQuery(isManualRefresh = false): Promise<void> {
         // 防止并发执行
         if (this.isLoading) {
-            StatusLogger.debug(`[${this.config.logPrefix}] 正在执行查询，跳过重复调用`);
+            StatusLogger.debug(`[${this.config.logPrefix}] Query already running. Skipping duplicate request.`);
             return;
         }
 
@@ -431,20 +438,22 @@ export abstract class BaseStatusBarItem<T> {
                 const dataAge = Date.now() - this.lastStatusData.timestamp;
                 if (dataAge >= 0 && dataAge < 5000) {
                     StatusLogger.debug(
-                        `[${this.config.logPrefix}] 数据在 5 秒内有效 (${(dataAge / 1000).toFixed(1)}秒前)，跳过本次自动刷新`
+                        `[${this.config.logPrefix}] Cached data is still valid within 5 seconds (${(dataAge / 1000).toFixed(1)}s ago). Skipping auto refresh.`
                     );
                     return;
                 }
             } catch {
                 // 旧版本数据格式不兼容，忽略错误继续执行刷新
-                StatusLogger.debug(`[${this.config.logPrefix}] 缓存数据格式不兼容，继续执行刷新`);
+                StatusLogger.debug(
+                    `[${this.config.logPrefix}] Cached data format is incompatible. Continuing refresh.`
+                );
             }
         }
 
         this.isLoading = true;
 
         try {
-            StatusLogger.debug(`[${this.config.logPrefix}] 开始执行用量查询...`);
+            StatusLogger.debug(`[${this.config.logPrefix}] Starting usage query...`);
 
             const result = await this.performApiQuery();
 
@@ -466,27 +475,31 @@ export abstract class BaseStatusBarItem<T> {
                     // 更新状态栏 UI
                     this.updateStatusBarUI(data);
 
-                    StatusLogger.info(`[${this.config.logPrefix}] 用量查询成功`);
+                    StatusLogger.info(`[${this.config.logPrefix}] Usage query succeeded`);
                 }
             } else {
                 // 错误处理
-                const errorMsg = result.error || '未知错误';
+                const errorMsg = result.error || t('Unknown error', '未知错误');
 
                 // 只有手动刷新时才显示 ERR，自动刷新失败时保持原状态等待下次刷新
                 if (isManualRefresh && this.statusBarItem) {
                     this.statusBarItem.text = `${this.config.icon} ERR`;
-                    this.statusBarItem.tooltip = `获取失败: ${errorMsg}`;
+                    this.statusBarItem.tooltip = t('Failed to fetch: {0}', '获取失败: {0}', errorMsg);
                 }
 
-                StatusLogger.warn(`[${this.config.logPrefix}] 用量查询失败: ${errorMsg}`);
+                StatusLogger.warn(`[${this.config.logPrefix}] Usage query failed: ${errorMsg}`);
             }
         } catch (error) {
-            StatusLogger.error(`[${this.config.logPrefix}] 更新状态栏失败`, error);
+            StatusLogger.error(`[${this.config.logPrefix}] Failed to update status bar`, error);
 
             // 只有手动刷新时才显示 ERR，自动刷新失败时保持原状态等待下次刷新
             if (isManualRefresh && this.statusBarItem) {
                 this.statusBarItem.text = `${this.config.icon} ERR`;
-                this.statusBarItem.tooltip = `获取失败: ${error instanceof Error ? error.message : '未知错误'}`;
+                this.statusBarItem.tooltip = t(
+                    'Failed to fetch: {0}',
+                    '获取失败: {0}',
+                    error instanceof Error ? error.message : t('Unknown error', '未知错误')
+                );
             }
         } finally {
             // 一定要在最后重置加载状态
@@ -537,7 +550,7 @@ export abstract class BaseStatusBarItem<T> {
                     if (dataAge < 60 * 1000) {
                         // 30-60秒内的数据视为警告日志
                         StatusLogger.debug(
-                            `[${this.config.logPrefix}] 缓存数据已过期 (${(dataAge / 1000).toFixed(1)}秒前)，跳过更新`
+                            `[${this.config.logPrefix}] Cached data has expired (${(dataAge / 1000).toFixed(1)}s ago). Skipping update.`
                         );
                     }
                     // 超过60秒的数据不再记录日志
@@ -551,11 +564,11 @@ export abstract class BaseStatusBarItem<T> {
                 this.updateStatusBarUI(cachedStatusData.data);
 
                 StatusLogger.debug(
-                    `[${this.config.logPrefix}] 从缓存更新状态 (缓存时间: ${(dataAge / 1000).toFixed(1)}秒前)`
+                    `[${this.config.logPrefix}] Updated status from cache (${(dataAge / 1000).toFixed(1)}s ago)`
                 );
             }
         } catch (error) {
-            StatusLogger.warn(`[${this.config.logPrefix}] 从缓存更新状态失败`, error);
+            StatusLogger.warn(`[${this.config.logPrefix}] Failed to update status from cache`, error);
         }
     }
 
@@ -571,7 +584,7 @@ export abstract class BaseStatusBarItem<T> {
             this.updateFromCache();
         }, this.CACHE_UPDATE_INTERVAL);
 
-        StatusLogger.debug(`[${this.config.logPrefix}] 缓存更新定时器已启动，间隔: ${this.CACHE_UPDATE_INTERVAL}ms`);
+        StatusLogger.debug(`[${this.config.logPrefix}] Cache update timer started (${this.CACHE_UPDATE_INTERVAL}ms)`);
     }
 
     /**
@@ -581,23 +594,25 @@ export abstract class BaseStatusBarItem<T> {
         LeaderElectionService.registerPeriodicTask(async () => {
             // 只有主实例才会执行此任务
             if (!this.initialized || !this.context || !this.statusBarItem) {
-                StatusLogger.trace(`[${this.config.logPrefix}] 主实例周期任务跳过：未初始化或无上下文`);
+                StatusLogger.trace(
+                    `[${this.config.logPrefix}] Skipping leader periodic task: not initialized or missing context.`
+                );
                 return;
             }
 
             // 检查是否需要刷新
             const needRefresh = this.shouldRefresh();
             StatusLogger.trace(
-                `[${this.config.logPrefix}] 主实例周期任务检查：needRefresh=${needRefresh}, lastStatusData=${!!this.lastStatusData}`
+                `[${this.config.logPrefix}] Leader periodic task check: needRefresh=${needRefresh}, lastStatusData=${!!this.lastStatusData}`
             );
 
             if (needRefresh) {
-                StatusLogger.debug(`[${this.config.logPrefix}] 主实例触发定时刷新`);
+                StatusLogger.debug(`[${this.config.logPrefix}] Leader instance triggered scheduled refresh`);
                 // 定时刷新属于自动刷新，失败时不显示 ERR
                 await this.executeApiQuery(false);
             }
         });
 
-        StatusLogger.debug(`[${this.config.logPrefix}] 已注册主实例定时刷新任务`);
+        StatusLogger.debug(`[${this.config.logPrefix}] Registered leader periodic refresh task`);
     }
 }

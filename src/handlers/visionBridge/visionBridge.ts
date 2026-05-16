@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { t } from '../../utils/l10n';
 
 export interface VisionBridgeDefinition {
     toolName: string;
@@ -8,7 +9,7 @@ export interface VisionBridgeDefinition {
 export const visionBridgeDefinitions = {
     minimax: {
         toolName: 'minimax_vision',
-        label: 'MiniMax 图片桥接'
+        label: t('MiniMax image bridge', 'MiniMax 图片桥接')
     }
     // zhipu 智谱AI的模型不认模拟调用的工具，目前仅限MiniMax桥接
 } as const satisfies Record<string, VisionBridgeDefinition>;
@@ -24,8 +25,10 @@ export function createVisionBridgeToolCallId(toolName: string): string {
 
 export function buildVisionBridgeToolResultParts(imageDescriptions: string[]): vscode.LanguageModelTextPart[] {
     const parts: vscode.LanguageModelTextPart[] = [
-        new vscode.LanguageModelTextPart(`共识别 ${imageDescriptions.length} 张图片。`),
-        new vscode.LanguageModelTextPart('图片分析结果：')
+        new vscode.LanguageModelTextPart(
+            t('Recognized {0} image(s).', '共识别 {0} 张图片。', imageDescriptions.length)
+        ),
+        new vscode.LanguageModelTextPart(t('Image analysis results:', '图片分析结果：'))
     ];
 
     imageDescriptions.forEach((description, index) => {

@@ -123,9 +123,9 @@ export class CodexCliAuth extends BaseCliAuth {
         if (isExpired && credentials.refresh_token) {
             try {
                 credentials = await this.refreshAccessToken(credentials);
-                Logger.info(`[${this.config.name}] 令牌已刷新`);
+                Logger.info(`[${this.config.name}] Token refreshed`);
             } catch (error) {
-                Logger.error(`[${this.config.name}] 令牌刷新失败:`, error);
+                Logger.error(`[${this.config.name}] Failed to refresh token:`, error);
                 return null;
             }
         }
@@ -138,7 +138,7 @@ export class CodexCliAuth extends BaseCliAuth {
      */
     protected async refreshAccessToken(credentials: OAuthCredentials): Promise<OAuthCredentials> {
         if (!credentials.refresh_token) {
-            throw new Error('Codex CLI OAuth 凭证缺少 refresh_token，无法刷新令牌');
+            throw new Error('Codex CLI OAuth credentials are missing refresh_token and cannot refresh the token');
         }
 
         const body = new URLSearchParams({
@@ -180,7 +180,7 @@ export class CodexCliAuth extends BaseCliAuth {
 
         if (!tokenRes.ok) {
             const errorMsg = responseData.error?.message || rawText || 'unknown error';
-            throw new Error(`Codex CLI 令牌刷新失败 (${tokenRes.status}): ${errorMsg}`);
+            throw new Error(`Codex CLI token refresh failed (${tokenRes.status}): ${errorMsg}`);
         }
 
         const accessToken = responseData.access_token || '';
@@ -188,7 +188,7 @@ export class CodexCliAuth extends BaseCliAuth {
         const refreshToken = responseData.refresh_token || credentials.refresh_token;
 
         if (!accessToken) {
-            throw new Error('Codex CLI OAuth 刷新响应缺少 access_token');
+            throw new Error('Codex CLI OAuth refresh response is missing access_token');
         }
 
         // 正常情况下 OpenAI 总会返回 expires_in；缺失时保留原 expiry_date（避免立即进入刷新循环）
@@ -212,7 +212,7 @@ export class CodexCliAuth extends BaseCliAuth {
             account_id: accountId
         });
 
-        Logger.info('[Codex] 令牌刷新成功');
+        Logger.info('[Codex] Token refresh succeeded');
         return newCredentials;
     }
 
@@ -268,7 +268,9 @@ export class CodexCliAuth extends BaseCliAuth {
                 }
             }
 
-            Logger.debug(`[${this.config.name}] 从 tokens 对象加载凭证，account_id: ${result.account_id}`);
+            Logger.debug(
+                `[${this.config.name}] Loaded credentials from tokens object, account_id: ${result.account_id}`
+            );
             return result;
         }
 
@@ -331,7 +333,7 @@ export class CodexCliAuth extends BaseCliAuth {
                 }
             }
         } catch {
-            Logger.debug('[Codex] 解析 id_token 失败');
+            Logger.debug('[Codex] Failed to parse id_token');
         }
         return undefined;
     }

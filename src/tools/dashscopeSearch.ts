@@ -1,10 +1,11 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  阿里云百炼 (DashScope) 联网搜索工具
  *  通过 MCP 协议接入百炼 WebSearch MCP 服务
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
 import { Logger } from '../utils';
+import { t } from '../utils/l10n';
 import {
     DashscopeMCPWebSearchClient,
     type DashscopeWebSearchRequest,
@@ -44,26 +45,31 @@ export class DashscopeSearchTool {
         request: vscode.LanguageModelToolInvocationOptions<DashscopeSearchRequest>
     ): Promise<vscode.LanguageModelToolResult> {
         try {
-            Logger.info(`🚀 [工具调用] 阿里云百炼联网搜索工具被调用: ${JSON.stringify(request.input)}`);
+            Logger.info(`🚀 [Tool Call] DashScope web search tool invoked: ${JSON.stringify(request.input)}`);
 
             const params = request.input as DashscopeSearchRequest;
             if (!params.query) {
-                throw new Error('缺少必需参数: query');
+                throw new Error(t('Missing required parameter: query', '缺少必需参数: query'));
             }
 
-            Logger.info(`🔄 [DashScope 搜索] 使用MCP模式搜索: "${params.query}"`);
+            Logger.info(`🔄 [DashScope Search] Using MCP mode for query: "${params.query}"`);
             const searchResults = await this.searchViaMCP(params);
 
-            Logger.info('✅ [工具调用] 阿里云百炼联网搜索工具调用成功');
+            Logger.info('✅ [Tool call] DashScope web search tool invoked successfully');
 
             return new vscode.LanguageModelToolResult([
                 new vscode.LanguageModelTextPart(JSON.stringify(searchResults))
             ]);
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : '未知错误';
-            Logger.error('❌ [工具调用] 阿里云百炼联网搜索工具调用失败', error instanceof Error ? error : undefined);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            Logger.error(
+                '❌ [Tool call] DashScope web search tool invocation failed',
+                error instanceof Error ? error : undefined
+            );
 
-            throw new vscode.LanguageModelError(`DashScope搜索失败: ${errorMessage}`);
+            throw new vscode.LanguageModelError(
+                t('DashScope search failed: {0}', 'DashScope搜索失败: {0}', errorMessage)
+            );
         }
     }
 
@@ -74,9 +80,9 @@ export class DashscopeSearchTool {
         try {
             // MCP 客户端使用单例模式，不需要在这里清理
             // 如果需要清理所有 MCP 客户端缓存，可以调用 DashscopeMCPWebSearchClient.clearCache()
-            Logger.info('✅ [DashScope 搜索] 工具资源已清理');
+            Logger.info('✅ [DashScope Search] Tool resources cleaned up');
         } catch (error) {
-            Logger.error('❌ [DashScope 搜索] 资源清理失败', error instanceof Error ? error : undefined);
+            Logger.error('❌ [DashScope Search] Resource cleanup failed', error instanceof Error ? error : undefined);
         }
     }
 

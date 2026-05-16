@@ -38,7 +38,7 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
         providerKey: string,
         providerConfig: ProviderConfig
     ): { provider: ZhipuProvider; disposables: vscode.Disposable[] } {
-        Logger.trace(`${providerConfig.displayName} 专用模型扩展已激活!`);
+        Logger.trace(`${providerConfig.displayName} dedicated model extension activated`);
         // 创建提供商实例
         const provider = new ZhipuProvider(context, providerKey, providerConfig);
         // 注册语言模型聊天提供商
@@ -58,7 +58,7 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
 
         // 注册配置向导命令
         const configWizardCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.configWizard`, async () => {
-            Logger.info(`启动 ${providerConfig.displayName} 配置向导`);
+            Logger.info(`Starting ${providerConfig.displayName} setup wizard`);
             await ZhipuWizard.startWizard(providerConfig.displayName, providerConfig.apiKeyTemplate);
         });
 
@@ -148,11 +148,15 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
     }
     protected override shouldRetryRequest(error: RetryableError): boolean {
         if (super.shouldRetryRequest(error)) {
-            Logger.debug(`[${this.providerConfig.displayName}] 请求失败，符合请求频率限制重试条件，准备重试...`);
+            Logger.debug(
+                `[${this.providerConfig.displayName}] Request failed and matched rate-limit retry criteria, preparing retry...`
+            );
             return true;
         }
         if (ZhipuProvider.isServerError(error)) {
-            Logger.debug(`[${this.providerConfig.displayName}] 请求失败，符合服务器端错误重试条件，准备重试...`);
+            Logger.debug(
+                `[${this.providerConfig.displayName}] Request failed and matched server-error retry criteria, preparing retry...`
+            );
             return true;
         }
         return false;

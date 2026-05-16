@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as https from 'https';
 import { ConfigManager } from '../../utils';
 import { ApiKeyManager } from '../../utils/apiKeyManager';
+import { t } from '../../utils/l10n';
 import { VersionManager } from '../../utils/versionManager';
 import { StatusBarManager } from '../../status';
 
@@ -45,7 +46,12 @@ export class MiniMaxVisionTool {
     async understand(params: MiniMaxVisionRequest, abortSignal?: AbortSignal): Promise<MiniMaxVisionResponse> {
         const apiKey = await ApiKeyManager.getApiKey('minimax-coding');
         if (!apiKey) {
-            throw new Error('MiniMax Coding Plan API密钥未设置，请先运行命令"GCMP: 设置 MiniMax Coding Plan API密钥"');
+            throw new Error(
+                t(
+                    'MiniMax Coding Plan API key is not set. Run "GCMP: Set MiniMax Coding Plan API Key" first',
+                    'MiniMax Coding Plan API密钥未设置，请先运行命令"GCMP: 设置 MiniMax Coding Plan API密钥"'
+                )
+            );
         }
 
         const requestData = JSON.stringify({
@@ -76,7 +82,11 @@ export class MiniMaxVisionTool {
                 res.on('end', () => {
                     try {
                         if (res.statusCode !== 200) {
-                            let errorMessage = `MiniMax图片理解API错误 ${res.statusCode}`;
+                            let errorMessage = t(
+                                'MiniMax image understanding API error {0}',
+                                'MiniMax图片理解API错误 {0}',
+                                res.statusCode
+                            );
                             try {
                                 const errorData = JSON.parse(data);
                                 errorMessage += `: ${errorData.error?.message || JSON.stringify(errorData)}`;
@@ -92,7 +102,11 @@ export class MiniMaxVisionTool {
                     } catch (error) {
                         reject(
                             new Error(
-                                `解析MiniMax图片理解响应失败: ${error instanceof Error ? error.message : '未知错误'}`
+                                t(
+                                    'Failed to parse MiniMax image understanding response: {0}',
+                                    '解析MiniMax图片理解响应失败: {0}',
+                                    error instanceof Error ? error.message : t('Unknown error', '未知错误')
+                                )
                             )
                         );
                     }
@@ -101,16 +115,30 @@ export class MiniMaxVisionTool {
 
             req.on('error', error => {
                 if (abortSignal?.aborted) {
-                    reject(new Error('用户取消了图片理解请求'));
+                    reject(
+                        new Error(t('Image understanding request was cancelled by the user', '用户取消了图片理解请求'))
+                    );
                     return;
                 }
-                reject(new Error(`MiniMax图片理解请求失败: ${error.message}`));
+                reject(
+                    new Error(
+                        t(
+                            'MiniMax image understanding request failed: {0}',
+                            'MiniMax图片理解请求失败: {0}',
+                            error.message
+                        )
+                    )
+                );
             });
 
             // 请求超时：60 秒
             req.setTimeout(60000, () => {
                 req.destroy();
-                reject(new Error('MiniMax图片理解请求超时（60秒）'));
+                reject(
+                    new Error(
+                        t('MiniMax image understanding request timed out (60s)', 'MiniMax图片理解请求超时（60秒）')
+                    )
+                );
             });
 
             // 取消信号监听
@@ -161,10 +189,10 @@ export class MiniMaxVisionTool {
             const params = request.input as MiniMaxVisionRequest;
 
             if (!params.prompt) {
-                throw new Error('缺少必需参数: prompt');
+                throw new Error(t('Missing required parameter: prompt', '缺少必需参数: prompt'));
             }
             if (!params.image_url) {
-                throw new Error('缺少必需参数: image_url');
+                throw new Error(t('Missing required parameter: image_url', '缺少必需参数: image_url'));
             }
 
             const response = await this.understand(params);
@@ -173,8 +201,10 @@ export class MiniMaxVisionTool {
 
             return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(response.content)]);
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : '未知错误';
-            throw new vscode.LanguageModelError(`MiniMax图片理解失败: ${errorMessage}`);
+            const errorMessage = error instanceof Error ? error.message : t('Unknown error', '未知错误');
+            throw new vscode.LanguageModelError(
+                t('MiniMax image understanding failed: {0}', 'MiniMax图片理解失败: {0}', errorMessage)
+            );
         }
     }
 

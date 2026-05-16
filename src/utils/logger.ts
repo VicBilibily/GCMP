@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { t } from './l10n';
 
 /**
  * 日志管理器类 - 直接使用VS Code的LogLevel和LogOutputChannel
@@ -30,29 +31,40 @@ export class Logger {
         const channelLevel = this.outputChannel.logLevel;
         const envLevel = vscode.env.logLevel;
 
-        Logger.info('📊 VS Code日志级别状态:');
-        Logger.info(`  - 输出通道级别: ${vscode.LogLevel[channelLevel]} (${channelLevel})`);
-        Logger.info(`  - 编辑器环境级别: ${vscode.LogLevel[envLevel]} (${envLevel})`);
+        Logger.info('VS Code log level status:');
+        Logger.info(`  - Output channel level: ${vscode.LogLevel[channelLevel]} (${channelLevel})`);
+        Logger.info(`  - Editor environment level: ${vscode.LogLevel[envLevel]} (${envLevel})`);
 
         // 如果日志级别高于Debug，提示用户
         if (channelLevel > vscode.LogLevel.Debug) {
-            Logger.warn(`⚠️ 当前VS Code日志级别为 ${vscode.LogLevel[channelLevel]}，可能不会显示详细调试信息`);
-            Logger.info('💡 如需查看详细调试日志，请执行命令: "Developer: Set Log Level" → 选择 "Debug"');
+            Logger.warn(
+                `Current VS Code log level is ${vscode.LogLevel[channelLevel]}; detailed debug information may not be shown`
+            );
+            Logger.info('To view detailed debug logs, run "Developer: Set Log Level" and choose "Debug"');
+
+            const setLogLevelAction = t('Set log level', '设置日志级别');
+            const ignoreAction = t('Ignore', '忽略');
 
             // 显示通知
             vscode.window
                 .showInformationMessage(
-                    `GCMP: 当前VS Code日志级别为 ${vscode.LogLevel[channelLevel]}`,
-                    '设置日志级别',
-                    '忽略'
+                    t(
+                        'GCMP: Current VS Code log level is {0}',
+                        'GCMP: 当前VS Code日志级别为 {0}',
+                        vscode.LogLevel[channelLevel]
+                    ),
+                    setLogLevelAction,
+                    ignoreAction
                 )
                 .then(selection => {
-                    if (selection === '设置日志级别') {
+                    if (selection === setLogLevelAction) {
                         vscode.commands.executeCommand('workbench.action.setLogLevel');
                     }
                 });
         } else {
-            Logger.info(`✅ VS Code日志级别已设置为 ${vscode.LogLevel[channelLevel]}，可以查看详细调试信息`);
+            Logger.info(
+                `VS Code log level is set to ${vscode.LogLevel[channelLevel]}; detailed debug logs are available`
+            );
         }
     }
 

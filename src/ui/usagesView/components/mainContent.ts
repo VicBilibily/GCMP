@@ -7,6 +7,7 @@ import { createProviderStats } from './providerStats';
 import { createHourlyStats } from './hourlyStats';
 import { createHourlyChart } from './hourlyChart';
 import { createElement } from '../../utils';
+import { t } from '../utils';
 
 // ============= 工具函数 =============
 
@@ -24,7 +25,7 @@ function isToday(date: string): boolean {
  */
 function createEmptyContent(dateText: string): HTMLElement {
     const content = createElement('div', 'empty-message');
-    content.innerHTML = `💡 ${dateText} 暂无 Token 消耗记录`;
+    content.innerHTML = `💡 ${t('No token usage recorded for {0}', '{0} 暂无 Token 消耗记录', dateText)}`;
     return content;
 }
 
@@ -35,7 +36,7 @@ export function createMainContent(): HTMLElement {
     const content = createElement('div', 'content');
 
     const title = createElement('h2', '', { id: 'details-title' });
-    title.textContent = '加载中...';
+    title.textContent = t('Loading...', '加载中...');
 
     const detailsContent = createElement('div', '', { id: 'details-content' });
 
@@ -59,8 +60,11 @@ export function updateMainContent(): void {
 
     // 更新标题
     const dateDetails = window.usagesState.dateDetails;
-    const displayText = dateDetails?.date && isToday(dateDetails.date) ? '今日' : dateDetails?.date || '加载中...';
-    title.textContent = `${displayText} 使用详情`;
+    const displayText =
+        dateDetails?.date && isToday(dateDetails.date) ?
+            t('Today', '今日')
+        :   dateDetails?.date || t('Loading...', '加载中...');
+    title.textContent = t('{0} Usage Details', '{0} 使用详情', displayText);
 
     // 更新内容
     if (dateDetails && dateDetails.providers && dateDetails.providers.length > 0) {
@@ -92,7 +96,10 @@ export function updateMainContent(): void {
         detailsContent.appendChild(hourlyChartSection);
         detailsContent.appendChild(hourlySection);
     } else {
-        const displayText2 = dateDetails?.date && isToday(dateDetails.date) ? '今日' : dateDetails?.date || '今日';
+        const displayText2 =
+            dateDetails?.date && isToday(dateDetails.date) ?
+                t('Today', '今日')
+            :   dateDetails?.date || t('Today', '今日');
         detailsContent.innerHTML = '';
         detailsContent.appendChild(createEmptyContent(displayText2));
     }

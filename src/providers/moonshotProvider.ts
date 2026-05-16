@@ -61,7 +61,7 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
 
         // 注册配置向导命令
         const configWizardCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.configWizard`, async () => {
-            Logger.info(`启动 ${providerConfig.displayName} 配置向导`);
+            Logger.info(`Starting ${providerConfig.displayName} setup wizard`);
             await MoonshotWizard.startWizard(
                 providerConfig.displayName,
                 providerConfig.apiKeyTemplate,
@@ -98,7 +98,7 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
     private async ensureApiKeyForModel(modelConfig: ModelConfig): Promise<string> {
         const providerKey = modelConfig.provider || this.providerKey;
         const isKimi = providerKey === 'kimi';
-        const keyType = isKimi ? 'Kimi For Coding 专用' : 'Moonshot';
+        const keyType = isKimi ? 'Kimi For Coding dedicated' : 'Moonshot';
 
         // 检查是否已有密钥
         const hasApiKey = await ApiKeyManager.hasValidApiKey(providerKey);
@@ -110,7 +110,7 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
         }
 
         // 密钥不存在，直接进入设置流程（不弹窗确认）
-        Logger.warn(`模型 ${modelConfig.name} 缺少 ${keyType} API 密钥，进入设置流程`);
+        Logger.warn(`Model ${modelConfig.name} is missing the ${keyType} API key, entering setup flow`);
 
         if (isKimi) {
             // Kimi For Coding 模型直接进入专用密钥设置
@@ -123,12 +123,12 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
         // 重新检查密钥是否设置成功
         const apiKey = await ApiKeyManager.getApiKey(providerKey);
         if (apiKey) {
-            Logger.info(`${keyType}密钥设置成功`);
+            Logger.info(`${keyType} API key configured successfully`);
             return apiKey;
         }
 
         // 用户未设置或设置失败
-        throw new Error(`${this.providerConfig.displayName}: 用户未设置 ${keyType} API 密钥`);
+        throw new Error(`${this.providerConfig.displayName}: user did not configure the ${keyType} API key`);
     }
 
     /**
@@ -152,7 +152,9 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
 
         // 如果是静默模式且没有任何密钥，直接返回空列表
         if (options.silent && !hasAnyKey) {
-            Logger.debug(`${this.providerConfig.displayName}: 静默模式下，未检测到任何密钥，返回空模型列表`);
+            Logger.debug(
+                `${this.providerConfig.displayName}: no keys detected in silent mode, returning empty model list`
+            );
             return [];
         }
 
@@ -170,14 +172,16 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
 
             // 如果用户仍未设置任何密钥，返回空列表
             if (!moonshotKeyValid && !kimiKeyValid) {
-                Logger.warn(`${this.providerConfig.displayName}: 用户未设置任何密钥，返回空模型列表`);
+                Logger.warn(
+                    `${this.providerConfig.displayName}: user did not configure any keys, returning empty model list`
+                );
                 return [];
             }
         }
 
         // 返回所有模型，不进行过滤
         // 具体的密钥验证会在用户选择模型后的 provideLanguageModelChatResponse 中进行
-        Logger.debug(`${this.providerConfig.displayName}: 返回全部 ${this.providerConfig.models.length} 个模型`);
+        Logger.debug(`${this.providerConfig.displayName}: returning all ${this.providerConfig.models.length} models`);
 
         // 将配置中的模型转换为 VS Code 所需的格式
         const models = this.providerConfig.models.map(model => this.modelConfigToInfo(model));
@@ -200,7 +204,7 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
         // 查找对应的模型配置
         const modelConfig = this.findModelConfigById(model);
         if (!modelConfig) {
-            const errorMessage = `未找到模型: ${model.id}`;
+            const errorMessage = `Model not found: ${model.id}`;
             Logger.error(errorMessage);
             throw new Error(errorMessage);
         }
@@ -211,12 +215,12 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
         const apiKey = await this.ensureApiKeyForModel(modelConfig);
 
         if (!apiKey) {
-            const keyType = providerKey === 'kimi' ? 'Kimi For Coding 专用' : 'Moonshot';
-            throw new Error(`${this.providerConfig.displayName}: 无效的 ${keyType} API 密钥`);
+            const keyType = providerKey === 'kimi' ? 'Kimi For Coding dedicated' : 'Moonshot';
+            throw new Error(`${this.providerConfig.displayName}: invalid ${keyType} API key`);
         }
 
         Logger.debug(
-            `${this.providerConfig.displayName}: 即将处理请求，使用 ${providerKey === 'kimi' ? 'Kimi For Coding' : 'Moonshot'} 密钥 - 模型: ${modelConfig.name}`
+            `${this.providerConfig.displayName}: about to handle request using ${providerKey === 'kimi' ? 'Kimi For Coding' : 'Moonshot'} key - model: ${modelConfig.name}`
         );
 
         // 计算输入 token 数量并更新状态栏
@@ -234,7 +238,7 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
                 estimatedInputTokens: totalInputTokens
             });
         } catch (err) {
-            Logger.warn('记录预估Token失败，继续执行请求:', err);
+            Logger.warn('Failed to record estimated tokens, continuing request:', err);
         }
 
         // 根据模型的 sdkMode 选择使用的 handler
@@ -242,7 +246,9 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
         // 避免双重密钥检查，因为我们已经在 ensureApiKeyForModel 中检查过了
         const sdkMode = modelConfig.sdkMode || 'openai';
         const sdkName = this.getSdkDisplayName(sdkMode);
-        Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
+        Logger.info(
+            `${this.providerConfig.displayName} Provider started handling request (${sdkName}): ${modelConfig.name}`
+        );
 
         try {
             await this.executeModelRequest(
@@ -256,7 +262,7 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
                 providerKey
             );
         } catch (error) {
-            const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
+            const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
             Logger.error(errorMessage);
 
             // === Token 统计: 更新失败状态 ===
@@ -267,13 +273,13 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
                         status: 'failed'
                     });
                 } catch (err) {
-                    Logger.warn('更新Token统计失败状态失败:', err);
+                    Logger.warn('Failed to update token usage failure status:', err);
                 }
             }
 
             throw error;
         } finally {
-            Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} 请求已完成`);
+            Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);
 
             // 根据使用的密钥类型，延时更新对应的状态栏使用量
             if (providerKey === 'kimi') {

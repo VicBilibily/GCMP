@@ -1,5 +1,5 @@
 {
-    "displayName": "火山方舟",
+    "displayName": "Volcengine",
     "baseUrl": "https://ark.cn-beijing.volces.com/api/v3",
     "apiKeyTemplate": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
     "tokenKeyTemplate": "ark-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx-xxxxx",

@@ -5,6 +5,16 @@
 import type { BaseStats, HourlyStats } from '../../usages/fileLogger/types';
 import { WebViewMessage } from './types';
 
+function isChineseLocale(): boolean {
+    const lang = (document.documentElement.lang || navigator.language || '').toLowerCase();
+    return lang === 'zh-cn' || lang === 'zh' || lang.startsWith('zh-');
+}
+
+export function t(en: string, zh: string, ...args: Array<string | number>): string {
+    const template = isChineseLocale() ? zh : en;
+    return args.reduce((result, arg, index) => result.replace(`{${index}}`, String(arg)), template);
+}
+
 /**
  * 获取提供商显示名称（处理特殊情况）
  * 例如：providerKey 为 "kimi" 时，显示名称应为 "Kimi"
@@ -85,6 +95,6 @@ export function postToVSCode(message: WebViewMessage): void {
             }
         }
     } catch (error) {
-        console.error('发送消息失败:', error);
+        console.error('Failed to post message to VS Code:', error);
     }
 }

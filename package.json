@@ -2,8 +2,8 @@
     "name": "gcmp",
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
-    "description": "为 GitHub Copilot Chat 提供 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云、Xiaomi MiMo、百度千帆 模型支持的扩展，并提供 `OpenAI / Anthropic Compatible` 自定义模型支持。",
-    "version": "0.22.14",
+    "description": "%extension.description%",
+    "version": "0.22.15",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -82,210 +82,210 @@
         "commands": [
             {
                 "command": "gcmp.zhipu.setApiKey",
-                "title": "设置 智谱AI API密钥",
+                "title": "%command.zhipu.setApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.zhipu.configWizard",
-                "title": "智谱AI 配置向导（API密钥 & 搜索 MCP 模式）",
+                "title": "%command.zhipu.configWizard%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.minimax.setApiKey",
-                "title": "设置 MiniMax API密钥",
+                "title": "%command.minimax.setApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.minimax.setCodingPlanApiKey",
-                "title": "设置 MiniMax Coding Plan 专用密钥",
+                "title": "%command.minimax.setCodingPlanApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.minimax.setCodingPlanEndpoint",
-                "title": "设置 MiniMax Coding Plan 接入点（国内/国际站）",
+                "title": "%command.minimax.setCodingPlanEndpoint%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.minimax.configWizard",
-                "title": "启动 MiniMax 配置向导",
+                "title": "%command.minimax.configWizard%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.kimi.setApiKey",
-                "title": "设置 Kimi API密钥",
+                "title": "%command.kimi.setApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.moonshot.setApiKey",
-                "title": "设置 MoonshotAI API密钥",
+                "title": "%command.moonshot.setApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.moonshot.configWizard",
-                "title": "启动 MoonshotAI 配置向导",
+                "title": "%command.moonshot.configWizard%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.deepseek.setApiKey",
-                "title": "设置 DeepSeek API密钥",
+                "title": "%command.deepseek.setApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.volcengine.setApiKey",
-                "title": "设置 火山方舟 API密钥",
+                "title": "%command.volcengine.setApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.volcengine.setAgentPlanApiKey",
-                "title": "设置 火山方舟 Agent Plan 专用密钥",
+                "title": "%command.volcengine.setAgentPlanApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.volcengine.configWizard",
-                "title": "火山方舟 配置向导",
+                "title": "%command.volcengine.configWizard%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.streamlake.setApiKey",
-                "title": "设置 快手万擎 API密钥",
+                "title": "%command.streamlake.setApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.dashscope.setApiKey",
-                "title": "设置 阿里云百炼 API密钥",
+                "title": "%command.dashscope.setApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.dashscope.setCodingPlanApiKey",
-                "title": "设置 阿里云百炼 Coding Plan 专用密钥",
+                "title": "%command.dashscope.setCodingPlanApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.dashscope.setTokenPlanApiKey",
-                "title": "设置 阿里云百炼 Token Plan 专用密钥",
+                "title": "%command.dashscope.setTokenPlanApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.dashscope.configWizard",
-                "title": "启动 阿里云百炼 配置向导",
+                "title": "%command.dashscope.configWizard%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.tencent.setApiKey",
-                "title": "设置 腾讯云大模型 API密钥",
+                "title": "%command.tencent.setApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.tencent.setCodingPlanApiKey",
-                "title": "设置 腾讯云 Coding Plan 专用密钥",
+                "title": "%command.tencent.setCodingPlanApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.tencent.setTokenPlanApiKey",
-                "title": "设置 腾讯云 Token Plan 专用密钥",
+                "title": "%command.tencent.setTokenPlanApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.tencent.setDeepSeekApiKey",
-                "title": "设置 腾讯云 DeepSeek 专用密钥",
+                "title": "%command.tencent.setDeepSeekApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.tencent.setTokenHubApiKey",
-                "title": "设置 腾讯云 TokenHub 密钥",
+                "title": "%command.tencent.setTokenHubApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.tencent.configWizard",
-                "title": "启动 腾讯云 配置向导",
+                "title": "%command.tencent.configWizard%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.xiaomimimo.setApiKey",
-                "title": "设置 Xiaomi MiMo API密钥",
+                "title": "%command.xiaomimimo.setApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.xiaomimimo.setTokenPlanApiKey",
-                "title": "设置 Xiaomi MiMo Token Plan 专用密钥",
+                "title": "%command.xiaomimimo.setTokenPlanApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.xiaomimimo.setTokenPlanEndpoint",
-                "title": "设置 Xiaomi MiMo Token Plan 接入点",
+                "title": "%command.xiaomimimo.setTokenPlanEndpoint%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.xiaomimimo.configWizard",
-                "title": "启动 Xiaomi MiMo 配置向导",
+                "title": "%command.xiaomimimo.configWizard%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.baidu.setApiKey",
-                "title": "设置 百度千帆 API密钥",
+                "title": "%command.baidu.setApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.baidu.setCodingPlanApiKey",
-                "title": "设置 百度千帆 Coding Plan 专用密钥",
+                "title": "%command.baidu.setCodingPlanApiKey%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.baidu.configWizard",
-                "title": "启动 百度千帆 配置向导",
+                "title": "%command.baidu.configWizard%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.gemini.configWizard",
-                "title": "Gemini CLI 配置向导（CLI 认证）",
+                "title": "%command.gemini.configWizard%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.codex.configWizard",
-                "title": "Codex CLI 配置向导（CLI 认证）",
+                "title": "%command.codex.configWizard%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.compatible.manageModels",
-                "title": "Compatible Provider 设置",
+                "title": "%command.compatible.manageModels%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.nesCompletion.toggleManual",
-                "title": "切换 NES 手动触发模式",
+                "title": "%command.nesCompletion.toggleManual%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.tokenUsage.showDetails",
-                "title": "查看今日 Token 消耗统计详情",
+                "title": "%command.tokenUsage.showDetails%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.cli.auth",
-                "title": "CLI 认证管理",
+                "title": "%command.cli.auth%",
                 "category": "GCMP"
             },
             {
                 "command": "gcmp.commit.generateMessage",
-                "title": "生成提交消息",
+                "title": "%command.commit.generateMessage%",
                 "category": "GCMP",
                 "icon": "$(gcmp-git-commit)"
             },
             {
                 "command": "gcmp.commit.generateMessageStaged",
-                "title": "生成提交消息 - 暂存的更改",
+                "title": "%command.commit.generateMessageStaged%",
                 "category": "GCMP",
                 "icon": "$(gcmp-git-commit)"
             },
             {
                 "command": "gcmp.commit.generateMessageWorkingTree",
-                "title": "生成提交消息 - 未暂存的更改",
+                "title": "%command.commit.generateMessageWorkingTree%",
                 "category": "GCMP",
                 "icon": "$(gcmp-git-commit)"
             },
             {
                 "command": "gcmp.commit.selectModel",
-                "title": "选择 Commit 消息生成模型",
+                "title": "%command.commit.selectModel%",
                 "category": "GCMP"
             }
         ],
@@ -297,7 +297,7 @@
                     "default": 16000,
                     "minimum": 32,
                     "maximum": 256000,
-                    "description": "控制AI模型输出的最大token数量。较大的值允许更长的响应。",
+                    "description": "%setting.maxTokens.description%",
                     "scope": "application"
                 },
                 "gcmp.retry.maxAttempts": {
@@ -305,25 +305,25 @@
                     "default": 3,
                     "minimum": 1,
                     "maximum": 5,
-                    "description": "请求失败后的最大自动重试次数，仅对可重试错误生效。重试延迟按 1s、3s、6s、10s、15s 的累加序列递增。",
+                    "description": "%setting.retry.maxAttempts.description%",
                     "scope": "application"
                 },
                 "gcmp.temperature": {
                     "type": "number",
-                    "deprecationMessage": "temperature 已被弃用，请改用模型的 extraBody 参数传递",
-                    "description": "模型采样温度（已弃用）",
+                    "deprecationMessage": "%setting.temperature.deprecationMessage%",
+                    "description": "%setting.temperature.description%",
                     "scope": "application"
                 },
                 "gcmp.topP": {
                     "type": "number",
-                    "deprecationMessage": "topP 已被弃用，请改用模型的 extraBody 参数传递",
-                    "description": "模型采样 top-p 参数（已弃用）",
+                    "deprecationMessage": "%setting.topP.deprecationMessage%",
+                    "description": "%setting.topP.description%",
                     "scope": "application"
                 },
                 "gcmp.rememberLastModel": {
                     "type": "boolean",
-                    "deprecationMessage": "rememberLastModel 已被弃用，此功能不再被支持",
-                    "description": "是否记住上次选择的模型（已弃用）",
+                    "deprecationMessage": "%setting.rememberLastModel.deprecationMessage%",
+                    "description": "%setting.rememberLastModel.description%",
                     "scope": "application"
                 },
                 "gcmp.editToolMode": {
@@ -334,26 +334,26 @@
                         "none"
                     ],
                     "enumDescriptions": [
-                        "使用 Claude 风格的编辑工具 (ReplaceString) - 高效精确的单次替换",
-                        "使用 GPT-5 风格的编辑工具 (ApplyPatch) - 批量差异应用，支持复杂重构",
-                        "不使用特定优化工具，直接文件编辑 - 效率较低，适合处理编辑异常情况"
+                        "%setting.editToolMode.enumDescriptions.claude%",
+                        "%setting.editToolMode.enumDescriptions.gpt5%",
+                        "%setting.editToolMode.enumDescriptions.none%"
                     ],
                     "default": "claude",
-                    "deprecationMessage": "editToolMode 已被弃用，请在模型配置中使用 family 字段代替。此配置将在未来版本中移除。",
-                    "description": "选择编辑工具模式。Claude 使用高效的ReplaceString，GPT-5 使用ApplyPatch进行批量编辑，None 直接使用基础文件编辑。",
+                    "deprecationMessage": "%setting.editToolMode.deprecationMessage%",
+                    "description": "%setting.editToolMode.description%",
                     "scope": "application"
                 },
                 "gcmp.autoPrefixModelId": {
                     "type": "boolean",
                     "default": true,
-                    "description": "（已弃用）在模型列表中为模型ID自动添加提供商前缀（例如：gcmp.zhipu:::glm-5）。该选项现已默认启用，配置项将在未来版本移除。",
+                    "description": "%setting.autoPrefixModelId.description%",
                     "scope": "application",
-                    "deprecationMessage": "此配置已弃用，模型ID前缀模式现已默认启用。"
+                    "deprecationMessage": "%setting.autoPrefixModelId.deprecationMessage%"
                 },
                 "gcmp.zhipu.search.enableMCP": {
                     "type": "boolean",
                     "default": true,
-                    "description": "启用智谱AI搜索的MCP SDK模式。使用标准 MCP 协议和官方 SDK 实现搜索功能，提供更稳定的连接和更好的错误处理。非订阅套餐请关闭此开关以使用标准计费接口（按次计费）。需要有效的智谱AI API密钥。",
+                    "description": "%setting.zhipu.search.enableMCP.description%",
                     "scope": "application"
                 },
                 "gcmp.zhipu.endpoint": {
@@ -363,7 +363,7 @@
                         "api.z.ai"
                     ],
                     "default": "open.bigmodel.cn",
-                    "description": "智谱AI接入站点。open.bigmodel.cn 为国内站（推荐），api.z.ai 为国际站。",
+                    "description": "%setting.zhipu.endpoint.description%",
                     "scope": "application"
                 },
                 "gcmp.minimax.endpoint": {
@@ -373,7 +373,7 @@
                         "minimax.io"
                     ],
                     "default": "minimaxi.com",
-                    "description": "MiniMax Coding Plan 接入站点。minimaxi.com 为国内站（推荐），minimax.io 为国际站。",
+                    "description": "%setting.minimax.endpoint.description%",
                     "scope": "application"
                 },
                 "gcmp.xiaomimimo.endpoint": {
@@ -384,7 +384,7 @@
                         "ams"
                     ],
                     "default": "cn",
-                    "description": "Xiaomi MiMo Token Plan 接入点。cn 为中国接入点（默认），sgp 为新加坡接入点，ams 为欧洲接入点。",
+                    "description": "%setting.xiaomimimo.endpoint.description%",
                     "scope": "application"
                 },
                 "gcmp.usages.retentionDays": {
@@ -392,13 +392,13 @@
                     "default": 100,
                     "minimum": 0,
                     "maximum": 365,
-                    "description": "Token消耗记录历史数据保留天数（按日期保存，0表示永久保留）。",
+                    "description": "%setting.usages.retentionDays.description%",
                     "scope": "application"
                 },
                 "gcmp.fimCompletion.enabled": {
                     "type": "boolean",
                     "default": false,
-                    "description": "启用 FIM (Fill In the Middle) 建议功能。",
+                    "description": "%setting.fimCompletion.enabled.description%",
                     "scope": "application"
                 },
                 "gcmp.fimCompletion.debounceMs": {
@@ -406,7 +406,7 @@
                     "default": 500,
                     "minimum": 50,
                     "maximum": 1000,
-                    "description": "FIM 补全的防抖延迟（毫秒）。",
+                    "description": "%setting.fimCompletion.debounceMs.description%",
                     "scope": "application"
                 },
                 "gcmp.fimCompletion.timeoutMs": {
@@ -414,7 +414,7 @@
                     "default": 5000,
                     "minimum": 1000,
                     "maximum": 30000,
-                    "description": "FIM 补全的请求超时时间（毫秒）。",
+                    "description": "%setting.fimCompletion.timeoutMs.description%",
                     "scope": "application"
                 },
                 "gcmp.fimCompletion.modelConfig": {
@@ -424,34 +424,34 @@
                         "baseUrl": "",
                         "model": ""
                     },
-                    "description": "FIM 补全使用的模型配置。",
+                    "description": "%setting.fimCompletion.modelConfig.description%",
                     "scope": "application",
                     "properties": {
                         "provider": {
                             "type": "string",
-                            "description": "模型提供商标识符"
+                            "description": "%setting.modelConfig.provider.description%"
                         },
                         "baseUrl": {
                             "type": "string",
-                            "description": "API基础URL",
+                            "description": "%setting.modelConfig.baseUrl.description%",
                             "format": "uri"
                         },
                         "model": {
                             "type": "string",
-                            "description": "FIM 补全使用的模型名称"
+                            "description": "%setting.fimCompletion.modelConfig.model.description%"
                         },
                         "maxTokens": {
                             "type": "number",
-                            "description": "FIM 补全返回的最大长度",
+                            "description": "%setting.fimCompletion.modelConfig.maxTokens.description%",
                             "default": 200,
                             "minimum": 50,
                             "maximum": 16000
                         },
                         "extraBody": {
                             "type": "object",
-                            "description": "额外的请求体参数，将在API请求中合并到请求体中",
+                            "description": "%setting.modelConfig.extraBody.description%",
                             "additionalProperties": {
-                                "description": "额外的请求体参数值"
+                                "description": "%setting.modelConfig.extraBody.additionalProperties.description%"
                             }
                         }
                     },
@@ -464,7 +464,7 @@
                 "gcmp.nesCompletion.enabled": {
                     "type": "boolean",
                     "default": false,
-                    "description": "启用 NES (Next Edit Suggestions) 建议功能。",
+                    "description": "%setting.nesCompletion.enabled.description%",
                     "scope": "application"
                 },
                 "gcmp.nesCompletion.debounceMs": {
@@ -472,7 +472,7 @@
                     "default": 500,
                     "minimum": 50,
                     "maximum": 1000,
-                    "description": "NES 补全的防抖延迟（毫秒）。",
+                    "description": "%setting.nesCompletion.debounceMs.description%",
                     "scope": "application"
                 },
                 "gcmp.nesCompletion.timeoutMs": {
@@ -480,13 +480,13 @@
                     "default": 5000,
                     "minimum": 1000,
                     "maximum": 30000,
-                    "description": "NES 补全的请求超时时间（毫秒）。",
+                    "description": "%setting.nesCompletion.timeoutMs.description%",
                     "scope": "application"
                 },
                 "gcmp.nesCompletion.manualOnly": {
                     "type": "boolean",
                     "default": false,
-                    "description": "启用后，NES 补全仅响应手动触发（Alt+/），不会自动触发。",
+                    "description": "%setting.nesCompletion.manualOnly.description%",
                     "scope": "application"
                 },
                 "gcmp.nesCompletion.modelConfig": {
@@ -496,34 +496,34 @@
                         "baseUrl": "",
                         "model": ""
                     },
-                    "description": "NES 补全使用的模型配置。",
+                    "description": "%setting.nesCompletion.modelConfig.description%",
                     "scope": "application",
                     "properties": {
                         "provider": {
                             "type": "string",
-                            "description": "模型提供商标识符"
+                            "description": "%setting.modelConfig.provider.description%"
                         },
                         "baseUrl": {
                             "type": "string",
-                            "description": "API基础URL",
+                            "description": "%setting.modelConfig.baseUrl.description%",
                             "format": "uri"
                         },
                         "model": {
                             "type": "string",
-                            "description": "NES 补全使用的模型名称"
+                            "description": "%setting.nesCompletion.modelConfig.model.description%"
                         },
                         "maxTokens": {
                             "type": "number",
-                            "description": "NES 补全返回的最大长度",
+                            "description": "%setting.nesCompletion.modelConfig.maxTokens.description%",
                             "default": 200,
                             "minimum": 50,
                             "maximum": 16000
                         },
                         "extraBody": {
                             "type": "object",
-                            "description": "额外的请求体参数，将在API请求中合并到请求体中",
+                            "description": "%setting.modelConfig.extraBody.description%",
                             "additionalProperties": {
-                                "description": "额外的请求体参数值"
+                                "description": "%setting.modelConfig.extraBody.additionalProperties.description%"
                             }
                         }
                     },
@@ -540,11 +540,11 @@
                         "english"
                     ],
                     "enumDescriptions": [
-                        "Chinese - 默认/回退语言（auto 模式下历史语言不明确时使用中文）",
-                        "English - Default/fallback language (used when auto mode language is unclear)"
+                        "%setting.commit.language.enumDescriptions.chinese%",
+                        "%setting.commit.language.enumDescriptions.english%"
                     ],
                     "default": "chinese",
-                    "description": "生成提交消息使用的语言。auto 模式会优先从仓库最近提交历史推断语言；当历史语言不明确时回退为此配置。支持在工作区和全局配置中设置，工作区配置优先级更高。",
+                    "description": "%setting.commit.language.description%",
                     "scope": "window"
                 },
                 "gcmp.commit.format": {
@@ -563,26 +563,26 @@
                         "atom"
                     ],
                     "enumDescriptions": [
-                        "Auto - 根据历史提交记录推断提交规范；无法推断则回退为 Plain",
-                        "Plain - 简洁的一句话提交描述（示例：修复配置回退逻辑）",
-                        "Custom - 使用自定义指令生成提交消息（示例：PROJ-123: 修复登录跳转）",
-                        "Conventional Commits - 约定式提交格式（示例：feat(auth): 添加登录）",
-                        "Angular - Angular 项目风格（示例：fix(core): 处理空配置）",
-                        "Karma - Karma 测试框架风格（示例：feat(ui): 增加提交向导）",
-                        "Semantic - 语义化版本风格（示例：fix: 修复无效格式回退）",
-                        "Emoji - 表情符号风格（示例：🐛 修复配置回退）",
-                        "EmojiKarma - 表情符号 + Karma 风格（示例：✨ feat(auth): 添加登录）",
-                        "Google - Google 项目风格（示例：Fix: 修复无效格式回退）",
-                        "Atom - Atom 编辑器风格（示例：:bug: 修复配置回退）"
+                        "%setting.commit.format.enumDescriptions.auto%",
+                        "%setting.commit.format.enumDescriptions.plain%",
+                        "%setting.commit.format.enumDescriptions.custom%",
+                        "%setting.commit.format.enumDescriptions.conventional%",
+                        "%setting.commit.format.enumDescriptions.angular%",
+                        "%setting.commit.format.enumDescriptions.karma%",
+                        "%setting.commit.format.enumDescriptions.semantic%",
+                        "%setting.commit.format.enumDescriptions.emoji%",
+                        "%setting.commit.format.enumDescriptions.emojiKarma%",
+                        "%setting.commit.format.enumDescriptions.google%",
+                        "%setting.commit.format.enumDescriptions.atom%"
                     ],
                     "default": "auto",
-                    "description": "生成提交消息使用的格式。auto 会根据历史提交记录推断提交规范；无法推断则回退为 plain。支持在工作区和全局配置中设置，工作区配置优先级更高。",
+                    "description": "%setting.commit.format.description%",
                     "scope": "window"
                 },
                 "gcmp.commit.customInstructions": {
                     "type": "string",
                     "default": "",
-                    "description": "自定义的提交消息生成指令（当 commitFormat=custom 时生效）。",
+                    "description": "%setting.commit.customInstructions.description%",
                     "scope": "window"
                 },
                 "gcmp.commit.model": {
@@ -591,16 +591,16 @@
                         "provider": "",
                         "model": ""
                     },
-                    "description": "指定用于生成提交消息的模型（provider + model）。留空则会提示选择模型。",
+                    "description": "%setting.commit.model.description%",
                     "scope": "window",
                     "properties": {
                         "provider": {
                             "type": "string",
-                            "description": "语言模型提供商（providerKey），例如 zhipu / compatible"
+                            "description": "%setting.commit.model.provider.description%"
                         },
                         "model": {
                             "type": "string",
-                            "description": "模型 ID（对应 Language Model API 的 model.id）"
+                            "description": "%setting.commit.model.model.description%"
                         }
                     },
                     "required": [
@@ -611,13 +611,13 @@
                 "gcmp.providerOverrides": {
                     "type": "object",
                     "default": {},
-                    "description": "提供商配置覆盖。允许覆盖提供商的baseUrl和模型配置，支持添加新模型或覆盖现有模型的参数。",
+                    "description": "%setting.providerOverrides.description%",
                     "scope": "application"
                 },
                 "gcmp.compatibleModels": {
                     "type": "array",
                     "default": [],
-                    "description": "Compatible Provider 的自定义模型配置。完全由用户配置的 OpenAI / Anthropic 兼容模型列表。",
+                    "description": "%setting.compatibleModels.description%",
                     "scope": "application"
                 }
             }
@@ -651,7 +651,7 @@
             },
             {
                 "vendor": "gcmp.dashscope",
-                "displayName": "GCMP · Aliyun DashScope",
+                "displayName": "GCMP · AliDashScope",
                 "managementCommand": "gcmp.dashscope.configWizard"
             },
             {
@@ -666,7 +666,7 @@
             },
             {
                 "vendor": "gcmp.tencent",
-                "displayName": "GCMP · Tencent Cloud",
+                "displayName": "GCMP · Tencent",
                 "managementCommand": "gcmp.tencent.configWizard"
             },
             {
@@ -698,16 +698,16 @@
         "languageModelTools": [
             {
                 "name": "gcmp_zhipuWebSearch",
-                "displayName": "智谱AI联网搜索",
+                "displayName": "%tool.zhipuWebSearch.displayName%",
                 "toolReferenceName": "zhipuWebSearch",
-                "modelDescription": "使用智谱AI提供的联网搜索功能获取实时信息。支持多种搜索引擎：search_std（标准搜索，¥0.01）、search_pro（高级搜索，¥0.03）、search_pro_sogou（搜狗搜索，¥0.05）、search_pro_quark（夸克搜索，¥0.05）。注意：Pro+ 套餐可通过 MCP SSE 调用，非订阅套餐使用标准计费接口。",
-                "userDescription": "通过智谱AI联网搜索获取最新信息",
+                "modelDescription": "%tool.zhipuWebSearch.modelDescription%",
+                "userDescription": "%tool.zhipuWebSearch.userDescription%",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "search_query": {
                             "type": "string",
-                            "description": "搜索查询字符串"
+                            "description": "%tool.zhipuWebSearch.input.searchQuery.description%"
                         },
                         "search_engine": {
                             "type": "string",
@@ -717,24 +717,24 @@
                                 "search_pro_sogou",
                                 "search_pro_quark"
                             ],
-                            "description": "搜索引擎类型：search_std（标准，¥0.01）、search_pro（高级，¥0.03）、search_pro_sogou（搜狗，¥0.05）、search_pro_quark（夸克，¥0.05）",
+                            "description": "%tool.zhipuWebSearch.input.searchEngine.description%",
                             "default": "search_std"
                         },
                         "search_intent": {
                             "type": "boolean",
-                            "description": "是否进行搜索意图分析",
+                            "description": "%tool.zhipuWebSearch.input.searchIntent.description%",
                             "default": false
                         },
                         "count": {
                             "type": "integer",
-                            "description": "返回搜索结果数量",
+                            "description": "%tool.zhipuWebSearch.input.count.description%",
                             "minimum": 1,
                             "maximum": 20,
                             "default": 10
                         },
                         "search_domain_filter": {
                             "type": "string",
-                            "description": "域名过滤器，限制搜索特定网站"
+                            "description": "%tool.zhipuWebSearch.input.searchDomainFilter.description%"
                         },
                         "search_recency_filter": {
                             "type": "string",
@@ -745,7 +745,7 @@
                                 "month",
                                 "year"
                             ],
-                            "description": "时间过滤器：noLimit（无限制）、day（一天内）、week（一周内）、month（一月内）、year（一年内）",
+                            "description": "%tool.zhipuWebSearch.input.searchRecencyFilter.description%",
                             "default": "noLimit"
                         },
                         "content_size": {
@@ -755,7 +755,7 @@
                                 "medium",
                                 "high"
                             ],
-                            "description": "内容详细程度：low（低）、medium（中）、high（高）",
+                            "description": "%tool.zhipuWebSearch.input.contentSize.description%",
                             "default": "medium"
                         }
                     },
@@ -767,16 +767,16 @@
             },
             {
                 "name": "gcmp_minimaxWebSearch",
-                "displayName": "MiniMax网络搜索",
+                "displayName": "%tool.minimaxWebSearch.displayName%",
                 "toolReferenceName": "minimaxWebSearch",
-                "modelDescription": "使用 MiniMax Coding Plan 提供的网络搜索功能获取实时信息。需要订阅 MiniMax Coding Plan 套餐并设置专用API密钥。",
-                "userDescription": "通过MiniMax网络搜索获取最新信息",
+                "modelDescription": "%tool.minimaxWebSearch.modelDescription%",
+                "userDescription": "%tool.minimaxWebSearch.userDescription%",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "q": {
                             "type": "string",
-                            "description": "搜索查询字符串"
+                            "description": "%tool.minimaxWebSearch.input.q.description%"
                         }
                     },
                     "required": [
@@ -787,27 +787,27 @@
             },
             {
                 "name": "gcmp_kimiWebSearch",
-                "displayName": "Kimi网络搜索",
+                "displayName": "%tool.kimiWebSearch.displayName%",
                 "toolReferenceName": "kimiWebSearch",
-                "modelDescription": "使用 Kimi Code 提供的网络搜索功能获取实时信息。需要使用 Kimi For Coding 专用 API 密钥或 Moonshot API 密钥。",
-                "userDescription": "通过Kimi网络搜索获取最新信息",
+                "modelDescription": "%tool.kimiWebSearch.modelDescription%",
+                "userDescription": "%tool.kimiWebSearch.userDescription%",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "query": {
                             "type": "string",
-                            "description": "搜索查询字符串"
+                            "description": "%tool.kimiWebSearch.input.query.description%"
                         },
                         "limit": {
                             "type": "integer",
-                            "description": "返回搜索结果数量",
+                            "description": "%tool.kimiWebSearch.input.limit.description%",
                             "minimum": 1,
                             "maximum": 50,
                             "default": 10
                         },
                         "includeContent": {
                             "type": "boolean",
-                            "description": "是否抓取并返回页面完整内容",
+                            "description": "%tool.kimiWebSearch.input.includeContent.description%",
                             "default": false
                         }
                     },
@@ -819,20 +819,20 @@
             },
             {
                 "name": "gcmp_dashscopeWebSearch",
-                "displayName": "阿里云百炼联网搜索",
+                "displayName": "%tool.dashscopeWebSearch.displayName%",
                 "toolReferenceName": "bailianWebSearch",
-                "modelDescription": "使用阿里云百炼提供的联网搜索MCP服务获取实时信息。需要订阅百炼Coding Plan并开通联网搜索MCP服务（限时免费，每月2000次免费额度），使用百炼通用API密钥（sk-xxx格式）进行鉴权。",
-                "userDescription": "通过阿里云百炼联网搜索获取最新信息",
+                "modelDescription": "%tool.dashscopeWebSearch.modelDescription%",
+                "userDescription": "%tool.dashscopeWebSearch.userDescription%",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "query": {
                             "type": "string",
-                            "description": "搜索查询字符串"
+                            "description": "%tool.dashscopeWebSearch.input.query.description%"
                         },
                         "count": {
                             "type": "integer",
-                            "description": "返回搜索结果数量",
+                            "description": "%tool.dashscopeWebSearch.input.count.description%",
                             "minimum": 1,
                             "maximum": 20,
                             "default": 10

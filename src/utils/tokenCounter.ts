@@ -13,6 +13,7 @@ import {
 } from 'vscode';
 import { createTokenizer, getRegexByEncoder, getSpecialTokensByEncoder, TikTokenizer } from '@microsoft/tiktokenizer';
 import { Logger } from './logger';
+import { t } from './l10n';
 import { sanitizeToolSchemaForSdkMode } from './schemaSanitizer';
 import { CustomDataPartMimeTypes } from '../handlers/types';
 
@@ -76,7 +77,7 @@ export class TokenCounter {
      */
     static setExtensionPath(path: string): void {
         extensionPath = path;
-        Logger.trace('✓ [TokenCounter] 扩展路径已设置');
+        Logger.trace('[TokenCounter] Extension path set');
     }
 
     /**
@@ -85,7 +86,7 @@ export class TokenCounter {
     static getInstance(): TokenCounter {
         if (!sharedTokenCounterInstance) {
             sharedTokenCounterInstance = new TokenCounter();
-            Logger.trace('✓ [TokenCounter] 全局实例已创建');
+            Logger.trace('[TokenCounter] Shared instance created');
         }
         return sharedTokenCounterInstance;
     }
@@ -95,9 +96,14 @@ export class TokenCounter {
      */
     static getSharedTokenizer(): TikTokenizer {
         if (!sharedTokenizerPromise) {
-            Logger.trace('🔧 [TokenCounter] 首次请求 tokenizer，正在初始化全局共享实例...');
+            Logger.trace('[TokenCounter] Initializing shared tokenizer instance on first request');
             if (!extensionPath) {
-                throw new Error('[TokenCounter] 扩展路径未初始化，请先调用 TokenCounter.setExtensionPath()');
+                throw new Error(
+                    t(
+                        '[TokenCounter] Extension path is not initialized. Call TokenCounter.setExtensionPath() first.',
+                        '[TokenCounter] 扩展路径未初始化，请先调用 TokenCounter.setExtensionPath()'
+                    )
+                );
             }
             const basePath = vscode.Uri.file(extensionPath!);
             const tokenizerPath = vscode.Uri.joinPath(basePath, 'dist', 'o200k_base.tiktoken').fsPath;
@@ -106,7 +112,7 @@ export class TokenCounter {
                 getSpecialTokensByEncoder('o200k_base'),
                 getRegexByEncoder('o200k_base')
             );
-            Logger.trace('✓ [TokenCounter] tokenizer 初始化完成');
+            Logger.trace('[TokenCounter] Tokenizer initialized');
         }
         return sharedTokenizerPromise;
     }
@@ -224,10 +230,10 @@ export class TokenCounter {
             // Logger.trace(`[Token计数] 对象消息: ${objectTokens} tokens`);
             return objectTokens;
         } catch (error) {
-            Logger.warn('[Token计数] 计算消息对象 token 失败，使用简化计算:', error);
+            Logger.warn('[TokenCounter] Failed to count message object tokens, using fallback estimation:', error);
             // 降级处理：将消息对象转为 JSON 字符串计算
             const fallbackTokens = this.tokenizer!.encode(JSON.stringify(text)).length;
-            Logger.trace(`[Token计数] 降级计算: ${fallbackTokens} tokens`);
+            Logger.trace(`[TokenCounter] Fallback estimation: ${fallbackTokens} tokens`);
             return fallbackTokens;
         }
     }
@@ -407,7 +413,7 @@ export class TokenCounter {
         const totalSystemTokens = systemTokens + systemOverhead;
 
         Logger.debug(
-            `[Token计数] 系统消息详情: 内容 ${systemTokens} tokens + 包装开销 ${systemOverhead} tokens = ${totalSystemTokens} tokens`
+            `[TokenCounter] System message details: content ${systemTokens} tokens + wrapper overhead ${systemOverhead} tokens = ${totalSystemTokens} tokens`
         );
         return totalSystemTokens;
     }

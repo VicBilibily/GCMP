@@ -135,8 +135,8 @@ export class StreamReporter {
      */
     reportToolCall(callId: string, name: string, args: Record<string, unknown> | object): void {
         // 输出工具调用前，先 flush 剩余 thinking 和文本，并结束思维链
-        this.flushThinking('输出工具调用前');
-        this.flushText('输出工具调用前');
+        this.flushThinking('Before reporting tool call');
+        this.flushText('Before reporting tool call');
         this.endThinkingChain();
 
         // 如果有 thoughtSignature，输出一个带 signature 的空 ThinkingPart（无 ID）
@@ -153,15 +153,15 @@ export class StreamReporter {
         this.hasReceivedContent = true;
         this.hasToolCalls = true;
 
-        Logger.info(`[${this.modelName}] 成功处理工具调用: ${name} toolCallId: ${callId}`);
+        Logger.info(`[${this.modelName}] Successfully processed tool call: ${name} toolCallId: ${callId}`);
     }
 
     /**
      * 直接报告完整的工具结果（用于原生 server tool 等场景）
      */
     reportToolResult(callId: string, content: string | vscode.LanguageModelTextPart[]): void {
-        this.flushThinking('输出工具结果前');
-        this.flushText('输出工具结果前');
+        this.flushThinking('Before reporting tool result');
+        this.flushText('Before reporting tool result');
         this.endThinkingChain();
 
         const parts = typeof content === 'string' ? [new vscode.LanguageModelTextPart(content)] : content;
@@ -193,7 +193,7 @@ export class StreamReporter {
         // 如果当前没有 thinking id，则生成一个
         if (!this.currentThinkingId) {
             this.currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-            Logger.trace(`[${this.modelName}] 创建新思维链 ID: ${this.currentThinkingId}`);
+            Logger.trace(`[${this.modelName}] Created new thinking chain ID: ${this.currentThinkingId}`);
         }
 
         this.thinkingBuffer += content;
@@ -238,13 +238,13 @@ export class StreamReporter {
         let bufferedTool = this.toolCallsBuffer.get(index);
         if (!bufferedTool) {
             // 工具调用开始前，先 flush 剩余 thinking 和文本，并结束思维链
-            this.flushThinking('工具调用开始');
-            this.flushText('工具调用开始');
+            this.flushThinking('Before tool call start');
+            this.flushText('Before tool call start');
             this.endThinkingChain();
 
             bufferedTool = { arguments: '' };
             this.toolCallsBuffer.set(index, bufferedTool);
-            Logger.trace(`🔧 [${this.modelName}] 工具调用开始: ${name || 'unknown'} (索引: ${index})`);
+            Logger.trace(`🔧 [${this.modelName}] Tool call started: ${name || 'unknown'} (index: ${index})`);
         }
 
         // 累积数据
@@ -265,7 +265,7 @@ export class StreamReporter {
                 const args = JSON.parse(bufferedTool.arguments);
 
                 // 确保之前的思考和签名已输出
-                this.flushThinking('工具调用完成前');
+                this.flushThinking('Before tool call completion');
                 if (this.signatureBuffer) {
                     this.flushSignature();
                 }
@@ -291,7 +291,9 @@ export class StreamReporter {
                 // 从缓存中移除已处理的工具调用
                 this.toolCallsBuffer.delete(index);
 
-                Logger.info(`[${this.modelName}] 成功处理工具调用: ${bufferedTool.name} toolCallId: ${toolCallId}`);
+                Logger.info(
+                    `[${this.modelName}] Successfully processed tool call: ${bufferedTool.name} toolCallId: ${toolCallId}`
+                );
             } catch {
                 // JSON 解析失败，工具调用还未完成，继续累积
                 // Logger.trace(`[${this.modelName}] 工具调用参数未完整，继续累积: ${bufferedTool.name}`);
@@ -307,7 +309,7 @@ export class StreamReporter {
         // 例如累积到 ...\" 时末尾字符是 "，传入的单字符 " 会被 endsWith 误匹配并丢弃，
         // 导致 JSON 字符串缺少闭合引号，最终解析失败
         if (newArgs.length >= 2 && existing.endsWith(newArgs)) {
-            Logger.trace(`[${this.modelName}] 跳过重复的工具调用参数: "${newArgs}"`);
+            Logger.trace(`[${this.modelName}] Skipping duplicate tool call arguments: "${newArgs}"`);
             return existing;
         }
         // 新数据包含了旧数据（完全重复+新增），只取新增部分
@@ -337,7 +339,7 @@ export class StreamReporter {
                     signature: this.signatureBuffer
                 })
             );
-            Logger.trace(`[${this.modelName}] 输出签名 metadata: ${this.signatureBuffer.length} 字符`);
+            Logger.trace(`[${this.modelName}] Reported signature metadata: ${this.signatureBuffer.length} chars`);
         }
         this.signatureBuffer = '';
     }
@@ -407,7 +409,7 @@ export class StreamReporter {
     endThinkingChain(): void {
         if (this.currentThinkingId) {
             this.progress.report(new vscode.LanguageModelThinkingPart('', this.currentThinkingId));
-            Logger.trace(`[${this.modelName}] 结束思维链: ${this.currentThinkingId}`);
+            Logger.trace(`[${this.modelName}] Ended thinking chain: ${this.currentThinkingId}`);
             this.currentThinkingId = null;
         }
     }
@@ -428,14 +430,18 @@ export class StreamReporter {
                     this.progress.report(new vscode.LanguageModelToolCallPart(toolCallId, bufferedTool.name, args));
                     this.hasToolCalls = true;
 
-                    Logger.info(`[${this.modelName}] 成功处理工具调用: ${bufferedTool.name} toolCallId: ${toolCallId}`);
+                    Logger.info(
+                        `[${this.modelName}] Successfully processed tool call: ${bufferedTool.name} toolCallId: ${toolCallId}`
+                    );
                     toolProcessed = true;
                 } catch (error) {
-                    Logger.error(`[${this.modelName}] 无法解析工具调用参数: ${bufferedTool.name} error: ${error}`);
+                    Logger.error(
+                        `[${this.modelName}] Failed to parse tool call arguments: ${bufferedTool.name} error: ${error}`
+                    );
                 }
             } else {
                 Logger.warn(
-                    `[${this.modelName}] 不完整的工具调用 [${toolIndex}]: name=${bufferedTool.name}, args_length=${bufferedTool.arguments.length}`
+                    `[${this.modelName}] Incomplete tool call [${toolIndex}]: name=${bufferedTool.name}, args_length=${bufferedTool.arguments.length}`
                 );
             }
         }
@@ -474,12 +480,12 @@ export class StreamReporter {
      */
     flushAll(finishReason: string | null, customStatefulData?: StatefulMarkerPartial): boolean {
         if (finishReason) {
-            Logger.debug(`[${this.modelName}] 流已结束，原因: ${finishReason}`);
+            Logger.debug(`[${this.modelName}] Stream finished, reason: ${finishReason}`);
         }
 
         // 1. 输出剩余思考内容（length 除外）
         if (finishReason !== 'length') {
-            this.flushThinking('流结束前');
+            this.flushThinking('Before stream end');
         }
 
         // 2. 输出剩余签名（Anthropic 特殊，紧跟在思考内容之后）
@@ -491,18 +497,20 @@ export class StreamReporter {
         this.endThinkingChain();
 
         // 4. 输出剩余文本内容
-        this.flushText('流结束前');
+        this.flushText('Before stream end');
 
         // 5. 处理未完成的工具调用（如果有）
         if (this.toolCallsBuffer.size > 0) {
-            Logger.warn(`[${this.modelName}] 流结束时仍有 ${this.toolCallsBuffer.size} 个未完成的工具调用`);
+            Logger.warn(`[${this.modelName}] Stream ended with ${this.toolCallsBuffer.size} unfinished tool calls`);
             this.flushToolCalls();
         }
 
         // 6. 处理 \n 占位符（只有在没有任何内容时才添加）
         if (this.hasThinkingContent && !this.hasReceivedContent) {
-            this.progress.report(new vscode.LanguageModelTextPart('\n'));
-            Logger.warn(`[${this.modelName}] 消息流结束时只有思考内容没有文本内容，添加了 \\n 占位符作为输出`);
+            this.progress.report(new vscode.LanguageModelTextPart('\n```\n```\n\n'));
+            Logger.warn(
+                `[${this.modelName}] Stream ended with thinking content only and no text content; added placeholder output`
+            );
         }
 
         // 7. 报告 StatefulMarker

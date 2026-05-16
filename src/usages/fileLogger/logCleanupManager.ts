@@ -41,7 +41,7 @@ export class LogCleanupManager {
                 .reverse(); // 倒序(最新的在前)
             return dates;
         } catch (err) {
-            StatusLogger.error('[LogCleanupManager] 获取日期列表失败', err);
+            StatusLogger.error('[LogCleanupManager] Failed to get date list', err);
             return [];
         }
     }
@@ -64,10 +64,10 @@ export class LogCleanupManager {
             // 从索引中删除该日期
             await this.indexManager.removeDate(dateStr);
 
-            StatusLogger.info(`[LogCleanupManager] 已删除过期记录: ${dateStr} (${count} 个文件)`);
+            StatusLogger.info(`[LogCleanupManager] Deleted expired records: ${dateStr} (${count} files)`);
             return count;
         } catch (err) {
-            StatusLogger.error(`[LogCleanupManager] 删除过期记录失败: ${dateStr}`, err);
+            StatusLogger.error(`[LogCleanupManager] Failed to delete expired records: ${dateStr}`, err);
             throw err;
         }
     }

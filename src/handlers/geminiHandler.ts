@@ -12,6 +12,7 @@ import * as path from 'path';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { ConfigManager } from '../utils/configManager';
 import { Logger } from '../utils/logger';
+import { t } from '../utils/l10n';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import type { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import type { GenericUsageData, RawUsageData } from '../usages/fileLogger/types';
@@ -313,7 +314,7 @@ export class GeminiHandler {
                 return v.trim();
             }
         } catch (err) {
-            Logger.trace('[Gemini] 读取 ~/.gemini/.env 失败:', err);
+            Logger.trace('[Gemini] Failed to read ~/.gemini/.env:', err);
         }
         return undefined;
     }
@@ -336,11 +337,11 @@ export class GeminiHandler {
             if (versionMatch) {
                 const version = versionMatch[1];
                 GeminiHandler.extensionVersion = version;
-                Logger.info(`[Gemini] 检测到 Gemini CLI 版本: ${version}`);
+                Logger.info(`[Gemini] Detected Gemini CLI version: ${version}`);
                 return version;
             }
         } catch (e) {
-            Logger.warn('[Gemini] 无法获取 Gemini CLI 版本，将使用默认版本', e);
+            Logger.warn('[Gemini] Cannot get Gemini CLI version, will use default version', e);
         }
         // 默认版本号：与当前 Gemini CLI 最新版本对齐
         const defaultVersion = GeminiHandler.defaultCliVersion;
@@ -390,7 +391,7 @@ export class GeminiHandler {
             });
             const text = await res.text();
             if (!res.ok) {
-                Logger.warn(`[Gemini] loadCodeAssist 失败 (${res.status}): ${text.slice(0, 200)}`);
+                Logger.warn(`[Gemini] loadCodeAssist failed (${res.status}): ${text.slice(0, 200)}`);
                 return undefined;
             }
             let data: Record<string, unknown> = {};
@@ -403,12 +404,12 @@ export class GeminiHandler {
             if (typeof project === 'string' && project.trim()) {
                 const projectId = project.trim();
                 this.codeAssistProjectCache.set(cacheKey, projectId);
-                Logger.info(`[Gemini] loadCodeAssist 获取到托管 project: ${projectId}`);
+                Logger.info(`[Gemini] loadCodeAssist returned hosted project: ${projectId}`);
                 return projectId;
             }
             return undefined;
         } catch (err) {
-            Logger.warn('[Gemini] callLoadCodeAssist 异常:', err);
+            Logger.warn('[Gemini] callLoadCodeAssist exception:', err);
             return undefined;
         }
     }
@@ -485,7 +486,7 @@ export class GeminiHandler {
         const providerKey = modelConfig?.provider || this.provider;
         const currentApiKey = await ApiKeyManager.getApiKey(providerKey);
         if (!currentApiKey) {
-            throw new Error(`缺少 ${this.displayName} API密钥`);
+            throw new Error(t('Missing {0} API key', '缺少 {0} API 密钥', this.displayName));
         }
         return currentApiKey;
     }
@@ -529,7 +530,9 @@ export class GeminiHandler {
         const headersWithDynamicUA = { ...processedHeaders, 'User-Agent': dynamicUserAgent };
         const normalizedBaseUrl = this.normalizeBaseUrl(baseUrl);
         if (!normalizedBaseUrl) {
-            throw new Error('Gemini 模式需要在 modelInfo 中指定 baseUrl');
+            throw new Error(
+                t('Gemini mode requires baseUrl in modelInfo', 'Gemini 模式需要在 modelInfo 中指定 baseUrl')
+            );
         }
 
         let generationConfig: GeminiGenerationConfig = {
@@ -550,7 +553,7 @@ export class GeminiHandler {
         const markerAndIndex = getStatefulMarkerAndIndex(model.id, 'gemini', messages);
         const statefulMarker = markerAndIndex?.statefulMarker;
         const sessionId = statefulMarker?.sessionId || crypto.randomUUID();
-        Logger.debug(`🎯 ${model.name} 使用 session_id: ${sessionId}`);
+        Logger.debug(`🎯 ${model.name} Using session_id: ${sessionId}`);
 
         // 用途：组装请求体（Gemini v1beta / Code Assist v1internal 都复用 contents + generationConfig）。
         const baseRequest: GeminiGenerateContentRequest = {
@@ -575,13 +578,18 @@ export class GeminiHandler {
             };
         }
 
-        Logger.info(`🚀 ${model.name} 发送 ${this.displayName} Gemini HTTP 请求 (model=${modelId})`);
+        Logger.info(`🚀 ${model.name} Sending ${this.displayName} Gemini HTTP request (model=${modelId})`);
 
         try {
             // 用途：构建第三方 Gemini 网关可用的流式 SSE endpoint。
             const endpoint = this.buildEndpoint(normalizedBaseUrl, modelId, true);
             if (!endpoint) {
-                throw new Error('无法构建 Gemini 请求地址（请检查 baseUrl / model 配置）');
+                throw new Error(
+                    t(
+                        'Failed to build Gemini request URL (please check baseUrl / model configuration)',
+                        '无法构建 Gemini 请求地址（请检查 baseUrl / model 配置）'
+                    )
+                );
             }
 
             // 创建统一的流报告器
@@ -615,20 +623,20 @@ export class GeminiHandler {
 
             // 用途：SSE/行流响应必须存在 response.body。
             if (!response.body) {
-                throw new Error('响应体为空');
+                throw new Error(t('Response body is empty', '响应体为空'));
             }
 
             // 用途：处理流式响应
             await this.processStream(response.body, reporter, requestId || '', token);
 
-            Logger.debug(`✅ ${model.name} ${this.displayName} Gemini HTTP 请求完成`);
+            Logger.debug(`✅ ${model.name} ${this.displayName} Gemini HTTP request completed`);
         } catch (error) {
             if (
                 token.isCancellationRequested ||
                 error instanceof vscode.CancellationError ||
                 (error instanceof Error && error.name === 'AbortError')
             ) {
-                Logger.warn(`[${model.name}] 用户取消了请求`);
+                Logger.warn(`[${model.name}] Request was cancelled by the user`);
                 throw new vscode.CancellationError();
             }
 
@@ -639,7 +647,7 @@ export class GeminiHandler {
                     const usagesManager = TokenUsagesManager.instance;
                     await usagesManager.updateActualTokens({ requestId, status: 'failed' });
                 } catch (err) {
-                    Logger.warn('更新Token统计失败:', err);
+                    Logger.warn('Failed to update token stats:', err);
                 }
             }
 
@@ -750,7 +758,7 @@ export class GeminiHandler {
             }
         } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') {
-                Logger.warn(`[${reporter.getModelName()}] 用户取消了请求`);
+                Logger.warn(`[${reporter.getModelName()}] Request was cancelled by the user`);
                 throw new vscode.CancellationError();
             }
             throw error;
@@ -780,7 +788,7 @@ export class GeminiHandler {
                     streamEndTime
                 });
             } catch (err) {
-                Logger.warn('更新Token统计失败:', err);
+                Logger.warn('Failed to update token stats:', err);
             }
         }
     }
@@ -822,7 +830,7 @@ export class GeminiHandler {
             if (part.thought === true && typeof part.text === 'string' && part.text) {
                 reporter.bufferThinking(part.text);
                 // Gemini 的每个 thought part 是独立的思考块，处理完后立即结束
-                reporter.flushThinking('Gemini thought part 完成');
+                reporter.flushThinking('Gemini thought part completed');
                 reporter.endThinkingChain();
                 continue;
             }

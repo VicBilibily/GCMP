@@ -11,6 +11,7 @@ import { ApiKeyManager } from '../utils/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';
+import { t } from '../utils/l10n';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 
 /**
@@ -78,7 +79,7 @@ export class OpenAICustomHandler {
         const provider = modelConfig.provider || this.provider;
         const apiKey = await ApiKeyManager.getApiKey(provider);
         if (!apiKey) {
-            throw new Error(`缺少 ${provider} API 密钥`);
+            throw new Error(t('Missing {0} API key', '缺少 {0} API 密钥', provider));
         }
 
         const baseURL = (modelConfig.baseUrl || 'https://api.openai.com/v1').replace(/\/$/, '');
@@ -90,10 +91,10 @@ export class OpenAICustomHandler {
                 :   `${baseURL}${customEndpoint.startsWith('/') ? customEndpoint : `/${customEndpoint}`}`
             :   `${baseURL}/chat/completions`;
 
-        Logger.info(`[${model.name}] 处理 ${messages.length} 条消息，使用自定义 SSE 处理`);
+        Logger.info(`[${model.name}] Processing ${messages.length} messages with custom SSE handler`);
 
         if (!this.openaiHandler) {
-            throw new Error('OpenAI 处理器未初始化');
+            throw new Error(t('OpenAI handler is not initialized', 'OpenAI 处理器未初始化'));
         }
 
         // 构建请求参数
@@ -114,10 +115,10 @@ export class OpenAICustomHandler {
         if (modelConfig.extraBody) {
             const filteredExtraBody = modelConfig.extraBody;
             Object.assign(requestBody, filteredExtraBody);
-            Logger.trace(`${model.name} 合并了 extraBody 参数: ${JSON.stringify(filteredExtraBody)}`);
+            Logger.trace(`${model.name} merged extraBody parameters: ${JSON.stringify(filteredExtraBody)}`);
         }
 
-        Logger.debug(`[${model.name}] 发送 API 请求`);
+        Logger.debug(`[${model.name}] Sending API request`);
 
         const abortController = new AbortController();
         const cancellationListener = token.onCancellationRequested(() => abortController.abort());
@@ -146,7 +147,12 @@ export class OpenAICustomHandler {
 
             if (!response.ok) {
                 const errorText = await response.text();
-                let errorMessage = `API请求失败: ${response.status} ${response.statusText}`;
+                let errorMessage = t(
+                    'API request failed: {0} {1}',
+                    'API 请求失败: {0} {1}',
+                    response.status,
+                    response.statusText
+                );
 
                 // 尝试解析错误响应，提取详细的错误信息
                 try {
@@ -169,7 +175,7 @@ export class OpenAICustomHandler {
             }
 
             if (!response.body) {
-                throw new Error('响应体为空');
+                throw new Error(t('Response body is empty', '响应体为空'));
             }
 
             // 创建统一的流报告器
@@ -183,10 +189,10 @@ export class OpenAICustomHandler {
 
             await this.processStream(model, response.body, reporter, requestId || '', token);
 
-            Logger.debug(`[${model.name}] API请求完成`);
+            Logger.debug(`[${model.name}] API request completed`);
         } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') {
-                Logger.warn(`[${model.name}] 用户取消了请求`);
+                Logger.warn(`[${model.name}] Request was cancelled by the user`);
                 throw new vscode.CancellationError();
             }
             throw error;
@@ -218,7 +224,7 @@ export class OpenAICustomHandler {
         try {
             while (true) {
                 if (token.isCancellationRequested) {
-                    Logger.warn(`[${model.name}] 用户取消了请求`);
+                    Logger.warn(`[${model.name}] Request was cancelled by the user`);
                     break;
                 }
 
@@ -246,7 +252,7 @@ export class OpenAICustomHandler {
                         const data = line.substring(5).trim();
 
                         if (data === '[DONE]') {
-                            Logger.debug(`[${model.name}] 收到流结束标记`);
+                            Logger.debug(`[${model.name}] Received stream end marker`);
                             continue;
                         }
 
@@ -294,7 +300,7 @@ export class OpenAICustomHandler {
                                 // 注意：不在这里调用 flushAll，统一在流结束时处理
                             }
                         } catch (error) {
-                            Logger.error(`[${model.name}] 解析 JSON 失败: ${data}`, error);
+                            Logger.error(`[${model.name}] Failed to parse JSON: ${data}`, error);
                         }
                     }
                 }
@@ -310,8 +316,8 @@ export class OpenAICustomHandler {
         reporter.flushAll(null);
         reporter.reportUsage(finalUsage);
 
-        Logger.trace(`[${model.name}] SSE 流处理统计: ${chunkCount} 个 chunk, hasContent=${reporter.hasContent}`);
-        Logger.debug(`[${model.name}] 流处理完成`);
+        Logger.trace(`[${model.name}] SSE stream stats: ${chunkCount} chunks, hasContent=${reporter.hasContent}`);
+        Logger.debug(`[${model.name}] Stream processing completed`);
 
         if (finalUsage) {
             // 提取缓存 token 信息
@@ -320,7 +326,7 @@ export class OpenAICustomHandler {
             const duration = streamStartTime && streamEndTime ? streamEndTime - streamStartTime : 0;
             const speed = duration > 0 ? ((finalUsage.completion_tokens / duration) * 1000).toFixed(1) : 'N/A';
             Logger.info(
-                `📊 ${model.name} Token使用: 输入${finalUsage.prompt_tokens}${cacheReadTokens > 0 ? ` (缓存:${cacheReadTokens})` : ''} + 输出${finalUsage.completion_tokens} = 总计${finalUsage.total_tokens}, 耗时=${duration}ms, 速度=${speed} tokens/s`
+                `[${model.name}] Token usage: input ${finalUsage.prompt_tokens}${cacheReadTokens > 0 ? ` (cached: ${cacheReadTokens})` : ''} + output ${finalUsage.completion_tokens} = total ${finalUsage.total_tokens}, duration=${duration}ms, speed=${speed} tokens/s`
             );
         }
 
@@ -335,7 +341,7 @@ export class OpenAICustomHandler {
                 streamEndTime
             });
         } catch (err) {
-            Logger.warn('更新Token统计失败:', err);
+            Logger.warn('Failed to update token stats:', err);
         }
     }
 }

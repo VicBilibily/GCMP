@@ -22,6 +22,7 @@ import { registerAllTools } from './tools';
 import { CliAuthFactory } from './cli/auth/cliAuthFactory';
 import { registerCommitCommands, checkGitAvailability } from './commit';
 import { clearRegisteredProviders, registerProvider, registeredProviders } from './utils/providerRegistry';
+import { t } from './utils/l10n';
 
 /**
  * 全局变量 - 存储已注册的提供商实例，用于扩展卸载时的清理
@@ -39,14 +40,14 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
     const configProvider = ConfigManager.getConfigProvider();
 
     if (!configProvider) {
-        Logger.warn('未找到提供商配置，跳过提供商注册');
+        Logger.warn('Provider configuration not found. Skipping provider registration.');
         return;
     }
 
     // 设置扩展路径（用于 tokenizer 初始化）
     TokenCounter.setExtensionPath(context.extensionPath);
 
-    Logger.debug(`⏱️ 开始并行注册 ${Object.keys(configProvider).length} 个提供商...`);
+    Logger.debug(`Starting parallel registration for ${Object.keys(configProvider).length} providers...`);
 
     // CLI 认证提供商列表（从 CliAuthFactory 获取）
     const supportedCliTypes = CliAuthFactory.getSupportedCliTypes();
@@ -55,7 +56,7 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
     // 并行注册所有提供商以提升性能
     const registrationPromises = Object.entries(configProvider).map(async ([providerKey, providerConfig]) => {
         try {
-            Logger.trace(`正在注册提供商: ${providerConfig.displayName} (${providerKey})`);
+            Logger.trace(`Registering provider: ${providerConfig.displayName} (${providerKey})`);
             const providerStartTime = Date.now();
 
             let provider:
@@ -124,10 +125,10 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
             }
 
             const providerTime = Date.now() - providerStartTime;
-            Logger.debug(`✅ ${providerConfig.displayName} 提供商注册成功 (耗时: ${providerTime}ms)`);
+            Logger.debug(`Provider registered successfully: ${providerConfig.displayName} (${providerTime}ms)`);
             return { providerKey, provider, disposables };
         } catch (error) {
-            Logger.error(`❌ 注册提供商 ${providerKey} 失败:`, error);
+            Logger.error(`Failed to register provider ${providerKey}:`, error);
             return null;
         }
     });
@@ -146,7 +147,7 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
     const totalTime = Date.now() - startTime;
     const successCount = results.filter(r => r !== null).length;
     Logger.debug(
-        `⏱️ 提供商注册完成: ${successCount}/${Object.keys(configProvider).length} 个成功 (总耗时: ${totalTime}ms)`
+        `Provider registration completed: ${successCount}/${Object.keys(configProvider).length} succeeded (${totalTime}ms)`
     );
 }
 
@@ -155,7 +156,7 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
  */
 async function activateCompatibleProvider(context: vscode.ExtensionContext): Promise<void> {
     try {
-        Logger.trace('正在注册兼容提供商...');
+        Logger.trace('Registering compatible provider...');
         const providerStartTime = Date.now();
 
         // 创建并激活兼容提供商
@@ -168,9 +169,9 @@ async function activateCompatibleProvider(context: vscode.ExtensionContext): Pro
         registeredDisposables.push(...disposables);
 
         const providerTime = Date.now() - providerStartTime;
-        Logger.debug(`✅ Compatible Provider 提供商注册成功 (耗时: ${providerTime}ms)`);
+        Logger.debug(`Compatible provider registered successfully (${providerTime}ms)`);
     } catch (error) {
-        Logger.error('❌ 注册兼容提供商失败:', error);
+        Logger.error('Failed to register compatible provider:', error);
     }
 }
 
@@ -179,7 +180,7 @@ async function activateCompatibleProvider(context: vscode.ExtensionContext): Pro
  */
 async function activateInlineCompletionProvider(context: vscode.ExtensionContext): Promise<void> {
     try {
-        Logger.trace('正在注册内联补全提供商 (Shim 模式)...');
+        Logger.trace('Registering inline completion provider (shim mode)...');
         const providerStartTime = Date.now();
 
         // 创建并激活轻量级 Shim（不包含 @vscode/chat-lib 依赖）
@@ -188,9 +189,9 @@ async function activateInlineCompletionProvider(context: vscode.ExtensionContext
         registeredDisposables.push(...result.disposables);
 
         const providerTime = Date.now() - providerStartTime;
-        Logger.debug(`✅ 内联补全提供商注册成功 - Shim 模式 (耗时: ${providerTime}ms)`);
+        Logger.debug(`Inline completion provider registered successfully in shim mode (${providerTime}ms)`);
     } catch (error) {
-        Logger.error('❌ 注册内联补全提供商失败:', error);
+        Logger.error('Failed to register inline completion provider:', error);
     }
 }
 
@@ -213,66 +214,66 @@ export async function activate(context: vscode.ExtensionContext) {
         CompletionLogger.initialize('GitHub Copilot Inline Completion via GCMP'); // 初始化高频内联补全日志管理器
 
         const isDevelopment = context.extensionMode === vscode.ExtensionMode.Development;
-        Logger.debug(`🔧 GCMP 扩展模式: ${isDevelopment ? 'Development' : 'Production'}`);
+        Logger.debug(`GCMP extension mode: ${isDevelopment ? 'Development' : 'Production'}`);
         // 检查和提示VS Code的日志级别设置
         if (isDevelopment) {
             Logger.checkAndPromptLogLevel();
         }
 
-        Logger.debug('⏱️ 开始激活 GCMP 扩展...');
+        Logger.debug('Starting GCMP extension activation...');
 
         // 步骤0: 初始化主实例竞选服务
         let stepStartTime = Date.now();
         LeaderElectionService.initialize(context);
-        Logger.trace(`⏱️ 主实例竞选服务初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        Logger.trace(`Leader election service initialized (${Date.now() - stepStartTime}ms)`);
 
         // 步骤1: 初始化API密钥管理器
         stepStartTime = Date.now();
         ApiKeyManager.initialize(context);
-        Logger.trace(`⏱️ API密钥管理器初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        Logger.trace(`API key manager initialized (${Date.now() - stepStartTime}ms)`);
 
         // 步骤2: 初始化配置管理器
         stepStartTime = Date.now();
         const configDisposable = ConfigManager.initialize();
         context.subscriptions.push(configDisposable);
-        Logger.trace(`⏱️ 配置管理器初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        Logger.trace(`Configuration manager initialized (${Date.now() - stepStartTime}ms)`);
         // 步骤2.1: 初始化 JSON Schema 提供者
         stepStartTime = Date.now();
         JsonSchemaProvider.initialize();
         context.subscriptions.push({ dispose: () => JsonSchemaProvider.dispose() });
-        Logger.trace(`⏱️ JSON Schema 提供者初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        Logger.trace(`JSON schema provider initialized (${Date.now() - stepStartTime}ms)`);
         // 步骤2.2: 初始化兼容模型管理器
         stepStartTime = Date.now();
         CompatibleModelManager.initialize();
-        Logger.trace(`⏱️ 兼容模型管理器初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        Logger.trace(`Compatible model manager initialized (${Date.now() - stepStartTime}ms)`);
         // 步骤2.3: 初始化Token统计管理器
         stepStartTime = Date.now();
         await TokenUsagesManager.instance.initialize(context);
-        Logger.trace(`⏱️ Token统计管理器初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        Logger.trace(`Token usage manager initialized (${Date.now() - stepStartTime}ms)`);
 
         // 步骤3: 激活提供商（并行优化）
         stepStartTime = Date.now();
         await activateProviders(context);
-        Logger.trace(`⏱️ 模型提供者注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        Logger.trace(`Model providers registered (${Date.now() - stepStartTime}ms)`);
         // 步骤3.1: 激活兼容提供商
         stepStartTime = Date.now();
         await activateCompatibleProvider(context);
-        Logger.trace(`⏱️ 兼容提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        Logger.trace(`Compatible provider registered (${Date.now() - stepStartTime}ms)`);
 
         // 步骤3.2: 初始化所有状态栏（包含创建和注册）
         stepStartTime = Date.now();
         await StatusBarManager.initializeAll(context);
-        Logger.trace(`⏱️ 所有状态栏初始化完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        Logger.trace(`All status bars initialized (${Date.now() - stepStartTime}ms)`);
 
         // 步骤4: 注册工具
         stepStartTime = Date.now();
         registerAllTools(context);
-        Logger.trace(`⏱️ 工具注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        Logger.trace(`Tools registered (${Date.now() - stepStartTime}ms)`);
 
         // 步骤5: 注册内联补全提供商（轻量级 Shim，延迟加载真正的补全引擎）
         stepStartTime = Date.now();
         await activateInlineCompletionProvider(context);
-        Logger.trace(`⏱️ NES 内联补全提供商注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        Logger.trace(`NES inline completion provider registered (${Date.now() - stepStartTime}ms)`);
 
         // 步骤6: 注册Token用量统计命令
         stepStartTime = Date.now();
@@ -292,18 +293,18 @@ export async function activate(context: vscode.ExtensionContext) {
                 tokenUsagesView = undefined;
             })
         );
-        Logger.trace(`⏱️ 查看Token消耗统计命令注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        Logger.trace(`Token usage details command registered (${Date.now() - stepStartTime}ms)`);
 
         // 步骤7: 注册 CLI 认证命令
         stepStartTime = Date.now();
         registerCliAuthCommands(context);
-        Logger.trace(`⏱️ CLI 认证命令注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        Logger.trace(`CLI authentication commands registered (${Date.now() - stepStartTime}ms)`);
 
         // 步骤8: 注册 Commit 消息生成命令
         stepStartTime = Date.now();
         const commitDisposables = registerCommitCommands(context);
         commitDisposables.forEach(disposable => context.subscriptions.push(disposable));
-        Logger.trace(`⏱️ Commit 消息生成命令注册完成 (耗时: ${Date.now() - stepStartTime}ms)`);
+        Logger.trace(`Commit message commands registered (${Date.now() - stepStartTime}ms)`);
 
         // 步骤9: 检查 Git 可用性（不阻塞扩展激活）
         // 默认设置为不可用，检查完成后更新
@@ -312,13 +313,18 @@ export async function activate(context: vscode.ExtensionContext) {
         context.subscriptions.push(gitDisposable);
 
         const totalActivationTime = Date.now() - activationStartTime;
-        Logger.info(`✅ GCMP 扩展激活完成 (总耗时: ${totalActivationTime}ms)`);
+        Logger.info(`GCMP extension activated successfully (${totalActivationTime}ms)`);
     } catch (error) {
-        const errorMessage = `GCMP 扩展激活失败: ${error instanceof Error ? error.message : '未知错误'}`;
+        const errorMessage = `GCMP extension activation failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
         Logger.error(errorMessage, error instanceof Error ? error : undefined);
 
         // 尝试显示用户友好的错误消息
-        vscode.window.showErrorMessage('GCMP 扩展启动失败。请检查输出窗口获取详细信息。');
+        vscode.window.showErrorMessage(
+            t(
+                'GCMP failed to start. Check the output window for details.',
+                'GCMP 扩展启动失败。请检查输出窗口获取详细信息。'
+            )
+        );
         // 重新抛出错误，让VS Code知道扩展启动失败
         throw error;
     }
@@ -327,32 +333,32 @@ export async function activate(context: vscode.ExtensionContext) {
 // This method is called when your extension is deactivated
 export function deactivate() {
     try {
-        Logger.info('开始停用 GCMP 扩展...');
+        Logger.info('Starting GCMP extension deactivation...');
 
         // 清理所有状态栏
         StatusBarManager.disposeAll();
-        Logger.trace('已清理所有状态栏');
+        Logger.trace('All status bars disposed');
 
         // 停止主实例竞选服务
         LeaderElectionService.stop();
-        Logger.trace('已停止主实例竞选服务');
+        Logger.trace('Leader election service stopped');
 
         // 清理所有已注册提供商的资源
         for (const [providerKey, provider] of Object.entries(registeredProviders)) {
             try {
                 if (typeof provider.dispose === 'function') {
                     provider.dispose();
-                    Logger.trace(`已清理提供商 ${providerKey} 的资源`);
+                    Logger.trace(`Disposed resources for provider ${providerKey}`);
                 }
             } catch (error) {
-                Logger.warn(`清理提供商 ${providerKey} 资源时出错:`, error);
+                Logger.warn(`Failed to dispose resources for provider ${providerKey}:`, error);
             }
         }
 
         // 清理内联补全提供商
         if (inlineCompletionProvider) {
             inlineCompletionProvider.dispose();
-            Logger.trace('已清理内联补全提供商');
+            Logger.trace('Inline completion provider disposed');
         }
 
         // 清理所有已注册的 disposables
@@ -360,32 +366,32 @@ export function deactivate() {
             try {
                 disposable.dispose();
             } catch (error) {
-                Logger.warn('清理 registered disposable 时出错:', error);
+                Logger.warn('Failed to dispose registered disposable:', error);
             }
         }
         registeredDisposables.length = 0; // 清空数组
-        Logger.trace('已清理所有 registered disposables');
+        Logger.trace('All registered disposables disposed');
 
         clearRegisteredProviders();
-        Logger.trace('已清理所有 registered providers');
+        Logger.trace('All registered providers cleared');
 
         // 清理兼容模型管理器
         CompatibleModelManager.dispose();
-        Logger.trace('已清理兼容模型管理器');
+        Logger.trace('Compatible model manager disposed');
 
         ConfigManager.dispose(); // 清理配置管理器
 
         // 清理 Token 用量管理器
         TokenUsagesManager.instance.dispose().catch(error => {
-            Logger.warn('清理 Token 用量管理器失败:', error);
+            Logger.warn('Failed to dispose token usage manager:', error);
         });
-        Logger.trace('已清理 Token 用量管理器');
+        Logger.trace('Token usage manager dispose requested');
 
-        Logger.info('GCMP 扩展停用完成');
+        Logger.info('GCMP extension deactivated successfully');
         StatusLogger.dispose(); // 清理状态日志管理器
         CompletionLogger.dispose(); // 清理内联补全日志管理器
         Logger.dispose(); // 在扩展销毁时才 dispose Logger
     } catch (error) {
-        Logger.error('GCMP 扩展停用时出错:', error);
+        Logger.error('Error during GCMP extension deactivation:', error);
     }
 }

@@ -56,12 +56,12 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
             }
         });
 
-        Logger.debug('智谱AI联网搜索工具已注册: gcmp_zhipuWebSearch');
-        Logger.debug('MiniMax网络搜索工具已注册: gcmp_minimaxWebSearch');
-        Logger.debug('Kimi网络搜索工具已注册: gcmp_kimiWebSearch');
-        Logger.debug('阿里云百炼联网搜索工具已注册: gcmp_dashscopeWebSearch');
+        Logger.debug('ZhipuAI web search tool registered: gcmp_zhipuWebSearch');
+        Logger.debug('MiniMax web search tool registered: gcmp_minimaxWebSearch');
+        Logger.debug('Kimi web search tool registered: gcmp_kimiWebSearch');
+        Logger.debug('DashScope web search tool registered: gcmp_dashscopeWebSearch');
     } catch (error) {
-        Logger.error('工具注册失败', error instanceof Error ? error : undefined);
+        Logger.error('Tool registration failed', error instanceof Error ? error : undefined);
         throw error;
     }
 }
@@ -74,27 +74,27 @@ export async function cleanupAllTools(): Promise<void> {
         if (zhipuSearchTool) {
             await zhipuSearchTool.cleanup();
             zhipuSearchTool = undefined;
-            Logger.info('✅ 智谱AI联网搜索工具资源已清理');
+            Logger.info('✅ ZhipuAI web search tool resources cleaned up');
         }
 
         if (minimaxSearchTool) {
             await minimaxSearchTool.cleanup();
             minimaxSearchTool = undefined;
-            Logger.info('✅ MiniMax网络搜索工具资源已清理');
+            Logger.info('✅ MiniMax web search tool resources cleaned up');
         }
 
         if (kimiSearchTool) {
             await kimiSearchTool.cleanup();
             kimiSearchTool = undefined;
-            Logger.info('✅ Kimi网络搜索工具资源已清理');
+            Logger.info('✅ Kimi web search tool resources cleaned up');
         }
 
         if (dashscopeSearchTool) {
             await dashscopeSearchTool.cleanup();
             dashscopeSearchTool = undefined;
-            Logger.info('✅ 阿里云百炼联网搜索工具资源已清理');
+            Logger.info('✅ DashScope web search tool resources cleaned up');
         }
     } catch (error) {
-        Logger.error('❌ 工具清理失败', error instanceof Error ? error : undefined);
+        Logger.error('❌ Tool cleanup failed', error instanceof Error ? error : undefined);
     }
 }

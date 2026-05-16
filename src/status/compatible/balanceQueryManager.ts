@@ -51,7 +51,7 @@ export class BalanceQueryManager {
      */
     static registerHandler(providerId: string, handler: IBalanceQuery): void {
         BalanceQueryManager.queryHandlers.set(providerId, handler);
-        StatusLogger.debug(`[BalanceQueryManager] 已注册提供商 ${providerId} 的余额查询器`);
+        StatusLogger.debug(`[BalanceQueryManager] Registered balance query handler for provider ${providerId}`);
     }
 
     /**
@@ -61,7 +61,7 @@ export class BalanceQueryManager {
     static unregisterHandler(providerId: string): void {
         if (BalanceQueryManager.queryHandlers.has(providerId)) {
             BalanceQueryManager.queryHandlers.delete(providerId);
-            StatusLogger.debug(`[BalanceQueryManager] 已注销提供商 ${providerId} 的余额查询器`);
+            StatusLogger.debug(`[BalanceQueryManager] Unregistered balance query handler for provider ${providerId}`);
         }
     }
 
@@ -77,7 +77,9 @@ export class BalanceQueryManager {
 
         if (!handler) {
             // 如果没有注册的查询器，返回默认值
-            StatusLogger.warn(`[BalanceQueryManager] 未找到提供商 ${providerId} 的余额查询器，使用默认值`);
+            StatusLogger.warn(
+                `[BalanceQueryManager] No balance query handler found for provider ${providerId}, using default value`
+            );
             return {
                 balance: 0,
                 currency: 'CNY'
@@ -86,10 +88,12 @@ export class BalanceQueryManager {
 
         try {
             const result = await handler.queryBalance(providerId);
-            StatusLogger.debug(`[BalanceQueryManager] 成功查询提供商 ${providerId} 的余额: ${result.balance}`);
+            StatusLogger.debug(
+                `[BalanceQueryManager] Successfully queried balance for provider ${providerId}: ${result.balance}`
+            );
             return result;
         } catch (error) {
-            StatusLogger.error(`[BalanceQueryManager] 查询提供商 ${providerId} 余额失败`, error);
+            StatusLogger.error(`[BalanceQueryManager] Failed to query balance for provider ${providerId}`, error);
             // 查询失败时抛出错误，让上层处理
             throw error;
         }

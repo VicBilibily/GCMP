@@ -5,7 +5,7 @@
 
 import type { ExtendedTokenRequestLog } from '../types';
 import { createElement } from '../../utils';
-import { formatTokens, getProviderDisplayName } from '../utils';
+import { formatTokens, getProviderDisplayName, t } from '../utils';
 
 // ============= 全局状态 =============
 
@@ -40,7 +40,7 @@ function createPagination(currentPage: number, totalPages: number, totalRecords:
 
     // 上一页按钮
     const prevBtn = createElement('button') as HTMLButtonElement;
-    prevBtn.textContent = '上一页';
+    prevBtn.textContent = t('Previous', '上一页');
     prevBtn.disabled = currentPage <= 1;
     prevBtn.onclick = () => {
         if (currentPage > 1) {
@@ -111,7 +111,7 @@ function createPagination(currentPage: number, totalPages: number, totalRecords:
 
     // 下一页按钮
     const nextBtn = createElement('button') as HTMLButtonElement;
-    nextBtn.textContent = '下一页';
+    nextBtn.textContent = t('Next', '下一页');
     nextBtn.disabled = currentPage >= totalPages;
     nextBtn.onclick = () => {
         if (currentPage < totalPages) {
@@ -143,20 +143,20 @@ function createRequestRecordsTable(records: ExtendedTokenRequestLog[]): HTMLElem
     const headerRow = createElement('tr');
 
     const headers = [
-        '时间',
-        '提供商',
-        '模型',
-        '输入令牌',
-        '缓存命中',
-        '输出令牌',
-        '消耗令牌',
-        '首令延迟 + 输出耗时',
-        '输出速度',
-        '状态'
+        t('Time', '时间'),
+        t('Provider', '提供商'),
+        t('Model', '模型'),
+        t('Input', '输入令牌'),
+        t('Cache', '缓存命中'),
+        t('Output', '输出令牌'),
+        t('Tokens', '消耗令牌'),
+        t('<span>TTFT</span> + <span>TPOT</span>', '首令延迟 + 输出耗时'),
+        t('Speed', '输出速度'),
+        t('Status', '状态')
     ];
     headers.forEach(h => {
         const th = createElement('th');
-        th.textContent = h;
+        th.innerHTML = h;
         headerRow.appendChild(th);
     });
     thead.appendChild(headerRow);
@@ -282,7 +282,7 @@ function createRequestRecordsTable(records: ExtendedTokenRequestLog[]): HTMLElem
     } else {
         const emptyRow = createElement('tr');
         const emptyCell = createElement('td', '', { colSpan: 10 });
-        emptyCell.textContent = '暂无请求记录';
+        emptyCell.textContent = t('No request records yet', '暂无请求记录');
         emptyCell.style.textAlign = 'center';
         emptyRow.appendChild(emptyCell);
         tbody.appendChild(emptyRow);

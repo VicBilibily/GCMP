@@ -34,7 +34,7 @@ export class CliAuthFactory {
                 instance = new CodexCliAuth();
                 break;
             default:
-                Logger.warn(`[CliAuthFactory] 未知的 CLI 类型: ${cliType}`);
+                Logger.warn(`[CliAuthFactory] Unknown CLI type: ${cliType}`);
                 return null;
         }
         if (instance) {

@@ -9,7 +9,8 @@ import {
     formatTokens,
     calculateAverageSpeed,
     calculateAverageFirstTokenLatency,
-    getProviderDisplayName
+    getProviderDisplayName,
+    t
 } from '../utils';
 
 // ============= 类型定义 =============
@@ -94,7 +95,16 @@ function renderTable(
     const thead = createElement('thead');
     const headerRow = createElement('tr');
 
-    const headers = ['时间', '输入Tokens', '缓存命中', '输出Tokens', '消耗Tokens', '请求次数', '平均延迟', '平均速度'];
+    const headers = [
+        t('Time', '时间'),
+        t('Input', '输入Tokens'),
+        t('Cache', '缓存命中'),
+        t('Output', '输出Tokens'),
+        t('Tokens', '消耗Tokens'),
+        t('Requests', '请求次数'),
+        t('Latency', '平均延迟'),
+        t('Speed', '平均速度')
+    ];
     headers.forEach(h => {
         const th = createElement('th');
         th.textContent = h;
@@ -256,12 +266,12 @@ export function createHourlyStats(
     const section = createElement('section', 'hourly-stats-section');
 
     const h2 = createElement('h2');
-    h2.textContent = '各小时用量';
+    h2.textContent = t('Hourly Usage', '各小时用量');
     section.appendChild(h2);
 
     if (!hourlyStats || Object.keys(hourlyStats).length === 0) {
         const empty = createElement('div', 'empty-message');
-        empty.textContent = '暂无小时统计数据';
+        empty.textContent = t('No hourly statistics available', '暂无小时统计数据');
         section.appendChild(empty);
         return section;
     }
@@ -269,11 +279,11 @@ export function createHourlyStats(
     // 创建切换按钮
     const toggleContainer = createElement('div', 'stats-toggle-container');
     const hourButton = createElement('button', 'stats-toggle-button active');
-    hourButton.textContent = '📊 小时';
+    hourButton.textContent = `📊 ${t('Hours', '小时')}`;
     const providerButton = createElement('button', 'stats-toggle-button');
-    providerButton.textContent = '📦 提供商';
+    providerButton.textContent = `📦 ${t('Providers', '提供商')}`;
     const modelButton = createElement('button', 'stats-toggle-button');
-    modelButton.textContent = '🔧 模型';
+    modelButton.textContent = `🔧 ${t('Models', '模型')}`;
     toggleContainer.appendChild(hourButton);
     toggleContainer.appendChild(providerButton);
     toggleContainer.appendChild(modelButton);

@@ -39,7 +39,7 @@ export abstract class BaseCliAuth {
         const credentialPath = this.resolvePath(this.config.credentialPathPattern);
         try {
             if (!fs.existsSync(credentialPath)) {
-                Logger.debug(`[${this.config.name}] 凭证文件不存在: ${credentialPath}`);
+                Logger.debug(`[${this.config.name}] Credential file does not exist: ${credentialPath}`);
                 return null;
             }
 
@@ -47,10 +47,10 @@ export abstract class BaseCliAuth {
             const credentials = JSON.parse(content) as OAuthCredentials;
             // 允许子类在加载凭证后进行额外处理
             const processedCredentials = await this.afterLoadCredentials(credentials);
-            Logger.info(`[${this.config.name}] 已加载凭证`);
+            Logger.info(`[${this.config.name}] Credentials loaded`);
             return processedCredentials;
         } catch (error) {
-            Logger.error(`[${this.config.name}] 加载凭证失败:`, error);
+            Logger.error(`[${this.config.name}] Failed to load credentials:`, error);
             return null;
         }
     }
@@ -71,9 +71,9 @@ export abstract class BaseCliAuth {
         if (isExpired && credentials.refresh_token) {
             try {
                 credentials = await this.refreshAccessToken(credentials);
-                Logger.info(`[${this.config.name}] 令牌已刷新`);
+                Logger.info(`[${this.config.name}] Token refreshed`);
             } catch (error) {
-                Logger.error(`[${this.config.name}] 令牌刷新失败:`, error);
+                Logger.error(`[${this.config.name}] Failed to refresh token:`, error);
                 return null;
             }
         }
@@ -134,7 +134,10 @@ export abstract class BaseCliAuth {
                 const content = fs.readFileSync(credentialPath, 'utf-8');
                 existingData = JSON.parse(content);
             } catch (error) {
-                Logger.warn(`[${this.config.name}] 读取现有凭证文件失败，将覆盖:`, error);
+                Logger.warn(
+                    `[${this.config.name}] Failed to read existing credential file, it will be overwritten:`,
+                    error
+                );
             }
         }
 

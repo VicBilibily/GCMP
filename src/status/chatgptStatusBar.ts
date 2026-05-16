@@ -10,6 +10,7 @@ import { StatusLogger } from '../utils/statusLogger';
 import { Logger } from '../utils/logger';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
+import { t } from '../utils/l10n';
 
 /**
  * 速率限制窗口结构
@@ -89,7 +90,7 @@ export interface ChatGPTStatusData {
  */
 function formatCountdown(seconds: number): string {
     if (seconds <= 0) {
-        return '即将重置';
+        return t('Resets soon', '即将重置');
     }
 
     const days = Math.floor(seconds / 86400);
@@ -120,12 +121,12 @@ function getWindowType(limitWindowSeconds: number): { type: string; label: strin
     const WEEK = 7 * 24 * 60 * 60;
 
     if (limitWindowSeconds === FIVE_HOURS) {
-        return { type: 'hourly', label: '300 分钟' };
+        return { type: 'hourly', label: t('5 Hours', '300 分钟') };
     } else if (limitWindowSeconds === WEEK) {
-        return { type: 'weekly', label: '每周额度' };
+        return { type: 'weekly', label: t('Weekly quota', '每周额度') };
     } else {
         // 默认按每周处理
-        return { type: 'weekly', label: '每周额度' };
+        return { type: 'weekly', label: t('Weekly quota', '每周额度') };
     }
 }
 
@@ -147,7 +148,7 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
             refreshCommand: 'gcmp.chatgpt.refreshUsage',
             apiKeyProvider: 'codex',
             cacheKeyPrefix: 'chatgpt',
-            logPrefix: 'ChatGPT状态栏',
+            logPrefix: 'ChatGPT Status Bar',
             icon: '$(gcmp-openai)'
         };
         super(config);
@@ -214,7 +215,9 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
         const planTypeDisplay = planTypeMap[data.planType] || data.planType;
 
         md.appendMarkdown(`#### ChatGPT ${planTypeDisplay}\n\n`);
-        md.appendMarkdown('| 限频类型 | 剩余量 | 倒计时 | 重置时间 |\n');
+        md.appendMarkdown(
+            `| ${t('Window', '限频类型')} | ${t('Remaining', '剩余量')} | ${t('Countdown', '倒计时')} | ${t('Reset Time', '重置时间')} |\n`
+        );
         md.appendMarkdown('| :----: | ----: | ----: | :------: |\n');
 
         // 主窗口
@@ -239,10 +242,10 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
 
         md.appendMarkdown('\n');
         md.appendMarkdown('---\n');
-        md.appendMarkdown(`**最后更新** ${data.lastUpdated}\n`);
+        md.appendMarkdown(`**${t('Last updated', '最后更新')}** ${data.lastUpdated}\n`);
         md.appendMarkdown('\n');
         md.appendMarkdown('---\n');
-        md.appendMarkdown('点击状态栏可手动刷新\n');
+        md.appendMarkdown(`${t('Click the status bar to refresh manually', '点击状态栏可手动刷新')}\n`);
 
         return md;
     }
@@ -260,7 +263,10 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
             if (!codexAuth) {
                 return {
                     success: false,
-                    error: 'Codex CLI 认证未配置，请先完成 Codex CLI 登录'
+                    error: t(
+                        'Codex CLI authentication is not configured. Sign in to Codex CLI first.',
+                        'Codex CLI 认证未配置，请先完成 Codex CLI 登录'
+                    )
                 };
             }
 
@@ -269,7 +275,10 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
             if (!credentials || !credentials.access_token) {
                 return {
                     success: false,
-                    error: 'Codex CLI 认证无效，请重新登录'
+                    error: t(
+                        'Codex CLI authentication is invalid. Please sign in again.',
+                        'Codex CLI 认证无效，请重新登录'
+                    )
                 };
             }
 
@@ -278,12 +287,12 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
             if (!accountId) {
                 return {
                     success: false,
-                    error: '无法获取 ChatGPT 账户 ID'
+                    error: t('Unable to get the ChatGPT account ID.', '无法获取 ChatGPT 账户 ID')
                 };
             }
 
-            Logger.debug('触发查询 ChatGPT 用量');
-            StatusLogger.debug(`[${this.config.logPrefix}] 开始查询 ChatGPT 用量...`);
+            Logger.debug('Triggering ChatGPT usage query');
+            StatusLogger.debug(`[${this.config.logPrefix}] Starting ChatGPT usage query...`);
 
             // 构建请求
             const requestOptions: RequestInit = {
@@ -300,7 +309,7 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
             const responseText = await response.text();
 
             StatusLogger.debug(
-                `[${this.config.logPrefix}] 用量查询响应状态: ${response.status} ${response.statusText}`
+                `[${this.config.logPrefix}] Usage query response status: ${response.status} ${response.statusText}`
             );
 
             // 解析响应
@@ -308,10 +317,10 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
             try {
                 parsedResponse = JSON.parse(responseText);
             } catch (parseError) {
-                Logger.error(`解析响应 JSON 失败: ${parseError}`);
+                Logger.error(`Failed to parse response JSON: ${parseError}`);
                 return {
                     success: false,
-                    error: `响应格式错误: ${responseText.substring(0, 200)}`
+                    error: t('Invalid response format: {0}', '响应格式错误: {0}', responseText.substring(0, 200))
                 };
             }
 
@@ -328,26 +337,28 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
                         // 如果解析错误响应失败，使用默认错误信息
                     }
                 }
-                Logger.error(`用量查询失败: ${errorMessage}`);
+                Logger.error(`Usage query failed: ${errorMessage}`);
                 return {
                     success: false,
-                    error: `查询失败: ${errorMessage}`
+                    error: t('Query failed: {0}', '查询失败: {0}', errorMessage)
                 };
             }
 
             // 检查必要的字段
             if (!parsedResponse.rate_limit || !parsedResponse.rate_limit.primary_window) {
-                Logger.error('未获取到有效的用量数据');
+                Logger.error('No valid usage data retrieved');
                 return {
                     success: false,
-                    error: '未获取到有效的用量数据'
+                    error: t('No valid usage data was returned.', '未获取到有效的用量数据')
                 };
             }
 
             const rateLimit = parsedResponse.rate_limit;
 
             // 格式化最后更新时间
-            const lastUpdated = new Date().toLocaleString('zh-CN');
+            const lastUpdated = new Date().toLocaleString(
+                vscode.env.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
+            );
 
             // 解析代码审查用量
             let codeReviewUsedPercent = 0;
@@ -356,7 +367,7 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
             }
 
             // 解析成功响应
-            StatusLogger.debug(`[${this.config.logPrefix}] 用量查询成功`);
+            StatusLogger.debug(`[${this.config.logPrefix}] Usage query succeeded`);
 
             return {
                 success: true,
@@ -371,11 +382,11 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
                 }
             };
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : '未知错误';
-            Logger.error(`用量查询异常: ${errorMessage}`);
+            const errorMessage = error instanceof Error ? error.message : t('Unknown error', '未知错误');
+            Logger.error(`Usage query exception: ${errorMessage}`);
             return {
                 success: false,
-                error: `查询异常: ${errorMessage}`
+                error: t('Query error: {0}', '查询异常: {0}', errorMessage)
             };
         }
     }

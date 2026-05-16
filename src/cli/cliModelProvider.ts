@@ -19,6 +19,7 @@ import { GenericModelProvider } from '../providers/genericModelProvider';
 import { CliWizard } from './cliWizard';
 import { CliAuthFactory } from './auth/cliAuthFactory';
 import { StatusBarManager } from '../status';
+import { t } from '../utils/l10n';
 
 /**
  * CLI 认证专用模型提供商类
@@ -65,15 +66,15 @@ export class CliModelProvider extends GenericModelProvider {
                 const credentials = await CliAuthFactory.ensureAuthenticated(this.providerKey);
                 if (credentials) {
                     await ApiKeyManager.setApiKey(this.providerKey, credentials.access_token);
-                    Logger.info(`[CliModelProvider] 已从 ${this.providerKey} CLI 加载认证凭证`);
+                    Logger.info(`[CliModelProvider] Loaded credentials from ${this.providerKey} CLI`);
                 } else {
                     await vscode.commands.executeCommand(`gcmp.${this.providerKey}.configWizard`);
                     // 无法获取凭证，返回空列表
-                    Logger.warn(`[CliModelProvider] 无法从 ${this.providerKey} CLI 加载认证凭证`);
+                    Logger.warn(`[CliModelProvider] Unable to load credentials from ${this.providerKey} CLI`);
                     return [];
                 }
             } catch (error) {
-                Logger.warn(`[CliModelProvider] 从 ${this.providerKey} CLI 加载认证凭证失败:`, error);
+                Logger.warn(`[CliModelProvider] Failed to load credentials from ${this.providerKey} CLI:`, error);
                 return [];
             }
         }
@@ -89,7 +90,7 @@ export class CliModelProvider extends GenericModelProvider {
         providerKey: string,
         providerConfig: ProviderConfig
     ): { provider: CliModelProvider; disposables: vscode.Disposable[] } {
-        Logger.trace(`${providerConfig.displayName} CLI 认证模型扩展已激活!`);
+        Logger.trace(`${providerConfig.displayName} CLI-authenticated model provider activated`);
         // 创建提供商实例
         const provider = new CliModelProvider(context, providerKey, providerConfig);
         // 注册语言模型聊天提供商
@@ -133,8 +134,8 @@ export class CliModelProvider extends GenericModelProvider {
         const supportedCliIds = supportedCliTypes.map(cli => cli.id);
         // 检查是否是支持的 CLI 类型
         if (!supportedCliIds.includes(providerKey)) {
-            Logger.warn(`[CliProvider] 未知的 CLI 认证提供商: ${providerKey}`);
-            vscode.window.showWarningMessage(`未知的提供商: ${providerKey}`);
+            Logger.warn(`[CliProvider] Unknown CLI-authenticated provider: ${providerKey}`);
+            vscode.window.showWarningMessage(t('Unknown provider: {0}', '未知的提供商: {0}', providerKey));
             return;
         }
         // 使用统一的 CLI 向导

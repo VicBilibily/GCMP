@@ -9,6 +9,7 @@ import { StatusLogger } from '../utils/statusLogger';
 import { Logger } from '../utils/logger';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { VersionManager } from '../utils/versionManager';
+import { t } from '../utils/l10n';
 
 /**
  * Kimi 使用量窗口数据
@@ -82,7 +83,7 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
             refreshCommand: 'gcmp.kimi.refreshUsage',
             apiKeyProvider: 'kimi',
             cacheKeyPrefix: 'kimi',
-            logPrefix: 'Kimi状态栏',
+            logPrefix: 'Kimi Status Bar',
             icon: '$(gcmp-kimi)'
         };
         super(config);
@@ -126,24 +127,26 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
         md.supportHtml = true;
 
         const { summary, windows } = data;
-        md.appendMarkdown('#### Kimi For Coding 使用情况\n\n');
+        md.appendMarkdown(`#### ${t('Kimi For Coding Usage', 'Kimi For Coding 使用情况')}\n\n`);
 
         // 百分比模式：显示频限类型、剩余量、重置时间
-        md.appendMarkdown('| 频限类型 | 剩余量 | 重置时间 |\n');
+        md.appendMarkdown(
+            `| ${t('Window', '频限类型')} | ${t('Remaining', '剩余量')} | ${t('Reset Time', '重置时间')} |\n`
+        );
         md.appendMarkdown('| :----: | ----: | :----: |\n');
 
         // 添加每周额度
         const resetTime = new Date(summary.resetTime);
         const resetTimeStr = this.formatDateTime(resetTime);
-        md.appendMarkdown(`| **每周额度** | ${summary.remaining}% | ${resetTimeStr} |\n`);
+        md.appendMarkdown(`| **${t('Weekly quota', '每周额度')}** | ${summary.remaining}% | ${resetTimeStr} |\n`);
 
         // 添加窗口限制
         if (windows.length > 0) {
             for (const window of windows) {
-                const timeUnit = this.translateTimeUnit(window.timeUnit);
+                const timeUnit = this.translateTimeUnit(window.timeUnit, window.duration);
                 const { detail, duration } = window;
                 const windowResetTime = detail.resetTime ? new Date(detail.resetTime) : undefined;
-                const windowResetTimeStr = windowResetTime ? this.formatDateTime(windowResetTime) : 'N/A';
+                const windowResetTimeStr = windowResetTime ? this.formatDateTime(windowResetTime) : t('N/A', '无');
                 md.appendMarkdown(`| **${duration} ${timeUnit}** | ${detail.remaining}% | ${windowResetTimeStr} |\n`);
             }
         }
@@ -151,12 +154,12 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
         // 添加并发上限行
         if (data.parallel) {
             md.appendMarkdown('\n');
-            md.appendMarkdown(`**最高并发上限**：${data.parallel.limit}\n`);
+            md.appendMarkdown(`**${t('Maximum concurrency', '最高并发上限')}**: ${data.parallel.limit}\n`);
         }
 
         md.appendMarkdown('\n');
         md.appendMarkdown('---\n');
-        md.appendMarkdown('点击状态栏可手动刷新\n');
+        md.appendMarkdown(`${t('Click the status bar to refresh manually', '点击状态栏可手动刷新')}\n`);
         return md;
     }
 
@@ -174,7 +177,10 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
             if (!hasCodingKey) {
                 return {
                     success: false,
-                    error: 'Kimi For Coding 专用密钥未配置，请先设置 Kimi For Coding API 密钥'
+                    error: t(
+                        'The Kimi For Coding key is not configured. Set the Kimi For Coding API key first.',
+                        'Kimi For Coding 专用密钥未配置，请先设置 Kimi For Coding API 密钥'
+                    )
                 };
             }
 
@@ -183,12 +189,12 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
             if (!apiKey) {
                 return {
                     success: false,
-                    error: '无法获取 Kimi For Coding 专用密钥'
+                    error: t('Unable to get the Kimi For Coding key.', '无法获取 Kimi For Coding 专用密钥')
                 };
             }
 
-            Logger.debug('触发查询 Kimi For Coding 余量');
-            StatusLogger.debug(`[${this.config.logPrefix}] 开始查询 Kimi For Coding 余量...`);
+            Logger.debug('Triggering Kimi For Coding usage query');
+            StatusLogger.debug(`[${this.config.logPrefix}] Starting Kimi For Coding quota query...`);
 
             // 构建请求
             const requestOptions: RequestInit = {
@@ -205,7 +211,7 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
             const responseText = await response.text();
 
             StatusLogger.debug(
-                `[${this.config.logPrefix}] 余量查询响应状态: ${response.status} ${response.statusText}`
+                `[${this.config.logPrefix}] Quota query response status: ${response.status} ${response.statusText}`
             );
 
             // 解析响应
@@ -257,51 +263,54 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
             try {
                 parsedResponse = JSON.parse(responseText);
             } catch (parseError) {
-                Logger.error(`解析响应 JSON 失败: ${parseError}`);
+                Logger.error(`Failed to parse response JSON: ${parseError}`);
                 return {
                     success: false,
-                    error: `响应格式错误: ${responseText.substring(0, 200)}`
+                    error: t('Invalid response format: {0}', '响应格式错误: {0}', responseText.substring(0, 200))
                 };
             }
 
             // 检查响应状态
             if (!response.ok) {
                 const errorMessage = `HTTP ${response.status}`;
-                Logger.error(`余量查询失败: ${errorMessage}`);
+                Logger.error(`Quota query failed: ${errorMessage}`);
                 return {
                     success: false,
-                    error: `查询失败: ${errorMessage}`
+                    error: t('Query failed: {0}', '查询失败: {0}', errorMessage)
                 };
             }
 
             // 检查具体的认证错误
             if (parsedResponse.code === 'unauthenticated') {
-                const errorMessage = 'API密钥无效或已过期，请检查您的Kimi API密钥';
-                Logger.error(`认证失败: ${errorMessage}`);
+                const errorMessage = t(
+                    'The API key is invalid or expired. Check your Kimi API key.',
+                    'API密钥无效或已过期，请检查您的Kimi API密钥'
+                );
+                Logger.error(`Authentication failed: ${errorMessage}`);
                 return {
                     success: false,
-                    error: `认证失败: ${errorMessage}`
+                    error: t('Authentication failed: {0}', '认证失败: {0}', errorMessage)
                 };
             }
 
             // 检查其他 API 错误
             if (parsedResponse.code !== undefined && parsedResponse.code !== 'unauthenticated') {
-                const errorMessage = `API错误: ${parsedResponse.code}`;
-                Logger.error(`余量查询API失败: ${errorMessage}`);
+                const errorMessage = t('API error: {0}', 'API错误: {0}', parsedResponse.code);
+                Logger.error(`Quota API query failed: ${errorMessage}`);
                 return {
                     success: false,
-                    error: `API查询失败: ${errorMessage}`
+                    error: t('API query failed: {0}', 'API查询失败: {0}', errorMessage)
                 };
             }
 
             // 解析成功响应
-            StatusLogger.debug(`[${this.config.logPrefix}] 余量查询成功`);
+            StatusLogger.debug(`[${this.config.logPrefix}] Quota query succeeded`);
 
             // 计算格式化信息
             if (!parsedResponse.usage) {
                 return {
                     success: false,
-                    error: '未获取到用量数据'
+                    error: t('No usage data was returned.', '未获取到用量数据')
                 };
             }
 
@@ -363,11 +372,11 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
                 }
             };
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : '未知错误';
-            Logger.error(`余量查询异常: ${errorMessage}`);
+            const errorMessage = error instanceof Error ? error.message : t('Unknown error', '未知错误');
+            Logger.error(`Quota query exception: ${errorMessage}`);
             return {
                 success: false,
-                error: `查询异常: ${errorMessage}`
+                error: t('Query error: {0}', '查询异常: {0}', errorMessage)
             };
         }
     }
@@ -423,16 +432,25 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
     /**
      * 将时间单位转换为中文
      */
-    private translateTimeUnit(timeUnit: string): string {
-        const unitMap: Record<string, string> = {
-            TIME_UNIT_SECOND: '秒',
-            TIME_UNIT_MINUTE: '分钟',
-            TIME_UNIT_HOUR: '小时',
-            TIME_UNIT_DAY: '天',
-            TIME_UNIT_MONTH: '月',
-            TIME_UNIT_YEAR: '年'
+    private translateTimeUnit(timeUnit: string, duration: number): string {
+        const unitMap: Record<string, { singular: string; plural: string; zh: string }> = {
+            TIME_UNIT_SECOND: { singular: 'second', plural: 'seconds', zh: '秒' },
+            TIME_UNIT_MINUTE: { singular: 'minute', plural: 'minutes', zh: '分钟' },
+            TIME_UNIT_HOUR: { singular: 'hour', plural: 'hours', zh: '小时' },
+            TIME_UNIT_DAY: { singular: 'day', plural: 'days', zh: '天' },
+            TIME_UNIT_MONTH: { singular: 'month', plural: 'months', zh: '月' },
+            TIME_UNIT_YEAR: { singular: 'year', plural: 'years', zh: '年' }
         };
-        return unitMap[timeUnit] || timeUnit;
+        const unit = unitMap[timeUnit];
+        if (!unit) {
+            return timeUnit;
+        }
+
+        return (
+            vscode.env.language.toLowerCase().startsWith('zh') ? unit.zh
+            : duration === 1 ? unit.singular
+            : unit.plural
+        );
     }
 
     /**

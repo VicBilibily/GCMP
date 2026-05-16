@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { TokenUsagesManager } from '../../usages/usagesManager';
 import { StatusLogger } from '../../utils/statusLogger';
+import { t } from '../../utils/l10n';
 import { UpdateDateDetailsMessage, UpdateDateListMessage } from './types';
 import { getTodayDateString } from './utils';
 
@@ -51,7 +52,7 @@ export class TokenUsagesView {
         const today = getTodayDateString();
         this.panel = vscode.window.createWebviewPanel(
             'gcmpTokenStats',
-            `GCMP Token 消耗统计 - ${today}`,
+            `${t('GCMP Token Usage', 'GCMP Token 消耗统计')} - ${today}`,
             vscode.ViewColumn.One,
             {
                 enableScripts: true,
@@ -110,7 +111,7 @@ export class TokenUsagesView {
 
             this.panel.webview.html = this.getWebviewContent();
         } catch (err) {
-            StatusLogger.error('[TokenUsagesView] 更新视图失败:', err);
+            StatusLogger.error('[TokenUsagesView] Failed to update view:', err);
         }
     }
 
@@ -128,17 +129,17 @@ export class TokenUsagesView {
         const isViewingToday = this.currentSelectedDate === today;
 
         StatusLogger.debug(
-            `[TokenUsagesView] 智能刷新: 查看日期=${this.currentSelectedDate}, 今日=${today}, 是否查看今日=${isViewingToday}`
+            `[TokenUsagesView] Smart refresh: viewingDate=${this.currentSelectedDate}, today=${today}, viewingToday=${isViewingToday}`
         );
 
         if (isViewingToday) {
             // 查看今日 - 刷新整个详情（包括请求记录）+ 更新日期列表
-            StatusLogger.debug('[TokenUsagesView] 刷新今日详情 + 日期列表');
+            StatusLogger.debug("[TokenUsagesView] Refreshing today's details + date list");
             await this.updateDateDetails(today);
             await this.updateDateListOnly();
         } else {
             // 查看其他日期 - 只刷新日期列表统计
-            StatusLogger.debug('[TokenUsagesView] 仅刷新日期列表');
+            StatusLogger.debug('[TokenUsagesView] Refreshing date list only');
             await this.updateDateListOnly();
         }
     }
@@ -162,7 +163,7 @@ export class TokenUsagesView {
                 today
             } as UpdateDateListMessage);
         } catch (err) {
-            StatusLogger.error('[TokenUsagesView] 更新日期列表失败:', err);
+            StatusLogger.error('[TokenUsagesView] Failed to update date list:', err);
         }
     }
 
@@ -210,9 +211,9 @@ export class TokenUsagesView {
                 records: dateRecords // getDateRecords 已经返回扩展后的记录
             } as UpdateDateDetailsMessage);
 
-            StatusLogger.debug('[TokenUsagesView] 已发送初始数据');
+            StatusLogger.debug('[TokenUsagesView] Initial data sent');
         } catch (err) {
-            StatusLogger.error('[TokenUsagesView] 发送初始数据失败:', err);
+            StatusLogger.error('[TokenUsagesView] Failed to send initial data:', err);
         }
     }
 
@@ -261,7 +262,7 @@ export class TokenUsagesView {
 
             // 更新面板标题
             if (this.panel) {
-                this.panel.title = `GCMP Token 消耗统计 - ${date}`;
+                this.panel.title = `${t('GCMP Token Usage', 'GCMP Token 消耗统计')} - ${date}`;
             }
 
             // 发送消息给 WebView，让它更新详情区域
@@ -276,9 +277,9 @@ export class TokenUsagesView {
                 } as UpdateDateDetailsMessage);
             }
 
-            StatusLogger.debug(`[TokenUsagesView] 已更新日期详情: ${date}, 记录数=${dateRecords.length}`);
+            StatusLogger.debug(`[TokenUsagesView] Updated date details: ${date}, recordCount=${dateRecords.length}`);
         } catch (err) {
-            StatusLogger.error('[TokenUsagesView] 更新日期详情失败:', err);
+            StatusLogger.error('[TokenUsagesView] Failed to update date details:', err);
         }
     }
 
@@ -289,10 +290,10 @@ export class TokenUsagesView {
         try {
             const storageDir = this.usagesManager.getStorageDir();
             await vscode.env.openExternal(vscode.Uri.file(storageDir));
-            StatusLogger.debug(`[TokenUsagesView] 已打开存储目录: ${storageDir}`);
+            StatusLogger.debug(`[TokenUsagesView] Opened storage directory: ${storageDir}`);
         } catch (err) {
-            StatusLogger.error('[TokenUsagesView] 打开存储目录失败:', err);
-            vscode.window.showErrorMessage('打开存储目录失败');
+            StatusLogger.error('[TokenUsagesView] Failed to open storage directory:', err);
+            vscode.window.showErrorMessage(t('Failed to open the storage directory.', '打开存储目录失败'));
         }
     }
 
@@ -301,6 +302,7 @@ export class TokenUsagesView {
      */
     private getWebviewContent(): string {
         const cspSource = this.panel?.webview.cspSource || '';
+        const htmlLang = vscode.env.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en';
 
         // 读取编译后的应用 JS 文件（已包含框架和应用代码）
         const usagesViewJsPath = path.join(this.context.extensionPath, 'dist', 'ui', 'usagesView.js');
@@ -308,16 +310,16 @@ export class TokenUsagesView {
         try {
             usagesViewJs = fs.readFileSync(usagesViewJsPath, 'utf8');
         } catch (error) {
-            StatusLogger.error('[TokenUsagesView] 读取 usagesView.js 失败:', error);
+            StatusLogger.error('[TokenUsagesView] Failed to load usagesView.js:', error);
             usagesViewJs = '/* Error loading usagesView.js */';
         }
 
         const htmlContent = `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="${htmlLang}">
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>GCMP Token 消耗统计</title>
+    <title>${t('GCMP Token Usage', 'GCMP Token 消耗统计')}</title>
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' ${cspSource}; script-src 'unsafe-inline' ${cspSource};" />
 </head>
 <body>

@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import * as https from 'https';
 import { Logger } from '../utils';
+import { t } from '../utils/l10n';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { ConfigManager } from '../utils/configManager';
 import { VersionManager } from '../utils/versionManager';
@@ -101,7 +102,12 @@ export class ZhipuSearchTool {
     async search(params: ZhipuSearchRequest): Promise<ZhipuSearchResponse> {
         const apiKey = await ApiKeyManager.getApiKey('zhipu');
         if (!apiKey) {
-            throw new Error('智谱AI API密钥未设置，请先运行命令"GCMP: 设置 智谱AI API密钥"');
+            throw new Error(
+                t(
+                    'Zhipu AI API key is not set. Run "GCMP: Set Zhipu AI API Key" first',
+                    '智谱AI API密钥未设置，请先运行命令"GCMP: 设置 智谱AI API密钥"'
+                )
+            );
         }
 
         // 根据 endpoint 配置确定 baseURL
@@ -136,9 +142,9 @@ export class ZhipuSearchTool {
         };
 
         Logger.info(
-            `🔍 [智谱搜索] 开始搜索: "${params.search_query}" 使用引擎 ${params.search_engine || 'search_std'}`
+            `🔍 [Zhipu Search] Starting search: "${params.search_query}" with engine ${params.search_engine || 'search_std'}`
         );
-        Logger.debug(`📝 [智谱搜索] 请求数据: ${requestData}`);
+        Logger.debug(`📝 [Zhipu Search] Request payload: ${requestData}`);
 
         return new Promise((resolve, reject) => {
             const req = https.request(url, options, res => {
@@ -150,37 +156,44 @@ export class ZhipuSearchTool {
 
                 res.on('end', () => {
                     try {
-                        Logger.debug(`📊 [智谱搜索] 响应状态码: ${res.statusCode}`);
-                        Logger.debug(`📄 [智谱搜索] 响应数据: ${data}`);
+                        Logger.debug(`📊 [Zhipu Search] Response status: ${res.statusCode}`);
+                        Logger.debug(`📄 [Zhipu Search] Response body: ${data}`);
 
                         if (res.statusCode !== 200) {
-                            let errorMessage = `智谱AI搜索API错误 ${res.statusCode}`;
+                            let errorMessage = `Zhipu AI search API error ${res.statusCode}`;
                             try {
                                 const errorData = JSON.parse(data);
                                 errorMessage += `: ${errorData.error?.message || JSON.stringify(errorData)}`;
                             } catch {
                                 errorMessage += `: ${data}`;
                             }
-                            Logger.error('❌ [智谱搜索] API返回错误', new Error(errorMessage));
+                            Logger.error('❌ [Zhipu Search] API returned an error', new Error(errorMessage));
                             reject(new Error(errorMessage));
                             return;
                         }
 
                         const response = JSON.parse(data) as ZhipuSearchResponse;
-                        Logger.info(`✅ [智谱搜索] 搜索完成: 找到 ${response.search_result?.length || 0} 个结果`);
+                        Logger.info(
+                            `✅ [Zhipu Search] Search completed: found ${response.search_result?.length || 0} results`
+                        );
                         resolve(response);
                     } catch (error) {
-                        Logger.error('❌ [智谱搜索] 解析响应失败', error instanceof Error ? error : undefined);
+                        Logger.error(
+                            '❌ [Zhipu Search] Failed to parse response',
+                            error instanceof Error ? error : undefined
+                        );
                         reject(
-                            new Error(`解析智谱AI搜索响应失败: ${error instanceof Error ? error.message : '未知错误'}`)
+                            new Error(
+                                `Failed to parse Zhipu AI search response: ${error instanceof Error ? error.message : 'Unknown error'}`
+                            )
                         );
                     }
                 });
             });
 
             req.on('error', error => {
-                Logger.error('❌ [智谱搜索] 请求失败', error);
-                reject(new Error(`智谱AI搜索请求失败: ${error.message}`));
+                Logger.error('❌ [Zhipu Search] Request failed', error);
+                reject(new Error(`Zhipu AI search request failed: ${error.message}`));
             });
 
             req.write(requestData);
@@ -195,25 +208,25 @@ export class ZhipuSearchTool {
         request: vscode.LanguageModelToolInvocationOptions<ZhipuSearchRequest>
     ): Promise<vscode.LanguageModelToolResult> {
         try {
-            Logger.info(`🚀 [工具调用] 智谱AI联网搜索工具被调用: ${JSON.stringify(request.input)}`);
+            Logger.info(`🚀 [Tool Call] Zhipu AI web search tool invoked: ${JSON.stringify(request.input)}`);
 
             const params = request.input as ZhipuSearchRequest;
             if (!params.search_query) {
-                throw new Error('缺少必需参数: search_query');
+                throw new Error(t('Missing required parameter: search_query', '缺少必需参数: search_query'));
             }
 
             // 根据配置选择搜索模式
             let searchResults: ZhipuSearchResult[];
             if (this.isMCPEnabled()) {
-                Logger.info(`🔄 [智谱搜索] 使用MCP模式搜索: "${params.search_query}"`);
+                Logger.info(`🔄 [Zhipu Search] Using MCP mode for query: "${params.search_query}"`);
                 searchResults = await this.searchViaMCP(params);
             } else {
-                Logger.info('🔄 [智谱搜索] 使用标准计费接口搜索（按次计费）');
+                Logger.info('[Zhipu Search] Using standard billing API for search (per-request billing)');
                 const response = await this.search(params);
                 searchResults = response.search_result || [];
             }
 
-            Logger.info('✅ [工具调用] 智谱AI联网搜索工具调用成功');
+            Logger.info('✅ [Tool Call] Zhipu AI web search tool invocation succeeded');
 
             // 搜索完成后，延时更新智谱AI状态栏（用量显示）
             StatusBarManager.zhipu?.delayedUpdate();
@@ -222,10 +235,13 @@ export class ZhipuSearchTool {
                 new vscode.LanguageModelTextPart(JSON.stringify(searchResults))
             ]);
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : '未知错误';
-            Logger.error('❌ [工具调用] 智谱AI联网搜索工具调用失败', error instanceof Error ? error : undefined);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            Logger.error(
+                '❌ [Tool Call] Zhipu AI web search tool invocation failed',
+                error instanceof Error ? error : undefined
+            );
 
-            throw new vscode.LanguageModelError(`智谱AI搜索失败: ${errorMessage}`);
+            throw new vscode.LanguageModelError(t('Zhipu AI search failed: {0}', '智谱AI搜索失败: {0}', errorMessage));
         }
     }
 
@@ -236,7 +252,10 @@ export class ZhipuSearchTool {
         const isMCP = this.isMCPEnabled();
         return {
             mode: isMCP ? 'MCP' : 'Standard',
-            description: isMCP ? 'MCP模式（Coding Plan专属）' : '标准计费接口模式（按次计费）'
+            description:
+                isMCP ?
+                    t('MCP mode (Coding Plan only)', 'MCP模式（Coding Plan专属）')
+                :   t('Standard billing API mode (per-request billing)', '标准计费接口模式（按次计费）')
         };
     }
 
@@ -247,9 +266,9 @@ export class ZhipuSearchTool {
         try {
             // MCP 客户端使用单例模式，不需要在这里清理
             // 如果需要清理所有 MCP 客户端缓存，可以调用 ZhipuMCPWebSearchClient.clearCache()
-            Logger.info('✅ [智谱搜索] 工具资源已清理');
+            Logger.info('✅ [Zhipu Search] Tool resources cleaned up');
         } catch (error) {
-            Logger.error('❌ [智谱搜索] 资源清理失败', error instanceof Error ? error : undefined);
+            Logger.error('❌ [Zhipu Search] Failed to clean up resources', error instanceof Error ? error : undefined);
         }
     }
 

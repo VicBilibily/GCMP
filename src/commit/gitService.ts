@@ -17,6 +17,7 @@ import {
 } from './types';
 import { DiffSnippetService } from './diffSnippetService';
 import { Logger } from '../utils';
+import { t } from '../utils/l10n';
 
 function throwIfCancelled(token?: vscode.CancellationToken): void {
     if (token?.isCancellationRequested) {
@@ -51,10 +52,10 @@ export function checkGitAvailability(): vscode.Disposable {
     const onDidChangeGitExtensionEnablement = (enabled: boolean) => {
         if (enabled) {
             vscode.commands.executeCommand('setContext', 'gcmp.gitAvailable', true);
-            Logger.debug('[Git] vscode.git 扩展已启用，Commit 消息生成功能已启用');
+            Logger.debug('[Git] vscode.git extension is enabled; commit message generation is available');
         } else {
             vscode.commands.executeCommand('setContext', 'gcmp.gitAvailable', false);
-            Logger.warn('[Git] vscode.git 扩展已禁用，Commit 消息生成功能将被隐藏');
+            Logger.warn('[Git] vscode.git extension is disabled; commit message generation will be hidden');
         }
     };
 
@@ -65,7 +66,7 @@ export function checkGitAvailability(): vscode.Disposable {
         if (!gitExtension) {
             // vscode.git 扩展不存在（可能被禁用或未安装）
             vscode.commands.executeCommand('setContext', 'gcmp.gitAvailable', false);
-            Logger.warn('[Git] vscode.git 扩展未找到，Commit 消息生成功能将被隐藏');
+            Logger.warn('[Git] vscode.git extension was not found; commit message generation will be hidden');
             return;
         }
 
@@ -81,7 +82,7 @@ export function checkGitAvailability(): vscode.Disposable {
             (error: unknown) => {
                 // 发生错误，认为 Git 不可用
                 vscode.commands.executeCommand('setContext', 'gcmp.gitAvailable', false);
-                Logger.warn('[Git] 检查 Git 可用性时出错:', error);
+                Logger.warn('[Git] Failed to check Git availability:', error);
             }
         );
     };
@@ -174,7 +175,7 @@ export class GitService {
         }));
 
         const selected = await vscode.window.showQuickPick(items, {
-            placeHolder: '选择一个 Git repository'
+            placeHolder: t('Select a Git repository', '选择一个 Git 仓库')
         });
 
         if (!selected) {
@@ -229,7 +230,7 @@ export class GitService {
 
             return { staged, tracked, untracked };
         } catch (error) {
-            Logger.error('[GitService] 获取 diff 失败:', error);
+            Logger.error('[GitService] Failed to get diff:', error);
             throw error;
         }
     }
@@ -347,7 +348,7 @@ export class GitService {
                 uri.push(fileUri);
                 diff.push(patch);
             } catch (e) {
-                Logger.warn('[GitService] 读取 untracked 文件失败:', fileUri.fsPath, e);
+                Logger.warn('[GitService] Failed to read untracked file:', fileUri.fsPath, e);
             }
         }
 
@@ -413,7 +414,7 @@ export class GitService {
                     }
                 }
             } catch (e) {
-                Logger.warn('[GitService] git ls-files 获取 untracked 失败:', e);
+                Logger.warn('[GitService] git ls-files failed to enumerate untracked files:', e);
             }
         }
 

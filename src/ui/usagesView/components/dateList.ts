@@ -4,7 +4,7 @@
  */
 
 import { DateSummary } from '../types';
-import { formatTokens, postToVSCode } from '../utils';
+import { formatTokens, postToVSCode, t } from '../utils';
 import { createElement } from '../../utils';
 
 // ============= 工具函数 =============
@@ -24,7 +24,7 @@ function createDateListItem(summary: DateSummary): HTMLElement {
 
     const isSelected = window.usagesState?.selectedDate === summary.date;
     const isDateToday = summary.date === window.usagesState?.today;
-    const displayDate = isDateToday ? `今日 (${summary.date})` : summary.date;
+    const displayDate = isDateToday ? t('Today ({0})', '今日 ({0})', summary.date) : summary.date;
     const totalTokens = summary.total_input + summary.total_output;
 
     if (isSelected) {
@@ -48,7 +48,12 @@ function createDateListItem(summary: DateSummary): HTMLElement {
     title.textContent = displayDate;
 
     const stats = createElement('div', 'date-item-stats');
-    stats.textContent = `请求: ${summary.total_requests} | Token: ${formatTokens(totalTokens)}`;
+    stats.textContent = t(
+        'Requests: {0} | Tokens: {1}',
+        '请求: {0} | Tokens: {1}',
+        summary.total_requests,
+        formatTokens(totalTokens)
+    );
 
     inner.appendChild(title);
     inner.appendChild(stats);
@@ -65,10 +70,10 @@ export function createSidebar(): HTMLElement {
     const header = createElement('div', 'sidebar-header');
     const headerTop = createElement('div', 'sidebar-header-top');
     const h1 = createElement('h1');
-    h1.textContent = 'Token 消耗统计';
+    h1.textContent = t('Token Usage', 'Token 消耗统计');
     const openBtn = createElement('button', 'open-storage-button');
     openBtn.textContent = '📁';
-    openBtn.title = '打开存储目录';
+    openBtn.title = t('Open storage directory', '打开存储目录');
     openBtn.onclick = openStorageDir;
     headerTop.appendChild(h1);
     headerTop.appendChild(openBtn);
@@ -116,11 +121,16 @@ export function updateDateList(dateList: DateSummary[]): void {
 
             if (title) {
                 const isToday = todaySummary.date === window.usagesState?.today;
-                title.textContent = isToday ? `今日 (${todaySummary.date})` : todaySummary.date;
+                title.textContent = isToday ? t('Today ({0})', '今日 ({0})', todaySummary.date) : todaySummary.date;
                 title.className = isToday ? 'date-item-title today' : 'date-item-title';
             }
             if (stats) {
-                stats.textContent = `请求: ${todaySummary.total_requests} | Token: ${formatTokens(totalTokens)}`;
+                stats.textContent = t(
+                    'Requests: {0} | Tokens: {1}',
+                    '请求: {0} | Tokens: {1}',
+                    todaySummary.total_requests,
+                    formatTokens(totalTokens)
+                );
             }
         }
 

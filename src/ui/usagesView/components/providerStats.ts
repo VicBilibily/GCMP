@@ -11,7 +11,8 @@ import {
     formatTokens,
     calculateAverageSpeed,
     calculateAverageFirstTokenLatency,
-    getProviderDisplayName
+    getProviderDisplayName,
+    t
 } from '../utils';
 
 // ============= 工具函数 =============
@@ -37,7 +38,7 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
     const section = createElement('section');
 
     const h2 = createElement('h2');
-    h2.textContent = '按提供商统计';
+    h2.textContent = t('By Provider', '按提供商统计');
     section.appendChild(h2);
 
     if (providers && providers.length > 0) {
@@ -46,14 +47,14 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
         const headerRow = createElement('tr');
 
         const headers = [
-            '提供商/模型',
-            '输入Tokens',
-            '缓存命中',
-            '输出Tokens',
-            '消耗Tokens',
-            '请求次数',
-            '平均延迟',
-            '平均速度'
+            t('Provider / Model', '提供商/模型'),
+            t('Input', '输入Tokens'),
+            t('Cache', '缓存命中'),
+            t('Output', '输出Tokens'),
+            t('Tokens', '消耗Tokens'),
+            t('Requests', '请求次数'),
+            t('Latency', '平均延迟'),
+            t('Speed', '平均速度')
         ];
         headers.forEach(h => {
             const th = createElement('th');
@@ -124,7 +125,7 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
         totalRow.style.borderTop = '2px solid var(--vscode-editor-selectionForeground)';
 
         const grandTotal = totalInput + totalOutput;
-        totalRow.appendChild(createCell('合计'));
+        totalRow.appendChild(createCell(t('Total', '合计')));
         totalRow.appendChild(createCell(formatTokens(totalInput)));
         totalRow.appendChild(createCell(formatTokens(totalCache)));
         totalRow.appendChild(createCell(formatTokens(totalOutput)));
@@ -172,7 +173,7 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
         section.appendChild(table);
     } else {
         const empty = createElement('div', 'empty-message');
-        empty.textContent = '暂无提供商数据';
+        empty.textContent = t('No provider data available', '暂无提供商数据');
         section.appendChild(empty);
     }
 

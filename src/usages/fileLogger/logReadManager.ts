@@ -37,7 +37,7 @@ export class LogReadManager {
             const content = await fs.readFile(filePath, 'utf-8');
             return this.parseJsonlContent(content);
         } catch (err) {
-            StatusLogger.error(`[LogReadManager] 读取小时日志失败: ${filePath}`, err);
+            StatusLogger.error(`[LogReadManager] Failed to read hourly log: ${filePath}`, err);
             return [];
         }
     }
@@ -62,7 +62,7 @@ export class LogReadManager {
                     .readFile(filePath, 'utf-8')
                     .then(content => this.parseJsonlContent(content))
                     .catch(err => {
-                        StatusLogger.warn(`[LogReadManager] 读取小时日志失败: ${filePath}`, err);
+                        StatusLogger.warn(`[LogReadManager] Failed to read hourly log: ${filePath}`, err);
                         return [];
                     });
             });
@@ -74,7 +74,7 @@ export class LogReadManager {
             }
             return allLogs;
         } catch (err) {
-            StatusLogger.error(`[LogReadManager] 读取日期日志失败: ${dateFolder}`, err);
+            StatusLogger.error(`[LogReadManager] Failed to read daily logs: ${dateFolder}`, err);
             return [];
         }
     }
@@ -137,7 +137,7 @@ export class LogReadManager {
             // 只返回最近的 limit 条
             return logs.slice(0, limit);
         } catch (err) {
-            StatusLogger.error(`[LogReadManager] 获取最近请求详情失败: ${dateStr}`, err);
+            StatusLogger.error(`[LogReadManager] Failed to get recent request details: ${dateStr}`, err);
             return [];
         }
     }
@@ -156,7 +156,7 @@ export class LogReadManager {
             const stats = await fs.stat(filePath);
             return stats.mtime.getTime();
         } catch (err) {
-            StatusLogger.warn(`[LogReadManager] 获取文件修改时间失败: ${filePath}`, err);
+            StatusLogger.warn(`[LogReadManager] Failed to get file modified time: ${filePath}`, err);
             return 0;
         }
     }

@@ -79,7 +79,7 @@ export class PromptAnalyzer {
 
         try {
             const tokenCounter = TokenCounter.getInstance();
-            Logger.debug(`[${providerKey}] analyzePromptParts 开始，消息数量: ${messages.length}`);
+            Logger.debug(`[${providerKey}] analyzePromptParts started, message count: ${messages.length}`);
 
             // ===== 1. 计算系统提示词 =====
             // 根据官方 Anthropic SDK 标准：系统消息 + 包装开销
@@ -104,7 +104,7 @@ export class PromptAnalyzer {
                 }
             }
             Logger.debug(
-                `[${providerKey}] 找到 ${systemMessageCount} 条系统消息, systemText length: ${systemText.length}`
+                `[${providerKey}] Found ${systemMessageCount} system messages, systemText length: ${systemText.length}`
             );
             if (systemText) {
                 const systemTokens = await tokenCounter.countTokens(model, systemText);
@@ -210,7 +210,7 @@ export class PromptAnalyzer {
                     environmentMessage as unknown as vscode.LanguageModelChatMessage
                 );
                 promptParts.environment = environmentTokens;
-                Logger.debug(`[${providerKey}] 检测到环境消息, tokens=${environmentTokens}`);
+                Logger.debug(`[${providerKey}] Detected environment message, tokens=${environmentTokens}`);
             }
 
             // ===== 4. 分析消息：用户、助手、其他角色合并为 userAssistantMessage =====
@@ -253,7 +253,7 @@ export class PromptAnalyzer {
                 }
             }
 
-            Logger.debug(`[${providerKey}] 最后一个 user text 消息索引: ${lastUserTextMessageIndex}`);
+            Logger.debug(`[${providerKey}] Last user text message index: ${lastUserTextMessageIndex}`);
 
             // 4.2 遍历所有消息，分别计算历史消息和本轮消息的 token
             let processedMessageCount = 0;
@@ -389,7 +389,7 @@ export class PromptAnalyzer {
                 }
             }
             Logger.debug(
-                `[${providerKey}] 消息处理完成: 处理 ${processedMessageCount} 条, 跳过 ${skippedMessageCount} 条, 历史消息 ${historyMessageCount} 条, 本轮消息 ${currentRoundMessageCount} 条`
+                `[${providerKey}] Message processing completed: processed ${processedMessageCount}, skipped ${skippedMessageCount}, history ${historyMessageCount}, current round ${currentRoundMessageCount}`
             );
 
             // ===== 5. 计算上下文总占用 =====
@@ -402,23 +402,23 @@ export class PromptAnalyzer {
                 (promptParts.userAssistantMessage || 0);
             promptParts.context = contextTotal;
             Logger.debug(
-                `[${providerKey}] Token 分解统计:\n` +
-                    `  系统提示词: ${promptParts.systemPrompt} tokens (含 28 包装开销)\n` +
-                    `  可用工具: ${promptParts.availableTools} tokens (含 1.1x 安全系数)\n` +
-                    `  环境消息: ${promptParts.environment} tokens (environment_info 和 workspace_info)\n` +
-                    `  自动压缩: ${promptParts.autoCompressed} tokens (压缩历史消息体)\n` +
-                    `  对话消息: ${promptParts.userAssistantMessage} tokens (用户、助手及其他对话角色)\n` +
-                    `    - 历史消息: ${promptParts.historyMessages} tokens (本轮对话之前的所有消息)\n` +
-                    `    - 思考过程: ${promptParts.thinking} tokens (LanguageModelThinkingPart)\n` +
-                    `    - 本轮消息: ${promptParts.currentRoundMessages} tokens (从最后一个 user text 消息开始，不含图片和思考过程)\n` +
-                    `    - 本轮图片: ${promptParts.currentRoundImages || 0} tokens (本轮消息中的图片附件)\n` +
-                    `  = 总占用: ${promptParts.context} tokens`
+                `[${providerKey}] Token breakdown:\n` +
+                    `  System prompt: ${promptParts.systemPrompt} tokens (including 28 wrapper tokens)\n` +
+                    `  Available tools: ${promptParts.availableTools} tokens (including 1.1x safety factor)\n` +
+                    `  Environment message: ${promptParts.environment} tokens (environment_info and workspace_info)\n` +
+                    `  Auto-compressed history: ${promptParts.autoCompressed} tokens\n` +
+                    `  Conversation messages: ${promptParts.userAssistantMessage} tokens (user, assistant, and other chat roles)\n` +
+                    `    - History messages: ${promptParts.historyMessages} tokens\n` +
+                    `    - Thinking content: ${promptParts.thinking} tokens (LanguageModelThinkingPart)\n` +
+                    `    - Current round messages: ${promptParts.currentRoundMessages} tokens (starting from the last user text message, excluding images and thinking)\n` +
+                    `    - Current round images: ${promptParts.currentRoundImages || 0} tokens\n` +
+                    `  = Total context: ${promptParts.context} tokens`
             );
             return promptParts;
         } catch (error) {
-            Logger.warn(`[${providerKey}] 分析提示词部分失败:`, error);
+            Logger.warn(`[${providerKey}] Failed to analyze prompt parts:`, error);
             Logger.debug(
-                `[${providerKey}] 当前 promptParts: systemPrompt=${promptParts.systemPrompt}, availableTools=${promptParts.availableTools}, environment=${promptParts.environment}, userAssistantMessage=${promptParts.userAssistantMessage}, autoCompressed=${promptParts.autoCompressed}, context=${promptParts.context}`
+                `[${providerKey}] Current promptParts: systemPrompt=${promptParts.systemPrompt}, availableTools=${promptParts.availableTools}, environment=${promptParts.environment}, userAssistantMessage=${promptParts.userAssistantMessage}, autoCompressed=${promptParts.autoCompressed}, context=${promptParts.context}`
             );
             // 返回零值结构，防止状态栏崩溃
             return promptParts;

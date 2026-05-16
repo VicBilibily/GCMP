@@ -8,6 +8,7 @@ import OpenAI from 'openai';
 import { Logger, VersionManager, sanitizeToolSchemaForTarget } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
+import { t } from '../utils/l10n';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';
@@ -117,7 +118,7 @@ export class OpenAIHandler {
         const providerKey = modelConfig?.provider || this.provider;
         const currentApiKey = await ApiKeyManager.getApiKey(providerKey);
         if (!currentApiKey) {
-            throw new Error(`缺少 ${this.displayName} API密钥`);
+            throw new Error(t('Missing {0} API key', '缺少 {0} API 密钥', this.displayName));
         }
         // 优先使用模型特定的baseUrl，如果没有则使用提供商级别的baseUrl
         let baseURL = modelConfig?.baseUrl || this.baseURL;
@@ -146,7 +147,7 @@ export class OpenAIHandler {
         const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, currentApiKey);
         if (Object.keys(processedCustomHeader).length > 0) {
             Object.assign(defaultHeaders, processedCustomHeader);
-            Logger.debug(`${this.displayName} 应用自定义头部: ${JSON.stringify(mergedCustomHeader)}`);
+            Logger.debug(`${this.displayName} applying custom headers: ${JSON.stringify(mergedCustomHeader)}`);
         }
 
         let customFetch: typeof fetch | undefined = undefined; // 使用默认 fetch 实现
@@ -157,7 +158,7 @@ export class OpenAIHandler {
             defaultHeaders: defaultHeaders,
             fetch: customFetch
         });
-        Logger.trace(`${this.displayName} OpenAI SDK 客户端已创建，使用baseURL: ${baseURL}`);
+        Logger.trace(`${this.displayName} OpenAI SDK client created with baseURL: ${baseURL}`);
         return client;
     }
 
@@ -180,7 +181,7 @@ export class OpenAIHandler {
                     const base = (resolvedBaseURL || '').replace(/\/$/, '');
                     requestUrl = `${base}${customEndpoint.startsWith('/') ? customEndpoint : `/${customEndpoint}`}`;
                 }
-                Logger.debug(`自定义 endpoint: ${String(url)} -> ${String(requestUrl)}`);
+                Logger.debug(`Custom endpoint: ${String(url)} -> ${String(requestUrl)}`);
             }
             // 调用原始 fetch
             const response = await fetch(requestUrl, init);
@@ -351,7 +352,9 @@ export class OpenAIHandler {
                     }
                     candidateJson = escaped.text;
                     obj = JSON.parse(candidateJson) as ParsedSSEChunk;
-                    Logger.debug(`${displayName} SSE 事件包含未转义控制字符，已自动修复后继续解析`);
+                    Logger.debug(
+                        `${displayName} SSE event contained unescaped control characters; auto-fixed and continued parsing`
+                    );
                 }
 
                 let objModified = false;
@@ -373,7 +376,7 @@ export class OpenAIHandler {
                         if (choice?.finish_reason) {
                             if (!choice.delta || Object.keys(choice.delta).length === 0) {
                                 Logger.trace(
-                                    `preprocessSSEResponse 仅有 finish_reason (choice ${choiceIndex})，为 delta 添加空 content`
+                                    `preprocessSSEResponse received finish_reason only (choice ${choiceIndex}); added empty content to delta`
                                 );
                                 choice.delta = { role: 'assistant', content: '' };
                                 objModified = true;
@@ -387,7 +390,7 @@ export class OpenAIHandler {
                             if (choice?.finish_reason) {
                                 continue;
                             }
-                            Logger.trace(`preprocessSSEResponse 移除无效的 delta (choice ${choiceIndex})`);
+                            Logger.trace(`preprocessSSEResponse removed invalid delta (choice ${choiceIndex})`);
                             obj.choices.splice(choiceIndex, 1);
                             objModified = true;
                         }
@@ -429,7 +432,7 @@ export class OpenAIHandler {
 
                 return normalizedLine;
             } catch (parseError) {
-                Logger.trace(`JSON 解析失败: ${parseError}`);
+                Logger.trace(`JSON parsing failed: ${parseError}`);
                 return normalizedLine;
             }
         };
@@ -445,7 +448,9 @@ export class OpenAIHandler {
                         if (done) {
                             // 流结束时，处理缓冲区剩余的内容
                             if (lineBuffer.trim().length > 0) {
-                                Logger.trace(`流结束，处理缓冲区剩余内容: ${lineBuffer.length} 字符`);
+                                Logger.trace(
+                                    `Stream ended, processing remaining buffered content: ${lineBuffer.length} chars`
+                                );
                                 const remaining = processSSELine(lineBuffer);
                                 controller.enqueue(encoder.encode(remaining));
                             }
@@ -505,12 +510,12 @@ export class OpenAIHandler {
         token: vscode.CancellationToken,
         requestId?: string | null
     ): Promise<void> {
-        Logger.debug(`${model.name} 开始处理 ${this.displayName} 请求`);
+        Logger.debug(`${model.name} starting ${this.displayName} request handling`);
         // 清理当前请求的事件去重跟踪器
         this.currentRequestProcessedEvents.clear();
         try {
             const client = await this.createOpenAIClient(modelConfig);
-            Logger.debug(`${model.name} 发送 ${messages.length} 条消息，使用 ${this.displayName}`);
+            Logger.debug(`${model.name} sending ${messages.length} messages using ${this.displayName}`);
             // 优先使用模型特定的请求模型名称，如果没有则使用模型ID
             const requestModel = modelConfig.model || modelConfig.id;
             const createParams: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
@@ -525,7 +530,7 @@ export class OpenAIHandler {
             // 添加工具支持（如果有）
             if (options.tools && options.tools.length > 0 && modelConfig.capabilities?.toolCalling) {
                 createParams.tools = this.convertToolsToOpenAI([...options.tools]);
-                Logger.trace(`${model.name} 添加了 ${options.tools.length} 个工具`);
+                Logger.trace(`${model.name} added ${options.tools.length} tools`);
             }
 
             // 合并extraBody参数（如果有）
@@ -534,7 +539,7 @@ export class OpenAIHandler {
                 const filteredExtraBody = OpenAIHandler.filterExtraBodyParams(modelConfig.extraBody);
                 Object.assign(createParams, filteredExtraBody);
                 if (Object.keys(filteredExtraBody).length > 0) {
-                    Logger.trace(`${model.name} 合并了 extraBody 参数: ${JSON.stringify(filteredExtraBody)}`);
+                    Logger.trace(`${model.name} merged extraBody parameters: ${JSON.stringify(filteredExtraBody)}`);
                 }
             }
 
@@ -613,7 +618,7 @@ export class OpenAIHandler {
                 }
             }
 
-            Logger.info(`🚀 ${model.name} 发送 ${this.displayName} 请求`);
+            Logger.info(`🚀 ${model.name} Sending ${this.displayName} request`);
 
             // 创建统一的流报告器
             const reporter = new StreamReporter({
@@ -721,11 +726,11 @@ export class OpenAIHandler {
                     const outputTokens = usageData.completion_tokens ?? 0;
                     const speed = duration > 0 ? ((outputTokens / duration) * 1000).toFixed(1) : 'N/A';
                     Logger.info(
-                        `📊 ${model.name} OpenAI 请求完成, 输出=${outputTokens} tokens, 耗时=${duration}ms, 速度=${speed} tokens/s`,
+                        `📊 ${model.name} OpenAI request completed, output=${outputTokens} tokens, duration=${duration}ms, speed=${speed} tokens/s`,
                         usageData
                     );
                 } else {
-                    Logger.info(`📊 ${model.name} OpenAI 请求完成`, finalUsage);
+                    Logger.info(`📊 ${model.name} OpenAI request completed`, finalUsage);
                 }
 
                 if (requestId) {
@@ -741,11 +746,11 @@ export class OpenAIHandler {
                             streamEndTime
                         });
                     } catch (err) {
-                        Logger.warn('更新Token统计失败:', err);
+                        Logger.warn('Failed to update token stats:', err);
                     }
                 }
 
-                Logger.debug(`${model.name} ${this.displayName} SDK流处理完成`);
+                Logger.debug(`${model.name} ${this.displayName} SDK stream completed`);
             } catch (streamError) {
                 if (
                     token.isCancellationRequested ||
@@ -753,17 +758,17 @@ export class OpenAIHandler {
                     streamError instanceof OpenAI.APIUserAbortError ||
                     (streamError instanceof Error && streamError.name === 'AbortError')
                 ) {
-                    Logger.info(`${model.name} 请求被用户取消`);
+                    Logger.info(`${model.name} request was cancelled by the user`);
                     throw new vscode.CancellationError();
                 } else {
-                    Logger.error(`${model.name} SDK流处理错误: ${streamError}`);
+                    Logger.error(`${model.name} SDK stream processing error: ${streamError}`);
                     throw streamError;
                 }
             } finally {
                 cancellationListener.dispose();
             }
 
-            Logger.debug(`✅ ${model.name} ${this.displayName} 请求完成`);
+            Logger.debug(`✅ ${model.name} ${this.displayName} request completed`);
         } catch (error) {
             if (
                 token.isCancellationRequested ||
@@ -776,11 +781,11 @@ export class OpenAIHandler {
 
             if (error instanceof Error) {
                 if (error.cause instanceof Error) {
-                    const errorMessage = error.cause.message || '未知错误';
-                    Logger.error(`${model.name} ${this.displayName} 请求失败: ${errorMessage}`);
+                    const errorMessage = error.cause.message || t('Unknown error', '未知错误');
+                    Logger.error(`${model.name} ${this.displayName} request failed: ${errorMessage}`);
                     throw error.cause;
                 } else {
-                    let errorMessage = error.message || '未知错误';
+                    let errorMessage = error.message || t('Unknown error', '未知错误');
 
                     // 尝试从 OpenAI SDK 的 APIError 中提取详细的错误信息
                     // APIError 对象有一个 error 属性，其中包含了原始的 API 错误响应
@@ -789,7 +794,9 @@ export class OpenAIHandler {
                         const errorDetail = apiError.error as APIErrorDetail;
                         if (errorDetail.message && typeof errorDetail.message === 'string') {
                             errorMessage = errorDetail.message;
-                            Logger.debug(`${model.name} 从 APIError.error 中提取到详细错误信息: ${errorMessage}`);
+                            Logger.debug(
+                                `${model.name} Extracted detailed error message from APIError.error: ${errorMessage}`
+                            );
                         }
                     }
 
@@ -799,12 +806,14 @@ export class OpenAIHandler {
                         const causeMessage = error.cause.message || '';
                         if (causeMessage && causeMessage !== errorMessage) {
                             errorMessage = causeMessage;
-                            Logger.debug(`${model.name} 从 error.cause 中提取到详细错误信息: ${errorMessage}`);
+                            Logger.debug(
+                                `${model.name} Extracted detailed error message from error.cause: ${errorMessage}`
+                            );
                             throw error.cause;
                         }
                     }
 
-                    Logger.error(`${model.name} ${this.displayName} 请求失败: ${errorMessage}`);
+                    Logger.error(`${model.name} ${this.displayName} request failed: ${errorMessage}`);
 
                     // 检查是否为statusCode错误，如果是则确保同步抛出
                     if (
@@ -831,18 +840,18 @@ export class OpenAIHandler {
                 // 取消错误不需要额外处理，直接重新抛出
                 throw error;
             } else if (error instanceof vscode.LanguageModelError) {
-                Logger.debug(`LanguageModelError详情: code=${error.code}, cause=${error.cause}`);
+                Logger.debug(`LanguageModelError details: code=${error.code}, cause=${error.cause}`);
                 // 根据官方示例的错误处理模式，使用字符串比较
                 if (error.code === 'blocked') {
-                    Logger.warn('请求被阻止，可能包含不当内容');
+                    Logger.warn('Request blocked, may contain inappropriate content');
                 } else if (error.code === 'noPermissions') {
-                    Logger.warn('权限不足，请检查API密钥和模型访问权限');
+                    Logger.warn('Insufficient permissions, please check API key and model access');
                 } else if (error.code === 'notFound') {
-                    Logger.warn('模型未找到或不可用');
+                    Logger.warn('Model not found or unavailable');
                 } else if (error.code === 'quotaExceeded') {
-                    Logger.warn('配额已用完，请检查API使用限制');
+                    Logger.warn('Quota exceeded, please check API usage limits');
                 } else if (error.code === 'unknown') {
-                    Logger.warn('未知的语言模型错误');
+                    Logger.warn('Unknown language model error');
                 }
                 throw error;
             } else {
@@ -890,7 +899,7 @@ export class OpenAIHandler {
             case vscode.LanguageModelChatMessageRole.Assistant:
                 return this.convertAssistantMessage(message, modelConfig);
             default:
-                Logger.warn(`未知的消息角色: ${message.role}`);
+                Logger.warn(`Unknown message role: ${message.role}`);
                 return null;
         }
     }
@@ -943,17 +952,17 @@ export class OpenAIHandler {
         const imageParts: vscode.LanguageModelDataPart[] = [];
         // 收集图片（如果支持）
         if (modelConfig?.capabilities?.imageInput === true) {
-            // Logger.debug('🖼️ 模型支持图像输入，开始收集图像部分');
+            // Logger.debug('Model supports image input, collecting image parts');
             for (const part of message.content) {
                 if (part instanceof vscode.LanguageModelDataPart) {
                     // Logger.debug(`📷 发现数据部分: MIME=${part.mimeType}, 大小=${part.data.length}字节`);
                     if (this.isImageMimeType(part.mimeType)) {
                         imageParts.push(part);
-                        Logger.debug(`✅ 添加图像: MIME=${part.mimeType}, 大小=${part.data.length}字节`);
+                        Logger.debug(`✅ Added image: MIME=${part.mimeType}, size=${part.data.length} bytes`);
                     } else {
                         // // 分类处理不同类型的数据
                         // if (part.mimeType === 'cache_control') {
-                        //     Logger.trace('⚠️ 忽略Claude缓存标识: cache_control');
+                        //     Logger.trace('Ignoring Claude cache marker: cache_control');
                         // } else if (part.mimeType.startsWith('image/')) {
                         //     Logger.warn(`❌ 不支持的图像MIME类型: ${part.mimeType}`);
                         // } else {
@@ -971,7 +980,9 @@ export class OpenAIHandler {
         }
         if (imageParts.length > 0) {
             // 多模态消息：文本 + 图片
-            Logger.debug(`🖼️ 构建多模态消息: ${textParts.length}个文本部分 + ${imageParts.length}个图像部分`);
+            Logger.debug(
+                `🖼️ Building multimodal message: ${textParts.length} text parts + ${imageParts.length} image parts`
+            );
             const contentArray: OpenAI.Chat.ChatCompletionContentPart[] = [];
             if (textParts.length > 0) {
                 const textContent = textParts.map(part => part.value).join('\n');
@@ -979,7 +990,7 @@ export class OpenAIHandler {
                     type: 'text',
                     text: textContent
                 });
-                Logger.trace(`📝 添加文本内容: ${textContent.length}字符`);
+                Logger.trace(`📝 Added text content: ${textContent.length} chars`);
             }
             for (const imagePart of imageParts) {
                 const dataUrl = this.createDataUrl(imagePart);
@@ -987,9 +998,9 @@ export class OpenAIHandler {
                     type: 'image_url',
                     image_url: { url: dataUrl }
                 });
-                Logger.trace(`📷 添加图像URL: MIME=${imagePart.mimeType}, Base64长度=${dataUrl.length}字符`);
+                Logger.trace(`📷 Added image URL: MIME=${imagePart.mimeType}, base64Length=${dataUrl.length} chars`);
             }
-            Logger.debug(`✅ 多模态消息构建完成: ${contentArray.length}个内容部分`);
+            Logger.debug(`✅ Multimodal message built: ${contentArray.length} content parts`);
             return { role: 'user', content: contentArray };
         } else {
             // 纯文本消息
@@ -1012,7 +1023,7 @@ export class OpenAIHandler {
         for (const part of message.content) {
             if (part instanceof vscode.LanguageModelToolResultPart) {
                 if (seenCallIds.has(part.callId)) {
-                    Logger.warn(`跳过重复的 tool_result callId: ${part.callId}`);
+                    Logger.warn(`Skipping duplicate tool_result callId: ${part.callId}`);
                     continue;
                 }
                 seenCallIds.add(part.callId);
@@ -1051,7 +1062,7 @@ export class OpenAIHandler {
         for (const part of message.content) {
             if (part instanceof vscode.LanguageModelToolCallPart) {
                 if (seenCallIds.has(part.callId)) {
-                    Logger.warn(`跳过重复的 tool_call_id: ${part.callId} (${part.name})`);
+                    Logger.warn(`Skipping duplicate tool_call_id: ${part.callId} (${part.name})`);
                     continue;
                 }
                 seenCallIds.add(part.callId);
@@ -1075,7 +1086,7 @@ export class OpenAIHandler {
                 } else {
                     thinkingContent = part.value;
                 }
-                Logger.trace(`提取到思考内容: ${thinkingContent.length} 字符`);
+                Logger.trace(`Extracted thinking content: ${thinkingContent.length} chars`);
                 break; // 只取第一个思考内容部分
             }
         }
@@ -1085,7 +1096,7 @@ export class OpenAIHandler {
             const markerReasoning = getMarkerReasoningState(message.content);
             if (markerReasoning.completeThinking) {
                 thinkingContent = markerReasoning.completeThinking;
-                Logger.trace(`从 StatefulMarker 恢复 reasoning_content: ${thinkingContent.length} 字符`);
+                Logger.trace(`Restored reasoning_content from StatefulMarker: ${thinkingContent.length} chars`);
             } else if (
                 shouldInjectReasoningPlaceholder(
                     reasoningReplayPolicy,
@@ -1094,7 +1105,7 @@ export class OpenAIHandler {
                 )
             ) {
                 thinkingContent = ' '; // 保底占位，避免兼容接口因为字段缺失直接报错
-                Logger.trace('未找到 StatefulMarker thinking，使用占位符补齐 reasoning_content');
+                Logger.trace('StatefulMarker thinking not found, using placeholder to fill reasoning_content');
             }
         }
 
@@ -1112,7 +1123,7 @@ export class OpenAIHandler {
         // 如果有思考内容，添加到 reasoning_content 字段
         if (thinkingContent) {
             assistantMessage.reasoning_content = thinkingContent;
-            Logger.trace(`添加 reasoning_content: ${thinkingContent.length} 字符`);
+            Logger.trace(`Added reasoning_content: ${thinkingContent.length} chars`);
         }
 
         if (toolCalls.length > 0) {
@@ -1225,7 +1236,9 @@ export class OpenAIHandler {
         const isSupported = supportedTypes.includes(normalizedMime);
         // 调试日志
         if (isImageCategory && !isSupported) {
-            Logger.warn(`🚫 图像类型未在支持列表中: ${mimeType}，支持的类型: ${supportedTypes.join(', ')}`);
+            Logger.warn(
+                `🚫 Image type is not in the supported list: ${mimeType}, supported types: ${supportedTypes.join(', ')}`
+            );
         } else if (!isImageCategory && normalizedMime !== 'cache_control') {
             // 对于cache_control（Claude缓存标识）不记录调试信息，对其他非图像类型记录trace级别日志
             // Logger.trace(`📄 非图像数据类型: ${mimeType}`);
@@ -1241,11 +1254,11 @@ export class OpenAIHandler {
             const base64Data = Buffer.from(dataPart.data).toString('base64');
             const dataUrl = `data:${dataPart.mimeType};base64,${base64Data}`;
             Logger.debug(
-                `🔗 创建图像DataURL: MIME=${dataPart.mimeType}, 原始大小=${dataPart.data.length}字节, Base64大小=${base64Data.length}字符`
+                `🔗 Created image DataURL: MIME=${dataPart.mimeType}, originalSize=${dataPart.data.length} bytes, base64Size=${base64Data.length} chars`
             );
             return dataUrl;
         } catch (error) {
-            Logger.error(`❌ 创建图像DataURL失败: ${error}`);
+            Logger.error(`❌ Failed to create image DataURL: ${error}`);
             throw error;
         }
     }

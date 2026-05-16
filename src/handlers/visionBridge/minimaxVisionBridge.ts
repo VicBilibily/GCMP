@@ -9,6 +9,7 @@ import { CancellationToken, LanguageModelChatMessage } from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
 import { ModelConfig } from '../../types/sharedTypes';
 import { Logger, ApiKeyManager } from '../../utils';
+import { t } from '../../utils/l10n';
 import { MiniMaxVisionTool } from './minimaxVision';
 import {
     buildVisionBridgeMessages as createVisionBridgeMessages,
@@ -95,11 +96,11 @@ export class MiniMaxVisionBridge {
         const resultText = resultParts.map(part => part.value).join('\n');
 
         Logger.info(
-            `MiniMax 图片桥接: 注入消息链 user(question) -> assistant(tool_call=${MiniMaxVisionBridge.definition.toolName}) -> user(tool_result), callId=${callId}, imageCount=${imageDescriptions.length}, insertIndex=${lastUserMessageIndex}`
+            `MiniMax vision bridge: injected message chain user(question) -> assistant(tool_call=${MiniMaxVisionBridge.definition.toolName}) -> user(tool_result), callId=${callId}, imageCount=${imageDescriptions.length}, insertIndex=${lastUserMessageIndex}`
         );
-        Logger.trace(`MiniMax 图片桥接: tool_input=${JSON.stringify(toolInput)}`);
-        Logger.trace(`MiniMax 图片桥接: question预览=${MiniMaxVisionBridge.previewText(questionText)}`);
-        Logger.trace(`MiniMax 图片桥接: tool_result预览=${MiniMaxVisionBridge.previewText(resultText, 240)}`);
+        Logger.trace(`MiniMax vision bridge: tool_input=${JSON.stringify(toolInput)}`);
+        Logger.trace(`MiniMax vision bridge: question preview=${MiniMaxVisionBridge.previewText(questionText)}`);
+        Logger.trace(`MiniMax vision bridge: tool_result preview=${MiniMaxVisionBridge.previewText(resultText, 240)}`);
 
         return {
             messages: bridgeResult.messages
@@ -131,13 +132,13 @@ export class MiniMaxVisionBridge {
         // 检查是否有 MiniMax Vision API 密钥
         const hasApiKey = await ApiKeyManager.hasValidApiKey('minimax-coding');
         if (!hasApiKey) {
-            Logger.debug('MiniMax 图片桥接: 未配置 Coding Plan API 密钥，跳过图片预处理');
+            Logger.debug('MiniMax vision bridge: Coding Plan API key not configured, skipping image preprocessing');
             return { messages };
         }
 
         // 用户取消时快速退出
         if (token.isCancellationRequested) {
-            Logger.debug('MiniMax 图片桥接: 请求已取消，跳过图片预处理');
+            Logger.debug('MiniMax vision bridge: request cancelled, skipping image preprocessing');
             return { messages };
         }
 
@@ -187,15 +188,21 @@ export class MiniMaxVisionBridge {
         const imageParts: Array<{ imageNumber: number; part: vscode.LanguageModelDataPart }> = [];
         for (const part of lastUserMessage.content) {
             if (token.isCancellationRequested) {
-                Logger.debug('MiniMax 图片桥接: 请求已取消，停止图片预处理');
+                Logger.debug('MiniMax vision bridge: request cancelled, stopping image preprocessing');
                 return { messages };
             }
             if (!(part instanceof vscode.LanguageModelDataPart) || !part.mimeType.startsWith('image/')) {
                 continue;
             }
             if (!MiniMaxVisionBridge.isImageMimeType(part.mimeType)) {
-                Logger.error(`不支持的图片格式: ${part.mimeType}`);
-                throw new Error(`不支持的图片格式: ${part.mimeType}。MiniMax Vision 仅支持 JPEG、PNG、WebP。`);
+                Logger.error(`Unsupported image format: ${part.mimeType}`);
+                throw new Error(
+                    t(
+                        'Unsupported image format: {0}. MiniMax Vision only supports JPEG, PNG, and WebP.',
+                        '不支持的图片格式: {0}。MiniMax Vision 仅支持 JPEG、PNG、WebP。',
+                        part.mimeType
+                    )
+                );
             }
 
             imageParts.push({
@@ -207,7 +214,7 @@ export class MiniMaxVisionBridge {
         const maxConcurrency = Math.min(MiniMaxVisionBridge.maxConcurrency, imageParts.length);
         const queuedCount = imageParts.length - maxConcurrency;
         Logger.info(
-            `检测到 ${totalImages} 张图片需要分析，使用 ${maxConcurrency} 并发处理${queuedCount > 0 ? `，其余 ${queuedCount} 张排队` : ''}`
+            `Detected ${totalImages} images to analyze, processing with concurrency ${maxConcurrency}${queuedCount > 0 ? `, ${queuedCount} remaining queued` : ''}`
         );
 
         const imageDescriptions = new Array<string>(imageParts.length);
@@ -226,7 +233,7 @@ export class MiniMaxVisionBridge {
                     const { imageNumber, part } = imageParts[currentIndex];
                     const imageStartTime = Date.now();
                     Logger.info(
-                        `开始分析图片 (${imageNumber}/${totalImages}) [worker ${workerId}/${maxConcurrency}]: mimeType=${part.mimeType}, data大小=${part.data.length}字节`
+                        `Starting image analysis (${imageNumber}/${totalImages}) [worker ${workerId}/${maxConcurrency}]: mimeType=${part.mimeType}, dataSize=${part.data.length} bytes`
                     );
 
                     // 带上图片序号（共N张）和用户问题，让视觉模型给出结构化、有针对性的描述
@@ -246,17 +253,17 @@ export class MiniMaxVisionBridge {
                         completedCount += 1;
                         successCount += 1;
                         Logger.info(
-                            `图片 ${imageNumber}/${totalImages} 转换成功 (耗时 ${Date.now() - imageStartTime}ms, 已完成 ${completedCount}/${totalImages})`
+                            `Image ${imageNumber}/${totalImages} converted successfully (duration ${Date.now() - imageStartTime}ms, completed ${completedCount}/${totalImages})`
                         );
                     } catch (error) {
                         if (abortController.signal.aborted) {
                             throw error;
                         }
-                        imageDescriptions[currentIndex] = '[图片分析失败]';
+                        imageDescriptions[currentIndex] = t('[Image analysis failed]', '[图片分析失败]');
                         completedCount += 1;
                         failedCount += 1;
                         Logger.error(
-                            `图片 ${imageNumber}/${totalImages} 转换失败 (耗时 ${Date.now() - imageStartTime}ms, 已完成 ${completedCount}/${totalImages})`,
+                            `Image ${imageNumber}/${totalImages} conversion failed (duration ${Date.now() - imageStartTime}ms, completed ${completedCount}/${totalImages})`,
                             error instanceof Error ? error : undefined
                         );
                     }
@@ -266,7 +273,7 @@ export class MiniMaxVisionBridge {
             await Promise.all(Array.from({ length: maxConcurrency }, (_, index) => worker(index + 1)));
         } catch (error) {
             if (abortController.signal.aborted) {
-                Logger.debug('MiniMax 图片桥接: 请求已取消');
+                Logger.debug('MiniMax vision bridge: request cancelled');
                 return { messages };
             }
             throw error;
@@ -274,7 +281,7 @@ export class MiniMaxVisionBridge {
 
         if (imageParts.length > 0) {
             Logger.info(
-                `全部 ${imageParts.length} 张图片解析完成 (成功 ${successCount} 张, 失败 ${failedCount} 张, 最大并发 ${maxConcurrency}, 总耗时 ${Date.now() - batchStartTime}ms)`
+                `Finished parsing all ${imageParts.length} images (success ${successCount}, failed ${failedCount}, maxConcurrency ${maxConcurrency}, totalDuration ${Date.now() - batchStartTime}ms)`
             );
         }
 
@@ -365,7 +372,9 @@ export class MiniMaxVisionBridge {
             return false;
         }
 
-        Logger.info(`MiniMax 图片桥接回放: ${MiniMaxVisionBridge.definition.label} toolCallId: ${replayEvent.callId}`);
+        Logger.info(
+            `MiniMax vision bridge replay: ${MiniMaxVisionBridge.definition.label} toolCallId: ${replayEvent.callId}`
+        );
         reportResult(replayEvent.callId, replayEvent.resultParts);
         return true;
     }

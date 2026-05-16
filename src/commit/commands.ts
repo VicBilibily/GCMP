@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Commit 命令系统
  *  注册和处理提交消息生成相关的命令
  *--------------------------------------------------------------------------------------------*/
@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { GeneratorService } from './generatorService';
 import { CommitMessage } from './commitMessage';
 import { Logger } from '../utils';
+import { t } from '../utils/l10n';
 import { Repository } from '../types/git';
 
 /**
@@ -49,7 +50,7 @@ export function registerCommitCommands(context: vscode.ExtensionContext): vscode
                 // 1) 先选择提供商（providerKey），再选择该提供商的模型
                 const providers = await GeneratorService.getAvailableCommitProviders();
                 if (providers.length === 0) {
-                    vscode.window.showWarningMessage('没有可用的 GCMP 提供商');
+                    vscode.window.showWarningMessage(t('No GCMP providers are available.', '没有可用的 GCMP 提供商。'));
                     return;
                 }
 
@@ -60,7 +61,12 @@ export function registerCommitCommands(context: vscode.ExtensionContext): vscode
                         detail: p.vendor,
                         providerKey: p.providerKey
                     })),
-                    { placeHolder: '选择用于生成提交消息的提供商' }
+                    {
+                        placeHolder: t(
+                            'Select the provider used to generate commit messages',
+                            '选择用于生成提交消息的提供商'
+                        )
+                    }
                 );
 
                 if (!providerPick) {
@@ -78,7 +84,12 @@ export function registerCommitCommands(context: vscode.ExtensionContext): vscode
                         modelId: m.id,
                         modelName: m.name
                     })),
-                    { placeHolder: '选择该提供商下用于生成提交消息的模型' }
+                    {
+                        placeHolder: t(
+                            'Select the model used to generate commit messages for this provider',
+                            '选择该提供商下用于生成提交消息的模型'
+                        )
+                    }
                 );
 
                 if (!modelPick) {
@@ -97,10 +108,12 @@ export function registerCommitCommands(context: vscode.ExtensionContext): vscode
                     },
                     vscode.ConfigurationTarget.Global
                 );
-                vscode.window.showInformationMessage(`已选择模型: ${providerKey}:${modelName}`);
+                vscode.window.showInformationMessage(
+                    t('Selected model: {0}:{1}', '已选择模型: {0}:{1}', providerKey, modelName)
+                );
             } catch (error) {
-                Logger.error('[CommitCommands] 选择模型失败:', error);
-                vscode.window.showErrorMessage('选择模型失败');
+                Logger.error('[CommitCommands] Failed to select model:', error);
+                vscode.window.showErrorMessage(t('Failed to select the model.', '选择模型失败。'));
             }
         })
     );
@@ -108,7 +121,7 @@ export function registerCommitCommands(context: vscode.ExtensionContext): vscode
     // 添加到订阅
     context.subscriptions.push(...disposables);
 
-    Logger.trace('[CommitCommands] Commit 命令已注册');
+    Logger.trace('[CommitCommands] Commit commands registered');
 
     return disposables;
 }

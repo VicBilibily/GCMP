@@ -110,7 +110,7 @@ export class StatusBarManager {
      */
     static registerStatusBar(key: string, statusBar: IStatusBar): void {
         if (this.statusBars.has(key)) {
-            StatusLogger.warn(`[StatusBarManager] 状态栏项 ${key} 已存在，覆盖注册`);
+            StatusLogger.warn(`[StatusBarManager] Status bar item ${key} already exists, overriding registration`);
         }
         this.statusBars.set(key, statusBar);
 
@@ -165,14 +165,16 @@ export class StatusBarManager {
      */
     static async initializeAll(context: vscode.ExtensionContext): Promise<void> {
         if (this.initialized) {
-            StatusLogger.warn('[StatusBarManager] 状态栏管理器已初始化，跳过重复初始化');
+            StatusLogger.warn(
+                '[StatusBarManager] Status bar manager is already initialized, skipping duplicate initialization'
+            );
             return;
         }
 
         // 第一步：注册所有内置状态栏
         this.registerBuiltInStatusBars(context);
 
-        StatusLogger.info(`[StatusBarManager] 开始初始化 ${this.statusBars.size} 个状态栏项`);
+        StatusLogger.info(`[StatusBarManager] Starting initialization of ${this.statusBars.size} status bar items`);
 
         // 并行初始化所有状态栏,并记录每个的耗时
         const initPromises = Array.from(this.statusBars.entries()).map(async ([key, statusBar]) => {
@@ -180,17 +182,22 @@ export class StatusBarManager {
             try {
                 await statusBar.initialize(context);
                 const duration = Date.now() - startTime;
-                StatusLogger.debug(`[StatusBarManager] 状态栏项 ${key} 初始化成功 (耗时: ${duration}ms)`);
+                StatusLogger.debug(
+                    `[StatusBarManager] Status bar item ${key} initialized successfully (duration: ${duration}ms)`
+                );
             } catch (error) {
                 const duration = Date.now() - startTime;
-                StatusLogger.error(`[StatusBarManager] 状态栏项 ${key} 初始化失败 (耗时: ${duration}ms)`, error);
+                StatusLogger.error(
+                    `[StatusBarManager] Failed to initialize status bar item ${key} (duration: ${duration}ms)`,
+                    error
+                );
             }
         });
 
         await Promise.all(initPromises);
 
         this.initialized = true;
-        StatusLogger.info('[StatusBarManager] 所有状态栏项初始化完成');
+        StatusLogger.info('[StatusBarManager] All status bar items initialized');
     }
 
     /**
@@ -203,10 +210,10 @@ export class StatusBarManager {
             try {
                 await statusBar.checkAndShowStatus();
             } catch (error) {
-                StatusLogger.error(`[StatusBarManager] 检查并显示状态栏 ${key} 失败`, error);
+                StatusLogger.error(`[StatusBarManager] Failed to check and show status bar ${key}`, error);
             }
         } else {
-            StatusLogger.warn(`[StatusBarManager] 未找到状态栏项 ${key}`);
+            StatusLogger.warn(`[StatusBarManager] Status bar item ${key} was not found`);
         }
     }
 
@@ -220,7 +227,7 @@ export class StatusBarManager {
         if (statusBar) {
             statusBar.delayedUpdate(delayMs);
         } else {
-            StatusLogger.warn(`[StatusBarManager] 未找到状态栏项 ${key}`);
+            StatusLogger.warn(`[StatusBarManager] Status bar item ${key} was not found`);
         }
     }
 
@@ -231,9 +238,9 @@ export class StatusBarManager {
         for (const [key, statusBar] of this.statusBars) {
             try {
                 statusBar.dispose();
-                StatusLogger.debug(`[StatusBarManager] 状态栏项 ${key} 已销毁`);
+                StatusLogger.debug(`[StatusBarManager] Status bar item ${key} disposed`);
             } catch (error) {
-                StatusLogger.error(`[StatusBarManager] 销毁状态栏项 ${key} 失败`, error);
+                StatusLogger.error(`[StatusBarManager] Failed to dispose status bar item ${key}`, error);
             }
         }
         this.statusBars.clear();

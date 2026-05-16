@@ -90,7 +90,7 @@ export class LogPathManager {
             // 同步检查避免竞态条件
             if (!fsSync.existsSync(dir)) {
                 await fs.mkdir(dir, { recursive: true });
-                StatusLogger.debug(`[LogPathManager] 创建目录: ${dir}`);
+                StatusLogger.debug(`[LogPathManager] Created directory: ${dir}`);
             }
         } catch (err) {
             // 忽略已存在错误

@@ -1,5 +1,5 @@
 ﻿{
-    "displayName": "快手万擎",
+    "displayName": "StreamLake",
     "baseUrl": "https://wanqing.streamlakeapi.com/api/gateway/v1/endpoints",
     "apiKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [

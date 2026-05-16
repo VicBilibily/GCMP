@@ -6,6 +6,7 @@
 
 import * as vscode from 'vscode';
 import { StatusLogger } from '../utils/statusLogger';
+import { t } from '../utils/l10n';
 
 /**
  * 提示词部分的 token 占用详情
@@ -70,7 +71,7 @@ export class ContextUsageStatusBar {
     // 默认数据，显示 0%
     private readonly defaultData: ContextUsageData = {
         modelId: '',
-        modelName: '暂无请求',
+        modelName: t('No requests yet', '暂无请求'),
         inputTokens: 0,
         maxInputTokens: 0,
         percentage: 0,
@@ -106,14 +107,16 @@ export class ContextUsageStatusBar {
         this.statusBarItem.show();
 
         context.subscriptions.push(this.statusBarItem);
-        StatusLogger.debug('[模型上下文窗口占用状态栏] 初始化完成');
+        StatusLogger.debug('[Model Context Window Usage StatusBar] Initialization complete');
     }
 
     /**
      * 更新上下文占用数据（外部调用）
      */
     updateContextUsage(data: ContextUsageData): void {
-        StatusLogger.debug(`[模型上下文窗口占用状态栏] 更新上下文占用数据: ${data.inputTokens}/${data.maxInputTokens}`);
+        StatusLogger.debug(
+            `[Model Context Window Usage StatusBar] Updating context usage data: ${data.inputTokens}/${data.maxInputTokens}`
+        );
 
         // 直接更新 UI（无缓存）
         this.updateUI(data);
@@ -194,11 +197,13 @@ export class ContextUsageStatusBar {
         const md = new vscode.MarkdownString();
         md.supportHtml = true;
 
-        md.appendMarkdown('#### 模型上下文窗口占用情况\n\n');
+        md.appendMarkdown(`#### ${t('Model Context Window Usage', '模型上下文窗口占用情况')}\n\n`);
 
         // 如果是默认数据（无请求），显示提示信息
         if (data.inputTokens === 0 && data.maxInputTokens === 0) {
-            md.appendMarkdown('💡 发送任意 GCMP 提供的模型请求后显示\n');
+            md.appendMarkdown(
+                `💡 ${t('Shown after any GCMP model request is sent.', '发送任意 GCMP 提供的模型请求后显示')}\n`
+            );
             return md;
         }
 
@@ -207,11 +212,13 @@ export class ContextUsageStatusBar {
         md.appendMarkdown('| ------ | :------- |\n');
 
         const requestTime = new Date(data.timestamp);
-        const requestTimeStr = requestTime.toLocaleString('zh-CN');
-        md.appendMarkdown(`| **请求时间** | ${requestTimeStr} |\n`);
-        md.appendMarkdown(`| **模型名称** | ${data.modelName} |\n`);
+        const requestTimeStr = requestTime.toLocaleString(
+            vscode.env.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
+        );
+        md.appendMarkdown(`| **${t('Request Time', '请求时间')}** | ${requestTimeStr} |\n`);
+        md.appendMarkdown(`| **${t('Model Name', '模型名称')}** | ${data.modelName} |\n`);
         const usageString = `${this.formatTokens(data.inputTokens)}/${this.formatTokens(data.maxInputTokens)}`;
-        md.appendMarkdown(`| **占用情况** | **${data.percentage.toFixed(1)}%** \t ${usageString} |\n`);
+        md.appendMarkdown(`| **${t('Usage', '占用情况')}** | **${data.percentage.toFixed(1)}%** \t ${usageString} |\n`);
 
         if (data.promptParts) {
             md.appendMarkdown('\n---\n');
@@ -225,50 +232,68 @@ export class ContextUsageStatusBar {
             // 1. 系统提示词
             if (parts.systemPrompt !== undefined && parts.systemPrompt > 0) {
                 const percent = totalTokens > 0 ? ((parts.systemPrompt / totalTokens) * 100).toFixed(1) : '0';
-                md.appendMarkdown(`| **系统提示** | ${percent}% | ${this.formatTokens(parts.systemPrompt)} |\n`);
+                md.appendMarkdown(
+                    `| **${t('System Prompt', '系统提示')}** | ${percent}% | ${this.formatTokens(parts.systemPrompt)} |\n`
+                );
             }
             // 2. 可用的工具
             if (parts.availableTools !== undefined && parts.availableTools > 0) {
                 const percent = totalTokens > 0 ? ((parts.availableTools / totalTokens) * 100).toFixed(1) : '0';
-                md.appendMarkdown(`| **可用工具** | ${percent}% | ${this.formatTokens(parts.availableTools)} |\n`);
+                md.appendMarkdown(
+                    `| **${t('Available Tools', '可用工具')}** | ${percent}% | ${this.formatTokens(parts.availableTools)} |\n`
+                );
             }
             // 3. 环境信息
             if (parts.environment !== undefined && parts.environment > 0) {
                 const percent = totalTokens > 0 ? ((parts.environment / totalTokens) * 100).toFixed(1) : '0';
-                md.appendMarkdown(`| **环境信息** | ${percent}% | ${this.formatTokens(parts.environment)} |\n`);
+                md.appendMarkdown(
+                    `| **${t('Environment Info', '环境信息')}** | ${percent}% | ${this.formatTokens(parts.environment)} |\n`
+                );
             }
             // 4. 压缩的消息
             if (parts.autoCompressed !== undefined && parts.autoCompressed > 0) {
                 const percent = totalTokens > 0 ? ((parts.autoCompressed / totalTokens) * 100).toFixed(1) : '0';
-                md.appendMarkdown(`| **压缩消息** | ${percent}% | ${this.formatTokens(parts.autoCompressed)} |\n`);
+                md.appendMarkdown(
+                    `| **${t('Compressed Messages', '压缩消息')}** | ${percent}% | ${this.formatTokens(parts.autoCompressed)} |\n`
+                );
             }
             // 5. 历史消息
             if (parts.historyMessages !== undefined && parts.historyMessages > 0) {
                 const percent = totalTokens > 0 ? ((parts.historyMessages / totalTokens) * 100).toFixed(1) : '0';
-                md.appendMarkdown(`| **历史消息** | ${percent}% | ${this.formatTokens(parts.historyMessages)} |\n`);
+                md.appendMarkdown(
+                    `| **${t('History Messages', '历史消息')}** | ${percent}% | ${this.formatTokens(parts.historyMessages)} |\n`
+                );
             }
             // 6. 思考内容
             if (parts.thinking !== undefined && parts.thinking > 0) {
                 const percent = totalTokens > 0 ? ((parts.thinking / totalTokens) * 100).toFixed(1) : '0';
-                md.appendMarkdown(`| **思考内容** | ${percent}% | ${this.formatTokens(parts.thinking)} |\n`);
+                md.appendMarkdown(
+                    `| **${t('Thinking', '思考内容')}** | ${percent}% | ${this.formatTokens(parts.thinking)} |\n`
+                );
             }
             // 7. 本轮图片附件
             if (parts.currentRoundImages !== undefined && parts.currentRoundImages > 0) {
                 const currentRoundImages = parts.currentRoundImages;
                 const percent = totalTokens > 0 ? ((currentRoundImages / totalTokens) * 100).toFixed(1) : '0';
-                md.appendMarkdown(`| **本轮图片** | ${percent}% | ${this.formatTokens(currentRoundImages)} |\n`);
+                md.appendMarkdown(
+                    `| **${t('Current Round Images', '本轮图片')}** | ${percent}% | ${this.formatTokens(currentRoundImages)} |\n`
+                );
             }
             // 8. 本轮会话消息
             if (parts.currentRoundMessages !== undefined && parts.currentRoundMessages > 0) {
                 const currentRoundMessages = parts.currentRoundMessages;
                 const percent = totalTokens > 0 ? ((currentRoundMessages / totalTokens) * 100).toFixed(1) : '0';
-                md.appendMarkdown(`| **本轮消息** | ${percent}% | ${this.formatTokens(currentRoundMessages)} |\n`);
+                md.appendMarkdown(
+                    `| **${t('Current Round Messages', '本轮消息')}** | ${percent}% | ${this.formatTokens(currentRoundMessages)} |\n`
+                );
             }
             md.appendMarkdown('\n');
         }
 
         md.appendMarkdown('\n---\n');
-        md.appendMarkdown('💡 此数据显示最近一次请求的预估值\n');
+        md.appendMarkdown(
+            `💡 ${t('This shows the estimate from the most recent request.', '此数据显示最近一次请求的预估值')}\n`
+        );
 
         return md;
     }
@@ -320,6 +345,6 @@ export class ContextUsageStatusBar {
      */
     dispose(): void {
         this.statusBarItem?.dispose();
-        StatusLogger.debug('[模型上下文窗口占用状态栏] 已销毁');
+        StatusLogger.debug('[Model Context Window Usage StatusBar] Disposed');
     }
 }

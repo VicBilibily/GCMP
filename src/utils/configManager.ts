@@ -8,6 +8,7 @@ import { Logger } from './logger';
 import { ConfigProvider, UserConfigOverrides, ProviderConfig, ModelConfig, ModelOverride } from '../types/sharedTypes';
 import { configProviders } from '../providers/config';
 import { CommitFormat, CommitLanguage, CommitModelSelection } from '../commit/types';
+import { t } from './l10n';
 
 /**
  * 智谱AI搜索配置
@@ -125,11 +126,11 @@ export class ConfigManager {
         this.configListener = vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration(this.CONFIG_SECTION)) {
                 this.cache = null; // 清除缓存，强制重新读取
-                Logger.info('GCMP配置已更新，缓存已清除');
+                Logger.info('GCMP config updated, cache cleared');
             }
         });
 
-        Logger.debug('配置管理器已初始化');
+        Logger.debug('Config manager initialized');
         return this.configListener;
     }
 
@@ -200,7 +201,7 @@ export class ConfigManager {
             providerOverrides: config.get<UserConfigOverrides>('providerOverrides', {})
         };
 
-        Logger.debug('配置已加载', this.cache);
+        Logger.debug('Config loaded', this.cache);
         return this.cache;
     }
 
@@ -298,7 +299,7 @@ export class ConfigManager {
      */
     private static validateMaxTokens(value: number): number {
         if (isNaN(value) || value < 32 || value > 256000) {
-            Logger.warn(`无效的maxTokens值: ${value}，使用默认值16000`);
+            Logger.warn(`Invalid maxTokens value: ${value}; using default 16000`);
             return 16000;
         }
         return Math.floor(value);
@@ -309,7 +310,7 @@ export class ConfigManager {
      */
     private static validateRetryMaxAttempts(value: number): number {
         if (isNaN(value) || value < 1 || value > 5) {
-            Logger.warn(`无效的retry.maxAttempts值: ${value}，使用默认值3`);
+            Logger.warn(`Invalid retry.maxAttempts value: ${value}; using default 3`);
             return 3;
         }
         return Math.floor(value);
@@ -320,7 +321,7 @@ export class ConfigManager {
      */
     private static validateNESDebounceMs(value: number): number {
         if (isNaN(value) || value < 50 || value > 2000) {
-            Logger.warn(`无效的debounceMs值: ${value}，使用默认值500`);
+            Logger.warn(`Invalid debounceMs value: ${value}; using default 500`);
             return 500;
         }
         return Math.floor(value);
@@ -331,7 +332,7 @@ export class ConfigManager {
      */
     private static validateNESTimeoutMs(value: number): number {
         if (isNaN(value) || value < 1000 || value > 30000) {
-            Logger.warn(`无效的timeoutMs值: ${value}，使用默认值5000`);
+            Logger.warn(`Invalid timeoutMs value: ${value}; using default 5000`);
             return 5000;
         }
         return Math.floor(value);
@@ -342,7 +343,7 @@ export class ConfigManager {
      */
     private static validateNESMaxTokens(value: number): number {
         if (isNaN(value) || value < 50 || value > 16000) {
-            Logger.warn(`无效的NES maxTokens值: ${value}，使用默认值200`);
+            Logger.warn(`Invalid NES maxTokens value: ${value}; using default 200`);
             return 200;
         }
         return Math.floor(value);
@@ -373,7 +374,7 @@ export class ConfigManager {
             return originalConfig;
         }
 
-        Logger.debug(`🔧 应用提供商 ${providerKey} 的配置覆盖`);
+        Logger.debug(`Applying config overrides for provider ${providerKey}`);
 
         // 创建配置的深拷贝
         const config: ProviderConfig = JSON.parse(JSON.stringify(originalConfig));
@@ -381,56 +382,62 @@ export class ConfigManager {
         const applyModelOverride = (target: ModelConfig, modelOverride: ModelOverride): void => {
             if (modelOverride.name !== undefined) {
                 target.name = modelOverride.name;
-                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 name = ${modelOverride.name}`);
+                Logger.debug(`  Model ${modelOverride.id}: override name = ${modelOverride.name}`);
             }
             if (modelOverride.tooltip !== undefined) {
                 target.tooltip = modelOverride.tooltip;
-                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 tooltip = ${modelOverride.tooltip}`);
+                Logger.debug(`  Model ${modelOverride.id}: override tooltip = ${modelOverride.tooltip}`);
             }
             if (modelOverride.model !== undefined) {
                 target.model = modelOverride.model;
-                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 model = ${modelOverride.model}`);
+                Logger.debug(`  Model ${modelOverride.id}: override model = ${modelOverride.model}`);
             }
             if (modelOverride.maxInputTokens !== undefined) {
                 target.maxInputTokens = modelOverride.maxInputTokens;
-                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 maxInputTokens = ${modelOverride.maxInputTokens}`);
+                Logger.debug(`  Model ${modelOverride.id}: override maxInputTokens = ${modelOverride.maxInputTokens}`);
             }
             if (modelOverride.maxOutputTokens !== undefined) {
                 target.maxOutputTokens = modelOverride.maxOutputTokens;
-                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 maxOutputTokens = ${modelOverride.maxOutputTokens}`);
+                Logger.debug(
+                    `  Model ${modelOverride.id}: override maxOutputTokens = ${modelOverride.maxOutputTokens}`
+                );
             }
             if (modelOverride.sdkMode !== undefined) {
                 target.sdkMode = modelOverride.sdkMode;
-                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 sdkMode = ${modelOverride.sdkMode}`);
+                Logger.debug(`  Model ${modelOverride.id}: override sdkMode = ${modelOverride.sdkMode}`);
             }
             if (modelOverride.baseUrl !== undefined) {
                 target.baseUrl = modelOverride.baseUrl;
-                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 baseUrl = ${modelOverride.baseUrl}`);
+                Logger.debug(`  Model ${modelOverride.id}: override baseUrl = ${modelOverride.baseUrl}`);
             }
             if (modelOverride.useInstructions !== undefined) {
                 target.useInstructions = modelOverride.useInstructions;
-                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 useInstructions = ${modelOverride.useInstructions}`);
+                Logger.debug(
+                    `  Model ${modelOverride.id}: override useInstructions = ${modelOverride.useInstructions}`
+                );
             }
             if (modelOverride.webSearchTool !== undefined) {
                 target.webSearchTool = modelOverride.webSearchTool;
-                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 webSearchTool = ${modelOverride.webSearchTool}`);
+                Logger.debug(`  Model ${modelOverride.id}: override webSearchTool = ${modelOverride.webSearchTool}`);
             }
             if (modelOverride.family !== undefined) {
                 target.family = modelOverride.family;
-                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 family = ${modelOverride.family}`);
+                Logger.debug(`  Model ${modelOverride.id}: override family = ${modelOverride.family}`);
             }
             if (modelOverride.thinking !== undefined) {
                 target.thinking = [...modelOverride.thinking];
-                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 thinking = ${JSON.stringify(modelOverride.thinking)}`);
+                Logger.debug(
+                    `  Model ${modelOverride.id}: override thinking = ${JSON.stringify(modelOverride.thinking)}`
+                );
             }
             if (modelOverride.thinkingFormat !== undefined) {
                 target.thinkingFormat = modelOverride.thinkingFormat;
-                Logger.debug(`  模型 ${modelOverride.id}: 覆盖 thinkingFormat = ${modelOverride.thinkingFormat}`);
+                Logger.debug(`  Model ${modelOverride.id}: override thinkingFormat = ${modelOverride.thinkingFormat}`);
             }
             if (modelOverride.reasoningEffort !== undefined) {
                 target.reasoningEffort = [...modelOverride.reasoningEffort];
                 Logger.debug(
-                    `  模型 ${modelOverride.id}: 覆盖 reasoningEffort = ${JSON.stringify(modelOverride.reasoningEffort)}`
+                    `  Model ${modelOverride.id}: override reasoningEffort = ${JSON.stringify(modelOverride.reasoningEffort)}`
                 );
             }
             if (modelOverride.capabilities) {
@@ -438,26 +445,30 @@ export class ConfigManager {
                     ...target.capabilities,
                     ...modelOverride.capabilities
                 };
-                Logger.debug(`  模型 ${modelOverride.id}: 合并 capabilities = ${JSON.stringify(target.capabilities)}`);
+                Logger.debug(
+                    `  Model ${modelOverride.id}: merge capabilities = ${JSON.stringify(target.capabilities)}`
+                );
             }
             if (modelOverride.customHeader) {
                 target.customHeader = { ...target.customHeader, ...modelOverride.customHeader };
-                Logger.debug(`  模型 ${modelOverride.id}: 合并 customHeader = ${JSON.stringify(target.customHeader)}`);
+                Logger.debug(
+                    `  Model ${modelOverride.id}: merge customHeader = ${JSON.stringify(target.customHeader)}`
+                );
             }
             if (modelOverride.extraBody) {
                 target.extraBody = { ...target.extraBody, ...modelOverride.extraBody };
-                Logger.debug(`  模型 ${modelOverride.id}: 合并 extraBody = ${JSON.stringify(target.extraBody)}`);
+                Logger.debug(`  Model ${modelOverride.id}: merge extraBody = ${JSON.stringify(target.extraBody)}`);
             }
         };
 
         // 应用提供商级别的覆盖
         if (override.baseUrl) {
             config.baseUrl = override.baseUrl;
-            Logger.debug(`  覆盖 baseUrl: ${override.baseUrl}`);
+            Logger.debug(`  Override baseUrl: ${override.baseUrl}`);
         }
         if (override.customHeader) {
             config.customHeader = { ...config.customHeader, ...override.customHeader };
-            Logger.debug(`  覆盖 provider customHeader = ${JSON.stringify(config.customHeader)}`);
+            Logger.debug(`  Override provider customHeader = ${JSON.stringify(config.customHeader)}`);
         }
 
         // 应用模型级别的覆盖
@@ -473,7 +484,8 @@ export class ConfigManager {
                     const newModel: ModelConfig = {
                         id: modelOverride.id,
                         name: modelOverride.name || modelOverride.id,
-                        tooltip: modelOverride.tooltip || `用户自定义模型: ${modelOverride.id}`,
+                        tooltip:
+                            modelOverride.tooltip || t('Custom model: {0}', '用户自定义模型: {0}', modelOverride.id),
                         maxInputTokens: modelOverride.maxInputTokens || 128000,
                         maxOutputTokens: modelOverride.maxOutputTokens || 8192,
                         capabilities: {
@@ -483,7 +495,7 @@ export class ConfigManager {
                     };
                     applyModelOverride(newModel, modelOverride);
                     config.models.push(newModel);
-                    Logger.info(`  添加新模型: ${modelOverride.id}`);
+                    Logger.info(`  Added new model: ${modelOverride.id}`);
                 }
             }
         }
@@ -499,7 +511,7 @@ export class ConfigManager {
                     model.customHeader = { ...override.customHeader };
                 }
             }
-            Logger.debug(`  提供商 ${providerKey}: 将提供商级别 customHeader 合并到所有模型中`);
+            Logger.debug(`  Provider ${providerKey}: merged provider-level customHeader into all models`);
         }
 
         return config;
@@ -514,6 +526,6 @@ export class ConfigManager {
             this.configListener = null;
         }
         this.cache = null;
-        Logger.trace('配置管理器已清理');
+        Logger.trace('Config manager disposed');
     }
 }

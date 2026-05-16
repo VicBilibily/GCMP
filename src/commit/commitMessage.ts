@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  CommitMessage
  *  UI 协调器：负责进度展示、仓库选择、写入输入框与提示反馈。
  *--------------------------------------------------------------------------------------------*/
@@ -16,6 +16,7 @@ import {
 } from './types';
 import { ConfigManager, Logger } from '../utils';
 import { Repository } from '../types/git';
+import { t } from '../utils/l10n';
 
 /**
  * CommitMessage - 提交消息生成的 UI 协调器。
@@ -78,7 +79,12 @@ export class CommitMessage {
         options?: { scope?: 'staged' | 'workingTree'; resContext?: vscode.SourceControlResourceGroup }
     ): Promise<void> {
         if (this.isGenerating) {
-            vscode.window.showInformationMessage('正在生成提交消息，请稍候或点击“停止”中止');
+            vscode.window.showInformationMessage(
+                t(
+                    'A commit message is already being generated. Please wait or click Stop to cancel.',
+                    '正在生成提交消息，请稍候或点击“停止”中止。'
+                )
+            );
             return;
         }
 
@@ -88,12 +94,12 @@ export class CommitMessage {
             // 进度展示应尽早开始，避免点击后出现“无响应”的感知延迟
             await this.executeWithProgress(async (progress, token) => {
                 // 1. 初始化和验证
-                progress.report({ message: '正在初始化...', increment: 2 });
+                progress.report({ message: t('Initializing...', '正在初始化...'), increment: 2 });
                 await this.initializeAndValidate();
                 this.throwIfCancelled(token);
 
                 // 2. 选择仓库
-                progress.report({ message: '正在选择仓库...', increment: 3 });
+                progress.report({ message: t('Selecting repository...', '正在选择仓库...'), increment: 3 });
                 if (!sourceControlRepository) {
                     const repos = await GitService.getRepositories();
                     this.throwIfCancelled(token);
@@ -139,16 +145,20 @@ export class CommitMessage {
                 this.throwIfCancelled(token);
 
                 // 4. 应用提交消息
-                progress.report({ message: '正在应用提交消息...', increment: 10 });
+                progress.report({ message: t('Applying commit message...', '正在应用提交消息...'), increment: 10 });
                 sourceControlRepository!.inputBox.value = commitMessage.message;
-                const sourceLabel: Record<string, string> = {
-                    staged: '暂存区',
-                    workingTree: '工作树'
-                };
-                vscode.window.showInformationMessage(`提交消息已生成（基于${sourceLabel[commitMessage.diffSource]}）`);
+                const sourceLabel =
+                    commitMessage.diffSource === 'staged' ? t('staging area', '暂存区') : t('working tree', '工作树');
+                vscode.window.showInformationMessage(
+                    t(
+                        'Commit message generated successfully (based on the {0}).',
+                        '提交消息已生成（基于{0}）。',
+                        sourceLabel
+                    )
+                );
 
                 Logger.info(
-                    `[CommitMessage] 提交消息已生成 [${commitMessage.diffSource}]: ${commitMessage.message.substring(0, 50)}...`
+                    `[CommitMessage] Commit message generated [${commitMessage.diffSource}]: ${commitMessage.message.substring(0, 50)}...`
                 );
             });
         } catch (error: unknown) {
@@ -163,7 +173,7 @@ export class CommitMessage {
      */
     private static async initializeAndValidate(): Promise<void> {
         if (!vscode.workspace.workspaceFolders) {
-            throw new Error('没有打开的工作区');
+            throw new Error('No workspace is open.');
         }
         // 验证 Git 扩展
         await GitService.validateGitExtension();
@@ -187,7 +197,7 @@ export class CommitMessage {
         const commitConfig = ConfigManager.getCommitConfig();
 
         // 1. 获取 Git 变更
-        progress.report({ message: '正在分析 Git 变更...', increment: 10 });
+        progress.report({ message: t('Analyzing Git changes...', '正在分析 Git 变更...'), increment: 10 });
         let diffParts: Awaited<ReturnType<typeof GitService.getDiff>>;
 
         /** 实际使用的 diff 来源维度，用于提示用户 */
@@ -213,7 +223,9 @@ export class CommitMessage {
                 diffSource = 'staged';
             } catch (error) {
                 if (error instanceof NoChangesDetectedError) {
-                    Logger.info('[CommitMessage] 暂存区无变更，自动回退到未提交工作树');
+                    Logger.info(
+                        '[CommitMessage] No changes in staging area, automatically falling back to uncommitted working tree'
+                    );
                     diffParts = await GitService.getDiff(repoPath, false, token);
                     diffSource = 'workingTree';
                 } else {
@@ -224,7 +236,7 @@ export class CommitMessage {
         this.throwIfCancelled(token);
 
         // 2. 文件改动相关历史（用于理解修改内容；与“风格推断”无关）
-        progress.report({ message: '正在分析文件改动历史...', increment: 10 });
+        progress.report({ message: t('Analyzing file history...', '正在分析文件改动历史...'), increment: 10 });
         const blameAnalysis = await this.analyzeChanges(repoPath, diffParts, token);
         this.throwIfCancelled(token);
 
@@ -232,7 +244,10 @@ export class CommitMessage {
         // auto 使用 subjects-only，以尽量保留仓库风格中可能存在的“前置 emoji”。
         let recentCommitHistory = '';
         if (commitConfig.format === 'auto') {
-            progress.report({ message: '正在获取仓库最近提交历史...', increment: 10 });
+            progress.report({
+                message: t('Loading recent commit history...', '正在获取仓库最近提交历史...'),
+                increment: 10
+            });
             recentCommitHistory = await GitService.getRecentCommits(repoPath, token, {
                 maxEntries: 50,
                 format: 'subject'
@@ -310,7 +325,7 @@ export class CommitMessage {
 
             return lines.join('\n').trim();
         } catch (error) {
-            Logger.warn('[CommitMessage] Blame 分析失败:', error);
+            Logger.warn('[CommitMessage] Blame analysis failed:', error);
             return 'Blame analysis not available';
         }
     }
@@ -347,27 +362,29 @@ export class CommitMessage {
     private static async handleError(error: unknown): Promise<void> {
         // 用户取消 - 静默处理
         if (error instanceof UserCancelledError) {
-            Logger.trace('[CommitMessage] 用户取消操作');
+            Logger.trace('[CommitMessage] User cancelled');
             return;
         }
         // VS Code 取消
         if (error instanceof vscode.CancellationError) {
-            Logger.trace('[CommitMessage] 操作被取消');
+            Logger.trace('[CommitMessage] Operation cancelled');
             return;
         }
         // 无变更
         if (error instanceof NoChangesDetectedError) {
-            vscode.window.showWarningMessage('没有检测到需要提交的变更');
+            vscode.window.showWarningMessage(t('No changes were detected to commit.', '没有检测到需要提交的变更。'));
             return;
         }
         // 无仓库
         if (error instanceof NoRepositoriesFoundError) {
-            vscode.window.showWarningMessage('没有找到 Git 仓库');
+            vscode.window.showWarningMessage(t('No Git repository was found.', '没有找到 Git 仓库。'));
             return;
         }
         // Git 扩展未找到
         if (error instanceof GitExtensionNotFoundError) {
-            vscode.window.showErrorMessage('Git 扩展未找到或未激活');
+            vscode.window.showErrorMessage(
+                t('The Git extension was not found or is not active.', 'Git 扩展未找到或未激活。')
+            );
             return;
         }
         // 模型未找到
@@ -377,7 +394,9 @@ export class CommitMessage {
         }
         // 其他错误
         const errorMessage = error instanceof Error ? error.message : String(error);
-        Logger.error('[CommitMessage] 生成失败:', error);
-        vscode.window.showErrorMessage(`生成提交消息失败: ${errorMessage}`);
+        Logger.error('[CommitMessage] Generation failed:', error);
+        vscode.window.showErrorMessage(
+            t('Failed to generate the commit message: {0}', '生成提交消息失败: {0}', errorMessage)
+        );
     }
 }

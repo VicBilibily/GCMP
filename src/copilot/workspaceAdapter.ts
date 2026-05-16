@@ -48,7 +48,7 @@ export class WorkspaceAdapter implements vscode.Disposable {
                 if (docToRemove) {
                     docToRemove.dispose();
                     this.documentMap.delete(uriStr);
-                    CompletionLogger.trace(`[VSCodeWorkspaceAdapter] 移除文档: ${uriStr}`);
+                    CompletionLogger.trace(`[VSCodeWorkspaceAdapter] Removed document: ${uriStr}`);
                 }
             })
         );
@@ -110,7 +110,7 @@ export class WorkspaceAdapter implements vscode.Disposable {
         });
 
         this.documentMap.set(uriStr, doc);
-        CompletionLogger.trace(`[VSCodeWorkspaceAdapter] 同步文档: ${vscodeDoc.fileName}`);
+        CompletionLogger.trace(`[VSCodeWorkspaceAdapter] Synced document: ${vscodeDoc.fileName}`);
 
         return doc;
     }

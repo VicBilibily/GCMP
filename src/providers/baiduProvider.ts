@@ -33,7 +33,7 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
         providerKey: string,
         providerConfig: ProviderConfig
     ): { provider: BaiduProvider; disposables: vscode.Disposable[] } {
-        Logger.trace(`${providerConfig.displayName} 专用模型扩展已激活!`);
+        Logger.trace(`${providerConfig.displayName} dedicated model extension activated`);
         // 创建提供商实例
         const provider = new BaiduProvider(context, providerKey, providerConfig);
         // 注册语言模型聊天提供商
@@ -59,7 +59,7 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
         );
         // 注册配置向导命令
         const configWizardCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.configWizard`, async () => {
-            Logger.info(`启动 ${providerConfig.displayName} 配置向导`);
+            Logger.info(`Starting ${providerConfig.displayName} setup wizard`);
             await BaiduWizard.startWizard(
                 providerConfig.displayName,
                 providerConfig.apiKeyTemplate,
@@ -91,7 +91,7 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
     private async ensureApiKeyForModel(modelConfig: ModelConfig): Promise<string> {
         const providerKey = this.getProviderKeyForModel(modelConfig);
         const isCodingPlan = providerKey === 'baidu-coding';
-        const keyType = isCodingPlan ? 'Coding Plan 专用' : '普通';
+        const keyType = isCodingPlan ? 'Coding Plan dedicated' : 'standard';
         // 检查是否已有密钥
         const hasApiKey = await ApiKeyManager.hasValidApiKey(providerKey);
         if (hasApiKey) {
@@ -101,7 +101,7 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
             }
         }
         // 密钥不存在，直接进入设置流程（不弹窗确认）
-        Logger.warn(`模型 ${modelConfig.name} 缺少 ${keyType} API 密钥，进入设置流程`);
+        Logger.warn(`Model ${modelConfig.name} is missing the ${keyType} API key, entering setup flow`);
         if (isCodingPlan) {
             // Coding Plan 模型直接进入专用密钥设置
             await BaiduWizard.setCodingPlanApiKey(
@@ -115,11 +115,11 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
         // 重新检查密钥是否设置成功
         const apiKey = await ApiKeyManager.getApiKey(providerKey);
         if (apiKey) {
-            Logger.info(`${keyType}密钥设置成功`);
+            Logger.info(`${keyType} API key configured successfully`);
             return apiKey;
         }
         // 用户未设置或设置失败
-        throw new Error(`${this.providerConfig.displayName}: 用户未设置 ${keyType} API 密钥`);
+        throw new Error(`${this.providerConfig.displayName}: user did not configure the ${keyType} API key`);
     }
     /**
      * 重写：获取模型信息 - 添加密钥检查
@@ -140,7 +140,9 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
         const hasAnyKey = hasNormalKey || hasCodingKey;
         // 如果是静默模式且没有任何密钥，直接返回空列表
         if (options.silent && !hasAnyKey) {
-            Logger.debug(`${this.providerConfig.displayName}: 静默模式下，未检测到任何密钥，返回空模型列表`);
+            Logger.debug(
+                `${this.providerConfig.displayName}: no keys detected in silent mode, returning empty model list`
+            );
             return [];
         }
         // 非静默模式：启动配置向导
@@ -155,13 +157,15 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
             const codingKeyValid = await ApiKeyManager.hasValidApiKey('baidu-coding');
             // 如果用户仍未设置任何密钥，返回空列表
             if (!normalKeyValid && !codingKeyValid) {
-                Logger.warn(`${this.providerConfig.displayName}: 用户未设置任何密钥，返回空模型列表`);
+                Logger.warn(
+                    `${this.providerConfig.displayName}: user did not configure any keys, returning empty model list`
+                );
                 return [];
             }
         }
         // 返回所有模型，不进行过滤
         // 具体的密钥验证会在用户选择模型后的 provideLanguageModelChatResponse 中进行
-        Logger.debug(`${this.providerConfig.displayName}: 返回全部 ${this.providerConfig.models.length} 个模型`);
+        Logger.debug(`${this.providerConfig.displayName}: returning all ${this.providerConfig.models.length} models`);
         // 将配置中的模型转换为 VS Code 所需的格式
         const models = this.providerConfig.models.map(model => this.modelConfigToInfo(model));
         return models;
@@ -180,7 +184,7 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
         // 查找对应的模型配置
         const modelConfig = this.findModelConfigById(model);
         if (!modelConfig) {
-            const errorMessage = `未找到模型: ${model.id}`;
+            const errorMessage = `Model not found: ${model.id}`;
             Logger.error(errorMessage);
             throw new Error(errorMessage);
         }
@@ -189,11 +193,11 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
         const providerKey = this.getProviderKeyForModel(modelConfig);
         const apiKey = await this.ensureApiKeyForModel(modelConfig);
         if (!apiKey) {
-            const keyType = providerKey === 'baidu-coding' ? 'Coding Plan 专用' : '普通';
-            throw new Error(`${this.providerConfig.displayName}: 无效的 ${keyType} API 密钥`);
+            const keyType = providerKey === 'baidu-coding' ? 'Coding Plan dedicated' : 'standard';
+            throw new Error(`${this.providerConfig.displayName}: invalid ${keyType} API key`);
         }
         Logger.debug(
-            `${this.providerConfig.displayName}: 即将处理请求，使用 ${providerKey === 'baidu-coding' ? 'Coding Plan' : '普通'} 密钥 - 模型: ${modelConfig.name}`
+            `${this.providerConfig.displayName}: about to handle request using ${providerKey === 'baidu-coding' ? 'Coding Plan' : 'standard'} key - model: ${modelConfig.name}`
         );
         // 计算输入 token 数量并更新状态栏
         const totalInputTokens = await this.updateContextUsageStatusBar(model, messages, modelConfig, options);
@@ -209,14 +213,16 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
                 estimatedInputTokens: totalInputTokens
             });
         } catch (err) {
-            Logger.warn('记录预估Token失败，继续执行请求:', err);
+            Logger.warn('Failed to record estimated tokens, continuing request:', err);
         }
         // 根据模型的 sdkMode 选择使用的 handler
         // 注：此处不调用 super.provideLanguageModelChatResponse，而是直接处理
         // 避免双重密钥检查，因为我们已经在 ensureApiKeyForModel 中检查过了
         const sdkMode = modelConfig.sdkMode || 'openai';
         const sdkName = this.getSdkDisplayName(sdkMode);
-        Logger.info(`${this.providerConfig.displayName} Provider 开始处理请求 (${sdkName}): ${modelConfig.name}`);
+        Logger.info(
+            `${this.providerConfig.displayName} Provider started handling request (${sdkName}): ${modelConfig.name}`
+        );
         try {
             await this.executeModelRequest(
                 model,
@@ -229,7 +235,7 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
                 providerKey
             );
         } catch (error) {
-            const errorMessage = `错误: ${error instanceof Error ? error.message : '未知错误'}`;
+            const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
             Logger.error(errorMessage);
             // === Token 统计: 更新失败状态 ===
             if (requestId) {
@@ -239,12 +245,12 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
                         status: 'failed'
                     });
                 } catch (err) {
-                    Logger.warn('更新Token统计失败状态失败:', err);
+                    Logger.warn('Failed to update token usage failure status:', err);
                 }
             }
             throw error;
         } finally {
-            Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} 请求已完成`);
+            Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);
         }
     }
 }

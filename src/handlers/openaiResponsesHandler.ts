@@ -8,6 +8,7 @@ import * as crypto from 'node:crypto';
 import OpenAI, { ClientOptions } from 'openai';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { Logger, sanitizeToolSchemaForTarget } from '../utils';
+import { t } from '../utils/l10n';
 import { ModelChatResponseOptions, ModelConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { getStatefulMarkerAndIndex } from './statefulMarker';
@@ -177,7 +178,7 @@ export class OpenAIResponsesHandler {
                 for (const tc of toolCalls) {
                     // 跳过名称为空的工具调用
                     if (!tc.name || tc.name.trim() === '') {
-                        Logger.warn(`${this.displayName} Responses API: 跳过名称为空的工具调用`);
+                        Logger.warn(`${this.displayName} Responses API: skipping tool call with empty name`);
                         continue;
                     }
                     out.push({
@@ -246,7 +247,7 @@ export class OpenAIResponsesHandler {
                 const item = lastItem as unknown as Record<string, unknown>;
                 if (item.type === 'message' && item.role === 'user') {
                     item.status = 'incomplete';
-                    Logger.trace(`${this.displayName} Responses API: 将最后一个用户消息状态设置为 incomplete`);
+                    Logger.trace(`${this.displayName} Responses API: set the last user message status to incomplete`);
                 }
             }
         }
@@ -385,11 +386,11 @@ export class OpenAIResponsesHandler {
         token: vscode.CancellationToken,
         requestId?: string | null
     ): Promise<void> {
-        Logger.debug(`${model.name} 开始处理 ${this.displayName} Responses API 请求`);
+        Logger.debug(`${model.name} starting ${this.displayName} Responses API request handling`);
 
         try {
             const client = await this.handler.createOpenAIClient(modelConfig);
-            Logger.info(`🚀 ${model.name} 发送 ${this.displayName} Responses API 请求`);
+            Logger.info(`🚀 ${model.name} Sending ${this.displayName} Responses API request`);
 
             // 创建统一的流报告器
             const reporter = new StreamReporter({
@@ -491,7 +492,7 @@ export class OpenAIResponsesHandler {
                             ) {
                                 requestBody.previous_response_id = previousResponseId;
                                 Logger.debug(
-                                    `🎯 ${model.name} 使用豆包缓存 previous_response_id: ${previousResponseId}`
+                                    `🎯 ${model.name} Using Doubao cache previous_response_id: ${previousResponseId}`
                                 );
 
                                 // 截断消息数组，只保留最后匹配位置之后的新消息
@@ -507,11 +508,11 @@ export class OpenAIResponsesHandler {
                                     );
                                     requestBody.input = newResponsesMessages;
                                     Logger.debug(
-                                        `🎯 ${model.name} 截断消息，从 ${originalMessages.length} 条减少到 ${newMessages.length} 条（跳过前 ${markerIndex + 1} 条已缓存消息）`
+                                        `🎯 ${model.name} Truncated messages from ${originalMessages.length} to ${newMessages.length} (skipped the first ${markerIndex + 1} cached messages)`
                                     );
                                 }
                             } else {
-                                Logger.debug(`🎯 ${model.name} 豆包缓存已过期，设置新的 expire_at`);
+                                Logger.debug(`🎯 ${model.name} Doubao cache expired, setting a new expire_at`);
                                 sessionExpireAt = Date.now() + 1 * 3600 * 1000; // 1小时后过期
                                 requestBody.expire_at = Math.floor(sessionExpireAt / 1000);
                             }
@@ -525,7 +526,7 @@ export class OpenAIResponsesHandler {
                 // GPT/Codex 使用 sessionId 作为 prompt_cache_key
                 else {
                     requestBody.prompt_cache_key = sessionId;
-                    Logger.debug(`🎯 ${model.name} 使用 prompt_cache_key: ${sessionId}`);
+                    Logger.debug(`🎯 ${model.name} Using prompt_cache_key: ${sessionId}`);
                 }
 
                 const { _options: clientOptions } = client as unknown as { _options: ClientOptions };
@@ -539,14 +540,14 @@ export class OpenAIResponsesHandler {
                     }
                 }
 
-                Logger.info(`🎯 ${model.name} 使用 session_id: ${sessionId}`);
+                Logger.info(`🎯 ${model.name} Using session_id: ${sessionId}`);
 
                 if (systemMessage) {
                     // 添加 system 消息作为 instructions
                     // Responses API 使用 instructions 参数而不是 system 消息
                     if (modelConfig.useInstructions === true) {
                         requestBody.instructions = systemMessage;
-                        Logger.debug(`${this.displayName} Responses API: 使用 instructions 参数传递 system 消息`);
+                        Logger.debug(`${this.displayName} Responses API: passing system message via instructions`);
                     } else {
                         requestBody.instructions = undefined;
                         // 部分转发会直接使用 Codex 的 instructions 参数，这里特别在第一条位置插入一条用户消息
@@ -555,7 +556,9 @@ export class OpenAIResponsesHandler {
                             role: 'user' as const,
                             content: [{ type: 'input_text' as const, text: systemMessage }]
                         });
-                        Logger.debug(`${this.displayName} Responses API: 在输入消息中使用 用户消息 传递 系统消息 指令`);
+                        Logger.debug(
+                            `${this.displayName} Responses API: passing system instructions via a user message in input`
+                        );
                     }
                 }
 
@@ -786,7 +789,7 @@ export class OpenAIResponsesHandler {
                         const name = buf?.name || event.name;
                         const callId = buf?.id || itemId;
                         if (!name) {
-                            Logger.warn(`工具调用 ${itemId} 没有名称`);
+                            Logger.warn(`Tool call ${itemId} has no name`);
                             return;
                         }
 
@@ -799,7 +802,7 @@ export class OpenAIResponsesHandler {
                             reporter.reportToolCall(callId, name, input);
                             completedToolCallIndices.add(idx);
                         } catch (e) {
-                            Logger.warn(`解析工具调用参数失败: ${args}`, e);
+                            Logger.warn(`Failed to parse tool call arguments: ${args}`, e);
                         }
                     })
                     .on('response.output_item.added', event => {
@@ -852,7 +855,7 @@ export class OpenAIResponsesHandler {
                                     reporter.reportToolCall(callId, name, input);
                                     completedToolCallIndices.add(idx);
                                 } catch (e) {
-                                    Logger.warn(`解析工具调用参数失败: ${args}`, e);
+                                    Logger.warn(`Failed to parse tool call arguments: ${args}`, e);
                                 }
                             }
                         }
@@ -903,7 +906,7 @@ export class OpenAIResponsesHandler {
                                 reporter.reportToolCall(callId as string, name, input);
                                 completedToolCallIndices.add(idx);
                             } catch (e) {
-                                Logger.warn(`解析工具调用参数失败: ${args}`, e);
+                                Logger.warn(`Failed to parse tool call arguments: ${args}`, e);
                             }
                         }
                     })
@@ -936,7 +939,7 @@ export class OpenAIResponsesHandler {
                                             reporter.reportToolCall(callId, item.name, input);
                                             completedToolCallIndices.add(idx);
                                         } catch (e) {
-                                            Logger.warn(`解析工具调用参数失败: ${item.arguments}`, e);
+                                            Logger.warn(`Failed to parse tool call arguments: ${item.arguments}`, e);
                                         }
                                     }
                                 }
@@ -951,7 +954,7 @@ export class OpenAIResponsesHandler {
                                 expireAt: sessionExpireAt
                             });
                             Logger.debug(
-                                `💾 ${model.name} 传递 StatefulMarker: sessionId=${sessionId}，responseId=${responseId}`
+                                `💾 ${model.name} Passed StatefulMarker: sessionId=${sessionId}, responseId=${responseId}`
                             );
                         } else {
                             reporter.flushAll(null);
@@ -984,7 +987,7 @@ export class OpenAIResponsesHandler {
                 reporter.reportUsage(finalUsage);
 
                 // 报告 usage 信息
-                Logger.info(`📊 ${model.name} Responses API 请求完成`, finalUsage);
+                Logger.info(`📊 ${model.name} Responses API request completed`, finalUsage);
 
                 if (requestId) {
                     try {
@@ -998,11 +1001,11 @@ export class OpenAIResponsesHandler {
                             streamEndTime
                         });
                     } catch (err) {
-                        Logger.warn('更新Token统计失败:', err);
+                        Logger.warn('Failed to update token stats:', err);
                     }
                 }
 
-                Logger.debug(`${model.name} ${this.displayName} Responses API 流处理完成`);
+                Logger.debug(`${model.name} ${this.displayName} Responses API stream completed`);
             } catch (error) {
                 if (
                     token.isCancellationRequested ||
@@ -1010,10 +1013,10 @@ export class OpenAIResponsesHandler {
                     error instanceof OpenAI.APIUserAbortError ||
                     (error instanceof Error && error.name === 'AbortError')
                 ) {
-                    Logger.info(`${model.name} Responses API 请求被用户取消`);
+                    Logger.info(`${model.name} Responses API request was cancelled by the user`);
                     throw new vscode.CancellationError();
                 } else {
-                    Logger.error(`${model.name} Responses API 流处理错误: ${error}`);
+                    Logger.error(`${model.name} Responses API stream processing error: ${error}`);
                     streamError = error as Error;
                     throw error;
                 }
@@ -1021,10 +1024,10 @@ export class OpenAIResponsesHandler {
                 cancellationListener.dispose();
             }
 
-            Logger.debug(`✅ ${model.name} ${this.displayName} Responses API 请求完成`);
+            Logger.debug(`✅ ${model.name} ${this.displayName} Responses API request completed`);
         } catch (error) {
             if (error instanceof Error) {
-                let errorMessage = error.message || '未知错误';
+                let errorMessage = error.message || t('Unknown error', '未知错误');
 
                 // 尝试从 OpenAI SDK 的 APIError 中提取详细的错误信息
                 // APIError 对象有一个 error 属性，其中包含了原始的 API 错误响应
@@ -1033,7 +1036,9 @@ export class OpenAIResponsesHandler {
                     const errorDetail = apiError.error as APIErrorDetail;
                     if (errorDetail.message && typeof errorDetail.message === 'string') {
                         errorMessage = errorDetail.message;
-                        Logger.debug(`${model.name} 从 APIError.error 中提取到详细错误信息: ${errorMessage}`);
+                        Logger.debug(
+                            `${model.name} Extracted detailed error message from APIError.error: ${errorMessage}`
+                        );
                     }
                 }
 
@@ -1043,12 +1048,14 @@ export class OpenAIResponsesHandler {
                     const causeMessage = error.cause.message || '';
                     if (causeMessage && causeMessage !== errorMessage) {
                         errorMessage = causeMessage;
-                        Logger.debug(`${model.name} 从 error.cause 中提取到详细错误信息: ${errorMessage}`);
+                        Logger.debug(
+                            `${model.name} Extracted detailed error message from error.cause: ${errorMessage}`
+                        );
                         throw error.cause;
                     }
                 }
 
-                Logger.error(`${model.name} ${this.displayName} Responses API 请求失败: ${errorMessage}`);
+                Logger.error(`${model.name} ${this.displayName} Responses API request failed: ${errorMessage}`);
 
                 // 检查是否为特定的服务器错误
                 if (

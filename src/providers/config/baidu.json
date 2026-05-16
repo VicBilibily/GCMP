@@ -1,5 +1,5 @@
 {
-    "displayName": "百度千帆",
+    "displayName": "Baidu Qianfan",
     "baseUrl": "https://qianfan.baidubce.com/v2",
     "apiKeyTemplate": "bce-v3/ALTAK-xxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "codingKeyTemplate": "bce-v3/ALTAKSP-xxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",

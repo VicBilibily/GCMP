@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  AIHubMix 余额查询器
  *--------------------------------------------------------------------------------------------*/
 
@@ -40,13 +40,13 @@ export class AiHubMixBalanceQuery implements IBalanceQuery {
      * @returns AIHubMix 余额查询结果
      */
     async queryBalance(providerId: string): Promise<BalanceQueryResult> {
-        StatusLogger.debug(`[AiHubMixBalanceQuery] 查询提供商 ${providerId} 的余额`);
+        StatusLogger.debug(`[AiHubMixBalanceQuery] Querying balance for provider ${providerId}`);
 
         try {
             // 获取 API 密钥
             const apiKey = await ApiKeyManager.getApiKey(providerId);
             if (!apiKey) {
-                throw new Error(`未找到 ${providerId} 的 API 密钥`);
+                throw new Error(`No API key found for provider ${providerId}`);
             }
 
             // 调用 AIHubMix 余额查询 API
@@ -61,14 +61,16 @@ export class AiHubMixBalanceQuery implements IBalanceQuery {
 
             if (!response.ok) {
                 // 尝试解析错误响应
-                let errorMessage = `API 请求失败: ${response.status} ${response.statusText}`;
+                let errorMessage = `API request failed: ${response.status} ${response.statusText}`;
                 try {
                     const errorData = (await response.json()) as AiHubMixErrorResponse;
                     errorMessage = errorData?.error?.message || errorMessage;
 
                     // 检测欠费错误：quota exhausted
                     if (errorData.error?.message?.includes('quota exhausted')) {
-                        StatusLogger.warn(`[AiHubMixBalanceQuery] 账户额度已用尽 (欠费): ${errorData.error.message}`);
+                        StatusLogger.warn(
+                            `[AiHubMixBalanceQuery] Account quota is exhausted (negative balance): ${errorData.error.message}`
+                        );
                         return {
                             balance: Number.MIN_SAFE_INTEGER, // 使用特殊负值表示欠费
                             currency: 'USD'
@@ -99,10 +101,12 @@ export class AiHubMixBalanceQuery implements IBalanceQuery {
 
             // 对于其他负值，记录警告但仍处理为有限额度
             if (remainingAmount < 0 && !isInfinite) {
-                StatusLogger.warn(`[AiHubMixBalanceQuery] 检测到异常负值余额: ${remainingAmount}，将其设置为 0`);
+                StatusLogger.warn(
+                    `[AiHubMixBalanceQuery] Detected abnormal negative balance value: ${remainingAmount}, treating it as 0`
+                );
             }
 
-            StatusLogger.debug('[AiHubMixBalanceQuery] 余额查询成功');
+            StatusLogger.debug('[AiHubMixBalanceQuery] Balance query succeeded');
 
             // 正常情况：返回剩余额度
             return {
@@ -110,8 +114,8 @@ export class AiHubMixBalanceQuery implements IBalanceQuery {
                 currency: 'USD'
             };
         } catch (error) {
-            Logger.error('[AiHubMixBalanceQuery] 查询余额失败', error);
-            throw new Error(`AIHubMix 余额查询失败: ${error instanceof Error ? error.message : String(error)}`);
+            Logger.error('[AiHubMixBalanceQuery] Failed to query balance', error);
+            throw new Error(`AIHubMix balance query failed: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 }

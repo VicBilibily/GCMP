@@ -5,6 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs/promises';
+import { t } from '../../utils/l10n';
 import { StatusLogger } from '../../utils/statusLogger';
 import { LogPathManager } from './logPathManager';
 import type { TokenRequestLog } from './types';
@@ -37,7 +38,9 @@ export class LogWriteManager {
      */
     async appendLog(log: TokenRequestLog): Promise<void> {
         if (this.isDisposed) {
-            throw new Error('[LogWriteManager] 写入管理器已销毁');
+            throw new Error(
+                t('[LogWriteManager] Write manager has been disposed', '[LogWriteManager] 写入管理器已销毁')
+            );
         }
 
         return new Promise((resolve, reject) => {
@@ -54,7 +57,9 @@ export class LogWriteManager {
      */
     async appendLogs(logs: TokenRequestLog[]): Promise<void> {
         if (this.isDisposed) {
-            throw new Error('[LogWriteManager] 写入管理器已销毁');
+            throw new Error(
+                t('[LogWriteManager] Write manager has been disposed', '[LogWriteManager] 写入管理器已销毁')
+            );
         }
 
         // 批量添加到队列
@@ -121,10 +126,10 @@ export class LogWriteManager {
             await fs.appendFile(logPath.fullPath, line, 'utf-8');
 
             StatusLogger.debug(
-                `[LogWriteManager] 写入流水日志: ${logPath.fullPath} (${log.requestId}, status=${log.status})`
+                `[LogWriteManager] Wrote append-only log: ${logPath.fullPath} (${log.requestId}, status=${log.status})`
             );
         } catch (err) {
-            StatusLogger.error(`[LogWriteManager] 写入日志失败: ${logPath.fullPath}`, err);
+            StatusLogger.error(`[LogWriteManager] Failed to write log: ${logPath.fullPath}`, err);
             throw err;
         }
     }
@@ -154,7 +159,7 @@ export class LogWriteManager {
      */
     async dispose(): Promise<void> {
         try {
-            StatusLogger.debug('[LogWriteManager] 开始销毁写入管理器...');
+            StatusLogger.debug('[LogWriteManager] Disposing write manager...');
 
             // 标记为已销毁，阻止新的写入请求
             this.isDisposed = true;
@@ -163,16 +168,16 @@ export class LogWriteManager {
             const queueStatus = this.getQueueStatus();
             if (queueStatus.queueLength > 0) {
                 StatusLogger.warn(
-                    `[LogWriteManager] 销毁时发现 ${queueStatus.queueLength} 个待处理的写入任务，正在等待完成...`
+                    `[LogWriteManager] Found ${queueStatus.queueLength} pending write tasks during dispose; waiting for completion...`
                 );
             }
 
             // 刷新队列中的所有任务
             await this.flush();
 
-            StatusLogger.debug('[LogWriteManager] 写入管理器已销毁');
+            StatusLogger.debug('[LogWriteManager] Write manager disposed');
         } catch (error) {
-            StatusLogger.error('[LogWriteManager] 销毁写入管理器时出错:', error);
+            StatusLogger.error('[LogWriteManager] Error while disposing write manager:', error);
             throw error;
         }
     }

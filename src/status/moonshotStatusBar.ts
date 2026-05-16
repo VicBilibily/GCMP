@@ -9,6 +9,7 @@ import { StatusLogger } from '../utils/statusLogger';
 import { Logger } from '../utils/logger';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { VersionManager } from '../utils/versionManager';
+import { t } from '../utils/l10n';
 
 /**
  * Moonshot 余额信息数据结构
@@ -64,7 +65,7 @@ export class MoonshotStatusBar extends ProviderStatusBarItem<MoonshotStatusData>
             refreshCommand: 'gcmp.moonshot.refreshBalance',
             apiKeyProvider: 'moonshot',
             cacheKeyPrefix: 'moonshot',
-            logPrefix: 'Moonshot状态栏',
+            logPrefix: 'Moonshot Status Bar',
             icon: '$(gcmp-moonshot)'
         };
         super(config);
@@ -86,19 +87,21 @@ export class MoonshotStatusBar extends ProviderStatusBarItem<MoonshotStatusData>
         const md = new vscode.MarkdownString();
         md.supportHtml = true;
 
-        md.appendMarkdown('#### Moonshot 用户账户余额\n\n');
+        md.appendMarkdown(`#### ${t('Moonshot Account Balance', 'Moonshot 用户账户余额')}\n\n`);
 
-        md.appendMarkdown('| 货币 | 现金余额 | 代金券 | 可用余额 |\n');
+        md.appendMarkdown(
+            `| ${t('Currency', '货币')} | ${t('Cash Balance', '现金余额')} | ${t('Voucher', '代金券')} | ${t('Available', '可用余额')} |\n`
+        );
         md.appendMarkdown('| :---: | ---: | ---: | ---: |\n');
         md.appendMarkdown(
             `| **CNY** | ${data.balanceInfo.cash_balance.toFixed(2)} | ${data.balanceInfo.voucher_balance.toFixed(2)} | **${data.balanceInfo.available_balance.toFixed(2)}** |\n`
         );
 
         md.appendMarkdown('\n---\n');
-        md.appendMarkdown(`**最后更新** ${data.lastUpdated}\n`);
+        md.appendMarkdown(`**${t('Last updated', '最后更新')}** ${data.lastUpdated}\n`);
         md.appendMarkdown('\n');
         md.appendMarkdown('---\n');
-        md.appendMarkdown('点击状态栏可手动刷新\n');
+        md.appendMarkdown(`${t('Click the status bar to refresh manually', '点击状态栏可手动刷新')}\n`);
         return md;
     }
 
@@ -116,7 +119,10 @@ export class MoonshotStatusBar extends ProviderStatusBarItem<MoonshotStatusData>
             if (!hasApiKey) {
                 return {
                     success: false,
-                    error: 'Moonshot API 密钥未配置，请先设置 Moonshot API 密钥'
+                    error: t(
+                        'Moonshot API key is not configured. Set the Moonshot API key first.',
+                        'Moonshot API 密钥未配置，请先设置 Moonshot API 密钥'
+                    )
                 };
             }
 
@@ -125,12 +131,12 @@ export class MoonshotStatusBar extends ProviderStatusBarItem<MoonshotStatusData>
             if (!apiKey) {
                 return {
                     success: false,
-                    error: '无法获取 Moonshot API 密钥'
+                    error: t('Unable to get the Moonshot API key.', '无法获取 Moonshot API 密钥')
                 };
             }
 
-            Logger.debug('触发查询 Moonshot 余额');
-            StatusLogger.debug(`[${this.config.logPrefix}] 开始查询 Moonshot 余额...`);
+            Logger.debug('Triggering Moonshot balance query');
+            StatusLogger.debug(`[${this.config.logPrefix}] Starting Moonshot balance query...`);
 
             // 构建请求
             const requestOptions: RequestInit = {
@@ -147,7 +153,7 @@ export class MoonshotStatusBar extends ProviderStatusBarItem<MoonshotStatusData>
             const responseText = await response.text();
 
             StatusLogger.debug(
-                `[${this.config.logPrefix}] 余额查询响应状态: ${response.status} ${response.statusText}`
+                `[${this.config.logPrefix}] Balance query response status: ${response.status} ${response.statusText}`
             );
 
             // 解析响应
@@ -155,10 +161,10 @@ export class MoonshotStatusBar extends ProviderStatusBarItem<MoonshotStatusData>
             try {
                 parsedResponse = JSON.parse(responseText);
             } catch (parseError) {
-                Logger.error(`解析响应 JSON 失败: ${parseError}`);
+                Logger.error(`Failed to parse response JSON: ${parseError}`);
                 return {
                     success: false,
-                    error: `响应格式错误: ${responseText.substring(0, 200)}`
+                    error: t('Invalid response format: {0}', '响应格式错误: {0}', responseText.substring(0, 200))
                 };
             }
 
@@ -175,37 +181,39 @@ export class MoonshotStatusBar extends ProviderStatusBarItem<MoonshotStatusData>
                         // 如果解析错误响应失败，使用默认错误信息
                     }
                 }
-                Logger.error(`余额查询失败: ${errorMessage}`);
+                Logger.error(`Balance query failed: ${errorMessage}`);
                 return {
                     success: false,
-                    error: `查询失败: ${errorMessage}`
+                    error: t('Query failed: {0}', '查询失败: {0}', errorMessage)
                 };
             }
 
             // 检查 API 响应状态
             if (!parsedResponse.status || parsedResponse.code !== 0) {
-                const errorMessage = parsedResponse.scode || '未知错误';
-                Logger.error(`API 返回错误: ${errorMessage}`);
+                const errorMessage = parsedResponse.scode || t('Unknown error', '未知错误');
+                Logger.error(`API returned an error: ${errorMessage}`);
                 return {
                     success: false,
-                    error: `API 错误: ${errorMessage}`
+                    error: t('API error: {0}', 'API 错误: {0}', errorMessage)
                 };
             }
 
             // 检查是否包含有效的余额数据
             if (!parsedResponse.data) {
-                Logger.error('未获取到余额数据');
+                Logger.error('No balance data retrieved');
                 return {
                     success: false,
-                    error: '未获取到余额数据'
+                    error: t('No balance data was returned.', '未获取到余额数据')
                 };
             }
 
             // 格式化最后更新时间
-            const lastUpdated = new Date().toLocaleString('zh-CN');
+            const lastUpdated = new Date().toLocaleString(
+                vscode.env.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
+            );
 
             // 解析成功响应
-            StatusLogger.debug(`[${this.config.logPrefix}] 余额查询成功`);
+            StatusLogger.debug(`[${this.config.logPrefix}] Balance query succeeded`);
 
             return {
                 success: true,
@@ -215,11 +223,11 @@ export class MoonshotStatusBar extends ProviderStatusBarItem<MoonshotStatusData>
                 }
             };
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : '未知错误';
-            Logger.error(`余额查询异常: ${errorMessage}`);
+            const errorMessage = error instanceof Error ? error.message : t('Unknown error', '未知错误');
+            Logger.error(`Balance query exception: ${errorMessage}`);
             return {
                 success: false,
-                error: `查询异常: ${errorMessage}`
+                error: t('Query error: {0}', '查询异常: {0}', errorMessage)
             };
         }
     }

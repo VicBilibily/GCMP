@@ -6,7 +6,7 @@ import './style.less';
 import 'chart.js/auto'; // 导入 Chart.js
 
 import type { HostMessage, State } from './types';
-import { getTodayDateString, postToVSCode } from './utils';
+import { getTodayDateString, postToVSCode, t } from './utils';
 import { createElement } from '../utils';
 
 // 导入组件
@@ -95,7 +95,7 @@ function updateLoadingOverlay(): void {
             const content = createElement('div', 'loading-content');
             const spinner = createElement('div', 'loading-spinner');
             const text = createElement('div', 'loading-text');
-            text.textContent = '加载中...';
+            text.textContent = t('Loading...', '加载中...');
 
             content.appendChild(spinner);
             content.appendChild(text);
@@ -123,7 +123,7 @@ function updateLoadingOverlay(): void {
  */
 function handleVSCodeMessage(event: MessageEvent): void {
     const message = event.data as HostMessage;
-    console.log('[UsagesView] 收到消息:', message.command, message);
+    console.log('[UsagesView] Received message:', message.command, message);
 
     switch (message.command) {
         case 'updateDateList':
@@ -170,7 +170,7 @@ function updateRequestRecords(): void {
         if (content) {
             recordsSection = createElement('section');
             const h2 = createElement('h2', '', { id: 'records-section' });
-            h2.textContent = '请求记录';
+            h2.textContent = t('Request Records', '请求记录');
             const container = createElement('div', '', { id: 'records-container' });
             recordsSection.appendChild(h2);
             recordsSection.appendChild(container);
@@ -202,7 +202,7 @@ function updateRequestRecords(): void {
  * 刷新所有视图
  */
 function refreshViews(): void {
-    console.log('[UsagesView] 状态变化:', {
+    console.log('[UsagesView] State changed:', {
         state,
         selectedDate: state.selectedDate,
         dateListLength: state.dateList.length,
@@ -234,7 +234,7 @@ function toggleSidebar(show?: boolean): void {
         sidebar.classList.remove('hidden');
         content.classList.add('sidebar-open');
         if (toggleBtn) {
-            toggleBtn.innerHTML = '<span class="toggle-icon">◀</span> 收起列表';
+            toggleBtn.innerHTML = `<span class="toggle-icon">◀</span> ${t('Collapse List', '收起列表')}`;
         }
         // 创建遮罩层
         createOrUpdateOverlay();
@@ -242,7 +242,7 @@ function toggleSidebar(show?: boolean): void {
         sidebar.classList.add('hidden');
         content.classList.remove('sidebar-open');
         if (toggleBtn) {
-            toggleBtn.innerHTML = '<span class="toggle-icon">☰</span> 日期列表';
+            toggleBtn.innerHTML = `<span class="toggle-icon">☰</span> ${t('Date List', '日期列表')}`;
         }
         // 移除遮罩层
         removeOverlay();
@@ -278,7 +278,7 @@ function removeOverlay(): void {
  */
 function createSidebarToggle(): HTMLElement {
     const button = createElement('button', 'sidebar-toggle');
-    button.innerHTML = '<span class="toggle-icon">☰</span> 日期';
+    button.innerHTML = `<span class="toggle-icon">☰</span> ${t('Date', '日期')}`;
     button.onclick = () => toggleSidebar();
     return button;
 }
@@ -287,7 +287,7 @@ function createSidebarToggle(): HTMLElement {
  * 初始化应用
  */
 function initApp(): void {
-    console.log('[UsagesView] 初始化原生 JS 应用');
+    console.log('[UsagesView] Initializing webview app');
 
     // 将状态和工具函数挂载到 window 对象，供所有组件访问
     window.usagesState = state;
@@ -342,7 +342,7 @@ function initApp(): void {
                     content.classList.remove('sidebar-open');
                 }
                 if (toggleBtn) {
-                    toggleBtn.innerHTML = '<span class="toggle-icon">☰</span> 日期';
+                    toggleBtn.innerHTML = `<span class="toggle-icon">☰</span> ${t('Date', '日期')}`;
                 }
             }
             // 确保移除遮罩层

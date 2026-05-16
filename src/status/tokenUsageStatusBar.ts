@@ -9,6 +9,7 @@ import { StatusLogger } from '../utils/statusLogger';
 import { DateUtils } from '../usages/fileLogger/dateUtils';
 import { UserActivityService } from './userActivityService';
 import type { TokenUsageStatsFromFile } from '../usages/fileLogger/types';
+import { t } from '../utils/l10n';
 
 /**
  * Token 用量状态栏
@@ -55,7 +56,7 @@ export class TokenUsageStatusBar {
         this.startPeriodicUpdate();
 
         this.context.subscriptions.push(this.statusBarItem);
-        StatusLogger.debug('[Token统计状态栏] 初始化完成');
+        StatusLogger.debug('[TokenUsageStatusBar] Initialized');
     }
 
     /**
@@ -70,7 +71,7 @@ export class TokenUsageStatusBar {
             await this.periodicUpdate();
         }, this.UPDATE_INTERVAL);
 
-        StatusLogger.debug(`[Token统计状态栏] 启动定时更新，间隔: ${this.UPDATE_INTERVAL}ms`);
+        StatusLogger.debug(`[TokenUsageStatusBar] Started periodic updates (${this.UPDATE_INTERVAL}ms)`);
     }
 
     /**
@@ -80,7 +81,7 @@ export class TokenUsageStatusBar {
         if (this.updateTimer) {
             clearInterval(this.updateTimer);
             this.updateTimer = undefined;
-            StatusLogger.debug('[Token统计状态栏] 停止定时更新');
+            StatusLogger.debug('[TokenUsageStatusBar] Stopped periodic updates');
         }
     }
 
@@ -90,7 +91,7 @@ export class TokenUsageStatusBar {
     private async periodicUpdate(): Promise<void> {
         // 检查用户是否活跃
         if (!UserActivityService.isUserActive()) {
-            StatusLogger.trace('[Token统计状态栏] 用户不活跃，跳过更新');
+            StatusLogger.trace('[TokenUsageStatusBar] User inactive. Skipping update.');
             return;
         }
 
@@ -98,7 +99,9 @@ export class TokenUsageStatusBar {
         const now = Date.now();
         const timeSinceLastUpdate = now - this.lastUpdateTime;
         if (timeSinceLastUpdate < this.UPDATE_COOLDOWN) {
-            StatusLogger.trace(`[Token统计状态栏] 距离上次更新仅 ${timeSinceLastUpdate}ms，等待下个周期`);
+            StatusLogger.trace(
+                `[TokenUsageStatusBar] Last update was ${timeSinceLastUpdate}ms ago. Waiting for the next cycle.`
+            );
             return;
         }
 
@@ -144,7 +147,7 @@ export class TokenUsageStatusBar {
             // 更新最后更新时间
             this.lastUpdateTime = Date.now();
         } catch (err) {
-            StatusLogger.error('[Token统计状态栏] 更新显示失败:', err);
+            StatusLogger.error('[TokenUsageStatusBar] Failed to update display:', err);
             this.statusBarItem.text = '$(pulse)';
         }
     }
@@ -157,13 +160,13 @@ export class TokenUsageStatusBar {
         md.supportHtml = false;
         md.isTrusted = true;
 
-        md.appendMarkdown('**GCMP: 今日 Token 消耗统计**\n\n');
+        md.appendMarkdown(`**${t("GCMP: Today's Token Usage", 'GCMP: 今日 Token 消耗统计')}**\n\n`);
         md.appendMarkdown('\n---\n');
 
         const providers = Object.values(stats.providers);
         if (providers.length === 0) {
-            md.appendMarkdown('暂无使用记录');
-            md.appendMarkdown('\n\n---\n\n点击查看详情');
+            md.appendMarkdown(t('No usage records yet.', '暂无使用记录。'));
+            md.appendMarkdown(`\n\n---\n\n${t('Click to view details', '点击查看详情')}`);
             return md;
         }
 
@@ -176,7 +179,7 @@ export class TokenUsageStatusBar {
         });
         // 创建提供商统计表格
         md.appendMarkdown(
-            '| 提供商        | 输入Tokens | 缓存命中 | 输出Tokens | 消耗Tokens | 请求数 | 平均延迟 | 平均速度 |\n'
+            `| ${t('Provider', '提供商')} | ${t('Input', '输入Tokens')} | ${t('Cache', '缓存命中')} | ${t('Output', '输出Tokens')} | ${t('Tokens', '消耗Tokens')} | ${t('Requests', '请求数')} | ${t('Latency', '平均延迟')} | ${t('Speed', '平均速度')} |\n`
         );
         md.appendMarkdown('| :------------ | ------: | ------: | ------: | ------: | ----: | ------: | ------: |\n');
         for (const providerStats of sortedProviders) {
@@ -198,7 +201,7 @@ export class TokenUsageStatusBar {
             const avgSpeedTotal = this.calculateAverageSpeed(stats.total);
             const avgLatencyTotal = this.calculateAverageFirstTokenLatency(stats.total.firstTokenLatency);
             md.appendMarkdown(
-                `| **合计** | **${this.formatTokens(stats.total.actualInput)}** | ` +
+                `| **${t('Total', '合计')}** | **${this.formatTokens(stats.total.actualInput)}** | ` +
                     `**${this.formatTokens(stats.total.cacheTokens)}** | ` +
                     `**${this.formatTokens(stats.total.outputTokens)}** | ` +
                     `**${this.formatTokens(total)}** | **${stats.total.requests}** | **${avgLatencyTotal}** | **${avgSpeedTotal}** |\n`
@@ -213,7 +216,7 @@ export class TokenUsageStatusBar {
                 md.appendMarkdown('\n\n ---- \n\n\n\n');
                 // 创建表格标题
                 md.appendMarkdown(
-                    '| 提供商      | 请求时间 | 消耗量 | 状态 | 输入Tokens | 缓存命中 | 输出Tokens | 响应延迟 | 输出速度 |\n'
+                    `| ${t('Provider', '提供商')} | ${t('Time', '请求时间')} | ${t('Tokens', '消耗量')} | ${t('Status', '状态')} | ${t('Input', '输入Tokens')} | ${t('Cache', '缓存命中')} | ${t('Output', '输出Tokens')} | ${t('Latency', '响应延迟')} | ${t('Speed', '输出速度')} |\n`
                 );
                 md.appendMarkdown(
                     '| :----------- | :-----: | -----: | :----: | -----: | -----: | -----: | ------: | -----: |\n'
@@ -281,10 +284,10 @@ export class TokenUsageStatusBar {
             }
         } catch (err) {
             // 忽略错误，不影响基本功能
-            StatusLogger.debug('[Token统计状态栏] 获取请求记录失败:', err);
+            StatusLogger.debug('[TokenUsageStatusBar] Failed to load recent request records:', err);
         }
 
-        md.appendMarkdown('\n---\n\n点击查看详情');
+        md.appendMarkdown(`\n---\n\n${t('Click to view details', '点击查看详情')}`);
 
         return md;
     }

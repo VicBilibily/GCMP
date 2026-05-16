@@ -15,6 +15,7 @@ import {
 import { PromptService } from './promptService';
 import type { GitDiffParts, GitDiffSection } from './gitService';
 import { CompatibleModelManager, ConfigManager, Logger } from '../utils';
+import { t } from '../utils/l10n';
 import { getRegisteredProvider } from '../utils/providerRegistry';
 
 function throwIfCancelled(token: vscode.CancellationToken): void {
@@ -112,12 +113,12 @@ export class GeneratorService {
         token: vscode.CancellationToken
     ): Promise<CommitMessage> {
         // 1) 选择模型
-        progress.report({ message: '正在选择模型...', increment: 8 });
+        progress.report({ message: t('Selecting model...', '正在选择模型...'), increment: 8 });
         const model = await this.selectModel();
         throwIfCancelled(token);
 
         // 2) 组装 diff 上下文（每个文件一个 message）
-        progress.report({ message: '正在提取关键变更片段...', increment: 10 });
+        progress.report({ message: t('Extracting key change snippets...', '正在提取关键变更片段...'), increment: 10 });
         const messages: vscode.LanguageModelChatMessage[] = [];
 
         // System Role 消息：部分模型要求首条消息为 system role
@@ -179,11 +180,14 @@ export class GeneratorService {
         );
 
         // 3) 生成最终提交消息
-        progress.report({ message: `正在使用 ${model.name} 生成提交消息...`, increment: 20 });
+        progress.report({
+            message: t('Generating commit message with {0}...', '正在使用 {0} 生成提交消息...', model.name),
+            increment: 20
+        });
         const message = await this.callModelWithMessages(model, messages, progress, token);
 
         // 4) 后处理
-        progress.report({ message: '正在处理结果...', increment: 10 });
+        progress.report({ message: t('Processing result...', '正在处理结果...'), increment: 10 });
         const cleanedMessage = PromptService.normalizeCommitMessage(message);
 
         // 5) 验证消息
@@ -288,7 +292,7 @@ export class GeneratorService {
         const configuredSelection = ConfigManager.getCommitConfig().model;
         const configuredModel = await resolveModel(configuredSelection);
         if (configuredModel) {
-            Logger.trace(`[GeneratorService] 使用配置的模型: ${configuredModel.name}`);
+            Logger.trace(`[GeneratorService] Using configured model: ${configuredModel.name}`);
             return configuredModel;
         }
 
@@ -305,16 +309,23 @@ export class GeneratorService {
 
         const selectedModel = await resolveModel(afterSelection);
         if (selectedModel) {
-            Logger.trace(`[GeneratorService] 使用用户选择的模型: ${selectedModel.name}`);
+            Logger.trace(`[GeneratorService] Using user-selected model: ${selectedModel.name}`);
             return selectedModel;
         }
 
         const providerKey =
-            (afterSelection?.provider ?? configuredSelection?.provider ?? '(未指定)').trim() || '(未指定)';
-        const modelId = (afterSelection?.model ?? configuredSelection?.model ?? '(未指定)').trim() || '(未指定)';
+            (afterSelection?.provider ?? configuredSelection?.provider ?? t('(unspecified)', '(未指定)')).trim() ||
+            t('(unspecified)', '(未指定)');
+        const modelId =
+            (afterSelection?.model ?? configuredSelection?.model ?? t('(unspecified)', '(未指定)')).trim() ||
+            t('(unspecified)', '(未指定)');
         throw new ModelNotFoundError(
-            `配置的模型 "${providerKey}:${modelId}" 不可用或未启用。` +
-                '请运行“GCMP: 选择 Commit 模型”重新选择，或检查对应提供商模型是否已启用。'
+            t(
+                'Configured model "{0}:{1}" is unavailable or not enabled. Run "GCMP: Select Commit Model" to choose another one, or check whether the provider model is enabled.',
+                '配置的模型 "{0}:{1}" 不可用或未启用。请运行“GCMP: 选择 Commit 模型”重新选择，或检查对应提供商模型是否已启用。',
+                providerKey,
+                modelId
+            )
         );
     }
 
@@ -344,14 +355,17 @@ export class GeneratorService {
                 result += chunk;
                 // 更新进度
                 if (result.length % 100 === 0) {
-                    progress.report({ message: `正在生成... (${result.length} 字符)`, increment: 1 });
+                    progress.report({
+                        message: t('Generating... ({0} characters)', '正在生成... ({0} 字符)', result.length),
+                        increment: 1
+                    });
                 }
             }
 
-            Logger.trace(`[GeneratorService] 模型响应长度: ${result.length} 字符`);
+            Logger.trace(`[GeneratorService] Model response length: ${result.length} characters`);
             return result;
         } catch (error) {
-            Logger.error('[GeneratorService] 模型调用失败:', error);
+            Logger.error('[GeneratorService] Model call failed:', error);
 
             // 检查是否是用户取消
             if (error instanceof vscode.CancellationError) {
@@ -360,10 +374,21 @@ export class GeneratorService {
 
             // 检查是否是权限问题
             if (error instanceof Error && error.message.includes('access')) {
-                throw new Error('无法访问语言模型。请确保您有权限使用该模型，或者尝试选择其他模型。');
+                throw new Error(
+                    t(
+                        'Unable to access the language model. Make sure you have permission to use it, or try selecting a different model.',
+                        '无法访问语言模型。请确保您有权限使用该模型，或者尝试选择其他模型。'
+                    )
+                );
             }
 
-            throw new Error(`生成提交消息失败: ${error instanceof Error ? error.message : String(error)}`);
+            throw new Error(
+                t(
+                    'Failed to generate the commit message: {0}',
+                    '生成提交消息失败: {0}',
+                    error instanceof Error ? error.message : String(error)
+                )
+            );
         }
     }
 }

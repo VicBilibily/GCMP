@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { Logger } from './logger';
 import { ApiKeyManager } from './apiKeyManager';
 import { ConfigManager, XiaomimimoConfig } from './configManager';
+import { t } from './l10n';
 
 export class XiaomimimoWizard {
     private static readonly PROVIDER_KEY = 'xiaomimimo';
@@ -19,40 +20,53 @@ export class XiaomimimoWizard {
         try {
             const currentEndpoint = ConfigManager.getXiaomimimoEndpoint();
             const endpointLabels: Record<string, string> = {
-                cn: '中国接入点 (cn)',
-                sgp: '新加坡接入点 (sgp)',
-                ams: '欧洲接入点 (ams)'
+                cn: t('China endpoint (cn)', '中国接入点 (cn)'),
+                sgp: t('Singapore endpoint (sgp)', '新加坡接入点 (sgp)'),
+                ams: t('Europe endpoint (ams)', '欧洲接入点 (ams)')
             };
 
             const choice = await vscode.window.showQuickPick(
                 [
                     {
-                        label: '$(key) 设置 API 密钥',
-                        detail: `用于 ${displayName} 等标准按量计费模型`,
+                        label: t('$(key) Set API key', '$(key) 设置 API 密钥'),
+                        detail: t(
+                            'Used for standard pay-as-you-go models such as {0}',
+                            '用于 {0} 等标准按量计费模型',
+                            displayName
+                        ),
                         value: 'normal'
                     },
                     {
-                        label: '$(key) 设置 Token Plan 专用密钥',
-                        detail: `用于 ${displayName} Token Plan 模型`,
+                        label: t('$(key) Set Token Plan API key', '$(key) 设置 Token Plan 专用密钥'),
+                        detail: t('Used for {0} Token Plan models', '用于 {0} Token Plan 模型', displayName),
                         value: 'tokenPlan'
                     },
                     {
-                        label: '$(globe) 设置 Token Plan 接入点',
-                        description: `当前：${endpointLabels[currentEndpoint]}`,
-                        detail: '设置 Xiaomi MiMo Token Plan 接入点：中国 (cn)、新加坡 (sgp) 、欧洲 (ams)',
+                        label: t('$(globe) Set Token Plan endpoint', '$(globe) 设置 Token Plan 接入点'),
+                        description: t('Current: {0}', '当前：{0}', endpointLabels[currentEndpoint]),
+                        detail: t(
+                            'Set Xiaomi MiMo Token Plan endpoint: China (cn), Singapore (sgp), Europe (ams)',
+                            '设置 Xiaomi MiMo Token Plan 接入点：中国 (cn)、新加坡 (sgp) 、欧洲 (ams)'
+                        ),
                         value: 'endpoint'
                     },
                     {
-                        label: '$(check-all) 同时设置两种密钥',
-                        detail: '按顺序配置普通密钥与 Token Plan 专用密钥',
+                        label: t('$(check-all) Set both keys', '$(check-all) 同时设置两种密钥'),
+                        detail: t(
+                            'Configure the standard key and Token Plan key in order',
+                            '按顺序配置普通密钥与 Token Plan 专用密钥'
+                        ),
                         value: 'both'
                     }
                 ],
-                { title: `${displayName} 密钥配置`, placeHolder: '请选择要配置的项目' }
+                {
+                    title: t('{0} key configuration', '{0} 密钥配置', displayName),
+                    placeHolder: t('Select what to configure', '请选择要配置的项目')
+                }
             );
 
             if (!choice) {
-                Logger.debug('用户取消了 Xiaomi MiMo 配置向导');
+                Logger.debug('User cancelled Xiaomi MiMo config wizard');
                 return;
             }
 
@@ -66,7 +80,9 @@ export class XiaomimimoWizard {
                 await this.setTokenPlanEndpoint(displayName);
             }
         } catch (error) {
-            Logger.error(`Xiaomi MiMo 配置向导出错: ${error instanceof Error ? error.message : '未知错误'}`);
+            Logger.error(
+                `Xiaomi MiMo config wizard failed: ${error instanceof Error ? error.message : t('Unknown error', '未知错误')}`
+            );
         }
     }
 
@@ -75,8 +91,12 @@ export class XiaomimimoWizard {
      */
     static async setNormalApiKey(displayName: string, apiKeyTemplate: string): Promise<void> {
         const result = await vscode.window.showInputBox({
-            prompt: `请输入 ${displayName} 的 API Key（留空可清除）`,
-            title: `设置 ${displayName} API Key`,
+            prompt: t(
+                'Enter the API key for {0} (leave empty to clear)',
+                '请输入 {0} 的 API Key（留空可清除）',
+                displayName
+            ),
+            title: t('Set {0} API key', '设置 {0} API Key', displayName),
             placeHolder: apiKeyTemplate,
             password: true,
             ignoreFocusOut: true
@@ -88,17 +108,25 @@ export class XiaomimimoWizard {
 
         try {
             if (result.trim() === '') {
-                Logger.info(`${displayName} API Key 已清除`);
+                Logger.info(`${displayName} API key cleared`);
                 await ApiKeyManager.deleteApiKey(this.PROVIDER_KEY);
-                vscode.window.showInformationMessage(`${displayName} API Key 已清除`);
+                vscode.window.showInformationMessage(t('{0} API key cleared', '{0} API Key 已清除', displayName));
             } else {
                 await ApiKeyManager.setApiKey(this.PROVIDER_KEY, result.trim());
-                Logger.info(`${displayName} API Key 已设置`);
-                vscode.window.showInformationMessage(`${displayName} API Key 已设置`);
+                Logger.info(`${displayName} API key set`);
+                vscode.window.showInformationMessage(t('{0} API key set', '{0} API Key 已设置', displayName));
             }
         } catch (error) {
-            Logger.error(`Xiaomi MiMo API Key 操作失败: ${error instanceof Error ? error.message : '未知错误'}`);
-            vscode.window.showErrorMessage(`设置失败: ${error instanceof Error ? error.message : '未知错误'}`);
+            Logger.error(
+                `Xiaomi MiMo API key operation failed: ${error instanceof Error ? error.message : t('Unknown error', '未知错误')}`
+            );
+            vscode.window.showErrorMessage(
+                t(
+                    'Failed to save the API key: {0}',
+                    '设置失败: {0}',
+                    error instanceof Error ? error.message : t('Unknown error', '未知错误')
+                )
+            );
         }
     }
 
@@ -107,8 +135,12 @@ export class XiaomimimoWizard {
      */
     static async setTokenPlanApiKey(displayName: string, tokenKeyTemplate?: string): Promise<void> {
         const result = await vscode.window.showInputBox({
-            prompt: `请输入 ${displayName} 的 Token Plan 专用 API Key（留空可清除）`,
-            title: `设置 ${displayName} Token Plan 专用 API Key`,
+            prompt: t(
+                'Enter the Token Plan API key for {0} (leave empty to clear)',
+                '请输入 {0} 的 Token Plan 专用 API Key（留空可清除）',
+                displayName
+            ),
+            title: t('Set {0} Token Plan API key', '设置 {0} Token Plan 专用 API Key', displayName),
             placeHolder: tokenKeyTemplate,
             password: true,
             ignoreFocusOut: true
@@ -120,19 +152,29 @@ export class XiaomimimoWizard {
 
         try {
             if (result.trim() === '') {
-                Logger.info(`${displayName} Token Plan 专用 API Key 已清除`);
+                Logger.info(`${displayName} Token Plan API key cleared`);
                 await ApiKeyManager.deleteApiKey(this.TOKEN_PLAN_KEY);
-                vscode.window.showInformationMessage(`${displayName} Token Plan 专用 API Key 已清除`);
+                vscode.window.showInformationMessage(
+                    t('{0} Token Plan API key cleared', '{0} Token Plan 专用 API Key 已清除', displayName)
+                );
             } else {
                 await ApiKeyManager.setApiKey(this.TOKEN_PLAN_KEY, result.trim());
-                Logger.info(`${displayName} Token Plan 专用 API Key 已设置`);
-                vscode.window.showInformationMessage(`${displayName} Token Plan 专用 API Key 已设置`);
+                Logger.info(`${displayName} Token Plan API key set`);
+                vscode.window.showInformationMessage(
+                    t('{0} Token Plan API key set', '{0} Token Plan 专用 API Key 已设置', displayName)
+                );
             }
         } catch (error) {
             Logger.error(
-                `Xiaomi MiMo Token Plan API Key 操作失败: ${error instanceof Error ? error.message : '未知错误'}`
+                `Xiaomi MiMo Token Plan API key operation failed: ${error instanceof Error ? error.message : t('Unknown error', '未知错误')}`
             );
-            vscode.window.showErrorMessage(`设置失败: ${error instanceof Error ? error.message : '未知错误'}`);
+            vscode.window.showErrorMessage(
+                t(
+                    'Failed to save the API key: {0}',
+                    '设置失败: {0}',
+                    error instanceof Error ? error.message : t('Unknown error', '未知错误')
+                )
+            );
         }
     }
 
@@ -144,43 +186,50 @@ export class XiaomimimoWizard {
             const choice = await vscode.window.showQuickPick(
                 [
                     {
-                        label: '$(home) 中国接入点 (cn)',
+                        label: t('$(home) China endpoint (cn)', '$(home) 中国接入点 (cn)'),
                         value: 'cn' as const
                     },
                     {
-                        label: '$(location) 新加坡接入点 (sgp)',
+                        label: t('$(location) Singapore endpoint (sgp)', '$(location) 新加坡接入点 (sgp)'),
                         value: 'sgp' as const
                     },
                     {
-                        label: '$(globe) 欧洲接入点 (ams)',
+                        label: t('$(globe) Europe endpoint (ams)', '$(globe) 欧洲接入点 (ams)'),
                         value: 'ams' as const
                     }
                 ],
                 {
-                    title: `${displayName} Token Plan 接入点选择`,
-                    placeHolder: '请选择接入点',
+                    title: t('{0} Token Plan endpoint selection', '{0} Token Plan 接入点选择', displayName),
+                    placeHolder: t('Select an endpoint', '请选择接入点'),
                     canPickMany: false
                 }
             );
 
             if (!choice) {
-                Logger.debug(`用户取消了 ${displayName} Token Plan 接入点选择`);
+                Logger.debug(`User cancelled ${displayName} Token Plan endpoint selection`);
                 return;
             }
 
             await this.saveTokenPlanEndpoint(choice.value);
 
             const endpointLabels: Record<string, string> = {
-                cn: '中国接入点',
-                sgp: '新加坡接入点',
-                ams: '欧洲接入点'
+                cn: t('China endpoint', '中国接入点'),
+                sgp: t('Singapore endpoint', '新加坡接入点'),
+                ams: t('Europe endpoint', '欧洲接入点')
             };
-            Logger.info(`${displayName} Token Plan 接入点已设置为: ${endpointLabels[choice.value]}`);
+            Logger.info(`${displayName} Token Plan endpoint set to: ${endpointLabels[choice.value]}`);
             vscode.window.showInformationMessage(
-                `${displayName} Token Plan 接入点已设置为: ${endpointLabels[choice.value]}`
+                t(
+                    '{0} Token Plan endpoint set to: {1}',
+                    '{0} Token Plan 接入点已设置为: {1}',
+                    displayName,
+                    endpointLabels[choice.value]
+                )
             );
         } catch (error) {
-            Logger.error(`Token Plan 接入点设置失败: ${error instanceof Error ? error.message : '未知错误'}`);
+            Logger.error(
+                `Failed to set Token Plan endpoint: ${error instanceof Error ? error.message : t('Unknown error', '未知错误')}`
+            );
         }
     }
 
@@ -191,9 +240,11 @@ export class XiaomimimoWizard {
         try {
             const config = vscode.workspace.getConfiguration('gcmp.xiaomimimo');
             await config.update('endpoint', endpoint, vscode.ConfigurationTarget.Global);
-            Logger.info(`已保存 Token Plan 接入点: ${endpoint}`);
+            Logger.info(`Saved Token Plan endpoint: ${endpoint}`);
         } catch (error) {
-            Logger.error(`保存 Token Plan 接入点失败: ${error instanceof Error ? error.message : '未知错误'}`);
+            Logger.error(
+                `Failed to save Token Plan endpoint: ${error instanceof Error ? error.message : t('Unknown error', '未知错误')}`
+            );
             throw error;
         }
     }

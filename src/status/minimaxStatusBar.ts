@@ -11,6 +11,7 @@ import { ProviderStatusBarItem, StatusBarItemConfig } from './providerStatusBarI
 import { StatusLogger } from '../utils/statusLogger';
 import { Logger } from '../utils/logger';
 import { ConfigManager, ApiKeyManager, VersionManager } from '../utils';
+import { t } from '../utils/l10n';
 
 /**
  * 单条限频项（扁平列表，参照智谱模式）
@@ -56,7 +57,7 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
             refreshCommand: 'gcmp.refreshMiniMaxUsage',
             apiKeyProvider: 'minimax-coding',
             cacheKeyPrefix: 'minimax',
-            logPrefix: 'MiniMax状态栏',
+            logPrefix: 'MiniMax Status Bar',
             icon: '$(gcmp-minimax)'
         };
         super(config);
@@ -85,8 +86,10 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
     protected generateTooltip(data: MiniMaxStatusData): vscode.MarkdownString {
         const md = new vscode.MarkdownString();
         md.supportHtml = true;
-        md.appendMarkdown('#### MiniMax Coding Plan 使用情况\n\n');
-        md.appendMarkdown('| 限频类型 | 上限值 | 剩余量 | 重置时间 |\n');
+        md.appendMarkdown(`#### ${t('MiniMax Coding Plan Usage', 'MiniMax Coding Plan 使用情况')}\n\n`);
+        md.appendMarkdown(
+            `| ${t('Window', '限频类型')} | ${t('Quota', '上限值')} | ${t('Remaining', '剩余量')} | ${t('Reset Time', '重置时间')} |\n`
+        );
         md.appendMarkdown('| :--- | ----: | ----: | :---: |\n');
 
         for (const item of data.limits) {
@@ -95,7 +98,7 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
         }
 
         md.appendMarkdown('\n---\n');
-        md.appendMarkdown('点击状态栏可手动刷新\n');
+        md.appendMarkdown(`${t('Click the status bar to refresh manually', '点击状态栏可手动刷新')}\n`);
         return md;
     }
 
@@ -110,16 +113,25 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
         try {
             const hasCodingKey = await ApiKeyManager.hasValidApiKey(CODING_PLAN_KEY);
             if (!hasCodingKey) {
-                return { success: false, error: 'Coding Plan 专用密钥未配置，请先设置 Coding Plan API 密钥' };
+                return {
+                    success: false,
+                    error: t(
+                        'The Coding Plan key is not configured. Set the Coding Plan API key first.',
+                        'Coding Plan 专用密钥未配置，请先设置 Coding Plan API 密钥'
+                    )
+                };
             }
 
             const apiKey = await ApiKeyManager.getApiKey(CODING_PLAN_KEY);
             if (!apiKey) {
-                return { success: false, error: '无法获取 Coding Plan 专用密钥' };
+                return {
+                    success: false,
+                    error: t('Unable to get the Coding Plan key.', '无法获取 Coding Plan 专用密钥')
+                };
             }
 
-            Logger.debug('触发查询 MiniMax Coding Plan 余量');
-            StatusLogger.debug(`[${this.config.logPrefix}] 开始查询 MiniMax Coding Plan 余量...`);
+            Logger.debug('Triggering MiniMax Coding Plan usage query');
+            StatusLogger.debug(`[${this.config.logPrefix}] Starting MiniMax Coding Plan quota query...`);
 
             const requestOptions: RequestInit = {
                 method: 'GET',
@@ -139,7 +151,7 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
             const responseText = await response.text();
 
             StatusLogger.debug(
-                `[${this.config.logPrefix}] 余量查询响应状态: ${response.status} ${response.statusText}`
+                `[${this.config.logPrefix}] Quota query response status: ${response.status} ${response.statusText}`
             );
 
             // 解析响应
@@ -166,27 +178,30 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
             try {
                 parsedResponse = JSON.parse(responseText);
             } catch (parseError) {
-                Logger.error(`解析响应 JSON 失败: ${parseError}`);
-                return { success: false, error: `响应格式错误: ${responseText.substring(0, 200)}` };
+                Logger.error(`Failed to parse response JSON: ${parseError}`);
+                return {
+                    success: false,
+                    error: t('Invalid response format: {0}', '响应格式错误: {0}', responseText.substring(0, 200))
+                };
             }
 
             if (!response.ok) {
                 const errorMessage = parsedResponse.base_resp?.status_msg || `HTTP ${response.status}`;
-                Logger.error(`余量查询失败: ${errorMessage}`);
-                return { success: false, error: `查询失败: ${errorMessage}` };
+                Logger.error(`Quota query failed: ${errorMessage}`);
+                return { success: false, error: t('Query failed: {0}', '查询失败: {0}', errorMessage) };
             }
 
             if (parsedResponse.base_resp && parsedResponse.base_resp.status_code !== 0) {
-                const errorMessage = parsedResponse.base_resp.status_msg || '未知业务错误';
-                Logger.error(`余量查询业务失败: ${errorMessage}`);
-                return { success: false, error: `业务查询失败: ${errorMessage}` };
+                const errorMessage = parsedResponse.base_resp.status_msg || t('Unknown business error', '未知业务错误');
+                Logger.error(`Quota business query failed: ${errorMessage}`);
+                return { success: false, error: t('Business query failed: {0}', '业务查询失败: {0}', errorMessage) };
             }
 
-            StatusLogger.debug(`[${this.config.logPrefix}] 余量查询成功`);
+            StatusLogger.debug(`[${this.config.logPrefix}] Quota query succeeded`);
 
             const modelRemains = parsedResponse.model_remains;
             if (!modelRemains || modelRemains.length === 0) {
-                return { success: false, error: '未获取到模型余量数据' };
+                return { success: false, error: t('No model usage data was returned.', '未获取到模型余量数据') };
             }
 
             // 拆分为扁平限频列表
@@ -197,7 +212,7 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
                 // 每 5 小时限额
                 limits.push(
                     this.buildLimitItem(
-                        '每 5 小时',
+                        t('Every 5 Hours', '每 5 小时'),
                         '5h',
                         m.current_interval_total_count,
                         m.current_interval_usage_count,
@@ -209,7 +224,7 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
                 if ((m.current_weekly_total_count ?? 0) > 0) {
                     limits.push(
                         this.buildLimitItem(
-                            '每周限额',
+                            t('Weekly quota', '每周限额'),
                             'weekly',
                             m.current_weekly_total_count,
                             m.current_weekly_usage_count,
@@ -222,9 +237,9 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
 
             return { success: true, data: { limits } };
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : '未知错误';
-            Logger.error(`余量查询异常: ${errorMessage}`);
-            return { success: false, error: `查询异常: ${errorMessage}` };
+            const errorMessage = error instanceof Error ? error.message : t('Unknown error', '未知错误');
+            Logger.error(`Quota query exception: ${errorMessage}`);
+            return { success: false, error: t('Query error: {0}', '查询异常: {0}', errorMessage) };
         }
     }
 

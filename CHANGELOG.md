@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.15] - 2026-05-16
+
+### 新增
+
+- **中英双语国际化**：全面支持中文/英文界面，根据 VS Code 语言环境自动切换
+
+---
+
+### Added
+
+- **Chinese/English bilingual i10n**: Full support for Chinese/English UI, auto-switching based on VS Code language
+
 ## [0.22.14] - 2026-05-16
 
 ### 新增

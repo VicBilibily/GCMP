@@ -65,10 +65,10 @@ export class TokenFileLogger {
      */
     async initialize(): Promise<void> {
         const startTime = Date.now();
-        StatusLogger.info('[TokenFileLogger] 文件日志系统初始化');
+        StatusLogger.info('[TokenFileLogger] File logging system initialization started');
 
         const baseDir = this.pathManager.getBaseDir();
-        StatusLogger.info(`[TokenFileLogger] 基础目录: ${baseDir}`);
+        StatusLogger.info(`[TokenFileLogger] Base directory: ${baseDir}`);
 
         // 初始化缓存版本时间戳
         await this.initCacheVersionTimestamp();
@@ -77,7 +77,7 @@ export class TokenFileLogger {
         this.startPendingLogsCleanup();
 
         const elapsed = Date.now() - startTime;
-        StatusLogger.info(`[TokenFileLogger] 文件日志系统初始化完成 (耗时: ${elapsed}ms)`);
+        StatusLogger.info(`[TokenFileLogger] File logging system initialization completed (elapsed: ${elapsed}ms)`);
     }
 
     /**
@@ -102,13 +102,13 @@ export class TokenFileLogger {
             await this.indexManager.setCacheTimestamps(USAGES_CACHE_VERSION_TIMESTAMP, now);
             this.cacheVersionTimestamp = now;
             StatusLogger.debug(
-                `[TokenFileLogger] 已创建新缓存: version=${new Date(USAGES_CACHE_VERSION_TIMESTAMP).toISOString()}, cache=${new Date(this.cacheVersionTimestamp).toISOString()}`
+                `[TokenFileLogger] Created new cache: version=${new Date(USAGES_CACHE_VERSION_TIMESTAMP).toISOString()}, cache=${new Date(this.cacheVersionTimestamp).toISOString()}`
             );
         } else {
             // 使用存储的缓存时间
             this.cacheVersionTimestamp = cacheTimestamp || 0;
             StatusLogger.debug(
-                `[TokenFileLogger] 使用现有缓存: version=${new Date(versionTimestamp).toISOString()}, cache=${new Date(this.cacheVersionTimestamp).toISOString()}`
+                `[TokenFileLogger] Using existing cache: version=${new Date(versionTimestamp).toISOString()}, cache=${new Date(this.cacheVersionTimestamp).toISOString()}`
             );
         }
 
@@ -128,7 +128,7 @@ export class TokenFileLogger {
         }, this.pendingLogsCleanupInterval);
 
         StatusLogger.debug(
-            `[TokenFileLogger] pendingLogs 清理任务已启动 (TTL: ${this.pendingLogsTTL}ms, 检查间隔: ${this.pendingLogsCleanupInterval}ms)`
+            `[TokenFileLogger] Pending logs cleanup task started (TTL: ${this.pendingLogsTTL}ms, interval: ${this.pendingLogsCleanupInterval}ms)`
         );
     }
 
@@ -149,10 +149,10 @@ export class TokenFileLogger {
             for (const requestId of expiredKeys) {
                 this.pendingLogs.delete(requestId);
                 StatusLogger.warn(
-                    `[TokenFileLogger] 清理过期的 pendingLog: ${requestId} (超过 ${this.pendingLogsTTL}ms 未更新)`
+                    `[TokenFileLogger] Removed expired pending log: ${requestId} (not updated for more than ${this.pendingLogsTTL}ms)`
                 );
             }
-            StatusLogger.info(`[TokenFileLogger] 清理了 ${expiredKeys.length} 个过期的 pendingLogs`);
+            StatusLogger.info(`[TokenFileLogger] Removed ${expiredKeys.length} expired pending logs`);
         }
     }
 
@@ -241,7 +241,7 @@ export class TokenFileLogger {
         const pendingLog = this.pendingLogs.get(params.requestId);
 
         if (!pendingLog) {
-            StatusLogger.warn(`[TokenFileLogger] 未找到待更新的日志: ${params.requestId}`);
+            StatusLogger.warn(`[TokenFileLogger] No pending log found for update: ${params.requestId}`);
             return;
         }
 
@@ -288,7 +288,7 @@ export class TokenFileLogger {
         this.notifyUpdate();
 
         StatusLogger.info(
-            `[TokenFileLogger] 更新实际token: ${params.requestId}, status=${params.status}, rawUsage=${params.rawUsage ? '已记录' : '未记录'}`
+            `[TokenFileLogger] Updated actual tokens: ${params.requestId}, status=${params.status}, rawUsage=${params.rawUsage ? 'recorded' : 'not recorded'}`
         );
     }
 
@@ -326,7 +326,7 @@ export class TokenFileLogger {
         const saved = await this.logStatsManager.getDateStats(dateStr);
         if (saved && saved.hourly && Object.keys(saved.hourly).length > 0) {
             StatusLogger.debug(
-                `[TokenFileLogger] 从缓存读取所有小时统计: ${dateStr}, 小时数=${Object.keys(saved.hourly).length}`
+                `[TokenFileLogger] Loaded all hourly stats from cache: ${dateStr}, hourCount=${Object.keys(saved.hourly).length}`
             );
             return saved;
         }
@@ -410,14 +410,14 @@ export class TokenFileLogger {
             if (this.pendingLogsCleanupTimer) {
                 clearInterval(this.pendingLogsCleanupTimer);
                 this.pendingLogsCleanupTimer = null;
-                StatusLogger.debug('[TokenFileLogger] pendingLogs 清理任务已停止');
+                StatusLogger.debug('[TokenFileLogger] Pending logs cleanup task stopped');
             }
 
             // 检查是否有待处理的日志
             const pendingLogCount = this.pendingLogs.size;
             if (pendingLogCount > 0) {
                 StatusLogger.warn(
-                    `[TokenFileLogger] 销毁时发现 ${pendingLogCount} 个待处理的日志记录，这些记录可能包含未完成的请求`
+                    `[TokenFileLogger] Found ${pendingLogCount} pending log records during dispose; they may contain unfinished requests`
                 );
                 // 清理待处理日志
                 this.pendingLogs.clear();
@@ -425,15 +425,15 @@ export class TokenFileLogger {
 
             // 清理事件监听器
             this.eventEmitter.removeAllListeners();
-            StatusLogger.debug('[TokenFileLogger] 事件监听器已清理');
+            StatusLogger.debug('[TokenFileLogger] Event listeners cleaned up');
 
             // 等待写入队列完成并销毁
             await this.writeManager.dispose();
-            StatusLogger.debug('[TokenFileLogger] 写入管理器已销毁');
+            StatusLogger.debug('[TokenFileLogger] Write manager disposed');
 
-            StatusLogger.info('[TokenFileLogger] 文件日志系统已销毁');
+            StatusLogger.info('[TokenFileLogger] File logging system disposed');
         } catch (error) {
-            StatusLogger.error('[TokenFileLogger] 销毁日志系统时出错:', error);
+            StatusLogger.error('[TokenFileLogger] Failed to dispose logging system:', error);
             throw error;
         }
     }
@@ -476,9 +476,9 @@ export class TokenFileLogger {
             // 通知本实例的监听者
             this.notifyUpdate();
 
-            StatusLogger.debug(`[TokenFileLogger] 已刷新小时统计: ${dateStr}`);
+            StatusLogger.debug(`[TokenFileLogger] Refreshed hourly stats: ${dateStr}`);
         } catch (err) {
-            StatusLogger.warn('[TokenFileLogger] 刷新统计失败:', err);
+            StatusLogger.warn('[TokenFileLogger] Failed to refresh stats:', err);
         }
     }
 }

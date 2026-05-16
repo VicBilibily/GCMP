@@ -59,14 +59,14 @@ export class SiliconflowBalanceQuery implements IBalanceQuery {
      * @returns 余额查询结果
      */
     async queryBalance(providerId: string): Promise<BalanceQueryResult> {
-        StatusLogger.debug(`[SiliconflowBalanceQuery] 查询提供商 ${providerId} 的余额`);
+        StatusLogger.debug(`[SiliconflowBalanceQuery] Querying balance for provider ${providerId}`);
 
         try {
             // 获取API密钥
             const apiKey = await ApiKeyManager.getApiKey(providerId);
 
             if (!apiKey) {
-                throw new Error(`未找到提供商 ${providerId} 的API密钥`);
+                throw new Error(`No API key found for provider ${providerId}`);
             }
 
             // 调用SiliconFlow余额查询API
@@ -79,14 +79,14 @@ export class SiliconflowBalanceQuery implements IBalanceQuery {
             });
 
             if (!response.ok) {
-                throw new Error(`API请求失败: ${response.status} ${response.statusText}`);
+                throw new Error(`API request failed: ${response.status} ${response.statusText}`);
             }
 
             const result = (await response.json()) as SiliconFlowBalanceResponse;
 
             // 检查API响应状态码
             if (result.code !== 20000 || !result.status) {
-                throw new Error(`API返回错误: ${result.message || '未知错误'}`);
+                throw new Error(`API returned an error: ${result.message || 'Unknown error'}`);
             }
 
             // 解析余额数据
@@ -95,7 +95,7 @@ export class SiliconflowBalanceQuery implements IBalanceQuery {
             const paid = parseFloat(data.chargeBalance) || 0; // 充值余额
             const balance = parseFloat(data.totalBalance) || paid + granted; // 总余额
 
-            StatusLogger.debug('[SiliconflowBalanceQuery] 余额查询成功');
+            StatusLogger.debug('[SiliconflowBalanceQuery] Balance query succeeded');
 
             return {
                 paid,
@@ -104,8 +104,10 @@ export class SiliconflowBalanceQuery implements IBalanceQuery {
                 currency: 'CNY' // SiliconFlow使用人民币
             };
         } catch (error) {
-            Logger.error('[SiliconflowBalanceQuery] 查询余额失败', error);
-            throw new Error(`SiliconFlow 余额查询失败: ${error instanceof Error ? error.message : '未知错误'}`);
+            Logger.error('[SiliconflowBalanceQuery] Failed to query balance', error);
+            throw new Error(
+                `SiliconFlow balance query failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 }

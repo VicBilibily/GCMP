@@ -86,11 +86,11 @@ export class LogStatsManager {
                 // 检查版本时间戳是否有效，如果无效需要全量重新计算
                 const needsRegen = await this.needsRegeneration(dateStr);
                 if (!needsRegen) {
-                    StatusLogger.debug(`[LogStatsManager] 从缓存读取统计: ${dateStr}`);
+                    StatusLogger.debug(`[LogStatsManager] Read stats from cache: ${dateStr}`);
                     return saved;
                 }
                 // 版本变化或缓存过期，需要全量重新计算
-                StatusLogger.debug(`[LogStatsManager] 缓存已过期，全量重新计算: ${dateStr}`);
+                StatusLogger.debug(`[LogStatsManager] Cache expired, recalculating from scratch: ${dateStr}`);
             }
         }
 
@@ -104,12 +104,12 @@ export class LogStatsManager {
     private getOrCreateDateRegeneration(dateStr: string): Promise<TokenUsageStatsFromFile> {
         const inFlight = this.inFlightRegenerations.get(dateStr);
         if (inFlight) {
-            StatusLogger.trace(`[LogStatsManager] 复用进行中的日期统计重算任务: ${dateStr}`);
+            StatusLogger.trace(`[LogStatsManager] Reusing in-flight stats regeneration task: ${dateStr}`);
             return inFlight;
         }
 
         const regenerationPromise = (async () => {
-            StatusLogger.debug(`[LogStatsManager] 增量计算统计: ${dateStr}`);
+            StatusLogger.debug(`[LogStatsManager] Regenerating stats: ${dateStr}`);
             const stats = await this.calculateDateStats(dateStr);
             await this.saveDateStats(dateStr, stats);
             return stats;
@@ -155,7 +155,7 @@ export class LogStatsManager {
             existingStats.versionTimestamp >= this.getCodeVersionTimestamp();
         const existingHourly = hasValidCache ? existingStats.hourly || {} : {};
         if (!hasValidCache) {
-            StatusLogger.debug(`[LogStatsManager] 版本无效，不使用旧缓存，全量重新计算: ${dateStr}`);
+            StatusLogger.debug(`[LogStatsManager] Cache version is invalid, recalculating from scratch: ${dateStr}`);
         }
 
         // 获取日期文件夹中所有存在的小时文件
@@ -169,7 +169,7 @@ export class LogStatsManager {
                 .filter(h => !Number.isNaN(h) && h >= 0 && h <= 23)
                 .sort((a, b) => a - b);
         } catch {
-            StatusLogger.debug(`[LogStatsManager] 日期文件夹不存在或无法读取: ${dateStr}`);
+            StatusLogger.debug(`[LogStatsManager] Date folder does not exist or cannot be read: ${dateStr}`);
         }
 
         // 初始化小时统计结果
@@ -188,12 +188,14 @@ export class LogStatsManager {
             const needsRecalculate = !existingHourlyStats || existingModified !== hourFileModified;
             if (!needsRecalculate) {
                 // 文件未改变，保留现有统计
-                StatusLogger.trace(`[LogStatsManager] 小时文件未改变，跳过计算: ${dateStr} ${hourKey}:00`);
+                StatusLogger.trace(
+                    `[LogStatsManager] Hourly file unchanged, skipping recalculation: ${dateStr} ${hourKey}:00`
+                );
                 continue;
             }
 
             // 需要重新计算
-            StatusLogger.debug(`[LogStatsManager] 小时文件已改变，重新计算: ${dateStr} ${hourKey}:00`);
+            StatusLogger.debug(`[LogStatsManager] Hourly file changed, recalculating: ${dateStr} ${hourKey}:00`);
             const logs = await this.readManager.readHourLogs(dateStr, hour);
             const hourStats = StatsCalculator.aggregateLogs(logs);
             // 更新该小时的统计（包含 modifiedTime 和 providers）
@@ -386,10 +388,10 @@ export class LogStatsManager {
             await this.indexManager.updateIndex(dateStr, stats.total);
 
             StatusLogger.debug(
-                `[LogStatsManager] 已保存日期统计到 stats.json: ${dateStr}, version=${new Date(stats.versionTimestamp).toISOString()}`
+                `[LogStatsManager] Saved daily stats to stats.json: ${dateStr}, version=${new Date(stats.versionTimestamp).toISOString()}`
             );
         } catch (err) {
-            StatusLogger.error(`[LogStatsManager] 保存日期统计失败: ${dateStr}`, err);
+            StatusLogger.error(`[LogStatsManager] Failed to save daily stats: ${dateStr}`, err);
             throw err;
         }
     }
@@ -405,11 +407,11 @@ export class LogStatsManager {
         // 获取所有需要重新生成的日期列表
         const outdatedDates = await this.getOutdatedDates();
         if (outdatedDates.length === 0) {
-            StatusLogger.debug('[LogStatsManager] 所有统计数据都是最新的，无需重新生成');
+            StatusLogger.debug('[LogStatsManager] All stats are up to date; no regeneration needed');
             return {};
         }
 
-        StatusLogger.debug(`[LogStatsManager] 发现 ${outdatedDates.length} 个日期的统计数据需要重新生成`);
+        StatusLogger.debug(`[LogStatsManager] Found ${outdatedDates.length} dates that require stats regeneration`);
 
         const results: Record<string, TokenUsageStatsFromFile> = {};
         for (const dateStr of outdatedDates) {
@@ -419,15 +421,15 @@ export class LogStatsManager {
 
                 // 记录结果
                 results[dateStr] = stats;
-                StatusLogger.debug(`[LogStatsManager] 已重新生成日期 ${dateStr} 的统计数据`);
+                StatusLogger.debug(`[LogStatsManager] Regenerated stats for date ${dateStr}`);
             } catch (err) {
-                StatusLogger.warn(`[LogStatsManager] 重新生成日期 ${dateStr} 的统计数据失败:`, err);
+                StatusLogger.warn(`[LogStatsManager] Failed to regenerate stats for date ${dateStr}:`, err);
             }
         }
 
         const elapsed = Date.now() - startTime;
         StatusLogger.debug(
-            `[LogStatsManager] 统计数据重新生成完成: ${Object.keys(results).length}/${outdatedDates.length} 个成功 (耗时: ${elapsed}ms)`
+            `[LogStatsManager] Stats regeneration finished: ${Object.keys(results).length}/${outdatedDates.length} succeeded (elapsed: ${elapsed}ms)`
         );
         return results;
     }
@@ -462,7 +464,7 @@ export class LogStatsManager {
 
             return outdatedDates;
         } catch (err) {
-            StatusLogger.error('[LogStatsManager] 获取过期日期列表失败', err);
+            StatusLogger.error('[LogStatsManager] Failed to get outdated date list', err);
             return outdatedDates;
         }
     }
@@ -491,10 +493,10 @@ export class LogStatsManager {
         try {
             const content = await fs.readFile(filePath, 'utf-8');
             const statsData: TokenUsageStatsFromFile = JSON.parse(content);
-            StatusLogger.debug(`[LogStatsManager] 已从 stats.json 读取日期统计: ${dateStr}`);
+            StatusLogger.debug(`[LogStatsManager] Read daily stats from stats.json: ${dateStr}`);
             return statsData;
         } catch (err) {
-            StatusLogger.warn(`[LogStatsManager] 读取统计失败: ${dateStr}`, err);
+            StatusLogger.warn(`[LogStatsManager] Failed to read stats: ${dateStr}`, err);
             return null;
         }
     }
@@ -529,7 +531,7 @@ export class LogStatsManager {
             // 步骤2: 如果没有 versionTimestamp（旧格式缓存），需要重新生成
             if (savedVersionTimestamp === undefined) {
                 StatusLogger.debug(
-                    `[LogStatsManager] 日期 ${dateStr} 的 stats.json 需要重新计算 (无版本时间戳，旧格式缓存)`
+                    `[LogStatsManager] stats.json for ${dateStr} requires recalculation (missing version timestamp, legacy cache)`
                 );
                 return true;
             }
@@ -537,7 +539,7 @@ export class LogStatsManager {
             // 步骤3: 如果缓存版本 < 代码版本，需要重新生成
             if (savedVersionTimestamp < codeVersionTimestamp) {
                 StatusLogger.debug(
-                    `[LogStatsManager] 日期 ${dateStr} 的 stats.json 需要重新计算 (缓存版本: ${new Date(savedVersionTimestamp).toISOString()}, 代码版本: ${new Date(codeVersionTimestamp).toISOString()})`
+                    `[LogStatsManager] stats.json for ${dateStr} requires recalculation (cache version: ${new Date(savedVersionTimestamp).toISOString()}, code version: ${new Date(codeVersionTimestamp).toISOString()})`
                 );
                 return true;
             }
@@ -567,7 +569,7 @@ export class LogStatsManager {
                 const logStats = fsSync.statSync(logFilePath);
                 if (logStats.mtimeMs > statsMtime) {
                     StatusLogger.debug(
-                        `[LogStatsManager] 日期 ${dateStr} 的 stats.json 过期 (日志文件 ${logFile} 更新)`
+                        `[LogStatsManager] stats.json for ${dateStr} is outdated (log file ${logFile} changed)`
                     );
                     return true;
                 }
@@ -576,7 +578,7 @@ export class LogStatsManager {
             // 没有更新的日志文件，缓存有效
             return false;
         } catch (err) {
-            StatusLogger.warn(`[LogStatsManager] 检查日期 ${dateStr} 是否需要更新失败:`, err);
+            StatusLogger.warn(`[LogStatsManager] Failed to check whether date ${dateStr} needs regeneration:`, err);
             return false;
         }
     }
@@ -589,7 +591,7 @@ export class LogStatsManager {
             // 同步检查避免竞态条件
             if (!fsSync.existsSync(dirPath)) {
                 await fs.mkdir(dirPath, { recursive: true });
-                StatusLogger.debug(`[LogStatsManager] 创建目录: ${dirPath}`);
+                StatusLogger.debug(`[LogStatsManager] Created directory: ${dirPath}`);
             }
         } catch (err) {
             // 忽略已存在错误

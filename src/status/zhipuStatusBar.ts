@@ -12,6 +12,7 @@ import { ProviderStatusBarItem, StatusBarItemConfig } from './providerStatusBarI
 import { StatusLogger } from '../utils/statusLogger';
 import { Logger } from '../utils/logger';
 import { ConfigManager, ApiKeyManager, VersionManager } from '../utils';
+import { t } from '../utils/l10n';
 
 /**
  * 用量限制项数据结构
@@ -73,7 +74,7 @@ export class ZhipuStatusBar extends ProviderStatusBarItem<ZhipuStatusData> {
             refreshCommand: 'gcmp.refreshZhipuUsage',
             apiKeyProvider: 'zhipu',
             cacheKeyPrefix: 'zhipu',
-            logPrefix: '智谱AI状态栏',
+            logPrefix: 'Zhipu AI Status Bar',
             icon: '$(gcmp-zhipu)'
         };
         super(config);
@@ -106,8 +107,10 @@ export class ZhipuStatusBar extends ProviderStatusBarItem<ZhipuStatusData> {
     protected generateTooltip(data: ZhipuStatusData): vscode.MarkdownString {
         const md = new vscode.MarkdownString();
         md.supportHtml = true;
-        md.appendMarkdown('#### GLM Coding Plan 使用情况\n\n');
-        md.appendMarkdown('| 限频类型 | 上限值 | 剩余量 | 重置时间 |\n');
+        md.appendMarkdown(`#### ${t('GLM Coding Plan Usage', 'GLM Coding Plan 使用情况')}\n\n`);
+        md.appendMarkdown(
+            `| ${t('Window', '限频类型')} | ${t('Quota', '上限值')} | ${t('Remaining', '剩余量')} | ${t('Reset Time', '重置时间')} |\n`
+        );
         md.appendMarkdown('| :---: | ---: | ---: | :---: |\n');
 
         // 遍历所有限制，按顺序显示
@@ -118,11 +121,11 @@ export class ZhipuStatusBar extends ProviderStatusBarItem<ZhipuStatusData> {
 
             if (limit.type === 'TIME_LIMIT') {
                 // MCP 额度：直接显示数值
-                typeLabel = 'MCP每月';
+                typeLabel = t('MCP Monthly', 'MCP每月');
                 usage = limit.usage !== undefined ? String(limit.usage) : '-';
                 remaining = limit.remaining !== undefined ? String(limit.remaining) : '-';
             } else {
-                typeLabel = this.getWindowLabel(limit, '限额');
+                typeLabel = this.getWindowLabel(limit, t('Quota', '限额'));
                 // TOKENS_LIMIT：官方已不再输出具体 usage 和 remaining，仅显示百分比
                 usage = '-';
                 remaining = `${100 - (limit.percentage ?? 0)}%`;
@@ -135,7 +138,7 @@ export class ZhipuStatusBar extends ProviderStatusBarItem<ZhipuStatusData> {
 
         md.appendMarkdown('\n');
         md.appendMarkdown('---\n');
-        md.appendMarkdown('点击状态栏可手动刷新\n');
+        md.appendMarkdown(`${t('Click the status bar to refresh manually', '点击状态栏可手动刷新')}\n`);
         return md;
     }
 
@@ -153,7 +156,10 @@ export class ZhipuStatusBar extends ProviderStatusBarItem<ZhipuStatusData> {
             if (!hasApiKey) {
                 return {
                     success: false,
-                    error: '智谱AI API密钥未配置，请先设置 API 密钥'
+                    error: t(
+                        'Zhipu AI API key is not configured. Set the API key first.',
+                        '智谱AI API密钥未配置，请先设置 API 密钥'
+                    )
                 };
             }
 
@@ -162,12 +168,12 @@ export class ZhipuStatusBar extends ProviderStatusBarItem<ZhipuStatusData> {
             if (!apiKey) {
                 return {
                     success: false,
-                    error: '无法获取智谱AI API密钥'
+                    error: t('Unable to get the Zhipu AI API key.', '无法获取智谱AI API密钥')
                 };
             }
 
-            Logger.debug('触发查询智谱AI用量');
-            StatusLogger.debug(`[${this.config.logPrefix}] 开始查询智谱AI用量...`);
+            Logger.debug('Triggering ZhipuAI usage query');
+            StatusLogger.debug(`[${this.config.logPrefix}] Starting Zhipu AI usage query...`);
 
             // 获取当前的接入点
             const endpoint = ConfigManager.getZhipuEndpoint();
@@ -193,7 +199,7 @@ export class ZhipuStatusBar extends ProviderStatusBarItem<ZhipuStatusData> {
             const responseText = await response.text();
 
             StatusLogger.debug(
-                `[${this.config.logPrefix}] 用量查询响应状态: ${response.status} ${response.statusText}`
+                `[${this.config.logPrefix}] Usage query response status: ${response.status} ${response.statusText}`
             );
 
             // 解析响应
@@ -223,10 +229,10 @@ export class ZhipuStatusBar extends ProviderStatusBarItem<ZhipuStatusData> {
             try {
                 parsedResponse = JSON.parse(responseText);
             } catch (parseError) {
-                Logger.error(`解析响应 JSON 失败: ${parseError}`);
+                Logger.error(`Failed to parse response JSON: ${parseError}`);
                 return {
                     success: false,
-                    error: `响应格式错误: ${responseText.substring(0, 200)}`
+                    error: t('Invalid response format: {0}', '响应格式错误: {0}', responseText.substring(0, 200))
                 };
             }
 
@@ -236,21 +242,21 @@ export class ZhipuStatusBar extends ProviderStatusBarItem<ZhipuStatusData> {
                 if (parsedResponse.msg) {
                     errorMessage = parsedResponse.msg;
                 }
-                Logger.error(`用量查询失败: ${errorMessage}`);
+                Logger.error(`Usage query failed: ${errorMessage}`);
                 return {
                     success: false,
-                    error: `查询失败: ${errorMessage}`
+                    error: t('Query failed: {0}', '查询失败: {0}', errorMessage)
                 };
             }
 
             // 解析成功响应
-            StatusLogger.debug(`[${this.config.logPrefix}] 用量查询成功`);
+            StatusLogger.debug(`[${this.config.logPrefix}] Usage query succeeded`);
 
             const limits = parsedResponse.data.limits;
             if (!limits || limits.length === 0) {
                 return {
                     success: false,
-                    error: '未获取到用量限制数据'
+                    error: t('No usage limit data was returned.', '未获取到用量限制数据')
                 };
             }
 
@@ -266,11 +272,11 @@ export class ZhipuStatusBar extends ProviderStatusBarItem<ZhipuStatusData> {
                 }
             };
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : '未知错误';
-            Logger.error(`用量查询异常: ${errorMessage}`);
+            const errorMessage = error instanceof Error ? error.message : t('Unknown error', '未知错误');
+            Logger.error(`Usage query exception: ${errorMessage}`);
             return {
                 success: false,
-                error: `查询异常: ${errorMessage}`
+                error: t('Query error: {0}', '查询异常: {0}', errorMessage)
             };
         }
     }
@@ -347,9 +353,9 @@ export class ZhipuStatusBar extends ProviderStatusBarItem<ZhipuStatusData> {
      */
     private getWindowLabel(limit: UsageLimitItem, defaultLabel: string): string {
         if (limit.unit === 3) {
-            return '每 5 小时';
+            return t('Every 5 Hours', '每 5 小时');
         } else if (limit.unit === 6) {
-            return '每周限额';
+            return t('Weekly quota', '每周限额');
         }
         return defaultLabel;
     }

@@ -66,10 +66,10 @@ export class LogIndexManager {
             });
 
             StatusLogger.debug(
-                `[LogIndexManager] 已更新缓存时间戳: version=${new Date(versionTimestamp).toISOString()}, cache=${new Date(cacheTimestamp).toISOString()}`
+                `[LogIndexManager] Updated cache timestamps: version=${new Date(versionTimestamp).toISOString()}, cache=${new Date(cacheTimestamp).toISOString()}`
             );
         } catch (err) {
-            StatusLogger.warn('[LogIndexManager] 设置缓存时间戳失败', err);
+            StatusLogger.warn('[LogIndexManager] Failed to set cache timestamps', err);
             throw err;
         }
     }
@@ -91,10 +91,10 @@ export class LogIndexManager {
         try {
             const content = await fs.readFile(indexPath, 'utf-8');
             const index: DateIndex = JSON.parse(content);
-            StatusLogger.debug(`[LogIndexManager] 已读取日期索引，共 ${Object.keys(index.dates).length} 个日期`);
+            StatusLogger.debug(`[LogIndexManager] Read date index with ${Object.keys(index.dates).length} dates`);
             return index;
         } catch (err) {
-            StatusLogger.warn('[LogIndexManager] 读取日期索引失败', err);
+            StatusLogger.warn('[LogIndexManager] Failed to read date index', err);
             return null;
         }
     }
@@ -106,9 +106,9 @@ export class LogIndexManager {
 
             // 写入索引文件
             await AtomicJsonFile.writeJsonAtomically(indexPath, index);
-            StatusLogger.debug(`[LogIndexManager] 已保存日期索引，共 ${Object.keys(index.dates).length} 个日期`);
+            StatusLogger.debug(`[LogIndexManager] Saved date index with ${Object.keys(index.dates).length} dates`);
         } catch (err) {
-            StatusLogger.warn('[LogIndexManager] 保存日期索引失败', err);
+            StatusLogger.warn('[LogIndexManager] Failed to save date index', err);
             throw err;
         }
     }
@@ -148,7 +148,7 @@ export class LogIndexManager {
                 await this.saveIndexUnlocked(indexPath, index);
             });
         } catch (err) {
-            StatusLogger.warn(`[LogIndexManager] 更新日期索引失败: ${dateStr}`, err);
+            StatusLogger.warn(`[LogIndexManager] Failed to update date index: ${dateStr}`, err);
             // 不抛出错误，索引更新失败不影响主流程
         }
     }
@@ -172,10 +172,10 @@ export class LogIndexManager {
 
                 delete index.dates[dateStr];
                 await this.saveIndexUnlocked(indexPath, index);
-                StatusLogger.debug(`[LogIndexManager] 已从索引中删除日期: ${dateStr}`);
+                StatusLogger.debug(`[LogIndexManager] Removed date from index: ${dateStr}`);
             });
         } catch (err) {
-            StatusLogger.warn(`[LogIndexManager] 从索引中删除日期失败: ${dateStr}`, err);
+            StatusLogger.warn(`[LogIndexManager] Failed to remove date from index: ${dateStr}`, err);
             // 不抛出错误，索引更新失败不影响主流程
         }
     }
@@ -213,10 +213,10 @@ export class LogIndexManager {
 
                     if (!this.isSameDateIndexEntry(indexedEntry, actualEntry)) {
                         hasChanges = true;
-                        StatusLogger.debug(`[LogIndexManager] 日期摘要已对账修复: ${dateStr}`);
+                        StatusLogger.debug(`[LogIndexManager] Reconciled date summary: ${dateStr}`);
                     }
                 } catch (err) {
-                    StatusLogger.warn(`[LogIndexManager] 获取日期摘要失败: ${dateStr}`, err);
+                    StatusLogger.warn(`[LogIndexManager] Failed to get date summary: ${dateStr}`, err);
                 }
             }
 
@@ -231,7 +231,7 @@ export class LogIndexManager {
                     const dateFolder = path.join(this.baseDir, dateStr);
                     if (!fsSync.existsSync(dateFolder)) {
                         hasChanges = true;
-                        StatusLogger.debug(`[LogIndexManager] 索引中的日期文件夹不存在，已移除: ${dateStr}`);
+                        StatusLogger.debug(`[LogIndexManager] Removed missing date folder from index: ${dateStr}`);
                         continue;
                     }
 
@@ -239,7 +239,9 @@ export class LogIndexManager {
                     const statsFile = path.join(dateFolder, 'stats.json');
                     if (!fsSync.existsSync(statsFile)) {
                         hasChanges = true;
-                        StatusLogger.debug(`[LogIndexManager] 索引中日期的 stats.json 缺失，已移除: ${dateStr}`);
+                        StatusLogger.debug(
+                            `[LogIndexManager] Removed date with missing stats.json from index: ${dateStr}`
+                        );
                     }
                 }
             }
@@ -289,7 +291,7 @@ export class LogIndexManager {
 
             return dates.sort().reverse(); // 倒序(最新的在前)
         } catch (err) {
-            StatusLogger.error('[LogIndexManager] 获取统计日期列表失败', err);
+            StatusLogger.error('[LogIndexManager] Failed to get stats date list', err);
             return [];
         }
     }
@@ -307,7 +309,7 @@ export class LogIndexManager {
             const content = await fs.readFile(statsPath, 'utf-8');
             return JSON.parse(content) as TokenUsageStatsFromFile;
         } catch (err) {
-            StatusLogger.warn(`[LogIndexManager] 读取日期统计失败: ${dateStr}`, err);
+            StatusLogger.warn(`[LogIndexManager] Failed to read date stats: ${dateStr}`, err);
             return null;
         }
     }
@@ -320,7 +322,7 @@ export class LogIndexManager {
             // 同步检查避免竞态条件
             if (!fsSync.existsSync(dirPath)) {
                 await fs.mkdir(dirPath, { recursive: true });
-                StatusLogger.debug(`[LogIndexManager] 创建目录: ${dirPath}`);
+                StatusLogger.debug(`[LogIndexManager] Created directory: ${dirPath}`);
             }
         } catch (err) {
             // 忽略已存在错误

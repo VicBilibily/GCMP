@@ -30,14 +30,14 @@ export class OpenrouterBalanceQuery implements IBalanceQuery {
      * @returns 余额查询结果
      */
     async queryBalance(providerId: string): Promise<BalanceQueryResult> {
-        StatusLogger.debug(`[OpenrouterBalanceQuery] 查询提供商 ${providerId} 的余额`);
+        StatusLogger.debug(`[OpenrouterBalanceQuery] Querying balance for provider ${providerId}`);
 
         try {
             // 获取API密钥
             const apiKey = await ApiKeyManager.getApiKey(providerId);
 
             if (!apiKey) {
-                throw new Error(`未找到提供商 ${providerId} 的API密钥`);
+                throw new Error(`No API key found for provider ${providerId}`);
             }
 
             // 调用OpenRouter余额查询API
@@ -50,7 +50,7 @@ export class OpenrouterBalanceQuery implements IBalanceQuery {
             });
 
             if (!response.ok) {
-                throw new Error(`API请求失败: ${response.status} ${response.statusText}`);
+                throw new Error(`API request failed: ${response.status} ${response.statusText}`);
             }
 
             const result = (await response.json()) as OpenRouterBalanceResponse;
@@ -60,15 +60,17 @@ export class OpenrouterBalanceQuery implements IBalanceQuery {
             const totalUsage = result.data.total_usage || 0; // 总使用积分
             const balance = totalCredits - totalUsage; // 可用余额
 
-            StatusLogger.debug('[OpenrouterBalanceQuery] 余额查询成功');
+            StatusLogger.debug('[OpenrouterBalanceQuery] Balance query succeeded');
 
             return {
                 balance,
                 currency: 'USD' // OpenRouter使用美元
             };
         } catch (error) {
-            Logger.error('[OpenrouterBalanceQuery] 查询余额失败', error);
-            throw new Error(`OpenRouter 余额查询失败: ${error instanceof Error ? error.message : '未知错误'}`);
+            Logger.error('[OpenrouterBalanceQuery] Failed to query balance', error);
+            throw new Error(
+                `OpenRouter balance query failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 }

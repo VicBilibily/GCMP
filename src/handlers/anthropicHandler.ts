@@ -12,6 +12,7 @@ import { Logger } from '../utils/logger';
 import { ConfigManager } from '../utils/configManager';
 import { VersionManager } from '../utils/versionManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
+import { t } from '../utils/l10n';
 import type { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { getStatefulMarkerAndIndex } from './statefulMarker';
@@ -110,7 +111,7 @@ export class AnthropicHandler {
         const providerKey = modelConfig?.provider || this.provider;
         const currentApiKey = await ApiKeyManager.getApiKey(providerKey);
         if (!currentApiKey) {
-            throw new Error(`缺少 ${this.displayName} API密钥`);
+            throw new Error(t('Missing {0} API key', '缺少 {0} API 密钥', this.displayName));
         }
 
         // 使用模型配置的 baseUrl 或提供商默认的 baseURL
@@ -136,7 +137,7 @@ export class AnthropicHandler {
                 baseUrl = baseUrl.replace('token-plan-cn', `token-plan-${endpoint}`);
             }
         }
-        Logger.debug(`[${this.displayName}] 创建新的 Anthropic 客户端 (baseUrl: ${baseUrl})`);
+        Logger.debug(`[${this.displayName}] Creating new Anthropic client (baseUrl: ${baseUrl})`);
 
         // 构建默认头部，包含提供商级别和模型级别的 customHeader
         const defaultHeaders: Record<string, string> = {
@@ -157,7 +158,7 @@ export class AnthropicHandler {
         const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, currentApiKey);
         if (Object.keys(processedCustomHeader).length > 0) {
             Object.assign(defaultHeaders, processedCustomHeader);
-            Logger.debug(`${this.displayName} 应用自定义头部: ${JSON.stringify(mergedCustomHeader)}`);
+            Logger.debug(`${this.displayName} applying custom headers: ${JSON.stringify(mergedCustomHeader)}`);
         }
 
         const client = new Anthropic({
@@ -167,7 +168,7 @@ export class AnthropicHandler {
             defaultHeaders: defaultHeaders
         });
 
-        Logger.trace(`${this.displayName} Anthropic 兼容客户端已创建`);
+        Logger.trace(`${this.displayName} Anthropic-compatible client created`);
         return client;
     }
 
@@ -220,7 +221,7 @@ export class AnthropicHandler {
                 if (realToolCount === 0 && historicalTools.length > 0) {
                     createParams.tool_choice = { type: 'none' };
                     Logger.info(
-                        `[${model.name}] 仅存在历史工具调用，设置 tool_choice=none 以避免 synthetic tool 再次触发`
+                        `[${model.name}] Only historical tool calls exist; set tool_choice=none to avoid retriggering synthetic tools`
                     );
                 }
             }
@@ -237,7 +238,7 @@ export class AnthropicHandler {
                 const filteredExtraBody = OpenAIHandler.filterExtraBodyParams(modelConfig.extraBody);
                 Object.assign(createParams, filteredExtraBody);
                 if (Object.keys(filteredExtraBody).length > 0) {
-                    Logger.trace(`${model.name} 合并了 extraBody 参数: ${JSON.stringify(filteredExtraBody)}`);
+                    Logger.trace(`${model.name} merged extraBody parameters: ${JSON.stringify(filteredExtraBody)}`);
                 }
             }
 
@@ -280,7 +281,7 @@ export class AnthropicHandler {
             }
 
             Logger.debug(
-                `[${model.name}] 发送 Anthropic API 请求，包含 ${anthropicMessages.length} 条消息，使用模型: ${modelId}`
+                `[${model.name}] Sending Anthropic API request with ${anthropicMessages.length} messages, model: ${modelId}`
             );
 
             // const cacheCount = (JSON.stringify(createParams).match(/"cache_control"\s*:/g) || []).length;
@@ -309,7 +310,7 @@ export class AnthropicHandler {
             const result = await this.handleAnthropicStream(stream, reporter, token);
             reporter.reportUsage(result?.usage);
 
-            Logger.info(`[${model.name}] Anthropic 请求完成`, result?.usage);
+            Logger.info(`[${model.name}] Anthropic request completed`, result?.usage);
 
             // === Token 统计: 更新实际 token ===
             if (requestId) {
@@ -324,7 +325,7 @@ export class AnthropicHandler {
                         streamEndTime: result?.streamEndTime
                     });
                 } catch (err) {
-                    Logger.warn('更新Token统计失败:', err);
+                    Logger.warn('Failed to update token stats:', err);
                 }
             }
         } catch (error) {
@@ -333,7 +334,7 @@ export class AnthropicHandler {
                 error instanceof Anthropic.APIUserAbortError ||
                 (error instanceof Error && error.name === 'AbortError')
             ) {
-                Logger.info(`[${model.name}] 用户取消了请求`);
+                Logger.info(`[${model.name}] Request was cancelled by the user`);
                 throw new vscode.CancellationError();
             }
 
@@ -384,12 +385,12 @@ export class AnthropicHandler {
         let streamStartTime = Date.now();
         let streamEndTime: number | undefined = undefined;
 
-        Logger.debug('开始处理 Anthropic 流式响应');
+        Logger.debug('Starting Anthropic stream response processing');
 
         try {
             for await (const chunk of stream) {
                 if (token.isCancellationRequested) {
-                    Logger.debug('流处理被取消');
+                    Logger.debug('Stream processing cancelled');
                     reporter.flushAll(null);
                     break;
                 }
@@ -406,7 +407,7 @@ export class AnthropicHandler {
                         if (!responseId && chunk.message.id) {
                             responseId = chunk.message.id;
                             reporter.setResponseId(responseId);
-                            Logger.debug(`收到 Anthropic message id (responseId): ${responseId}`);
+                            Logger.debug(`Received Anthropic message id (responseId): ${responseId}`);
                         }
                         break;
 
@@ -428,7 +429,7 @@ export class AnthropicHandler {
                             const serverToolCall =
                                 completedServerToolCalls.get(chunk.content_block.tool_use_id) ?? pendingServerToolCall;
                             if (!serverToolCall?.toolId) {
-                                Logger.warn('收到 web_search_tool_result 但没有对应的 server_tool_use');
+                                Logger.warn('Received web_search_tool_result but no corresponding server_tool_use');
                                 break;
                             }
 
@@ -438,7 +439,7 @@ export class AnthropicHandler {
                             // );
                             if (!Array.isArray(chunk.content_block.content)) {
                                 Logger.warn(
-                                    `[${reporter.getModelName()}] web_search_tool_result 返回错误: ${chunk.content_block.content.error_code}`
+                                    `[${reporter.getModelName()}] web_search_tool_result returned error: ${chunk.content_block.content.error_code}`
                                 );
                                 completedServerToolCalls.delete(chunk.content_block.tool_use_id);
                                 if (pendingServerToolCall?.toolId === chunk.content_block.tool_use_id) {
@@ -469,7 +470,9 @@ export class AnthropicHandler {
                                 const parsedJson = JSON.parse(pendingToolCall.jsonInput);
                                 // JSON 解析成功，立即报告工具调用
                                 reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson);
-                                Logger.trace(`[${reporter.getModelName()}] 工具调用完成: ${pendingToolCall.name}`);
+                                Logger.trace(
+                                    `[${reporter.getModelName()}] Tool call completed: ${pendingToolCall.name}`
+                                );
                                 pendingToolCall = undefined; // 清除待处理的工具调用
                             } catch {
                                 // JSON 还不完整，继续累积
@@ -507,7 +510,7 @@ export class AnthropicHandler {
                             try {
                                 const jsonInput = pendingToolCall.jsonInput || '{}';
                                 Logger.trace(
-                                    `[${reporter.getModelName()}] content_block_stop 兜底处理工具调用 (${pendingToolCall.name}): ${jsonInput}`
+                                    `[${reporter.getModelName()}] Fallback tool call handling on content_block_stop (${pendingToolCall.name}): ${jsonInput}`
                                 );
 
                                 let parsedJson: Record<string, unknown>;
@@ -515,19 +518,19 @@ export class AnthropicHandler {
                                     parsedJson = JSON.parse(jsonInput);
                                 } catch {
                                     // JSON 解析失败，使用空对象
-                                    Logger.warn(`工具调用 JSON 不完整，使用空对象: ${jsonInput}`);
+                                    Logger.warn(`Tool call JSON is incomplete, using an empty object: ${jsonInput}`);
                                     parsedJson = {};
                                 }
 
                                 reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson);
                             } catch (e) {
-                                Logger.error(`兜底处理工具调用失败 (${pendingToolCall.name}):`, e);
+                                Logger.error(`Fallback tool call handling failed (${pendingToolCall.name}):`, e);
                             }
                             pendingToolCall = undefined;
                         } else if (pendingServerToolCall) {
                             const jsonInput = pendingServerToolCall.jsonInput || '{}';
                             Logger.trace(
-                                `[${reporter.getModelName()}] server_tool_use 完成 (${pendingServerToolCall.name || 'web_search'}): ${jsonInput}`
+                                `[${reporter.getModelName()}] server_tool_use completed (${pendingServerToolCall.name || 'web_search'}): ${jsonInput}`
                             );
                             if (pendingServerToolCall.toolId) {
                                 completedServerToolCalls.set(pendingServerToolCall.toolId, pendingServerToolCall);
@@ -535,7 +538,7 @@ export class AnthropicHandler {
                             pendingServerToolCall = undefined;
                         } else {
                             // 思考块结束时输出剩余思考内容和签名
-                            reporter.flushThinking('思考块完成');
+                            reporter.flushThinking('Thinking block completed');
                             reporter.flushSignature();
                         }
                         break;
@@ -568,19 +571,19 @@ export class AnthropicHandler {
                             // 消息停止 - 传递 StatefulMarker
                             reporter.flushAll(null, { sessionId: reporter.getSessionId(), responseId });
                         }
-                        Logger.trace('消息流完成');
+                        Logger.trace('Message stream completed');
                         break;
                     }
 
                     default:
                         // 未知事件类型 - 根据官方建议优雅处理
                         // 可能包括 ping 事件或未来的新事件类型
-                        Logger.trace('收到其他事件类型');
+                        Logger.trace('Received other event type');
                         break;
                 }
             }
         } catch (error) {
-            Logger.error('处理 Anthropic 流时出错:', error);
+            Logger.error('Error processing Anthropic stream:', error);
             throw error;
         }
 
@@ -591,7 +594,7 @@ export class AnthropicHandler {
             const duration = streamEndTime - streamStartTime;
             const speed = duration > 0 ? ((usage.output_tokens / duration) * 1000).toFixed(1) : 'N/A';
             Logger.debug(
-                `流处理完成 - 最终使用统计: 输入=${usage.input_tokens}, 输出=${usage.output_tokens}, 耗时=${duration}ms, 速度=${speed} tokens/s`
+                `Stream processing completed - final usage stats: input=${usage.input_tokens}, output=${usage.output_tokens}, duration=${duration}ms, speed=${speed} tokens/s`
             );
         }
         return { usage, responseId, streamStartTime, streamEndTime };

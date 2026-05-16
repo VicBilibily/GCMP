@@ -83,14 +83,14 @@ export class Fetcher implements IFetcher {
         if (url.endsWith('/chat/completions')) {
             modelConfig = ConfigManager.getNESConfig().modelConfig;
             if (!modelConfig || !modelConfig.baseUrl) {
-                logger.error('[Fetcher] NES 模型配置缺失');
+                logger.error('[Fetcher] NES model configuration missing');
                 throw new Error('NES model configuration is missing');
             }
             url = `${modelConfig.baseUrl}/chat/completions`;
         } else if (url.endsWith('/completions')) {
             modelConfig = ConfigManager.getFIMConfig().modelConfig;
             if (!modelConfig || !modelConfig.baseUrl) {
-                logger.error('[Fetcher] FIM 模型配置缺失');
+                logger.error('[Fetcher] FIM model configuration missing');
                 throw new Error('FIM model configuration is missing');
             }
             isFimRequest = true;
@@ -112,7 +112,7 @@ export class Fetcher implements IFetcher {
         try {
             const apiKey = await keyManager.getApiKey(provider);
             if (!apiKey) {
-                logger.error(`[Fetcher] ${provider} API key 未配置`);
+                logger.error(`[Fetcher] ${provider} API key is not configured`);
                 throw new Error('API key not configured');
             }
 
@@ -142,7 +142,7 @@ export class Fetcher implements IFetcher {
             //     if (systemMessage) {
             //         systemMessage.content = (systemMessage.content || '') + promptAddition;
             //     }
-            //     CompletionLogger.trace('[Fetcher] 已注入 Prompt 指令以禁止 Markdown');
+            //     CompletionLogger.trace('[Fetcher] Injected Prompt directive to disable Markdown');
             // }
 
             const fetchOptions: RequestInit = {
@@ -156,9 +156,9 @@ export class Fetcher implements IFetcher {
                 signal: options.signal as AbortSignal | undefined
             };
 
-            logger.info(`[Fetcher] 发送请求: ${url}`);
+            logger.info(`[Fetcher] Sending request: ${url}`);
             const response = await fetch(url, fetchOptions);
-            logger.debug(`[Fetcher] 收到响应 - 状态码: ${response.status} ${response.statusText}`);
+            logger.debug(`[Fetcher] Received response - status: ${response.status} ${response.statusText}`);
 
             // 从 fetch response 获取 Web ReadableStream
             if (!response.body) {
@@ -262,7 +262,7 @@ export class Fetcher implements IFetcher {
         } catch (error) {
             // 如果是请求中止，不记录错误日志
             if (!this.isAbortError(error)) {
-                logger.error('[Fetcher] 异常:', error);
+                logger.error('[Fetcher] Error:', error);
             }
             throw error;
         } finally {
