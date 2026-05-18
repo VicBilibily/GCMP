@@ -78,10 +78,10 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 
 - [**Coding Plan**](https://www.volcengine.com/activity/codingplan):
     - Doubao models: **Doubao-Seed-2.0-Code**, **Doubao-Seed-Code**, **Doubao-Seed-2.0-lite**, **Doubao-Seed-2.0-pro**
-    - Open-source models: **GLM-5.1**, **Kimi-K2.6**, **MiniMax-M2.7**, **MiniMax-M2.5**, **Kimi-K2.5**, **GLM-4.7**, **DeepSeek-V3.2**
+    - Open-source models: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **GLM-5.1**, **Kimi-K2.6**, **MiniMax-M2.7**, **MiniMax-M2.5**, **Kimi-K2.5**, **GLM-4.7**, **DeepSeek-V3.2**
 - [**Agent Plan**](https://www.volcengine.com/activity/agentplan):
     - Doubao models: **Doubao-Seed-2.0** (Code/pro/lite/mini)
-    - Open-source models: **DeepSeek-V4-Flash-Beta**, **DeepSeek-V4-Pro-Beta**, **GLM-5.1**, **MiniMax-M2.7**, **Kimi-K2.6**, **DeepSeek-V3.2**
+    - Open-source models: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **GLM-5.1**, **MiniMax-M2.7**, **Kimi-K2.6**, **DeepSeek-V3.2**
 - **Doubao series**: **Doubao-Seed-2.0** (lite/mini/pro/Code), **Doubao-Seed-1.8**
 - **Collaboration rewards**: **GLM-4.7**, **DeepSeek-V3.2**
 - **Key configuration**: Supports separate [Coding Plan API Key](https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey) and [Agent Plan API Key](https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=agentPlan). Setup wizard guides you through plan type selection.

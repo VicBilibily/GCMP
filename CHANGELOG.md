@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.16] - 2026-05-18
+
+### 新增
+
+- **火山方舟 Coding Plan**：新增 **DeepSeek-V4-Flash**、**DeepSeek-V4-Pro** 模型
+
+### 更新
+
+- **火山方舟 Agent Plan**：将 **DeepSeek-V4-Flash-Beta** 与 **DeepSeek-V4-Pro-Beta** 更新为正式版 **DeepSeek-V4-Flash** 与 **DeepSeek-V4-Pro**
+
+---
+
+### Added
+
+- **Volcengine Coding Plan**: Added **DeepSeek-V4-Flash** and **DeepSeek-V4-Pro** models
+
+### Updated
+
+- **Volcengine Agent Plan**: Updated **DeepSeek-V4-Flash-Beta** and **DeepSeek-V4-Pro-Beta** to official releases **DeepSeek-V4-Flash** and **DeepSeek-V4-Pro**
+
 ## [0.22.15] - 2026-05-16
 
 ### 新增
