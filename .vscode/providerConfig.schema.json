@@ -165,6 +165,16 @@
                     },
                     "description": "调节思维链长度，平衡不同场景对效果、时延、成本的需求"
                 },
+                "contextSize": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "单个可选上下文窗口大小（token）"
+                    },
+                    "uniqueItems": true,
+                    "description": "上下文窗口调节选项列表，按顺序决定模型 picker 的可选值和默认值，只需要填写数字数组"
+                },
                 "customHeader": {
                     "type": "object",
                     "description": "可选的自定义HTTP头部，将在API请求中附加。",

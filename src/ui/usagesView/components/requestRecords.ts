@@ -173,7 +173,7 @@ function createRequestRecordsTable(records: ExtendedTokenRequestLog[]): HTMLElem
             if (record.timestamp) {
                 try {
                     const date = new Date(record.timestamp);
-                    time.textContent = date.toLocaleTimeString();
+                    time.textContent = date.toLocaleTimeString('zh-CN');
                 } catch {
                     time.textContent = '-';
                 }

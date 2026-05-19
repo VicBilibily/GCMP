@@ -20,6 +20,8 @@ export { TencentWizard } from './tencentWizard';
 export { XiaomimimoWizard } from './xiaomimimoWizard';
 export { BaiduWizard } from './baiduWizard';
 export { JsonSchemaProvider } from './jsonSchemaProvider';
+export { createLanguageModelChatInformation, getContextSizeOptions } from './languageModelInfo';
+export type { ContextSizeOption } from './languageModelInfo';
 export { RetryManager } from './retryManager';
 export type { RetryableError } from './retryManager';
 export { ModelInfoCache } from './modelInfoCache';

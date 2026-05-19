@@ -23,6 +23,11 @@ export interface ModelChatResponseOptions {
      * - max: 绝对最高能力，对 token 消耗没有限制
      */
     readonly reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+    /**
+     * 上下文窗口大小
+     * 用于在模型支持的多个上下文窗口档位之间切换。
+     */
+    readonly contextSize?: number;
 }
 
 /**
@@ -102,6 +107,11 @@ export interface ModelConfig {
      */
     reasoningEffort?: Required<ModelChatResponseOptions>['reasoningEffort'][];
     /**
+     * 上下文窗口调节选项列表（可选）
+     * 用于 UI 配置选择，按顺序决定可选的上下文窗口大小及默认值。
+     */
+    contextSize?: Required<ModelChatResponseOptions>['contextSize'][];
+    /**
      * 模型特定的自定义HTTP头部（可选）
      * 如果提供，将在API请求中附加这些自定义头部
      */
@@ -162,6 +172,8 @@ export interface ModelOverride {
     thinkingFormat?: ModelConfig['thinkingFormat'];
     /** 思维链长度调节选项列表（可选） */
     reasoningEffort?: ModelConfig['reasoningEffort'];
+    /** 上下文窗口调节选项列表（可选） */
+    contextSize?: ModelConfig['contextSize'];
     /**
      * 模型特定的自定义HTTP头部（可选）
      * 如果提供，将在API请求中附加这些自定义头部

@@ -573,6 +573,22 @@ export class JsonSchemaProvider {
                                 },
                                 description: this.getReasoningEffortDescription()
                             },
+                            contextSize: {
+                                type: 'array',
+                                items: {
+                                    type: 'integer',
+                                    minimum: 1,
+                                    description: t(
+                                        'Optional context window size (in tokens)',
+                                        '单个可选上下文窗口大小（token）'
+                                    )
+                                },
+                                uniqueItems: true,
+                                description: t(
+                                    'List of context window size options, determining the selectable values and default in the model picker in order. Commonly used for 200K / 400K / full window switching.',
+                                    '上下文窗口调节选项列表，按顺序决定模型 picker 的可选值和默认值，常用于 200K / 400K / 满窗口切换'
+                                )
+                            },
                             capabilities: {
                                 type: 'object',
                                 properties: {
@@ -1057,6 +1073,22 @@ export class JsonSchemaProvider {
                                 },
                                 description: this.getReasoningEffortDescription()
                             },
+                            contextSize: {
+                                type: 'array',
+                                items: {
+                                    type: 'integer',
+                                    minimum: 1,
+                                    description: t(
+                                        'Optional context window size (in tokens)',
+                                        '单个可选上下文窗口大小（token）'
+                                    )
+                                },
+                                uniqueItems: true,
+                                description: t(
+                                    'List of context window size options, determining the selectable values and default in the model picker in order. Commonly used for 200K / 400K / full window switching.',
+                                    '上下文窗口调节选项列表，按顺序决定模型 picker 的可选值和默认值，常用于 200K / 400K / 满窗口切换'
+                                )
+                            },
                             includeThinking: {
                                 type: 'boolean',
                                 description: this.getIncludeThinkingDescription(),
@@ -1248,7 +1280,7 @@ export class JsonSchemaProvider {
             .filter(Boolean);
         if (!commitProviderIds.includes('compatible')) {
             commitProviderIds.push('compatible');
-            commitProviderDescriptions.push('OpenAI / Anthropic Compatible');
+            commitProviderDescriptions.push(t('OpenAI / Anthropic Compatible', 'OpenAI / Anthropic 兼容'));
         }
         providerModelIdsMap['compatible'] = compatibleModelIds;
 

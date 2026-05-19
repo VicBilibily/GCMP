@@ -112,6 +112,11 @@ export interface CompatibleModelConfig {
      * - max: 绝对最高能力，对 token 消耗没有限制
      */
     reasoningEffort?: ('none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max')[];
+    /**
+     * 上下文窗口调节选项列表（可选）
+     * 用于 UI 配置选择，按顺序决定可选的上下文窗口大小及默认值。
+     */
+    contextSize?: number[];
     /** 是否由向导创建（内部标记，不持久化） */
     _isFromWizard?: boolean;
 }

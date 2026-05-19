@@ -17,6 +17,7 @@ import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import {
     ApiKeyManager,
     ConfigManager,
+    createLanguageModelChatInformation,
     filterAbortedAssistantMessages,
     Logger,
     ModelInfoCache,
@@ -24,6 +25,7 @@ import {
     RetryManager,
     TokenCounter
 } from '../utils';
+import { getEffectiveMaxInputTokens } from '../utils/languageModelInfo';
 import type { RetryableError } from '../utils';
 import { OpenAIHandler } from '../handlers/openaiHandler';
 import { OpenAICustomHandler } from '../handlers/openaiCustomHandler';
@@ -32,8 +34,11 @@ import { GeminiHandler } from '../handlers/geminiHandler';
 import { ContextUsageStatusBar } from '../status/contextUsageStatusBar';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { OpenAIResponsesHandler } from '../handlers/openaiResponsesHandler';
-import { JSONSchema7 } from 'json-schema';
-import { t } from '../utils/l10n';
+
+interface ContextUsageSummary {
+    totalInputTokens: number;
+    maxInputTokens: number;
+}
 
 /**
  * 通用模型提供商类
@@ -153,106 +158,11 @@ export class GenericModelProvider implements LanguageModelChatProvider {
      * 将ModelConfig转换为LanguageModelChatInformation
      */
     protected modelConfigToInfo(model: ModelConfig): LanguageModelChatInformation {
-        // 确定 family：优先使用模型配置的 family 字段，否则根据 sdkMode 自动推断
-        const family = this.resolveFamily(model);
-        const modelId = `gcmp.${model.provider || this.providerKey}:::${model.id}`;
-
-        // 动态构建 configurationSchema
-        type PropertySchema = JSONSchema7 & NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string];
-        const properties: Record<string, PropertySchema> = {};
-        // 根据模型配置添加 thinking 选项
-        if (model.thinking && model.thinking.length > 0) {
-            const schema: PropertySchema = {
-                type: 'string',
-                title: t('Thinking Mode', '思考模式'),
-                enum: model.thinking,
-                enumItemLabels: model.thinking.map(
-                    t => ({ disabled: 'Non-Thinking', enabled: 'Thinking', auto: 'Auto', adaptive: 'Adaptive' })[t] || t
-                ),
-                enumDescriptions: model.thinking.map(
-                    thinkingMode =>
-                        ({
-                            disabled: t('Disable extended reasoning.', '关闭思考模式。'),
-                            enabled: t('Always enable extended reasoning.', '始终开启思考模式。'),
-                            auto: t('Let the model decide automatically.', '由模型自行判断。'),
-                            adaptive: t('Adapt reasoning depth to the current context.', '根据当前上下文自适应调整。')
-                        })[thinkingMode] || thinkingMode
-                ),
-                default: model.thinking[0],
-                group: 'navigation'
-            };
-            if (model.thinking?.includes('auto')) {
-                schema.default = 'auto';
-            } else if (model.thinking?.includes('adaptive')) {
-                schema.default = 'adaptive';
-            }
-            properties.thinking = schema;
-        }
-        // 根据模型配置添加 reasoningEffort 选项
-        if (model.reasoningEffort && model.reasoningEffort.length > 0) {
-            delete properties.thinking; // 与 thinking 选项冲突
-            const schema: PropertySchema = {
-                type: 'string',
-                title: t('Reasoning Effort', '思考长度'),
-                enum: model.reasoningEffort,
-                enumItemLabels: model.reasoningEffort.map(
-                    level =>
-                        ({
-                            none: 'None',
-                            minimal: 'Minimal',
-                            low: 'Low',
-                            medium: 'Medium',
-                            high: 'High',
-                            xhigh: 'XHigh',
-                            max: 'Max'
-                        })[level] || level
-                ),
-                enumDescriptions: model.reasoningEffort.map(
-                    level =>
-                        ({
-                            none: t('Disable reasoning and answer directly.', '关闭思考，直接回答。'),
-                            minimal: t('Use the smallest possible reasoning budget.', '使用最小的思考开销。'),
-                            low: t('Use light reasoning for faster responses.', '轻量思考，优先响应速度。'),
-                            medium: t('Balance response speed and reasoning depth.', '平衡响应速度与思考深度。'),
-                            high: t('Use deeper reasoning for more complex tasks.', '深度分析，适合复杂问题。'),
-                            xhigh: t('Use very deep reasoning with slower responses.', '使用更深层推理，响应会更慢。'),
-                            max: t('Use the highest available reasoning capability.', '使用最高可用推理能力。')
-                        })[level] || level
-                ),
-                default: model.reasoningEffort[0],
-                group: 'navigation'
-            };
-            if (model.reasoningEffort?.includes('medium')) {
-                schema.default = 'medium';
-            }
-            properties.reasoningEffort = schema;
-        }
-
-        // let multiplier = this.providerConfig.displayName;
-        // if (model.provider?.endsWith('coding')) {
-        //     multiplier += 'CP';
-        // } else if (model.provider?.endsWith('token')) {
-        //     multiplier += 'TP';
-        // } else if (model.id?.endsWith('billing') || model.name?.includes('按量')) {
-        //     multiplier += 'PG';
-        // }
-
-        const info: LanguageModelChatInformation = {
-            id: modelId,
-            name: model.name,
-            detail: this.providerConfig.displayName,
-            tooltip: model.tooltip,
-            family: family,
-            maxInputTokens: model.maxInputTokens,
-            maxOutputTokens: model.maxOutputTokens,
-            version: model.id,
-            category: { label: this.providerConfig.displayName, order: 3 },
-            capabilities: model.capabilities,
-            // multiplier: multiplier,
-            isUserSelectable: true, // VsCode 1.120.0 版本开始仅识别此值
-            configurationSchema: Object.keys(properties).length > 0 ? { properties } : undefined
-        };
-        return info;
+        return createLanguageModelChatInformation(model, {
+            providerKey: this.providerKey,
+            providerDisplayName: this.providerConfig.displayName,
+            family: this.resolveFamily(model)
+        });
     }
 
     /**
@@ -413,7 +323,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             return await ModelInfoCache.computeApiKeyHash(apiKey);
         } catch (err) {
             Logger.warn(
-                `[${this.providerKey}] 计算 API 密钥哈希失败:`,
+                `[${this.providerKey}] Failed to compute API key hash:`,
                 err instanceof Error ? err.message : String(err)
             );
             return 'hash-error';
@@ -475,7 +385,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
         if (requestMessages.length !== messages.length) {
             Logger.info(
-                `[${effectiveProviderKey}] 已过滤 ${messages.length - requestMessages.length} 条中止请求留下的空 assistant 消息`
+                `[${effectiveProviderKey}] Filtered ${messages.length - requestMessages.length} empty assistant messages from aborted requests`
             );
         }
 
@@ -550,7 +460,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 查找对应的模型配置
         const modelConfig = this.findModelConfigById(model);
         if (!modelConfig) {
-            const errorMessage = `未找到模型: ${model.id}`;
+            const errorMessage = `Model not found: ${model.id}`;
             Logger.error(errorMessage);
             throw new Error(errorMessage);
         }
@@ -560,7 +470,12 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const effectiveProviderKey = modelConfig.provider || this.providerKey;
 
         // 计算输入 token 数量并更新状态栏
-        const totalInputTokens = await this.updateContextUsageStatusBar(model, messages, modelConfig, options);
+        const { totalInputTokens, maxInputTokens } = await this.updateContextUsageStatusBar(
+            model,
+            messages,
+            modelConfig,
+            options
+        );
 
         // === Token 统计: 记录预估输入 token ===
         const usagesManager = TokenUsagesManager.instance;
@@ -571,7 +486,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 displayName: this.providerConfig.displayName,
                 modelId: model.id,
                 modelName: model.name || modelConfig.name,
-                estimatedInputTokens: totalInputTokens
+                estimatedInputTokens: totalInputTokens,
+                maxInputTokens
             });
         } catch (err) {
             Logger.warn('Failed to record estimated tokens, continuing request:', err);
@@ -633,14 +549,14 @@ export class GenericModelProvider implements LanguageModelChatProvider {
      * 更新上下文占用状态栏
      * 计算输入 token 数量和占用百分比，更新状态栏显示
      * 供子类复用
-     * @returns totalInputTokens - 返回计算的输入token数量，供Token统计使用
+     * @returns 返回计算的输入 token 数量及当前生效的上下文窗口大小，供 Token 统计使用
      */
     protected async updateContextUsageStatusBar(
         model: LanguageModelChatInformation,
         messages: Array<LanguageModelChatMessage>,
         modelConfig: ModelConfig,
         options?: ProvideLanguageModelChatResponseOptions
-    ): Promise<number> {
+    ): Promise<ContextUsageSummary> {
         try {
             const requestMessages = filterAbortedAssistantMessages(messages);
 
@@ -654,8 +570,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
             // 使用 promptParts.context 作为总 token 占用
             const totalInputTokens = promptParts.context || 0;
-            const maxInputTokens = model.maxInputTokens || modelConfig.maxInputTokens;
-            const percentage = (totalInputTokens / maxInputTokens) * 100;
+            const maxInputTokens = getEffectiveMaxInputTokens(model, modelConfig, options, this.providerKey);
+            const percentage = maxInputTokens > 0 ? (totalInputTokens / maxInputTokens) * 100 : 0;
 
             // const countMessagesTokens = await TokenCounter.getInstance().countMessagesTokens(
             //     model,
@@ -678,14 +594,23 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 );
             }
 
-            Logger.debug(
-                `[${this.providerKey}] Token calculation: ${totalInputTokens}/${maxInputTokens} (${percentage.toFixed(1)}%)`
-            );
-            return totalInputTokens;
+            if (totalInputTokens > maxInputTokens) {
+                Logger.warn(
+                    `[${this.providerKey}] Estimated context exceeds current contextSize: ${totalInputTokens}/${maxInputTokens}`
+                );
+            } else {
+                Logger.debug(
+                    `[${this.providerKey}] Token calc: ${totalInputTokens}/${maxInputTokens} (${percentage.toFixed(1)}%)`
+                );
+            }
+            return { totalInputTokens, maxInputTokens };
         } catch (error) {
             // Token 计算失败不应阻止请求，只记录警告
             Logger.warn(`[${this.providerKey}] Token calculation failed:`, error);
-            return 0;
+            return {
+                totalInputTokens: 0,
+                maxInputTokens: getEffectiveMaxInputTokens(model, modelConfig, options, this.providerKey)
+            };
         }
     }
 }
