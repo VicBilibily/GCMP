@@ -262,6 +262,7 @@
             "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
             "model": "deepseek-v4-pro",
             "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
             "capabilities": { "toolCalling": true, "imageInput": false }
@@ -275,6 +276,7 @@
             "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
             "model": "deepseek-v4-flash",
             "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
             "capabilities": { "toolCalling": true, "imageInput": false }
@@ -430,6 +432,7 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
             "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
             "capabilities": { "toolCalling": true, "imageInput": false }
@@ -441,6 +444,7 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
             "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
             "capabilities": { "toolCalling": true, "imageInput": false }

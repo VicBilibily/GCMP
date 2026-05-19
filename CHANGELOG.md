@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.18] - 2026-05-19
+
+### 新增
+
+- **上下文窗口档位覆盖**：百度千帆、阿里云百炼、腾讯云 TokenHub、火山方舟的 DeepSeek V4 模型新增 `contextSize` 上下文窗口档位选项（1M / 600K / 400K / 256K / 192K）
+
+### 修复
+
+- **火山方舟 Coding Plan**：修复 Coding Plan 的 DeepSeek V4 模型错误使用了 Agent Plan API Key 的问题 [#182](https://github.com/VicBilibily/GCMP/issues/182)
+
+---
+
+### Added
+
+- **Context window tier coverage**: Added `contextSize` options for DeepSeek V4 models in Baidu Qianfan, AliDashScope, Tencent TokenHub, and Volcengine (1M / 600K / 400K / 256K / 192K)
+
+### Fixed
+
+- **Volcengine Coding Plan**: Fixed DeepSeek V4 models under Coding Plan mistakenly using Agent Plan API Key
+
 ## [0.22.17] - 2026-05-19
 
 ### 新增
@@ -10,7 +30,7 @@
 
 ### 修复
 
-- **模型 ID 中文字符兼容**：修复 provider 或 modelId 包含中文字符时，前缀解析正则无法正确匹配的问题（[#180](https://github.com/VicBilibily/GCMP/pull/180)）
+- **模型 ID 中文字符兼容**：修复 provider 或 modelId 包含中文字符时，前缀解析正则无法正确匹配的问题 [#180](https://github.com/VicBilibily/GCMP/pull/180)
 
 ---
 

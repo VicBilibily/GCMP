@@ -271,8 +271,9 @@
             "provider": "tencent-tokenhub",
             "sdkMode": "anthropic",
             "baseUrl": "https://tokenhub.tencentmaas.com",
-            "reasoningEffort": ["high", "max", "none"],
             "model": "deepseek-v4-flash",
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
             "capabilities": { "toolCalling": true, "imageInput": false }
@@ -284,8 +285,9 @@
             "provider": "tencent-tokenhub",
             "sdkMode": "anthropic",
             "baseUrl": "https://tokenhub.tencentmaas.com",
-            "reasoningEffort": ["high", "max", "none"],
             "model": "deepseek-v4-pro",
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
             "capabilities": { "toolCalling": true, "imageInput": false }
