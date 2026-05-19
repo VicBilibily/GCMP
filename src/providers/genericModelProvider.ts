@@ -174,8 +174,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     protected findModelConfigById(model: LanguageModelChatInformation): ModelConfig | undefined {
         // 前缀格式：gcmp.${provider}:::${modelId}
         const prefixSeparator = ':::';
-        // 直接捕获不带 gcmp. 前缀的 provider key
-        const prefixRegex = /^gcmp\.([a-zA-Z0-9_-]+):::(.+)$/;
+        // 直接捕获不带 gcmp. 前缀的 provider key（支持中文字符）
+        const prefixRegex = /^gcmp\.([^:]+?):::(.+)$/;
 
         if (!model.id.includes(prefixSeparator)) {
             return this.providerConfig.models.find(m => m.id === model.id);
