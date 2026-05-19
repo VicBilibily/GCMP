@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.17] - 2026-05-19
+
+### 新增
+
+- **上下文窗口档位切换**：DeepSeek 官方与小米 MiMo 模型支持用户手动选择上下文窗口档位，通过模型配置中的 `contextSize` 字段可指定不同档位大小
+
+### 修复
+
+- **模型 ID 中文字符兼容**：修复 provider 或 modelId 包含中文字符时，前缀解析正则无法正确匹配的问题（[#180](https://github.com/VicBilibily/GCMP/pull/180)）
+
+---
+
+### Added
+
+- **Context window tier switching**: DeepSeek and Xiaomi MiMo models now allow users to manually select context window tiers via the `contextSize` field in model config
+
+### Fixed
+
+- **Chinese character support in model ID**: Fixed prefix parsing regex failing to match when provider or modelId contains Chinese characters
+
 ## [0.22.16] - 2026-05-18
 
 ### 新增
