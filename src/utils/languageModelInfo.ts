@@ -127,9 +127,15 @@ function buildModelConfigurationProperties(model: ModelConfig): Record<string, P
             enum: model.reasoningEffort,
             enumItemLabels: model.reasoningEffort.map(
                 level =>
-                    ({ none: '关', minimal: '关', low: '低', medium: '中', high: '高', xhigh: '超', max: '超' })[
-                        level
-                    ] || level
+                    ({
+                        none: 'None',
+                        minimal: 'Minimal',
+                        low: 'Low',
+                        medium: 'Medium',
+                        high: 'High',
+                        xhigh: 'XHigh',
+                        max: 'Max'
+                    })[level] || level
             ),
             enumDescriptions: model.reasoningEffort.map(
                 level =>
@@ -186,7 +192,7 @@ function resolveConfiguredContextSize(
     }
 
     if (providerKey) {
-        Logger.warn(`[${providerKey}] 忽略未声明的 contextSize 配置: ${configuredContextSize}`);
+        Logger.warn(`[${providerKey}] Ignoring undeclared contextSize configuration: ${configuredContextSize}`);
     }
     return undefined;
 }

@@ -46,7 +46,7 @@ for (let i = 0; i < lines.length; i++) {
 }
 
 if (startIndex === -1) {
-    console.error(`未在 CHANGELOG.md 中找到版本 [${cleanVersion}] 的条目`);
+    console.error(`Version entry [${cleanVersion}] not found in CHANGELOG.md`);
     process.exit(1);
 }
 
@@ -62,7 +62,7 @@ for (let i = startIndex + 1; i < lines.length; i++) {
 // ---- 输出 ----
 const output = resultLines.join('\n').trim();
 if (!output) {
-    console.error(`版本 [${cleanVersion}] 在 CHANGELOG.md 中没有内容`);
+    console.error(`Version [${cleanVersion}] has no content in CHANGELOG.md`);
     process.exit(1);
 }
 
