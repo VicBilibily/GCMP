@@ -28,6 +28,11 @@ export interface ModelChatResponseOptions {
      * 用于在模型支持的多个上下文窗口档位之间切换。
      */
     readonly contextSize?: number;
+    /**
+     * 服务等级（service_tier）
+     * 用于 Codex 等订阅选择不同的响应速度等级。
+     */
+    readonly serviceTier?: string;
 }
 
 /**
@@ -112,6 +117,12 @@ export interface ModelConfig {
      */
     contextSize?: Required<ModelChatResponseOptions>['contextSize'][];
     /**
+     * 服务等级选项列表（可选）
+     * 用于 Codex 等订阅选择不同的响应速度等级。
+     * 第一个值作为默认值。
+     */
+    serviceTier?: string[];
+    /**
      * 模型特定的自定义HTTP头部（可选）
      * 如果提供，将在API请求中附加这些自定义头部
      */
@@ -174,6 +185,8 @@ export interface ModelOverride {
     reasoningEffort?: ModelConfig['reasoningEffort'];
     /** 上下文窗口调节选项列表（可选） */
     contextSize?: ModelConfig['contextSize'];
+    /** 服务等级选项列表（可选） */
+    serviceTier?: ModelConfig['serviceTier'];
     /**
      * 模型特定的自定义HTTP头部（可选）
      * 如果提供，将在API请求中附加这些自定义头部

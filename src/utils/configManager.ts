@@ -446,6 +446,12 @@ export class ConfigManager {
                     `  模型 ${modelOverride.id}: 覆盖 contextSize = ${JSON.stringify(modelOverride.contextSize)}`
                 );
             }
+            if (modelOverride.serviceTier !== undefined) {
+                target.serviceTier = [...modelOverride.serviceTier];
+                Logger.debug(
+                    `  Model ${modelOverride.id}: override serviceTier = ${JSON.stringify(modelOverride.serviceTier)}`
+                );
+            }
             if (modelOverride.capabilities) {
                 target.capabilities = {
                     ...target.capabilities,

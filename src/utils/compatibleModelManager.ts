@@ -117,6 +117,12 @@ export interface CompatibleModelConfig {
      * 用于 UI 配置选择，按顺序决定可选的上下文窗口大小及默认值。
      */
     contextSize?: number[];
+    /**
+     * 服务等级选项列表（可选）
+     * 用于 Codex 等订阅选择不同的响应速度等级。
+     * 第一个值作为默认值。
+     */
+    serviceTier?: string[];
     /** 是否由向导创建（内部标记，不持久化） */
     _isFromWizard?: boolean;
 }

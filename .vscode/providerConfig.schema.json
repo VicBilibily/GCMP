@@ -175,6 +175,21 @@
                     "uniqueItems": true,
                     "description": "上下文窗口调节选项列表，按顺序决定模型 picker 的可选值和默认值，只需要填写数字数组"
                 },
+                "serviceTier": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": ["auto", "default", "flex", "priority"],
+                        "enumDescriptions": [
+                            "自动选择服务等级",
+                            "标准处理速度",
+                            "灵活处理，倍率更高",
+                            "优先处理，倍率最高"
+                        ]
+                    },
+                    "uniqueItems": true,
+                    "description": "服务等级选项列表，用于调节响应速度与配额倍率。第一个值作为默认值。仅 openai-responses 模式生效，default/auto 不传递 service_tier 到请求体。"
+                },
                 "customHeader": {
                     "type": "object",
                     "description": "可选的自定义HTTP头部，将在API请求中附加。",
@@ -280,6 +295,36 @@
                         "properties": {
                             "thinkingFormat": {
                                 "deprecationMessage": "thinkingFormat 仅对 openai 和 openai-sse 模式生效"
+                            }
+                        }
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "sdkMode": {
+                                "const": "openai-responses"
+                            }
+                        },
+                        "required": ["sdkMode"]
+                    },
+                    "then": {
+                        "properties": {
+                            "serviceTier": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "enum": ["auto", "default", "flex", "priority"]
+                                },
+                                "uniqueItems": true,
+                                "description": "服务等级选项列表，用于调节响应速度与配额倍率。default/auto 不传递 service_tier 到请求体。"
+                            }
+                        }
+                    },
+                    "else": {
+                        "properties": {
+                            "serviceTier": {
+                                "deprecationMessage": "serviceTier 仅对 openai-responses 模式生效"
                             }
                         }
                     }

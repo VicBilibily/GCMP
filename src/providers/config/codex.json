@@ -4,8 +4,8 @@
     "apiKeyTemplate": "eyJhbGciOiJSUzI1NiIsImtpZCI6I...",
     "customHeader": {
         "version": "0.124.0",
-        "user-agent": "codex_cli_rs/0.124.0 (Windows 10.0.26200; x86_64) unknown",
-        "originator": "codex_cli_rs"
+        "user-agent": "codex-tui/0.132.0 (Windows 10.0.26200; x86_64) unknown (codex-tui; 0.132.0)",
+        "originator": "codex-tui"
     },
     "models": [
         {
@@ -17,32 +17,7 @@
             "maxOutputTokens": 64000,
             "useInstructions": true,
             "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
-            "extraBody": {
-                "store": false,
-                "tool_choice": "auto",
-                "reasoning": {
-                    "effort": "medium",
-                    "summary": "auto"
-                }
-            }
-        },
-        {
-            "id": "gpt-5.2-codex",
-            "name": "GPT-5.2-Codex (ChatGPT)",
-            "sdkMode": "openai-responses",
-            "tooltip": "OpenAI 迄今最前沿的智能体编码模型，赋能复杂软件工程实践",
-            "maxInputTokens": 272000,
-            "maxOutputTokens": 128000,
-            "useInstructions": true,
-            "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "extraBody": {
                 "store": false,
                 "tool_choice": "auto",
@@ -61,10 +36,8 @@
             "maxOutputTokens": 128000,
             "useInstructions": true,
             "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
+            "serviceTier": ["default", "priority"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "extraBody": {
                 "store": false,
                 "tool_choice": "auto",
@@ -83,10 +56,8 @@
             "maxOutputTokens": 128000,
             "useInstructions": true,
             "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
+            "serviceTier": ["default", "priority"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "extraBody": {
                 "store": false,
                 "tool_choice": "auto",
@@ -105,10 +76,7 @@
             "maxOutputTokens": 128000,
             "useInstructions": true,
             "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "extraBody": {
                 "store": false,
                 "tool_choice": "auto",
@@ -127,10 +95,8 @@
             "maxOutputTokens": 128000,
             "useInstructions": true,
             "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
+            "serviceTier": ["default", "priority"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "extraBody": {
                 "store": false,
                 "tool_choice": "auto",

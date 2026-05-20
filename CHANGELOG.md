@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.19] - 2026-05-20
+
+### 新增
+
+- **Codex 服务等级选择**：GPT-5.3-Codex、GPT-5.4、GPT-5.5 模型新增 `serviceTier` 服务等级选项（default / priority），可调节响应速度与配额倍率 [#169](https://github.com/VicBilibily/GCMP/issues/169)
+
+---
+
+### Added
+
+- **Codex service tier selection**: Added `serviceTier` options (default / priority) for GPT-5.3-Codex, GPT-5.4, and GPT-5.5 models, allowing adjustment of response speed and rate multiplier
+
 ## [0.22.18] - 2026-05-19
 
 ### 新增

@@ -605,6 +605,14 @@ export class OpenAIResponsesHandler {
                             customParams.thinking = undefined;
                         }
                     }
+                    // 仅在 flex / priority 时传递 service_tier，auto / default 时不传递
+                    if (settings.serviceTier) {
+                        if (settings.serviceTier === 'flex' || settings.serviceTier === 'priority') {
+                            requestBody.service_tier = settings.serviceTier;
+                        } else {
+                            delete requestBody.service_tier;
+                        }
+                    }
                 }
                 // 如果处于提交模式，模型支持思考的，不使用思考模式
                 const modelOpts = options.modelOptions as CommitChatModelOptions;
