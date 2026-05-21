@@ -18,7 +18,6 @@ import {
     ApiKeyManager,
     ConfigManager,
     createLanguageModelChatInformation,
-    filterAbortedAssistantMessages,
     Logger,
     ModelInfoCache,
     PromptAnalyzer,
@@ -381,14 +380,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         effectiveProviderKey = modelConfig.provider || this.providerKey
     ): Promise<void> {
         const sdkMode = modelConfig.sdkMode || 'openai';
-        const requestMessages = filterAbortedAssistantMessages(messages);
-
-        if (requestMessages.length !== messages.length) {
-            Logger.info(
-                `[${effectiveProviderKey}] Filtered ${messages.length - requestMessages.length} empty assistant messages from aborted requests`
-            );
-        }
-
         const retryManager = new RetryManager(this.getRequestRetryConfig());
 
         await retryManager.executeWithRetry(
@@ -397,7 +388,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     await this.anthropicHandler.handleRequest(
                         model,
                         modelConfig,
-                        requestMessages,
+                        messages,
                         options,
                         progress,
                         token,
@@ -407,7 +398,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     await this.geminiHandler.handleRequest(
                         model,
                         modelConfig,
-                        requestMessages,
+                        messages,
                         options,
                         progress,
                         token,
@@ -417,7 +408,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     await this.openaiCustomHandler.handleRequest(
                         model,
                         modelConfig,
-                        requestMessages,
+                        messages,
                         options,
                         progress,
                         token,
@@ -427,7 +418,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     await this.openaiResponsesHandler.handleResponsesRequest(
                         model,
                         { ...modelConfig, provider: effectiveProviderKey },
-                        requestMessages,
+                        messages,
                         options,
                         progress,
                         token,
@@ -437,7 +428,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     await this.openaiHandler.handleRequest(
                         model,
                         modelConfig,
-                        requestMessages,
+                        messages,
                         options,
                         progress,
                         token,
@@ -558,12 +549,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         options?: ProvideLanguageModelChatResponseOptions
     ): Promise<ContextUsageSummary> {
         try {
-            const requestMessages = filterAbortedAssistantMessages(messages);
-
             const promptParts = await PromptAnalyzer.analyzePromptParts(
                 this.providerKey,
                 model,
-                requestMessages,
+                messages,
                 modelConfig,
                 options
             );

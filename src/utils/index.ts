@@ -27,7 +27,5 @@ export type { RetryableError } from './retryManager';
 export { ModelInfoCache } from './modelInfoCache';
 export { TokenCounter } from './tokenCounter';
 export { PromptAnalyzer } from './promptAnalyzer';
-export { filterAbortedAssistantMessages, isAbortResidualAssistantMessage } from './requestMessageFilter';
-export type { ChatMessageLike } from './requestMessageFilter';
 export { sanitizeToolSchema, sanitizeToolSchemaForSdkMode, sanitizeToolSchemaForTarget } from './schemaSanitizer';
 export type { ToolSchemaTarget } from './schemaSanitizer';

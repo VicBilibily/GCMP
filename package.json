@@ -1012,10 +1012,9 @@
         "package": "vsce package",
         "publish": "vsce publish --allow-proposed-apis chatProvider",
         "pretest": "npm run compile:dev",
-        "test": "npm run test:schema-sanitizer && npm run test:stateful-marker && npm run test:reasoning-replay && npm run test:request-message-filter && npm run test:copilot-usage",
+        "test": "npm run test:schema-sanitizer && npm run test:stateful-marker && npm run test:reasoning-replay && npm run test:copilot-usage",
         "test:copilot-usage": "tsx --test src/utils/copilotUsage.test.ts",
         "test:reasoning-replay": "tsx --test src/handlers/reasoningReplayPolicy.test.ts",
-        "test:request-message-filter": "tsx --test src/utils/requestMessageFilter.test.ts",
         "test:schema-sanitizer": "tsx --test src/utils/schemaSanitizer.test.ts",
         "test:stateful-marker": "tsx --test src/handlers/statefulMarkerCodec.test.ts"
     },
