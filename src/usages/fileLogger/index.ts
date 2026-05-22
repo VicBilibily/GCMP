@@ -188,7 +188,7 @@ export class TokenFileLogger {
         modelName: string;
         estimatedInput: number;
         maxInputTokens?: number;
-        requestType?: 'chat' | 'completion' | 'fim' | 'nes';
+        sessionId?: string;
         timestamp?: number; // 可选: 自定义时间戳(用于测试数据生成)
     }): Promise<void> {
         const now = params.timestamp ?? Date.now();
@@ -208,7 +208,7 @@ export class TokenFileLogger {
             rawUsage: null,
             status: 'estimated',
             maxInputTokens: params.maxInputTokens,
-            requestType: params.requestType
+            sessionId: params.sessionId
         };
 
         // 暂存到内存
@@ -231,6 +231,7 @@ export class TokenFileLogger {
      */
     async updateActualTokens(params: {
         requestId: string;
+        sessionId?: string;
         rawUsage?: TokenRequestLog['rawUsage'];
         status: 'completed' | 'failed';
         /** 流开始时间 (毫秒时间戳) */
@@ -265,6 +266,10 @@ export class TokenFileLogger {
         // 更新日志对象
         pendingLog.rawUsage = params.rawUsage ?? null;
         pendingLog.status = params.status;
+        // 补充 sessionId（新会话首条消息时 estimated 记录无 sessionId，由 Handler 生成后补充）
+        if (params.sessionId && !pendingLog.sessionId) {
+            pendingLog.sessionId = params.sessionId;
+        }
 
         // 更新流时间信息（如果提供）
         if (params.streamStartTime !== undefined) {

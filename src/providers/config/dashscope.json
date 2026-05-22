@@ -164,6 +164,19 @@
             }
         },
         {
+            "id": "qwen3.7-max-token-plan",
+            "name": "Qwen3.7-Max (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "qwen3.7-max",
+            "maxInputTokens": 983000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
             "id": "qwen3.6-plus-token-plan",
             "name": "Qwen3.6-Plus (TokenPlan)",
             "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
@@ -291,6 +304,24 @@
             "model": "deepseek-v3.2",
             "maxInputTokens": 256000,
             "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "qwen3.7-max",
+            "name": "Qwen3.7-Max",
+            "tooltip": "Qwen3.7系列中规模最大、综合能力最强的Max模型，当前开放纯文本模型能力供体验。Qwen3.7是面向智能体时代的新一代旗舰模型，核心优势在于智能体能力的广度与深度：在编程、办公与生产力、长周期自主执行方面均能出色胜任各项任务。",
+            "maxInputTokens": 983000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "qwen3.6-max-preview",
+            "name": "Qwen3.6-Max-Preview",
+            "tooltip": "Qwen3.6系列中规模最大、综合能力最强的Max模型Preview版本，当前开放纯文本模型能力供体验。相较于此前发布的Qwen3-Max和Qwen3.6-Plus，本模型在vibe coding能力上进一步提升、coding agent执行更加高效、前端编程开发能力显著提升；长尾知识能力进一步升级。",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {

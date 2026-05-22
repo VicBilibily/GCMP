@@ -12,10 +12,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "glm-5.1",
@@ -26,10 +23,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-5-turbo",
@@ -40,10 +34,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-4.7",
@@ -54,10 +45,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-4.7-flash",
@@ -66,10 +54,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-4.7-flashx",
@@ -78,10 +63,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-4.6",
@@ -92,10 +74,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["disabled", "enabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-4.6v",
@@ -106,13 +85,7 @@
             "maxInputTokens": 128000,
             "maxOutputTokens": 16000,
             "thinking": ["disabled", "enabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
-            "extraBody": {
-                "thinking": { "type": "disabled" }
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "glm-4.5-air",
@@ -123,10 +96,17 @@
             "maxInputTokens": 128000,
             "maxOutputTokens": 96000,
             "thinking": ["disabled", "enabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "glm-5.1-highspeed-billing",
+            "model": "glm-5.1-highspeed",
+            "name": "GLM-5.1-HighSpeed (PayGo)",
+            "tooltip": "GLM-5.1-HighSpeed 是智谱旗舰模型 GLM-5.1 的高速版本。通过在推理引擎、调度系统与底层基础设施三个层面的系统级优化，模型输出速度达到 400 tokens/s，刷新当前全球大模型厂商 API 的速度上限。同时，这也是国产大模型首次将旗舰级能力与极低延迟同时带入生产环境，打破了响应速度与模型质量不可兼得的局限。",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-5.1-billing",
@@ -136,10 +116,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-5v-turbo-billing",
@@ -149,10 +126,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "glm-5-turbo-billing",
@@ -162,10 +136,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-5-billing",
@@ -175,10 +146,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-4.7-billing",
@@ -188,10 +156,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-4.6-billing",
@@ -201,10 +166,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["disabled", "enabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-4.6v-billing",
@@ -214,10 +176,7 @@
             "maxInputTokens": 128000,
             "maxOutputTokens": 16000,
             "thinking": ["disabled", "enabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "glm-4.5-air-billing",
@@ -227,10 +186,7 @@
             "maxInputTokens": 128000,
             "maxOutputTokens": 96000,
             "thinking": ["disabled", "enabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-4.6v-flash",
@@ -239,10 +195,7 @@
             "maxInputTokens": 128000,
             "maxOutputTokens": 16000,
             "thinking": ["disabled", "enabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         }
     ]
 }

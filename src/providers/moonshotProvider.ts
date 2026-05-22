@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  MoonshotAI 专用 Provider
  *  为 MoonshotAI 提供商提供多密钥管理和专属配置向导功能
  *--------------------------------------------------------------------------------------------*/
@@ -198,7 +198,7 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
         messages: Array<LanguageModelChatMessage>,
         options: ProvideLanguageModelChatResponseOptions,
         progress: Progress<vscode.LanguageModelResponsePart>,
-        _token: CancellationToken
+        token: CancellationToken
     ): Promise<void> {
         // 查找对应的模型配置
         // 查找对应的模型配置
@@ -224,27 +224,35 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
         );
 
         // 计算输入 token 数量并更新状态栏
-        const totalInputTokens = await this.updateContextUsageStatusBar(model, messages, modelConfig, options);
+        const { totalInputTokens, maxInputTokens } = await this.updateContextUsageStatusBar(
+            model,
+            messages,
+            modelConfig,
+            options
+        );
 
         // === Token 统计: 记录预估输入 token ===
         const usagesManager = TokenUsagesManager.instance;
-        let requestId: string | null = null;
+        let requestId = '';
+        // 根据模型的 sdkMode 选择使用的 handler
+        // 注：此处不调用 super.provideLanguageModelChatResponse，而是直接处理
+        // 避免双重密钥检查，因为我们已经在 ensureApiKeyForModel 中检查过了
+        const sdkMode = modelConfig.sdkMode || 'openai';
+        const sessionId = this.getSessionIdFromMessages(messages, sdkMode);
         try {
             requestId = await usagesManager.recordEstimatedTokens({
                 providerKey: providerKey,
                 displayName: this.providerConfig.displayName,
                 modelId: model.id,
                 modelName: model.name || modelConfig.name,
-                estimatedInputTokens: totalInputTokens
+                estimatedInputTokens: totalInputTokens,
+                maxInputTokens,
+                sessionId
             });
         } catch (err) {
             Logger.warn('Failed to record estimated tokens, continuing request:', err);
         }
 
-        // 根据模型的 sdkMode 选择使用的 handler
-        // 注：此处不调用 super.provideLanguageModelChatResponse，而是直接处理
-        // 避免双重密钥检查，因为我们已经在 ensureApiKeyForModel 中检查过了
-        const sdkMode = modelConfig.sdkMode || 'openai';
         const sdkName = this.getSdkDisplayName(sdkMode);
         Logger.info(
             `${this.providerConfig.displayName} Provider started handling request (${sdkName}): ${modelConfig.name}`
@@ -257,35 +265,28 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
                 messages,
                 options,
                 progress,
-                _token,
                 requestId,
+                sessionId,
+                token,
                 providerKey
             );
         } catch (error) {
             const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
             Logger.error(errorMessage);
-
-            // === Token 统计: 更新失败状态 ===
-            if (requestId) {
-                try {
-                    await usagesManager.updateActualTokens({
-                        requestId,
-                        status: 'failed'
-                    });
-                } catch (err) {
-                    Logger.warn('Failed to update token usage failure status:', err);
-                }
-            }
-
+            this.reportRequestFailure(requestId, sessionId);
             throw error;
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);
 
-            // 根据使用的密钥类型，延时更新对应的状态栏使用量
-            if (providerKey === 'kimi') {
-                StatusBarManager.delayedUpdate('kimi');
-            } else {
-                StatusBarManager.delayedUpdate('moonshot');
+            try {
+                // 根据使用的密钥类型，延时更新对应的状态栏使用量
+                if (providerKey === 'kimi') {
+                    StatusBarManager.delayedUpdate('kimi');
+                } else {
+                    StatusBarManager.delayedUpdate('moonshot');
+                }
+            } catch (err) {
+                Logger.warn('Failed to update status bar:', err);
             }
         }
     }

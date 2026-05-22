@@ -17,7 +17,6 @@ import { TokenUsagesManager } from '../usages/usagesManager';
 import type { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import type { GenericUsageData, RawUsageData } from '../usages/fileLogger/types';
 import { convertMessagesToGemini, convertToolsToGemini } from './geminiConverter';
-import { getStatefulMarkerAndIndex } from './statefulMarker';
 import { StreamReporter } from './streamReporter';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import type {
@@ -497,8 +496,9 @@ export class GeminiHandler {
         messages: readonly vscode.LanguageModelChatMessage[],
         options: vscode.ProvideLanguageModelChatResponseOptions,
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
-        token: vscode.CancellationToken,
-        requestId?: string | null
+        requestId: string,
+        sessionId: string,
+        token: vscode.CancellationToken
     ): Promise<void> {
         // 确保 Gemini CLI 版本号已加载（首次调用时会执行 `gemini --version`，后续调用返回缓存）。
         await GeminiHandler.ensureCliVersionLoaded();
@@ -549,10 +549,6 @@ export class GeminiHandler {
             ) as GeminiGenerationConfig;
         }
 
-        // 使用 statefulMarker 获取会话状态
-        const markerAndIndex = getStatefulMarkerAndIndex(model.id, 'gemini', messages);
-        const statefulMarker = markerAndIndex?.statefulMarker;
-        const sessionId = statefulMarker?.sessionId || crypto.randomUUID();
         Logger.debug(`🎯 ${model.name} Using session_id: ${sessionId}`);
 
         // 用途：组装请求体（Gemini v1beta / Code Assist v1internal 都复用 contents + generationConfig）。
@@ -641,15 +637,6 @@ export class GeminiHandler {
             }
 
             Logger.error(`[${model.name}] Gemini HTTP error:`, error);
-
-            if (requestId) {
-                try {
-                    const usagesManager = TokenUsagesManager.instance;
-                    await usagesManager.updateActualTokens({ requestId, status: 'failed' });
-                } catch (err) {
-                    Logger.warn('Failed to update token stats:', err);
-                }
-            }
 
             throw error;
         } finally {
@@ -782,6 +769,7 @@ export class GeminiHandler {
                 const usagesManager = TokenUsagesManager.instance;
                 await usagesManager.updateActualTokens({
                     requestId,
+                    sessionId: reporter.getSessionId(),
                     rawUsage: finalUsage,
                     status: 'completed',
                     streamStartTime,

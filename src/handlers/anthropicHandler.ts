@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as crypto from 'node:crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { apiMessageToAnthropicMessage, convertToAnthropicTools } from './anthropicConverter';
 import { ApiKeyManager } from '../utils/apiKeyManager';
@@ -15,7 +14,6 @@ import { TokenUsagesManager } from '../usages/usagesManager';
 import { t } from '../utils/l10n';
 import type { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
-import { getStatefulMarkerAndIndex } from './statefulMarker';
 import { StreamReporter } from './streamReporter';
 import { MiniMaxVisionBridge } from './visionBridge/minimaxVisionBridge';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
@@ -40,15 +38,6 @@ export class AnthropicHandler {
     }
     private get baseURL(): string | undefined {
         return this.providerConfig?.baseUrl;
-    }
-
-    private generateClaudeCodeStyleSessionKey(): string {
-        // Claude Code 风格：user_<hash>_account__session_<uuid>
-        // - user_<hash>: 64 hex（这里用 sha256(machineId) 生成稳定值）
-        // - session_<uuid>: 每个新会话生成一次，后续靠缓存复用
-        const userHash = crypto.createHash('sha256').update(vscode.env.machineId).digest('hex');
-        const sessionUuid = crypto.randomUUID();
-        return `user_${userHash}_account__session_${sessionUuid}`;
     }
 
     private createAnthropicWebSearchTool(): Anthropic.Messages.WebSearchTool20250305 {
@@ -181,8 +170,9 @@ export class AnthropicHandler {
         messages: readonly vscode.LanguageModelChatMessage[],
         options: vscode.ProvideLanguageModelChatResponseOptions,
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
-        token: vscode.CancellationToken,
-        requestId?: string | null
+        requestId: string,
+        sessionId: string,
+        token: vscode.CancellationToken
     ): Promise<void> {
         // 将 vscode.CancellationToken 转换为 AbortSignal
         const abortController = new AbortController();
@@ -226,10 +216,6 @@ export class AnthropicHandler {
                 }
             }
 
-            // Anthropic 兼容接口的会话缓存：使用本地 sessionKey 写入 metadata.user_id，
-            // 供“客户端传 session”的网关实现粘性会话。
-            const statefulMarker = getStatefulMarkerAndIndex(model.id, 'anthropic', messages);
-            const sessionId = statefulMarker?.statefulMarker?.sessionId || this.generateClaudeCodeStyleSessionKey();
             createParams.metadata = { user_id: sessionId };
 
             // 合并 extraBody 参数（如果有）
@@ -319,6 +305,7 @@ export class AnthropicHandler {
                     // 直接传递 SDK 的 Usage 对象，包含流时间信息
                     await usagesManager.updateActualTokens({
                         requestId,
+                        sessionId,
                         rawUsage: result?.usage || {},
                         status: 'completed',
                         streamStartTime: result?.streamStartTime,

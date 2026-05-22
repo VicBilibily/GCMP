@@ -179,7 +179,7 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
         messages: Array<LanguageModelChatMessage>,
         options: ProvideLanguageModelChatResponseOptions,
         progress: Progress<vscode.LanguageModelResponsePart>,
-        _token: CancellationToken
+        token: CancellationToken
     ): Promise<void> {
         // 查找对应的模型配置
         const modelConfig = this.findModelConfigById(model);
@@ -200,17 +200,26 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
             `${this.providerConfig.displayName}: about to handle request using ${providerKey === 'baidu-coding' ? 'Coding Plan' : 'standard'} key - model: ${modelConfig.name}`
         );
         // 计算输入 token 数量并更新状态栏
-        const totalInputTokens = await this.updateContextUsageStatusBar(model, messages, modelConfig, options);
+        const { totalInputTokens, maxInputTokens } = await this.updateContextUsageStatusBar(
+            model,
+            messages,
+            modelConfig,
+            options
+        );
         // === Token 统计: 记录预估输入 token ===
         const usagesManager = TokenUsagesManager.instance;
-        let requestId: string | null = null;
+        let requestId = '';
+        const sdkMode = modelConfig.sdkMode || 'openai';
+        const sessionId = this.getSessionIdFromMessages(messages, sdkMode);
         try {
             requestId = await usagesManager.recordEstimatedTokens({
                 providerKey: providerKey,
                 displayName: this.providerConfig.displayName,
                 modelId: model.id,
                 modelName: model.name || modelConfig.name,
-                estimatedInputTokens: totalInputTokens
+                estimatedInputTokens: totalInputTokens,
+                maxInputTokens,
+                sessionId
             });
         } catch (err) {
             Logger.warn('Failed to record estimated tokens, continuing request:', err);
@@ -218,7 +227,6 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
         // 根据模型的 sdkMode 选择使用的 handler
         // 注：此处不调用 super.provideLanguageModelChatResponse，而是直接处理
         // 避免双重密钥检查，因为我们已经在 ensureApiKeyForModel 中检查过了
-        const sdkMode = modelConfig.sdkMode || 'openai';
         const sdkName = this.getSdkDisplayName(sdkMode);
         Logger.info(
             `${this.providerConfig.displayName} Provider started handling request (${sdkName}): ${modelConfig.name}`
@@ -230,24 +238,15 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
                 messages,
                 options,
                 progress,
-                _token,
                 requestId,
+                sessionId,
+                token,
                 providerKey
             );
         } catch (error) {
             const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
             Logger.error(errorMessage);
-            // === Token 统计: 更新失败状态 ===
-            if (requestId) {
-                try {
-                    await usagesManager.updateActualTokens({
-                        requestId,
-                        status: 'failed'
-                    });
-                } catch (err) {
-                    Logger.warn('Failed to update token usage failure status:', err);
-                }
-            }
+            this.reportRequestFailure(requestId, sessionId);
             throw error;
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);

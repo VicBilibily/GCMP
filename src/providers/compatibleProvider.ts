@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  独立兼容提供商
  *  继承 GenericModelProvider，重写必要方法以支持完全用户配置
  *--------------------------------------------------------------------------------------------*/
@@ -304,10 +304,16 @@ export class CompatibleProvider extends GenericModelProvider {
             Logger.info(`Compatible Provider started handling request (${sdkName}): ${modelConfig.name}`);
 
             // 计算输入 token 数量并更新状态栏
-            const totalInputTokens = await this.updateContextUsageStatusBar(model, messages, modelConfig, options);
+            const { totalInputTokens, maxInputTokens } = await this.updateContextUsageStatusBar(
+                model,
+                messages,
+                modelConfig,
+                options
+            );
 
             // === Token 统计: 记录预估 token ===
-            let requestId: string | null = null;
+            let requestId = '';
+            const sessionId = this.getSessionIdFromMessages(messages, sdkMode);
             try {
                 const usagesManager = TokenUsagesManager.instance;
 
@@ -323,7 +329,9 @@ export class CompatibleProvider extends GenericModelProvider {
                     displayName: actualDisplayName,
                     modelId: model.id,
                     modelName: model.name,
-                    estimatedInputTokens: totalInputTokens
+                    estimatedInputTokens: totalInputTokens,
+                    maxInputTokens,
+                    sessionId
                 });
             } catch (err) {
                 Logger.warn('Failed to record estimated tokens:', err);
@@ -336,32 +344,24 @@ export class CompatibleProvider extends GenericModelProvider {
                     messages,
                     options,
                     progress,
-                    token,
                     requestId,
+                    sessionId,
+                    token,
                     modelConfig.provider || this.providerKey
                 );
             } catch (error) {
                 const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
                 Logger.error(errorMessage);
-
-                // === Token 统计: 更新失败状态 ===
-                if (requestId) {
-                    try {
-                        const usagesManager = TokenUsagesManager.instance;
-                        await usagesManager.updateActualTokens({
-                            requestId,
-                            status: 'failed'
-                        });
-                    } catch (err) {
-                        Logger.warn('Failed to update token stats:', err);
-                    }
-                }
-
+                this.reportRequestFailure(requestId, sessionId);
                 throw error;
             } finally {
                 Logger.info(`✅ Compatible Provider: ${model.name} request completed`);
-                // 延时更新状态栏以反映最新余额
-                StatusBarManager.compatible?.delayedUpdate(modelConfig.provider!, 2000);
+                try {
+                    // 延时更新状态栏以反映最新余额
+                    StatusBarManager.compatible?.delayedUpdate(modelConfig.provider!, 2000);
+                } catch (err) {
+                    Logger.warn('Failed to update status bar:', err);
+                }
             }
         } catch (error) {
             Logger.error('Compatible Provider request processing failed:', error);

@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.20] - 2026-05-22
+
+### 新增
+
+- **阿里云百炼新模型**：新增 **Qwen3.7-Max**、**Qwen3.6-Max-Preview** 模型
+- **Token 统计按会话追踪**： usages 日志系统新增 `sessionId` 字段
+
+---
+
+### Added
+
+- **AliDashScope new models**: Added **Qwen3.7-Max** and **Qwen3.6-Max-Preview** models
+- **Token usage session tracking**: Added `sessionId` field to usages logging system for session-level token usage tracking
+
 ## [0.22.19] - 2026-05-20
 
 ### 新增

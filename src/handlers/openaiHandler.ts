@@ -507,12 +507,14 @@ export class OpenAIHandler {
         messages: readonly vscode.LanguageModelChatMessage[],
         options: vscode.ProvideLanguageModelChatResponseOptions,
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
-        token: vscode.CancellationToken,
-        requestId?: string | null
+        requestId: string,
+        sessionId: string,
+        token: vscode.CancellationToken
     ): Promise<void> {
         Logger.debug(`${model.name} starting ${this.displayName} request handling`);
         // 清理当前请求的事件去重跟踪器
         this.currentRequestProcessedEvents.clear();
+
         try {
             const client = await this.createOpenAIClient(modelConfig);
             Logger.debug(`${model.name} sending ${messages.length} messages using ${this.displayName}`);
@@ -626,7 +628,8 @@ export class OpenAIHandler {
                 modelId: model.id,
                 provider: this.provider,
                 sdkMode: 'openai',
-                progress
+                progress,
+                sessionId
             });
 
             // 使用 OpenAI SDK 的事件驱动流式方法，利用内置工具调用处理
@@ -740,6 +743,7 @@ export class OpenAIHandler {
                         // 直接传递原始 usage 对象，包含流时间信息
                         await usagesManager.updateActualTokens({
                             requestId,
+                            sessionId,
                             rawUsage: finalUsage || {},
                             status: 'completed',
                             streamStartTime,
@@ -770,6 +774,7 @@ export class OpenAIHandler {
 
             Logger.debug(`✅ ${model.name} ${this.displayName} request completed`);
         } catch (error) {
+            // === Token 统计: 更新失败状态 ===
             if (
                 token.isCancellationRequested ||
                 error instanceof vscode.CancellationError ||

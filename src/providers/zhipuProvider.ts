@@ -122,8 +122,12 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
             // 调用父类的实现
             await super.provideLanguageModelChatResponse(model, messages, options, progress, token);
         } finally {
-            // 请求完成后，延时更新智谱AI状态栏使用量
-            StatusBarManager.zhipu?.delayedUpdate();
+            try {
+                // 请求完成后，延时更新智谱AI状态栏使用量
+                StatusBarManager.zhipu?.delayedUpdate();
+            } catch (err) {
+                Logger.warn('Failed to update status bar:', err);
+            }
         }
     }
 

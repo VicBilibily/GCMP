@@ -87,8 +87,8 @@ export interface TokenRequestLog {
     status: 'estimated' | 'completed' | 'failed';
     /** 最大输入token(上下文窗口大小) */
     maxInputTokens?: number;
-    /** 请求类型 */
-    requestType?: 'chat' | 'completion' | 'fim' | 'nes';
+    /** 会话ID */
+    sessionId?: string;
     /** 流开始时间 (毫秒时间戳) */
     streamStartTime?: number;
     /** 流结束时间 (毫秒时间戳) */

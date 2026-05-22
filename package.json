@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.22.19",
+    "version": "0.22.20",
     "license": "MIT",
     "keywords": [
         "ai",

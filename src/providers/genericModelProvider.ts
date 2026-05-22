@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  通用Provider类
  *  基于配置文件动态创建提供商实现
  *--------------------------------------------------------------------------------------------*/
@@ -33,6 +33,8 @@ import { GeminiHandler } from '../handlers/geminiHandler';
 import { ContextUsageStatusBar } from '../status/contextUsageStatusBar';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { OpenAIResponsesHandler } from '../handlers/openaiResponsesHandler';
+import { getAllStatefulMarkersAndIndicies } from '../handlers/statefulMarker';
+import * as crypto from 'node:crypto';
 
 interface ContextUsageSummary {
     totalInputTokens: number;
@@ -375,8 +377,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         messages: Array<LanguageModelChatMessage>,
         options: ProvideLanguageModelChatResponseOptions,
         progress: Progress<vscode.LanguageModelResponsePart>,
+        requestId: string,
+        sessionId: string,
         token: CancellationToken,
-        requestId: string | null,
         effectiveProviderKey = modelConfig.provider || this.providerKey
     ): Promise<void> {
         const sdkMode = modelConfig.sdkMode || 'openai';
@@ -391,8 +394,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         messages,
                         options,
                         progress,
-                        token,
-                        requestId
+                        requestId,
+                        sessionId,
+                        token
                     );
                 } else if (sdkMode === 'gemini-sse') {
                     await this.geminiHandler.handleRequest(
@@ -401,8 +405,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         messages,
                         options,
                         progress,
-                        token,
-                        requestId
+                        requestId,
+                        sessionId,
+                        token
                     );
                 } else if (sdkMode === 'openai-sse') {
                     await this.openaiCustomHandler.handleRequest(
@@ -411,8 +416,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         messages,
                         options,
                         progress,
-                        token,
-                        requestId
+                        requestId,
+                        sessionId,
+                        token
                     );
                 } else if (sdkMode === 'openai-responses') {
                     await this.openaiResponsesHandler.handleResponsesRequest(
@@ -421,8 +427,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         messages,
                         options,
                         progress,
-                        token,
-                        requestId
+                        requestId,
+                        sessionId,
+                        token
                     );
                 } else {
                     await this.openaiHandler.handleRequest(
@@ -431,8 +438,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         messages,
                         options,
                         progress,
-                        token,
-                        requestId
+                        requestId,
+                        sessionId,
+                        token
                     );
                 }
             },
@@ -470,7 +478,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
         // === Token 统计: 记录预估输入 token ===
         const usagesManager = TokenUsagesManager.instance;
-        let requestId: string | null = null;
+        let requestId = '';
+        // 提取或生成 sessionId（根据 sdkMode，新会话时生成 UUID）
+        const sdkMode = modelConfig.sdkMode || 'openai';
+        const sessionId = this.getSessionIdFromMessages(messages, sdkMode);
         try {
             requestId = await usagesManager.recordEstimatedTokens({
                 providerKey: effectiveProviderKey,
@@ -478,53 +489,94 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 modelId: model.id,
                 modelName: model.name || modelConfig.name,
                 estimatedInputTokens: totalInputTokens,
-                maxInputTokens
+                maxInputTokens,
+                sessionId
             });
         } catch (err) {
             Logger.warn('Failed to record estimated tokens, continuing request:', err);
         }
 
-        // 确保对应提供商的 API 密钥存在
-        await ApiKeyManager.ensureApiKey(effectiveProviderKey, this.providerConfig.displayName);
-
         // 根据模型的 sdkMode 选择使用的 handler
-        const sdkMode = modelConfig.sdkMode || 'openai';
         const sdkName = this.getSdkDisplayName(sdkMode);
         Logger.info(
             `${this.providerConfig.displayName} Provider started handling request (${sdkName}): ${modelConfig.name}`
         );
 
         try {
+            // 确保对应提供商的 API 密钥存在
+            await ApiKeyManager.ensureApiKey(effectiveProviderKey, this.providerConfig.displayName);
+
             await this.executeModelRequest(
                 model,
                 modelConfig,
                 messages,
                 options,
                 progress,
-                token,
                 requestId,
+                sessionId,
+                token,
                 effectiveProviderKey
             );
         } catch (error) {
             const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
             Logger.error(errorMessage);
-
-            // === Token 统计: 更新失败状态 ===
-            if (requestId) {
-                try {
-                    await usagesManager.updateActualTokens({
-                        requestId,
-                        status: 'failed'
-                    });
-                } catch (err) {
-                    Logger.warn('Failed to update token usage failure status:', err);
-                }
-            }
-
+            // === Token 统计: 更新失败状态（仅在最终失败时上报）===
+            this.reportRequestFailure(requestId, sessionId);
             // 直接抛出错误，让VS Code处理重试
             throw error;
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);
+        }
+    }
+
+    /**
+     * 从消息中提取或生成 sessionId
+     * 优先从已有 statefulMarker 中提取，不存在时根据 sdkMode 生成新的 UUID
+     * @param messages 聊天消息数组
+     * @param sdkMode SDK 模式（如 'openai', 'anthropic' 等），用于新会话时生成 sessionId
+     * @returns 会话ID
+     */
+    protected getSessionIdFromMessages(
+        messages: readonly LanguageModelChatMessage[],
+        sdkMode: string = 'openai'
+    ): string {
+        for (const result of getAllStatefulMarkersAndIndicies(messages)) {
+            const sessionId = result.statefulMarker?.marker?.sessionId;
+            if (sessionId) {
+                return sessionId;
+            }
+        }
+        // 根据 sdkMode 生成新 sessionId
+        if (sdkMode === 'anthropic') {
+            const userHash = crypto.createHash('sha256').update(vscode.env.machineId).digest('hex');
+            return `user_${userHash}_account__session_${crypto.randomUUID()}`;
+        }
+        return crypto.randomUUID();
+    }
+
+    /**
+     * 上报请求失败状态到 Token 统计系统
+     * 在 Provider 层统一处理，避免重试中间态被误记为失败
+     * @param requestId 请求ID
+     * @param sessionId 会话ID
+     */
+    protected reportRequestFailure(requestId: string, sessionId: string): void {
+        if (!requestId) {
+            return;
+        }
+        try {
+            const usagesManager = TokenUsagesManager.instance;
+            usagesManager
+                .updateActualTokens({
+                    requestId,
+                    sessionId,
+                    status: 'failed'
+                })
+                .catch(err => {
+                    Logger.warn('Failed to update token usage failure status:', err);
+                });
+        } catch (err) {
+            Logger.warn('Failed to report request failure:', err);
         }
     }
 

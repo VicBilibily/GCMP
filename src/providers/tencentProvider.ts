@@ -150,7 +150,7 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
         messages: Array<LanguageModelChatMessage>,
         options: ProvideLanguageModelChatResponseOptions,
         progress: Progress<vscode.LanguageModelResponsePart>,
-        _token: CancellationToken
+        token: CancellationToken
     ): Promise<void> {
         // 查找对应的模型配置
         const rawModelConfig = this.findModelConfigById(model);
@@ -171,23 +171,31 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             `${this.providerConfig.displayName}: about to handle request using ${providerKey} key - model: ${modelConfig.name}`
         );
 
-        const totalInputTokens = await this.updateContextUsageStatusBar(model, messages, modelConfig, options);
+        const { totalInputTokens, maxInputTokens } = await this.updateContextUsageStatusBar(
+            model,
+            messages,
+            modelConfig,
+            options
+        );
 
         const usagesManager = TokenUsagesManager.instance;
-        let requestId: string | null = null;
+        let requestId = '';
+        const sdkMode = modelConfig.sdkMode || 'openai';
+        const sessionId = this.getSessionIdFromMessages(messages, sdkMode);
         try {
             requestId = await usagesManager.recordEstimatedTokens({
                 providerKey,
                 displayName: this.providerConfig.displayName,
                 modelId: model.id,
                 modelName: model.name || modelConfig.name,
-                estimatedInputTokens: totalInputTokens
+                estimatedInputTokens: totalInputTokens,
+                maxInputTokens,
+                sessionId
             });
         } catch (err) {
             Logger.warn('Failed to record estimated tokens, continuing request:', err);
         }
 
-        const sdkMode = modelConfig.sdkMode || 'openai';
         const sdkName = this.getSdkDisplayName(sdkMode);
         Logger.info(
             `${this.providerConfig.displayName} Provider started handling request (${sdkName}): ${modelConfig.name}`
@@ -200,18 +208,13 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
                 messages,
                 options,
                 progress,
-                _token,
                 requestId,
+                sessionId,
+                token,
                 providerKey
             );
         } catch (error) {
-            if (requestId) {
-                try {
-                    await usagesManager.updateActualTokens({ requestId, status: 'failed' });
-                } catch (err) {
-                    Logger.warn('Failed to update token usage failure status:', err);
-                }
-            }
+            this.reportRequestFailure(requestId, sessionId);
             throw error;
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);

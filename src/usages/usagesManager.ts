@@ -106,7 +106,7 @@ export class TokenUsagesManager {
         modelName: string;
         estimatedInputTokens: number;
         maxInputTokens?: number;
-        requestType?: 'chat' | 'completion' | 'fim' | 'nes';
+        sessionId?: string;
         timestamp?: number; // 可选: 自定义时间戳(用于测试数据生成)
     }): Promise<string> {
         if (!this.initialized) {
@@ -126,7 +126,7 @@ export class TokenUsagesManager {
                     modelName: params.modelName,
                     estimatedInput: params.estimatedInputTokens,
                     maxInputTokens: params.maxInputTokens,
-                    requestType: params.requestType,
+                    sessionId: params.sessionId,
                     timestamp: params.timestamp
                 })
                 .finally(() => {
@@ -150,6 +150,7 @@ export class TokenUsagesManager {
      */
     async updateActualTokens(params: {
         requestId: string;
+        sessionId?: string;
         rawUsage?: RawUsageData;
         status: 'completed' | 'failed';
         /** 流开始时间 (毫秒时间戳) */
@@ -173,6 +174,7 @@ export class TokenUsagesManager {
             this.fileLogger
                 .updateActualTokens({
                     requestId: params.requestId,
+                    sessionId: params.sessionId,
                     rawUsage: normalizedUsage,
                     status: params.status,
                     streamStartTime: params.streamStartTime,

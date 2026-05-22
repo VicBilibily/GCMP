@@ -30,7 +30,7 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 
 - [**Coding Plan**](https://bigmodel.cn/glm-coding): **GLM-5.1**, **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-4.7**, **GLM-4.6**, **GLM-4.6V**, **GLM-4.5-Air**
     - **Usage tracking**: Status bar displays remaining cycle quota for GLM Coding Plan.
-- **PayGo**: **GLM-5.1**, **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-5**, **GLM-4.7**, **GLM-4.7-FlashX**, **GLM-4.6**, **GLM-4.6V**, **GLM-4.5-Air**
+- **PayGo**: **GLM-5.1** (HighSpeed), **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-5**, **GLM-4.7**, **GLM-4.7-FlashX**, **GLM-4.6**, **GLM-4.6V**, **GLM-4.5-Air**
 - **Free models**: **GLM-4.6V-Flash**, **GLM-4.7-Flash**
 - [**International site**](https://z.ai/model-api): Supports switching to the international site (z.ai).
 - **Search**: Integrated `Web Search MCP` and `Web Search API`, supports `#zhipuWebSearch` for web searches.
@@ -39,12 +39,12 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 
 ### [**MiniMax**](https://platform.minimaxi.com/login)
 
-- [**Coding Plan**](https://platform.minimaxi.com/subscribe/coding-plan): **MiniMax-M2.7** (fast), **MiniMax-M2.5** (fast), **MiniMax-M2.1**, **MiniMax-M2**
+- [**Coding Plan**](https://platform.minimaxi.com/subscribe/coding-plan): **MiniMax-M2.7** (HighSpeed), **MiniMax-M2.5** (HighSpeed), **MiniMax-M2.1**, **MiniMax-M2**
     - **Search**: Integrated Coding Plan web search tool, supports `#minimaxWebSearch`.
     - **Image recognition**: Integrated Coding Plan image understanding MCP — paste images or screenshots directly for Agent interaction.
     - **Usage tracking**: Status bar displays remaining Coding Plan quota.
     - [**International site**](https://platform.minimax.io/subscribe/coding-plan): Supports international site Coding Plan.
-- **PayGo**: **MiniMax-M2.7** (fast), **MiniMax-M2.5** (fast), **MiniMax-M2.1** (fast), **MiniMax-M2**
+- **PayGo**: **MiniMax-M2.7** (HighSpeed), **MiniMax-M2.5** (HighSpeed), **MiniMax-M2.1** (HighSpeed), **MiniMax-M2**
 
 ### [**MoonshotAI**](https://platform.moonshot.cn/)
 
@@ -64,8 +64,8 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 - [**Coding Plan**](https://www.aliyun.com/benefit/scene/codingplan)
     - Recommended: **Qwen3.6-Plus**, **Kimi-K2.5**, **GLM-5**, **MiniMax-M2.5**
     - More: **Qwen3.5-Plus**, **Qwen3-Max**, **Qwen3-Coder-Next**, **Qwen3-Coder-Plus**, **GLM-4.7**
-- [**Token Plan**](https://www.aliyun.com/benefit/scene/tokenplan): **Qwen3.6-Plus**, **Qwen3.6-Flash**, **GLM-5.1**, **GLM-5**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.5**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **DeepSeek-V3.2**
-- **Qwen series**: **Qwen3.6-Plus**, **Qwen3.6-Flash**, **Qwen3.5-Plus**, **Qwen3.5-Flash**, **Qwen3-Max**, **Qwen3-VL-Plus**, **Qwen3-VL-Flash**, **Qwen-Plus**, **Qwen-Flash**
+- [**Token Plan**](https://www.aliyun.com/benefit/scene/tokenplan): **Qwen3.7-Max**, **Qwen3.6-Plus**, **Qwen3.6-Flash**, **GLM-5.1**, **GLM-5**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.5**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **DeepSeek-V3.2**
+- **Qwen series**: **Qwen3.7-Max**, **Qwen3.6-Max**, **Qwen3.6-Plus**, **Qwen3.6-Flash**, **Qwen3.5-Plus**, **Qwen3.5-Flash**, **Qwen3-Max**, **Qwen3-VL-Plus**, **Qwen3-VL-Flash**, **Qwen-Plus**, **Qwen-Flash**
 - **DeepSeek-V4**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**
 - **Search**: Integrated [Web Search MCP](https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=3023217) tool (2,000/month), supports `#bailianWebSearch`. (Uses [DashScope API Key](https://bailian.console.aliyun.com/cn-beijing/?tab=model#/api-key), not the Coding Plan API Key)
 
@@ -229,12 +229,12 @@ GCMP provides an **OpenAI / Anthropic Compatible** Provider for any OpenAI or An
 > Aggregation/relay providers may receive built-in special adaptations and are not listed as standalone providers.<br/>
 > If you need built-in or special adaptation support, please submit an Issue with relevant information.
 
-| Provider ID    | Provider Name                                              | Description     | Balance Query  |
-| --------------- | ---------------------------------------------------------- | --------------- | -------------- |
-| **aiping**      | [**AI Ping**](https://aiping.cn/#?invitation_code=EBQQKW) |                 | Account balance |
-| **aihubmix**    | [**AIHubMix**](https://aihubmix.com/?aff=xb8N)            | 10% off         | API Key balance |
-| **openrouter**  | [**OpenRouter**](https://openrouter.ai/)                  |                 | Account balance |
-| **siliconflow** | [**SiliconFlow**](https://cloud.siliconflow.cn/i/tQkcsZbJ)|                 | Account balance |
+| Provider ID     | Provider Name                                              | Description | Balance Query   |
+| --------------- | ---------------------------------------------------------- | ----------- | --------------- |
+| **aiping**      | [**AI Ping**](https://aiping.cn/#?invitation_code=EBQQKW)  |             | Account balance |
+| **aihubmix**    | [**AIHubMix**](https://aihubmix.com/?aff=xb8N)             | 10% off     | API Key balance |
+| **openrouter**  | [**OpenRouter**](https://openrouter.ai/)                   |             | Account balance |
+| **siliconflow** | [**SiliconFlow**](https://cloud.siliconflow.cn/i/tQkcsZbJ) |             | Account balance |
 
 **Configuration example**:
 
@@ -328,7 +328,7 @@ FIM and NES completions use separate model configurations, configurable via `gcm
 
 - **Enable NES manual completion mode**:
 
-```json
+````json
 {
     "gcmp.nesCompletion.enabled": true, // Enable NES completion
     "gcmp.nesCompletion.debounceMs": 500, // Debounce delay for auto-triggered completion
@@ -345,7 +345,7 @@ FIM and NES completions use separate model configurations, configurable via `gcm
         }
     }
 }
-```
+````
 
 - **Mixed FIM + NES completion mode**:
 
@@ -391,10 +391,10 @@ FIM and NES completions use separate model configurations, configurable via `gcm
 
 ### Keyboard Shortcuts
 
-| Shortcut       | Action                                     |
-| -------------- | ------------------------------------------ |
-| `Alt+/`        | Manually trigger completion (NES mode)     |
-| `Shift+Alt+/`  | Toggle NES manual trigger mode             |
+| Shortcut      | Action                                 |
+| ------------- | -------------------------------------- |
+| `Alt+/`       | Manually trigger completion (NES mode) |
+| `Shift+Alt+/` | Toggle NES manual trigger mode         |
 
 </details>
 

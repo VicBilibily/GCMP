@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as crypto from 'node:crypto';
 import OpenAI, { ClientOptions } from 'openai';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { Logger, sanitizeToolSchemaForTarget } from '../utils';
@@ -383,8 +382,9 @@ export class OpenAIResponsesHandler {
         messages: readonly vscode.LanguageModelChatMessage[],
         options: vscode.ProvideLanguageModelChatResponseOptions,
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
-        token: vscode.CancellationToken,
-        requestId?: string | null
+        requestId: string,
+        sessionId: string,
+        token: vscode.CancellationToken
     ): Promise<void> {
         Logger.debug(`${model.name} starting ${this.displayName} Responses API request handling`);
 
@@ -398,7 +398,8 @@ export class OpenAIResponsesHandler {
                 modelId: model.id,
                 provider: this.providerKey,
                 sdkMode: 'openai-responses',
-                progress
+                progress,
+                sessionId
             });
 
             const requestModel = modelConfig.model || modelConfig.id;
@@ -475,7 +476,6 @@ export class OpenAIResponsesHandler {
                 // 使用 statefulMarker 获取会话状态
                 const markerAndIndex = getStatefulMarkerAndIndex(model.id, 'openai-responses', messages);
                 const statefulMarker = markerAndIndex?.statefulMarker;
-                const sessionId = statefulMarker?.sessionId || crypto.randomUUID();
                 const previousResponseId = statefulMarker?.responseId;
                 let sessionExpireAt = statefulMarker?.expireAt;
 
@@ -1003,6 +1003,7 @@ export class OpenAIResponsesHandler {
                         const usagesManager = TokenUsagesManager.instance;
                         await usagesManager.updateActualTokens({
                             requestId,
+                            sessionId,
                             rawUsage: finalUsage || {},
                             status: 'completed',
                             streamStartTime,

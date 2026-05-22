@@ -73,8 +73,9 @@ export class OpenAICustomHandler {
         messages: readonly vscode.LanguageModelChatMessage[],
         options: vscode.ProvideLanguageModelChatResponseOptions,
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
-        token: vscode.CancellationToken,
-        requestId?: string | null
+        requestId: string,
+        sessionId: string,
+        token: vscode.CancellationToken
     ): Promise<void> {
         const provider = modelConfig.provider || this.provider;
         const apiKey = await ApiKeyManager.getApiKey(provider);
@@ -184,7 +185,8 @@ export class OpenAICustomHandler {
                 modelId: model.id,
                 provider: this.provider,
                 sdkMode: 'openai',
-                progress
+                progress,
+                sessionId
             });
 
             await this.processStream(model, response.body, reporter, requestId || '', token);
@@ -335,6 +337,7 @@ export class OpenAICustomHandler {
             const usagesManager = TokenUsagesManager.instance;
             await usagesManager.updateActualTokens({
                 requestId,
+                sessionId: reporter.getSessionId(),
                 rawUsage: finalUsage || {},
                 status: 'completed',
                 streamStartTime,
