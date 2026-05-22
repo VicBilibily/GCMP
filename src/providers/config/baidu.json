@@ -19,6 +19,20 @@
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
+            "id": "deepseek-v4-pro-coding-plan",
+            "name": "DeepSeek-V4-Pro (CodingPlan)",
+            "tooltip": "百度千帆 Coding Plan 专属接入点中的 DeepSeek-V4-Pro。拥有百万字超长上下文，在 Agent 能力、世界知识和推理性能上均实现国内与开源领域的领先。",
+            "provider": "baidu-coding",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://qianfan.baidubce.com/anthropic/coding",
+            "model": "deepseek-v4-pro",
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 128000,
+            "reasoningEffort": ["high", "max", "none"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
             "id": "deepseek-v3.2-coding-plan",
             "name": "DeepSeek-V3.2 (CodingPlan)",
             "tooltip": "百度千帆 Coding Plan 专属接入点中的 DeepSeek-V3.2。兼顾推理效果与响应效率，适用于通用问答、日常 Agent 任务及基础开发辅助。",

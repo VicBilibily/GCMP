@@ -105,7 +105,7 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 ### [**Baidu Qianfan**](https://cloud.baidu.com/product-s/qianfan_home)
 
 - **PayGo**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **DeepSeek-V3.2**, **GLM-5**, **GLM-5.1**, **Kimi-K2.5**, **MiniMax-M2.5**, **ERNIE-5.1**, **ERNIE-5.0**
-- [**Coding Plan**](https://cloud.baidu.com/product/codingplan): **DeepSeek-V4-Flash**, **GLM-5.1**, **DeepSeek-V3.2**, **GLM-5**, **Kimi-K2.5**, **MiniMax-M2.5**
+- [**Coding Plan**](https://cloud.baidu.com/product/codingplan): **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **GLM-5.1**, **DeepSeek-V3.2**, **GLM-5**, **Kimi-K2.5**, **MiniMax-M2.5**
 - **Key configuration**: Supports separate [Baidu Qianfan API Key](https://console.bce.baidu.com/qianfan/ais/console/apiKey) and [Coding Plan API Key](https://console.bce.baidu.com/qianfan/resource/subscribe).
 
 ### Experimental CLI Authentication Providers

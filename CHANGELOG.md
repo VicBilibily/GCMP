@@ -2,6 +2,30 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.21] - 2026-05-22
+
+### 新增
+
+- **百度千帆 Coding Plan**：新增 **DeepSeek-V4-Pro** 模型
+
+### 修复
+
+- **GPT prompt_cache_key 超长错误**：修复 OpenAI Responses API 的 `prompt_cache_key` 因 sessionId 过长（超过 64 字符）导致请求失败的问题
+- **sessionId 统一为短 UUID**：移除 anthropic 模式下的超长 sessionId 格式（`user_xxx_account__session_xxx`），统一使用短 UUID 存储与传递，各 handler 按需在 metadata 处拼接扩展格式
+- **向后兼容旧 sessionId**：读取 stateful marker 中的旧 anthropic 格式 sessionId 时自动提取 UUID 部分，确保历史会话数据不受影响
+
+---
+
+### Added
+
+- **Baidu Qianfan Coding Plan**: Added **DeepSeek-V4-Pro** model
+
+### Fixed
+
+- **GPT prompt_cache_key too long**: Fixed OpenAI Responses API error when `prompt_cache_key` exceeds 64-character limit due to lengthy sessionId
+- **Unified sessionId as short UUID**: Removed the lengthy anthropic sessionId format (`user_xxx_account__session_xxx`), unified storage and transport to short UUID, with per-handler metadata formatting on demand
+- **Backward compatible old sessionId**: Automatically extract UUID from legacy anthropic-format sessionId in stateful markers, ensuring existing session data continues to work
+
 ## [0.22.20] - 2026-05-22
 
 ### 新增

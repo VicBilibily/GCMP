@@ -538,19 +538,21 @@ export class GenericModelProvider implements LanguageModelChatProvider {
      */
     protected getSessionIdFromMessages(
         messages: readonly LanguageModelChatMessage[],
-        sdkMode: string = 'openai'
+        _sdkMode: string = 'openai'
     ): string {
         for (const result of getAllStatefulMarkersAndIndicies(messages)) {
-            const sessionId = result.statefulMarker?.marker?.sessionId;
+            let sessionId = result.statefulMarker?.marker?.sessionId;
             if (sessionId) {
+                // 向后兼容旧 anthropic 格式：user_xxx_account__session_UUID → UUID
+                const sessionIdx = sessionId.lastIndexOf('_session_');
+                if (sessionIdx !== -1) {
+                    sessionId = sessionId.slice(sessionIdx + '_session_'.length);
+                    Logger.debug(`Backward compat: extracted UUID from old sessionId format: ${sessionId}`);
+                }
                 return sessionId;
             }
         }
-        // 根据 sdkMode 生成新 sessionId
-        if (sdkMode === 'anthropic') {
-            const userHash = crypto.createHash('sha256').update(vscode.env.machineId).digest('hex');
-            return `user_${userHash}_account__session_${crypto.randomUUID()}`;
-        }
+        // 统一生成短格式 sessionId（UUID），各 handler 按需在 metadata 处拼接扩展格式
         return crypto.randomUUID();
     }
 
@@ -580,6 +582,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         }
     }
 
+    /**
+     * 提供 token 计数
+     */
     async provideTokenCount(
         model: LanguageModelChatInformation,
         text: string | LanguageModelChatMessage,

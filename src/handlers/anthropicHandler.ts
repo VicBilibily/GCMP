@@ -3,6 +3,7 @@
  *  处理使用 Anthropic SDK 的模型请求
  *--------------------------------------------------------------------------------------------*/
 
+import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
 import { apiMessageToAnthropicMessage, convertToAnthropicTools } from './anthropicConverter';
@@ -90,6 +91,14 @@ export class AnthropicHandler {
             null,
             2
         );
+    }
+
+    private _userHash?: string;
+    private get userHash(): string {
+        if (!this._userHash) {
+            this._userHash = crypto.createHash('sha256').update(vscode.env.machineId).digest('hex');
+        }
+        return this._userHash;
     }
 
     /**
@@ -216,7 +225,7 @@ export class AnthropicHandler {
                 }
             }
 
-            createParams.metadata = { user_id: sessionId };
+            createParams.metadata = { user_id: `user_${this.userHash}_account__session_${sessionId}` };
 
             // 合并 extraBody 参数（如果有）
             if (modelConfig.extraBody) {
