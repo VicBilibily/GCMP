@@ -60,6 +60,11 @@ export interface GenericUsageData {
  */
 export type RawUsageData = Anthropic.Messages.Usage | OpenAI.Completions.CompletionUsage | GenericUsageData;
 
+export interface OTelTraceContextLog {
+    traceId: string;
+    spanId: string;
+}
+
 /**
  * Token请求日志条目
  * 每行一个JSON对象,记录一次完整的API请求
@@ -89,6 +94,12 @@ export interface TokenRequestLog {
     maxInputTokens?: number;
     /** 会话ID */
     sessionId?: string;
+    /** 请求发起方（扩展 key 或 core） */
+    requestInitiator?: string;
+    /** CapturingToken 关联 ID */
+    capturingTokenCorrelationId?: string;
+    /** OpenTelemetry trace 上下文 */
+    otelTraceContext?: OTelTraceContextLog;
     /** 流开始时间 (毫秒时间戳) */
     streamStartTime?: number;
     /** 流结束时间 (毫秒时间戳) */

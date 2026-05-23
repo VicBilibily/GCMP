@@ -10,7 +10,7 @@ import { UsageParser, ExtendedTokenRequestLog } from './fileLogger/usageParser';
 import { DateUtils } from './fileLogger/dateUtils';
 import { EventEmitter } from 'events';
 import type { DateSummary } from './types';
-import type { GenericUsageData, RawUsageData, DateIndexEntry } from './fileLogger/types';
+import type { GenericUsageData, RawUsageData, DateIndexEntry, OTelTraceContextLog } from './fileLogger/types';
 
 /**
  * Token 用量管理器
@@ -107,6 +107,9 @@ export class TokenUsagesManager {
         estimatedInputTokens: number;
         maxInputTokens?: number;
         sessionId?: string;
+        requestInitiator?: string;
+        capturingTokenCorrelationId?: string;
+        otelTraceContext?: OTelTraceContextLog;
         timestamp?: number; // 可选: 自定义时间戳(用于测试数据生成)
     }): Promise<string> {
         if (!this.initialized) {
@@ -127,6 +130,9 @@ export class TokenUsagesManager {
                     estimatedInput: params.estimatedInputTokens,
                     maxInputTokens: params.maxInputTokens,
                     sessionId: params.sessionId,
+                    requestInitiator: params.requestInitiator,
+                    capturingTokenCorrelationId: params.capturingTokenCorrelationId,
+                    otelTraceContext: params.otelTraceContext,
                     timestamp: params.timestamp
                 })
                 .finally(() => {

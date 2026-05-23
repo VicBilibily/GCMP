@@ -331,7 +331,8 @@ export class CompatibleProvider extends GenericModelProvider {
                     modelName: model.name,
                     estimatedInputTokens: totalInputTokens,
                     maxInputTokens,
-                    sessionId
+                    sessionId,
+                    ...this.getEstimatedRequestMetadata(options)
                 });
             } catch (err) {
                 Logger.warn('Failed to record estimated tokens:', err);

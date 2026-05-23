@@ -283,7 +283,8 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
                 modelName: model.name || modelConfig.name,
                 estimatedInputTokens: totalInputTokens,
                 maxInputTokens,
-                sessionId
+                sessionId,
+                ...this.getEstimatedRequestMetadata(options)
             });
         } catch (err) {
             Logger.warn('Failed to record estimated tokens, continuing request:', err);

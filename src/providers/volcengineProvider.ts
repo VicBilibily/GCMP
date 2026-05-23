@@ -196,7 +196,8 @@ export class VolcengineProvider extends GenericModelProvider implements Language
                 modelName: model.name || modelConfig.name,
                 estimatedInputTokens: totalInputTokens,
                 maxInputTokens,
-                sessionId
+                sessionId,
+                ...this.getEstimatedRequestMetadata(options)
             });
         } catch (err) {
             Logger.warn('Failed to record estimated tokens, continuing request:', err);

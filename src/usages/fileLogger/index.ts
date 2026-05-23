@@ -189,6 +189,9 @@ export class TokenFileLogger {
         estimatedInput: number;
         maxInputTokens?: number;
         sessionId?: string;
+        requestInitiator?: string;
+        capturingTokenCorrelationId?: string;
+        otelTraceContext?: TokenRequestLog['otelTraceContext'];
         timestamp?: number; // 可选: 自定义时间戳(用于测试数据生成)
     }): Promise<void> {
         const now = params.timestamp ?? Date.now();
@@ -208,7 +211,10 @@ export class TokenFileLogger {
             rawUsage: null,
             status: 'estimated',
             maxInputTokens: params.maxInputTokens,
-            sessionId: params.sessionId
+            sessionId: params.sessionId,
+            requestInitiator: params.requestInitiator,
+            capturingTokenCorrelationId: params.capturingTokenCorrelationId,
+            otelTraceContext: params.otelTraceContext
         };
 
         // 暂存到内存

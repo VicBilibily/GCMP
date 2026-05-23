@@ -41,6 +41,18 @@ interface ContextUsageSummary {
     maxInputTokens: number;
 }
 
+interface RuntimeModelOptionsTelemetry {
+    _capturingTokenCorrelationId?: string;
+    _otelTraceContext?: {
+        traceId?: string;
+        spanId?: string;
+    };
+}
+
+type RuntimeProvideLanguageModelChatResponseOptions = ProvideLanguageModelChatResponseOptions & {
+    modelOptions?: RuntimeModelOptionsTelemetry;
+};
+
 /**
  * 通用模型提供商类
  * 基于配置文件动态创建提供商实现
@@ -449,6 +461,30 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         );
     }
 
+    protected getEstimatedRequestMetadata(options: ProvideLanguageModelChatResponseOptions): {
+        requestInitiator?: string;
+        capturingTokenCorrelationId?: string;
+        otelTraceContext?: {
+            traceId: string;
+            spanId: string;
+        };
+    } {
+        const runtimeOptions = options as RuntimeProvideLanguageModelChatResponseOptions;
+        const otelTraceContext = runtimeOptions.modelOptions?._otelTraceContext;
+
+        return {
+            requestInitiator: options.requestInitiator,
+            capturingTokenCorrelationId: runtimeOptions.modelOptions?._capturingTokenCorrelationId,
+            otelTraceContext:
+                otelTraceContext?.traceId && otelTraceContext?.spanId ?
+                    {
+                        traceId: otelTraceContext.traceId,
+                        spanId: otelTraceContext.spanId
+                    }
+                :   undefined
+        };
+    }
+
     async provideLanguageModelChatResponse(
         model: LanguageModelChatInformation,
         messages: Array<LanguageModelChatMessage>,
@@ -490,7 +526,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 modelName: model.name || modelConfig.name,
                 estimatedInputTokens: totalInputTokens,
                 maxInputTokens,
-                sessionId
+                sessionId,
+                ...this.getEstimatedRequestMetadata(options)
             });
         } catch (err) {
             Logger.warn('Failed to record estimated tokens, continuing request:', err);
