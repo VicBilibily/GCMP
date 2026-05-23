@@ -152,7 +152,7 @@ GCMP supports customizing AI model behavior parameters through VS Code settings 
 
 ```json
 {
-    "gcmp.maxTokens": 16000, // 32-256000
+    "gcmp.maxTokens": 32000, // 32-256000
     "gcmp.retry.maxAttempts": 3, // 1-5, only effective for retryable errors
     "gcmp.zhipu.search.enableMCP": true // Enable Web Search MCP (Coding Plan exclusive)
 }

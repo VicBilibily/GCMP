@@ -146,7 +146,7 @@ export class ConfigManager {
         const config = vscode.workspace.getConfiguration(this.CONFIG_SECTION);
 
         this.cache = {
-            maxTokens: this.validateMaxTokens(config.get<number>('maxTokens', 256000)),
+            maxTokens: this.validateMaxTokens(config.get<number>('maxTokens', 32000)),
             retry: {
                 maxAttempts: this.validateRetryMaxAttempts(config.get<number>('retry.maxAttempts', 3))
             },
@@ -299,8 +299,8 @@ export class ConfigManager {
      */
     private static validateMaxTokens(value: number): number {
         if (isNaN(value) || value < 32 || value > 256000) {
-            Logger.warn(`Invalid maxTokens value: ${value}; using default 16000`);
-            return 16000;
+            Logger.warn(`Invalid maxTokens value: ${value}; using default 32000`);
+            return 32000;
         }
         return Math.floor(value);
     }

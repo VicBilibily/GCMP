@@ -5,13 +5,11 @@ interface VsCodeApi {
     postMessage(message: { command: string; [key: string]: unknown }): void;
 }
 
-/**
- * 扩展 Window 接口，添加 VSCode WebView API
- */
-declare global {
-    interface Window {
-        vscode: VsCodeApi;
-    }
+interface Window {
+    vscode: VsCodeApi;
 }
 
-export {};
+declare module '*.less' {
+    const content: string;
+    export default content;
+}

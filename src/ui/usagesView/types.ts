@@ -9,8 +9,7 @@ import type { DateSummary } from '../../usages/types';
 import type {
     FileLoggerProviderStats,
     FileLoggerModelStats as ModelData,
-    HourlyStats,
-    TokenRequestLog as RequestRecord
+    HourlyStats
 } from '../../usages/fileLogger/types';
 import type { ExtendedTokenRequestLog } from '../../usages/fileLogger/usageParser';
 
@@ -25,9 +24,32 @@ export interface ProviderData extends FileLoggerProviderStats {
     providerKey: string;
 }
 
+/**
+ * 会话级汇总信息
+ */
+export interface SessionSummary {
+    requestCount: number;
+    totalTokens: number;
+    startTime?: number;
+    endTime?: number;
+    completedCount: number;
+    failedCount: number;
+    avgSpeed?: number;
+}
+
+/**
+ * 会话分组结果，包含展示信息与原始记录
+ */
+export interface SessionGroup {
+    sessionId: string;
+    displayId: string;
+    records: ExtendedTokenRequestLog[];
+    summary: SessionSummary;
+}
+
 // ============= 重新导出类型供外部使用 =============
 
-export type { DateSummary, ModelData, HourlyStats, RequestRecord };
+export type { DateSummary, ModelData, HourlyStats };
 export type { ExtendedTokenRequestLog };
 
 // ============= 消息类型定义 =============
@@ -70,6 +92,7 @@ export type HostMessage = UpdateDateListMessage | UpdateDateDetailsMessage;
 export interface State {
     selectedDate: string;
     today: string;
+    selectedSessionId: string | null;
     dateList: DateSummary[];
     dateDetails: DateDetails | null;
     loading: {
@@ -86,6 +109,7 @@ export interface DateDetails {
     providers: ProviderData[];
     hourlyStats: Record<string, HourlyStats>;
     records: ExtendedTokenRequestLog[];
+    sessionGroups: SessionGroup[];
 }
 
 /**

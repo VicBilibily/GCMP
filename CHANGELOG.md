@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.22] - 2026-05-23
+
+### 更新
+
+- **默认最大输出 Token**：将 `gcmp.maxTokens` 默认值从 `16000` 调整为 `32000`
+
+### 重构
+
+- **请求记录视图界面重构**：新增会话分组视图，左侧筛选会话、右侧查看该会话的完整请求链路
+
+---
+
+### Updated
+
+- **Default max output tokens**: Increased the default `gcmp.maxTokens` value from `16000` to `32000`
+
+### Refactored
+
+- **Request records statistics and display overhaul**: Added session grouping with filter sidebar and per-session full trace detail view
+
 ## [0.22.21] - 2026-05-22
 
 ### 新增

@@ -7,3 +7,4 @@ export * from './providerStats';
 export * from './hourlyStats';
 export * from './hourlyChart';
 export * from './requestRecords';
+export * from './sessionFilter';

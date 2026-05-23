@@ -6,13 +6,13 @@ import './style.less';
 import 'chart.js/auto'; // 导入 Chart.js
 
 import type { HostMessage, State } from './types';
-import { getTodayDateString, postToVSCode, t } from './utils';
+import { getTodayDateString, groupRecordsBySession, postToVSCode, t } from './utils';
 import { createElement } from '../utils';
 
 // 导入组件
 import { createSidebar, updateDateList } from './components/dateList';
 import { createMainContent, updateMainContent } from './components/mainContent';
-import { createRequestRecordsSection } from './components/requestRecords';
+import { createRequestRecordsSection, resetRequestRecordsState } from './components/requestRecords';
 
 // ============= 全局状态管理 =============
 
@@ -22,6 +22,7 @@ import { createRequestRecordsSection } from './components/requestRecords';
 const state: State = {
     selectedDate: '',
     today: '',
+    selectedSessionId: null,
     dateList: [],
     dateDetails: null,
     loading: {
@@ -31,6 +32,13 @@ const state: State = {
 
 // 跟踪上一次的日期，用于检测日期变化
 let lastDateDetailsDate: string | null = null;
+
+/**
+ * 判断当前可视宽度是否需要折叠日期列表
+ */
+function shouldCollapseSidebar(): boolean {
+    return window.matchMedia('(max-width: 999px)').matches;
+}
 
 /**
  * 状态监听器列表
@@ -134,14 +142,31 @@ function handleVSCodeMessage(event: MessageEvent): void {
             });
             break;
 
-        case 'updateDateDetails':
+        case 'updateDateDetails': {
+            const sessionGroups = groupRecordsBySession(message.records);
+            const dateChanged = state.dateDetails?.date !== message.date;
+            const nextSelectedSessionId =
+                (
+                    !dateChanged &&
+                    state.selectedSessionId &&
+                    sessionGroups.some(group => group.sessionId === state.selectedSessionId)
+                ) ?
+                    state.selectedSessionId
+                :   null;
+
+            if (dateChanged) {
+                resetRequestRecordsState();
+            }
+
             setState({
+                selectedSessionId: nextSelectedSessionId,
                 dateDetails: {
                     date: message.date,
                     isToday: message.isToday,
                     providers: message.providers,
                     hourlyStats: message.hourlyStats,
-                    records: message.records
+                    records: message.records,
+                    sessionGroups
                 },
                 loading: {
                     ...state.loading,
@@ -149,11 +174,12 @@ function handleVSCodeMessage(event: MessageEvent): void {
                 }
             });
 
-            // 如果是小屏幕模式，切换日期后自动隐藏侧边栏
-            if (window.innerWidth <= 768) {
+            // 仅在真正切换日期时，小屏模式才自动隐藏侧边栏
+            if (dateChanged && shouldCollapseSidebar()) {
                 toggleSidebar(false);
             }
             break;
+        }
     }
 }
 
@@ -185,15 +211,11 @@ function updateRequestRecords(): void {
             const dateChanged = lastDateDetailsDate !== state.dateDetails.date;
             lastDateDetailsDate = state.dateDetails.date;
 
-            // 如果日期变化了，重置页码；否则保持当前页码
+            // 仅在切换日期时重置页码；同日实时刷新保持当前页
             const page = dateChanged ? 1 : undefined;
 
             // 使用容器复用
-            createRequestRecordsSection(
-                state.dateDetails.records,
-                page, // 日期变化时重置页码，否则保持当前页码
-                existingContainer
-            );
+            createRequestRecordsSection(state.dateDetails.sessionGroups, page, existingContainer);
         }
     }
 }
@@ -220,10 +242,9 @@ function refreshViews(): void {
  */
 function toggleSidebar(show?: boolean): void {
     const sidebar = document.querySelector('.sidebar') as HTMLElement;
-    const content = document.querySelector('.content') as HTMLElement;
     const toggleBtn = document.querySelector('.sidebar-toggle') as HTMLElement;
 
-    if (!sidebar || !content) {
+    if (!sidebar) {
         return;
     }
 
@@ -232,7 +253,6 @@ function toggleSidebar(show?: boolean): void {
 
     if (shouldShow) {
         sidebar.classList.remove('hidden');
-        content.classList.add('sidebar-open');
         if (toggleBtn) {
             toggleBtn.innerHTML = `<span class="toggle-icon">◀</span> ${t('Collapse List', '收起列表')}`;
         }
@@ -240,7 +260,6 @@ function toggleSidebar(show?: boolean): void {
         createOrUpdateOverlay();
     } else {
         sidebar.classList.add('hidden');
-        content.classList.remove('sidebar-open');
         if (toggleBtn) {
             toggleBtn.innerHTML = `<span class="toggle-icon">☰</span> ${t('Date List', '日期列表')}`;
         }
@@ -315,8 +334,8 @@ function initApp(): void {
         content.insertBefore(toggleBtn, content.firstChild);
     }
 
-    // 检查窗口宽度，如果小于768px，默认隐藏侧边栏
-    if (window.innerWidth <= 768) {
+    // 检查窗口宽度，如果小于450px，默认隐藏侧边栏
+    if (shouldCollapseSidebar()) {
         toggleSidebar(false);
     }
 
@@ -327,7 +346,7 @@ function initApp(): void {
             return;
         }
 
-        if (window.innerWidth <= 768) {
+        if (shouldCollapseSidebar()) {
             // 小屏幕时，默认隐藏侧边栏
             if (!sidebar.classList.contains('hidden')) {
                 toggleSidebar(false);
@@ -336,11 +355,7 @@ function initApp(): void {
             // 大屏幕时，默认显示侧边栏，并移除遮罩层
             if (sidebar.classList.contains('hidden')) {
                 sidebar.classList.remove('hidden');
-                const content = document.querySelector('.content') as HTMLElement;
                 const toggleBtn = document.querySelector('.sidebar-toggle') as HTMLElement;
-                if (content) {
-                    content.classList.remove('sidebar-open');
-                }
                 if (toggleBtn) {
                     toggleBtn.innerHTML = `<span class="toggle-icon">☰</span> ${t('Date', '日期')}`;
                 }

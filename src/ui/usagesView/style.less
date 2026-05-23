@@ -90,14 +90,6 @@ body {
                     color: var(--vscode-list-activeSelectionForeground);
                 }
 
-                &-header {
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    margin-bottom: 4px;
-                    gap: 8px;
-                }
-
                 &-title {
                     font-weight: bold;
                     flex: 1;
@@ -367,6 +359,185 @@ body {
 
 /* 记录表格特定样式 */
 #records-container {
+    .records-layout {
+        display: flex;
+        align-items: stretch;
+        position: relative;
+        gap: 0;
+        margin: 12px 0;
+        border: 1px solid var(--vscode-panel-border);
+        border-radius: 6px;
+        overflow: hidden;
+        height: 628px;
+    }
+
+    .session-filter {
+        display: flex;
+        flex-direction: column;
+        width: 180px;
+        flex-shrink: 0;
+        align-self: stretch;
+        background-color: var(--vscode-sideBar-background);
+        border-right: 1px solid var(--vscode-panel-border);
+
+        &-pinned {
+            flex-shrink: 0;
+            border-bottom: 1px solid var(--vscode-panel-border);
+        }
+
+        &-list {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+        }
+
+        &-item {
+            border-bottom: 1px solid var(--vscode-panel-border);
+
+            > div {
+                padding: 8px 12px;
+                cursor: pointer;
+                transition: background-color 0.1s;
+            }
+
+            &:hover > div {
+                background-color: var(--vscode-list-hoverBackground);
+            }
+
+            &.selected > div {
+                background-color: var(--vscode-list-activeSelectionBackground);
+                color: var(--vscode-list-activeSelectionForeground);
+            }
+        }
+
+        &-item-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            word-break: break-word;
+
+            &-label {
+                min-width: 0;
+            }
+
+            &-time {
+                flex-shrink: 0;
+                color: var(--vscode-descriptionForeground);
+                font-size: 10px;
+                font-weight: 400;
+                white-space: nowrap;
+            }
+        }
+
+        &-item-stats,
+        &-item-detail {
+            margin-top: 4px;
+            color: var(--vscode-descriptionForeground);
+            font-size: 11px;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        &-item.selected > div .session-filter-item-stats,
+        &-item.selected > div .session-filter-item-detail,
+        &-item.selected > div .session-filter-item-title-time {
+            color: var(--vscode-list-activeSelectionForeground);
+        }
+    }
+
+    .records-detail {
+        flex: 1;
+        min-width: 0;
+        min-height: 0;
+        padding: 12px;
+        background-color: var(--vscode-editor-background);
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+    }
+
+    .records-detail-content {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        overflow-y: hidden;
+    }
+
+    .session-detail {
+        &-header {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+
+        &-title-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        &-title {
+            margin: 0;
+            font-size: 14px;
+        }
+
+        &-summary {
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+    }
+
+    .session-filter-toggle {
+        position: absolute;
+        top: 6px;
+        right: 12px;
+        gap: 4px;
+        background-color: var(--vscode-button-secondaryBackground);
+        color: var(--vscode-button-secondaryForeground);
+        border: none;
+        padding: 6px 10px;
+        cursor: pointer;
+        border-radius: 2px;
+        font-size: 12px;
+        display: none;
+        align-items: center;
+        gap: 4px;
+        transition: background-color 0.1s;
+
+        &:hover {
+            background-color: var(--vscode-button-secondaryHoverBackground);
+        }
+
+        .toggle-icon {
+            font-size: 14px;
+            line-height: 1;
+        }
+    }
+
+    .session-filter-popover {
+        display: none;
+    }
+
+    .session-summary-chip {
+        display: inline-flex;
+        align-items: center;
+        max-width: 100%;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background-color: var(--vscode-badge-background);
+        color: var(--vscode-badge-foreground);
+        font-size: 11px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
     /* 列宽分配 */
     .records-table {
         /* 第1列（时间）固定宽度 */
@@ -418,7 +589,30 @@ body {
         th:last-child,
         td:last-child {
             width: 38px;
+            min-width: 38px;
         }
+    }
+
+    .records-total-row {
+        background-color: var(--vscode-editor-selectionBackground);
+        font-weight: 600;
+
+        td {
+            border-top: 2px solid var(--vscode-editor-selectionForeground);
+        }
+    }
+
+    .records-total-label {
+        text-align: left !important;
+    }
+
+    .records-total-number {
+        text-align: right !important;
+    }
+
+    .records-total-empty {
+        text-align: center !important;
+        vertical-align: middle;
     }
 
     td,
@@ -468,15 +662,6 @@ button {
             background-color: var(--vscode-button-secondaryHoverBackground);
         }
     }
-
-    &.danger {
-        background-color: var(--vscode-inputValidation-errorBackground);
-        color: var(--vscode-input-foreground);
-
-        &:hover {
-            opacity: 0.9;
-        }
-    }
 }
 
 .status-completed {
@@ -502,23 +687,36 @@ button {
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-wrap: nowrap;
+    width: 100%;
     gap: 8px;
-    margin: 16px 0;
+    margin: 8px 0;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
 
     &-info {
         color: var(--vscode-descriptionForeground);
         font-size: 12px;
+        white-space: nowrap;
+        flex-shrink: 0;
     }
 
     button {
         padding: 4px 8px;
         font-size: 12px;
         margin-right: 0;
+        flex-shrink: 0;
 
         &:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
+    }
+
+    span {
+        flex-shrink: 0;
+        white-space: nowrap;
     }
 
     .page-number {
@@ -585,8 +783,8 @@ button {
     }
 }
 
-/* 响应式设计 */
-@media (max-width: 768px) {
+/* 日期列表响应式设计 */
+@media (max-width: 999px) {
     .container {
         .sidebar {
             position: absolute;
@@ -614,6 +812,60 @@ button {
         background-color: rgba(0, 0, 0, 0.5);
         z-index: 150;
         cursor: pointer;
+    }
+}
+
+/* 请求记录响应式设计 */
+@media (max-width: 798px) {
+    #records-container {
+        .records-layout > .session-filter {
+            display: none;
+        }
+
+        .session-filter-toggle {
+            display: flex;
+            align-items: center;
+        }
+
+        .session-filter-popover {
+            display: none;
+
+            &.open {
+                display: block;
+            }
+
+            &-backdrop {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                z-index: 20;
+                margin-right: 0;
+                border-radius: 0;
+                background-color: rgba(0, 0, 0, 0.4);
+            }
+
+            &-panel {
+                position: absolute;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                z-index: 21;
+                width: 180px;
+                box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
+
+                .session-filter {
+                    width: 100%;
+                    height: 100%;
+                    border-right: 1px solid var(--vscode-panel-border);
+                }
+            }
+        }
+
+        .records-detail {
+            padding: 10px;
+        }
     }
 }
 
