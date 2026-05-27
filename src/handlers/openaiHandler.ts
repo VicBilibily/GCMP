@@ -60,6 +60,32 @@ interface ParsedSSEChunk {
     output_index?: number | null;
 }
 
+function normalizeResponsesOutput(response?: ParsedSSEResponsePayload): boolean {
+    if (!response) {
+        return false;
+    }
+
+    let modified = false;
+    if (!Array.isArray(response.output)) {
+        response.output = [];
+        modified = true;
+    }
+
+    for (const outputItem of response.output) {
+        if (!outputItem || typeof outputItem !== 'object') {
+            continue;
+        }
+
+        const item = outputItem as ParsedSSEItemPayload;
+        if (item.type === 'message' && !Array.isArray(item.content)) {
+            item.content = [];
+            modified = true;
+        }
+    }
+
+    return modified;
+}
+
 /**
  * 扩展助手消息类型，支持 reasoning_content 字段
  */
@@ -265,7 +291,7 @@ export class OpenAIHandler {
      * 修复部分模型输出 "data:" 后不带空格的问题
      */
     private async preprocessSSEResponse(response: Response): Promise<Response> {
-        const contentType = response.headers.get('Content-Type');
+        let contentType = response.headers.get('Content-Type');
 
         // 对于非 200 状态码的响应，尝试读取错误信息
         if (!response.ok && response.status >= 400) {
@@ -315,10 +341,15 @@ export class OpenAIHandler {
             }
             throw new Error(errorMessage);
         }
-        // 只处理 SSE 响应，其他类型直接返回原始 response
+        if (response?.url?.endsWith('/responses') && !contentType) {
+            // 部分网关不返回 contentType，默认 /responses 模式返回的就是 SSE 流，直接预处理
+            contentType = 'text/event-stream';
+        }
         if (!contentType || !contentType.includes('text/event-stream') || !response.body) {
+            // 只处理 SSE 响应，其他类型直接返回原始 response
             return response;
         }
+
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         const encoder = new TextEncoder();
@@ -408,13 +439,18 @@ export class OpenAIHandler {
                 //#endregion
 
                 //#region OpenAI Response 事件兼容性处理
-                if (obj.type === 'response.created' && obj.response?.object === 'response') {
-                    if (!Array.isArray(obj.response.output)) {
-                        obj.response.output = [];
+                if (
+                    (obj.type === 'response.created' ||
+                        obj.type === 'response.completed' ||
+                        obj.type === 'response.failed' ||
+                        obj.type === 'response.incomplete') &&
+                    obj.response?.object === 'response'
+                ) {
+                    if (normalizeResponsesOutput(obj.response)) {
                         objModified = true;
                     }
                 } else if (
-                    obj.type === 'response.output_item.added' &&
+                    (obj.type === 'response.output_item.added' || obj.type === 'response.output_item.done') &&
                     obj.item?.type === 'message' &&
                     !Array.isArray(obj.item.content)
                 ) {

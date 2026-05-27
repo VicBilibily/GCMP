@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.23] - 2026-05-27
+
+### 修复
+
+- **OpenAI Responses API 兼容性**： 修复部分兼容 `/responses` 流式网关未返回 `Content-Type`、`response.failed` 事件未正确上抛，以及 `output` / `content` 缺失时导致的流处理异常 [#189](https://github.com/VicBilibily/GCMP/issues/189)
+
+---
+
+### Fixed
+
+- **OpenAI Responses API compatibility**: Fixed stream handling issues for some compatible `/responses` gateways when `Content-Type` was missing, `response.failed` events were not surfaced correctly, or `output` / `content` fields were absent
+
 ## [0.22.22] - 2026-05-23
 
 ### 更新

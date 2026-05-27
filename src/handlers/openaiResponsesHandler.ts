@@ -918,6 +918,13 @@ export class OpenAIResponsesHandler {
                             }
                         }
                     })
+                    .on('response.failed', event => {
+                        streamEndTime ??= Date.now();
+                        const errorMessage =
+                            event.response.error?.message || t('Response generation failed', '响应生成失败');
+                        Logger.warn(`${model.name} Responses API response.failed: ${errorMessage}`);
+                        streamError ??= new Error(errorMessage);
+                    })
                     .on('response.completed', event => {
                         streamEndTime = Date.now();
 
