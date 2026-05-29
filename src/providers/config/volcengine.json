@@ -433,6 +433,28 @@
             }
         },
         {
+            "id": "deepseek-v4-flash",
+            "name": "DeepSeek-V4-Flash-260425",
+            "model": "deepseek-v4-flash-260425",
+            "tooltip": "DeepSeek-V4-Flash 是高效经济版大模型，同享百万上下文与先进架构，推理速度更快、成本更低，平衡性能与效率，适合日常问答、轻量 Agent 及高并发场景。",
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 384000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "deepseek-v4-pro",
+            "name": "DeepSeek-V4-Pro-260425",
+            "model": "deepseek-v4-pro-260425",
+            "tooltip": "DeepSeek-V4-Pro 是 DeepSeek 新一代旗舰大模型，采用 MoE 架构，原生支持百万级超长上下文，具备顶尖推理、代码与复杂 Agent 能力，适合高强度复杂任务与专业场景。",
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 384000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
             "id": "deepseek-v3.2",
             "name": "DeepSeek-V3.2-251201",
             "model": "deepseek-v3-2-251201",

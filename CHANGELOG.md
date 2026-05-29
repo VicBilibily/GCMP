@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.24] - 2026-05-29
+
+### 新增
+
+- **火山方舟按量计费模型**：新增 **DeepSeek-V4-Flash-260425**、**DeepSeek-V4-Pro-260425** 按量计费（PayGo）模型，使用默认 `api/v3` 端点
+
+### 修复
+
+- **工具调用参数重复分片处理**：修复流式响应中工具调用参数分片重复处理逻辑，避免因参数分片去重不当导致 JSON 解析失败 [#194](https://github.com/VicBilibily/GCMP/issues/194)
+
+---
+
+### Added
+
+- **Volcengine PayGo models**: Added **DeepSeek-V4-Flash-260425** and **DeepSeek-V4-Pro-260425** pay-as-you-go models using the default `api/v3` endpoint
+
+### Fixed
+
+- **Tool call argument fragment deduplication**: Fixed tool call argument fragment handling in streaming responses to avoid JSON parsing failures caused by improper deduplication logic
+
 ## [0.22.23] - 2026-05-27
 
 ### 修复

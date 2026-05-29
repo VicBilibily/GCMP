@@ -84,6 +84,7 @@
     - 开源模型：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**GLM-5.1**、**MiniMax-M2.7**、**Kimi-K2.6**、**DeepSeek-V3.2**
 - **豆包系列**：**Doubao-Seed-2.0**(lite/mini/pro/Code)、**Doubao-Seed-1.8**
 - **协作奖励计划**：**GLM-4.7**、**DeepSeek-V3.2**
+- **按量计费(PayGo)**：**DeepSeek-V4-Flash-260425**、**DeepSeek-V4-Pro-260425**
 - **密钥配置**：支持设置 [Coding Plan API Key](https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey) 与 [Agent Plan 专用 API Key](https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=agentPlan) 分别设置，配置向导引导选择套餐类型。
 
 ### [**腾讯云**](https://cloud.tencent.com/product/hunyuan) - Tencent
