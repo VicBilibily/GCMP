@@ -137,7 +137,11 @@ export class RetryManager {
                 return true;
             }
             // 一些提供商可能在错误消息中包含特定的速率限制提示
-            if (error.message.toLowerCase().includes('rate limit') || error.message.includes('请求过于频繁')) {
+            if (
+                error.message.toLowerCase().includes('rate limit') ||
+                error.message.toLowerCase().includes('limit exceeded') ||
+                error.message.includes('请求过于频繁')
+            ) {
                 return true;
             }
             // 某些提供商可能使用“temporarily overloaded”或“访问量过大”等提示来表示服务器过载，也可以视为需要重试的情况

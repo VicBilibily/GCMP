@@ -341,9 +341,115 @@ export class OpenAIHandler {
             }
             throw new Error(errorMessage);
         }
-        if (response?.url?.endsWith('/responses') && !contentType) {
-            // 部分网关不返回 contentType，默认 /responses 模式返回的就是 SSE 流，直接预处理
-            contentType = 'text/event-stream';
+        if (response?.url?.endsWith('/responses') && !contentType && response.body) {
+            // 兼容 /responses 端点缺少 Content-Type 的情况。
+            // 整体流程：
+            // 1. 只读取少量前缀字节进行类型探测，避免像 response.text() 那样一次性吞掉整条流。
+            // 2. 若前缀像 JSON（常见于直接返回 {"error": ...}），则把剩余 body 继续读完，尽量拿到完整错误信息后抛出。
+            // 3. 若前缀像 SSE（data:/event:/id:/retry:/: 注释），则把已读前缀缓存回放到新流，再继续读取剩余内容，保持后续仍是流式处理。
+            // 4. 若前缀不是标准 SSE 字段而是裸 JSON，则直接视为异常响应并抛出，不兼容非标准 SSE。
+            // 5. 若探测阶段连接已结束且内容仍无法判定，则保留原样返回，由后续通用分支决定如何处理。
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            const bufferedChunks: Uint8Array[] = [];
+            let bufferedLength = 0;
+            let sniffedText = '';
+            let streamEndedDuringProbe = false;
+
+            const looksLikeSSEPrefix = (text: string): boolean => {
+                const trimmed = text.trimStart();
+                return /^(data|event|id|retry):|^:/.test(trimmed);
+            };
+
+            try {
+                while (bufferedLength < 512) {
+                    const { done, value } = await reader.read();
+                    if (done) {
+                        streamEndedDuringProbe = true;
+                        break;
+                    }
+                    if (!value || value.length === 0) {
+                        continue;
+                    }
+                    bufferedChunks.push(value);
+                    bufferedLength += value.length;
+                    sniffedText += decoder.decode(value, { stream: true });
+
+                    const trimmed = sniffedText.trimStart();
+                    if (trimmed.startsWith('{') || looksLikeSSEPrefix(trimmed)) {
+                        break;
+                    }
+                }
+                sniffedText += decoder.decode();
+            } finally {
+                reader.releaseLock();
+            }
+
+            const trimmedText = sniffedText.trimStart();
+            if (trimmedText.startsWith('{') || trimmedText.startsWith('[')) {
+                if (!streamEndedDuringProbe) {
+                    const remainingReader = response.body.getReader();
+                    try {
+                        while (true) {
+                            const { done, value } = await remainingReader.read();
+                            if (done) {
+                                break;
+                            }
+                            if (!value || value.length === 0) {
+                                continue;
+                            }
+                            bufferedChunks.push(value);
+                            sniffedText += decoder.decode(value, { stream: true });
+                        }
+                        sniffedText += decoder.decode();
+                    } finally {
+                        remainingReader.releaseLock();
+                    }
+                }
+
+                throw new Error(sniffedText || `HTTP ${response.status} ${response.statusText}`);
+            }
+
+            const clonedHeaders = new Headers(response.headers);
+            if (looksLikeSSEPrefix(trimmedText)) {
+                clonedHeaders.set('Content-Type', 'text/event-stream');
+                contentType = 'text/event-stream';
+            }
+
+            const remainingReader = response.body.getReader();
+            const prependBufferedStream = new ReadableStream<Uint8Array>({
+                start(controller) {
+                    for (const chunk of bufferedChunks) {
+                        controller.enqueue(chunk);
+                    }
+                },
+                async pull(controller) {
+                    try {
+                        while (true) {
+                            const { done, value } = await remainingReader.read();
+                            if (done) {
+                                controller.close();
+                                break;
+                            }
+                            if (value) {
+                                controller.enqueue(value);
+                                break;
+                            }
+                        }
+                    } catch (error) {
+                        controller.error(error);
+                    }
+                },
+                cancel() {
+                    remainingReader.releaseLock();
+                }
+            });
+
+            response = new Response(prependBufferedStream, {
+                status: response.status,
+                statusText: response.statusText,
+                headers: clonedHeaders
+            });
         }
         if (!contentType || !contentType.includes('text/event-stream') || !response.body) {
             // 只处理 SSE 响应，其他类型直接返回原始 response
@@ -356,6 +462,20 @@ export class OpenAIHandler {
         const displayName = this.displayName;
         const escapeControlCharsInJsonString = this.escapeControlCharsInJsonString.bind(this);
         const processSSELine = (line: string): string => {
+            const trimmedLine = line.trimStart();
+            if (
+                !trimmedLine.startsWith('data:') &&
+                !trimmedLine.startsWith('event:') &&
+                !trimmedLine.startsWith('id:') &&
+                !trimmedLine.startsWith('retry:') &&
+                !trimmedLine.startsWith(':') &&
+                (trimmedLine.startsWith('{') || trimmedLine.startsWith('['))
+            ) {
+                const malformedSSEError = new Error(trimmedLine);
+                malformedSSEError.name = 'SSEFatalError';
+                throw malformedSSEError;
+            }
+
             const normalizedLine = line.replace(/^data:([^\s])/g, 'data: $1');
             if (!normalizedLine.startsWith('data:')) {
                 return normalizedLine;
@@ -386,6 +506,21 @@ export class OpenAIHandler {
                     Logger.debug(
                         `${displayName} SSE event contained unescaped control characters; auto-fixed and continued parsing`
                     );
+                }
+
+                if (obj.type === 'codex.rate_limits') {
+                    const rateLimits = (
+                        obj as ParsedSSEChunk & {
+                            rate_limits?: { allowed?: boolean; limit_reached?: boolean };
+                        }
+                    ).rate_limits;
+                    const rateLimitError = new Error(
+                        rateLimits?.allowed === false || rateLimits?.limit_reached === true ?
+                            '429 Rate limit exceeded'
+                        :   'Unexpected codex.rate_limits event returned instead of chat content'
+                    );
+                    rateLimitError.name = 'SSEFatalError';
+                    throw rateLimitError;
                 }
 
                 let objModified = false;
@@ -468,6 +603,9 @@ export class OpenAIHandler {
 
                 return normalizedLine;
             } catch (parseError) {
+                if (parseError instanceof Error && parseError.name === 'SSEFatalError') {
+                    throw parseError;
+                }
                 Logger.trace(`JSON parsing failed: ${parseError}`);
                 return normalizedLine;
             }
@@ -475,6 +613,8 @@ export class OpenAIHandler {
 
         // 行缓冲区：用于累积不完整的 SSE 行
         let lineBuffer = '';
+        let malformedJsonStreamBuffer = '';
+        let isMalformedJsonStream = false;
 
         const transformedStream = new ReadableStream({
             start: async controller => {
@@ -482,6 +622,9 @@ export class OpenAIHandler {
                     while (true) {
                         const { done, value } = await reader.read();
                         if (done) {
+                            if (isMalformedJsonStream) {
+                                throw new Error(malformedJsonStreamBuffer.trim() || lineBuffer.trim());
+                            }
                             // 流结束时，处理缓冲区剩余的内容
                             if (lineBuffer.trim().length > 0) {
                                 Logger.trace(
@@ -496,8 +639,30 @@ export class OpenAIHandler {
 
                         // 解码 chunk
                         const chunk = decoder.decode(value, { stream: true });
+
+                        if (isMalformedJsonStream) {
+                            malformedJsonStreamBuffer += chunk;
+                            continue;
+                        }
+
                         // 将新内容追加到缓冲区
                         lineBuffer += chunk;
+
+                        const trimmedBuffer = lineBuffer.trimStart();
+                        if (
+                            trimmedBuffer.length > 0 &&
+                            !trimmedBuffer.startsWith('data:') &&
+                            !trimmedBuffer.startsWith('event:') &&
+                            !trimmedBuffer.startsWith('id:') &&
+                            !trimmedBuffer.startsWith('retry:') &&
+                            !trimmedBuffer.startsWith(':') &&
+                            (trimmedBuffer.startsWith('{') || trimmedBuffer.startsWith('['))
+                        ) {
+                            isMalformedJsonStream = true;
+                            malformedJsonStreamBuffer = lineBuffer;
+                            lineBuffer = '';
+                            continue;
+                        }
 
                         // 按行分割，保留最后一行（可能不完整）
                         const lines = lineBuffer.split(/\n/);

@@ -2,6 +2,28 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.25] - 2026-05-29
+
+### 移除
+
+- **小米 MiMo 下线模型**：移除 **MiMo-V2-Pro**、**MiMo-V2-Omni** 及其 Token Plan 版本，保留 **MiMo-V2.5-Pro**、**MiMo-V2.5**、**MiMo-V2-Flash**
+
+### 修复
+
+- **Responses API 响应识别修复**：修复 `/responses` 在缺少 `Content-Type` 时，将 JSON 错误体误判为 SSE 流而导致崩溃的问题；现在会先探测响应前缀，正确区分真实 SSE 与错误响应，并在遇到非标准 SSE / 裸 JSON 流时按异常处理，尽量读取完整错误内容后再抛出
+- **重试策略补充 `limit exceeded` 场景**：在重试管理器中添加对 `limit exceeded` 错误消息的识别，使其能被正确识别为可重试的速率限制/过载场景
+
+---
+
+### Removed
+
+- **Xiaomi MiMo discontinued models**: Removed **MiMo-V2-Pro**, **MiMo-V2-Omni**, and their Token Plan variants; retained **MiMo-V2.5-Pro**, **MiMo-V2.5**, **MiMo-V2-Flash**
+
+### Fixed
+
+- **Responses API response detection**: Fixed `/responses` misclassifying JSON error bodies as SSE streams when `Content-Type` was missing, which could crash stream processing. The response prefix is now sniffed first to distinguish genuine SSE from error responses, and non-standard SSE / raw JSON streams are now treated as errors with best-effort full error body capture before throwing
+- **Retry policy `limit exceeded` coverage**: Added `limit exceeded` to the retry manager's rate-limit/overload detection so it is correctly recognized as a retriable condition
+
 ## [0.22.24] - 2026-05-29
 
 ### 新增
