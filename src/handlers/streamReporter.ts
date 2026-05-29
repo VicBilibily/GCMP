@@ -310,6 +310,10 @@ export class StreamReporter {
             return newArgs;
         }
 
+        if (newArgs === existing) {
+            return existing;
+        }
+
         if (newArgs.length > existing.length && newArgs.startsWith(existing)) {
             return newArgs;
         }
