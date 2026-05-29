@@ -302,21 +302,18 @@ export class StreamReporter {
     }
 
     /**
-     * 去重工具调用参数（处理 DeepSeek 等 API 的重复片段）
+     * 合并工具调用参数分片。
+     * OpenAI 兼容网关通常返回纯追加分片；仅当服务端重发“到当前为止的完整快照”时才替换。
      */
     private deduplicateToolArgs(existing: string, newArgs: string): string {
-        // 仅对长度 >= 2 的片段进行完全去重，避免单字符（如 " 、,、}）被误判为重复
-        // 例如累积到 ...\" 时末尾字符是 "，传入的单字符 " 会被 endsWith 误匹配并丢弃，
-        // 导致 JSON 字符串缺少闭合引号，最终解析失败
-        if (newArgs.length >= 2 && existing.endsWith(newArgs)) {
-            Logger.trace(`[${this.modelName}] Skipping duplicate tool call arguments: "${newArgs}"`);
-            return existing;
-        }
-        // 新数据包含了旧数据（完全重复+新增），只取新增部分
-        if (existing.length > 0 && newArgs.startsWith(existing)) {
+        if (!existing) {
             return newArgs;
         }
-        // 正常累积
+
+        if (newArgs.length > existing.length && newArgs.startsWith(existing)) {
+            return newArgs;
+        }
+
         return existing + newArgs;
     }
 
