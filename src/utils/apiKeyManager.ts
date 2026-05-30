@@ -87,6 +87,11 @@ export class ApiKeyManager {
      */
     static async setApiKey(provider: string, apiKey: string): Promise<void> {
         const secretKey = this.getSecretKey(provider);
+        const currentKey = await this.context.secrets.get(secretKey);
+        if (currentKey === apiKey) {
+            // 避免重复写入导致性能问题（OS keychain 写入可能超过 500ms，导致 Promise.race 超时）
+            return;
+        }
         await this.context.secrets.store(secretKey, apiKey);
     }
 
@@ -162,6 +167,8 @@ export class ApiKeyManager {
         return false;
     }
 
+    private static cachedCliAuthStatus: Record<string, string> = {};
+
     /**
      * 处理 CLI 认证
      * @param provider 提供商标识
@@ -179,7 +186,11 @@ export class ApiKeyManager {
             }
             // Cli 访问密钥验证通过后保存到密钥存储
             await this.setApiKey(provider, apiKey);
-            Logger.info(`[ApiKeyManager] Loaded credentials from ${displayName} CLI`);
+            
+            if (this.cachedCliAuthStatus[provider] !== apiKey) {
+                this.cachedCliAuthStatus[provider] = apiKey;
+                Logger.info(`[ApiKeyManager] Loaded credentials from ${displayName} CLI`);
+            }
             return true;
         }
         return false;
