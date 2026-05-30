@@ -12,6 +12,7 @@ import xiaomimimo from './xiaomimimo.json';
 import baidu from './baidu.json';
 import gemini from './gemini.json';
 import codex from './codex.json';
+import grok from './grok.json';
 
 const providers = {
     zhipu,
@@ -25,7 +26,8 @@ const providers = {
     xiaomimimo,
     baidu,
     gemini,
-    codex
+    codex,
+    grok
 };
 
 export type ProviderName = keyof typeof providers;

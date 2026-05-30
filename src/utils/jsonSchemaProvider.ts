@@ -499,11 +499,11 @@ export class JsonSchemaProvider {
                                     },
                                     {
                                         not: {
-                                            anyOf: [{ const: 'codex' }, { const: 'gemini' }]
+                                            anyOf: [{ const: 'codex' }, { const: 'gemini' }, { const: 'grok' }]
                                         },
                                         errorMessage: t(
-                                            '"codex" and "gemini" are CLI-only providers and cannot be used in custom models',
-                                            '"codex" 和 "gemini" 为 CLI 专用提供商，不可在自定义模型中使用'
+                                            '"codex", "gemini", and "grok" are CLI-only providers and cannot be used in custom models',
+                                            '"codex"、"gemini" 和 "grok" 为 CLI 专用提供商，不可在自定义模型中使用'
                                         )
                                     }
                                 ]
@@ -1200,11 +1200,11 @@ export class JsonSchemaProvider {
     }
 
     /** CLI 专用的提供商 ID，禁止在通用配置中使用 */
-    private static readonly CLI_RESERVED_PROVIDERS = ['codex', 'gemini'];
+    private static readonly CLI_RESERVED_PROVIDERS = ['codex', 'gemini', 'grok'];
 
     /**
      * 获取所有可用的提供商ID（包括内置、已知、自定义和历史提供商）
-     * 注意：会过滤掉 CLI 专用的提供商（codex、gemini）
+     * 注意：会过滤掉 CLI 专用的提供商（codex、gemini、grok）
      */
     private static getAllAvailableProviders(): { providerIds: string[]; enumDescriptions: string[] } {
         const providerIds: string[] = [];
