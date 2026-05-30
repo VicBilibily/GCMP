@@ -42,7 +42,7 @@ export class CliModelProvider extends GenericModelProvider {
     /** Codex 最终模型列表缓存时间戳 */
     private codexModelsResultCacheTimestamp: number = 0;
     /** 动态模型配置的快速查找映射（模型 ID → ModelConfig），用于提供 request 时查找 */
-    private dynamicModelConfigMap: Map<string, ModelConfig> = new Map();
+    private dynamicModelConfigMap: Map<string, ModelConfig> = new Map<string, ModelConfig>();
 
     constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
         super(context, providerKey, providerConfig);
