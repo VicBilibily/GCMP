@@ -53,6 +53,15 @@ export class CliWizard {
                 });
             }
 
+            // Codex 提供商支持手动刷新模型列表
+            if (provider === 'codex') {
+                items.push({
+                    label: t('$(sync) Refresh model list', '$(sync) 刷新模型列表'),
+                    detail: t('Re-fetch available models from the Codex API', '从 Codex API 重新获取可用模型列表'),
+                    action: 'refreshModels'
+                });
+            }
+
             const choice = await vscode.window.showQuickPick(items, {
                 title: t('{0} Configuration', '{0} 配置菜单', displayName),
                 placeHolder: t('Choose an action to run', '选择要执行的操作')
@@ -71,6 +80,9 @@ export class CliWizard {
                     break;
                 case 'remove':
                     await this.handleRemoveCredential(provider, displayName);
+                    break;
+                case 'refreshModels':
+                    await vscode.commands.executeCommand('gcmp.codex.refreshModels');
                     break;
             }
         } catch (error) {

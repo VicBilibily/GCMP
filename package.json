@@ -3,7 +3,7 @@
   "publisher": "vicanent",
   "displayName": "AI Chat Models",
   "description": "%extension.description%",
-  "version": "0.22.27-beta3",
+  "version": "0.22.27-beta4",
   "license": "MIT",
   "keywords": [
     "ai",
@@ -236,6 +236,11 @@
       {
         "command": "gcmp.codex.configWizard",
         "title": "%command.codex.configWizard%",
+        "category": "GCMP"
+      },
+      {
+        "command": "gcmp.codex.refreshModels",
+        "title": "%command.codex.refreshModels%",
         "category": "GCMP"
       },
       {

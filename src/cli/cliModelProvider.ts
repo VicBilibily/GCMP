@@ -40,6 +40,15 @@ export class CliModelProvider extends GenericModelProvider {
     }
 
     /**
+     * 使 Codex 动态模型缓存失效，强制下次请求时重新从 API 获取
+     */
+    invalidateCodexDynamicModelsCache(): void {
+        this.codexDynamicModelIds = null;
+        this.codexDynamicModelsTimestamp = 0;
+        Logger.debug('[CliModelProvider] Codex dynamic models cache invalidated');
+    }
+
+    /**
      * 重写模型信息提供方法
      * 当没有 API 密钥时，启动配置向导而不是要求输入 API 密钥
      */
@@ -265,7 +274,25 @@ export class CliModelProvider extends GenericModelProvider {
             provider._onDidChangeLanguageModelChatInformation.fire();
         });
 
+        // 注册刷新模型列表命令（仅 Codex 提供商需要动态刷新模型）
+        const refreshModelsCommand = providerKey === 'codex'
+            ? vscode.commands.registerCommand(`gcmp.${providerKey}.refreshModels`, async () => {
+                // 清除动态模型缓存，强制重新获取
+                provider.invalidateCodexDynamicModelsCache();
+                // 清除模型信息缓存
+                await provider.modelInfoCache?.invalidateCache(providerKey);
+                // 触发模型信息变更事件
+                provider._onDidChangeLanguageModelChatInformation.fire();
+                vscode.window.showInformationMessage(
+                    t('Codex model list refreshed', 'Codex 模型列表已刷新')
+                );
+            })
+            : null;
+
         const disposables = [providerDisposable, setApiKeyCommand, configWizardCommand];
+        if (refreshModelsCommand) {
+            disposables.push(refreshModelsCommand);
+        }
         disposables.forEach(disposable => context.subscriptions.push(disposable));
         return { provider, disposables };
     }
