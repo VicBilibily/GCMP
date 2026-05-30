@@ -49,7 +49,12 @@ export class GrokCliAuth extends BaseCliAuth {
     }): void {
         const credentialPath = this.resolvePath(this.config.credentialPathPattern);
         const { data, recordKey, record } = this.readAuthFile();
-        const finalRecordKey = recordKey || this.recordKey || `https://auth.x.ai::${this.config.clientId}`;
+        const canonicalKey = `https://auth.x.ai::${this.config.clientId}`;
+        // 仅当 recordKey 明确在 https://auth.x.ai:: 命名空间下时才沿用，否则强制使用 canonical key
+        const finalRecordKey =
+            (recordKey && recordKey.startsWith('https://auth.x.ai::') ? recordKey : undefined) ||
+            (this.recordKey && this.recordKey.startsWith('https://auth.x.ai::') ? this.recordKey : undefined) ||
+            canonicalKey;
 
         const nextExpiryDate =
             typeof credentials.expiry_date === 'number' && Number.isFinite(credentials.expiry_date) ?
@@ -173,11 +178,9 @@ export class GrokCliAuth extends BaseCliAuth {
 
     protected async afterLoadCredentials(credentials: OAuthCredentials): Promise<OAuthCredentials> {
         const rawData = credentials as unknown as Record<string, GrokAuthRecord>;
-        const [recordKey, record] =
-            Object.entries(rawData).find(([, value]) => value && typeof value === 'object' && !Array.isArray(value)) ||
-            [];
+        const { recordKey, record } = this.findPreferredGrokRecord(rawData);
 
-        if (!recordKey || !record) {
+        if (!recordKey || !record || Object.keys(record).length === 0) {
             return credentials;
         }
 
@@ -209,10 +212,51 @@ export class GrokCliAuth extends BaseCliAuth {
             }
         }
 
-        const [recordKey, record] =
-            Object.entries(data).find(([, value]) => value && typeof value === 'object' && !Array.isArray(value)) || [];
+        const { recordKey, record } = this.findPreferredGrokRecord(data);
+        return { data, recordKey, record };
+    }
 
-        return { data, recordKey, record: record || {} };
+    /**
+     * 按优先级选择 Grok 认证记录，避免多记录时误选错凭证。
+     * 优先级：canonical key > this.recordKey > https://auth.x.ai:: 命名空间 > 首个对象记录
+     */
+    private findPreferredGrokRecord(data: Record<string, GrokAuthRecord>): { recordKey?: string; record: GrokAuthRecord } {
+        const entries = Object.entries(data).filter(
+            ([, v]) => v && typeof v === 'object' && !Array.isArray(v)
+        ) as [string, GrokAuthRecord][];
+
+        if (entries.length === 0) {
+            return { recordKey: undefined, record: {} };
+        }
+
+        const canonicalKey = `https://auth.x.ai::${GROK_CLIENT_ID}`;
+
+        // 1. 精确匹配 canonical key（推荐）
+        const canonical = entries.find(([k]) => k === canonicalKey);
+        if (canonical) {
+            return { recordKey: canonical[0], record: canonical[1] };
+        }
+
+        // 2. 内存中已有 recordKey 且仍存在于文件中，优先沿用（会话连续性）
+        if (this.recordKey && data[this.recordKey]) {
+            return { recordKey: this.recordKey, record: data[this.recordKey] };
+        }
+
+        // 3. 优先选择 https://auth.x.ai:: 命名空间下的记录
+        const authXaiEntries = entries.filter(([k]) => k.startsWith('https://auth.x.ai::'));
+        if (authXaiEntries.length > 0) {
+            // 如果命名空间下有多个，优先包含当前 clientId 的那一条
+            const withOurClient = authXaiEntries.find(([k]) => k.includes(GROK_CLIENT_ID));
+            if (withOurClient) {
+                return { recordKey: withOurClient[0], record: withOurClient[1] };
+            }
+            // 否则取命名空间下的第一条
+            return { recordKey: authXaiEntries[0][0], record: authXaiEntries[0][1] };
+        }
+
+        // 4. 兜底：首个对象记录（兼容旧版单记录文件）
+        const [recordKey, record] = entries[0];
+        return { recordKey, record };
     }
 
     private parseExpiryDate(expiresAt: unknown): number | undefined {
