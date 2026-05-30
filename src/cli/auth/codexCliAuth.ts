@@ -12,6 +12,19 @@ import { configProviders } from '../../providers/config';
 import type { CliAuthConfig, OAuthCredentials } from '../type';
 
 /**
+ * Codex API 返回的模型信息
+ * 用于动态模型列表与硬编码配置合并，以及 proRequired 判断
+ */
+export interface CodexModelInfo {
+    /** 模型标识（对应 API 响应中的 slug 字段） */
+    id: string;
+    /** 可见性：'list' 表示正常显示，'hide' 表示隐藏 */
+    visibility: string;
+    /** 可用计划列表（如 free、plus、pro 等），用于判断 proRequired */
+    availableInPlans: string[];
+}
+
+/**
  * Codex OAuth 凭证扩展接口
  * 包含 ChatGPT 账户 ID（用于 API 请求头 ChatGPT-Account-Id）
  */
@@ -277,9 +290,9 @@ export class CodexCliAuth extends BaseCliAuth {
     /**
      * 从 Codex API 获取可用模型列表
      * 尝试从 /models 端点获取模型信息，与父类配置合并使用
-     * @returns 模型 ID 列表，获取失败时返回 null（调用方应使用硬编码配置作为降级）
+     * @returns 模型信息列表，获取失败时返回 null（调用方应使用硬编码配置作为降级）
      */
-    async fetchAvailableModels(): Promise<string[] | null> {
+    async fetchAvailableModels(): Promise<CodexModelInfo[] | null> {
         const MODELS_URL = `https://chatgpt.com/backend-api/codex/models?client_version=${configProviders.codex.customHeader?.['version']}`;
 
         try {
@@ -318,14 +331,14 @@ export class CodexCliAuth extends BaseCliAuth {
                 return null;
             }
 
-            // 支持多种响应格式: OpenAI {data:[...]} / 简单 {models:[...]} / 纯数组 [...]
-            const modelIds = this.extractModelIds(data);
-            if (modelIds.length > 0) {
-                Logger.debug(`[Codex] Fetched ${modelIds.length} available models: ${modelIds.join(', ')}`);
-                return modelIds;
+            // 从 API 响应中提取模型信息（过滤隐藏模型）
+            const models = this.extractModels(data);
+            if (models.length > 0) {
+                Logger.debug(`[Codex] Fetched ${models.length} available models: ${models.map(m => m.id).join(', ')}`);
+                return models;
             }
 
-            Logger.debug('[Codex] No model IDs found in response');
+            Logger.debug('[Codex] No models found in response');
             return null;
         } catch (error) {
             Logger.debug(`[Codex] Failed to fetch available models: ${error instanceof Error ? error.message : String(error)}`);
@@ -334,54 +347,65 @@ export class CodexCliAuth extends BaseCliAuth {
     }
 
     /**
-     * 从 API 响应中提取模型 ID 列表
-     * 支持多种响应格式：
-     * - OpenAI 格式: { data: [{ id: "gpt-5.2", ... }, ...] }
-     * - 简单格式: { models: ["gpt-5.2", ...] } 或 { models: [{ id: "gpt-5.2", ... }, ...] }
-     * - 纯数组格式: ["gpt-5.2", ...] 或 [{ id: "gpt-5.2", ... }, ...]
+     * 从 API 响应中提取模型信息列表
+     * Codex API 实际响应格式: { models: [{ slug, visibility, available_in_plans, ... }] }
+     * 同时兼容其他格式: OpenAI {data:[...]} / 纯数组 [...] / 简单 {models:["id",...]}
      */
-    private extractModelIds(data: unknown): string[] {
-        const ids: string[] = [];
+    private extractModels(data: unknown): CodexModelInfo[] {
+        const models: CodexModelInfo[] = [];
 
-        // 格式1: OpenAI 标准 { data: [...] }
+        const extractFromItem = (item: unknown): CodexModelInfo | null => {
+            if (typeof item === 'string') {
+                return { id: item, visibility: 'list', availableInPlans: [] };
+            }
+            if (item && typeof item === 'object') {
+                const obj = item as Record<string, unknown>;
+                // Codex API 使用 slug 作为模型 ID
+                const id = typeof obj.slug === 'string' ? obj.slug : typeof obj.id === 'string' ? (obj.id as string) : null;
+                if (!id) {
+                    return null;
+                }
+                // 过滤隐藏模型（如 codex-auto-review）
+                const visibility = typeof obj.visibility === 'string' ? (obj.visibility as string) : 'list';
+                if (visibility === 'hide') {
+                    return null;
+                }
+                // 提取可用计划列表
+                const availableInPlans = Array.isArray(obj.available_in_plans)
+                    ? (obj.available_in_plans as string[])
+                    : [];
+                return { id, visibility, availableInPlans };
+            }
+            return null;
+        };
+
         if (data && typeof data === 'object' && !Array.isArray(data)) {
             const obj = data as Record<string, unknown>;
 
-            // OpenAI 格式: { data: [{ id: "model-id" }] }
-            if (Array.isArray(obj.data)) {
-                for (const item of obj.data) {
-                    if (item && typeof item === 'object' && typeof (item as Record<string, unknown>).id === 'string') {
-                        ids.push((item as Record<string, unknown>).id as string);
+            // Codex 格式: { models: [{ slug, ... }] } 或 OpenAI 格式: { data: [{ id, ... }] }
+            const arrayContainer = Array.isArray(obj.models) ? obj.models : Array.isArray(obj.data) ? obj.data : null;
+            if (arrayContainer) {
+                for (const item of arrayContainer) {
+                    const model = extractFromItem(item);
+                    if (model) {
+                        models.push(model);
                     }
                 }
-                return ids;
-            }
-
-            // 简单格式: { models: [...] }
-            if (Array.isArray(obj.models)) {
-                for (const item of obj.models) {
-                    if (typeof item === 'string') {
-                        ids.push(item);
-                    } else if (item && typeof item === 'object' && typeof (item as Record<string, unknown>).id === 'string') {
-                        ids.push((item as Record<string, unknown>).id as string);
-                    }
-                }
-                return ids;
+                return models;
             }
         }
 
-        // 格式2: 纯数组
+        // 纯数组格式
         if (Array.isArray(data)) {
             for (const item of data) {
-                if (typeof item === 'string') {
-                    ids.push(item);
-                } else if (item && typeof item === 'object' && typeof (item as Record<string, unknown>).id === 'string') {
-                    ids.push((item as Record<string, unknown>).id as string);
+                const model = extractFromItem(item);
+                if (model) {
+                    models.push(model);
                 }
             }
         }
 
-        return ids;
+        return models;
     }
 
     /**

@@ -20,6 +20,7 @@ import { CliWizard } from './cliWizard';
 import { CliAuthFactory } from './auth/cliAuthFactory';
 import { StatusBarManager } from '../status';
 import { t } from '../utils/l10n';
+import type { CodexModelInfo } from './auth/codexCliAuth';
 
 /** 动态模型列表缓存有效期：5 分钟 */
 const DYNAMIC_MODELS_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -30,8 +31,8 @@ const DYNAMIC_MODELS_CACHE_TTL_MS = 5 * 60 * 1000;
  * 适用于所有使用 CLI 认证的提供商（qwen-code、gemini、codex 等）
  */
 export class CliModelProvider extends GenericModelProvider {
-    /** Codex 动态模型 ID 缓存（从 API 获取的可用模型列表） */
-    private codexDynamicModelIds: string[] | null = null;
+    /** Codex 动态模型缓存（从 API 获取的可用模型列表） */
+    private codexDynamicModels: CodexModelInfo[] | null = null;
     /** Codex 动态模型缓存时间戳 */
     private codexDynamicModelsTimestamp: number = 0;
 
@@ -43,7 +44,7 @@ export class CliModelProvider extends GenericModelProvider {
      * 使 Codex 动态模型缓存失效，强制下次请求时重新从 API 获取
      */
     invalidateCodexDynamicModelsCache(): void {
-        this.codexDynamicModelIds = null;
+        this.codexDynamicModels = null;
         this.codexDynamicModelsTimestamp = 0;
         Logger.debug('[CliModelProvider] Codex dynamic models cache invalidated');
     }
@@ -107,7 +108,7 @@ export class CliModelProvider extends GenericModelProvider {
 
     /**
      * 提供 Codex 模型列表
-     * 1. 从 API 获取可用模型 ID 列表（带缓存）
+     * 1. 从 API 获取可用模型列表（带缓存）
      * 2. 与硬编码配置合并（API 决定哪些模型可用，硬编码提供详细属性）
      * 3. 过滤 proRequired 模型（非 Pro 账号不显示 Pro 专属模型）
      */
@@ -115,41 +116,62 @@ export class CliModelProvider extends GenericModelProvider {
         _options: PrepareLanguageModelChatModelOptions & { silent: boolean },
         _token: vscode.CancellationToken
     ): Promise<vscode.LanguageModelChatInformation[]> {
-        // 1. 尝试从 API 获取可用模型 ID 列表
-        const dynamicModelIds = await this.fetchCodexDynamicModels();
+        // 1. 尝试从 API 获取可用模型列表
+        const dynamicModels = await this.fetchCodexDynamicModels();
 
         // 2. 合并模型列表
         let effectiveModels: ModelConfig[];
-        if (dynamicModelIds !== null) {
-            // API 成功：以 API 返回的模型 ID 为准，用硬编码配置补充属性
-            effectiveModels = this.mergeCodexModels(dynamicModelIds);
-            Logger.debug(`[CliModelProvider] Using ${effectiveModels.length} merged models (API: ${dynamicModelIds.length}, hardcoded: ${this.providerConfig.models.length})`);
+        if (dynamicModels !== null) {
+            // API 成功：以 API 返回的模型为准，用硬编码配置补充属性
+            effectiveModels = this.mergeCodexModels(dynamicModels);
+            Logger.debug(`[CliModelProvider] Using ${effectiveModels.length} merged models (API: ${dynamicModels.length}, hardcoded: ${this.providerConfig.models.length})`);
         } else {
             // API 失败：降级使用全部硬编码模型
             effectiveModels = this.providerConfig.models;
             Logger.debug(`[CliModelProvider] API fetch failed, falling back to ${effectiveModels.length} hardcoded models`);
         }
 
-        // 3. 过滤 proRequired 模型（非 Pro 账号不显示 Pro 专属模型）
+        // 3. 获取动态模型中每个模型的 proRequired 信息
+        const dynamicModelsMap = new Map<string, CodexModelInfo>();
+        if (dynamicModels) {
+            for (const dm of dynamicModels) {
+                dynamicModelsMap.set(dm.id, dm);
+            }
+        }
+
+        // 4. 过滤 proRequired 模型
+        // 优先使用 API 返回的 availableInPlans 判断，API 中不含 free 计划的模型标记为 proRequired
         const isPro = await this.isCodexProAccount();
         const filteredModels = isPro
             ? effectiveModels
-            : effectiveModels.filter(model => !model.proRequired);
+            : effectiveModels.filter(model => {
+                // 已有硬编码 proRequired 配置的模型优先使用硬编码值
+                if (model.proRequired) {
+                    return false;
+                }
+                // 从 API 数据判断：如果模型不在 free/free_workspace 计划中，则视为 proRequired
+                if (dynamicModelsMap.has(model.id) && dynamicModelsMap.get(model.id)!.availableInPlans.length > 0) {
+                    const plans = dynamicModelsMap.get(model.id)!.availableInPlans;
+                    const hasFree = plans.includes('free') || plans.includes('free_workspace');
+                    return hasFree; // 有 free 计划才保留
+                }
+                return true; // 无 API 数据时保留
+            });
 
-        // 4. 将模型配置转换为 VS Code 格式
+        // 5. 将模型配置转换为 VS Code 格式
         return filteredModels.map(model => this.modelConfigToInfo(model));
     }
 
     /**
-     * 从 Codex API 获取可用模型 ID 列表（带 5 分钟缓存）
-     * @returns 模型 ID 列表；获取失败返回 null（调用方应降级使用硬编码模型）
+     * 从 Codex API 获取可用模型列表（带 5 分钟缓存）
+     * @returns 模型信息列表；获取失败返回 null（调用方应降级使用硬编码模型）
      */
-    private async fetchCodexDynamicModels(): Promise<string[] | null> {
+    private async fetchCodexDynamicModels(): Promise<CodexModelInfo[] | null> {
         // 检查缓存是否有效
         const now = Date.now();
-        if (this.codexDynamicModelIds !== null && (now - this.codexDynamicModelsTimestamp) < DYNAMIC_MODELS_CACHE_TTL_MS) {
-            Logger.trace(`[CliModelProvider] Using cached dynamic models (${this.codexDynamicModelIds.length} models, age: ${((now - this.codexDynamicModelsTimestamp) / 1000).toFixed(0)}s)`);
-            return this.codexDynamicModelIds;
+        if (this.codexDynamicModels !== null && (now - this.codexDynamicModelsTimestamp) < DYNAMIC_MODELS_CACHE_TTL_MS) {
+            Logger.trace(`[CliModelProvider] Using cached dynamic models (${this.codexDynamicModels.length} models, age: ${((now - this.codexDynamicModelsTimestamp) / 1000).toFixed(0)}s)`);
+            return this.codexDynamicModels;
         }
 
         try {
@@ -159,12 +181,12 @@ export class CliModelProvider extends GenericModelProvider {
                 return null;
             }
 
-            const modelIds = await codexAuth.fetchAvailableModels();
-            if (modelIds !== null && modelIds.length > 0) {
+            const models = await codexAuth.fetchAvailableModels();
+            if (models !== null && models.length > 0) {
                 // 更新缓存
-                this.codexDynamicModelIds = modelIds;
+                this.codexDynamicModels = models;
                 this.codexDynamicModelsTimestamp = now;
-                return modelIds;
+                return models;
             }
 
             return null;
@@ -175,19 +197,20 @@ export class CliModelProvider extends GenericModelProvider {
     }
 
     /**
-     * 合并 API 返回的动态模型 ID 与硬编码模型配置
-     * - API 返回的模型 ID 决定哪些模型可见
+     * 合并 API 返回的动态模型与硬编码模型配置
+     * - API 返回的模型决定哪些模型可见
      * - 硬编码配置提供详细属性（maxInputTokens, tooltip, sdkMode 等）
      * - API 中有但硬编码没有的模型，使用默认属性
      */
-    private mergeCodexModels(dynamicModelIds: string[]): ModelConfig[] {
+    private mergeCodexModels(dynamicModels: CodexModelInfo[]): ModelConfig[] {
         const hardcodedMap = new Map<string, ModelConfig>();
         for (const model of this.providerConfig.models) {
             hardcodedMap.set(model.id, model);
         }
 
         const result: ModelConfig[] = [];
-        for (const modelId of dynamicModelIds) {
+        for (const dynamicModel of dynamicModels) {
+            const modelId = dynamicModel.id;
             const hardcoded = hardcodedMap.get(modelId);
             if (hardcoded) {
                 // 硬编码中有此模型，使用硬编码配置
