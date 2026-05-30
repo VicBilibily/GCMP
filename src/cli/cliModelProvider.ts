@@ -131,34 +131,44 @@ export class CliModelProvider extends GenericModelProvider {
             Logger.debug(`[CliModelProvider] API fetch failed, falling back to ${effectiveModels.length} hardcoded models`);
         }
 
-        // 3. 获取动态模型中每个模型的 proRequired 信息
-        const dynamicModelsMap = new Map<string, CodexModelInfo>();
-        if (dynamicModels) {
+        // 3. 根据当前账号的 plan_type 与模型的 available_in_plans 进行比对过滤
+        let filteredModels: ModelConfig[];
+        if (dynamicModels !== null) {
+            // 构建模型 ID → CodexModelInfo 映射
+            const dynamicModelsMap = new Map<string, CodexModelInfo>();
             for (const dm of dynamicModels) {
                 dynamicModelsMap.set(dm.id, dm);
             }
+
+            // 获取当前账号的 plan_type
+            const planType = await this.getCodexPlanType();
+            if (planType) {
+                filteredModels = effectiveModels.filter(model => {
+                    const dm = dynamicModelsMap.get(model.id);
+                    if (!dm || dm.availableInPlans.length === 0) {
+                        // 无 API 数据的模型保留（不应发生，防御性处理）
+                        return true;
+                    }
+                    // 当前账号的 plan_type 在模型的 available_in_plans 中则保留
+                    const available = dm.availableInPlans.includes(planType);
+                    Logger.trace(`[CliModelProvider] Model ${model.id}: plan=${planType}, available=${available} (plans: ${dm.availableInPlans.join(',')})`);
+                    return available;
+                });
+                Logger.debug(`[CliModelProvider] Filtered to ${filteredModels.length} models for plan '${planType}'`);
+            } else {
+                // 无法获取 plan_type，降级不过滤
+                filteredModels = effectiveModels;
+                Logger.debug(`[CliModelProvider] Could not determine plan type, showing all ${effectiveModels.length} models`);
+            }
+        } else {
+            // API 失败时使用硬编码的 proRequired 过滤
+            const isPro = await this.isCodexProAccount();
+            filteredModels = isPro
+                ? effectiveModels
+                : effectiveModels.filter(model => !model.proRequired);
         }
 
-        // 4. 过滤 proRequired 模型
-        // 优先使用 API 返回的 availableInPlans 判断，API 中不含 free 计划的模型标记为 proRequired
-        const isPro = await this.isCodexProAccount();
-        const filteredModels = isPro
-            ? effectiveModels
-            : effectiveModels.filter(model => {
-                // 已有硬编码 proRequired 配置的模型优先使用硬编码值
-                if (model.proRequired) {
-                    return false;
-                }
-                // 从 API 数据判断：如果模型不在 free/free_workspace 计划中，则视为 proRequired
-                if (dynamicModelsMap.has(model.id) && dynamicModelsMap.get(model.id)!.availableInPlans.length > 0) {
-                    const plans = dynamicModelsMap.get(model.id)!.availableInPlans;
-                    const hasFree = plans.includes('free') || plans.includes('free_workspace');
-                    return hasFree; // 有 free 计划才保留
-                }
-                return true; // 无 API 数据时保留
-            });
-
-        // 5. 将模型配置转换为 VS Code 格式
+        // 4. 将模型配置转换为 VS Code 格式
         return filteredModels.map(model => this.modelConfigToInfo(model));
     }
 
@@ -239,6 +249,26 @@ export class CliModelProvider extends GenericModelProvider {
 
         // 注意：API 中没有但硬编码中有的模型不再追加（API 决定可用性）
         return result;
+    }
+
+    /**
+     * 获取 Codex 账号的 plan_type
+     * 通过 wham/usage API 查询
+     * @returns plan_type（如 'free', 'plus', 'pro'），查询失败返回 null
+     */
+    private async getCodexPlanType(): Promise<string | null> {
+        try {
+            const { CodexCliAuth } = await import('./auth/codexCliAuth');
+            const codexAuth = CliAuthFactory.getInstance('codex');
+            if (codexAuth instanceof CodexCliAuth) {
+                const planType = await codexAuth.getPlanType();
+                Logger.debug(`[CliModelProvider] Codex plan type: ${planType}`);
+                return planType;
+            }
+        } catch (error) {
+            Logger.debug(`[CliModelProvider] Failed to get Codex plan type: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        return null;
     }
 
     /**
