@@ -95,7 +95,7 @@ export class CliAuthFactory {
         return [
             { id: 'codex', name: 'Codex CLI' },
             { id: 'gemini', name: 'Gemini CLI' },
-            { id: 'grok', name: 'Grok CLI' }
+            { id: 'grok', name: 'Grok Build' }
         ];
     }
 }

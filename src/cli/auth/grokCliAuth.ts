@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Grok CLI 认证实现
- *  仅实现 refresh_token 刷新逻辑：登录/授权由用户在 Grok CLI 终端中完成
+ *  Grok Build 认证实现
+ *  仅实现 refresh_token 刷新逻辑：登录/授权由用户在 Grok Build 终端中完成
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
@@ -25,14 +25,14 @@ const GROK_CLIENT_ID = 'b1a00492-073a-47ea-816f-4c329264a828';
 const GROK_TOKEN_URL = 'https://auth.x.ai/oauth2/token';
 
 /**
- * Grok CLI 认证类
+ * Grok Build 认证类
  */
 export class GrokCliAuth extends BaseCliAuth {
     private recordKey?: string;
 
     constructor() {
         const config: CliAuthConfig = {
-            name: 'Grok CLI',
+            name: 'Grok Build',
             clientId: GROK_CLIENT_ID,
             tokenUrl: GROK_TOKEN_URL,
             credentialPathPattern: '~/.grok/auth.json',
@@ -99,7 +99,7 @@ export class GrokCliAuth extends BaseCliAuth {
 
     protected async refreshAccessToken(credentials: OAuthCredentials): Promise<OAuthCredentials> {
         if (!credentials.refresh_token) {
-            throw new Error('Grok CLI OAuth credentials are missing refresh_token and cannot refresh the token');
+            throw new Error('Grok Build OAuth credentials are missing refresh_token and cannot refresh the token');
         }
 
         const extendedCredentials = credentials as GrokOAuthCredentials;
@@ -140,7 +140,7 @@ export class GrokCliAuth extends BaseCliAuth {
                 (typeof responseData.error === 'string' && responseData.error) ||
                 rawText ||
                 'unknown error';
-            throw new Error(`Grok CLI token refresh failed (${tokenRes.status}): ${errorMsg}`);
+            throw new Error(`Grok Build token refresh failed (${tokenRes.status}): ${errorMsg}`);
         }
 
         const accessToken = typeof responseData.access_token === 'string' ? responseData.access_token : '';
@@ -151,7 +151,7 @@ export class GrokCliAuth extends BaseCliAuth {
             :   credentials.refresh_token;
 
         if (!accessToken) {
-            throw new Error('Grok CLI OAuth refresh response is missing access_token');
+            throw new Error('Grok Build OAuth refresh response is missing access_token');
         }
 
         const expiryDate =
@@ -167,7 +167,7 @@ export class GrokCliAuth extends BaseCliAuth {
         };
 
         this.saveCredentials(newCredentials);
-        Logger.info('[Grok CLI] Token refresh succeeded');
+        Logger.info('[Grok Build] Token refresh succeeded');
         return newCredentials;
     }
 
@@ -210,8 +210,7 @@ export class GrokCliAuth extends BaseCliAuth {
         }
 
         const [recordKey, record] =
-            Object.entries(data).find(([, value]) => value && typeof value === 'object' && !Array.isArray(value)) ||
-            [];
+            Object.entries(data).find(([, value]) => value && typeof value === 'object' && !Array.isArray(value)) || [];
 
         return { data, recordKey, record: record || {} };
     }

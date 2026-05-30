@@ -32,7 +32,7 @@
     "command.baidu.configWizard": "启动 百度千帆 配置向导",
     "command.gemini.configWizard": "Gemini CLI 配置向导（CLI 认证）",
     "command.codex.configWizard": "Codex CLI 配置向导（CLI 认证）",
-    "command.grok.configWizard": "Grok CLI 配置向导（CLI 认证）",
+    "command.grok.configWizard": "Grok Build 配置向导（CLI 认证）",
     "command.compatible.manageModels": "Compatible Provider 设置",
     "command.nesCompletion.toggleManual": "切换 NES 手动触发模式",
     "command.tokenUsage.showDetails": "查看今日 Token 消耗统计详情",
