@@ -35,6 +35,8 @@ export class CliModelProvider extends GenericModelProvider {
     private codexDynamicModels: CodexModelInfo[] | null = null;
     /** Codex 动态模型缓存时间戳 */
     private codexDynamicModelsTimestamp: number = 0;
+    /** 正在进行的模型获取 Promise（防止并发重复请求） */
+    private codexDynamicModelsFetchPromise: Promise<CodexModelInfo[] | null> | null = null;
 
     constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
         super(context, providerKey, providerConfig);
@@ -46,6 +48,7 @@ export class CliModelProvider extends GenericModelProvider {
     invalidateCodexDynamicModelsCache(): void {
         this.codexDynamicModels = null;
         this.codexDynamicModelsTimestamp = 0;
+        this.codexDynamicModelsFetchPromise = null;
         Logger.debug('[CliModelProvider] Codex dynamic models cache invalidated');
     }
 
@@ -184,6 +187,24 @@ export class CliModelProvider extends GenericModelProvider {
             return this.codexDynamicModels;
         }
 
+        // 防止并发重复请求：如果已有正在进行的请求，复用同一个 Promise
+        if (this.codexDynamicModelsFetchPromise) {
+            Logger.trace('[CliModelProvider] Reusing in-flight fetch promise');
+            return this.codexDynamicModelsFetchPromise;
+        }
+
+        this.codexDynamicModelsFetchPromise = this.doFetchCodexDynamicModels();
+        try {
+            return await this.codexDynamicModelsFetchPromise;
+        } finally {
+            this.codexDynamicModelsFetchPromise = null;
+        }
+    }
+
+    /**
+     * 实际执行从 Codex API 获取可用模型列表
+     */
+    private async doFetchCodexDynamicModels(): Promise<CodexModelInfo[] | null> {
         try {
             const { CodexCliAuth } = await import('./auth/codexCliAuth');
             const codexAuth = CliAuthFactory.getInstance('codex');
@@ -195,7 +216,7 @@ export class CliModelProvider extends GenericModelProvider {
             if (models !== null && models.length > 0) {
                 // 更新缓存
                 this.codexDynamicModels = models;
-                this.codexDynamicModelsTimestamp = now;
+                this.codexDynamicModelsTimestamp = Date.now();
                 return models;
             }
 
@@ -223,20 +244,26 @@ export class CliModelProvider extends GenericModelProvider {
             const modelId = dynamicModel.id;
             const hardcoded = hardcodedMap.get(modelId);
             if (hardcoded) {
-                // 硬编码中有此模型，使用硬编码配置
-                result.push(hardcoded);
+                // 硬编码中有此模型，用 API 数据覆盖 context_window 和 reasoningEffort
+                const merged: ModelConfig = { ...hardcoded };
+                merged.maxInputTokens = dynamicModel.contextWindow || hardcoded.maxInputTokens;
+                if (dynamicModel.reasoningEfforts.length > 0) {
+                    merged.reasoningEffort = dynamicModel.reasoningEfforts;
+                }
+                result.push(merged);
                 hardcodedMap.delete(modelId);
             } else {
-                // 新模型：硬编码中没有，使用默认属性
+                // 新模型：硬编码中没有，使用 API 数据填充属性
                 Logger.info(`[CliModelProvider] Discovered new Codex model from API: ${modelId}`);
                 result.push({
                     id: modelId,
                     name: dynamicModel.displayName || `${modelId} (ChatGPT)`,
                     tooltip: `ChatGPT 提供的 ${dynamicModel.displayName || modelId} 模型，通过 Codex 端点访问`,
-                    maxInputTokens: 200000,
+                    maxInputTokens: dynamicModel.contextWindow || 200000,
                     maxOutputTokens: 100000,
                     sdkMode: 'openai-responses',
                     useInstructions: true,
+                    reasoningEffort: dynamicModel.reasoningEfforts.length > 0 ? dynamicModel.reasoningEfforts : ['low', 'medium', 'high'],
                     capabilities: { toolCalling: true, imageInput: true },
                     extraBody: {
                         store: false,

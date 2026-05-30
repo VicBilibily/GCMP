@@ -24,6 +24,12 @@ export interface CodexModelInfo {
     visibility: string;
     /** 可用计划列表（如 free、plus、pro 等），用于判断 proRequired */
     availableInPlans: string[];
+    /** 上下文窗口大小（对应 context_window） */
+    contextWindow: number;
+    /** 最大上下文窗口大小（对应 max_context_window） */
+    maxContextWindow: number;
+    /** 支持的推理级别（对应 supported_reasoning_levels 中的 effort 字段） */
+    reasoningEfforts: string[];
 }
 
 /**
@@ -358,7 +364,7 @@ export class CodexCliAuth extends BaseCliAuth {
 
         const extractFromItem = (item: unknown): CodexModelInfo | null => {
             if (typeof item === 'string') {
-                return { id: item, displayName: item, visibility: 'list', availableInPlans: [] };
+                return { id: item, displayName: item, visibility: 'list', availableInPlans: [], contextWindow: 200000, maxContextWindow: 200000, reasoningEfforts: ['low', 'medium', 'high'] };
             }
             if (item && typeof item === 'object') {
                 const obj = item as Record<string, unknown>;
@@ -378,7 +384,22 @@ export class CodexCliAuth extends BaseCliAuth {
                 const availableInPlans = Array.isArray(obj.available_in_plans)
                     ? (obj.available_in_plans as string[])
                     : [];
-                return { id, displayName, visibility, availableInPlans };
+                // 提取上下文窗口大小
+                const contextWindow = typeof obj.context_window === 'number' ? (obj.context_window as number) : 200000;
+                const maxContextWindow = typeof obj.max_context_window === 'number' ? (obj.max_context_window as number) : contextWindow;
+                // 提取支持的推理级别（supported_reasoning_levels 中的 effort 字段）
+                const reasoningEfforts: string[] = [];
+                if (Array.isArray(obj.supported_reasoning_levels)) {
+                    for (const level of obj.supported_reasoning_levels as Array<Record<string, unknown>>) {
+                        if (level && typeof level.effort === 'string') {
+                            reasoningEfforts.push(level.effort);
+                        }
+                    }
+                }
+                if (reasoningEfforts.length === 0) {
+                    reasoningEfforts.push('low', 'medium', 'high');
+                }
+                return { id, displayName, visibility, availableInPlans, contextWindow, maxContextWindow, reasoningEfforts };
             }
             return null;
         };
