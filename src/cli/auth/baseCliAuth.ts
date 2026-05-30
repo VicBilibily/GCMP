@@ -15,6 +15,8 @@ import { CliAuthConfig, OAuthCredentials } from '../type';
  * 提供通用的认证功能，具体提供商实现继承此类
  */
 export abstract class BaseCliAuth {
+    private cachedCredentials: { data: OAuthCredentials; timestamp: number } | null = null;
+
     constructor(protected config: CliAuthConfig) {}
 
     /**
@@ -43,11 +45,21 @@ export abstract class BaseCliAuth {
                 return null;
             }
 
+            const stat = fs.statSync(credentialPath);
+            if (this.cachedCredentials && this.cachedCredentials.timestamp >= stat.mtimeMs) {
+                return this.cachedCredentials.data;
+            }
+
             const content = fs.readFileSync(credentialPath, 'utf-8');
             const credentials = JSON.parse(content) as OAuthCredentials;
             // 允许子类在加载凭证后进行额外处理
             const processedCredentials = await this.afterLoadCredentials(credentials);
             Logger.info(`[${this.config.name}] Credentials loaded`);
+            
+            this.cachedCredentials = {
+                data: processedCredentials,
+                timestamp: stat.mtimeMs
+            };
             return processedCredentials;
         } catch (error) {
             Logger.error(`[${this.config.name}] Failed to load credentials:`, error);
