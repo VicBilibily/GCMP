@@ -124,7 +124,7 @@ OpenAI's official coding assistant Codex CLI tool. Supports authentication via t
 npm install -g @openai/codex@latest
 ```
 
-- **Supported models**: **GPT-5.5**, **GPT-5.4-mini**, **GPT-5.4**, **GPT-5.3-Codex**, **GPT-5.2**
+- **Supported models**: **GPT-5.5**, **GPT-5.4-mini**, **GPT-5.4**
 - **Usage tracking**: Status bar displays remaining ChatGPT subscription cycle quota.
 
 ### [**Gemini**](https://geminicli.com/docs/) - Gemini CLI

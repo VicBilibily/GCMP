@@ -9,45 +9,6 @@
     },
     "models": [
         {
-            "id": "gpt-5.2",
-            "name": "GPT-5.2 (ChatGPT)",
-            "sdkMode": "openai-responses",
-            "tooltip": "ChatGPT 提供的 GPT-5.2 模型，通过 Codex 端点访问，适合代码生成与理解任务",
-            "maxInputTokens": 192000,
-            "maxOutputTokens": 64000,
-            "useInstructions": true,
-            "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "extraBody": {
-                "store": false,
-                "tool_choice": "auto",
-                "reasoning": {
-                    "effort": "medium",
-                    "summary": "auto"
-                }
-            }
-        },
-        {
-            "id": "gpt-5.3-codex",
-            "name": "GPT-5.3-Codex (ChatGPT)",
-            "sdkMode": "openai-responses",
-            "tooltip": "OpenAI 迄今能力最强的智能体编程模型，运行速度提升25%，支持跨电脑专业工作",
-            "maxInputTokens": 272000,
-            "maxOutputTokens": 128000,
-            "useInstructions": true,
-            "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
-            "serviceTier": ["default", "priority"],
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "extraBody": {
-                "store": false,
-                "tool_choice": "auto",
-                "reasoning": {
-                    "effort": "medium",
-                    "summary": "auto"
-                }
-            }
-        },
-        {
             "id": "gpt-5.4",
             "name": "GPT-5.4 (ChatGPT)",
             "sdkMode": "openai-responses",

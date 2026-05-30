@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.26] - 2026-05-30
+
+### 移除
+
+- **Codex 即将下线模型**：移除即将下线的 **GPT-5.3-Codex** 与 **GPT-5.2**
+
+### 修复
+
+- **CLI 认证重复加载日志**：[#199](https://github.com/VicBilibily/GCMP/pull/199) 修复 CLI 认证场景下反复输出 `Credentials loaded` 的问题
+
+---
+
+### Removed
+
+- **Codex soon-to-be-retired models**: Removed the soon-to-be-retired **GPT-5.3-Codex** and **GPT-5.2** models
+
+### Fixed
+
+- **Repeated CLI credential loading logs**: Fixed repeated `Credentials loaded` output in CLI auth flows
+
 ## [0.22.25] - 2026-05-29
 
 ### 移除
