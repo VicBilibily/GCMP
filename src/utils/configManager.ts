@@ -493,7 +493,7 @@ export class ConfigManager {
                 config.models = config.models.filter(m => override.enabledModels!.includes(m.id));
                 Logger.debug(`  Filtered models by enabledModels: ${config.models.map(m => m.id).join(', ')}`);
             } else {
-                Logger.debug(`  enabledModels contains '*', keeping all models`);
+                Logger.debug(`  enabledModels contains "*", keeping all models`);
             }
         }
 

@@ -103,8 +103,8 @@ export class CliModelProvider extends GenericModelProvider {
      * 3. 过滤 proRequired 模型（非 Pro 账号不显示 Pro 专属模型）
      */
     private async provideCodexModels(
-        options: PrepareLanguageModelChatModelOptions & { silent: boolean },
-        token: vscode.CancellationToken
+        _options: PrepareLanguageModelChatModelOptions & { silent: boolean },
+        _token: vscode.CancellationToken
     ): Promise<vscode.LanguageModelChatInformation[]> {
         // 1. 尝试从 API 获取可用模型 ID 列表
         const dynamicModelIds = await this.fetchCodexDynamicModels();
