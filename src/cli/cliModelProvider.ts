@@ -22,8 +22,8 @@ import { StatusBarManager } from '../status';
 import { t } from '../utils/l10n';
 import type { CodexModelInfo } from './auth/codexCliAuth';
 
-/** 动态模型列表缓存有效期：5 分钟 */
-const DYNAMIC_MODELS_CACHE_TTL_MS = 5 * 60 * 1000;
+/** 动态模型列表缓存有效期：1 小时 */
+const DYNAMIC_MODELS_CACHE_TTL_MS = 60 * 60 * 1000;
 
 /**
  * CLI 认证专用模型提供商类
@@ -231,8 +231,8 @@ export class CliModelProvider extends GenericModelProvider {
                 Logger.info(`[CliModelProvider] Discovered new Codex model from API: ${modelId}`);
                 result.push({
                     id: modelId,
-                    name: `${modelId} (ChatGPT)`,
-                    tooltip: `ChatGPT 提供的 ${modelId} 模型，通过 Codex 端点访问`,
+                    name: dynamicModel.displayName || `${modelId} (ChatGPT)`,
+                    tooltip: `ChatGPT 提供的 ${dynamicModel.displayName || modelId} 模型，通过 Codex 端点访问`,
                     maxInputTokens: 200000,
                     maxOutputTokens: 100000,
                     sdkMode: 'openai-responses',

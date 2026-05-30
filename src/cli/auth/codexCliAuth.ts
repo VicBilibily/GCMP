@@ -18,6 +18,8 @@ import type { CliAuthConfig, OAuthCredentials } from '../type';
 export interface CodexModelInfo {
     /** 模型标识（对应 API 响应中的 slug 字段） */
     id: string;
+    /** 模型显示名称（对应 API 响应中的 display_name 字段） */
+    displayName: string;
     /** 可见性：'list' 表示正常显示，'hide' 表示隐藏 */
     visibility: string;
     /** 可用计划列表（如 free、plus、pro 等），用于判断 proRequired */
@@ -356,7 +358,7 @@ export class CodexCliAuth extends BaseCliAuth {
 
         const extractFromItem = (item: unknown): CodexModelInfo | null => {
             if (typeof item === 'string') {
-                return { id: item, visibility: 'list', availableInPlans: [] };
+                return { id: item, displayName: item, visibility: 'list', availableInPlans: [] };
             }
             if (item && typeof item === 'object') {
                 const obj = item as Record<string, unknown>;
@@ -365,6 +367,8 @@ export class CodexCliAuth extends BaseCliAuth {
                 if (!id) {
                     return null;
                 }
+                // 提取显示名称，优先使用 display_name
+                const displayName = typeof obj.display_name === 'string' ? (obj.display_name as string) : id;
                 // 过滤隐藏模型（如 codex-auto-review）
                 const visibility = typeof obj.visibility === 'string' ? (obj.visibility as string) : 'list';
                 if (visibility === 'hide') {
@@ -374,7 +378,7 @@ export class CodexCliAuth extends BaseCliAuth {
                 const availableInPlans = Array.isArray(obj.available_in_plans)
                     ? (obj.available_in_plans as string[])
                     : [];
-                return { id, visibility, availableInPlans };
+                return { id, displayName, visibility, availableInPlans };
             }
             return null;
         };
