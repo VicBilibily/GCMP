@@ -138,6 +138,20 @@ npm install -g @google/gemini-cli@latest
 - **Supported models**: **Gemini 2.5 Pro**, **Gemini 2.5 Flash**, **Gemini 2.5 Flash Lite**
 - **Preview models**: **Gemini 3.1 Pro (Preview)**, **Gemini 3.1 Pro (Custom Tools)**, **Gemini 3 Pro (Preview)**, **Gemini 3 Flash (Preview)**
 
+### [**Grok Build**](https://x.ai/cli) - xAI Grok Build
+
+xAI's official Grok Build coding assistant CLI tool. Supports OAuth authentication via the `grok` CLI (requires local installation).
+
+```bash
+# macOS / Linux
+curl -fsSL https://x.ai/cli/install.sh | bash
+
+# Windows PowerShell
+irm https://x.ai/cli/install.ps1 | iex
+```
+
+- **Supported models**: **Grok Build 0.1**
+
 </details>
 
 ## ⚙️ Advanced Configuration

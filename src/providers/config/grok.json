@@ -8,7 +8,6 @@
             "name": "Grok Build 0.1",
             "tooltip": "xAI 的 Grok Build 编程模型，通过 Grok Build OAuth 登录态访问。",
             "sdkMode": "openai-responses",
-            "family": "gpt-5.2",
             "maxInputTokens": 256000,
             "maxOutputTokens": 131072,
             "capabilities": {

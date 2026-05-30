@@ -138,6 +138,20 @@ npm install -g @google/gemini-cli@latest
 - **支持模型**：**Gemini 2.5 Pro**、**Gemini 2.5 Flash**、**Gemini 2.5 Flash Lite**
 - **预览模型**：**Gemini 3.1 Pro (Preview)**、**Gemini 3.1 Pro (Custom Tools)**、**Gemini 3 Pro (Preview)**、**Gemini 3 Flash (Preview)**
 
+### [**Grok Build**](https://x.ai/cli) - xAI Grok Build
+
+xAI 官方 Grok Build 编程助手命令行工具，支持通过 `grok` CLI 进行 OAuth 身份验证（需要本地安装 Grok Build CLI）。
+
+```bash
+# macOS / Linux
+curl -fsSL https://x.ai/cli/install.sh | bash
+
+# Windows PowerShell
+irm https://x.ai/cli/install.ps1 | iex
+```
+
+- **支持模型**：**Grok Build 0.1**
+
 </details>
 
 ## ⚙️ 高级配置

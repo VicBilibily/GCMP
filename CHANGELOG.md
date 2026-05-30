@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.23.0] - 2026-05-30
+
+### 新增
+
+- **Grok Build CLI (OAuth) 接入**：[#200](https://github.com/VicBilibily/GCMP/pull/200) 新增 `gcmp.grok` 提供商，支持通过 Grok Build OAuth 登录态访问 xAI 编程模型
+- **Grok Build 0.1 模型**：新增 **grok-build-0.1** 模型（基于 `openai-responses` SDK 模式），支持工具调用与图片输入，最大输入 256K / 最大输出 131K
+
+---
+
+### Added
+
+- **Grok Build CLI (OAuth) integration**: Added `gcmp.grok` provider supporting xAI programming models via Grok Build OAuth login ([#200](https://github.com/VicBilibily/GCMP/pull/200))
+- **Grok Build 0.1 model**: Added **grok-build-0.1** model (via `openai-responses` SDK mode) with tool calling and image input support; max input 256K / max output 131K
+
 ## [0.22.27] - 2026-05-30
 
 ### 新增
