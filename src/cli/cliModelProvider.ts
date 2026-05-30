@@ -121,11 +121,14 @@ export class CliModelProvider extends GenericModelProvider {
             Logger.debug(`[CliModelProvider] API fetch failed, falling back to ${effectiveModels.length} hardcoded models`);
         }
 
-        // 3. 将模型配置转换为 VS Code 格式
-        const models = effectiveModels.map(model => this.modelConfigToInfo(model));
+        // 3. 过滤 proRequired 模型（非 Pro 账号不显示 Pro 专属模型）
+        const isPro = await this.isCodexProAccount();
+        const filteredModels = isPro
+            ? effectiveModels
+            : effectiveModels.filter(model => !model.proRequired);
 
-        // 4. 过滤 proRequired 模型
-        return this.filterCodexModels(models);
+        // 4. 将模型配置转换为 VS Code 格式
+        return filteredModels.map(model => this.modelConfigToInfo(model));
     }
 
     /**
