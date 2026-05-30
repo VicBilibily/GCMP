@@ -149,6 +149,12 @@ export interface ModelConfig {
      * 仅对 sdkMode=anthropic 的模型生效。
      */
     webSearchTool?: boolean;
+    /**
+     * 是否需要 Pro 订阅才能使用（可选）
+     * 设置为 true 时，该模型仅在 ChatGPT Pro 账号下显示。
+     * 用于 Codex 等需要区分订阅等级的提供商。
+     */
+    proRequired?: boolean;
 }
 
 /**
@@ -201,6 +207,8 @@ export interface ModelOverride {
     useInstructions?: boolean;
     /** 是否启用 Anthropic 原生 web_search 工具（仅 sdkMode=anthropic 生效） */
     webSearchTool?: boolean;
+    /** 是否需要 Pro 订阅才能使用（可选） */
+    proRequired?: boolean;
 }
 
 /**
@@ -211,6 +219,12 @@ export interface ProviderOverride {
     baseUrl?: string;
     /** 提供商级别的自定义HTTP头部（可选） */
     customHeader?: Record<string, string>;
+    /**
+     * 自定义启用的模型ID列表（可选）
+     * 如果提供，仅返回列表中的模型；如果未设置，返回所有模型。
+     * 支持通配符 "*" 表示启用所有模型。
+     */
+    enabledModels?: string[];
     /** 模型覆盖配置列表 */
     models?: ModelOverride[];
 }

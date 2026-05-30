@@ -48,6 +48,27 @@
             }
         },
         {
+            "id": "gpt-5.3-codex-spark",
+            "name": "GPT-5.3-Codex-Spark (ChatGPT Pro)",
+            "sdkMode": "openai-responses",
+            "tooltip": "OpenAI 专为 ChatGPT Pro 用户提供的旗舰编程模型，整合最强推理与代码生成能力",
+            "maxInputTokens": 272000,
+            "maxOutputTokens": 128000,
+            "useInstructions": true,
+            "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
+            "serviceTier": ["default", "priority"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "proRequired": true,
+            "extraBody": {
+                "store": false,
+                "tool_choice": "auto",
+                "reasoning": {
+                    "effort": "medium",
+                    "summary": "auto"
+                }
+            }
+        },
+        {
             "id": "gpt-5.4",
             "name": "GPT-5.4 (ChatGPT)",
             "sdkMode": "openai-responses",

@@ -195,6 +195,14 @@ export abstract class BaseStatusBarItem<T> {
         // 默认为空实现，子类可以重写
     }
 
+    /**
+     * 在状态数据成功更新后执行的钩子方法
+     * 子类可以重写此方法以执行数据更新后的额外逻辑
+     */
+    protected onStatusDataUpdated(): void {
+        // 默认为空实现，子类可以重写
+    }
+
     // ==================== 公共方法 ====================
 
     /**
@@ -474,6 +482,9 @@ export abstract class BaseStatusBarItem<T> {
 
                     // 更新状态栏 UI
                     this.updateStatusBarUI(data);
+
+                    // 通知子类数据已更新（子类可重写此方法执行额外逻辑）
+                    this.onStatusDataUpdated();
 
                     StatusLogger.info(`[${this.config.logPrefix}] Usage query succeeded`);
                 }

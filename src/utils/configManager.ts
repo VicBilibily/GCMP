@@ -471,6 +471,10 @@ export class ConfigManager {
                 target.extraBody = { ...target.extraBody, ...modelOverride.extraBody };
                 Logger.debug(`  Model ${modelOverride.id}: merge extraBody = ${JSON.stringify(target.extraBody)}`);
             }
+            if (modelOverride.proRequired !== undefined) {
+                target.proRequired = modelOverride.proRequired;
+                Logger.debug(`  Model ${modelOverride.id}: override proRequired = ${modelOverride.proRequired}`);
+            }
         };
 
         // 应用提供商级别的覆盖
@@ -481,6 +485,16 @@ export class ConfigManager {
         if (override.customHeader) {
             config.customHeader = { ...config.customHeader, ...override.customHeader };
             Logger.debug(`  Override provider customHeader = ${JSON.stringify(config.customHeader)}`);
+        }
+
+        // 应用 enabledModels 过滤（仅保留指定的模型）
+        if (override.enabledModels && Array.isArray(override.enabledModels) && override.enabledModels.length > 0) {
+            if (!override.enabledModels.includes('*')) {
+                config.models = config.models.filter(m => override.enabledModels!.includes(m.id));
+                Logger.debug(`  Filtered models by enabledModels: ${config.models.map(m => m.id).join(', ')}`);
+            } else {
+                Logger.debug(`  enabledModels contains '*', keeping all models`);
+            }
         }
 
         // 应用模型级别的覆盖

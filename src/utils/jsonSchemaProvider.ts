@@ -627,76 +627,19 @@ export class JsonSchemaProvider {
                                 type: 'boolean',
                                 description: this.getOutputThinkingDescription(),
                                 deprecationMessage: this.getOutputThinkingDeprecationMessage()
+                            },
+                            proRequired: {
+                                type: 'boolean',
+                                description: t(
+                                    'Whether a Pro subscription is required to use this model. Only applicable for Codex CLI provider.',
+                                    '是否需要 Pro 订阅才能使用此模型。仅适用于 Codex CLI 提供商。'
+                                ),
+                                default: false
                             }
                         },
-                        required: ['id', 'name', 'provider', 'maxInputTokens', 'maxOutputTokens', 'capabilities'],
+                        required: ['id'],
                         allOf: [
                             {
-                                // endpoint 仅对 openai / openai-sse / openai-responses 生效
-                                // anthropic 和 gemini-sse 不提示，且已配置时标红警告
-                                if: {
-                                    anyOf: [
-                                        { not: { required: ['sdkMode'] } },
-                                        {
-                                            properties: {
-                                                sdkMode: { enum: ['openai', 'openai-sse', 'openai-responses'] }
-                                            },
-                                            required: ['sdkMode']
-                                        }
-                                    ]
-                                },
-                                then: {
-                                    properties: {
-                                        endpoint: {
-                                            type: 'string',
-                                            description: t(
-                                                'Custom API endpoint path (optional).\nUsed to replace the default path appended to baseUrl (such as /chat/completions or /responses).\n- Relative path (for example /custom/path): concatenated with baseUrl\n- Full URL: used directly as the request URL\nOnly effective for openai, openai-sse, and openai-responses modes',
-                                                '自定义 API 端点路径（可选）。\n用于替换默认附加到 baseUrl 后的路径（如 /chat/completions、/responses）。\n- 相对路径（如 /custom/path）：与 baseUrl 拼接使用\n- 完整 URL：直接填写完整的地址作为请求地址\n仅对 openai、openai-sse、openai-responses 模式生效'
-                                            )
-                                        }
-                                    }
-                                },
-                                else: {
-                                    properties: {
-                                        endpoint: {
-                                            deprecationMessage: t(
-                                                'endpoint is only effective for openai, openai-sse, and openai-responses modes',
-                                                'endpoint 仅对 openai、openai-sse、openai-responses 模式生效'
-                                            )
-                                        }
-                                    }
-                                }
-                            },
-                            {
-                                // useInstructions 仅对 openai-responses 生效
-                                if: {
-                                    properties: {
-                                        sdkMode: { const: 'openai-responses' }
-                                    },
-                                    required: ['sdkMode']
-                                },
-                                then: {
-                                    properties: {
-                                        useInstructions: {
-                                            type: 'boolean',
-                                            description: this.getUseInstructionsDescription(),
-                                            default: false
-                                        }
-                                    }
-                                },
-                                else: {
-                                    properties: {
-                                        useInstructions: {
-                                            deprecationMessage: t(
-                                                'useInstructions is only effective for openai-responses mode',
-                                                'useInstructions 仅对 openai-responses 模式生效'
-                                            )
-                                        }
-                                    }
-                                }
-                            },
-                            {
-                                // webSearchTool 仅对 anthropic 生效
                                 if: {
                                     properties: {
                                         sdkMode: { const: 'anthropic' }
@@ -724,7 +667,33 @@ export class JsonSchemaProvider {
                                 }
                             },
                             {
-                                // thinkingFormat 仅对 openai/openai-sse 生效
+                                if: {
+                                    properties: {
+                                        sdkMode: { const: 'openai-responses' }
+                                    },
+                                    required: ['sdkMode']
+                                },
+                                then: {
+                                    properties: {
+                                        useInstructions: {
+                                            type: 'boolean',
+                                            description: this.getUseInstructionsDescription(),
+                                            default: false
+                                        }
+                                    }
+                                },
+                                else: {
+                                    properties: {
+                                        useInstructions: {
+                                            deprecationMessage: t(
+                                                'useInstructions is only effective for openai-responses mode',
+                                                'useInstructions 仅对 openai-responses 模式生效'
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            {
                                 if: {
                                     anyOf: [
                                         { not: { required: ['sdkMode'] } },
@@ -938,6 +907,18 @@ export class JsonSchemaProvider {
                     description: t('Override the provider-level API base URL', '覆盖提供商级别的API基础URL'),
                     format: 'uri'
                 },
+                enabledModels: {
+                    type: 'array',
+                    description: t(
+                        'List of enabled model IDs. Only models in this list will be shown. Use ["*"] to enable all models. If not set, all models are enabled.',
+                        '启用的模型ID列表。仅列表中的模型会显示。使用 ["*"] 启用所有模型。如未设置，则启用所有模型。'
+                    ),
+                    items: {
+                        type: 'string',
+                        minLength: 1,
+                        description: t('Model ID or "*" for all models', '模型ID或"*"表示所有模型')
+                    }
+                },
                 customHeader: {
                     type: 'object',
                     description: this.getProviderCustomHeaderDescription(),
@@ -1098,6 +1079,14 @@ export class JsonSchemaProvider {
                                 type: 'boolean',
                                 description: this.getOutputThinkingDescription(),
                                 deprecationMessage: this.getOutputThinkingDeprecationMessage()
+                            },
+                            proRequired: {
+                                type: 'boolean',
+                                description: t(
+                                    'Whether a Pro subscription is required to use this model. Only applicable for Codex CLI provider.',
+                                    '是否需要 Pro 订阅才能使用此模型。仅适用于 Codex CLI 提供商。'
+                                ),
+                                default: false
                             }
                         },
                         required: ['id'],
@@ -1189,13 +1178,127 @@ export class JsonSchemaProvider {
                                         }
                                     }
                                 }
+                            },
+                            {
+                                // family 条件建议：根据 sdkMode 推荐默认值
+                                // anthropic 模式推荐 claude-sonnet-4.6
+                                if: {
+                                    properties: {
+                                        sdkMode: { const: 'anthropic' }
+                                    },
+                                    required: ['sdkMode']
+                                },
+                                then: {
+                                    properties: {
+                                        family: {
+                                            type: 'string',
+                                            description: t(
+                                                'Model family identifier. Default for anthropic mode: claude-sonnet-4.6\nClaude-style editing tool (replace_string_in_file) - efficient, precise single replacements',
+                                                '模型的 family 标识。anthropic 模式默认: claude-sonnet-4.6\nClaude 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换'
+                                            ),
+                                            default: 'claude-sonnet-4.6',
+                                            enum: ['claude-sonnet-4.6', 'gpt-5.2', 'gemini-3-pro'],
+                                            enumDescriptions: [
+                                                t(
+                                                    'Claude-style editing tool (replace_string_in_file) - recommended',
+                                                    'Claude 风格编辑工具 (replace_string_in_file) - 推荐'
+                                                ),
+                                                t(
+                                                    'GPT-5-style editing tool (apply_patch)',
+                                                    'GPT-5 风格编辑工具 (apply_patch)'
+                                                ),
+                                                t(
+                                                    'Gemini-style editing tool (replace_string_in_file)',
+                                                    'Gemini 风格编辑工具 (replace_string_in_file)'
+                                                )
+                                            ]
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                // gemini-sse 模式推荐 gemini-3-pro
+                                if: {
+                                    properties: {
+                                        sdkMode: { const: 'gemini-sse' }
+                                    },
+                                    required: ['sdkMode']
+                                },
+                                then: {
+                                    properties: {
+                                        family: {
+                                            type: 'string',
+                                            description: t(
+                                                'Model family identifier. Default for gemini-sse mode: gemini-3-pro\nGemini-style editing tool (replace_string_in_file) - efficient, precise single replacements',
+                                                '模型的 family 标识。gemini-sse 模式默认: gemini-3-pro\nGemini 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换'
+                                            ),
+                                            default: 'gemini-3-pro',
+                                            enum: ['gemini-3-pro', 'claude-sonnet-4.6', 'gpt-5.2'],
+                                            enumDescriptions: [
+                                                t(
+                                                    'Gemini-style editing tool (replace_string_in_file) - recommended',
+                                                    'Gemini 风格编辑工具 (replace_string_in_file) - 推荐'
+                                                ),
+                                                t(
+                                                    'Claude-style editing tool (replace_string_in_file)',
+                                                    'Claude 风格编辑工具 (replace_string_in_file)'
+                                                ),
+                                                t(
+                                                    'GPT-5-style editing tool (apply_patch)',
+                                                    'GPT-5 风格编辑工具 (apply_patch)'
+                                                )
+                                            ]
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                // openai/openai-sse/openai-responses 模式（默认）
+                                if: {
+                                    anyOf: [
+                                        { not: { required: ['sdkMode'] } },
+                                        {
+                                            properties: {
+                                                sdkMode: { enum: ['openai', 'openai-sse', 'openai-responses'] }
+                                            },
+                                            required: ['sdkMode']
+                                        }
+                                    ]
+                                },
+                                then: {
+                                    properties: {
+                                        family: {
+                                            type: 'string',
+                                            description: t(
+                                                'Model family identifier.\nDefault for openai/openai-sse/openai-responses modes: claude-sonnet-4.6\nClaude-style editing tool (replace_string_in_file) - efficient, precise single replacements',
+                                                '模型的 family 标识。\nopenai/openai-sse/openai-responses 模式默认: claude-sonnet-4.6\nClaude 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换'
+                                            ),
+                                            enum: ['claude-sonnet-4.6', 'gpt-5.2', 'gemini-3-pro'],
+                                            enumDescriptions: [
+                                                t(
+                                                    'Claude-style editing tool (replace_string_in_file) - recommended',
+                                                    'Claude 风格编辑工具 (replace_string_in_file) - 推荐'
+                                                ),
+                                                t(
+                                                    'GPT-5-style editing tool (apply_patch) - batch diff application',
+                                                    'GPT-5 风格编辑工具 (apply_patch) - 批量差异应用'
+                                                ),
+                                                t(
+                                                    'Gemini-style editing tool (replace_string_in_file)',
+                                                    'Gemini 风格编辑工具 (replace_string_in_file)'
+                                                )
+                                            ]
+                                        }
+                                    }
+                                }
                             }
-                        ],
-                        additionalProperties: false
+                        ]
                     }
-                }
+                },
+                // Commit 模型选择：保存 provider + model
+                'gcmp.commit.model': commitSchema
             },
-            additionalProperties: false
+            additionalProperties: true
         };
     }
 

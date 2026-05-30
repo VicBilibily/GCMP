@@ -226,6 +226,163 @@ export class CodexCliAuth extends BaseCliAuth {
     }
 
     /**
+     * 获取 ChatGPT 订阅计划类型
+     * 通过 wham/usage API 查询账号信息中的 plan_type 字段（与状态栏一致）
+     * @returns 计划类型（如 'free', 'plus', 'pro'），查询失败时返回 null
+     */
+    async getPlanType(): Promise<string | null> {
+        const USAGE_QUERY_URL = 'https://chatgpt.com/backend-api/wham/usage';
+
+        try {
+            const credentials = await this.ensureAuthenticated();
+            if (!credentials || !credentials.access_token) {
+                return null;
+            }
+
+            const accountId = await this.getAccountId();
+            if (!accountId) {
+                return null;
+            }
+
+            const response = await fetch(USAGE_QUERY_URL, {
+                method: 'GET',
+                headers: {
+                    Authorization: `Bearer ${credentials.access_token}`,
+                    'user-agent': 'codex-tui/0.134.0 (Windows 10.0.26200; x86_64) unknown (codex-tui; 0.134.0)',
+                    'chatgpt-account-id': accountId
+                }
+            });
+
+            if (!response.ok) {
+                Logger.debug(`[Codex] Failed to query plan type: HTTP ${response.status}`);
+                return null;
+            }
+
+            const data = await response.json() as { plan_type?: string };
+            const planType = data.plan_type;
+            if (typeof planType === 'string' && planType) {
+                Logger.debug(`[Codex] Plan type from usage API: ${planType}`);
+                return planType;
+            }
+
+            return null;
+        } catch (error) {
+            Logger.debug(`[Codex] Failed to get plan type: ${error instanceof Error ? error.message : String(error)}`);
+            return null;
+        }
+    }
+
+    /**
+     * 从 Codex API 获取可用模型列表
+     * 尝试从 /models 端点获取模型信息，与父类配置合并使用
+     * @returns 模型 ID 列表，获取失败时返回 null（调用方应使用硬编码配置作为降级）
+     */
+    async fetchAvailableModels(): Promise<string[] | null> {
+        const MODELS_URL = 'https://chatgpt.com/backend-api/codex/models';
+
+        try {
+            const credentials = await this.ensureAuthenticated();
+            if (!credentials || !credentials.access_token) {
+                Logger.debug('[Codex] No credentials available for fetching models');
+                return null;
+            }
+
+            const accountId = await this.getAccountId();
+            if (!accountId) {
+                Logger.debug('[Codex] No account_id available for fetching models');
+                return null;
+            }
+
+            const response = await fetch(MODELS_URL, {
+                method: 'GET',
+                headers: {
+                    Authorization: `Bearer ${credentials.access_token}`,
+                    'user-agent': 'codex-tui/0.134.0 (Windows 10.0.26200; x86_64) unknown (codex-tui; 0.134.0)',
+                    'chatgpt-account-id': accountId
+                }
+            });
+
+            if (!response.ok) {
+                Logger.debug(`[Codex] Failed to fetch models: HTTP ${response.status}`);
+                return null;
+            }
+
+            const text = await response.text();
+            let data: unknown;
+            try {
+                data = JSON.parse(text);
+            } catch {
+                Logger.debug('[Codex] Failed to parse models response as JSON');
+                return null;
+            }
+
+            // 支持多种响应格式: OpenAI {data:[...]} / 简单 {models:[...]} / 纯数组 [...]
+            const modelIds = this.extractModelIds(data);
+            if (modelIds.length > 0) {
+                Logger.debug(`[Codex] Fetched ${modelIds.length} available models: ${modelIds.join(', ')}`);
+                return modelIds;
+            }
+
+            Logger.debug('[Codex] No model IDs found in response');
+            return null;
+        } catch (error) {
+            Logger.debug(`[Codex] Failed to fetch available models: ${error instanceof Error ? error.message : String(error)}`);
+            return null;
+        }
+    }
+
+    /**
+     * 从 API 响应中提取模型 ID 列表
+     * 支持多种响应格式：
+     * - OpenAI 格式: { data: [{ id: "gpt-5.2", ... }, ...] }
+     * - 简单格式: { models: ["gpt-5.2", ...] } 或 { models: [{ id: "gpt-5.2", ... }, ...] }
+     * - 纯数组格式: ["gpt-5.2", ...] 或 [{ id: "gpt-5.2", ... }, ...]
+     */
+    private extractModelIds(data: unknown): string[] {
+        const ids: string[] = [];
+
+        // 格式1: OpenAI 标准 { data: [...] }
+        if (data && typeof data === 'object' && !Array.isArray(data)) {
+            const obj = data as Record<string, unknown>;
+
+            // OpenAI 格式: { data: [{ id: "model-id" }] }
+            if (Array.isArray(obj.data)) {
+                for (const item of obj.data) {
+                    if (item && typeof item === 'object' && typeof (item as Record<string, unknown>).id === 'string') {
+                        ids.push((item as Record<string, unknown>).id as string);
+                    }
+                }
+                return ids;
+            }
+
+            // 简单格式: { models: [...] }
+            if (Array.isArray(obj.models)) {
+                for (const item of obj.models) {
+                    if (typeof item === 'string') {
+                        ids.push(item);
+                    } else if (item && typeof item === 'object' && typeof (item as Record<string, unknown>).id === 'string') {
+                        ids.push((item as Record<string, unknown>).id as string);
+                    }
+                }
+                return ids;
+            }
+        }
+
+        // 格式2: 纯数组
+        if (Array.isArray(data)) {
+            for (const item of data) {
+                if (typeof item === 'string') {
+                    ids.push(item);
+                } else if (item && typeof item === 'object' && typeof (item as Record<string, unknown>).id === 'string') {
+                    ids.push((item as Record<string, unknown>).id as string);
+                }
+            }
+        }
+
+        return ids;
+    }
+
+    /**
      * 加载凭证后的额外处理
      * Codex CLI 的 auth.json 把令牌信息存在 tokens 对象中
      */

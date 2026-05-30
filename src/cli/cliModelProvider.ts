@@ -13,7 +13,7 @@ import {
     CancellationToken,
     PrepareLanguageModelChatModelOptions
 } from 'vscode';
-import { ProviderConfig } from '../types/sharedTypes';
+import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { ApiKeyManager, Logger } from '../utils';
 import { GenericModelProvider } from '../providers/genericModelProvider';
 import { CliWizard } from './cliWizard';
@@ -21,12 +21,20 @@ import { CliAuthFactory } from './auth/cliAuthFactory';
 import { StatusBarManager } from '../status';
 import { t } from '../utils/l10n';
 
+/** 动态模型列表缓存有效期：5 分钟 */
+const DYNAMIC_MODELS_CACHE_TTL_MS = 5 * 60 * 1000;
+
 /**
  * CLI 认证专用模型提供商类
  * 继承 GenericModelProvider，支持 CLI 认证模式
  * 适用于所有使用 CLI 认证的提供商（qwen-code、gemini、codex 等）
  */
 export class CliModelProvider extends GenericModelProvider {
+    /** Codex 动态模型 ID 缓存（从 API 获取的可用模型列表） */
+    private codexDynamicModelIds: string[] | null = null;
+    /** Codex 动态模型缓存时间戳 */
+    private codexDynamicModelsTimestamp: number = 0;
+
     constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
         super(context, providerKey, providerConfig);
     }
@@ -78,8 +86,144 @@ export class CliModelProvider extends GenericModelProvider {
                 return [];
             }
         }
-        // 调用父类方法返回模型列表
+
+        // 对 Codex 提供商：合并动态模型列表并过滤 proRequired
+        if (this.providerKey === 'codex') {
+            return this.provideCodexModels(options, token);
+        }
+
+        // 其他提供商：调用父类方法返回模型列表
         return super.provideLanguageModelChatInformation(options, token);
+    }
+
+    /**
+     * 提供 Codex 模型列表
+     * 1. 从 API 获取可用模型 ID 列表（带缓存）
+     * 2. 与硬编码配置合并（API 决定哪些模型可用，硬编码提供详细属性）
+     * 3. 过滤 proRequired 模型（非 Pro 账号不显示 Pro 专属模型）
+     */
+    private async provideCodexModels(
+        options: PrepareLanguageModelChatModelOptions & { silent: boolean },
+        token: vscode.CancellationToken
+    ): Promise<vscode.LanguageModelChatInformation[]> {
+        // 1. 尝试从 API 获取可用模型 ID 列表
+        const dynamicModelIds = await this.fetchCodexDynamicModels();
+
+        // 2. 合并模型列表
+        let effectiveModels: ModelConfig[];
+        if (dynamicModelIds !== null) {
+            // API 成功：以 API 返回的模型 ID 为准，用硬编码配置补充属性
+            effectiveModels = this.mergeCodexModels(dynamicModelIds);
+            Logger.debug(`[CliModelProvider] Using ${effectiveModels.length} merged models (API: ${dynamicModelIds.length}, hardcoded: ${this.providerConfig.models.length})`);
+        } else {
+            // API 失败：降级使用全部硬编码模型
+            effectiveModels = this.providerConfig.models;
+            Logger.debug(`[CliModelProvider] API fetch failed, falling back to ${effectiveModels.length} hardcoded models`);
+        }
+
+        // 3. 将模型配置转换为 VS Code 格式
+        const models = effectiveModels.map(model => this.modelConfigToInfo(model));
+
+        // 4. 过滤 proRequired 模型
+        return this.filterCodexModels(models);
+    }
+
+    /**
+     * 从 Codex API 获取可用模型 ID 列表（带 5 分钟缓存）
+     * @returns 模型 ID 列表；获取失败返回 null（调用方应降级使用硬编码模型）
+     */
+    private async fetchCodexDynamicModels(): Promise<string[] | null> {
+        // 检查缓存是否有效
+        const now = Date.now();
+        if (this.codexDynamicModelIds !== null && (now - this.codexDynamicModelsTimestamp) < DYNAMIC_MODELS_CACHE_TTL_MS) {
+            Logger.trace(`[CliModelProvider] Using cached dynamic models (${this.codexDynamicModelIds.length} models, age: ${((now - this.codexDynamicModelsTimestamp) / 1000).toFixed(0)}s)`);
+            return this.codexDynamicModelIds;
+        }
+
+        try {
+            const { CodexCliAuth } = await import('./auth/codexCliAuth');
+            const codexAuth = CliAuthFactory.getInstance('codex');
+            if (!(codexAuth instanceof CodexCliAuth)) {
+                return null;
+            }
+
+            const modelIds = await codexAuth.fetchAvailableModels();
+            if (modelIds !== null && modelIds.length > 0) {
+                // 更新缓存
+                this.codexDynamicModelIds = modelIds;
+                this.codexDynamicModelsTimestamp = now;
+                return modelIds;
+            }
+
+            return null;
+        } catch (error) {
+            Logger.debug(`[CliModelProvider] Failed to fetch dynamic models: ${error instanceof Error ? error.message : String(error)}`);
+            return null;
+        }
+    }
+
+    /**
+     * 合并 API 返回的动态模型 ID 与硬编码模型配置
+     * - API 返回的模型 ID 决定哪些模型可见
+     * - 硬编码配置提供详细属性（maxInputTokens, tooltip, sdkMode 等）
+     * - API 中有但硬编码没有的模型，使用默认属性
+     */
+    private mergeCodexModels(dynamicModelIds: string[]): ModelConfig[] {
+        const hardcodedMap = new Map<string, ModelConfig>();
+        for (const model of this.providerConfig.models) {
+            hardcodedMap.set(model.id, model);
+        }
+
+        const result: ModelConfig[] = [];
+        for (const modelId of dynamicModelIds) {
+            const hardcoded = hardcodedMap.get(modelId);
+            if (hardcoded) {
+                // 硬编码中有此模型，使用硬编码配置
+                result.push(hardcoded);
+                hardcodedMap.delete(modelId);
+            } else {
+                // 新模型：硬编码中没有，使用默认属性
+                Logger.info(`[CliModelProvider] Discovered new Codex model from API: ${modelId}`);
+                result.push({
+                    id: modelId,
+                    name: `${modelId} (ChatGPT)`,
+                    tooltip: `ChatGPT 提供的 ${modelId} 模型，通过 Codex 端点访问`,
+                    maxInputTokens: 200000,
+                    maxOutputTokens: 100000,
+                    sdkMode: 'openai-responses',
+                    useInstructions: true,
+                    capabilities: { toolCalling: true, imageInput: true },
+                    extraBody: {
+                        store: false,
+                        tool_choice: 'auto',
+                        reasoning: { effort: 'medium', summary: 'auto' }
+                    }
+                });
+            }
+        }
+
+        // 注意：API 中没有但硬编码中有的模型不再追加（API 决定可用性）
+        return result;
+    }
+
+    /**
+     * 检查 Codex 账号是否为 Pro 订阅
+     * 通过 wham/usage API 查询 plan_type（与状态栏一致的判断方式）
+     */
+    private async isCodexProAccount(): Promise<boolean> {
+        try {
+            const { CodexCliAuth } = await import('./auth/codexCliAuth');
+            const codexAuth = CliAuthFactory.getInstance('codex');
+            if (codexAuth instanceof CodexCliAuth) {
+                const planType = await codexAuth.getPlanType();
+                Logger.debug(`[CliModelProvider] Codex plan type: ${planType}`);
+                return planType === 'pro';
+            }
+        } catch (error) {
+            Logger.debug(`[CliModelProvider] Failed to check Codex plan type: ${error instanceof Error ? error.message : String(error)}`);
+        }
+
+        return false;
     }
 
     /**
