@@ -94,6 +94,7 @@
     "setting.commit.format.enumDescriptions.atom": "Atom - Atom 编辑器风格（示例：:bug: 修复配置回退）",
     "setting.commit.format.description": "生成提交消息使用的格式。auto 会根据历史提交记录推断提交规范；无法推断则回退为 plain。支持在工作区和全局配置中设置，工作区配置优先级更高。",
     "setting.commit.customInstructions.description": "自定义的提交消息生成指令（当 commitFormat=custom 时生效）。",
+    "setting.commit.sensitiveFiles.description": "排除在 commit diff 分析之外的文件路径模式。支持简单的类 glob 模式，例如 *.pem、secrets/** 或 **/.env.local。",
     "setting.commit.model.description": "指定用于生成提交消息的模型（provider + model）。留空则会提示选择模型。",
     "setting.commit.model.provider.description": "语言模型提供商（providerKey），例如 zhipu / compatible",
     "setting.commit.model.model.description": "模型 ID（对应 Language Model API 的 model.id）",

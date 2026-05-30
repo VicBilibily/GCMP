@@ -2,6 +2,28 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.22.27] - 2026-05-30
+
+### 新增
+
+- **Commit diff 过滤规则**：Commit 消息生成在分析 diff 前新增过滤层，自动跳过常见敏感文件（如 `.env*`、证书/私钥文件、`.aws` / `.ssh` / `.gnupg` / `.docker` 目录）并省略 lockfile / snapshot 的大段 diff 内容，避免将无关噪音或潜在敏感内容发送给模型
+- **自定义敏感文件配置**：新增 `gcmp.commit.sensitiveFiles` 设置项，支持通过简单类 glob 规则追加自定义敏感文件过滤模式
+
+### 更新
+
+- **Compatible Provider 命名简化**：将界面与文档中的 `OpenAI / Anthropic Compatible` 统一简化为 `Compatible`
+
+---
+
+### Added
+
+- **Commit diff filtering rules**: Added a filtering layer before commit diff analysis to automatically skip common sensitive files (such as `.env*`, certificate/private key files, and files under `.aws` / `.ssh` / `.gnupg` / `.docker`) and omit large lockfile / snapshot diff bodies, preventing noisy or potentially sensitive content from being sent to the model
+- **Custom sensitive file configuration**: Added the `gcmp.commit.sensitiveFiles` setting, allowing users to extend sensitive file filtering with simple glob-like patterns
+
+### Updated
+
+- **Compatible Provider naming simplified**: Renamed `OpenAI / Anthropic Compatible` to simply `Compatible` across UI and documentation
+
 ## [0.22.26] - 2026-05-30
 
 ### 移除

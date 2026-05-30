@@ -94,6 +94,7 @@
     "setting.commit.format.enumDescriptions.atom": "Atom - Atom editor style (e.g., :bug: Fix config fallback)",
     "setting.commit.format.description": "Format for generating commit messages. Auto will infer commit convention from commit history; falls back to plain if unable to infer. Supports both workspace and global configuration, with workspace configuration taking higher priority.",
     "setting.commit.customInstructions.description": "Custom commit message generation instructions (effective when commitFormat=custom).",
+    "setting.commit.sensitiveFiles.description": "File path patterns to exclude from commit diff analysis. Supports simple glob-like patterns such as *.pem, secrets/**, or **/.env.local.",
     "setting.commit.model.description": "Specify the model for generating commit messages (provider + model). Leave empty to be prompted to select a model.",
     "setting.commit.model.provider.description": "Language model provider (providerKey), e.g., zhipu / compatible",
     "setting.commit.model.model.description": "Model ID (corresponding to Language Model API's model.id)",

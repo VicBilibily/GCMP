@@ -215,9 +215,9 @@ GCMP supports overriding provider defaults (including baseUrl, customHeader, mod
 
 </details>
 
-## 🔌 OpenAI / Anthropic Compatible Custom Model Support
+## 🔌 Compatible Custom Model Support
 
-GCMP provides an **OpenAI / Anthropic Compatible** Provider for any OpenAI or Anthropic API-compatible service. Through the `gcmp.compatibleModels` setting, you can fully customize model parameters, including extended request parameters.
+GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatible service. Through the `gcmp.compatibleModels` setting, you can fully customize model parameters, including extended request parameters.
 
 1. Launch the configuration wizard via the `GCMP: Compatible Provider Settings` command.
 2. Edit the `gcmp.compatibleModels` setting in `settings.json`.
@@ -464,6 +464,12 @@ GCMP includes comprehensive token usage tracking to help you monitor and manage 
 
 GCMP supports automatically reading repository changes (staged/unstaged/new files) before committing, extracting key diff snippets, and combining relevant historical commits with the repository's overall commit style (in auto mode) to generate commit messages that match your project's conventions.
 
+To avoid sending noisy or potentially sensitive content to the model, commit message generation applies an extra filtering pass before diff analysis:
+
+- Automatically omits large lockfile / snapshot diff bodies such as `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `bun.lockb`, and `*.snap`
+- Automatically skips common sensitive files such as `.env*`, certificate/private key files, and files under `.aws` / `.ssh` / `.gnupg` / `.docker`
+- Lets you add your own sensitive file matching rules through `gcmp.commit.sensitiveFiles`
+
 <details>
 <summary>Click to expand usage details</summary>
 
@@ -500,12 +506,28 @@ This feature calls models via the **VS Code Language Model API**.
     "gcmp.commit.language": "chinese", // Generation language: chinese / english (fallback when auto mode language is unclear)
     "gcmp.commit.format": "auto", // Commit message format: auto (default) / see format details below
     "gcmp.commit.customInstructions": "", // Custom instructions (only effective when format=custom)
+    "gcmp.commit.sensitiveFiles": [
+        "*.pem",
+        "**/.env.local",
+        "secrets/**"
+    ], // Extra sensitive file path patterns excluded from diff analysis
     "gcmp.commit.model": {
         "provider": "zhipu", // Model provider (providerKey, e.g., zhipu / minimax / compatible)
         "model": "glm-4.6" // Model ID (corresponding to VS Code Language Model's model.id)
     }
 }
 ```
+
+### `gcmp.commit.sensitiveFiles` Filter Rules
+
+`gcmp.commit.sensitiveFiles` extends the built-in sensitive file filtering rules. It accepts a list of simple glob-like strings:
+
+- `*.pem`: matches any `.pem` file
+- `**/.env.local`: matches `.env.local` in any directory
+- `secrets/**`: matches all files under the `secrets/` directory
+- `**/private/*.key`: matches `.key` files under any `private` directory
+
+When a file matches, it is excluded from commit diff analysis and is not sent to the model for commit message generation.
 
 ### `gcmp.commit.format` Format Reference & Examples
 

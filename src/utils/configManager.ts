@@ -76,6 +76,7 @@ export interface CommitConfig {
     language: CommitLanguage;
     format: CommitFormat;
     customInstructions: string;
+    sensitiveFiles: string[];
     model?: CommitModelSelection;
 }
 
@@ -196,6 +197,9 @@ export class ConfigManager {
                 language: (config.get<CommitLanguage>('commit.language') ?? 'chinese') as CommitLanguage,
                 format: (config.get<CommitFormat>('commit.format') ?? 'auto') as CommitFormat,
                 customInstructions: config.get<string>('commit.customInstructions') ?? '',
+                sensitiveFiles: (config.get<string[]>('commit.sensitiveFiles') ?? [])
+                    .map(item => item.trim())
+                    .filter(Boolean),
                 model: config.get<CommitModelSelection>('commit.model')
             },
             providerOverrides: config.get<UserConfigOverrides>('providerOverrides', {})

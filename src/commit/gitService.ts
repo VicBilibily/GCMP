@@ -15,7 +15,9 @@ import {
     NoRepositorySelectedError,
     GitExtensionNotFoundError
 } from './types';
+import { ConfigManager } from '../utils/configManager';
 import { DiffSnippetService } from './diffSnippetService';
+import { filterDiffSnippets, isNoisyGeneratedDiff, isSensitiveFile } from './diffFilter';
 import { Logger } from '../utils';
 import { t } from '../utils/l10n';
 
@@ -245,19 +247,15 @@ export class GitService {
             maxFiles: Number.MAX_SAFE_INTEGER
         });
 
-        const uri: vscode.Uri[] = [];
-        const diff: string[] = [];
+        const entries = filterDiffSnippets(
+            repoPath,
+            snippets,
+            maxCharsPerFile,
+            ConfigManager.getCommitConfig().sensitiveFiles
+        );
 
-        for (const snip of snippets) {
-            const filePath = (snip.filePath ?? '').trim();
-            if (!filePath || filePath === '(unknown-file)') {
-                continue;
-            }
-            // filePath 是相对于 repository 的路径，使用正斜杠。
-            const fsPath = path.join(repoPath, filePath);
-            uri.push(vscode.Uri.file(fsPath));
-            diff.push(snip.excerpt);
-        }
+        const uri = entries.map(entry => vscode.Uri.file(entry.fsPath));
+        const diff = entries.map(entry => entry.diff);
 
         return { uri, diff };
     }
@@ -320,24 +318,40 @@ export class GitService {
                 continue;
             }
 
+            if (isSensitiveFile(repoRelativePath, ConfigManager.getCommitConfig().sensitiveFiles)) {
+                Logger.trace(`[GitService] Omitted sensitive untracked file: ${repoRelativePath}`);
+                continue;
+            }
+
             try {
-                const bytes = await vscode.workspace.fs.readFile(fileUri);
                 let patch = '';
 
-                if (this.looksBinary(bytes)) {
+                if (isNoisyGeneratedDiff(repoRelativePath)) {
                     patch = [
                         `diff --git a/${repoRelativePath} b/${repoRelativePath}`,
                         'new file mode 100644',
                         '--- /dev/null',
                         `+++ b/${repoRelativePath}`,
-                        'Binary files /dev/null and b/' + repoRelativePath + ' differ'
+                        '... lockfile/snapshot diff omitted ...'
                     ].join('\n');
                 } else {
-                    let text = Buffer.from(bytes).toString('utf8');
-                    if (text.length > maxCharsPerFile) {
-                        text = text.slice(0, maxCharsPerFile) + '\n... [untracked file truncated]';
+                    const bytes = await vscode.workspace.fs.readFile(fileUri);
+
+                    if (this.looksBinary(bytes)) {
+                        patch = [
+                            `diff --git a/${repoRelativePath} b/${repoRelativePath}`,
+                            'new file mode 100644',
+                            '--- /dev/null',
+                            `+++ b/${repoRelativePath}`,
+                            'Binary files /dev/null and b/' + repoRelativePath + ' differ'
+                        ].join('\n');
+                    } else {
+                        let text = Buffer.from(bytes).toString('utf8');
+                        if (text.length > maxCharsPerFile) {
+                            text = text.slice(0, maxCharsPerFile) + '\n... [untracked file truncated]';
+                        }
+                        patch = this.buildNewFileUnifiedDiff(repoRelativePath, text);
                     }
-                    patch = this.buildNewFileUnifiedDiff(repoRelativePath, text);
                 }
 
                 // 确保每个文件的 patch 不超过上限。

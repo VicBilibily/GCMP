@@ -36,6 +36,5 @@ export const KnownProviders: Record<string, KnownProviderConfig> = {
     aiping: { displayName: 'AIPing' },
     openrouter: { displayName: 'OpenRouter' },
     siliconflow: { displayName: '硅基流动' },
-    infini: { displayName: '无问芯穹' },
     mistral: { displayName: 'MistralAI' }
 };

@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.22.26",
+    "version": "0.22.27",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -585,6 +585,15 @@
                     "description": "%setting.commit.customInstructions.description%",
                     "scope": "window"
                 },
+                "gcmp.commit.sensitiveFiles": {
+                    "type": "array",
+                    "default": [],
+                    "description": "%setting.commit.sensitiveFiles.description%",
+                    "scope": "window",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "gcmp.commit.model": {
                     "type": "object",
                     "default": {
@@ -691,7 +700,7 @@
             },
             {
                 "vendor": "gcmp.compatible",
-                "displayName": "GCMP · OpenAI / Anthropic Compatible",
+                "displayName": "GCMP · Compatible",
                 "managementCommand": "gcmp.compatible.manageModels"
             }
         ],
@@ -1012,8 +1021,9 @@
         "package": "vsce package",
         "publish": "vsce publish --allow-proposed-apis chatProvider",
         "pretest": "npm run compile:dev",
-        "test": "npm run test:schema-sanitizer && npm run test:stateful-marker && npm run test:reasoning-replay && npm run test:copilot-usage",
+        "test": "npm run test:schema-sanitizer && npm run test:stateful-marker && npm run test:reasoning-replay && npm run test:copilot-usage && npm run test:git-service",
         "test:copilot-usage": "tsx --test src/utils/copilotUsage.test.ts",
+        "test:git-service": "tsx --test src/commit/gitService.test.ts",
         "test:reasoning-replay": "tsx --test src/handlers/reasoningReplayPolicy.test.ts",
         "test:schema-sanitizer": "tsx --test src/utils/schemaSanitizer.test.ts",
         "test:stateful-marker": "tsx --test src/handlers/statefulMarkerCodec.test.ts"
