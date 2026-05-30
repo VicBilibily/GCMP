@@ -1,0 +1,20 @@
+{
+    "displayName": "Grok",
+    "baseUrl": "https://api.x.ai/v1",
+    "apiKeyTemplate": "Bearer xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "models": [
+        {
+            "id": "grok-build-0.1",
+            "name": "Grok Build 0.1",
+            "tooltip": "xAI 的 Grok Build 编程模型，通过 Grok CLI OAuth 登录态访问。",
+            "sdkMode": "openai-responses",
+            "family": "gpt-5.2",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 131072,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        }
+    ]
+}

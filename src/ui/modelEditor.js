@@ -59,7 +59,7 @@ let isCreateMode = false;
 let isLoadingModels = false;
 
 /** CLI 专用的提供商 ID，禁止在通用配置中使用 */
-const CLI_RESERVED_PROVIDERS = ['codex', 'gemini'];
+const CLI_RESERVED_PROVIDERS = ['codex', 'gemini', 'grok'];
 
 /**
  * 初始化编辑器

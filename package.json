@@ -70,6 +70,7 @@
         "onLanguageModelProvider:gcmp.xiaomimimo",
         "onLanguageModelProvider:gcmp.gemini",
         "onLanguageModelProvider:gcmp.codex",
+        "onLanguageModelProvider:gcmp.grok",
         "onLanguageModelProvider:gcmp.baidu",
         "onLanguageModelProvider:gcmp.compatible",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
@@ -243,6 +244,11 @@
             {
                 "command": "gcmp.codex.configWizard",
                 "title": "%command.codex.configWizard%",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.grok.configWizard",
+                "title": "%command.grok.configWizard%",
                 "category": "GCMP"
             },
             {
@@ -688,6 +694,11 @@
                 "vendor": "gcmp.codex",
                 "displayName": "GCMP · Codex CLI",
                 "managementCommand": "gcmp.codex.configWizard"
+            },
+            {
+                "vendor": "gcmp.grok",
+                "displayName": "GCMP · Grok CLI",
+                "managementCommand": "gcmp.grok.configWizard"
             },
             {
                 "vendor": "gcmp.compatible",
