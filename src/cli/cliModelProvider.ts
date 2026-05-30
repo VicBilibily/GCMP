@@ -37,6 +37,12 @@ export class CliModelProvider extends GenericModelProvider {
     private codexDynamicModelsTimestamp: number = 0;
     /** 正在进行的模型获取 Promise（防止并发重复请求） */
     private codexDynamicModelsFetchPromise: Promise<CodexModelInfo[] | null> | null = null;
+    /** Codex 最终模型列表缓存（合并 + 过滤后的 ModelConfig[]，避免重复计算） */
+    private codexModelsResultCache: ModelConfig[] | null = null;
+    /** Codex 最终模型列表缓存时间戳 */
+    private codexModelsResultCacheTimestamp: number = 0;
+    /** 动态模型配置的快速查找映射（模型 ID → ModelConfig），用于提供 request 时查找 */
+    private dynamicModelConfigMap: Map<string, ModelConfig> = new Map();
 
     constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
         super(context, providerKey, providerConfig);
@@ -49,6 +55,9 @@ export class CliModelProvider extends GenericModelProvider {
         this.codexDynamicModels = null;
         this.codexDynamicModelsTimestamp = 0;
         this.codexDynamicModelsFetchPromise = null;
+        this.codexModelsResultCache = null;
+        this.codexModelsResultCacheTimestamp = 0;
+        this.dynamicModelConfigMap.clear();
         Logger.debug('[CliModelProvider] Codex dynamic models cache invalidated');
     }
 
@@ -119,6 +128,13 @@ export class CliModelProvider extends GenericModelProvider {
         _options: PrepareLanguageModelChatModelOptions & { silent: boolean },
         _token: vscode.CancellationToken
     ): Promise<vscode.LanguageModelChatInformation[]> {
+        // 检查最终结果缓存是否有效（避免 VS Code 反复调用时重复计算合并+过滤）
+        const now = Date.now();
+        if (this.codexModelsResultCache !== null && (now - this.codexModelsResultCacheTimestamp) < DYNAMIC_MODELS_CACHE_TTL_MS) {
+            Logger.trace(`[CliModelProvider] Using cached result (${this.codexModelsResultCache.length} models, age: ${((now - this.codexModelsResultCacheTimestamp) / 1000).toFixed(0)}s)`);
+            return this.codexModelsResultCache.map(model => this.modelConfigToInfo(model));
+        }
+
         // 1. 尝试从 API 获取可用模型列表
         const dynamicModels = await this.fetchCodexDynamicModels();
 
@@ -172,6 +188,14 @@ export class CliModelProvider extends GenericModelProvider {
         }
 
         // 4. 将模型配置转换为 VS Code 格式
+        // 缓存最终结果，避免 VS Code 反复调用时重复计算
+        this.codexModelsResultCache = filteredModels;
+        this.codexModelsResultCacheTimestamp = Date.now();
+        // 更新动态模型配置映射，供 findModelConfigById 查找
+        this.dynamicModelConfigMap.clear();
+        for (const model of filteredModels) {
+            this.dynamicModelConfigMap.set(model.id, model);
+        }
         return filteredModels.map(model => this.modelConfigToInfo(model));
     }
 
@@ -254,7 +278,7 @@ export class CliModelProvider extends GenericModelProvider {
                 hardcodedMap.delete(modelId);
             } else {
                 // 新模型：硬编码中没有，使用 API 数据填充属性
-                Logger.info(`[CliModelProvider] Discovered new Codex model from API: ${modelId}`);
+                Logger.debug(`[CliModelProvider] Discovered new Codex model from API: ${modelId}`);
                 result.push({
                     id: modelId,
                     name: dynamicModel.displayName || `${modelId} (ChatGPT)`,
@@ -413,5 +437,37 @@ export class CliModelProvider extends GenericModelProvider {
             // 请求完成后，延时更新状态栏使用量
             StatusBarManager.getStatusBar(this.providerKey)?.delayedUpdate(200);
         }
+    }
+
+    /**
+     * 覆盖模型配置查找，优先从动态模型映射中查找
+     * 动态添加的模型（如从 Codex API 获取的新模型）不在 providerConfig.models 中，
+     * 需要通过此方法从 dynamicModelConfigMap 中查找
+     */
+    protected override findModelConfigById(model: LanguageModelChatInformation): ModelConfig | undefined {
+        // 先尝试从父类查找硬编码配置
+        const hardcoded = super.findModelConfigById(model);
+        if (hardcoded) {
+            return hardcoded;
+        }
+        // 从动态模型映射中查找
+        // 解析模型 ID：格式为 gcmp.${provider}:::${modelId}
+        const prefixSeparator = ':::';
+        if (model.id.includes(prefixSeparator)) {
+            const match = model.id.match(/^gcmp\.([^:]+?):::(.+)$/);
+            if (match) {
+                const rawModelId = match[2];
+                const dynamicModel = this.dynamicModelConfigMap.get(rawModelId);
+                if (dynamicModel) {
+                    return dynamicModel;
+                }
+            }
+        }
+        // 直接用模型 ID 查找动态映射
+        const dynamicModel = this.dynamicModelConfigMap.get(model.id);
+        if (dynamicModel) {
+            return dynamicModel;
+        }
+        return undefined;
     }
 }
