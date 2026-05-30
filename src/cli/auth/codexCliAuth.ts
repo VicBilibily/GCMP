@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { BaseCliAuth } from './baseCliAuth';
 import { Logger } from '../../utils/logger';
+import { configProviders } from '../../providers/config';
 import type { CliAuthConfig, OAuthCredentials } from '../type';
 
 /**
@@ -28,6 +29,7 @@ const OPENAI_CODEX_TOKEN_URL = 'https://auth.openai.com/oauth/token';
  * OpenAI Codex CLI 认证类
  */
 export class CodexCliAuth extends BaseCliAuth {
+
     constructor() {
         const config: CliAuthConfig = {
             name: 'Codex',
@@ -248,7 +250,7 @@ export class CodexCliAuth extends BaseCliAuth {
                 method: 'GET',
                 headers: {
                     Authorization: `Bearer ${credentials.access_token}`,
-                    'user-agent': 'codex-tui/0.134.0 (Windows 10.0.26200; x86_64) unknown (codex-tui; 0.134.0)',
+                    'user-agent': configProviders.codex.customHeader?.['user-agent'] as string,
                     'chatgpt-account-id': accountId
                 }
             });
@@ -278,7 +280,7 @@ export class CodexCliAuth extends BaseCliAuth {
      * @returns 模型 ID 列表，获取失败时返回 null（调用方应使用硬编码配置作为降级）
      */
     async fetchAvailableModels(): Promise<string[] | null> {
-        const MODELS_URL = 'https://chatgpt.com/backend-api/codex/models';
+        const MODELS_URL = `https://chatgpt.com/backend-api/codex/models?client_version=${configProviders.codex.customHeader?.['version']}`;
 
         try {
             const credentials = await this.ensureAuthenticated();
@@ -297,7 +299,7 @@ export class CodexCliAuth extends BaseCliAuth {
                 method: 'GET',
                 headers: {
                     Authorization: `Bearer ${credentials.access_token}`,
-                    'user-agent': 'codex-tui/0.134.0 (Windows 10.0.26200; x86_64) unknown (codex-tui; 0.134.0)',
+                    'user-agent': configProviders.codex.customHeader?.['user-agent'] as string,
                     'chatgpt-account-id': accountId
                 }
             });
