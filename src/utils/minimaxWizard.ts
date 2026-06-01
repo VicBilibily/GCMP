@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  MiniMax 配置向导
- *  提供交互式向导来配置普通密钥和 Coding Plan 专用密钥，支持接入点（站点）选择
+ *  提供交互式向导来配置普通密钥和 Token Plan 专用密钥，支持接入点（站点）选择
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -13,7 +13,7 @@ import { t } from './l10n';
 
 export class MiniMaxWizard {
     private static readonly PROVIDER_KEY = 'minimax';
-    private static readonly CODING_PLAN_KEY = 'minimax-coding';
+    private static readonly TOKEN_PLAN_KEY = 'minimax-token';
 
     /**
      * 启动 MiniMax 配置向导
@@ -39,24 +39,24 @@ export class MiniMaxWizard {
                         value: 'normal'
                     },
                     {
-                        label: t('$(key) Set Coding Plan API key', '$(key) 设置 Coding Plan 专用密钥'),
-                        detail: t('Used for MiniMax-M2 (Coding Plan) models', '用于 MiniMax-M2 (Coding Plan) 模型'),
+                        label: t('$(key) Set Token Plan API key', '$(key) 设置 Token Plan 专用密钥'),
+                        detail: t('Used for MiniMax-M2 (Token Plan) models', '用于 MiniMax-M2 (Token Plan) 模型'),
                         value: 'coding'
                     },
                     {
                         label: t('$(check-all) Set both keys', '$(check-all) 同时设置两种密钥'),
                         detail: t(
-                            'Configure the standard key and Coding Plan key in order',
-                            '按顺序配置普通密钥和 Coding Plan 密钥'
+                            'Configure the standard key and Token Plan key in order',
+                            '按顺序配置普通密钥和 Token Plan 密钥'
                         ),
                         value: 'both'
                     },
                     {
-                        label: t('$(globe) Set Coding Plan endpoint', '$(globe) 设置 Coding Plan 接入点'),
+                        label: t('$(globe) Set Token Plan endpoint', '$(globe) 设置 Token Plan 接入点'),
                         description: t('Current: {0}', '当前：{0}', endpointLabel),
                         detail: t(
-                            'Set the endpoint for Coding Plan: China site (minimaxi.com) or global site (minimax.io)',
-                            '设置 Coding Plan 编程套餐接入的站点：国内站 (minimaxi.com) 或国际站 (minimax.io)'
+                            'Set the endpoint for Token Plan: China site (minimaxi.com) or global site (minimax.io)',
+                            '设置 Token Plan 接入的站点：国内站 (minimaxi.com) 或国际站 (minimax.io)'
                         ),
                         value: 'endpoint'
                     }
@@ -141,16 +141,16 @@ export class MiniMaxWizard {
     }
 
     /**
-     * 设置 Coding Plan 专用密钥
+     * 设置 Token Plan 专用密钥
      */
     static async setCodingPlanApiKey(displayName: string, codingKeyTemplate?: string): Promise<void> {
         const result = await vscode.window.showInputBox({
             prompt: t(
-                'Enter the Coding Plan API key for {0} (leave empty to clear)',
-                '请输入 {0} 的 Coding Plan 专用 API Key（留空可清除）',
+                'Enter the Token Plan API key for {0} (leave empty to clear)',
+                '请输入 {0} 的 Token Plan 专用 API Key（留空可清除）',
                 displayName
             ),
-            title: t('Set {0} Coding Plan API key', '设置 {0} Coding Plan 专用 API Key', displayName),
+            title: t('Set {0} Token Plan API key', '设置 {0} Token Plan 专用 API Key', displayName),
             placeHolder: codingKeyTemplate,
             password: true,
             ignoreFocusOut: true
@@ -164,16 +164,16 @@ export class MiniMaxWizard {
         try {
             // 允许空值，用于清除 API Key
             if (result.trim() === '') {
-                Logger.info(`${displayName} Coding Plan API key cleared`);
-                await ApiKeyManager.deleteApiKey(this.CODING_PLAN_KEY);
+                Logger.info(`${displayName} Token Plan API key cleared`);
+                await ApiKeyManager.deleteApiKey(this.TOKEN_PLAN_KEY);
                 vscode.window.showInformationMessage(
-                    t('{0} Coding Plan API key cleared', '{0} Coding Plan 专用 API Key 已清除', displayName)
+                    t('{0} Token Plan API key cleared', '{0} Token Plan 专用 API Key 已清除', displayName)
                 );
             } else {
-                await ApiKeyManager.setApiKey(this.CODING_PLAN_KEY, result.trim());
-                Logger.info(`${displayName} Coding Plan API key set`);
+                await ApiKeyManager.setApiKey(this.TOKEN_PLAN_KEY, result.trim());
+                Logger.info(`${displayName} Token Plan API key set`);
                 vscode.window.showInformationMessage(
-                    t('{0} Coding Plan API key set', '{0} Coding Plan 专用 API Key 已设置', displayName)
+                    t('{0} Token Plan API key set', '{0} Token Plan 专用 API Key 已设置', displayName)
                 );
 
                 // API Key 设置后，自动进行接入点选择
@@ -181,7 +181,7 @@ export class MiniMaxWizard {
             }
         } catch (error) {
             Logger.error(
-                `Coding Plan API key operation failed: ${error instanceof Error ? error.message : t('Unknown error', '未知错误')}`
+                `Token Plan API key operation failed: ${error instanceof Error ? error.message : t('Unknown error', '未知错误')}`
             );
             vscode.window.showErrorMessage(
                 t(
@@ -197,7 +197,7 @@ export class MiniMaxWizard {
     }
 
     /**
-     * 选择 Coding Plan 接入点（国内/国际站）
+     * 选择 Token Plan 接入点（国内/国际站）
      */
     static async setCodingPlanEndpoint(displayName: string): Promise<void> {
         try {
@@ -213,14 +213,14 @@ export class MiniMaxWizard {
                     }
                 ],
                 {
-                    title: t('{0} (Coding Plan) endpoint selection', '{0} (Coding Plan) 接入点选择', displayName),
+                    title: t('{0} (Token Plan) endpoint selection', '{0} (Token Plan) 接入点选择', displayName),
                     placeHolder: t('Select an endpoint', '请选择接入点'),
                     canPickMany: false
                 }
             );
 
             if (!choice) {
-                Logger.debug(`User cancelled ${displayName} Coding Plan endpoint selection`);
+                Logger.debug(`User cancelled ${displayName} Token Plan endpoint selection`);
                 return;
             }
 
@@ -228,19 +228,19 @@ export class MiniMaxWizard {
             await this.saveCodingPlanSite(choice.value);
 
             const siteLabel = choice.value === 'minimax.io' ? t('Global site', '国际站') : t('China site', '国内站');
-            Logger.info(`${displayName} Coding Plan endpoint set to: ${siteLabel}`);
+            Logger.info(`${displayName} Token Plan endpoint set to: ${siteLabel}`);
             vscode.window.showInformationMessage(
-                t('{0} Coding Plan endpoint set to: {1}', '{0} Coding Plan 接入点已设置为: {1}', displayName, siteLabel)
+                t('{0} Token Plan endpoint set to: {1}', '{0} Token Plan 接入点已设置为: {1}', displayName, siteLabel)
             );
         } catch (error) {
             Logger.error(
-                `Failed to set Coding Plan endpoint: ${error instanceof Error ? error.message : t('Unknown error', '未知错误')}`
+                `Failed to set Token Plan endpoint: ${error instanceof Error ? error.message : t('Unknown error', '未知错误')}`
             );
         }
     }
 
     /**
-     * 保存 Coding Plan 接入点配置
+     * 保存 Token Plan 接入点配置
      */
     static async saveCodingPlanSite(site: MiniMaxConfig['endpoint']): Promise<void> {
         try {
@@ -248,10 +248,10 @@ export class MiniMaxWizard {
 
             // 保存到 gcmp.minimax.endpoint 配置
             await config.update('endpoint', site, vscode.ConfigurationTarget.Global);
-            Logger.info(`Saved Coding Plan endpoint: ${site}`);
+            Logger.info(`Saved Token Plan endpoint: ${site}`);
         } catch (error) {
             Logger.error(
-                `Failed to save Coding Plan endpoint: ${error instanceof Error ? error.message : t('Unknown error', '未知错误')}`
+                `Failed to save Token Plan endpoint: ${error instanceof Error ? error.message : t('Unknown error', '未知错误')}`
             );
             throw error;
         }

@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.23.0",
+    "version": "0.23.1",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -97,13 +97,13 @@
                 "category": "GCMP"
             },
             {
-                "command": "gcmp.minimax.setCodingPlanApiKey",
-                "title": "%command.minimax.setCodingPlanApiKey%",
+                "command": "gcmp.minimax.setTokenPlanApiKey",
+                "title": "%command.minimax.setTokenPlanApiKey%",
                 "category": "GCMP"
             },
             {
-                "command": "gcmp.minimax.setCodingPlanEndpoint",
-                "title": "%command.minimax.setCodingPlanEndpoint%",
+                "command": "gcmp.minimax.setTokenPlanEndpoint",
+                "title": "%command.minimax.setTokenPlanEndpoint%",
                 "category": "GCMP"
             },
             {

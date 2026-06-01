@@ -2,6 +2,34 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.23.1] - 2026-06-01
+
+### 新增
+
+- **MiniMax-M3 Token Plan 模型**：新增 MiniMax-M3 — 原生多模态、1M 上下文，最大输出 128K
+- **MiniMax-M3 PayGo 模型**：使用标准密钥即可访问
+- **MiniMax Key 自动迁移**：旧 `minimax-coding` → 新 `minimax-token`，无缝过渡
+
+### 更新
+
+- **Coding Plan → Token Plan 重命名**：命令名、配置项、状态栏、向导、代码注释等全量更新
+- **图片桥接优化**：仅 M2 系列启用，M3+ 原生多模态无需桥接
+- **状态栏改造**：百分比显示剩余量，API 端点更新为 `token_plan/remains`
+
+---
+
+### Added
+
+- **MiniMax-M3 Token Plan model**: Natively multimodal, 1M context, max output 128K
+- **MiniMax-M3 PayGo model**: Accessible with standard API key
+- **Auto key migration**: Old `minimax-coding` → new `minimax-token`, seamless transition
+
+### Updated
+
+- **Coding Plan → Token Plan rebranding**: Commands, config, status bar, wizard, code comments
+- **Image bridge optimization**: M2-series only; M3+ native multimodal
+- **Status bar overhaul**: Percentage display, endpoint updated to `token_plan/remains`
+
 ## [0.23.0] - 2026-05-30
 
 ### 新增

@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  MiniMax 专用 Provider
  *  为 MiniMax 提供商提供多密钥管理和专属配置向导功能
  *--------------------------------------------------------------------------------------------*/
@@ -27,6 +27,8 @@ import { MiniMaxVisionBridge } from '../handlers/visionBridge/minimaxVisionBridg
 export class MiniMaxProvider extends GenericModelProvider implements LanguageModelChatProvider {
     constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
         super(context, providerKey, providerConfig);
+        // Key 迁移：自动将旧 Coding Plan key 迁移到新 Token Plan key（fire-and-forget，错误已内部处理）
+        void MiniMaxProvider.migrateCodingPlanKey(providerConfig.displayName);
     }
 
     /**
@@ -52,23 +54,23 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             provider._onDidChangeLanguageModelChatInformation.fire();
         });
 
-        // 注册设置 Coding Plan 专用密钥命令
+        // 注册设置 Token Plan 专用密钥命令
         const setCodingKeyCommand = vscode.commands.registerCommand(
-            `gcmp.${providerKey}.setCodingPlanApiKey`,
+            `gcmp.${providerKey}.setTokenPlanApiKey`,
             async () => {
                 await MiniMaxWizard.setCodingPlanApiKey(providerConfig.displayName, providerConfig.codingKeyTemplate);
                 // API 密钥变更后清除缓存
-                await provider.modelInfoCache?.invalidateCache('minimax-coding');
+                await provider.modelInfoCache?.invalidateCache('minimax-token');
                 // 触发模型信息变更事件
                 provider._onDidChangeLanguageModelChatInformation.fire();
             }
         );
 
-        // 注册设置 Coding Plan 接入点命令
+        // 注册设置 Token Plan 接入点命令
         const setCodingPlanEndpointCommand = vscode.commands.registerCommand(
-            `gcmp.${providerKey}.setCodingPlanEndpoint`,
+            `gcmp.${providerKey}.setTokenPlanEndpoint`,
             async () => {
-                Logger.info(`User manually opened ${providerConfig.displayName} Coding Plan endpoint selection`);
+                Logger.info(`User manually opened ${providerConfig.displayName} Token Plan endpoint selection`);
                 await MiniMaxWizard.setCodingPlanEndpoint(providerConfig.displayName);
             }
         );
@@ -102,6 +104,44 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
     }
 
     /**
+     * 迁移旧 Coding Plan Key 到新 Token Plan Key
+     * 检测旧的 'minimax-coding' 密钥，若存在且新 'minimax-token' 不存在，则自动迁移
+     */
+    private static async migrateCodingPlanKey(displayName: string): Promise<void> {
+        const OLD_KEY = 'minimax-coding';
+        const NEW_KEY = 'minimax-token';
+
+        try {
+            const hasOldKey = await ApiKeyManager.hasValidApiKey(OLD_KEY);
+            if (!hasOldKey) {
+                return;
+            }
+
+            const hasNewKey = await ApiKeyManager.hasValidApiKey(NEW_KEY);
+            if (hasNewKey) {
+                // 新旧 key 都存在，只清理旧 key
+                await ApiKeyManager.deleteApiKey(OLD_KEY);
+                Logger.info(`${displayName}: cleaned up old Coding Plan key (new Token Plan key already exists)`);
+                return;
+            }
+
+            // 迁移旧 key 到新 key
+            const oldKey = await ApiKeyManager.getApiKey(OLD_KEY);
+            if (oldKey) {
+                await ApiKeyManager.setApiKey(NEW_KEY, oldKey);
+                await ApiKeyManager.deleteApiKey(OLD_KEY);
+                Logger.info(
+                    `${displayName}: migrated old Coding Plan key to new Token Plan key (minimax-coding → minimax-token)`
+                );
+            }
+        } catch (error) {
+            Logger.warn(
+                `${displayName}: key migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    }
+
+    /**
      * 获取模型对应的 provider key（考虑 provider 字段和默认值）
      */
     private getProviderKeyForModel(modelConfig: ModelConfig): string {
@@ -120,8 +160,8 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
      */
     private async ensureApiKeyForModel(modelConfig: ModelConfig): Promise<string> {
         const providerKey = this.getProviderKeyForModel(modelConfig);
-        const isCodingPlan = providerKey === 'minimax-coding';
-        const keyType = isCodingPlan ? 'Coding Plan dedicated' : 'standard';
+        const isTokenPlan = providerKey === 'minimax-token';
+        const keyType = isTokenPlan ? 'Token Plan' : 'standard';
 
         // 检查是否已有密钥
         const hasApiKey = await ApiKeyManager.hasValidApiKey(providerKey);
@@ -135,8 +175,8 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         // 密钥不存在，直接进入设置流程（不弹窗确认）
         Logger.warn(`Model ${modelConfig.name} is missing the ${keyType} API key, entering setup flow`);
 
-        if (isCodingPlan) {
-            // Coding Plan 模型直接进入专用密钥设置
+        if (isTokenPlan) {
+            // Token Plan 模型直接进入专用密钥设置
             await MiniMaxWizard.setCodingPlanApiKey(
                 this.providerConfig.displayName,
                 this.providerConfig.codingKeyTemplate
@@ -173,7 +213,7 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
 
         // 检查是否有任意密钥
         const hasNormalKey = await ApiKeyManager.hasValidApiKey(this.providerKey);
-        const hasCodingKey = await ApiKeyManager.hasValidApiKey('minimax-coding');
+        const hasCodingKey = await ApiKeyManager.hasValidApiKey('minimax-token');
         const hasAnyKey = hasNormalKey || hasCodingKey;
 
         // 如果是静默模式且没有任何密钥，直接返回空列表
@@ -194,7 +234,7 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
 
             // 重新检查是否设置了密钥
             const normalKeyValid = await ApiKeyManager.hasValidApiKey(this.providerKey);
-            const codingKeyValid = await ApiKeyManager.hasValidApiKey('minimax-coding');
+            const codingKeyValid = await ApiKeyManager.hasValidApiKey('minimax-token');
 
             // 如果用户仍未设置任何密钥，返回空列表
             if (!normalKeyValid && !codingKeyValid) {
@@ -240,12 +280,12 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         const apiKey = await this.ensureApiKeyForModel(modelConfig);
 
         if (!apiKey) {
-            const keyType = providerKey === 'minimax-coding' ? 'Coding Plan dedicated' : 'standard';
+            const keyType = providerKey === 'minimax-token' ? 'Token Plan' : 'standard';
             throw new Error(`${this.providerConfig.displayName}: invalid ${keyType} API key`);
         }
 
         Logger.debug(
-            `${this.providerConfig.displayName}: about to handle request using ${providerKey === 'minimax-coding' ? 'Coding Plan' : 'standard'} key - model: ${modelConfig.name}`
+            `${this.providerConfig.displayName}: about to handle request using ${providerKey === 'minimax-token' ? 'Token Plan' : 'standard'} key - model: ${modelConfig.name}`
         );
 
         // 图片桥接：预处理消息中的图片
@@ -316,8 +356,8 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);
 
             try {
-                // 如果使用的是 Coding Plan 密钥，延时更新状态栏使用量
-                if (providerKey === 'minimax-coding') {
+                // 如果使用的是 Token Plan 密钥，延时更新状态栏使用量
+                if (providerKey === 'minimax-token') {
                     const statusBar = MiniMaxProvider.getMiniMaxStatusBar();
                     statusBar?.delayedUpdate();
                 }

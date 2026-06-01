@@ -253,7 +253,7 @@ export class ConfigManager {
     }
 
     /**
-     * 获取 MiniMax Coding Plan 接入点配置
+     * 获取 MiniMax Token Plan 接入点配置
      * @returns 'minimaxi.com' 或 'minimax.io'，默认 'minimaxi.com'
      */
     static getMinimaxEndpoint(): 'minimaxi.com' | 'minimax.io' {

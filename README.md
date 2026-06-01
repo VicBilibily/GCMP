@@ -39,7 +39,7 @@
 
 ### [**MiniMax**](https://platform.minimaxi.com/login)
 
-- [**Coding Plan 编程套餐**](https://platform.minimaxi.com/subscribe/coding-plan)：**MiniMax-M2.7**(极速版)、**MiniMax-M2.5**(极速版)、**MiniMax-M2.1**、**MiniMax-M2**
+- [**Coding Plan 编程套餐**](https://platform.minimaxi.com/subscribe/coding-plan)：**MiniMax-M3**、**MiniMax-M2.7**(极速版)、**MiniMax-M2.5**(极速版)、**MiniMax-M2.1**、**MiniMax-M2**
     - **搜索功能**：集成 Coding Plan 联网搜索工具，支持通过 `#minimaxWebSearch` 进行联网搜索。
     - **图片识别**：集成 Coding Plan 图片理解MCP，直接直接粘贴图片或截图进行 Agent 交互。
     - **用量查询**：已支持状态栏显示周期剩余用量，可查看 Coding Plan 编程套餐用量信息。

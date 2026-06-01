@@ -39,7 +39,7 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 
 ### [**MiniMax**](https://platform.minimaxi.com/login)
 
-- [**Coding Plan**](https://platform.minimaxi.com/subscribe/coding-plan): **MiniMax-M2.7** (HighSpeed), **MiniMax-M2.5** (HighSpeed), **MiniMax-M2.1**, **MiniMax-M2**
+- [**Coding Plan**](https://platform.minimaxi.com/subscribe/coding-plan): **MiniMax-M3**,**MiniMax-M2.7** (HighSpeed), **MiniMax-M2.5** (HighSpeed), **MiniMax-M2.1**, **MiniMax-M2**
     - **Search**: Integrated Coding Plan web search tool, supports `#minimaxWebSearch`.
     - **Image recognition**: Integrated Coding Plan image understanding MCP — paste images or screenshots directly for Agent interaction.
     - **Usage tracking**: Status bar displays remaining Coding Plan quota.
@@ -520,11 +520,7 @@ This feature calls models via the **VS Code Language Model API**.
     "gcmp.commit.language": "chinese", // Generation language: chinese / english (fallback when auto mode language is unclear)
     "gcmp.commit.format": "auto", // Commit message format: auto (default) / see format details below
     "gcmp.commit.customInstructions": "", // Custom instructions (only effective when format=custom)
-    "gcmp.commit.sensitiveFiles": [
-        "*.pem",
-        "**/.env.local",
-        "secrets/**"
-    ], // Extra sensitive file path patterns excluded from diff analysis
+    "gcmp.commit.sensitiveFiles": ["*.pem", "**/.env.local", "secrets/**"], // Extra sensitive file path patterns excluded from diff analysis
     "gcmp.commit.model": {
         "provider": "zhipu", // Model provider (providerKey, e.g., zhipu / minimax / compatible)
         "model": "glm-4.6" // Model ID (corresponding to VS Code Language Model's model.id)

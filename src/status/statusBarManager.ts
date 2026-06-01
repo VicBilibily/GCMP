@@ -37,7 +37,7 @@ interface ICompatibleStatusBar extends IStatusBar {
  */
 export class StatusBarManager {
     // ==================== 公共状态栏实例 ====================
-    /** MiniMax Coding Plan 状态栏 */
+    /** MiniMax Token Plan 状态栏 */
     static minimax: IStatusBar | undefined;
     /** Kimi For Coding 状态栏 */
     static kimi: IStatusBar | undefined;

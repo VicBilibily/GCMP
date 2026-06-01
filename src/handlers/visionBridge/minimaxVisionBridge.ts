@@ -125,14 +125,23 @@ export class MiniMaxVisionBridge {
         token: CancellationToken
     ): Promise<VisionBridgeResult> {
         // 只对 Coding Plan 模型启用图片桥接
-        if (providerKey !== 'minimax-coding') {
+        if (providerKey !== 'minimax-token') {
+            return { messages };
+        }
+
+        // 仅 M2 系列模型需要图片桥接，其他模型（含 M3+ 原生多模态）直接返回
+        const modelId = (modelConfig.id || '').toLowerCase();
+        const modelName = (modelConfig.name || '').toLowerCase();
+        const modelField = (modelConfig.model || '').toLowerCase();
+        const isM2Model = modelId.includes('m2') || modelName.includes('m2') || modelField.includes('m2');
+        if (!isM2Model) {
             return { messages };
         }
 
         // 检查是否有 MiniMax Vision API 密钥
-        const hasApiKey = await ApiKeyManager.hasValidApiKey('minimax-coding');
+        const hasApiKey = await ApiKeyManager.hasValidApiKey('minimax-token');
         if (!hasApiKey) {
-            Logger.debug('MiniMax vision bridge: Coding Plan API key not configured, skipping image preprocessing');
+            Logger.debug('MiniMax vision bridge: Token Plan API key not configured, skipping image preprocessing');
             return { messages };
         }
 

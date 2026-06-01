@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  MiniMax 网络搜索工具
- *  使用 Coding Plan API 直接进行 HTTP 请求
+ *  使用 Token Plan API 直接进行 HTTP 请求
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -49,12 +49,12 @@ export class MiniMaxSearchTool {
      * 执行搜索
      */
     async search(params: MiniMaxSearchRequest): Promise<MiniMaxSearchResponse> {
-        const apiKey = await ApiKeyManager.getApiKey('minimax-coding');
+        const apiKey = await ApiKeyManager.getApiKey('minimax-token');
         if (!apiKey) {
             throw new Error(
                 t(
-                    'MiniMax Coding Plan API key is not set. Run "GCMP: Set MiniMax Coding Plan API Key" first',
-                    'MiniMax Coding Plan API密钥未设置，请先运行命令"GCMP: 设置 MiniMax Coding Plan API密钥"'
+                    'MiniMax Token Plan API key is not set. Run "GCMP: Set MiniMax Token Plan API Key" first',
+                    'MiniMax Token Plan API密钥未设置，请先运行命令"GCMP: 设置 MiniMax Token Plan API密钥"'
                 )
             );
         }

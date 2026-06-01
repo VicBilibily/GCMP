@@ -114,7 +114,7 @@ export class AnthropicHandler {
 
         // 使用模型配置的 baseUrl 或提供商默认的 baseURL
         let baseUrl = modelConfig?.baseUrl || this.baseURL;
-        if (providerKey === 'minimax-coding') {
+        if (providerKey === 'minimax-token') {
             // 针对 MiniMax 国际站进行 baseUrl 覆盖设置
             const endpoint = ConfigManager.getMinimaxEndpoint();
             if (baseUrl && endpoint === 'minimax.io') {
@@ -209,7 +209,7 @@ export class AnthropicHandler {
             };
 
             // Minimax 图片桥接：添加模拟工具调用
-            if (modelConfig?.provider === 'minimax-coding') {
+            if (modelConfig?.provider === 'minimax-token') {
                 const realToolCount = tools.length;
                 const existingToolNames = new Set(tools.map(tool => tool.name));
                 const historicalTools = MiniMaxVisionBridge.collectHistoricalToolDefinitions(
@@ -295,7 +295,7 @@ export class AnthropicHandler {
             });
 
             // 回放 MiniMax 图片桥接工具结果（如适用）
-            if (modelConfig?.provider === 'minimax-coding') {
+            if (modelConfig?.provider === 'minimax-token') {
                 MiniMaxVisionBridge.replayVisionBridge(messages, (callId, resultParts) =>
                     reporter.reportToolResult(callId, resultParts)
                 );

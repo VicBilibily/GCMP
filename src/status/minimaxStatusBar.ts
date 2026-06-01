@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  MiniMax Coding Plan 状态栏项
- *  继承 ProviderStatusBarItem，显示 MiniMax Coding Plan 使用量信息
+ *  MiniMax Token Plan 状态栏项
+ *  继承 ProviderStatusBarItem，显示 MiniMax Token Plan 使用量信息
  *  - 显示每 5 小时限额（interval）
  *  - 显示每周限额（weekly，仅新开通用户有值）
  *  参照智谱的扁平限频列表模式
@@ -42,8 +42,8 @@ interface MiniMaxStatusData {
 }
 
 /**
- * MiniMax Coding Plan 状态栏项
- * 显示 MiniMax Coding Plan 的使用量信息
+ * MiniMax Token Plan 状态栏项
+ * 显示 MiniMax Token Plan 的使用量信息
  * - 有周限额：状态栏显示 "周限剩余% (5h剩余%)"
  * - 无周限额：状态栏只显示 "5h剩余%"
  */
@@ -51,11 +51,11 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
     constructor() {
         const config: StatusBarItemConfig = {
             id: 'gcmp.statusBar.minimax',
-            name: 'GCMP: MiniMax Coding Plan',
+            name: 'GCMP: MiniMax Token Plan',
             alignment: vscode.StatusBarAlignment.Right,
             priority: 98,
             refreshCommand: 'gcmp.refreshMiniMaxUsage',
-            apiKeyProvider: 'minimax-coding',
+            apiKeyProvider: 'minimax-token',
             cacheKeyPrefix: 'minimax',
             logPrefix: 'MiniMax Status Bar',
             icon: '$(gcmp-minimax)'
@@ -86,15 +86,13 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
     protected generateTooltip(data: MiniMaxStatusData): vscode.MarkdownString {
         const md = new vscode.MarkdownString();
         md.supportHtml = true;
-        md.appendMarkdown(`#### ${t('MiniMax Coding Plan Usage', 'MiniMax Coding Plan 使用情况')}\n\n`);
-        md.appendMarkdown(
-            `| ${t('Window', '限频类型')} | ${t('Quota', '上限值')} | ${t('Remaining', '剩余量')} | ${t('Reset Time', '重置时间')} |\n`
-        );
-        md.appendMarkdown('| :--- | ----: | ----: | :---: |\n');
+        md.appendMarkdown('#### MiniMax Token Plan Usage\n\n');
+        md.appendMarkdown(`| ${t('Window', '限频类型')} | ${t('Remain', '剩余')} | ${t('Reset Time', '重置时间')} |\n`);
+        md.appendMarkdown('| :--- | ----: | :---: |\n');
 
         for (const item of data.limits) {
             const resetTimeStr = item.resetTime ? this.formatDateTime(new Date(item.resetTime)) : '-';
-            md.appendMarkdown(`| **${item.label}** | ${item.total} | ${item.remaining} | ${resetTimeStr} |\n`);
+            md.appendMarkdown(`| **${item.label}** | ${item.remaining}% | ${resetTimeStr} |\n`);
         }
 
         md.appendMarkdown('\n---\n');
@@ -107,31 +105,31 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
      * 将 API 响应拆分为扁平限频列表
      */
     protected async performApiQuery(): Promise<{ success: boolean; data?: MiniMaxStatusData; error?: string }> {
-        const REMAIN_QUERY_URL = 'https://www.minimaxi.com/v1/api/openplatform/coding_plan/remains';
-        const CODING_PLAN_KEY = 'minimax-coding';
+        const REMAIN_QUERY_URL = 'https://www.minimaxi.com/v1/token_plan/remains';
+        const TOKEN_PLAN_KEY = 'minimax-token';
 
         try {
-            const hasCodingKey = await ApiKeyManager.hasValidApiKey(CODING_PLAN_KEY);
+            const hasCodingKey = await ApiKeyManager.hasValidApiKey(TOKEN_PLAN_KEY);
             if (!hasCodingKey) {
                 return {
                     success: false,
                     error: t(
-                        'The Coding Plan key is not configured. Set the Coding Plan API key first.',
-                        'Coding Plan 专用密钥未配置，请先设置 Coding Plan API 密钥'
+                        'The Token Plan key is not configured. Set the Token Plan API key first.',
+                        'Token Plan 专用密钥未配置，请先设置 Token Plan API 密钥'
                     )
                 };
             }
 
-            const apiKey = await ApiKeyManager.getApiKey(CODING_PLAN_KEY);
+            const apiKey = await ApiKeyManager.getApiKey(TOKEN_PLAN_KEY);
             if (!apiKey) {
                 return {
                     success: false,
-                    error: t('Unable to get the Coding Plan key.', '无法获取 Coding Plan 专用密钥')
+                    error: t('Unable to get the Token Plan key.', '无法获取 Token Plan 专用密钥')
                 };
             }
 
-            Logger.debug('Triggering MiniMax Coding Plan usage query');
-            StatusLogger.debug(`[${this.config.logPrefix}] Starting MiniMax Coding Plan quota query...`);
+            Logger.debug('Triggering MiniMax Token Plan usage query');
+            StatusLogger.debug(`[${this.config.logPrefix}] Starting MiniMax Token Plan quota query...`);
 
             const requestOptions: RequestInit = {
                 method: 'GET',
@@ -167,6 +165,10 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
                 weekly_start_time: number;
                 weekly_end_time: number;
                 weekly_remains_time: number;
+                current_interval_status: number;
+                current_interval_remaining_percent: number;
+                current_weekly_status: number;
+                current_weekly_remaining_percent: number;
             }
 
             interface CodingPlanRemainResponse {
@@ -204,30 +206,28 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
                 return { success: false, error: t('No model usage data was returned.', '未获取到模型余量数据') };
             }
 
-            // 拆分为扁平限频列表
+            // 拆分为扁平限频列表，仅展示通用余额
             const limits: MiniMaxLimitItem[] = [];
-            const mSeriesModels = modelRemains.filter(m => m.model_name?.startsWith('MiniMax-M'));
+            const generalModels = modelRemains.filter(m => m.model_name === 'general');
 
-            for (const m of mSeriesModels) {
+            for (const m of generalModels) {
                 // 每 5 小时限额
                 limits.push(
                     this.buildLimitItem(
                         t('Every 5 Hours', '每 5 小时'),
                         '5h',
-                        m.current_interval_total_count,
-                        m.current_interval_usage_count,
+                        m.current_interval_remaining_percent,
                         m.remains_time,
                         m.end_time
                     )
                 );
-                // 每周限额（仅 total > 0 时添加，老用户为 0 不显示）
-                if ((m.current_weekly_total_count ?? 0) > 0) {
+                // 每周限额（有周总配额且不为0时才展示）
+                if (m.current_weekly_total_count) {
                     limits.push(
                         this.buildLimitItem(
                             t('Weekly quota', '每周限额'),
                             'weekly',
-                            m.current_weekly_total_count,
-                            m.current_weekly_usage_count,
+                            m.current_weekly_remaining_percent,
                             m.weekly_remains_time,
                             m.weekly_end_time
                         )
@@ -249,22 +249,19 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
     private buildLimitItem(
         label: string,
         limitType: '5h' | 'weekly',
-        totalCount: number,
-        usageCount: number,
+        remainingPercent: number,
         remainsTime: number,
         endTime: number
     ): MiniMaxLimitItem {
-        const total = totalCount || 0;
-        const remaining = usageCount ?? 0;
-        const used = total - remaining;
-        const percentage = total > 0 ? parseFloat(((used / total) * 100).toFixed(1)) : 0;
+        const remain = remainingPercent ?? 100;
+        const usedPercent = parseFloat((100 - remain).toFixed(1));
 
         return {
             label,
             limitType,
-            total,
-            remaining,
-            percentage,
+            total: 100,
+            remaining: remain,
+            percentage: usedPercent,
             remainMs: remainsTime,
             resetTime: endTime
         };
