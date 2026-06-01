@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.23.1",
+    "version": "0.23.2",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -72,6 +72,7 @@
         "onLanguageModelProvider:gcmp.codex",
         "onLanguageModelProvider:gcmp.grok",
         "onLanguageModelProvider:gcmp.baidu",
+        "onLanguageModelProvider:gcmp.opencode",
         "onLanguageModelProvider:gcmp.compatible",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
         "onLanguageModelTool:gcmp_minimaxWebSearch",
@@ -234,6 +235,11 @@
             {
                 "command": "gcmp.baidu.configWizard",
                 "title": "%command.baidu.configWizard%",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.opencode.setApiKey",
+                "title": "%command.opencode.setApiKey%",
                 "category": "GCMP"
             },
             {
@@ -693,6 +699,11 @@
                 "vendor": "gcmp.baidu",
                 "displayName": "GCMP · Baidu Qianfan",
                 "managementCommand": "gcmp.baidu.configWizard"
+            },
+            {
+                "vendor": "gcmp.opencode",
+                "displayName": "GCMP · OpenCode",
+                "managementCommand": "gcmp.opencode.setApiKey"
             },
             {
                 "vendor": "gcmp.gemini",

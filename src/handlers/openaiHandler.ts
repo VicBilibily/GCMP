@@ -700,6 +700,107 @@ export class OpenAIHandler {
     }
 
     /**
+     * 构建聊天完成请求参数（共享方法，供 openai-sse 等自定义处理器复用）
+     */
+    buildChatCompletionParams(
+        model: vscode.LanguageModelChatInformation,
+        modelConfig: ModelConfig,
+        messages: readonly vscode.LanguageModelChatMessage[],
+        options: vscode.ProvideLanguageModelChatResponseOptions
+    ): OpenAI.Chat.ChatCompletionCreateParamsStreaming {
+        const requestModel = modelConfig.model || modelConfig.id;
+        const createParams: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
+            model: requestModel,
+            messages: this.convertMessagesToOpenAI(messages, modelConfig),
+            max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
+            stream: true,
+            stream_options: { include_usage: true }
+        };
+
+        // 添加工具支持（如果有）
+        if (options.tools && options.tools.length > 0 && modelConfig.capabilities?.toolCalling) {
+            createParams.tools = this.convertToolsToOpenAI([...options.tools]);
+        }
+
+        // 合并 extraBody 参数（如果有），过滤掉不可修改的核心参数
+        if (modelConfig.extraBody) {
+            const filteredExtraBody = OpenAIHandler.filterExtraBodyParams(modelConfig.extraBody);
+            Object.assign(createParams, filteredExtraBody);
+        }
+
+        // 根据模型配置设置思考模式和推理长度
+        const settings = options.modelConfiguration as ModelChatResponseOptions;
+        const customParams = createParams as unknown as {
+            enable_thinking?: boolean;
+            thinking?: { type: 'enabled' | 'disabled' };
+            reasoning_effort?: string;
+        };
+        const thinkingFormat = modelConfig.thinkingFormat ?? 'boolean';
+        if (settings) {
+            if (settings.thinking && (!thinkingFormat || thinkingFormat === 'boolean' || thinkingFormat === 'object')) {
+                if (settings.thinking === 'enabled') {
+                    if (thinkingFormat === 'object') {
+                        customParams.thinking = { type: 'enabled' };
+                    } else {
+                        customParams.enable_thinking = true;
+                    }
+                } else if (settings.thinking === 'disabled') {
+                    if (thinkingFormat === 'object') {
+                        customParams.thinking = { type: 'disabled' };
+                    } else {
+                        customParams.enable_thinking = false;
+                    }
+                } else {
+                    if (thinkingFormat === 'object') {
+                        customParams.thinking = undefined;
+                    } else {
+                        customParams.enable_thinking = undefined;
+                    }
+                }
+            }
+            if (settings.reasoningEffort) {
+                if (settings.reasoningEffort === 'none') {
+                    customParams.reasoning_effort = undefined;
+                    if (modelConfig.thinkingFormat === 'object' || modelConfig.thinkingFormat === 'object-none') {
+                        customParams.thinking = { type: 'disabled' };
+                    }
+                } else {
+                    customParams.reasoning_effort = settings.reasoningEffort;
+                    if (modelConfig.thinkingFormat === 'object' && settings.reasoningEffort !== 'minimal') {
+                        customParams.thinking = { type: 'enabled' };
+                    }
+                }
+            }
+        }
+        // 如果处于提交模式，模型支持思考的，不使用思考模式
+        const modelOpts = options.modelOptions as CommitChatModelOptions;
+        if (modelOpts?.commit) {
+            if (thinkingFormat === 'object' || thinkingFormat === 'object-none') {
+                customParams.thinking = { type: 'disabled' };
+                customParams.reasoning_effort = undefined;
+            } else {
+                if (customParams.enable_thinking) {
+                    customParams.enable_thinking = false;
+                }
+            }
+            if (customParams.thinking === undefined && customParams.reasoning_effort) {
+                let effort: 'none' | 'minimal' | undefined;
+                if (modelConfig.reasoningEffort?.includes('none')) {
+                    effort = 'none';
+                } else if (modelConfig.reasoningEffort?.includes('minimal')) {
+                    effort = 'minimal';
+                }
+                if (effort && modelConfig.reasoningEffort?.indexOf(effort) === 0) {
+                    customParams.enable_thinking = undefined;
+                    customParams.reasoning_effort = effort;
+                }
+            }
+        }
+
+        return createParams;
+    }
+
+    /**
      * 处理聊天完成请求 - 使用 OpenAI SDK 流式接口
      */
     async handleRequest(
@@ -719,107 +820,8 @@ export class OpenAIHandler {
         try {
             const client = await this.createOpenAIClient(modelConfig);
             Logger.debug(`${model.name} sending ${messages.length} messages using ${this.displayName}`);
-            // 优先使用模型特定的请求模型名称，如果没有则使用模型ID
-            const requestModel = modelConfig.model || modelConfig.id;
-            const createParams: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
-                model: requestModel,
-                // capabilities 已包含在 modelConfig 中，优先以配置为准做消息转换
-                messages: this.convertMessagesToOpenAI(messages, modelConfig),
-                max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
-                stream: true,
-                stream_options: { include_usage: true }
-            };
 
-            // 添加工具支持（如果有）
-            if (options.tools && options.tools.length > 0 && modelConfig.capabilities?.toolCalling) {
-                createParams.tools = this.convertToolsToOpenAI([...options.tools]);
-                Logger.trace(`${model.name} added ${options.tools.length} tools`);
-            }
-
-            // 合并extraBody参数（如果有）
-            if (modelConfig.extraBody) {
-                // 过滤掉不可修改的核心参数
-                const filteredExtraBody = OpenAIHandler.filterExtraBodyParams(modelConfig.extraBody);
-                Object.assign(createParams, filteredExtraBody);
-                if (Object.keys(filteredExtraBody).length > 0) {
-                    Logger.trace(`${model.name} merged extraBody parameters: ${JSON.stringify(filteredExtraBody)}`);
-                }
-            }
-
-            // 根据模型配置设置思考模式和推理长度
-            const settings = options.modelConfiguration as ModelChatResponseOptions;
-            const customParams = createParams as unknown as {
-                enable_thinking?: boolean;
-                thinking?: { type: 'enabled' | 'disabled' };
-                reasoning_effort?: string;
-            };
-            // 确定思考格式：默认使用 boolean 格式
-            const thinkingFormat = modelConfig.thinkingFormat ?? 'boolean';
-            if (settings) {
-                if (settings.thinking) {
-                    if (settings.thinking === 'enabled') {
-                        if (thinkingFormat === 'object') {
-                            customParams.thinking = { type: 'enabled' };
-                        } else {
-                            customParams.enable_thinking = true;
-                        }
-                    } else if (settings.thinking === 'disabled') {
-                        if (thinkingFormat === 'object') {
-                            customParams.thinking = { type: 'disabled' };
-                        } else {
-                            customParams.enable_thinking = false;
-                        }
-                    } else {
-                        // auto/adaptive 模式不设置具体值
-                        if (thinkingFormat === 'object') {
-                            customParams.thinking = undefined;
-                        } else {
-                            customParams.enable_thinking = undefined;
-                        }
-                    }
-                }
-                if (settings.reasoningEffort) {
-                    if (settings.reasoningEffort === 'none') {
-                        customParams.reasoning_effort = undefined;
-                        if (modelConfig.thinkingFormat === 'object') {
-                            customParams.thinking = { type: 'disabled' };
-                        }
-                    } else {
-                        customParams.reasoning_effort = settings.reasoningEffort;
-                        if (modelConfig.thinkingFormat === 'object' && settings.reasoningEffort !== 'minimal') {
-                            customParams.thinking = { type: 'enabled' };
-                        }
-                    }
-                }
-            }
-            // 如果处于提交模式，模型支持思考的，不使用思考模式
-            const modelOpts = options.modelOptions as CommitChatModelOptions;
-            if (modelOpts?.commit) {
-                if (thinkingFormat === 'object') {
-                    if (customParams.thinking) {
-                        customParams.thinking = { type: 'disabled' };
-                    }
-                    // 同时移除 reasoning_effort，避免 thinking=disabled 与 reasoning_effort 冲突
-                    customParams.reasoning_effort = undefined;
-                } else {
-                    if (customParams.enable_thinking) {
-                        customParams.enable_thinking = false;
-                    }
-                }
-                if (customParams.thinking === undefined && customParams.reasoning_effort) {
-                    let effort: 'none' | 'minimal' | undefined;
-                    if (modelConfig.reasoningEffort?.includes('none')) {
-                        effort = 'none';
-                    } else if (modelConfig.reasoningEffort?.includes('minimal')) {
-                        effort = 'minimal';
-                    }
-                    // 仅当关闭选项在模型第一个配置时才传递 reasoning_effort，避免与 thinking 冲突
-                    if (effort && modelConfig.reasoningEffort?.indexOf(effort) === 0) {
-                        customParams.enable_thinking = undefined;
-                        customParams.reasoning_effort = effort;
-                    }
-                }
-            }
+            const createParams = this.buildChatCompletionParams(model, modelConfig, messages, options);
 
             Logger.info(`🚀 ${model.name} Sending ${this.displayName} request`);
 

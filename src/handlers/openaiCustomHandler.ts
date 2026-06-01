@@ -6,7 +6,6 @@
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
 import { Logger } from '../utils';
-import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelConfig, ProviderConfig } from '../types/sharedTypes';
@@ -23,6 +22,12 @@ interface IOpenAIHandler {
         modelConfig?: ModelConfig
     ): OpenAI.Chat.ChatCompletionMessageParam[];
     convertToolsToOpenAI(tools: vscode.LanguageModelChatTool[]): OpenAI.Chat.ChatCompletionTool[];
+    buildChatCompletionParams(
+        model: vscode.LanguageModelChatInformation,
+        modelConfig: ModelConfig,
+        messages: readonly vscode.LanguageModelChatMessage[],
+        options: vscode.ProvideLanguageModelChatResponseOptions
+    ): OpenAI.Chat.ChatCompletionCreateParamsStreaming;
 }
 
 /**
@@ -98,26 +103,8 @@ export class OpenAICustomHandler {
             throw new Error(t('OpenAI handler is not initialized', 'OpenAI 处理器未初始化'));
         }
 
-        // 构建请求参数
-        const requestBody: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
-            model: modelConfig.model || modelConfig.id,
-            messages: this.openaiHandler.convertMessagesToOpenAI(messages, modelConfig),
-            max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
-            stream: true,
-            stream_options: { include_usage: true }
-        };
-
-        // 添加工具支持（如果有）
-        if (options.tools && options.tools.length > 0 && modelConfig.capabilities?.toolCalling) {
-            requestBody.tools = this.openaiHandler.convertToolsToOpenAI([...options.tools]);
-        }
-
-        // 合并 extraBody 参数（如果有）
-        if (modelConfig.extraBody) {
-            const filteredExtraBody = modelConfig.extraBody;
-            Object.assign(requestBody, filteredExtraBody);
-            Logger.trace(`${model.name} merged extraBody parameters: ${JSON.stringify(filteredExtraBody)}`);
-        }
+        // 构建请求参数（复用 OpenAIHandler 的共享方法）
+        const requestBody = this.openaiHandler.buildChatCompletionParams(model, modelConfig, messages, options);
 
         Logger.debug(`[${model.name}] Sending API request`);
 

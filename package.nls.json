@@ -33,6 +33,7 @@
     "command.gemini.configWizard": "Gemini CLI Configuration Wizard (CLI Auth)",
     "command.codex.configWizard": "Codex CLI Configuration Wizard (CLI Auth)",
     "command.grok.configWizard": "Grok Build Configuration Wizard (CLI Auth)",
+    "command.opencode.setApiKey": "Set OpenCode API Key",
     "command.compatible.manageModels": "Compatible Provider Settings",
     "command.nesCompletion.toggleManual": "Toggle NES Manual Trigger Mode",
     "command.tokenUsage.showDetails": "View Today's Token Usage Details",

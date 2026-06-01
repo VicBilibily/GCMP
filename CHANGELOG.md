@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.23.2] - 2026-06-01
+
+### 新增
+
+- **OpenCode 新提供商**：新增 `gcmp.opencode` 提供商，支持 [OpenCode](https://opencode.ai/) 平台的 **Go 订阅**与 **Zen 按量付费**，覆盖 **GLM-5.1**、**Kimi-K2.6**、**DeepSeek-V4-Pro**、**MiniMax-M3** 等 20+ 模型
+- **`thinkingFormat` 新增 `object-none` 模式**：支持 `object-none` 格式，仅当 `reasoningEffort` 为 `none` 时传递 `{ thinking: { type: 'disabled' } }`，适用于 DeepSeek 等特殊推理参数模型
+
+---
+
+### Added
+
+- **New OpenCode provider**: Added `gcmp.opencode` provider supporting [OpenCode](https://opencode.ai/) **Go subscription** and **Zen pay-as-you-go**, covering 20+ models including **GLM-5.1**, **Kimi-K2.6**, **DeepSeek-V4-Pro**, **MiniMax-M3**
+- **`thinkingFormat` adds `object-none` mode**: Only passes `{ thinking: { type: 'disabled' } }` when `reasoningEffort` is `none`, suitable for DeepSeek and similar models
+
 ## [0.23.1] - 2026-06-01
 
 ### 新增

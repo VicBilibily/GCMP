@@ -251,7 +251,6 @@ function appendTotalsRow(tbody: HTMLElement, summaryRecords: ExtendedTokenReques
 
     const labelCell = createElement('td', 'records-total-label') as HTMLTableCellElement;
     labelCell.colSpan = 3;
-    labelCell.textContent = t('Total', '合计');
 
     const inputCell = createElement('td', 'records-total-number');
     inputCell.textContent = formatTokens(totals.inputTokens);

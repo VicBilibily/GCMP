@@ -140,10 +140,11 @@
                 },
                 "thinkingFormat": {
                     "type": "string",
-                    "enum": ["boolean", "object"],
+                    "enum": ["boolean", "object", "object-none"],
                     "enumDescriptions": [
                         "使用布尔值格式: { enable_thinking: true/false }",
-                        "使用对象格式: { thinking: { type: 'enabled' | 'disabled' } }"
+                        "使用对象格式: { thinking: { type: 'enabled' | 'disabled' } }",
+                        "仅当 reasoningEffort 为 none 时传递 object 格式的禁用思考参数，其余情况忽略"
                     ],
                     "default": "boolean",
                     "description": "思考模式参数的传递格式，用于兼容不同模型的API格式要求"
@@ -281,10 +282,11 @@
                         "properties": {
                             "thinkingFormat": {
                                 "type": "string",
-                                "enum": ["boolean", "object"],
+                                "enum": ["boolean", "object", "object-none"],
                                 "enumDescriptions": [
                                     "使用布尔值格式: { enable_thinking: true/false }",
-                                    "使用对象格式: { thinking: { type: 'enabled' | 'disabled' } }"
+                                    "使用对象格式: { thinking: { type: 'enabled' | 'disabled' } }",
+                                    "仅当 reasoningEffort 为 none 时传递 object 格式的禁用思考参数，其余情况忽略"
                                 ],
                                 "default": "boolean",
                                 "description": "思考模式参数的传递格式，用于兼容不同模型的API格式要求"

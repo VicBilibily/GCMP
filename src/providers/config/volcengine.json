@@ -180,7 +180,7 @@
         },
         {
             "id": "ark-code-deepseek-v3.2",
-            "name": "Deepseek V3.2 (CodingPlan)",
+            "name": "Deepseek-V3.2 (CodingPlan)",
             "model": "deepseek-v3.2",
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",

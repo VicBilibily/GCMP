@@ -595,7 +595,6 @@ body {
 
     .records-total-row {
         background-color: var(--vscode-editor-selectionBackground);
-        font-weight: 600;
 
         td {
             border-top: 2px solid var(--vscode-editor-selectionForeground);
@@ -608,6 +607,11 @@ body {
 
     .records-total-number {
         text-align: right !important;
+
+        span {
+            display: inline-block;
+            width: 4em;
+        }
     }
 
     .records-total-empty {

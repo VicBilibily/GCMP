@@ -100,7 +100,7 @@ export interface CompatibleModelConfig {
      * - object: 使用对象格式 { thinking: { type: 'enabled' | 'disabled' } }
      * 默认值为 'boolean'，仅对 openai/openai-sse 模式生效
      */
-    thinkingFormat?: 'boolean' | 'object';
+    thinkingFormat?: 'boolean' | 'object' | 'object-none';
     /**
      * 思维链长度调节选项列表（可选）
      * 用于 UI 配置选择，平衡不同场景对效果、时延、成本的需求：

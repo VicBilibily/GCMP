@@ -212,6 +212,10 @@ export class JsonSchemaProvider {
             t(
                 "Object format: { thinking: { type: 'enabled' | 'disabled' } }",
                 "使用对象格式: { thinking: { type: 'enabled' | 'disabled' } }"
+            ),
+            t(
+                "Object format (none only): only pass { thinking: { type: 'disabled' } } when reasoningEffort is 'none'",
+                '仅当 reasoningEffort 为 none 时传递 object 格式的禁用思考参数，其余情况忽略'
             )
         ];
     }
@@ -559,7 +563,7 @@ export class JsonSchemaProvider {
                             },
                             thinkingFormat: {
                                 type: 'string',
-                                enum: ['boolean', 'object'],
+                                enum: ['boolean', 'object', 'object-none'],
                                 enumDescriptions: this.getThinkingFormatEnumDescriptions(),
                                 default: 'boolean',
                                 description: this.getThinkingFormatDescription(true)
@@ -740,7 +744,7 @@ export class JsonSchemaProvider {
                                     properties: {
                                         thinkingFormat: {
                                             type: 'string',
-                                            enum: ['boolean', 'object'],
+                                            enum: ['boolean', 'object', 'object-none'],
                                             enumDescriptions: this.getThinkingFormatEnumDescriptions(),
                                             default: 'boolean',
                                             description: this.getThinkingFormatDescription()
@@ -1059,7 +1063,7 @@ export class JsonSchemaProvider {
                             },
                             thinkingFormat: {
                                 type: 'string',
-                                enum: ['boolean', 'object'],
+                                enum: ['boolean', 'object', 'object-none'],
                                 enumDescriptions: this.getThinkingFormatEnumDescriptions(),
                                 default: 'boolean',
                                 description: this.getThinkingFormatDescription(true)
@@ -1172,7 +1176,7 @@ export class JsonSchemaProvider {
                                     properties: {
                                         thinkingFormat: {
                                             type: 'string',
-                                            enum: ['boolean', 'object'],
+                                            enum: ['boolean', 'object', 'object-none'],
                                             enumDescriptions: this.getThinkingFormatEnumDescriptions(),
                                             default: 'boolean',
                                             description: this.getThinkingFormatDescription()

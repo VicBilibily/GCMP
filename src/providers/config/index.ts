@@ -13,6 +13,7 @@ import baidu from './baidu.json';
 import gemini from './gemini.json';
 import codex from './codex.json';
 import grok from './grok.json';
+import opencode from './opencode.json';
 
 const providers = {
     zhipu,
@@ -27,7 +28,8 @@ const providers = {
     baidu,
     gemini,
     codex,
-    grok
+    grok,
+    opencode
 };
 
 export type ProviderName = keyof typeof providers;
