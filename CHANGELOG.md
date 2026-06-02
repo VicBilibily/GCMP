@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.23.3] - 2026-06-02
+
+### 优化
+
+- **智能模型过滤**：提供商模型列表现在会根据已配置的 API Key 过滤，用户仅能看到密钥已配置的可用模型，减少干扰项（影响：百度千帆、阿里云百炼、MiniMax、Moonshot、腾讯云、火山引擎、小米 MiMo）
+- **OpenCode 会话标识**：为 OpenCode 提供商添加会话级跟踪标识头（`x-opencode-session`、`x-opencode-request`、`x-opencode-project`），提升可观测性
+
+---
+
+### Improved
+
+- **Smart model filtering**: Provider model lists now filter based on configured API keys — users only see models they can actually use, reducing clutter (affected: Baidu Qianfan, DashScope, MiniMax, Moonshot, Tencent, Volcengine, Xiaomi MiMo)
+- **OpenCode session identification**: Added session-level tracing headers (`x-opencode-session`, `x-opencode-request`, `x-opencode-project`) for OpenCode provider, improving observability
+
 ## [0.23.2] - 2026-06-01
 
 ### 新增

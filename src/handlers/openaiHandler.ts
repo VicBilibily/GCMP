@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
-import { Logger, VersionManager, sanitizeToolSchemaForTarget } from '../utils';
+import { Logger, VersionManager, sanitizeToolSchemaForTarget, createOpenCodeHeaders } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { t } from '../utils/l10n';
@@ -847,7 +847,13 @@ export class OpenAIHandler {
             let streamEndTime: number | undefined = undefined;
 
             try {
-                const stream = client.chat.completions.stream(createParams, { signal: abortController.signal });
+                // opencode 专有：传递请求级跟踪标识头
+                const streamOptions: Record<string, unknown> = { signal: abortController.signal };
+                if (this.provider === 'opencode') {
+                    streamOptions.headers = createOpenCodeHeaders(requestId, sessionId);
+                }
+
+                const stream = client.chat.completions.stream(createParams, streamOptions);
                 // 利用 SDK 内置的事件系统处理工具调用和内容
                 stream
                     .on('chunk', (chunk, _snapshot: unknown) => {

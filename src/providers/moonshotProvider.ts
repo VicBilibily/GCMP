@@ -179,14 +179,13 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
             }
         }
 
-        // 返回所有模型，不进行过滤
-        // 具体的密钥验证会在用户选择模型后的 provideLanguageModelChatResponse 中进行
-        Logger.debug(`${this.providerConfig.displayName}: returning all ${this.providerConfig.models.length} models`);
-
+        // 根据已配置的 API Key 过滤模型
+        const filteredModels = await this.filterModelsByAvailableKeys(this.providerConfig.models);
+        Logger.debug(
+            `${this.providerConfig.displayName}: ${filteredModels.length}/${this.providerConfig.models.length} models available after key filtering`
+        );
         // 将配置中的模型转换为 VS Code 所需的格式
-        const models = this.providerConfig.models.map(model => this.modelConfigToInfo(model));
-
-        return models;
+        return filteredModels.map(model => this.modelConfigToInfo(model));
     }
 
     /**

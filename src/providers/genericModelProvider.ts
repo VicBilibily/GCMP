@@ -168,6 +168,37 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     }
 
     /**
+     * 根据已配置的 API Key 过滤模型列表
+     * 仅返回对应密钥已配置的模型
+     * @param models 要过滤的模型配置列表
+     * @returns 过滤后的模型配置列表（仅包含对应密钥已配置的模型）
+     */
+    protected async filterModelsByAvailableKeys(models: ModelConfig[]): Promise<ModelConfig[]> {
+        const filteredModels: ModelConfig[] = [];
+        const checkedKeys = new Map<string, boolean>();
+
+        for (const model of models) {
+            const keyProvider = model.provider || this.providerKey;
+
+            // 缓存检查结果，避免重复查询 SecretStorage
+            if (!checkedKeys.has(keyProvider)) {
+                const hasKey = await ApiKeyManager.hasValidApiKey(keyProvider);
+                checkedKeys.set(keyProvider, hasKey);
+            }
+
+            if (checkedKeys.get(keyProvider)) {
+                filteredModels.push(model);
+            } else {
+                Logger.debug(
+                    `[${this.providerKey}] Model ${model.id} (requires ${keyProvider} key) filtered out - key not configured`
+                );
+            }
+        }
+
+        return filteredModels;
+    }
+
+    /**
      * 将ModelConfig转换为LanguageModelChatInformation
      */
     protected modelConfigToInfo(model: ModelConfig): LanguageModelChatInformation {

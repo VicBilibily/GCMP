@@ -11,6 +11,7 @@ import { ApiKeyManager } from '../utils/apiKeyManager';
 import { Logger } from '../utils/logger';
 import { ConfigManager } from '../utils/configManager';
 import { VersionManager } from '../utils/versionManager';
+import { createOpenCodeHeaders } from '../utils/formatUtils';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { t } from '../utils/l10n';
 import type { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
@@ -282,7 +283,13 @@ export class AnthropicHandler {
             // const cacheCount = (JSON.stringify(createParams).match(/"cache_control"\s*:/g) || []).length;
             // Logger.warn(`[${model.name}] cache_control 数量: ${cacheCount}`);
 
-            const stream = await client.messages.create(createParams, { signal: abortController.signal });
+            // opencode 专有：传递请求级跟踪标识头
+            const anthropicStreamOptions: Record<string, unknown> = { signal: abortController.signal };
+            if (this.provider === 'opencode') {
+                anthropicStreamOptions.headers = createOpenCodeHeaders(requestId, sessionId);
+            }
+
+            const stream = await client.messages.create(createParams, anthropicStreamOptions);
 
             // 创建统一的流报告器
             const reporter = new StreamReporter({

@@ -122,9 +122,8 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
         throw new Error(`${this.providerConfig.displayName}: user did not configure the ${keyType} API key`);
     }
     /**
-     * 重写：获取模型信息 - 添加密钥检查
-     * 只要有任意密钥存在就返回所有模型，不进行过滤
-     * 具体的密钥验证在实际使用时（provideLanguageModelChatResponse）进行
+     * 重写：获取模型信息 - 添加密钥检查与模型过滤
+     * 根据每个模型对应的 API Key 是否已配置来过滤模型列表
      */
     override async provideLanguageModelChatInformation(
         options: PrepareLanguageModelChatModelOptions,
@@ -163,12 +162,13 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
                 return [];
             }
         }
-        // 返回所有模型，不进行过滤
-        // 具体的密钥验证会在用户选择模型后的 provideLanguageModelChatResponse 中进行
-        Logger.debug(`${this.providerConfig.displayName}: returning all ${this.providerConfig.models.length} models`);
+        // 根据已配置的 API Key 过滤模型
+        const filteredModels = await this.filterModelsByAvailableKeys(this.providerConfig.models);
+        Logger.debug(
+            `${this.providerConfig.displayName}: ${filteredModels.length}/${this.providerConfig.models.length} models available after key filtering`
+        );
         // 将配置中的模型转换为 VS Code 所需的格式
-        const models = this.providerConfig.models.map(model => this.modelConfigToInfo(model));
-        return models;
+        return filteredModels.map(model => this.modelConfigToInfo(model));
     }
     /**
      * 重写：提供语言模型聊天响应 - 添加请求前密钥确保机制

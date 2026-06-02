@@ -307,6 +307,15 @@
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
+            "id": "qwen3.7-plus",
+            "name": "Qwen3.7-Plus",
+            "tooltip": "Qwen3.7系列中高性价比Plus模型，在强大文本能力的基础上全面升级了视觉-语言能力，同时保持了在编码、工具使用和生产力工作流方面的完整智能体能力。其核心特色为多模态交互混合智能体能力，能够感知真实世界场景、读取屏幕并操作 GUI、基于视觉参考生成代码、端到端导航移动应用。",
+            "maxInputTokens": 983000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
             "id": "qwen3.7-max",
             "name": "Qwen3.7-Max",
             "tooltip": "Qwen3.7系列中规模最大、综合能力最强的Max模型，当前开放纯文本模型能力供体验。Qwen3.7是面向智能体时代的新一代旗舰模型，核心优势在于智能体能力的广度与深度：在编程、办公与生产力、长周期自主执行方面均能出色胜任各项任务。",
@@ -368,92 +377,6 @@
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
-            }
-        },
-        {
-            "id": "qwen3-max",
-            "name": "Qwen3-Max",
-            "tooltip": "通义千问3系列Max模型，相较preview版本在智能体编程与工具调用方向进行了专项升级。本次发布的正式版模型达到领域SOTA水平，适配场景更加复杂的智能体需求。",
-            "maxInputTokens": 252000,
-            "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen3-max-thinking",
-            "model": "qwen3-max-2026-01-23",
-            "name": "Qwen3-Max (Thinking)",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
-            "tooltip": "Qwen3-Max-Thinking总参数量超万亿，预训练数据量达36T Tokens，原生Agent能力大幅增强。在涵盖事实知识、复杂推理、指令遵循、人类偏好对齐、Agent能力等19项公认基准测试中，Qwen3-Max-Thinking整体性能可媲美国际顶尖模型。",
-            "maxInputTokens": 252000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
-            "extraBody": {
-                "thinking": { "type": "enabled" }
-            }
-        },
-        {
-            "id": "qwen3-vl-plus",
-            "name": "Qwen3-VL-Plus",
-            "tooltip": "Qwen3系列视觉理解模型，实现思考模式和非思考模式的有效融合，视觉智能体能力在OS World等公开测试集上达到世界顶尖水平。此版本在视觉coding、空间感知、多模态思考等方向全面升级；视觉感知与识别能力大幅提升，支持超长视频理解。",
-            "maxInputTokens": 254000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "qwen3-vl-flash",
-            "name": "Qwen3-VL-Flash",
-            "tooltip": "Qwen3系列小尺寸视觉理解模型，实现思考模式和非思考模式的有效融合，效果优于开源版Qwen3-VL-30B-A3B，响应速度快。全面升级图像/视频理解，支持长视频长文档等超长上下文、空间感知与万物识别；具备视觉2D/3D定位能力，胜任复杂现实任务。",
-            "maxInputTokens": 254000,
-            "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
-        },
-        {
-            "id": "qwen-plus",
-            "name": "Qwen-Plus",
-            "tooltip": "Qwen3系列Plus模型，实现思考模式和非思考模式的有效融合，可在对话中切换模式。推理能力显著超过QwQ、通用能力显著超过Qwen2.5-Plus，达到同规模业界SOTA水平。",
-            "maxInputTokens": 960000,
-            "maxOutputTokens": 16000,
-            "thinking": ["disabled", "enabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen-plus-latest",
-            "name": "Qwen-Plus-Latest",
-            "tooltip": "通义千问系列能力均衡的模型，推理效果和速度介于通义千问-Max和通义千问-Turbo之间，适合中等复杂任务。本模型是动态更新版本，模型更新不会提前通知。",
-            "maxInputTokens": 960000,
-            "maxOutputTokens": 32000,
-            "thinking": ["disabled", "enabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
-        },
-        {
-            "id": "qwen-flash",
-            "name": "Qwen-Flash",
-            "tooltip": "Qwen3系列Flash模型，实现思考模式和非思考模式的有效融合，可在对话中切换模式。复杂推理类任务性能优秀，指令遵循、文本理解等能力显著提高。支持1M上下文长度，按照上下文长度进行阶梯计费。",
-            "maxInputTokens": 960000,
-            "maxOutputTokens": 32000,
-            "thinking": ["disabled", "enabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
             }
         },
         {

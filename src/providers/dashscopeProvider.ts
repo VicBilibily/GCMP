@@ -169,9 +169,13 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
             }
         }
 
-        const models = this.providerConfig.models.map(m => this.modelConfigToInfo(m));
-
-        return models;
+        // 根据已配置的 API Key 过滤模型
+        const filteredModels = await this.filterModelsByAvailableKeys(this.providerConfig.models);
+        Logger.debug(
+            `${this.providerConfig.displayName}: ${filteredModels.length}/${this.providerConfig.models.length} models available after key filtering`
+        );
+        // 将配置中的模型转换为 VS Code 所需的格式
+        return filteredModels.map(m => this.modelConfigToInfo(m));
     }
 
     async provideLanguageModelChatResponse(

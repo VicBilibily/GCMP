@@ -29,3 +29,4 @@ export { TokenCounter } from './tokenCounter';
 export { PromptAnalyzer } from './promptAnalyzer';
 export { sanitizeToolSchema, sanitizeToolSchemaForSdkMode, sanitizeToolSchemaForTarget } from './schemaSanitizer';
 export type { ToolSchemaTarget } from './schemaSanitizer';
+export { formatOpenCodeId as formatOpencodeId, createOpenCodeHeaders } from './formatUtils';
