@@ -138,6 +138,18 @@ export class MiniMaxSearchTool {
     }
 
     /**
+     * 准备调用时的提示信息
+     */
+    async prepareInvocation(
+        _options: vscode.LanguageModelToolInvocationPrepareOptions<MiniMaxSearchRequest>,
+        _token: vscode.CancellationToken
+    ): Promise<vscode.PreparedToolInvocation | undefined> {
+        return {
+            invocationMessage: t('Searching the web via MiniMax...', '正在通过MiniMax搜索网络...')
+        };
+    }
+
+    /**
      * 工具调用处理器
      */
     async invoke(

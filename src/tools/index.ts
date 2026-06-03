@@ -7,3 +7,4 @@ export { MiniMaxSearchTool } from './minimaxSearch';
 export { KimiSearchTool } from './kimiSearch';
 export { DashscopeSearchTool } from './dashscopeSearch';
 export { registerAllTools } from './registry';
+export { ToolContextManager } from './toolContextManager';

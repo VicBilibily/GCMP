@@ -202,6 +202,18 @@ export class ZhipuSearchTool {
     }
 
     /**
+     * 准备调用时的提示信息
+     */
+    async prepareInvocation(
+        _options: vscode.LanguageModelToolInvocationPrepareOptions<ZhipuSearchRequest>,
+        _token: vscode.CancellationToken
+    ): Promise<vscode.PreparedToolInvocation | undefined> {
+        return {
+            invocationMessage: t('Searching the web via Zhipu AI...', '正在通过智谱AI搜索网络...')
+        };
+    }
+
+    /**
      * 工具调用处理器
      */
     async invoke(

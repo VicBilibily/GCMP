@@ -120,7 +120,7 @@
     "tool.zhipuWebSearch.input.contentSize.description": "内容详细程度：low、medium 或 high",
     "tool.minimaxWebSearch.modelDescription": "使用 MiniMax Token Plan 网络搜索获取实时信息。需要订阅 MiniMax Token Plan 套餐并设置专用 API 密钥。",
     "tool.minimaxWebSearch.input.q.description": "搜索查询字符串",
-    "tool.kimiWebSearch.modelDescription": "使用 Kimi Code 网络搜索获取实时信息。需要 Kimi For Coding API 密钥或 Moonshot API 密钥。",
+    "tool.kimiWebSearch.modelDescription": "使用 Kimi Code 网络搜索获取实时信息。需要 Kimi For Coding API 密钥。",
     "tool.kimiWebSearch.input.query.description": "搜索查询字符串",
     "tool.kimiWebSearch.input.limit.description": "返回的搜索结果数量",
     "tool.kimiWebSearch.input.includeContent.description": "是否抓取并返回页面完整内容",

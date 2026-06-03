@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.23.3",
+    "version": "0.23.4",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -730,6 +730,7 @@
             {
                 "name": "gcmp_zhipuWebSearch",
                 "displayName": "%tool.zhipuWebSearch.displayName%",
+                "when": "gcmp.tool.zhipuWebSearch.enabled",
                 "toolReferenceName": "zhipuWebSearch",
                 "modelDescription": "%tool.zhipuWebSearch.modelDescription%",
                 "userDescription": "%tool.zhipuWebSearch.userDescription%",
@@ -799,6 +800,7 @@
             {
                 "name": "gcmp_minimaxWebSearch",
                 "displayName": "%tool.minimaxWebSearch.displayName%",
+                "when": "gcmp.tool.minimaxWebSearch.enabled",
                 "toolReferenceName": "minimaxWebSearch",
                 "modelDescription": "%tool.minimaxWebSearch.modelDescription%",
                 "userDescription": "%tool.minimaxWebSearch.userDescription%",
@@ -819,6 +821,7 @@
             {
                 "name": "gcmp_kimiWebSearch",
                 "displayName": "%tool.kimiWebSearch.displayName%",
+                "when": "gcmp.tool.kimiWebSearch.enabled",
                 "toolReferenceName": "kimiWebSearch",
                 "modelDescription": "%tool.kimiWebSearch.modelDescription%",
                 "userDescription": "%tool.kimiWebSearch.userDescription%",
@@ -851,6 +854,7 @@
             {
                 "name": "gcmp_dashscopeWebSearch",
                 "displayName": "%tool.dashscopeWebSearch.displayName%",
+                "when": "gcmp.tool.dashscopeWebSearch.enabled",
                 "toolReferenceName": "bailianWebSearch",
                 "modelDescription": "%tool.dashscopeWebSearch.modelDescription%",
                 "userDescription": "%tool.dashscopeWebSearch.userDescription%",

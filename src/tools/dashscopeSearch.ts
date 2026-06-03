@@ -39,6 +39,18 @@ export class DashscopeSearchTool {
     }
 
     /**
+     * 准备调用时的提示信息
+     */
+    async prepareInvocation(
+        _options: vscode.LanguageModelToolInvocationPrepareOptions<DashscopeSearchRequest>,
+        _token: vscode.CancellationToken
+    ): Promise<vscode.PreparedToolInvocation | undefined> {
+        return {
+            invocationMessage: t('Searching the web via DashScope...', '正在通过阿里云百炼搜索网络...')
+        };
+    }
+
+    /**
      * 工具调用处理器
      */
     async invoke(

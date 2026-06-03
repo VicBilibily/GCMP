@@ -120,7 +120,7 @@
     "tool.zhipuWebSearch.input.contentSize.description": "Content detail level: low, medium, or high",
     "tool.minimaxWebSearch.modelDescription": "Get real-time information using MiniMax Token Plan web search. Requires a MiniMax Token Plan subscription and a dedicated API key.",
     "tool.minimaxWebSearch.input.q.description": "Search query string",
-    "tool.kimiWebSearch.modelDescription": "Get real-time information using Kimi Code web search. Requires a Kimi For Coding API key or a Moonshot API key.",
+    "tool.kimiWebSearch.modelDescription": "Get real-time information using Kimi Code web search. Requires a Kimi For Coding API key.",
     "tool.kimiWebSearch.input.query.description": "Search query string",
     "tool.kimiWebSearch.input.limit.description": "Number of search results to return",
     "tool.kimiWebSearch.input.includeContent.description": "Whether to fetch and return full page content",

@@ -77,13 +77,7 @@ export class KimiSearchTool {
      * 获取 API Key
      */
     private async getApiKey(): Promise<string | undefined> {
-        let apiKey = await ApiKeyManager.getApiKey('kimi');
-
-        if (!apiKey) {
-            apiKey = await ApiKeyManager.getApiKey('moonshot');
-        }
-
-        return apiKey;
+        return await ApiKeyManager.getApiKey('kimi');
     }
 
     /**
@@ -202,6 +196,18 @@ export class KimiSearchTool {
             req.write(requestData);
             req.end();
         });
+    }
+
+    /**
+     * 准备调用时的提示信息
+     */
+    async prepareInvocation(
+        _options: vscode.LanguageModelToolInvocationPrepareOptions<KimiSearchRequest>,
+        _token: vscode.CancellationToken
+    ): Promise<vscode.PreparedToolInvocation | undefined> {
+        return {
+            invocationMessage: t('Searching the web via Kimi...', '正在通过Kimi搜索网络...')
+        };
     }
 
     /**

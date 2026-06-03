@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.23.4] - 2026-06-03
+
+### 新增
+
+- **搜索工具条件可见性**：[#191](https://github.com/VicBilibily/GCMP/issues/191) 所有联网搜索工具（智谱AI、MiniMax、Kimi、阿里云百炼）现在仅在对应 API Key 已配置时才会出现在工具面板中；未配置时自动隐藏，防止模型误调用无效工具或引入无效上下文，降低请求失败率与额外开销
+- **工具上下文管理器（ToolContextManager）**：新增统一的管理器，通过 VS Code `setContext` 维护工具可用性上下文键，并实时监听 API Key 变更事件自动更新工具可见性
+
+---
+
+### Added
+
+- **Conditional search tool visibility**: All web search tools (ZhipuAI, MiniMax, Kimi, DashScope) now appear in the tool panel only when their corresponding API Key is configured; hidden otherwise to prevent the model from invoking invalid tools or introducing irrelevant context, reducing request failures and extra overhead
+- **ToolContextManager**: New unified manager that maintains tool availability context keys via VS Code `setContext` and listens to API Key changes in real time to update tool visibility automatically
+
 ## [0.23.3] - 2026-06-02
 
 ### 优化
