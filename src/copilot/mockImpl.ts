@@ -39,6 +39,7 @@ import {
 export class AuthenticationService extends Disposable implements IAuthenticationService, ICopilotTokenManager {
     readonly _serviceBrand: undefined;
     readonly isMinimalMode = true; // 标识非官方模式，不请求 GHToken
+    readonly hasCopilotTokenSource = true; // BYOK/test-harness 实现中应返回 truthy
     readonly anyGitHubSession = undefined;
     readonly permissiveGitHubSession = undefined;
     readonly copilotToken = new CopilotToken(

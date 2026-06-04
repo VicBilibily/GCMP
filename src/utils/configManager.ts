@@ -55,6 +55,7 @@ export interface NESCompletionConfig {
     modelConfig: {
         provider: string;
         baseUrl: string;
+        proxy?: string;
         model: string;
         maxTokens: number;
         extraBody?: Record<string, unknown>;
@@ -170,6 +171,7 @@ export class ConfigManager {
                 modelConfig: {
                     provider: config.get<string>('fimCompletion.modelConfig.provider', ''),
                     baseUrl: config.get<string>('fimCompletion.modelConfig.baseUrl', ''),
+                    proxy: config.get<string>('fimCompletion.modelConfig.proxy'),
                     model: config.get<string>('fimCompletion.modelConfig.model', ''),
                     maxTokens: this.validateNESMaxTokens(
                         config.get<number>('fimCompletion.modelConfig.maxTokens', 200)
@@ -185,6 +187,7 @@ export class ConfigManager {
                 modelConfig: {
                     provider: config.get<string>('nesCompletion.modelConfig.provider', ''),
                     baseUrl: config.get<string>('nesCompletion.modelConfig.baseUrl', ''),
+                    proxy: config.get<string>('nesCompletion.modelConfig.proxy'),
                     model: config.get<string>('nesCompletion.modelConfig.model', ''),
                     maxTokens: this.validateNESMaxTokens(
                         config.get<number>('nesCompletion.modelConfig.maxTokens', 200)

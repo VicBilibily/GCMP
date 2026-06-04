@@ -69,6 +69,7 @@
     "setting.fimCompletion.modelConfig.description": "FIM 补全使用的模型配置。",
     "setting.modelConfig.provider.description": "模型提供商标识符",
     "setting.modelConfig.baseUrl.description": "API基础URL",
+    "setting.modelConfig.proxy.description": "API 请求的代理服务器地址（可选）。URL 中的凭据将在日志中被脱敏。",
     "setting.fimCompletion.modelConfig.model.description": "FIM 补全使用的模型名称",
     "setting.fimCompletion.modelConfig.maxTokens.description": "FIM 补全返回的最大长度",
     "setting.modelConfig.extraBody.description": "额外的请求体参数，将在API请求中合并到请求体中",

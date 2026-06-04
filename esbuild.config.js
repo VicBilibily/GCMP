@@ -194,8 +194,8 @@ const copilotBuildOptions = {
     ...commonOptions,
     entryPoints: ['./src/copilot/copilot.bundle.ts'],
     outfile: 'dist/copilot.bundle.js',
-    // 只排除 vscode 本身，保留 @vscode/chat-lib 及其依赖，确保被打包到 bundle 中
-    external: ['vscode']
+    // 排除 vscode 和 undici，undici 含大量 Node 原生依赖，不宜打包
+    external: ['vscode', 'undici']
 };
 
 // ========================================================================

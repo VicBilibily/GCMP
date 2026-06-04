@@ -580,7 +580,10 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                 return undefined;
             }
 
-            CompletionLogger.error(`[InlineCompletionProvider] NES request failed (${elapsed}ms):`, error);
+            const stack = error instanceof Error ? error.stack : '';
+            CompletionLogger.error(
+                `[InlineCompletionProvider] NES request failed (${elapsed}ms): ${error instanceof Error ? error.message : String(error)}\n${stack}`
+            );
             return undefined;
         }
     }

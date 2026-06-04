@@ -69,6 +69,7 @@
     "setting.fimCompletion.modelConfig.description": "Model configuration for FIM completion.",
     "setting.modelConfig.provider.description": "Model provider identifier",
     "setting.modelConfig.baseUrl.description": "API base URL",
+    "setting.modelConfig.proxy.description": "Proxy server URL for API requests (optional). Credentials in the URL will be masked in logs.",
     "setting.fimCompletion.modelConfig.model.description": "Model name used for FIM completion",
     "setting.fimCompletion.modelConfig.maxTokens.description": "Maximum length returned by FIM completion",
     "setting.modelConfig.extraBody.description": "Additional request body parameters that will be merged into the API request body",

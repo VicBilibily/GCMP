@@ -58,12 +58,20 @@ export class WorkspaceAdapter implements vscode.Disposable {
             vscode.window.onDidChangeTextEditorSelection(e => {
                 const doc = this.documentMap.get(e.textEditor.document.uri.toString());
                 if (doc) {
-                    const offsetRanges = e.selections.map(sel => {
-                        const startOffset = e.textEditor.document.offsetAt(sel.start);
-                        const endOffset = e.textEditor.document.offsetAt(sel.end);
-                        return new OffsetRange(startOffset, endOffset);
-                    });
-                    doc.setSelection(offsetRanges);
+                    this._applyEditorSelectionToDoc(e.textEditor, doc);
+                }
+            })
+        );
+
+        // 监听活动编辑器变化，为新激活的文档同步当前选择
+        this.disposables.push(
+            vscode.window.onDidChangeActiveTextEditor(e => {
+                if (!e) {
+                    return;
+                }
+                const doc = this.documentMap.get(e.document.uri.toString());
+                if (doc) {
+                    this._applyEditorSelectionToDoc(e, doc);
                 }
             })
         );
@@ -109,10 +117,30 @@ export class WorkspaceAdapter implements vscode.Disposable {
             languageId: languageId
         });
 
+        // 初始选择为空会导致 NES 的 HistoryContextProvider 把该文档视为非用户文档，
+        // 从而在首次触发 NES 时抛出 DocumentMissingInHistoryContext。
+        // 因此这里根据当前可见编辑器的选择进行初始化。
+        const visibleEditor = vscode.window.visibleTextEditors.find(e => e.document.uri.toString() === uriStr);
+        if (visibleEditor) {
+            this._applyEditorSelectionToDoc(visibleEditor, doc);
+        }
+
         this.documentMap.set(uriStr, doc);
         CompletionLogger.trace(`[VSCodeWorkspaceAdapter] Synced document: ${vscodeDoc.fileName}`);
 
         return doc;
+    }
+
+    /**
+     * 将 VS Code 编辑器的选择同步到 ObservableDocument
+     */
+    private _applyEditorSelectionToDoc(editor: vscode.TextEditor, doc: MutableObservableDocument): void {
+        const offsetRanges = editor.selections.map(sel => {
+            const startOffset = editor.document.offsetAt(sel.start);
+            const endOffset = editor.document.offsetAt(sel.end);
+            return new OffsetRange(startOffset, endOffset);
+        });
+        doc.setSelection(offsetRanges);
     }
 
     /**

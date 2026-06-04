@@ -326,6 +326,8 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
 
 FIM and NES completions use separate model configurations, configurable via `gcmp.fimCompletion.modelConfig` and `gcmp.nesCompletion.modelConfig`.
 
+> **Proxy Configuration**: FIM and NES support a `proxy` field to set a dedicated proxy address (e.g., `http://127.0.0.1:7890`) for debugging under different network conditions. Authenticated proxies are supported; user credentials are automatically redacted in logs.
+
 - **Enable FIM completion mode** (recommended: DeepSeek, Qwen, and other FIM-supporting models):
     - Tested with `DeepSeek`, `SiliconFlow`, and special support for `Alibaba Cloud DashScope`.
 
@@ -339,6 +341,7 @@ FIM and NES completions use separate model configurations, configurable via `gcm
         "baseUrl": "https://api.deepseek.com/beta", // ⚠️ DeepSeek FIM requires the beta endpoint
         // "baseUrl": "https://api.siliconflow.cn/v1", // SiliconFlow (provider: `siliconflow`)
         // "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1", // DashScope (provider: `dashscope`)
+        // "proxy": "http://127.0.0.1:7890", // Optional: set a dedicated proxy
         "model": "deepseek-chat",
         "maxTokens": 100
         // "extraBody": { "top_p": 0.9 }
@@ -357,6 +360,7 @@ FIM and NES completions use separate model configurations, configurable via `gcm
     "gcmp.nesCompletion.modelConfig": {
         "provider": "zhipu", // Provider ID; for others, add an OpenAI Compatible custom model provider and set API Key first
         "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4", // OpenAI Chat Completion Endpoint BaseUrl
+        // "proxy": "http://127.0.0.1:7890", // Optional: set a dedicated proxy
         "model": "glm-4.6", // Recommended: use a performant model; check logs for ``` markdown code fences
         "maxTokens": 200,
         "extraBody": {
@@ -402,6 +406,7 @@ FIM and NES completions use separate model configurations, configurable via `gcm
     "gcmp.fimCompletion.modelConfig": {
         "provider": "mistral",
         "baseUrl": "https://codestral.mistral.ai/v1/fim",
+        // "proxy": "http://127.0.0.1:7890", // Optional: set a dedicated proxy
         "model": "codestral-latest",
         "extraBody": { "code_annotations": null },
         "maxTokens": 100

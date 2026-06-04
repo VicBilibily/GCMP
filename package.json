@@ -42,8 +42,8 @@
     },
     "engines": {
         "vscode": ">=1.120.0",
-        "node": ">=20.0.0",
-        "npm": ">=9.0.0"
+        "node": ">=22.22.3",
+        "npm": ">=10.8.2"
     },
     "extensionDependencies": [
         "github.copilot-chat"
@@ -448,6 +448,11 @@
                             "description": "%setting.modelConfig.baseUrl.description%",
                             "format": "uri"
                         },
+                        "proxy": {
+                            "type": "string",
+                            "description": "%setting.modelConfig.proxy.description%",
+                            "format": "uri"
+                        },
                         "model": {
                             "type": "string",
                             "description": "%setting.fimCompletion.modelConfig.model.description%"
@@ -518,6 +523,11 @@
                         "baseUrl": {
                             "type": "string",
                             "description": "%setting.modelConfig.baseUrl.description%",
+                            "format": "uri"
+                        },
+                        "proxy": {
+                            "type": "string",
+                            "description": "%setting.modelConfig.proxy.description%",
                             "format": "uri"
                         },
                         "model": {
@@ -1058,9 +1068,10 @@
         "@anthropic-ai/sdk": "^0.80.0",
         "@microsoft/tiktokenizer": "^1.0.10",
         "@modelcontextprotocol/sdk": "^1.29.0",
-        "@vscode/chat-lib": "^0.44.1",
+        "@vscode/chat-lib": "^0.47.0",
         "chart.js": "^4.5.1",
-        "openai": "^6.7.0"
+        "openai": "^6.7.0",
+        "undici": "^7.24.5"
     },
     "devDependencies": {
         "@eslint/js": "^9.13.0",
@@ -1079,6 +1090,6 @@
         "typescript-eslint": "^8.39.0"
     },
     "volta": {
-        "node": "20.19.5"
+        "node": "22.22.3"
     }
 }
