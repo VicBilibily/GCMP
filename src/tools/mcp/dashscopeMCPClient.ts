@@ -6,6 +6,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { Logger } from '../../utils/logger';
+import { ConfigManager } from '../../utils/configManager';
 import { ApiKeyManager } from '../../utils/apiKeyManager';
 import { t } from '../../utils/l10n';
 import { VersionManager } from '../../utils/versionManager';
@@ -45,6 +46,22 @@ export interface DashscopeMCPResponse {
 export class DashscopeMCPWebSearchClient {
     private static clientCache = new Map<string, DashscopeMCPWebSearchClient>();
 
+    private static buildCacheKey(apiKey: string): string {
+        const proxyUrl = ConfigManager.resolveProxyForModel(undefined, 'dashscope') || '';
+        return `${apiKey}::${proxyUrl}`;
+    }
+
+    private static async clearStaleInstances(apiKey: string, activeCacheKey: string): Promise<void> {
+        const apiKeyPrefix = `${apiKey}::`;
+        for (const [cacheKey, instance] of this.clientCache.entries()) {
+            if (cacheKey !== activeCacheKey && cacheKey.startsWith(apiKeyPrefix)) {
+                await instance.cleanup();
+                this.clientCache.delete(cacheKey);
+                Logger.info(`🧹 [DashScope MCP] Cleared stale client cache for API key ${apiKey.substring(0, 8)}...`);
+            }
+        }
+    }
+
     private static readonly MCP_URL = 'https://dashscope.aliyuncs.com/api/v1/mcps/WebSearch/mcp';
 
     private client: Client | null = null;
@@ -62,8 +79,8 @@ export class DashscopeMCPWebSearchClient {
     }
 
     static async getInstance(apiKey?: string): Promise<DashscopeMCPWebSearchClient> {
-        const key = apiKey || (await ApiKeyManager.getApiKey('dashscope'));
-        if (!key) {
+        const resolvedApiKey = apiKey || (await ApiKeyManager.getApiKey('dashscope'));
+        if (!resolvedApiKey) {
             throw new Error(
                 t(
                     'DashScope API key is not configured. Run "GCMP: Set DashScope API Key" first.',
@@ -72,14 +89,21 @@ export class DashscopeMCPWebSearchClient {
             );
         }
 
-        let instance = DashscopeMCPWebSearchClient.clientCache.get(key);
+        const cacheKey = this.buildCacheKey(resolvedApiKey);
+        await this.clearStaleInstances(resolvedApiKey, cacheKey);
+
+        let instance = DashscopeMCPWebSearchClient.clientCache.get(cacheKey);
         if (!instance) {
-            Logger.debug(`📦 [DashScope MCP] Creating new client instance (API key: ${key.substring(0, 8)}...)`);
+            Logger.debug(
+                `📦 [DashScope MCP] Creating new client instance (API key: ${resolvedApiKey.substring(0, 8)}...)`
+            );
             instance = new DashscopeMCPWebSearchClient();
-            instance.currentApiKey = key;
-            DashscopeMCPWebSearchClient.clientCache.set(key, instance);
+            instance.currentApiKey = resolvedApiKey;
+            DashscopeMCPWebSearchClient.clientCache.set(cacheKey, instance);
         } else {
-            Logger.debug(`♻️ [DashScope MCP] Reusing cached client instance (API key: ${key.substring(0, 8)}...)`);
+            Logger.debug(
+                `♻️ [DashScope MCP] Reusing cached client instance (API key: ${resolvedApiKey.substring(0, 8)}...)`
+            );
         }
 
         await instance.ensureConnected();
@@ -88,11 +112,19 @@ export class DashscopeMCPWebSearchClient {
 
     static async clearCache(apiKey?: string): Promise<void> {
         if (apiKey) {
-            const instance = DashscopeMCPWebSearchClient.clientCache.get(apiKey);
-            if (instance) {
-                await instance.cleanup();
-                DashscopeMCPWebSearchClient.clientCache.delete(apiKey);
-                Logger.info(`🗑️ [DashScope MCP] Cleared cache for API key ${apiKey.substring(0, 8)}...`);
+            const apiKeyPrefix = `${apiKey}::`;
+            let removedCount = 0;
+            for (const [cacheKey, instance] of DashscopeMCPWebSearchClient.clientCache.entries()) {
+                if (cacheKey.startsWith(apiKeyPrefix)) {
+                    await instance.cleanup();
+                    DashscopeMCPWebSearchClient.clientCache.delete(cacheKey);
+                    removedCount++;
+                }
+            }
+            if (removedCount > 0) {
+                Logger.info(
+                    `🗑️ [DashScope MCP] Cleared ${removedCount} cache entr${removedCount === 1 ? 'y' : 'ies'} for API key ${apiKey.substring(0, 8)}...`
+                );
             }
         } else {
             for (const [key, instance] of DashscopeMCPWebSearchClient.clientCache.entries()) {
@@ -184,6 +216,7 @@ export class DashscopeMCPWebSearchClient {
             );
 
             this.transport = new StreamableHTTPClientTransport(new URL(DashscopeMCPWebSearchClient.MCP_URL), {
+                fetch: ConfigManager.createProxyAwareFetch({ providerKey: 'dashscope' }) as typeof fetch,
                 requestInit: {
                     headers: {
                         Authorization: `Bearer ${apiKey}`,

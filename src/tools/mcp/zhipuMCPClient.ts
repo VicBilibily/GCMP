@@ -32,6 +32,23 @@ export interface ZhipuWebSearchRequest {
 export class ZhipuMCPWebSearchClient {
     private static clientCache = new Map<string, ZhipuMCPWebSearchClient>();
 
+    private static buildCacheKey(apiKey: string): string {
+        const endpoint = ConfigManager.getZhipuEndpoint();
+        const proxyUrl = ConfigManager.resolveProxyForModel(undefined, 'zhipu') || '';
+        return `${apiKey}::${endpoint}::${proxyUrl}`;
+    }
+
+    private static async clearStaleInstances(apiKey: string, activeCacheKey: string): Promise<void> {
+        const apiKeyPrefix = `${apiKey}::`;
+        for (const [cacheKey, instance] of this.clientCache.entries()) {
+            if (cacheKey !== activeCacheKey && cacheKey.startsWith(apiKeyPrefix)) {
+                await instance.cleanup();
+                this.clientCache.delete(cacheKey);
+                Logger.info(`🧹 [Zhipu MCP] Cleared stale client cache for API key ${apiKey.substring(0, 8)}...`);
+            }
+        }
+    }
+
     private client: Client | null = null;
     private transport: StreamableHTTPClientTransport | null = null;
     private readonly userAgent: string;
@@ -44,20 +61,25 @@ export class ZhipuMCPWebSearchClient {
     }
 
     static async getInstance(apiKey?: string): Promise<ZhipuMCPWebSearchClient> {
-        const key = apiKey || (await ApiKeyManager.getApiKey('zhipu'));
-        if (!key) {
+        const resolvedApiKey = apiKey || (await ApiKeyManager.getApiKey('zhipu'));
+        if (!resolvedApiKey) {
             throw new Error(t('Zhipu AI API key is not configured', '智谱AI API密钥未设置'));
         }
 
-        let instance = ZhipuMCPWebSearchClient.clientCache.get(key);
+        const cacheKey = this.buildCacheKey(resolvedApiKey);
+        await this.clearStaleInstances(resolvedApiKey, cacheKey);
+
+        let instance = ZhipuMCPWebSearchClient.clientCache.get(cacheKey);
 
         if (!instance) {
-            Logger.debug(`📦 [Zhipu MCP] Creating new client instance (API key: ${key.substring(0, 8)}...)`);
+            Logger.debug(`📦 [Zhipu MCP] Creating new client instance (API key: ${resolvedApiKey.substring(0, 8)}...)`);
             instance = new ZhipuMCPWebSearchClient();
-            instance.currentApiKey = key;
-            ZhipuMCPWebSearchClient.clientCache.set(key, instance);
+            instance.currentApiKey = resolvedApiKey;
+            ZhipuMCPWebSearchClient.clientCache.set(cacheKey, instance);
         } else {
-            Logger.debug(`♻️ [Zhipu MCP] Reusing cached client instance (API key: ${key.substring(0, 8)}...)`);
+            Logger.debug(
+                `♻️ [Zhipu MCP] Reusing cached client instance (API key: ${resolvedApiKey.substring(0, 8)}...)`
+            );
         }
 
         await instance.ensureConnected();
@@ -67,11 +89,19 @@ export class ZhipuMCPWebSearchClient {
 
     static async clearCache(apiKey?: string): Promise<void> {
         if (apiKey) {
-            const instance = ZhipuMCPWebSearchClient.clientCache.get(apiKey);
-            if (instance) {
-                await instance.cleanup();
-                ZhipuMCPWebSearchClient.clientCache.delete(apiKey);
-                Logger.info(`🗑️ [Zhipu MCP] Cleared cache for API key ${apiKey.substring(0, 8)}...`);
+            const apiKeyPrefix = `${apiKey}::`;
+            let removedCount = 0;
+            for (const [cacheKey, instance] of ZhipuMCPWebSearchClient.clientCache.entries()) {
+                if (cacheKey.startsWith(apiKeyPrefix)) {
+                    await instance.cleanup();
+                    ZhipuMCPWebSearchClient.clientCache.delete(cacheKey);
+                    removedCount++;
+                }
+            }
+            if (removedCount > 0) {
+                Logger.info(
+                    `🗑️ [Zhipu MCP] Cleared ${removedCount} cache entr${removedCount === 1 ? 'y' : 'ies'} for API key ${apiKey.substring(0, 8)}...`
+                );
             }
         } else {
             for (const [key, instance] of ZhipuMCPWebSearchClient.clientCache.entries()) {
@@ -252,6 +282,7 @@ export class ZhipuMCPWebSearchClient {
             );
 
             this.transport = new StreamableHTTPClientTransport(new URL(httpUrl), {
+                fetch: ConfigManager.createProxyAwareFetch({ providerKey: 'zhipu' }) as typeof fetch,
                 requestInit: {
                     headers: {
                         Authorization: `Bearer ${apiKey}`,

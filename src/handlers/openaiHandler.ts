@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
-import { Logger, VersionManager, sanitizeToolSchemaForTarget, createOpenCodeHeaders } from '../utils';
+import { Logger, VersionManager, sanitizeToolSchemaForTarget, createOpenCodeHeaders, redactHeaders } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { t } from '../utils/l10n';
@@ -173,11 +173,14 @@ export class OpenAIHandler {
         const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, currentApiKey);
         if (Object.keys(processedCustomHeader).length > 0) {
             Object.assign(defaultHeaders, processedCustomHeader);
-            Logger.debug(`${this.displayName} applying custom headers: ${JSON.stringify(mergedCustomHeader)}`);
+            Logger.debug(
+                `${this.displayName} applying custom headers: ${JSON.stringify(redactHeaders(mergedCustomHeader))}`
+            );
         }
 
+        const proxyUrl = ConfigManager.resolveProxyForModel(modelConfig, this.provider);
         let customFetch: typeof fetch | undefined = undefined; // 使用默认 fetch 实现
-        customFetch = this.createCustomFetch(modelConfig, baseURL); // 使用自定义 fetch 解决 SSE 格式问题
+        customFetch = this.createCustomFetch(modelConfig, baseURL, proxyUrl); // 使用自定义 fetch 解决 SSE 格式问题
         const client = new OpenAI({
             apiKey: currentApiKey,
             baseURL: baseURL,
@@ -193,7 +196,8 @@ export class OpenAIHandler {
      * 修复部分模型输出 "data:" 后不带空格的问题
      * 若 modelConfig.endpoint 已设置，则将 SDK 内部构造的请求 URL 替换为自定义端点
      */
-    private createCustomFetch(modelConfig?: ModelConfig, resolvedBaseURL?: string): typeof fetch {
+    private createCustomFetch(modelConfig?: ModelConfig, resolvedBaseURL?: string, proxyUrl?: string): typeof fetch {
+        const proxiedFetch = ConfigManager.createProxyAwareFetch({ proxyUrl });
         return async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
             let requestUrl: string | URL | Request = url;
             // 若配置了自定义 endpoint，则覆盖 SDK 内部构造的请求 URL
@@ -209,8 +213,8 @@ export class OpenAIHandler {
                 }
                 Logger.debug(`Custom endpoint: ${String(url)} -> ${String(requestUrl)}`);
             }
-            // 调用原始 fetch
-            const response = await fetch(requestUrl, init);
+            // 调用代理 fetch
+            const response = (await proxiedFetch(requestUrl, init)) as Response;
             // 当前插件的所有调用都是流请求，直接预处理所有响应
             // preprocessSSEResponse 现在是异步的，可能会抛出错误以便上层捕获
             return await this.preprocessSSEResponse(response);

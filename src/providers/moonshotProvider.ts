@@ -181,7 +181,7 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
 
         // 根据已配置的 API Key 过滤模型
         const filteredModels = await this.filterModelsByAvailableKeys(this.providerConfig.models);
-        Logger.debug(
+        Logger.trace(
             `${this.providerConfig.displayName}: ${filteredModels.length}/${this.providerConfig.models.length} models available after key filtering`
         );
         // 将配置中的模型转换为 VS Code 所需的格式

@@ -172,7 +172,10 @@ export class CliWizard {
         );
         if (result === openTerminalLabel) {
             // 打开集成终端
-            const terminal = vscode.window.createTerminal(cliCommand);
+            const terminal = vscode.window.createTerminal({
+                name: cliCommand,
+                env: CliAuthFactory.getProcessEnv(providerKey)
+            });
             terminal.sendText(cliCommand);
             terminal.show();
         }
@@ -247,7 +250,10 @@ export class CliWizard {
                 );
                 if (result === openTerminalLabel) {
                     // 打开集成终端
-                    const terminal = vscode.window.createTerminal(providerKey);
+                    const terminal = vscode.window.createTerminal({
+                        name: providerKey,
+                        env: CliAuthFactory.getProcessEnv(providerKey)
+                    });
                     terminal.sendText(providerKey);
                     terminal.show();
                 }

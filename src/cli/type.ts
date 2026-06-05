@@ -16,6 +16,8 @@ export interface OAuthCredentials {
  * CLI 认证配置
  */
 export interface CliAuthConfig {
+    /** 对应的 providerKey */
+    providerKey: string;
     /** 提供商名称 */
     name: string;
     /** OAuth 客户端 ID */

@@ -32,6 +32,7 @@ export class GrokCliAuth extends BaseCliAuth {
 
     constructor() {
         const config: CliAuthConfig = {
+            providerKey: 'grok',
             name: 'Grok Build',
             clientId: GROK_CLIENT_ID,
             tokenUrl: GROK_TOKEN_URL,
@@ -115,7 +116,7 @@ export class GrokCliAuth extends BaseCliAuth {
             client_id: clientId
         });
 
-        const tokenRes = await fetch(this.config.tokenUrl, {
+        const tokenRes = await this.fetchWithProxy(this.config.tokenUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -220,10 +221,14 @@ export class GrokCliAuth extends BaseCliAuth {
      * 按优先级选择 Grok 认证记录，避免多记录时误选错凭证。
      * 优先级：canonical key > this.recordKey > https://auth.x.ai:: 命名空间 > 首个对象记录
      */
-    private findPreferredGrokRecord(data: Record<string, GrokAuthRecord>): { recordKey?: string; record: GrokAuthRecord } {
-        const entries = Object.entries(data).filter(
-            ([, v]) => v && typeof v === 'object' && !Array.isArray(v)
-        ) as [string, GrokAuthRecord][];
+    private findPreferredGrokRecord(data: Record<string, GrokAuthRecord>): {
+        recordKey?: string;
+        record: GrokAuthRecord;
+    } {
+        const entries = Object.entries(data).filter(([, v]) => v && typeof v === 'object' && !Array.isArray(v)) as [
+            string,
+            GrokAuthRecord
+        ][];
 
         if (entries.length === 0) {
             return { recordKey: undefined, record: {} };

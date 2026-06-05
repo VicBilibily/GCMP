@@ -10,6 +10,7 @@ import { Logger } from '../utils/logger';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { VersionManager } from '../utils/versionManager';
 import { t } from '../utils/l10n';
+import { ConfigManager } from '../utils/configManager';
 
 /**
  * DeepSeek 余额信息数据结构
@@ -163,7 +164,9 @@ export class DeepSeekStatusBar extends ProviderStatusBarItem<DeepSeekStatusData>
             };
 
             // 发送请求
-            const response = await fetch(BALANCE_QUERY_URL, requestOptions);
+            const response = await ConfigManager.fetchWithProxy(BALANCE_QUERY_URL, requestOptions, {
+                providerKey: 'deepseek'
+            });
             const responseText = await response.text();
 
             StatusLogger.debug(

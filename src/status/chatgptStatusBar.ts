@@ -11,6 +11,7 @@ import { Logger } from '../utils/logger';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
 import { t } from '../utils/l10n';
+import { ConfigManager } from '../utils/configManager';
 
 /**
  * 速率限制窗口结构
@@ -305,7 +306,9 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
             };
 
             // 发送请求
-            const response = await fetch(USAGE_QUERY_URL, requestOptions);
+            const response = await ConfigManager.fetchWithProxy(USAGE_QUERY_URL, requestOptions, {
+                providerKey: 'codex'
+            });
             const responseText = await response.text();
 
             StatusLogger.debug(

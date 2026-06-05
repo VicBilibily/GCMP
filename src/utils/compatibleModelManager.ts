@@ -10,6 +10,7 @@ import { StatusBarManager } from '../status';
 import { KnownProviders } from './knownProviders';
 import { configProviders } from '../providers/config';
 import { t } from './l10n';
+import { sanitizeConfigForLogging } from './proxyAgent';
 import { ModelEditor } from '../ui/modelEditor';
 
 /**
@@ -75,6 +76,8 @@ export interface CompatibleModelConfig {
     };
     /** 自定义HTTP头部（可选） */
     customHeader?: Record<string, string>;
+    /** 代理服务器地址（可选） */
+    proxy?: string;
     /** 额外的请求体参数（可选） */
     extraBody?: Record<string, unknown>;
     /**
@@ -236,7 +239,10 @@ export class CompatibleModelManager {
                     return cleaned;
                 });
 
-            Logger.debug('Preparing to save models, cleaned data:', JSON.stringify(modelsToSave, null, 2));
+            Logger.debug(
+                'Preparing to save models, cleaned data:',
+                JSON.stringify(sanitizeConfigForLogging(modelsToSave), null, 2)
+            );
 
             await config.update('compatibleModels', modelsToSave, vscode.ConfigurationTarget.Global);
             Logger.debug('Custom models saved to config');

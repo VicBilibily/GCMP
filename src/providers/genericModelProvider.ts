@@ -189,9 +189,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             if (checkedKeys.get(keyProvider)) {
                 filteredModels.push(model);
             } else {
-                Logger.debug(
-                    `[${this.providerKey}] Model ${model.id} (requires ${keyProvider} key) filtered out - key not configured`
-                );
+                // Logger.trace(
+                //     `[${this.providerKey}] Model ${model.id} (requires ${keyProvider} key) filtered out - key not configured`
+                // );
             }
         }
 

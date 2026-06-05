@@ -6,6 +6,7 @@ import { IBalanceQuery, BalanceQueryResult } from '../balanceQuery';
 import { StatusLogger } from '../../../utils/statusLogger';
 import { ApiKeyManager } from '../../../utils/apiKeyManager';
 import { Logger } from '../../../utils';
+import { ConfigManager } from '../../../utils/configManager';
 
 /**
  * SiliconFlow API 响应类型
@@ -70,13 +71,19 @@ export class SiliconflowBalanceQuery implements IBalanceQuery {
             }
 
             // 调用SiliconFlow余额查询API
-            const response = await fetch('https://api.siliconflow.cn/v1/user/info', {
-                method: 'GET',
-                headers: {
-                    Authorization: `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json'
+            const response = await ConfigManager.fetchWithProxy(
+                'https://api.siliconflow.cn/v1/user/info',
+                {
+                    method: 'GET',
+                    headers: {
+                        Authorization: `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    }
+                },
+                {
+                    providerKey: providerId
                 }
-            });
+            );
 
             if (!response.ok) {
                 throw new Error(`API request failed: ${response.status} ${response.statusText}`);

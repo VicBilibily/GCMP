@@ -3,8 +3,7 @@
  * 使用 Kimi Code search API 进行 HTTP 请求
  *--------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
-import * as https from 'https';
-import { Logger } from '../utils';
+import { ConfigManager, Logger } from '../utils';
 import { t } from '../utils/l10n';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { StatusBarManager } from '../status';
@@ -115,87 +114,71 @@ export class KimiSearchTool {
         Logger.info(`🔍 [Kimi Search] Starting search: "${params.query}"`);
         Logger.debug(`📝 [Kimi Search] Request payload: ${requestData}`);
 
-        return new Promise((resolve, reject) => {
-            const req = https.request(this.baseURL, options, res => {
-                let data = '';
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => abortController.abort(), DEFAULT_TIMEOUT_SECONDS * 1000);
 
-                res.on('data', chunk => {
-                    data += chunk;
+        try {
+            const response = await ConfigManager.fetchWithProxy(
+                this.baseURL,
+                {
+                    ...options,
+                    body: requestData,
+                    signal: abortController.signal
+                },
+                { providerKey: 'kimi' }
+            );
+            const data = await response.text();
+
+            Logger.debug(`📊 [Kimi Search] Response status: ${response.status}`);
+
+            if (!response.ok) {
+                let errorMessage = `Kimi search API error ${response.status}`;
+                try {
+                    const errorData = JSON.parse(data);
+                    errorMessage += `: ${errorData.error?.message || JSON.stringify(errorData)}`;
+                } catch {
+                    errorMessage += `: ${data}`;
+                }
+
+                Logger.error('❌ [Kimi Search] API returned an error', new Error(errorMessage));
+                throw new Error(errorMessage);
+            }
+
+            const apiResponse = JSON.parse(data) as KimiApiResponse;
+            const requestId =
+                response.headers.get('x-request-id') ?? response.headers.get('x-msh-request-id') ?? undefined;
+
+            const searchResults: KimiSearchResult[] = [];
+            for (const result of apiResponse.search_results ?? []) {
+                if (!result.url) {
+                    continue;
+                }
+
+                searchResults.push({
+                    title: result.title ?? result.url,
+                    url: result.url,
+                    snippet: result.snippet,
+                    content: result.content,
+                    date: result.date,
+                    siteName: result.site_name
                 });
+            }
 
-                res.on('end', () => {
-                    try {
-                        Logger.debug(`📊 [Kimi Search] Response status: ${res.statusCode}`);
-                        // Logger.debug(`📄 [Kimi Search] Response body: ${data}`);
+            Logger.info(`✅ [Kimi Search] Search completed: found ${searchResults.length} results`);
+            return {
+                searchResults,
+                requestId
+            };
+        } catch (error) {
+            if (abortController.signal.aborted) {
+                throw new Error('Kimi search request timed out');
+            }
 
-                        if (res.statusCode !== 200) {
-                            let errorMessage = `Kimi search API error ${res.statusCode}`;
-                            try {
-                                const errorData = JSON.parse(data);
-                                errorMessage += `: ${errorData.error?.message || JSON.stringify(errorData)}`;
-                            } catch {
-                                errorMessage += `: ${data}`;
-                            }
-
-                            Logger.error('❌ [Kimi Search] API returned an error', new Error(errorMessage));
-                            reject(new Error(errorMessage));
-                            return;
-                        }
-
-                        const apiResponse = JSON.parse(data) as KimiApiResponse;
-                        const requestId =
-                            res.headers['x-request-id']?.toString() ??
-                            res.headers['x-msh-request-id']?.toString() ??
-                            undefined;
-
-                        const searchResults: KimiSearchResult[] = [];
-                        for (const result of apiResponse.search_results ?? []) {
-                            if (!result.url) {
-                                continue;
-                            }
-
-                            searchResults.push({
-                                title: result.title ?? result.url,
-                                url: result.url,
-                                snippet: result.snippet,
-                                content: result.content,
-                                date: result.date,
-                                siteName: result.site_name
-                            });
-                        }
-
-                        Logger.info(`✅ [Kimi Search] Search completed: found ${searchResults.length} results`);
-                        resolve({
-                            searchResults,
-                            requestId
-                        });
-                    } catch (error) {
-                        Logger.error(
-                            '❌ [Kimi Search] Failed to parse response',
-                            error instanceof Error ? error : undefined
-                        );
-                        reject(
-                            new Error(
-                                `Failed to parse Kimi search response: ${error instanceof Error ? error.message : 'Unknown error'}`
-                            )
-                        );
-                    }
-                });
-            });
-
-            req.on('error', error => {
-                Logger.error('❌ [Kimi Search] Request failed', error);
-                reject(new Error(`Kimi search request failed: ${error.message}`));
-            });
-
-            req.setTimeout(DEFAULT_TIMEOUT_SECONDS * 1000, () => {
-                req.destroy();
-                reject(new Error('Kimi search request timed out'));
-            });
-
-            req.write(requestData);
-            req.end();
-        });
+            Logger.error('❌ [Kimi Search] Request failed', error instanceof Error ? error : undefined);
+            throw new Error(`Kimi search request failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        } finally {
+            clearTimeout(timeoutId);
+        }
     }
 
     /**

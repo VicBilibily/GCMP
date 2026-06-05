@@ -195,7 +195,9 @@ export class ZhipuStatusBar extends ProviderStatusBarItem<ZhipuStatusData> {
             };
 
             // 发送请求
-            const response = await fetch(requestUrl, requestOptions);
+            const response = await ConfigManager.fetchWithProxy(requestUrl, requestOptions, {
+                providerKey: 'zhipu'
+            });
             const responseText = await response.text();
 
             StatusLogger.debug(

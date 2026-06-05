@@ -35,6 +35,7 @@ function t(en, zh, ...args) {
  * @property {string} [tooltip] - 描述（可选）
  * @property {string} provider - 提供商标识符
  * @property {string} [baseUrl] - API基础URL（可选）
+ * @property {string} [proxy] - 代理服务器地址（可选）
  * @property {string} [model] - 请求模型ID（可选）
  * @property {'openai'|'openai-sse'|'openai-responses'|'anthropic'|'gemini-sse'} sdkMode - SDK兼容模式
  * @property {number} maxInputTokens - 最大输入Token
@@ -184,6 +185,14 @@ function createDOM() {
         }, t(
             'Base URL used for API requests. It must start with http:// or https://.\r\nFor example: https://api.openai.com/v1 or https://api.anthropic.com',
             'API请求的 baseUrl 地址，必须以 http:// 或 https:// 开头\r\n例如：https://api.openai.com/v1 或 https://api.anthropic.com'
+        )),
+        createFormGroup('proxy', t('Proxy URL', '代理 URL'), 'proxy', 'input', {
+            type: 'text',
+            placeholder: t('e.g. http://127.0.0.1:7890', '例如: http://127.0.0.1:7890'),
+            value: modelData.proxy || ''
+        }, t(
+            'Optional proxy used for API requests and model discovery. Enter an absolute proxy URL when needed.',
+            '可选的代理服务器地址。配置后会同时用于 API 请求和“获取模型”请求，请填写绝对 URL。'
         )),
         createFormGroup('apiKey', t('API Key', 'API 密钥'), 'apiKey', 'input', {
             type: 'password',
@@ -1219,6 +1228,7 @@ function validateForm() {
     const modelName = document.getElementById('modelName').value.trim();
     const provider = document.getElementById('provider').value.trim();
     const baseUrl = document.getElementById('baseUrl').value.trim();
+    const proxyUrl = document.getElementById('proxy').value.trim();
     const maxInputTokens = document.getElementById('maxInputTokens').value.trim();
     const maxOutputTokens = document.getElementById('maxOutputTokens').value.trim();
 
@@ -1269,6 +1279,16 @@ function validateForm() {
         } catch (e) {
             showGlobalError(t('BASE URL is invalid. Enter a valid URL.', 'BASE URL 格式不正确，请输入有效的 URL'));
             document.getElementById('baseUrl').focus();
+            return false;
+        }
+    }
+
+    if (proxyUrl) {
+        try {
+            new URL(proxyUrl);
+        } catch (e) {
+            showGlobalError(t('Proxy URL is invalid. Enter a valid URL.', '代理 URL 格式不正确，请输入有效的 URL'));
+            document.getElementById('proxy').focus();
             return false;
         }
     }
@@ -1340,6 +1360,7 @@ function saveModel() {
     const tooltipText = document.getElementById('modelTooltip').value.trim();
     const requestModelText = document.getElementById('requestModel').value.trim();
     const baseUrlText = document.getElementById('baseUrl').value.trim();
+    const proxyText = document.getElementById('proxy').value.trim();
     const apiKeyText = document.getElementById('apiKey').value.trim();
 
     const sdkMode = document.getElementById('sdkMode').value || 'openai';
@@ -1355,6 +1376,8 @@ function saveModel() {
     model.provider = provider;
     // baseUrl: 使用 null 表示清空
     model.baseUrl = baseUrlText || null;
+    // proxy: 使用 null 表示清空
+    model.proxy = proxyText || null;
     // apiKey: 使用 null 表示清空
     model.apiKey = apiKeyText || null;
     // model: 使用 null 表示清空
@@ -1434,6 +1457,7 @@ function deleteModel() {
  */
 function fetchModelsFromAPI() {
     const baseUrl = document.getElementById('baseUrl').value.trim();
+    const proxy = document.getElementById('proxy').value.trim();
     const apiKey = document.getElementById('apiKey').value.trim();
     const provider = document.getElementById('provider').value.trim();
 
@@ -1458,6 +1482,7 @@ function fetchModelsFromAPI() {
     vscode.postMessage({
         command: 'fetchModels',
         baseUrl: baseUrl,
+        proxy: proxy || null,
         apiKey: apiKey || null,
         provider: provider || null
     });

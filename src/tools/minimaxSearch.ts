@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as https from 'https';
 import { ConfigManager, Logger } from '../utils';
 import { t } from '../utils/l10n';
 import { ApiKeyManager } from '../utils/apiKeyManager';
@@ -63,14 +62,14 @@ export class MiniMaxSearchTool {
             q: params.q
         });
 
-        const options = {
+        const requestOptions: RequestInit = {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${apiKey}`,
-                'Content-Length': Buffer.byteLength(requestData),
                 'User-Agent': VersionManager.getUserAgent('MiniMaxSearch')
-            }
+            },
+            body: requestData
         };
 
         Logger.info(`🔍 [MiniMax Search] Starting search: "${params.q}"`);
@@ -82,59 +81,36 @@ export class MiniMaxSearchTool {
             requestUrl = requestUrl.replace('api.minimax.chat', 'api.minimax.io');
         }
 
-        return new Promise((resolve, reject) => {
-            const req = https.request(requestUrl, options, res => {
-                let data = '';
-
-                res.on('data', chunk => {
-                    data += chunk;
-                });
-
-                res.on('end', () => {
-                    try {
-                        Logger.debug(`📊 [MiniMax Search] Response status: ${res.statusCode}`);
-                        Logger.debug(`📄 [MiniMax Search] Response body: ${data}`);
-
-                        if (res.statusCode !== 200) {
-                            let errorMessage = `MiniMax search API error ${res.statusCode}`;
-                            try {
-                                const errorData = JSON.parse(data);
-                                errorMessage += `: ${errorData.error?.message || JSON.stringify(errorData)}`;
-                            } catch {
-                                errorMessage += `: ${data}`;
-                            }
-                            Logger.error('❌ [MiniMax Search] API returned error', new Error(errorMessage));
-                            reject(new Error(errorMessage));
-                            return;
-                        }
-
-                        const response = JSON.parse(data) as MiniMaxSearchResponse;
-                        Logger.info(
-                            `✅ [MiniMax Search] Search completed: found ${response.organic?.length || 0} results`
-                        );
-                        resolve(response);
-                    } catch (error) {
-                        Logger.error(
-                            '❌ [MiniMax Search] Failed to parse response',
-                            error instanceof Error ? error : undefined
-                        );
-                        reject(
-                            new Error(
-                                `Failed to parse MiniMax search response: ${error instanceof Error ? error.message : 'Unknown error'}`
-                            )
-                        );
-                    }
-                });
+        try {
+            const response = await ConfigManager.fetchWithProxy(requestUrl, requestOptions, {
+                providerKey: 'minimax-token'
             });
+            const data = await response.text();
 
-            req.on('error', error => {
-                Logger.error('❌ [MiniMax Search] Request failed', error);
-                reject(new Error(`MiniMax search request failed: ${error.message}`));
-            });
+            Logger.debug(`📊 [MiniMax Search] Response status: ${response.status}`);
+            Logger.debug(`📄 [MiniMax Search] Response body: ${data}`);
 
-            req.write(requestData);
-            req.end();
-        });
+            if (!response.ok) {
+                let errorMessage = `MiniMax search API error ${response.status}`;
+                try {
+                    const errorData = JSON.parse(data);
+                    errorMessage += `: ${errorData.error?.message || JSON.stringify(errorData)}`;
+                } catch {
+                    errorMessage += `: ${data}`;
+                }
+                Logger.error('❌ [MiniMax Search] API returned error', new Error(errorMessage));
+                throw new Error(errorMessage);
+            }
+
+            const parsed = JSON.parse(data) as MiniMaxSearchResponse;
+            Logger.info(`✅ [MiniMax Search] Search completed: found ${parsed.organic?.length || 0} results`);
+            return parsed;
+        } catch (error) {
+            Logger.error('❌ [MiniMax Search] Request failed', error instanceof Error ? error : undefined);
+            throw new Error(
+                `MiniMax search request failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
     }
 
     /**

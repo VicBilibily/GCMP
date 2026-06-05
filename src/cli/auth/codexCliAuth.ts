@@ -30,6 +30,7 @@ const OPENAI_CODEX_TOKEN_URL = 'https://auth.openai.com/oauth/token';
 export class CodexCliAuth extends BaseCliAuth {
     constructor() {
         const config: CliAuthConfig = {
+            providerKey: 'codex',
             name: 'Codex',
             clientId: OPENAI_CODEX_CLIENT_ID,
             tokenUrl: OPENAI_CODEX_TOKEN_URL,
@@ -147,7 +148,7 @@ export class CodexCliAuth extends BaseCliAuth {
             client_id: this.config.clientId
         });
 
-        const tokenRes = await fetch(this.config.tokenUrl, {
+        const tokenRes = await this.fetchWithProxy(this.config.tokenUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body

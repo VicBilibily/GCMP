@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as https from 'https';
 import { Logger } from '../utils';
 import { t } from '../utils/l10n';
 import { ApiKeyManager } from '../utils/apiKeyManager';
@@ -131,14 +130,14 @@ export class ZhipuSearchTool {
             user_id: params.user_id
         });
 
-        const options = {
+        const requestOptions: RequestInit = {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${apiKey}`,
-                'Content-Length': Buffer.byteLength(requestData),
                 'User-Agent': VersionManager.getUserAgent('ZhipuSearch')
-            }
+            },
+            body: requestData
         };
 
         Logger.info(
@@ -146,59 +145,34 @@ export class ZhipuSearchTool {
         );
         Logger.debug(`📝 [Zhipu Search] Request payload: ${requestData}`);
 
-        return new Promise((resolve, reject) => {
-            const req = https.request(url, options, res => {
-                let data = '';
+        try {
+            const response = await ConfigManager.fetchWithProxy(url, requestOptions, { providerKey: 'zhipu' });
+            const data = await response.text();
 
-                res.on('data', chunk => {
-                    data += chunk;
-                });
+            Logger.debug(`📊 [Zhipu Search] Response status: ${response.status}`);
+            Logger.debug(`📄 [Zhipu Search] Response body: ${data}`);
 
-                res.on('end', () => {
-                    try {
-                        Logger.debug(`📊 [Zhipu Search] Response status: ${res.statusCode}`);
-                        Logger.debug(`📄 [Zhipu Search] Response body: ${data}`);
+            if (!response.ok) {
+                let errorMessage = `Zhipu AI search API error ${response.status}`;
+                try {
+                    const errorData = JSON.parse(data);
+                    errorMessage += `: ${errorData.error?.message || JSON.stringify(errorData)}`;
+                } catch {
+                    errorMessage += `: ${data}`;
+                }
+                Logger.error('❌ [Zhipu Search] API returned an error', new Error(errorMessage));
+                throw new Error(errorMessage);
+            }
 
-                        if (res.statusCode !== 200) {
-                            let errorMessage = `Zhipu AI search API error ${res.statusCode}`;
-                            try {
-                                const errorData = JSON.parse(data);
-                                errorMessage += `: ${errorData.error?.message || JSON.stringify(errorData)}`;
-                            } catch {
-                                errorMessage += `: ${data}`;
-                            }
-                            Logger.error('❌ [Zhipu Search] API returned an error', new Error(errorMessage));
-                            reject(new Error(errorMessage));
-                            return;
-                        }
-
-                        const response = JSON.parse(data) as ZhipuSearchResponse;
-                        Logger.info(
-                            `✅ [Zhipu Search] Search completed: found ${response.search_result?.length || 0} results`
-                        );
-                        resolve(response);
-                    } catch (error) {
-                        Logger.error(
-                            '❌ [Zhipu Search] Failed to parse response',
-                            error instanceof Error ? error : undefined
-                        );
-                        reject(
-                            new Error(
-                                `Failed to parse Zhipu AI search response: ${error instanceof Error ? error.message : 'Unknown error'}`
-                            )
-                        );
-                    }
-                });
-            });
-
-            req.on('error', error => {
-                Logger.error('❌ [Zhipu Search] Request failed', error);
-                reject(new Error(`Zhipu AI search request failed: ${error.message}`));
-            });
-
-            req.write(requestData);
-            req.end();
-        });
+            const parsed = JSON.parse(data) as ZhipuSearchResponse;
+            Logger.info(`✅ [Zhipu Search] Search completed: found ${parsed.search_result?.length || 0} results`);
+            return parsed;
+        } catch (error) {
+            Logger.error('❌ [Zhipu Search] Request failed', error instanceof Error ? error : undefined);
+            throw new Error(
+                `Zhipu AI search request failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
     }
 
     /**

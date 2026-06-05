@@ -150,6 +150,11 @@ export interface ModelConfig {
      * 仅对 sdkMode=anthropic 的模型生效。
      */
     webSearchTool?: boolean;
+    /**
+     * 模型特定的代理服务器地址（可选）
+     * 如果提供，将覆盖提供商级别的代理设置
+     */
+    proxy?: string;
 }
 
 /**
@@ -202,6 +207,8 @@ export interface ModelOverride {
     useInstructions?: boolean;
     /** 是否启用 Anthropic 原生 web_search 工具（仅 sdkMode=anthropic 生效） */
     webSearchTool?: boolean;
+    /** 模型特定的代理服务器地址（可选） */
+    proxy?: string;
 }
 
 /**
@@ -212,6 +219,8 @@ export interface ProviderOverride {
     baseUrl?: string;
     /** 提供商级别的自定义HTTP头部（可选） */
     customHeader?: Record<string, string>;
+    /** 提供商级别的代理服务器地址（可选） */
+    proxy?: string;
     /** 模型覆盖配置列表 */
     models?: ModelOverride[];
 }
@@ -232,6 +241,12 @@ export interface ProviderConfig {
      * 模型级别的 customHeader 会覆盖提供商级别的同名头部
      */
     customHeader?: Record<string, string>;
+    /**
+     * 提供商级别的代理服务器地址（可选）
+     * 如果提供，将作用于该提供商的所有API请求
+     * 模型级别的 proxy 会覆盖提供商级别的 proxy
+     */
+    proxy?: string;
 }
 
 /**

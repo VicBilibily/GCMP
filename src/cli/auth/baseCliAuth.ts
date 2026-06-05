@@ -8,6 +8,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { execSync } from 'child_process';
 import { Logger } from '../../utils/logger';
+import { ConfigManager } from '../../utils/configManager';
 import { CliAuthConfig, OAuthCredentials } from '../type';
 
 /**
@@ -41,7 +42,7 @@ export abstract class BaseCliAuth {
         const credentialPath = this.resolvePath(this.config.credentialPathPattern);
         try {
             if (!fs.existsSync(credentialPath)) {
-                Logger.debug(`[${this.config.name}] Credential file does not exist: ${credentialPath}`);
+                Logger.trace(`[${this.config.name}] Credential file does not exist: ${credentialPath}`);
                 return null;
             }
 
@@ -55,7 +56,7 @@ export abstract class BaseCliAuth {
             // 允许子类在加载凭证后进行额外处理
             const processedCredentials = await this.afterLoadCredentials(credentials);
             Logger.info(`[${this.config.name}] Credentials loaded`);
-            
+
             this.cachedCredentials = {
                 data: processedCredentials,
                 timestamp: stat.mtimeMs
@@ -109,11 +110,48 @@ export abstract class BaseCliAuth {
      */
     async isCliInstalled(): Promise<boolean> {
         try {
-            execSync(`${this.config.cliCommand} --version`, { stdio: 'ignore' });
+            execSync(`${this.config.cliCommand} --version`, {
+                stdio: 'ignore',
+                env: this.getCliProcessEnv()
+            });
             return true;
         } catch {
             return false;
         }
+    }
+
+    /**
+     * 获取当前 CLI provider 对应的代理地址
+     */
+    protected getProxyUrl(): string | undefined {
+        return ConfigManager.resolveProxyForModel(undefined, this.config.providerKey);
+    }
+
+    /**
+     * 通过当前 provider 对应的代理配置发送请求
+     */
+    protected fetchWithProxy(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+        return ConfigManager.fetchWithProxy(input, init, { proxyUrl: this.getProxyUrl() });
+    }
+
+    /**
+     * 获取 CLI 子进程环境变量（注入代理设置）
+     */
+    getCliProcessEnv(): NodeJS.ProcessEnv {
+        const proxyUrl = this.getProxyUrl();
+        if (!proxyUrl) {
+            return { ...process.env };
+        }
+
+        return {
+            ...process.env,
+            HTTP_PROXY: proxyUrl,
+            HTTPS_PROXY: proxyUrl,
+            http_proxy: proxyUrl,
+            https_proxy: proxyUrl,
+            ALL_PROXY: proxyUrl,
+            all_proxy: proxyUrl
+        };
     }
 
     /**

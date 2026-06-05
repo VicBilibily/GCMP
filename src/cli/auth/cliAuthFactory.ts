@@ -89,6 +89,14 @@ export class CliAuthFactory {
     }
 
     /**
+     * 获取 CLI 进程环境变量（包含 provider 级代理）
+     */
+    static getProcessEnv(cliType: string): NodeJS.ProcessEnv {
+        const instance = this.getInstance(cliType);
+        return instance ? instance.getCliProcessEnv() : { ...process.env };
+    }
+
+    /**
      * 获取支持的 CLI 类型列表
      */
     static getSupportedCliTypes(): Array<{ id: string; name: string }> {

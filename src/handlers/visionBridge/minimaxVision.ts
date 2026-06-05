@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as https from 'https';
 import { ConfigManager } from '../../utils';
 import { ApiKeyManager } from '../../utils/apiKeyManager';
 import { t } from '../../utils/l10n';
@@ -61,96 +60,73 @@ export class MiniMaxVisionTool {
 
         const requestUrl = `${this.getBaseURL()}/v1/coding_plan/vlm`;
 
-        const options = {
+        const abortController = new AbortController();
+        const onAbort = () => abortController.abort();
+        const timeoutId = setTimeout(() => abortController.abort(), 60000);
+
+        const requestOptions: RequestInit = {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${apiKey}`,
-                'Content-Length': Buffer.byteLength(requestData),
                 'User-Agent': VersionManager.getUserAgent('MiniMaxVision')
-            }
+            },
+            body: requestData,
+            signal: abortController.signal
         };
 
-        return new Promise((resolve, reject) => {
-            const req = https.request(requestUrl, options, res => {
-                let data = '';
+        if (abortSignal) {
+            if (abortSignal.aborted) {
+                abortController.abort();
+            } else {
+                abortSignal.addEventListener('abort', onAbort, { once: true });
+            }
+        }
 
-                res.on('data', chunk => {
-                    data += chunk;
-                });
-
-                res.on('end', () => {
-                    try {
-                        if (res.statusCode !== 200) {
-                            let errorMessage = t(
-                                'MiniMax image understanding API error {0}',
-                                'MiniMax图片理解API错误 {0}',
-                                res.statusCode
-                            );
-                            try {
-                                const errorData = JSON.parse(data);
-                                errorMessage += `: ${errorData.error?.message || JSON.stringify(errorData)}`;
-                            } catch {
-                                errorMessage += `: ${data}`;
-                            }
-                            reject(new Error(errorMessage));
-                            return;
-                        }
-
-                        const response = JSON.parse(data) as MiniMaxVisionResponse;
-                        resolve(response);
-                    } catch (error) {
-                        reject(
-                            new Error(
-                                t(
-                                    'Failed to parse MiniMax image understanding response: {0}',
-                                    '解析MiniMax图片理解响应失败: {0}',
-                                    error instanceof Error ? error.message : t('Unknown error', '未知错误')
-                                )
-                            )
-                        );
-                    }
-                });
+        try {
+            const response = await ConfigManager.fetchWithProxy(requestUrl, requestOptions, {
+                providerKey: 'minimax-token'
             });
+            const data = await response.text();
 
-            req.on('error', error => {
-                if (abortSignal?.aborted) {
-                    reject(
-                        new Error(t('Image understanding request was cancelled by the user', '用户取消了图片理解请求'))
-                    );
-                    return;
+            if (!response.ok) {
+                let errorMessage = t(
+                    'MiniMax image understanding API error {0}',
+                    'MiniMax图片理解API错误 {0}',
+                    response.status
+                );
+                try {
+                    const errorData = JSON.parse(data);
+                    errorMessage += `: ${errorData.error?.message || JSON.stringify(errorData)}`;
+                } catch {
+                    errorMessage += `: ${data}`;
                 }
-                reject(
-                    new Error(
-                        t(
-                            'MiniMax image understanding request failed: {0}',
-                            'MiniMax图片理解请求失败: {0}',
-                            error.message
-                        )
-                    )
-                );
-            });
-
-            // 请求超时：60 秒
-            req.setTimeout(60000, () => {
-                req.destroy();
-                reject(
-                    new Error(
-                        t('MiniMax image understanding request timed out (60s)', 'MiniMax图片理解请求超时（60秒）')
-                    )
-                );
-            });
-
-            // 取消信号监听
-            if (abortSignal) {
-                abortSignal.addEventListener('abort', () => {
-                    req.destroy();
-                });
+                throw new Error(errorMessage);
             }
 
-            req.write(requestData);
-            req.end();
-        });
+            return JSON.parse(data) as MiniMaxVisionResponse;
+        } catch (error) {
+            if (abortSignal?.aborted) {
+                throw new Error(t('Image understanding request was cancelled by the user', '用户取消了图片理解请求'));
+            }
+            if (abortController.signal.aborted) {
+                throw new Error(
+                    t('MiniMax image understanding request timed out (60s)', 'MiniMax图片理解请求超时（60秒）')
+                );
+            }
+            throw new Error(
+                t(
+                    'MiniMax image understanding request failed: {0}',
+                    'MiniMax图片理解请求失败: {0}',
+                    error instanceof Error ? error.message : t('Unknown error', '未知错误')
+                )
+            );
+        } finally {
+            clearTimeout(timeoutId);
+            if (abortSignal) {
+                abortSignal.removeEventListener('abort', onAbort);
+            }
+        }
     }
 
     /**

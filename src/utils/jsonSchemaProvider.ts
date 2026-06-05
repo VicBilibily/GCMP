@@ -615,6 +615,14 @@ export class JsonSchemaProvider {
                                     description: this.getHttpHeaderValueDescription()
                                 }
                             },
+                            proxy: {
+                                type: 'string',
+                                description: t(
+                                    'Proxy server URL for API requests (optional). Credentials in the URL will be masked in logs.',
+                                    'API 请求的代理服务器地址（可选）。URL 中的凭据将在日志中被脱敏。'
+                                ),
+                                format: 'uri'
+                            },
                             extraBody: {
                                 type: 'object',
                                 description: this.getExtraBodyDescription(),
@@ -950,6 +958,14 @@ export class JsonSchemaProvider {
                         description: this.getHttpHeaderValueDescription()
                     }
                 },
+                proxy: {
+                    type: 'string',
+                    description: t(
+                        'Override the provider-level proxy server URL for API requests (optional). Credentials in the URL will be masked in logs.',
+                        '覆盖提供商级别的代理服务器地址（可选）。URL 中的凭据将在日志中被脱敏。'
+                    ),
+                    format: 'uri'
+                },
                 models: {
                     type: 'array',
                     description: t('Model override configuration list', '模型覆盖配置列表'),
@@ -1033,6 +1049,14 @@ export class JsonSchemaProvider {
                                     type: 'string',
                                     description: this.getHttpHeaderValueDescription()
                                 }
+                            },
+                            proxy: {
+                                type: 'string',
+                                description: t(
+                                    'Override the model-level proxy server URL for API requests (optional). Credentials in the URL will be masked in logs.',
+                                    '覆盖模型级别的代理服务器地址（可选）。URL 中的凭据将在日志中被脱敏。'
+                                ),
+                                format: 'uri'
                             },
                             extraBody: {
                                 type: 'object',

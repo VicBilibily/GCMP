@@ -144,7 +144,7 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
 
         // 根据已配置的 API Key 过滤模型
         const filteredModels = await this.filterModelsByAvailableKeys(this.providerConfig.models);
-        Logger.debug(
+        Logger.trace(
             `${this.providerConfig.displayName}: ${filteredModels.length}/${this.providerConfig.models.length} models available after key filtering`
         );
         return filteredModels.map(model => this.modelConfigToInfo(model));

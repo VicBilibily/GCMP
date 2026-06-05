@@ -6,6 +6,7 @@ import { IBalanceQuery, BalanceQueryResult } from '../balanceQuery';
 import { StatusLogger } from '../../../utils/statusLogger';
 import { ApiKeyManager } from '../../../utils/apiKeyManager';
 import { Logger } from '../../../utils';
+import { ConfigManager } from '../../../utils/configManager';
 
 /**
  * OpenRouter API 响应类型
@@ -41,13 +42,19 @@ export class OpenrouterBalanceQuery implements IBalanceQuery {
             }
 
             // 调用OpenRouter余额查询API
-            const response = await fetch('https://openrouter.ai/api/v1/credits', {
-                method: 'GET',
-                headers: {
-                    Authorization: `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json'
+            const response = await ConfigManager.fetchWithProxy(
+                'https://openrouter.ai/api/v1/credits',
+                {
+                    method: 'GET',
+                    headers: {
+                        Authorization: `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    }
+                },
+                {
+                    providerKey: providerId
                 }
-            });
+            );
 
             if (!response.ok) {
                 throw new Error(`API request failed: ${response.status} ${response.statusText}`);

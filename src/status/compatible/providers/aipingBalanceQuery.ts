@@ -6,6 +6,7 @@ import { IBalanceQuery, BalanceQueryResult } from '../balanceQuery';
 import { StatusLogger } from '../../../utils/statusLogger';
 import { ApiKeyManager } from '../../../utils/apiKeyManager';
 import { Logger } from '../../../utils';
+import { ConfigManager } from '../../../utils/configManager';
 
 /**
  * AIPing API 响应类型
@@ -52,13 +53,19 @@ export class AiPingBalanceQuery implements IBalanceQuery {
             }
 
             // 调用AIPing余额查询API
-            const response = await fetch('https://aiping.cn/api/v1/user/remain/points', {
-                method: 'GET',
-                headers: {
-                    Authorization: `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json'
+            const response = await ConfigManager.fetchWithProxy(
+                'https://aiping.cn/api/v1/user/remain/points',
+                {
+                    method: 'GET',
+                    headers: {
+                        Authorization: `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    }
+                },
+                {
+                    providerKey: providerId
                 }
-            });
+            );
 
             if (!response.ok) {
                 throw new Error(`API request failed: ${response.status} ${response.statusText}`);

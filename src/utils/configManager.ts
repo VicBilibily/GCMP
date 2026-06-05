@@ -9,6 +9,7 @@ import { ConfigProvider, UserConfigOverrides, ProviderConfig, ModelConfig, Model
 import { configProviders } from '../providers/config';
 import { CommitFormat, CommitLanguage, CommitModelSelection } from '../commit/types';
 import { t } from './l10n';
+import { createProxiedFetch, redactProxyUrl, redactHeaders, sanitizeConfigForLogging } from './proxyAgent';
 
 /**
  * 智谱AI搜索配置
@@ -101,8 +102,16 @@ export interface GCMPConfig {
     nesCompletion: NESCompletionConfig;
     /** Commit 模块配置 */
     commit: CommitConfig;
+    /** 全局代理服务器地址 */
+    proxy?: string;
     /** 提供商配置覆盖 */
     providerOverrides: UserConfigOverrides;
+}
+
+interface ProxyFetchOptions {
+    modelConfig?: Pick<ModelConfig, 'proxy' | 'provider'>;
+    providerKey?: string;
+    proxyUrl?: string;
 }
 
 /**
@@ -205,10 +214,11 @@ export class ConfigManager {
                     .filter(Boolean),
                 model: config.get<CommitModelSelection>('commit.model')
             },
+            proxy: config.get<string>('proxy') || undefined,
             providerOverrides: config.get<UserConfigOverrides>('providerOverrides', {})
         };
 
-        Logger.debug('Config loaded', this.cache);
+        Logger.debug('Config loaded', sanitizeConfigForLogging(this.cache));
         return this.cache;
     }
 
@@ -471,12 +481,18 @@ export class ConfigManager {
             if (modelOverride.customHeader) {
                 target.customHeader = { ...target.customHeader, ...modelOverride.customHeader };
                 Logger.debug(
-                    `  Model ${modelOverride.id}: merge customHeader = ${JSON.stringify(target.customHeader)}`
+                    `  Model ${modelOverride.id}: merge customHeader = ${JSON.stringify(redactHeaders(target.customHeader))}`
                 );
             }
             if (modelOverride.extraBody) {
                 target.extraBody = { ...target.extraBody, ...modelOverride.extraBody };
                 Logger.debug(`  Model ${modelOverride.id}: merge extraBody = ${JSON.stringify(target.extraBody)}`);
+            }
+            if (modelOverride.proxy !== undefined) {
+                target.proxy = modelOverride.proxy;
+                Logger.debug(
+                    `  Model ${modelOverride.id}: override proxy = ${redactProxyUrl(modelOverride.proxy) || '(cleared)'}`
+                );
             }
         };
 
@@ -485,9 +501,13 @@ export class ConfigManager {
             config.baseUrl = override.baseUrl;
             Logger.debug(`  Override baseUrl: ${override.baseUrl}`);
         }
+        if (override.proxy !== undefined) {
+            config.proxy = override.proxy;
+            Logger.debug(`  Override proxy: ${redactProxyUrl(override.proxy) || '(cleared)'}`);
+        }
         if (override.customHeader) {
             config.customHeader = { ...config.customHeader, ...override.customHeader };
-            Logger.debug(`  Override provider customHeader = ${JSON.stringify(config.customHeader)}`);
+            Logger.debug(`  Override provider customHeader = ${JSON.stringify(redactHeaders(config.customHeader))}`);
         }
 
         // 应用模型级别的覆盖
@@ -519,6 +539,16 @@ export class ConfigManager {
             }
         }
 
+        // 将提供商级别的 proxy 合并到所有模型中（模型级别 proxy 优先）
+        if (override.proxy !== undefined) {
+            for (const model of config.models) {
+                if (model.proxy === undefined) {
+                    model.proxy = override.proxy;
+                }
+            }
+            Logger.debug(`  Provider ${providerKey}: merged provider-level proxy into all models`);
+        }
+
         // 将提供商级别的 customHeader 合并到所有模型中（模型级别 customHeader 优先）
         if (override.customHeader) {
             for (const model of config.models) {
@@ -534,6 +564,106 @@ export class ConfigManager {
         }
 
         return config;
+    }
+
+    /**
+     * 获取全局代理设置
+     */
+    static getProxy(): string | undefined {
+        return this.getConfig().proxy;
+    }
+
+    /**
+     * 解析模型请求应使用的代理地址
+     * 优先级：model.proxy > providerOverrides.{provider}.proxy > provider config.proxy > gcmp.proxy > VS Code http.proxy > 环境变量
+     */
+    static resolveProxyForModel(
+        modelConfig?: Pick<ModelConfig, 'proxy' | 'provider'>,
+        providerKey?: string
+    ): string | undefined {
+        // 1. 模型级别
+        if (modelConfig?.proxy !== undefined) {
+            if (modelConfig.proxy) {
+                Logger.debug(`[Proxy] Using model-level proxy: ${redactProxyUrl(modelConfig.proxy)}`);
+            }
+            return modelConfig.proxy || undefined;
+        }
+
+        // 2. providerOverrides 级别
+        // 兼容模型（providerKey === 'compatible'）时，优先使用 modelConfig.provider 指定的 provider
+        const effectiveProviderKey = providerKey === 'compatible' ? modelConfig?.provider : providerKey;
+
+        if (effectiveProviderKey) {
+            const overrides = this.getProviderOverrides();
+            const providerOverride = overrides[effectiveProviderKey];
+            if (providerOverride?.proxy !== undefined) {
+                if (providerOverride.proxy) {
+                    Logger.debug(`[Proxy] Using provider-level proxy: ${redactProxyUrl(providerOverride.proxy)}`);
+                }
+                return providerOverride.proxy || undefined;
+            }
+
+            // 3. providerConfig 级别
+            const originalProviderConfig =
+                effectiveProviderKey in configProviders ?
+                    configProviders[effectiveProviderKey as keyof typeof configProviders]
+                :   undefined;
+            if (originalProviderConfig?.proxy) {
+                Logger.debug(`[Proxy] Using provider config proxy: ${redactProxyUrl(originalProviderConfig.proxy)}`);
+                return originalProviderConfig.proxy;
+            }
+        }
+
+        // 4. 全局设置
+        const globalProxy = this.getProxy();
+        if (globalProxy) {
+            Logger.debug(`[Proxy] Using global proxy: ${redactProxyUrl(globalProxy)}`);
+            return globalProxy;
+        }
+
+        // 5. VS Code 代理设置
+        // proxySupport 可选值：'off'（禁用）| 'on'（强制）| 'override'（默认，仅对 VS Code 托管的请求生效）
+        // 对扩展自身发起的 fetch，'override' 和 'on' 均应启用代理
+        const httpConfig = vscode.workspace.getConfiguration('http');
+        const proxySupport = httpConfig.get<string>('proxySupport');
+        const vscodeProxy = httpConfig.get<string>('proxy');
+        if (proxySupport !== 'off' && vscodeProxy) {
+            Logger.debug(`[Proxy] Using VS Code proxy: ${redactProxyUrl(vscodeProxy)}`);
+            return vscodeProxy;
+        }
+
+        // 6. 环境变量 fallback
+        const envProxy =
+            process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+        if (envProxy) {
+            Logger.debug(`[Proxy] Using environment proxy: ${redactProxyUrl(envProxy)}`);
+            return envProxy;
+        }
+
+        return undefined;
+    }
+
+    /**
+     * 创建已按模型/提供商配置解析代理的 fetch 实现
+     */
+    static createProxyAwareFetch(options: ProxyFetchOptions = {}): typeof fetch {
+        const hasExplicitProxyUrl = Object.prototype.hasOwnProperty.call(options, 'proxyUrl');
+        const proxyUrl =
+            hasExplicitProxyUrl ?
+                options.proxyUrl
+            :   this.resolveProxyForModel(options.modelConfig, options.providerKey);
+        return createProxiedFetch(proxyUrl);
+    }
+
+    /**
+     * 使用已解析代理的 fetch 发起请求
+     */
+    static fetchWithProxy(
+        input: string | URL | Request,
+        init?: RequestInit,
+        options: ProxyFetchOptions = {}
+    ): Promise<Response> {
+        return this.createProxyAwareFetch(options)(input, init);
     }
 
     /**

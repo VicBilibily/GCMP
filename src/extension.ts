@@ -13,6 +13,7 @@ import { CompatibleProvider } from './providers/compatibleProvider';
 import { InlineCompletionShim } from './copilot/inlineCompletionShim';
 import { Logger, StatusLogger, CompletionLogger, TokenCounter } from './utils';
 import { ApiKeyManager, ConfigManager, JsonSchemaProvider } from './utils';
+import { closeProxyAgents } from './utils/proxyAgent';
 import { registerCliAuthCommands } from './cli/cliAuthCommands';
 import { TokenUsagesManager } from './usages/usagesManager';
 import { TokenUsagesView } from './ui/usagesView';
@@ -331,7 +332,7 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() {
+export async function deactivate() {
     try {
         Logger.info('Starting GCMP extension deactivation...');
 
@@ -380,6 +381,10 @@ export function deactivate() {
         Logger.trace('Compatible model manager disposed');
 
         ConfigManager.dispose(); // 清理配置管理器
+
+        // 关闭所有 ProxyAgent 连接池和 fetch 缓存
+        await closeProxyAgents();
+        Logger.trace('Proxy agents disposed');
 
         // 清理 Token 用量管理器
         TokenUsagesManager.instance.dispose().catch(error => {

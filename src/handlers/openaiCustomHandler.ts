@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
 import { Logger } from '../utils';
+import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelConfig, ProviderConfig } from '../types/sharedTypes';
@@ -122,16 +123,20 @@ export class OpenAICustomHandler {
             // 处理合并后的 customHeader 中的 API 密钥替换
             const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, apiKey);
 
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${apiKey}`,
-                    ...processedCustomHeader
+            const response = await ConfigManager.fetchWithProxy(
+                url,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${apiKey}`,
+                        ...processedCustomHeader
+                    },
+                    body: JSON.stringify(requestBody),
+                    signal: abortController.signal
                 },
-                body: JSON.stringify(requestBody),
-                signal: abortController.signal
-            });
+                { modelConfig, providerKey: this.provider }
+            );
 
             if (!response.ok) {
                 const errorText = await response.text();
@@ -176,7 +181,13 @@ export class OpenAICustomHandler {
                 sessionId
             });
 
-            await this.processStream(model, response.body, reporter, requestId || '', token);
+            await this.processStream(
+                model,
+                response.body as ReadableStream<Uint8Array>,
+                reporter,
+                requestId || '',
+                token
+            );
 
             Logger.debug(`[${model.name}] API request completed`);
         } catch (error) {

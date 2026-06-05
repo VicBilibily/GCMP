@@ -145,7 +145,9 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
                 requestUrl = requestUrl.replace('.minimaxi.com', '.minimax.io');
             }
 
-            const response = await fetch(requestUrl, requestOptions);
+            const response = await ConfigManager.fetchWithProxy(requestUrl, requestOptions, {
+                providerKey: 'minimax'
+            });
             const responseText = await response.text();
 
             StatusLogger.debug(

@@ -10,6 +10,7 @@ import { apiMessageToAnthropicMessage, convertToAnthropicTools } from './anthrop
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { Logger } from '../utils/logger';
 import { ConfigManager } from '../utils/configManager';
+import { redactHeaders } from '../utils';
 import { VersionManager } from '../utils/versionManager';
 import { createOpenCodeHeaders } from '../utils/formatUtils';
 import { TokenUsagesManager } from '../usages/usagesManager';
@@ -157,14 +158,18 @@ export class AnthropicHandler {
         const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, currentApiKey);
         if (Object.keys(processedCustomHeader).length > 0) {
             Object.assign(defaultHeaders, processedCustomHeader);
-            Logger.debug(`${this.displayName} applying custom headers: ${JSON.stringify(mergedCustomHeader)}`);
+            Logger.debug(
+                `${this.displayName} applying custom headers: ${JSON.stringify(redactHeaders(mergedCustomHeader))}`
+            );
         }
 
+        const proxyUrl = ConfigManager.resolveProxyForModel(modelConfig, this.provider);
         const client = new Anthropic({
             apiKey: currentApiKey,
             baseURL: baseUrl,
             authToken: currentApiKey, // 解决 Minimax 报错： Please carry the API secret key in the 'Authorization' field of the request header
-            defaultHeaders: defaultHeaders
+            defaultHeaders: defaultHeaders,
+            fetch: ConfigManager.createProxyAwareFetch({ proxyUrl }) as typeof fetch
         });
 
         Logger.trace(`${this.displayName} Anthropic-compatible client created`);

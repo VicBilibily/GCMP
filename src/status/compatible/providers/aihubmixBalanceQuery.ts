@@ -6,6 +6,7 @@ import { IBalanceQuery, BalanceQueryResult } from '../balanceQuery';
 import { StatusLogger } from '../../../utils/statusLogger';
 import { ApiKeyManager } from '../../../utils/apiKeyManager';
 import { Logger, KnownProviders } from '../../../utils';
+import { ConfigManager } from '../../../utils/configManager';
 
 /**
  * AIHubMix API 响应类型
@@ -50,14 +51,20 @@ export class AiHubMixBalanceQuery implements IBalanceQuery {
             }
 
             // 调用 AIHubMix 余额查询 API
-            const response = await fetch('https://aihubmix.com/dashboard/billing/remain', {
-                method: 'GET',
-                headers: {
-                    Authorization: `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json',
-                    ...(KnownProviders['aihubmix']?.customHeader || {})
+            const response = await ConfigManager.fetchWithProxy(
+                'https://aihubmix.com/dashboard/billing/remain',
+                {
+                    method: 'GET',
+                    headers: {
+                        Authorization: `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
+                        ...(KnownProviders['aihubmix']?.customHeader || {})
+                    }
+                },
+                {
+                    providerKey: providerId
                 }
-            });
+            );
 
             if (!response.ok) {
                 // 尝试解析错误响应

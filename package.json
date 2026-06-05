@@ -304,6 +304,19 @@
         "configuration": {
             "title": "GCMP - AI Chat Models",
             "properties": {
+                "gcmp.proxy": {
+                    "type": "string",
+                    "default": "",
+                    "description": "%setting.proxy.description%",
+                    "format": "uri",
+                    "scope": "application"
+                },
+                "gcmp.tls.useSystemCertificates": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "%setting.tls.useSystemCertificates.description%",
+                    "scope": "application"
+                },
                 "gcmp.maxTokens": {
                     "type": "number",
                     "default": 32000,

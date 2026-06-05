@@ -12,6 +12,7 @@ import { VersionManager } from '../utils/versionManager';
 import modelEditorCss from './modelEditor.css?raw';
 import modelEditorJs from './modelEditor.js?raw';
 import OpenAI from 'openai';
+import { ConfigManager } from '../utils/configManager';
 import { t } from '../utils/l10n';
 
 interface EditedModelConfig extends CompatibleModelConfig {
@@ -74,7 +75,8 @@ export class ModelEditor {
                                     panel.webview,
                                     message.baseUrl,
                                     message.apiKey,
-                                    message.provider
+                                    message.provider,
+                                    message.proxy
                                 );
                                 break;
                             case 'save':
@@ -156,6 +158,7 @@ export class ModelEditor {
             sdkMode: model?.sdkMode || 'openai',
             tooltip: model?.tooltip || '',
             baseUrl: model?.baseUrl || '',
+            proxy: model?.proxy || '',
             model: model?.model || '',
             maxInputTokens: model?.maxInputTokens || 128000,
             maxOutputTokens: model?.maxOutputTokens || 4096,
@@ -259,7 +262,8 @@ export class ModelEditor {
         webview: vscode.Webview,
         baseUrl: string,
         apiKey?: string,
-        provider?: string
+        provider?: string,
+        proxy?: string
     ) {
         try {
             // 验证 URL
@@ -310,10 +314,15 @@ export class ModelEditor {
             }
 
             // 发起请求
-            const response = await fetch(modelsUrl, {
-                method: 'GET',
-                headers: headers
-            });
+            const proxyOptions = proxy ? { proxyUrl: proxy } : { providerKey: provider };
+            const response = await ConfigManager.fetchWithProxy(
+                modelsUrl,
+                {
+                    method: 'GET',
+                    headers: headers
+                },
+                proxyOptions
+            );
 
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);

@@ -30,3 +30,11 @@ export { PromptAnalyzer } from './promptAnalyzer';
 export { sanitizeToolSchema, sanitizeToolSchemaForSdkMode, sanitizeToolSchemaForTarget } from './schemaSanitizer';
 export type { ToolSchemaTarget } from './schemaSanitizer';
 export { formatOpenCodeId as formatOpencodeId, createOpenCodeHeaders } from './formatUtils';
+export {
+    getProxyAgent,
+    createProxiedFetch,
+    closeProxyAgents,
+    redactProxyUrl,
+    redactHeaders,
+    sanitizeConfigForLogging
+} from './proxyAgent';

@@ -34,6 +34,7 @@ const oauthConfig: OauthConfig = (() => {
 export class GeminiCliAuth extends BaseCliAuth {
     constructor() {
         const config: CliAuthConfig = {
+            providerKey: 'gemini',
             name: 'Gemini CLI',
             // clientId 优先取内置 OAuth 配置；仍允许凭证文件中的 client_id 覆盖
             clientId: oauthConfig.oauthClientId,
@@ -105,7 +106,7 @@ export class GeminiCliAuth extends BaseCliAuth {
             client_secret: clientSecret
         });
 
-        const tokenRes = await fetch(this.config.tokenUrl, {
+        const tokenRes = await this.fetchWithProxy(this.config.tokenUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body

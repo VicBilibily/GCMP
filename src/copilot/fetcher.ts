@@ -17,7 +17,7 @@ import { IFetcher } from '@vscode/chat-lib/dist/src/_internal/platform/networkin
 import { StatusBarManager } from '../status';
 import { configProviders } from '../providers/config';
 import { getCompletionLogger, getApiKeyManager, getConfigManager } from './singletons';
-import { fetch, ProxyAgent } from 'undici';
+import { closeProxyAgents } from '../utils/proxyAgent';
 
 // ============================================================================
 // Fetcher - 实现 IFetcher 接口
@@ -28,26 +28,6 @@ import { fetch, ProxyAgent } from 'undici';
  * 自定义 Fetcher 实现
  */
 export class Fetcher implements IFetcher {
-    /** 按代理地址缓存 ProxyAgent，避免重复创建连接池 */
-    private static proxyAgents = new Map<string, ProxyAgent>();
-
-    /**
-     * 脱敏代理 URL，仅保留协议+主机+端口，移除用户凭据
-     */
-    private static redactProxyUrl(raw: string): string {
-        try {
-            const u = new URL(raw);
-            if (u.username || u.password) {
-                u.password = '';
-                u.username = '';
-                return u.toString();
-            }
-            return raw;
-        } catch {
-            return raw;
-        }
-    }
-
     getUserAgentLibrary(): string {
         return 'Fetcher';
     }
@@ -175,7 +155,6 @@ export class Fetcher implements IFetcher {
                 headers: Record<string, string>;
                 body: string;
                 signal: AbortSignal | undefined;
-                dispatcher?: ProxyAgent;
             } = {
                 method: 'POST',
                 headers: requestHeaders,
@@ -187,20 +166,11 @@ export class Fetcher implements IFetcher {
                 signal: options.signal as AbortSignal | undefined
             };
 
-            if (modelConfig.proxy) {
-                const redactedProxy = Fetcher.redactProxyUrl(modelConfig.proxy);
-                let agent = Fetcher.proxyAgents.get(modelConfig.proxy);
-                if (!agent) {
-                    agent = new ProxyAgent(modelConfig.proxy);
-                    Fetcher.proxyAgents.set(modelConfig.proxy, agent);
-                    logger.info(`[Fetcher] Created ProxyAgent for ${redactedProxy}`);
-                }
-                fetchOptions.dispatcher = agent;
-                logger.debug(`[Fetcher] Using proxy for request: ${redactedProxy}`);
-            }
-
             logger.info(`[Fetcher] Sending request: ${url}`);
-            const response = await fetch(url, fetchOptions);
+            const response = await ConfigManager.fetchWithProxy(url, fetchOptions, {
+                modelConfig,
+                providerKey: modelConfig.provider
+            });
             logger.debug(`[Fetcher] Received response - status: ${response.status} ${response.statusText}`);
 
             // 从 fetch response 获取 Web ReadableStream
@@ -338,21 +308,7 @@ export class Fetcher implements IFetcher {
     }
 
     async disconnectAll(): Promise<unknown> {
-        // 关闭所有缓存的 ProxyAgent，释放底层连接池
-        const promises: Promise<unknown>[] = [];
-        for (const [url, agent] of Fetcher.proxyAgents) {
-            Fetcher.proxyAgents.delete(url);
-            promises.push(
-                agent.close().catch(() => {
-                    /* 忽略关闭异常 */
-                })
-            );
-        }
-        if (promises.length) {
-            const logger = getCompletionLogger();
-            logger.info(`[Fetcher] Closed ${promises.length} ProxyAgent(s)`);
-        }
-        await Promise.all(promises);
+        await closeProxyAgents();
         return Promise.resolve();
     }
 

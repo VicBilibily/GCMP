@@ -16,6 +16,7 @@ import { t } from '../utils/l10n';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import type { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import type { GenericUsageData, RawUsageData } from '../usages/fileLogger/types';
+import type { RequestInit as UndiciRequestInit } from 'undici';
 import { convertMessagesToGemini, convertToolsToGemini } from './geminiConverter';
 import { StreamReporter } from './streamReporter';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
@@ -363,7 +364,8 @@ export class GeminiHandler {
     private async callLoadCodeAssist(
         baseUrl: string,
         accessToken: string,
-        modelId: string
+        modelId: string,
+        proxyUrl?: string
     ): Promise<string | undefined> {
         const cacheKey = `${baseUrl}::${accessToken.slice(-12)}`;
         const cached = this.codeAssistProjectCache.get(cacheKey);
@@ -379,15 +381,19 @@ export class GeminiHandler {
                     pluginType: 'GEMINI'
                 }
             };
-            const res = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${accessToken}`,
-                    'User-Agent': this.buildCodeAssistUserAgent(modelId)
+            const res = await ConfigManager.fetchWithProxy(
+                endpoint,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${accessToken}`,
+                        'User-Agent': this.buildCodeAssistUserAgent(modelId)
+                    },
+                    body: JSON.stringify(body)
                 },
-                body: JSON.stringify(body)
-            });
+                { proxyUrl }
+            );
             const text = await res.text();
             if (!res.ok) {
                 Logger.warn(`[Gemini] loadCodeAssist failed (${res.status}): ${text.slice(0, 200)}`);
@@ -421,13 +427,14 @@ export class GeminiHandler {
         modelConfig: ModelConfig,
         accessToken: string,
         modelId: string,
-        baseUrl: string
+        baseUrl: string,
+        proxyUrl?: string
     ): Promise<string | undefined> {
         const staticProject = await this.discoverProjectId(modelConfig);
         if (staticProject) {
             return staticProject;
         }
-        return this.callLoadCodeAssist(baseUrl, accessToken, modelId);
+        return this.callLoadCodeAssist(baseUrl, accessToken, modelId, proxyUrl);
     }
 
     /**
@@ -525,6 +532,9 @@ export class GeminiHandler {
 
         const modelId = modelConfig.model || modelConfig.id;
 
+        // 解析代理设置
+        const proxyUrl = ConfigManager.resolveProxyForModel(modelConfig, this.provider);
+
         // 覆盖 User-Agent 使用动态版本（而不是 customHeader 中可能的硬编码值）
         const dynamicUserAgent = this.buildCodeAssistUserAgent(modelId);
         const headersWithDynamicUA = { ...processedHeaders, 'User-Agent': dynamicUserAgent };
@@ -564,7 +574,13 @@ export class GeminiHandler {
         // 保持 Gemini v1beta 为直接请求体。
         let requestBody: unknown = baseRequest;
         if (this.isCodeAssistBaseUrl(normalizedBaseUrl)) {
-            const projectId = await this.discoverCodeAssistProjectId(modelConfig, apiKey, modelId, normalizedBaseUrl);
+            const projectId = await this.discoverCodeAssistProjectId(
+                modelConfig,
+                apiKey,
+                modelId,
+                normalizedBaseUrl,
+                proxyUrl
+            );
             const userPromptId = crypto.randomUUID();
             requestBody = {
                 model: modelId,
@@ -599,16 +615,20 @@ export class GeminiHandler {
             });
 
             // 用途：执行 fetch 请求
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${apiKey}`,
-                    ...headersWithDynamicUA
-                },
-                body: JSON.stringify(requestBody),
-                signal: abortController.signal
-            });
+            const response = await ConfigManager.fetchWithProxy(
+                endpoint,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${apiKey}`,
+                        ...headersWithDynamicUA
+                    },
+                    body: JSON.stringify(requestBody),
+                    signal: abortController.signal
+                } satisfies UndiciRequestInit,
+                { proxyUrl }
+            );
 
             // 用途：非 2xx 直接提取可读错误信息并抛出。
             if (!response.ok) {
@@ -623,7 +643,7 @@ export class GeminiHandler {
             }
 
             // 用途：处理流式响应
-            await this.processStream(response.body, reporter, requestId || '', token);
+            await this.processStream(response.body as ReadableStream<Uint8Array>, reporter, requestId || '', token);
 
             Logger.debug(`✅ ${model.name} ${this.displayName} Gemini HTTP request completed`);
         } catch (error) {

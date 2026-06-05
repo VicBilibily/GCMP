@@ -10,6 +10,7 @@ import { Logger } from '../utils/logger';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { VersionManager } from '../utils/versionManager';
 import { t } from '../utils/l10n';
+import { ConfigManager } from '../utils/configManager';
 
 /**
  * Kimi 使用量窗口数据
@@ -207,7 +208,9 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
             };
 
             // 发送请求
-            const response = await fetch(REMAIN_QUERY_URL, requestOptions);
+            const response = await ConfigManager.fetchWithProxy(REMAIN_QUERY_URL, requestOptions, {
+                providerKey: 'kimi'
+            });
             const responseText = await response.text();
 
             StatusLogger.debug(
