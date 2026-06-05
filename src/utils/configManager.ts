@@ -124,6 +124,28 @@ export class ConfigManager {
     private static configListener: vscode.Disposable | null = null;
 
     /**
+     * 解析 provider 代理查找键。
+     * 顺序：精确 providerKey -> 所属根 providerKey（如 minimax-token -> minimax）
+     */
+    private static getProxyLookupKeys(providerKey?: string): string[] {
+        if (!providerKey) {
+            return [];
+        }
+
+        const lookupKeys = new Set<string>([providerKey]);
+
+        if (!(providerKey in configProviders)) {
+            for (const [rootProviderKey, providerConfig] of Object.entries(configProviders)) {
+                if (providerConfig.models.some(model => model.provider === providerKey)) {
+                    lookupKeys.add(rootProviderKey);
+                }
+            }
+        }
+
+        return Array.from(lookupKeys);
+    }
+
+    /**
      * 初始化配置管理器
      * 设置配置变更监听器
      */
@@ -594,23 +616,32 @@ export class ConfigManager {
         const effectiveProviderKey = providerKey === 'compatible' ? modelConfig?.provider : providerKey;
 
         if (effectiveProviderKey) {
+            const proxyLookupKeys = this.getProxyLookupKeys(effectiveProviderKey);
             const overrides = this.getProviderOverrides();
-            const providerOverride = overrides[effectiveProviderKey];
-            if (providerOverride?.proxy !== undefined) {
-                if (providerOverride.proxy) {
-                    Logger.debug(`[Proxy] Using provider-level proxy: ${redactProxyUrl(providerOverride.proxy)}`);
+            for (const lookupKey of proxyLookupKeys) {
+                const providerOverride = overrides[lookupKey];
+                if (providerOverride?.proxy !== undefined) {
+                    if (providerOverride.proxy) {
+                        Logger.debug(
+                            `[Proxy] Using provider-level proxy (${lookupKey}): ${redactProxyUrl(providerOverride.proxy)}`
+                        );
+                    }
+                    return providerOverride.proxy || undefined;
                 }
-                return providerOverride.proxy || undefined;
             }
 
             // 3. providerConfig 级别
-            const originalProviderConfig =
-                effectiveProviderKey in configProviders ?
-                    configProviders[effectiveProviderKey as keyof typeof configProviders]
-                :   undefined;
-            if (originalProviderConfig?.proxy) {
-                Logger.debug(`[Proxy] Using provider config proxy: ${redactProxyUrl(originalProviderConfig.proxy)}`);
-                return originalProviderConfig.proxy;
+            for (const lookupKey of proxyLookupKeys) {
+                const originalProviderConfig =
+                    lookupKey in configProviders ?
+                        configProviders[lookupKey as keyof typeof configProviders]
+                    :   undefined;
+                if (originalProviderConfig?.proxy) {
+                    Logger.debug(
+                        `[Proxy] Using provider config proxy (${lookupKey}): ${redactProxyUrl(originalProviderConfig.proxy)}`
+                    );
+                    return originalProviderConfig.proxy;
+                }
             }
         }
 

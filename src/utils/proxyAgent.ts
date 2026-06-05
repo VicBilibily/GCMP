@@ -24,9 +24,33 @@ const initialDefaultCaCertificates = tlsModule.getCACertificates?.('default') ??
 let lastTlsConfigSignature: string | null = null;
 
 /** 按代理地址缓存 ProxyAgent，避免重复创建连接池 */
+/** 缓存键格式：${tlsSignature}::${proxyUrl} */
 const proxyAgents = new Map<string, ProxyAgent>();
 /** 按代理地址缓存 fetch 包装函数，避免重复创建相同闭包 */
 const proxiedFetchCache = new Map<string, ProxiedFetch>();
+
+function buildProxyCacheKey(proxyUrl: string, signature: string): string {
+    return `${signature}::${proxyUrl}`;
+}
+
+function clearStaleProxyCacheEntries(proxyUrl: string, activeCacheKey: string): void {
+    const proxyUrlSuffix = `::${proxyUrl}`;
+
+    for (const [cacheKey, agent] of proxyAgents) {
+        if (cacheKey !== activeCacheKey && cacheKey.endsWith(proxyUrlSuffix)) {
+            proxyAgents.delete(cacheKey);
+            void agent.close().catch(() => {
+                /* 忽略关闭异常 */
+            });
+        }
+    }
+
+    for (const cacheKey of proxiedFetchCache.keys()) {
+        if (cacheKey !== activeCacheKey && cacheKey.endsWith(proxyUrlSuffix)) {
+            proxiedFetchCache.delete(cacheKey);
+        }
+    }
+}
 
 function getTlsConfig(): { caCertificates: string[]; signature: string; useSystemCertificates: boolean } {
     const useSystemCertificates = vscode.workspace
@@ -155,11 +179,14 @@ export function sanitizeConfigForLogging<T>(value: T): T {
  * 获取或创建指定代理 URL 的 ProxyAgent
  */
 export function getProxyAgent(proxyUrl: string): ProxyAgent {
-    const { useSystemCertificates } = getTlsConfig();
-    let agent = proxyAgents.get(proxyUrl);
+    const { useSystemCertificates, signature } = getTlsConfig();
+    const cacheKey = buildProxyCacheKey(proxyUrl, signature);
+    clearStaleProxyCacheEntries(proxyUrl, cacheKey);
+
+    let agent = proxyAgents.get(cacheKey);
     if (!agent) {
         agent = new ProxyAgent(proxyUrl);
-        proxyAgents.set(proxyUrl, agent);
+        proxyAgents.set(cacheKey, agent);
         Logger.info(
             `[ProxyAgent] Created ProxyAgent for ${redactProxyUrl(proxyUrl)} (system CA: ${useSystemCertificates ? 'on' : 'off'})`
         );
@@ -176,8 +203,12 @@ export function createProxiedFetch(proxyUrl?: string): ProxiedFetch {
     if (!proxyUrl) {
         return fetch as unknown as ProxiedFetch;
     }
+    const { signature } = getTlsConfig();
+    const cacheKey = buildProxyCacheKey(proxyUrl, signature);
+    clearStaleProxyCacheEntries(proxyUrl, cacheKey);
+
     // 命中缓存则直接返回
-    const cached = proxiedFetchCache.get(proxyUrl);
+    const cached = proxiedFetchCache.get(cacheKey);
     if (cached) {
         return cached;
     }
@@ -189,7 +220,7 @@ export function createProxiedFetch(proxyUrl?: string): ProxiedFetch {
         } satisfies UndiciRequestInit;
         return (await fetch(url as never, options)) as unknown as Response;
     }) as ProxiedFetch;
-    proxiedFetchCache.set(proxyUrl, proxied);
+    proxiedFetchCache.set(cacheKey, proxied);
     return proxied;
 }
 
@@ -198,9 +229,9 @@ export function createProxiedFetch(proxyUrl?: string): ProxiedFetch {
  */
 export async function closeProxyAgents(): Promise<void> {
     const promises: Promise<unknown>[] = [];
-    for (const [proxyUrl, agent] of proxyAgents) {
-        proxyAgents.delete(proxyUrl);
-        proxiedFetchCache.delete(proxyUrl);
+    for (const [cacheKey, agent] of proxyAgents) {
+        proxyAgents.delete(cacheKey);
+        proxiedFetchCache.delete(cacheKey);
         promises.push(
             agent.close().catch(() => {
                 /* 忽略关闭异常 */

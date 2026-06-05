@@ -194,8 +194,8 @@ const copilotBuildOptions = {
     ...commonOptions,
     entryPoints: ['./src/copilot/copilot.bundle.ts'],
     outfile: 'dist/copilot.bundle.js',
-    // 排除 vscode 和 undici，undici 含大量 Node 原生依赖，不宜打包
-    external: ['vscode', 'undici']
+    // 只排除 vscode；undici 需要随 bundle 提供，否则动态加载 copilot.bundle 时无法解析
+    external: ['vscode']
 };
 
 // ========================================================================

@@ -111,7 +111,7 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 
 ### [**OpenCode**](https://opencode.ai/)
 
-- [**Go**](https://opencode.ai/go?ref=2TEVV934MY): **GLM-5.1**, **GLM-5**, **Kimi-K2.6**, **Kimi-K2.5**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **MiniMax-M3**, **MiniMax-M2.7**, **MiniMax-M2.5**, **Qwen3.6-Plus**, **MiMo-V2.5-Pro**, **MiMo-V2.5**
+- [**Go**](https://opencode.ai/go?ref=2TEVV934MY): **GLM-5.1**, **GLM-5**, **Kimi-K2.6**, **Kimi-K2.5**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **MiniMax-M3**, **MiniMax-M2.7**, **MiniMax-M2.5**, **Qwen3.7-Plus**, **Qwen3.7-Max**, **Qwen3.6-Plus**, **Qwen3.5-Plus**, **MiMo-V2.5-Pro**, **MiMo-V2.5**
 - **Zen**: **DeepSeek-V4-Flash**, **GLM-5.1**, **GLM-5**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.7**, **MiniMax-M2.5**, **Qwen3.6-Plus**, **Qwen3.5-Plus**, **Grok-Build-0.1**
 
 ### Experimental CLI Authentication Providers
@@ -181,6 +181,20 @@ GCMP supports customizing AI model behavior parameters through VS Code settings 
 - `gcmp.retry.maxAttempts` defaults to `3`, controlling the maximum automatic retry count for 429, rate-limit, and temporary overload errors.
 - Current retry delay sequence: `1s → 3s → 6s → 10s → 15s`. Once the limit is reached, the last error is thrown directly.
 
+#### Proxy & System Certificate Settings
+
+```json
+{
+    "gcmp.proxy": "http://127.0.0.1:7890", // Optional global proxy
+    "gcmp.tls.useSystemCertificates": true // Append OS root CAs (enabled by default)
+}
+```
+
+- `gcmp.proxy` acts as the default proxy for all extension network requests, including chat requests, FIM / NES completions, web search tools, MCP clients, status-bar quota/balance queries, Compatible Provider model discovery requests, and CLI OAuth refresh calls.
+- Proxy precedence is: `model.proxy` → `gcmp.providerOverrides.<provider>.proxy` → `gcmp.proxy` → VS Code `http.proxy` → environment variables (`HTTPS_PROXY` / `HTTP_PROXY`).
+- `gcmp.tls.useSystemCertificates` appends operating-system trusted root certificates to Node.js' default CA list, which is useful behind enterprise proxies, internal gateways, or locally installed private root CAs.
+- Authenticated proxy URLs are supported; usernames and passwords are automatically redacted in logs.
+
 **Configuration example**:
 
 ```json
@@ -206,7 +220,7 @@ GCMP supports customizing AI model behavior parameters through VS Code settings 
 
 #### Provider Configuration Overrides
 
-GCMP supports overriding provider defaults (including baseUrl, customHeader, model config, etc.) through the `gcmp.providerOverrides` setting.
+GCMP supports overriding provider defaults (including `baseUrl`, `proxy`, `customHeader`, model config, etc.) through the `gcmp.providerOverrides` setting.
 
 **Configuration example**:
 
@@ -214,6 +228,7 @@ GCMP supports overriding provider defaults (including baseUrl, customHeader, mod
 {
     "gcmp.providerOverrides": {
         "dashscope": {
+            "proxy": "http://127.0.0.1:7890", // Optional provider-level default proxy
             "models": [
                 {
                     "id": "deepseek-v3.2", // Add extra model: not in suggestions, but allows custom additions
@@ -268,6 +283,7 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
             "model": "glm-4.6",
             "sdkMode": "openai",
             "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+            // "proxy": "http://127.0.0.1:7890", // Optional: applies only to this model and to the "Fetch Models" probe request
             // "sdkMode": "anthropic",
             // "baseUrl": "https://open.bigmodel.cn/api/anthropic",
             "maxInputTokens": 128000,
@@ -291,6 +307,8 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
     ]
 }
 ```
+
+- `gcmp.compatibleModels[*].proxy` applies only to the current custom model. When you click "Fetch Models" after entering `baseUrl`, the same proxy setting is also used for the discovery request.
 
 ### Experimental: `sdkMode` (OpenAI Responses / Gemini SSE)
 
