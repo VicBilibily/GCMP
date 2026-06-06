@@ -173,11 +173,13 @@ GCMP supports customizing AI model behavior parameters through VS Code settings 
 ```json
 {
     "gcmp.maxTokens": 32000, // 32-256000
+    "gcmp.retry.enabled": true, // Enable auto retry (default true), disable to stop on failure
     "gcmp.retry.maxAttempts": 3, // 1-5, only effective for retryable errors
     "gcmp.zhipu.search.enableMCP": true // Enable Web Search MCP (Coding Plan exclusive)
 }
 ```
 
+- `gcmp.retry.enabled` defaults to `true`. When enabled, automatically retries retryable errors like 429. Set to `false` to disable retries entirely and stop immediately on failure.
 - `gcmp.retry.maxAttempts` defaults to `3`, controlling the maximum automatic retry count for 429, rate-limit, and temporary overload errors.
 - Current retry delay sequence: `1s → 3s → 6s → 10s → 15s`. Once the limit is reached, the last error is thrown directly.
 

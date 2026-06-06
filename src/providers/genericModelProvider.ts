@@ -379,6 +379,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
      */
     protected getRequestRetryConfig() {
         return {
+            enabled: ConfigManager.getRetryEnabled(),
             maxAttempts: ConfigManager.getRetryMaxAttempts(),
             initialDelayMs: 1000,
             maxDelayMs: 30000

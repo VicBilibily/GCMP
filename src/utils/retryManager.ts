@@ -10,6 +10,7 @@ import { t } from './l10n';
  * 重试配置接口
  */
 export interface RetryConfig {
+    enabled: boolean;
     maxAttempts: number;
     initialDelayMs: number;
     maxDelayMs: number;
@@ -29,6 +30,7 @@ export type RetryableError = Error & {
  * 默认重试配置
  */
 const DEFAULT_RETRY_CONFIG: RetryConfig = {
+    enabled: true,
     maxAttempts: 3,
     initialDelayMs: 1000,
     maxDelayMs: 30000
@@ -72,6 +74,14 @@ export class RetryManager {
                 Logger.warn(`[${providerName}] Initial request failed: ${lastError.message}`);
                 throw lastError;
             }
+            Logger.warn(`[${providerName}] Initial request failed: ${lastError.message}`);
+
+            // 如果重试已禁用，可重试错误也直接抛出，不进入重试流程
+            if (!this.config.enabled) {
+                Logger.warn(`[${providerName}] Initial request failed (retry disabled): ${lastError.message}`);
+                throw lastError;
+            }
+
             Logger.warn(`[${providerName}] Initial request failed, starting retry flow: ${lastError.message}`);
         }
 

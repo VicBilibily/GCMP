@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.24.0",
+    "version": "0.24.1",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -323,6 +323,12 @@
                     "minimum": 32,
                     "maximum": 256000,
                     "description": "%setting.maxTokens.description%",
+                    "scope": "application"
+                },
+                "gcmp.retry.enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "%setting.retry.enabled.description%",
                     "scope": "application"
                 },
                 "gcmp.retry.maxAttempts": {

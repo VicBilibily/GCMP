@@ -68,6 +68,7 @@ export type FIMCompletionConfig = Omit<NESCompletionConfig, 'manualOnly'>;
  * 请求重试配置
  */
 export interface RequestRetryConfig {
+    enabled: boolean;
     maxAttempts: number;
 }
 
@@ -181,6 +182,7 @@ export class ConfigManager {
         this.cache = {
             maxTokens: this.validateMaxTokens(config.get<number>('maxTokens', 32000)),
             retry: {
+                enabled: config.get<boolean>('retry.enabled', true),
                 maxAttempts: this.validateRetryMaxAttempts(config.get<number>('retry.maxAttempts', 3))
             },
             zhipu: {
@@ -263,6 +265,13 @@ export class ConfigManager {
      */
     static getRetryMaxAttempts(): number {
         return this.getRetryConfig().maxAttempts;
+    }
+
+    /**
+     * 获取重试是否启用
+     */
+    static getRetryEnabled(): boolean {
+        return this.getRetryConfig().enabled;
     }
 
     /**

@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.24.1] - 2026-06-06
+
+### 新增
+
+- **重试开关**：新增 `gcmp.retry.enabled`（boolean，默认 `true`），提供更直观的重试控制方式。关闭后请求失败将直接停止，不再重试
+
+---
+
+### Added
+
+- **Retry toggle**: Added `gcmp.retry.enabled` (boolean, default `true`) for a more intuitive retry control. When disabled, request failures stop immediately without retrying
+
 ## [0.24.0] - 2026-06-06
 
 ### 新增
