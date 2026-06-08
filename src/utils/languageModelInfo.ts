@@ -89,8 +89,10 @@ export function createLanguageModelChatInformation(
 function buildModelConfigurationProperties(model: ModelConfig): Record<string, PropertySchema> {
     const properties: Record<string, PropertySchema> = {};
 
-    const thinkingOptions = model.thinking && model.thinking.length > 0 ? model.thinking : ['enabled', 'disabled'];
-    if (thinkingOptions.length > 0) {
+    // 仅在模型显式配置了 thinking 字段时才生成思考模式 schema
+    // 未配置时不做 fallback，避免模型选择器出现不应有的选项
+    const thinkingOptions = model.thinking && model.thinking.length > 0 ? model.thinking : undefined;
+    if (thinkingOptions) {
         const schema: PropertySchema = {
             type: 'string',
             title: t('Thinking Mode', '思考模式'),

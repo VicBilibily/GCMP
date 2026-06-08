@@ -14,10 +14,7 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-code-doubao-seed-2.0-code",
@@ -29,10 +26,7 @@
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-code-doubao-seed-2.0-lite",
@@ -44,10 +38,7 @@
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-code-doubao-seed-2.0-pro",
@@ -59,10 +50,7 @@
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-code-kimi-k2.6",
@@ -74,10 +62,7 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-code-kimi-k2.5",
@@ -89,10 +74,7 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-code-glm-5.1",
@@ -104,10 +86,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "ark-code-glm-4.7",
@@ -119,10 +98,19 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "ark-code-MiniMax-M3",
+            "name": "MiniMax-M3 (CodingPlan)",
+            "model": "MiniMax-M3",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。新一代 M 系列语言模型，在编码与智能体评测中达到行业顶尖水平，适用于 Agent 推理、工具调用、代码和长上下文任务。",
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 128000,
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-code-MiniMax-M2.7",
@@ -133,10 +121,7 @@
             "tooltip": "Coding Plan Code模型。M2.7 能够自行构建复杂 Agent Harness，并基于 Agent Teams、复杂 Skills、Tool 等能力，完成高度复杂的生产力任务。",
             "maxInputTokens": 204800,
             "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "ark-code-MiniMax-M2.5",
@@ -147,10 +132,7 @@
             "tooltip": "Coding Plan Code模型。MiniMax 旗舰级开源大模型，在编程、工具调用和搜索、办公等生产力场景都达到或者刷新了行业的 SOTA。",
             "maxInputTokens": 204800,
             "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "ark-code-deepseek-v4-flash",
@@ -188,10 +170,7 @@
             "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
             "thinking": ["disabled", "enabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "ark-plan-doubao-seed-2.0-code",
@@ -204,10 +183,7 @@
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
             "thinking": ["disabled", "enabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-plan-doubao-seed-2.0-pro",
@@ -220,10 +196,7 @@
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-plan-doubao-seed-2.0-lite",
@@ -236,10 +209,7 @@
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-plan-doubao-seed-2.0-mini",
@@ -252,10 +222,7 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-plan-glm-5.1",
@@ -268,10 +235,20 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "ark-plan-minimax-m3",
+            "name": "MiniMax-M3 (AgentPlan)",
+            "model": "minimax-m3",
+            "provider": "volcengine-agent",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
+            "tooltip": "Agent Plan 模型。新一代 M 系列语言模型，在编码与智能体评测中达到行业顶尖水平，适用于 Agent 推理、工具调用、代码和长上下文任务。",
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 128000,
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-plan-minimax-m2.7",
@@ -283,10 +260,7 @@
             "tooltip": "Agent Plan 模型。M2.7 能够自行构建复杂 Agent Harness，并基于 Agent Teams、复杂 Skills、Tool 等能力，完成高度复杂的生产力任务。默认 thinking，支持关闭深度思考。",
             "maxInputTokens": 204800,
             "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "ark-plan-kimi-k2.6",
@@ -299,10 +273,7 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-plan-deepseek-v4-flash",
@@ -355,10 +326,7 @@
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "doubao-seed-2-0-mini",
@@ -370,10 +338,7 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "doubao-seed-2-0-lite",
@@ -385,10 +350,7 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "doubao-seed-2-0-pro",
@@ -400,10 +362,7 @@
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "doubao-seed-1-8",
@@ -413,10 +372,7 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "doubao-seed-1-8-caching",
@@ -427,10 +383,7 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "deepseek-v4-flash",
@@ -464,10 +417,7 @@
             "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
             "thinking": ["disabled", "enabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-4.7",
@@ -477,10 +427,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-4.7-caching",
@@ -491,13 +438,8 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
-            "extraBody": {
-                "caching": { "type": "enabled" }
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "extraBody": { "caching": { "type": "enabled" } }
         }
     ]
 }
