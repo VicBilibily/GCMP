@@ -84,6 +84,54 @@ textarea {
     margin: 0;
 }
 
+.multi-checkbox-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    padding: 6px 0;
+}
+
+.multi-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: 0.95em;
+    white-space: nowrap;
+    user-select: none;
+    padding: 2px 4px;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    transition: border-color 0.15s, opacity 0.15s;
+}
+
+.multi-checkbox-item.dragging {
+    opacity: 0.4;
+}
+
+.multi-checkbox-item.drag-over {
+    border-color: var(--vscode-focusBorder);
+}
+
+.drag-handle {
+    cursor: grab;
+    color: var(--vscode-descriptionForeground);
+    font-size: 0.85em;
+    line-height: 1;
+    opacity: 0.5;
+    transition: opacity 0.15s;
+}
+
+.multi-checkbox-item:hover .drag-handle {
+    opacity: 1;
+}
+
+.multi-checkbox-item input[type='checkbox'] {
+    width: auto;
+    margin: 0;
+    cursor: pointer;
+}
+
 input[type='checkbox'] {
     width: auto;
     margin: 0;

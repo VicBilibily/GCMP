@@ -43,6 +43,7 @@ function t(en, zh, ...args) {
  * @property {ModelCapabilities} capabilities - 能力配置
  * @property {boolean} useInstructions - 是否使用 instructions 参数（仅 openai-responses 有效）
  * @property {boolean} webSearchTool - 是否启用 Anthropic 原生 web_search 工具（仅 anthropic 有效）
+ * @property {string[]} [reasoningEffort] - 思维链长度调节选项列表
  * @property {Object} [customHeader] - 自定义HTTP头部（可选）
  * @property {Object} [extraBody] - 额外请求体参数（可选）
  */
@@ -254,6 +255,25 @@ function createDOM() {
                 '当接口兼容 Anthropic 原生 web_search 工具时启用。启用后会自动向模型暴露 web_search。'
             )
         ),
+        createMultiSelectCheckboxFormGroup(
+            'reasoningEffortOptions',
+            t('Reasoning Effort Options', '推理强度选项'),
+            'reasoningEffort',
+            [
+                { value: 'none', label: 'None' },
+                { value: 'minimal', label: 'Minimal' },
+                { value: 'low', label: 'Low' },
+                { value: 'medium', label: 'Medium' },
+                { value: 'high', label: 'High' },
+                { value: 'xhigh', label: 'XHigh' },
+                { value: 'max', label: 'Max' }
+            ],
+            modelData.reasoningEffort,
+            t(
+                'Selectable reasoning effort levels for the model picker. Default value rules:\n- If "Medium" is included, it is always the default.\n- Otherwise, the first selected item is the default.\nUse drag handle (⠿) to reorder. Leave all unchecked to keep unconfigured.',
+                '模型 picker 的可选推理强度列表。默认值规则：\n- 如果包含 "Medium"，始终以 Medium 为默认值\n- 否则以列表首项为默认值\n使用拖拽手柄 (⠿) 调整顺序。全部不选则保持未配置状态。'
+            )
+        ),
         createJSONFormGroup('customHeader', t('Custom HTTP Headers (JSON)', '自定义HTTP头部（JSON格式）'), 'customHeader', modelData.customHeader,
             '{"Authorization": "Bearer ${APIKEY}", "X-Custom-Header": "value"}',
             t(
@@ -414,6 +434,184 @@ function createCheckboxFormGroup(id, labelText, fieldName, checked, detailedHelp
 }
 
 
+
+/**
+ * 创建多选复选框表单组
+ * @param {string} id - 容器元素的ID
+ * @param {string} labelText - 标签显示文本
+ * @param {string} fieldName - 字段名称（在括号中显示）
+ * @param {Array<{value: string, label: string}>} options - 选项数组
+ * @param {string[]} selectedValues - 当前选中的值列表
+ * @param {string} [helpText] - 帮助文本（可选）
+ * @returns {HTMLElement} 创建的表单组元素
+ */
+function createMultiSelectCheckboxFormGroup(id, labelText, fieldName, options, selectedValues, helpText) {
+    const group = document.createElement('div');
+    group.className = 'form-group';
+
+    const label = document.createElement('label');
+    label.innerHTML = `${labelText} <span class="field-name">(${fieldName})</span>`;
+    group.appendChild(label);
+
+    const optionsContainer = document.createElement('div');
+    optionsContainer.className = 'multi-checkbox-options';
+    optionsContainer.id = id;
+
+    const selectedSet = new Set(selectedValues || []);
+
+    // 先按 selectedValues 的顺序渲染已选项（保留原有顺序）
+    const renderedSet = new Set();
+    (selectedValues || []).forEach(value => {
+        const opt = options.find(o => o.value === value);
+        if (opt) {
+            appendCheckbox(optionsContainer, opt, true);
+            renderedSet.add(value);
+        }
+    });
+
+    // 再按 options 顺序渲染未选项
+    options.forEach(opt => {
+        if (!renderedSet.has(opt.value)) {
+            appendCheckbox(optionsContainer, opt, selectedSet.has(opt.value));
+        }
+    });
+
+    // 初始化拖拽排序
+    enableDragSort(optionsContainer);
+
+    group.appendChild(optionsContainer);
+
+    if (helpText) {
+        const help = document.createElement('div');
+        help.className = 'help-text detailed';
+        help.textContent = helpText;
+        group.appendChild(help);
+    }
+
+    return group;
+}
+
+/**
+ * 向容器追加一个复选框项
+ * @param {HTMLElement} container - 容器元素
+ * @param {{value: string, label: string}} opt - 选项
+ * @param {boolean} checked - 是否选中
+ * @returns {void}
+ */
+function appendCheckbox(container, opt, checked) {
+    const item = document.createElement('label');
+    item.className = 'multi-checkbox-item';
+    item.draggable = true;
+
+    const dragHandle = document.createElement('span');
+    dragHandle.className = 'drag-handle';
+    dragHandle.textContent = '⠿';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.value = opt.value;
+    checkbox.checked = checked;
+
+    const span = document.createElement('span');
+    span.textContent = opt.label;
+
+    item.appendChild(dragHandle);
+    item.appendChild(checkbox);
+    item.appendChild(span);
+    container.appendChild(item);
+}
+
+/**
+ * 启用容器内拖拽排序
+ * @param {HTMLElement} container - 容器元素
+ * @returns {void}
+ */
+function enableDragSort(container) {
+    let dragItem = null;
+
+    container.addEventListener('dragstart', function (e) {
+        const item = e.target.closest('.multi-checkbox-item');
+        if (!item) return;
+        dragItem = item;
+        item.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        // Firefox 需要设置 dataTransfer
+        e.dataTransfer.setData('text/plain', '');
+    });
+
+    container.addEventListener('dragend', function (e) {
+        const item = e.target.closest('.multi-checkbox-item');
+        if (item) {
+            item.classList.remove('dragging');
+        }
+        container.querySelectorAll('.multi-checkbox-item').forEach(el => {
+            el.classList.remove('drag-over');
+        });
+        dragItem = null;
+    });
+
+    container.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+
+        const target = e.target.closest('.multi-checkbox-item');
+        if (!target || target === dragItem) return;
+
+        const rect = target.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        if (e.clientY < midY) {
+            target.classList.add('drag-over');
+        } else {
+            target.classList.remove('drag-over');
+        }
+    });
+
+    container.addEventListener('dragleave', function (e) {
+        const target = e.target.closest('.multi-checkbox-item');
+        if (target) {
+            target.classList.remove('drag-over');
+        }
+    });
+
+    container.addEventListener('drop', function (e) {
+        e.preventDefault();
+        if (!dragItem) return;
+
+        const target = e.target.closest('.multi-checkbox-item');
+        if (!target || target === dragItem) return;
+
+        const rect = target.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+
+        if (e.clientY < midY) {
+            container.insertBefore(dragItem, target);
+        } else {
+            container.insertBefore(dragItem, target.nextSibling);
+        }
+
+        container.querySelectorAll('.multi-checkbox-item').forEach(el => {
+            el.classList.remove('drag-over');
+        });
+    });
+}
+
+/**
+ * 获取多选复选框的选中值数组
+ * @param {string} containerId - 容器元素的ID
+ * @returns {string[]} 选中的值数组
+ */
+function getMultiSelectValues(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return [];
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+    const values = [];
+    checkboxes.forEach(cb => {
+        if (cb.checked) {
+            values.push(cb.value);
+        }
+    });
+    return values;
+}
 
 /**
  * 创建提供商表单组
@@ -1406,6 +1604,10 @@ function saveModel() {
     } else if (!model.webSearchTool) {
         model.webSearchTool = null; // 明确设置为 null 以表示未使用
     }
+
+    // reasoningEffort: 多选值，无选中时设为 null 以清理字段
+    const reasoningEffortValues = getMultiSelectValues('reasoningEffortOptions');
+    model.reasoningEffort = reasoningEffortValues.length > 0 ? reasoningEffortValues : null;
 
     const customHeaderText = document.getElementById('customHeader').value.trim();
     const customHeader = parseJSON(customHeaderText);

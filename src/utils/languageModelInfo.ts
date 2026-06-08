@@ -89,17 +89,18 @@ export function createLanguageModelChatInformation(
 function buildModelConfigurationProperties(model: ModelConfig): Record<string, PropertySchema> {
     const properties: Record<string, PropertySchema> = {};
 
-    if (model.thinking && model.thinking.length > 0) {
+    const thinkingOptions = model.thinking && model.thinking.length > 0 ? model.thinking : ['enabled', 'disabled'];
+    if (thinkingOptions.length > 0) {
         const schema: PropertySchema = {
             type: 'string',
             title: t('Thinking Mode', '思考模式'),
-            enum: model.thinking,
-            enumItemLabels: model.thinking.map(
+            enum: thinkingOptions,
+            enumItemLabels: thinkingOptions.map(
                 value =>
                     ({ disabled: 'Non-Thinking', enabled: 'Thinking', auto: 'Auto', adaptive: 'Adaptive' })[value] ||
                     value
             ),
-            enumDescriptions: model.thinking.map(
+            enumDescriptions: thinkingOptions.map(
                 value =>
                     ({
                         disabled: t('Disable extended reasoning.', '关闭思考模式'),
@@ -108,12 +109,12 @@ function buildModelConfigurationProperties(model: ModelConfig): Record<string, P
                         adaptive: t('Adapt reasoning depth to the current context.', '根据上下文自适应')
                     })[value] || value
             ),
-            default: model.thinking[0],
+            default: thinkingOptions.includes('enabled') ? 'enabled' : thinkingOptions[0],
             group: 'navigation'
         };
-        if (model.thinking.includes('auto')) {
+        if (thinkingOptions.includes('auto')) {
             schema.default = 'auto';
-        } else if (model.thinking.includes('adaptive')) {
+        } else if (thinkingOptions.includes('adaptive')) {
             schema.default = 'adaptive';
         }
         properties.thinking = schema;
