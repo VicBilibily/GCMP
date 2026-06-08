@@ -9,7 +9,14 @@ import { ConfigProvider, UserConfigOverrides, ProviderConfig, ModelConfig, Model
 import { configProviders } from '../providers/config';
 import { CommitFormat, CommitLanguage, CommitModelSelection } from '../commit/types';
 import { t } from './l10n';
-import { createProxiedFetch, redactProxyUrl, redactHeaders, sanitizeConfigForLogging } from './proxyAgent';
+import {
+    createProxiedFetch,
+    NO_PROXY_SENTINEL,
+    isNoProxyValue,
+    redactProxyUrl,
+    redactHeaders,
+    sanitizeConfigForLogging
+} from './proxyAgent';
 
 /**
  * 智谱AI搜索配置
@@ -604,9 +611,26 @@ export class ConfigManager {
         return this.getConfig().proxy;
     }
 
+    private static resolveExplicitProxyValue(
+        proxyValue: string | null | undefined,
+        sourceLabel: string
+    ): string | undefined {
+        if (isNoProxyValue(proxyValue)) {
+            Logger.debug(`[Proxy] ${sourceLabel} explicitly disables proxy via ${NO_PROXY_SENTINEL}`);
+            return NO_PROXY_SENTINEL;
+        }
+
+        if (proxyValue) {
+            Logger.debug(`[Proxy] Using ${sourceLabel}: ${redactProxyUrl(proxyValue)}`);
+        }
+
+        return proxyValue || undefined;
+    }
+
     /**
      * 解析模型请求应使用的代理地址
      * 优先级：model.proxy > providerOverrides.{provider}.proxy > provider config.proxy > gcmp.proxy > VS Code http.proxy > 环境变量
+     * 当显式设置为 `noproxy` 时，停止继续回退并直接绕过代理。
      */
     static resolveProxyForModel(
         modelConfig?: Pick<ModelConfig, 'proxy' | 'provider'>,
@@ -614,10 +638,7 @@ export class ConfigManager {
     ): string | undefined {
         // 1. 模型级别
         if (modelConfig?.proxy !== undefined) {
-            if (modelConfig.proxy) {
-                Logger.debug(`[Proxy] Using model-level proxy: ${redactProxyUrl(modelConfig.proxy)}`);
-            }
-            return modelConfig.proxy || undefined;
+            return this.resolveExplicitProxyValue(modelConfig.proxy, 'model-level proxy');
         }
 
         // 2. providerOverrides 级别
@@ -630,12 +651,10 @@ export class ConfigManager {
             for (const lookupKey of proxyLookupKeys) {
                 const providerOverride = overrides[lookupKey];
                 if (providerOverride?.proxy !== undefined) {
-                    if (providerOverride.proxy) {
-                        Logger.debug(
-                            `[Proxy] Using provider-level proxy (${lookupKey}): ${redactProxyUrl(providerOverride.proxy)}`
-                        );
-                    }
-                    return providerOverride.proxy || undefined;
+                    return this.resolveExplicitProxyValue(
+                        providerOverride.proxy,
+                        `provider-level proxy (${lookupKey})`
+                    );
                 }
             }
 
@@ -646,10 +665,10 @@ export class ConfigManager {
                         configProviders[lookupKey as keyof typeof configProviders]
                     :   undefined;
                 if (originalProviderConfig?.proxy) {
-                    Logger.debug(
-                        `[Proxy] Using provider config proxy (${lookupKey}): ${redactProxyUrl(originalProviderConfig.proxy)}`
+                    return this.resolveExplicitProxyValue(
+                        originalProviderConfig.proxy,
+                        `provider config proxy (${lookupKey})`
                     );
-                    return originalProviderConfig.proxy;
                 }
             }
         }
@@ -657,8 +676,7 @@ export class ConfigManager {
         // 4. 全局设置
         const globalProxy = this.getProxy();
         if (globalProxy) {
-            Logger.debug(`[Proxy] Using global proxy: ${redactProxyUrl(globalProxy)}`);
-            return globalProxy;
+            return this.resolveExplicitProxyValue(globalProxy, 'global proxy');
         }
 
         // 5. VS Code 代理设置

@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.24.1",
+    "version": "0.24.2",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -308,7 +308,20 @@
                     "type": "string",
                     "default": "",
                     "description": "%setting.proxy.description%",
-                    "format": "uri",
+                    "anyOf": [
+                        {
+                            "const": ""
+                        },
+                        {
+                            "const": "noproxy"
+                        },
+                        {
+                            "format": "uri"
+                        },
+                        {
+                            "pattern": "^(?:(?:[^:@/\\s]+(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::\\d{1,5})?)$"
+                        }
+                    ],
                     "scope": "application"
                 },
                 "gcmp.tls.useSystemCertificates": {
@@ -470,7 +483,20 @@
                         "proxy": {
                             "type": "string",
                             "description": "%setting.modelConfig.proxy.description%",
-                            "format": "uri"
+                            "anyOf": [
+                                {
+                                    "const": ""
+                                },
+                                {
+                                    "const": "noproxy"
+                                },
+                                {
+                                    "format": "uri"
+                                },
+                                {
+                                    "pattern": "^(?:(?:[^:@/\\s]+(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::\\d{1,5})?)$"
+                                }
+                            ]
                         },
                         "model": {
                             "type": "string",
@@ -547,7 +573,20 @@
                         "proxy": {
                             "type": "string",
                             "description": "%setting.modelConfig.proxy.description%",
-                            "format": "uri"
+                            "anyOf": [
+                                {
+                                    "const": ""
+                                },
+                                {
+                                    "const": "noproxy"
+                                },
+                                {
+                                    "format": "uri"
+                                },
+                                {
+                                    "pattern": "^(?:(?:[^:@/\\s]+(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::\\d{1,5})?)$"
+                                }
+                            ]
                         },
                         "model": {
                             "type": "string",
@@ -1098,7 +1137,7 @@
         "@types/json-schema": "^7.0.15",
         "@types/node": "^20.0.0",
         "@types/vscode": "^1.120.0",
-        "@vscode/vsce": "^3.9.1",
+        "@vscode/vsce": "^3.9.2",
         "esbuild": "^0.25.10",
         "eslint": "^9.13.0",
         "less": "^4.5.1",

@@ -2,6 +2,28 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.24.2] - 2026-06-08
+
+### 新增
+
+- **系统代理自动识别**：新增 Windows Registry 与 macOS `scutil` 系统代理检测，无显式代理配置时自动沿用系统设置 (`EnvHttpProxyAgent`)；⚠️ 不支持 PAC (Proxy Auto-Config)，遇到时将被忽略
+- **`cache_control` 过滤**：工具结果序列化时跳过 VS Code 内部 `cache_control` 数据片段
+
+### Updated
+
+- **代理解析层级优化**：`resolveProxyForModel()` 引入 `noproxy` 断链语义——当模型/提供商/全局任一层显式设为 `noproxy` 时，停止向下回退并直接绕过代理
+
+---
+
+### Added
+
+- **Automatic system proxy detection**: Added Windows Registry and macOS `scutil` system proxy detection; falls back to system settings via `EnvHttpProxyAgent` when no explicit proxy is configured; ⚠️ PAC (Proxy Auto-Config) is not supported and will be ignored
+- **`cache_control` filtering**: Skip VS Code internal `cache_control` data parts during tool result serialization
+
+### Updated
+
+- **Proxy resolution chain optimization**: `resolveProxyForModel()` now short-circuits on `noproxy` — if any layer (model/provider/global) is explicitly set to `noproxy`, fallback stops and the request bypasses all proxies
+
 ## [0.24.1] - 2026-06-06
 
 ### 新增

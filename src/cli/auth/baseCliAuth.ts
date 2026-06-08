@@ -9,7 +9,10 @@ import * as os from 'os';
 import { execSync } from 'child_process';
 import { Logger } from '../../utils/logger';
 import { ConfigManager } from '../../utils/configManager';
+import { isNoProxyValue } from '../../utils/proxyAgent';
 import { CliAuthConfig, OAuthCredentials } from '../type';
+
+const proxyEnvKeys = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy'] as const;
 
 /**
  * CLI 认证基类
@@ -139,12 +142,26 @@ export abstract class BaseCliAuth {
      */
     getCliProcessEnv(): NodeJS.ProcessEnv {
         const proxyUrl = this.getProxyUrl();
+        const env = { ...process.env };
+
         if (!proxyUrl) {
-            return { ...process.env };
+            return env;
+        }
+
+        if (isNoProxyValue(proxyUrl)) {
+            for (const key of proxyEnvKeys) {
+                delete env[key];
+            }
+
+            return {
+                ...env,
+                NO_PROXY: '*',
+                no_proxy: '*'
+            };
         }
 
         return {
-            ...process.env,
+            ...env,
             HTTP_PROXY: proxyUrl,
             HTTPS_PROXY: proxyUrl,
             http_proxy: proxyUrl,

@@ -187,13 +187,17 @@ GCMP supports customizing AI model behavior parameters through VS Code settings 
 
 ```json
 {
-    "gcmp.proxy": "http://127.0.0.1:7890", // Optional global proxy
+    "gcmp.proxy": "http://127.0.0.1:7890",  // Optional global proxy, full URL recommended
     "gcmp.tls.useSystemCertificates": true // Append OS root CAs (enabled by default)
 }
 ```
 
 - `gcmp.proxy` acts as the default proxy for all extension network requests, including chat requests, FIM / NES completions, web search tools, MCP clients, status-bar quota/balance queries, Compatible Provider model discovery requests, and CLI OAuth refresh calls.
-- Proxy precedence is: `model.proxy` → `gcmp.providerOverrides.<provider>.proxy` → `gcmp.proxy` → VS Code `http.proxy` → environment variables (`HTTPS_PROXY` / `HTTP_PROXY`).
+- Proxy precedence is: `model.proxy` → `gcmp.providerOverrides.<provider>.proxy` → `gcmp.proxy` → VS Code `http.proxy` → environment variables (`HTTPS_PROXY` / `HTTP_PROXY`) → **System proxy (auto-detected)**.
+- Supports `host:port` shorthand (e.g., `127.0.0.1:7890`), but using a full URL like `http://127.0.0.1:7890` is recommended.
+- Set to `noproxy` to bypass all proxies (including system proxies and configured ones). When any layer in the proxy chain is set to `noproxy`, fallback short-circuits immediately.
+- When no explicit proxy is configured, the extension automatically detects system proxy settings from the Windows Registry or macOS `scutil`.
+- > ⚠️ PAC (Proxy Auto-Config) is not supported. If your system proxy uses PAC, it will be ignored — use an explicit proxy URL instead.
 - `gcmp.tls.useSystemCertificates` appends operating-system trusted root certificates to Node.js' default CA list, which is useful behind enterprise proxies, internal gateways, or locally installed private root CAs.
 - Authenticated proxy URLs are supported; usernames and passwords are automatically redacted in logs.
 

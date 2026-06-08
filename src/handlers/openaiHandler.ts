@@ -1374,21 +1374,26 @@ export class OpenAIHandler {
      * 转换工具结果内容
      */
     private convertToolResultContent(content: unknown): string {
+        const ignoredMimeType = CustomDataPartMimeTypes.CacheControl;
         if (typeof content === 'string') {
             return content;
         }
-
+        if (content instanceof vscode.LanguageModelDataPart && content.mimeType === ignoredMimeType) {
+            return '';
+        }
         if (Array.isArray(content)) {
             return content
-                .map(resultPart => {
+                .flatMap(resultPart => {
                     if (resultPart instanceof vscode.LanguageModelTextPart) {
-                        return resultPart.value;
+                        return [resultPart.value];
                     }
-                    return JSON.stringify(resultPart);
+                    if (resultPart instanceof vscode.LanguageModelDataPart && resultPart.mimeType === ignoredMimeType) {
+                        return [];
+                    }
+                    return [JSON.stringify(resultPart)];
                 })
                 .join('\n');
         }
-
         return JSON.stringify(content);
     }
 

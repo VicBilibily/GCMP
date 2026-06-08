@@ -186,7 +186,7 @@ export class ApiKeyManager {
             }
             // Cli 访问密钥验证通过后保存到密钥存储
             await this.setApiKey(provider, apiKey);
-            
+
             if (this.cachedCliAuthStatus[provider] !== apiKey) {
                 this.cachedCliAuthStatus[provider] = apiKey;
                 Logger.info(`[ApiKeyManager] Loaded credentials from ${displayName} CLI`);

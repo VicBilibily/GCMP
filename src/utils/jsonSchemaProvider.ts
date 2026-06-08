@@ -608,10 +608,18 @@ export class JsonSchemaProvider {
                             proxy: {
                                 type: 'string',
                                 description: t(
-                                    'Proxy server URL for API requests (optional). Credentials in the URL will be masked in logs.',
-                                    'API 请求的代理服务器地址（可选）。URL 中的凭据将在日志中被脱敏。'
+                                    'Proxy server URL for API requests (optional). Credentials in the URL will be masked in logs. Protocol is optional for host:port values such as 127.0.0.1:7890. Use "noproxy" to bypass both configured and system proxies.',
+                                    'API 请求的代理服务器地址（可选）。URL 中的凭据将在日志中被脱敏。像 127.0.0.1:7890 这样的 host:port 可省略协议。填写“noproxy”可显式绕过已配置代理和系统代理。'
                                 ),
-                                format: 'uri'
+                                anyOf: [
+                                    { const: '' },
+                                    { const: 'noproxy' },
+                                    { format: 'uri' },
+                                    {
+                                        pattern:
+                                            '^(?:(?:[^:@/\\s]+(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::\\d{1,5})?)$'
+                                    }
+                                ]
                             },
                             extraBody: {
                                 type: 'object',
@@ -951,10 +959,18 @@ export class JsonSchemaProvider {
                 proxy: {
                     type: 'string',
                     description: t(
-                        'Override the provider-level proxy server URL for API requests (optional). Credentials in the URL will be masked in logs.',
-                        '覆盖提供商级别的代理服务器地址（可选）。URL 中的凭据将在日志中被脱敏。'
+                        'Override the provider-level proxy server URL for API requests (optional). Credentials in the URL will be masked in logs. Protocol is optional for host:port values such as 127.0.0.1:7890. Use "noproxy" to bypass both configured and system proxies.',
+                        '覆盖提供商级别的代理服务器地址（可选）。URL 中的凭据将在日志中被脱敏。像 127.0.0.1:7890 这样的 host:port 可省略协议。填写“noproxy”可显式绕过已配置代理和系统代理。'
                     ),
-                    format: 'uri'
+                    anyOf: [
+                        { const: '' },
+                        { const: 'noproxy' },
+                        { format: 'uri' },
+                        {
+                            pattern:
+                                '^(?:(?:[^:@/\\s]+(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::\\d{1,5})?)$'
+                        }
+                    ]
                 },
                 models: {
                     type: 'array',
@@ -1043,10 +1059,18 @@ export class JsonSchemaProvider {
                             proxy: {
                                 type: 'string',
                                 description: t(
-                                    'Override the model-level proxy server URL for API requests (optional). Credentials in the URL will be masked in logs.',
-                                    '覆盖模型级别的代理服务器地址（可选）。URL 中的凭据将在日志中被脱敏。'
+                                    'Override the model-level proxy server URL for API requests (optional). Credentials in the URL will be masked in logs. Protocol is optional for host:port values such as 127.0.0.1:7890. Use "noproxy" to bypass both configured and system proxies.',
+                                    '覆盖模型级别的代理服务器地址（可选）。URL 中的凭据将在日志中被脱敏。像 127.0.0.1:7890 这样的 host:port 可省略协议。填写“noproxy”可显式绕过已配置代理和系统代理。'
                                 ),
-                                format: 'uri'
+                                anyOf: [
+                                    { const: '' },
+                                    { const: 'noproxy' },
+                                    { format: 'uri' },
+                                    {
+                                        pattern:
+                                            '^(?:(?:[^:@/\\s]+(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::\\d{1,5})?)$'
+                                    }
+                                ]
                             },
                             extraBody: {
                                 type: 'object',

@@ -4,12 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { execFileSync } from 'node:child_process';
 import * as tls from 'node:tls';
-import { fetch, ProxyAgent } from 'undici';
+import { EnvHttpProxyAgent, fetch as undiciFetch, ProxyAgent } from 'undici';
 import type { RequestInit as UndiciRequestInit } from 'undici';
 import { Logger } from './logger';
 
 export type ProxiedFetch = typeof globalThis.fetch;
+export const NO_PROXY_SENTINEL = 'noproxy';
+
+type ManagedProxyDispatcher = ProxyAgent | EnvHttpProxyAgent;
+
+interface SystemProxyConfig {
+    httpProxy?: string;
+    httpsProxy?: string;
+    noProxy?: string;
+}
+
+const SYSTEM_PROXY_CACHE_MARKER = '::system::';
+const SYSTEM_PROXY_CACHE_TTL_MS = 30_000;
+let systemProxyConfigCache: { expiresAt: number; value: SystemProxyConfig | null } | null = null;
+
+function getDirectFetch(): ProxiedFetch {
+    return undiciFetch as unknown as ProxiedFetch;
+}
+
+export function isNoProxyValue(proxyUrl?: string | null): boolean {
+    return typeof proxyUrl === 'string' && proxyUrl.trim().toLowerCase() === NO_PROXY_SENTINEL;
+}
 
 const sensitiveHeaderNamePattern =
     /^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|api-key|x-auth-token)$/i;
@@ -25,9 +47,272 @@ let lastTlsConfigSignature: string | null = null;
 
 /** 按代理地址缓存 ProxyAgent，避免重复创建连接池 */
 /** 缓存键格式：${tlsSignature}::${proxyUrl} */
-const proxyAgents = new Map<string, ProxyAgent>();
+const proxyAgents = new Map<string, ManagedProxyDispatcher>();
 /** 按代理地址缓存 fetch 包装函数，避免重复创建相同闭包 */
 const proxiedFetchCache = new Map<string, ProxiedFetch>();
+
+const proxySchemePattern = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//;
+
+function normalizeProxyEndpoint(proxyValue?: string): string | undefined {
+    const trimmed = proxyValue?.trim();
+    if (!trimmed) {
+        return undefined;
+    }
+
+    try {
+        const candidate = proxySchemePattern.test(trimmed) ? trimmed : `http://${trimmed}`;
+        return new URL(candidate).toString();
+    } catch {
+        return undefined;
+    }
+}
+
+function normalizeNoProxyList(rawValue?: string, separators = /[;,]/): string | undefined {
+    const trimmed = rawValue?.trim();
+    if (!trimmed) {
+        return undefined;
+    }
+
+    const values = new Set<string>();
+    for (const item of trimmed.split(separators)) {
+        const entry = item.trim();
+        if (!entry) {
+            continue;
+        }
+
+        if (entry.toLowerCase() === '<local>') {
+            values.add('localhost');
+            values.add('127.0.0.1');
+            values.add('::1');
+            continue;
+        }
+
+        values.add(entry);
+    }
+
+    return values.size > 0 ? Array.from(values).join(',') : undefined;
+}
+
+function readCommandOutput(command: string, args: string[]): string | undefined {
+    try {
+        return execFileSync(command, args, {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+            windowsHide: true
+        }).trim();
+    } catch {
+        return undefined;
+    }
+}
+
+function buildSystemProxyCacheKey(proxyConfig: SystemProxyConfig, signature: string): string {
+    return `${signature}${SYSTEM_PROXY_CACHE_MARKER}${proxyConfig.httpProxy || ''}::${proxyConfig.httpsProxy || ''}::${proxyConfig.noProxy || ''}`;
+}
+
+function clearStaleSystemProxyCacheEntries(activeCacheKey: string): void {
+    for (const [cacheKey, agent] of proxyAgents) {
+        if (cacheKey !== activeCacheKey && cacheKey.includes(SYSTEM_PROXY_CACHE_MARKER)) {
+            proxyAgents.delete(cacheKey);
+            void agent.close().catch(() => {
+                /* 忽略关闭异常 */
+            });
+        }
+    }
+
+    for (const cacheKey of proxiedFetchCache.keys()) {
+        if (cacheKey !== activeCacheKey && cacheKey.includes(SYSTEM_PROXY_CACHE_MARKER)) {
+            proxiedFetchCache.delete(cacheKey);
+        }
+    }
+}
+
+function parseWindowsRegistryValue(output: string, valueName: string): string | undefined {
+    const escapedName = valueName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return output.match(new RegExp(`^\\s*${escapedName}\\s+REG_\\w+\\s+(.+)$`, 'mi'))?.[1]?.trim();
+}
+
+function parseWindowsProxyServer(proxyServer: string): SystemProxyConfig | null {
+    const trimmed = proxyServer.trim();
+    if (!trimmed) {
+        return null;
+    }
+
+    if (!trimmed.includes('=')) {
+        const proxyUrl = normalizeProxyEndpoint(trimmed);
+        return proxyUrl ? { httpProxy: proxyUrl, httpsProxy: proxyUrl } : null;
+    }
+
+    const entries = new Map<string, string>();
+    for (const segment of trimmed.split(';')) {
+        const [rawKey, ...rest] = segment.split('=');
+        if (!rawKey || rest.length === 0) {
+            continue;
+        }
+
+        entries.set(rawKey.trim().toLowerCase(), rest.join('=').trim());
+    }
+
+    const sharedProxy = normalizeProxyEndpoint(entries.get('proxy') || entries.get('all'));
+    const httpProxy = normalizeProxyEndpoint(entries.get('http')) || sharedProxy;
+    const httpsProxy = normalizeProxyEndpoint(entries.get('https')) || sharedProxy || httpProxy;
+
+    if (!httpProxy && !httpsProxy) {
+        return null;
+    }
+
+    return { httpProxy, httpsProxy };
+}
+
+function detectWindowsSystemProxy(): SystemProxyConfig | null {
+    const output = readCommandOutput('reg', [
+        'query',
+        'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings'
+    ]);
+    if (!output) {
+        return null;
+    }
+
+    const proxyEnable = parseWindowsRegistryValue(output, 'ProxyEnable');
+    const proxyServer = parseWindowsRegistryValue(output, 'ProxyServer');
+    const proxyOverride = parseWindowsRegistryValue(output, 'ProxyOverride');
+    const autoConfigUrl = parseWindowsRegistryValue(output, 'AutoConfigURL');
+
+    if (proxyEnable !== '0x1' || !proxyServer) {
+        if (autoConfigUrl) {
+            Logger.debug(
+                '[ProxyAgent] Windows system proxy uses PAC/AutoConfigURL; direct PAC resolution is not supported'
+            );
+        }
+        return null;
+    }
+
+    const proxyConfig = parseWindowsProxyServer(proxyServer);
+    if (!proxyConfig) {
+        return null;
+    }
+
+    return {
+        ...proxyConfig,
+        noProxy: normalizeNoProxyList(proxyOverride)
+    };
+}
+
+function parseScutilValue(output: string, key: string): string | undefined {
+    const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return output.match(new RegExp(`^\\s*${escapedKey}\\s*:\\s*(.+)$`, 'mi'))?.[1]?.trim();
+}
+
+function parseScutilExceptions(output: string): string | undefined {
+    const block = output.match(/ExceptionsList\s*:\s*<array>\s*\{([\s\S]*?)^\s*\}/m)?.[1];
+    if (!block) {
+        return undefined;
+    }
+
+    const entries = Array.from(block.matchAll(/^\s*\d+\s*:\s*(.+)$/gm)).map(match => match[1].trim());
+    return normalizeNoProxyList(entries.join(','), /,/);
+}
+
+function buildMacProxyUrl(host?: string, port?: string): string | undefined {
+    if (!host) {
+        return undefined;
+    }
+
+    const normalizedHost = host.trim();
+    const normalizedPort = port?.trim();
+    return normalizeProxyEndpoint(normalizedPort ? `${normalizedHost}:${normalizedPort}` : normalizedHost);
+}
+
+function detectMacSystemProxy(): SystemProxyConfig | null {
+    const output = readCommandOutput('scutil', ['--proxy']);
+    if (!output) {
+        return null;
+    }
+
+    const httpsEnabled = parseScutilValue(output, 'HTTPSEnable') === '1';
+    const httpEnabled = parseScutilValue(output, 'HTTPEnable') === '1';
+    const httpsProxy =
+        httpsEnabled ?
+            buildMacProxyUrl(parseScutilValue(output, 'HTTPSProxy'), parseScutilValue(output, 'HTTPSPort'))
+        :   undefined;
+    const httpProxy =
+        httpEnabled ?
+            buildMacProxyUrl(parseScutilValue(output, 'HTTPProxy'), parseScutilValue(output, 'HTTPPort'))
+        :   undefined;
+
+    if (!httpProxy && !httpsProxy) {
+        return null;
+    }
+
+    return {
+        httpProxy,
+        httpsProxy: httpsProxy || httpProxy,
+        noProxy: parseScutilExceptions(output)
+    };
+}
+
+function detectSystemProxyConfig(): SystemProxyConfig | null {
+    switch (process.platform) {
+        case 'win32':
+            return detectWindowsSystemProxy();
+        case 'darwin':
+            return detectMacSystemProxy();
+        default:
+            return null;
+    }
+}
+
+function getSystemProxyConfig(): SystemProxyConfig | null {
+    const proxySupport = vscode.workspace.getConfiguration('http').get<string>('proxySupport');
+    if (proxySupport === 'off') {
+        return null;
+    }
+
+    if (systemProxyConfigCache && systemProxyConfigCache.expiresAt > Date.now()) {
+        return systemProxyConfigCache.value;
+    }
+
+    const value = detectSystemProxyConfig();
+    systemProxyConfigCache = {
+        expiresAt: Date.now() + SYSTEM_PROXY_CACHE_TTL_MS,
+        value
+    };
+    return value;
+}
+
+function createSystemProxyFetch(): ProxiedFetch | undefined {
+    const proxyConfig = getSystemProxyConfig();
+    if (!proxyConfig) {
+        return undefined;
+    }
+
+    const { signature } = getTlsConfig();
+    const cacheKey = buildSystemProxyCacheKey(proxyConfig, signature);
+    clearStaleSystemProxyCacheEntries(cacheKey);
+
+    const cached = proxiedFetchCache.get(cacheKey);
+    if (cached) {
+        return cached;
+    }
+
+    let agent = proxyAgents.get(cacheKey);
+    if (!agent) {
+        agent = new EnvHttpProxyAgent(proxyConfig);
+        proxyAgents.set(cacheKey, agent);
+        Logger.info(
+            `[ProxyAgent] Created system proxy agent (http: ${redactProxyUrl(proxyConfig.httpProxy || '') || 'off'}, https: ${redactProxyUrl(proxyConfig.httpsProxy || '') || 'off'}, no_proxy: ${proxyConfig.noProxy || 'none'})`
+        );
+    }
+
+    const proxied: ProxiedFetch = (async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        const options = {
+            ...(init as unknown as UndiciRequestInit | undefined),
+            dispatcher: agent
+        } satisfies UndiciRequestInit;
+        return (await undiciFetch(url as never, options)) as unknown as Response;
+    }) as ProxiedFetch;
+    proxiedFetchCache.set(cacheKey, proxied);
+    return proxied;
+}
 
 function buildProxyCacheKey(proxyUrl: string, signature: string): string {
     return `${signature}::${proxyUrl}`;
@@ -179,16 +464,17 @@ export function sanitizeConfigForLogging<T>(value: T): T {
  * 获取或创建指定代理 URL 的 ProxyAgent
  */
 export function getProxyAgent(proxyUrl: string): ProxyAgent {
+    const normalizedProxyUrl = normalizeProxyEndpoint(proxyUrl) || proxyUrl;
     const { useSystemCertificates, signature } = getTlsConfig();
-    const cacheKey = buildProxyCacheKey(proxyUrl, signature);
-    clearStaleProxyCacheEntries(proxyUrl, cacheKey);
+    const cacheKey = buildProxyCacheKey(normalizedProxyUrl, signature);
+    clearStaleProxyCacheEntries(normalizedProxyUrl, cacheKey);
 
     let agent = proxyAgents.get(cacheKey);
     if (!agent) {
-        agent = new ProxyAgent(proxyUrl);
+        agent = new ProxyAgent(normalizedProxyUrl);
         proxyAgents.set(cacheKey, agent);
         Logger.info(
-            `[ProxyAgent] Created ProxyAgent for ${redactProxyUrl(proxyUrl)} (system CA: ${useSystemCertificates ? 'on' : 'off'})`
+            `[ProxyAgent] Created ProxyAgent for ${redactProxyUrl(normalizedProxyUrl)} (system CA: ${useSystemCertificates ? 'on' : 'off'})`
         );
     }
     return agent;
@@ -200,25 +486,29 @@ export function getProxyAgent(proxyUrl: string): ProxyAgent {
  */
 export function createProxiedFetch(proxyUrl?: string): ProxiedFetch {
     configureTlsCertificates();
-    if (!proxyUrl) {
-        return fetch as unknown as ProxiedFetch;
+    if (isNoProxyValue(proxyUrl)) {
+        return getDirectFetch();
+    }
+    const normalizedProxyUrl = normalizeProxyEndpoint(proxyUrl);
+    if (!normalizedProxyUrl) {
+        return createSystemProxyFetch() || getDirectFetch();
     }
     const { signature } = getTlsConfig();
-    const cacheKey = buildProxyCacheKey(proxyUrl, signature);
-    clearStaleProxyCacheEntries(proxyUrl, cacheKey);
+    const cacheKey = buildProxyCacheKey(normalizedProxyUrl, signature);
+    clearStaleProxyCacheEntries(normalizedProxyUrl, cacheKey);
 
     // 命中缓存则直接返回
     const cached = proxiedFetchCache.get(cacheKey);
     if (cached) {
         return cached;
     }
-    const agent = getProxyAgent(proxyUrl);
+    const agent = getProxyAgent(normalizedProxyUrl);
     const proxied: ProxiedFetch = (async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
         const options = {
             ...(init as unknown as UndiciRequestInit | undefined),
             dispatcher: agent
         } satisfies UndiciRequestInit;
-        return (await fetch(url as never, options)) as unknown as Response;
+        return (await undiciFetch(url as never, options)) as unknown as Response;
     }) as ProxiedFetch;
     proxiedFetchCache.set(cacheKey, proxied);
     return proxied;
@@ -229,6 +519,7 @@ export function createProxiedFetch(proxyUrl?: string): ProxiedFetch {
  */
 export async function closeProxyAgents(): Promise<void> {
     const promises: Promise<unknown>[] = [];
+    systemProxyConfigCache = null;
     for (const [cacheKey, agent] of proxyAgents) {
         proxyAgents.delete(cacheKey);
         proxiedFetchCache.delete(cacheKey);

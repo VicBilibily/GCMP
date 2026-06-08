@@ -15,6 +15,31 @@ function t(en, zh, ...args) {
     return args.reduce((result, arg, index) => result.replace(`{${index}}`, String(arg)), template);
 }
 
+function isNoProxyValue(value) {
+    return typeof value === 'string' && value.trim().toLowerCase() === 'noproxy';
+}
+
+function normalizeProxyInput(value) {
+    const trimmed = value.trim();
+    return isNoProxyValue(trimmed) ? 'noproxy' : trimmed;
+}
+
+function isValidProxyInput(value) {
+    const normalized = normalizeProxyInput(value);
+    if (!normalized || isNoProxyValue(normalized)) {
+        return true;
+    }
+
+    const candidate = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(normalized) ? normalized : `http://${normalized}`;
+
+    try {
+        new URL(candidate);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 // 类型定义
 /**
  * @typedef {Object} Provider
@@ -189,11 +214,11 @@ function createDOM() {
         )),
         createFormGroup('proxy', t('Proxy URL', '代理 URL'), 'proxy', 'input', {
             type: 'text',
-            placeholder: t('e.g. http://127.0.0.1:7890', '例如: http://127.0.0.1:7890'),
+            placeholder: t('e.g. 127.0.0.1:7890, http://127.0.0.1:7890, or noproxy', '例如: 127.0.0.1:7890、http://127.0.0.1:7890 或 noproxy'),
             value: modelData.proxy || ''
         }, t(
-            'Optional proxy used for API requests and model discovery. Enter an absolute proxy URL when needed.',
-            '可选的代理服务器地址。配置后会同时用于 API 请求和“获取模型”请求，请填写绝对 URL。'
+            'Optional proxy used for API requests and model discovery. Standard proxy URLs are supported, and protocol is optional for host:port values such as 127.0.0.1:7890. Use "noproxy" to bypass both configured and system proxies.',
+            '可选的代理服务器地址。配置后会同时用于 API 请求和“获取模型”请求；标准代理 URL 可直接使用，像 127.0.0.1:7890 这样的 host:port 也可省略协议。填写“noproxy”可显式绕过已配置代理和系统代理。'
         )),
         createFormGroup('apiKey', t('API Key', 'API 密钥'), 'apiKey', 'input', {
             type: 'password',
@@ -1426,7 +1451,7 @@ function validateForm() {
     const modelName = document.getElementById('modelName').value.trim();
     const provider = document.getElementById('provider').value.trim();
     const baseUrl = document.getElementById('baseUrl').value.trim();
-    const proxyUrl = document.getElementById('proxy').value.trim();
+    const proxyUrl = normalizeProxyInput(document.getElementById('proxy').value);
     const maxInputTokens = document.getElementById('maxInputTokens').value.trim();
     const maxOutputTokens = document.getElementById('maxOutputTokens').value.trim();
 
@@ -1481,14 +1506,15 @@ function validateForm() {
         }
     }
 
-    if (proxyUrl) {
-        try {
-            new URL(proxyUrl);
-        } catch (e) {
-            showGlobalError(t('Proxy URL is invalid. Enter a valid URL.', '代理 URL 格式不正确，请输入有效的 URL'));
-            document.getElementById('proxy').focus();
-            return false;
-        }
+    if (!isValidProxyInput(proxyUrl)) {
+        showGlobalError(
+            t(
+                'Proxy URL is invalid. Enter a valid URL, host:port, or "noproxy".',
+                '代理 URL 格式不正确，请输入有效的 URL、host:port 或 “noproxy”'
+            )
+        );
+        document.getElementById('proxy').focus();
+        return false;
     }
 
     // 验证 Token 数量
@@ -1558,7 +1584,7 @@ function saveModel() {
     const tooltipText = document.getElementById('modelTooltip').value.trim();
     const requestModelText = document.getElementById('requestModel').value.trim();
     const baseUrlText = document.getElementById('baseUrl').value.trim();
-    const proxyText = document.getElementById('proxy').value.trim();
+    const proxyText = normalizeProxyInput(document.getElementById('proxy').value);
     const apiKeyText = document.getElementById('apiKey').value.trim();
 
     const sdkMode = document.getElementById('sdkMode').value || 'openai';
@@ -1659,7 +1685,7 @@ function deleteModel() {
  */
 function fetchModelsFromAPI() {
     const baseUrl = document.getElementById('baseUrl').value.trim();
-    const proxy = document.getElementById('proxy').value.trim();
+    const proxy = normalizeProxyInput(document.getElementById('proxy').value);
     const apiKey = document.getElementById('apiKey').value.trim();
     const provider = document.getElementById('provider').value.trim();
 
