@@ -9,9 +9,10 @@
 - **系统代理自动识别**：新增 Windows Registry 与 macOS `scutil` 系统代理检测，无显式代理配置时自动沿用系统设置 (`EnvHttpProxyAgent`)；⚠️ 不支持 PAC (Proxy Auto-Config)，遇到时将被忽略
 - **`cache_control` 过滤**：工具结果序列化时跳过 VS Code 内部 `cache_control` 数据片段
 
-### Updated
+### 更新
 
 - **代理解析层级优化**：`resolveProxyForModel()` 引入 `noproxy` 断链语义——当模型/提供商/全局任一层显式设为 `noproxy` 时，停止向下回退并直接绕过代理
+- **火山引擎模型清单**：Coding Plan 与 Agent Plan 新增 **MiniMax-M3** 模型
 
 ---
 
@@ -23,6 +24,7 @@
 ### Updated
 
 - **Proxy resolution chain optimization**: `resolveProxyForModel()` now short-circuits on `noproxy` — if any layer (model/provider/global) is explicitly set to `noproxy`, fallback stops and the request bypasses all proxies
+- **Volcengine model list**: Added **MiniMax-M3** to Coding Plan and Agent Plan
 
 ## [0.24.1] - 2026-06-06
 
