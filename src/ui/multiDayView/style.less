@@ -1,0 +1,201 @@
+﻿/**
+ * 多日消耗分析 - 样式
+ */
+
+body {
+    font-family: var(--vscode-font-family);
+    color: var(--vscode-foreground);
+    background-color: var(--vscode-editor-background);
+    margin: 0;
+    padding: 16px;
+    line-height: 1.4;
+    font-size: 13px;
+}
+
+.md-header {
+    margin-bottom: 8px;
+    h2 {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 0;
+    }
+}
+
+.md-picker-section {
+    margin-bottom: 12px;
+}
+
+// ============= 日期选择器 =============
+
+.date-range-picker {
+    .quick-range-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+
+        .quick-range-btn {
+            background: var(--vscode-button-secondaryBackground);
+            border: 1px solid var(--vscode-button-secondaryBorder);
+            color: var(--vscode-button-secondaryForeground);
+            padding: 4px 12px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            &:hover {
+                background: var(--vscode-button-secondaryHoverBackground);
+            }
+            &.active {
+                background: var(--vscode-button-background);
+                color: var(--vscode-button-foreground);
+            }
+        }
+        .range-separator {
+            color: var(--vscode-foreground);
+            opacity: 0.4;
+            margin: 0 4px;
+        }
+        .range-to-label {
+            color: var(--vscode-foreground);
+            opacity: 0.6;
+            font-size: 12px;
+        }
+        .range-input {
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            color: var(--vscode-input-foreground);
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-family: var(--vscode-font-family);
+            &:focus {
+                outline: none;
+                border-color: var(--vscode-focusBorder);
+            }
+        }
+        .range-analyze-btn {
+            background: var(--vscode-button-background);
+            border: 1px solid var(--vscode-button-border);
+            color: var(--vscode-button-foreground);
+            padding: 4px 16px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            &:hover {
+                background: var(--vscode-button-hoverBackground);
+            }
+        }
+    }
+}
+
+// ============= 汇总卡片 =============
+
+.summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+
+    .summary-card {
+        background: var(--vscode-editor-background);
+        border: 1px solid var(--vscode-panel-border);
+        border-radius: 6px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+
+        .card-label {
+            font-size: 11px;
+            color: var(--vscode-descriptionForeground);
+            text-transform: uppercase;
+        }
+        .card-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--vscode-foreground);
+        }
+        .card-sub {
+            font-size: 11px;
+            color: var(--vscode-descriptionForeground);
+        }
+
+        &.type-token .card-value {
+            color: #4a90d9;
+        }
+        &.type-request .card-value {
+            color: #50c878;
+        }
+        &.type-daily .card-value {
+            color: #ff8c42;
+        }
+    }
+}
+
+// ============= 图表 =============
+
+.chart-section {
+    margin-bottom: 20px;
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px;
+    padding: 12px;
+
+    .chart-section-title {
+        font-size: 14px;
+        font-weight: 600;
+        margin: 0 0 10px 0;
+    }
+    .chart-wrapper {
+        position: relative;
+        width: 100%;
+        height: 260px;
+        min-height: 200px;
+    }
+}
+
+// ============= 提供商 & 模型排行 =============
+
+.provider-model-rank {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(520px, 1fr));
+    gap: 12px;
+
+    .donut-chart {
+        height: 180px;
+    }
+    .donut-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+        margin-top: 8px;
+        th,
+        td {
+            padding: 4px 8px;
+            text-align: left;
+            border-bottom: 1px solid var(--vscode-panel-border);
+        }
+        th {
+            font-weight: 600;
+            color: var(--vscode-descriptionForeground);
+        }
+    }
+
+    .rank-left,
+    .rank-right {
+        border: 1px solid var(--vscode-panel-border);
+        border-radius: 6px;
+        padding: 12px;
+        .chart-section-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin: 0 0 10px 0;
+        }
+    }
+}
+
+.empty-message {
+    color: var(--vscode-descriptionForeground);
+    padding: 12px 0;
+    font-size: 13px;
+}

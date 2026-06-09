@@ -11,6 +11,9 @@ import { DateUtils } from './fileLogger/dateUtils';
 import { EventEmitter } from 'events';
 import type { DateSummary } from './types';
 import type { GenericUsageData, RawUsageData, DateIndexEntry, OTelTraceContextLog } from './fileLogger/types';
+import type { MultiDayAnalysisResult } from './multiDay/types';
+import { MultiDayAggregator } from './multiDay/multiDayAggregator';
+import { TrendCalculator } from './multiDay/trendCalculator';
 
 /**
  * Token 用量管理器
@@ -333,6 +336,56 @@ export class TokenUsagesManager {
      */
     getFileLogger(): TokenFileLogger {
         return this.fileLogger;
+    }
+
+    /**
+     * 多日统计聚合
+     */
+    async getMultiDayStats(dateFrom: string, dateTo: string): Promise<MultiDayAnalysisResult> {
+        if (!this.initialized) {
+            throw new Error('TokenUsagesManager is not initialized. Call initialize() first.');
+        }
+        const startTime = Date.now();
+
+        // 确保最近几天的 stats.json 是最新的（异步写入可能还没落盘）
+        await this.fileLogger.regenerateOutdatedStats();
+
+        const aggregator = new MultiDayAggregator(this.fileLogger);
+        const base = await aggregator.aggregate(dateFrom, dateTo);
+
+        // 趋势计算
+        const trendCalc = new TrendCalculator();
+        const trendSeries = trendCalc.enrich(base.trendSeries);
+
+        // 计算环比
+        const dayCount = base.dayCount;
+        let tokensChangePct: number | null = null;
+        if (base.missingDates.length === 0 && dayCount > 0 && base.summary.totalTokens > 0) {
+            // 与上一等长周期对比
+            const prevFrom = new Date(dateFrom);
+            prevFrom.setDate(prevFrom.getDate() - dayCount);
+            const prevTo = new Date(dateFrom);
+            prevTo.setDate(prevTo.getDate() - 1);
+            const prevStr = (d: Date) => d.toISOString().slice(0, 10);
+            try {
+                const prevResult = await aggregator.aggregate(prevStr(prevFrom), prevStr(prevTo));
+                if (prevResult.missingDates.length === 0) {
+                    tokensChangePct = trendCalc.calcPeriodOverPeriod(
+                        base.summary.totalTokens,
+                        prevResult.summary.totalTokens
+                    );
+                }
+            } catch {
+                /* ignore prev period errors */
+            }
+        }
+
+        const elapsed = Date.now() - startTime;
+        StatusLogger.debug(
+            `[UsagesManager] Multi-day aggregation ${dateFrom}→${dateTo} (${base.dayCount}d) in ${elapsed}ms`
+        );
+
+        return { ...base, trendSeries, summary: { ...base.summary, tokensChangePct } };
     }
 
     /**

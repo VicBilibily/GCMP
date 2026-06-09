@@ -10,16 +10,9 @@ import { TokenUsagesManager } from '../../usages/usagesManager';
 import { StatusLogger } from '../../utils/statusLogger';
 import { t } from '../../utils/l10n';
 import { UpdateDateDetailsMessage, UpdateDateListMessage } from './types';
+import type { WebViewMessage } from './types';
 import { getTodayDateString } from './utils';
-
-/**
- * WebView 消息类型定义
- */
-type WebViewMessage =
-    | { command: 'getInitialData' }
-    | { command: 'refresh'; date?: string }
-    | { command: 'selectDate'; date: string }
-    | { command: 'openStorageDir' };
+import { MultiDayView } from '../multiDayView';
 
 /**
  * Token 用量 WebView 视图
@@ -237,7 +230,22 @@ export class TokenUsagesView {
             case 'openStorageDir':
                 await this.openStorageDir();
                 break;
+
+            case 'openMultiDayTrend':
+                this.showMultiDayTrend();
+                break;
         }
+    }
+
+    /**
+     * 打开多日消耗分析 WebView
+     */
+    private multiDayView: MultiDayView | undefined;
+    private showMultiDayTrend(): void {
+        if (!this.multiDayView) {
+            this.multiDayView = new MultiDayView(this.context);
+        }
+        this.multiDayView.show();
     }
 
     /**
@@ -344,5 +352,7 @@ export class TokenUsagesView {
     dispose(): void {
         this.updateDisposable?.dispose();
         this.panel?.dispose();
+        this.multiDayView?.dispose();
+        this.multiDayView = undefined;
     }
 }

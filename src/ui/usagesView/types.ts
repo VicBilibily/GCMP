@@ -61,7 +61,8 @@ export type WebViewMessage =
     | { command: 'getInitialData' }
     | { command: 'refresh'; date?: string }
     | { command: 'selectDate'; date: string }
-    | { command: 'openStorageDir' };
+    | { command: 'openStorageDir' }
+    | { command: 'openMultiDayTrend' };
 
 /**
  * VSCode 发送到 WebView 的消息类型

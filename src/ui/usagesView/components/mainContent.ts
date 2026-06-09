@@ -51,14 +51,10 @@ export function createMainContent(): HTMLElement {
  */
 export function updateMainContent(): void {
     const content = document.querySelector('.content');
-    if (!content || !window.usagesState) {
-        return;
-    }
+    if (!content || !window.usagesState) return;
 
     const title = content.querySelector('#details-title') as HTMLElement;
     const detailsContent = content.querySelector('#details-content') as HTMLElement;
-
-    // 更新标题
     const dateDetails = window.usagesState.dateDetails;
     const displayText =
         dateDetails?.date && isToday(dateDetails.date) ?

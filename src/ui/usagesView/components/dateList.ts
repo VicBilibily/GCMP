@@ -71,12 +71,20 @@ export function createSidebar(): HTMLElement {
     const headerTop = createElement('div', 'sidebar-header-top');
     const h1 = createElement('h1');
     h1.textContent = t('Token Usage', 'Token 消耗统计');
-    const openBtn = createElement('button', 'open-storage-button');
+    const openBtn = createElement('button', 'sidebar-action-btn');
     openBtn.textContent = '📁';
     openBtn.title = t('Open storage directory', '打开存储目录');
     openBtn.onclick = openStorageDir;
     headerTop.appendChild(h1);
     headerTop.appendChild(openBtn);
+
+    // 多日趋势按钮
+    const multiDayBtn = createElement('button', 'sidebar-action-btn');
+    multiDayBtn.textContent = '📊';
+    multiDayBtn.title = t('Multi-Day Consumption', '多日消耗分析');
+    multiDayBtn.onclick = () => postToVSCode({ command: 'openMultiDayTrend' });
+    headerTop.appendChild(multiDayBtn);
+
     header.appendChild(headerTop);
 
     // 日期列表容器

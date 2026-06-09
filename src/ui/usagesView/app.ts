@@ -183,8 +183,6 @@ function handleVSCodeMessage(event: MessageEvent): void {
     }
 }
 
-// ============= 视图更新 =============
-
 /**
  * 更新请求记录
  */
@@ -327,7 +325,7 @@ function initApp(): void {
     document.body.innerHTML = '';
     document.body.appendChild(container);
 
-    // 添加侧边栏切换按钮
+    // 添加侧边栏切换按钮和 Tab 栏
     const content = document.querySelector('.content');
     if (content) {
         const toggleBtn = createSidebarToggle();
