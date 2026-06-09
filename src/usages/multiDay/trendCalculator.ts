@@ -12,7 +12,9 @@ export class TrendCalculator {
 
     /** 简单移动平均 */
     sma(values: number[], window: number): number[] {
-        if (values.length === 0) return [];
+        if (values.length === 0) {
+            return [];
+        }
         const result: number[] = [];
         for (let i = 0; i < values.length; i++) {
             const slice = values.slice(Math.max(0, i - window + 1), i + 1);
@@ -23,7 +25,9 @@ export class TrendCalculator {
 
     /** 本周期 vs 上一等长周期 Token 变化 % */
     calcPeriodOverPeriod(currentTotal: number, previousTotal: number): number {
-        if (previousTotal === 0) return currentTotal > 0 ? 100 : 0;
+        if (previousTotal === 0) {
+            return currentTotal > 0 ? 100 : 0;
+        }
         return Math.round(((currentTotal - previousTotal) / previousTotal) * 10000) / 100;
     }
 }

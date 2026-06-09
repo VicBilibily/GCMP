@@ -99,7 +99,9 @@ export class MultiDayAggregator {
 
         for (const date of dateKeys) {
             const stats = statsMap.get(date);
-            if (!stats) continue;
+            if (!stats) {
+                continue;
+            }
             const d = new Date(date + 'T00:00:00');
             const dayOfWeek = d.getDay();
             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;

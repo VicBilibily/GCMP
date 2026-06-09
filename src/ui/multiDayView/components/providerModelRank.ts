@@ -6,8 +6,12 @@ import { createElement } from '../../utils';
 const COLORS = ['#4a90d9', '#50c878', '#ff8c42', '#9b59b6', '#e74c3c', '#1abc9c', '#f39c12', '#3498db'];
 
 function abbrev(n: number): string {
-    if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
-    if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+    if (n >= 1_000_000) {
+        return (n / 1_000_000).toFixed(2) + 'M';
+    }
+    if (n >= 1_000) {
+        return (n / 1_000).toFixed(1) + 'K';
+    }
     return String(n);
 }
 
@@ -90,9 +94,13 @@ function createDonutTable(items: Array<Record<string, unknown>>, nameKey: string
 
 function renderDonut(canvasId: string, items: Array<Record<string, unknown>>, nameKey: string): void {
     const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
-    if (!canvas) return;
+    if (!canvas) {
+        return;
+    }
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+        return;
+    }
     new Chart(ctx, {
         type: 'doughnut',
         data: {

@@ -3,7 +3,7 @@ import { createElement } from '../../utils';
 
 const QUICK_RANGES = [7, 14, 30] as const;
 
-let pickerState = { dateFrom: '', dateTo: '', selectedQuick: 0 };
+const pickerState = { dateFrom: '', dateTo: '', selectedQuick: 0 };
 
 export function createDateRangePicker(): HTMLElement {
     const row = createElement('div', 'quick-range-row');
@@ -79,7 +79,9 @@ export function createDateRangePicker(): HTMLElement {
 
 /** 首次加载时自动选中 7 天并触发分析 */
 export function initDefaultRange(): void {
-    if (pickerState.dateFrom) return; // 已有选择，不覆盖
+    if (pickerState.dateFrom) {
+        return;
+    } // 已有选择，不覆盖
     applyQuickRange(7);
 }
 

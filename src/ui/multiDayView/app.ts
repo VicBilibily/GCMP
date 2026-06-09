@@ -29,13 +29,17 @@ const state: MultiDayState = {
 function handleMessage(event: MessageEvent): void {
     const msg = event.data as HostMessage;
     if (msg.command === 'updateMultiDayAnalysis') {
-        if (msg.requestId !== window.multiDayRequestId) return;
+        if (msg.requestId !== window.multiDayRequestId) {
+            return;
+        }
         state.data = msg.data;
         state.loading = false;
         state.error = null;
         render();
     } else if (msg.command === 'multiDayError') {
-        if (msg.requestId !== window.multiDayRequestId) return;
+        if (msg.requestId !== window.multiDayRequestId) {
+            return;
+        }
         state.loading = false;
         state.error = msg.error;
         render();
@@ -46,7 +50,9 @@ function handleMessage(event: MessageEvent): void {
 
 function render(): void {
     const root = document.getElementById('app');
-    if (!root) return;
+    if (!root) {
+        return;
+    }
     root.innerHTML = '';
 
     // 标题 + 日期选择器

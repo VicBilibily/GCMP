@@ -5,7 +5,12 @@
 import type { MultiDayAnalysisResult } from '../../usages/multiDay/types';
 
 /** WebView → Host 消息 */
-export type WebViewMessage = { command: 'getMultiDayAnalysis'; dateFrom: string; dateTo: string; requestId: number };
+export interface WebViewMessage {
+    command: 'getMultiDayAnalysis';
+    dateFrom: string;
+    dateTo: string;
+    requestId: number;
+}
 
 /** Host → WebView 消息 */
 export interface UpdateMultiDayAnalysisMessage {

@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.24.3] - 2026-06-10
+
+### 新增
+
+- **多日消耗分析视图**：用量面板新增「多日分析」标签页，支持跨日期趋势统计与可视化——包含日期范围选择器、摘要卡片、趋势折线图以及按提供商/模型的消耗排名
+
+### 更新
+
+- **OpenCode 流式模式切换**：[#217](https://github.com/VicBilibily/GCMP/issues/217) OpenCode Go 与 Zen 套餐中的 OpenAI 兼容模型从 `openai` 切换为 `openai-sse` 流式模式，改善流式响应兼容性
+
+---
+
+### Added
+
+- **Multi-day usage analysis view**: Usage panel now includes a "Multi-Day Analysis" tab with cross-date trend statistics and visualization — featuring date range picker, summary cards, trend line chart, and provider/model consumption ranking
+
+### Updated
+
+- **OpenCode streaming mode switch**: [#217](https://github.com/VicBilibily/GCMP/issues/217) OpenAI-compatible models under OpenCode Go and Zen plans switched from `openai` to `openai-sse` streaming mode for better streaming compatibility
+
 ## [0.24.2] - 2026-06-08
 
 ### 新增
