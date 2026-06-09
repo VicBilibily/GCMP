@@ -107,8 +107,8 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
             "tooltip": "Coding Plan Code模型。新一代 M 系列语言模型，在编码与智能体评测中达到行业顶尖水平，适用于 Agent 推理、工具调用、代码和长上下文任务。",
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
-            "maxInputTokens": 1000000,
+            "contextSize": [512000, 256000, 192000],
+            "maxInputTokens": 512000,
             "maxOutputTokens": 128000,
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
@@ -245,8 +245,8 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
             "tooltip": "Agent Plan 模型。新一代 M 系列语言模型，在编码与智能体评测中达到行业顶尖水平，适用于 Agent 推理、工具调用、代码和长上下文任务。",
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
-            "maxInputTokens": 1000000,
+            "contextSize": [512000, 256000, 192000],
+            "maxInputTokens": 512000,
             "maxOutputTokens": 128000,
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
