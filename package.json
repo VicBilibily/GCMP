@@ -54,9 +54,6 @@
     ],
     "icon": "./gcmp-logo.png",
     "main": "./dist/extension.js",
-    "enabledApiProposals": [
-        "chatProvider"
-    ],
     "activationEvents": [
         "onStartupFinished",
         "onLanguageModelProvider:gcmp.zhipu",
