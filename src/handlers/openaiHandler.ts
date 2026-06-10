@@ -19,10 +19,13 @@ import type { GenericModelProvider } from '../providers/genericModelProvider';
 import type { CommitChatModelOptions } from '../commit';
 
 /**
- * 扩展Delta类型以支持reasoning_content字段
+ * 扩展Delta类型以支持reasoning_content和reasoning字段
  */
 export interface ExtendedDelta extends OpenAI.Chat.ChatCompletionChunk.Choice.Delta {
     reasoning_content?: string;
+    /** OpenRouter 等网关使用的 reasoning 字段 */
+    reasoning?: string;
+    reasoning_details?: unknown;
 }
 
 /**
@@ -32,6 +35,7 @@ interface ExtendedChoice extends OpenAI.Chat.Completions.ChatCompletionChunk.Cho
     message?: {
         content?: string;
         reasoning_content?: string;
+        reasoning?: string;
     };
 }
 
@@ -84,6 +88,44 @@ function normalizeResponsesOutput(response?: ParsedSSEResponsePayload): boolean 
     }
 
     return modified;
+}
+
+/**
+ * 从 reasoning_details 字段中提取可显示的文本内容。
+ * 支持字符串、对象（text/content/reasoning/detail 等常见键）以及嵌套数组。
+ * OpenRouter 等网关可能以多种格式返回该字段。
+ */
+function extractReasoningDetailsText(details: unknown): string | undefined {
+    if (typeof details === 'string') {
+        return details.length > 0 ? details : undefined;
+    }
+    if (Array.isArray(details)) {
+        const texts: string[] = [];
+        for (const item of details) {
+            const t = extractReasoningDetailsText(item);
+            if (t) {
+                texts.push(t);
+            }
+        }
+        return texts.length > 0 ? texts.join('') : undefined;
+    }
+    if (details && typeof details === 'object') {
+        const obj = details as Record<string, unknown>;
+        // 尝试常见字段名：text / content / reasoning / detail
+        for (const key of ['text', 'content', 'reasoning', 'detail']) {
+            const val = obj[key];
+            if (typeof val === 'string' && val.length > 0) {
+                return val;
+            }
+            if (Array.isArray(val)) {
+                const result = extractReasoningDetailsText(val);
+                if (result) {
+                    return result;
+                }
+            }
+        }
+    }
+    return undefined;
 }
 
 /**
@@ -894,10 +936,20 @@ export class OpenAIHandler {
                                     }
                                 }
 
-                                // 兼容：优先使用 delta 中的 reasoning_content，否则尝试从 message 中读取
-                                const reasoningContent = delta?.reasoning_content ?? message?.reasoning_content;
+                                // 兼容：优先使用 delta 中的 reasoning_content/reasoning，否则尝试从 message 中读取
+                                const reasoningContent =
+                                    delta?.reasoning_content ??
+                                    delta?.reasoning ??
+                                    message?.reasoning_content ??
+                                    message?.reasoning;
                                 if (reasoningContent) {
                                     reporter.bufferThinking(reasoningContent);
+                                } else {
+                                    // reasoning_details 作为 fallback，仅在主源为空时使用，避免重复
+                                    const detailsContent = extractReasoningDetailsText(delta?.reasoning_details);
+                                    if (detailsContent) {
+                                        reporter.bufferThinking(detailsContent);
+                                    }
                                 }
 
                                 // 检查同一个 chunk 中是否有 delta.content（文本内容）
