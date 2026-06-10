@@ -2,6 +2,28 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.24.4] - 2026-06-11
+
+### 新增
+
+- **Grok Composer 2.5 (fast) 模型**：[#219](https://github.com/VicBilibily/GCMP/issues/219) 为 Grok 提供商添加 Composer 2.5 (fast) 模型，同时调整输入 token 上限以避免实际上下文超限
+- **OpenRouter 网关 reasoning 字段兼容**：[#221](https://github.com/VicBilibily/GCMP/issues/221) 通过 Compatible Provider 接入 OpenRouter 的推理模型（如 `deepseek/deepseek-v4-pro`）时，SSE 响应中的 `delta.reasoning` / `delta.reasoning_details` 字段现可正确解析并展示流式思考内容；`reasoning_details` 以 fallback 方式使用，避免与主字段重复
+
+### 更新
+
+- **移除已稳定的 chatProvider API 提案配置**：[#223](https://github.com/VicBilibily/GCMP/issues/223) 移除 `package.json` 中冗余的 `enabledApiProposals` 声明
+
+---
+
+### Added
+
+- **Grok Composer 2.5 (fast) model**: [#219](https://github.com/VicBilibily/GCMP/issues/219) Added Composer 2.5 (fast) model to Grok provider; adjusted input token limits to prevent context overflow
+- **OpenRouter gateway reasoning field support**: [#221](https://github.com/VicBilibily/GCMP/issues/221) When accessing OpenRouter reasoning models (e.g., `deepseek/deepseek-v4-pro`) via Compatible Provider, the `delta.reasoning` / `delta.reasoning_details` fields in SSE responses are now correctly parsed and displayed as streaming thinking content; `reasoning_details` is used as a fallback to avoid duplication with the primary field
+
+### Updated
+
+- **Removed stabilized chatProvider API proposal config**: [#223](https://github.com/VicBilibily/GCMP/issues/223) Removed redundant `enabledApiProposals` from `package.json`
+
 ## [0.24.3] - 2026-06-10
 
 ### 新增
