@@ -8,8 +8,20 @@
             "name": "Grok Build 0.1",
             "tooltip": "xAI 的 Grok Build 编程模型，通过 Grok Build OAuth 登录态访问。",
             "sdkMode": "openai-responses",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 131072,
+            "maxInputTokens": 190464,
+            "maxOutputTokens": 65536,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "grok-composer-2.5-fast",
+            "name": "Grok Composer 2.5 (fast)",
+            "tooltip": "Cursor 的 Composer 2.5 (fast) 编程模型，通过 Grok Build OAuth 登录态访问。",
+            "sdkMode": "openai-responses",
+            "maxInputTokens": 134464,
+            "maxOutputTokens": 65536,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
