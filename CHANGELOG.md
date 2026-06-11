@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.24.5] - 2026-06-11
+
+### 更新
+
+- **恢复 chatProvider API 提案**：重新启用 `package.json` 中的 `chatProvider` API 提案声明——部分 chatProvider 特性仍处于提案阶段，尚未完全稳定化，移除后会导致这些特性不可用
+
+---
+
+### Updated
+
+- **Re-enabled chatProvider API proposal**: Re-added `chatProvider` API proposal declaration in `package.json` — some chatProvider features remain in proposal stage and are not yet fully stabilized; removing the declaration would break these features
+
 ## [0.24.4] - 2026-06-11
 
 ### 新增
@@ -11,7 +23,7 @@
 
 ### 更新
 
-- **移除已稳定的 chatProvider API 提案配置**：[#223](https://github.com/VicBilibily/GCMP/issues/223) 移除 `package.json` 中冗余的 `enabledApiProposals` 声明
+- ~~**移除已稳定的 chatProvider API 提案配置**：[#223](https://github.com/VicBilibily/GCMP/issues/223) 移除 `package.json` 中冗余的 `enabledApiProposals` 声明~~
 
 ---
 
@@ -22,7 +34,7 @@
 
 ### Updated
 
-- **Removed stabilized chatProvider API proposal config**: [#223](https://github.com/VicBilibily/GCMP/issues/223) Removed redundant `enabledApiProposals` from `package.json`
+- ~~**Removed stabilized chatProvider API proposal config**: [#223](https://github.com/VicBilibily/GCMP/issues/223) Removed redundant `enabledApiProposals` from `package.json`~~
 
 ## [0.24.3] - 2026-06-10
 
