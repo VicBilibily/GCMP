@@ -60,6 +60,8 @@ function isValidProxyInput(value) {
  * @property {string} [tooltip] - 描述（可选）
  * @property {string} provider - 提供商标识符
  * @property {string} [baseUrl] - API基础URL（可选）
+ * @property {string} [endpoint] - 自定义聊天端点（可选）
+ * @property {string} [modelsEndpoint] - 自定义模型列表端点（可选）
  * @property {string} [proxy] - 代理服务器地址（可选）
  * @property {string} [model] - 请求模型ID（可选）
  * @property {'openai'|'openai-sse'|'openai-responses'|'anthropic'|'gemini-sse'} sdkMode - SDK兼容模式
@@ -211,6 +213,28 @@ function createDOM() {
         }, t(
             'Base URL used for API requests. It must start with http:// or https://.\r\nFor example: https://api.openai.com/v1 or https://api.anthropic.com',
             'API请求的 baseUrl 地址，必须以 http:// 或 https:// 开头\r\n例如：https://api.openai.com/v1 或 https://api.anthropic.com'
+        )),
+        createFormGroup('endpoint', t('Chat Endpoint', '聊天端点'), 'endpoint', 'input', {
+            type: 'text',
+            placeholder: t(
+                'e.g. /chat/completions or https://api.example.com/chat/completions',
+                '例如：/chat/completions 或 https://api.example.com/chat/completions'
+            ),
+            value: modelData.endpoint || ''
+        }, t(
+            'Optional custom endpoint used for chat requests. Supports either a relative path or a full URL.',
+            '可选的自定义聊天请求端点。支持相对路径或完整 URL。'
+        )),
+        createFormGroup('modelsEndpoint', t('Models Endpoint', '模型列表端点'), 'modelsEndpoint', 'input', {
+            type: 'text',
+            placeholder: t(
+                'e.g. /models, /v4/models, or https://api.example.com/v4/models',
+                '例如：/models、/v4/models 或 https://api.example.com/v4/models'
+            ),
+            value: modelData.modelsEndpoint || ''
+        }, t(
+            'Optional custom endpoint used by the "Fetch Models" button. Supports either a relative path or a full URL.',
+            '“获取模型”按钮使用的可选自定义模型列表端点。支持相对路径或完整 URL。'
         )),
         createFormGroup('proxy', t('Proxy URL', '代理 URL'), 'proxy', 'input', {
             type: 'text',
@@ -1009,6 +1033,8 @@ function bindEvents() {
     const modelName = document.getElementById('modelName');
     const provider = document.getElementById('provider');
     const baseUrl = document.getElementById('baseUrl');
+    const endpoint = document.getElementById('endpoint');
+    const modelsEndpoint = document.getElementById('modelsEndpoint');
     const maxInputTokens = document.getElementById('maxInputTokens');
     const maxOutputTokens = document.getElementById('maxOutputTokens');
 
@@ -1043,6 +1069,31 @@ function bindEvents() {
         } catch (e) {
             this.classList.add('invalid');
         }
+    });
+
+    [endpoint, modelsEndpoint].forEach(input => {
+        input.addEventListener('input', function () {
+            const value = this.value.trim();
+            if (!value) {
+                this.classList.remove('invalid');
+                return;
+            }
+            if (value.startsWith('http://') || value.startsWith('https://')) {
+                try {
+                    const urlObj = new URL(value);
+                    if (urlObj.protocol === 'http:' || urlObj.protocol === 'https:') {
+                        this.classList.remove('invalid');
+                    } else {
+                        this.classList.add('invalid');
+                    }
+                } catch (e) {
+                    this.classList.add('invalid');
+                }
+                return;
+            }
+
+            this.classList.remove('invalid');
+        });
     });
 
     // Token数量验证
@@ -1451,6 +1502,8 @@ function validateForm() {
     const modelName = document.getElementById('modelName').value.trim();
     const provider = document.getElementById('provider').value.trim();
     const baseUrl = document.getElementById('baseUrl').value.trim();
+    const endpoint = document.getElementById('endpoint').value.trim();
+    const modelsEndpoint = document.getElementById('modelsEndpoint').value.trim();
     const proxyUrl = normalizeProxyInput(document.getElementById('proxy').value);
     const maxInputTokens = document.getElementById('maxInputTokens').value.trim();
     const maxOutputTokens = document.getElementById('maxOutputTokens').value.trim();
@@ -1515,6 +1568,39 @@ function validateForm() {
         );
         document.getElementById('proxy').focus();
         return false;
+    }
+
+    const endpointFields = [
+        {
+            value: endpoint,
+            id: 'endpoint',
+            invalidMessage: t('Chat endpoint is invalid. Enter a valid URL or path.', '聊天端点格式不正确，请输入有效的 URL 或路径')
+        },
+        {
+            value: modelsEndpoint,
+            id: 'modelsEndpoint',
+            invalidMessage: t('Models endpoint is invalid. Enter a valid URL or path.', '模型列表端点格式不正确，请输入有效的 URL 或路径')
+        }
+    ];
+
+    for (const field of endpointFields) {
+        if (!field.value) {
+            continue;
+        }
+        if (field.value.startsWith('http://') || field.value.startsWith('https://')) {
+            try {
+                const urlObj = new URL(field.value);
+                if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+                    showGlobalError(field.invalidMessage);
+                    document.getElementById(field.id).focus();
+                    return false;
+                }
+            } catch (e) {
+                showGlobalError(field.invalidMessage);
+                document.getElementById(field.id).focus();
+                return false;
+            }
+        }
     }
 
     // 验证 Token 数量
@@ -1584,6 +1670,8 @@ function saveModel() {
     const tooltipText = document.getElementById('modelTooltip').value.trim();
     const requestModelText = document.getElementById('requestModel').value.trim();
     const baseUrlText = document.getElementById('baseUrl').value.trim();
+    const endpointText = document.getElementById('endpoint').value.trim();
+    const modelsEndpointText = document.getElementById('modelsEndpoint').value.trim();
     const proxyText = normalizeProxyInput(document.getElementById('proxy').value);
     const apiKeyText = document.getElementById('apiKey').value.trim();
 
@@ -1600,6 +1688,10 @@ function saveModel() {
     model.provider = provider;
     // baseUrl: 使用 null 表示清空
     model.baseUrl = baseUrlText || null;
+    // endpoint: 使用 null 表示清空
+    model.endpoint = endpointText || null;
+    // modelsEndpoint: 使用 null 表示清空
+    model.modelsEndpoint = modelsEndpointText || null;
     // proxy: 使用 null 表示清空
     model.proxy = proxyText || null;
     // apiKey: 使用 null 表示清空
@@ -1685,6 +1777,7 @@ function deleteModel() {
  */
 function fetchModelsFromAPI() {
     const baseUrl = document.getElementById('baseUrl').value.trim();
+    const modelsEndpoint = document.getElementById('modelsEndpoint').value.trim();
     const proxy = normalizeProxyInput(document.getElementById('proxy').value);
     const apiKey = document.getElementById('apiKey').value.trim();
     const provider = document.getElementById('provider').value.trim();
@@ -1706,10 +1799,24 @@ function fetchModelsFromAPI() {
         return;
     }
 
+    if (modelsEndpoint && (modelsEndpoint.startsWith('http://') || modelsEndpoint.startsWith('https://'))) {
+        try {
+            const urlObj = new URL(modelsEndpoint);
+            if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+                showGlobalError(t('Models endpoint must start with http:// or https://.', '模型列表端点必须以 http:// 或 https:// 开头'));
+                return;
+            }
+        } catch (e) {
+            showGlobalError(t('Models endpoint is invalid. Enter a valid URL or path.', '模型列表端点格式不正确，请输入有效的 URL 或路径'));
+            return;
+        }
+    }
+
     // 发送请求到后端
     vscode.postMessage({
         command: 'fetchModels',
         baseUrl: baseUrl,
+        modelsEndpoint: modelsEndpoint || null,
         proxy: proxy || null,
         apiKey: apiKey || null,
         provider: provider || null

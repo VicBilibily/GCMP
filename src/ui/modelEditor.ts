@@ -19,6 +19,19 @@ interface EditedModelConfig extends CompatibleModelConfig {
     /** API密钥（可选，如果提供，将会自动设置API key） */
     apiKey?: string;
 }
+
+interface EndpointResolutionResult {
+    ok: true;
+    url: string;
+}
+
+interface EndpointResolutionError {
+    ok: false;
+    error: string;
+}
+
+type EndpointResolution = EndpointResolutionResult | EndpointResolutionError;
+
 /**
  * 删除模型标记接口
  */
@@ -74,6 +87,7 @@ export class ModelEditor {
                                 await this.fetchModelsFromAPI(
                                     panel.webview,
                                     message.baseUrl,
+                                    message.modelsEndpoint,
                                     message.apiKey,
                                     message.provider,
                                     message.proxy
@@ -158,6 +172,8 @@ export class ModelEditor {
             sdkMode: model?.sdkMode || 'openai',
             tooltip: model?.tooltip || '',
             baseUrl: model?.baseUrl || '',
+            endpoint: model?.endpoint || '',
+            modelsEndpoint: model?.modelsEndpoint || '',
             proxy: model?.proxy || '',
             model: model?.model || '',
             maxInputTokens: model?.maxInputTokens || 128000,
@@ -262,6 +278,7 @@ export class ModelEditor {
     private static async fetchModelsFromAPI(
         webview: vscode.Webview,
         baseUrl: string,
+        modelsEndpoint?: string,
         apiKey?: string,
         provider?: string,
         proxy?: string
@@ -276,22 +293,16 @@ export class ModelEditor {
                 return;
             }
 
-            // 构建完整的 URL
-            let url = baseUrl.trim();
-            // 移除末尾的斜杠
-            url = url.replace(/\/+$/, '');
-
-            // 智能添加 /models 端点
-            // 如果 URL 不包含 /v1，则添加 /v1/models
-            // 如果已经包含 /v1，则只添加 /models
-            let modelsUrl: string;
-            if (url.includes('/v1')) {
-                // 已经包含 /v1，直接添加 /models
-                modelsUrl = `${url}/models`;
-            } else {
-                // 不包含 /v1，添加 /v1/models
-                modelsUrl = `${url}/v1/models`;
+            const modelsUrlResult = this.resolveModelsUrl(baseUrl, modelsEndpoint);
+            if (!modelsUrlResult.ok) {
+                webview.postMessage({
+                    command: 'modelsError',
+                    error: modelsUrlResult.error
+                });
+                return;
             }
+
+            const modelsUrl = modelsUrlResult.url;
 
             // 发送加载中状态
             webview.postMessage({
@@ -369,5 +380,52 @@ export class ModelEditor {
                 error: t('Failed to fetch model list: {0}', '获取模型列表失败: {0}', errorMessage)
             });
         }
+    }
+
+    private static resolveModelsUrl(baseUrl: string, modelsEndpoint?: string): EndpointResolution {
+        const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, '');
+        const normalizedModelsEndpoint = modelsEndpoint?.trim();
+
+        if (!normalizedModelsEndpoint) {
+            return {
+                ok: true,
+                url: `${normalizedBaseUrl}/models`
+            };
+        }
+
+        if (
+            normalizedModelsEndpoint.startsWith('http://')
+            || normalizedModelsEndpoint.startsWith('https://')
+        ) {
+            try {
+                const modelsUrl = new URL(normalizedModelsEndpoint);
+                if (modelsUrl.protocol !== 'http:' && modelsUrl.protocol !== 'https:') {
+                    return {
+                        ok: false,
+                        error: t(
+                            'Models endpoint must start with http:// or https://.',
+                            '模型列表端点必须以 http:// 或 https:// 开头'
+                        )
+                    };
+                }
+                return {
+                    ok: true,
+                    url: modelsUrl.toString().replace(/\/+$/, '')
+                };
+            } catch {
+                return {
+                    ok: false,
+                    error: t(
+                        'Models endpoint is invalid. Enter a valid URL or path.',
+                        '模型列表端点格式不正确，请输入有效的 URL 或路径'
+                    )
+                };
+            }
+        }
+
+        return {
+            ok: true,
+            url: `${normalizedBaseUrl}${normalizedModelsEndpoint.startsWith('/') ? normalizedModelsEndpoint : `/${normalizedModelsEndpoint}`}`
+        };
     }
 }

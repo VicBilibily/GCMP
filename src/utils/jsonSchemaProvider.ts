@@ -514,6 +514,13 @@ export class JsonSchemaProvider {
                                 description: t('API base URL', 'API基础URL'),
                                 format: 'uri'
                             },
+                            modelsEndpoint: {
+                                type: 'string',
+                                description: t(
+                                    'Custom models endpoint path (optional).\nUsed to replace the default /models path appended to baseUrl when fetching the model list.\n- Relative path (for example /v4/models): concatenated with baseUrl\n- Full URL (for example https://api.example.com/v4/models): used directly as the request URL',
+                                    '自定义模型列表端点路径（可选）。\n用于在"获取模型"时替换默认附加到 baseUrl 后的 /models 路径。\n- 相对路径（如 /v4/models）：与 baseUrl 拼接使用\n- 完整 URL（如 https://api.example.com/v4/models）：直接作为请求地址'
+                                )
+                            },
                             model: {
                                 type: 'string',
                                 description: t(

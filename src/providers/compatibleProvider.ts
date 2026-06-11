@@ -96,6 +96,7 @@ export class CompatibleProvider extends GenericModelProvider {
                     capabilities: model.capabilities,
                     ...(model.baseUrl && { baseUrl: model.baseUrl }),
                     ...(model.endpoint && { endpoint: model.endpoint }),
+                    ...(model.modelsEndpoint && { modelsEndpoint: model.modelsEndpoint }),
                     ...(model.model && { model: model.model }),
                     ...(customHeader && { customHeader: customHeader }),
                     ...(model.extraBody && { extraBody: model.extraBody }),
