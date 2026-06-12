@@ -47,9 +47,14 @@ export class CliModelProvider extends GenericModelProvider {
         // 检查是否有有效的 API 密钥
         let hasApiKey: boolean;
         if (options.silent) {
+            const hasStoredApiKey = await ApiKeyManager.hasValidApiKey(this.providerKey);
+            if (hasStoredApiKey) {
+                return super.provideLanguageModelChatInformation(options, token);
+            }
+
             hasApiKey = await Promise.race([
                 ApiKeyManager.ensureApiKey(this.providerKey, this.providerConfig.displayName, false),
-                new Promise<boolean>(resolve => setTimeout(() => resolve(false), 500)) // 500ms timeout
+                new Promise<boolean>(resolve => setTimeout(() => resolve(false), 1500)) // 避免远程环境下误判为未认证
             ]);
         } else {
             // 非静默模式下，直接触发用户交互确保有密钥
