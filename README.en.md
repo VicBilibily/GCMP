@@ -51,7 +51,7 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 - [**Membership**](https://www.kimi.com/coding): Kimi membership plan includes `Kimi For Coding`.
     - **Search**: Integrated Kimi Search web search tool, supports `#kimiWebSearch`.
     - **Usage tracking**: Status bar displays remaining quota and rate-limit reset time.
-- Preset models: **Kimi-K2.5**
+- Preset models: **Kimi K2.5**, **Kimi K2.6**, **Kimi K2.7 Code**
     - **Balance query**: Status bar displays current account balance.
 
 ### [**DeepSeek**](https://platform.deepseek.com/)

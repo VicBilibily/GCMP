@@ -47,11 +47,20 @@ export class CliModelProvider extends GenericModelProvider {
         // 检查是否有有效的 API 密钥
         let hasApiKey: boolean;
         if (options.silent) {
-            const hasStoredApiKey = await ApiKeyManager.hasValidApiKey(this.providerKey);
-            if (hasStoredApiKey) {
-                return super.provideLanguageModelChatInformation(options, token);
+            // 基于文件 mtime 的缓存检查：先快速判定凭证是否有变化
+            // loadCredentials() 内部通过 fs.statSync + mtime 比对做缓存，
+            // 文件未变 → 直接返回内存缓存（<1ms）；跨终端更新 → 自动检测并重新加载
+            const credentials = await CliAuthFactory.loadCredentials(this.providerKey);
+            if (credentials?.access_token) {
+                // 委托各 CLI 子类判断过期（Codex=1h, Gemini/Grok=5min）
+                if (!CliAuthFactory.isCredentialExpired(this.providerKey, credentials)) {
+                    await ApiKeyManager.setApiKey(this.providerKey, credentials.access_token);
+                    return super.provideLanguageModelChatInformation(options, token);
+                }
+                Logger.trace(`[CliModelProvider] ${this.providerKey} token expired, trying refresh`);
             }
 
+            // 无凭证缓存，走带超时的 ensureAuthenticated
             hasApiKey = await Promise.race([
                 ApiKeyManager.ensureApiKey(this.providerKey, this.providerConfig.displayName, false),
                 new Promise<boolean>(resolve => setTimeout(() => resolve(false), 1500)) // 避免远程环境下误判为未认证

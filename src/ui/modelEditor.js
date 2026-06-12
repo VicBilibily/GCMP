@@ -225,17 +225,6 @@ function createDOM() {
             'Optional custom endpoint used for chat requests. Supports either a relative path or a full URL.',
             '可选的自定义聊天请求端点。支持相对路径或完整 URL。'
         )),
-        createFormGroup('modelsEndpoint', t('Models Endpoint', '模型列表端点'), 'modelsEndpoint', 'input', {
-            type: 'text',
-            placeholder: t(
-                'e.g. /models, /v4/models, or https://api.example.com/v4/models',
-                '例如：/models、/v4/models 或 https://api.example.com/v4/models'
-            ),
-            value: modelData.modelsEndpoint || ''
-        }, t(
-            'Optional custom endpoint used by the "Fetch Models" button. Supports either a relative path or a full URL.',
-            '“获取模型”按钮使用的可选自定义模型列表端点。支持相对路径或完整 URL。'
-        )),
         createFormGroup('proxy', t('Proxy URL', '代理 URL'), 'proxy', 'input', {
             type: 'text',
             placeholder: t('e.g. 127.0.0.1:7890, http://127.0.0.1:7890, or noproxy', '例如: 127.0.0.1:7890、http://127.0.0.1:7890 或 noproxy'),
@@ -249,6 +238,17 @@ function createDOM() {
             placeholder: t('Leave blank to keep the saved key unchanged', '留空则保持已保存的密钥不变'),
             value: modelData.apiKey
         }, t('API key (optional). Setting it here updates the saved key automatically.', 'API 密钥（可选）。在此设置会自动更新密钥。')),
+        createFormGroup('modelsEndpoint', t('Models Endpoint', '模型列表端点'), 'modelsEndpoint', 'input', {
+            type: 'text',
+            placeholder: t(
+                'e.g. /models, /v4/models, or https://api.example.com/v4/models',
+                '例如：/models、/v4/models 或 https://api.example.com/v4/models'
+            ),
+            value: modelData.modelsEndpoint || ''
+        }, t(
+            'Optional custom endpoint used by the "Fetch Models" button. Supports either a relative path or a full URL.',
+            '“获取模型”按钮使用的可选自定义模型列表端点。支持相对路径或完整 URL。'
+        )),
         createModelComboboxFormGroup()
     ]);
 

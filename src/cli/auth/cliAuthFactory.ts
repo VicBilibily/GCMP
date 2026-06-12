@@ -70,6 +70,18 @@ export class CliAuthFactory {
     }
 
     /**
+     * 判断凭证是否已过期（只读，不触发网络刷新）
+     * 由各 CLI 子类的 getExpiryBufferMs() 决定具体缓冲时间
+     */
+    static isCredentialExpired(cliType: string, credentials: OAuthCredentials): boolean {
+        const instance = this.getInstance(cliType);
+        if (!instance) {
+            return true;
+        }
+        return instance.isExpired(credentials);
+    }
+
+    /**
      * 检查 CLI 是否已安装
      */
     static async isCliInstalled(cliType: string): Promise<boolean> {

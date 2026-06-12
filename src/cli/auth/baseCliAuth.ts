@@ -81,10 +81,7 @@ export abstract class BaseCliAuth {
             return null;
         }
 
-        // 检查令牌是否过期（提前 1 小时刷新，避免临界点）
-        const expiryBuffer = 60 * 60 * 1000; // 1 小时缓冲
-        const isExpired = credentials.expiry_date ? credentials.expiry_date < Date.now() + expiryBuffer : false;
-        if (isExpired && credentials.refresh_token) {
+        if (this.isExpired(credentials) && credentials.refresh_token) {
             try {
                 credentials = await this.refreshAccessToken(credentials);
                 Logger.info(`[${this.config.name}] Token refreshed`);
@@ -94,6 +91,22 @@ export abstract class BaseCliAuth {
             }
         }
         return credentials;
+    }
+
+    /**
+     * 判断凭证是否已过期（只读，不触发网络刷新）
+     * 各子类按自身 token 有效期覆写缓冲时间
+     * 默认提前 1 小时刷新
+     */
+    isExpired(credentials: OAuthCredentials): boolean {
+        return credentials.expiry_date ? credentials.expiry_date < Date.now() + this.getExpiryBufferMs() : false;
+    }
+
+    /**
+     * 过期缓冲时间（毫秒），子类可按需覆写
+     */
+    protected getExpiryBufferMs(): number {
+        return 60 * 60 * 1000; // 默认 1 小时
     }
 
     /**

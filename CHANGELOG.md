@@ -2,6 +2,34 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.24.6] - 2026-06-12
+
+### 新增
+
+- **Kimi K2.7 Code 模型**：新增 `kimi-k2.7-code` 模型到 MoonshotAI 提供商——基于 Anthropic API 兼容协议，仅支持思考模式，适用于长上下文编程任务
+- **自定义 modelsEndpoint 配置**：[#227](https://github.com/VicBilibily/GCMP/issues/227) Compatible Provider 新增 `modelsEndpoint` 字段，允许为"获取模型"功能指定独立端点（相对路径或完整 URL），配合新增 `endpoint` 字段实现聊天与模型发现双端点分离
+
+### 修复
+
+- **CLI 认证凭证过期判定**：[#230](https://github.com/VicBilibily/GCMP/issues/230) 优化 Codex/Gemini/Grok CLI 认证流程：
+    - 增加基于文件 mtime 的内存缓存，跨终端凭证更新自动检测并重新加载
+    - 修复远程 SSH/Dev Container 环境下凭证获取超时导致的请求错误
+    - 过期判断下沉至各 CLI 子类，Codex 使用 1h 缓冲，Gemini/Grok 使用 5min 缓冲
+
+---
+
+### Added
+
+- **Kimi K2.7 Code model**: Added `kimi-k2.7-code` model to MoonshotAI provider — uses Anthropic API protocol, thinking mode only, for long-context coding tasks
+- **Custom modelsEndpoint config**: [#227](https://github.com/VicBilibily/GCMP/issues/227) Added `modelsEndpoint` field to Compatible Provider, allowing a dedicated endpoint for "Fetch Models" (relative path or full URL), paired with the new `endpoint` field for chat/discovery dual-endpoint separation
+
+### Fixed
+
+- **CLI auth credential expiry handling**: [#230](https://github.com/VicBilibily/GCMP/issues/230) Improved Codex/Gemini/Grok CLI authentication flow:
+    - Added file mtime-based in-memory caching, auto-detecting cross-terminal credential updates
+    - Fixed credential timeout errors in remote SSH/Dev Container environments
+    - Expiry check delegated to each CLI subclass: Codex uses 1h buffer, Gemini/Grok use 5min buffer
+
 ## [0.24.5] - 2026-06-11
 
 ### 更新

@@ -80,27 +80,11 @@ export class GrokCliAuth extends BaseCliAuth {
         this.recordKey = finalRecordKey;
     }
 
-    async ensureAuthenticated(): Promise<OAuthCredentials | null> {
-        let credentials = await this.loadCredentials();
-        if (!credentials) {
-            return null;
-        }
-
-        const expiryBufferMs = 5 * 60 * 1000;
-        const isExpired =
-            typeof credentials.expiry_date === 'number' ? credentials.expiry_date < Date.now() + expiryBufferMs : false;
-
-        if (isExpired && credentials.refresh_token) {
-            try {
-                credentials = await this.refreshAccessToken(credentials);
-                Logger.info(`[${this.config.name}] Token refreshed`);
-            } catch (error) {
-                Logger.error(`[${this.config.name}] Failed to refresh token:`, error);
-                return null;
-            }
-        }
-
-        return credentials;
+    /**
+     * Grok access_token 有效期较短，使用 5 分钟缓冲避免频繁刷新。
+     */
+    protected getExpiryBufferMs(): number {
+        return 5 * 60 * 1000;
     }
 
     protected async refreshAccessToken(credentials: OAuthCredentials): Promise<OAuthCredentials> {

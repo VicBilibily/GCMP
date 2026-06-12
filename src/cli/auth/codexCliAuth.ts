@@ -107,34 +107,6 @@ export class CodexCliAuth extends BaseCliAuth {
     }
 
     /**
-     * Codex access_token 有效期约 10 天。
-     * 提前 1 小时刷新，避免边界问题。
-     */
-    async ensureAuthenticated(): Promise<OAuthCredentials | null> {
-        let credentials = await this.loadCredentials();
-        if (!credentials) {
-            return null;
-        }
-
-        // Codex: 提前 1 小时刷新，避免边界问题
-        const expiryBufferMs = 60 * 60 * 1000;
-        const isExpired =
-            typeof credentials.expiry_date === 'number' ? credentials.expiry_date < Date.now() + expiryBufferMs : false;
-
-        if (isExpired && credentials.refresh_token) {
-            try {
-                credentials = await this.refreshAccessToken(credentials);
-                Logger.info(`[${this.config.name}] Token refreshed`);
-            } catch (error) {
-                Logger.error(`[${this.config.name}] Failed to refresh token:`, error);
-                return null;
-            }
-        }
-
-        return credentials;
-    }
-
-    /**
      * 刷新 Codex CLI 访问令牌（OAuth 2.0 refresh_token）
      */
     protected async refreshAccessToken(credentials: OAuthCredentials): Promise<OAuthCredentials> {

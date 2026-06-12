@@ -14,38 +14,40 @@
             "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "kimi-k2.5",
-            "name": "Kimi-K2.5",
+            "name": "Kimi K2.5",
             "sdkMode": "anthropic",
             "baseUrl": "https://api.moonshot.cn/anthropic",
             "tooltip": "Kimi K2.5 是 Kimi 迄今最智能的模型，同时也是最全能的模型，原生的多模态架构设计，同时支持文本、图片与视频输入，思考与非思考模式，对话与 Agent 任务。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "kimi-k2.6",
-            "name": "Kimi-K2.6",
+            "name": "Kimi K2.6",
             "sdkMode": "anthropic",
             "baseUrl": "https://api.moonshot.cn/anthropic",
             "tooltip": "Kimi K2.6 是 Kimi 最新最智能的模型，具备更强更稳的长程代码编写能力，指令遵循和自我纠错能力显著提升，同时支持文本、图片与视频输入，思考与非思考模式，对话与 Agent 任务。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
+            "id": "kimi-k2.7-code",
+            "name": "Kimi K2.7 Code",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.moonshot.cn/anthropic",
+            "tooltip": "Kimi K2.7 Code 是 Kimi 迄今最智能的 Coding 模型，在长上下文中更可靠地遵循指令，能以更高的成功率完成编程任务。同时支持文本、图片与视频输入，仅支持思考模式，对话与 Agent 任务。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "extraBody": { "thinking": { "type": "enabled" } },
+            "capabilities": { "toolCalling": true, "imageInput": true }
         }
     ]
 }

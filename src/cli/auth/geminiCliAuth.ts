@@ -47,17 +47,16 @@ export class GeminiCliAuth extends BaseCliAuth {
 
     /**
      * Gemini access_token 默认仅 1 小时有效。
-     * BaseCliAuth 使用 1 小时缓冲会导致“刚拿到就判定过期”，从而持续刷新。
-     * Gemini 单独使用更小的缓冲时间（默认 5 分钟）。
+     * 使用 5 分钟缓冲，避免“刚拿到就判定过期”导致的持续刷新。
      */
-    async ensureAuthenticated(): Promise<OAuthCredentials | null> {
-        let credentials = await this.loadCredentials();
-        if (!credentials) {
-            // Logger.info(`[${this.config.name}] 未认证，请先运行 CLI 登录`);
-            return null;
-        }
+    protected getExpiryBufferMs(): number {
+        return 5 * 60 * 1000;
+    }
 
-        // 兼容凭证文件里 expiry_date 可能为字符串的情况
+    /**
+     * 兼容凭证文件里 expiry_date 可能为字符串的情况
+     */
+    protected async afterLoadCredentials(credentials: OAuthCredentials): Promise<OAuthCredentials> {
         const rawExpiry = (credentials as unknown as { expiry_date?: unknown }).expiry_date;
         if (typeof rawExpiry === 'string') {
             const parsed = Number(rawExpiry);
@@ -65,22 +64,6 @@ export class GeminiCliAuth extends BaseCliAuth {
                 credentials.expiry_date = parsed;
             }
         }
-
-        // Gemini: 提前 5 分钟刷新即可，避免边界问题
-        const expiryBufferMs = 5 * 60 * 1000;
-        const isExpired =
-            typeof credentials.expiry_date === 'number' ? credentials.expiry_date < Date.now() + expiryBufferMs : false;
-
-        if (isExpired && credentials.refresh_token) {
-            try {
-                credentials = await this.refreshAccessToken(credentials);
-                Logger.info(`[${this.config.name}] Token refreshed`);
-            } catch (error) {
-                Logger.error(`[${this.config.name}] Failed to refresh token:`, error);
-                return null;
-            }
-        }
-
         return credentials;
     }
 
