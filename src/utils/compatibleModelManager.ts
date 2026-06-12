@@ -49,6 +49,13 @@ export interface CompatibleModelConfig {
      * 仅对 openai、openai-sse、openai-responses 模式生效。
      */
     endpoint?: string;
+    /**
+     * 自定义模型列表端点路径（可选）
+     * 用于在“获取模型”时替换默认附加到 baseUrl 后的 /models 路径。
+     * - 相对路径（如 /models、/v4/models）：与 baseUrl 拼接使用
+     * - 完整 URL（如 https://api.example.com/v4/models）：直接作为请求地址
+     */
+    modelsEndpoint?: string;
     /** API请求时使用的模型名称（可选） */
     model?: string;
     /**
