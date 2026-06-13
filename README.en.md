@@ -28,14 +28,22 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 
 ```json
 {
-    // General utility tasks: title generation, summaries, search setup, Git views
+    // General utility tasks: title generation, summaries, intent classification, rename suggestions, terminal commands/fixes, search, VS Code Q&A
     "chat.utilityModel": "gcmp.deepseek/gcmp.deepseek:::deepseek-v4-pro",
-    // Lightweight utility tasks: commit messages, rename suggestions, branch names, intent detection
+    // Lightweight utility tasks: commit messages, branch names, progress messages, todo tracking
     "chat.utilitySmallModel": "gcmp.deepseek/gcmp.deepseek:::deepseek-v4-flash"
 }
 ```
 
-> **Recommendation**: Use a fast-responding model for `utilitySmallModel` (for example, `deepseek-v4-flash`). You can pair it with `maxInputTokens: 16384` or a similarly low limit for quick tasks. General utility tasks (title generation, summaries, etc.) use `chat.utilityModel`, while Agent exploration uses `chat.exploreAgent.defaultModel`.
+> **Recommendation**: Use a fast-responding model for `utilitySmallModel` (for example, `deepseek-v4-flash`). You can pair it with `maxInputTokens: 16384` or a similarly low limit for quick tasks.
+
+| Setting | Model Family Override | Affected RequestKinds |
+|---|---|---|
+| `chat.utilitySmallModel` | `copilot-utility-small` (default: `gpt-4o-mini`) | `chat-title`, `git-commit-message`, `git-branch-name`, `inline-progress-message`, `prompt-categorizer`, `todo-tracker`, `rename-suggestions`, `terminal-command/quickfix/explain`, `workspace-search` |
+| `chat.utilityModel` | `copilot-utility` (default: CAPI fallback) | `settings-resolver`, `explain-code`, `vscode-qa` |
+| `chat.exploreAgent.defaultModel` | Main agent model (default: follows user selection) | `search-subagent` Explore subagent code search |
+
+The explore subagent uses `chat.exploreAgent.defaultModel`; if unset, it reuses the main agent model (same as the user's selected model):
 
 ```json
 {

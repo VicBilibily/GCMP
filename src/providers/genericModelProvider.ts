@@ -445,12 +445,12 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const retryManager = new RetryManager(this.getRequestRetryConfig());
 
         // 请求分类 + 透传给 handler（供所有子类复用的 executeModelRequest）
-        const isCommit = !!(options as { modelOptions?: { commit?: boolean } }).modelOptions?.commit;
-        const kind = classifyRequest(messages, options.tools, isCommit);
         const rtOpts = options as RuntimeProvideLanguageModelChatResponseOptions;
         if (!rtOpts.modelOptions) {
             rtOpts.modelOptions = {};
         }
+        const isCommit = !!(options as { modelOptions?: { commit?: boolean } }).modelOptions?.commit;
+        const kind = classifyRequest(messages, options.tools, isCommit);
         if (!rtOpts.modelOptions.requestKind) {
             rtOpts.modelOptions.requestKind = kind;
         }
@@ -564,13 +564,15 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const sdkMode = modelConfig.sdkMode || 'openai';
 
         // 请求分类 + 注入到 options.modelOptions（确保 statusBar 能读取到 requestKind）
-        const isCommit = !!(options as { modelOptions?: { commit?: boolean } }).modelOptions?.commit;
-        const kind = classifyRequest(messages, options.tools, isCommit);
         const rtOpts = options as RuntimeProvideLanguageModelChatResponseOptions;
         if (!rtOpts.modelOptions) {
             rtOpts.modelOptions = {};
         }
-        rtOpts.modelOptions.requestKind = kind;
+        const isCommit = !!(options as { modelOptions?: { commit?: boolean } }).modelOptions?.commit;
+        const kind = classifyRequest(messages, options.tools, isCommit);
+        if (!rtOpts.modelOptions.requestKind) {
+            rtOpts.modelOptions.requestKind = kind;
+        }
 
         // 计算输入 token 数量并更新状态栏
         const { totalInputTokens, maxInputTokens } = await this.updateContextUsageStatusBar(

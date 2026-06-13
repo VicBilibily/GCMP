@@ -28,14 +28,22 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 
 ```json
 {
-    // 通用实用任务：标题生成、摘要、搜索设置、Git 查看
+    // 通用实用任务：标题生成、摘要、意图分类、重命名建议、终端命令/修复/解释、搜索助手、VS Code问答
     "chat.utilityModel": "gcmp.deepseek/gcmp.deepseek:::deepseek-v4-pro",
-    // 轻量实用任务：提交信息、重命名建议、分支名生成、意图检测（建议用快速低成本模型）
+    // 轻量实用任务：提交信息、分支名生成、进度消息、待办跟踪（建议用快速低成本模型）
     "chat.utilitySmallModel": "gcmp.deepseek/gcmp.deepseek:::deepseek-v4-flash"
 }
 ```
 
-> 推荐规格：`utilitySmallModel` 选择响应快的模型（如 `deepseek-v4-flash`），可配合 `maxInputTokens: 16384` 等低规格满足快捷任务即可。通用任务（标题生成、摘要等）使用 `chat.utilityModel`，Agent 探索使用 `chat.exploreAgent.defaultModel`，设置方式同上。
+> 推荐规格：`utilitySmallModel` 选择响应快的模型（如 `deepseek-v4-flash`），可配合 `maxInputTokens: 16384` 等低规格满足快捷任务即可。通用任务（标题生成、摘要等）使用 `chat.utilityModel`。
+
+| 设置项 | 覆盖模型途径 | 影响的请求类型 |
+|---|---|---|
+| `chat.utilitySmallModel` | `copilot-utility-small`（默认 `gpt-4o-mini`） | `chat-title` 标题、`git-commit-message` 提交信息、`git-branch-name` 分支名、`inline-progress-message` 进度消息、`prompt-categorizer` 意图分类、`todo-tracker` 待办跟踪、`rename-suggestions` 重命名建议、`terminal-command/quickfix/explain` 终端命令、`workspace-search` 搜索助手 |
+| `chat.utilityModel` | `copilot-utility`（默认 CAPI fallback） | `settings-resolver` 设置搜索、`explain-code` 代码解释、`vscode-qa` VS Code 问答 |
+| `chat.exploreAgent.defaultModel` | 主 Agent 模型（默认跟随用户选择） | `search-subagent` Explore 子 Agent 代码搜索 |
+
+探索性子代理使用 `chat.exploreAgent.defaultModel` 指定模型；若不设置，默认复用主 Agent 模型（与用户选择的模型相同）：
 
 ```json
 {

@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  RequestKind 分类器
  *  通过分析系统提示词前缀和工具列表判断 Copilot 请求类型
  *  用于控制思考模式开关、工具流处理、日志记录等行为
@@ -12,47 +12,186 @@ import * as vscode from 'vscode';
 export type RequestKind =
     | 'main-agent' // 主 Agent 对话（用户发起）
     | 'terminal-steering' // 终端通知驱动的指引
+    | 'terminal-command' // 终端命令建议（/explain 等）
+    | 'terminal-quickfix' // 终端快速修复
+    | 'terminal-explain' // 终端错误解释
+    | 'explain-code' // 代码解释（/explain）
+    | 'workspace-search' // 工作空间文本搜索助手
+    | 'code-search' // 代码库语义搜索（搜索面板）
+    | 'vscode-qa' // VS Code 知识问答
+    | 'search-subagent' // 搜索/探索子 Agent（search_subagent / explore_subagent）
+    | 'execution-subagent' // 执行子 Agent（execution_subagent）
     | 'todo-tracker' // 待办列表跟踪
     | 'prompt-categorizer' // Prompt 分类
+    | 'intent-detector' // 意图检测/参与者路由
     | 'settings-resolver' // 设置解析
     | 'chat-title' // 会话标题生成
     | 'inline-progress-message' // 内联进度消息
     | 'git-branch-name' // Git 分支名建议
     | 'git-commit-message' // Git 提交消息生成
+    | 'pr-description' // PR 描述生成
     | 'rename-suggestions' // 重命名建议
+    | 'summarization' // 对话摘要（上下文压缩）
+    | 'code-mapper' // 代码映射/重写
+    | 'feedback-gen' // 代码反馈生成
+    | 'debug-config' // 调试配置生成
+    | 'workspace-gen' // 工作区/文件生成
+    | 'test-gen' // 测试生成
+    | 'goal-summary' // 目标摘要
+    | 'risk-assessment' // 命令风险评估
     | 'background' // 后台/工具请求（有内容但无法识别具体类型）
     | 'unknown'; // 无法识别（空请求）
 
 /** 无需深度推理的子请求——可强制关闭思考模式 */
 const SUB_REQUEST_TYPES = new Set<RequestKind>([
+    'summarization',
+    'terminal-command',
+    'terminal-quickfix',
+    'terminal-explain',
+    'explain-code',
+    'workspace-search',
+    'code-search',
+    'vscode-qa',
+    'search-subagent',
+    'execution-subagent',
     'todo-tracker',
     'prompt-categorizer',
+    'intent-detector',
     'settings-resolver',
     'chat-title',
     'inline-progress-message',
     'git-branch-name',
     'git-commit-message',
-    'rename-suggestions'
+    'pr-description',
+    'rename-suggestions',
+    'code-mapper',
+    'feedback-gen',
+    'debug-config',
+    'workspace-gen',
+    'test-gen',
+    'goal-summary',
+    'risk-assessment'
 ]);
 
-/** 系统提示词前缀 → RequestKind 映射 */
+/** 系统提示词前缀 → RequestKind 映射
+ * 来源文件路径基于 microsoft/vscode 仓库 `extensions/copilot/src/extension/`
+ */
 const SYSTEM_PROMPT_PREFIXES: [string, RequestKind][] = [
+    // backgroundTodoAgentPrompt.tsx → todo-tracker
     ['You are a background task tracker', 'todo-tracker'],
+    // promptCategorization.tsx → prompt-categorizer
     ['You are an expert classifier for AI coding assistant prompts', 'prompt-categorizer'],
+    // settingsEditorSuggestQueryPrompt.tsx → settings-resolver
     [
         'You are a Visual Studio Code assistant. Your job is to assist users in using Visual Studio Code by returning settings',
         'settings-resolver'
     ],
+    // title.tsx → chat-title
     ['You are an expert in crafting ultra-compact titles', 'chat-title'],
     ['You are an expert in crafting pithy titles', 'chat-title'],
+    // progressMessagesPrompt.tsx → inline-progress-message
     ['You are an expert in writing short, catchy, and encouraging progress messages', 'inline-progress-message'],
+    // gitBranch.tsx → git-branch-name
     ['You are an expert in crafting pithy branch names', 'git-branch-name'],
+    // gitCommitMessagePrompt.tsx → git-commit-message
     [
         'You are an AI programming assistant, helping a software developer to come with the best git commit message',
         'git-commit-message'
     ],
+    // renameSuggestionsPrompt.tsx → rename-suggestions
     ['You are a distinguished software engineer', 'rename-suggestions'],
-    ['You are an expert AI programming assistant', 'main-agent']
+    // summarizedConversationHistory.tsx → summarization
+    ['Your task is to create a comprehensive, detailed summary of the entire conversation', 'summarization'],
+    // searchSubagentPrompt.tsx → search-subagent
+    ['You are an AI coding research assistant that uses search tools to gather information', 'search-subagent'],
+    // executionSubagentPrompt.tsx → execution-subagent
+    [
+        'You are an AI coding research assistant that runs a series of terminal commands to perform a small execution-focused task',
+        'execution-subagent'
+    ],
+    // terminal.tsx → terminal-command
+    [
+        'You are a programmer who specializes in using the command line. Your task is to help the Developer craft a command',
+        'terminal-command'
+    ],
+    // terminalQuickFix.tsx → terminal-quickfix (变体1: 列出文件)
+    [
+        'You are a programmer who specializes in using the command line. Your task is to respond with a list of files',
+        'terminal-quickfix'
+    ],
+    // terminalExplain.tsx → terminal-explain
+    [
+        'You are a programmer who specializes in using the command line. Your task is to help the Developer by giving a detailed answer',
+        'terminal-explain'
+    ],
+    // terminalQuickFix.tsx → terminal-quickfix (变体2: 修复命令)
+    [
+        'You are a programmer who specializes in using the command line. Your task is to help the user fix a command',
+        'terminal-quickfix'
+    ],
+    // explain.tsx → explain-code
+    ['You are a world-class coding tutor', 'explain-code'],
+    // search.tsx → workspace-search
+    ['You are a VS Code search expert who helps to write search queries', 'workspace-search'],
+    // searchPanelPrompt.tsx / searchPanelKeywordsPrompt.tsx → code-search
+    ['You are a software engineer with expert knowledge of the codebase the user has open', 'code-search'],
+    // vscode.tsx → vscode-qa
+    [
+        'You are a Visual Studio Code assistant. Your job is to assist users in using Visual Studio Code by providing knowledge',
+        'vscode-qa'
+    ],
+    // newWorkspace.tsx → workspace-gen (文件生成)
+    ['You are a Visual Studio Code assistant. Your job is to generate the contents of a new file', 'workspace-gen'],
+    // languageToolsProvider.tsx → terminal-command (开发工具助手)
+    ['You are an AI programming assistant that is specialized for usage of command-line tools', 'terminal-command'],
+    // codeMapperPrompt.tsx → code-mapper
+    [
+        'You are an AI programming assistant that is specialized in applying code changes to an existing document',
+        'code-mapper'
+    ],
+    // setupTestsInvocation.tsx / setupTestsFrameworkQueryInvocation.tsx → test-gen
+    ['You are a software engineer with expert knowledge around software testing frameworks', 'test-gen'],
+    // startDebugging.tsx → debug-config
+    [
+        'You are a Visual Studio Code assistant who specializes in debugging and creating launch configurations',
+        'debug-config'
+    ],
+    // intentDetector.tsx → intent-detector
+    ['You are a helpful AI programming assistant. Your task is to choose one category', 'intent-detector'],
+    // pullRequestDescriptionPrompt.tsx → pr-description
+    ['You are an AI assistant for a software developer who is about to make a pull request', 'pr-description'],
+    // provideFeedback.tsx → feedback-gen
+    ['You are a world-class software engineer and the author and maintainer', 'feedback-gen'],
+    // customizationCreatorService.ts → workspace-gen (Agent/Skill 创建引导)
+    ['You are a helpful assistant that guides users through creating a new custom', 'workspace-gen'],
+    // chatGoalSummaryService.ts → goal-summary
+    ['You summarize a user', 'goal-summary'],
+    // chatToolRiskAssessmentService.ts → risk-assessment
+    ['You assess what one terminal command does', 'risk-assessment'],
+    // gpt5Prompt.tsx / gpt51Prompt.tsx / gpt52Prompt.tsx → main-agent (GPT-5 系列)
+    ['You are a coding agent running in VS Code', 'main-agent'],
+    // gpt5CodexPrompt.tsx / gpt51CodexPrompt.tsx → main-agent (Codex 系列)
+    ['You are a coding agent based on', 'main-agent'],
+    // hiddenModelMPrompt.tsx / gpt55BasePrompt.tsx → main-agent
+    ['You have a vivid inner life as coding agent', 'main-agent'],
+    // zaiPrompts.tsx → main-agent (GLM/ZAI 系列)
+    ['You are a senior software architect and expert coding agent', 'main-agent'],
+    // panelChatBasePrompt.tsx / editCodePrompt.tsx / inlineChat*.tsx → main-agent (面板/内联兜底)
+    ['You are an AI programming assistant', 'main-agent'],
+    // agentPrompt.tsx / minimaxPrompts.tsx / familyHPrompts.tsx → main-agent
+    ['You are an expert AI programming assistant', 'main-agent'],
+    // chatGoalSummaryService.ts → goal-summary
+    ['You summarize a user', 'goal-summary'],
+    // chatToolRiskAssessmentService.ts → risk-assessment
+    ['You assess what one terminal command does', 'risk-assessment'],
+    // gpt5Prompt.tsx / gpt51Prompt.tsx / gpt52Prompt.tsx → main-agent (GPT-5 系列)
+    ['You are a coding agent running in VS Code', 'main-agent'],
+    // gpt5CodexPrompt.tsx / gpt51CodexPrompt.tsx → main-agent (Codex 系列)
+    ['You are a coding agent based on', 'main-agent'],
+    // hiddenModelMPrompt.tsx / gpt55BasePrompt.tsx → main-agent
+    ['You have a vivid inner life as coding agent', 'main-agent'],
+    // zaiPrompts.tsx → main-agent (GLM/ZAI 系列)
+    ['You are a senior software architect and expert coding agent', 'main-agent']
 ];
 
 /**
@@ -68,14 +207,33 @@ export function isSubRequest(kind: RequestKind): boolean {
 export const REQUEST_KIND_DISPLAY_NAMES: Record<RequestKind, [string, string]> = {
     'main-agent': ['Agent Chat', 'Agent 对话'],
     'terminal-steering': ['Terminal Steering', '终端引导'],
+    'terminal-command': ['Terminal Command', '终端命令'],
+    'terminal-quickfix': ['Terminal Quick Fix', '终端修复'],
+    'terminal-explain': ['Terminal Explain', '终端解释'],
+    'explain-code': ['Explain Code', '代码解释'],
+    'workspace-search': ['Workspace Search', '搜索助手'],
+    'code-search': ['Code Search', '代码搜索'],
+    'vscode-qa': ['VS Code Q&A', 'VS Code 问答'],
+    'search-subagent': ['Search Subagent', '搜索子代理'],
+    'execution-subagent': ['Execution Subagent', '执行子代理'],
     'todo-tracker': ['Todo Tracker', '待办跟踪'],
     'prompt-categorizer': ['Prompt Categorizer', 'Prompt 分类'],
+    'intent-detector': ['Intent Detector', '意图检测'],
     'settings-resolver': ['Settings Resolver', '设置解析'],
     'chat-title': ['Chat Title', '会话标题'],
     'inline-progress-message': ['Progress Message', '进度消息'],
     'git-branch-name': ['Branch Naming', '分支命名'],
     'git-commit-message': ['Commit Message', '提交消息'],
+    'pr-description': ['PR Description', 'PR 描述'],
     'rename-suggestions': ['Rename Suggestions', '重命名建议'],
+    summarization: ['Summarization', '对话摘要'],
+    'code-mapper': ['Code Mapper', '代码映射'],
+    'feedback-gen': ['Feedback', '代码反馈'],
+    'debug-config': ['Debug Config', '调试配置'],
+    'workspace-gen': ['Workspace Gen', '文件生成'],
+    'test-gen': ['Test Gen', '测试生成'],
+    'goal-summary': ['Goal Summary', '目标摘要'],
+    'risk-assessment': ['Risk Assessment', '风险评估'],
     background: ['Background Request', '后台请求'],
     unknown: ['Unknown', '未知']
 };
@@ -112,6 +270,7 @@ const TERMINAL_NOTIFICATION_PATTERN = /^\[Terminal\s+\S+\s+notification:/;
  * @param messages 聊天消息
  * @param tools 可用的工具列表
  * @param isCommit 是否为插件自身的提交消息生成请求（由 modelOptions.commit 标识）
+ * @param modelOptionsProvider 来自 options.modelOptions 的额外元数据（用于检测子代理等）
  */
 export function classifyRequest(
     messages: readonly vscode.LanguageModelChatMessage[],
@@ -175,11 +334,18 @@ export function getRecommendedReasoningEffort(
 
 /**
  * 获取首条消息的纯文本内容
+ * 先查找系统消息（role === 0），找不到再回退到 messages[0]
  */
 function getFirstMessageText(messages: readonly vscode.LanguageModelChatMessage[]): string {
     if (messages.length === 0) {
         return '';
     }
+    // 优先找第一条系统消息
+    const systemMsg = messages.find(m => m.role === vscode.LanguageModelChatMessageRole.System);
+    if (systemMsg) {
+        return extractText(systemMsg);
+    }
+    // 回退到 messages[0]
     return extractText(messages[0]);
 }
 

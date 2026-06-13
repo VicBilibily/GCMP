@@ -625,44 +625,55 @@ body {
             .request-kind {
                 display: block;
                 margin-top: -3px;
+                margin-bottom: -3px;
                 font-size: 0.8em;
                 padding-bottom: 0;
 
-                &-main-agent {
+                /* 主 Agent — 蓝 */
+                &-main-agent,
+                &-terminal {
                     border-bottom: 1px solid var(--vscode-charts-blue);
                 }
-                &-terminal {
+                /* 子 Agent — 橙 */
+                &-search,
+                &-exec {
                     border-bottom: 1px solid var(--vscode-charts-orange);
                 }
-                &-todo {
-                    border-bottom: 1px solid var(--vscode-charts-yellow);
-                }
-                &-prompt {
-                    border-bottom: 1px solid var(--vscode-symbolIcon-classForeground);
-                }
-                &-settings {
+                /* utilitySmall — 绿（chat.utilitySmallModel 覆盖） */
+                &-todo,
+                &-prompt,
+                &-title,
+                &-progress,
+                &-branch,
+                &-commit,
+                &-rename,
+                &-summary,
+                &-terminal-cmd,
+                &-terminal-fix,
+                &-terminal-exp,
+                &-search-ws {
                     border-bottom: 1px solid var(--vscode-charts-green);
                 }
-                &-title {
+                /* utility — 黄褐（chat.utilityModel 覆盖） */
+                &-settings,
+                &-explain,
+                &-vscode,
+                &-code-search,
+                &-intent,
+                &-pr,
+                &-codemap,
+                &-feedback,
+                &-debug,
+                &-wsgen,
+                &-test,
+                &-goal,
+                &-risk {
                     border-bottom: 1px solid var(--vscode-symbolIcon-enumeratorForeground);
                 }
-                &-progress {
-                    border-bottom: 1px solid var(--vscode-charts-yellow);
-                }
-                &-branch {
-                    border-bottom: 1px solid var(--vscode-charts-green);
-                }
-                &-commit {
-                    border-bottom: 1px solid var(--vscode-charts-orange);
-                }
-                &-rename {
-                    border-bottom: 1px solid var(--vscode-symbolIcon-classForeground);
-                }
-                &-background {
-                    border-bottom: 1px solid var(--vscode-descriptionForeground);
-                }
+                /* 兜底 — 灰 */
+                &-background,
                 &-unknown {
-                    border-bottom: 1px solid var(--vscode-disabledForeground);
+                    border-bottom: 1px solid var(--vscode-descriptionForeground);
                 }
             }
 
