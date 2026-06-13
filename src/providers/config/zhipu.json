@@ -12,7 +12,7 @@
             "contextSize": [1000000, 600000, 400000, 200000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
+            "reasoningEffort": ["high", "max", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
