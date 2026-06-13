@@ -654,6 +654,89 @@ Feat: Add commit message generation
 
 </details>
 
+## 🔑 API Key Sync Across Devices
+
+GCMP provides an API Key synchronization feature based on **GitHub Secret Gists**, enabling you to sync API keys across devices using the same GitHub account without manual reconfiguration.
+
+### How to Use
+
+1. Run the command `GCMP: Sync API Keys with GitHub` in VS Code
+2. On first use, you'll be prompted to authenticate with GitHub and authorize the `gist` scope
+3. After authentication, a sync actions menu appears:
+   - **Upload API Keys** — Encrypt and upload locally configured API keys to a private GitHub Gist
+   - **Download API Keys** — Download and restore API keys from the GitHub Gist to local storage
+   - **Manage API Keys on GitHub** — View and delete API keys stored on the GitHub Gist
+   - **Set/Change Encryption Passphrase** — Add a custom passphrase to strengthen key encryption
+   - **Clear Encryption Passphrase** — Remove the custom passphrase (use with caution)
+
+> You can **select which providers** to sync during upload/download (all selected by default). Partial uploads will merge with existing remote data without overwriting unselected keys.
+
+<details>
+<summary>View detailed encryption and security documentation</summary>
+
+### Storage Architecture
+
+| Layer | Description |
+|---|---|
+| **Remote Storage** | GitHub **Secret Gist** (private), file named `gcmp-sync.json` |
+| **Encryption** | **AES-256-GCM** (authenticated encryption — confidentiality + integrity) |
+| **Key Derivation** | **PBKDF2** (SHA-256, 600,000 iterations) with `GitHub User ID + fixed pepper + optional custom passphrase` |
+| **Authentication** | VS Code built-in **GitHub OAuth** via `vscode.authentication` API |
+| **Token Scope** | First-time authorization requests `gist` scope; subsequent operations reuse the session silently |
+
+### Encryption Flow
+
+```
+GitHub numeric ID + pepper + [custom passphrase] → PBKDF2(600K rounds) → AES-256 key
+                                                               ↓
+Each API Key → Random Salt(32B) + Random IV(16B) → AES-256-GCM → Salt+IV+Tag+Ciphertext → JSON
+```
+
+- Each key is encrypted with an **independent random salt and initialization vector** — the same plaintext produces different ciphertext each time
+- The encrypted payload includes `Salt`, `IV`, `Tag` (authentication tag), and `Ciphertext`, all hex-encoded
+- **Decryption depends on the GitHub numeric user ID**: the same GitHub account derives the same encryption key across devices
+
+### Custom Encryption Passphrase
+
+> Since this extension is **open source**, the encryption method (pepper, PBKDF2 parameters, etc.) is visible in the source code. If you want extra protection, you can set a custom encryption passphrase.
+
+- Select "Set Encryption Passphrase" from the sync actions menu; you'll be asked to enter it twice for confirmation
+- The passphrase is combined with the GitHub user ID and pepper for key derivation — all three are required (minimum 8 characters)
+- **After changing the passphrase, data encrypted with the old passphrase cannot be decrypted** (different derived key)
+- The passphrase is stored locally via VS Code `SecretStorage` (OS-level encryption) and is never uploaded to any server
+- Different devices sharing the same GitHub account need to use the **same passphrase** to decrypt each other's data
+
+#### Passphrase Verification on Download
+
+If the local passphrase doesn't match the one used during upload, a prompt will appear:
+
+- **Passphrase set but decryption fails** → prompts that the passphrase may have changed; guides you to enter the previous one
+- **No passphrase set but data is undecryptable** → prompts that the data may have been encrypted with a passphrase on another device; guides you to enter it
+- After entering the passphrase, it is verified automatically: if decryption succeeds, the correct passphrase is stored for future use
+- If only some keys can be decrypted, a mismatch count is shown
+
+#### Cross-Device Guidance
+
+When setting the passphrase, a notice is displayed explaining that all devices must use the same passphrase:
+- **First-time setup**: reminds you to remember the passphrase and set it on all devices
+- **Changing passphrase**: reminds you to update it on all devices
+
+#### Data Compatibility
+
+- When setting/changing the passphrase with existing Gist data, you can choose **"Set & Re-upload"** to immediately re-upload your keys with the new passphrase
+- Clearing the passphrase requires confirmation; existing encrypted data will become undecryptable afterwards
+
+### Security Notes
+
+- The Gist is visible in the user's Gist list, but its content is **AES-256-GCM encrypted** and unreadable without decryption
+- The encryption key is never transmitted over the network
+- Local API keys are stored via VS Code's built-in `SecretStorage` (OS-level encrypted storage)
+- All network requests use HTTPS
+
+</details>
+
+---
+
 ## 🤝 Contributing
 
 We welcome community contributions! Whether it's reporting bugs, suggesting features, or submitting code, you can help make this project better.

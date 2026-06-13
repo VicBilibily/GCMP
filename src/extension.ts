@@ -16,6 +16,7 @@ import { Logger, StatusLogger, CompletionLogger, TokenCounter } from './utils';
 import { ApiKeyManager, ConfigManager, JsonSchemaProvider } from './utils';
 import { closeProxyAgents } from './utils/proxyAgent';
 import { registerCliAuthCommands } from './cli/cliAuthCommands';
+import { SyncManager } from './sync/syncManager';
 import { TokenUsagesManager } from './usages/usagesManager';
 import { TokenUsagesView } from './ui/usagesView';
 import { CompatibleModelManager } from './utils/compatibleModelManager';
@@ -307,13 +308,21 @@ export async function activate(context: vscode.ExtensionContext) {
         registerCliAuthCommands(context);
         Logger.trace(`CLI authentication commands registered (${Date.now() - stepStartTime}ms)`);
 
-        // 步骤8: 注册 Commit 消息生成命令
+        // 步骤8: 初始化与注册 GitHub Gist 同步命令（统一入口）
+        stepStartTime = Date.now();
+        SyncManager.initialize(context);
+        context.subscriptions.push(
+            vscode.commands.registerCommand('gcmp.sync.configure', () => SyncManager.configure())
+        );
+        Logger.trace(`GitHub Gist sync commands registered (${Date.now() - stepStartTime}ms)`);
+
+        // 步骤9: 注册 Commit 消息生成命令
         stepStartTime = Date.now();
         const commitDisposables = registerCommitCommands(context);
         commitDisposables.forEach(disposable => context.subscriptions.push(disposable));
         Logger.trace(`Commit message commands registered (${Date.now() - stepStartTime}ms)`);
 
-        // 步骤9: 检查 Git 可用性（不阻塞扩展激活）
+        // 步骤10: 检查 Git 可用性（不阻塞扩展激活）
         // 默认设置为不可用，检查完成后更新
         vscode.commands.executeCommand('setContext', 'gcmp.gitAvailable', false);
         const gitDisposable = checkGitAvailability();

@@ -323,6 +323,12 @@
                 "command": "gcmp.commit.selectModel",
                 "title": "%command.commit.selectModel%",
                 "category": "GCMP"
+            },
+            {
+                "command": "gcmp.sync.configure",
+                "title": "%command.sync.configure%",
+                "category": "GCMP",
+                "description": "%command.sync.configure.description%"
             }
         ],
         "configuration": {

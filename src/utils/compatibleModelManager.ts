@@ -287,6 +287,22 @@ export class CompatibleModelManager {
     }
 
     /**
+     * 获取当前模型中使用到的自定义提供商标识（去重）
+     * 排除内置提供商和 'compatible'，用于密钥同步等场景
+     */
+    static getCustomProviderIds(): string[] {
+        const builtinProviders = Object.keys(configProviders);
+        const knownProviders = Object.keys(KnownProviders);
+        const allProviders = this.models
+            .map(model => model.provider)
+            .filter(provider => provider && provider.trim() !== '');
+        return [...new Set(allProviders)].filter(
+            provider =>
+                provider !== 'compatible' && !builtinProviders.includes(provider) && !knownProviders.includes(provider)
+        );
+    }
+
+    /**
      * 从配置文件获取指定模型的原始数据（未经处理）
      * @param modelId 模型ID
      * @returns 原始模型配置，或 undefined
