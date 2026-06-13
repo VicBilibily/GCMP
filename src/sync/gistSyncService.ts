@@ -8,6 +8,7 @@ import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import { CompatibleModelManager } from '../utils/compatibleModelManager';
 import { Logger } from '../utils/logger';
+import { registeredProviders } from '../utils/providerRegistry';
 
 /**
  * 加密后的密钥数据包结构
@@ -99,40 +100,7 @@ const PBKDF2_ITERATIONS = 600000;
 const KEY_LENGTH = 32;
 
 /** 已知的同步密钥列表（含单密钥和多密钥变体，排除 CLI 认证的提供商） */
-const ALL_KNOWN_KEYS = [
-    // 内置单密钥提供商（非 CLI 认证）
-    'zhipu.apiKey',
-    'moonshot.apiKey',
-    'kimi.apiKey',
-    'deepseek.apiKey',
-    'streamlake.apiKey',
-    'opencode.apiKey',
-    // MiniMax
-    'minimax.apiKey',
-    'minimax-token.apiKey',
-    // DashScope
-    'dashscope.apiKey',
-    'dashscope-coding.apiKey',
-    'dashscope-token.apiKey',
-    // Tencent
-    'tencent.apiKey',
-    'tencent-coding.apiKey',
-    'tencent-token.apiKey',
-    'tencent-deepseek.apiKey',
-    'tencent-tokenhub.apiKey',
-    // Volcengine
-    'volcengine.apiKey',
-    'volcengine-agent.apiKey',
-    // Xiaomi MiMo
-    'xiaomimimo.apiKey',
-    'xiaomimimo-token.apiKey',
-    // Baidu
-    'baidu.apiKey',
-    'baidu-coding.apiKey'
-];
-
-/** 同步密钥对应的友好显示名映射 */
-const KEY_DISPLAY_NAMES: Record<string, string> = {
+const KNOWN_SYNC_KEYS: Record<string, string> = {
     'zhipu.apiKey': '智谱AI',
     'moonshot.apiKey': 'MoonshotAI',
     'kimi.apiKey': 'Kimi',
@@ -157,11 +125,14 @@ const KEY_DISPLAY_NAMES: Record<string, string> = {
     'baidu-coding.apiKey': '百度千帆 Coding Plan'
 };
 
+/** 同步密钥名列表，从 KNOWN_SYNC_KEYS 自动派生 */
+const ALL_KNOWN_KEYS = Object.keys(KNOWN_SYNC_KEYS);
+
 /**
  * 获取密钥对应的友好显示名
  */
 export function getKeyDisplayName(key: string): string {
-    return KEY_DISPLAY_NAMES[key] || key.replace('.apiKey', '');
+    return KNOWN_SYNC_KEYS[key] || key.replace('.apiKey', '');
 }
 
 /**
@@ -180,70 +151,45 @@ export class GistSyncService {
     // ==================== GitHub 认证 ====================
 
     /**
-     * 静默获取已有 gist scope 的 session（不弹出任何 UI）
-     * 用于已登录后的上传/下载操作，避免重复授权弹窗
+     * 获取 GitHub 认证 session（带 gist scope）
+     * @param silent 静默模式：true 仅返回已有 session，false 会弹出授权框
      */
-    static async getStoredSession(): Promise<
-        { token: string; account: vscode.AuthenticationSessionAccountInformation } | undefined
-    > {
-        try {
-            const session = await vscode.authentication.getSession('github', ['gist'], { silent: true });
-            if (session) {
-                return { token: session.accessToken, account: session.account };
-            }
-            return undefined;
-        } catch (error) {
-            Logger.error('[GistSync] Failed to get stored GitHub session:', error);
-            return undefined;
-        }
-    }
-
-    /**
-     * 首次认证 — 请求 gist scope（创建/更新 Gist 必需）
-     * 会弹 VS Code 内嵌授权对话框（仅在首次或无有效 scope 时）
-     */
-    static async authenticateWithGistScope(): Promise<
-        { token: string; account: vscode.AuthenticationSessionAccountInformation } | undefined
-    > {
+    private static async getSession(
+        silent: boolean
+    ): Promise<{ token: string; account: vscode.AuthenticationSessionAccountInformation } | undefined> {
         try {
             const session = await vscode.authentication.getSession('github', ['gist'], {
-                createIfNone: true,
-                forceNewSession: false
+                silent,
+                createIfNone: !silent
             });
             if (session) {
                 return { token: session.accessToken, account: session.account };
             }
             return undefined;
         } catch (error) {
-            Logger.error('[GistSync] Failed to get GitHub session with gist scope:', error);
+            Logger.error(`[GistSync] Failed to get GitHub session (silent=${silent}):`, error);
             return undefined;
         }
     }
 
     /**
-     * 获取用户身份信息（登录名 + 数字 ID），同时将信息持久化用于加密
-     * 用于首次配置 — 请求 gist scope
+     * 获取用户身份信息（登录名 + 数字 ID）
+     * @param silent 静默模式：true 仅返回已有 session，false 会弹出授权框
      */
-    static async authenticateAndGetUserInfo(): Promise<{ login: string; id: number; token: string } | undefined> {
-        const result = await this.authenticateWithGistScope();
+    static async getUserInfo(silent: boolean): Promise<{ login: string; id: number; token: string } | undefined> {
+        const result = await this.getSession(silent);
         if (!result) {
             return undefined;
         }
-
         return await this.fetchAndSaveUserInfo(result.token);
     }
 
     /**
-     * 静默获取已有 session 的用户信息（不弹出 UI）
-     * 适用于已登录后的上传/下载操作，每次实时获取最新用户信息
+     * 检查用户当前是否已登录 GitHub（不弹出界面）
      */
-    static async getSessionUserInfo(): Promise<{ login: string; id: number; token: string } | undefined> {
-        const result = await this.getStoredSession();
-        if (!result) {
-            return undefined;
-        }
-
-        return await this.fetchAndSaveUserInfo(result.token);
+    static async isLoggedIn(): Promise<boolean> {
+        const result = await this.getSession(true);
+        return result !== undefined;
     }
 
     /**
@@ -278,11 +224,19 @@ export class GistSyncService {
     }
 
     /**
-     * 检查用户当前是否已登录 GitHub（不弹出界面）
+     * 一键登录 + 关联已有 Gist（首次配置入口）
+     * @returns 登录成功返回用户信息，失败或取消返回 undefined
      */
-    static async isLoggedIn(): Promise<boolean> {
-        const result = await this.getStoredSession();
-        return result !== undefined;
+    static async signIn(): Promise<{ login: string; id: number; token: string } | undefined> {
+        const userInfo = await this.getUserInfo(false);
+        if (!userInfo) {
+            return undefined;
+        }
+        const gistId = await this.findExistingSyncGist(userInfo.token);
+        if (gistId) {
+            await this.saveGistId(gistId);
+        }
+        return userInfo;
     }
 
     // ==================== Gist ID 管理 ====================
@@ -473,7 +427,7 @@ export class GistSyncService {
 
     /**
      * 获取 GitHub 用户数字 ID（用于派生加密密钥）
-     * 同一账号在不同 PAT 下返回相同的 ID，确保跨设备可解密
+     * 同一 GitHub 账号在不同设备上返回相同的 ID，确保跨设备可解密
      */
     private static getGithubId(): string | undefined {
         return this.context.globalState.get<string>(GITHUB_ID_KEY);
@@ -575,38 +529,6 @@ export class GistSyncService {
             Logger.debug('[GistSync] decryptWithPassphrase: auth tag mismatch (wrong passphrase?)');
             return undefined;
         }
-    }
-
-    /**
-     * 解密远程数据，验证当前口令配置是否能正常解密
-     * @param syncData 从 Gist 读取的同步数据
-     * @returns 如果至少有一条密钥能解密返回 true
-     */
-    static async verifyDecryptionWithCurrentKey(syncData: SyncData): Promise<boolean> {
-        const passphrase = await this.getPassphrase();
-        for (const encryptedValue of Object.values(syncData.keys)) {
-            if (!encryptedValue || encryptedValue.trim().length === 0) {
-                continue;
-            }
-            try {
-                const payload = JSON.parse(encryptedValue) as EncryptedPayload;
-                const salt = Buffer.from(payload.salt, 'hex');
-                const key = this.deriveKey(salt, passphrase);
-                if (!key) {
-                    continue;
-                }
-                const iv = Buffer.from(payload.iv, 'hex');
-                const tag = Buffer.from(payload.tag, 'hex');
-                const encrypted = Buffer.from(payload.data, 'hex');
-                const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
-                decipher.setAuthTag(tag);
-                Buffer.concat([decipher.update(encrypted), decipher.final()]);
-                return true; // 至少有1条能解密
-            } catch {
-                continue; // 试下一条
-            }
-        }
-        return false;
     }
 
     /**
@@ -713,6 +635,28 @@ export class GistSyncService {
     }
 
     /**
+     * 应用远程密钥并通知相关提供商刷新模型列表
+     * 合并了 applyRemoteKeys + notifyProvidersKeyChanged
+     */
+    static async applyKeysAndNotify(keys: Record<string, string>): Promise<number> {
+        const count = await this.applyRemoteKeys(keys);
+        if (count === 0) {
+            return 0;
+        }
+
+        const providerKeys = new Set<string>();
+        for (const keyName of Object.keys(keys)) {
+            const providerKey = keyName.replace('.apiKey', '');
+            providerKeys.add(providerKey);
+        }
+        for (const providerKey of providerKeys) {
+            registeredProviders[providerKey]?.invalidateAndNotify();
+        }
+
+        return count;
+    }
+
+    /**
      * 检查是否已设置自定义加密口令
      */
     static async hasCustomPassphrase(): Promise<boolean> {
@@ -783,6 +727,136 @@ export class GistSyncService {
         syncData.timestamp = new Date().toISOString();
 
         return await this.updateGist(token, gistId, syncData);
+    }
+
+    /**
+     * 上传加密密钥到 Gist（一站式：读 → 合并 → 更新/创建）
+     * @param token GitHub token
+     * @param encryptedKeys 加密后的密钥映射
+     * @returns 上传后的 Gist ID，失败返回 undefined
+     */
+    static async uploadKeys(token: string, encryptedKeys: Record<string, string>): Promise<string | undefined> {
+        let gistId = this.getGistId();
+
+        // 读取已有 Gist，合并密钥（不覆盖未上传的远端 key）
+        let mergedKeys = encryptedKeys;
+        if (gistId) {
+            const existing = await this.readSyncData(token, gistId);
+            if (existing) {
+                mergedKeys = { ...existing.keys, ...encryptedKeys };
+            }
+        }
+
+        // 尝试更新
+        if (gistId) {
+            const ok = await this.updateGist(token, gistId, {
+                version: 1,
+                timestamp: new Date().toISOString(),
+                keys: mergedKeys
+            });
+            if (ok) {
+                await this.saveGistId(gistId);
+                return gistId;
+            }
+            // 更新失败，fallback 到创建
+            Logger.warn('[GistSync] Update failed, falling back to create');
+            gistId = undefined;
+        }
+
+        // 尝试查找已有 Gist 后更新
+        gistId = await this.findExistingSyncGist(token);
+        if (gistId) {
+            const existing = await this.readSyncData(token, gistId);
+            if (existing) {
+                mergedKeys = { ...existing.keys, ...encryptedKeys };
+            }
+            const ok = await this.updateGist(token, gistId, {
+                version: 1,
+                timestamp: new Date().toISOString(),
+                keys: mergedKeys
+            });
+            if (ok) {
+                await this.saveGistId(gistId);
+                return gistId;
+            }
+        }
+
+        // 创建新 Gist
+        gistId = await this.createGist(token, {
+            version: 1,
+            timestamp: new Date().toISOString(),
+            keys: mergedKeys
+        });
+        if (gistId) {
+            await this.saveGistId(gistId);
+        }
+        return gistId;
+    }
+
+    /**
+     * 用指定口令解密远端 Gist 中的全部密钥
+     * @returns 解密后的密钥映射，全部失败返回 undefined
+     */
+    static async decryptRemoteKeysWithPassphrase(
+        token: string,
+        gistId: string,
+        passphrase: string
+    ): Promise<Record<string, string> | undefined> {
+        const syncData = await this.readSyncData(token, gistId);
+        if (!syncData) {
+            return undefined;
+        }
+
+        const remoteKeys: Record<string, string> = {};
+        for (const [keyName, encryptedValue] of Object.entries(syncData.keys)) {
+            if (!encryptedValue || encryptedValue.trim().length === 0) {
+                continue;
+            }
+            const plainValue = this.decryptWithPassphrase(encryptedValue, passphrase);
+            if (plainValue !== undefined) {
+                remoteKeys[keyName] = plainValue;
+            }
+        }
+
+        return Object.keys(remoteKeys).length > 0 ? remoteKeys : undefined;
+    }
+
+    /**
+     * 计算本地密钥与远端密钥的差异
+     * 返回值表示当前操作方向下远端与本地的关系
+     */
+    static computeDiff(
+        localKeys: Record<string, string>,
+        remoteKeys: Record<string, string>
+    ): {
+        /** 仅存在于本地的密钥名 */
+        localOnly: string[];
+        /** 仅存在于远端的密钥名 */
+        remoteOnly: string[];
+        /** 两边都有的密钥名 */
+        common: string[];
+    } {
+        const localSet = new Set(Object.keys(localKeys));
+        const remoteSet = new Set(Object.keys(remoteKeys));
+
+        const localOnly: string[] = [];
+        const remoteOnly: string[] = [];
+        const common: string[] = [];
+
+        for (const key of localSet) {
+            if (remoteSet.has(key)) {
+                common.push(key);
+            } else {
+                localOnly.push(key);
+            }
+        }
+        for (const key of remoteSet) {
+            if (!localSet.has(key)) {
+                remoteOnly.push(key);
+            }
+        }
+
+        return { localOnly, remoteOnly, common };
     }
 
     /**

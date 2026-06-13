@@ -5,7 +5,7 @@
  */
 
 import * as vscode from 'vscode';
-import { GistSyncService, getKeyDisplayName, SyncData } from './gistSyncService';
+import { GistSyncService, getKeyDisplayName } from './gistSyncService';
 import { Logger } from '../utils/logger';
 import { t } from '../utils/l10n';
 
@@ -31,40 +31,28 @@ export class SyncManager {
     static async configure(): Promise<void> {
         const status = await GistSyncService.getStatus();
 
-        // 未登录则先登录
+        // 未登录则先登录（含自动关联已有 Gist）
         if (!status.isLoggedIn) {
-            await vscode.window.withProgress(
+            const userInfo = await vscode.window.withProgress(
                 {
                     location: vscode.ProgressLocation.Notification,
                     title: t('Signing in with GitHub...', '正在通过 GitHub 登录...'),
                     cancellable: false
                 },
-                async () => {
-                    const userInfo = await GistSyncService.authenticateAndGetUserInfo();
-                    if (!userInfo) {
-                        vscode.window.showErrorMessage(
-                            t(
-                                'GitHub authentication failed. Please ensure you have a GitHub account and try again.',
-                                'GitHub 认证失败。请确保拥有 GitHub 账号后重试。'
-                            )
-                        );
-                        return;
-                    }
-                    const existingGistId = await GistSyncService.findExistingSyncGist(userInfo.token);
-                    if (existingGistId) {
-                        await GistSyncService.saveGistId(existingGistId);
-                    }
-                }
+                () => GistSyncService.signIn()
             );
 
-            // 如果登录失败（用户取消），不继续弹菜单
-            const afterLogin = await GistSyncService.getStatus();
-            if (!afterLogin.isLoggedIn) {
+            if (!userInfo) {
+                vscode.window.showErrorMessage(
+                    t(
+                        'GitHub authentication failed. Please ensure you have a GitHub account and try again.',
+                        'GitHub 认证失败。请确保拥有 GitHub 账号后重试。'
+                    )
+                );
                 return;
             }
         }
 
-        // 已登录 → 展示同步操作菜单
         await this.showSyncActions();
     }
 
@@ -83,7 +71,7 @@ export class SyncManager {
                     cancellable: false
                 },
                 async () => {
-                    const userInfo = await GistSyncService.getSessionUserInfo();
+                    const userInfo = await GistSyncService.getUserInfo(true);
                     if (userInfo) {
                         const gistId = await GistSyncService.findExistingSyncGist(userInfo.token);
                         if (gistId) {
@@ -96,7 +84,16 @@ export class SyncManager {
 
         const status = await GistSyncService.getStatus();
 
-        const items: (vscode.QuickPickItem & { action: () => Promise<void> })[] = [
+        // 同步操作菜单项类型：QuickPickItem + 可选 action
+        interface SyncActionItem extends vscode.QuickPickItem {
+            action?: () => Promise<void>;
+        }
+
+        const items: SyncActionItem[] = [];
+
+        // 第一组：上传/下载
+        items.push(
+            { label: t('Sync Operations', '同步操作'), kind: vscode.QuickPickItemKind.Separator },
             {
                 label: `$(cloud-upload) ${t('Upload API Keys', '上传 API Key')}`,
                 description: t(
@@ -110,27 +107,35 @@ export class SyncManager {
                 description: t('Download and restore API keys from GitHub Gist', '从 GitHub Gist 下载并恢复 API Key'),
                 action: () => this.downloadFromGist()
             }
-        ];
+        );
 
+        // 第二组：云端密钥管理
         if (status.isLoggedIn) {
-            items.push({
-                label: `$(list-tree) ${t('Manage API Keys on GitHub', '管理 GitHub Gist 中的 API Key')}`,
-                description: t(
-                    'View and delete API keys stored on GitHub Gist',
-                    '查看和删除已存储在 GitHub Gist 的 API Key'
-                ),
-                action: () => this.manageRemoteKeys()
-            });
+            items.push(
+                { label: t('Remote Management', '云端管理'), kind: vscode.QuickPickItemKind.Separator },
+                {
+                    label: `$(list-tree) ${t('Manage API Keys on GitHub', '管理 GitHub Gist 中的 API Key')}`,
+                    description: t(
+                        'View and delete API keys stored on GitHub Gist',
+                        '查看和删除已存储在 GitHub Gist 的 API Key'
+                    ),
+                    action: () => this.manageRemoteKeys()
+                }
+            );
         }
 
-        items.push({
-            label: `$(key) ${status.hasCustomPassphrase ? t('Change Encryption Passphrase', '更改加密口令') : t('Set Encryption Passphrase', '设置加密口令')}`,
-            description:
-                status.hasCustomPassphrase ?
-                    t('Encryption passphrase is set (visible in source code)', '已设置加密口令（源码可见加密方式）')
-                :   t('Add a custom passphrase to strengthen key encryption', '添加自定义口令增强密钥加密保护'),
-            action: () => this.setEncryptionPassphrase()
-        });
+        // 第三组：口令管理
+        items.push(
+            { label: t('Security Settings', '安全设置'), kind: vscode.QuickPickItemKind.Separator },
+            {
+                label: `$(key) ${status.hasCustomPassphrase ? t('Change Encryption Passphrase', '更改加密口令') : t('Set Encryption Passphrase', '设置加密口令')}`,
+                description:
+                    status.hasCustomPassphrase ?
+                        t('Change the custom encryption passphrase', '更改自定义加密口令')
+                    :   t('Add a custom passphrase to strengthen key encryption', '添加自定义口令增强密钥加密保护'),
+                action: () => this.setEncryptionPassphrase()
+            }
+        );
 
         if (status.hasCustomPassphrase) {
             items.push({
@@ -147,7 +152,7 @@ export class SyncManager {
             placeHolder: t('API Key Sync (@{0})', 'API Key 同步（@{0}）', status.githubUser || '')
         });
 
-        if (picked) {
+        if (picked?.action) {
             await picked.action();
         }
     }
@@ -156,65 +161,133 @@ export class SyncManager {
      * 获取带 gist scope 的 token — 先尝试静默获取，失败则弹授权
      */
     private static async ensureGistToken(): Promise<{ login: string; id: number; token: string } | undefined> {
-        // 先试静默获取（已授权的 session）
-        let userInfo = await GistSyncService.getSessionUserInfo();
+        let userInfo = await GistSyncService.getUserInfo(true);
         if (userInfo) {
             Logger.trace('[SyncManager] Using cached gist scope session');
             return userInfo;
         }
-        // 静默没有 → 弹授权框获取 gist scope
         Logger.info('[SyncManager] No silent session, requesting gist scope authorization');
-        userInfo = await GistSyncService.authenticateAndGetUserInfo();
+        userInfo = await GistSyncService.getUserInfo(false);
         return userInfo;
     }
 
     /**
      * 弹出 QuickPick 让用户选择要同步的提供商（默认全选）
+     * 按一致性状态分组显示，使用 Separator 分隔
      * @param availableKeys keyName -> 明文的映射
-     * @param direction "upload" 或 "download"（仅用于显示标题）
+     * @param direction "upload" 或 "download"（仅用于标题）
+     * @param keyStatus 可选，每个 key 的状态（'new' / 'update' / 'unchanged'）
      * @returns 用户选中的 keyName 集合，用户取消返回 undefined
      */
     private static async selectProviders(
         availableKeys: Record<string, string>,
-        direction: string
+        direction: string,
+        keyStatus?: Record<string, 'new' | 'update' | 'unchanged'>
     ): Promise<Set<string> | undefined> {
-        const items = Object.keys(availableKeys).map(key => ({
-            label: getKeyDisplayName(key),
-            description: key,
-            picked: true // 默认全选
-        }));
+        type QuickPickItem = vscode.QuickPickItem & { keyName?: string };
+
+        let items: QuickPickItem[];
+
+        if (keyStatus) {
+            // 分组：new / update / unchanged
+            const groupNew: QuickPickItem[] = [];
+            const groupUpdate: QuickPickItem[] = [];
+            const groupUnchanged: QuickPickItem[] = [];
+
+            for (const key of Object.keys(availableKeys)) {
+                const status = keyStatus[key];
+                const item: QuickPickItem = {
+                    label: getKeyDisplayName(key),
+                    description: key,
+                    keyName: key,
+                    picked: status !== 'unchanged'
+                };
+                if (status === 'new') {
+                    groupNew.push(item);
+                } else if (status === 'update') {
+                    groupUpdate.push(item);
+                } else {
+                    groupUnchanged.push(item);
+                }
+            }
+
+            items = [];
+            if (groupNew.length > 0) {
+                items.push({
+                    label: t('New keys ({0})', '待新增（{0}）', String(groupNew.length)),
+                    kind: vscode.QuickPickItemKind.Separator
+                });
+                items.push(...groupNew);
+            }
+            if (groupUpdate.length > 0) {
+                items.push({
+                    label: t('Update available ({0})', '待更新（{0}）', String(groupUpdate.length)),
+                    kind: vscode.QuickPickItemKind.Separator
+                });
+                items.push(...groupUpdate);
+            }
+            if (groupUnchanged.length > 0) {
+                items.push({
+                    label: t('Already in sync ({0})', '无需变更（{0}）', String(groupUnchanged.length)),
+                    kind: vscode.QuickPickItemKind.Separator
+                });
+                items.push(...groupUnchanged);
+            }
+        } else {
+            // 无状态信息时使用平面列表
+            items = Object.keys(availableKeys).map(key => ({
+                label: getKeyDisplayName(key),
+                description: key,
+                keyName: key,
+                picked: true
+            }));
+        }
 
         const picked = await vscode.window.showQuickPick(items, {
             canPickMany: true,
             title:
                 direction === 'upload' ?
-                    t('Select providers to upload', '选择要上传的提供商')
-                :   t('Select providers to download', '选择要下载的提供商'),
-            placeHolder: t('Select all providers you want to sync (default all)', '选择要同步的提供商（默认全部）'),
+                    t('Select API Keys to upload to GitHub Gist', '选择要上传到 GitHub Gist 的 API Key')
+                :   t('Select API Keys to download from GitHub Gist', '选择要从 GitHub Gist 下载的 API Key'),
+            placeHolder:
+                direction === 'upload' ?
+                    t(
+                        'Check to upload, uncheck to skip (new/update checked by default)',
+                        '勾选即上传到 Gist，取消勾选则跳过（新增/更新默认勾选）'
+                    )
+                :   t(
+                        'Check to download, uncheck to skip (unchanged unchecked by default)',
+                        '勾选即下载到本地，取消勾选则跳过（一致的默认不勾选）'
+                    ),
             ignoreFocusOut: true
         });
 
         if (!picked) {
-            return undefined; // 用户取消
+            return undefined;
         }
 
-        return new Set(picked.map(item => item.description));
+        return new Set(
+            picked
+                .filter(item => item.keyName) // 过滤掉 Separator
+                .map(item => item.keyName!)
+        );
     }
 
     /**
      * 上传本地 API Key 到 GitHub Gist
      */
     static async uploadToGist(): Promise<void> {
-        // 第一步：认证 + 收集密钥（网络 + 本地读取）
+        // 第一步：认证 + 收集密钥 + 远端比对（网络 + 本地读写）
         interface UploadPrep {
             userInfo: { login: string; id: number; token: string };
             allKeys: Record<string, string>;
+            keyStatus?: Record<string, 'new' | 'update' | 'unchanged'>;
         }
 
         const prep = await vscode.window.withProgress<UploadPrep | undefined>(
             {
                 location: vscode.ProgressLocation.Notification,
-                title: t('Preparing API keys...', '正在准备 API Key...'),
+                title: t('Loading API keys and comparing with Gist...', '正在加载 API Key 并与 Gist 比对...'),
                 cancellable: false
             },
             async () => {
@@ -226,7 +299,44 @@ export class SyncManager {
                 if (Object.keys(keys).length === 0) {
                     return undefined;
                 }
-                return { userInfo: uInfo, allKeys: keys };
+
+                // 预先读取远端 Gist，计算一致性差异用于 QuickPick 显示
+                let keyStatus: Record<string, 'new' | 'update' | 'unchanged'> | undefined;
+                const existingGistId = GistSyncService.getGistId();
+                if (existingGistId) {
+                    const remoteSyncData = await GistSyncService.readSyncData(uInfo.token, existingGistId);
+                    if (remoteSyncData) {
+                        // 对于 common 的 key，尝试解密远端值做值比较
+                        const remoteValues: Record<string, string> = {};
+                        for (const [keyName, encryptedValue] of Object.entries(remoteSyncData.keys)) {
+                            if (encryptedValue && keys[keyName] !== undefined) {
+                                try {
+                                    const decrypted = await GistSyncService.decrypt(encryptedValue);
+                                    if (decrypted !== undefined) {
+                                        remoteValues[keyName] = decrypted;
+                                    }
+                                } catch {
+                                    // 解密失败（口令不匹配等），无法比较值，跳过
+                                }
+                            }
+                        }
+
+                        keyStatus = {};
+                        for (const key of Object.keys(keys)) {
+                            if (remoteValues[key] !== undefined && keys[key] !== remoteValues[key]) {
+                                keyStatus[key] = 'update';
+                            } else if (remoteValues[key] !== undefined && keys[key] === remoteValues[key]) {
+                                keyStatus[key] = 'unchanged';
+                            } else if (remoteSyncData.keys[key] !== undefined && remoteValues[key] === undefined) {
+                                keyStatus[key] = 'update';
+                            } else if (remoteSyncData.keys[key] === undefined) {
+                                keyStatus[key] = 'new';
+                            }
+                        }
+                    }
+                }
+
+                return { userInfo: uInfo, allKeys: keys, keyStatus };
             }
         );
 
@@ -245,10 +355,10 @@ export class SyncManager {
             return;
         }
 
-        const { userInfo, allKeys } = prep;
+        const { userInfo, allKeys, keyStatus } = prep;
 
-        // 让用户选择要上传的提供商
-        const selectedKeys = await this.selectProviders(allKeys, 'upload');
+        // 让用户选择要上传的提供商（直接附带一致性状态标识）
+        const selectedKeys = await this.selectProviders(allKeys, 'upload', keyStatus);
         if (!selectedKeys || selectedKeys.size === 0) {
             return; // 用户取消或无选择
         }
@@ -264,8 +374,6 @@ export class SyncManager {
         Logger.debug(
             `[SyncManager] Found ${Object.keys(allKeys).length} local key(s), user selected ${selectedKeys.size}`
         );
-
-        const isPartialUpload = selectedKeys.size < Object.keys(allKeys).length;
 
         await vscode.window.withProgress(
             {
@@ -287,63 +395,8 @@ export class SyncManager {
                         }
                     }
 
-                    // 获取或创建 Gist
-                    let gistId = GistSyncService.getGistId();
-                    let finalKeys = encryptedKeys;
-
-                    if (gistId && isPartialUpload) {
-                        // 部分选择上传：读取已有数据合并，不覆盖未选中的密钥
-                        const existing = await GistSyncService.readSyncData(userInfo.token, gistId);
-                        if (existing) {
-                            finalKeys = { ...existing.keys, ...encryptedKeys };
-                        }
-                    }
-
-                    const syncData = {
-                        version: 1,
-                        timestamp: new Date().toISOString(),
-                        keys: finalKeys
-                    };
-
-                    if (gistId) {
-                        const success = await GistSyncService.updateGist(userInfo.token, gistId, syncData);
-                        if (!success) {
-                            Logger.warn('[SyncManager] Update failed, trying to create a new gist');
-                            gistId = undefined;
-                        }
-                    }
-
-                    if (!gistId) {
-                        gistId = await GistSyncService.findExistingSyncGist(userInfo.token);
-                        if (gistId) {
-                            if (isPartialUpload) {
-                                const existing = await GistSyncService.readSyncData(userInfo.token, gistId);
-                                if (existing) {
-                                    finalKeys = { ...existing.keys, ...encryptedKeys };
-                                }
-                            }
-
-                            const updateSyncData = {
-                                version: 1,
-                                timestamp: new Date().toISOString(),
-                                keys: finalKeys
-                            };
-
-                            const updateOk = await GistSyncService.updateGist(userInfo.token, gistId, updateSyncData);
-                            if (!updateOk) {
-                                gistId = undefined;
-                            }
-                        }
-                        if (!gistId) {
-                            gistId = await GistSyncService.createGist(userInfo.token, {
-                                version: 1,
-                                timestamp: new Date().toISOString(),
-                                keys: finalKeys
-                            });
-                        }
-                    }
-
-                    if (!gistId) {
+                    const uploadGistId = await GistSyncService.uploadKeys(userInfo.token, encryptedKeys);
+                    if (!uploadGistId) {
                         vscode.window.showErrorMessage(
                             t(
                                 'Failed to create or update the sync Gist. Check the logs for details.',
@@ -353,17 +406,16 @@ export class SyncManager {
                         return;
                     }
 
-                    await GistSyncService.saveGistId(gistId);
-
-                    const actualEncrypted = Object.keys(encryptedKeys).length;
+                    const uploadedCount = Object.keys(encryptedKeys).length;
                     vscode.window.showInformationMessage(
                         t(
-                            'Successfully uploaded {0} API keys to GitHub Gist.',
-                            '成功将 {0} 个 API Key 上传到 GitHub Gist。',
-                            String(actualEncrypted)
+                            'Successfully uploaded {0} API keys (total {1} on Gist). Download on your other devices to apply.',
+                            '成功上传 {0} 个 API Key（Gist 共计 {1} 个）。请在其它设备上执行下载以同步。',
+                            String(uploadedCount),
+                            String(Object.keys(keysToUpload).length) // 近似展示
                         )
                     );
-                    Logger.info(`[SyncManager] Upload complete: ${actualEncrypted} keys to gist ${gistId}`);
+                    Logger.info(`[SyncManager] Upload complete: ${uploadedCount} keys to gist ${uploadGistId}`);
                 } catch (error) {
                     Logger.error('[SyncManager] Upload failed:', error);
                     vscode.window.showErrorMessage(
@@ -382,10 +434,10 @@ export class SyncManager {
      * 从 GitHub Gist 下载 API Key 并应用到本地
      */
     static async downloadFromGist(): Promise<void> {
-        // 第一步：认证 + 查找 + 读取（网络）
         interface DownloadData {
             userInfo: { login: string; id: number; token: string };
-            syncData: SyncData;
+            remoteKeys: Record<string, string>;
+            downloadKeyStatus: Record<string, 'new' | 'update' | 'unchanged'>;
         }
 
         const data = await vscode.window.withProgress<DownloadData | undefined>(
@@ -414,7 +466,38 @@ export class SyncManager {
                     return undefined;
                 }
 
-                return { userInfo, syncData };
+                const encryptedKeys: [string, string][] = Object.entries(syncData.keys).filter(
+                    (entry): entry is [string, string] => !!entry[1] && entry[1].trim().length > 0
+                );
+
+                if (encryptedKeys.length === 0) {
+                    return undefined;
+                }
+
+                // 在当前进度内完成解密 + 本地比对
+                Logger.debug(`[SyncManager] Decrypting ${encryptedKeys.length} remote key(s)...`);
+                const remoteKeys: Record<string, string> = {};
+
+                for (const [keyName, encryptedValue] of encryptedKeys) {
+                    const plainValue = await GistSyncService.decrypt(encryptedValue);
+                    if (plainValue !== undefined) {
+                        remoteKeys[keyName] = plainValue;
+                    }
+                }
+
+                // 收集本地密钥做值比较
+                const localKeys = await GistSyncService.collectLocalKeys();
+                const diff = GistSyncService.computeDiff(remoteKeys, localKeys);
+
+                const downloadKeyStatus: Record<string, 'new' | 'update' | 'unchanged'> = {};
+                for (const k of diff.localOnly) {
+                    downloadKeyStatus[k] = 'new';
+                }
+                for (const k of diff.common) {
+                    downloadKeyStatus[k] = remoteKeys[k] === localKeys[k] ? 'unchanged' : 'update';
+                }
+
+                return { userInfo, remoteKeys, downloadKeyStatus };
             }
         );
 
@@ -435,37 +518,10 @@ export class SyncManager {
             return;
         }
 
-        const { syncData } = data;
-        const encryptedKeys: [string, string][] = Object.entries(syncData.keys).filter(
-            (entry): entry is [string, string] => !!entry[1] && entry[1].trim().length > 0
-        );
+        const { userInfo } = data;
+        let { remoteKeys, downloadKeyStatus } = data;
 
-        if (encryptedKeys.length === 0) {
-            vscode.window.showWarningMessage(
-                t('No API keys stored on GitHub Gist.', 'GitHub Gist 上没有存储的 API Key。')
-            );
-            return;
-        }
-
-        // 第二步：解密密钥（可能会因口令不匹配失败）
-        Logger.debug(`[SyncManager] Decrypting ${encryptedKeys.length} remote key(s)...`);
-        let remoteKeys: Record<string, string> = {};
-        let allDecrypted = false;
-
-        // 先用当前配置解密
-        Logger.debug(`[SyncManager] Decrypting ${encryptedKeys.length} remote key(s) with current key...`);
-        for (const [keyName, encryptedValue] of encryptedKeys) {
-            const plainValue = await GistSyncService.decrypt(encryptedValue);
-            if (plainValue !== undefined) {
-                remoteKeys[keyName] = plainValue;
-            } else {
-                Logger.debug(`[SyncManager] Failed to decrypt key: ${keyName}`);
-            }
-        }
-
-        allDecrypted = Object.keys(remoteKeys).length === encryptedKeys.length;
-
-        // 如果一条都没解密成功，可能是口令问题
+        // 如果一条都没解密成功，可能是口令问题（交互弹框需要留在进度条外）
         if (Object.keys(remoteKeys).length === 0) {
             const hasPassphrase = await GistSyncService.hasCustomPassphrase();
             const tryPassphrase = await vscode.window.showWarningMessage(
@@ -492,26 +548,32 @@ export class SyncManager {
                 });
 
                 if (passphrase && passphrase.trim().length > 0) {
-                    remoteKeys = {};
-                    let passphraseDecryptCount = 0;
-                    for (const [keyName, encryptedValue] of encryptedKeys) {
-                        const plainValue = GistSyncService.decryptWithPassphrase(encryptedValue, passphrase.trim());
-                        if (plainValue !== undefined) {
-                            remoteKeys[keyName] = plainValue;
-                            passphraseDecryptCount++;
-                        }
-                    }
+                    const gistId = GistSyncService.getGistId();
+                    if (gistId) {
+                        const decrypted = await GistSyncService.decryptRemoteKeysWithPassphrase(
+                            userInfo.token,
+                            gistId,
+                            passphrase.trim()
+                        );
 
-                    // 验证成功 — 将正确的口令存储下来（仅一次）
-                    if (passphraseDecryptCount > 0 && !(await GistSyncService.verifyPassphrase(passphrase.trim()))) {
-                        Logger.info('[SyncManager] Storing user-provided passphrase for future decryption');
-                        await GistSyncService.setCustomPassphrase(passphrase.trim());
-                    }
-                    Logger.debug(
-                        `[SyncManager] Passphrase decryption: ${passphraseDecryptCount}/${encryptedKeys.length} keys`
-                    );
-                    if (Object.keys(remoteKeys).length > 0) {
-                        allDecrypted = Object.keys(remoteKeys).length === encryptedKeys.length;
+                        if (decrypted && Object.keys(decrypted).length > 0) {
+                            if (!(await GistSyncService.verifyPassphrase(passphrase.trim()))) {
+                                Logger.info('[SyncManager] Storing user-provided passphrase for future decryption');
+                                await GistSyncService.setCustomPassphrase(passphrase.trim());
+                            }
+
+                            remoteKeys = decrypted;
+                            // 重新计算本地比对
+                            const localKeys = await GistSyncService.collectLocalKeys();
+                            const diff = GistSyncService.computeDiff(remoteKeys, localKeys);
+                            downloadKeyStatus = {};
+                            for (const k of diff.localOnly) {
+                                downloadKeyStatus[k] = 'new';
+                            }
+                            for (const k of diff.common) {
+                                downloadKeyStatus[k] = remoteKeys[k] === localKeys[k] ? 'unchanged' : 'update';
+                            }
+                        }
                     }
                 }
             }
@@ -527,20 +589,8 @@ export class SyncManager {
             return;
         }
 
-        if (!allDecrypted) {
-            const unmatchedCount = encryptedKeys.length - Object.keys(remoteKeys).length;
-            vscode.window.showWarningMessage(
-                t(
-                    'Successfully decrypted {0} key(s), but {1} key(s) could not be decrypted. These may use a different encryption passphrase.',
-                    '成功解密 {0} 个密钥，但有 {1} 个密钥无法解密。它们可能使用了不同的加密口令。',
-                    String(Object.keys(remoteKeys).length),
-                    String(unmatchedCount)
-                )
-            );
-        }
-
-        // 第二步：用户选择要下载的提供商
-        const selectedKeys = await this.selectProviders(remoteKeys, 'download');
+        // 第三步：用户选择要下载的提供商（附带一致性状态标识）
+        const selectedKeys = await this.selectProviders(remoteKeys, 'download', downloadKeyStatus);
         if (!selectedKeys || selectedKeys.size === 0) {
             return; // 用户取消或无选择
         }
@@ -561,7 +611,7 @@ export class SyncManager {
             },
             async () => {
                 try {
-                    const appliedKeyCount = await GistSyncService.applyRemoteKeys(keysToApply);
+                    const appliedKeyCount = await GistSyncService.applyKeysAndNotify(keysToApply);
 
                     if (appliedKeyCount === 0) {
                         vscode.window.showInformationMessage(

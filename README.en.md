@@ -662,14 +662,15 @@ GCMP provides an API Key synchronization feature based on **GitHub Secret Gists*
 
 1. Run the command `GCMP: Sync API Keys with GitHub` in VS Code
 2. On first use, you'll be prompted to authenticate with GitHub and authorize the `gist` scope
-3. After authentication, a sync actions menu appears:
-   - **Upload API Keys** — Encrypt and upload locally configured API keys to a private GitHub Gist
-   - **Download API Keys** — Download and restore API keys from the GitHub Gist to local storage
-   - **Manage API Keys on GitHub** — View and delete API keys stored on the GitHub Gist
-   - **Set/Change Encryption Passphrase** — Add a custom passphrase to strengthen key encryption
-   - **Clear Encryption Passphrase** — Remove the custom passphrase (use with caution)
+3. After authentication, a grouped sync actions menu appears:
 
-> You can **select which providers** to sync during upload/download (all selected by default). Partial uploads will merge with existing remote data without overwriting unselected keys.
+   | Group | Actions |
+   |-------|---------|
+   | **Sync Operations** | **Upload API Keys** — encrypt & upload to GitHub Gist / **Download API Keys** — restore from Gist to local |
+   | **Remote Management** | **Manage API Keys on GitHub** — view/delete keys on Gist |
+   | **Security Settings** | **Set/Change Encryption Passphrase** / **Clear Encryption Passphrase** — manage custom encryption passphrase |
+
+> During upload/download, you can **select which providers to sync with inline status display** (new/update/unchanged). On upload, new and changed keys are checked by default. On download, keys that match local values are unchecked by default. Partial uploads merge with existing remote data without overwriting unselected keys.
 
 <details>
 <summary>View detailed encryption and security documentation</summary>

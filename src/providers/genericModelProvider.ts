@@ -128,6 +128,17 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         Logger.info(`🧹 ${this.providerConfig.displayName}: extension disposed`);
     }
 
+    /**
+     * 清除模型缓存并通知 VS Code 重新加载模型列表
+     * 供外部（如 SyncManager）在 API Key 变更后调用
+     */
+    invalidateAndNotify(): void {
+        this.modelInfoCache
+            ?.invalidateCache(this.providerKey)
+            .catch(err => Logger.warn(`[${this.providerKey}] Failed to clear cache:`, err));
+        this._onDidChangeLanguageModelChatInformation.fire();
+    }
+
     /** 获取 providerKey */
     get provider(): string {
         return this.providerKey;
