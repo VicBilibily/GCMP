@@ -660,15 +660,16 @@ GCMP provides an API Key synchronization feature based on **GitHub Secret Gists*
 
 ### How to Use
 
-1. Run the command `GCMP: Sync API Keys with GitHub` in VS Code
-2. On first use, you'll be prompted to authenticate with GitHub and authorize the `gist` scope
-3. After authentication, a grouped sync actions menu appears:
+- Hover over the token usage indicator in the status bar, then click **"Sync API Keys via GitHub Gist"** at the bottom of the tooltip to enter quickly
+- Or run the command `GCMP: Sync API Keys with GitHub` from the command palette
+- On first use, you'll be prompted to authenticate with GitHub and authorize the `gist` scope
+- After authentication, a grouped sync actions menu appears:
 
-   | Group | Actions |
-   |-------|---------|
-   | **Sync Operations** | **Upload API Keys** — encrypt & upload to GitHub Gist / **Download API Keys** — restore from Gist to local |
-   | **Remote Management** | **Manage API Keys on GitHub** — view/delete keys on Gist |
-   | **Security Settings** | **Set/Change Encryption Passphrase** / **Clear Encryption Passphrase** — manage custom encryption passphrase |
+    | Group                 | Actions                                                                                                      |
+    | --------------------- | ------------------------------------------------------------------------------------------------------------ |
+    | **Sync Operations**   | **Upload API Keys** — encrypt & upload to GitHub Gist / **Download API Keys** — restore from Gist to local   |
+    | **Remote Management** | **Manage API Keys on GitHub** — view/delete keys on Gist                                                     |
+    | **Security Settings** | **Set/Change Encryption Passphrase** / **Clear Encryption Passphrase** — manage custom encryption passphrase |
 
 > During upload/download, you can **select which providers to sync with inline status display** (new/update/unchanged). On upload, new and changed keys are checked by default. On download, keys that match local values are unchecked by default. Partial uploads merge with existing remote data without overwriting unselected keys.
 
@@ -677,13 +678,13 @@ GCMP provides an API Key synchronization feature based on **GitHub Secret Gists*
 
 ### Storage Architecture
 
-| Layer | Description |
-|---|---|
-| **Remote Storage** | GitHub **Secret Gist** (private), file named `gcmp-sync.json` |
-| **Encryption** | **AES-256-GCM** (authenticated encryption — confidentiality + integrity) |
+| Layer              | Description                                                                                                |
+| ------------------ | ---------------------------------------------------------------------------------------------------------- |
+| **Remote Storage** | GitHub **Secret Gist** (private), file named `gcmp-sync.json`                                              |
+| **Encryption**     | **AES-256-GCM** (authenticated encryption — confidentiality + integrity)                                   |
 | **Key Derivation** | **PBKDF2** (SHA-256, 600,000 iterations) with `GitHub User ID + fixed pepper + optional custom passphrase` |
-| **Authentication** | VS Code built-in **GitHub OAuth** via `vscode.authentication` API |
-| **Token Scope** | First-time authorization requests `gist` scope; subsequent operations reuse the session silently |
+| **Authentication** | VS Code built-in **GitHub OAuth** via `vscode.authentication` API                                          |
+| **Token Scope**    | First-time authorization requests `gist` scope; subsequent operations reuse the session silently           |
 
 ### Encryption Flow
 
@@ -719,6 +720,7 @@ If the local passphrase doesn't match the one used during upload, a prompt will 
 #### Cross-Device Guidance
 
 When setting the passphrase, a notice is displayed explaining that all devices must use the same passphrase:
+
 - **First-time setup**: reminds you to remember the passphrase and set it on all devices
 - **Changing passphrase**: reminds you to update it on all devices
 
