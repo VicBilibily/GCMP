@@ -17,6 +17,7 @@ import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { Logger, ApiKeyManager, DashscopeWizard } from '../utils';
 import { TokenUsagesManager } from '../usages/usagesManager';
+import { classifyRequest } from '../handlers/requestClassifier';
 
 export class DashscopeProvider extends GenericModelProvider implements LanguageModelChatProvider {
     constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
@@ -211,6 +212,15 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
             `${this.providerConfig.displayName}: about to handle request using ${keyLabel} key - model: ${modelConfig.name}`
         );
 
+        // 请求分类 + 注入到 options.modelOptions
+        const isCommit = !!(options as { modelOptions?: { commit?: boolean } }).modelOptions?.commit;
+        const kind = classifyRequest(messages, options.tools, isCommit);
+        const rtOpts = options as { modelOptions?: { requestKind?: string } };
+        if (!rtOpts.modelOptions) {
+            rtOpts.modelOptions = {};
+        }
+        rtOpts.modelOptions.requestKind = kind;
+
         const { totalInputTokens, maxInputTokens } = await this.updateContextUsageStatusBar(
             model,
             messages,
@@ -230,6 +240,7 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
                 modelName: model.name || modelConfig.name,
                 estimatedInputTokens: totalInputTokens,
                 maxInputTokens,
+                requestKind: kind,
                 sessionId,
                 ...this.getEstimatedRequestMetadata(options)
             });

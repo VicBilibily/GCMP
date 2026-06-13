@@ -7,6 +7,7 @@
 import * as vscode from 'vscode';
 import { StatusLogger } from '../utils/statusLogger';
 import { t } from '../utils/l10n';
+import { getRequestKindDisplayName, RequestKind } from '../handlers/requestClassifier';
 
 /**
  * 提示词部分的 token 占用详情
@@ -54,6 +55,8 @@ export interface ContextUsageData {
     promptParts?: PromptPartTokens;
     /** 剩余可用 token 数 */
     remainingTokens?: number;
+    /** 请求来源类型 */
+    requestKind?: string;
 }
 
 /**
@@ -219,6 +222,11 @@ export class ContextUsageStatusBar {
         md.appendMarkdown(`| **${t('Model Name', '模型名称')}** | ${data.modelName} |\n`);
         const usageString = `${this.formatTokens(data.inputTokens)}/${this.formatTokens(data.maxInputTokens)}`;
         md.appendMarkdown(`| **${t('Usage', '占用情况')}** | **${data.percentage.toFixed(1)}%** \t ${usageString} |\n`);
+        if (data.requestKind) {
+            md.appendMarkdown(
+                `| **${t('Request Source', '请求来源')}** | ${getRequestKindDisplayName(data.requestKind as RequestKind)} |\n`
+            );
+        }
 
         if (data.promptParts) {
             md.appendMarkdown('\n---\n');
@@ -314,7 +322,12 @@ export class ContextUsageStatusBar {
      * @param maxInputTokens 最大输入 token 数
      * @param promptParts 提示词各部分的 token 占用
      */
-    updateWithPromptParts(modelName: string, maxInputTokens: number, promptParts: PromptPartTokens): void {
+    updateWithPromptParts(
+        modelName: string,
+        maxInputTokens: number,
+        promptParts: PromptPartTokens,
+        requestKind?: string
+    ): void {
         // 使用 context 作为总 token 占用（已包含所有部分）
         const inputTokens = promptParts.context || 0;
         const remainingTokens = maxInputTokens - inputTokens;
@@ -327,7 +340,8 @@ export class ContextUsageStatusBar {
             percentage,
             timestamp: Date.now(),
             promptParts,
-            remainingTokens
+            remainingTokens,
+            requestKind
         };
         this.updateContextUsage(data);
     }

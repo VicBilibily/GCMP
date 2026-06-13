@@ -194,6 +194,38 @@ export function getProviderDisplayName(providerKey: string, providerName: string
 }
 
 /**
+ * 请求来源的显示名称映射（[英文, 中文]）
+ */
+const REQUEST_KIND_DISPLAY_NAMES: Record<string, [string, string]> = {
+    'main-agent': ['Agent Chat', 'Agent 对话'],
+    'terminal-steering': ['Terminal Steering', '终端引导'],
+    'todo-tracker': ['Todo Tracker', '待办跟踪'],
+    'prompt-categorizer': ['Prompt Categorizer', 'Prompt 分类'],
+    'settings-resolver': ['Settings Resolver', '设置解析'],
+    'chat-title': ['Chat Title', '会话标题'],
+    'inline-progress-message': ['Progress Message', '进度消息'],
+    'git-branch-name': ['Branch Naming', '分支命名'],
+    'git-commit-message': ['Commit Message', '提交消息'],
+    'rename-suggestions': ['Rename Suggestions', '重命名建议'],
+    background: ['Background Request', '后台请求'],
+    unknown: ['Unknown', '未知']
+};
+
+/**
+ * 获取请求来源的友好显示名称（自动按语言切换中英文）
+ */
+export function getRequestKindDisplayName(kind?: string): string {
+    if (!kind) {
+        return '-';
+    }
+    const names = REQUEST_KIND_DISPLAY_NAMES[kind];
+    if (!names) {
+        return kind;
+    }
+    return isChineseLocale() ? names[1] : names[0];
+}
+
+/**
  * 格式化 Token 数量显示
  */
 export function formatTokens(tokens: number | undefined | null): string {

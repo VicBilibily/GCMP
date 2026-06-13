@@ -819,7 +819,7 @@ export class OpenAIHandler {
                     if (reasoningFormat === 'nested') {
                         customParams.reasoning = undefined;
                     } else {
-                        customParams.reasoning_effort = undefined;
+                    customParams.reasoning_effort = undefined;
                     }
                     if (modelConfig.thinkingFormat === 'object' || modelConfig.thinkingFormat === 'object-none') {
                         customParams.thinking = { type: 'disabled' };
@@ -830,7 +830,7 @@ export class OpenAIHandler {
                     // OpenAI 新版嵌套格式: { reasoning: { effort: '...' } }
                     if (effectiveReasoningEffort === 'minimal') {
                         customParams.reasoning = { effort: 'low' };
-                    } else {
+                } else {
                         customParams.reasoning = { effort: effectiveReasoningEffort };
                     }
                 } else {
@@ -841,9 +841,18 @@ export class OpenAIHandler {
                 }
             }
         }
-        // 如果处于提交模式，模型支持思考的，不使用思考模式
-        const modelOpts = options.modelOptions as CommitChatModelOptions;
-        if (modelOpts?.commit) {
+        // 如果处于提交模式或后台子请求（标题生成、提交信息等），关闭思考
+        const modelOpts = options.modelOptions as CommitChatModelOptions & { requestKind?: string };
+        const requestKind = modelOpts?.requestKind;
+        const isDisableThinking =
+            modelOpts?.commit ||
+            (settings?.thinking &&
+                requestKind !== undefined &&
+                requestKind !== 'main-agent' &&
+                requestKind !== 'terminal-steering' &&
+                requestKind !== 'background' &&
+                requestKind !== 'unknown');
+        if (isDisableThinking) {
             if (reasoningFormat === 'nested') {
                 customParams.reasoning = undefined;
             }

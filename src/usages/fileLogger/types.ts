@@ -69,6 +69,9 @@ export interface OTelTraceContextLog {
  * Token请求日志条目
  * 每行一个JSON对象,记录一次完整的API请求
  */
+/** 请求来源类型 */
+export type RequestKind = string;
+
 export interface TokenRequestLog {
     /** 请求ID */
     requestId: string;
@@ -92,6 +95,8 @@ export interface TokenRequestLog {
     status: 'estimated' | 'completed' | 'failed';
     /** 最大输入token(上下文窗口大小) */
     maxInputTokens?: number;
+    /** 请求来源类型（main-agent / git-commit-message / chat-title 等） */
+    requestKind?: RequestKind;
     /** 会话ID */
     sessionId?: string;
     /** 请求发起方（扩展 key 或 core） */

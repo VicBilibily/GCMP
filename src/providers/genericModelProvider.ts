@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  通用Provider类
  *  基于配置文件动态创建提供商实现
  *--------------------------------------------------------------------------------------------*/
@@ -34,6 +34,7 @@ import { ContextUsageStatusBar } from '../status/contextUsageStatusBar';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { OpenAIResponsesHandler } from '../handlers/openaiResponsesHandler';
 import { getAllStatefulMarkersAndIndicies } from '../handlers/statefulMarker';
+import { classifyRequest } from '../handlers/requestClassifier';
 import * as crypto from 'node:crypto';
 
 interface ContextUsageSummary {
@@ -47,6 +48,8 @@ interface RuntimeModelOptionsTelemetry {
         traceId?: string;
         spanId?: string;
     };
+    /** 运行时注入的请求来源类型，供 handler 消费 */
+    requestKind?: string;
 }
 
 type RuntimeProvideLanguageModelChatResponseOptions = ProvideLanguageModelChatResponseOptions & {
@@ -441,6 +444,17 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const sdkMode = modelConfig.sdkMode || 'openai';
         const retryManager = new RetryManager(this.getRequestRetryConfig());
 
+        // 请求分类 + 透传给 handler（供所有子类复用的 executeModelRequest）
+        const isCommit = !!(options as { modelOptions?: { commit?: boolean } }).modelOptions?.commit;
+        const kind = classifyRequest(messages, options.tools, isCommit);
+        const rtOpts = options as RuntimeProvideLanguageModelChatResponseOptions;
+        if (!rtOpts.modelOptions) {
+            rtOpts.modelOptions = {};
+        }
+        if (!rtOpts.modelOptions.requestKind) {
+            rtOpts.modelOptions.requestKind = kind;
+        }
+
         await retryManager.executeWithRetry(
             async () => {
                 if (sdkMode === 'anthropic') {
@@ -547,6 +561,16 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 根据模型配置中的 provider 字段确定实际使用的提供商
         // 这样可以正确处理同一提供商下不同模型使用不同密钥的情况
         const effectiveProviderKey = modelConfig.provider || this.providerKey;
+        const sdkMode = modelConfig.sdkMode || 'openai';
+
+        // 请求分类 + 注入到 options.modelOptions（确保 statusBar 能读取到 requestKind）
+        const isCommit = !!(options as { modelOptions?: { commit?: boolean } }).modelOptions?.commit;
+        const kind = classifyRequest(messages, options.tools, isCommit);
+        const rtOpts = options as RuntimeProvideLanguageModelChatResponseOptions;
+        if (!rtOpts.modelOptions) {
+            rtOpts.modelOptions = {};
+        }
+        rtOpts.modelOptions.requestKind = kind;
 
         // 计算输入 token 数量并更新状态栏
         const { totalInputTokens, maxInputTokens } = await this.updateContextUsageStatusBar(
@@ -559,8 +583,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // === Token 统计: 记录预估输入 token ===
         const usagesManager = TokenUsagesManager.instance;
         let requestId = '';
-        // 提取或生成 sessionId（根据 sdkMode，新会话时生成 UUID）
-        const sdkMode = modelConfig.sdkMode || 'openai';
         const sessionId = this.getSessionIdFromMessages(messages, sdkMode);
         try {
             requestId = await usagesManager.recordEstimatedTokens({
@@ -570,6 +592,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 modelName: model.name || modelConfig.name,
                 estimatedInputTokens: totalInputTokens,
                 maxInputTokens,
+                requestKind: kind,
                 sessionId,
                 ...this.getEstimatedRequestMetadata(options)
             });
@@ -700,16 +723,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             const maxInputTokens = getEffectiveMaxInputTokens(model, modelConfig, options, this.providerKey);
             const percentage = maxInputTokens > 0 ? (totalInputTokens / maxInputTokens) * 100 : 0;
 
-            // const countMessagesTokens = await TokenCounter.getInstance().countMessagesTokens(
-            //     model,
-            //     messages,
-            //     modelConfig,
-            //     options
-            // );
-            // Logger.debug(
-            //     `[${this.providerKey}] 详细 Token 计算: 消息总计 ${countMessagesTokens}，` +
-            //         `提示词各部分: ${JSON.stringify(promptParts)}`
-            // );
+            // 从 modelOptions 中读取 requestKind（由 executeModelRequest 注入）
+            const rtOpts = options as RuntimeProvideLanguageModelChatResponseOptions | undefined;
+            const requestKind = rtOpts?.modelOptions?.requestKind;
 
             // 更新上下文占用状态栏
             const contextUsageStatusBar = ContextUsageStatusBar.getInstance();
@@ -717,7 +733,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 contextUsageStatusBar.updateWithPromptParts(
                     model.name || modelConfig.name,
                     maxInputTokens,
-                    promptParts
+                    promptParts,
+                    requestKind
                 );
             }
 

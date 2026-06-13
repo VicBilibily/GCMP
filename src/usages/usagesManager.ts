@@ -109,6 +109,7 @@ export class TokenUsagesManager {
         modelName: string;
         estimatedInputTokens: number;
         maxInputTokens?: number;
+        requestKind?: string;
         sessionId?: string;
         requestInitiator?: string;
         capturingTokenCorrelationId?: string;
@@ -132,6 +133,7 @@ export class TokenUsagesManager {
                     modelName: params.modelName,
                     estimatedInput: params.estimatedInputTokens,
                     maxInputTokens: params.maxInputTokens,
+                    requestKind: params.requestKind,
                     sessionId: params.sessionId,
                     requestInitiator: params.requestInitiator,
                     capturingTokenCorrelationId: params.capturingTokenCorrelationId,

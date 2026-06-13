@@ -11,11 +11,11 @@ import {
     Progress
 } from 'vscode';
 import { ProviderConfig, ModelConfig, ModelOverride } from '../types/sharedTypes';
-import { Logger, ApiKeyManager, CompatibleModelManager } from '../utils';
+import { Logger, ApiKeyManager, CompatibleModelManager, KnownProviders } from '../utils';
+import { classifyRequest } from '../handlers/requestClassifier';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status';
-import { KnownProviders } from '../utils';
 import { configProviders } from './config';
 
 /**
@@ -306,6 +306,15 @@ export class CompatibleProvider extends GenericModelProvider {
             const sdkName = this.getSdkDisplayName(sdkMode);
             Logger.info(`Compatible Provider started handling request (${sdkName}): ${modelConfig.name}`);
 
+            // 请求分类 + 注入到 options.modelOptions
+            const isCommit = !!(options as { modelOptions?: { commit?: boolean } }).modelOptions?.commit;
+            const kind = classifyRequest(messages, options.tools, isCommit);
+            const rtOpts = options as { modelOptions?: { requestKind?: string } };
+            if (!rtOpts.modelOptions) {
+                rtOpts.modelOptions = {};
+            }
+            rtOpts.modelOptions.requestKind = kind;
+
             // 计算输入 token 数量并更新状态栏
             const { totalInputTokens, maxInputTokens } = await this.updateContextUsageStatusBar(
                 model,
@@ -334,6 +343,7 @@ export class CompatibleProvider extends GenericModelProvider {
                     modelName: model.name,
                     estimatedInputTokens: totalInputTokens,
                     maxInputTokens,
+                    requestKind: kind,
                     sessionId,
                     ...this.getEstimatedRequestMetadata(options)
                 });

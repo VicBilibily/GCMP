@@ -17,6 +17,7 @@ import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { Logger, ApiKeyManager, TencentWizard } from '../utils';
 import { TokenUsagesManager } from '../usages/usagesManager';
+import { classifyRequest } from '../handlers/requestClassifier';
 
 export class TencentProvider extends GenericModelProvider implements LanguageModelChatProvider {
     constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
@@ -176,6 +177,15 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             `${this.providerConfig.displayName}: about to handle request using ${providerKey} key - model: ${modelConfig.name}`
         );
 
+        // 请求分类 + 注入到 options.modelOptions
+        const isCommit = !!(options as { modelOptions?: { commit?: boolean } }).modelOptions?.commit;
+        const kind = classifyRequest(messages, options.tools, isCommit);
+        const rtOpts = options as { modelOptions?: { requestKind?: string } };
+        if (!rtOpts.modelOptions) {
+            rtOpts.modelOptions = {};
+        }
+        rtOpts.modelOptions.requestKind = kind;
+
         const { totalInputTokens, maxInputTokens } = await this.updateContextUsageStatusBar(
             model,
             messages,
@@ -195,6 +205,7 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
                 modelName: model.name || modelConfig.name,
                 estimatedInputTokens: totalInputTokens,
                 maxInputTokens,
+                requestKind: kind,
                 sessionId,
                 ...this.getEstimatedRequestMetadata(options)
             });

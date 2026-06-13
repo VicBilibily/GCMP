@@ -542,47 +542,40 @@ body {
 
     /* 列宽分配 */
     .records-table {
-        /* 第1列（时间）固定宽度 */
+        /* 第1列（时间+类型） */
         th:nth-child(1),
         td:nth-child(1) {
-            width: 50px;
-        }
-
-        /* 第2列（提供商）*/
-        th:nth-child(2),
-        td:nth-child(2) {
-            width: 12%;
-            min-width: 100px;
-        }
-
-        /* 第3列（模型） */
-        th:nth-child(3),
-        td:nth-child(3) {
-            width: 24%;
-            min-width: 120px;
-        }
-
-        /* 第4-7列（输入、缓存、输出、消耗）数值列固定宽度 */
-        th:nth-child(n + 4):nth-child(-n + 7),
-        td:nth-child(n + 4):nth-child(-n + 7) {
             width: 55px;
         }
 
-        /* 第8列（首Token延迟）特殊宽度 */
-        th:nth-child(n + 8),
-        td:nth-child(n + 8) {
+        /* 第2列（提供商/模型） */
+        th:nth-child(2),
+        td:nth-child(2) {
+            width: 30%;
+            min-width: 140px;
+        }
+
+        /* 第3-6列（输入、缓存、输出、消耗）数值列固定宽度 */
+        th:nth-child(n + 3):nth-child(-n + 6),
+        td:nth-child(n + 3):nth-child(-n + 6) {
+            width: 55px;
+        }
+
+        /* 第7列（首Token延迟）特殊宽度 */
+        th:nth-child(7),
+        td:nth-child(7) {
             width: 110px;
         }
 
-        /* 第9列（输出速度）特殊宽度 */
-        th:nth-child(n + 9),
-        td:nth-child(n + 9) {
+        /* 第8列（输出速度）特殊宽度 */
+        th:nth-child(8),
+        td:nth-child(8) {
             width: 55px;
         }
 
-        /* 第8-9列（首Token延迟、输出速度）文本宽度 */
-        th:nth-child(n + 8):nth-child(-n + 9) span,
-        td:nth-child(n + 8):nth-child(-n + 9) span {
+        /* 第7-8列文本宽度 */
+        th:nth-child(n + 7):nth-child(-n + 8) span,
+        td:nth-child(n + 7):nth-child(-n + 8) span {
             display: inline-block;
             width: 4em;
         }
@@ -626,21 +619,91 @@ body {
         /* 第1列（时间）居中 */
         &:nth-child(1) {
             text-align: center;
+            line-height: 1;
+            white-space: normal;
+
+            .request-kind {
+                display: block;
+                margin-top: -3px;
+                font-size: 0.8em;
+                padding-bottom: 0;
+
+                &-main-agent {
+                    border-bottom: 1px solid var(--vscode-charts-blue);
+                }
+                &-terminal {
+                    border-bottom: 1px solid var(--vscode-charts-orange);
+                }
+                &-todo {
+                    border-bottom: 1px solid var(--vscode-charts-yellow);
+                }
+                &-prompt {
+                    border-bottom: 1px solid var(--vscode-symbolIcon-classForeground);
+                }
+                &-settings {
+                    border-bottom: 1px solid var(--vscode-charts-green);
+                }
+                &-title {
+                    border-bottom: 1px solid var(--vscode-symbolIcon-enumeratorForeground);
+                }
+                &-progress {
+                    border-bottom: 1px solid var(--vscode-charts-yellow);
+                }
+                &-branch {
+                    border-bottom: 1px solid var(--vscode-charts-green);
+                }
+                &-commit {
+                    border-bottom: 1px solid var(--vscode-charts-orange);
+                }
+                &-rename {
+                    border-bottom: 1px solid var(--vscode-symbolIcon-classForeground);
+                }
+                &-background {
+                    border-bottom: 1px solid var(--vscode-descriptionForeground);
+                }
+                &-unknown {
+                    border-bottom: 1px solid var(--vscode-disabledForeground);
+                }
+            }
+
+            .request-time {
+                display: block;
+                margin-top: -3px;
+                margin-bottom: -0.6em;
+            }
         }
 
-        /* 第2-3列（提供商、模型）左对齐 */
-        &:nth-child(2),
-        &:nth-child(3) {
+        /* 第2列（提供商/模型）左对齐 */
+        &:nth-child(2) {
             text-align: left;
+            line-height: 1;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+
+            .prov-model-provider {
+                display: block;
+                overflow: hidden;
+                margin-top: -5px;
+                font-size: 0.7em;
+                padding-bottom: 1px;
+            }
+
+            .prov-model-model {
+                display: block;
+                overflow: hidden;
+                font-size: 0.9em;
+                margin-top: -3px;
+                margin-bottom: -0.6em;
+            }
         }
 
-        /* 第4-9列（输入、缓存、输出、消耗、首Token、速度）右对齐 */
-        &:nth-child(n + 4):nth-child(-n + 9) {
+        /* 第3-8列（输入、缓存、输出、消耗、首Token、速度）右对齐 */
+        &:nth-child(n + 3):nth-child(-n + 8) {
             text-align: right;
         }
 
-        /* 第10列（状态）居中对齐 */
-        &:nth-child(10) {
+        /* 第9列（状态）居中对齐 */
+        &:nth-child(9) {
             text-align: center;
         }
     }

@@ -18,6 +18,7 @@ import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { Logger, ApiKeyManager, MiniMaxWizard } from '../utils';
 import { StatusBarManager } from '../status';
 import { TokenUsagesManager } from '../usages/usagesManager';
+import { classifyRequest } from '../handlers/requestClassifier';
 import { MiniMaxVisionBridge } from '../handlers/visionBridge/minimaxVisionBridge';
 
 /**
@@ -287,6 +288,15 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             `${this.providerConfig.displayName}: about to handle request using ${providerKey === 'minimax-token' ? 'Token Plan' : 'standard'} key - model: ${modelConfig.name}`
         );
 
+        // 请求分类 + 注入到 options.modelOptions
+        const isCommit = !!(options as { modelOptions?: { commit?: boolean } }).modelOptions?.commit;
+        const kind = classifyRequest(messages, options.tools, isCommit);
+        const rtOpts = options as { modelOptions?: { requestKind?: string } };
+        if (!rtOpts.modelOptions) {
+            rtOpts.modelOptions = {};
+        }
+        rtOpts.modelOptions.requestKind = kind;
+
         // 图片桥接：预处理消息中的图片
         // 注：当 MiniMax 模型支持视觉识别后，移除此桥接调用及 minimaxVisionBridge.ts
         const visionBridgeResult = await MiniMaxVisionBridge.preprocessImages(
@@ -322,6 +332,7 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
                 modelName: model.name || modelConfig.name,
                 estimatedInputTokens: totalInputTokens,
                 maxInputTokens,
+                requestKind: kind,
                 sessionId,
                 ...this.getEstimatedRequestMetadata(options)
             });

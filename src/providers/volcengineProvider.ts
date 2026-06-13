@@ -17,6 +17,7 @@ import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { Logger, ApiKeyManager, VolcengineWizard } from '../utils';
 import { TokenUsagesManager } from '../usages/usagesManager';
+import { classifyRequest } from '../handlers/requestClassifier';
 
 export class VolcengineProvider extends GenericModelProvider implements LanguageModelChatProvider {
     private static readonly AGENT_PLAN_KEY = 'volcengine-agent';
@@ -182,6 +183,15 @@ export class VolcengineProvider extends GenericModelProvider implements Language
             `${this.providerConfig.displayName}: about to handle request using ${keyLabel} key - model: ${modelConfig.name}`
         );
 
+        // 请求分类 + 注入到 options.modelOptions
+        const isCommit = !!(options as { modelOptions?: { commit?: boolean } }).modelOptions?.commit;
+        const kind = classifyRequest(messages, options.tools, isCommit);
+        const rtOpts = options as { modelOptions?: { requestKind?: string } };
+        if (!rtOpts.modelOptions) {
+            rtOpts.modelOptions = {};
+        }
+        rtOpts.modelOptions.requestKind = kind;
+
         const { totalInputTokens, maxInputTokens } = await this.updateContextUsageStatusBar(
             model,
             messages,
@@ -201,6 +211,7 @@ export class VolcengineProvider extends GenericModelProvider implements Language
                 modelName: model.name || modelConfig.name,
                 estimatedInputTokens: totalInputTokens,
                 maxInputTokens,
+                requestKind: kind,
                 sessionId,
                 ...this.getEstimatedRequestMetadata(options)
             });

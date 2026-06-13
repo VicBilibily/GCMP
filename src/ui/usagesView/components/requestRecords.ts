@@ -10,10 +10,33 @@ import {
     formatSessionTimeRange,
     formatTokens,
     getProviderDisplayName,
+    getRequestKindDisplayName,
     summarizeSessionRecords,
     t,
     UNKNOWN_SESSION_ID
 } from '../utils';
+
+/**
+ * 请求类型 → CSS class 映射
+ */
+const REQUEST_KIND_CSS_CLASS: Record<string, string> = {
+    'main-agent': 'request-kind-main-agent',
+    'terminal-steering': 'request-kind-terminal',
+    'todo-tracker': 'request-kind-todo',
+    'prompt-categorizer': 'request-kind-prompt',
+    'settings-resolver': 'request-kind-settings',
+    'chat-title': 'request-kind-title',
+    'inline-progress-message': 'request-kind-progress',
+    'git-branch-name': 'request-kind-branch',
+    'git-commit-message': 'request-kind-commit',
+    'rename-suggestions': 'request-kind-rename',
+    background: 'request-kind-background',
+    unknown: 'request-kind-unknown'
+};
+
+function getRequestKindCssClass(kind: string | undefined): string {
+    return REQUEST_KIND_CSS_CLASS[kind || ''] || 'request-kind-unknown';
+}
 
 const PAGE_SIZE = 20;
 
@@ -250,19 +273,31 @@ function appendTotalsRow(tbody: HTMLElement, summaryRecords: ExtendedTokenReques
     const row = createElement('tr', 'records-total-row');
 
     const labelCell = createElement('td', 'records-total-label') as HTMLTableCellElement;
-    labelCell.colSpan = 3;
+    labelCell.colSpan = 2;
 
     const inputCell = createElement('td', 'records-total-number');
     inputCell.textContent = formatTokens(totals.inputTokens);
+    if (totals.inputTokens > 0) {
+        inputCell.title = totals.inputTokens.toLocaleString('en-US');
+    }
 
     const cacheCell = createElement('td', 'records-total-number');
     cacheCell.textContent = formatTokens(totals.cacheTokens);
+    if (totals.cacheTokens > 0) {
+        cacheCell.title = totals.cacheTokens.toLocaleString('en-US');
+    }
 
     const outputCell = createElement('td', 'records-total-number');
     outputCell.textContent = formatTokens(totals.outputTokens);
+    if (totals.outputTokens > 0) {
+        outputCell.title = totals.outputTokens.toLocaleString('en-US');
+    }
 
     const totalCell = createElement('td', 'records-total-number');
     totalCell.textContent = formatTokens(totals.summary.totalTokens);
+    if (totals.summary.totalTokens > 0) {
+        totalCell.title = totals.summary.totalTokens.toLocaleString('en-US');
+    }
 
     const latencyCell = createElement('td', 'records-total-number');
     const latencyValue = createElement('span');
@@ -292,8 +327,7 @@ function createRequestRecordsTable(
     const headerRow = createElement('tr');
     const headers = [
         t('Time', '时间'),
-        t('Provider', '提供商'),
-        t('Model', '模型'),
+        t('Provider & Model', '提供商模型'),
         t('Input', '输入令牌'),
         t('Cache', '缓存命中'),
         t('Output', '输出令牌'),
@@ -314,7 +348,7 @@ function createRequestRecordsTable(
     const tbody = createElement('tbody');
     if (records.length === 0) {
         const emptyRow = createElement('tr');
-        const emptyCell = createElement('td', '', { colSpan: 10 });
+        const emptyCell = createElement('td', '', { colSpan: 9 });
         emptyCell.textContent = t('No request records yet', '暂无请求记录');
         emptyCell.style.textAlign = 'center';
         emptyRow.appendChild(emptyCell);
@@ -326,32 +360,57 @@ function createRequestRecordsTable(
     records.forEach(record => {
         const row = createElement('tr');
         const time = createElement('td');
-        time.textContent = record.timestamp ? new Date(record.timestamp).toLocaleTimeString('zh-CN') : '-';
+        const timeStr = record.timestamp ? new Date(record.timestamp).toLocaleTimeString('zh-CN') : '-';
+        const kindName = getRequestKindDisplayName(record.requestKind);
+        if (record.requestKind) {
+            time.title = kindName;
+            const kindClass = getRequestKindCssClass(record.requestKind);
+            time.innerHTML = `<div class="request-kind ${kindClass}">${kindName}</div><div class="request-time">${timeStr}</div>`;
+        } else {
+            time.textContent = timeStr;
+        }
 
-        const provider = createElement('td');
-        provider.textContent = getProviderDisplayName(record.providerKey, record.providerName) || '-';
-
-        const model = createElement('td');
-        model.textContent = record.modelName || '-';
+        const providerModel = createElement('td');
+        const provName = getProviderDisplayName(record.providerKey, record.providerName) || '-';
+        const modName = record.modelName || '-';
+        providerModel.title = `${provName} · ${modName}`;
+        providerModel.innerHTML = `<div class="prov-model-provider">${provName}</div><div class="prov-model-model">${modName}</div>`;
 
         const input = createElement('td');
+        const inputVal =
+            record.status === 'completed' && record.rawUsage && record.totalTokens > 0 ? record.actualInput
+            : record.estimatedInput && record.estimatedInput > 0 ? record.estimatedInput
+            : 0;
         input.textContent =
-            record.status === 'completed' && record.rawUsage && record.totalTokens > 0 ?
-                formatTokens(record.actualInput)
-            : record.estimatedInput && record.estimatedInput > 0 ? `~${formatTokens(record.estimatedInput)}`
-            : '-';
+            inputVal > 0 ?
+                record.status === 'completed' && record.rawUsage && record.totalTokens > 0 ?
+                    formatTokens(record.actualInput)
+                :   `~${formatTokens(record.estimatedInput)}`
+            :   '-';
+        if (inputVal > 0) {
+            input.title = inputVal.toLocaleString('en-US');
+        }
 
         const cache = createElement('td');
-        cache.textContent =
-            record.status === 'completed' && record.cacheReadTokens > 0 ? formatTokens(record.cacheReadTokens) : '-';
+        const cacheVal = record.status === 'completed' && record.cacheReadTokens > 0 ? record.cacheReadTokens : 0;
+        cache.textContent = cacheVal > 0 ? formatTokens(record.cacheReadTokens) : '-';
+        if (cacheVal > 0) {
+            cache.title = cacheVal.toLocaleString('en-US');
+        }
 
         const output = createElement('td');
-        output.textContent =
-            record.status === 'completed' && record.outputTokens > 0 ? formatTokens(record.outputTokens) : '-';
+        const outputVal = record.status === 'completed' && record.outputTokens > 0 ? record.outputTokens : 0;
+        output.textContent = outputVal > 0 ? formatTokens(record.outputTokens) : '-';
+        if (outputVal > 0) {
+            output.title = outputVal.toLocaleString('en-US');
+        }
 
         const total = createElement('td');
-        total.textContent =
-            record.status === 'completed' && record.totalTokens > 0 ? formatTokens(record.totalTokens) : '-';
+        const totalVal = record.status === 'completed' && record.totalTokens > 0 ? record.totalTokens : 0;
+        total.textContent = totalVal > 0 ? formatTokens(record.totalTokens) : '-';
+        if (totalVal > 0) {
+            total.title = totalVal.toLocaleString('en-US');
+        }
 
         const firstTokenLatency = createElement('td');
         if (record.streamDuration !== undefined && record.streamDuration > 0) {
@@ -391,7 +450,7 @@ function createRequestRecordsTable(
             : record.status === 'failed' ? '❌'
             : '⏳';
 
-        row.append(time, provider, model, input, cache, output, total, firstTokenLatency, speed, status);
+        row.append(time, providerModel, input, cache, output, total, firstTokenLatency, speed, status);
         tbody.appendChild(row);
     });
 

@@ -188,6 +188,7 @@ export class TokenFileLogger {
         modelName: string;
         estimatedInput: number;
         maxInputTokens?: number;
+        requestKind?: string; // 请求来源类型
         sessionId?: string;
         requestInitiator?: string;
         capturingTokenCorrelationId?: string;
@@ -211,6 +212,7 @@ export class TokenFileLogger {
             rawUsage: null,
             status: 'estimated',
             maxInputTokens: params.maxInputTokens,
+            requestKind: params.requestKind,
             sessionId: params.sessionId,
             requestInitiator: params.requestInitiator,
             capturingTokenCorrelationId: params.capturingTokenCorrelationId,

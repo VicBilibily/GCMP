@@ -18,6 +18,7 @@ import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { Logger, ApiKeyManager, MoonshotWizard } from '../utils';
 import { StatusBarManager } from '../status';
 import { TokenUsagesManager } from '../usages/usagesManager';
+import { classifyRequest } from '../handlers/requestClassifier';
 
 /**
  * MoonshotAI 专用模型提供商类
@@ -222,6 +223,15 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
             `${this.providerConfig.displayName}: about to handle request using ${providerKey === 'kimi' ? 'Kimi For Coding' : 'Moonshot'} key - model: ${modelConfig.name}`
         );
 
+        // 请求分类 + 注入到 options.modelOptions
+        const isCommit = !!(options as { modelOptions?: { commit?: boolean } }).modelOptions?.commit;
+        const kind = classifyRequest(messages, options.tools, isCommit);
+        const rtOpts = options as { modelOptions?: { requestKind?: string } };
+        if (!rtOpts.modelOptions) {
+            rtOpts.modelOptions = {};
+        }
+        rtOpts.modelOptions.requestKind = kind;
+
         // 计算输入 token 数量并更新状态栏
         const { totalInputTokens, maxInputTokens } = await this.updateContextUsageStatusBar(
             model,
@@ -246,6 +256,7 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
                 modelName: model.name || modelConfig.name,
                 estimatedInputTokens: totalInputTokens,
                 maxInputTokens,
+                requestKind: kind,
                 sessionId,
                 ...this.getEstimatedRequestMetadata(options)
             });
