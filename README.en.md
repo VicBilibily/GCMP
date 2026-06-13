@@ -28,7 +28,7 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 
 ### [**ZhipuAI**](https://bigmodel.cn/)
 
-- [**Coding Plan**](https://bigmodel.cn/glm-coding): **GLM-5.1**, **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-4.7**, **GLM-4.6**, **GLM-4.6V**, **GLM-4.5-Air**
+- [**Coding Plan**](https://bigmodel.cn/glm-coding): **GLM-5.2**, **GLM-5.1**, **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-4.7**, **GLM-4.6**, **GLM-4.6V**, **GLM-4.5-Air**
     - **Usage tracking**: Status bar displays remaining cycle quota for GLM Coding Plan.
 - **PayGo**: **GLM-5.1** (HighSpeed), **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-5**, **GLM-4.7**, **GLM-4.7-FlashX**, **GLM-4.6**, **GLM-4.6V**, **GLM-4.5-Air**
 - **Free models**: **GLM-4.6V-Flash**, **GLM-4.7-Flash**

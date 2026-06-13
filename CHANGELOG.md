@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.24.7] - 2026-06-13
+
+### 新增
+
+- **智谱 GLM-5.2 模型**：智谱AI 编程套餐新增 `glm-5.2` 模型——基于 Anthropic API 兼容协议，定位 Opus 级旗舰，擅长复杂推理与大型工程任务：
+    - 支持 1M 上下文窗口（可动态切换至 600K / 400K / 200K）
+    - 最大输出 128K tokens
+    - 支持思考模式开关（启用/禁用）
+    - 支持工具调用（toolCalling），暂不支持图片输入
+
+---
+
+### Added
+
+- **Zhipu GLM-5.2 model**: Added `glm-5.2` model to ZhipuAI Coding Plan — uses Anthropic API protocol, positioned as Opus-class flagship for complex reasoning and large-scale engineering tasks:
+    - 1M context window (dynamically switchable to 600K / 400K / 200K)
+    - Max 128K output tokens
+    - Thinking mode toggle (enabled/disabled)
+    - Tool calling supported; image input not yet available
+
 ## [0.24.6] - 2026-06-12
 
 ### 新增

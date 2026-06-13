@@ -28,7 +28,7 @@
 
 ### [**智谱AI**](https://bigmodel.cn/) - ZhipuAI
 
-- [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-5.1**、**GLM-5V-Turbo**、**GLM-5-Turbo**、**GLM-4.7**、**GLM-4.6**、**GLM-4.6V**、**GLM-4.5-Air**
+- [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-5.2**、**GLM-5.1**、**GLM-5V-Turbo**、**GLM-5-Turbo**、**GLM-4.7**、**GLM-4.6**、**GLM-4.6V**、**GLM-4.5-Air**
     - **用量查询**：已支持状态栏显示周期剩余用量，可查看 GLM Coding Plan 用量信息。
 - **按量计费(PayGo)**：**GLM-5.1**(极速版)、**GLM-5V-Turbo**、**GLM-5-Turbo**、**GLM-5**、**GLM-4.7**、**GLM-4.7-FlashX**、**GLM-4.6**、**GLM-4.6V**、**GLM-4.5-Air**
 - **免费模型**：**GLM-4.6V-Flash**、**GLM-4.7-Flash**
