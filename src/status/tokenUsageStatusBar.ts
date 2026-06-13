@@ -291,7 +291,7 @@ export class TokenUsageStatusBar {
         const detailCmd = 'command:gcmp.tokenUsage.showDetails';
         const detailLabel = t('Click to view details', '点击查看详情');
         const syncCmd = 'command:gcmp.sync.configure';
-        const syncLabel = t('Sync API Keys via GitHub Gist', '用 GitHub Gist 同步 API Key');
+        const syncLabel = t('Manage / Sync API Keys', '管理/同步 API Key');
         const syncText = `[${detailLabel}](${detailCmd}) │ [${syncLabel}](${syncCmd})`;
 
         md.appendMarkdown(`\n---\n\n${syncText}`);

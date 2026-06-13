@@ -171,6 +171,49 @@ export class RetryManager {
     }
 
     /**
+     * 判断是否为网络连接中断错误（如 terminated、ETIMEDOUT、ECONNRESET 等）
+     * 这类错误同样可重试，与 429 限流等价对待
+     * @param error 错误对象
+     * @returns 是否是网络连接错误
+     */
+    static isNetworkError(error: RetryableError): boolean {
+        if (!error.message || typeof error.message !== 'string') {
+            return false;
+        }
+
+        const msg = error.message.toLowerCase();
+
+        // OpenAI SDK 在网络断开时抛出 "terminated"
+        if (msg === 'terminated') {
+            return true;
+        }
+
+        // 常见网络错误关键字——仅保留确指网络层异常的匹配项
+        const networkErrorKeywords = [
+            'terminated',
+            'etimedout',
+            'econnrefused',
+            'econnreset',
+            'ehostunreach',
+            'enotfound',
+            'fetch failed',
+            'socket hang up',
+            'socket hangup',
+            'socket',
+            'eof',
+            'end of file'
+        ];
+
+        for (const keyword of networkErrorKeywords) {
+            if (msg.includes(keyword)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * 延迟指定毫秒数
      * @param ms 毫秒数
      * @returns Promise

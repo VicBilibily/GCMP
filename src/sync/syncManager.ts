@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { GistSyncService, getKeyDisplayName } from './gistSyncService';
 import { Logger } from '../utils/logger';
 import { t } from '../utils/l10n';
+import { ApiKeyManager } from '../utils/apiKeyManager';
 
 /**
  * 同步管理器
@@ -29,30 +30,6 @@ export class SyncManager {
      * - 已登录 → 直接进入同步操作菜单（上传/下载/管理云端）
      */
     static async configure(): Promise<void> {
-        const status = await GistSyncService.getStatus();
-
-        // 未登录则先登录（含自动关联已有 Gist）
-        if (!status.isLoggedIn) {
-            const userInfo = await vscode.window.withProgress(
-                {
-                    location: vscode.ProgressLocation.Notification,
-                    title: t('Signing in with GitHub...', '正在通过 GitHub 登录...'),
-                    cancellable: false
-                },
-                () => GistSyncService.signIn()
-            );
-
-            if (!userInfo) {
-                vscode.window.showErrorMessage(
-                    t(
-                        'GitHub authentication failed. Please ensure you have a GitHub account and try again.',
-                        'GitHub 认证失败。请确保拥有 GitHub 账号后重试。'
-                    )
-                );
-                return;
-            }
-        }
-
         await this.showSyncActions();
     }
 
@@ -91,44 +68,50 @@ export class SyncManager {
 
         const items: SyncActionItem[] = [];
 
-        // 第一组：上传/下载
+        // 第一组：同步操作
         items.push(
             { label: t('Sync Operations', '同步操作'), kind: vscode.QuickPickItemKind.Separator },
             {
-                label: `$(cloud-upload) ${t('Upload API Keys', '上传 API Key')}`,
+                label: `$(cloud-upload) ${t('Upload to Gist', '上传到 Gist')}`,
                 description: t(
-                    'Upload API keys to GitHub Gist, keeping them encrypted',
-                    '将 API Key 加密上传到 GitHub Gist'
+                    'Encrypt and upload local API keys to GitHub Gist',
+                    '加密并将本地 API Key 上传到 GitHub Gist'
                 ),
                 action: () => this.uploadToGist()
             },
             {
-                label: `$(cloud-download) ${t('Download API Keys', '下载 API Key')}`,
-                description: t('Download and restore API keys from GitHub Gist', '从 GitHub Gist 下载并恢复 API Key'),
+                label: `$(cloud-download) ${t('Download from Gist', '从 Gist 下载')}`,
+                description: t(
+                    'Download and restore API keys from GitHub Gist to local',
+                    '从 GitHub Gist 下载并恢复到本地'
+                ),
                 action: () => this.downloadFromGist()
             }
         );
 
-        // 第二组：云端密钥管理
+        // 第二组：密钥管理
+        items.push(
+            { label: t('Key Management', '密钥管理'), kind: vscode.QuickPickItemKind.Separator },
+            {
+                label: `$(symbol-key) ${t('Manage Local Keys', '管理本地密钥')}`,
+                description: t('View and remove API keys stored on this device', '查看和删除本机存储的 API Key'),
+                action: () => this.manageLocalKeys()
+            }
+        );
+
         if (status.isLoggedIn) {
-            items.push(
-                { label: t('Remote Management', '云端管理'), kind: vscode.QuickPickItemKind.Separator },
-                {
-                    label: `$(list-tree) ${t('Manage API Keys on GitHub', '管理 GitHub Gist 中的 API Key')}`,
-                    description: t(
-                        'View and delete API keys stored on GitHub Gist',
-                        '查看和删除已存储在 GitHub Gist 的 API Key'
-                    ),
-                    action: () => this.manageRemoteKeys()
-                }
-            );
+            items.push({
+                label: `$(list-tree) ${t('Manage Remote Keys', '管理云端密钥')}`,
+                description: t('View and remove API keys stored on GitHub Gist', '查看和删除 GitHub Gist 中的 API Key'),
+                action: () => this.manageRemoteKeys()
+            });
         }
 
-        // 第三组：口令管理
+        // 第三组：安全设置
         items.push(
-            { label: t('Security Settings', '安全设置'), kind: vscode.QuickPickItemKind.Separator },
+            { label: t('Security', '安全设置'), kind: vscode.QuickPickItemKind.Separator },
             {
-                label: `$(key) ${status.hasCustomPassphrase ? t('Change Encryption Passphrase', '更改加密口令') : t('Set Encryption Passphrase', '设置加密口令')}`,
+                label: `$(key) ${status.hasCustomPassphrase ? t('Change Passphrase', '更改口令') : t('Set Passphrase', '设置口令')}`,
                 description:
                     status.hasCustomPassphrase ?
                         t('Change the custom encryption passphrase', '更改自定义加密口令')
@@ -139,9 +122,9 @@ export class SyncManager {
 
         if (status.hasCustomPassphrase) {
             items.push({
-                label: `$(trash) ${t('Clear Encryption Passphrase', '清除加密口令')}`,
+                label: `$(trash) ${t('Clear Passphrase', '清除口令')}`,
                 description: t(
-                    'Remove the custom passphrase, existing encrypted data will become undecryptable',
+                    'Remove the custom passphrase — existing encrypted Gist data will become undecryptable',
                     '移除自定义口令，现有加密数据将无法解密'
                 ),
                 action: () => this.clearEncryptionPassphrase()
@@ -639,6 +622,82 @@ export class SyncManager {
                     );
                 }
             }
+        );
+    }
+
+    /**
+     * 管理本地 API Key
+     * 列出所有本地已配置的 API Key，允许取消勾选以删除
+     */
+    static async manageLocalKeys(): Promise<void> {
+        const allKeys = await GistSyncService.collectLocalKeys();
+        if (Object.keys(allKeys).length === 0) {
+            vscode.window.showInformationMessage(t('No local API keys found.', '没有找到本地 API Key。'));
+            return;
+        }
+
+        const items: (vscode.QuickPickItem & { keyName?: string })[] = Object.keys(allKeys).map(key => ({
+            label: getKeyDisplayName(key),
+            description: key,
+            keyName: key,
+            picked: true
+        }));
+
+        const picked = await vscode.window.showQuickPick(items, {
+            canPickMany: true,
+            title: t('Local API Keys ({0} total)', '本地 API Key（共 {0} 个）', String(Object.keys(allKeys).length)),
+            placeHolder: t(
+                'Uncheck keys to delete them locally, checked keys will be kept',
+                '取消勾选将从本地删除，勾选的保留'
+            ),
+            ignoreFocusOut: true
+        });
+
+        if (!picked) {
+            return;
+        }
+
+        const keysToRetain = new Set(picked.map(item => item.description));
+        const toDelete = Object.keys(allKeys).filter(k => !keysToRetain.has(k));
+
+        if (toDelete.length === 0) {
+            vscode.window.showInformationMessage(
+                t('No changes made to local API keys.', '未对本地 API Key 做任何更改。')
+            );
+            return;
+        }
+
+        Logger.debug(`[SyncManager] User selected ${keysToRetain.size} key(s) to retain, ${toDelete.length} to delete`);
+
+        const confirm = await vscode.window.showWarningMessage(
+            t(
+                'Are you sure you want to delete {0} local API key(s)? This cannot be undone.',
+                '确定要删除 {0} 个本地 API Key 吗？此操作不可撤销。',
+                String(toDelete.length)
+            ),
+            { modal: true },
+            t('Delete', '删除')
+        );
+
+        if (!confirm) {
+            Logger.trace('[SyncManager] Local keys delete cancelled by user');
+            return;
+        }
+
+        let deletedCount = 0;
+        for (const keyName of toDelete) {
+            // keyName 格式如 "deepseek.apiKey" → provider = "deepseek"
+            const provider = keyName.replace('.apiKey', '');
+            await ApiKeyManager.deleteApiKey(provider);
+            deletedCount++;
+            Logger.debug(`[SyncManager] Deleted local key: ${keyName}`);
+        }
+
+        // 通知被删除密钥对应的提供商刷新模型列表
+        GistSyncService.notifyProvidersKeysDeleted(toDelete);
+
+        vscode.window.showInformationMessage(
+            t('Deleted {0} local API key(s).', '已删除 {0} 个本地 API Key。', String(deletedCount))
         );
     }
 

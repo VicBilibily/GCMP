@@ -418,9 +418,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
     /**
      * 判断请求错误是否允许重试
+     * 包括：429/529 限流错误、网络连接中断错误（如 terminated）
      */
     protected shouldRetryRequest(error: RetryableError): boolean {
-        return RetryManager.isRateLimitError(error);
+        return RetryManager.isRateLimitError(error) || RetryManager.isNetworkError(error);
     }
 
     /**

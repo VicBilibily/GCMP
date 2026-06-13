@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { CompatibleModelManager } from '../utils/compatibleModelManager';
 import { Logger } from '../utils/logger';
 import { registeredProviders } from '../utils/providerRegistry';
+import { KnownProviders } from '../utils/knownProviders';
 
 /**
  * 加密后的密钥数据包结构
@@ -132,7 +133,13 @@ const ALL_KNOWN_KEYS = Object.keys(KNOWN_SYNC_KEYS);
  * 获取密钥对应的友好显示名
  */
 export function getKeyDisplayName(key: string): string {
-    return KNOWN_SYNC_KEYS[key] || key.replace('.apiKey', '');
+    if (KNOWN_SYNC_KEYS[key]) {
+        return KNOWN_SYNC_KEYS[key];
+    }
+    const provider = key.replace('.apiKey', '');
+    // 检查是否在已知提供商映射中
+    const knownDisplayName = KnownProviders[provider]?.displayName;
+    return knownDisplayName || provider;
 }
 
 /**
@@ -593,6 +600,18 @@ export class GistSyncService {
             }
         }
 
+        // 收集已知提供商（经 Compatible Provider 添加）的 API Key
+        // 这些提供商在 KNOWN_SYNC_KEYS 中没有预置，但可能通过兼容模型配置存储了密钥
+        for (const provider of Object.keys(KnownProviders)) {
+            const keyName = `${provider}.apiKey`;
+            if (!keys[keyName]) {
+                const value = await this.context.secrets.get(keyName);
+                if (value && value.trim().length > 0) {
+                    keys[keyName] = value;
+                }
+            }
+        }
+
         // 动态收集自定义/兼容提供商的 API Key（provider.apiKey 格式）
         // 注意：仅能收集当前有模型配置的 provider。若模型配置已删除但
         // SecretStorage 中残留了 key，因 VS Code 不支持枚举密钥，暂无法发现。
@@ -644,16 +663,42 @@ export class GistSyncService {
             return 0;
         }
 
+        this.notifyProviders(Object.keys(keys));
+        return count;
+    }
+
+    /**
+     * 通知相关提供商刷新模型列表（用于本地密钥删除后）
+     * @param keyNames 密钥名列表（格式如 "deepseek.apiKey"）
+     */
+    static notifyProvidersKeysDeleted(keyNames: string[]): void {
+        this.notifyProviders(keyNames);
+    }
+
+    /**
+     * 从密钥名列表提取提供商键名并通知刷新
+     * 内置预置密钥按 `-` 拆分取首段（如 dashscope-coding → dashscope），
+     * kimi 特殊映射到 moonshot；自定义提供商密钥定向到 compatible
+     */
+    private static notifyProviders(keyNames: string[]): void {
+        const builtinKeyNames = new Set(Object.keys(KNOWN_SYNC_KEYS).map(k => k.replace('.apiKey', '')));
+
         const providerKeys = new Set<string>();
-        for (const keyName of Object.keys(keys)) {
-            const providerKey = keyName.replace('.apiKey', '');
-            providerKeys.add(providerKey);
+        for (const keyName of keyNames) {
+            const name = keyName.replace('.apiKey', '');
+            if (builtinKeyNames.has(name)) {
+                // 预置密钥：kimi 模型由 MoonshotProvider 管理，定向到 moonshot
+                // 其余按 `-` 拆分取首段（tencent-tokenhub → tencent）
+                const providerKey = name === 'kimi' ? 'moonshot' : name.split('-')[0];
+                providerKeys.add(providerKey);
+            } else {
+                providerKeys.add('compatible');
+            }
         }
         for (const providerKey of providerKeys) {
             registeredProviders[providerKey]?.invalidateAndNotify();
+            Logger.debug(`[GistSync] Notified ${providerKey} of key change`);
         }
-
-        return count;
     }
 
     /**
