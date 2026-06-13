@@ -11,14 +11,44 @@ import { t } from '../utils/l10n';
 import { Repository } from '../types/git';
 
 /**
+ * 检查提交消息生成功能是否启用
+ */
+function isCommitEnabled(config: vscode.WorkspaceConfiguration): boolean {
+    return config.get<boolean>('enabled', true);
+}
+
+/**
  * 注册所有 Commit 相关命令
  */
 export function registerCommitCommands(context: vscode.ExtensionContext): vscode.Disposable[] {
     const disposables: vscode.Disposable[] = [];
 
+    // 监听配置变更，动态更新 SCM 按钮可见性
+    function updateScmVisibility() {
+        const config = vscode.workspace.getConfiguration('gcmp.commit');
+        const enabled = isCommitEnabled(config);
+        vscode.commands.executeCommand('setContext', 'gcmp.commitEnabled', enabled);
+        Logger.debug(`[Commit] Feature ${enabled ? 'enabled' : 'disabled'}`);
+    }
+
+    // 初始化状态
+    updateScmVisibility();
+
+    // 配置变更监听
+    disposables.push(
+        vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration('gcmp.commit.enabled')) {
+                updateScmVisibility();
+            }
+        })
+    );
+
     // 注册生成提交消息命令
     disposables.push(
         vscode.commands.registerCommand('gcmp.commit.generateMessage', async (sourceControlRepository?: Repository) => {
+            if (!isCommitEnabled(vscode.workspace.getConfiguration('gcmp.commit'))) {
+                return;
+            }
             await CommitMessage.generateAndSetCommitMessage(sourceControlRepository);
         })
     );
@@ -28,6 +58,9 @@ export function registerCommitCommands(context: vscode.ExtensionContext): vscode
         vscode.commands.registerCommand(
             'gcmp.commit.generateMessageStaged',
             async (resContext?: vscode.SourceControlResourceGroup) => {
+                if (!isCommitEnabled(vscode.workspace.getConfiguration('gcmp.commit'))) {
+                    return;
+                }
                 await CommitMessage.generateAndSetCommitMessage(undefined, { scope: 'staged', resContext });
             }
         )
@@ -38,6 +71,9 @@ export function registerCommitCommands(context: vscode.ExtensionContext): vscode
         vscode.commands.registerCommand(
             'gcmp.commit.generateMessageWorkingTree',
             async (resContext?: vscode.SourceControlResourceGroup) => {
+                if (!isCommitEnabled(vscode.workspace.getConfiguration('gcmp.commit'))) {
+                    return;
+                }
                 await CommitMessage.generateAndSetCommitMessage(undefined, { scope: 'workingTree', resContext });
             }
         )

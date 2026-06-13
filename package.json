@@ -649,6 +649,11 @@
                         "model"
                     ]
                 },
+                "gcmp.commit.enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "%setting.commit.enabled.description%"
+                },
                 "gcmp.commit.language": {
                     "type": "string",
                     "enum": [
@@ -1171,18 +1176,18 @@
                 {
                     "command": "gcmp.commit.generateMessage",
                     "group": "navigation",
-                    "when": "config.git.enabled && scmProvider == git && gcmp.gitAvailable"
+                    "when": "config.git.enabled && scmProvider == git && gcmp.gitAvailable && gcmp.commitEnabled"
                 }
             ],
             "scm/resourceGroup/context": [
                 {
                     "command": "gcmp.commit.generateMessageStaged",
-                    "when": "config.git.enabled && scmProvider == git && scmResourceGroup == index && gcmp.gitAvailable",
+                    "when": "config.git.enabled && scmProvider == git && scmResourceGroup == index && gcmp.gitAvailable && gcmp.commitEnabled",
                     "group": "inline@-3"
                 },
                 {
                     "command": "gcmp.commit.generateMessageWorkingTree",
-                    "when": "config.git.enabled && scmProvider == git && scmResourceGroup == workingTree && gcmp.gitAvailable",
+                    "when": "config.git.enabled && scmProvider == git && scmResourceGroup == workingTree && gcmp.gitAvailable && gcmp.commitEnabled",
                     "group": "inline@-3"
                 }
             ]

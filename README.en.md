@@ -22,6 +22,30 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 3. On first use, you'll be prompted to set an API Key. Complete the configuration and return to the model selector to enable the model
 4. Select your target model in the model selector and start chatting with the AI assistant
 
+### 3. Configure VS Code Utility Models (Optional)
+
+VS Code uses lightweight background models for **utility tasks** like title generation, commit messages, search, and intent detection. Using Copilot's built-in models for these tasks consumes your monthly quota — especially limited for free-tier users. Pointing these tasks to GCMP-provided models saves Copilot quota for more important work.
+
+```json
+{
+    // General utility tasks: title generation, summaries, search setup, Git views
+    "chat.utilityModel": "gcmp.deepseek/gcmp.deepseek:::deepseek-v4-pro",
+    // Lightweight utility tasks: commit messages, rename suggestions, branch names, intent detection
+    "chat.utilitySmallModel": "gcmp.deepseek/gcmp.deepseek:::deepseek-v4-flash"
+}
+```
+
+> **Recommendation**: Use a fast-responding model for `utilitySmallModel` (for example, `deepseek-v4-flash`). You can pair it with `maxInputTokens: 16384` or a similarly low limit for quick tasks. General utility tasks (title generation, summaries, etc.) use `chat.utilityModel`, while Agent exploration uses `chat.exploreAgent.defaultModel`.
+
+```json
+{
+    // Default model for the Explore sub-agent (codebase exploration & search in Agent mode)
+    "chat.exploreAgent.defaultModel": "MiniMax-M2.7-HighSpeed (TokenPlan) (gcmp.minimax)"
+}
+```
+
+> Tip: When editing `settings.json`, place the cursor on the value and use VS Code IntelliSense to choose from registered models. **If left unset**, VS Code will use Copilot's built-in models for utility tasks, which may consume Copilot monthly quota for free-tier users. Using a GCMP model here helps avoid that.
+
 ## 🤖 Built-in AI Model Providers
 
 > This extension only includes first-tier providers with self-developed models (e.g., major cloud vendors with model R&D capabilities). For third-party model access, use the "OpenAI / Anthropic Compatible" mode.
@@ -519,6 +543,8 @@ GCMP includes comprehensive token usage tracking to help you monitor and manage 
 </details>
 
 ## 📝 Commit Message Generation
+
+> ⚠️ **Feature Freeze**: Commit Message Generation is **frozen** — no new features will be added. Use `gcmp.commit.enabled` to toggle it. Copilot now natively supports Git commit message generation (button to the right of the commit input box) using `chat.utilitySmallModel` — see [Section 3](#3-configure-vs-code-utility-models-optional) to configure a GCMP model.
 
 GCMP supports automatically reading repository changes (staged/unstaged/new files) before committing, extracting key diff snippets, and combining relevant historical commits with the repository's overall commit style (in auto mode) to generate commit messages that match your project's conventions.
 

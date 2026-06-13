@@ -93,6 +93,7 @@
     "setting.commit.language.enumDescriptions.chinese": "Chinese - Default/fallback language (used when auto mode language is unclear)",
     "setting.commit.language.enumDescriptions.english": "English - Default/fallback language (used when auto mode language is unclear)",
     "setting.commit.language.description": "Language used for generating commit messages. Auto mode will prioritize inferring language from the repository's recent commit history; falls back to this setting when historical language is unclear. Supports both workspace and global configuration, with workspace configuration taking higher priority.",
+    "setting.commit.enabled.description": "Enable or disable the built-in commit message generation feature (will be removed in the next major version; consider using Copilot's native support).",
     "setting.commit.format.enumDescriptions.auto": "Auto - Infers commit convention from commit history; falls back to Plain if unable to infer",
     "setting.commit.format.enumDescriptions.plain": "Plain - Concise one-line commit description (e.g., fix config fallback logic)",
     "setting.commit.format.enumDescriptions.custom": "Custom - Generate commit messages using custom instructions (e.g., PROJ-123: Fix login redirect)",

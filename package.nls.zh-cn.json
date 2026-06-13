@@ -93,6 +93,7 @@
     "setting.commit.language.enumDescriptions.chinese": "Chinese - 默认/回退语言（auto 模式下历史语言不明确时使用中文）",
     "setting.commit.language.enumDescriptions.english": "English - 默认/回退语言（auto 模式下历史语言不明确时使用英文）",
     "setting.commit.language.description": "生成提交消息使用的语言。auto 模式会优先从仓库最近提交历史推断语言；当历史语言不明确时回退为此配置。支持在工作区和全局配置中设置，工作区配置优先级更高。",
+    "setting.commit.enabled.description": "启用或禁用内置的提交消息生成功能（将在下个主版本移除，建议改用 Copilot 原生方案）。",
     "setting.commit.format.enumDescriptions.auto": "Auto - 根据历史提交记录推断提交规范；无法推断则回退为 Plain",
     "setting.commit.format.enumDescriptions.plain": "Plain - 简洁的一句话提交描述（示例：修复配置回退逻辑）",
     "setting.commit.format.enumDescriptions.custom": "Custom - 使用自定义指令生成提交消息（示例：PROJ-123: 修复登录跳转）",
