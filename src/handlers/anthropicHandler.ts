@@ -272,6 +272,15 @@ export class AnthropicHandler {
                 createParams.output_config = undefined;
             }
 
+            // 仅在 flex / priority 时传递 service_tier，auto / default 时不传递
+            if (settings?.serviceTier) {
+                if (settings.serviceTier === 'flex' || settings.serviceTier === 'priority') {
+                    createParams.service_tier = settings.serviceTier as 'auto' | 'standard_only';
+                } else {
+                    delete createParams.service_tier;
+                }
+            }
+
             // 添加系统消息（如果有）
             if (system.text) {
                 createParams.system = [system];

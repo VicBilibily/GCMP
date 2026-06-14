@@ -174,22 +174,37 @@ function buildModelConfigurationProperties(model: ModelConfig): Record<string, P
     }
 
     if (model.serviceTier && model.serviceTier.length > 0) {
+        const isAnthropic = model.sdkMode === 'anthropic';
         properties.serviceTier = {
             type: 'string',
             title: t('Service Tier', '服务等级'),
             enum: model.serviceTier,
-            enumItemLabels: model.serviceTier.map(
-                value => ({ auto: 'Auto', default: 'Std.', flex: 'Flex', priority: 'Fast' })[value] || value
-            ),
-            enumDescriptions: model.serviceTier.map(
-                value =>
-                    ({
+            enumItemLabels: model.serviceTier.map(value => {
+                if (isAnthropic) {
+                    return { auto: 'Auto', default: 'Std.', flex: 'Flex', priority: 'Pri.' }[value] || value;
+                }
+                return { auto: 'Auto', default: 'Std.', flex: 'Flex', priority: 'Fast' }[value] || value;
+            }),
+            enumDescriptions: model.serviceTier.map(value => {
+                if (isAnthropic) {
+                    return (
+                        {
+                            auto: t('Automatically select service tier.', '自动选择服务等级'),
+                            default: t('Standard processing speed.', '标准处理速度'),
+                            flex: t('Flexible processing.', '灵活处理'),
+                            priority: t('Priority processing for faster responses.', '优先处理，响应更快')
+                        }[value] || value
+                    );
+                }
+                return (
+                    {
                         auto: t('Automatically select service tier.', '自动选择服务等级'),
                         default: t('Standard processing speed.', '标准处理速度'),
                         flex: t('Flexible processing with higher rate multiplier.', '灵活处理，倍率更高'),
                         priority: t('Priority processing with highest rate multiplier.', '优先处理，倍率最高')
-                    })[value] || value
-            ),
+                    }[value] || value
+                );
+            }),
             default: model.serviceTier[0],
             group: 'navigation'
         };

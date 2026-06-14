@@ -189,7 +189,7 @@
                         ]
                     },
                     "uniqueItems": true,
-                    "description": "服务等级选项列表，用于调节响应速度与配额倍率。第一个值作为默认值。仅 openai-responses 模式生效，default/auto 不传递 service_tier 到请求体。"
+                    "description": "服务等级选项列表，用于调节响应速度与配额倍率。第一个值作为默认值。仅 openai-responses 和 anthropic 模式生效，default/auto 不传递 service_tier 到请求体。"
                 },
                 "customHeader": {
                     "type": "object",
@@ -303,12 +303,24 @@
                 },
                 {
                     "if": {
-                        "properties": {
-                            "sdkMode": {
-                                "const": "openai-responses"
+                        "anyOf": [
+                            {
+                                "properties": {
+                                    "sdkMode": {
+                                        "const": "openai-responses"
+                                    }
+                                },
+                                "required": ["sdkMode"]
+                            },
+                            {
+                                "properties": {
+                                    "sdkMode": {
+                                        "const": "anthropic"
+                                    }
+                                },
+                                "required": ["sdkMode"]
                             }
-                        },
-                        "required": ["sdkMode"]
+                        ]
                     },
                     "then": {
                         "properties": {
@@ -326,7 +338,7 @@
                     "else": {
                         "properties": {
                             "serviceTier": {
-                                "deprecationMessage": "serviceTier 仅对 openai-responses 模式生效"
+                                "deprecationMessage": "serviceTier 仅对 openai-responses 和 anthropic 模式生效"
                             }
                         }
                     }
