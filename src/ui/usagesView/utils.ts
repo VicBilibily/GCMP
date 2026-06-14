@@ -226,6 +226,7 @@ const REQUEST_KIND_DISPLAY_NAMES: Record<string, [string, string]> = {
     'test-gen': ['Test Gen', '测试生成'],
     'goal-summary': ['Goal Summary', '目标摘要'],
     'risk-assessment': ['Risk Assessment', '风险评估'],
+    'vision-recognition': ['Vision Recognition', '视觉识别'],
     background: ['Background Request', '后台请求'],
     unknown: ['Unknown', '未知']
 };

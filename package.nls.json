@@ -45,6 +45,7 @@
     "command.commit.generateMessageStaged": "Generate Commit Message - Staged Changes",
     "command.commit.generateMessageWorkingTree": "Generate Commit Message - Unstaged Changes",
     "command.commit.selectModel": "Select Commit Message Model",
+    "command.vision.selectModel": "Select Vision Analysis Model",
     "command.sync.configure": "Manage / Sync API Keys",
     "command.sync.configure.description": "Upload, download, and manage API keys synced via encrypted GitHub Gists for cross-device access.",
     "extension.description": "Extension that provides ZhipuAI, MiniMax, MoonshotAI, DeepSeek, DashScope, StreamLake, Volcengine, Tencent Cloud, Xiaomi MiMo, Baidu Qianfan, StepFun, and Ant Ling model support for GitHub Copilot Chat, plus custom OpenAI / Anthropic compatible models.",
@@ -111,6 +112,12 @@
     "setting.commit.model.description": "Specify the model for generating commit messages (provider + model). Leave empty to be prompted to select a model.",
     "setting.commit.model.provider.description": "Language model provider (providerKey), e.g., zhipu / compatible",
     "setting.commit.model.model.description": "Model ID (corresponding to Language Model API's model.id)",
+    "setting.vision.provider.description": "Vision analysis backend type.",
+    "setting.vision.provider.enumDescriptions.minimax": "Use MiniMax Token Plan Vision API for image analysis (requires MiniMax Token Plan API Key).",
+    "setting.vision.provider.enumDescriptions.model": "Delegate to a native multimodal model from a GCMP provider.",
+    "setting.vision.model.description": "Vision analysis model (only used when vision.provider is set to \"model\"). Configure which GCMP provider and model handles image recognition.",
+    "setting.vision.model.provider.description": "Provider key for the vision model (e.g., zhipu, minimax, dashscope).",
+    "setting.vision.model.model.description": "Model ID for vision analysis (e.g., glm-4.6v, minimax-m3). Must support image input capabilities.",
     "setting.providerOverrides.description": "Provider configuration overrides. Allows overriding provider baseUrl and model configuration, supports adding new models or overriding existing model parameters.",
     "setting.compatibleModels.description": "Custom model configuration for Compatible Provider. Fully user-configured OpenAI / Anthropic compatible model list.",
     "tool.zhipuWebSearch.displayName": "ZhipuAI Web Search",
@@ -143,5 +150,10 @@
     "tool.stepfunWebSearch.modelDescription": "Get real-time information using StepFun web search. Supports category filtering: programming, research, gov, business. Step Plan subscribers can use MCP mode, non-subscription users use the standard billing interface (¥0.04/request).",
     "tool.stepfunWebSearch.input.query.description": "Search query string",
     "tool.stepfunWebSearch.input.n.description": "Number of search results to return",
-    "tool.stepfunWebSearch.input.category.description": "Search category: programming, research, gov, business"
+    "tool.stepfunWebSearch.input.category.description": "Search category: programming, research, gov, business",
+    "tool.vision.displayName": "Image Recognition",
+    "tool.vision.userDescription": "Analyze image content via vision backend (MiniMax API or native multimodal model)",
+    "tool.vision.modelDescription": "Analyze the visual content of an image attached by the user. Supports multiple backends: MiniMax Vision API or native multimodal model delegation. Returns a text description of the image including text, charts, code, and other visible elements.",
+    "tool.vision.input.filePath.description": "Absolute file path to the cached image on disk",
+    "tool.vision.input.prompt.description": "Optional: specific question or instruction about what to look for in the image"
 }

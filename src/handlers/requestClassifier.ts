@@ -28,6 +28,7 @@ export type RequestKind =
     | 'chat-title' // 会话标题生成
     | 'inline-progress-message' // 内联进度消息
     | 'git-branch-name' // Git 分支名建议
+    | 'vision-recognition' // 视觉图像识别请求
     | 'git-commit-message' // Git 提交消息生成
     | 'pr-description' // PR 描述生成
     | 'rename-suggestions' // 重命名建议
@@ -176,6 +177,8 @@ const SYSTEM_PROMPT_PREFIXES: [string, RequestKind][] = [
     ['You have a vivid inner life as coding agent', 'main-agent'],
     // zaiPrompts.tsx → main-agent (GLM/ZAI 系列)
     ['You are a senior software architect and expert coding agent', 'main-agent'],
+    // gcmp_visionTool 内部委托 → vision-recognition
+    ['You are an image analysis assistant. Your task is to analyze', 'vision-recognition'],
     // panelChatBasePrompt.tsx / editCodePrompt.tsx / inlineChat*.tsx → main-agent (面板/内联兜底)
     ['You are an AI programming assistant', 'main-agent'],
     // agentPrompt.tsx / minimaxPrompts.tsx / familyHPrompts.tsx → main-agent
@@ -234,6 +237,7 @@ export const REQUEST_KIND_DISPLAY_NAMES: Record<RequestKind, [string, string]> =
     'test-gen': ['Test Gen', '测试生成'],
     'goal-summary': ['Goal Summary', '目标摘要'],
     'risk-assessment': ['Risk Assessment', '风险评估'],
+    'vision-recognition': ['Vision Recognition', '视觉识别'],
     background: ['Background Request', '后台请求'],
     unknown: ['Unknown', '未知']
 };

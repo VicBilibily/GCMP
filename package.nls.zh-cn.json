@@ -45,6 +45,7 @@
     "command.commit.generateMessageStaged": "生成提交消息 - 暂存的更改",
     "command.commit.generateMessageWorkingTree": "生成提交消息 - 未暂存的更改",
     "command.commit.selectModel": "选择 Commit 消息生成模型",
+    "command.vision.selectModel": "选择视觉分析模型",
     "command.sync.configure": "管理/同步 API Key",
     "command.sync.configure.description": "上传、下载、管理 API Key，通过 GitHub Gist 跨设备同步。密钥经加密后存储于私有 Gist。",
     "extension.description": "为 GitHub Copilot Chat 提供 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云、Xiaomi MiMo、百度千帆、阶跃星辰、蚂蚁百灵 模型支持的扩展，并提供 OpenAI / Anthropic Compatible 自定义模型支持。",
@@ -111,6 +112,12 @@
     "setting.commit.model.description": "指定用于生成提交消息的模型（provider + model）。留空则会提示选择模型。",
     "setting.commit.model.provider.description": "语言模型提供商（providerKey），例如 zhipu / compatible",
     "setting.commit.model.model.description": "模型 ID（对应 Language Model API 的 model.id）",
+    "setting.vision.provider.description": "视觉分析后端类型。",
+    "setting.vision.provider.enumDescriptions.minimax": "使用 MiniMax Token Plan Vision API 分析图片（需要 MiniMax Token Plan API Key）。",
+    "setting.vision.provider.enumDescriptions.model": "委派给 GCMP 提供商的原生多模态模型。",
+    "setting.vision.model.description": "视觉分析模型（仅在 vision.provider 设为 \"model\" 时使用）。配置由哪个 GCMP 提供商和模型处理图片识别。",
+    "setting.vision.model.provider.description": "视觉模型的提供商 key（例如 zhipu、minimax、dashscope）。",
+    "setting.vision.model.model.description": "用于视觉分析的模型 ID（例如 glm-4.6v、minimax-m3），必须支持图像输入能力。",
     "setting.providerOverrides.description": "提供商配置覆盖。允许覆盖提供商的baseUrl和模型配置，支持添加新模型或覆盖现有模型的参数。",
     "setting.compatibleModels.description": "Compatible Provider 的自定义模型配置。完全由用户配置的 OpenAI / Anthropic 兼容模型列表。",
     "tool.zhipuWebSearch.displayName": "智谱AI联网搜索",
@@ -143,5 +150,10 @@
     "tool.stepfunWebSearch.modelDescription": "使用阶跃星辰 StepFun 联网搜索获取实时信息。支持 category 参数过滤：programming（代码编程）、research（学术研究）、gov（政务）、business（商业财经）。Step Plan 套餐可通过 MCP 调用，非订阅套餐使用标准按次计费接口（¥0.04/次）。",
     "tool.stepfunWebSearch.input.query.description": "搜索查询字符串",
     "tool.stepfunWebSearch.input.n.description": "返回的搜索结果数量",
-    "tool.stepfunWebSearch.input.category.description": "搜索场景：programming（代码编程）、research（学术研究）、gov（政务）、business（商业财经）"
+    "tool.stepfunWebSearch.input.category.description": "搜索场景：programming（代码编程）、research（学术研究）、gov（政务）、business（商业财经）",
+    "tool.vision.displayName": "图像识别",
+    "tool.vision.userDescription": "通过视觉后端分析图片内容（MiniMax API 或原生多模态模型）",
+    "tool.vision.modelDescription": "分析用户附带的图片的视觉内容。支持多种后端：MiniMax Vision API 或原生多模态模型委派。返回图片的文本描述，包括文字、图表、代码及其他可见信息。",
+    "tool.vision.input.filePath.description": "缓存图片在磁盘上的绝对路径",
+    "tool.vision.input.prompt.description": "可选：指定对图片的具体问题或分析指令"
 }

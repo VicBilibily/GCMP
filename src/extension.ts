@@ -316,7 +316,15 @@ export async function activate(context: vscode.ExtensionContext) {
         );
         Logger.trace(`GitHub Gist sync commands registered (${Date.now() - stepStartTime}ms)`);
 
-        // 步骤9: 注册 Commit 消息生成命令
+        // 步骤9: 注册 Vision 模型选择命令
+        stepStartTime = Date.now();
+        const { selectVisionModel } = await import('./tools/vision/wizard');
+        context.subscriptions.push(
+            vscode.commands.registerCommand('gcmp.vision.selectModel', () => selectVisionModel())
+        );
+        Logger.trace(`Vision model selection command registered (${Date.now() - stepStartTime}ms)`);
+
+        // 步骤10: 注册 Commit 消息生成命令
         stepStartTime = Date.now();
         const commitDisposables = registerCommitCommands(context);
         commitDisposables.forEach(disposable => context.subscriptions.push(disposable));

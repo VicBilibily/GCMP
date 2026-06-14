@@ -87,6 +87,7 @@
         "onLanguageModelTool:gcmp_kimiWebSearch",
         "onLanguageModelTool:gcmp_dashscopeWebSearch",
         "onLanguageModelTool:gcmp_stepfunWebSearch",
+        "onLanguageModelTool:gcmp_visionTool",
         "onFileSystem:gcmp-settings"
     ],
     "contributes": {
@@ -322,6 +323,11 @@
             {
                 "command": "gcmp.commit.selectModel",
                 "title": "%command.commit.selectModel%",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.vision.selectModel",
+                "title": "%command.vision.selectModel%",
                 "category": "GCMP"
             },
             {
@@ -738,6 +744,43 @@
                         "model"
                     ]
                 },
+                "gcmp.vision.provider": {
+                    "type": "string",
+                    "default": "model",
+                    "enum": [
+                        "minimax_mcp_understand_image",
+                        "model"
+                    ],
+                    "enumDescriptions": [
+                        "%setting.vision.provider.enumDescriptions.minimax%",
+                        "%setting.vision.provider.enumDescriptions.model%"
+                    ],
+                    "description": "%setting.vision.provider.description%",
+                    "scope": "application"
+                },
+                "gcmp.vision.model": {
+                    "type": "object",
+                    "default": {
+                        "provider": "",
+                        "model": ""
+                    },
+                    "description": "%setting.vision.model.description%",
+                    "scope": "window",
+                    "properties": {
+                        "provider": {
+                            "type": "string",
+                            "description": "%setting.vision.model.provider.description%"
+                        },
+                        "model": {
+                            "type": "string",
+                            "description": "%setting.vision.model.model.description%"
+                        }
+                    },
+                    "required": [
+                        "provider",
+                        "model"
+                    ]
+                },
                 "gcmp.providerOverrides": {
                     "type": "object",
                     "default": {},
@@ -853,6 +896,7 @@
                 "toolReferenceName": "zhipuWebSearch",
                 "modelDescription": "%tool.zhipuWebSearch.modelDescription%",
                 "userDescription": "%tool.zhipuWebSearch.userDescription%",
+                "canBeReferencedInPrompt": true,
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -913,8 +957,7 @@
                     "required": [
                         "search_query"
                     ]
-                },
-                "canBeReferencedInPrompt": true
+                }
             },
             {
                 "name": "gcmp_minimaxWebSearch",
@@ -923,6 +966,7 @@
                 "toolReferenceName": "minimaxWebSearch",
                 "modelDescription": "%tool.minimaxWebSearch.modelDescription%",
                 "userDescription": "%tool.minimaxWebSearch.userDescription%",
+                "canBeReferencedInPrompt": true,
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -934,8 +978,7 @@
                     "required": [
                         "q"
                     ]
-                },
-                "canBeReferencedInPrompt": true
+                }
             },
             {
                 "name": "gcmp_kimiWebSearch",
@@ -944,6 +987,7 @@
                 "toolReferenceName": "kimiWebSearch",
                 "modelDescription": "%tool.kimiWebSearch.modelDescription%",
                 "userDescription": "%tool.kimiWebSearch.userDescription%",
+                "canBeReferencedInPrompt": true,
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -967,8 +1011,7 @@
                     "required": [
                         "query"
                     ]
-                },
-                "canBeReferencedInPrompt": true
+                }
             },
             {
                 "name": "gcmp_dashscopeWebSearch",
@@ -977,6 +1020,7 @@
                 "toolReferenceName": "bailianWebSearch",
                 "modelDescription": "%tool.dashscopeWebSearch.modelDescription%",
                 "userDescription": "%tool.dashscopeWebSearch.userDescription%",
+                "canBeReferencedInPrompt": true,
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -995,8 +1039,7 @@
                     "required": [
                         "query"
                     ]
-                },
-                "canBeReferencedInPrompt": true
+                }
             },
             {
                 "name": "gcmp_stepfunWebSearch",
@@ -1005,6 +1048,7 @@
                 "toolReferenceName": "stepfunWebSearch",
                 "modelDescription": "%tool.stepfunWebSearch.modelDescription%",
                 "userDescription": "%tool.stepfunWebSearch.userDescription%",
+                "canBeReferencedInPrompt": true,
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -1035,8 +1079,28 @@
                     "required": [
                         "query"
                     ]
-                },
-                "canBeReferencedInPrompt": true
+                }
+            },
+            {
+                "name": "gcmp_visionTool",
+                "displayName": "%tool.vision.displayName%",
+                "toolReferenceName": "gcmpVisionTool",
+                "modelDescription": "%tool.vision.modelDescription%",
+                "userDescription": "%tool.vision.userDescription%",
+                "canBeReferencedInPrompt": true,
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "filePath": {
+                            "type": "string",
+                            "description": "%tool.vision.input.filePath.description%"
+                        },
+                        "prompt": {
+                            "type": "string",
+                            "description": "%tool.vision.input.prompt.description%"
+                        }
+                    }
+                }
             }
         ],
         "icons": {

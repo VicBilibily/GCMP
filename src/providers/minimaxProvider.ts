@@ -19,7 +19,6 @@ import { Logger, ApiKeyManager, MiniMaxWizard } from '../utils';
 import { StatusBarManager } from '../status';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { classifyRequest } from '../handlers/requestClassifier';
-import { MiniMaxVisionBridge } from '../handlers/visionBridge/minimaxVisionBridge';
 
 /**
  * MiniMax 专用模型提供商类
@@ -297,20 +296,10 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         }
         rtOpts.modelOptions.requestKind = kind;
 
-        // 图片桥接：预处理消息中的图片
-        // 注：当 MiniMax 模型支持视觉识别后，移除此桥接调用及 minimaxVisionBridge.ts
-        const visionBridgeResult = await MiniMaxVisionBridge.preprocessImages(
-            messages,
-            modelConfig,
-            providerKey,
-            token
-        );
-        const processedMessages = visionBridgeResult.messages;
-
-        // 计算输入 token 数量并更新状态栏（使用桥接后的消息，图片已被替换为文本描述）
+        // 计算输入 token 数量并更新状态栏
         const { totalInputTokens, maxInputTokens } = await this.updateContextUsageStatusBar(
             model,
-            processedMessages,
+            messages,
             modelConfig,
             options
         );
@@ -322,7 +311,7 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         // 注：此处不调用 super.provideLanguageModelChatResponse，而是直接处理
         // 避免双重密钥检查，因为我们已经在 ensureApiKeyForModel 中检查过了
         const sdkMode = modelConfig.sdkMode || 'openai';
-        // 从原始消息提取 sessionId（statefulMarker 不受图片桥接影响）
+        // 从原始消息提取 sessionId
         const sessionId = this.getSessionIdFromMessages(messages, sdkMode);
         try {
             requestId = await usagesManager.recordEstimatedTokens({
@@ -349,7 +338,7 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             await this.executeModelRequest(
                 model,
                 modelConfig,
-                processedMessages,
+                messages,
                 options,
                 progress,
                 requestId,

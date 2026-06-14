@@ -35,6 +35,8 @@ import { TokenUsagesManager } from '../usages/usagesManager';
 import { OpenAIResponsesHandler } from '../handlers/openaiResponsesHandler';
 import { getAllStatefulMarkersAndIndicies } from '../handlers/statefulMarker';
 import { classifyRequest } from '../handlers/requestClassifier';
+import { VisionCache } from '../tools/vision/cache';
+import { processVisionMessages } from '../tools/vision/messageProcessor';
 import * as crypto from 'node:crypto';
 
 interface ContextUsageSummary {
@@ -71,6 +73,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     protected cachedProviderConfig: ProviderConfig; // 缓存的配置
     protected configListener?: vscode.Disposable; // 配置监听器
     protected modelInfoCache?: ModelInfoCache; // 模型信息缓存
+    protected visionCache?: VisionCache; // 图片缓存服务
 
     // 模型信息变更事件
     protected _onDidChangeLanguageModelChatInformation = new vscode.EventEmitter<void>();
@@ -84,6 +87,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         this.cachedProviderConfig = ConfigManager.applyProviderOverrides(this.providerKey, this.baseProviderConfig);
         // 初始化模型信息缓存
         this.modelInfoCache = new ModelInfoCache(context);
+        // 初始化图片缓存
+        if (context.storageUri) {
+            this.visionCache = new VisionCache(context.storageUri);
+        }
 
         // 监听配置变更
         this.configListener = vscode.workspace.onDidChangeConfiguration(e => {
@@ -128,6 +135,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         this.configListener?.dispose();
         // 释放事件发射器
         this._onDidChangeLanguageModelChatInformation.dispose();
+        // 清理视觉缓存文件
+        this.visionCache?.clearAll();
         Logger.info(`🧹 ${this.providerConfig.displayName}: extension disposed`);
     }
 
@@ -444,15 +453,26 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const sdkMode = modelConfig.sdkMode || 'openai';
         const retryManager = new RetryManager(this.getRequestRetryConfig());
 
-        // 请求分类 + 透传给 handler（供所有子类复用的 executeModelRequest）
+        // 请求分类（仅当上层未设置时写入，避免覆盖 provideLanguageModelChatResponse 的值）
         const rtOpts = options as RuntimeProvideLanguageModelChatResponseOptions;
         if (!rtOpts.modelOptions) {
             rtOpts.modelOptions = {};
         }
-        const isCommit = !!(options as { modelOptions?: { commit?: boolean } }).modelOptions?.commit;
-        const kind = classifyRequest(messages, options.tools, isCommit);
         if (!rtOpts.modelOptions.requestKind) {
-            rtOpts.modelOptions.requestKind = kind;
+            const isCommit = !!(options as { modelOptions?: { commit?: boolean } }).modelOptions?.commit;
+            rtOpts.modelOptions.requestKind = classifyRequest(messages, options.tools, isCommit);
+        }
+
+        // 处理消息中的图片 DataPart（仅对 imageInput: false 的模型生效）
+        if (this.visionCache && !modelConfig.capabilities?.imageInput) {
+            try {
+                await processVisionMessages(messages, sessionId, this.visionCache, modelConfig);
+            } catch (err) {
+                Logger.warn(
+                    '[VisionProcessor] Failed to process images:',
+                    err instanceof Error ? err.message : String(err)
+                );
+            }
         }
 
         await retryManager.executeWithRetry(
@@ -594,7 +614,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 modelName: model.name || modelConfig.name,
                 estimatedInputTokens: totalInputTokens,
                 maxInputTokens,
-                requestKind: kind,
+                requestKind: rtOpts.modelOptions.requestKind ?? kind,
                 sessionId,
                 ...this.getEstimatedRequestMetadata(options)
             });

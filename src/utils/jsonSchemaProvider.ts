@@ -932,9 +932,34 @@ export class JsonSchemaProvider {
                     }
                 },
                 // Commit 模型选择：保存 provider + model
-                'gcmp.commit.model': commitSchema
+                'gcmp.commit.model': commitSchema,
+                // Vision 模型选择：保存 provider + model
+                'gcmp.vision.model': this.getVisionModelSchema()
             },
-            additionalProperties: true
+            additionalProperties: true,
+            allOf: [
+                {
+                    if: {
+                        properties: { 'gcmp.vision.provider': { const: 'minimax_mcp_understand_image' } },
+                        required: ['gcmp.vision.provider']
+                    },
+                    then: {
+                        properties: {
+                            'gcmp.vision.model': {
+                                type: 'object',
+                                description: t(
+                                    'This setting only takes effect when "Vision Analysis Backend Type" (gcmp.vision.provider) is set to "model".',
+                                    '此设置仅在"视觉分析后端类型"(gcmp.vision.provider)设置为"model"时生效。'
+                                ),
+                                deprecationMessage: t(
+                                    'Change "gcmp.vision.provider" to "model" for this setting to take effect.',
+                                    '将"gcmp.vision.provider"设置为"model"后此设置才生效。'
+                                )
+                            }
+                        }
+                    }
+                }
+            ]
         };
     }
 
@@ -1370,54 +1395,68 @@ export class JsonSchemaProvider {
         return { providerIds, enumDescriptions };
     }
 
-    private static getCommitModelSchema(): JSONSchema7 {
-        // Commit 的 provider 为用户友好的 providerKey（不包含 gcmp. 前缀）。
-        // 在运行时根据该 providerKey 自动拼接为 VS Code Language Model vendor：gcmp.<providerKey>。
-        const commitProviderIds: string[] = [];
-        const commitProviderDescriptions: string[] = [];
-
+    private static createProviderModelSchema(
+        description: [string, string],
+        providerLabel: [string, string],
+        modelLabel: [string, string],
+        modelFilter?: (m: { capabilities?: { imageInput?: boolean } }) => boolean
+    ): JSONSchema7 {
+        const providerIds: string[] = [];
+        const providerDescriptions: string[] = [];
         const providerModelIdsMap: Record<string, string[]> = {};
 
-        // 内置提供商（providerKey）+ 用户 providerOverrides 合并后的模型列表
-        // 注意：commit 模型下拉应包含用户通过 override 新增的模型，而不是仅限于内置 configProviders。
         const providerConfigs = ConfigManager.getConfigProvider();
         for (const [providerKey, originalConfig] of Object.entries(providerConfigs)) {
-            commitProviderIds.push(providerKey);
-            commitProviderDescriptions.push(originalConfig.displayName || providerKey);
-
             const effectiveConfig = ConfigManager.applyProviderOverrides(providerKey, originalConfig);
-            providerModelIdsMap[providerKey] = (effectiveConfig.models ?? []).map(m => m.id).filter(Boolean);
+            let modelIds = (effectiveConfig.models ?? []).map(m => m.id).filter(Boolean);
+            if (modelFilter) {
+                modelIds = (effectiveConfig.models ?? [])
+                    .filter(m => modelFilter(m))
+                    .map(m => m.id)
+                    .filter(Boolean);
+            }
+            if (modelIds.length === 0 && !modelFilter) {
+                // commit 模式：即使无模型也列出提供商（兼容性）
+            }
+            if (modelIds.length === 0 && modelFilter) {
+                continue;
+            }
+
+            providerIds.push(providerKey);
+            providerDescriptions.push(originalConfig.displayName || providerKey);
+            providerModelIdsMap[providerKey] = modelIds;
         }
 
-        // Compatible Provider（providerKey = compatible）
-        const compatibleModelIds = CompatibleModelManager.getModels()
-            .map(m => m.id)
-            .filter(Boolean);
-        if (!commitProviderIds.includes('compatible')) {
-            commitProviderIds.push('compatible');
-            commitProviderDescriptions.push(t('OpenAI / Anthropic Compatible', 'OpenAI / Anthropic 兼容'));
+        // Compatible Provider
+        const compatibleModels = CompatibleModelManager.getModels();
+        let compatibleModelIds = compatibleModels.map(m => m.id).filter(Boolean);
+        if (modelFilter) {
+            compatibleModelIds = compatibleModels
+                .filter(m => modelFilter(m))
+                .map(m => m.id)
+                .filter(Boolean);
         }
-        providerModelIdsMap['compatible'] = compatibleModelIds;
+        if (compatibleModelIds.length > 0 || !modelFilter) {
+            if (!providerIds.includes('compatible')) {
+                providerIds.push('compatible');
+                providerDescriptions.push(t('OpenAI / Anthropic Compatible', 'OpenAI / Anthropic 兼容'));
+            }
+            providerModelIdsMap['compatible'] = compatibleModelIds;
+        }
 
         const base: JSONSchema7 = {
             type: 'object',
-            description: t(
-                'Commit message generation model configuration (provider + model)',
-                'Commit 消息生成模型配置（provider + model）'
-            ),
+            description: t(...description),
             properties: {
                 provider: {
                     type: 'string',
-                    description: t('Language model provider (vendor)', '语言模型提供商（vendor）'),
-                    enum: commitProviderIds,
-                    enumDescriptions: commitProviderDescriptions
+                    description: t(...providerLabel),
+                    enum: providerIds,
+                    enumDescriptions: providerDescriptions
                 },
                 model: {
                     type: 'string',
-                    description: t(
-                        'Model ID (corresponding to Language Model API model.id)',
-                        '模型 ID（对应 Language Model API 的 model.id）'
-                    ),
+                    description: t(...modelLabel),
                     minLength: 1
                 }
             },
@@ -1427,16 +1466,12 @@ export class JsonSchemaProvider {
 
         const linkedRules: JSONSchema7[] = [];
         for (const [provider, modelIds] of Object.entries(providerModelIdsMap)) {
-            // Copilot 或无可枚举模型：仅验证 provider
             if (!modelIds || modelIds.length === 0) {
                 continue;
             }
-
             linkedRules.push({
                 if: {
-                    properties: {
-                        provider: { const: provider }
-                    },
+                    properties: { provider: { const: provider } },
                     required: ['provider']
                 },
                 then: {
@@ -1456,6 +1491,32 @@ export class JsonSchemaProvider {
         }
 
         return base;
+    }
+
+    private static getCommitModelSchema(): JSONSchema7 {
+        return this.createProviderModelSchema(
+            [
+                'Commit message generation model configuration (provider + model)',
+                'Commit 消息生成模型配置（provider + model）'
+            ],
+            ['Language model provider (vendor)', '语言模型提供商（vendor）'],
+            [
+                'Model ID (corresponding to Language Model API model.id)',
+                '模型 ID（对应 Language Model API 的 model.id）'
+            ]
+        );
+    }
+
+    private static getVisionModelSchema(): JSONSchema7 {
+        return this.createProviderModelSchema(
+            [
+                'Vision analysis model configuration (provider + model). Only models with image input support are listed.',
+                '视觉分析模型配置（provider + model）。仅列出支持图像输入的模型。'
+            ],
+            ['Provider key for the vision model', '视觉模型的提供商 key'],
+            ['Model ID for vision analysis. Must support image input.', '视觉分析的模型 ID。必须支持图像输入。'],
+            m => m.capabilities?.imageInput === true
+        );
     }
 
     /**

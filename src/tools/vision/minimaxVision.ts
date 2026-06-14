@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  MiniMax 图片理解工具
  *  使用 Token Plan API 直接进行 HTTP 请求
  *--------------------------------------------------------------------------------------------*/
@@ -14,15 +14,15 @@ import { StatusBarManager } from '../../status';
  * MiniMax 图片理解请求参数
  */
 export interface MiniMaxVisionRequest {
-    prompt: string; // 问题或分析请求
-    image_url: string; // 图片地址（HTTP/HTTPS URL 或 data URL）
+    prompt: string;
+    image_url: string;
 }
 
 /**
  * MiniMax 图片理解响应
  */
 export interface MiniMaxVisionResponse {
-    content: string; // 图片分析结果文本
+    content: string;
 }
 
 /**
@@ -30,18 +30,12 @@ export interface MiniMaxVisionResponse {
  */
 export class MiniMaxVisionTool {
     private getBaseURL(): string {
-        // 根据接入点配置返回对应的 base URL
         if (ConfigManager.getMinimaxEndpoint() === 'minimax.io') {
             return 'https://api.minimax.io';
         }
         return 'https://api.minimaxi.com';
     }
 
-    /**
-     * 执行图片理解
-     * @param params 请求参数
-     * @param abortSignal 取消信号
-     */
     async understand(params: MiniMaxVisionRequest, abortSignal?: AbortSignal): Promise<MiniMaxVisionResponse> {
         const apiKey = await ApiKeyManager.getApiKey('minimax-token');
         if (!apiKey) {
@@ -129,35 +123,18 @@ export class MiniMaxVisionTool {
         }
     }
 
-    /**
-     * 直接理解图片数据（用于图片桥接功能）
-     * @param imageData 图片的二进制数据
-     * @param mimeType 图片的 MIME 类型
-     * @param prompt 可选的提示词，默认是"描述这张图片"
-     * @param abortSignal 取消信号
-     */
     async understandImage(
         imageData: Uint8Array,
         mimeType: string,
         prompt = '描述这张图片',
         abortSignal?: AbortSignal
     ): Promise<MiniMaxVisionResponse> {
-        // 将图片数据转换为 data URL（不记录完整 data URL，仅记录元信息）
         const base64Data = Buffer.from(imageData).toString('base64');
         const dataUrl = `data:${mimeType};base64,${base64Data}`;
 
-        return this.understand(
-            {
-                prompt,
-                image_url: dataUrl
-            },
-            abortSignal
-        );
+        return this.understand({ prompt, image_url: dataUrl }, abortSignal);
     }
 
-    /**
-     * 工具调用处理器
-     */
     async invoke(
         request: vscode.LanguageModelToolInvocationOptions<MiniMaxVisionRequest>
     ): Promise<vscode.LanguageModelToolResult> {
@@ -172,7 +149,6 @@ export class MiniMaxVisionTool {
             }
 
             const response = await this.understand(params);
-
             StatusBarManager.minimax?.delayedUpdate();
 
             return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(response.content)]);
@@ -184,9 +160,6 @@ export class MiniMaxVisionTool {
         }
     }
 
-    /**
-     * 清理工具资源
-     */
     async cleanup(): Promise<void> {
         // 目前无需清理的资源
     }

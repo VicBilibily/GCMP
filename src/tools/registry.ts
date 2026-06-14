@@ -10,6 +10,7 @@ import { MiniMaxSearchTool } from './minimaxSearch';
 import { KimiSearchTool } from './kimiSearch';
 import { DashscopeSearchTool } from './dashscopeSearch';
 import { StepFunSearchTool } from './stepfunSearch';
+import { VisionTool } from './vision/tool';
 import { ToolContextManager } from './toolContextManager';
 
 // 全局工具实例管理
@@ -18,6 +19,7 @@ let minimaxSearchTool: MiniMaxSearchTool | undefined;
 let kimiSearchTool: KimiSearchTool | undefined;
 let dashscopeSearchTool: DashscopeSearchTool | undefined;
 let stepfunSearchTool: StepFunSearchTool | undefined;
+let visionTool: VisionTool | undefined;
 
 /**
  * 注册所有工具
@@ -67,6 +69,14 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
         });
         context.subscriptions.push(stepfunToolDisposable);
 
+        // 注册通用图像识别工具
+        visionTool = new VisionTool();
+        const visionToolDisposable = vscode.lm.registerTool('gcmp_visionTool', {
+            invoke: visionTool.invoke.bind(visionTool),
+            prepareInvocation: visionTool.prepareInvocation.bind(visionTool)
+        });
+        context.subscriptions.push(visionToolDisposable);
+
         // 添加清理逻辑到context
         context.subscriptions.push({
             dispose: async () => {
@@ -79,6 +89,7 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
         Logger.debug('Kimi web search tool registered: gcmp_kimiWebSearch');
         Logger.debug('DashScope web search tool registered: gcmp_dashscopeWebSearch');
         Logger.debug('StepFun web search tool registered: gcmp_stepfunWebSearch');
+        Logger.debug('Vision analysis tool registered: gcmp_visionTool');
     } catch (error) {
         Logger.error('Tool registration failed', error instanceof Error ? error : undefined);
         throw error;
@@ -118,6 +129,11 @@ export async function cleanupAllTools(): Promise<void> {
             await stepfunSearchTool.cleanup();
             stepfunSearchTool = undefined;
             Logger.info('✅ StepFun web search tool resources cleaned up');
+        }
+
+        if (visionTool) {
+            visionTool = undefined;
+            Logger.info('✅ Vision analysis tool resources cleaned up');
         }
     } catch (error) {
         Logger.error('❌ Tool cleanup failed', error instanceof Error ? error : undefined);

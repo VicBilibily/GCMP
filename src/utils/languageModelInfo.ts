@@ -79,7 +79,10 @@ export function createLanguageModelChatInformation(
         maxInputTokens: model.maxInputTokens,
         maxOutputTokens: model.maxOutputTokens,
         version: model.id,
-        capabilities: model.capabilities,
+        capabilities: {
+            ...model.capabilities,
+            imageInput: true // 始终为 true，让 VS Code 发送 DataPart
+        },
         isBYOK: true,
         isUserSelectable: true,
         configurationSchema: Object.keys(properties).length > 0 ? { properties } : undefined

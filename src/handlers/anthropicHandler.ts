@@ -18,7 +18,6 @@ import { t } from '../utils/l10n';
 import type { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { StreamReporter } from './streamReporter';
-import { MiniMaxVisionBridge } from './visionBridge/minimaxVisionBridge';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import type { CommitChatModelOptions } from '../commit';
 
@@ -214,23 +213,6 @@ export class AnthropicHandler {
                 stream: true
             };
 
-            // Minimax 图片桥接：添加模拟工具调用
-            if (modelConfig?.provider === 'minimax-token') {
-                const realToolCount = tools.length;
-                const existingToolNames = new Set(tools.map(tool => tool.name));
-                const historicalTools = MiniMaxVisionBridge.collectHistoricalToolDefinitions(
-                    messages,
-                    existingToolNames
-                );
-                tools.push(...historicalTools);
-                if (realToolCount === 0 && historicalTools.length > 0) {
-                    createParams.tool_choice = { type: 'none' };
-                    Logger.info(
-                        `[${model.name}] Only historical tool calls exist; set tool_choice=none to avoid retriggering synthetic tools`
-                    );
-                }
-            }
-
             createParams.metadata = { user_id: `user_${this.userHash}_account__session_${sessionId}` };
 
             // 合并 extraBody 参数（如果有）
@@ -321,13 +303,6 @@ export class AnthropicHandler {
                 progress,
                 sessionId
             });
-
-            // 回放 MiniMax 图片桥接工具结果（如适用）
-            if (modelConfig?.provider === 'minimax-token') {
-                MiniMaxVisionBridge.replayVisionBridge(messages, (callId, resultParts) =>
-                    reporter.reportToolResult(callId, resultParts)
-                );
-            }
 
             // 使用完整的流处理函数
             const result = await this.handleAnthropicStream(stream, reporter, token);
