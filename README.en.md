@@ -114,6 +114,10 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 - [**Go**](https://opencode.ai/go?ref=2TEVV934MY): **GLM-5.1**, **GLM-5**, **Kimi-K2.6**, **Kimi-K2.5**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **MiniMax-M3**, **MiniMax-M2.7**, **MiniMax-M2.5**, **Qwen3.7-Plus**, **Qwen3.7-Max**, **Qwen3.6-Plus**, **Qwen3.5-Plus**, **MiMo-V2.5-Pro**, **MiMo-V2.5**
 - **Zen**: **DeepSeek-V4-Flash**, **GLM-5.1**, **GLM-5**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.7**, **MiniMax-M2.5**, **Qwen3.6-Plus**, **Qwen3.5-Plus**, **Grok-Build-0.1**
 
+### [**Hyper**](https://hyper.charm.land/) - Charm Hyper
+
+- **Preset models**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **Qwen3.7-Max**, **Qwen3.6-Plus**, **Qwen3.6-Max**, **Qwen3.6-Flash**, **GLM-5.1**, **GLM-5**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.7**, **Gemma-4-26B-A4B**, **GPT-OSS-120B**
+
 ### Experimental CLI Authentication Providers
 
 > ⚠️ **Risk Warning**: The following CLI authentication methods simulate official CLI tool calls to access the corresponding APIs. **This may constitute a violation of third-party terms of service and carries the risk of account bans.** Use only if you are fully informed and voluntarily accept the risks.
@@ -187,7 +191,7 @@ GCMP supports customizing AI model behavior parameters through VS Code settings 
 
 ```json
 {
-    "gcmp.proxy": "http://127.0.0.1:7890",  // Optional global proxy, full URL recommended
+    "gcmp.proxy": "http://127.0.0.1:7890", // Optional global proxy, full URL recommended
     "gcmp.tls.useSystemCertificates": true // Append OS root CAs (enabled by default)
 }
 ```

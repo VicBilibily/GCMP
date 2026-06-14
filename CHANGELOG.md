@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.24.9] - 2026-06-14
+
+### 新增
+
+- **Charm Hyper 提供商**：[#218](https://github.com/VicBilibily/GCMP/pull/218) 新增 Charm Hyper 提供商（`https://hyper.charm.land/`），预置 DeepSeek-V4、Qwen3.6/3.7、GLM-5/5.1、Kimi-K2.5/2.6、MiniMax-M2.7 等 13 个模型
+- **Anthropic serviceTier 支持**：`serviceTier` 配置扩展至 `anthropic` 模式；MiniMax-M3 PayGo 新增 `priority` 服务等级
+
+---
+
+### Added
+
+- **Charm Hyper provider**: [#218](https://github.com/VicBilibily/GCMP/pull/218) Added Charm Hyper provider (`https://hyper.charm.land/`) with 13 preset models including DeepSeek-V4, Qwen3.6/3.7, GLM-5/5.1, Kimi-K2.5/2.6, MiniMax-M2.7
+- **Anthropic serviceTier support**: Extended `serviceTier` config to `anthropic` sdkMode; MiniMax-M3 PayGo adds `priority` service tier
+
 ## [0.24.8] - 2026-06-13
 
 ### 新增
