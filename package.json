@@ -73,6 +73,7 @@
         "onLanguageModelProvider:gcmp.grok",
         "onLanguageModelProvider:gcmp.baidu",
         "onLanguageModelProvider:gcmp.opencode",
+        "onLanguageModelProvider:gcmp.hyper",
         "onLanguageModelProvider:gcmp.compatible",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
         "onLanguageModelTool:gcmp_minimaxWebSearch",
@@ -240,6 +241,11 @@
             {
                 "command": "gcmp.opencode.setApiKey",
                 "title": "%command.opencode.setApiKey%",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.hyper.setApiKey",
+                "title": "%command.hyper.setApiKey%",
                 "category": "GCMP"
             },
             {
@@ -772,6 +778,11 @@
                 "vendor": "gcmp.opencode",
                 "displayName": "GCMP · OpenCode",
                 "managementCommand": "gcmp.opencode.setApiKey"
+            },
+            {
+                "vendor": "gcmp.hyper",
+                "displayName": "GCMP · Charm Hyper",
+                "managementCommand": "gcmp.hyper.setApiKey"
             },
             {
                 "vendor": "gcmp.gemini",

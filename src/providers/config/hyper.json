@@ -1,0 +1,272 @@
+{
+    "displayName": "Charm Hyper",
+    "baseUrl": "https://hyper.charm.land/v1",
+    "apiKeyTemplate": "sk-hyper-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "models": [
+        {
+            "id": "deepseek-v4-flash",
+            "name": "DeepSeek-V4-Flash",
+            "tooltip": "DeepSeek V4 Flash — 快速推理模式，支持百万上下文与图像输入",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 384000,
+            "reasoningEffort": [
+                "none",
+                "high",
+                "xhigh"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "deepseek-v4-pro",
+            "name": "DeepSeek-V4-Pro",
+            "tooltip": "DeepSeek V4 Pro — 专家推理模式，百万上下文",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 384000,
+            "reasoningEffort": [
+                "none",
+                "high",
+                "xhigh"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "gemma-4-26b-a4b-it",
+            "name": "Gemma 4 26B A4B",
+            "tooltip": "Google Gemma 4 26B A4B 指令微调版",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 25600,
+            "thinking": [
+                "disabled",
+                "enabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "glm-5",
+            "name": "GLM-5",
+            "tooltip": "智谱 GLM-5 旗舰基座模型",
+            "maxInputTokens": 202752,
+            "maxOutputTokens": 20275,
+            "thinking": [
+                "disabled",
+                "enabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "glm-5.1",
+            "name": "GLM-5.1",
+            "tooltip": "智谱 GLM-5.1 — 最新旗舰基座，支持图像输入",
+            "maxInputTokens": 202800,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": [
+                "none",
+                "low",
+                "medium",
+                "high"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "gpt-oss-120b",
+            "name": "GPT-OSS-120B",
+            "tooltip": "OpenAI 开源的 GPT-OSS 120B 模型",
+            "maxInputTokens": 131072,
+            "maxOutputTokens": 13107,
+            "reasoningEffort": [
+                "none",
+                "low",
+                "medium",
+                "high"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "kimi-k2.5",
+            "name": "Kimi K2.5",
+            "tooltip": "MoonshotAI Kimi K2.5 全能模型",
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 26214,
+            "thinking": [
+                "disabled",
+                "enabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "kimi-k2.6",
+            "name": "Kimi K2.6",
+            "tooltip": "MoonshotAI Kimi K2.6 — 最新版，支持图像输入",
+            "maxInputTokens": 262000,
+            "maxOutputTokens": 262000,
+            "reasoningEffort": [
+                "none",
+                "low",
+                "medium",
+                "high"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "llama-3.3-70b-instruct",
+            "name": "Llama 3.3 70B Instruct",
+            "tooltip": "Meta Llama 3.3 70B 指令微调版",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 12800,
+            "thinking": [
+                "disabled",
+                "enabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "llama-4-maverick-17b-128e-instruct-fp8",
+            "name": "Llama 4 Maverick 17B 128E Instruct FP8",
+            "tooltip": "Meta Llama 4 Maverick MoE 指令微调版 (FP8)",
+            "maxInputTokens": 430000,
+            "maxOutputTokens": 43000,
+            "thinking": [
+                "disabled",
+                "enabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "minimax-m2.7",
+            "name": "MiniMax M2.7",
+            "tooltip": "MiniMax M2.7 极速推理模型",
+            "maxInputTokens": 204800,
+            "maxOutputTokens": 131000,
+            "reasoningEffort": [
+                "none",
+                "low",
+                "medium",
+                "high"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3.6-flash",
+            "name": "Qwen3.6-Flash",
+            "tooltip": "阿里 Qwen3.6 Flash — 轻量快速，百万上下文，支持图像输入",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 64000,
+            "thinking": [
+                "disabled",
+                "enabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qwen3.6-max",
+            "name": "Qwen3.6-Max",
+            "tooltip": "阿里 Qwen3.6 Max — 旗舰版",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 64000,
+            "thinking": [
+                "disabled",
+                "enabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3.6-plus",
+            "name": "Qwen3.6-Plus",
+            "tooltip": "阿里 Qwen3.6 Plus — 增强版，百万上下文，支持图像输入",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 64000,
+            "thinking": [
+                "disabled",
+                "enabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
+            "id": "qwen3.7-max",
+            "name": "Qwen3.7-Max",
+            "tooltip": "阿里 Qwen3.7 Max — 最新旗舰版",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 64000,
+            "thinking": [
+                "disabled",
+                "enabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-coder-480b-a35b-instruct-int4-mixed-ar",
+            "name": "Qwen3 Coder 480B A35B Instruct INT4",
+            "tooltip": "阿里 Qwen3 Coder MoE 480B — 编程专用模型",
+            "maxInputTokens": 106000,
+            "maxOutputTokens": 10600,
+            "thinking": [
+                "disabled",
+                "enabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "qwen3-next-80b-a3b-instruct",
+            "name": "Qwen3 Next 80B A3B Instruct",
+            "tooltip": "阿里 Qwen3 Next MoE 80B 指令微调版",
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 26214,
+            "thinking": [
+                "disabled",
+                "enabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        }
+    ]
+}

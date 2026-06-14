@@ -14,6 +14,7 @@ import gemini from './gemini.json';
 import codex from './codex.json';
 import grok from './grok.json';
 import opencode from './opencode.json';
+import hyper from './hyper.json';
 
 const providers = {
     zhipu,
@@ -29,7 +30,8 @@ const providers = {
     gemini,
     codex,
     grok,
-    opencode
+    opencode,
+    hyper
 };
 
 export type ProviderName = keyof typeof providers;
