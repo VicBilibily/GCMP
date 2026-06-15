@@ -100,18 +100,19 @@ async function analyzeViaModel(
     );
     const userMessage = vscode.LanguageModelChatMessage.User([textPart, imageData]);
 
-    const response = await model.sendRequest(
-        [systemMessage, userMessage],
-        {},
-        token ?? new vscode.CancellationTokenSource().token
-    );
+    const cts = token ? undefined : new vscode.CancellationTokenSource();
+    try {
+        const response = await model.sendRequest([systemMessage, userMessage], {}, token ?? cts!.token);
 
-    let content = '';
-    for await (const chunk of response.text) {
-        content += chunk;
+        let content = '';
+        for await (const chunk of response.text) {
+            content += chunk;
+        }
+
+        return { content };
+    } finally {
+        cts?.dispose();
     }
-
-    return { content };
 }
 
 // ─── 统一入口 ──────────────────────────────────────────────────────────

@@ -12,7 +12,7 @@ import { Logger } from '../../utils';
 /**
  * 处理消息数组中的所有图片 DataPart：
  * 1. 缓存图片到 vision-cache/{sessionId}/
- * 2. 将 DataPart 替换为文本指令（提示模型调用 gcmp_visionTool 工具）
+ * 2. 将 DataPart 替换为 XML 附件文本指令
  *
  * @param messages 原始消息数组（会被修改）
  * @param sessionId 会话 ID
@@ -56,7 +56,7 @@ export async function processVisionMessages(
             continue;
         }
 
-        const newParts: Array<vscode.LanguageModelTextPart> = [];
+        const newParts: unknown[] = [];
 
         for (const part of parts) {
             if (part instanceof vscode.LanguageModelDataPart && part.mimeType.startsWith('image/')) {
@@ -66,17 +66,11 @@ export async function processVisionMessages(
                     const { path: cachePath } = visionCache.saveImage(sessionId, base64, part.mimeType);
                     cachedFiles.push(cachePath);
 
-                    const instruction =
-                        '[Image attached by user - binary image data, not readable as text]\n' +
-                        'DO NOT try to read this file directly with read_file or any other tool - it will return garbage.\n' +
-                        'The cached image file is located at:\n' +
-                        '  ' +
-                        cachePath +
-                        '\n' +
-                        'Pass this file path to an appropriate vision-capable tool to analyze its visual content.\n' +
-                        "Be sure to include the user's specific question about the image when calling the vision tool.";
-
-                    newParts.push(new vscode.LanguageModelTextPart(instruction));
+                    newParts.push(
+                        new vscode.LanguageModelTextPart(
+                            `<attachment><instruction>Use a vision-capable tool to analyze the image content.</instruction><filePath>${cachePath}</filePath><mimeType>${part.mimeType.replace('image/', '')}</mimeType></attachment>`
+                        )
+                    );
                     Logger.trace(`[VisionProcessor] Cached image: ${cachePath}`);
                 } catch (err) {
                     Logger.warn(
@@ -89,25 +83,30 @@ export async function processVisionMessages(
                         )
                     );
                 }
-            } else if (part instanceof vscode.LanguageModelTextPart) {
+            } else {
                 newParts.push(part);
             }
         }
 
-        const combinedText = newParts.map(p => p.value).join('\n');
         if (msg.role === vscode.LanguageModelChatMessageRole.User) {
             messages[msgIdx] = vscode.LanguageModelChatMessage.User(
-                combinedText,
+                newParts as Array<
+                    vscode.LanguageModelTextPart | vscode.LanguageModelToolResultPart | vscode.LanguageModelDataPart
+                >,
                 msg.name
             ) as unknown as vscode.LanguageModelChatMessage;
         } else if (msg.role === vscode.LanguageModelChatMessageRole.Assistant) {
             messages[msgIdx] = vscode.LanguageModelChatMessage.Assistant(
-                combinedText,
+                newParts as Array<
+                    vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart
+                >,
                 msg.name
             ) as unknown as vscode.LanguageModelChatMessage;
         } else {
             messages[msgIdx] = vscode.LanguageModelChatMessage.User(
-                combinedText,
+                newParts as Array<
+                    vscode.LanguageModelTextPart | vscode.LanguageModelToolResultPart | vscode.LanguageModelDataPart
+                >,
                 msg.name
             ) as unknown as vscode.LanguageModelChatMessage;
         }
