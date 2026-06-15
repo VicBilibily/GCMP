@@ -390,12 +390,24 @@ export class SyncManager {
                     }
 
                     const uploadedCount = Object.keys(encryptedKeys).length;
+                    // 上传后读取远端实际数量
+                    let remoteTotal = Object.keys(keysToUpload).length;
+                    if (uploadGistId) {
+                        try {
+                            const remoteData = await GistSyncService.readSyncData(userInfo.token, uploadGistId);
+                            if (remoteData?.keys) {
+                                remoteTotal = Object.keys(remoteData.keys).length;
+                            }
+                        } catch {
+                            // 读远端失败则用本地数
+                        }
+                    }
                     vscode.window.showInformationMessage(
                         t(
                             'Successfully uploaded {0} API keys (total {1} on Gist). Download on your other devices to apply.',
                             '成功上传 {0} 个 API Key（Gist 共计 {1} 个）。请在其它设备上执行下载以同步。',
                             String(uploadedCount),
-                            String(Object.keys(keysToUpload).length) // 近似展示
+                            String(remoteTotal)
                         )
                     );
                     Logger.info(`[SyncManager] Upload complete: ${uploadedCount} keys to gist ${uploadGistId}`);

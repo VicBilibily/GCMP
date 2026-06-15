@@ -10,6 +10,7 @@ import { CompatibleModelManager } from '../utils/compatibleModelManager';
 import { Logger } from '../utils/logger';
 import { registeredProviders } from '../utils/providerRegistry';
 import { KnownProviders } from '../utils/knownProviders';
+import { ConfigManager } from '../utils/configManager';
 
 /**
  * 加密后的密钥数据包结构
@@ -91,6 +92,9 @@ const GITHUB_ID_KEY = 'gcmp-sync.githubId';
 /** SecretStorage 中存储用户自定义加密口令的键名 */
 const USER_PASSPHRASE_KEY = 'gcmp-sync.passphrase';
 
+/** CLI 专用提供商，同步时排除 */
+const CLI_ONLY_PROVIDERS = new Set(['codex', 'gemini', 'grok']);
+
 /** 用于派生加密密钥的固定 pepper */
 const ENCRYPTION_PEPPER = 'gcmp-sync-aes256-v1';
 
@@ -100,46 +104,62 @@ const PBKDF2_ITERATIONS = 600000;
 /** 加密密钥长度 (AES-256) */
 const KEY_LENGTH = 32;
 
-/** 已知的同步密钥列表（含单密钥和多密钥变体，排除 CLI 认证的提供商） */
-const KNOWN_SYNC_KEYS: Record<string, string> = {
-    'zhipu.apiKey': '智谱AI',
-    'moonshot.apiKey': 'MoonshotAI',
-    'kimi.apiKey': 'Kimi',
-    'deepseek.apiKey': 'DeepSeek',
-    'streamlake.apiKey': '快手万擎',
-    'opencode.apiKey': 'OpenCode',
-    'minimax.apiKey': 'MiniMax',
-    'minimax-token.apiKey': 'MiniMax Token Plan',
-    'dashscope.apiKey': '阿里云百炼',
-    'dashscope-coding.apiKey': '阿里云百炼 Coding Plan',
-    'dashscope-token.apiKey': '阿里云百炼 Token Plan',
-    'tencent.apiKey': '腾讯云',
-    'tencent-coding.apiKey': '腾讯云 Coding Plan',
-    'tencent-token.apiKey': '腾讯云 Token Plan',
-    'tencent-deepseek.apiKey': '腾讯云 DeepSeek',
-    'tencent-tokenhub.apiKey': '腾讯云 TokenHub',
-    'volcengine.apiKey': '火山方舟',
-    'volcengine-agent.apiKey': '火山方舟 Agent Plan',
-    'xiaomimimo.apiKey': 'Xiaomi MiMo',
-    'xiaomimimo-token.apiKey': 'Xiaomi MiMo Token Plan',
-    'baidu.apiKey': '百度千帆',
-    'baidu-coding.apiKey': '百度千帆 Coding Plan'
+/** 所有已知密钥的显示名（主 key + 多密钥变体，英文名与 ConfigProvider.displayName 一致） */
+const KNOWN_KEY_LABELS: Record<string, string> = {
+    // ── 主 key ──
+    zhipu: 'ZhipuAI',
+    moonshot: 'MoonshotAI',
+    kimi: 'Kimi',
+    deepseek: 'DeepSeek',
+    streamlake: 'StreamLake',
+    minimax: 'MiniMax',
+    dashscope: 'AliDashScope',
+    tencent: 'Tencent',
+    volcengine: 'Volcengine',
+    xiaomimimo: 'Xiaomi MiMo',
+    baidu: 'Baidu Qianfan',
+    opencode: 'OpenCode',
+    hyper: 'Charm Hyper',
+    // ── 多密钥变体 ──
+    'minimax-token': 'MiniMax Token Plan',
+    'dashscope-coding': 'DashScope Coding Plan',
+    'dashscope-token': 'DashScope Token Plan',
+    'tencent-coding': 'Tencent Cloud Coding Plan',
+    'tencent-token': 'Tencent Cloud Token Plan',
+    'tencent-deepseek': 'Tencent Cloud DeepSeek',
+    'tencent-tokenhub': 'Tencent Cloud TokenHub',
+    'volcengine-agent': 'Volcengine Agent Plan',
+    'xiaomimimo-token': 'Xiaomi MiMo Token Plan',
+    'baidu-coding': 'Baidu Qianfan Coding Plan'
 };
-
-/** 同步密钥名列表，从 KNOWN_SYNC_KEYS 自动派生 */
-const ALL_KNOWN_KEYS = Object.keys(KNOWN_SYNC_KEYS);
 
 /**
  * 获取密钥对应的友好显示名
+ * 优先级：KNOWN_KEY_LABELS 覆盖 > ConfigProvider.displayName > KnownProviders.displayName > providerKey
  */
 export function getKeyDisplayName(key: string): string {
-    if (KNOWN_SYNC_KEYS[key]) {
-        return KNOWN_SYNC_KEYS[key];
-    }
     const provider = key.replace('.apiKey', '');
-    // 检查是否在已知提供商映射中
-    const knownDisplayName = KnownProviders[provider]?.displayName;
-    return knownDisplayName || provider;
+
+    // 1) 覆盖名称
+    const label = KNOWN_KEY_LABELS[provider];
+    if (label) {
+        return label;
+    }
+
+    // 2) ConfigProvider 名称
+    const providerConfigs = ConfigManager.getConfigProvider();
+    const cfg = providerConfigs[provider as keyof typeof providerConfigs];
+    if (cfg?.displayName) {
+        return cfg.displayName;
+    }
+
+    // 3) KnownProviders 名称
+    const known = KnownProviders[provider]?.displayName;
+    if (known) {
+        return known;
+    }
+
+    return provider;
 }
 
 /**
@@ -592,16 +612,33 @@ export class GistSyncService {
     static async collectLocalKeys(): Promise<Record<string, string>> {
         const keys: Record<string, string> = {};
 
-        // 收集内置提供商的 API Key
-        for (const keyName of ALL_KNOWN_KEYS) {
-            const value = await this.context.secrets.get(keyName);
-            if (value && value.trim().length > 0) {
-                keys[keyName] = value;
+        // 收集内置提供商的 API Key（从 configProviders 动态获取，排除 CLI 专用）
+        const providerConfigs = ConfigManager.getConfigProvider();
+        for (const providerKey of Object.keys(providerConfigs)) {
+            if (CLI_ONLY_PROVIDERS.has(providerKey)) {
+                continue;
+            }
+            // 主 key
+            const mainKey = `${providerKey}.apiKey`;
+            const mainValue = await this.context.secrets.get(mainKey);
+            if (mainValue && mainValue.trim().length > 0) {
+                keys[mainKey] = mainValue;
+            }
+            // 多密钥变体（如 minimax-token、dashscope-coding 等）
+            for (const labelKey of Object.keys(KNOWN_KEY_LABELS)) {
+                if (labelKey.startsWith(providerKey)) {
+                    const variantKey = `${labelKey}.apiKey`;
+                    if (!keys[variantKey]) {
+                        const value = await this.context.secrets.get(variantKey);
+                        if (value && value.trim().length > 0) {
+                            keys[variantKey] = value;
+                        }
+                    }
+                }
             }
         }
 
-        // 收集已知提供商（经 Compatible Provider 添加）的 API Key
-        // 这些提供商在 KNOWN_SYNC_KEYS 中没有预置，但可能通过兼容模型配置存储了密钥
+        // 收集已知提供商的 API Key
         for (const provider of Object.keys(KnownProviders)) {
             const keyName = `${provider}.apiKey`;
             if (!keys[keyName]) {
@@ -612,9 +649,7 @@ export class GistSyncService {
             }
         }
 
-        // 动态收集自定义/兼容提供商的 API Key（provider.apiKey 格式）
-        // 注意：仅能收集当前有模型配置的 provider。若模型配置已删除但
-        // SecretStorage 中残留了 key，因 VS Code 不支持枚举密钥，暂无法发现。
+        // 动态收集自定义/兼容提供商的 API Key
         try {
             const customProviders = CompatibleModelManager.getCustomProviderIds();
             for (const provider of customProviders) {
@@ -677,19 +712,22 @@ export class GistSyncService {
 
     /**
      * 从密钥名列表提取提供商键名并通知刷新
-     * 内置预置密钥按 `-` 拆分取首段（如 dashscope-coding → dashscope），
+     * 按 `-` 拆分取首段（如 dashscope-coding → dashscope），
      * kimi 特殊映射到 moonshot；自定义提供商密钥定向到 compatible
      */
     private static notifyProviders(keyNames: string[]): void {
-        const builtinKeyNames = new Set(Object.keys(KNOWN_SYNC_KEYS).map(k => k.replace('.apiKey', '')));
+        const providerConfigs = ConfigManager.getConfigProvider();
+        const builtinKeyNames = new Set(Object.keys(providerConfigs));
 
         const providerKeys = new Set<string>();
         for (const keyName of keyNames) {
             const name = keyName.replace('.apiKey', '');
-            if (builtinKeyNames.has(name)) {
-                // 预置密钥：kimi 模型由 MoonshotProvider 管理，定向到 moonshot
-                // 其余按 `-` 拆分取首段（tencent-tokenhub → tencent）
-                const providerKey = name === 'kimi' ? 'moonshot' : name.split('-')[0];
+            const firstPart = name.split('-')[0];
+            if (CLI_ONLY_PROVIDERS.has(name) || CLI_ONLY_PROVIDERS.has(firstPart)) {
+                continue;
+            }
+            if (builtinKeyNames.has(name) || builtinKeyNames.has(firstPart)) {
+                const providerKey = name === 'kimi' ? 'moonshot' : firstPart;
                 providerKeys.add(providerKey);
             } else {
                 providerKeys.add('compatible');
