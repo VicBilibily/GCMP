@@ -258,13 +258,15 @@ export class SyncManager {
 
     /**
      * 上传本地 API Key 到 GitHub Gist
+     * 流程：认证 → 收集本地密钥 → 读取远端比对状态 → 用户选择 → 加密 → uploadKeys(合并+写入)
      */
     static async uploadToGist(): Promise<void> {
-        // 第一步：认证 + 收集密钥 + 远端比对（网络 + 本地读写）
+        // ═══ 阶段1：认证 + 收集密钥 + 远端比对 ═══
+        // 在进度条内完成全部网络+本地 I/O，避免多次弹框
         interface UploadPrep {
             userInfo: { login: string; id: number; token: string };
-            allKeys: Record<string, string>;
-            keyStatus?: Record<string, 'new' | 'update' | 'unchanged'>;
+            allKeys: Record<string, string>; // 本地所有密钥
+            keyStatus?: Record<string, 'new' | 'update' | 'unchanged'>; // 每个 key 相对于远端的状态
         }
 
         const prep = await vscode.window.withProgress<UploadPrep | undefined>(
@@ -274,22 +276,28 @@ export class SyncManager {
                 cancellable: false
             },
             async () => {
+                // 1a) GitHub 认证（静默优先，失败则弹授权）
                 const uInfo = await this.ensureGistToken();
                 if (!uInfo) {
                     return undefined;
                 }
+
+                // 1b) 收集本地所有 API Key（并行读 SecretStorage）
                 const keys = await GistSyncService.collectLocalKeys();
                 if (Object.keys(keys).length === 0) {
                     return undefined;
                 }
 
-                // 预先读取远端 Gist，计算一致性差异用于 QuickPick 显示
+                // 1c) 读取远端 Gist，比对值一致性，用于 QuickPick 分组显示
+                //     - 'new':       本地有，远端无
+                //     - 'update':    两边都有但值不同，或远端解密失败
+                //     - 'unchanged': 两边值相同
                 let keyStatus: Record<string, 'new' | 'update' | 'unchanged'> | undefined;
                 const existingGistId = GistSyncService.getGistId();
                 if (existingGistId) {
                     const remoteSyncData = await GistSyncService.readSyncData(uInfo.token, existingGistId);
                     if (remoteSyncData) {
-                        // 对于 common 的 key，尝试解密远端值做值比较
+                        // 对本地存在的 key，尝试解密远端值做明文比对
                         const remoteValues: Record<string, string> = {};
                         for (const [keyName, encryptedValue] of Object.entries(remoteSyncData.keys)) {
                             if (encryptedValue && keys[keyName] !== undefined) {
@@ -299,7 +307,7 @@ export class SyncManager {
                                         remoteValues[keyName] = decrypted;
                                     }
                                 } catch {
-                                    // 解密失败（口令不匹配等），无法比较值，跳过
+                                    // 解密失败（口令不匹配），后面走 update 分支
                                 }
                             }
                         }
@@ -307,13 +315,13 @@ export class SyncManager {
                         keyStatus = {};
                         for (const key of Object.keys(keys)) {
                             if (remoteValues[key] !== undefined && keys[key] !== remoteValues[key]) {
-                                keyStatus[key] = 'update';
+                                keyStatus[key] = 'update'; // 值不同 → 需要上传覆盖
                             } else if (remoteValues[key] !== undefined && keys[key] === remoteValues[key]) {
-                                keyStatus[key] = 'unchanged';
+                                keyStatus[key] = 'unchanged'; // 值相同 → 无需操作
                             } else if (remoteSyncData.keys[key] !== undefined && remoteValues[key] === undefined) {
-                                keyStatus[key] = 'update';
+                                keyStatus[key] = 'update'; // 远端存在但解密失败 → 重新加密上传
                             } else if (remoteSyncData.keys[key] === undefined) {
-                                keyStatus[key] = 'new';
+                                keyStatus[key] = 'new'; // 远端不存在 → 新增
                             }
                         }
                     }
@@ -323,6 +331,7 @@ export class SyncManager {
             }
         );
 
+        // 失败兜底：无 token / 无 key
         if (!prep) {
             const status = await GistSyncService.getStatus();
             if (!status.isLoggedIn) {
@@ -340,13 +349,13 @@ export class SyncManager {
 
         const { userInfo, allKeys, keyStatus } = prep;
 
-        // 让用户选择要上传的提供商（直接附带一致性状态标识）
+        // ═══ 阶段2：用户选择要上传的密钥 ═══
         const selectedKeys = await this.selectProviders(allKeys, 'upload', keyStatus);
         if (!selectedKeys || selectedKeys.size === 0) {
             return; // 用户取消或无选择
         }
 
-        // 过滤出用户选择的密钥
+        // 筛选出用户勾选的密钥
         const keysToUpload: Record<string, string> = {};
         for (const key of selectedKeys) {
             if (allKeys[key]) {
@@ -358,6 +367,7 @@ export class SyncManager {
             `[SyncManager] Found ${Object.keys(allKeys).length} local key(s), user selected ${selectedKeys.size}`
         );
 
+        // ═══ 阶段3：加密 → 上传到 Gist ═══
         await vscode.window.withProgress(
             {
                 location: vscode.ProgressLocation.Notification,
@@ -367,7 +377,8 @@ export class SyncManager {
             async () => {
                 try {
                     Logger.debug(`[SyncManager] Encrypting ${Object.keys(keysToUpload).length} key(s)...`);
-                    // 加密选择的密钥
+
+                    // 3a) AES-256-GCM 加密每个密钥
                     const encryptedKeys: Record<string, string> = {};
                     for (const [keyName, plainValue] of Object.entries(keysToUpload)) {
                         const encrypted = await GistSyncService.encrypt(plainValue);
@@ -378,6 +389,7 @@ export class SyncManager {
                         }
                     }
 
+                    // 3b) uploadKeys：读远端 → 合并 → 更新/创建 Gist（三步 fallback）
                     const uploadGistId = await GistSyncService.uploadKeys(userInfo.token, encryptedKeys);
                     if (!uploadGistId) {
                         vscode.window.showErrorMessage(
@@ -389,8 +401,8 @@ export class SyncManager {
                         return;
                     }
 
+                    // 3c) 读远端实际数量用于提示（含合并后的远端存量 key）
                     const uploadedCount = Object.keys(encryptedKeys).length;
-                    // 上传后读取远端实际数量
                     let remoteTotal = Object.keys(keysToUpload).length;
                     if (uploadGistId) {
                         try {
@@ -427,12 +439,14 @@ export class SyncManager {
 
     /**
      * 从 GitHub Gist 下载 API Key 并应用到本地
+     * 流程：认证 → 读取远端 → 解密 → 本地比对 → 用户选择 → 并行写入 → 通知 Provider 刷新
      */
     static async downloadFromGist(): Promise<void> {
+        // ═══ 阶段1：认证 + 读取远端 + 解密 + 本地比对 ═══
         interface DownloadData {
             userInfo: { login: string; id: number; token: string };
-            remoteKeys: Record<string, string>;
-            downloadKeyStatus: Record<string, 'new' | 'update' | 'unchanged'>;
+            remoteKeys: Record<string, string>; // 远端解密后的密钥
+            downloadKeyStatus: Record<string, 'new' | 'update' | 'unchanged'>; // 每个 key 相对于本地的状态
         }
 
         const data = await vscode.window.withProgress<DownloadData | undefined>(
@@ -442,11 +456,13 @@ export class SyncManager {
                 cancellable: false
             },
             async () => {
+                // 1a) GitHub 认证
                 const userInfo = await this.ensureGistToken();
                 if (!userInfo) {
                     return undefined;
                 }
 
+                // 1b) 查找/关联 Gist（已缓存 或 搜索新 Gist）
                 let gistId = GistSyncService.getGistId();
                 if (!gistId) {
                     gistId = await GistSyncService.findExistingSyncGist(userInfo.token);
@@ -456,23 +472,23 @@ export class SyncManager {
                     await GistSyncService.saveGistId(gistId);
                 }
 
+                // 1c) 读取远端 Gist 内容
                 const syncData = await GistSyncService.readSyncData(userInfo.token, gistId);
                 if (!syncData) {
                     return undefined;
                 }
 
+                // 1d) 过滤空值
                 const encryptedKeys: [string, string][] = Object.entries(syncData.keys).filter(
                     (entry): entry is [string, string] => !!entry[1] && entry[1].trim().length > 0
                 );
-
                 if (encryptedKeys.length === 0) {
                     return undefined;
                 }
 
-                // 在当前进度内完成解密 + 本地比对
+                // 1e) 逐条解密
                 Logger.debug(`[SyncManager] Decrypting ${encryptedKeys.length} remote key(s)...`);
                 const remoteKeys: Record<string, string> = {};
-
                 for (const [keyName, encryptedValue] of encryptedKeys) {
                     const plainValue = await GistSyncService.decrypt(encryptedValue);
                     if (plainValue !== undefined) {
@@ -480,16 +496,18 @@ export class SyncManager {
                     }
                 }
 
-                // 收集本地密钥做值比较
+                // 1f) 收集本地密钥，用 computeDiff 计算远端与本地差异
+                //     remoteOnly: 仅远端有 → 'new'
+                //     common:     两边都有 → 值比较 → 'unchanged'/'update'
                 const localKeys = await GistSyncService.collectLocalKeys();
-                const diff = GistSyncService.computeDiff(remoteKeys, localKeys);
+                const diff = GistSyncService.computeDiff(localKeys, remoteKeys);
 
                 const downloadKeyStatus: Record<string, 'new' | 'update' | 'unchanged'> = {};
-                for (const k of diff.localOnly) {
-                    downloadKeyStatus[k] = 'new';
+                for (const k of diff.remoteOnly) {
+                    downloadKeyStatus[k] = 'new'; // 本地没有，需要新增
                 }
                 for (const k of diff.common) {
-                    downloadKeyStatus[k] = remoteKeys[k] === localKeys[k] ? 'unchanged' : 'update';
+                    downloadKeyStatus[k] = remoteKeys[k] === localKeys[k] ? 'unchanged' : 'update'; // 值相同/不同
                 }
 
                 return { userInfo, remoteKeys, downloadKeyStatus };
@@ -560,9 +578,9 @@ export class SyncManager {
                             remoteKeys = decrypted;
                             // 重新计算本地比对
                             const localKeys = await GistSyncService.collectLocalKeys();
-                            const diff = GistSyncService.computeDiff(remoteKeys, localKeys);
+                            const diff = GistSyncService.computeDiff(localKeys, decrypted);
                             downloadKeyStatus = {};
-                            for (const k of diff.localOnly) {
+                            for (const k of diff.remoteOnly) {
                                 downloadKeyStatus[k] = 'new';
                             }
                             for (const k of diff.common) {

@@ -607,64 +607,65 @@ export class GistSyncService {
 
     /**
      * 收集本地所有 API Key
+     * 先枚举所有待查 key 名，再并行读取 SecretStorage
      * @returns 密钥名 -> 明文的映射（只含本地已配置的密钥）
      */
     static async collectLocalKeys(): Promise<Record<string, string>> {
-        const keys: Record<string, string> = {};
-
-        // 收集内置提供商的 API Key（从 configProviders 动态获取，排除 CLI 专用）
+        const candidateKeys = new Set<string>();
         const providerConfigs = ConfigManager.getConfigProvider();
+
+        // 1) 内置提供商主 key + 多密钥变体
         for (const providerKey of Object.keys(providerConfigs)) {
             if (CLI_ONLY_PROVIDERS.has(providerKey)) {
                 continue;
             }
-            // 主 key
-            const mainKey = `${providerKey}.apiKey`;
-            const mainValue = await this.context.secrets.get(mainKey);
-            if (mainValue && mainValue.trim().length > 0) {
-                keys[mainKey] = mainValue;
-            }
-            // 多密钥变体（如 minimax-token、dashscope-coding 等）
+            candidateKeys.add(`${providerKey}.apiKey`);
             for (const labelKey of Object.keys(KNOWN_KEY_LABELS)) {
                 if (labelKey.startsWith(providerKey)) {
-                    const variantKey = `${labelKey}.apiKey`;
-                    if (!keys[variantKey]) {
-                        const value = await this.context.secrets.get(variantKey);
-                        if (value && value.trim().length > 0) {
-                            keys[variantKey] = value;
-                        }
-                    }
+                    candidateKeys.add(`${labelKey}.apiKey`);
                 }
             }
         }
 
-        // 收集已知提供商的 API Key
+        // 2) KnownProviders
         for (const provider of Object.keys(KnownProviders)) {
-            const keyName = `${provider}.apiKey`;
-            if (!keys[keyName]) {
-                const value = await this.context.secrets.get(keyName);
-                if (value && value.trim().length > 0) {
-                    keys[keyName] = value;
-                }
-            }
+            candidateKeys.add(`${provider}.apiKey`);
         }
 
-        // 动态收集自定义/兼容提供商的 API Key
+        // 3) Compatible 自定义 provider
         try {
-            const customProviders = CompatibleModelManager.getCustomProviderIds();
-            for (const provider of customProviders) {
-                const keyName = `${provider}.apiKey`;
-                if (!keys[keyName]) {
-                    const value = await this.context.secrets.get(keyName);
-                    if (value && value.trim().length > 0) {
-                        keys[keyName] = value;
-                    }
-                }
+            for (const provider of CompatibleModelManager.getCustomProviderIds()) {
+                candidateKeys.add(`${provider}.apiKey`);
             }
         } catch {
-            // 非关键路径：如果获取兼容模型列表失败，仅跳过自定义 key
+            /* skip */
         }
 
+        // 4) KNOWN_KEY_LABELS 中未被覆盖的子级（如 kimi）
+        const covered = new Set(Object.keys(providerConfigs));
+        for (const p of Object.keys(KnownProviders)) {
+            covered.add(p);
+        }
+        for (const k of Object.keys(KNOWN_KEY_LABELS)) {
+            if (!covered.has(k)) {
+                candidateKeys.add(`${k}.apiKey`);
+            }
+        }
+
+        // 并行读取
+        const entries = await Promise.all(
+            Array.from(candidateKeys).map(async key => {
+                const value = await this.context.secrets.get(key);
+                return value?.trim() ? ([key, value.trim()] as const) : undefined;
+            })
+        );
+
+        const keys: Record<string, string> = {};
+        for (const e of entries) {
+            if (e) {
+                keys[e[0]] = e[1];
+            }
+        }
         return keys;
     }
 
@@ -711,27 +712,57 @@ export class GistSyncService {
     }
 
     /**
-     * 从密钥名列表提取提供商键名并通知刷新
-     * 按 `-` 拆分取首段（如 dashscope-coding → dashscope），
-     * kimi 特殊映射到 moonshot；自定义提供商密钥定向到 compatible
+     * 按密钥名通知对应提供商刷新模型列表。
+     * 仅对完整命中的已知多密钥变体做映射（如 dashscope-coding → dashscope），
+     * kimi 特殊映射到 moonshot；其他未命中的自定义 provider 密钥定向到 compatible。
+     * 模型缓存由主 provider 统一管理，映射到 moonshot 后一并刷新。
      */
     private static notifyProviders(keyNames: string[]): void {
         const providerConfigs = ConfigManager.getConfigProvider();
         const builtinKeyNames = new Set(Object.keys(providerConfigs));
 
+        const knownVariantKeyToProvider = Object.fromEntries(
+            Object.keys(KNOWN_KEY_LABELS)
+                .filter(key => key.includes('-'))
+                .map(key => [key, key.split('-')[0]])
+                .filter(([, provider]) => builtinKeyNames.has(provider))
+        ) as Record<string, string>;
+
+        // 已知子级映射（如 kimi → moonshot）
+        const knownKeyToProvider: Record<string, string> = {
+            kimi: 'moonshot'
+        };
+
         const providerKeys = new Set<string>();
         for (const keyName of keyNames) {
             const name = keyName.replace('.apiKey', '');
-            const firstPart = name.split('-')[0];
-            if (CLI_ONLY_PROVIDERS.has(name) || CLI_ONLY_PROVIDERS.has(firstPart)) {
+
+            // 跳过 CLI 专用
+            if (CLI_ONLY_PROVIDERS.has(name)) {
                 continue;
             }
-            if (builtinKeyNames.has(name) || builtinKeyNames.has(firstPart)) {
-                const providerKey = name === 'kimi' ? 'moonshot' : firstPart;
-                providerKeys.add(providerKey);
-            } else {
-                providerKeys.add('compatible');
+
+            // 1) 精确匹配内置 provider
+            if (builtinKeyNames.has(name)) {
+                providerKeys.add(name);
+                continue;
             }
+
+            // 2) 子级映射（kimi → moonshot）
+            if (knownKeyToProvider[name]) {
+                providerKeys.add(knownKeyToProvider[name]);
+                continue;
+            }
+
+            // 3) 已知多密钥变体（minimax-token → minimax）
+            const variantProvider = knownVariantKeyToProvider[name];
+            if (variantProvider) {
+                providerKeys.add(variantProvider);
+                continue;
+            }
+
+            // 4) 其他 → compatible
+            providerKeys.add('compatible');
         }
         for (const providerKey of providerKeys) {
             registeredProviders[providerKey]?.invalidateAndNotify();
