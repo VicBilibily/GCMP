@@ -8,7 +8,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { Logger, ConfigManager } from '../../utils';
+import { Logger, ConfigManager, ApiKeyManager } from '../../utils';
 import { MiniMaxVisionTool } from './minimaxVision';
 
 /**
@@ -118,29 +118,109 @@ async function analyzeViaModel(
 // ─── 统一入口 ──────────────────────────────────────────────────────────
 
 /**
+ * 支持的图片扩展名集合
+ */
+const SUPPORTED_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tiff']);
+
+/**
+ * 前置验证：检查文件、令牌、配置是否可用，
+ * 若配置不完整则尝试回退或拉起向导。
+ * @returns 最终可用的配置类型，调用者直接按此值路由
+ */
+async function resolveVisionRoute(
+    filePath: string,
+    token?: vscode.CancellationToken
+): Promise<{ route: 'minimax_api' | 'model'; modelProvider?: string; modelId?: string }> {
+    // 1. 基本输入验证
+    if (!filePath || !fs.existsSync(filePath)) {
+        throw new Error(`Image file not found: ${filePath}`);
+    }
+
+    const ext = path.extname(filePath).slice(1).toLowerCase();
+    if (!SUPPORTED_IMAGE_EXTS.has(ext)) {
+        Logger.warn(`[gcmp_visionTool] Unsupported image extension: .${ext}, trying anyway`);
+    }
+
+    if (token?.isCancellationRequested) {
+        throw new Error('Vision analysis cancelled before processing started.');
+    }
+
+    // 2. 读取配置
+    const visionCfg = ConfigManager.getConfig().vision;
+    const providerType = visionCfg.provider;
+
+    // 3. 验证已知的 provider 值
+    if (providerType !== 'minimax_mcp_understand_image' && providerType !== 'model') {
+        Logger.warn(`[gcmp_visionTool] Unknown vision.provider: "${providerType}", treating as unconfigured`);
+    }
+
+    // 4. 按配置类型判断可用性
+    if (providerType === 'minimax_mcp_understand_image') {
+        const hasKey = await ApiKeyManager.hasValidApiKey('minimax-token');
+        if (hasKey) {
+            return { route: 'minimax_api' };
+        }
+        // MiniMax 没 key → 先尝试 model 回退（若 model 配置已存在）
+        if (visionCfg.model.provider && visionCfg.model.model) {
+            Logger.warn('[gcmp_visionTool] minimax-token key not found, falling back to model delegate');
+            return { route: 'model', modelProvider: visionCfg.model.provider, modelId: visionCfg.model.model };
+        }
+        Logger.warn('[gcmp_visionTool] minimax-token key not found and no model configured, launching wizard');
+    } else if (providerType === 'model') {
+        if (visionCfg.model.provider && visionCfg.model.model) {
+            return { route: 'model', modelProvider: visionCfg.model.provider, modelId: visionCfg.model.model };
+        }
+        // model 模式配置不完整：尝试回退
+        const hasKey = await ApiKeyManager.hasValidApiKey('minimax-token');
+        if (hasKey) {
+            Logger.warn('[gcmp_visionTool] vision.model is not configured, falling back to MiniMax API');
+            return { route: 'minimax_api' };
+        }
+    }
+
+    // 5. 完全未配置 / 回退不可用 → 拉起向导
+    Logger.warn('[gcmp_visionTool] No vision config found and no minimax-token key, launching wizard');
+    const wizardModule = await import('./wizard');
+    await wizardModule.selectVisionModel();
+
+    // 向导完成后重试（缓存已由 onDidChangeConfiguration 清除）
+    const retryCfg = ConfigManager.getConfig().vision;
+    if (retryCfg.provider === 'minimax_mcp_understand_image') {
+        const hasKey = await ApiKeyManager.hasValidApiKey('minimax-token');
+        if (!hasKey) {
+            throw new Error('MiniMax Vision API was selected in the wizard but no minimax-token key is available.');
+        }
+        Logger.trace('[gcmp_visionTool] Wizard set MiniMax API, routing now');
+        return { route: 'minimax_api' };
+    }
+
+    if (retryCfg.provider === 'model' && retryCfg.model.provider && retryCfg.model.model) {
+        Logger.trace(`[gcmp_visionTool] Wizard set model delegate: ${retryCfg.model.provider}/${retryCfg.model.model}`);
+        return { route: 'model', modelProvider: retryCfg.model.provider, modelId: retryCfg.model.model };
+    }
+
+    throw new Error(
+        'Vision analysis is not configured. Please configure a vision backend via the wizard or set gcmp.vision.provider/gcmp.vision.model in settings.'
+    );
+}
+
+/**
  * 分析图片视觉内容
- * 根据 gcmp.vision.provider 配置自动路由到 API 路径或 LLM 模型路径
+ * 根据 gcmp.vision.provider 配置自动路由到 API 路径或 LLM 模型路径。
+ * 当 model 模式未配置且无 minimax-token 密钥时，拉起配置向导让用户选择。
  */
 export async function analyzeImage(
     filePath: string,
     prompt?: string,
     token?: vscode.CancellationToken
 ): Promise<VisionResult> {
-    const config = vscode.workspace.getConfiguration('gcmp');
-    const providerType = config.get<string>('vision.provider', 'minimax_mcp_understand_image');
+    const route = await resolveVisionRoute(filePath, token);
 
-    if (providerType === 'minimax_mcp_understand_image') {
+    if (route.route === 'minimax_api') {
         Logger.trace('[gcmp_visionTool] Routing to MiniMax Vision API');
         return analyzeViaMinimaxAPI(filePath, prompt, token);
     }
 
-    // providerType === 'model'
-    const modelConfig = config.get<{ provider: string; model: string }>('vision.model', { provider: '', model: '' });
-    if (modelConfig?.provider && modelConfig?.model) {
-        Logger.trace(`[gcmp_visionTool] Routing to model delegate: ${modelConfig.provider}/${modelConfig.model}`);
-        return analyzeViaModel(filePath, prompt, modelConfig.provider, modelConfig.model, token);
-    }
-
-    Logger.warn('[gcmp_visionTool] vision.model is not configured, falling back to MiniMax API');
-    return analyzeViaMinimaxAPI(filePath, prompt, token);
+    Logger.trace(`[gcmp_visionTool] Routing to model delegate: ${route.modelProvider}/${route.modelId}`);
+    return analyzeViaModel(filePath, prompt, route.modelProvider!, route.modelId!, token);
 }

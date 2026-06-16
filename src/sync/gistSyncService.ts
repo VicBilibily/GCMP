@@ -118,6 +118,8 @@ const KNOWN_KEY_LABELS: Record<string, string> = {
     volcengine: 'Volcengine',
     xiaomimimo: 'Xiaomi MiMo',
     baidu: 'Baidu Qianfan',
+    antling: 'AntLing',
+    stepfun: 'StepFun',
     opencode: 'OpenCode',
     hyper: 'Charm Hyper',
     // ── 多密钥变体 ──

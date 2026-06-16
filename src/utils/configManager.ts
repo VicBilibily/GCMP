@@ -132,6 +132,21 @@ export interface GCMPConfig {
     proxy?: string;
     /** 提供商配置覆盖 */
     providerOverrides: UserConfigOverrides;
+    /** 视觉分析配置 */
+    vision: VisionConfig;
+}
+
+/**
+ * 视觉分析配置
+ */
+export interface VisionConfig {
+    /** 后端类型：minimax_mcp_understand_image | model */
+    provider: string;
+    /** 委派模型配置（provider 模式生效） */
+    model: {
+        provider: string;
+        model: string;
+    };
 }
 
 interface ProxyFetchOptions {
@@ -267,6 +282,13 @@ export class ConfigManager {
                     .map(item => item.trim())
                     .filter(Boolean),
                 model: config.get<CommitModelSelection>('commit.model')
+            },
+            vision: {
+                provider: config.get<string>('vision.provider', 'minimax_mcp_understand_image'),
+                model: {
+                    provider: config.get<string>('vision.model.provider', ''),
+                    model: config.get<string>('vision.model.model', '')
+                }
             },
             proxy: config.get<string>('proxy') || undefined,
             providerOverrides: config.get<UserConfigOverrides>('providerOverrides', {})
