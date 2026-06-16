@@ -30,6 +30,8 @@
     "command.baidu.setApiKey": "设置 百度千帆 API密钥",
     "command.baidu.setCodingPlanApiKey": "设置 百度千帆 Coding Plan 专用密钥",
     "command.baidu.configWizard": "启动 百度千帆 配置向导",
+    "command.stepfun.setApiKey": "设置 阶跃星辰 StepFun API密钥",
+    "command.stepfun.configWizard": "StepFun 配置向导（API密钥 & 搜索 MCP 模式）",
     "command.gemini.configWizard": "Gemini CLI 配置向导（CLI 认证）",
     "command.codex.configWizard": "Codex CLI 配置向导（CLI 认证）",
     "command.grok.configWizard": "Grok Build 配置向导（CLI 认证）",
@@ -64,6 +66,7 @@
     "setting.autoPrefixModelId.deprecationMessage": "此配置已弃用，模型ID前缀模式现已默认启用。",
     "setting.zhipu.search.enableMCP.description": "启用智谱AI搜索的MCP SDK模式。使用标准 MCP 协议和官方 SDK 实现搜索功能，提供更稳定的连接和更好的错误处理。非订阅套餐请关闭此开关以使用标准计费接口（按次计费）。需要有效的智谱AI API密钥。",
     "setting.zhipu.endpoint.description": "智谱AI接入站点。open.bigmodel.cn 为国内站（推荐），api.z.ai 为国际站。",
+    "setting.stepfun.search.enableMCP.description": "启用阶跃星辰 StepFun 搜索的 MCP 模式。使用 MCP 协议实现搜索功能（Step Plan 套餐专属）。非 Step Plan 订阅套餐请关闭此开关以使用标准计费接口（按次计费 ¥0.04/次）。需要有效的 StepFun API 密钥。",
     "setting.minimax.endpoint.description": "MiniMax Token Plan 接入站点。minimaxi.com 为国内站（推荐），minimax.io 为国际站。",
     "setting.xiaomimimo.endpoint.description": "Xiaomi MiMo Token Plan 接入点。cn 为中国接入点（默认），sgp 为新加坡接入点，ams 为欧洲接入点。",
     "setting.usages.retentionDays.description": "Token消耗记录历史数据保留天数（按日期保存，0表示永久保留）。",
@@ -131,5 +134,11 @@
     "tool.kimiWebSearch.input.includeContent.description": "是否抓取并返回页面完整内容",
     "tool.dashscopeWebSearch.modelDescription": "使用阿里云百炼联网搜索 MCP 获取实时信息。需要订阅百炼 Coding Plan、开通联网搜索 MCP 服务，并使用 sk-xxx 格式的百炼通用 API 密钥。",
     "tool.dashscopeWebSearch.input.query.description": "搜索查询字符串",
-    "tool.dashscopeWebSearch.input.count.description": "返回的搜索结果数量"
+    "tool.dashscopeWebSearch.input.count.description": "返回的搜索结果数量",
+    "tool.stepfunWebSearch.displayName": "阶跃星辰联网搜索",
+    "tool.stepfunWebSearch.userDescription": "通过阶跃星辰联网搜索获取最新信息",
+    "tool.stepfunWebSearch.modelDescription": "使用阶跃星辰 StepFun 联网搜索获取实时信息。支持 category 参数过滤：programming（代码编程）、research（学术研究）、gov（政务）、business（商业财经）。Step Plan 套餐可通过 MCP 调用，非订阅套餐使用标准按次计费接口（¥0.04/次）。",
+    "tool.stepfunWebSearch.input.query.description": "搜索查询字符串",
+    "tool.stepfunWebSearch.input.n.description": "返回的搜索结果数量",
+    "tool.stepfunWebSearch.input.category.description": "搜索场景：programming（代码编程）、research（学术研究）、gov（政务）、business（商业财经）"
 }

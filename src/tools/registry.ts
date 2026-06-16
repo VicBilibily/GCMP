@@ -9,6 +9,7 @@ import { ZhipuSearchTool } from './zhipuSearch';
 import { MiniMaxSearchTool } from './minimaxSearch';
 import { KimiSearchTool } from './kimiSearch';
 import { DashscopeSearchTool } from './dashscopeSearch';
+import { StepFunSearchTool } from './stepfunSearch';
 import { ToolContextManager } from './toolContextManager';
 
 // 全局工具实例管理
@@ -16,6 +17,7 @@ let zhipuSearchTool: ZhipuSearchTool | undefined;
 let minimaxSearchTool: MiniMaxSearchTool | undefined;
 let kimiSearchTool: KimiSearchTool | undefined;
 let dashscopeSearchTool: DashscopeSearchTool | undefined;
+let stepfunSearchTool: StepFunSearchTool | undefined;
 
 /**
  * 注册所有工具
@@ -57,6 +59,14 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
         });
         context.subscriptions.push(dashscopeToolDisposable);
 
+        // 注册阶跃星辰联网搜索工具
+        stepfunSearchTool = new StepFunSearchTool();
+        const stepfunToolDisposable = vscode.lm.registerTool('gcmp_stepfunWebSearch', {
+            invoke: stepfunSearchTool.invoke.bind(stepfunSearchTool),
+            prepareInvocation: stepfunSearchTool.prepareInvocation.bind(stepfunSearchTool)
+        });
+        context.subscriptions.push(stepfunToolDisposable);
+
         // 添加清理逻辑到context
         context.subscriptions.push({
             dispose: async () => {
@@ -68,6 +78,7 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
         Logger.debug('MiniMax web search tool registered: gcmp_minimaxWebSearch');
         Logger.debug('Kimi web search tool registered: gcmp_kimiWebSearch');
         Logger.debug('DashScope web search tool registered: gcmp_dashscopeWebSearch');
+        Logger.debug('StepFun web search tool registered: gcmp_stepfunWebSearch');
     } catch (error) {
         Logger.error('Tool registration failed', error instanceof Error ? error : undefined);
         throw error;
@@ -101,6 +112,12 @@ export async function cleanupAllTools(): Promise<void> {
             await dashscopeSearchTool.cleanup();
             dashscopeSearchTool = undefined;
             Logger.info('✅ DashScope web search tool resources cleaned up');
+        }
+
+        if (stepfunSearchTool) {
+            await stepfunSearchTool.cleanup();
+            stepfunSearchTool = undefined;
+            Logger.info('✅ StepFun web search tool resources cleaned up');
         }
     } catch (error) {
         Logger.error('❌ Tool cleanup failed', error instanceof Error ? error : undefined);

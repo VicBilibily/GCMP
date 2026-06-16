@@ -497,7 +497,7 @@ function createSingleChart(
         }
     });
 
-    return chart;
+    return chart as Chart;
 }
 
 /**

@@ -10,6 +10,7 @@ import dashscope from './dashscope.json';
 import tencent from './tencent.json';
 import xiaomimimo from './xiaomimimo.json';
 import baidu from './baidu.json';
+import stepfun from './stepfun.json';
 import gemini from './gemini.json';
 import codex from './codex.json';
 import grok from './grok.json';
@@ -27,6 +28,7 @@ const providers = {
     tencent,
     xiaomimimo,
     baidu,
+    stepfun,
     gemini,
     codex,
     grok,

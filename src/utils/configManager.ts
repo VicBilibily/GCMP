@@ -37,6 +37,22 @@ export interface ZhipuConfig {
 }
 
 /**
+ * 阶跃星辰 StepFun 搜索配置
+ */
+export interface StepFunSearchConfig {
+    /** 是否启用 MCP 模式（Step Plan 套餐专属） */
+    enableMCP: boolean;
+}
+
+/**
+ * 阶跃星辰 StepFun 统一配置
+ */
+export interface StepFunConfig {
+    /** 搜索功能配置 */
+    search: StepFunSearchConfig;
+}
+
+/**
  * MiniMax 配置
  */
 export interface MiniMaxConfig {
@@ -100,6 +116,8 @@ export interface GCMPConfig {
     retry: RequestRetryConfig;
     /** 智谱AI配置 */
     zhipu: ZhipuConfig;
+    /** 阶跃星辰 StepFun 配置 */
+    stepfun: StepFunConfig;
     /** MiniMax配置 */
     minimax: MiniMaxConfig;
     /** Xiaomi MiMo配置 */
@@ -197,6 +215,11 @@ export class ConfigManager {
                     enableMCP: config.get<boolean>('zhipu.search.enableMCP', true) // 默认启用MCP模式（Coding Plan专属）
                 },
                 endpoint: config.get<ZhipuConfig['endpoint']>('zhipu.endpoint', 'open.bigmodel.cn')
+            },
+            stepfun: {
+                search: {
+                    enableMCP: config.get<boolean>('stepfun.search.enableMCP', true) // 默认启用MCP模式（Step Plan专属）
+                }
             },
             minimax: {
                 endpoint: config.get<MiniMaxConfig['endpoint']>('minimax.endpoint', 'minimaxi.com')
@@ -301,6 +324,13 @@ export class ConfigManager {
      */
     static getZhipuEndpoint(): 'open.bigmodel.cn' | 'api.z.ai' {
         return this.getConfig().zhipu.endpoint;
+    }
+
+    /**
+     * 获取阶跃星辰 StepFun 搜索配置
+     */
+    static getStepFunSearchConfig(): StepFunSearchConfig {
+        return this.getConfig().stepfun.search;
     }
 
     /**

@@ -68,10 +68,11 @@
         "onLanguageModelProvider:gcmp.volcengine",
         "onLanguageModelProvider:gcmp.tencent",
         "onLanguageModelProvider:gcmp.xiaomimimo",
+        "onLanguageModelProvider:gcmp.baidu",
+        "onLanguageModelProvider:gcmp.stepfun",
         "onLanguageModelProvider:gcmp.gemini",
         "onLanguageModelProvider:gcmp.codex",
         "onLanguageModelProvider:gcmp.grok",
-        "onLanguageModelProvider:gcmp.baidu",
         "onLanguageModelProvider:gcmp.opencode",
         "onLanguageModelProvider:gcmp.hyper",
         "onLanguageModelProvider:gcmp.compatible",
@@ -79,6 +80,7 @@
         "onLanguageModelTool:gcmp_minimaxWebSearch",
         "onLanguageModelTool:gcmp_kimiWebSearch",
         "onLanguageModelTool:gcmp_dashscopeWebSearch",
+        "onLanguageModelTool:gcmp_stepfunWebSearch",
         "onFileSystem:gcmp-settings"
     ],
     "contributes": {
@@ -236,6 +238,16 @@
             {
                 "command": "gcmp.baidu.configWizard",
                 "title": "%command.baidu.configWizard%",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.stepfun.setApiKey",
+                "title": "%command.stepfun.setApiKey%",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.stepfun.configWizard",
+                "title": "%command.stepfun.configWizard%",
                 "category": "GCMP"
             },
             {
@@ -414,6 +426,12 @@
                     ],
                     "default": "open.bigmodel.cn",
                     "description": "%setting.zhipu.endpoint.description%",
+                    "scope": "application"
+                },
+                "gcmp.stepfun.search.enableMCP": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "%setting.stepfun.search.enableMCP.description%",
                     "scope": "application"
                 },
                 "gcmp.minimax.endpoint": {
@@ -775,6 +793,11 @@
                 "managementCommand": "gcmp.baidu.configWizard"
             },
             {
+                "vendor": "gcmp.stepfun",
+                "displayName": "GCMP · StepFun",
+                "managementCommand": "gcmp.stepfun.configWizard"
+            },
+            {
                 "vendor": "gcmp.opencode",
                 "displayName": "GCMP · OpenCode",
                 "managementCommand": "gcmp.opencode.setApiKey"
@@ -950,6 +973,46 @@
                             "minimum": 1,
                             "maximum": 20,
                             "default": 10
+                        }
+                    },
+                    "required": [
+                        "query"
+                    ]
+                },
+                "canBeReferencedInPrompt": true
+            },
+            {
+                "name": "gcmp_stepfunWebSearch",
+                "displayName": "%tool.stepfunWebSearch.displayName%",
+                "when": "gcmp.tool.stepfunWebSearch.enabled",
+                "toolReferenceName": "stepfunWebSearch",
+                "modelDescription": "%tool.stepfunWebSearch.modelDescription%",
+                "userDescription": "%tool.stepfunWebSearch.userDescription%",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "%tool.stepfunWebSearch.input.query.description%"
+                        },
+                        "n": {
+                            "type": "integer",
+                            "description": "%tool.stepfunWebSearch.input.n.description%",
+                            "minimum": 1,
+                            "maximum": 20,
+                            "default": 10
+                        },
+                        "category": {
+                            "type": "string",
+                            "enum": [
+                                "",
+                                "programming",
+                                "research",
+                                "gov",
+                                "business"
+                            ],
+                            "description": "%tool.stepfunWebSearch.input.category.description%",
+                            "default": ""
                         }
                     },
                     "required": [

@@ -30,6 +30,8 @@
     "command.baidu.setApiKey": "Set Baidu Qianfan API Key",
     "command.baidu.setCodingPlanApiKey": "Set Baidu Qianfan Coding Plan API Key",
     "command.baidu.configWizard": "Baidu Qianfan Configuration Wizard",
+    "command.stepfun.setApiKey": "Set StepFun API Key",
+    "command.stepfun.configWizard": "StepFun Configuration Wizard (API Key & Search MCP Mode)",
     "command.gemini.configWizard": "Gemini CLI Configuration Wizard (CLI Auth)",
     "command.codex.configWizard": "Codex CLI Configuration Wizard (CLI Auth)",
     "command.grok.configWizard": "Grok Build Configuration Wizard (CLI Auth)",
@@ -64,6 +66,7 @@
     "setting.autoPrefixModelId.deprecationMessage": "This setting is deprecated. The model ID prefix mode is now enabled by default.",
     "setting.zhipu.search.enableMCP.description": "Enable MCP SDK mode for ZhipuAI search. Uses standard MCP protocol and official SDK for search functionality, providing more stable connections and better error handling. Non-subscription users should turn off this switch to use the standard billing interface (pay-per-use). A valid ZhipuAI API key is required.",
     "setting.zhipu.endpoint.description": "ZhipuAI access site. open.bigmodel.cn is the China site (recommended), api.z.ai is the international site.",
+    "setting.stepfun.search.enableMCP.description": "Enable MCP mode for StepFun search. Uses MCP protocol for search functionality (Step Plan subscription only). Non-Step Plan users should turn this off to use the standard billing interface (pay-per-use ¥0.04/request). A valid StepFun API key is required.",
     "setting.minimax.endpoint.description": "MiniMax Token Plan access site. minimaxi.com is the China site (recommended), minimax.io is the international site.",
     "setting.xiaomimimo.endpoint.description": "Xiaomi MiMo Token Plan access point. cn is the China access point (default), sgp is the Singapore access point, ams is the Europe access point.",
     "setting.usages.retentionDays.description": "Number of days to retain token usage history data (saved by date, 0 means permanent retention).",
@@ -131,5 +134,11 @@
     "tool.kimiWebSearch.input.includeContent.description": "Whether to fetch and return full page content",
     "tool.dashscopeWebSearch.modelDescription": "Get real-time information using Aliyun DashScope web search MCP. Requires a Bailian Coding Plan subscription, the web search MCP service enabled, and a standard Bailian API key in sk-xxx format.",
     "tool.dashscopeWebSearch.input.query.description": "Search query string",
-    "tool.dashscopeWebSearch.input.count.description": "Number of search results to return"
+    "tool.dashscopeWebSearch.input.count.description": "Number of search results to return",
+    "tool.stepfunWebSearch.displayName": "StepFun Web Search",
+    "tool.stepfunWebSearch.userDescription": "Get real-time information via StepFun web search",
+    "tool.stepfunWebSearch.modelDescription": "Get real-time information using StepFun web search. Supports category filtering: programming, research, gov, business. Step Plan subscribers can use MCP mode, non-subscription users use the standard billing interface (¥0.04/request).",
+    "tool.stepfunWebSearch.input.query.description": "Search query string",
+    "tool.stepfunWebSearch.input.n.description": "Number of search results to return",
+    "tool.stepfunWebSearch.input.category.description": "Search category: programming, research, gov, business"
 }
