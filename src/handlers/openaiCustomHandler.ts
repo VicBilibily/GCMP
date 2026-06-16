@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
-import { Logger } from '../utils';
+import { Logger, createOpenCodeHeaders } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
@@ -163,6 +163,11 @@ export class OpenAICustomHandler {
 
             // 处理合并后的 customHeader 中的 API 密钥替换
             const processedCustomHeader = ApiKeyManager.processCustomHeader(mergedCustomHeader, apiKey);
+
+            // opencode 专有：传递请求级跟踪标识头
+            if (this.provider === 'opencode') {
+                Object.assign(processedCustomHeader, createOpenCodeHeaders(requestId, sessionId));
+            }
 
             const response = await ConfigManager.fetchWithProxy(
                 url,

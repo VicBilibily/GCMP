@@ -148,7 +148,7 @@ export class StepFunWizard {
     /**
      * 设置 MCP 配置
      */
-    private static async setMCPConfig(enable: boolean, displayName: string): Promise<void> {
+    private static async setMCPConfig(enable: boolean, _displayName: string): Promise<void> {
         try {
             const config = vscode.workspace.getConfiguration('gcmp');
             await config.update('stepfun.search.enableMCP', enable, vscode.ConfigurationTarget.Global);
