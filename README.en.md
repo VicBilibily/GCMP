@@ -136,17 +136,6 @@ npm install -g @openai/codex@latest
 - **Supported models**: **GPT-5.5**, **GPT-5.4-mini**, **GPT-5.4**
 - **Usage tracking**: Status bar displays remaining ChatGPT subscription cycle quota.
 
-### [**Gemini**](https://geminicli.com/docs/) - Gemini CLI
-
-Google's official Gemini API CLI tool. Supports `Login with Google` authentication via Gemini CLI (requires local installation).
-
-```bash
-npm install -g @google/gemini-cli@latest
-```
-
-- **Supported models**: **Gemini 2.5 Pro**, **Gemini 2.5 Flash**, **Gemini 2.5 Flash Lite**
-- **Preview models**: **Gemini 3.1 Pro (Preview)**, **Gemini 3.1 Pro (Custom Tools)**, **Gemini 3 Pro (Preview)**, **Gemini 3 Flash (Preview)**
-
 ### [**Grok Build**](https://x.ai/cli) - xAI Grok Build
 
 xAI's official Grok Build coding assistant CLI tool. Supports OAuth authentication via the `grok` CLI (requires local installation).

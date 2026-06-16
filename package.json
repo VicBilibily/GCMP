@@ -70,7 +70,6 @@
         "onLanguageModelProvider:gcmp.xiaomimimo",
         "onLanguageModelProvider:gcmp.baidu",
         "onLanguageModelProvider:gcmp.stepfun",
-        "onLanguageModelProvider:gcmp.gemini",
         "onLanguageModelProvider:gcmp.codex",
         "onLanguageModelProvider:gcmp.grok",
         "onLanguageModelProvider:gcmp.opencode",
@@ -258,11 +257,6 @@
             {
                 "command": "gcmp.hyper.setApiKey",
                 "title": "%command.hyper.setApiKey%",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.gemini.configWizard",
-                "title": "%command.gemini.configWizard%",
                 "category": "GCMP"
             },
             {
@@ -806,11 +800,6 @@
                 "vendor": "gcmp.hyper",
                 "displayName": "GCMP · Charm Hyper",
                 "managementCommand": "gcmp.hyper.setApiKey"
-            },
-            {
-                "vendor": "gcmp.gemini",
-                "displayName": "GCMP · Gemini CLI",
-                "managementCommand": "gcmp.gemini.configWizard"
             },
             {
                 "vendor": "gcmp.codex",

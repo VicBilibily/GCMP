@@ -1,7 +1,7 @@
 /*---------------------------------------------------------------------------------------------
  *  CLI 认证专用 Provider
  *  继承 GenericModelProvider，支持 CLI 认证模式
- *  支持 qwen-code、gemini、codex 等 CLI 认证提供商
+ *  支持 codex、grok 等 CLI 认证提供商
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -24,7 +24,7 @@ import { t } from '../utils/l10n';
 /**
  * CLI 认证专用模型提供商类
  * 继承 GenericModelProvider，支持 CLI 认证模式
- * 适用于所有使用 CLI 认证的提供商（qwen-code、gemini、codex 等）
+ * 适用于所有使用 CLI 认证的提供商（codex、grok 等）
  */
 export class CliModelProvider extends GenericModelProvider {
     constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
@@ -52,7 +52,7 @@ export class CliModelProvider extends GenericModelProvider {
             // 文件未变 → 直接返回内存缓存（<1ms）；跨终端更新 → 自动检测并重新加载
             const credentials = await CliAuthFactory.loadCredentials(this.providerKey);
             if (credentials?.access_token) {
-                // 委托各 CLI 子类判断过期（Codex=1h, Gemini/Grok=5min）
+                // 委托各 CLI 子类判断过期（Codex=1h, Grok=5min）
                 if (!CliAuthFactory.isCredentialExpired(this.providerKey, credentials)) {
                     await ApiKeyManager.setApiKey(this.providerKey, credentials.access_token);
                     return super.provideLanguageModelChatInformation(options, token);

@@ -11,7 +11,6 @@ import tencent from './tencent.json';
 import xiaomimimo from './xiaomimimo.json';
 import baidu from './baidu.json';
 import stepfun from './stepfun.json';
-import gemini from './gemini.json';
 import codex from './codex.json';
 import grok from './grok.json';
 import opencode from './opencode.json';
@@ -29,7 +28,6 @@ const providers = {
     xiaomimimo,
     baidu,
     stepfun,
-    gemini,
     codex,
     grok,
     opencode,

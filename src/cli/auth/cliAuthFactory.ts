@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseCliAuth } from './baseCliAuth';
-import { GeminiCliAuth } from './geminiCliAuth';
 import { CodexCliAuth } from './codexCliAuth';
 import { GrokCliAuth } from './grokCliAuth';
 import { Logger } from '../../utils/logger';
@@ -28,9 +27,6 @@ export class CliAuthFactory {
         // 创建新实例
         let instance: BaseCliAuth | null = null;
         switch (cliType) {
-            case 'gemini':
-                instance = new GeminiCliAuth();
-                break;
             case 'codex':
                 instance = new CodexCliAuth();
                 break;
@@ -114,7 +110,6 @@ export class CliAuthFactory {
     static getSupportedCliTypes(): Array<{ id: string; name: string }> {
         return [
             { id: 'codex', name: 'Codex CLI' },
-            { id: 'gemini', name: 'Gemini CLI' },
             { id: 'grok', name: 'Grok Build' }
         ];
     }
