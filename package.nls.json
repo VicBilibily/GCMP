@@ -32,6 +32,7 @@
     "command.baidu.configWizard": "Baidu Qianfan Configuration Wizard",
     "command.stepfun.setApiKey": "Set StepFun API Key",
     "command.stepfun.configWizard": "StepFun Configuration Wizard (API Key & Search MCP Mode)",
+    "command.antling.setApiKey": "Set AntLing API Key",
     "command.codex.configWizard": "Codex CLI Configuration Wizard (CLI Auth)",
     "command.grok.configWizard": "Grok Build Configuration Wizard (CLI Auth)",
     "command.opencode.setApiKey": "Set OpenCode API Key",

@@ -32,6 +32,7 @@
     "command.baidu.configWizard": "启动 百度千帆 配置向导",
     "command.stepfun.setApiKey": "设置 阶跃星辰 StepFun API密钥",
     "command.stepfun.configWizard": "StepFun 配置向导（API密钥 & 搜索 MCP 模式）",
+    "command.antling.setApiKey": "设置 AntLing (百灵) API 密钥",
     "command.codex.configWizard": "Codex CLI 配置向导（CLI 认证）",
     "command.grok.configWizard": "Grok Build 配置向导（CLI 认证）",
     "command.opencode.setApiKey": "设置 OpenCode API 密钥",

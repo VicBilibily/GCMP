@@ -70,6 +70,7 @@
         "onLanguageModelProvider:gcmp.xiaomimimo",
         "onLanguageModelProvider:gcmp.baidu",
         "onLanguageModelProvider:gcmp.stepfun",
+        "onLanguageModelProvider:gcmp.antling",
         "onLanguageModelProvider:gcmp.codex",
         "onLanguageModelProvider:gcmp.grok",
         "onLanguageModelProvider:gcmp.opencode",
@@ -247,6 +248,11 @@
             {
                 "command": "gcmp.stepfun.configWizard",
                 "title": "%command.stepfun.configWizard%",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.antling.setApiKey",
+                "title": "%command.antling.setApiKey%",
                 "category": "GCMP"
             },
             {
@@ -790,6 +796,11 @@
                 "vendor": "gcmp.stepfun",
                 "displayName": "GCMP · StepFun",
                 "managementCommand": "gcmp.stepfun.configWizard"
+            },
+            {
+                "vendor": "gcmp.antling",
+                "displayName": "GCMP · AntLing",
+                "managementCommand": "gcmp.antling.setApiKey"
             },
             {
                 "vendor": "gcmp.opencode",
