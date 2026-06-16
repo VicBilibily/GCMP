@@ -46,12 +46,12 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
     - [**International site**](https://platform.minimax.io/subscribe/token-plan): Supports international site Token Plan.
 - **PayGo**: **MiniMax-M3**, **MiniMax-M2.7** (HighSpeed), **MiniMax-M2.5** (HighSpeed), **MiniMax-M2.1** (HighSpeed), **MiniMax-M2**
 
-### [**MoonshotAI**](https://platform.moonshot.cn/)
+### [**MoonshotAI**](https://platform.kimi.com/)
 
 - [**Membership**](https://www.kimi.com/coding): Kimi membership plan includes `Kimi For Coding`.
     - **Search**: Integrated Kimi Search web search tool, supports `#kimiWebSearch`.
     - **Usage tracking**: Status bar displays remaining quota and rate-limit reset time.
-- Preset models: **Kimi K2.5**, **Kimi K2.6**, **Kimi K2.7 Code**
+- Preset models: **Kimi K2.5**, **Kimi K2.6**, **Kimi K2.7 Code** (HighSpeed)
     - **Balance query**: Status bar displays current account balance.
 
 ### [**DeepSeek**](https://platform.deepseek.com/)

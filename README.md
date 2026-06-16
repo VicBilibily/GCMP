@@ -46,12 +46,12 @@
     - **[国际站点](https://platform.minimax.io/subscribe/token-plan)**：已支持国际站 Token Plan 套餐使用。
 - **按量计费(PayGo)**：**MiniMax-M3**、**MiniMax-M2.7**(极速版)、**MiniMax-M2.5**(极速版)、**MiniMax-M2.1**(极速版)、**MiniMax-M2**
 
-### [**MoonshotAI**](https://platform.moonshot.cn/)
+### [**MoonshotAI**](https://platform.kimi.com/)
 
 - [**会员权益**](https://www.kimi.com/coding)：Kimi `会员计划` 套餐的附带的 `Kimi For Coding`。
     - **搜索功能**：集成 Kimi Search 联网搜索工具，支持通过 `#kimiWebSearch` 进行联网搜索。
     - **用量查询**：已支持状态栏显示周期剩余用量，可查看套餐的剩余用量及限频重置时间。
-- 预置模型：**Kimi K2.5**、**Kimi K2.6**、**Kimi K2.7 Code**
+- 预置模型(PayGo)：**Kimi K2.5**、**Kimi K2.6**、**Kimi K2.7 Code**(极速版)
     - **余额查询**：已支持状态栏显示当前账户额度，可查看账户余额状况。
 
 ### [**DeepSeek**](https://platform.deepseek.com/)
