@@ -214,7 +214,6 @@ GCMP supports customizing AI model behavior parameters through VS Code settings 
 
 ```json
 {
-    "gcmp.maxTokens": 32000, // 32-256000
     "gcmp.retry.enabled": true, // Enable auto retry (default true), disable to stop on failure
     "gcmp.retry.maxAttempts": 3, // 1-5, only effective for retryable errors
     "gcmp.zhipu.search.enableMCP": true // Enable Web Search MCP (Coding Plan exclusive)
@@ -551,8 +550,6 @@ GCMP includes comprehensive token usage tracking to help you monitor and manage 
 </details>
 
 ## 📝 Commit Message Generation
-
-> ⚠️ **Feature Freeze**: Commit Message Generation is **frozen** — no new features will be added. Use `gcmp.commit.enabled` to toggle it. Copilot now natively supports Git commit message generation (button to the right of the commit input box) using `chat.utilitySmallModel` — see [Section 3](#3-configure-vs-code-utility-models-optional) to configure a GCMP model.
 
 GCMP supports automatically reading repository changes (staged/unstaged/new files) before committing, extracting key diff snippets, and combining relevant historical commits with the repository's overall commit style (in auto mode) to generate commit messages that match your project's conventions.
 

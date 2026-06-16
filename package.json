@@ -372,6 +372,7 @@
                     "minimum": 32,
                     "maximum": 256000,
                     "description": "%setting.maxTokens.description%",
+                    "deprecationMessage": "%setting.maxTokens.deprecation%",
                     "scope": "application"
                 },
                 "gcmp.retry.enabled": {

@@ -758,7 +758,7 @@ export class OpenAIHandler {
         const createParams: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
             model: requestModel,
             messages: this.convertMessagesToOpenAI(messages, modelConfig),
-            max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
+            max_tokens: model.maxOutputTokens,
             stream: true,
             stream_options: { include_usage: true }
         };

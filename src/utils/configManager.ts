@@ -110,8 +110,6 @@ export interface CommitConfig {
  * GCMP配置接口
  */
 export interface GCMPConfig {
-    /** 最大输出token数量 */
-    maxTokens: number;
     /** 请求失败重试配置 */
     retry: RequestRetryConfig;
     /** 智谱AI配置 */
@@ -220,7 +218,6 @@ export class ConfigManager {
         const config = vscode.workspace.getConfiguration(this.CONFIG_SECTION);
 
         this.cache = {
-            maxTokens: this.validateMaxTokens(config.get<number>('maxTokens', 32000)),
             retry: {
                 enabled: config.get<boolean>('retry.enabled', true),
                 maxAttempts: this.validateRetryMaxAttempts(config.get<number>('retry.maxAttempts', 3))
@@ -296,13 +293,6 @@ export class ConfigManager {
 
         Logger.debug('Config loaded', sanitizeConfigForLogging(this.cache));
         return this.cache;
-    }
-
-    /**
-     * 获取最大token数量
-     */
-    static getMaxTokens(): number {
-        return this.getConfig().maxTokens;
     }
 
     /**
@@ -390,26 +380,6 @@ export class ConfigManager {
      */
     static getCommitConfig(): CommitConfig {
         return this.getConfig().commit;
-    }
-
-    /**
-     * 获取适合模型的最大token数量
-     * 考虑模型限制和用户配置
-     */
-    static getMaxTokensForModel(modelMaxTokens: number): number {
-        const configMaxTokens = this.getMaxTokens();
-        return Math.min(modelMaxTokens, configMaxTokens);
-    }
-
-    /**
-     * 验证最大token数量
-     */
-    private static validateMaxTokens(value: number): number {
-        if (isNaN(value) || value < 32 || value > 256000) {
-            Logger.warn(`Invalid maxTokens value: ${value}; using default 32000`);
-            return 32000;
-        }
-        return Math.floor(value);
     }
 
     /**

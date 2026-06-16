@@ -546,7 +546,7 @@ export class GeminiHandler {
         }
 
         let generationConfig: GeminiGenerationConfig = {
-            maxOutputTokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens)
+            maxOutputTokens: model.maxOutputTokens
         };
 
         // extraBody：不再合并到 request body 顶层，而是合并到 generationConfig。

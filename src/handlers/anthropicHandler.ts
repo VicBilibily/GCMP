@@ -208,7 +208,7 @@ export class AnthropicHandler {
 
             const createParams: Anthropic.MessageCreateParamsStreaming = {
                 model: modelId,
-                max_tokens: ConfigManager.getMaxTokensForModel(model.maxOutputTokens),
+                max_tokens: model.maxOutputTokens,
                 messages: anthropicMessages,
                 stream: true
             };
