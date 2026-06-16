@@ -79,8 +79,8 @@ export function createLanguageModelChatInformation(
         maxInputTokens: model.maxInputTokens,
         maxOutputTokens: model.maxOutputTokens,
         version: model.id,
-        category: { label: options.providerDisplayName, order: 3 },
         capabilities: model.capabilities,
+        isBYOK: true,
         isUserSelectable: true,
         configurationSchema: Object.keys(properties).length > 0 ? { properties } : undefined
     };

@@ -393,10 +393,7 @@ export class ModelEditor {
             };
         }
 
-        if (
-            normalizedModelsEndpoint.startsWith('http://')
-            || normalizedModelsEndpoint.startsWith('https://')
-        ) {
+        if (normalizedModelsEndpoint.startsWith('http://') || normalizedModelsEndpoint.startsWith('https://')) {
             try {
                 const modelsUrl = new URL(normalizedModelsEndpoint);
                 if (modelsUrl.protocol !== 'http:' && modelsUrl.protocol !== 'https:') {

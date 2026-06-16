@@ -457,6 +457,11 @@ declare module 'vscode' {
         constructor(value: string | MarkdownString);
     }
 
+    export class ChatResponseInfoPart {
+        value: MarkdownString;
+        constructor(value: string | MarkdownString);
+    }
+
     export class ChatResponseProgressPart2 extends ChatResponseProgressPart {
         value: string;
         task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>;
@@ -656,6 +661,15 @@ declare module 'vscode' {
          * @returns This stream.
          */
         warning(message: string | MarkdownString): void;
+
+        /**
+         * Push an info banner to this stream. Short-hand for
+         * `push(new ChatResponseInfoPart(message))`.
+         *
+         * @param message An informational message
+         * @returns This stream.
+         */
+        info(message: string | MarkdownString): void;
 
         reference(
             value: Uri | Location | { variableName: string; value?: Uri | Location },
@@ -1039,10 +1053,6 @@ declare module 'vscode' {
          * The list of tools were referenced in the value of the reference
          */
         readonly toolReferences?: readonly ChatLanguageModelToolReference[];
-    }
-
-    export interface ChatResultFeedback {
-        readonly unhelpfulReason?: string;
     }
 
     export namespace lm {

@@ -45,7 +45,7 @@
     "command.commit.generateMessageStaged": "Generate Commit Message - Staged Changes",
     "command.commit.generateMessageWorkingTree": "Generate Commit Message - Unstaged Changes",
     "command.commit.selectModel": "Select Commit Message Model",
-    "extension.description": "Extension that provides ZhipuAI, MiniMax, MoonshotAI, DeepSeek, DashScope, StreamLake, Volcengine, Tencent Cloud, Xiaomi MiMo, and Baidu Qianfan model support for GitHub Copilot Chat, plus custom OpenAI / Anthropic compatible models.",
+    "extension.description": "Extension that provides ZhipuAI, MiniMax, MoonshotAI, DeepSeek, DashScope, StreamLake, Volcengine, Tencent Cloud, Xiaomi MiMo, Baidu Qianfan, StepFun, and Ant Ling model support for GitHub Copilot Chat, plus custom OpenAI / Anthropic compatible models.",
     "setting.proxy.description": "Global proxy server URL for all API requests. Model-level and provider-level proxy settings take precedence over this. Credentials in the URL will be masked in logs. Protocol is optional for host:port values such as 127.0.0.1:7890. Use \"noproxy\" to bypass both configured and system proxies.",
     "setting.tls.useSystemCertificates.description": "Appends the operating system's trusted root certificates to Node.js' default CA list to reduce SSL verification failures behind enterprise proxies, internal gateways, or locally installed root CAs. Keeping this enabled is recommended.",
     "setting.maxTokens.description": "Controls the maximum number of tokens in AI model output. Larger values allow longer responses.",

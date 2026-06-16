@@ -6,7 +6,7 @@ English | **[中文](README.md)**
 [![License](https://img.shields.io/badge/License-MIT-orange)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
 Integrates leading Chinese AI model providers into GitHub Copilot Chat, giving developers richer, more locally-tuned AI coding assistant options.
-Currently supports **ZhipuAI**, **MiniMax**, **MoonshotAI**, **DeepSeek**, **Alibaba Cloud DashScope**, **StreamLake**, **Volcengine**, **Tencent Cloud**, **Xiaomi MiMo**, and **Baidu Qianfan** as native providers.
+Currently supports **ZhipuAI**, **MiniMax**, **MoonshotAI**, **DeepSeek**, **Alibaba Cloud DashScope**, **StreamLake**, **Volcengine**, **Tencent Cloud**, **Xiaomi MiMo**, **Baidu Qianfan**, **StepFun**, and **Ant Ling** as native providers.
 Additionally, the extension supports any OpenAI or Anthropic API-compatible models via the **Compatible Provider**.
 
 ## 🚀 Quick Start
@@ -109,6 +109,26 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 - [**Coding Plan**](https://cloud.baidu.com/product/codingplan): **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **GLM-5.1**, **DeepSeek-V3.2**, **GLM-5**, **Kimi-K2.5**, **MiniMax-M2.5**
 - **Key configuration**: Supports separate [Baidu Qianfan API Key](https://console.bce.baidu.com/qianfan/ais/console/apiKey) and [Coding Plan API Key](https://console.bce.baidu.com/qianfan/resource/subscribe).
 
+### [**StepFun**](https://platform.stepfun.com/) - 阶跃星辰
+
+StepFun open-source LLM series with Step Reasoning mode support.
+
+- [**Step Plan**](https://platform.stepfun.com/step-plan): **Step-2.5-Pro**, **Step-2.5-Flash**, **Step-3-Mini**
+- **PayGo**: **Step-3-Mini**, **Step-2.5-Pro**, **Step-2.5-Flash**, **Step-2-Video**
+- **Search**: Integrated `#stepfunWebSearch` MCP web search tool with category filtering.
+    - Step Plan subscriptions use MCP; non-subscription users use standard pay-per-request billing.
+
+### [**Ant Ling**](https://www.ant-ling.com/)
+
+Ant Group's open-source MoE-architecture LLM family, accessed via Anthropic mode.
+
+- **PayGo**: **Ling-2.6-1T** (flagship), **Ling-2.6-flash** (cost-effective), **Ring-2.6-1T** (deep reasoning)
+- [**Free quota**](https://developer.ant-ling.com/zh-CN/docs/models/price/): 500,000 free tokens per day (input + output shared).
+
+### CLI Coding Tool API Providers
+
+> The following providers are themselves AI coding CLI tools (similar to Claude Code) that expose API endpoints for third-party access to their aggregated model capabilities.
+
 ### [**OpenCode**](https://opencode.ai/)
 
 - [**Go**](https://opencode.ai/go?ref=2TEVV934MY): **GLM-5.1**, **GLM-5**, **Kimi-K2.6**, **Kimi-K2.5**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **MiniMax-M3**, **MiniMax-M2.7**, **MiniMax-M2.5**, **Qwen3.7-Plus**, **Qwen3.7-Max**, **Qwen3.6-Plus**, **Qwen3.5-Plus**, **MiMo-V2.5-Pro**, **MiMo-V2.5**
@@ -118,12 +138,9 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 
 - **Preset models**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **Qwen3.7-Max**, **Qwen3.6-Plus**, **Qwen3.6-Max**, **Qwen3.6-Flash**, **GLM-5.1**, **GLM-5**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.7**, **Gemma-4-26B-A4B**, **GPT-OSS-120B**
 
-### Experimental CLI Authentication Providers
+### OAuth Coding Assistant Providers
 
-> ⚠️ **Risk Warning**: The following CLI authentication methods simulate official CLI tool calls to access the corresponding APIs. **This may constitute a violation of third-party terms of service and carries the risk of account bans.** Use only if you are fully informed and voluntarily accept the risks.
-
-<details>
-<summary>Click to expand CLI authentication provider details</summary>
+> ⚠️ **Risk Warning**: The following providers access APIs by simulating OAuth authentication of official CLI tools. **This may violate third-party terms of service and carries the risk of account bans.** Use only if you are fully informed and voluntarily accept the risks.
 
 ### [**Codex CLI**](https://chatgpt.com/codex) - OpenAI Codex
 
@@ -149,8 +166,6 @@ irm https://x.ai/cli/install.ps1 | iex
 ```
 
 - **Supported models**: **Grok Build 0.1**, **Grok Composer 2.5 (fast)**
-
-</details>
 
 ## ⚙️ Advanced Configuration
 

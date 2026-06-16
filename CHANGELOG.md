@@ -2,6 +2,40 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.24.10] - 2026-06-16
+
+### 新增
+
+- **阶跃星辰（StepFun）提供商**：[#232](https://github.com/VicBilibily/GCMP/issues/232) 新增阶跃星辰开源大模型系列，内置 Step Reasoning 推理模式及 `#stepfunWebSearch` MCP 联网搜索工具
+- **Kimi K2.7 Code 高速模型**：MoonshotAI 新增 **Kimi K2.7 Code** 高速版本模型
+- **蚂蚁百灵（Ant Ling）提供商**：新增蚂蚁集团开源 MoE 架构大语言模型家族，采用 Anthropic 模式接入，预置 **Ling-2.6-1T**（旗舰）、**Ling-2.6-flash**（高性价比）、**Ring-2.6-1T**（深度推理）三个模型
+- **API 模型元数据更新**：跟进 VS Code API 变更，模型列表启用 `isBYOK` 标识，移除已废弃的 `category` 字段
+
+### 修复
+
+- **OpenCode SSE 流式模式**：为 OpenCode 的 SSE 请求添加请求级跟踪标识头
+
+### 移除
+
+- **Gemini CLI 提供商**：移除基于 CLI 认证的 Gemini 提供商支持
+
+---
+
+### Added
+
+- **StepFun provider**: [#232](https://github.com/VicBilibily/GCMP/issues/232) Added StepFun (阶跃星辰) open-source LLM series with built-in Step Reasoning mode and `#stepfunWebSearch` MCP web search tool
+- **Kimi K2.7 Code HighSpeed model**: MoonshotAI added **Kimi K2.7 Code** high-speed model
+- **Ant Ling provider**: Added Ant Group's open-source MoE-architecture LLM family via Anthropic mode, with **Ling-2.6-1T** (flagship), **Ling-2.6-flash** (cost-effective), and **Ring-2.6-1T** (deep reasoning) models
+- **API model metadata update**: Followed VS Code API changes, enabled `isBYOK` flag on model list, removed deprecated `category` field
+
+### Fixed
+
+- **OpenCode SSE streaming**: Added request-level tracing headers for OpenCode SSE requests
+
+### Removed
+
+- **Gemini CLI provider**: Removed CLI-based auth Gemini provider support
+
 ## [0.24.9] - 2026-06-14
 
 ### 新增

@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// https://github.com/microsoft/vscode/issues/166971
-
 declare module 'vscode' {
-    export namespace workspace {
-        export function registerFileSystemProvider(
-            scheme: string,
-            provider: FileSystemProvider,
-            options?: { readonly isCaseSensitive?: boolean; readonly isReadonly?: boolean | MarkdownString }
-        ): Disposable;
+    export interface CodeAction {
+        /**
+         * The ranges to which this Code Action applies to, which will be highlighted.
+         * For example: A refactoring action will highlight the range of text that will be affected.
+         */
+        ranges?: Range[];
     }
 }

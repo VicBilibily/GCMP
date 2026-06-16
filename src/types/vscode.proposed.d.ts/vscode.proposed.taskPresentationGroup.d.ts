@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
-    export interface ChatPromptReference {
+    // https://github.com/microsoft/vscode/issues/47265
+
+    export interface TaskPresentationOptions {
         /**
-         * When true, the user has indicated at the reference is informational only.
-         * The model should avoid changing or suggesting changes to the reference.
+         * Controls whether the task is executed in a specific terminal group using split panes.
          */
-        readonly isReadonly?: boolean;
+        group?: string;
     }
 }

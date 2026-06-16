@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/License-MIT-orange)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
 通过集成国内主流原生大模型提供商，为开发者提供更加丰富、更适合本土需求的 AI 编程助手选择。
-目前已内置支持 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云、Xiaomi MiMo、百度千帆 等**原生大模型**提供商。
+目前已内置支持 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云、Xiaomi MiMo、百度千帆、阶跃星辰、蚂蚁百灵 等**原生大模型**提供商。
 此外，扩展插件已适配支持 OpenAI 与 Anthropic 的 API 接口兼容模型，支持自定义接入任何提供兼容接口的第三方**云服务模型**。
 
 ## 🚀 快速开始
@@ -109,6 +109,26 @@
 - [**Coding Plan 编程套餐**](https://cloud.baidu.com/product/codingplan)：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**GLM-5.1**、**DeepSeek-V3.2**、**GLM-5**、**Kimi-K2.5**、**MiniMax-M2.5**
 - **密钥配置**：支持设置 [百度千帆 API Key](https://console.bce.baidu.com/qianfan/ais/console/apiKey) 与 [Coding Plan 专用 API Key](https://console.bce.baidu.com/qianfan/resource/subscribe) 分别设置。
 
+### [**阶跃星辰**](https://platform.stepfun.com/) - StepFun
+
+阶跃星辰开源大模型系列，支持 Step Reasoning 推理模式。
+
+- [**Step Plan 套餐**](https://platform.stepfun.com/step-plan)：**Step-2.5-Pro**、**Step-2.5-Flash**、**Step-3-Mini**
+- **按量计费(PayGo)**：**Step-3-Mini**、**Step-2.5-Pro**、**Step-2.5-Flash**、**Step-2-Video**
+- **搜索功能**：集成 `#stepfunWebSearch` MCP 联网搜索工具，支持 category 参数过滤。
+    - Step Plan 套餐可使用 MCP 调用，非订阅套餐使用标准按次计费接口。
+
+### [**蚂蚁百灵**](https://www.ant-ling.com/) - Ant Ling
+
+蚂蚁集团开源的 MoE 架构大语言模型家族，采用 Anthropic 模式接入。
+
+- **预置模型(PayGo)**：**Ling-2.6-1T**、**Ling-2.6-flash**、**Ring-2.6-1T**
+- [**免费额度**](https://developer.ant-ling.com/zh-CN/docs/models/price/)：每日赠送 50 万免费 token（输入输出共享）。
+
+### CLI 编程工具 API 提供商
+
+> 以下提供商本身是开源或商业的 AI 编程 CLI 工具（类似 Claude Code），开放了 API 接口供第三方调用其聚合的模型能力。
+
 ### [**OpenCode**](https://opencode.ai/)
 
 - [**Go**](https://opencode.ai/go?ref=2TEVV934MY)：**GLM-5.1**、**GLM-5**、**Kimi-K2.6**、**Kimi-K2.5**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**、**MiniMax-M3**、**MiniMax-M2.7**、**MiniMax-M2.5**、**Qwen3.7-Plus**、**Qwen3.7-Max**、**Qwen3.6-Plus**、**Qwen3.5-Plus**、**MiMo-V2.5-Pro**、**MiMo-V2.5**
@@ -118,12 +138,9 @@
 
 - **预置模型**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**Qwen3.7-Max**、**Qwen3.6-Plus**、**Qwen3.6-Max**、**Qwen3.6-Flash**、**GLM-5.1**、**GLM-5**、**Kimi-K2.6**、**Kimi-K2.5**、**MiniMax-M2.7**、**Gemma-4-26B-A4B**、**GPT-OSS-120B**
 
-### 实验性支持 CLI 认证提供商
+### OAuth 认证编程助手提供商
 
-> ⚠️ **风险警告**：以下 CLI 认证方式通过模拟官方 CLI 工具的调用方式来实现对应的 API 访问，**可能涉嫌滥用第三方服务条款，存在被官方检测封禁账号的风险**。请仅在确保知情并自愿承担风险的前提下使用。
-
-<details>
-<summary>展开查看 CLI 认证支持提供商说明</summary>
+> ⚠️ **风险警告**：以下提供商通过模拟官方 CLI 工具的 OAuth 身份验证方式来实现对应的 API 访问，**可能涉嫌滥用第三方服务条款，存在被官方检测封禁账号的风险**。请仅在确保知情并自愿承担风险的前提下使用。
 
 ### [**Codex CLI**](https://chatgpt.com/codex) - OpenAI Codex
 
@@ -149,8 +166,6 @@ irm https://x.ai/cli/install.ps1 | iex
 ```
 
 - **支持模型**：**Grok Build 0.1**、**Grok Composer 2.5 (fast)**
-
-</details>
 
 ## ⚙️ 高级配置
 
