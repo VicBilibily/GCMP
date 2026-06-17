@@ -2,6 +2,22 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.24.11] - 2026-06-17
+
+### 新增
+
+- **智谱AI GLM-5.2 (PayGo)**：新增 **GLM-5.2** 按量计费模型——支持 1M 上下文窗口，三级推理强度控制（`high`/`max`/`none`），最大输出 128K tokens
+- **火山方舟 GLM-5.2**：Coding Plan 和 Agent Plan 新增 **GLM-5.2** 模型
+- **腾讯云 TokenHub 模型扩展**：TokenHub 新增 **GLM-5.2** 和 **Kimi-K2.7-Code** 模型
+
+---
+
+### Added
+
+- **ZhipuAI GLM-5.2 (PayGo)**: Added **GLM-5.2** pay-as-you-go model — 1M context window, three-tier reasoning effort control (`high`/`max`/`none`), max 128K output tokens
+- **Volcengine GLM-5.2**: Added **GLM-5.2** to Coding Plan and Agent Plan
+- **Tencent TokenHub model expansion**: Added **GLM-5.2** and **Kimi-K2.7-Code** to TokenHub
+
 ## [0.24.10] - 2026-06-16
 
 ### 新增

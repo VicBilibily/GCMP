@@ -8,7 +8,7 @@
             "name": "GLM-5.2 (CodingPlan)",
             "sdkMode": "anthropic",
             "baseUrl": "https://open.bigmodel.cn/api/anthropic",
-            "tooltip": "GLM-5.2 对标 Claude 的 Opus 级模型，复杂推理、大型工程任务等高难度场景再切换至 GLM-5.2 通过合理搭配不同模型能力层级，可以在保证效果的同时，更高效地控制额度消耗。",
+            "tooltip": "GLM-5.2 是面向长任务时代的旗舰模型。支持真正可用的 1M 上下文，实测可承载项目级工程上下文，长程任务执行更稳定、工程规范遵循更可靠，开发场景成功率进一步提升。一次任务即可完成“从需求到多端可部署产物”的完整开发链路。",
             "contextSize": [1000000, 600000, 400000, 200000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
@@ -108,6 +108,18 @@
             "maxInputTokens": 128000,
             "maxOutputTokens": 96000,
             "thinking": ["disabled", "enabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "glm-5.2-billing",
+            "model": "glm-5.2",
+            "name": "GLM-5.2 (PayGo)",
+            "tooltip": "GLM-5.2 是面向长任务时代的旗舰模型。支持真正可用的 1M 上下文，实测可承载项目级工程上下文，长程任务执行更稳定、工程规范遵循更可靠，开发场景成功率进一步提升。一次任务即可完成“从需求到多端可部署产物”的完整开发链路。",
+            "contextSize": [1000000, 600000, 400000, 200000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 128000,
+            "reasoningEffort": ["high", "max", "none"],
+            "thinkingFormat": "object-none",
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {

@@ -77,6 +77,19 @@
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
+            "id": "ark-code-glm-5.2",
+            "name": "GLM-5.2 (CodingPlan)",
+            "model": "glm-5.2",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。智谱最新旗舰模型，支持 1M 上下文窗口，长程任务效果表现突出，多项权威评测榜单成绩稳居前列。",
+            "contextSize": [1000000, 600000, 400000, 200000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 128000,
+            "reasoningEffort": ["high", "max", "none"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
             "id": "ark-code-glm-5.1",
             "name": "GLM-5.1 (CodingPlan)",
             "model": "glm-5.1",
@@ -223,6 +236,20 @@
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
+            "id": "ark-plan-glm-5.2",
+            "name": "GLM-5.2 (AgentPlan)",
+            "model": "glm-5.2",
+            "provider": "volcengine-agent",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
+            "tooltip": "Agent Plan 模型。智谱最新旗舰模型，支持 1M 上下文窗口，长程任务效果表现突出，多项权威评测榜单成绩稳居前列。",
+            "contextSize": [1000000, 600000, 400000, 200000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 128000,
+            "reasoningEffort": ["high", "max", "none"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "ark-plan-glm-5.1",

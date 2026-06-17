@@ -227,6 +227,20 @@
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
+            "id": "glm-5.2-tokenhub",
+            "name": "GLM-5.2 (TokenHub)",
+            "tooltip": "腾讯云 TokenHub 按量付费中的 GLM-5.2。",
+            "provider": "tencent-tokenhub",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://tokenhub.tencentmaas.com",
+            "model": "glm-5.2",
+            "contextSize": [1000000, 600000, 400000, 200000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 128000,
+            "reasoningEffort": ["high", "max", "none"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
             "id": "glm-5.1-tokenhub",
             "name": "GLM-5.1 (TokenHub)",
             "tooltip": "腾讯云 TokenHub 按量付费中的 GLM-5.1。",
@@ -316,6 +330,19 @@
             "maxOutputTokens": 32000,
             "thinking": ["disabled", "enabled"],
             "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "kimi-k2.7-code-tokenhub",
+            "name": "Kimi-K2.7-Code (TokenHub)",
+            "tooltip": "腾讯云 TokenHub 按量付费中的 Kimi K2.7 Code。",
+            "provider": "tencent-tokenhub",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://tokenhub.tencentmaas.com",
+            "model": "kimi-k2.7-code",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 256000,
+            "extraBody": { "thinking": { "type": "enabled" } },
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "kimi-k2.6-tokenhub",
