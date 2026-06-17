@@ -16,6 +16,7 @@ import codex from './codex.json';
 import grok from './grok.json';
 import opencode from './opencode.json';
 import hyper from './hyper.json';
+import claude from './claude.json';
 
 const providers = {
     zhipu,
@@ -33,7 +34,8 @@ const providers = {
     codex,
     grok,
     opencode,
-    hyper
+    hyper,
+    claude
 };
 
 export type ProviderName = keyof typeof providers;

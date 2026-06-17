@@ -1,0 +1,43 @@
+﻿{
+    "displayName": "Claude Code CLI",
+    "baseUrl": "",
+    "apiKeyTemplate": "",
+    "models": [
+        {
+            "id": "claude-sonnet-4-20250514",
+            "name": "Claude Sonnet 4",
+            "tooltip": "Claude 最新 Sonnet 模型，通过本地 Claude Code CLI 访问。需要 Claude Pro/Max 订阅。",
+            "sdkMode": "openai",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "claude-opus-4-20250514",
+            "name": "Claude Opus 4",
+            "tooltip": "Claude 最新 Opus 模型，通过本地 Claude Code CLI 访问。需要 Claude Max 订阅。",
+            "sdkMode": "openai",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        },
+        {
+            "id": "claude-sonnet-4-6",
+            "name": "Claude Sonnet 4.6",
+            "tooltip": "Claude Sonnet 4.6 模型，通过本地 Claude Code CLI 访问。",
+            "sdkMode": "openai",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 8192,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
+        }
+    ]
+}

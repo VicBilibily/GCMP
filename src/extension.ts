@@ -10,6 +10,7 @@ import { XiaomimimoProvider } from './providers/xiaomimimoProvider';
 import { BaiduProvider } from './providers/baiduProvider';
 import { VolcengineProvider } from './providers/volcengineProvider';
 import { StepFunProvider } from './providers/stepfunProvider';
+import { ClaudeProvider } from './providers/claudeProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
 import { InlineCompletionShim } from './copilot/inlineCompletionShim';
 import { Logger, StatusLogger, CompletionLogger, TokenCounter } from './utils';
@@ -71,7 +72,8 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
                 | TencentProvider
                 | XiaomimimoProvider
                 | BaiduProvider
-                | VolcengineProvider;
+                | VolcengineProvider
+                | ClaudeProvider;
             let disposables: vscode.Disposable[];
 
             if (providerKey === 'zhipu') {
@@ -117,6 +119,11 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
             } else if (providerKey === 'stepfun') {
                 // 对阶跃星辰 StepFun 使用专门的 provider（配置向导功能）
                 const result = StepFunProvider.createAndActivate(context, providerKey, providerConfig);
+                provider = result.provider;
+                disposables = result.disposables;
+            } else if (providerKey === 'claude') {
+                // 对 Claude Code CLI 使用子进程 Provider
+                const result = ClaudeProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
             } else if (cliAuthProviders.includes(providerKey)) {

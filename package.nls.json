@@ -35,6 +35,7 @@
     "command.antling.setApiKey": "Set AntLing API Key",
     "command.codex.configWizard": "Codex CLI Configuration Wizard (CLI Auth)",
     "command.grok.configWizard": "Grok Build Configuration Wizard (CLI Auth)",
+    "command.claude.configWizard": "Claude Code CLI Configuration Wizard (CLI Auth)",
     "command.opencode.setApiKey": "Set OpenCode API Key",
     "command.hyper.setApiKey": "Set Charm Hyper API Key",
     "command.compatible.manageModels": "Compatible Provider Settings",

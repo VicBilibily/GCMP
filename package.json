@@ -79,6 +79,7 @@
         "onLanguageModelProvider:gcmp.antling",
         "onLanguageModelProvider:gcmp.codex",
         "onLanguageModelProvider:gcmp.grok",
+        "onLanguageModelProvider:gcmp.claude",
         "onLanguageModelProvider:gcmp.opencode",
         "onLanguageModelProvider:gcmp.hyper",
         "onLanguageModelProvider:gcmp.compatible",
@@ -279,6 +280,11 @@
             {
                 "command": "gcmp.grok.configWizard",
                 "title": "%command.grok.configWizard%",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.claude.configWizard",
+                "title": "%command.claude.configWizard%",
                 "category": "GCMP"
             },
             {
@@ -827,6 +833,11 @@
                 "vendor": "gcmp.grok",
                 "displayName": "GCMP · Grok Build",
                 "managementCommand": "gcmp.grok.configWizard"
+            },
+            {
+                "vendor": "gcmp.claude",
+                "displayName": "GCMP · Claude Code CLI",
+                "managementCommand": "gcmp.claude.configWizard"
             },
             {
                 "vendor": "gcmp.compatible",

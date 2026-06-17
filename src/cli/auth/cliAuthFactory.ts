@@ -6,6 +6,7 @@
 import { BaseCliAuth } from './baseCliAuth';
 import { CodexCliAuth } from './codexCliAuth';
 import { GrokCliAuth } from './grokCliAuth';
+import { ClaudeCliAuth } from './claudeCliAuth';
 import { Logger } from '../../utils/logger';
 import { OAuthCredentials } from '../type';
 
@@ -32,6 +33,9 @@ export class CliAuthFactory {
                 break;
             case 'grok':
                 instance = new GrokCliAuth();
+                break;
+            case 'claude':
+                instance = new ClaudeCliAuth();
                 break;
             default:
                 Logger.warn(`[CliAuthFactory] Unknown CLI type: ${cliType}`);
@@ -110,7 +114,8 @@ export class CliAuthFactory {
     static getSupportedCliTypes(): Array<{ id: string; name: string }> {
         return [
             { id: 'codex', name: 'Codex CLI' },
-            { id: 'grok', name: 'Grok Build' }
+            { id: 'grok', name: 'Grok Build' },
+            { id: 'claude', name: 'Claude Code CLI' }
         ];
     }
 }

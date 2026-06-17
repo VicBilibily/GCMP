@@ -35,6 +35,7 @@
     "command.antling.setApiKey": "设置 AntLing (百灵) API 密钥",
     "command.codex.configWizard": "Codex CLI 配置向导（CLI 认证）",
     "command.grok.configWizard": "Grok Build 配置向导（CLI 认证）",
+    "command.claude.configWizard": "Claude Code CLI 配置向导（CLI 认证）",
     "command.opencode.setApiKey": "设置 OpenCode API 密钥",
     "command.hyper.setApiKey": "设置 Charm Hyper API 密钥",
     "command.compatible.manageModels": "Compatible Provider 设置",
