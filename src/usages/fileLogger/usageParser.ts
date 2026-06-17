@@ -115,20 +115,39 @@ export class UsageParser {
 
         // 尝试解析 OpenAI 格式
         if (rawUsage.prompt_tokens !== undefined) {
-            const promptTokens = rawUsage.prompt_tokens || 0;
-            const completionTokens = rawUsage.completion_tokens || 0;
-            const cachedTokens = rawUsage.prompt_tokens_details?.cached_tokens || 0;
+            const promptTokens = typeof rawUsage.prompt_tokens === 'number' ? rawUsage.prompt_tokens : 0;
+            const completionTokens = typeof rawUsage.completion_tokens === 'number' ? rawUsage.completion_tokens : 0;
+            const totalTokens = typeof rawUsage.total_tokens === 'number' ? rawUsage.total_tokens : 0;
 
-            // OpenAI: prompt_tokens 包含所有输入，cached_tokens 是其中的缓存命中部分
-            // 未命中缓存的输入会被写入缓存（如果启用了缓存功能）
-            const cacheCreationTokens = promptTokens - cachedTokens;
+            const rawCachedTokens =
+                typeof rawUsage.prompt_tokens_details?.cached_tokens === 'number'
+                    ? rawUsage.prompt_tokens_details.cached_tokens
+                    : 0;
+
+            // 标准 OpenAI 口径：prompt_tokens 通常已包含 cached_tokens。
+            // 部分 OpenAI-compatible 网关（例如 Hyper）可能将 prompt_tokens 仅作为新增/未缓存输入，
+            // 而 total_tokens 仍包含缓存输入。因此 total_tokens - completion_tokens 只能作为补充候选值。
+            const inputFromTotal =
+                totalTokens > 0 && totalTokens >= completionTokens ? totalTokens - completionTokens : 0;
+
+            const actualInput = Math.max(promptTokens, inputFromTotal);
+
+            // 防御异常数据：禁止缓存读取 token 为负数或超过实际输入。
+            const cacheReadTokens = Math.min(Math.max(0, rawCachedTokens), actualInput);
+
+            // OpenAI-compatible usage 没有 Anthropic 风格的 cache_creation_input_tokens 字段。
+            // 这里将未缓存输入作为兼容展示值，主要避免出现负数缓存统计。
+            const cacheCreationTokens = Math.max(0, actualInput - cacheReadTokens);
+
+            const calculatedTotalTokens = actualInput + completionTokens;
+            const finalTotalTokens = Math.max(totalTokens, calculatedTotalTokens);
 
             return {
-                actualInput: promptTokens,
-                cacheReadTokens: cachedTokens,
-                cacheCreationTokens,
+                actualInput,
                 outputTokens: completionTokens,
-                totalTokens: rawUsage.total_tokens || 0 || promptTokens + completionTokens
+                totalTokens: finalTotalTokens,
+                cacheCreationTokens,
+                cacheReadTokens
             };
         }
 
