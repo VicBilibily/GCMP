@@ -64,7 +64,7 @@
 - [**Coding Plan**](https://www.aliyun.com/benefit/scene/codingplan)
     - 推荐模型：**Qwen3.6-Plus**、**Kimi-K2.5**、**GLM-5**、**MiniMax-M2.5**
     - 更多模型：**Qwen3.5-Plus**、**Qwen3-Max**、**Qwen3-Coder-Next**、**Qwen3-Coder-Plus**、**GLM-4.7**
-- [**Token Plan**](https://www.aliyun.com/benefit/scene/tokenplan)：**Qwen3.7-Max**、**Qwen3.6-Plus**、**Qwen3.6-Flash**、**GLM-5.1**、**GLM-5**、**Kimi-K2.6**、**Kimi-K2.5**、**MiniMax-M2.5**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**、**DeepSeek-V3.2**
+- [**Token Plan**](https://www.aliyun.com/benefit/scene/tokenplan)：**Qwen3.7-Max**、**Qwen3.6-Plus**、**Qwen3.6-Flash**、**GLM-5.2**、**GLM-5.1**、**GLM-5**、**Kimi-K2.6**、**Kimi-K2.5**、**MiniMax-M2.5**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**、**DeepSeek-V3.2**
 - **通义千问系列**：**Qwen3.7-Plus**、**Qwen3.7-Max**、**Qwen3.6-Max**、**Qwen3.6-Plus**、**Qwen3.6-Flash**、**Qwen3.5-Plus**、**Qwen3.5-Flash**
 - **DeepSeek-V4**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**
 - **搜索功能**：集成 [联网搜索MCP](https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=3023217) 工具（2000次/月），支持通过 `#bailianWebSearch` 进行联网搜索。（使用[阿里云百炼ApiKey](https://bailian.console.aliyun.com/cn-beijing/?tab=model#/api-key)而非编程套餐的ApiKey）
@@ -131,7 +131,7 @@
 
 ### [**OpenCode**](https://opencode.ai/)
 
-- [**Go**](https://opencode.ai/go?ref=2TEVV934MY)：**GLM-5.1**、**GLM-5**、**Kimi-K2.6**、**Kimi-K2.5**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**、**MiniMax-M3**、**MiniMax-M2.7**、**MiniMax-M2.5**、**Qwen3.7-Plus**、**Qwen3.7-Max**、**Qwen3.6-Plus**、**Qwen3.5-Plus**、**MiMo-V2.5-Pro**、**MiMo-V2.5**
+- [**Go**](https://opencode.ai/go?ref=2TEVV934MY)：**GLM-5.2**、**GLM-5.1**、**GLM-5**、**Kimi-K2.6**、**Kimi-K2.5**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**、**MiniMax-M3**、**MiniMax-M2.7**、**MiniMax-M2.5**、**Qwen3.7-Plus**、**Qwen3.7-Max**、**Qwen3.6-Plus**、**Qwen3.5-Plus**、**MiMo-V2.5-Pro**、**MiMo-V2.5**
 - **Zen**：**DeepSeek-V4-Flash**、**GLM-5.1**、**GLM-5**、**Kimi-K2.6**、**Kimi-K2.5**、**MiniMax-M2.7**、**MiniMax-M2.5**、**Qwen3.6-Plus**、**Qwen3.5-Plus**、**Grok-Build-0.1**
 
 ### [**Hyper**](https://hyper.charm.land/) - Charm Hyper

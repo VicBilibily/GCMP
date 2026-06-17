@@ -4,6 +4,20 @@
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "glm-5.2-go",
+            "name": "GLM-5.2 (Go)",
+            "model": "glm-5.2",
+            "sdkMode": "openai-sse",
+            "baseUrl": "https://opencode.ai/zen/go/v1",
+            "tooltip": "OpenCode Go 套餐 - 智谱 GLM-5.2 是面向长任务时代的旗舰模型，支持真正可用的 1M 上下文。",
+            "contextSize": [1000000, 600000, 400000, 200000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 128000,
+            "reasoningEffort": ["high", "max", "none"],
+            "thinkingFormat": "object-none",
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
             "id": "glm-5.1-go",
             "name": "GLM-5.1 (Go)",
             "model": "glm-5.1",

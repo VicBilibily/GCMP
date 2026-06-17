@@ -204,6 +204,20 @@
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
+            "id": "glm-5.2-token-plan",
+            "name": "GLM-5.2 (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "glm-5.2",
+            "contextSize": [1000000, 600000, 400000, 200000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 128000,
+            "reasoningEffort": ["high", "max", "none"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
             "id": "glm-5.1-token-plan",
             "name": "GLM-5.1 (TokenPlan)",
             "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",

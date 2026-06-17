@@ -2,7 +2,21 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
-## [0.24.11] - 2026-06-17
+## [0.24.13] - 2026-06-17
+
+### 新增
+
+- **阿里云百炼 GLM-5.2 (TokenPlan)**：Token Plan 团队版新增 **GLM-5.2** 模型
+- **OpenCode GLM-5.2 (Go)**：OpenCode Go 套餐新增 **GLM-5.2** 模型
+
+---
+
+### Added
+
+- **DashScope GLM-5.2 (TokenPlan)**: Added **GLM-5.2** model to Token Plan team edition
+- **OpenCode GLM-5.2 (Go)**: Added **GLM-5.2** model to OpenCode Go plan
+
+## [0.24.12] - 2026-06-17
 
 ### 新增
 
