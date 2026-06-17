@@ -1,4 +1,4 @@
-﻿/**
+/**
  * UsagesView 样式
  * Token 用量详细视图样式
  * 保持原有样式模式
@@ -555,29 +555,41 @@ body {
             min-width: 140px;
         }
 
-        /* 第3-6列（输入、缓存、输出、消耗）数值列固定宽度 */
-        th:nth-child(n + 3):nth-child(-n + 6),
-        td:nth-child(n + 3):nth-child(-n + 6) {
+        /* 第3列（合并输入+缓存） */
+        th:nth-child(3),
+        td:nth-child(3) {
+            width: 95px;
+            span + span {
+                margin-left: 5px;
+                text-align: right;
+            }
+        }
+
+        /* 第4-5列（输出、消耗）数值列固定宽度 */
+        th:nth-child(n + 4):nth-child(-n + 5),
+        td:nth-child(n + 4):nth-child(-n + 5) {
             width: 55px;
         }
 
-        /* 第7列（首Token延迟）特殊宽度 */
-        th:nth-child(7),
-        td:nth-child(7) {
+        /* 第6列（首Token延迟）特殊宽度 */
+        th:nth-child(6),
+        td:nth-child(6) {
             width: 110px;
         }
 
-        /* 第8列（输出速度）特殊宽度 */
-        th:nth-child(8),
-        td:nth-child(8) {
+        /* 第7列（输出速度）特殊宽度 */
+        th:nth-child(7),
+        td:nth-child(7) {
             width: 55px;
         }
 
-        /* 第7-8列文本宽度 */
-        th:nth-child(n + 7):nth-child(-n + 8) span,
-        td:nth-child(n + 7):nth-child(-n + 8) span {
+        /* 第3、6-7列 span 宽度 */
+        th:nth-child(3) span,
+        td:nth-child(3) span,
+        th:nth-child(n + 6):nth-child(-n + 7) span,
+        td:nth-child(n + 6):nth-child(-n + 7) span {
             display: inline-block;
-            width: 4em;
+            width: 45px;
         }
 
         /* 最后末尾（状态）固定宽度 */
@@ -594,10 +606,6 @@ body {
         td {
             border-top: 2px solid var(--vscode-editor-selectionForeground);
         }
-    }
-
-    .records-total-label {
-        text-align: left !important;
     }
 
     .records-total-number {
@@ -709,13 +717,66 @@ body {
             }
         }
 
-        /* 第3-8列（输入、缓存、输出、消耗、首Token、速度）右对齐 */
-        &:nth-child(n + 3):nth-child(-n + 8) {
+        /* 第3列（合并输入+缓存）两行布局，整行控制 margin 偏移保持单行高度 */
+        &:nth-child(3) {
+            text-align: right;
+            line-height: 1;
+            padding: 1px 3px;
+
+            div > span,
+            > span:first-child {
+                text-align: left;
+            }
+
+            .input-row {
+                display: block;
+                margin-top: -8px;
+                padding: 0;
+                padding-bottom: 1px;
+
+                .cache-ratio {
+                    font-size: 0.75em;
+
+                    &-high {
+                        color: var(--vscode-charts-green);
+                    }
+                    &-mid {
+                        color: var(--vscode-charts-orange);
+                    }
+                    &-low {
+                        color: var(--vscode-descriptionForeground);
+                    }
+                    &-none {
+                        color: var(--vscode-errorForeground);
+                    }
+                }
+                .input-total {
+                    font-size: 0.9em;
+                }
+            }
+
+            .input-detail {
+                display: block;
+                padding: 0;
+                margin-top: -3px;
+                margin-bottom: -0.6em;
+
+                .cache-amount {
+                    font-size: 0.9em;
+                }
+                .input-miss {
+                    font-size: 0.75em;
+                }
+            }
+        }
+
+        /* 第3-7列数值右对齐（第3列输入另起左对齐） */
+        &:nth-child(n + 4):nth-child(-n + 7) {
             text-align: right;
         }
 
-        /* 第9列（状态）居中对齐 */
-        &:nth-child(9) {
+        /* 第8列（状态）居中对齐 */
+        &:last-child {
             text-align: center;
         }
     }

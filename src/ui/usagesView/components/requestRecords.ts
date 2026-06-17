@@ -291,19 +291,28 @@ function appendTotalsRow(tbody: HTMLElement, summaryRecords: ExtendedTokenReques
     const totals = buildRequestTotals(summaryRecords);
     const row = createElement('tr', 'records-total-row');
 
-    const labelCell = createElement('td', 'records-total-label') as HTMLTableCellElement;
-    labelCell.colSpan = 2;
+    const labelCell = createElement('td', 'records-total-empty');
+    const emptyCell = createElement('td', 'records-total-empty');
 
-    const inputCell = createElement('td', 'records-total-number');
-    inputCell.textContent = formatTokens(totals.inputTokens);
-    if (totals.inputTokens > 0) {
-        inputCell.title = totals.inputTokens.toLocaleString('en-US');
+    const inputCell = createElement('td');
+    const totalInputTokens = totals.inputTokens;
+    if (totals.cacheTokens > 0 && totalInputTokens > 0) {
+        const ratio = ((totals.cacheTokens / totalInputTokens) * 100).toFixed(1);
+        const miss = totalInputTokens - totals.cacheTokens;
+        const ratioNum = parseFloat(ratio);
+        const ratioClass =
+            ratioNum >= 90 ? 'cache-ratio-high'
+            : ratioNum >= 80 ? 'cache-ratio-mid'
+            : ratioNum >= 60 ? 'cache-ratio-low'
+            : 'cache-ratio-none';
+        inputCell.innerHTML =
+            `<div class="input-row"><span class="cache-ratio ${ratioClass}">${ratio}%</span><span class="input-total">${formatTokens(totalInputTokens)}</span></div>` +
+            `<div class="input-detail"><span class="cache-amount">${formatTokens(totals.cacheTokens)}</span><span class="input-miss" title="${miss.toLocaleString('en-US')} miss">${formatTokens(miss)}</span></div>`;
+    } else {
+        inputCell.textContent = formatTokens(totalInputTokens);
     }
-
-    const cacheCell = createElement('td', 'records-total-number');
-    cacheCell.textContent = formatTokens(totals.cacheTokens);
-    if (totals.cacheTokens > 0) {
-        cacheCell.title = totals.cacheTokens.toLocaleString('en-US');
+    if (totalInputTokens > 0) {
+        inputCell.title = totalInputTokens.toLocaleString('en-US');
     }
 
     const outputCell = createElement('td', 'records-total-number');
@@ -330,7 +339,7 @@ function appendTotalsRow(tbody: HTMLElement, summaryRecords: ExtendedTokenReques
 
     const statusCell = createElement('td', 'records-total-empty');
 
-    row.append(labelCell, inputCell, cacheCell, outputCell, totalCell, latencyCell, speedCell, statusCell);
+    row.append(labelCell, emptyCell, inputCell, outputCell, totalCell, latencyCell, speedCell, statusCell);
     tbody.appendChild(row);
 }
 
@@ -347,8 +356,7 @@ function createRequestRecordsTable(
     const headers = [
         t('Time', '时间'),
         t('Provider & Model', '提供商模型'),
-        t('Input', '输入令牌'),
-        t('Cache', '缓存命中'),
+        t('<span>Cache</span><span>Input</span>', '<span>缓存命中</span><span>输入总计</span>'),
         t('Output', '输出令牌'),
         t('Tokens', '消耗令牌'),
         t('<span>TTFT</span> + <span>TPOT</span>', '首令延迟 + 输出耗时'),
@@ -367,7 +375,7 @@ function createRequestRecordsTable(
     const tbody = createElement('tbody');
     if (records.length === 0) {
         const emptyRow = createElement('tr');
-        const emptyCell = createElement('td', '', { colSpan: 9 });
+        const emptyCell = createElement('td', '', { colSpan: 8 });
         emptyCell.textContent = t('No request records yet', '暂无请求记录');
         emptyCell.style.textAlign = 'center';
         emptyRow.appendChild(emptyCell);
@@ -395,26 +403,29 @@ function createRequestRecordsTable(
         providerModel.title = `${provName} · ${modName}`;
         providerModel.innerHTML = `<div class="prov-model-provider">${provName}</div><div class="prov-model-model">${modName}</div>`;
 
-        const input = createElement('td');
+        const input = createElement('td', 'records-input-merged');
         const inputVal =
             record.status === 'completed' && record.rawUsage && record.totalTokens > 0 ? record.actualInput
             : record.estimatedInput && record.estimatedInput > 0 ? record.estimatedInput
             : 0;
-        input.textContent =
-            inputVal > 0 ?
-                record.status === 'completed' && record.rawUsage && record.totalTokens > 0 ?
-                    formatTokens(record.actualInput)
-                :   `~${formatTokens(record.estimatedInput)}`
-            :   '-';
+        const cacheVal = record.status === 'completed' && record.cacheReadTokens > 0 ? record.cacheReadTokens : 0;
+        if (cacheVal > 0 && inputVal > 0) {
+            const ratio = ((cacheVal / inputVal) * 100).toFixed(1);
+            const miss = inputVal - cacheVal;
+            const ratioNum = parseFloat(ratio);
+            const ratioClass =
+                ratioNum >= 90 ? 'cache-ratio-high'
+                : ratioNum >= 80 ? 'cache-ratio-mid'
+                : ratioNum >= 60 ? 'cache-ratio-low'
+                : 'cache-ratio-none';
+            input.innerHTML =
+                `<div class="input-row"><span class="cache-ratio ${ratioClass}" title="${cacheVal.toLocaleString('en-US')} cacheReadTokens">${ratio}%</span><span class="input-total">${formatTokens(inputVal)}</span></div>` +
+                `<div class="input-detail"><span class="cache-amount">${formatTokens(cacheVal)}</span><span class="input-miss" title="${miss.toLocaleString('en-US')} miss">${miss.toLocaleString('en-US')}</span></div>`;
+        } else {
+            input.textContent = inputVal > 0 ? formatTokens(inputVal) : '-';
+        }
         if (inputVal > 0) {
             input.title = inputVal.toLocaleString('en-US');
-        }
-
-        const cache = createElement('td');
-        const cacheVal = record.status === 'completed' && record.cacheReadTokens > 0 ? record.cacheReadTokens : 0;
-        cache.textContent = cacheVal > 0 ? formatTokens(record.cacheReadTokens) : '-';
-        if (cacheVal > 0) {
-            cache.title = cacheVal.toLocaleString('en-US');
         }
 
         const output = createElement('td');
@@ -469,7 +480,7 @@ function createRequestRecordsTable(
             : record.status === 'failed' ? '❌'
             : '⏳';
 
-        row.append(time, providerModel, input, cache, output, total, firstTokenLatency, speed, status);
+        row.append(time, providerModel, input, output, total, firstTokenLatency, speed, status);
         tbody.appendChild(row);
     });
 
