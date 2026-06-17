@@ -119,6 +119,8 @@
     "setting.vision.model.description": "视觉分析模型（仅在 vision.provider 设为 \"model\" 时使用）。配置由哪个 GCMP 提供商和模型处理图片识别。",
     "setting.vision.model.provider.description": "视觉模型的提供商 key（例如 zhipu、minimax、dashscope）。",
     "setting.vision.model.model.description": "用于视觉分析的模型 ID（例如 glm-4.6v、minimax-m3），必须支持图像输入能力。",
+    "setting.vision.enforceToolUse.description": "启用后（默认），将明确指示模型使用 gcmp_visionTool 分析粘贴的图片。若安装了其他视觉识别工具或希望让模型自行选择工具，可关闭此开关。",
+    "setting.vision.customInstruction.description": "图片附件 <instruction> 标签内的自定义指令，优先级高于 enforceToolUse。设置后将完全替代内置提示词；留空则按 enforceToolUse 开关使用内置默认提示词。",
     "setting.providerOverrides.description": "提供商配置覆盖。允许覆盖提供商的baseUrl和模型配置，支持添加新模型或覆盖现有模型的参数。",
     "setting.compatibleModels.description": "Compatible Provider 的自定义模型配置。完全由用户配置的 OpenAI / Anthropic 兼容模型列表。",
     "tool.zhipuWebSearch.displayName": "智谱AI联网搜索",

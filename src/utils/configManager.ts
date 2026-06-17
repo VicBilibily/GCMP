@@ -145,6 +145,10 @@ export interface VisionConfig {
         provider: string;
         model: string;
     };
+    /** 是否在提示词中强制要求使用 gcmp_visionTool（默认 true） */
+    enforceToolUse: boolean;
+    /** 用户自定义附件指令文本（为空则使用默认提示词） */
+    customInstruction: string;
 }
 
 interface ProxyFetchOptions {
@@ -285,7 +289,9 @@ export class ConfigManager {
                 model: {
                     provider: config.get<string>('vision.model.provider', ''),
                     model: config.get<string>('vision.model.model', '')
-                }
+                },
+                enforceToolUse: config.get<boolean>('vision.enforceToolUse', true),
+                customInstruction: config.get<string>('vision.customInstruction', '')
             },
             proxy: config.get<string>('proxy') || undefined,
             providerOverrides: config.get<UserConfigOverrides>('providerOverrides', {})
