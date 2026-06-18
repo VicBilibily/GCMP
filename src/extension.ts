@@ -330,7 +330,7 @@ export async function activate(context: vscode.ExtensionContext) {
         commitDisposables.forEach(disposable => context.subscriptions.push(disposable));
         Logger.trace(`Commit message commands registered (${Date.now() - stepStartTime}ms)`);
 
-        // 步骤10: 检查 Git 可用性（不阻塞扩展激活）
+        // 步骤11: 检查 Git 可用性（不阻塞扩展激活）
         // 默认设置为不可用，检查完成后更新
         vscode.commands.executeCommand('setContext', 'gcmp.gitAvailable', false);
         const gitDisposable = checkGitAvailability();

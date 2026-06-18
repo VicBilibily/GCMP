@@ -1,9 +1,10 @@
-﻿/**
+/**
  * UsagesView 工具函数
  */
 
 import type { BaseStats, HourlyStats } from '../../usages/fileLogger/types';
 import type { ExtendedTokenRequestLog, SessionGroup, SessionSummary, WebViewMessage } from './types';
+import { REQUEST_KIND_DISPLAY_NAMES } from '../../handlers/requestKindDisplayNames';
 
 export const UNKNOWN_SESSION_ID = 'unknown';
 
@@ -194,50 +195,17 @@ export function getProviderDisplayName(providerKey: string, providerName: string
 }
 
 /**
- * 请求来源的显示名称映射（[英文, 中文]）
- */
-const REQUEST_KIND_DISPLAY_NAMES: Record<string, [string, string]> = {
-    'main-agent': ['Agent Chat', 'Agent 对话'],
-    'terminal-steering': ['Terminal Steering', '终端引导'],
-    'terminal-command': ['Terminal Command', '终端命令'],
-    'terminal-quickfix': ['Terminal Quick Fix', '终端修复'],
-    'terminal-explain': ['Terminal Explain', '终端解释'],
-    'explain-code': ['Explain Code', '代码解释'],
-    'workspace-search': ['Workspace Search', '搜索助手'],
-    'code-search': ['Code Search', '代码搜索'],
-    'vscode-qa': ['VS Code Q&A', 'VS Code 问答'],
-    'search-subagent': ['Search Subagent', '搜索子代理'],
-    'execution-subagent': ['Execution Subagent', '执行子代理'],
-    'todo-tracker': ['Todo Tracker', '待办跟踪'],
-    'prompt-categorizer': ['Prompt Categorizer', 'Prompt 分类'],
-    'intent-detector': ['Intent Detector', '意图检测'],
-    'settings-resolver': ['Settings Resolver', '设置解析'],
-    'chat-title': ['Chat Title', '会话标题'],
-    'inline-progress-message': ['Progress Message', '进度消息'],
-    'git-branch-name': ['Branch Naming', '分支命名'],
-    'git-commit-message': ['Commit Message', '提交消息'],
-    'pr-description': ['PR Description', 'PR 描述'],
-    'rename-suggestions': ['Rename Suggestions', '重命名建议'],
-    summarization: ['Summarization', '对话摘要'],
-    'code-mapper': ['Code Mapper', '代码映射'],
-    'feedback-gen': ['Feedback', '代码反馈'],
-    'debug-config': ['Debug Config', '调试配置'],
-    'workspace-gen': ['Workspace Gen', '文件生成'],
-    'test-gen': ['Test Gen', '测试生成'],
-    'goal-summary': ['Goal Summary', '目标摘要'],
-    'risk-assessment': ['Risk Assessment', '风险评估'],
-    'vision-recognition': ['Vision Recognition', '视觉识别'],
-    background: ['Background Request', '后台请求'],
-    unknown: ['Unknown', '未知']
-};
-
-/**
  * 获取请求来源的友好显示名称（自动按语言切换中英文）
+ *
+ * 注：名称映射表与 RequestKind 类型定义集中维护在
+ * `src/handlers/requestClassifier.ts`，避免扩展进程与 WebView 两侧重复。
+ * WebView 侧通过 esbuild 将该依赖打包到前端 bundle 中。
  */
 export function getRequestKindDisplayName(kind?: string): string {
     if (!kind) {
         return '-';
     }
+    // 使用集中定义的名称映射表，确保与扩展侧一致
     const names = REQUEST_KIND_DISPLAY_NAMES[kind];
     if (!names) {
         return kind;

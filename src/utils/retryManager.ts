@@ -188,24 +188,24 @@ export class RetryManager {
             return true;
         }
 
-        // 常见网络错误关键字——仅保留确指网络层异常的匹配项
-        const networkErrorKeywords = [
-            'terminated',
-            'etimedout',
-            'econnrefused',
-            'econnreset',
-            'ehostunreach',
-            'enotfound',
-            'fetch failed',
-            'socket hang up',
-            'socket hangup',
-            'socket',
-            'eof',
-            'end of file'
+        // 常见网络错误关键字 —— 使用完整词或前缀匹配，避免将含 `socket` 字样的业务错误误判为网络错误
+        const networkErrorPatterns = [
+            /^terminated$/,
+            /\betimedout\b/,
+            /\beconnrefused\b/,
+            /\beconnreset\b/,
+            /\behostunreach\b/,
+            /\benotfound\b/,
+            /\bfetch failed\b/,
+            /\bsocket hang up\b/,
+            /\bsocket hangup\b/,
+            /\bproxy\s+error\b/,
+            /\beof\b/,
+            /\bend of file\b/
         ];
 
-        for (const keyword of networkErrorKeywords) {
-            if (msg.includes(keyword)) {
+        for (const pattern of networkErrorPatterns) {
+            if (pattern.test(msg)) {
                 return true;
             }
         }

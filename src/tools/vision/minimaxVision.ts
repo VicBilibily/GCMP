@@ -136,7 +136,8 @@ export class MiniMaxVisionTool {
     }
 
     async invoke(
-        request: vscode.LanguageModelToolInvocationOptions<MiniMaxVisionRequest>
+        request: vscode.LanguageModelToolInvocationOptions<MiniMaxVisionRequest>,
+        token?: vscode.CancellationToken
     ): Promise<vscode.LanguageModelToolResult> {
         try {
             const params = request.input as MiniMaxVisionRequest;
@@ -148,7 +149,18 @@ export class MiniMaxVisionTool {
                 throw new Error(t('Missing required parameter: image_url', '缺少必需参数: image_url'));
             }
 
-            const response = await this.understand(params);
+            let abortSignal: AbortSignal | undefined;
+            if (token) {
+                if (token.isCancellationRequested) {
+                    abortSignal = AbortSignal.abort();
+                } else {
+                    const ac = new AbortController();
+                    token.onCancellationRequested(() => ac.abort());
+                    abortSignal = ac.signal;
+                }
+            }
+
+            const response = await this.understand(params, abortSignal);
             StatusBarManager.minimax?.delayedUpdate();
 
             return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(response.content)]);

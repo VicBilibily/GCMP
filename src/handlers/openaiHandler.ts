@@ -819,7 +819,7 @@ export class OpenAIHandler {
                     if (reasoningFormat === 'nested') {
                         customParams.reasoning = undefined;
                     } else {
-                    customParams.reasoning_effort = undefined;
+                        customParams.reasoning_effort = undefined;
                     }
                     if (modelConfig.thinkingFormat === 'object' || modelConfig.thinkingFormat === 'object-none') {
                         customParams.thinking = { type: 'disabled' };
@@ -830,7 +830,7 @@ export class OpenAIHandler {
                     // OpenAI 新版嵌套格式: { reasoning: { effort: '...' } }
                     if (effectiveReasoningEffort === 'minimal') {
                         customParams.reasoning = { effort: 'low' };
-                } else {
+                    } else {
                         customParams.reasoning = { effort: effectiveReasoningEffort };
                     }
                 } else {

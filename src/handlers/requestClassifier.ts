@@ -5,6 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { REQUEST_KIND_DISPLAY_NAMES } from './requestKindDisplayNames';
 
 /**
  * Copilot Chat 请求类型
@@ -182,19 +183,7 @@ const SYSTEM_PROMPT_PREFIXES: [string, RequestKind][] = [
     // panelChatBasePrompt.tsx / editCodePrompt.tsx / inlineChat*.tsx → main-agent (面板/内联兜底)
     ['You are an AI programming assistant', 'main-agent'],
     // agentPrompt.tsx / minimaxPrompts.tsx / familyHPrompts.tsx → main-agent
-    ['You are an expert AI programming assistant', 'main-agent'],
-    // chatGoalSummaryService.ts → goal-summary
-    ['You summarize a user', 'goal-summary'],
-    // chatToolRiskAssessmentService.ts → risk-assessment
-    ['You assess what one terminal command does', 'risk-assessment'],
-    // gpt5Prompt.tsx / gpt51Prompt.tsx / gpt52Prompt.tsx → main-agent (GPT-5 系列)
-    ['You are a coding agent running in VS Code', 'main-agent'],
-    // gpt5CodexPrompt.tsx / gpt51CodexPrompt.tsx → main-agent (Codex 系列)
-    ['You are a coding agent based on', 'main-agent'],
-    // hiddenModelMPrompt.tsx / gpt55BasePrompt.tsx → main-agent
-    ['You have a vivid inner life as coding agent', 'main-agent'],
-    // zaiPrompts.tsx → main-agent (GLM/ZAI 系列)
-    ['You are a senior software architect and expert coding agent', 'main-agent']
+    ['You are an expert AI programming assistant', 'main-agent']
 ];
 
 /**
@@ -203,44 +192,6 @@ const SYSTEM_PROMPT_PREFIXES: [string, RequestKind][] = [
 export function isSubRequest(kind: RequestKind): boolean {
     return SUB_REQUEST_TYPES.has(kind);
 }
-
-/**
- * 请求来源的友好显示名称映射（[英文, 中文]）
- */
-export const REQUEST_KIND_DISPLAY_NAMES: Record<RequestKind, [string, string]> = {
-    'main-agent': ['Agent Chat', 'Agent 对话'],
-    'terminal-steering': ['Terminal Steering', '终端引导'],
-    'terminal-command': ['Terminal Command', '终端命令'],
-    'terminal-quickfix': ['Terminal Quick Fix', '终端修复'],
-    'terminal-explain': ['Terminal Explain', '终端解释'],
-    'explain-code': ['Explain Code', '代码解释'],
-    'workspace-search': ['Workspace Search', '搜索助手'],
-    'code-search': ['Code Search', '代码搜索'],
-    'vscode-qa': ['VS Code Q&A', 'VS Code 问答'],
-    'search-subagent': ['Search Subagent', '搜索子代理'],
-    'execution-subagent': ['Execution Subagent', '执行子代理'],
-    'todo-tracker': ['Todo Tracker', '待办跟踪'],
-    'prompt-categorizer': ['Prompt Categorizer', 'Prompt 分类'],
-    'intent-detector': ['Intent Detector', '意图检测'],
-    'settings-resolver': ['Settings Resolver', '设置解析'],
-    'chat-title': ['Chat Title', '会话标题'],
-    'inline-progress-message': ['Progress Message', '进度消息'],
-    'git-branch-name': ['Branch Naming', '分支命名'],
-    'git-commit-message': ['Commit Message', '提交消息'],
-    'pr-description': ['PR Description', 'PR 描述'],
-    'rename-suggestions': ['Rename Suggestions', '重命名建议'],
-    summarization: ['Summarization', '对话摘要'],
-    'code-mapper': ['Code Mapper', '代码映射'],
-    'feedback-gen': ['Feedback', '代码反馈'],
-    'debug-config': ['Debug Config', '调试配置'],
-    'workspace-gen': ['Workspace Gen', '文件生成'],
-    'test-gen': ['Test Gen', '测试生成'],
-    'goal-summary': ['Goal Summary', '目标摘要'],
-    'risk-assessment': ['Risk Assessment', '风险评估'],
-    'vision-recognition': ['Vision Recognition', '视觉识别'],
-    background: ['Background Request', '后台请求'],
-    unknown: ['Unknown', '未知']
-};
 
 /**
  * 获取请求来源的友好显示名称（自动按语言切换中英文）
