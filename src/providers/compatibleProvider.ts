@@ -106,6 +106,7 @@ export class CompatibleProvider extends GenericModelProvider {
                     ...(model.family && { family: model.family }),
                     ...(model.thinking && { thinking: model.thinking }),
                     ...(model.thinkingFormat && { thinkingFormat: model.thinkingFormat }),
+                    ...(model.reasoningFormat && { reasoningFormat: model.reasoningFormat }),
                     ...(model.reasoningEffort && { reasoningEffort: model.reasoningEffort }),
                     ...(model.contextSize && { contextSize: model.contextSize })
                 };

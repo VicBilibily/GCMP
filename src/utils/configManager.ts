@@ -519,6 +519,12 @@ export class ConfigManager {
                 target.thinkingFormat = modelOverride.thinkingFormat;
                 Logger.debug(`  Model ${modelOverride.id}: override thinkingFormat = ${modelOverride.thinkingFormat}`);
             }
+            if (modelOverride.reasoningFormat !== undefined) {
+                target.reasoningFormat = modelOverride.reasoningFormat;
+                Logger.debug(
+                    `  Model ${modelOverride.id}: override reasoningFormat = ${modelOverride.reasoningFormat}`
+                );
+            }
             if (modelOverride.reasoningEffort !== undefined) {
                 target.reasoningEffort = [...modelOverride.reasoningEffort];
                 Logger.debug(

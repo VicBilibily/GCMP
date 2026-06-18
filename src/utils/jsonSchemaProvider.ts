@@ -210,12 +210,26 @@ export class JsonSchemaProvider {
         return [
             t('Boolean format: { enable_thinking: true/false }', '使用布尔值格式: { enable_thinking: true/false }'),
             t(
+                "Boolean format (none only): only pass { enable_thinking: false } when reasoningEffort is 'none'",
+                '仅当 reasoningEffort 为 none 时传递布尔值 { enable_thinking: false }，其余情况忽略'
+            ),
+            t(
                 "Object format: { thinking: { type: 'enabled' | 'disabled' } }",
                 "使用对象格式: { thinking: { type: 'enabled' | 'disabled' } }"
             ),
             t(
                 "Object format (none only): only pass { thinking: { type: 'disabled' } } when reasoningEffort is 'none'",
                 '仅当 reasoningEffort 为 none 时传递 object 格式的禁用思考参数，其余情况忽略'
+            )
+        ];
+    }
+
+    private static getReasoningFormatEnumDescriptions(): string[] {
+        return [
+            t('Flat format: { reasoning_effort: "..." } (default)', '平铺格式: { reasoning_effort: "..." }（默认）'),
+            t(
+                "Nested format: { reasoning: { effort: '...' } } — OpenAI new nested format",
+                "嵌套格式: { reasoning: { effort: '...' } } — OpenAI 新版嵌套格式"
             )
         ];
     }
@@ -560,10 +574,20 @@ export class JsonSchemaProvider {
                             },
                             thinkingFormat: {
                                 type: 'string',
-                                enum: ['boolean', 'object', 'object-none'],
+                                enum: ['boolean', 'boolean-none', 'object', 'object-none'],
                                 enumDescriptions: this.getThinkingFormatEnumDescriptions(),
                                 default: 'boolean',
                                 description: this.getThinkingFormatDescription(true)
+                            },
+                            reasoningFormat: {
+                                type: 'string',
+                                enum: ['flat', 'nested'],
+                                enumDescriptions: this.getReasoningFormatEnumDescriptions(),
+                                default: 'flat',
+                                description: t(
+                                    'Format of the reasoning parameter in API requests (only effective for openai/openai-sse)',
+                                    'API请求中 reasoning 参数的格式（仅 openai/openai-sse 模式生效）'
+                                )
                             },
                             reasoningEffort: {
                                 type: 'array',
@@ -741,7 +765,7 @@ export class JsonSchemaProvider {
                                 }
                             },
                             {
-                                // thinkingFormat 仅对 openai/openai-sse 生效
+                                // thinkingFormat / reasoningFormat 仅对 openai/openai-sse 生效
                                 if: {
                                     anyOf: [
                                         { not: { required: ['sdkMode'] } },
@@ -757,10 +781,20 @@ export class JsonSchemaProvider {
                                     properties: {
                                         thinkingFormat: {
                                             type: 'string',
-                                            enum: ['boolean', 'object', 'object-none'],
+                                            enum: ['boolean', 'boolean-none', 'object', 'object-none'],
                                             enumDescriptions: this.getThinkingFormatEnumDescriptions(),
                                             default: 'boolean',
                                             description: this.getThinkingFormatDescription()
+                                        },
+                                        reasoningFormat: {
+                                            type: 'string',
+                                            enum: ['flat', 'nested'],
+                                            enumDescriptions: this.getReasoningFormatEnumDescriptions(),
+                                            default: 'flat',
+                                            description: t(
+                                                'Format of the reasoning parameter in API requests',
+                                                'API请求中 reasoning 参数的格式'
+                                            )
                                         }
                                     }
                                 },
@@ -770,6 +804,12 @@ export class JsonSchemaProvider {
                                             deprecationMessage: t(
                                                 'thinkingFormat is only effective for openai and openai-sse modes',
                                                 'thinkingFormat 仅对 openai 和 openai-sse 模式生效'
+                                            )
+                                        },
+                                        reasoningFormat: {
+                                            deprecationMessage: t(
+                                                'reasoningFormat is only effective for openai and openai-sse modes',
+                                                'reasoningFormat 仅对 openai 和 openai-sse 模式生效'
                                             )
                                         }
                                     }
@@ -1108,10 +1148,20 @@ export class JsonSchemaProvider {
                             },
                             thinkingFormat: {
                                 type: 'string',
-                                enum: ['boolean', 'object', 'object-none'],
+                                enum: ['boolean', 'boolean-none', 'object', 'object-none'],
                                 enumDescriptions: this.getThinkingFormatEnumDescriptions(),
                                 default: 'boolean',
                                 description: this.getThinkingFormatDescription(true)
+                            },
+                            reasoningFormat: {
+                                type: 'string',
+                                enum: ['flat', 'nested'],
+                                enumDescriptions: this.getReasoningFormatEnumDescriptions(),
+                                default: 'flat',
+                                description: t(
+                                    'Format of the reasoning parameter in API requests (only effective for openai/openai-sse)',
+                                    'API请求中 reasoning 参数的格式（仅 openai/openai-sse 模式生效）'
+                                )
                             },
                             reasoningEffort: {
                                 type: 'array',
@@ -1221,10 +1271,20 @@ export class JsonSchemaProvider {
                                     properties: {
                                         thinkingFormat: {
                                             type: 'string',
-                                            enum: ['boolean', 'object', 'object-none'],
+                                            enum: ['boolean', 'boolean-none', 'object', 'object-none'],
                                             enumDescriptions: this.getThinkingFormatEnumDescriptions(),
                                             default: 'boolean',
                                             description: this.getThinkingFormatDescription()
+                                        },
+                                        reasoningFormat: {
+                                            type: 'string',
+                                            enum: ['flat', 'nested'],
+                                            enumDescriptions: this.getReasoningFormatEnumDescriptions(),
+                                            default: 'flat',
+                                            description: t(
+                                                'Format of the reasoning parameter in API requests',
+                                                'API请求中 reasoning 参数的格式'
+                                            )
                                         }
                                     }
                                 },
@@ -1234,6 +1294,12 @@ export class JsonSchemaProvider {
                                             deprecationMessage: t(
                                                 'thinkingFormat is only effective for openai and openai-sse modes',
                                                 'thinkingFormat 仅对 openai 和 openai-sse 模式生效'
+                                            )
+                                        },
+                                        reasoningFormat: {
+                                            deprecationMessage: t(
+                                                'reasoningFormat is only effective for openai and openai-sse modes',
+                                                'reasoningFormat 仅对 openai 和 openai-sse 模式生效'
                                             )
                                         }
                                     }

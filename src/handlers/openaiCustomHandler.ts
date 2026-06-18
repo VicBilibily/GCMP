@@ -130,7 +130,10 @@ export class OpenAICustomHandler {
             throw new Error(t('Missing {0} API key', '缺少 {0} API 密钥', provider));
         }
 
-        const baseURL = (modelConfig.baseUrl || 'https://api.openai.com/v1').replace(/\/$/, '');
+        const baseURL = (modelConfig.baseUrl || this.providerConfig?.baseUrl || 'https://api.openai.com/v1').replace(
+            /\/$/,
+            ''
+        );
         const customEndpoint = modelConfig.endpoint;
         const url =
             customEndpoint ?

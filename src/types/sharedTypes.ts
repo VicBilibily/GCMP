@@ -97,11 +97,19 @@ export interface ModelConfig {
     /**
      * 思考模式参数的传递格式（可选）
      * - boolean: 使用布尔值格式 { enable_thinking: true/false }
+     * - boolean-none: 仅当 reasoningEffort 为 none 时传递布尔值 { enable_thinking: false }，否则忽略思考参数
      * - object: 使用对象格式 { thinking: { type: 'enabled' | 'disabled' } }
      * - object-none: 仅当 reasoningEffort 为 none 时传递 object 格式，否则忽略思考参数
      * 默认值为 'boolean'
      */
-    thinkingFormat?: 'boolean' | 'object' | 'object-none';
+    thinkingFormat?: 'boolean' | 'boolean-none' | 'object' | 'object-none';
+    /**
+     * reasoning 参数格式（可选）
+     * - flat: 使用平铺格式 { reasoning_effort: '...' }（默认行为）
+     * - nested: 使用 OpenAI 新版嵌套格式 { reasoning: { effort: '...' } }
+     * 默认值为 'flat'。仅对 openai / openai-sse 模式生效。
+     */
+    reasoningFormat?: 'flat' | 'nested';
     /**
      * 思维链长度调节选项列表（可选）
      * 用于 UI 配置选择，平衡不同场景对效果、时延、成本的需求：
@@ -187,6 +195,8 @@ export interface ModelOverride {
     thinking?: ModelConfig['thinking'];
     /** 思考模式参数的传递格式（可选） */
     thinkingFormat?: ModelConfig['thinkingFormat'];
+    /** reasoning 参数格式（可选） */
+    reasoningFormat?: ModelConfig['reasoningFormat'];
     /** 思维链长度调节选项列表（可选） */
     reasoningEffort?: ModelConfig['reasoningEffort'];
     /** 上下文窗口调节选项列表（可选） */

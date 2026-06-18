@@ -140,14 +140,25 @@
                 },
                 "thinkingFormat": {
                     "type": "string",
-                    "enum": ["boolean", "object", "object-none"],
+                    "enum": ["boolean", "boolean-none", "object", "object-none"],
                     "enumDescriptions": [
                         "使用布尔值格式: { enable_thinking: true/false }",
+                        "仅当 reasoningEffort 为 none 时传递布尔值 { enable_thinking: false }，其余情况忽略",
                         "使用对象格式: { thinking: { type: 'enabled' | 'disabled' } }",
                         "仅当 reasoningEffort 为 none 时传递 object 格式的禁用思考参数，其余情况忽略"
                     ],
                     "default": "boolean",
                     "description": "思考模式参数的传递格式，用于兼容不同模型的API格式要求"
+                },
+                "reasoningFormat": {
+                    "type": "string",
+                    "enum": ["flat", "nested"],
+                    "enumDescriptions": [
+                        "平铺格式: { reasoning_effort: \"...\" }（默认）",
+                        "嵌套格式: { reasoning: { effort: '...' } } — OpenAI 新版嵌套格式"
+                    ],
+                    "default": "flat",
+                    "description": "API请求中 reasoning 参数的格式（仅 openai/openai-sse 模式生效）"
                 },
                 "reasoningEffort": {
                     "type": "array",
@@ -282,14 +293,25 @@
                         "properties": {
                             "thinkingFormat": {
                                 "type": "string",
-                                "enum": ["boolean", "object", "object-none"],
+                                "enum": ["boolean", "boolean-none", "object", "object-none"],
                                 "enumDescriptions": [
                                     "使用布尔值格式: { enable_thinking: true/false }",
+                                    "仅当 reasoningEffort 为 none 时传递布尔值 { enable_thinking: false }，其余情况忽略",
                                     "使用对象格式: { thinking: { type: 'enabled' | 'disabled' } }",
                                     "仅当 reasoningEffort 为 none 时传递 object 格式的禁用思考参数，其余情况忽略"
                                 ],
                                 "default": "boolean",
                                 "description": "思考模式参数的传递格式，用于兼容不同模型的API格式要求"
+                            },
+                            "reasoningFormat": {
+                                "type": "string",
+                                "enum": ["flat", "nested"],
+                                "enumDescriptions": [
+                                    "平铺格式: { reasoning_effort: \"...\" }（默认）",
+                                    "嵌套格式: { reasoning: { effort: '...' } } — OpenAI 新版嵌套格式"
+                                ],
+                                "default": "flat",
+                                "description": "API请求中 reasoning 参数的格式"
                             }
                         }
                     },
@@ -297,6 +319,9 @@
                         "properties": {
                             "thinkingFormat": {
                                 "deprecationMessage": "thinkingFormat 仅对 openai 和 openai-sse 模式生效"
+                            },
+                            "reasoningFormat": {
+                                "deprecationMessage": "reasoningFormat 仅对 openai 和 openai-sse 模式生效"
                             }
                         }
                     }

@@ -775,22 +775,32 @@ export class OpenAIHandler {
         }
 
         // 根据模型配置设置思考模式和推理长度
+        // 注意：extraBody 中可能已注入 thinking/reasoning 等参数，以下逻辑会覆盖它们，
+        // 确保 Chat UI 的选择或模型默认值始终生效。
         const settings = options.modelConfiguration as ModelChatResponseOptions;
         const customParams = createParams as unknown as {
             enable_thinking?: boolean;
             thinking?: { type: 'enabled' | 'disabled' };
             reasoning_effort?: string;
+            reasoning?: { effort?: string };
         };
         const thinkingFormat = modelConfig.thinkingFormat ?? 'boolean';
+        const reasoningFormat = modelConfig.reasoningFormat ?? 'flat';
+        // 解析最终生效的 thinking / reasoningEffort：
+        // 优先使用 Chat UI 传入的 settings；若未传入，则回退到模型配置的默认值。
+        // 默认值规则必须与 languageModelInfo.ts 中 schema.default 的逻辑保持一致，
+        // 否则会出现"UI 显示默认 medium，实际请求却发 low"的不一致。
+        const effectiveThinking = settings?.thinking ?? modelConfig.thinking?.[0];
+        const effectiveReasoningEffort = settings?.reasoningEffort ?? getDefaultReasoningEffort(modelConfig);
         if (settings) {
-            if (settings.thinking && (!thinkingFormat || thinkingFormat === 'boolean' || thinkingFormat === 'object')) {
-                if (settings.thinking === 'enabled') {
+            if (effectiveThinking && (!thinkingFormat || thinkingFormat === 'boolean' || thinkingFormat === 'object')) {
+                if (effectiveThinking === 'enabled') {
                     if (thinkingFormat === 'object') {
                         customParams.thinking = { type: 'enabled' };
                     } else {
                         customParams.enable_thinking = true;
                     }
-                } else if (settings.thinking === 'disabled') {
+                } else if (effectiveThinking === 'disabled') {
                     if (thinkingFormat === 'object') {
                         customParams.thinking = { type: 'disabled' };
                     } else {
@@ -804,15 +814,28 @@ export class OpenAIHandler {
                     }
                 }
             }
-            if (settings.reasoningEffort) {
-                if (settings.reasoningEffort === 'none') {
-                    customParams.reasoning_effort = undefined;
+            if (effectiveReasoningEffort) {
+                if (effectiveReasoningEffort === 'none') {
+                    if (reasoningFormat === 'nested') {
+                        customParams.reasoning = undefined;
+                    } else {
+                        customParams.reasoning_effort = undefined;
+                    }
                     if (modelConfig.thinkingFormat === 'object' || modelConfig.thinkingFormat === 'object-none') {
                         customParams.thinking = { type: 'disabled' };
+                    } else if (modelConfig.thinkingFormat === 'boolean-none') {
+                        customParams.enable_thinking = false;
+                    }
+                } else if (reasoningFormat === 'nested') {
+                    // OpenAI 新版嵌套格式: { reasoning: { effort: '...' } }
+                    if (effectiveReasoningEffort === 'minimal') {
+                        customParams.reasoning = { effort: 'low' };
+                    } else {
+                        customParams.reasoning = { effort: effectiveReasoningEffort };
                     }
                 } else {
-                    customParams.reasoning_effort = settings.reasoningEffort;
-                    if (modelConfig.thinkingFormat === 'object' && settings.reasoningEffort !== 'minimal') {
+                    customParams.reasoning_effort = effectiveReasoningEffort;
+                    if (modelConfig.thinkingFormat === 'object' && effectiveReasoningEffort !== 'minimal') {
                         customParams.thinking = { type: 'enabled' };
                     }
                 }
@@ -821,9 +844,14 @@ export class OpenAIHandler {
         // 如果处于提交模式，模型支持思考的，不使用思考模式
         const modelOpts = options.modelOptions as CommitChatModelOptions;
         if (modelOpts?.commit) {
+            if (reasoningFormat === 'nested') {
+                customParams.reasoning = undefined;
+            }
             if (thinkingFormat === 'object' || thinkingFormat === 'object-none') {
                 customParams.thinking = { type: 'disabled' };
                 customParams.reasoning_effort = undefined;
+            } else if (thinkingFormat === 'boolean-none') {
+                customParams.enable_thinking = false;
             } else {
                 if (customParams.enable_thinking) {
                     customParams.enable_thinking = false;
@@ -1564,6 +1592,23 @@ export class OpenAIHandler {
 
         return filtered;
     }
+}
+
+/**
+ * 解析模型配置的默认 reasoningEffort。
+ * 规则必须与 languageModelInfo.ts 中 schema.default 的逻辑保持一致：
+ * - 若 reasoningEffort 数组包含 'medium'，默认值为 'medium'
+ * - 否则默认值为数组首项
+ */
+function getDefaultReasoningEffort(modelConfig: ModelConfig): string | undefined {
+    const efforts = modelConfig.reasoningEffort;
+    if (!efforts || efforts.length === 0) {
+        return undefined;
+    }
+    if (efforts.includes('medium')) {
+        return 'medium';
+    }
+    return efforts[0];
 }
 
 /**
