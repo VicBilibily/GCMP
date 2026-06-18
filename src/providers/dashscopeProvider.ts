@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Dashscope (阿里云百炼) 专用 Provider
  *  为 Dashscope 提供商提供多密钥管理和配置向导功能
  *--------------------------------------------------------------------------------------------*/
@@ -15,7 +15,8 @@ import {
 } from 'vscode';
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { Logger, ApiKeyManager, DashscopeWizard } from '../utils';
+import { Logger, ApiKeyManager } from '../utils';
+import { DashscopeWizard } from '../wizards/dashscopeWizard';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { classifyRequest } from '../handlers/requestClassifier';
 

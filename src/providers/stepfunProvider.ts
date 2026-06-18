@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  阶跃星辰 StepFun 专用 Provider
  *  继承 GenericModelProvider，添加配置向导功能
  *  全量模型采用 Anthropic SDK 协议，通过 baseUrl 区分 PayGo 和 Step Plan
@@ -14,7 +14,7 @@ import {
 import { ProviderConfig } from '../types/sharedTypes';
 import { Logger } from '../utils/logger';
 import { ApiKeyManager } from '../utils/apiKeyManager';
-import { StepFunWizard } from '../utils/stepfunWizard';
+import { StepFunWizard } from '../wizards/stepfunWizard';
 import { GenericModelProvider } from './genericModelProvider';
 
 /**

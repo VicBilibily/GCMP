@@ -46,6 +46,7 @@
     "command.commit.generateMessageWorkingTree": "Generate Commit Message - Unstaged Changes",
     "command.commit.selectModel": "Select Commit Message Model",
     "command.vision.selectModel": "Select Vision Analysis Model",
+    "command.modelSettings.wizard": "Set Models",
     "command.sync.configure": "Manage / Sync API Keys",
     "command.sync.configure.description": "Upload, download, and manage API keys synced via encrypted GitHub Gists for cross-device access.",
     "extension.description": "Extension that provides ZhipuAI, MiniMax, MoonshotAI, DeepSeek, DashScope, StreamLake, Volcengine, Tencent Cloud, Xiaomi MiMo, Baidu Qianfan, StepFun, and Ant Ling model support for GitHub Copilot Chat, plus custom OpenAI / Anthropic compatible models.",

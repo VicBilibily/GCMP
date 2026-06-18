@@ -46,6 +46,7 @@
     "command.commit.generateMessageWorkingTree": "生成提交消息 - 未暂存的更改",
     "command.commit.selectModel": "选择 Commit 消息生成模型",
     "command.vision.selectModel": "选择视觉分析模型",
+    "command.modelSettings.wizard": "设置模型",
     "command.sync.configure": "管理/同步 API Key",
     "command.sync.configure.description": "上传、下载、管理 API Key，通过 GitHub Gist 跨设备同步。密钥经加密后存储于私有 Gist。",
     "extension.description": "为 GitHub Copilot Chat 提供 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云、Xiaomi MiMo、百度千帆、阶跃星辰、蚂蚁百灵 模型支持的扩展，并提供 OpenAI / Anthropic Compatible 自定义模型支持。",

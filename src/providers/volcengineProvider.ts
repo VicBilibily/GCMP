@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Volcengine (火山方舟) 专用 Provider
  *  为火山方舟提供多密钥管理（Coding Plan / Agent Plan）和配置向导功能
  *--------------------------------------------------------------------------------------------*/
@@ -15,7 +15,8 @@ import {
 } from 'vscode';
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { Logger, ApiKeyManager, VolcengineWizard } from '../utils';
+import { Logger, ApiKeyManager } from '../utils';
+import { VolcengineWizard } from '../wizards/volcengineWizard';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { classifyRequest } from '../handlers/requestClassifier';
 

@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  腾讯云专用 Provider
  *  为腾讯云付费模型、Coding Plan、Token Plan 与 DeepSeek 提供多密钥管理和协议切换功能
  *--------------------------------------------------------------------------------------------*/
@@ -15,7 +15,8 @@ import {
 } from 'vscode';
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { Logger, ApiKeyManager, TencentWizard } from '../utils';
+import { Logger, ApiKeyManager } from '../utils';
+import { TencentWizard } from '../wizards/tencentWizard';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { classifyRequest } from '../handlers/requestClassifier';
 

@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Xiaomi MiMo 专用 Provider
  *  为 Xiaomi MiMo 提供多密钥管理和 Token Plan 支持
  *--------------------------------------------------------------------------------------------*/
@@ -15,7 +15,8 @@ import {
 } from 'vscode';
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { Logger, ApiKeyManager, XiaomimimoWizard } from '../utils';
+import { Logger, ApiKeyManager } from '../utils';
+import { XiaomimimoWizard } from '../wizards/xiaomimimoWizard';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { classifyRequest } from '../handlers/requestClassifier';
 

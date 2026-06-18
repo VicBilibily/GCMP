@@ -166,7 +166,8 @@ export class TokenUsageStatusBar {
         const providers = Object.values(stats.providers);
         if (providers.length === 0) {
             md.appendMarkdown(t('No usage records yet.', '暂无使用记录。'));
-            md.appendMarkdown(`\n\n---\n\n${t('Click to view details', '点击查看详情')}`);
+            md.appendMarkdown('\n\n---\n\n');
+            md.appendMarkdown(this.buildActionLinks(false));
             return md;
         }
 
@@ -288,15 +289,30 @@ export class TokenUsageStatusBar {
         }
 
         // ========== 统一底部栏：同步状态 + 点击引导 ==========
+        md.appendMarkdown(`\n---\n\n${this.buildActionLinks(true)}`);
+
+        return md;
+    }
+
+    /**
+     * 构建底部操作链接
+     * @param horizontal true 横向排列，false 纵向排列
+     */
+    private buildActionLinks(horizontal: boolean): string {
         const detailCmd = 'command:gcmp.tokenUsage.showDetails';
         const detailLabel = t('Click to view details', '点击查看详情');
         const syncCmd = 'command:gcmp.sync.configure';
         const syncLabel = t('Manage / Sync API Keys', '管理/同步 API Key');
-        const syncText = `[${detailLabel}](${detailCmd}) │ [${syncLabel}](${syncCmd})`;
+        const modelSettingsCmd = 'command:gcmp.modelSettings.wizard';
+        const modelSettingsLabel = t('Set auxiliary tool models', '设置辅助工具模型');
 
-        md.appendMarkdown(`\n---\n\n${syncText}`);
+        const links = [
+            `[${detailLabel}](${detailCmd})`,
+            `[${syncLabel}](${syncCmd})`,
+            `[${modelSettingsLabel}](${modelSettingsCmd})`
+        ];
 
-        return md;
+        return horizontal ? links.join(' │ ') : links.join('\n\n');
     }
 
     /**

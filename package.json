@@ -337,6 +337,11 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.modelSettings.wizard",
+                "title": "%command.modelSettings.wizard%",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.sync.configure",
                 "title": "%command.sync.configure%",
                 "category": "GCMP",

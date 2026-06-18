@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { Logger } from '../utils/logger';
 import { ApiKeyManager } from '../utils/apiKeyManager';
-import { CliAuthFactory } from './auth/cliAuthFactory';
+import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { t } from '../utils/l10n';
 
 interface CliCredentialStatus {

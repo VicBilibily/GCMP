@@ -16,7 +16,7 @@ import {
 import { ProviderConfig } from '../types/sharedTypes';
 import { ApiKeyManager, Logger } from '../utils';
 import { GenericModelProvider } from '../providers/genericModelProvider';
-import { CliWizard } from './cliWizard';
+import { CliWizard } from '../wizards/cliWizard';
 import { CliAuthFactory } from './auth/cliAuthFactory';
 import { StatusBarManager } from '../status';
 import { t } from '../utils/l10n';

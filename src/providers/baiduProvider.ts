@@ -1,4 +1,4 @@
-﻿/*-----------------------------------------------------------------
+/*-----------------------------------------------------------------
  * 百度千帆专用 Provider
  * 为百度千帆提供商提供多密钥管理和专属配置向导功能
  *--------------------------------------------------------------------------------*/
@@ -15,7 +15,7 @@ import {
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { Logger, ApiKeyManager } from '../utils';
-import { BaiduWizard } from '../utils/baiduWizard';
+import { BaiduWizard } from '../wizards/baiduWizard';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { classifyRequest } from '../handlers/requestClassifier';
 /**

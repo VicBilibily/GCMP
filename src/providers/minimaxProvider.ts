@@ -15,7 +15,8 @@ import {
 } from 'vscode';
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { Logger, ApiKeyManager, MiniMaxWizard } from '../utils';
+import { Logger, ApiKeyManager } from '../utils';
+import { MiniMaxWizard } from '../wizards/minimaxWizard';
 import { StatusBarManager } from '../status';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { classifyRequest } from '../handlers/requestClassifier';

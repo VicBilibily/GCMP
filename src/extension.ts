@@ -316,13 +316,17 @@ export async function activate(context: vscode.ExtensionContext) {
         );
         Logger.trace(`GitHub Gist sync commands registered (${Date.now() - stepStartTime}ms)`);
 
-        // 步骤9: 注册 Vision 模型选择命令
+        // 步骤9: 注册模型设置向导命令
         stepStartTime = Date.now();
-        const { selectVisionModel } = await import('./tools/vision/wizard');
+        const { openModelSettingsWizard } = await import('./wizards/modelSettingsWizard');
+        const { selectVisionModel } = await import('./wizards/visionWizard');
+        context.subscriptions.push(
+            vscode.commands.registerCommand('gcmp.modelSettings.wizard', () => openModelSettingsWizard())
+        );
         context.subscriptions.push(
             vscode.commands.registerCommand('gcmp.vision.selectModel', () => selectVisionModel())
         );
-        Logger.trace(`Vision model selection command registered (${Date.now() - stepStartTime}ms)`);
+        Logger.trace(`Model settings wizard registered (${Date.now() - stepStartTime}ms)`);
 
         // 步骤10: 注册 Commit 消息生成命令
         stepStartTime = Date.now();

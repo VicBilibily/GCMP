@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  视觉分析模型选择向导
  *  选择原生支持多模态的 GCMP 提供商和模型。
  *  提供商/模型选择界面参照 commit 模式：
@@ -8,10 +8,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Logger, ConfigManager } from '../../utils';
-import { t } from '../../utils/l10n';
-import { configProviders } from '../../providers/config';
-import { CompatibleModelManager } from '../../utils/compatibleModelManager';
+import { Logger } from '../utils/logger';
+import { ConfigManager } from '../utils/configManager';
+import { t } from '../utils/l10n';
+import { configProviders } from '../providers/config';
+import { CompatibleModelManager } from '../utils/compatibleModelManager';
 
 /** 从内置 ProviderConfig 判断模型是否支持图像输入 */
 function hasImageCapability(m: { capabilities?: { imageInput?: boolean } }): boolean {

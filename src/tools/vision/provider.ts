@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Vision 统一分析入口
  *  完全基于原生支持多模态的 GCMP 模型（LLM 聊天模型）进行视觉分析。
  *--------------------------------------------------------------------------------------------*/
@@ -50,7 +50,7 @@ export async function analyzeImagesWithSystem(
     let visionModel = ConfigManager.getConfig().vision.model;
     if (!visionModel.provider || !visionModel.model) {
         Logger.warn('[gcmpVisionTool] No vision model configured, launching wizard');
-        await (await import('./wizard')).selectVisionModel();
+        await (await import('../../wizards/visionWizard')).selectVisionModel();
         visionModel = ConfigManager.getConfig().vision.model;
         if (!visionModel.provider || !visionModel.model) {
             throw new Error(
@@ -61,7 +61,8 @@ export async function analyzeImagesWithSystem(
 
     const providerConfigs = ConfigManager.getConfigProvider();
     const baseConfig = providerConfigs[visionModel.provider as keyof typeof providerConfigs];
-    const effectiveConfig = baseConfig ? ConfigManager.applyProviderOverrides(visionModel.provider, baseConfig) : undefined;
+    const effectiveConfig =
+        baseConfig ? ConfigManager.applyProviderOverrides(visionModel.provider, baseConfig) : undefined;
     const matchedModel = effectiveConfig?.models.find(m => m.id === visionModel.model);
     const actualProvider = matchedModel?.provider || visionModel.provider;
     const fullModelId = `gcmp.${actualProvider}:::${visionModel.model}`;
@@ -77,14 +78,8 @@ export async function analyzeImagesWithSystem(
         return new vscode.LanguageModelDataPart(Buffer.from(base64, 'base64'), `image/${ext}`);
     });
 
-    const systemMessage = new vscode.LanguageModelChatMessage(
-        vscode.LanguageModelChatMessageRole.System,
-        systemPrompt
-    );
-    const userMessage = vscode.LanguageModelChatMessage.User([
-        new vscode.LanguageModelTextPart(prompt),
-        ...imageParts
-    ]);
+    const systemMessage = new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.System, systemPrompt);
+    const userMessage = vscode.LanguageModelChatMessage.User([new vscode.LanguageModelTextPart(prompt), ...imageParts]);
 
     const cts = token ? undefined : new vscode.CancellationTokenSource();
     try {

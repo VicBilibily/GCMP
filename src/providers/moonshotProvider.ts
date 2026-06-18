@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  MoonshotAI 专用 Provider
  *  为 MoonshotAI 提供商提供多密钥管理和专属配置向导功能
  *--------------------------------------------------------------------------------------------*/
@@ -15,7 +15,8 @@ import {
 } from 'vscode';
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { Logger, ApiKeyManager, MoonshotWizard } from '../utils';
+import { Logger, ApiKeyManager } from '../utils';
+import { MoonshotWizard } from '../wizards/moonshotWizard';
 import { StatusBarManager } from '../status';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { classifyRequest } from '../handlers/requestClassifier';
