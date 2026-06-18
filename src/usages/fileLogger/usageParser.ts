@@ -5,6 +5,9 @@
 
 import type { TokenRequestLog } from './types';
 
+/** 可接受的最大输出速度(tokens/s)；超过此值视为异常采样数据并丢弃 */
+const MAX_REASONABLE_OUTPUT_SPEED = 2000;
+
 /**
  * 解析后的 token 统计
  */
@@ -194,8 +197,8 @@ export class UsageParser {
             result.streamDuration = duration;
             if (result.outputTokens > 0) {
                 const speed = (result.outputTokens / duration) * 1000; // tokens/s
-                // 速度 > 1000 认为可能有误，直接抛弃
-                if (speed <= 1000) {
+                // 速度超过合理上限时视为异常采样数据（如计时抖动导致的极大值），直接抛弃
+                if (speed <= MAX_REASONABLE_OUTPUT_SPEED) {
                     result.outputSpeed = speed;
                 }
             }
