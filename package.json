@@ -782,18 +782,6 @@
                         "model"
                     ]
                 },
-                "gcmp.vision.enforceToolUse": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "%setting.vision.enforceToolUse.description%",
-                    "scope": "application"
-                },
-                "gcmp.vision.customInstruction": {
-                    "type": "string",
-                    "default": "",
-                    "description": "%setting.vision.customInstruction.description%",
-                    "scope": "application"
-                },
                 "gcmp.providerOverrides": {
                     "type": "object",
                     "default": {},

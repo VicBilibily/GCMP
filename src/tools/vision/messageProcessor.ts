@@ -2,33 +2,14 @@
  *  视觉消息处理器
  *  在 executeModelRequest 中调用，将图片 DataPart 写入缓存并替换为工具调用指令。
  *  仅对 capabilities.imageInput === false 的模型生效。
- *  当 enforceToolUse 为 true 时，明确要求模型必须使用 gcmp_visionTool 分析图片，
+ *  hint 属性固定为 "Use gcmp_visionTool"，提示模型使用专用视觉工具分析图片，
  *  避免模型使用 read_file 等工具直接读取缓存文件导致视觉信息丢失。
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
 import { ModelConfig } from '../../types/sharedTypes';
 import { VisionCache } from './cache';
-import { Logger, ConfigManager } from '../../utils';
-
-/**
- * 生成图片附件的指令文本
- * 从 ConfigManager 读取 enforceToolUse / customInstruction 配置
- */
-function buildAttachmentInstruction(cachePath: string, mimeType: string): string {
-    const ext = mimeType.replace('image/', '');
-    const { enforceToolUse, customInstruction } = ConfigManager.getConfig().vision;
-    let instruction: string;
-    if (customInstruction) {
-        instruction = customInstruction;
-    } else if (enforceToolUse) {
-        instruction =
-            "IMPORTANT: You must use the 'gcmp_visionTool' to analyze this image. Do NOT use read_file or any other file-reading tool — they treat image files as binary data and cannot extract visual content.";
-    } else {
-        instruction = 'Use a vision-capable tool to analyze the image content.';
-    }
-    return `<attachment><instruction>${instruction}</instruction><filePath>${cachePath}</filePath><mimeType>${ext}</mimeType></attachment>`;
-}
+import { Logger } from '../../utils';
 
 /**
  * 处理消息数组中的所有图片 DataPart：
@@ -88,7 +69,9 @@ export async function processVisionMessages(
                     cachedFiles.push(cachePath);
 
                     newParts.push(
-                        new vscode.LanguageModelTextPart(buildAttachmentInstruction(cachePath, part.mimeType))
+                        new vscode.LanguageModelTextPart(
+                            `<attachment hint="Use gcmp_visionTool" filePath="${cachePath}" mimeType="${part.mimeType}"></attachment>`
+                        )
                     );
                     Logger.trace(`[VisionProcessor] Cached image: ${cachePath}`);
                 } catch (err) {
