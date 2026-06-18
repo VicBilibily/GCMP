@@ -545,14 +545,14 @@ body {
         /* 第1列（时间+类型） */
         th:nth-child(1),
         td:nth-child(1) {
-            width: 55px;
+            width: 68px;
         }
 
         /* 第2列（提供商/模型） */
         th:nth-child(2),
         td:nth-child(2) {
-            width: 30%;
-            min-width: 140px;
+            width: 50%;
+            min-width: 120px;
         }
 
         /* 第3列（合并输入+缓存） */
@@ -565,29 +565,26 @@ body {
             }
         }
 
-        /* 第4-5列（输出、消耗）数值列固定宽度 */
-        th:nth-child(n + 4):nth-child(-n + 5),
-        td:nth-child(n + 4):nth-child(-n + 5) {
+        /* 第4列（合并输出） */
+        th:nth-child(4),
+        td:nth-child(4) {
+            width: 95px;
+            span + span {
+                margin-left: 5px;
+            }
+        }
+
+        /* 第5列（令牌消耗）固定宽度 */
+        th:nth-child(5),
+        td:nth-child(5) {
             width: 55px;
         }
 
-        /* 第6列（首Token延迟）特殊宽度 */
-        th:nth-child(6),
-        td:nth-child(6) {
-            width: 110px;
-        }
-
-        /* 第7列（输出速度）特殊宽度 */
-        th:nth-child(7),
-        td:nth-child(7) {
-            width: 55px;
-        }
-
-        /* 第3、6-7列 span 宽度 */
+        /* 第3-4列 span 宽度 */
         th:nth-child(3) span,
         td:nth-child(3) span,
-        th:nth-child(n + 6):nth-child(-n + 7) span,
-        td:nth-child(n + 6):nth-child(-n + 7) span {
+        th:nth-child(4) span,
+        td:nth-child(4) span {
             display: inline-block;
             width: 45px;
         }
@@ -741,7 +738,7 @@ body {
                         color: var(--vscode-charts-green);
                     }
                     &-mid {
-                        color: var(--vscode-charts-orange);
+                        color: var(--vscode-charts-yellow);
                     }
                     &-low {
                         color: var(--vscode-descriptionForeground);
@@ -770,12 +767,49 @@ body {
             }
         }
 
-        /* 第3-7列数值右对齐（第3列输入另起左对齐） */
-        &:nth-child(n + 4):nth-child(-n + 7) {
+        /* 第4列（合并输出）两行布局，复刻第3列输入样式 */
+        &:nth-child(4) {
+            text-align: left;
+            line-height: 1;
+            padding: 1px 3px;
+
+            .output-row {
+                display: block;
+                margin-top: -8px;
+                padding: 0;
+                padding-bottom: 1px;
+
+                .output-ttft {
+                    font-size: 0.75em;
+                    color: var(--vscode-descriptionForeground);
+                }
+                .output-tokens {
+                    font-size: 0.9em;
+                }
+            }
+
+            .output-detail {
+                display: block;
+                padding: 0;
+                margin-top: -3px;
+                margin-bottom: -0.6em;
+
+                .output-tpot {
+                    font-size: 0.9em;
+                }
+                .output-speed {
+                    font-size: 0.75em;
+                    color: var(--vscode-charts-blue);
+                }
+            }
+        }
+
+        /* 第4-5列数值右对齐 */
+        &:nth-child(n + 4):nth-child(-n + 5) {
             text-align: right;
         }
 
-        /* 第8列（状态）居中对齐 */
+        /* 第6列（状态）居中对齐 */
         &:last-child {
             text-align: center;
         }

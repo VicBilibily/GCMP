@@ -315,11 +315,10 @@ function appendTotalsRow(tbody: HTMLElement, summaryRecords: ExtendedTokenReques
         inputCell.title = totalInputTokens.toLocaleString('en-US');
     }
 
-    const outputCell = createElement('td', 'records-total-number');
-    outputCell.textContent = formatTokens(totals.outputTokens);
-    if (totals.outputTokens > 0) {
-        outputCell.title = totals.outputTokens.toLocaleString('en-US');
-    }
+    const outputCell = createElement('td');
+    outputCell.innerHTML =
+        `<div class="output-row"><span class="output-ttft">${totals.latencyValueText}</span><span class="output-tokens">${formatTokens(totals.outputTokens)}</span></div>` +
+        `<div class="output-detail"><span class="output-tpot">${totals.durationValueText}</span><span class="output-speed">${totals.summary.avgSpeed ? `${totals.summary.avgSpeed.toFixed(1)} t/s` : '-'}</span></div>`;
 
     const totalCell = createElement('td', 'records-total-number');
     totalCell.textContent = formatTokens(totals.summary.totalTokens);
@@ -327,19 +326,9 @@ function appendTotalsRow(tbody: HTMLElement, summaryRecords: ExtendedTokenReques
         totalCell.title = totals.summary.totalTokens.toLocaleString('en-US');
     }
 
-    const latencyCell = createElement('td', 'records-total-number');
-    const latencyValue = createElement('span');
-    latencyValue.textContent = totals.latencyValueText;
-    const durationValue = createElement('span');
-    durationValue.textContent = totals.durationValueText;
-    latencyCell.append(latencyValue, ' + ', durationValue);
-
-    const speedCell = createElement('td', 'records-total-number');
-    speedCell.textContent = totals.summary.avgSpeed ? `${totals.summary.avgSpeed.toFixed(1)} t/s` : '-';
-
     const statusCell = createElement('td', 'records-total-empty');
 
-    row.append(labelCell, emptyCell, inputCell, outputCell, totalCell, latencyCell, speedCell, statusCell);
+    row.append(labelCell, emptyCell, inputCell, outputCell, totalCell, statusCell);
     tbody.appendChild(row);
 }
 
@@ -357,10 +346,8 @@ function createRequestRecordsTable(
         t('Time', '时间'),
         t('Provider & Model', '提供商模型'),
         t('<span>Cache</span><span>Input</span>', '<span>缓存命中</span><span>输入总计</span>'),
-        t('Output', '输出令牌'),
-        t('Tokens', '消耗令牌'),
-        t('<span>TTFT</span> + <span>TPOT</span>', '首令延迟 + 输出耗时'),
-        t('Speed', '输出速度'),
+        t('<span>Duration</span><span>Output</span>', '<span>输出耗时</span><span>输出速度</span>'),
+        t('Tokens', '令牌消耗'),
         t('Status', '状态')
     ];
 
@@ -375,7 +362,7 @@ function createRequestRecordsTable(
     const tbody = createElement('tbody');
     if (records.length === 0) {
         const emptyRow = createElement('tr');
-        const emptyCell = createElement('td', '', { colSpan: 8 });
+        const emptyCell = createElement('td', '', { colSpan: 7 });
         emptyCell.textContent = t('No request records yet', '暂无请求记录');
         emptyCell.style.textAlign = 'center';
         emptyRow.appendChild(emptyCell);
@@ -404,11 +391,9 @@ function createRequestRecordsTable(
         providerModel.innerHTML = `<div class="prov-model-provider">${provName}</div><div class="prov-model-model">${modName}</div>`;
 
         const input = createElement('td', 'records-input-merged');
-        const inputVal =
-            record.status === 'completed' && record.rawUsage && record.totalTokens > 0 ? record.actualInput
-            : record.estimatedInput && record.estimatedInput > 0 ? record.estimatedInput
-            : 0;
-        const cacheVal = record.status === 'completed' && record.cacheReadTokens > 0 ? record.cacheReadTokens : 0;
+        const isCompleted = record.status === 'completed' && record.rawUsage && record.totalTokens > 0;
+        const inputVal = isCompleted ? record.actualInput || 0 : record.estimatedInput || 0;
+        const cacheVal = isCompleted && record.cacheReadTokens > 0 ? record.cacheReadTokens : 0;
         if (cacheVal > 0 && inputVal > 0) {
             const ratio = ((cacheVal / inputVal) * 100).toFixed(1);
             const miss = inputVal - cacheVal;
@@ -419,18 +404,51 @@ function createRequestRecordsTable(
                 : ratioNum >= 60 ? 'cache-ratio-low'
                 : 'cache-ratio-none';
             input.innerHTML =
-                `<div class="input-row"><span class="cache-ratio ${ratioClass}" title="${cacheVal.toLocaleString('en-US')} cacheReadTokens">${ratio}%</span><span class="input-total">${formatTokens(inputVal)}</span></div>` +
+                `<div class="input-row"><span class="cache-ratio ${ratioClass}" title="${cacheVal.toLocaleString('en-US')} cacheReadTokens">${ratio}%</span><span class="input-total">${!isCompleted ? '~' : ''}${formatTokens(inputVal)}</span></div>` +
                 `<div class="input-detail"><span class="cache-amount">${formatTokens(cacheVal)}</span><span class="input-miss" title="${miss.toLocaleString('en-US')} miss">${miss.toLocaleString('en-US')}</span></div>`;
         } else {
-            input.textContent = inputVal > 0 ? formatTokens(inputVal) : '-';
+            input.textContent = inputVal > 0 ? `${!isCompleted ? '~' : ''}${formatTokens(inputVal)}` : '-';
         }
         if (inputVal > 0) {
             input.title = inputVal.toLocaleString('en-US');
         }
 
-        const output = createElement('td');
+        // 合并输出列：上行 TTFT | 输出令牌，下行 OTFT | 输出速度
+        const output = createElement('td', 'records-output-merged');
         const outputVal = record.status === 'completed' && record.outputTokens > 0 ? record.outputTokens : 0;
-        output.textContent = outputVal > 0 ? formatTokens(record.outputTokens) : '-';
+        const ttft =
+            (
+                record.streamStartTime !== undefined &&
+                record.timestamp !== undefined &&
+                Number.isFinite(record.streamStartTime - record.timestamp) &&
+                record.streamStartTime - record.timestamp >= 0
+            ) ?
+                record.streamStartTime - record.timestamp
+            :   undefined;
+        const speedVal = record.outputSpeed && record.outputSpeed > 0 ? record.outputSpeed : undefined;
+        const tpot =
+            record.streamDuration !== undefined && record.streamDuration > 0 ? record.streamDuration : undefined;
+
+        if (ttft !== undefined || outputVal > 0) {
+            const ttftText =
+                ttft !== undefined ?
+                    ttft >= 1000 ?
+                        `${(ttft / 1000).toFixed(1)}s`
+                    :   `${Math.round(ttft)}ms`
+                :   '-';
+            const tpotText =
+                tpot !== undefined ?
+                    tpot >= 1000 ?
+                        `${(tpot / 1000).toFixed(1)}s`
+                    :   `${Math.round(tpot)}ms`
+                :   '-';
+            const speedText = speedVal !== undefined ? `${speedVal.toFixed(1)} t/s` : '-';
+            output.innerHTML =
+                `<div class="output-row"><span class="output-ttft" title="TTFT: ${ttft !== undefined ? ttft.toLocaleString('en-US') + 'ms' : '-'}">${ttftText}</span><span class="output-tokens" title="Output tokens: ${outputVal.toLocaleString('en-US')}">${formatTokens(outputVal)}</span></div>` +
+                `<div class="output-detail"><span class="output-tpot" title="TPOT: ${tpot !== undefined ? tpot.toLocaleString('en-US') + 'ms' : '-'}">${tpotText}</span><span class="output-speed" title="Speed: ${speedText}">${speedText}</span></div>`;
+        } else {
+            output.textContent = outputVal > 0 ? formatTokens(outputVal) : '-';
+        }
         if (outputVal > 0) {
             output.title = outputVal.toLocaleString('en-US');
         }
@@ -442,34 +460,6 @@ function createRequestRecordsTable(
             total.title = totalVal.toLocaleString('en-US');
         }
 
-        const firstTokenLatency = createElement('td');
-        if (record.streamDuration !== undefined && record.streamDuration > 0) {
-            const duration =
-                record.streamDuration >= 1000 ?
-                    `<span>${(record.streamDuration / 1000).toFixed(1)}s</span>`
-                :   `<span>${Math.round(record.streamDuration)}ms</span>`;
-
-            if (record.streamStartTime !== undefined && record.timestamp !== undefined) {
-                const latency = record.streamStartTime - record.timestamp;
-                if (Number.isFinite(latency) && latency >= 0) {
-                    const latencyText =
-                        latency >= 1000 ?
-                            `<span>${(latency / 1000).toFixed(1)}s</span>`
-                        :   `<span>${Math.round(latency)}ms</span>`;
-                    firstTokenLatency.innerHTML = `${latencyText} + ${duration}`;
-                } else {
-                    firstTokenLatency.innerHTML = `- + ${duration}`;
-                }
-            } else {
-                firstTokenLatency.innerHTML = `- + ${duration}`;
-            }
-        } else {
-            firstTokenLatency.textContent = '-';
-        }
-
-        const speed = createElement('td');
-        speed.textContent = record.outputSpeed && record.outputSpeed > 0 ? `${record.outputSpeed.toFixed(1)} t/s` : '-';
-
         const status = createElement('td');
         status.className =
             record.status === 'completed' ? 'status-completed'
@@ -480,7 +470,7 @@ function createRequestRecordsTable(
             : record.status === 'failed' ? '❌'
             : '⏳';
 
-        row.append(time, providerModel, input, output, total, firstTokenLatency, speed, status);
+        row.append(time, providerModel, input, output, total, status);
         tbody.appendChild(row);
     });
 
