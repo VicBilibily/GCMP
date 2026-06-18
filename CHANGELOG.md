@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.24.14] - 2026-06-18
+
+### 新增
+
+- **火山方舟 Kimi-K2.7-Code**：Coding Plan 与 Agent Plan 均新增 **Kimi-K2.7-Code** 模型
+
+### 优化
+
+- **Charm Hyper 流式模式切换**：[#239](https://github.com/VicBilibily/GCMP/pull/239) 将 Charm Hyper 内置模型从 Anthropic 流式切换为 OpenAI SSE 模式，流式响应可稳定返回完整 `usage` 信息，提升用量统计准确性
+
+---
+
+### Added
+
+- **Volcengine Kimi-K2.7-Code**: Added **Kimi-K2.7-Code** model to both Coding Plan and Agent Plan
+
+### Improved
+
+- **Charm Hyper streaming mode**: [#239](https://github.com/VicBilibily/GCMP/pull/239) Switched Charm Hyper preset models from Anthropic streaming to OpenAI SSE streaming for stable `usage` chunks and more accurate token usage statistics
+
 ## [0.24.13] - 2026-06-17
 
 ### 新增

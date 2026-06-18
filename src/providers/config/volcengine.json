@@ -53,6 +53,18 @@
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
+            "id": "ark-code-kimi-k2.7-code",
+            "name": "Kimi-K2.7-Code (CodingPlan)",
+            "model": "kimi-k2.7-code",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。Kimi 最新 Coding 模型，在长上下文中更可靠地遵循指令，能以更高的成功率完成编程任务，同时支持文本、图片与视频输入，思考模式，对话与 Agent 任务。",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "extraBody": { "thinking": { "type": "enabled" } },
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
             "id": "ark-code-kimi-k2.6",
             "name": "Kimi-K2.6 (CodingPlan)",
             "model": "kimi-k2.6",
@@ -288,6 +300,19 @@
             "maxInputTokens": 204800,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "ark-plan-kimi-k2.7-code",
+            "name": "Kimi-K2.7-Code (AgentPlan)",
+            "model": "kimi-k2.7-code",
+            "provider": "volcengine-agent",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
+            "tooltip": "Kimi 最新 Coding 模型，在长上下文中更可靠地遵循指令，能以更高的成功率完成编程任务，同时支持文本、图片与视频输入，思考模式，对话与 Agent 任务。",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "extraBody": { "thinking": { "type": "enabled" } },
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-plan-kimi-k2.6",

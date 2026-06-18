@@ -1,4 +1,4 @@
-﻿# GCMP - Multi-Provider AI Chat Models for GitHub Copilot
+# GCMP - Multi-Provider AI Chat Models for GitHub Copilot
 
 English | **[中文](README.md)**
 
@@ -78,10 +78,10 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 
 - [**Coding Plan**](https://www.volcengine.com/activity/codingplan):
     - Doubao models: **Doubao-Seed-2.0-Code**, **Doubao-Seed-Code**, **Doubao-Seed-2.0-lite**, **Doubao-Seed-2.0-pro**
-    - Open-source models: **GLM-5.2**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **GLM-5.1**, **Kimi-K2.6**, **MiniMax-M3**, **MiniMax-M2.7**, **MiniMax-M2.5**, **Kimi-K2.5**, **GLM-4.7**, **DeepSeek-V3.2**
+    - Open-source models: **GLM-5.2**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **GLM-5.1**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **MiniMax-M3**, **MiniMax-M2.7**, **MiniMax-M2.5**, **Kimi-K2.5**, **GLM-4.7**, **DeepSeek-V3.2**
 - [**Agent Plan**](https://www.volcengine.com/activity/agentplan):
     - Doubao models: **Doubao-Seed-2.0** (Code/pro/lite/mini)
-    - Open-source models: **GLM-5.2**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **GLM-5.1**, **MiniMax-M3**, **MiniMax-M2.7**, **Kimi-K2.6**, **DeepSeek-V3.2**
+    - Open-source models: **GLM-5.2**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **GLM-5.1**, **MiniMax-M3**, **MiniMax-M2.7**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **DeepSeek-V3.2**
 - **Doubao series**: **Doubao-Seed-2.0** (lite/mini/pro/Code), **Doubao-Seed-1.8**
 - **Collaboration rewards**: **GLM-4.7**, **DeepSeek-V3.2**
 - **PayGo**: **DeepSeek-V4-Flash-260425**, **DeepSeek-V4-Pro-260425**
