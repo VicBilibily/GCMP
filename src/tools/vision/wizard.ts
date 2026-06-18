@@ -1,6 +1,6 @@
 ﻿/*---------------------------------------------------------------------------------------------
  *  视觉分析模型选择向导
- *  先选后端类型（MiniMax API / Native 模型），再选提供商和模型。
+ *  选择原生支持多模态的 GCMP 提供商和模型。
  *  提供商/模型选择界面参照 commit 模式：
  *    - 提供商：label=displayName, description=providerKey, detail=vendor
  *    - 模型：  label=name, description=id, detail=providerKey:modelId
@@ -8,7 +8,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Logger, ConfigManager, ApiKeyManager } from '../../utils';
+import { Logger, ConfigManager } from '../../utils';
 import { t } from '../../utils/l10n';
 import { configProviders } from '../../providers/config';
 import { CompatibleModelManager } from '../../utils/compatibleModelManager';
@@ -70,49 +70,9 @@ function getVisionProviders(): VisionProviderOption[] {
 
 export async function selectVisionModel(): Promise<void> {
     try {
-        // 检查 minimax-token 密钥是否存在
-        const hasMinimaxTokenKey = await ApiKeyManager.hasValidApiKey('minimax-token');
-
-        // 1. 选择后端类型。无 minimax-token 密钥时隐藏 MiniMax API 选项
-        interface BackendOption extends vscode.QuickPickItem {
-            value: 'minimax_mcp_understand_image' | 'model';
-        }
-
-        const backendOptions: BackendOption[] = [];
-        if (hasMinimaxTokenKey) {
-            backendOptions.push({
-                label: '$(camera) MiniMax Vision API',
-                description: t('MiniMax Token Plan', 'MiniMax Token Plan'),
-                detail: t('Requires MiniMax Token Plan API Key', '需要 MiniMax Token Plan API Key'),
-                value: 'minimax_mcp_understand_image' as const
-            });
-        }
-        backendOptions.push({
-            label: '$(symbol-method) Native Multimodal Model',
-            description: t('Delegate to a GCMP provider model', '委派给 GCMP 提供商的原生多模态模型'),
-            value: 'model' as const
-        });
-
-        const backendPick = await vscode.window.showQuickPick<BackendOption>(backendOptions, {
-            placeHolder: t('Select vision analysis backend type', '选择视觉分析后端类型')
-        });
-        const backendValue = backendPick?.value;
-
-        if (!backendValue) {
-            return;
-        }
-
         const config = vscode.workspace.getConfiguration('gcmp');
 
-        if (backendValue === 'minimax_mcp_understand_image') {
-            await config.update('vision.provider', 'minimax_mcp_understand_image', vscode.ConfigurationTarget.Global);
-            vscode.window.showInformationMessage(
-                t('Vision analysis backend set to MiniMax Vision API.', '视觉分析后端已设置为 MiniMax Vision API。')
-            );
-            return;
-        }
-
-        // 2. model 模式：选提供商（界面参照 commit 模式）
+        // 1. 选择支持图像输入的提供商（界面参照 commit 模式）
         const providers = getVisionProviders();
         if (providers.length === 0) {
             vscode.window.showWarningMessage(
@@ -143,7 +103,7 @@ export async function selectVisionModel(): Promise<void> {
         const pickedKey = providerPick.providerKey;
         const pickedProvider = providers.find(p => p.providerKey === pickedKey)!;
 
-        // 3. 选模型（界面参照 commit 模式，模型已按 imageInput 过滤）
+        // 2. 选模型（界面参照 commit 模式，模型已按 imageInput 过滤）
         const visionModels = pickedProvider.models;
         if (visionModels.length === 0) {
             vscode.window.showWarningMessage(
@@ -174,7 +134,6 @@ export async function selectVisionModel(): Promise<void> {
         }
 
         // 4. 保存配置
-        await config.update('vision.provider', 'model', vscode.ConfigurationTarget.Global);
         await config.update(
             'vision.model',
             { provider: pickedKey, model: modelPick.modelId },

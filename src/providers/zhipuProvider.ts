@@ -107,10 +107,10 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
         try {
             const modelConfig = this.findModelConfigById(model);
             if (modelConfig?.sdkMode === 'anthropic') {
-                // 先分类（在修改提示词之前，确保分类正确）
+                // 先分类（在修改提示词之前，确保分类正确；上层已设置 requestKind 时直接使用）
                 const rtOpts = options as { modelOptions?: Record<string, unknown> };
-                const isCommit = !!(rtOpts.modelOptions?.commit as boolean);
-                const kind = classifyRequest(messages, options.tools, isCommit);
+                const existingKind = rtOpts.modelOptions?.requestKind as string | undefined;
+                const kind = existingKind ?? classifyRequest(messages, options.tools);
 
                 // 确保 modelOptions 存在并持久化 requestKind
                 // 否则父类会在已被 Claude Code 前缀污染的提示词上重分类，导致子请求退化为 background

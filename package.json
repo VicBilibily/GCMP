@@ -87,7 +87,13 @@
         "onLanguageModelTool:gcmp_kimiWebSearch",
         "onLanguageModelTool:gcmp_dashscopeWebSearch",
         "onLanguageModelTool:gcmp_stepfunWebSearch",
-        "onLanguageModelTool:gcmp_visionTool",
+        "onLanguageModelTool:gcmp_visionTool_uiToArtifact",
+        "onLanguageModelTool:gcmp_visionTool_extractTextFromScreenshot",
+        "onLanguageModelTool:gcmp_visionTool_diagnoseErrorScreenshot",
+        "onLanguageModelTool:gcmp_visionTool_understandTechnicalDiagram",
+        "onLanguageModelTool:gcmp_visionTool_analyzeDataVisualization",
+        "onLanguageModelTool:gcmp_visionTool_uiDiffCheck",
+        "onLanguageModelTool:gcmp_visionTool_analyzeImage",
         "onFileSystem:gcmp-settings"
     ],
     "contributes": {
@@ -745,20 +751,6 @@
                         "model"
                     ]
                 },
-                "gcmp.vision.provider": {
-                    "type": "string",
-                    "default": "model",
-                    "enum": [
-                        "minimax_mcp_understand_image",
-                        "model"
-                    ],
-                    "enumDescriptions": [
-                        "%setting.vision.provider.enumDescriptions.minimax%",
-                        "%setting.vision.provider.enumDescriptions.model%"
-                    ],
-                    "description": "%setting.vision.provider.description%",
-                    "scope": "application"
-                },
                 "gcmp.vision.model": {
                     "type": "object",
                     "default": {
@@ -1083,12 +1075,46 @@
                 }
             },
             {
-                "name": "gcmp_visionTool",
-                "displayName": "%tool.vision.displayName%",
-                "toolReferenceName": "gcmpVisionTool",
-                "modelDescription": "%tool.vision.modelDescription%",
-                "userDescription": "%tool.vision.userDescription%",
-                "canBeReferencedInPrompt": true,
+                "name": "gcmp_visionTool_uiToArtifact",
+                "displayName": "%tool.uiToArtifact.displayName%",
+                "toolReferenceName": "gcmpUiToArtifact",
+                "modelDescription": "%tool.uiToArtifact.modelDescription%",
+                "userDescription": "%tool.uiToArtifact.userDescription%",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "filePath": {
+                            "type": "string",
+                            "description": "%tool.vision.input.filePath.description%"
+                        },
+                        "outputType": {
+                            "type": "string",
+                            "enum": [
+                                "code",
+                                "prompt",
+                                "spec",
+                                "description"
+                            ],
+                            "description": "%tool.uiToArtifact.input.outputType.description%"
+                        },
+                        "prompt": {
+                            "type": "string",
+                            "description": "%tool.uiToArtifact.input.prompt.description%"
+                        }
+                    },
+                    "required": [
+                        "filePath",
+                        "outputType",
+                        "prompt"
+                    ]
+                }
+            },
+            {
+                "name": "gcmp_visionTool_extractTextFromScreenshot",
+                "displayName": "%tool.extractTextFromScreenshot.displayName%",
+                "toolReferenceName": "gcmpExtractTextFromScreenshot",
+                "modelDescription": "%tool.extractTextFromScreenshot.modelDescription%",
+                "userDescription": "%tool.extractTextFromScreenshot.userDescription%",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -1098,10 +1124,171 @@
                         },
                         "prompt": {
                             "type": "string",
-                            "description": "%tool.vision.input.prompt.description%"
+                            "description": "%tool.extractTextFromScreenshot.input.prompt.description%"
+                        },
+                        "programmingLanguage": {
+                            "type": "string",
+                            "description": "%tool.extractTextFromScreenshot.input.programmingLanguage.description%"
                         }
-                    }
+                    },
+                    "required": [
+                        "filePath",
+                        "prompt"
+                    ]
                 }
+            },
+            {
+                "name": "gcmp_visionTool_diagnoseErrorScreenshot",
+                "displayName": "%tool.diagnoseErrorScreenshot.displayName%",
+                "toolReferenceName": "gcmpDiagnoseErrorScreenshot",
+                "modelDescription": "%tool.diagnoseErrorScreenshot.modelDescription%",
+                "userDescription": "%tool.diagnoseErrorScreenshot.userDescription%",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "filePath": {
+                            "type": "string",
+                            "description": "%tool.vision.input.filePath.description%"
+                        },
+                        "prompt": {
+                            "type": "string",
+                            "description": "%tool.diagnoseErrorScreenshot.input.prompt.description%"
+                        },
+                        "context": {
+                            "type": "string",
+                            "description": "%tool.diagnoseErrorScreenshot.input.context.description%"
+                        }
+                    },
+                    "required": [
+                        "filePath",
+                        "prompt"
+                    ]
+                }
+            },
+            {
+                "name": "gcmp_visionTool_understandTechnicalDiagram",
+                "displayName": "%tool.understandTechnicalDiagram.displayName%",
+                "toolReferenceName": "gcmpUnderstandTechnicalDiagram",
+                "modelDescription": "%tool.understandTechnicalDiagram.modelDescription%",
+                "userDescription": "%tool.understandTechnicalDiagram.userDescription%",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "filePath": {
+                            "type": "string",
+                            "description": "%tool.vision.input.filePath.description%"
+                        },
+                        "prompt": {
+                            "type": "string",
+                            "description": "%tool.understandTechnicalDiagram.input.prompt.description%"
+                        },
+                        "diagramType": {
+                            "type": "string",
+                            "description": "%tool.understandTechnicalDiagram.input.diagramType.description%"
+                        }
+                    },
+                    "required": [
+                        "filePath",
+                        "prompt"
+                    ]
+                }
+            },
+            {
+                "name": "gcmp_visionTool_analyzeDataVisualization",
+                "displayName": "%tool.analyzeDataVisualization.displayName%",
+                "toolReferenceName": "gcmpAnalyzeDataVisualization",
+                "modelDescription": "%tool.analyzeDataVisualization.modelDescription%",
+                "userDescription": "%tool.analyzeDataVisualization.userDescription%",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "filePath": {
+                            "type": "string",
+                            "description": "%tool.vision.input.filePath.description%"
+                        },
+                        "prompt": {
+                            "type": "string",
+                            "description": "%tool.analyzeDataVisualization.input.prompt.description%"
+                        },
+                        "analysisFocus": {
+                            "type": "string",
+                            "description": "%tool.analyzeDataVisualization.input.analysisFocus.description%"
+                        }
+                    },
+                    "required": [
+                        "filePath",
+                        "prompt"
+                    ]
+                }
+            },
+            {
+                "name": "gcmp_visionTool_uiDiffCheck",
+                "displayName": "%tool.uiDiffCheck.displayName%",
+                "toolReferenceName": "gcmpUiDiffCheck",
+                "modelDescription": "%tool.uiDiffCheck.modelDescription%",
+                "userDescription": "%tool.uiDiffCheck.userDescription%",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "expectedFilePath": {
+                            "type": "string",
+                            "description": "%tool.uiDiffCheck.input.expectedFilePath.description%"
+                        },
+                        "actualFilePath": {
+                            "type": "string",
+                            "description": "%tool.uiDiffCheck.input.actualFilePath.description%"
+                        },
+                        "prompt": {
+                            "type": "string",
+                            "description": "%tool.uiDiffCheck.input.prompt.description%"
+                        }
+                    },
+                    "required": [
+                        "expectedFilePath",
+                        "actualFilePath",
+                        "prompt"
+                    ]
+                }
+            },
+            {
+                "name": "gcmp_visionTool_analyzeImage",
+                "displayName": "%tool.analyzeImage.displayName%",
+                "toolReferenceName": "gcmpAnalyzeImage",
+                "modelDescription": "%tool.analyzeImage.modelDescription%",
+                "userDescription": "%tool.analyzeImage.userDescription%",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "filePath": {
+                            "type": "string",
+                            "description": "%tool.vision.input.filePath.description%"
+                        },
+                        "prompt": {
+                            "type": "string",
+                            "description": "%tool.analyzeImage.input.prompt.description%"
+                        }
+                    },
+                    "required": [
+                        "filePath",
+                        "prompt"
+                    ]
+                }
+            }
+        ],
+        "languageModelToolSets": [
+            {
+                "name": "gcmpVisionTool",
+                "description": "%tool.vision.description%",
+                "icon": "$(eye)",
+                "tools": [
+                    "gcmpUiToArtifact",
+                    "gcmpExtractTextFromScreenshot",
+                    "gcmpDiagnoseErrorScreenshot",
+                    "gcmpUnderstandTechnicalDiagram",
+                    "gcmpAnalyzeDataVisualization",
+                    "gcmpUiDiffCheck",
+                    "gcmpAnalyzeImage"
+                ]
             }
         ],
         "icons": {

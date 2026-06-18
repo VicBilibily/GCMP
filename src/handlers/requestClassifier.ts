@@ -64,6 +64,7 @@ const SUB_REQUEST_TYPES = new Set<RequestKind>([
     'inline-progress-message',
     'git-branch-name',
     'git-commit-message',
+    'vision-recognition',
     'pr-description',
     'rename-suggestions',
     'code-mapper',
@@ -178,8 +179,6 @@ const SYSTEM_PROMPT_PREFIXES: [string, RequestKind][] = [
     ['You have a vivid inner life as coding agent', 'main-agent'],
     // zaiPrompts.tsx → main-agent (GLM/ZAI 系列)
     ['You are a senior software architect and expert coding agent', 'main-agent'],
-    // gcmp_visionTool 内部委托 → vision-recognition
-    ['You are an image analysis assistant. Your task is to analyze', 'vision-recognition'],
     // panelChatBasePrompt.tsx / editCodePrompt.tsx / inlineChat*.tsx → main-agent (面板/内联兜底)
     ['You are an AI programming assistant', 'main-agent'],
     // agentPrompt.tsx / minimaxPrompts.tsx / familyHPrompts.tsx → main-agent
@@ -224,22 +223,14 @@ const TERMINAL_NOTIFICATION_PATTERN = /^\[Terminal\s+\S+\s+notification:/;
  * 从 VS Code Provider API 格式的消息中分类请求
  * @param messages 聊天消息
  * @param tools 可用的工具列表
- * @param isCommit 是否为插件自身的提交消息生成请求（由 modelOptions.commit 标识）
- * @param modelOptionsProvider 来自 options.modelOptions 的额外元数据（用于检测子代理等）
  */
 export function classifyRequest(
     messages: readonly vscode.LanguageModelChatMessage[],
-    tools?: readonly vscode.LanguageModelChatTool[],
-    isCommit?: boolean
+    tools?: readonly vscode.LanguageModelChatTool[]
 ): RequestKind {
     const firstText = getFirstMessageText(messages).trimStart();
     const latestUserText = getLatestUserText(messages).trimStart();
     const toolNames = tools?.map(t => t.name) ?? [];
-
-    // 0. 插件自身的提交消息生成 → 直接定向
-    if (isCommit) {
-        return 'git-commit-message';
-    }
 
     // 1. 终端通知 → 最高优先级（检查最新用户消息）
     if (TERMINAL_NOTIFICATION_PATTERN.test(latestUserText)) {

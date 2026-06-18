@@ -287,13 +287,12 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             `${this.providerConfig.displayName}: about to handle request using ${providerKey === 'minimax-token' ? 'Token Plan' : 'standard'} key - model: ${modelConfig.name}`
         );
 
-        // 请求分类 + 注入到 options.modelOptions
-        const isCommit = !!(options as { modelOptions?: { commit?: boolean } }).modelOptions?.commit;
-        const kind = classifyRequest(messages, options.tools, isCommit);
+        // 请求分类 + 注入到 options.modelOptions（上层已设置 requestKind 时直接使用）
         const rtOpts = options as { modelOptions?: { requestKind?: string } };
         if (!rtOpts.modelOptions) {
             rtOpts.modelOptions = {};
         }
+        const kind = rtOpts.modelOptions.requestKind ?? classifyRequest(messages, options.tools);
         rtOpts.modelOptions.requestKind = kind;
 
         // 计算输入 token 数量并更新状态栏

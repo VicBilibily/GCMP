@@ -2,8 +2,7 @@
  *  视觉消息处理器
  *  在 executeModelRequest 中调用，将图片 DataPart 写入缓存并替换为工具调用指令。
  *  仅对 capabilities.imageInput === false 的模型生效。
- *  hint 属性固定为 "Use gcmp_visionTool"，提示模型使用专用视觉工具分析图片，
- *  避免模型使用 read_file 等工具直接读取缓存文件导致视觉信息丢失。
+ *  提示模型使用 #gcmpVisionTool 工具集中的合适子工具分析图片，
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -68,11 +67,22 @@ export async function processVisionMessages(
                     const { path: cachePath } = visionCache.saveImage(sessionId, base64, part.mimeType);
                     cachedFiles.push(cachePath);
 
-                    newParts.push(
-                        new vscode.LanguageModelTextPart(
-                            `<attachment hint="Use gcmp_visionTool" filePath="${cachePath}" mimeType="${part.mimeType}"></attachment>`
-                        )
-                    );
+                    const hintText = [
+                        `<attachment filePath="${cachePath}" mimeType="${part.mimeType}">`,
+                        'Analyze this image using the appropriate tool from the #gcmpVisionTool toolset based on the user request:',
+                        '- UI screenshot / mockup → #gcmpUiToArtifact',
+                        '- error screenshot / stack trace → #gcmpDiagnoseErrorScreenshot',
+                        '- code or text screenshot → #gcmpExtractTextFromScreenshot',
+                        '- architecture / technical diagram → #gcmpUnderstandTechnicalDiagram',
+                        '- chart / data visualization → #gcmpAnalyzeDataVisualization',
+                        '- two images to compare → #gcmpUiDiffCheck',
+                        '- general image → #gcmpAnalyzeImage',
+                        '',
+                        'Do NOT use any VS Code built-in tools (such as readFile, read_file, file search, or image viewer tools) to inspect image files directly.',
+                        '</attachment>'
+                    ].join('\n');
+
+                    newParts.push(new vscode.LanguageModelTextPart(hintText));
                     Logger.trace(`[VisionProcessor] Cached image: ${cachePath}`);
                 } catch (err) {
                     Logger.warn(

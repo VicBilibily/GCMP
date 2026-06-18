@@ -10,7 +10,16 @@ import { MiniMaxSearchTool } from './minimaxSearch';
 import { KimiSearchTool } from './kimiSearch';
 import { DashscopeSearchTool } from './dashscopeSearch';
 import { StepFunSearchTool } from './stepfunSearch';
-import { VisionTool } from './vision/tool';
+import {
+    UiToArtifactTool,
+    TextExtractionTool,
+    ErrorDiagnosisTool,
+    DiagramAnalysisTool,
+    DataVisualizationTool,
+    UiDiffCheckTool,
+    GeneralImageAnalysisTool
+} from './vision/toolset';
+import type { BaseVisionTool } from './vision/toolset/baseVisionTool';
 import { ToolContextManager } from './toolContextManager';
 
 // 全局工具实例管理
@@ -19,7 +28,7 @@ let minimaxSearchTool: MiniMaxSearchTool | undefined;
 let kimiSearchTool: KimiSearchTool | undefined;
 let dashscopeSearchTool: DashscopeSearchTool | undefined;
 let stepfunSearchTool: StepFunSearchTool | undefined;
-let visionTool: VisionTool | undefined;
+let visionTools: BaseVisionTool[] | undefined;
 
 /**
  * 注册所有工具
@@ -69,13 +78,26 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
         });
         context.subscriptions.push(stepfunToolDisposable);
 
-        // 注册通用图像识别工具
-        visionTool = new VisionTool();
-        const visionToolDisposable = vscode.lm.registerTool('gcmp_visionTool', {
-            invoke: visionTool.invoke.bind(visionTool),
-            prepareInvocation: visionTool.prepareInvocation.bind(visionTool)
+        // 注册视觉工具集
+        const visionToolDefs: Array<[string, new () => BaseVisionTool]> = [
+            ['gcmp_visionTool_uiToArtifact', UiToArtifactTool],
+            ['gcmp_visionTool_extractTextFromScreenshot', TextExtractionTool],
+            ['gcmp_visionTool_diagnoseErrorScreenshot', ErrorDiagnosisTool],
+            ['gcmp_visionTool_understandTechnicalDiagram', DiagramAnalysisTool],
+            ['gcmp_visionTool_analyzeDataVisualization', DataVisualizationTool],
+            ['gcmp_visionTool_uiDiffCheck', UiDiffCheckTool],
+            ['gcmp_visionTool_analyzeImage', GeneralImageAnalysisTool]
+        ];
+        visionTools = visionToolDefs.map(([name, ToolClass]) => {
+            const tool = new ToolClass();
+            context.subscriptions.push(
+                vscode.lm.registerTool(name, {
+                    invoke: tool.invoke.bind(tool),
+                    prepareInvocation: tool.prepareInvocation.bind(tool)
+                })
+            );
+            return tool;
         });
-        context.subscriptions.push(visionToolDisposable);
 
         // 添加清理逻辑到context
         context.subscriptions.push({
@@ -89,7 +111,7 @@ export function registerAllTools(context: vscode.ExtensionContext): void {
         Logger.debug('Kimi web search tool registered: gcmp_kimiWebSearch');
         Logger.debug('DashScope web search tool registered: gcmp_dashscopeWebSearch');
         Logger.debug('StepFun web search tool registered: gcmp_stepfunWebSearch');
-        Logger.debug('Vision analysis tool registered: gcmp_visionTool');
+        Logger.debug('Vision toolset registered');
     } catch (error) {
         Logger.error('Tool registration failed', error instanceof Error ? error : undefined);
         throw error;
@@ -131,9 +153,9 @@ export async function cleanupAllTools(): Promise<void> {
             Logger.info('✅ StepFun web search tool resources cleaned up');
         }
 
-        if (visionTool) {
-            visionTool = undefined;
-            Logger.info('✅ Vision analysis tool resources cleaned up');
+        if (visionTools) {
+            visionTools = undefined;
+            Logger.info('✅ Vision toolset resources cleaned up');
         }
     } catch (error) {
         Logger.error('❌ Tool cleanup failed', error instanceof Error ? error : undefined);

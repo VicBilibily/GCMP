@@ -936,30 +936,7 @@ export class JsonSchemaProvider {
                 // Vision 模型选择：保存 provider + model
                 'gcmp.vision.model': this.getVisionModelSchema()
             },
-            additionalProperties: true,
-            allOf: [
-                {
-                    if: {
-                        properties: { 'gcmp.vision.provider': { const: 'minimax_mcp_understand_image' } },
-                        required: ['gcmp.vision.provider']
-                    },
-                    then: {
-                        properties: {
-                            'gcmp.vision.model': {
-                                type: 'object',
-                                description: t(
-                                    'This setting only takes effect when "Vision Analysis Backend Type" (gcmp.vision.provider) is set to "model".',
-                                    '此设置仅在"视觉分析后端类型"(gcmp.vision.provider)设置为"model"时生效。'
-                                ),
-                                deprecationMessage: t(
-                                    'Change "gcmp.vision.provider" to "model" for this setting to take effect.',
-                                    '将"gcmp.vision.provider"设置为"model"后此设置才生效。'
-                                )
-                            }
-                        }
-                    }
-                }
-            ]
+            additionalProperties: true
         };
     }
 

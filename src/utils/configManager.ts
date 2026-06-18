@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { Logger } from './logger';
 import { ConfigProvider, UserConfigOverrides, ProviderConfig, ModelConfig, ModelOverride } from '../types/sharedTypes';
 import { configProviders } from '../providers/config';
-import { CommitFormat, CommitLanguage, CommitModelSelection } from '../commit/types';
+import { CommitFormat, CommitLanguage, ModelSelection } from '../commit/types';
 import { t } from './l10n';
 import {
     createProxiedFetch,
@@ -103,7 +103,15 @@ export interface CommitConfig {
     format: CommitFormat;
     customInstructions: string;
     sensitiveFiles: string[];
-    model?: CommitModelSelection;
+    model?: ModelSelection;
+}
+
+/**
+ * 视觉分析配置
+ */
+export interface VisionConfig {
+    /** 委派模型配置 */
+    model: ModelSelection;
 }
 
 /**
@@ -132,19 +140,6 @@ export interface GCMPConfig {
     providerOverrides: UserConfigOverrides;
     /** 视觉分析配置 */
     vision: VisionConfig;
-}
-
-/**
- * 视觉分析配置
- */
-export interface VisionConfig {
-    /** 后端类型：minimax_mcp_understand_image | model */
-    provider: string;
-    /** 委派模型配置（provider 模式生效） */
-    model: {
-        provider: string;
-        model: string;
-    };
 }
 
 interface ProxyFetchOptions {
@@ -278,10 +273,9 @@ export class ConfigManager {
                 sensitiveFiles: (config.get<string[]>('commit.sensitiveFiles') ?? [])
                     .map(item => item.trim())
                     .filter(Boolean),
-                model: config.get<CommitModelSelection>('commit.model')
+                model: config.get<ModelSelection>('commit.model')
             },
             vision: {
-                provider: config.get<string>('vision.provider', 'minimax_mcp_understand_image'),
                 model: {
                     provider: config.get<string>('vision.model.provider', ''),
                     model: config.get<string>('vision.model.model', '')

@@ -459,8 +459,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             rtOpts.modelOptions = {};
         }
         if (!rtOpts.modelOptions.requestKind) {
-            const isCommit = !!(options as { modelOptions?: { commit?: boolean } }).modelOptions?.commit;
-            rtOpts.modelOptions.requestKind = classifyRequest(messages, options.tools, isCommit);
+            rtOpts.modelOptions.requestKind = classifyRequest(messages, options.tools);
         }
 
         // 处理消息中的图片 DataPart（仅对 imageInput: false 的模型生效）
@@ -583,16 +582,15 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const effectiveProviderKey = modelConfig.provider || this.providerKey;
         const sdkMode = modelConfig.sdkMode || 'openai';
 
-        // 请求分类 + 注入到 options.modelOptions（确保 statusBar 能读取到 requestKind）
+        // 请求分类 + 注入到 options.modelOptions（确保 statusBar 能读取到 requestKind；上层已设置时直接使用）
         const rtOpts = options as RuntimeProvideLanguageModelChatResponseOptions;
         if (!rtOpts.modelOptions) {
             rtOpts.modelOptions = {};
         }
-        const isCommit = !!(options as { modelOptions?: { commit?: boolean } }).modelOptions?.commit;
-        const kind = classifyRequest(messages, options.tools, isCommit);
         if (!rtOpts.modelOptions.requestKind) {
-            rtOpts.modelOptions.requestKind = kind;
+            rtOpts.modelOptions.requestKind = classifyRequest(messages, options.tools);
         }
+        const kind = rtOpts.modelOptions.requestKind;
 
         // 计算输入 token 数量并更新状态栏
         const { totalInputTokens, maxInputTokens } = await this.updateContextUsageStatusBar(

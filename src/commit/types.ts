@@ -42,12 +42,10 @@ export interface ProgressReporter {
 }
 
 /**
- * 提交模块配置键
+ * 模型选择配置（provider + model）
+ * 用于 commit、vision 等需要显式选择模型能力的场景
  */
-/**
- * 提交消息生成使用的模型选择
- */
-export interface CommitModelSelection {
+export interface ModelSelection {
     /** 语言模型提供商（providerKey，例如：zhipu / compatible） */
     provider: string;
     /** 模型 ID（对应 LanguageModelChatInformation.id） */
@@ -104,8 +102,4 @@ export class EmptyCommitMessageError extends Error {
         super(message);
         this.name = 'EmptyCommitMessageError';
     }
-}
-
-export interface CommitChatModelOptions {
-    readonly commit?: boolean;
 }

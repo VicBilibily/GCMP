@@ -9,8 +9,7 @@ import {
     ProgressReporter,
     ModelNotFoundError,
     EmptyCommitMessageError,
-    UserCancelledError,
-    CommitChatModelOptions
+    UserCancelledError
 } from './types';
 import { PromptService } from './promptService';
 import type { GitDiffParts, GitDiffSection } from './gitService';
@@ -339,10 +338,10 @@ export class GeneratorService {
         token: vscode.CancellationToken
     ): Promise<string> {
         try {
-            // 发送请求
+            // 发送请求（通过 modelOptions.requestKind 标记为 commit 请求）
             const response = await model.sendRequest(
                 messages,
-                { modelOptions: { commit: true } as CommitChatModelOptions },
+                { modelOptions: { requestKind: 'git-commit-message' as const } },
                 token
             );
 

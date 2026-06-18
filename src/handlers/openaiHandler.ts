@@ -16,7 +16,7 @@ import { getReasoningReplayPolicy, shouldInjectReasoningPlaceholder } from './re
 import { decodeStatefulMarker } from './statefulMarker';
 import { CustomDataPartMimeTypes } from './types';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
-import type { CommitChatModelOptions } from '../commit';
+import { isSubRequest, type RequestKind } from './requestClassifier';
 
 /**
  * 扩展Delta类型以支持reasoning_content和reasoning字段
@@ -841,17 +841,11 @@ export class OpenAIHandler {
                 }
             }
         }
-        // 如果处于提交模式或后台子请求（标题生成、提交信息等），关闭思考
-        const modelOpts = options.modelOptions as CommitChatModelOptions & { requestKind?: string };
-        const requestKind = modelOpts?.requestKind;
+        // 子请求（提交、标题生成、终端解释等）关闭思考
+        const requestKind = (options.modelOptions as { requestKind?: RequestKind })?.requestKind;
         const isDisableThinking =
-            modelOpts?.commit ||
-            (settings?.thinking &&
-                requestKind !== undefined &&
-                requestKind !== 'main-agent' &&
-                requestKind !== 'terminal-steering' &&
-                requestKind !== 'background' &&
-                requestKind !== 'unknown');
+            requestKind === 'git-commit-message' ||
+            (settings?.thinking && requestKind !== undefined && isSubRequest(requestKind));
         if (isDisableThinking) {
             if (reasoningFormat === 'nested') {
                 customParams.reasoning = undefined;

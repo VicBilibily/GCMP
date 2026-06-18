@@ -12,10 +12,10 @@ import { ModelChatResponseOptions, ModelConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { getStatefulMarkerAndIndex } from './statefulMarker';
 import { StreamReporter } from './streamReporter';
+import { isSubRequest, type RequestKind } from './requestClassifier';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
-import type { CommitChatModelOptions } from '../commit';
 
 // 使用 OpenAI SDK 的 Responses API 类型
 type ResponseInputItem = OpenAI.Responses.ResponseInputItem;
@@ -614,9 +614,10 @@ export class OpenAIResponsesHandler {
                         }
                     }
                 }
-                // 如果处于提交模式，模型支持思考的，不使用思考模式
-                const modelOpts = options.modelOptions as CommitChatModelOptions;
-                if (modelOpts?.commit) {
+                // 子请求不启用深度思考模式
+                const modelOpts = options.modelOptions as { requestKind?: string };
+                const requestKind = modelOpts?.requestKind as RequestKind | undefined;
+                if (requestKind && isSubRequest(requestKind)) {
                     if (customParams.thinking) {
                         customParams.thinking.type = 'disabled';
                     }

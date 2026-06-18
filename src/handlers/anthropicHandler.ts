@@ -19,7 +19,7 @@ import type { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../t
 import { OpenAIHandler } from './openaiHandler';
 import { StreamReporter } from './streamReporter';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
-import type { CommitChatModelOptions } from '../commit';
+import { isSubRequest, type RequestKind } from './requestClassifier';
 
 /**
  * Anthropic 兼容处理器类
@@ -246,17 +246,9 @@ export class AnthropicHandler {
                     createParams.output_config = undefined;
                 }
             }
-            // 如果处于提交模式或后台子请求（标题生成、提交信息等），关闭思考
-            const modelOpts = options.modelOptions as CommitChatModelOptions & { requestKind?: string };
-            const requestKind = modelOpts?.requestKind;
-            const isDisableThinking =
-                modelOpts?.commit ||
-                (requestKind !== undefined &&
-                    requestKind !== 'main-agent' &&
-                    requestKind !== 'terminal-steering' &&
-                    requestKind !== 'background' &&
-                    requestKind !== 'unknown');
-            if (isDisableThinking && createParams.thinking) {
+            // 子请求（提交、标题生成、终端解释等）关闭思考
+            const requestKind = (options.modelOptions as { requestKind?: RequestKind })?.requestKind;
+            if (requestKind && isSubRequest(requestKind) && createParams.thinking) {
                 createParams.thinking.type = 'disabled';
                 createParams.output_config = undefined;
             }
