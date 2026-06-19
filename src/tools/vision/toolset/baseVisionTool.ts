@@ -9,6 +9,7 @@ import * as fs from 'node:fs';
 import { Logger } from '../../../utils';
 import { t } from '../../../utils/l10n';
 import { analyzeImagesWithSystem } from '../provider';
+import { VisionCache } from '../cache';
 
 export abstract class BaseVisionTool implements vscode.LanguageModelTool<Record<string, unknown>> {
     protected abstract readonly toolName: string;
@@ -65,7 +66,8 @@ export abstract class BaseVisionTool implements vscode.LanguageModelTool<Record<
         if (typeof filePath !== 'string' || !filePath.trim()) {
             throw new Error(t('Missing required parameter: filePath', '缺少必需参数: filePath'));
         }
-        return [filePath];
+        // 兼容短路径（sessionId/hash.ext）和绝对路径：VisionCache.resolveShortPath 对绝对路径原样返回
+        return [VisionCache.resolveShortPath(filePath)];
     }
 
     protected buildUserPrompt(input: Record<string, unknown>): string {

@@ -22,6 +22,7 @@ import { TokenUsagesView } from './ui/usagesView';
 import { CompatibleModelManager } from './utils/compatibleModelManager';
 import { LeaderElectionService, StatusBarManager } from './status';
 import { registerAllTools } from './tools';
+import { VisionCache } from './tools/vision/cache';
 import { CliAuthFactory } from './cli/auth/cliAuthFactory';
 import { registerCommitCommands, checkGitAvailability } from './commit';
 import { clearRegisteredProviders, registerProvider, registeredProviders } from './utils/providerRegistry';
@@ -275,6 +276,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // 步骤4: 注册工具
         stepStartTime = Date.now();
+        // 配置 VisionCache 静态根目录，使视觉工具能解析短路径（sessionId/hash.ext）
+        VisionCache.configure(context.storageUri);
         registerAllTools(context);
         Logger.trace(`Tools registered (${Date.now() - stepStartTime}ms)`);
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseVisionTool } from './baseVisionTool';
+import { VisionCache } from '../cache';
 import { t } from '../../../utils/l10n';
 
 export class UiDiffCheckTool extends BaseVisionTool {
@@ -208,7 +209,8 @@ Your comparison should be thorough enough that a developer can work through it s
         if (typeof actualFilePath !== 'string' || !actualFilePath.trim()) {
             throw new Error(t('Missing required parameter: actualFilePath', '缺少必需参数: actualFilePath'));
         }
-        return [expectedFilePath, actualFilePath];
+        // 兼容短路径（sessionId/hash.ext）和绝对路径
+        return [VisionCache.resolveShortPath(expectedFilePath), VisionCache.resolveShortPath(actualFilePath)];
     }
 
     protected buildUserPrompt(input: Record<string, unknown>): string {
