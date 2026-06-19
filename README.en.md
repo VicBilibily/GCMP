@@ -22,37 +22,56 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 3. On first use, you'll be prompted to set an API Key. Complete the configuration and return to the model selector to enable the model
 4. Select your target model in the model selector and start chatting with the AI assistant
 
-### 3. Configure VS Code Utility Models (Optional)
+### 3. Configure VS Code Utility and GCMP Auxiliary Models (Optional)
 
-VS Code uses lightweight background models for **utility tasks** like title generation, commit messages, search, and intent detection. Using Copilot's built-in models for these tasks consumes your monthly quota — especially limited for free-tier users. Pointing these tasks to GCMP-provided models saves Copilot quota for more important work.
+VS Code uses lightweight background models for **utility tasks** like title generation, commit messages, search, and intent detection. GCMP features such as commit message generation and vision analysis also require their own model selections. If not configured manually, VS Code falls back to Copilot's built-in models, which consume your monthly quota — especially limited for free-tier users. Pointing these tasks to GCMP-provided models saves Copilot quota for more important work.
 
 ```json
 {
     // General utility tasks: title generation, summaries, intent classification, rename suggestions, terminal commands/fixes, search, VS Code Q&A
     "chat.utilityModel": "gcmp.deepseek/gcmp.deepseek:::deepseek-v4-pro",
     // Lightweight utility tasks: commit messages, branch names, progress messages, todo tracking
-    "chat.utilitySmallModel": "gcmp.deepseek/gcmp.deepseek:::deepseek-v4-flash"
+    "chat.utilitySmallModel": "gcmp.deepseek/gcmp.deepseek:::deepseek-v4-flash",
+    // Agent-mode sub-agents for exploration/planning (e.g., codebase search, plan generation)
+    "chat.exploreAgent.defaultModel": "MiniMax-M2.7-HighSpeed (TokenPlan) (gcmp.minimax)",
+    "chat.planAgent.defaultModel": "MiniMax-M2.7-HighSpeed (TokenPlan) (gcmp.minimax)",
+    // GitHub Copilot Chat dedicated agents (Ask / Implement / Explore)
+    "github.copilot.chat.askAgent.model": "MiniMax-M2.7-HighSpeed (TokenPlan) (gcmp.minimax)",
+    "github.copilot.chat.implementAgent.model": "MiniMax-M2.7-HighSpeed (TokenPlan) (gcmp.minimax)",
+    "github.copilot.chat.exploreAgent.model": "MiniMax-M2.7-HighSpeed (TokenPlan) (gcmp.minimax)",
+    // GCMP built-in commit message generation model
+    "gcmp.commit.model": {
+        "provider": "zhipu",
+        "model": "glm-4.6"
+    },
+    // GCMP built-in vision analysis model (must support image input)
+    "gcmp.vision.model": {
+        "provider": "zhipu",
+        "model": "glm-4.6v"
+    }
 }
 ```
 
 > **Recommendation**: Use a fast-responding model for `utilitySmallModel` (for example, `deepseek-v4-flash`). You can pair it with `maxInputTokens: 16384` or a similarly low limit for quick tasks.
+>
+> When editing `settings.json`, place the cursor on the value and use VS Code IntelliSense to choose from registered models. **If left unset**, VS Code will use Copilot's built-in models for utility tasks, which may consume Copilot monthly quota for free-tier users. Using a GCMP model here helps avoid that.
+>
+> You can also run `GCMP: Set Auxiliary Tool Models` from the command palette to open a visual panel for unified configuration of all the models above.
 
-| Setting | Model Family Override | Affected RequestKinds |
-|---|---|---|
-| `chat.utilitySmallModel` | `copilot-utility-small` (default: `gpt-4o-mini`) | `chat-title`, `git-commit-message`, `git-branch-name`, `inline-progress-message`, `prompt-categorizer`, `todo-tracker`, `rename-suggestions`, `terminal-command/quickfix/explain`, `workspace-search` |
-| `chat.utilityModel` | `copilot-utility` (default: CAPI fallback) | `settings-resolver`, `explain-code`, `vscode-qa` |
-| `chat.exploreAgent.defaultModel` | Main agent model (default: follows user selection) | `search-subagent` Explore subagent code search |
+<details>
+<summary>Click to expand detailed parameter descriptions</summary>
 
-The explore subagent uses `chat.exploreAgent.defaultModel`; if unset, it reuses the main agent model (same as the user's selected model):
+- `chat.utilitySmallModel`: Lightweight utility tasks (default: `gpt-4o-mini`). Covers `chat-title`, `git-commit-message`, `git-branch-name`, `inline-progress-message`, `prompt-categorizer`, `todo-tracker`, `rename-suggestions`, `terminal-command/quickfix/explain`, and `workspace-search`.
+- `chat.utilityModel`: General utility tasks (default: CAPI fallback). Covers `settings-resolver`, `explain-code`, and `vscode-qa`.
+- `chat.exploreAgent.defaultModel`: Explore sub-agent default model, used for `search-subagent` codebase exploration and search.
+- `chat.planAgent.defaultModel`: Plan sub-agent default model, used for planning and task decomposition in Agent mode.
+- `github.copilot.chat.askAgent.model`: Ask Agent default model, used for Ask-mode Q&A.
+- `github.copilot.chat.implementAgent.model`: Implement Agent default model, used for Implement-mode code generation.
+- `github.copilot.chat.exploreAgent.model`: Explore Agent default model, used for Explore-mode codebase exploration.
+- `gcmp.commit.model`: GCMP built-in commit message generation model.
+- `gcmp.vision.model`: GCMP built-in vision analysis model; choose a model that supports image input.
 
-```json
-{
-    // Default model for the Explore sub-agent (codebase exploration & search in Agent mode)
-    "chat.exploreAgent.defaultModel": "MiniMax-M2.7-HighSpeed (TokenPlan) (gcmp.minimax)"
-}
-```
-
-> Tip: When editing `settings.json`, place the cursor on the value and use VS Code IntelliSense to choose from registered models. **If left unset**, VS Code will use Copilot's built-in models for utility tasks, which may consume Copilot monthly quota for free-tier users. Using a GCMP model here helps avoid that.
+</details>
 
 ## 🤖 Built-in AI Model Providers
 
@@ -63,7 +82,7 @@ The explore subagent uses `chat.exploreAgent.defaultModel`; if unset, it reuses 
 - [**Coding Plan**](https://bigmodel.cn/glm-coding): **GLM-5.2**, **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-4.7**, **GLM-4.6**, **GLM-4.6V**
     - **Usage tracking**: Status bar displays remaining cycle quota for GLM Coding Plan.
 - **PayGo**: **GLM-5.2**, **GLM-5.1** (HighSpeed), **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-5**, **GLM-4.7**, **GLM-4.7-FlashX**, **GLM-4.6**, **GLM-4.6V**
-- **Free models**: **GLM-4.6V-Flash**, **GLM-4.7-Flash**
+- **Free models**: **GLM-4.6V-Flash**
 - [**International site**](https://z.ai/model-api): Supports switching to the international site (z.ai).
 - **Search**: Integrated `Web Search MCP` and `Web Search API`, supports `#zhipuWebSearch` for web searches.
     - `Web Search MCP` mode is enabled by default. Coding Plan includes: Lite (100/month), Pro (1,000/month), Max (4,000/month).
@@ -73,7 +92,6 @@ The explore subagent uses `chat.exploreAgent.defaultModel`; if unset, it reuses 
 
 - [**Token Plan**](https://platform.minimaxi.com/subscribe/token-plan): **MiniMax-M3**, **MiniMax-M2.7** (HighSpeed), **MiniMax-M2.5** (HighSpeed), **MiniMax-M2.1**, **MiniMax-M2**
     - **Search**: Integrated Token Plan web search tool, supports `#minimaxWebSearch`.
-    - **Image recognition**: Integrated Token Plan image understanding MCP — paste images or screenshots directly for Agent interaction.
     - **Usage tracking**: Status bar displays remaining Token Plan quota.
     - [**International site**](https://platform.minimax.io/subscribe/token-plan): Supports international site Token Plan.
 - **PayGo**: **MiniMax-M3**, **MiniMax-M2.7** (HighSpeed), **MiniMax-M2.5** (HighSpeed), **MiniMax-M2.1** (HighSpeed), **MiniMax-M2**
@@ -185,8 +203,17 @@ npm install -g @openai/codex@latest
 ```
 
 - **Supported models**: **GPT-5.5**, **GPT-5.4-mini**, **GPT-5.4**
-- **Usage tracking**: Status bar displays remaining ChatGPT subscription cycle quota.
+- **Usage tracking**: Status bar displays remaining ChatGPT subscription cycle quota.- **Independent proxy settings**: Codex CLI uses its own proxy configuration (independent of the extension-wide `gcmp.proxy`). You can specify a dedicated proxy for Codex requests via `gcmp.providerOverrides.codex.proxy`.
 
+```json
+{
+    "gcmp.providerOverrides": {
+        "codex": {
+            "proxy": "http://127.0.0.1:10808"
+        }
+    }
+}
+```
 ### [**Grok Build**](https://x.ai/cli) - xAI Grok Build
 
 xAI's official Grok Build coding assistant CLI tool. Supports OAuth authentication via the `grok` CLI (requires local installation).
@@ -215,14 +242,16 @@ GCMP supports customizing AI model behavior parameters through VS Code settings 
 ```json
 {
     "gcmp.retry.enabled": true, // Enable auto retry (default true), disable to stop on failure
-    "gcmp.retry.maxAttempts": 3, // 1-5, only effective for retryable errors
-    "gcmp.zhipu.search.enableMCP": true // Enable Web Search MCP (Coding Plan exclusive)
+    "gcmp.retry.maxAttempts": 3 // 1-5, only effective for retryable errors
 }
 ```
 
 - `gcmp.retry.enabled` defaults to `true`. When enabled, automatically retries retryable errors like 429. Set to `false` to disable retries entirely and stop immediately on failure.
 - `gcmp.retry.maxAttempts` defaults to `3`, controlling the maximum automatic retry count for 429, rate-limit, and temporary overload errors.
 - Current retry delay sequence: `1s → 3s → 6s → 10s → 15s`. Once the limit is reached, the last error is thrown directly.
+- `gcmp.maxTokens` is **deprecated**: this setting no longer takes effect; each model now automatically uses its own `maxOutputTokens` configuration.
+
+> Feature-specific settings such as `gcmp.commit.enabled`, `gcmp.vision.model`, and `gcmp.zhipu.search.enableMCP` are documented in their respective feature sections, not here.
 
 #### Proxy & System Certificate Settings
 
@@ -532,6 +561,9 @@ GCMP includes comprehensive token usage tracking to help you monitor and manage 
         - Providers and models sorted by request count descending; those with no valid requests are hidden
 - **Real-time status bar**: Status bar displays today's token usage, auto-refreshing every 30 seconds
 - **Visual view**: WebView detail view supports viewing history and paginated request records
+- **Request kind classification**: Records and displays the Copilot request kind for each request (e.g., main agent, title generation, commit message, search subagent, vision recognition) so you can track the actual consumption of background utility tasks
+- **TTFT / TPOT and output speed**: Request records show time-to-first-token (TTFT), time-per-output-token (TPOT), and average output speed for evaluating model response performance
+- **Cache hit rate visualization**: The input column combines cache hit count and total input, showing the cache hit rate to help judge cache strategy effectiveness
 
 ### How to Use
 
@@ -592,6 +624,7 @@ This feature calls models via the **VS Code Language Model API**.
 
 ```json
 {
+    "gcmp.commit.enabled": true, // Enable built-in commit message generation (default true, will be removed in next major version)
     "gcmp.commit.language": "chinese", // Generation language: chinese / english (fallback when auto mode language is unclear)
     "gcmp.commit.format": "auto", // Commit message format: auto (default) / see format details below
     "gcmp.commit.customInstructions": "", // Custom instructions (only effective when format=custom)
@@ -685,6 +718,48 @@ Feat: Add commit message generation
 
 </details>
 
+## 👁️ Vision Analysis Tools
+
+GCMP includes a set of dedicated vision analysis tools for converting images/screenshots into actionable development artifacts, extracting text, diagnosing errors, understanding technical diagrams, analyzing data visualizations, and comparing UI differences. All vision analysis is delegated to native multimodal GCMP models without relying on third-party MCP backends.
+
+<details>
+<summary>Click to expand vision analysis tool details</summary>
+
+### Tool List
+
+| Tool Reference | Purpose |
+| --- | --- |
+| `#gcmpUiToArtifact` | Convert UI screenshots into front-end code, AI prompts, design specs, or natural language descriptions |
+| `#gcmpExtractTextFromScreenshot` | Extract and recognize text (OCR) from screenshots, supporting code, terminal output, documents, etc. |
+| `#gcmpDiagnoseErrorScreenshot` | Analyze error dialogs, stack traces, and exception screenshots to identify root causes and suggest fixes |
+| `#gcmpUnderstandTechnicalDiagram` | Analyze architecture diagrams, flowcharts, UML, ER diagrams, and system design diagrams |
+| `#gcmpAnalyzeDataVisualization` | Extract trends, anomalies, and actionable insights from charts, graphs, and dashboards |
+| `#gcmpUiDiffCheck` | Compare expected/reference UI screenshots against actual implementations to identify visual differences |
+| `#gcmpAnalyzeImage` | General image analysis for visual content not covered by specialized tools |
+
+### How to Use
+
+Vision tools are invoked via `#` references, e.g. `#gcmpUiToArtifact`. When calling a tool, you can paste images, screenshots, or reference image file paths, and the model will generate the corresponding artifact or analysis based on the image content. All tools share the same vision analysis model configuration.
+
+### Configuring the Vision Analysis Model
+
+Vision tools rely on a multimodal model specified by `gcmp.vision.model`. If unset, a selection wizard is launched on first use; you can also manually run `GCMP: Select Vision Analysis Model` or configure it through the `GCMP: Set Auxiliary Tool Models` panel.
+
+```json
+{
+    "gcmp.vision.model": {
+        "provider": "zhipu",
+        "model": "glm-4.6v"
+    }
+}
+```
+
+- The selected model must support image input (`capabilities.imageInput: true`).
+- Both built-in provider models and Compatible Provider models with image input support can be selected.
+- If unset, the model selection wizard is launched automatically on first use, so you don't need to fill in JSON manually in advance.
+
+</details>
+
 ## 🔑 API Key Sync Across Devices
 
 GCMP provides an API Key synchronization feature based on **GitHub Secret Gists**, enabling you to sync API keys across devices using the same GitHub account without manual reconfiguration.
@@ -692,7 +767,7 @@ GCMP provides an API Key synchronization feature based on **GitHub Secret Gists*
 ### How to Use
 
 - Hover over the token usage indicator in the status bar, then click **"Manage / Sync API Keys"** at the bottom of the tooltip to enter quickly
-- Or run the command `GCMP: Sync API Keys via GitHub Gist` from the command palette
+- Or run the command `GCMP: Manage / Sync API Keys` from the command palette
 - On first use, you'll be prompted to authenticate with GitHub and authorize the `gist` scope
 - After authentication, a grouped sync actions menu appears:
 
