@@ -131,7 +131,7 @@
 
 ### [**OpenCode**](https://opencode.ai/)
 
-- [**Go**](https://opencode.ai/go?ref=2TEVV934MY)：**GLM-5.2**、**GLM-5.1**、**GLM-5**、**Kimi-K2.6**、**Kimi-K2.5**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**、**MiniMax-M3**、**MiniMax-M2.7**、**MiniMax-M2.5**、**Qwen3.7-Plus**、**Qwen3.7-Max**、**Qwen3.6-Plus**、**Qwen3.5-Plus**、**MiMo-V2.5-Pro**、**MiMo-V2.5**
+- [**Go**](https://opencode.ai/go?ref=2TEVV934MY)：**GLM-5.2**、**GLM-5.1**、**GLM-5**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**Kimi-K2.5**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**、**MiniMax-M3**、**MiniMax-M2.7**、**MiniMax-M2.5**、**Qwen3.7-Plus**、**Qwen3.7-Max**、**Qwen3.6-Plus**、**Qwen3.5-Plus**、**MiMo-V2.5-Pro**、**MiMo-V2.5**
 - **Zen**：**DeepSeek-V4-Flash**、**GLM-5.1**、**GLM-5**、**Kimi-K2.6**、**Kimi-K2.5**、**MiniMax-M2.7**、**MiniMax-M2.5**、**Qwen3.6-Plus**、**Qwen3.5-Plus**、**Grok-Build-0.1**
 
 ### [**Hyper**](https://hyper.charm.land/) - Charm Hyper

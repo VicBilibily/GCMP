@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.24.15] - 2026-06-19
+
+### 新增
+
+- **OpenCode Kimi-K2.7-Code (Go)**：OpenCode Go 套餐新增 **Kimi-K2.7-Code** 模型
+
+---
+
+### Added
+
+- **OpenCode Kimi-K2.7-Code (Go)**: Added **Kimi-K2.7-Code** model to OpenCode Go plan
+
 ## [0.24.14] - 2026-06-18
 
 ### 新增

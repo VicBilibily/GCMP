@@ -40,6 +40,18 @@
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
+            "id": "kimi-k2.7-code-go",
+            "name": "Kimi-K2.7-Code (Go)",
+            "model": "kimi-k2.7-code",
+            "sdkMode": "openai-sse",
+            "baseUrl": "https://opencode.ai/zen/go/v1",
+            "tooltip": "OpenCode Go 套餐 - 月之暗面 Kimi K2.7 Code。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "extraBody": { "thinking": { "type": "enabled" } },
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
             "id": "kimi-k2.6-go",
             "name": "Kimi-K2.6 (Go)",
             "model": "kimi-k2.6",
