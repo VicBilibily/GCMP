@@ -1,0 +1,185 @@
+﻿.ams-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+
+    h2 {
+        margin: 0 0 2px;
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--vscode-foreground);
+    }
+
+    .ams-subtitle {
+        margin: 0;
+        font-size: 12px;
+        color: var(--vscode-descriptionForeground);
+    }
+}
+
+.ams-form {
+    padding: 12px 14px;
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: inherit;
+}
+
+.ams-group-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    margin: 16px 0 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+
+    &:first-child {
+        margin-top: 0;
+    }
+}
+
+.ams-suggestion {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    background: var(--vscode-editor-inactiveSelectionBackground);
+    border-left: 3px solid var(--vscode-focusBorder);
+    padding: 6px 10px;
+    margin: 4px 0 8px;
+    line-height: 1.4;
+    white-space: pre-line;
+}
+
+.ams-row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--vscode-panel-border);
+
+    &:last-child {
+        border-bottom: none;
+    }
+}
+
+.ams-row-info {
+    width: 100%;
+}
+
+.ams-row-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    margin-bottom: 1px;
+}
+
+.ams-row-desc {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    line-height: 1.3;
+}
+
+.ams-row-info {
+    .ams-suggestion {
+        margin-top: 4px;
+        margin-bottom: 0;
+    }
+}
+
+.ams-row-controls {
+    display: flex;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+
+    > .ams-select {
+        flex: 0 0 30%;
+        max-width: 200px;
+        min-width: 0;
+    }
+
+    .ams-model-select {
+        flex: 1 1 70%;
+        min-width: 0;
+    }
+}
+
+.ams-select {
+    flex: 1;
+    padding: 4px 6px;
+    font-size: 12px;
+    color: var(--vscode-foreground);
+    background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 3px;
+    outline: none;
+    height: 26px;
+
+    &:focus {
+        border-color: var(--vscode-focusBorder);
+    }
+}
+
+.ams-model-select {
+    flex: 1;
+    display: flex;
+
+    .ams-select {
+        width: 100%;
+    }
+}
+
+.ams-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--vscode-panel-border);
+    background: var(--vscode-editor-background);
+    position: sticky;
+    bottom: 0;
+}
+
+.ams-action-message {
+    flex: 1;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    min-width: 0;
+
+    &.ams-action-message-error {
+        color: var(--vscode-errorForeground);
+    }
+}
+
+.ams-button {
+    padding: 4px 10px;
+    font-size: 12px;
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 3px;
+    cursor: pointer;
+
+    &.ams-button-primary {
+        color: var(--vscode-button-foreground);
+        background: var(--vscode-button-background);
+    }
+
+    &.ams-button-secondary {
+        color: var(--vscode-button-secondaryForeground);
+        background: var(--vscode-button-secondaryBackground);
+    }
+}

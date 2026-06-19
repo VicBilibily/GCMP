@@ -318,10 +318,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // 步骤9: 注册模型设置向导命令
         stepStartTime = Date.now();
-        const { openModelSettingsWizard } = await import('./wizards/modelSettingsWizard');
         const { selectVisionModel } = await import('./wizards/visionWizard');
+        const { AuxiliaryModelSettingsPanel } = await import('./ui/auxiliaryModelSettings');
         context.subscriptions.push(
-            vscode.commands.registerCommand('gcmp.modelSettings.wizard', () => openModelSettingsWizard())
+            vscode.commands.registerCommand('gcmp.modelSettings.wizard', () =>
+                AuxiliaryModelSettingsPanel.createAndShow(context)
+            )
         );
         context.subscriptions.push(
             vscode.commands.registerCommand('gcmp.vision.selectModel', () => selectVisionModel())
