@@ -10,21 +10,11 @@ import { Logger } from '../utils';
 import { encodeStatefulMarker, StatefulMarkerContainer } from './statefulMarker';
 import { toOptionalStatefulMarkerField } from './statefulMarkerCodec';
 import { CustomDataPartMimeTypes } from './types';
+import { TextBuffer, ThinkingBuffer, SignatureBuffer, ToolCallAccumulator } from './buffers';
 
-/** 思考内容缓冲阈值（字符数） */
-const THINKING_BUFFER_LENGTH = 20;
-/** 文本内容缓冲阈值（字符数） */
-const TEXT_BUFFER_LENGTH = 20;
 const USAGE_DATA_ENCODER = new TextEncoder();
 
-/**
- * 工具调用缓存结构
- */
-interface ToolCallBuffer {
-    id?: string;
-    name?: string;
-    arguments: string;
-}
+export type StatefulMarkerPartial = Omit<StatefulMarkerContainer, 'extension' | 'provider' | 'modelId' | 'sdkMode'>;
 
 /**
  * StreamReporter 配置选项
@@ -44,16 +34,30 @@ export interface StreamReporterOptions {
     sessionId?: string;
 }
 
-export type StatefulMarkerPartial = Omit<StatefulMarkerContainer, 'extension' | 'provider' | 'modelId' | 'sdkMode'>;
-
 /**
  * 统一流式响应报告器
  *
- * 策略说明：
- * - text: 缓冲累积到 20 字符后批量输出 LanguageModelTextPart
- * - thinking: 缓冲累积到 20 字符后批量输出 LanguageModelThinkingPart
- * - tool_calls: 累积完成后立即输出 LanguageModelToolCallPart（在 accumulateToolCall 中检测完成）
- * - datapart: 在流结束时输出 StatefulMarker DataPart
+ * 架构说明：
+ * StreamReporter 自身只负责"协调调度"和"最终输出"，具体的内容累积逻辑委托给
+ * src/handlers/buffers/ 下的四个专用 Buffer 类：
+ * - TextBuffer: 文本内容缓冲，达到阈值后输出 LanguageModelTextPart
+ * - ThinkingBuffer: 思考链缓冲，管理 thinking id 生命周期，输出 LanguageModelThinkingPart
+ * - SignatureBuffer: 签名缓冲，累积 signature 供 StatefulMarker 持久化
+ * - ToolCallAccumulator: 工具调用分片累积，检测完整 JSON 后输出 CompletedToolCall
+ *
+ * 核心流程：
+ * 1. Handler 持续调用 bufferThinking / reportText / accumulateToolCall / bufferSignature 等方法
+ * 2. 各 Buffer 内部累积内容，达到阈值或条件时由 StreamReporter 调用 progress.report 输出
+ * 3. 遇到工具调用开始时，先 flush 剩余 thinking/text 并结束当前思维链
+ * 4. 流结束时调用 flushAll，依次输出剩余 thinking、signature、结束思维链、剩余 text、未完成 tool call、占位符和 StatefulMarker
+ *
+ * 关键实现约定：
+ * - 文本/思考缓冲阈值均为 20 字符
+ * - accumulateToolCall 首次创建某 index 的 buffer 时立即 flushThinking + flushText + endThinkingChain
+ * - 工具调用完成时只 flushThinking + flushSignature + thoughtSignature，不主动 endThinkingChain
+ * - flushSignature 输出"空文本 + signature"的 ThinkingPart，不消费 thinking buffer 内容
+ * - flushAll 中 signature 紧跟 thinking 输出，在 endThinkingChain 之前
+ * - 仅有 thinking 没有 text 时输出 \n```\n```\n\n 占位符
  */
 export class StreamReporter {
     private readonly modelName: string;
@@ -62,35 +66,17 @@ export class StreamReporter {
     private readonly sdkMode: StatefulMarkerContainer['sdkMode'];
     private readonly progress: vscode.Progress<vscode.LanguageModelResponsePart2>;
 
-    // 状态追踪
+    private readonly textBuffer = new TextBuffer();
+    private readonly thinkingBuffer = new ThinkingBuffer();
+    private readonly signatureBuffer = new SignatureBuffer();
+    private readonly toolCallAccumulator = new ToolCallAccumulator();
+
+    private readonly sessionId: string;
+    private responseId: string | null = null;
+    private thoughtSignature: string | null = null;
+    private hasToolCalls = false;
     private hasReceivedContent = false;
     private hasThinkingContent = false;
-    private hasReceivedTextDelta = false; // 标记是否已接收文本增量
-    private hasReceivedThinkingDelta = false; // 标记是否已接收思考增量
-
-    // 思维链状态
-    private currentThinkingId: string | null = null;
-    private thinkingBuffer = '';
-    private completeThinkingBuffer = '';
-
-    // 文本缓冲状态
-    private textBuffer = '';
-
-    // 工具调用缓存
-    private readonly toolCallsBuffer = new Map<number, ToolCallBuffer>();
-    private hasToolCalls = false;
-
-    // 会话状态
-    private sessionId: string;
-    private responseId: string | null = null;
-
-    // Anthropic 特殊：签名缓冲
-    private signatureBuffer = '';
-    // 签名累积缓冲（独立于 flush，用于 StatefulMarker 持久化）
-    private completeSignatureBuffer = '';
-
-    // Gemini 特殊：思维签名
-    private thoughtSignature: string | null = null;
 
     constructor(options: StreamReporterOptions) {
         this.modelName = options.modelName;
@@ -118,15 +104,14 @@ export class StreamReporter {
         this.flushThinking('输出 content 前');
         this.endThinkingChain();
 
-        // 累积文本内容
-        this.textBuffer += content;
+        this.textBuffer.append(content);
         this.hasReceivedContent = true;
-        this.hasReceivedTextDelta = true; // 标记已接收文本增量
 
-        // 达到阈值时输出
-        if (this.textBuffer.length >= TEXT_BUFFER_LENGTH) {
-            this.progress.report(new vscode.LanguageModelTextPart(this.textBuffer));
-            this.textBuffer = '';
+        if (this.textBuffer.shouldFlush()) {
+            const part = this.textBuffer.flush();
+            if (part) {
+                this.progress.report(part);
+            }
         }
     }
 
@@ -134,21 +119,7 @@ export class StreamReporter {
      * 直接报告完整的工具调用（用于返回完整 tool call 的场景）
      */
     reportToolCall(callId: string, name: string, args: Record<string, unknown> | object): void {
-        // 输出工具调用前，先 flush 剩余 thinking 和文本，并结束思维链
-        this.flushThinking('Before reporting tool call');
-        this.flushText('Before reporting tool call');
-        this.endThinkingChain();
-
-        // 如果有 thoughtSignature，输出一个带 signature 的空 ThinkingPart（无 ID）
-        if (this.thoughtSignature) {
-            this.progress.report(
-                new vscode.LanguageModelThinkingPart('', undefined, {
-                    signature: this.thoughtSignature
-                })
-            );
-            this.thoughtSignature = null; // 清空已使用的 signature
-        }
-
+        this.prepareForToolCall();
         this.progress.report(new vscode.LanguageModelToolCallPart(callId, name, args));
         this.hasReceivedContent = true;
         this.hasToolCalls = true;
@@ -190,21 +161,14 @@ export class StreamReporter {
      * 缓冲思考内容（累积到阈值后输出，用于 delta 事件）
      */
     bufferThinking(content: string): void {
-        // 如果当前没有 thinking id，则生成一个
-        if (!this.currentThinkingId) {
-            this.currentThinkingId = `thinking_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-            Logger.trace(`[${this.modelName}] Created new thinking chain ID: ${this.currentThinkingId}`);
-        }
-
-        this.thinkingBuffer += content;
-        this.completeThinkingBuffer += content;
+        this.thinkingBuffer.append(content);
         this.hasThinkingContent = true;
-        this.hasReceivedThinkingDelta = true; // 标记已接收思考增量
 
-        // 达到阈值时输出
-        if (this.thinkingBuffer.length >= THINKING_BUFFER_LENGTH) {
-            this.progress.report(new vscode.LanguageModelThinkingPart(this.thinkingBuffer, this.currentThinkingId));
-            this.thinkingBuffer = '';
+        if (this.thinkingBuffer.shouldFlush()) {
+            const part = this.thinkingBuffer.flush();
+            if (part) {
+                this.progress.report(part);
+            }
         }
     }
 
@@ -213,15 +177,25 @@ export class StreamReporter {
      * 仅当未接收过 delta 事件时才输出（避免重复）
      */
     bufferThinkingIfNotDelta(content: string): void {
-        if (this.hasReceivedThinkingDelta) {
-            return; // 如果已经接收过增量，忽略 done 事件
+        this.thinkingBuffer.appendIfNotDelta(content);
+        this.hasThinkingContent = true;
+
+        if (this.thinkingBuffer.shouldFlush()) {
+            const part = this.thinkingBuffer.flush();
+            if (part) {
+                this.progress.report(part);
+            }
         }
-        this.bufferThinking(content);
     }
 
     /**
      * 累积工具调用数据（去重处理）
      * 当检测到工具调用完成时，立即报告
+     *
+     * 关键实现约定：
+     * - 首次为某 index 创建工具调用 buffer 时：flushThinking + flushText + endThinkingChain
+     * - 工具完成时：flushText + flushThinking + flushSignature + thoughtSignature
+     *   （不调用 endThinkingChain，思维链的结束留给后续 reportText / flushAll 处理）
      */
     accumulateToolCall(
         index: number,
@@ -229,120 +203,68 @@ export class StreamReporter {
         name: string | undefined,
         argsFragment: string | undefined
     ): void {
-        // 跳过空值，不创建无效的工具调用缓存
-        if (!id && !name && !argsFragment) {
-            return;
-        }
+        const { isNew, completed } = this.toolCallAccumulator.accumulate(index, id, name, argsFragment);
 
-        // 获取或创建工具调用缓存
-        let bufferedTool = this.toolCallsBuffer.get(index);
-        if (!bufferedTool) {
-            // 工具调用开始前，先 flush 剩余 thinking 和文本，并结束思维链
+        // 首次为该 index 创建工具调用 buffer 时，flush 剩余 thinking 和文本，并结束思维链
+        if (isNew) {
             this.flushThinking('Before tool call start');
             this.flushText('Before tool call start');
             this.endThinkingChain();
-
-            bufferedTool = { arguments: '' };
-            this.toolCallsBuffer.set(index, bufferedTool);
-            Logger.trace(`🔧 [${this.modelName}] Tool call started: ${name || 'unknown'} (index: ${index})`);
         }
 
-        // 累积数据
-        if (id) {
-            bufferedTool.id = id;
-        }
-        if (name) {
-            bufferedTool.name = name;
-        }
-        if (argsFragment) {
-            bufferedTool.arguments = this.deduplicateToolArgs(bufferedTool.arguments, argsFragment);
+        if (!completed) {
+            return;
         }
 
-        // 检测工具调用是否完成（有完整的 JSON）
-        if (bufferedTool.name && bufferedTool.arguments) {
-            try {
-                // 尝试解析参数，如果成功说明工具调用完成
-                const args = JSON.parse(bufferedTool.arguments);
+        // 工具调用完成，确保之前的思考和签名已输出（此时思维链应已结束，但为安全起见再 flush 一次）
+        this.flushText('Before tool call completion');
+        this.flushThinking('Before tool call completion');
+        this.flushSignature();
 
-                // 确保之前的思考和签名已输出
-                this.flushThinking('Before tool call completion');
-                if (this.signatureBuffer) {
-                    this.flushSignature();
-                }
-
-                // 使用 UUID 生成唯一 ID（如果没有 id）
-                const toolCallId = bufferedTool.id || crypto.randomUUID();
-
-                // 如果有 thoughtSignature，输出一个带 signature 的空 ThinkingPart
-                if (this.thoughtSignature) {
-                    this.progress.report(
-                        new vscode.LanguageModelThinkingPart('', undefined, {
-                            signature: this.thoughtSignature
-                        })
-                    );
-                    this.thoughtSignature = null;
-                }
-
-                // 立即报告工具调用
-                this.progress.report(new vscode.LanguageModelToolCallPart(toolCallId, bufferedTool.name, args));
-                this.hasReceivedContent = true;
-                this.hasToolCalls = true;
-
-                // 从缓存中移除已处理的工具调用
-                this.toolCallsBuffer.delete(index);
-
-                Logger.info(
-                    `[${this.modelName}] Successfully processed tool call: ${bufferedTool.name} toolCallId: ${toolCallId}`
-                );
-            } catch {
-                // JSON 解析失败，工具调用还未完成，继续累积
-                // Logger.trace(`[${this.modelName}] 工具调用参数未完整，继续累积: ${bufferedTool.name}`);
-            }
-        }
-    }
-
-    /**
-     * 合并工具调用参数分片。
-     * OpenAI 兼容网关通常返回纯追加分片；仅当服务端重发“到当前为止的完整快照”时才替换。
-     */
-    private deduplicateToolArgs(existing: string, newArgs: string): string {
-        if (!existing) {
-            return newArgs;
+        // 如果有 thoughtSignature，输出一个带 signature 的空 ThinkingPart（无 ID）
+        if (this.thoughtSignature) {
+            this.progress.report(
+                new vscode.LanguageModelThinkingPart('', undefined, {
+                    signature: this.thoughtSignature
+                })
+            );
+            this.thoughtSignature = null;
         }
 
-        if (newArgs === existing) {
-            return existing;
-        }
+        this.progress.report(
+            new vscode.LanguageModelToolCallPart(completed.toolCallId, completed.name, completed.args)
+        );
+        this.hasReceivedContent = true;
+        this.hasToolCalls = true;
 
-        if (newArgs.length > existing.length && newArgs.startsWith(existing)) {
-            return newArgs;
-        }
-
-        return existing + newArgs;
+        Logger.info(
+            `[${this.modelName}] Successfully processed tool call: ${completed.name} toolCallId: ${completed.toolCallId}`
+        );
     }
 
     /**
      * Anthropic 特殊：缓冲签名内容
      */
     bufferSignature(content: string): void {
-        this.signatureBuffer += content;
-        this.completeSignatureBuffer += content;
+        this.signatureBuffer.append(content);
     }
 
     /**
      * Anthropic 特殊：输出完整签名并关联到当前 thinking
+     *
+     * 输出空文本 + signature metadata 的 ThinkingPart，不消费 thinking buffer 内容
+     * （签名独立于思考文本输出）。
      */
     flushSignature(): void {
-        if (this.signatureBuffer && this.currentThinkingId) {
-            // 签名作为 metadata 传递，而不是文本内容
-            this.progress.report(
-                new vscode.LanguageModelThinkingPart('', this.currentThinkingId, {
-                    signature: this.signatureBuffer
-                })
-            );
-            Logger.trace(`[${this.modelName}] Reported signature metadata: ${this.signatureBuffer.length} chars`);
+        if (!this.signatureBuffer.hasPending || !this.thinkingBuffer.isActive) {
+            return;
         }
-        this.signatureBuffer = '';
+        const signature = this.signatureBuffer.take();
+        const part = this.thinkingBuffer.buildSignaturePart(signature);
+        if (part) {
+            this.progress.report(part);
+            Logger.trace(`[${this.modelName}] Reported signature metadata: ${signature.length} chars`);
+        }
     }
 
     /**
@@ -356,24 +278,32 @@ export class StreamReporter {
      * 输出剩余思考内容（公开方法）
      */
     flushThinking(_context: string): void {
-        if (this.thinkingBuffer.length > 0 && this.currentThinkingId) {
-            this.progress.report(new vscode.LanguageModelThinkingPart(this.thinkingBuffer, this.currentThinkingId));
-            // Logger.trace(`[${this.modelName}] ${context}时报告剩余思考内容: ${this.thinkingBuffer.length}字符`);
-            // 清空缓冲区
-            this.thinkingBuffer = '';
+        const part = this.thinkingBuffer.flush();
+        if (part) {
+            this.progress.report(part);
         }
-        // 注意：不在这里重置 currentThinkingId，保持思维链连续性
     }
 
     /**
      * 输出剩余文本内容（公开方法）
      */
     flushText(_context: string): void {
-        if (this.textBuffer.length > 0) {
-            this.progress.report(new vscode.LanguageModelTextPart(this.textBuffer));
-            // Logger.trace(`[${this.modelName}] ${context}时报告剩余文本内容: ${this.textBuffer.length}字符`);
-            // 清空缓冲区
-            this.textBuffer = '';
+        const part = this.textBuffer.flush();
+        if (part) {
+            this.progress.report(part);
+        }
+    }
+
+    /**
+     * 结束当前思维链（输出空的 ThinkingPart）
+     * 公开方法，允许在 Responses API / Gemini 等场景中手动结束思维链
+     */
+    endThinkingChain(): void {
+        const chainId = this.thinkingBuffer.activeId;
+        const part = this.thinkingBuffer.endChain();
+        if (part) {
+            this.progress.report(part);
+            Logger.trace(`[${this.modelName}] Ended thinking chain: ${chainId}`);
         }
     }
 
@@ -404,76 +334,6 @@ export class StreamReporter {
     }
 
     /**
-     * 结束当前思维链（输出空的 ThinkingPart）
-     * 公开方法，允许在 Responses API 等场景中手动结束思维链
-     */
-    endThinkingChain(): void {
-        if (this.currentThinkingId) {
-            this.progress.report(new vscode.LanguageModelThinkingPart('', this.currentThinkingId));
-            Logger.trace(`[${this.modelName}] Ended thinking chain: ${this.currentThinkingId}`);
-            this.currentThinkingId = null;
-        }
-    }
-
-    /**
-     * 输出所有工具调用（备用方法，用于处理流结束时未完成的工具调用）
-     * 正常情况下，工具调用会在 accumulateToolCall 中完成时立即报告
-     */
-    private flushToolCalls(): boolean {
-        let toolProcessed = false;
-        for (const [toolIndex, bufferedTool] of this.toolCallsBuffer.entries()) {
-            if (bufferedTool.name && bufferedTool.arguments) {
-                try {
-                    const args = JSON.parse(bufferedTool.arguments);
-                    // 使用 UUID 生成唯一 ID，避免并行调用时重复
-                    const toolCallId = bufferedTool.id || crypto.randomUUID();
-
-                    this.progress.report(new vscode.LanguageModelToolCallPart(toolCallId, bufferedTool.name, args));
-                    this.hasToolCalls = true;
-
-                    Logger.info(
-                        `[${this.modelName}] Successfully processed tool call: ${bufferedTool.name} toolCallId: ${toolCallId}`
-                    );
-                    toolProcessed = true;
-                } catch (error) {
-                    Logger.error(
-                        `[${this.modelName}] Failed to parse tool call arguments: ${bufferedTool.name} error: ${error}`
-                    );
-                }
-            } else {
-                Logger.warn(
-                    `[${this.modelName}] Incomplete tool call [${toolIndex}]: name=${bufferedTool.name}, args_length=${bufferedTool.arguments.length}`
-                );
-            }
-        }
-        return toolProcessed;
-    }
-
-    /**
-     * 报告 StatefulMarker DataPart
-     */
-    private reportStatefulMarker(statefulMarkerData?: StatefulMarkerPartial): void {
-        const completeThinking = toOptionalStatefulMarkerField(this.completeThinkingBuffer);
-        const completeSignature = toOptionalStatefulMarkerField(this.completeSignatureBuffer);
-        const marker = encodeStatefulMarker(this.modelId, {
-            ...Object.assign(
-                {
-                    sessionId: this.sessionId,
-                    responseId: this.responseId
-                },
-                statefulMarkerData
-            ),
-            completeThinking,
-            completeSignature,
-            hasToolCalls: this.hasToolCalls,
-            provider: this.provider,
-            modelId: this.modelId,
-            sdkMode: this.sdkMode
-        });
-        this.progress.report(new vscode.LanguageModelDataPart(marker, CustomDataPartMimeTypes.StatefulMarker));
-    }
-
-    /**
      * 完成流处理，输出所有剩余内容
      * @param finishReason 结束原因
      * @param customStatefulData 自定义的 StatefulMarker 数据（可选，用于 Responses API 等特殊场景）
@@ -490,7 +350,7 @@ export class StreamReporter {
         }
 
         // 2. 输出剩余签名（Anthropic 特殊，紧跟在思考内容之后）
-        if (this.signatureBuffer) {
+        if (this.signatureBuffer.hasPending) {
             this.flushSignature();
         }
 
@@ -501,9 +361,14 @@ export class StreamReporter {
         this.flushText('Before stream end');
 
         // 5. 处理未完成的工具调用（如果有）
-        if (this.toolCallsBuffer.size > 0) {
-            Logger.warn(`[${this.modelName}] Stream ended with ${this.toolCallsBuffer.size} unfinished tool calls`);
-            this.flushToolCalls();
+        if (this.toolCallAccumulator.hasPending) {
+            Logger.warn(
+                `[${this.modelName}] Stream ended with ${this.toolCallAccumulator.pendingCount} unfinished tool calls`
+            );
+            for (const tool of this.toolCallAccumulator.flushAll()) {
+                this.progress.report(new vscode.LanguageModelToolCallPart(tool.toolCallId, tool.name, tool.args));
+                this.hasToolCalls = true;
+            }
         }
 
         // 6. 处理 \n 占位符（只有在没有任何内容时才添加）
@@ -546,5 +411,46 @@ export class StreamReporter {
      */
     getModelName(): string {
         return this.modelName;
+    }
+
+    // ---- 私有辅助方法 ----
+
+    private prepareForToolCall(): void {
+        this.flushThinking('Before tool call');
+        this.flushText('Before tool call');
+        this.endThinkingChain();
+
+        if (this.thoughtSignature) {
+            this.progress.report(
+                new vscode.LanguageModelThinkingPart('', undefined, {
+                    signature: this.thoughtSignature
+                })
+            );
+            this.thoughtSignature = null;
+        }
+    }
+
+    /**
+     * 报告 StatefulMarker DataPart
+     */
+    private reportStatefulMarker(statefulMarkerData?: StatefulMarkerPartial): void {
+        const completeThinking = toOptionalStatefulMarkerField(this.thinkingBuffer.completeContent);
+        const completeSignature = toOptionalStatefulMarkerField(this.signatureBuffer.completeContent);
+        const marker = encodeStatefulMarker(this.modelId, {
+            ...Object.assign(
+                {
+                    sessionId: this.sessionId,
+                    responseId: this.responseId
+                },
+                statefulMarkerData
+            ),
+            completeThinking,
+            completeSignature,
+            hasToolCalls: this.hasToolCalls,
+            provider: this.provider,
+            modelId: this.modelId,
+            sdkMode: this.sdkMode
+        });
+        this.progress.report(new vscode.LanguageModelDataPart(marker, CustomDataPartMimeTypes.StatefulMarker));
     }
 }

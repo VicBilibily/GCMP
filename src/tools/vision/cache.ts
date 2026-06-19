@@ -119,17 +119,6 @@ export class VisionCache {
     }
 
     /**
-     * 清理指定会话的缓存目录
-     */
-    clearSession(sessionId: string): void {
-        const dir = path.join(this.storageUri.fsPath, 'vision-cache', sessionId);
-        if (fs.existsSync(dir)) {
-            fs.rmSync(dir, { recursive: true, force: true });
-            Logger.trace(`[VisionCache] CLEARED: ${dir}`);
-        }
-    }
-
-    /**
      * 清理所有视觉缓存目录
      */
     clearAll(): void {
