@@ -469,13 +469,18 @@ export class AnthropicHandler {
                             reporter.reportText(chunk.delta.text);
                         } else if (chunk.delta.type === 'input_json_delta' && pendingToolCall) {
                             // 工具调用参数增量
-                            pendingToolCall.jsonInput = (pendingToolCall.jsonInput || '') + chunk.delta.partial_json;
+                            const partialJson = chunk.delta.partial_json ?? '';
+                            const partialLen = partialJson.length;
+                            pendingToolCall.jsonInput = (pendingToolCall.jsonInput || '') + partialJson;
+
+                            // tool argument delta 是 provider 实际回传的一部分，即使 Chat 面板隐藏也应计入 live chars/s
+                            reporter.reportToolArgDelta(partialLen);
 
                             // 尝试立即解析并报告工具调用（如果 JSON 已完整）
                             try {
                                 const parsedJson = JSON.parse(pendingToolCall.jsonInput);
-                                // JSON 解析成功，立即报告工具调用
-                                reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson);
+                                // JSON 解析成功，立即报告工具调用（countArgs: false，已通过 reportToolArgDelta 统计）
+                                reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson, { countArgs: false });
                                 Logger.trace(
                                     `[${reporter.getModelName()}] Tool call completed: ${pendingToolCall.name}`
                                 );
@@ -484,8 +489,12 @@ export class AnthropicHandler {
                                 // JSON 还不完整，继续累积
                             }
                         } else if (chunk.delta.type === 'input_json_delta' && pendingServerToolCall) {
+                            const partialJson = chunk.delta.partial_json ?? '';
+                            const partialLen = partialJson.length;
                             pendingServerToolCall.jsonInput =
-                                (pendingServerToolCall.jsonInput || '') + chunk.delta.partial_json;
+                                (pendingServerToolCall.jsonInput || '') + partialJson;
+                            // tool argument delta 是 provider 实际回传的一部分
+                            reporter.reportToolArgDelta(partialLen);
                         } else if (chunk.delta.type === 'thinking_delta') {
                             // 思考内容增量
                             const thinkingDelta = chunk.delta.thinking || '';
@@ -528,7 +537,7 @@ export class AnthropicHandler {
                                     parsedJson = {};
                                 }
 
-                                reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson);
+                                reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson, { countArgs: false });
                             } catch (e) {
                                 Logger.error(`Fallback tool call handling failed (${pendingToolCall.name}):`, e);
                             }

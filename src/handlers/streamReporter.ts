@@ -80,6 +80,8 @@ export class StreamReporter {
     private firstChunkEmitted = false;
     private streamEnded = false;
     private outputChars = 0;
+    private lastCharsPerSecond = 0;  // 仅在收到实际 provider 输出字符时更新
+    private lastOutputAt = 0;        // 最后一次收到 provider 输出字符的时间（内部使用，不暴露给 WebView）
     private lastLiveUpdateAt = 0;
     private firstStreamTime = 0; // 首个流事件到达时间（与 handler 的 streamStartTime 对齐，共用时间戳）
     private fixedFirstChunkLatencyMs = 0; // 固定的首令延迟（首流事件后不再变化）
@@ -164,15 +166,13 @@ export class StreamReporter {
             ? this.fixedFirstChunkLatencyMs
             : Math.max(0, now - this.requestStartTime!);
 
-        // 输出耗时：从 firstStreamTime 开始计算
+        // 输出耗时：从 firstStreamTime 开始计算（仅用于耗时显示，不参与速度计算）
         const elapsedMs = this.firstStreamTime > 0
             ? Math.max(0, now - this.firstStreamTime)
             : 0;
 
-        // 输出速度：实时重算，长暂停期间会自然下降
-        const charsPerSecond = elapsedMs > 0 && this.outputChars > 0
-            ? (this.outputChars / elapsedMs) * 1000
-            : 0;
+        // 输出速度：使用 updateOutputSpeed 中缓存的值，暂停期间不会衰减
+        const charsPerSecond = this.lastCharsPerSecond;
 
         this.onLiveMetrics!({
             type: 'streamingUpdate',
@@ -242,9 +242,23 @@ export class StreamReporter {
 
     /**
      * 直接报告完整的工具调用（用于返回完整 tool call 的场景）
+     * @param options.countArgs 是否统计 args 字符到 live chars/s（默认 true）
+     *   Anthropic handler 因已通过 reportToolArgDelta 统计，应传 false 避免双计数
      */
-    reportToolCall(callId: string, name: string, args: Record<string, unknown> | object): void {
+    reportToolCall(
+        callId: string,
+        name: string,
+        args: Record<string, unknown> | object,
+        options: { countArgs?: boolean } = {}
+    ): void {
         this.prepareForToolCall();
+
+        // 完整 tool arguments 也是 provider 实际回传的一部分；
+        // 用于不提供 argument delta、只提供完整 tool call 的 provider/SDK 路径。
+        if (options.countArgs ?? true) {
+            this.updateOutputSpeed(this.getToolArgsLength(args));
+        }
+
         this.progress.report(new vscode.LanguageModelToolCallPart(callId, name, args));
         this.hasReceivedContent = true;
         this.hasToolCalls = true;
@@ -263,6 +277,26 @@ export class StreamReporter {
         const parts = typeof content === 'string' ? [new vscode.LanguageModelTextPart(content)] : content;
         this.progress.report(new vscode.LanguageModelToolResultPart(callId, parts));
         this.hasReceivedContent = true;
+    }
+
+    /**
+     * 上报工具调用参数增量字符数（仅更新速度统计，不触发 progress.report）
+     * 适用于 handler 自行管理 tool call 缓冲的场景（如 Anthropic handler 的 input_json_delta）
+     * 只用于 provider raw tool-argument delta；不要用于本地 tool result 或工具执行输出
+     */
+    reportToolArgDelta(deltaChars: number): void {
+        this.updateOutputSpeed(deltaChars);
+    }
+
+    /**
+     * 获取工具调用参数的字符串长度（用于完整 tool call 路径的速度统计）
+     */
+    private getToolArgsLength(args: Record<string, unknown> | object): number {
+        try {
+            return JSON.stringify(args)?.length ?? 0;
+        } catch {
+            return 0;
+        }
     }
 
     /**
@@ -292,9 +326,22 @@ export class StreamReporter {
 
     /**
      * 更新输出字符数并触发刷新（受 200ms 节流，结束时由 finishMetrics 强制最后一帧）
+     * 速度仅在收到实际输出字符时更新，暂停期间保持冻结
      */
     private updateOutputSpeed(addedChars: number): void {
+        if (addedChars <= 0) {
+            return;
+        }
+
         this.outputChars += addedChars;
+        this.lastOutputAt = Date.now();
+
+        const elapsedMs = this.firstStreamTime > 0
+            ? Math.max(1, this.lastOutputAt - this.firstStreamTime) : 0;
+
+        this.lastCharsPerSecond = elapsedMs > 0 && this.outputChars > 0
+            ? (this.outputChars / elapsedMs) * 1000 : 0;
+
         this.emitStreamingUpdate();
     }
 
@@ -354,6 +401,11 @@ export class StreamReporter {
             this.flushThinking('Before tool call start');
             this.flushText('Before tool call start');
             this.endThinkingChain();
+        }
+
+        // tool argument delta 是 provider 实际回传的一部分，计入 live chars/s
+        if (argsFragment) {
+            this.updateOutputSpeed(argsFragment.length);
         }
 
         if (!completed) {

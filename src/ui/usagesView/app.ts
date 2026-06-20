@@ -135,6 +135,8 @@ interface LiveMetricsState {
     streamStartTime?: number;
     firstChunkLatencyMs: number;
     outputChars: number;
+    charsPerSecond: number;
+    lastOutputChangeAt: number; // 最后一次 provider 可计数字符增加的时间
     providerName?: string;
     modelName?: string;
 }
@@ -186,6 +188,8 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
                 requestStartTime: event.requestStartTime,
                 firstChunkLatencyMs: 0,
                 outputChars: 0,
+                charsPerSecond: 0,
+                lastOutputChangeAt: 0,
                 providerName: event.providerName,
                 modelName: event.modelName
             });
@@ -198,6 +202,8 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
                 requestStartTime: event.requestStartTime,
                 firstChunkLatencyMs: 0,
                 outputChars: 0,
+                charsPerSecond: 0,
+                lastOutputChangeAt: 0,
                 providerName: event.providerName,
                 modelName: event.modelName
             };
@@ -219,6 +225,8 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
                     streamStartTime: event.streamStartTime,
                     firstChunkLatencyMs: event.firstChunkLatencyMs ?? 0,
                     outputChars: 0,
+                    charsPerSecond: 0,
+                    lastOutputChangeAt: 0,
                     providerName: event.providerName,
                     modelName: event.modelName
                 };
@@ -226,7 +234,13 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
                 startRenderClock();
             }
             state.requestStartTime = event.requestStartTime;
-            state.outputChars = event.outputChars ?? 0;
+            // 只在 outputChars 实际增加时更新 lastOutputChangeAt（避免 heartbeat/ping 误刷新）
+            const previousOutputChars = state.outputChars;
+            if (event.outputChars !== undefined && event.outputChars > previousOutputChars) {
+                state.outputChars = event.outputChars;
+                state.lastOutputChangeAt = Date.now();
+            }
+            state.charsPerSecond = event.charsPerSecond ?? state.charsPerSecond;
             // 补齐 provider/model（requestStarted 可能未被 WebView 接收到）
             state.providerName = state.providerName || event.providerName;
             state.modelName = state.modelName || event.modelName;
@@ -414,10 +428,8 @@ function updateRequestRecordsWithLiveMetrics(): void {
             ? Math.max(0, now - metricState.streamStartTime!)
             : 0;
 
-        // 实时计算输出速度：outputChars / elapsedMs
-        const charsPerSecond = durationMs > 0 && metricState.outputChars > 0
-            ? (metricState.outputChars / durationMs) * 1000
-            : 0;
+        // 输出速度：使用 StreamReporter 缓存的值，暂停期间不会衰减
+        const charsPerSecond = metricState.charsPerSecond ?? 0;
 
         // 更新首令延迟 + 输出耗时 + 速度
         const outputCell = targetRow.querySelector('td.records-output-merged[data-metric="output"]') as HTMLElement;
@@ -437,12 +449,26 @@ function updateRequestRecordsWithLiveMetrics(): void {
             // .output-tokens 在 streaming 阶段不更新，等最终 usage 回写
             const speedSpan = outputCell.querySelector('.output-speed') as HTMLElement;
             if (speedSpan) {
-                speedSpan.textContent = charsPerSecond > 0 ?
-                    `~${charsPerSecond.toFixed(1)} chars/s` : '-';
-                speedSpan.title = t(
-                    'Live speed is estimated by streamed characters; final speed uses output tokens.',
-                    '实时速度按流式字符估算，完成后以输出 token/s 为准。'
-                );
+                // 过时检测：长时间没有新的 provider 输出时，避免冻结的旧 speed 被误解为仍在实时更新
+                const lastOutputChangeAt = metricState.lastOutputChangeAt ?? 0;
+                const outputStaleMs = lastOutputChangeAt > 0 ? now - lastOutputChangeAt : 0;
+                const isStale = hasStreamStarted && metricState.outputChars > 0 && lastOutputChangeAt > 0 && outputStaleMs > 3000;
+
+                if (isStale) {
+                    speedSpan.textContent = t('⏳ waiting...', '⏳ 等待回传...');
+                    speedSpan.title = t(
+                        'No new provider output chunk has arrived recently. Some compatible endpoints buffer tool arguments and send them in a later chunk; speed will update when new output arrives.',
+                        '近期未收到新的 provider 输出分片。部分兼容端点会缓冲工具参数并稍后一次性发送；速度将在收到新输出时更新。'
+                    );
+                } else if (charsPerSecond > 0) {
+                    speedSpan.textContent = `~${charsPerSecond.toFixed(1)} chars/s`;
+                    speedSpan.title = t(
+                        'Live speed is estimated by streamed characters; final speed uses output tokens.',
+                        '实时速度按流式字符估算，完成后以输出 token/s 为准。'
+                    );
+                } else {
+                    speedSpan.textContent = '-';
+                }
             }
         }
     });
