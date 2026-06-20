@@ -128,7 +128,7 @@ function apiMessageToAnthropicContent(
 
                 let thinking = metadata?._completeThinking || ''; // 先用_completeThinking
                 if (typeof part.value === 'string' && part.value.trim() !== '') {
-                    const partStr = part.value as string;
+                    const partStr = part.value;
                     if (partStr.length > thinking.length) {
                         thinking = partStr;
                     }

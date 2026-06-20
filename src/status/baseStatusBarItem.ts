@@ -89,8 +89,12 @@ export abstract class BaseStatusBarItem<T> {
     protected initialized = false;
 
     // 常量配置
-    protected readonly MIN_DELAYED_UPDATE_INTERVAL = 30000; // 最小延时更新间隔 30 秒
-    protected readonly CACHE_UPDATE_INTERVAL = 10000; // 缓存加载间隔 10 秒
+    // 最小延时更新间隔：节流阈值，避免短时间内多次 delayedUpdate 触发 API 请求
+    // 30 秒是多数提供商限频窗口的下限，保证不会在同一窗口内重复请求
+    protected readonly MIN_DELAYED_UPDATE_INTERVAL = 30000;
+    // 缓存轮询间隔：仅从本地缓存读取并刷新状态栏显示（不触发 API）
+    // 10 秒是 UI 响应性与无谓刷新的平衡点
+    protected readonly CACHE_UPDATE_INTERVAL = 10000;
     protected readonly HIGH_USAGE_THRESHOLD = 80; // 高使用率阈值 80%
 
     /**

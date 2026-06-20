@@ -595,7 +595,7 @@ export class OpenAIResponsesHandler {
                         const thinking: { type: string } = customParams.thinking || { type: 'enabled' };
                         thinking.type = 'enabled';
                         const reasoning = customParams.reasoning || { effort: 'medium' };
-                        reasoning.effort = settings.reasoningEffort as string;
+                        reasoning.effort = settings.reasoningEffort;
                         if (settings.reasoningEffort === 'minimal' || settings.reasoningEffort === 'none') {
                             thinking.type = 'disabled';
                         }
@@ -936,7 +936,7 @@ export class OpenAIResponsesHandler {
 
                         // 获取响应对象
                         const response = event.response;
-                        const responseId = response?.id as string | undefined;
+                        const responseId = response?.id;
 
                         // 处理完整的响应中的工具调用（备用，确保所有工具调用都被处理）
                         if (response && response.output) {

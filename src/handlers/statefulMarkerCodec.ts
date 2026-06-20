@@ -3,6 +3,9 @@
     marker: TMarker;
 }
 
+// 分隔符选用单字符 '\'：modelId 是受控标识符（不含反斜杠），
+// 而 marker 部分会经 JSON.stringify 处理，其中的反斜杠会被自动转义为 \\，
+// 解析时用 indexOf 取第一个未转义的 '\' 即可安全切分。
 const MARKER_SEPARATOR = '\\';
 
 export function encodeStatefulMarkerPayload<TMarker>(modelId: string, marker: TMarker): Uint8Array {

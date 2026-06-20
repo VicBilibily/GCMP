@@ -4,6 +4,7 @@
 node_modules/**
 models/
 scripts/
+discuss/
 out/**
 src/**
 .gitignore
