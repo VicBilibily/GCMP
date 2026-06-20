@@ -221,7 +221,8 @@ export class AnthropicHandler {
                 const filteredExtraBody = OpenAIHandler.filterExtraBodyParams(modelConfig.extraBody);
                 Object.assign(createParams, filteredExtraBody);
                 if (Object.keys(filteredExtraBody).length > 0) {
-                    Logger.trace(`${model.name} merged extraBody parameters: ${JSON.stringify(filteredExtraBody)}`);
+                    // 仅记录键名，避免泄露用户自定义参数值（可能含内部系统 ID 或临时凭证）
+                    Logger.trace(`${model.name} merged extraBody keys: ${Object.keys(filteredExtraBody).join(', ')}`);
                 }
             }
 

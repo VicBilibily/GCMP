@@ -373,7 +373,7 @@ export async function deactivate() {
         Logger.trace('All status bars disposed');
 
         // 停止主实例竞选服务
-        LeaderElectionService.stop();
+        await LeaderElectionService.stop();
         Logger.trace('Leader election service stopped');
 
         // 清理所有已注册提供商的资源

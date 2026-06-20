@@ -88,8 +88,10 @@ export class LeaderElectionService {
 
     /**
      * 停止竞选服务
+     * 注意：必须 await 整个方法，确保 resignLeader 完成后再返回，
+     * 避免 deactivate 提前结束后 Leader 信息残留。
      */
-    public static stop(): void {
+    public static async stop(): Promise<void> {
         if (this.heartbeatTimer) {
             clearInterval(this.heartbeatTimer);
             this.heartbeatTimer = undefined;
@@ -102,8 +104,12 @@ export class LeaderElectionService {
         // 停止用户活跃检测服务
         UserActivityService.stop();
 
-        // 如果是 Leader，尝试主动释放
-        this.resignLeader();
+        // 如果是 Leader，必须 await 释放流程，确保 globalState 清除完成
+        try {
+            await this.resignLeader();
+        } catch (error) {
+            StatusLogger.warn('[LeaderElectionService] Failed to release leader identity during stop', error);
+        }
         this.initialized = false;
     }
 

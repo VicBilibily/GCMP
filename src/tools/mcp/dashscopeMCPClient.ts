@@ -47,8 +47,9 @@ export class DashscopeMCPWebSearchClient {
     private static clientCache = new Map<string, DashscopeMCPWebSearchClient>();
 
     private static buildCacheKey(apiKey: string): string {
+        const endpoint = DashscopeMCPWebSearchClient.MCP_URL;
         const proxyUrl = ConfigManager.resolveProxyForModel(undefined, 'dashscope') || '';
-        return `${apiKey}::${proxyUrl}`;
+        return `${apiKey}::${endpoint}::${proxyUrl}`;
     }
 
     private static async clearStaleInstances(apiKey: string, activeCacheKey: string): Promise<void> {

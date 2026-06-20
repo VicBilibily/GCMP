@@ -128,6 +128,7 @@ export abstract class BaseCliAuth {
         try {
             execSync(`${this.config.cliCommand} --version`, {
                 stdio: 'ignore',
+                timeout: 5000,
                 env: this.getCliProcessEnv()
             });
             return true;

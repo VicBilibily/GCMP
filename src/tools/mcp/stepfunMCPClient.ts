@@ -32,8 +32,9 @@ export class StepFunMCPWebSearchClient {
     private static readonly MCP_ENDPOINT = 'https://api.stepfun.com/step_plan/v1/mcp/web_search/mcp';
 
     private static buildCacheKey(apiKey: string): string {
+        const endpoint = StepFunMCPWebSearchClient.MCP_ENDPOINT;
         const proxyUrl = ConfigManager.resolveProxyForModel(undefined, 'stepfun') || '';
-        return `${apiKey}::${proxyUrl}`;
+        return `${apiKey}::${endpoint}::${proxyUrl}`;
     }
 
     private static async clearStaleInstances(apiKey: string, activeCacheKey: string): Promise<void> {

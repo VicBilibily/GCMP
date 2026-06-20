@@ -1454,6 +1454,7 @@
         "vscode:prepublish": "npm run clean && npm run compile",
         "compile": "node esbuild.config.js",
         "compile:dev": "node esbuild.config.js --dev",
+        "typecheck": "tsc --noEmit -p tsconfig.json",
         "clean": "rimraf dist",
         "lint": "eslint",
         "lint:fix": "eslint --fix",
