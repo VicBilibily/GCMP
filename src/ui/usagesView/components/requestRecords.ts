@@ -334,8 +334,9 @@ function appendTotalsRow(tbody: HTMLElement, summaryRecords: ExtendedTokenReques
 
 /**
  * 创建请求记录表格，并在底部展示当前会话/全部会话的汇总行
+ * 同时被 createRequestRecordsSection 和 app.ts 的实时指标占位逻辑复用
  */
-function createRequestRecordsTable(
+export function createRequestRecordsTable(
     records: ExtendedTokenRequestLog[],
     summaryRecords: ExtendedTokenRequestLog[]
 ): HTMLElement {

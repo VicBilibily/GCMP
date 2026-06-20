@@ -13,7 +13,7 @@ import { createElement } from '../utils';
 // 导入组件
 import { createSidebar, updateDateList } from './components/dateList';
 import { createMainContent, updateMainContent } from './components/mainContent';
-import { createRequestRecordsSection, resetRequestRecordsState } from './components/requestRecords';
+import { createRequestRecordsSection, createRequestRecordsTable, resetRequestRecordsState } from './components/requestRecords';
 
 // ============= 全局状态管理 =============
 
@@ -135,6 +135,8 @@ interface LiveMetricsState {
     streamStartTime?: number;
     firstChunkLatencyMs: number;
     outputChars: number;
+    providerName?: string;
+    modelName?: string;
 }
 
 // 支持多个并发请求的实时指标状态
@@ -183,7 +185,9 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
             liveMetricsMap.set(requestId, {
                 requestStartTime: event.requestStartTime,
                 firstChunkLatencyMs: 0,
-                outputChars: 0
+                outputChars: 0,
+                providerName: event.providerName,
+                modelName: event.modelName
             });
             startRenderClock();
             break;
@@ -193,11 +197,15 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
             const chunkState = liveMetricsMap.get(requestId) ?? {
                 requestStartTime: event.requestStartTime,
                 firstChunkLatencyMs: 0,
-                outputChars: 0
+                outputChars: 0,
+                providerName: event.providerName,
+                modelName: event.modelName
             };
             chunkState.requestStartTime = event.requestStartTime;
             chunkState.streamStartTime = event.streamStartTime;
             chunkState.firstChunkLatencyMs = event.firstChunkLatencyMs ?? 0;
+            chunkState.providerName = chunkState.providerName || event.providerName;
+            chunkState.modelName = chunkState.modelName || event.modelName;
             liveMetricsMap.set(requestId, chunkState);
             startRenderClock();
             break;
@@ -210,13 +218,18 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
                     requestStartTime: event.requestStartTime,
                     streamStartTime: event.streamStartTime,
                     firstChunkLatencyMs: event.firstChunkLatencyMs ?? 0,
-                    outputChars: 0
+                    outputChars: 0,
+                    providerName: event.providerName,
+                    modelName: event.modelName
                 };
                 liveMetricsMap.set(requestId, state);
                 startRenderClock();
             }
             state.requestStartTime = event.requestStartTime;
             state.outputChars = event.outputChars ?? 0;
+            // 补齐 provider/model（requestStarted 可能未被 WebView 接收到）
+            state.providerName = state.providerName || event.providerName;
+            state.modelName = state.modelName || event.modelName;
             if (event.streamStartTime !== undefined) {
                 state.streamStartTime = event.streamStartTime;
             }
@@ -227,6 +240,7 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
         }
 
         case 'streamEnd': {
+            removeLivePlaceholderRow(requestId);
             liveMetricsMap.delete(requestId);
             if (liveMetricsMap.size === 0) {
                 stopRenderClock();
@@ -241,28 +255,146 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
 }
 
 /**
+ * 清理由实时指标创建的临时占位行（streamEnd 时调用）
+ * 仅删除标记为 data-live-placeholder 的行，不误删由 updateDateDetails 渲染的真实记录行
+ */
+function removeLivePlaceholderRow(requestId: string): void {
+    const recordsContainer = document.querySelector('#records-container') as HTMLElement | null;
+    const tbody = recordsContainer?.querySelector('tbody');
+    if (!tbody) {
+        return;
+    }
+    const row = Array.from(tbody.querySelectorAll('tr'))
+        .find(r => r.getAttribute('data-request-id') === requestId) as HTMLTableRowElement | undefined;
+    if (row?.getAttribute('data-live-placeholder') === 'true') {
+        row.remove();
+        // 占位行删除后若表格为空，恢复"暂无请求记录"空行
+        if (!tbody.querySelector('tr')) {
+            const emptyRow = document.createElement('tr');
+            const emptyCell = document.createElement('td');
+            emptyCell.colSpan = 10;
+            emptyCell.textContent = t('No request records yet', '暂无请求记录');
+            emptyCell.style.textAlign = 'center';
+            emptyRow.appendChild(emptyCell);
+            tbody.appendChild(emptyRow);
+        }
+    }
+}
+
+/**
+ * 判断当前是否在查看今天的请求记录（实时指标仅适用于今天）
+ */
+function isViewingToday(): boolean {
+    const today = state.today || getTodayDateString();
+    return state.dateDetails?.isToday === true || state.dateDetails?.date === today;
+}
+
+/**
  * 更新请求记录区域，显示实时指标
  * 策略：遍历所有正在流式的请求，通过 requestId 精确匹配表格行并更新
  */
 function updateRequestRecordsWithLiveMetrics(): void {
+    // 仅在今天页面渲染实时指标，不污染历史日期
+    if (!isViewingToday()) {
+        return;
+    }
+
     const recordsContainer = document.querySelector('#records-container') as HTMLElement;
     if (!recordsContainer) {
         return;
     }
 
-    const tbody = recordsContainer.querySelector('tbody');
+    let tbody = recordsContainer.querySelector('tbody');
     if (!tbody) {
-        return;
+        // 无 tbody（当天无记录），替换 .empty-message 为标准空表格，保留外层布局
+        const emptyMessage = recordsContainer.querySelector('.empty-message');
+        if (!emptyMessage) {
+            return;
+        }
+        const table = createRequestRecordsTable([], []);
+        emptyMessage.replaceWith(table);
+        tbody = table.querySelector('tbody');
+        if (!tbody) {
+            return;
+        }
     }
 
     const now = Date.now();
+    // 有会话筛选时，新请求可能不属于当前会话，不创建占位行（真实行仍可更新）
+    const hasSessionFilter = !!state.selectedSessionId;
 
-    liveMetricsMap.forEach((state, requestId) => {
-        const targetRow = Array.from(tbody.querySelectorAll('tr'))
+    liveMetricsMap.forEach((metricState, requestId) => {
+        let targetRow = Array.from(tbody!.querySelectorAll('tr'))
             .find(row => row.getAttribute('data-request-id') === requestId) as HTMLTableRowElement | undefined;
 
+        // 占位行：liveMetrics 已有数据但表格行尚未创建（updateDateDetails 尚未到达）
         if (!targetRow) {
-            return;
+            // 有会话筛选时，新请求不属于当前会话，跳过占位行创建
+            if (hasSessionFilter) {
+                return;
+            }
+            targetRow = document.createElement('tr');
+            targetRow.setAttribute('data-request-id', requestId);
+            targetRow.setAttribute('data-request-status', 'streaming');
+            targetRow.setAttribute('data-live-placeholder', 'true');
+
+            // 时间
+            const timeCell = document.createElement('td');
+            timeCell.textContent = new Date(metricState.requestStartTime).toLocaleTimeString('zh-CN');
+            targetRow.appendChild(timeCell);
+
+            // 提供商
+            const providerCell = document.createElement('td');
+            providerCell.textContent = metricState.providerName || '-';
+            targetRow.appendChild(providerCell);
+
+            // 模型
+            const modelCell = document.createElement('td');
+            modelCell.textContent = metricState.modelName || '-';
+            targetRow.appendChild(modelCell);
+
+            // 输入令牌
+            const inputCell = document.createElement('td');
+            inputCell.textContent = '-';
+            targetRow.appendChild(inputCell);
+
+            // 缓存命中
+            const cacheCell = document.createElement('td');
+            cacheCell.textContent = '-';
+            targetRow.appendChild(cacheCell);
+
+            // 输出令牌
+            const outputCell = document.createElement('td');
+            outputCell.textContent = '-';
+            targetRow.appendChild(outputCell);
+
+            // 消耗令牌
+            const totalCell = document.createElement('td');
+            totalCell.textContent = '-';
+            targetRow.appendChild(totalCell);
+
+            // 首令延迟 + 输出耗时
+            const timingCell = document.createElement('td');
+            timingCell.setAttribute('data-metric', 'timing');
+            targetRow.appendChild(timingCell);
+
+            // 输出速度
+            const speedCell = document.createElement('td');
+            speedCell.setAttribute('data-metric', 'speed');
+            targetRow.appendChild(speedCell);
+
+            // 状态
+            const statusCell = document.createElement('td');
+            statusCell.className = 'status-estimated';
+            statusCell.textContent = '⏳';
+            targetRow.appendChild(statusCell);
+
+            // 移除空状态行（如 "暂无请求记录"）并插入占位行
+            const firstRow = tbody!.querySelector('tr');
+            if (firstRow && firstRow.querySelector('td[colspan]')) {
+                firstRow.remove();
+            }
+            tbody!.insertBefore(targetRow, tbody!.firstChild);
         }
 
         // 跳过已完成/失败的行，避免实时值覆盖最终统计
@@ -272,19 +404,19 @@ function updateRequestRecordsWithLiveMetrics(): void {
         }
 
         // 实时计算首令延迟：首流事件前持续增长，首流事件后固定
-        const hasStreamStarted = state.streamStartTime !== undefined;
+        const hasStreamStarted = metricState.streamStartTime !== undefined;
         const latencyMs = hasStreamStarted
-            ? state.firstChunkLatencyMs
-            : Math.max(0, now - state.requestStartTime);
+            ? metricState.firstChunkLatencyMs
+            : Math.max(0, now - metricState.requestStartTime);
 
         // 实时计算输出耗时：首流事件后开始计算
         const durationMs = hasStreamStarted
-            ? Math.max(0, now - state.streamStartTime!)
+            ? Math.max(0, now - metricState.streamStartTime!)
             : 0;
 
         // 实时计算输出速度：outputChars / elapsedMs
-        const charsPerSecond = durationMs > 0 && state.outputChars > 0
-            ? (state.outputChars / durationMs) * 1000
+        const charsPerSecond = durationMs > 0 && metricState.outputChars > 0
+            ? (metricState.outputChars / durationMs) * 1000
             : 0;
 
         // 更新首令延迟 + 输出耗时 + 速度
@@ -342,12 +474,16 @@ function handleVSCodeMessage(event: MessageEvent): void {
                     sessionGroups.some(group => group.sessionId === state.selectedSessionId)
                 ) ?
                     state.selectedSessionId
-                :   null;
+                    : null;
 
             if (dateChanged) {
                 resetRequestRecordsState();
-                liveMetricsMap.clear();
-                stopRenderClock();
+                // 切到非今天时停止实时渲染；切到今天时保留正在进行的 liveMetrics，
+                // 避免 requestStarted 先到达后被 updateDateDetails 清空导致 TTFT 不显示
+                if (!message.isToday) {
+                    liveMetricsMap.clear();
+                    stopRenderClock();
+                }
             }
 
             setState({
