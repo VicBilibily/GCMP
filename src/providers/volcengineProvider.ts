@@ -73,10 +73,6 @@ export class VolcengineProvider extends GenericModelProvider implements Language
         return { provider, disposables };
     }
 
-    private getProviderKeyForModel(modelConfig: ModelConfig): string {
-        return modelConfig.provider || this.providerKey;
-    }
-
     private async ensureApiKeyForModel(modelConfig: ModelConfig): Promise<string> {
         const providerKey = this.getProviderKeyForModel(modelConfig);
         const isAgentPlan = providerKey === VolcengineProvider.AGENT_PLAN_KEY;

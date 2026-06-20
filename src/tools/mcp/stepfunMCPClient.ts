@@ -14,6 +14,7 @@ import { ApiKeyManager } from '../../utils/apiKeyManager';
 import { t } from '../../utils/l10n';
 import { VersionManager } from '../../utils/versionManager';
 import { StepFunSearchResult } from '../stepfunSearch';
+import { clearMCPClientCache, getMCPClientCacheStats, clearStaleMCPInstances } from './mcpCacheHelpers';
 
 /**
  * 搜索请求参数
@@ -38,14 +39,7 @@ export class StepFunMCPWebSearchClient {
     }
 
     private static async clearStaleInstances(apiKey: string, activeCacheKey: string): Promise<void> {
-        const apiKeyPrefix = `${apiKey}::`;
-        for (const [cacheKey, instance] of this.clientCache.entries()) {
-            if (cacheKey !== activeCacheKey && cacheKey.startsWith(apiKeyPrefix)) {
-                await instance.cleanup();
-                this.clientCache.delete(cacheKey);
-                Logger.info(`🧹 [StepFun MCP] Cleared stale client cache for API key ${apiKey.substring(0, 8)}...`);
-            }
-        }
+        await clearStaleMCPInstances(this.clientCache, 'StepFun MCP', apiKey, activeCacheKey);
     }
 
     private client: Client | null = null;
@@ -92,46 +86,11 @@ export class StepFunMCPWebSearchClient {
     }
 
     static async clearCache(apiKey?: string): Promise<void> {
-        if (apiKey) {
-            const apiKeyPrefix = `${apiKey}::`;
-            let removedCount = 0;
-            for (const [cacheKey, instance] of StepFunMCPWebSearchClient.clientCache.entries()) {
-                if (cacheKey.startsWith(apiKeyPrefix)) {
-                    await instance.cleanup();
-                    StepFunMCPWebSearchClient.clientCache.delete(cacheKey);
-                    removedCount++;
-                }
-            }
-            if (removedCount > 0) {
-                Logger.info(
-                    `🗑️ [StepFun MCP] Cleared ${removedCount} cache entr${removedCount === 1 ? 'y' : 'ies'} for API key ${apiKey.substring(0, 8)}...`
-                );
-            }
-        } else {
-            for (const [key, instance] of StepFunMCPWebSearchClient.clientCache.entries()) {
-                await instance.cleanup();
-                Logger.info(`🗑️ [StepFun MCP] Cleared cache for API key ${key.substring(0, 8)}...`);
-            }
-            StepFunMCPWebSearchClient.clientCache.clear();
-            Logger.info('🗑️ [StepFun MCP] All client caches cleared');
-        }
+        await clearMCPClientCache(this.clientCache, 'StepFun MCP', apiKey);
     }
 
     static getCacheStats(): { totalClients: number; connectedClients: number; apiKeys: string[] } {
-        const stats = {
-            totalClients: StepFunMCPWebSearchClient.clientCache.size,
-            connectedClients: 0,
-            apiKeys: [] as string[]
-        };
-
-        for (const [key, instance] of StepFunMCPWebSearchClient.clientCache.entries()) {
-            if (instance.isConnected()) {
-                stats.connectedClients++;
-            }
-            stats.apiKeys.push(key.substring(0, 8) + '...');
-        }
-
-        return stats;
+        return getMCPClientCacheStats(this.clientCache);
     }
 
     isConnected(): boolean {

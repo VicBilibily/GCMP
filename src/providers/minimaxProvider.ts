@@ -143,18 +143,6 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
     }
 
     /**
-     * 获取模型对应的 provider key（考虑 provider 字段和默认值）
-     */
-    private getProviderKeyForModel(modelConfig: ModelConfig): string {
-        // 优先使用模型特定的 provider 字段
-        if (modelConfig.provider) {
-            return modelConfig.provider;
-        }
-        // 否则使用提供商默认的 provider key
-        return this.providerKey;
-    }
-
-    /**
      * 获取模型对应的密钥，确保存在有效密钥
      * @param modelConfig 模型配置
      * @returns 返回可用的 API 密钥

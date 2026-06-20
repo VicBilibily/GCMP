@@ -12,6 +12,7 @@ import { ApiKeyManager } from '../../utils/apiKeyManager';
 import { t } from '../../utils/l10n';
 import { VersionManager } from '../../utils/versionManager';
 import { ZhipuSearchResult } from '../zhipuSearch';
+import { clearMCPClientCache, getMCPClientCacheStats, clearStaleMCPInstances } from './mcpCacheHelpers';
 
 /**
  * 搜索请求参数
@@ -39,14 +40,7 @@ export class ZhipuMCPWebSearchClient {
     }
 
     private static async clearStaleInstances(apiKey: string, activeCacheKey: string): Promise<void> {
-        const apiKeyPrefix = `${apiKey}::`;
-        for (const [cacheKey, instance] of this.clientCache.entries()) {
-            if (cacheKey !== activeCacheKey && cacheKey.startsWith(apiKeyPrefix)) {
-                await instance.cleanup();
-                this.clientCache.delete(cacheKey);
-                Logger.info(`🧹 [Zhipu MCP] Cleared stale client cache for API key ${apiKey.substring(0, 8)}...`);
-            }
-        }
+        await clearStaleMCPInstances(this.clientCache, 'Zhipu MCP', apiKey, activeCacheKey);
     }
 
     private client: Client | null = null;
@@ -88,46 +82,11 @@ export class ZhipuMCPWebSearchClient {
     }
 
     static async clearCache(apiKey?: string): Promise<void> {
-        if (apiKey) {
-            const apiKeyPrefix = `${apiKey}::`;
-            let removedCount = 0;
-            for (const [cacheKey, instance] of ZhipuMCPWebSearchClient.clientCache.entries()) {
-                if (cacheKey.startsWith(apiKeyPrefix)) {
-                    await instance.cleanup();
-                    ZhipuMCPWebSearchClient.clientCache.delete(cacheKey);
-                    removedCount++;
-                }
-            }
-            if (removedCount > 0) {
-                Logger.info(
-                    `🗑️ [Zhipu MCP] Cleared ${removedCount} cache entr${removedCount === 1 ? 'y' : 'ies'} for API key ${apiKey.substring(0, 8)}...`
-                );
-            }
-        } else {
-            for (const [key, instance] of ZhipuMCPWebSearchClient.clientCache.entries()) {
-                await instance.cleanup();
-                Logger.info(`🗑️ [Zhipu MCP] Cleared cache for API key ${key.substring(0, 8)}...`);
-            }
-            ZhipuMCPWebSearchClient.clientCache.clear();
-            Logger.info('🗑️ [Zhipu MCP] All client caches cleared');
-        }
+        await clearMCPClientCache(this.clientCache, 'Zhipu MCP', apiKey);
     }
 
     static getCacheStats(): { totalClients: number; connectedClients: number; apiKeys: string[] } {
-        const stats = {
-            totalClients: ZhipuMCPWebSearchClient.clientCache.size,
-            connectedClients: 0,
-            apiKeys: [] as string[]
-        };
-
-        for (const [key, instance] of ZhipuMCPWebSearchClient.clientCache.entries()) {
-            if (instance.isConnected()) {
-                stats.connectedClients++;
-            }
-            stats.apiKeys.push(key.substring(0, 8) + '...');
-        }
-
-        return stats;
+        return getMCPClientCacheStats(this.clientCache);
     }
 
     private async handleErrorResponse(error: Error): Promise<void> {
@@ -221,7 +180,7 @@ export class ZhipuMCPWebSearchClient {
         return !!apiKey;
     }
 
-    private isConnected(): boolean {
+    isConnected(): boolean {
         return this.client !== null && this.transport !== null;
     }
 

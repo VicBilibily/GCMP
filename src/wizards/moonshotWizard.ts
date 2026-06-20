@@ -6,11 +6,11 @@
 // cSpell:ignore kimi
 import * as vscode from 'vscode';
 import { Logger } from '../utils/logger';
-import { ApiKeyManager } from '../utils/apiKeyManager';
 import { t } from '../utils/l10n';
 import { StatusBarManager } from '../status';
+import { BaseWizard } from './baseWizard';
 
-export class MoonshotWizard {
+export class MoonshotWizard extends BaseWizard {
     private static readonly PROVIDER_KEY = 'moonshot';
     private static readonly KIMI_KEY = 'kimi';
 
@@ -76,7 +76,8 @@ export class MoonshotWizard {
      * 设置 Moonshot API 密钥
      */
     static async setMoonshotApiKey(displayName: string, apiKeyTemplate: string): Promise<void> {
-        const result = await vscode.window.showInputBox({
+        await this.promptForApiKey({
+            providerKey: this.PROVIDER_KEY,
             prompt: t(
                 'Enter the API key for {0} (leave empty to clear)',
                 '请输入 {0} 的 API Key（留空可清除）',
@@ -84,39 +85,10 @@ export class MoonshotWizard {
             ),
             title: t('Set {0} API key', '设置 {0} API Key', displayName),
             placeHolder: apiKeyTemplate,
-            password: true,
-            ignoreFocusOut: true
+            successMessage: t('{0} API key set', '{0} API Key 已设置', displayName),
+            clearMessage: t('{0} API key cleared', '{0} API Key 已清除', displayName),
+            loggerName: displayName
         });
-
-        // 用户取消了输入
-        if (result === undefined) {
-            return;
-        }
-
-        try {
-            // 允许空值，用于清除 API Key
-            if (result.trim() === '') {
-                Logger.info(`${displayName} API key cleared`);
-                await ApiKeyManager.deleteApiKey(this.PROVIDER_KEY);
-                vscode.window.showInformationMessage(t('{0} API key cleared', '{0} API Key 已清除', displayName));
-            } else {
-                await ApiKeyManager.setApiKey(this.PROVIDER_KEY, result.trim());
-                Logger.info(`${displayName} API key set`);
-                vscode.window.showInformationMessage(t('{0} API key set', '{0} API Key 已设置', displayName));
-            }
-        } catch (error) {
-            Logger.error(
-                `Moonshot API key operation failed: ${error instanceof Error ? error.message : t('Unknown error', '未知错误')}`
-            );
-            vscode.window.showErrorMessage(
-                t(
-                    'Failed to save the API key: {0}',
-                    '设置失败: {0}',
-                    error instanceof Error ? error.message : t('Unknown error', '未知错误')
-                )
-            );
-        }
-
         // 检查并显示状态栏
         await StatusBarManager.checkAndShowStatus('moonshot');
     }
@@ -125,50 +97,18 @@ export class MoonshotWizard {
      * 设置 Kimi For Coding 专用密钥
      */
     static async setKimiApiKey(_displayName: string, codingKeyTemplate?: string): Promise<void> {
-        const result = await vscode.window.showInputBox({
+        await this.promptForApiKey({
+            providerKey: this.KIMI_KEY,
             prompt: t(
                 'Enter the Kimi For Coding API key (leave empty to clear)',
                 '请输入 Kimi For Coding 专用 API Key(留空可清除)'
             ),
             title: t('Set Kimi For Coding API key', '设置 Kimi For Coding 专用 API Key'),
             placeHolder: codingKeyTemplate,
-            password: true,
-            ignoreFocusOut: true
+            successMessage: t('Kimi For Coding API key set', 'Kimi For Coding 专用 API Key 已设置'),
+            clearMessage: t('Kimi For Coding API key cleared', 'Kimi For Coding 专用 API Key 已清除'),
+            loggerName: 'Kimi For Coding'
         });
-
-        // 用户取消了输入
-        if (result === undefined) {
-            return;
-        }
-
-        try {
-            // 允许空值，用于清除 API Key
-            if (result.trim() === '') {
-                Logger.info('Kimi For Coding API key cleared');
-                await ApiKeyManager.deleteApiKey(this.KIMI_KEY);
-                vscode.window.showInformationMessage(
-                    t('Kimi For Coding API key cleared', 'Kimi For Coding 专用 API Key 已清除')
-                );
-            } else {
-                await ApiKeyManager.setApiKey(this.KIMI_KEY, result.trim());
-                Logger.info('Kimi For Coding API key set');
-                vscode.window.showInformationMessage(
-                    t('Kimi For Coding API key set', 'Kimi For Coding 专用 API Key 已设置')
-                );
-            }
-        } catch (error) {
-            Logger.error(
-                `Kimi For Coding API key operation failed: ${error instanceof Error ? error.message : t('Unknown error', '未知错误')}`
-            );
-            vscode.window.showErrorMessage(
-                t(
-                    'Failed to save the API key: {0}',
-                    '设置失败: {0}',
-                    error instanceof Error ? error.message : t('Unknown error', '未知错误')
-                )
-            );
-        }
-
         // 检查并显示状态栏
         await StatusBarManager.checkAndShowStatus('kimi');
     }

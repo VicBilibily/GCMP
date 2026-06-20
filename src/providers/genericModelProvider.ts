@@ -161,6 +161,17 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     }
 
     /**
+     * 获取模型对应的 provider key（考虑 provider 字段和默认值）
+     * 优先使用模型特定的 provider 字段，否则使用提供商默认的 provider key
+     */
+    protected getProviderKeyForModel(modelConfig: ModelConfig): string {
+        if (modelConfig.provider) {
+            return modelConfig.provider;
+        }
+        return this.providerKey;
+    }
+
+    /**
      * 静态工厂方法 - 根据配置创建并激活提供商
      */
     static createAndActivate(

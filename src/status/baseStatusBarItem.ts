@@ -158,10 +158,27 @@ export abstract class BaseStatusBarItem<T> {
 
     /**
      * 检查是否需要刷新缓存
-     * 由子类实现自定义的刷新判断逻辑（包括缓存触发和主实例定时触发）
+     * 默认实现：固定 5 分钟刷新策略（提前 10 秒触发以避免边界抖动）
+     * 子类可 override 实现自定义刷新逻辑（如基于 nextResetTime、remainMs 等）
      * @returns 是否需要刷新
      */
-    protected abstract shouldRefresh(): boolean;
+    protected shouldRefresh(): boolean {
+        if (!this.lastStatusData) {
+            return false;
+        }
+
+        const dataAge = Date.now() - this.lastStatusData.timestamp;
+        const REFRESH_INTERVAL = (5 * 60 - 10) * 1000; // 缓存过期阈值 5 分钟
+
+        if (dataAge > REFRESH_INTERVAL) {
+            StatusLogger.debug(
+                `[${this.config.logPrefix}] 缓存时间(${(dataAge / 1000).toFixed(1)}秒)超过5分钟刷新间隔，触发API刷新`
+            );
+            return true;
+        }
+
+        return false;
+    }
 
     /**
      * 检查是否应该显示状态栏

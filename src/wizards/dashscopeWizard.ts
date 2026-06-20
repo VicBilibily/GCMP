@@ -5,10 +5,10 @@
 
 import * as vscode from 'vscode';
 import { Logger } from '../utils/logger';
-import { ApiKeyManager } from '../utils/apiKeyManager';
 import { t } from '../utils/l10n';
+import { BaseWizard } from './baseWizard';
 
-export class DashscopeWizard {
+export class DashscopeWizard extends BaseWizard {
     private static readonly PROVIDER_KEY = 'dashscope';
     private static readonly CODING_PLAN_KEY = 'dashscope-coding';
     private static readonly TOKEN_PLAN_KEY = 'dashscope-token';
@@ -84,7 +84,8 @@ export class DashscopeWizard {
      * 设置 Dashscope 普通 API 密钥
      */
     static async setNormalApiKey(displayName: string, apiKeyTemplate: string): Promise<void> {
-        const result = await vscode.window.showInputBox({
+        await this.promptForApiKey({
+            providerKey: this.PROVIDER_KEY,
             prompt: t(
                 'Enter the API key for {0} (leave empty to clear)',
                 '请输入 {0} 的 API Key（留空可清除）',
@@ -92,42 +93,18 @@ export class DashscopeWizard {
             ),
             title: t('Set {0} API Key', '设置 {0} API Key', displayName),
             placeHolder: apiKeyTemplate,
-            password: true,
-            ignoreFocusOut: true
+            successMessage: t('{0} API Key configured', '{0} API Key 已设置', displayName),
+            clearMessage: t('{0} API Key cleared', '{0} API Key 已清除', displayName),
+            loggerName: displayName
         });
-
-        if (result === undefined) {
-            return;
-        }
-
-        try {
-            if (result.trim() === '') {
-                Logger.info(`${displayName} API key cleared`);
-                await ApiKeyManager.deleteApiKey(this.PROVIDER_KEY);
-                vscode.window.showInformationMessage(t('{0} API Key cleared', '{0} API Key 已清除', displayName));
-            } else {
-                await ApiKeyManager.setApiKey(this.PROVIDER_KEY, result.trim());
-                Logger.info(`${displayName} API key configured`);
-                vscode.window.showInformationMessage(t('{0} API Key configured', '{0} API Key 已设置', displayName));
-            }
-        } catch (error) {
-            const errorText = t(
-                'Setup failed: {0}',
-                '设置失败: {0}',
-                error instanceof Error ? error.message : 'Unknown error'
-            );
-            Logger.error(
-                `DashScope API key operation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-            );
-            vscode.window.showErrorMessage(errorText);
-        }
     }
 
     /**
      * 设置 Dashscope Coding Plan 专用密钥
      */
     static async setCodingPlanApiKey(displayName: string, codingKeyTemplate?: string): Promise<void> {
-        const result = await vscode.window.showInputBox({
+        await this.promptForApiKey({
+            providerKey: this.CODING_PLAN_KEY,
             prompt: t(
                 'Enter the Coding Plan dedicated API key for {0} (leave empty to clear)',
                 '请输入 {0} 的 Coding Plan 专用 API Key（留空可清除）',
@@ -135,50 +112,26 @@ export class DashscopeWizard {
             ),
             title: t('Set {0} Coding Plan dedicated API Key', '设置 {0} Coding Plan 专用 API Key', displayName),
             placeHolder: codingKeyTemplate,
-            password: true,
-            ignoreFocusOut: true
+            successMessage: t(
+                '{0} Coding Plan dedicated API Key configured',
+                '{0} Coding Plan 专用 API Key 已设置',
+                displayName
+            ),
+            clearMessage: t(
+                '{0} Coding Plan dedicated API Key cleared',
+                '{0} Coding Plan 专用 API Key 已清除',
+                displayName
+            ),
+            loggerName: displayName
         });
-
-        if (result === undefined) {
-            return;
-        }
-
-        try {
-            if (result.trim() === '') {
-                Logger.info(`${displayName} Coding Plan dedicated API key cleared`);
-                await ApiKeyManager.deleteApiKey(this.CODING_PLAN_KEY);
-                vscode.window.showInformationMessage(
-                    t('{0} Coding Plan dedicated API Key cleared', '{0} Coding Plan 专用 API Key 已清除', displayName)
-                );
-            } else {
-                await ApiKeyManager.setApiKey(this.CODING_PLAN_KEY, result.trim());
-                Logger.info(`${displayName} Coding Plan dedicated API key configured`);
-                vscode.window.showInformationMessage(
-                    t(
-                        '{0} Coding Plan dedicated API Key configured',
-                        '{0} Coding Plan 专用 API Key 已设置',
-                        displayName
-                    )
-                );
-            }
-        } catch (error) {
-            const errorText = t(
-                'Setup failed: {0}',
-                '设置失败: {0}',
-                error instanceof Error ? error.message : 'Unknown error'
-            );
-            Logger.error(
-                `DashScope Coding Plan API key operation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-            );
-            vscode.window.showErrorMessage(errorText);
-        }
     }
 
     /**
      * 设置 Dashscope Token Plan 专用密钥
      */
     static async setTokenPlanApiKey(displayName: string, tokenKeyTemplate?: string): Promise<void> {
-        const result = await vscode.window.showInputBox({
+        await this.promptForApiKey({
+            providerKey: this.TOKEN_PLAN_KEY,
             prompt: t(
                 'Enter the Token Plan dedicated API key for {0} (leave empty to clear)',
                 '请输入 {0} 的 Token Plan 专用 API Key（留空可清除）',
@@ -186,38 +139,17 @@ export class DashscopeWizard {
             ),
             title: t('Set {0} Token Plan dedicated API Key', '设置 {0} Token Plan 专用 API Key', displayName),
             placeHolder: tokenKeyTemplate,
-            password: true,
-            ignoreFocusOut: true
+            successMessage: t(
+                '{0} Token Plan dedicated API Key configured',
+                '{0} Token Plan 专用 API Key 已设置',
+                displayName
+            ),
+            clearMessage: t(
+                '{0} Token Plan dedicated API Key cleared',
+                '{0} Token Plan 专用 API Key 已清除',
+                displayName
+            ),
+            loggerName: displayName
         });
-
-        if (result === undefined) {
-            return;
-        }
-
-        try {
-            if (result.trim() === '') {
-                Logger.info(`${displayName} Token Plan dedicated API key cleared`);
-                await ApiKeyManager.deleteApiKey(this.TOKEN_PLAN_KEY);
-                vscode.window.showInformationMessage(
-                    t('{0} Token Plan dedicated API Key cleared', '{0} Token Plan 专用 API Key 已清除', displayName)
-                );
-            } else {
-                await ApiKeyManager.setApiKey(this.TOKEN_PLAN_KEY, result.trim());
-                Logger.info(`${displayName} Token Plan dedicated API key configured`);
-                vscode.window.showInformationMessage(
-                    t('{0} Token Plan dedicated API Key configured', '{0} Token Plan 专用 API Key 已设置', displayName)
-                );
-            }
-        } catch (error) {
-            const errorText = t(
-                'Setup failed: {0}',
-                '设置失败: {0}',
-                error instanceof Error ? error.message : 'Unknown error'
-            );
-            Logger.error(
-                `DashScope Token Plan API key operation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-            );
-            vscode.window.showErrorMessage(errorText);
-        }
     }
 }

@@ -5,10 +5,10 @@
 
 import * as vscode from 'vscode';
 import { Logger } from '../utils/logger';
-import { ApiKeyManager } from '../utils/apiKeyManager';
 import { t } from '../utils/l10n';
+import { BaseWizard } from './baseWizard';
 
-export class VolcengineWizard {
+export class VolcengineWizard extends BaseWizard {
     private static readonly PROVIDER_KEY = 'volcengine';
     private static readonly AGENT_PLAN_KEY = 'volcengine-agent';
 
@@ -75,7 +75,8 @@ export class VolcengineWizard {
      * 设置 Coding Plan API 密钥
      */
     static async setCodingPlanApiKey(displayName: string, apiKeyTemplate: string): Promise<void> {
-        const result = await vscode.window.showInputBox({
+        await this.promptForApiKey({
+            providerKey: this.PROVIDER_KEY,
             prompt: t(
                 'Enter the Coding Plan API key for {0} (leave empty to clear)',
                 '请输入 {0} 的 Coding Plan API Key（留空可清除）',
@@ -83,47 +84,18 @@ export class VolcengineWizard {
             ),
             title: t('Set {0} Coding Plan API key', '设置 {0} Coding Plan API Key', displayName),
             placeHolder: apiKeyTemplate,
-            password: true,
-            ignoreFocusOut: true
+            successMessage: t('{0} Coding Plan API key set', '{0} Coding Plan API Key 已设置', displayName),
+            clearMessage: t('{0} Coding Plan API key cleared', '{0} Coding Plan API Key 已清除', displayName),
+            loggerName: displayName
         });
-
-        if (result === undefined) {
-            return;
-        }
-
-        try {
-            if (result.trim() === '') {
-                Logger.info(`${displayName} Coding Plan API key cleared`);
-                await ApiKeyManager.deleteApiKey(this.PROVIDER_KEY);
-                vscode.window.showInformationMessage(
-                    t('{0} Coding Plan API key cleared', '{0} Coding Plan API Key 已清除', displayName)
-                );
-            } else {
-                await ApiKeyManager.setApiKey(this.PROVIDER_KEY, result.trim());
-                Logger.info(`${displayName} Coding Plan API key set`);
-                vscode.window.showInformationMessage(
-                    t('{0} Coding Plan API key set', '{0} Coding Plan API Key 已设置', displayName)
-                );
-            }
-        } catch (error) {
-            Logger.error(
-                `Volcengine Coding Plan API key operation failed: ${error instanceof Error ? error.message : t('Unknown error', '未知错误')}`
-            );
-            vscode.window.showErrorMessage(
-                t(
-                    'Failed to save the API key: {0}',
-                    '设置失败: {0}',
-                    error instanceof Error ? error.message : t('Unknown error', '未知错误')
-                )
-            );
-        }
     }
 
     /**
      * 设置 Agent Plan 专用密钥
      */
     static async setAgentPlanApiKey(displayName: string, apiKeyTemplate: string): Promise<void> {
-        const result = await vscode.window.showInputBox({
+        await this.promptForApiKey({
+            providerKey: this.AGENT_PLAN_KEY,
             prompt: t(
                 'Enter the Agent Plan API key for {0} (leave empty to clear)',
                 '请输入 {0} 的 Agent Plan 专用 API Key（留空可清除）',
@@ -131,39 +103,9 @@ export class VolcengineWizard {
             ),
             title: t('Set {0} Agent Plan API key', '设置 {0} Agent Plan 专用 API Key', displayName),
             placeHolder: apiKeyTemplate,
-            password: true,
-            ignoreFocusOut: true
+            successMessage: t('{0} Agent Plan API key set', '{0} Agent Plan 专用 API Key 已设置', displayName),
+            clearMessage: t('{0} Agent Plan API key cleared', '{0} Agent Plan 专用 API Key 已清除', displayName),
+            loggerName: displayName
         });
-
-        if (result === undefined) {
-            return;
-        }
-
-        try {
-            if (result.trim() === '') {
-                Logger.info(`${displayName} Agent Plan API key cleared`);
-                await ApiKeyManager.deleteApiKey(this.AGENT_PLAN_KEY);
-                vscode.window.showInformationMessage(
-                    t('{0} Agent Plan API key cleared', '{0} Agent Plan 专用 API Key 已清除', displayName)
-                );
-            } else {
-                await ApiKeyManager.setApiKey(this.AGENT_PLAN_KEY, result.trim());
-                Logger.info(`${displayName} Agent Plan API key set`);
-                vscode.window.showInformationMessage(
-                    t('{0} Agent Plan API key set', '{0} Agent Plan 专用 API Key 已设置', displayName)
-                );
-            }
-        } catch (error) {
-            Logger.error(
-                `Volcengine Agent Plan API key operation failed: ${error instanceof Error ? error.message : t('Unknown error', '未知错误')}`
-            );
-            vscode.window.showErrorMessage(
-                t(
-                    'Failed to save the API key: {0}',
-                    '设置失败: {0}',
-                    error instanceof Error ? error.message : t('Unknown error', '未知错误')
-                )
-            );
-        }
     }
 }

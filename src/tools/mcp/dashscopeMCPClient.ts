@@ -10,6 +10,7 @@ import { ConfigManager } from '../../utils/configManager';
 import { ApiKeyManager } from '../../utils/apiKeyManager';
 import { t } from '../../utils/l10n';
 import { VersionManager } from '../../utils/versionManager';
+import { clearMCPClientCache, getMCPClientCacheStats, clearStaleMCPInstances } from './mcpCacheHelpers';
 
 /**
  * DashScope 搜索请求参数
@@ -53,14 +54,7 @@ export class DashscopeMCPWebSearchClient {
     }
 
     private static async clearStaleInstances(apiKey: string, activeCacheKey: string): Promise<void> {
-        const apiKeyPrefix = `${apiKey}::`;
-        for (const [cacheKey, instance] of this.clientCache.entries()) {
-            if (cacheKey !== activeCacheKey && cacheKey.startsWith(apiKeyPrefix)) {
-                await instance.cleanup();
-                this.clientCache.delete(cacheKey);
-                Logger.info(`🧹 [DashScope MCP] Cleared stale client cache for API key ${apiKey.substring(0, 8)}...`);
-            }
-        }
+        await clearStaleMCPInstances(this.clientCache, 'DashScope MCP', apiKey, activeCacheKey);
     }
 
     private static readonly MCP_URL = 'https://dashscope.aliyuncs.com/api/v1/mcps/WebSearch/mcp';
@@ -112,46 +106,11 @@ export class DashscopeMCPWebSearchClient {
     }
 
     static async clearCache(apiKey?: string): Promise<void> {
-        if (apiKey) {
-            const apiKeyPrefix = `${apiKey}::`;
-            let removedCount = 0;
-            for (const [cacheKey, instance] of DashscopeMCPWebSearchClient.clientCache.entries()) {
-                if (cacheKey.startsWith(apiKeyPrefix)) {
-                    await instance.cleanup();
-                    DashscopeMCPWebSearchClient.clientCache.delete(cacheKey);
-                    removedCount++;
-                }
-            }
-            if (removedCount > 0) {
-                Logger.info(
-                    `🗑️ [DashScope MCP] Cleared ${removedCount} cache entr${removedCount === 1 ? 'y' : 'ies'} for API key ${apiKey.substring(0, 8)}...`
-                );
-            }
-        } else {
-            for (const [key, instance] of DashscopeMCPWebSearchClient.clientCache.entries()) {
-                await instance.cleanup();
-                Logger.info(`🗑️ [DashScope MCP] Cleared cache for API key ${key.substring(0, 8)}...`);
-            }
-            DashscopeMCPWebSearchClient.clientCache.clear();
-            Logger.info('🗑️ [DashScope MCP] Cleared all client caches');
-        }
+        await clearMCPClientCache(this.clientCache, 'DashScope MCP', apiKey);
     }
 
     static getCacheStats(): { totalClients: number; connectedClients: number; apiKeys: string[] } {
-        const stats = {
-            totalClients: DashscopeMCPWebSearchClient.clientCache.size,
-            connectedClients: 0,
-            apiKeys: [] as string[]
-        };
-
-        for (const [key, instance] of DashscopeMCPWebSearchClient.clientCache.entries()) {
-            if (instance.isConnected()) {
-                stats.connectedClients++;
-            }
-            stats.apiKeys.push(key.substring(0, 8) + '...');
-        }
-
-        return stats;
+        return getMCPClientCacheStats(this.clientCache);
     }
 
     async isEnabled(): Promise<boolean> {
@@ -159,7 +118,7 @@ export class DashscopeMCPWebSearchClient {
         return !!apiKey;
     }
 
-    private isConnected(): boolean {
+    isConnected(): boolean {
         return this.client !== null && this.transport !== null;
     }
 

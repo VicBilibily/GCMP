@@ -82,10 +82,6 @@ export class XiaomimimoProvider extends GenericModelProvider implements Language
         return { provider, disposables };
     }
 
-    private getProviderKeyForModel(modelConfig: ModelConfig): string {
-        return modelConfig.provider || this.providerKey;
-    }
-
     private async ensureApiKeyForModel(modelConfig: ModelConfig): Promise<string> {
         const providerKey = this.getProviderKeyForModel(modelConfig);
         const isTokenPlan = providerKey === 'xiaomimimo-token';

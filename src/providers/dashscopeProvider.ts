@@ -85,10 +85,6 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         return { provider, disposables };
     }
 
-    private getProviderKeyForModel(modelConfig: ModelConfig): string {
-        return modelConfig.provider || this.providerKey;
-    }
-
     private async ensureApiKeyForModel(modelConfig: ModelConfig): Promise<string> {
         const providerKey = this.getProviderKeyForModel(modelConfig);
         const isCodingPlan = providerKey === 'dashscope-coding';

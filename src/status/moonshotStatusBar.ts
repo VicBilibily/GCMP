@@ -244,29 +244,6 @@ export class MoonshotStatusBar extends ProviderStatusBarItem<MoonshotStatusData>
     }
 
     /**
-     * 检查是否需要刷新缓存
-     * 每5分钟固定刷新一次
-     */
-    protected shouldRefresh(): boolean {
-        if (!this.lastStatusData) {
-            return false;
-        }
-
-        const dataAge = Date.now() - this.lastStatusData.timestamp;
-        const REFRESH_INTERVAL = (5 * 60 - 10) * 1000; // 缓存过期阈值 5 分钟
-
-        // 检查是否超过5分钟刷新间隔
-        if (dataAge > REFRESH_INTERVAL) {
-            StatusLogger.debug(
-                `[${this.config.logPrefix}] 缓存时间(${(dataAge / 1000).toFixed(1)}秒)超过5分钟刷新间隔，触发API刷新`
-            );
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
      * 访问器：获取最后的状态数据（用于测试和调试）
      */
     getLastStatusData(): { data: MoonshotStatusData; timestamp: number } | null {

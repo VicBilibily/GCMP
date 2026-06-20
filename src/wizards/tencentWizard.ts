@@ -5,10 +5,10 @@
 
 import * as vscode from 'vscode';
 import { Logger } from '../utils/logger';
-import { ApiKeyManager } from '../utils/apiKeyManager';
 import { t } from '../utils/l10n';
+import { BaseWizard } from './baseWizard';
 
-export class TencentWizard {
+export class TencentWizard extends BaseWizard {
     private static readonly PROVIDER_KEY = 'tencent';
     private static readonly CODING_PLAN_KEY = 'tencent-coding';
     private static readonly TOKEN_PLAN_KEY = 'tencent-token';
@@ -167,50 +167,5 @@ export class TencentWizard {
             successMessage: t('Tencent Cloud TokenHub API key set', '腾讯云 TokenHub API Key 已设置'),
             clearMessage: t('Tencent Cloud TokenHub API key cleared', '腾讯云 TokenHub API Key 已清除')
         });
-    }
-
-    private static async promptForApiKey(options: {
-        providerKey: string;
-        prompt: string;
-        title: string;
-        placeHolder?: string;
-        successMessage: string;
-        clearMessage: string;
-    }): Promise<boolean> {
-        const result = await vscode.window.showInputBox({
-            prompt: options.prompt,
-            title: options.title,
-            placeHolder: options.placeHolder,
-            password: true,
-            ignoreFocusOut: true
-        });
-
-        if (result === undefined) {
-            return false;
-        }
-
-        try {
-            if (result.trim() === '') {
-                await ApiKeyManager.deleteApiKey(options.providerKey);
-                vscode.window.showInformationMessage(options.clearMessage);
-                return false;
-            }
-
-            await ApiKeyManager.setApiKey(options.providerKey, result.trim());
-            vscode.window.showInformationMessage(options.successMessage);
-            return true;
-        } catch (error) {
-            Logger.error(
-                `Tencent Cloud API key operation failed: ${error instanceof Error ? error.message : t('Unknown error', '未知错误')}`
-            );
-            vscode.window.showErrorMessage(
-                t(
-                    'Failed to save the API key: {0}',
-                    '设置失败: {0}',
-                    error instanceof Error ? error.message : t('Unknown error', '未知错误')
-                )
-            );
-            return false;
-        }
     }
 }

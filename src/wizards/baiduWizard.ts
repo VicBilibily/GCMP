@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 import { Logger } from '../utils/logger';
-import { ApiKeyManager } from '../utils/apiKeyManager';
 import { t } from '../utils/l10n';
 import { StatusBarManager } from '../status';
-export class BaiduWizard {
+import { BaseWizard } from './baseWizard';
+export class BaiduWizard extends BaseWizard {
     private static readonly PROVIDER_KEY = 'baidu';
     private static readonly CODING_PLAN_KEY = 'baidu-coding';
     /**
@@ -65,7 +65,8 @@ export class BaiduWizard {
      * 设置普通 API 密钥
      */
     static async setNormalApiKey(displayName: string, apiKeyTemplate: string): Promise<void> {
-        const result = await vscode.window.showInputBox({
+        await this.promptForApiKey({
+            providerKey: this.PROVIDER_KEY,
             prompt: t(
                 'Enter the standard API key for {0} (leave empty to clear)',
                 '请输入 {0} 的普通 API Key（留空可清除）',
@@ -73,46 +74,17 @@ export class BaiduWizard {
             ),
             title: t('Set {0} standard API key', '设置 {0} 普通 API Key', displayName),
             placeHolder: apiKeyTemplate,
-            password: true,
-            ignoreFocusOut: true
+            successMessage: t('{0} standard API key set', '{0} 普通 API Key 已设置', displayName),
+            clearMessage: t('{0} standard API key cleared', '{0} 普通 API Key 已清除', displayName),
+            loggerName: displayName
         });
-        // 用户取消了输入
-        if (result === undefined) {
-            return;
-        }
-        try {
-            // 允许空值，用于清除 API Key
-            if (result.trim() === '') {
-                Logger.info(`${displayName} standard API key cleared`);
-                await ApiKeyManager.deleteApiKey(this.PROVIDER_KEY);
-                vscode.window.showInformationMessage(
-                    t('{0} standard API key cleared', '{0} 普通 API Key 已清除', displayName)
-                );
-            } else {
-                await ApiKeyManager.setApiKey(this.PROVIDER_KEY, result.trim());
-                Logger.info(`${displayName} standard API key set`);
-                vscode.window.showInformationMessage(
-                    t('{0} standard API key set', '{0} 普通 API Key 已设置', displayName)
-                );
-            }
-        } catch (error) {
-            Logger.error(
-                `Standard API key operation failed: ${error instanceof Error ? error.message : t('Unknown error', '未知错误')}`
-            );
-            vscode.window.showErrorMessage(
-                t(
-                    'Failed to save the API key: {0}',
-                    '设置失败: {0}',
-                    error instanceof Error ? error.message : t('Unknown error', '未知错误')
-                )
-            );
-        }
     }
     /**
      * 设置 Coding Plan 专用密钥
      */
     static async setCodingPlanApiKey(displayName: string, codingKeyTemplate?: string): Promise<void> {
-        const result = await vscode.window.showInputBox({
+        await this.promptForApiKey({
+            providerKey: this.CODING_PLAN_KEY,
             prompt: t(
                 'Enter the Coding Plan API key for {0} (leave empty to clear)',
                 '请输入 {0} 的 Coding Plan 专用 API Key（留空可清除）',
@@ -120,40 +92,10 @@ export class BaiduWizard {
             ),
             title: t('Set {0} Coding Plan API key', '设置 {0} Coding Plan 专用 API Key', displayName),
             placeHolder: codingKeyTemplate,
-            password: true,
-            ignoreFocusOut: true
+            successMessage: t('{0} Coding Plan API key set', '{0} Coding Plan 专用 API Key 已设置', displayName),
+            clearMessage: t('{0} Coding Plan API key cleared', '{0} Coding Plan 专用 API Key 已清除', displayName),
+            loggerName: displayName
         });
-        // 用户取消了输入
-        if (result === undefined) {
-            return;
-        }
-        try {
-            // 允许空值，用于清除 API Key
-            if (result.trim() === '') {
-                Logger.info(`${displayName} Coding Plan API key cleared`);
-                await ApiKeyManager.deleteApiKey(this.CODING_PLAN_KEY);
-                vscode.window.showInformationMessage(
-                    t('{0} Coding Plan API key cleared', '{0} Coding Plan 专用 API Key 已清除', displayName)
-                );
-            } else {
-                await ApiKeyManager.setApiKey(this.CODING_PLAN_KEY, result.trim());
-                Logger.info(`${displayName} Coding Plan API key set`);
-                vscode.window.showInformationMessage(
-                    t('{0} Coding Plan API key set', '{0} Coding Plan 专用 API Key 已设置', displayName)
-                );
-            }
-        } catch (error) {
-            Logger.error(
-                `Coding Plan API key operation failed: ${error instanceof Error ? error.message : t('Unknown error', '未知错误')}`
-            );
-            vscode.window.showErrorMessage(
-                t(
-                    'Failed to save the API key: {0}',
-                    '设置失败: {0}',
-                    error instanceof Error ? error.message : t('Unknown error', '未知错误')
-                )
-            );
-        }
         // 检查并显示状态栏
         await StatusBarManager.checkAndShowStatus('baidu');
     }

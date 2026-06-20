@@ -238,10 +238,6 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
         }
     }
 
-    private getProviderKeyForModel(modelConfig: ModelConfig): string {
-        return modelConfig.provider || this.providerKey;
-    }
-
     private getKeyLabel(providerKey: string): string {
         switch (providerKey) {
             case 'tencent-coding':

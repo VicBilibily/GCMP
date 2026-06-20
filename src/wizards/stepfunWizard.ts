@@ -5,11 +5,11 @@
 
 import * as vscode from 'vscode';
 import { Logger } from '../utils/logger';
-import { ApiKeyManager } from '../utils/apiKeyManager';
 import { ConfigManager } from '../utils/configManager';
 import { t } from '../utils/l10n';
+import { BaseWizard } from './baseWizard';
 
-export class StepFunWizard {
+export class StepFunWizard extends BaseWizard {
     private static readonly PROVIDER_KEY = 'stepfun';
 
     /**
@@ -51,50 +51,24 @@ export class StepFunWizard {
             }
 
             if (choice.action === 'updateApiKey') {
-                await this.showSetApiKeyStep(displayName, apiKeyTemplate);
+                await this.promptForApiKey({
+                    providerKey: this.PROVIDER_KEY,
+                    prompt: t(
+                        'Enter the API key for {0} (leave empty to clear)',
+                        '请输入 {0} 的 API Key（留空可清除）',
+                        displayName
+                    ),
+                    title: t('Set {0} API Key', '设置 {0} API Key', displayName),
+                    placeHolder: apiKeyTemplate,
+                    successMessage: t('{0} API key configured', '{0} API Key 已设置', displayName),
+                    clearMessage: t('{0} API key cleared', '{0} API Key 已清除', displayName),
+                    loggerName: displayName
+                });
             } else if (choice.action === 'toggleMCP') {
                 await this.showMCPConfigStep(displayName);
             }
         } catch (error) {
             Logger.error(`StepFun setup wizard failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-    }
-
-    /**
-     * 显示设置 API Key 步骤
-     * 允许用户输入空值来清除 API Key
-     */
-    private static async showSetApiKeyStep(displayName: string, apiKeyTemplate: string): Promise<boolean> {
-        const result = await vscode.window.showInputBox({
-            prompt: t(
-                'Enter the API key for {0} (leave empty to clear)',
-                '请输入 {0} 的 API Key（留空可清除）',
-                displayName
-            ),
-            title: t('Set {0} API Key', '设置 {0} API Key', displayName),
-            placeHolder: apiKeyTemplate,
-            password: true,
-            ignoreFocusOut: true
-        });
-
-        // 用户取消了输入
-        if (result === undefined) {
-            return false;
-        }
-
-        try {
-            // 允许空值，用于清除 API Key
-            if (result.trim() === '') {
-                Logger.info(`${displayName} API key cleared`);
-                await ApiKeyManager.deleteApiKey(this.PROVIDER_KEY);
-            } else {
-                await ApiKeyManager.setApiKey(this.PROVIDER_KEY, result.trim());
-                Logger.info(`${displayName} API key configured`);
-            }
-            return true;
-        } catch (error) {
-            Logger.error(`API key operation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-            return false;
         }
     }
 
