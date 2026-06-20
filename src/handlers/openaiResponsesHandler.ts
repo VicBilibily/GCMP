@@ -13,6 +13,7 @@ import { OpenAIHandler } from './openaiHandler';
 import { getStatefulMarkerAndIndex } from './statefulMarker';
 import { StreamReporter } from './streamReporter';
 import { isSubRequest, type RequestKind } from './requestClassifier';
+import * as liveMetrics from '../metrics/liveMetrics';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
@@ -378,22 +379,28 @@ export class OpenAIResponsesHandler {
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
         requestId: string,
         sessionId: string,
-        token: vscode.CancellationToken
+        token: vscode.CancellationToken,
+        requestStartTime?: number
     ): Promise<void> {
         Logger.debug(`${model.name} starting ${this.displayName} Responses API request handling`);
+
+        let reporter: StreamReporter | undefined;
 
         try {
             const client = await this.handler.createOpenAIClient(modelConfig);
             Logger.info(`🚀 ${model.name} Sending ${this.displayName} Responses API request`);
 
             // 创建统一的流报告器
-            const reporter = new StreamReporter({
+            reporter = new StreamReporter({
                 modelName: model.name,
                 modelId: model.id,
                 provider: this.providerKey,
                 sdkMode: 'openai-responses',
                 progress,
-                sessionId
+                sessionId,
+                requestId,
+                requestStartTime,
+                onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
             });
 
             const requestModel = modelConfig.model || modelConfig.id;
@@ -638,8 +645,10 @@ export class OpenAIResponsesHandler {
                 // 使用 on(event) 模式处理流事件
                 stream
                     .on('response.created', () => {
-                        // 响应开始事件 - 记录流开始时间
-                        streamStartTime = Date.now();
+                        // 响应开始事件 - 记录流开始时间，同时固定首令延迟（共用时间戳）
+                        const now = Date.now();
+                        streamStartTime = now;
+                        reporter.markStreamStarted(now);
                     })
                     .on('response.output_text.delta', event => {
                         if (token.isCancellationRequested) {
@@ -1092,6 +1101,8 @@ export class OpenAIResponsesHandler {
             } else {
                 throw error;
             }
+        } finally {
+            reporter?.finishMetrics();
         }
     }
 }

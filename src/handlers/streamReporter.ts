@@ -11,6 +11,7 @@ import { encodeStatefulMarker, StatefulMarkerContainer } from './statefulMarker'
 import { toOptionalStatefulMarkerField } from './statefulMarkerCodec';
 import { CustomDataPartMimeTypes } from './types';
 import { TextBuffer, ThinkingBuffer, SignatureBuffer, ToolCallAccumulator } from './buffers';
+import type { LiveStreamMetricEvent } from '../metrics/liveMetrics';
 
 const USAGE_DATA_ENCODER = new TextEncoder();
 
@@ -32,6 +33,12 @@ export interface StreamReporterOptions {
     progress: vscode.Progress<vscode.LanguageModelResponsePart2>;
     /** 会话 ID（可选，如果不提供则自动生成） */
     sessionId?: string;
+    /** 请求 ID（可选，用于实时指标） */
+    requestId?: string;
+    /** 请求开始时间戳（可选，用于实时指标） */
+    requestStartTime?: number;
+    /** 实时指标回调（可选） */
+    onLiveMetrics?: (event: LiveStreamMetricEvent) => void;
 }
 
 /**
@@ -65,6 +72,18 @@ export class StreamReporter {
     private readonly provider: string;
     private readonly sdkMode: StatefulMarkerContainer['sdkMode'];
     private readonly progress: vscode.Progress<vscode.LanguageModelResponsePart2>;
+    private readonly requestId: string | undefined;
+    private readonly requestStartTime: number | undefined;
+    private readonly onLiveMetrics: ((event: LiveStreamMetricEvent) => void) | undefined;
+
+    // 实时指标状态
+    private firstChunkEmitted = false;
+    private streamEnded = false;
+    private outputChars = 0;
+    private lastLiveUpdateAt = 0;
+    private firstStreamTime = 0; // 首个流事件到达时间（与 handler 的 streamStartTime 对齐，共用时间戳）
+    private fixedFirstChunkLatencyMs = 0; // 固定的首令延迟（首流事件后不再变化）
+    private readonly LIVE_UPDATE_INTERVAL = 200; // 200ms 节流间隔
 
     private readonly textBuffer = new TextBuffer();
     private readonly thinkingBuffer = new ThinkingBuffer();
@@ -85,6 +104,109 @@ export class StreamReporter {
         this.sdkMode = options.sdkMode;
         this.progress = options.progress;
         this.sessionId = options.sessionId || crypto.randomUUID();
+        this.requestId = options.requestId;
+        this.requestStartTime = options.requestStartTime;
+        this.onLiveMetrics = options.onLiveMetrics;
+    }
+
+    /**
+     * 检查是否可以发送实时指标
+     */
+    private canEmitMetrics(): boolean {
+        return Boolean(
+            this.requestId &&
+            typeof this.requestStartTime === 'number' &&
+            Number.isFinite(this.requestStartTime) &&
+            this.onLiveMetrics
+        );
+    }
+
+    /**
+     * 标记流已开始（由 handler 在设置 streamStartTime 的同一时刻调用，共用同一个时间戳）
+     * @param streamStartTime handler 设置的 streamStartTime，必须与持久化记录一致
+     */
+    markStreamStarted(streamStartTime: number): void {
+        if (this.firstChunkEmitted || !this.canEmitMetrics()) {
+            return;
+        }
+
+        this.firstStreamTime = streamStartTime;
+        this.fixedFirstChunkLatencyMs = Math.max(0, streamStartTime - this.requestStartTime!);
+        this.firstChunkEmitted = true;
+
+        this.onLiveMetrics!({
+            type: 'firstChunk',
+            requestId: this.requestId!,
+            requestStartTime: this.requestStartTime!,
+            streamStartTime,
+            providerName: this.provider,
+            modelName: this.modelName,
+            firstChunkLatencyMs: this.fixedFirstChunkLatencyMs
+        });
+    }
+
+    /**
+     * 发送流式速度更新
+     * @param force 是否跳过 200ms 节流（供 finishMetrics 最后一帧使用）
+     */
+    private emitStreamingUpdate(force = false): void {
+        if (!this.canEmitMetrics()) {
+            return;
+        }
+
+        const now = Date.now();
+        if (!force && now - this.lastLiveUpdateAt < this.LIVE_UPDATE_INTERVAL) {
+            return;
+        }
+
+        // 首令延迟：已收到首流事件则使用固定值，否则从请求开始持续计时
+        const firstChunkLatencyMs = this.firstChunkEmitted
+            ? this.fixedFirstChunkLatencyMs
+            : Math.max(0, now - this.requestStartTime!);
+
+        // 输出耗时：从 firstStreamTime 开始计算
+        const elapsedMs = this.firstStreamTime > 0
+            ? Math.max(0, now - this.firstStreamTime)
+            : 0;
+
+        // 输出速度：实时重算，长暂停期间会自然下降
+        const charsPerSecond = elapsedMs > 0 && this.outputChars > 0
+            ? (this.outputChars / elapsedMs) * 1000
+            : 0;
+
+        this.onLiveMetrics!({
+            type: 'streamingUpdate',
+            requestId: this.requestId!,
+            requestStartTime: this.requestStartTime!,
+            streamStartTime: this.firstStreamTime > 0 ? this.firstStreamTime : undefined,
+            providerName: this.provider,
+            modelName: this.modelName,
+            firstChunkLatencyMs,
+            outputChars: this.outputChars,
+            elapsedMs,
+            charsPerSecond
+        });
+        this.lastLiveUpdateAt = now;
+    }
+
+    /**
+     * 结束实时指标上报（发送最后一帧 streamingUpdate，不发送 streamEnd）
+     * streamEnd 由 GenericModelProvider 在整个重试流程结束后发送
+     */
+    finishMetrics(): void {
+        if (this.streamEnded) {
+            return;
+        }
+        this.streamEnded = true;
+
+        if (!this.canEmitMetrics()) {
+            return;
+        }
+
+        // 只有已收到首个有效流事件时，才发送最后一帧 streamingUpdate
+        if (this.firstChunkEmitted) {
+            this.emitStreamingUpdate(true);
+        }
     }
 
     /**
@@ -106,6 +228,9 @@ export class StreamReporter {
 
         this.textBuffer.append(content);
         this.hasReceivedContent = true;
+
+        // 实时指标：更新输出字符数和速度
+        this.updateOutputSpeed(content.length);
 
         if (this.textBuffer.shouldFlush()) {
             const part = this.textBuffer.flush();
@@ -158,9 +283,28 @@ export class StreamReporter {
     }
 
     /**
+     * 心跳方法——触发受节流的轻量刷新。
+     * 不得调用 markStreamStarted()，不得自行固定流开始时间。
+     */
+    heartbeat(): void {
+        this.emitStreamingUpdate();
+    }
+
+    /**
+     * 更新输出字符数并触发刷新（受 200ms 节流，结束时由 finishMetrics 强制最后一帧）
+     */
+    private updateOutputSpeed(addedChars: number): void {
+        this.outputChars += addedChars;
+        this.emitStreamingUpdate();
+    }
+
+    /**
      * 缓冲思考内容（累积到阈值后输出，用于 delta 事件）
      */
     bufferThinking(content: string): void {
+        // 实时指标：更新输出字符数和速度
+        this.updateOutputSpeed(content.length);
+
         this.thinkingBuffer.append(content);
         this.hasThinkingContent = true;
 
@@ -381,6 +525,9 @@ export class StreamReporter {
 
         // 7. 报告 StatefulMarker
         this.reportStatefulMarker(customStatefulData);
+
+        // 8. 结束实时指标上报
+        this.finishMetrics();
 
         return this.hasReceivedContent;
     }

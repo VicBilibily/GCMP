@@ -362,7 +362,7 @@ function createRequestRecordsTable(
     const tbody = createElement('tbody');
     if (records.length === 0) {
         const emptyRow = createElement('tr');
-        const emptyCell = createElement('td', '', { colSpan: 7 });
+        const emptyCell = createElement('td', '', { colSpan: 6 });
         emptyCell.textContent = t('No request records yet', '暂无请求记录');
         emptyCell.style.textAlign = 'center';
         emptyRow.appendChild(emptyCell);
@@ -373,6 +373,12 @@ function createRequestRecordsTable(
 
     records.forEach(record => {
         const row = createElement('tr');
+        // 存储请求ID和状态，用于实时指标精确匹配
+        if (record.requestId) {
+            row.setAttribute('data-request-id', record.requestId);
+        }
+        row.setAttribute('data-request-status', record.status);
+
         const time = createElement('td');
         const timeStr = record.timestamp ? new Date(record.timestamp).toLocaleTimeString('zh-CN') : '-';
         const kindName = getRequestKindDisplayName(record.requestKind);
@@ -413,8 +419,9 @@ function createRequestRecordsTable(
             input.title = inputVal.toLocaleString('en-US');
         }
 
-        // 合并输出列：上行 TTFT | 输出令牌，下行 OTFT | 输出速度
+        // 合并输出列：上行 TTFT | 输出令牌，下行 TPOT | 输出速度
         const output = createElement('td', 'records-output-merged');
+        output.setAttribute('data-metric', 'output');
         const outputVal = record.status === 'completed' && record.outputTokens > 0 ? record.outputTokens : 0;
         const ttft =
             (

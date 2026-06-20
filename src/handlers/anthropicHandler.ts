@@ -18,6 +18,7 @@ import { t } from '../utils/l10n';
 import type { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { StreamReporter } from './streamReporter';
+import * as liveMetrics from '../metrics/liveMetrics';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import { isSubRequest, type RequestKind } from './requestClassifier';
 
@@ -186,11 +187,14 @@ export class AnthropicHandler {
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
         requestId: string,
         sessionId: string,
-        token: vscode.CancellationToken
+        token: vscode.CancellationToken,
+        requestStartTime?: number
     ): Promise<void> {
         // 将 vscode.CancellationToken 转换为 AbortSignal
         const abortController = new AbortController();
         const cancellationListener = token.onCancellationRequested(() => abortController.abort());
+
+        let reporter: StreamReporter | undefined;
 
         try {
             const client = await this.createAnthropicClient(modelConfig);
@@ -285,17 +289,20 @@ export class AnthropicHandler {
                 anthropicStreamOptions.headers = createOpenCodeHeaders(requestId, sessionId);
             }
 
-            const stream = await client.messages.create(createParams, anthropicStreamOptions);
-
-            // 创建统一的流报告器
-            const reporter = new StreamReporter({
+            // 提前创建 reporter，使首令延迟从请求发出后就开始滚动
+            reporter = new StreamReporter({
                 modelName: model.name,
                 modelId: model.id,
                 provider: this.provider,
                 sdkMode: 'anthropic',
                 progress,
-                sessionId
+                sessionId,
+                requestId,
+                requestStartTime,
+                onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
             });
+
+            const stream = await client.messages.create(createParams, anthropicStreamOptions);
 
             // 使用完整的流处理函数
             const result = await this.handleAnthropicStream(stream, reporter, token);
@@ -349,6 +356,7 @@ export class AnthropicHandler {
             // progress.report(new vscode.LanguageModelTextPart(errorMessage));
             throw error;
         } finally {
+            reporter?.finishMetrics();
             cancellationListener.dispose();
         }
     }
@@ -381,6 +389,9 @@ export class AnthropicHandler {
 
         try {
             for await (const chunk of stream) {
+                // 心跳：触发轻量刷新（不固定首令延迟）
+                reporter.heartbeat();
+
                 if (token.isCancellationRequested) {
                     Logger.debug('Stream processing cancelled');
                     reporter.flushAll(null);
@@ -388,9 +399,11 @@ export class AnthropicHandler {
                 }
 
                 switch (chunk.type) {
-                    case 'message_start':
-                        // 消息开始 - 记录流开始时间
-                        streamStartTime = Date.now();
+                    case 'message_start': {
+                        // 消息开始 - 记录流开始时间，同时固定首令延迟（共用时间戳）
+                        const now = Date.now();
+                        streamStartTime = now;
+                        reporter.markStreamStarted(now);
                         // 收集初始使用统计
                         if (chunk.message.usage) {
                             usage = chunk.message.usage;
@@ -402,6 +415,7 @@ export class AnthropicHandler {
                             Logger.debug(`Received Anthropic message id (responseId): ${responseId}`);
                         }
                         break;
+                    }
 
                     case 'content_block_start':
                         // 内容块开始

@@ -6,6 +6,7 @@ import './style.less';
 import 'chart.js/auto'; // 导入 Chart.js
 
 import type { HostMessage, State } from './types';
+import type { LiveStreamMetricEvent } from '../../metrics/liveMetrics';
 import { getTodayDateString, groupRecordsBySession, postToVSCode, t } from './utils';
 import { createElement } from '../utils';
 
@@ -127,6 +128,195 @@ function updateLoadingOverlay(): void {
 }
 
 /**
+ * 单个请求的实时流式指标状态
+ */
+interface LiveMetricsState {
+    requestStartTime: number;
+    streamStartTime?: number;
+    firstChunkLatencyMs: number;
+    outputChars: number;
+}
+
+// 支持多个并发请求的实时指标状态
+const liveMetricsMap = new Map<string, LiveMetricsState>();
+
+// 共享渲染时钟（rAF + 200ms 节流）
+const LIVE_RENDER_INTERVAL_MS = 200;
+let renderClockId: number | undefined;
+let lastRenderAt = 0;
+
+function startRenderClock(): void {
+    if (renderClockId !== undefined) {
+        return;
+    }
+    const tick = (frameTime: number): void => {
+        if (liveMetricsMap.size === 0) {
+            renderClockId = undefined;
+            lastRenderAt = 0;
+            return;
+        }
+        if (frameTime - lastRenderAt >= LIVE_RENDER_INTERVAL_MS) {
+            updateRequestRecordsWithLiveMetrics();
+            lastRenderAt = frameTime;
+        }
+        renderClockId = requestAnimationFrame(tick);
+    };
+    renderClockId = requestAnimationFrame(tick);
+}
+
+function stopRenderClock(): void {
+    if (renderClockId !== undefined) {
+        cancelAnimationFrame(renderClockId);
+        renderClockId = undefined;
+    }
+    lastRenderAt = 0;
+}
+
+/**
+ * 处理实时流式指标更新
+ */
+function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
+    const { requestId } = event;
+
+    switch (event.type) {
+        case 'requestStarted':
+            liveMetricsMap.set(requestId, {
+                requestStartTime: event.requestStartTime,
+                firstChunkLatencyMs: 0,
+                outputChars: 0
+            });
+            startRenderClock();
+            break;
+
+        case 'firstChunk': {
+            // upsert：requestStarted 可能因面板未打开/日期切换而丢失
+            const chunkState = liveMetricsMap.get(requestId) ?? {
+                requestStartTime: event.requestStartTime,
+                firstChunkLatencyMs: 0,
+                outputChars: 0
+            };
+            chunkState.requestStartTime = event.requestStartTime;
+            chunkState.streamStartTime = event.streamStartTime;
+            chunkState.firstChunkLatencyMs = event.firstChunkLatencyMs ?? 0;
+            liveMetricsMap.set(requestId, chunkState);
+            startRenderClock();
+            break;
+        }
+
+        case 'streamingUpdate': {
+            let state = liveMetricsMap.get(requestId);
+            if (!state) {
+                state = {
+                    requestStartTime: event.requestStartTime,
+                    streamStartTime: event.streamStartTime,
+                    firstChunkLatencyMs: event.firstChunkLatencyMs ?? 0,
+                    outputChars: 0
+                };
+                liveMetricsMap.set(requestId, state);
+                startRenderClock();
+            }
+            state.requestStartTime = event.requestStartTime;
+            state.outputChars = event.outputChars ?? 0;
+            if (event.streamStartTime !== undefined) {
+                state.streamStartTime = event.streamStartTime;
+            }
+            if (event.firstChunkLatencyMs !== undefined) {
+                state.firstChunkLatencyMs = event.firstChunkLatencyMs;
+            }
+            break;
+        }
+
+        case 'streamEnd': {
+            liveMetricsMap.delete(requestId);
+            if (liveMetricsMap.size === 0) {
+                stopRenderClock();
+            }
+            updateRequestRecordsWithLiveMetrics();
+            return;
+        }
+    }
+
+    // 触发请求记录区域的更新
+    updateRequestRecordsWithLiveMetrics();
+}
+
+/**
+ * 更新请求记录区域，显示实时指标
+ * 策略：遍历所有正在流式的请求，通过 requestId 精确匹配表格行并更新
+ */
+function updateRequestRecordsWithLiveMetrics(): void {
+    const recordsContainer = document.querySelector('#records-container') as HTMLElement;
+    if (!recordsContainer) {
+        return;
+    }
+
+    const tbody = recordsContainer.querySelector('tbody');
+    if (!tbody) {
+        return;
+    }
+
+    const now = Date.now();
+
+    liveMetricsMap.forEach((state, requestId) => {
+        const targetRow = Array.from(tbody.querySelectorAll('tr'))
+            .find(row => row.getAttribute('data-request-id') === requestId) as HTMLTableRowElement | undefined;
+
+        if (!targetRow) {
+            return;
+        }
+
+        // 跳过已完成/失败的行，避免实时值覆盖最终统计
+        const requestStatus = targetRow.getAttribute('data-request-status');
+        if (requestStatus === 'completed' || requestStatus === 'failed') {
+            return;
+        }
+
+        // 实时计算首令延迟：首流事件前持续增长，首流事件后固定
+        const hasStreamStarted = state.streamStartTime !== undefined;
+        const latencyMs = hasStreamStarted
+            ? state.firstChunkLatencyMs
+            : Math.max(0, now - state.requestStartTime);
+
+        // 实时计算输出耗时：首流事件后开始计算
+        const durationMs = hasStreamStarted
+            ? Math.max(0, now - state.streamStartTime!)
+            : 0;
+
+        // 实时计算输出速度：outputChars / elapsedMs
+        const charsPerSecond = durationMs > 0 && state.outputChars > 0
+            ? (state.outputChars / durationMs) * 1000
+            : 0;
+
+        // 更新首令延迟 + 输出耗时 + 速度
+        const outputCell = targetRow.querySelector('td.records-output-merged[data-metric="output"]') as HTMLElement;
+        if (outputCell) {
+            const ttftSpan = outputCell.querySelector('.output-ttft') as HTMLElement;
+            if (ttftSpan) {
+                ttftSpan.textContent = latencyMs >= 1000 ?
+                    `${(latencyMs / 1000).toFixed(1)}s` :
+                    `${Math.round(latencyMs)}ms`;
+            }
+            const tpotSpan = outputCell.querySelector('.output-tpot') as HTMLElement;
+            if (tpotSpan) {
+                tpotSpan.textContent = durationMs > 0 ?
+                    (durationMs >= 1000 ? `${(durationMs / 1000).toFixed(1)}s` : `${Math.round(durationMs)}ms`) :
+                    '-';
+            }
+            // .output-tokens 在 streaming 阶段不更新，等最终 usage 回写
+            const speedSpan = outputCell.querySelector('.output-speed') as HTMLElement;
+            if (speedSpan) {
+                speedSpan.textContent = charsPerSecond > 0 ?
+                    `~${charsPerSecond.toFixed(1)} chars/s` : '-';
+                speedSpan.title = t(
+                    'Live speed is estimated by streamed characters; final speed uses output tokens.',
+                    '实时速度按流式字符估算，完成后以输出 token/s 为准。'
+                );
+            }
+        }
+    });
+}
+
+/**
  * 处理来自 VSCode 的消息
  */
 function handleVSCodeMessage(event: MessageEvent): void {
@@ -156,6 +346,8 @@ function handleVSCodeMessage(event: MessageEvent): void {
 
             if (dateChanged) {
                 resetRequestRecordsState();
+                liveMetricsMap.clear();
+                stopRenderClock();
             }
 
             setState({
@@ -174,12 +366,19 @@ function handleVSCodeMessage(event: MessageEvent): void {
                 }
             });
 
+            // setState 会重建表格，立即重新覆盖仍在运行的请求
+            updateRequestRecordsWithLiveMetrics();
+
             // 仅在真正切换日期时，小屏模式才自动隐藏侧边栏
             if (dateChanged && shouldCollapseSidebar()) {
                 toggleSidebar(false);
             }
             break;
         }
+
+        case 'updateLiveMetrics':
+            handleLiveMetricsUpdate(message.event);
+            break;
     }
 }
 

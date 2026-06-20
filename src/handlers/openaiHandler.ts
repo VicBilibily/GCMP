@@ -12,6 +12,7 @@ import { t } from '../utils/l10n';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';
+import * as liveMetrics from '../metrics/liveMetrics';
 import { getReasoningReplayPolicy, shouldInjectReasoningPlaceholder } from './reasoningReplayPolicy';
 import { decodeStatefulMarker } from './statefulMarker';
 import { CustomDataPartMimeTypes } from './types';
@@ -888,11 +889,14 @@ export class OpenAIHandler {
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
         requestId: string,
         sessionId: string,
-        token: vscode.CancellationToken
+        token: vscode.CancellationToken,
+        requestStartTime?: number
     ): Promise<void> {
         Logger.debug(`${model.name} starting ${this.displayName} request handling`);
         // 清理当前请求的事件去重跟踪器
         this.currentRequestProcessedEvents.clear();
+
+        let reporter: StreamReporter | undefined;
 
         try {
             const client = await this.createOpenAIClient(modelConfig);
@@ -903,13 +907,16 @@ export class OpenAIHandler {
             Logger.info(`🚀 ${model.name} Sending ${this.displayName} request`);
 
             // 创建统一的流报告器
-            const reporter = new StreamReporter({
+            reporter = new StreamReporter({
                 modelName: model.name,
                 modelId: model.id,
                 provider: this.provider,
                 sdkMode: 'openai',
                 progress,
-                sessionId
+                sessionId,
+                requestId,
+                requestStartTime,
+                onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
             });
 
             // 使用 OpenAI SDK 的事件驱动流式方法，利用内置工具调用处理
@@ -934,10 +941,15 @@ export class OpenAIHandler {
                 // 利用 SDK 内置的事件系统处理工具调用和内容
                 stream
                     .on('chunk', (chunk, _snapshot: unknown) => {
-                        // 记录首个 chunk 的时间作为流开始时间
+                        // 记录首个 chunk 的时间作为流开始时间，同时固定首令延迟（共用时间戳）
                         if (streamStartTime === undefined) {
-                            streamStartTime = Date.now();
+                            const now = Date.now();
+                            streamStartTime = now;
+                            reporter.markStreamStarted(now);
                         }
+
+                        // 心跳：触发轻量刷新（不固定首令延迟）
+                        reporter.heartbeat();
 
                         // 处理token使用统计：仅保存到 finalUsage，最后再统一输出
                         if (chunk.usage) {
@@ -1159,6 +1171,8 @@ export class OpenAIHandler {
                 // 其他错误类型
                 throw error;
             }
+        } finally {
+            reporter?.finishMetrics();
         }
     }
 

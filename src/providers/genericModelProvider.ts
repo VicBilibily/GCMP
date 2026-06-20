@@ -26,6 +26,7 @@ import {
 } from '../utils';
 import { getEffectiveMaxInputTokens } from '../utils/languageModelInfo';
 import type { RetryableError } from '../utils';
+import * as liveMetrics from '../metrics/liveMetrics';
 import { OpenAIHandler } from '../handlers/openaiHandler';
 import { OpenAICustomHandler } from '../handlers/openaiCustomHandler';
 import { AnthropicHandler } from '../handlers/anthropicHandler';
@@ -459,7 +460,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         requestId: string,
         sessionId: string,
         token: CancellationToken,
-        effectiveProviderKey = modelConfig.provider || this.providerKey
+        effectiveProviderKey = modelConfig.provider || this.providerKey,
+        requestStartTime = Date.now()
     ): Promise<void> {
         const sdkMode = modelConfig.sdkMode || 'openai';
         const retryManager = new RetryManager(this.getRequestRetryConfig());
@@ -496,7 +498,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         progress,
                         requestId,
                         sessionId,
-                        token
+                        token,
+                        requestStartTime
                     );
                 } else if (sdkMode === 'gemini-sse') {
                     await this.geminiHandler.handleRequest(
@@ -507,7 +510,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         progress,
                         requestId,
                         sessionId,
-                        token
+                        token,
+                        requestStartTime
                     );
                 } else if (sdkMode === 'openai-sse') {
                     await this.openaiCustomHandler.handleRequest(
@@ -518,7 +522,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         progress,
                         requestId,
                         sessionId,
-                        token
+                        token,
+                        requestStartTime
                     );
                 } else if (sdkMode === 'openai-responses') {
                     await this.openaiResponsesHandler.handleResponsesRequest(
@@ -529,7 +534,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         progress,
                         requestId,
                         sessionId,
-                        token
+                        token,
+                        requestStartTime
                     );
                 } else {
                     await this.openaiHandler.handleRequest(
@@ -540,7 +546,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         progress,
                         requestId,
                         sessionId,
-                        token
+                        token,
+                        requestStartTime
                     );
                 }
             },
@@ -611,25 +618,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             options
         );
 
-        // === Token 统计: 记录预估输入 token ===
-        const usagesManager = TokenUsagesManager.instance;
-        let requestId = '';
+        // 提取或生成 sessionId（根据 sdkMode，新会话时生成 UUID）
         const sessionId = this.getSessionIdFromMessages(messages, sdkMode);
-        try {
-            requestId = await usagesManager.recordEstimatedTokens({
-                providerKey: effectiveProviderKey,
-                displayName: this.providerConfig.displayName,
-                modelId: model.id,
-                modelName: model.name || modelConfig.name,
-                estimatedInputTokens: totalInputTokens,
-                maxInputTokens,
-                requestKind: rtOpts.modelOptions.requestKind ?? kind,
-                sessionId,
-                ...this.getEstimatedRequestMetadata(options)
-            });
-        } catch (err) {
-            Logger.warn('Failed to record estimated tokens, continuing request:', err);
-        }
 
         // 根据模型的 sdkMode 选择使用的 handler
         const sdkName = this.getSdkDisplayName(sdkMode);
@@ -637,9 +627,45 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             `${this.providerConfig.displayName} Provider started handling request (${sdkName}): ${modelConfig.name}`
         );
 
+        // === Token 统计: 记录预估输入 token ===
+        const usagesManager = TokenUsagesManager.instance;
+        let requestId = '';
+        let requestStartTime = Date.now();
+
         try {
             // 确保对应提供商的 API 密钥存在
             await ApiKeyManager.ensureApiKey(effectiveProviderKey, this.providerConfig.displayName);
+
+            // API Key 确认后才开始计时，避免用户输入密钥的时间计入 TTFT
+            requestStartTime = Date.now();
+
+            try {
+                requestId = await usagesManager.recordEstimatedTokens({
+                    providerKey: effectiveProviderKey,
+                    displayName: this.providerConfig.displayName,
+                    modelId: model.id,
+                    modelName: model.name || modelConfig.name,
+                    estimatedInputTokens: totalInputTokens,
+                    maxInputTokens,
+                    requestKind: rtOpts.modelOptions.requestKind ?? kind,
+                    sessionId,
+                    timestamp: requestStartTime,
+                    ...this.getEstimatedRequestMetadata(options)
+                });
+            } catch (err) {
+                Logger.warn('Failed to record estimated tokens, continuing request:', err);
+            }
+
+            // 派发请求开始事件，使 WebView 首令延迟从 0 开始滚动
+            if (requestId) {
+                liveMetrics.emitLiveMetrics({
+                    type: 'requestStarted',
+                    requestId,
+                    requestStartTime,
+                    providerName: this.providerConfig.displayName,
+                    modelName: model.name || modelConfig.name
+                });
+            }
 
             await this.executeModelRequest(
                 model,
@@ -650,7 +676,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 requestId,
                 sessionId,
                 token,
-                effectiveProviderKey
+                effectiveProviderKey,
+                requestStartTime
             );
         } catch (error) {
             const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -660,6 +687,16 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             // 直接抛出错误，让VS Code处理重试
             throw error;
         } finally {
+            // 整个重试流程结束后发送 streamEnd，清理 WebView 实时状态
+            if (requestId) {
+                liveMetrics.emitLiveMetrics({
+                    type: 'streamEnd',
+                    requestId,
+                    requestStartTime,
+                    providerName: this.providerConfig.displayName,
+                    modelName: model.name || modelConfig.name
+                });
+            }
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);
         }
     }

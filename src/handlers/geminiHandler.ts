@@ -19,6 +19,7 @@ import type { GenericUsageData, RawUsageData } from '../usages/fileLogger/types'
 import type { RequestInit as UndiciRequestInit } from 'undici';
 import { convertMessagesToGemini, convertToolsToGemini } from './geminiConverter';
 import { StreamReporter } from './streamReporter';
+import * as liveMetrics from '../metrics/liveMetrics';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import type {
     GeminiGenerationConfig,
@@ -505,7 +506,8 @@ export class GeminiHandler {
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
         requestId: string,
         sessionId: string,
-        token: vscode.CancellationToken
+        token: vscode.CancellationToken,
+        requestStartTime?: number
     ): Promise<void> {
         // 确保 Gemini CLI 版本号已加载（首次调用时会执行 `gemini --version`，后续调用返回缓存）。
         await GeminiHandler.ensureCliVersionLoaded();
@@ -592,6 +594,9 @@ export class GeminiHandler {
 
         Logger.info(`🚀 ${model.name} Sending ${this.displayName} Gemini HTTP request (model=${modelId})`);
 
+        // 创建统一的流报告器
+        let reporter: StreamReporter | undefined;
+
         try {
             // 用途：构建第三方 Gemini 网关可用的流式 SSE endpoint。
             const endpoint = this.buildEndpoint(normalizedBaseUrl, modelId, true);
@@ -604,14 +609,16 @@ export class GeminiHandler {
                 );
             }
 
-            // 创建统一的流报告器
-            const reporter = new StreamReporter({
+            reporter = new StreamReporter({
                 modelName: model.name,
                 modelId: model.id,
                 provider: this.provider,
                 sdkMode: 'gemini',
                 progress,
-                sessionId
+                sessionId,
+                requestId,
+                requestStartTime,
+                onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
             });
 
             // 用途：执行 fetch 请求
@@ -660,6 +667,7 @@ export class GeminiHandler {
 
             throw error;
         } finally {
+            reporter?.finishMetrics();
             cancelSub.dispose();
         }
     }
@@ -693,8 +701,11 @@ export class GeminiHandler {
         // 关键兼容点：
         // - 标准 SSE：`data: {json}` 或 `data: [DONE]`
         // - 类 SSE/网关实现：可能直接输出 JSON 行（不带 data:）
-        // - 这里按“行”解析，因此若网关把 JSON 拆成多行，仍可能需要后续增强（目前按现有兼容策略）。
+        // - 这里按”行”解析，因此若网关把 JSON 拆成多行，仍可能需要后续增强（目前按现有兼容策略）。
         const processRawLine = (rawLine: string): void => {
+            // 心跳：每次收到 SSE 数据时触发，确保”正在考虑”状态下也能更新耗时
+            reporter.heartbeat();
+
             const line = rawLine.trim();
             if (!line) {
                 return;
@@ -715,9 +726,11 @@ export class GeminiHandler {
                 return;
             }
 
-            // 记录首次接收有效数据的时间
+            // 记录首次接收有效数据的时间，同时固定首令延迟（共用时间戳）
             if (streamStartTime === undefined) {
-                streamStartTime = Date.now();
+                const now = Date.now();
+                streamStartTime = now;
+                reporter.markStreamStarted(now);
             }
 
             // 兼容 Code Assist 包装：可能是 { response: GenerateContentResponse }。

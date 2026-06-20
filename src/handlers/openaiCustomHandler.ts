@@ -11,6 +11,7 @@ import { ApiKeyManager } from '../utils/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';
+import * as liveMetrics from '../metrics/liveMetrics';
 import { t } from '../utils/l10n';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 
@@ -122,7 +123,8 @@ export class OpenAICustomHandler {
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
         requestId: string,
         sessionId: string,
-        token: vscode.CancellationToken
+        token: vscode.CancellationToken,
+        requestStartTime?: number
     ): Promise<void> {
         const provider = modelConfig.provider || this.provider;
         const apiKey = await ApiKeyManager.getApiKey(provider);
@@ -156,7 +158,22 @@ export class OpenAICustomHandler {
         const abortController = new AbortController();
         const cancellationListener = token.onCancellationRequested(() => abortController.abort());
 
+        // 提前创建 reporter，使首令延迟从请求发出后就开始滚动
+        let reporter: StreamReporter | undefined;
+
         try {
+            reporter = new StreamReporter({
+                modelName: model.name,
+                modelId: model.id,
+                provider: this.provider,
+                sdkMode: 'openai',
+                progress,
+                sessionId,
+                requestId,
+                requestStartTime,
+                onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
+            });
+
             // 合并提供商级别和模型级别的 customHeader
             // 模型级别的 customHeader 会覆盖提供商级别的同名头部
             const mergedCustomHeader = {
@@ -220,16 +237,6 @@ export class OpenAICustomHandler {
                 throw new Error(t('Response body is empty', '响应体为空'));
             }
 
-            // 创建统一的流报告器
-            const reporter = new StreamReporter({
-                modelName: model.name,
-                modelId: model.id,
-                provider: this.provider,
-                sdkMode: 'openai',
-                progress,
-                sessionId
-            });
-
             await this.processStream(
                 model,
                 response.body as ReadableStream<Uint8Array>,
@@ -246,6 +253,7 @@ export class OpenAICustomHandler {
             }
             throw error;
         } finally {
+            reporter?.finishMetrics();
             cancellationListener.dispose();
         }
     }
@@ -282,10 +290,15 @@ export class OpenAICustomHandler {
                     break;
                 }
 
-                // 记录首个 chunk 的时间作为流开始时间
+                // 记录首个 raw chunk 的时间作为流开始时间，同时固定首令延迟（共用时间戳，保持与原统计口径一致）
                 if (streamStartTime === undefined) {
-                    streamStartTime = Date.now();
+                    const now = Date.now();
+                    streamStartTime = now;
+                    reporter.markStreamStarted(now);
                 }
+
+                // 心跳：触发轻量刷新（不固定首令延迟）
+                reporter.heartbeat();
 
                 buffer += decoder.decode(value, { stream: true });
                 const lines = buffer.split('\n');
