@@ -2,31 +2,20 @@
  * GitHub Gist 同步服务
  * 负责通过 GitHub Gist API 实现加密配置的云端存储与同步
  * 通过 VS Code 内置的 GitHub 认证获取 access token，使用 AES-256-GCM 对 API Key 数据进行加密
+ * 密钥派生：使用 scrypt
  */
 
-import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import { CompatibleModelManager } from '../utils/compatibleModelManager';
 import { Logger } from '../utils/logger';
 import { registeredProviders } from '../utils/providerRegistry';
 import { KnownProviders } from '../utils/knownProviders';
 import { ConfigManager } from '../utils/configManager';
-
-/**
- * 加密后的密钥数据包结构
- */
-interface EncryptedPayload {
-    /** 加密算法标识 */
-    algorithm: 'aes-256-gcm';
-    /** PBKDF2 盐值 (hex) */
-    salt: string;
-    /** 初始化向量 (hex) */
-    iv: string;
-    /** 认证标签 (hex) */
-    tag: string;
-    /** 密文 (hex) */
-    data: string;
-}
+import {
+    decrypt as cryptoDecrypt,
+    decryptWithPassphrase as cryptoDecryptWithPassphrase,
+    encrypt as cryptoEncrypt
+} from './syncCrypto';
 
 /**
  * Gist 中存储的同步数据格式
@@ -94,15 +83,6 @@ const USER_PASSPHRASE_KEY = 'gcmp-sync.passphrase';
 
 /** CLI 专用提供商，同步时排除 */
 const CLI_ONLY_PROVIDERS = new Set(['codex', 'gemini', 'grok']);
-
-/** 用于派生加密密钥的固定 pepper */
-const ENCRYPTION_PEPPER = 'gcmp-sync-aes256-v1';
-
-/** PBKDF2 迭代次数 */
-const PBKDF2_ITERATIONS = 600000;
-
-/** 加密密钥长度 (AES-256) */
-const KEY_LENGTH = 32;
 
 /** 所有已知密钥的显示名（主 key + 多密钥变体，英文名与 ConfigProvider.displayName 一致） */
 const KNOWN_KEY_LABELS: Record<string, string> = {
@@ -463,21 +443,6 @@ export class GistSyncService {
     }
 
     /**
-     * 从 GitHub 用户 ID 派生加密密钥（不依赖 PAT 内容）
-     * 如果设置了自定义口令，口令也会参与密钥派生，提供额外保护
-     */
-    private static deriveKey(salt: Buffer, passphrase?: string): Buffer | undefined {
-        const githubId = this.getGithubId();
-        if (!githubId) {
-            Logger.error('[GistSync] GitHub user ID not available for key derivation');
-            return undefined;
-        }
-        const secret =
-            passphrase ? `${githubId}:${ENCRYPTION_PEPPER}:${passphrase}` : `${githubId}:${ENCRYPTION_PEPPER}`;
-        return crypto.pbkdf2Sync(secret, salt, PBKDF2_ITERATIONS, KEY_LENGTH, 'sha256');
-    }
-
-    /**
      * 获取用户自定义加密口令（如果没有设置返回 undefined）
      */
     private static async getPassphrase(): Promise<string | undefined> {
@@ -497,27 +462,13 @@ export class GistSyncService {
      * @returns 加密后的数据包（JSON 序列化后的字符串），加密失败返回 undefined
      */
     static async encrypt(plaintext: string): Promise<string | undefined> {
-        const passphrase = await this.getPassphrase();
-        const salt = crypto.randomBytes(32);
-        const key = this.deriveKey(salt, passphrase);
-        if (!key) {
+        const githubId = this.getGithubId();
+        if (!githubId) {
+            Logger.error('[GistSync] GitHub user ID not available for encryption');
             return undefined;
         }
-        const iv = crypto.randomBytes(16);
-        const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-
-        const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
-        const tag = cipher.getAuthTag();
-
-        const payload: EncryptedPayload = {
-            algorithm: 'aes-256-gcm',
-            salt: salt.toString('hex'),
-            iv: iv.toString('hex'),
-            tag: tag.toString('hex'),
-            data: encrypted.toString('hex')
-        };
-
-        return JSON.stringify(payload);
+        const passphrase = await this.getPassphrase();
+        return cryptoEncrypt(githubId, plaintext, passphrase);
     }
 
     /**
@@ -528,36 +479,18 @@ export class GistSyncService {
      * @returns 明文，解密失败返回 undefined
      */
     static decryptWithPassphrase(encryptedPayload: string, passphrase: string): string | undefined {
-        let payload: EncryptedPayload;
-        try {
-            payload = JSON.parse(encryptedPayload) as EncryptedPayload;
-        } catch {
-            Logger.debug('[GistSync] decryptWithPassphrase: invalid JSON payload');
+        const githubId = this.getGithubId();
+        if (!githubId) {
+            Logger.debug('[GistSync] decryptWithPassphrase: GitHub user ID not available');
             return undefined;
         }
-        if (payload.algorithm !== 'aes-256-gcm') {
-            Logger.debug(`[GistSync] decryptWithPassphrase: unsupported algorithm "${payload.algorithm}"`);
-            return undefined;
-        }
-        const salt = Buffer.from(payload.salt, 'hex');
-        const key = this.deriveKey(salt, passphrase);
-        if (!key) {
-            Logger.debug('[GistSync] decryptWithPassphrase: key derivation failed');
-            return undefined;
-        }
-        const iv = Buffer.from(payload.iv, 'hex');
-        const tag = Buffer.from(payload.tag, 'hex');
-        const encrypted = Buffer.from(payload.data, 'hex');
-        try {
-            const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
-            decipher.setAuthTag(tag);
-            const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+        const result = cryptoDecryptWithPassphrase(githubId, encryptedPayload, passphrase);
+        if (result !== undefined) {
             Logger.debug('[GistSync] decryptWithPassphrase: success');
-            return decrypted.toString('utf8');
-        } catch {
+        } else {
             Logger.debug('[GistSync] decryptWithPassphrase: auth tag mismatch (wrong passphrase?)');
-            return undefined;
         }
+        return result;
     }
 
     /**
@@ -566,43 +499,21 @@ export class GistSyncService {
      * @returns 明文，解密失败返回 undefined
      */
     static async decrypt(encryptedPayload: string): Promise<string | undefined> {
-        let payload: EncryptedPayload;
-        try {
-            payload = JSON.parse(encryptedPayload) as EncryptedPayload;
-        } catch {
-            Logger.warn('[GistSync] Decryption failed: invalid JSON payload');
+        const githubId = this.getGithubId();
+        if (!githubId) {
+            Logger.warn('[GistSync] Decryption failed: GitHub user ID not available');
             return undefined;
         }
 
-        if (payload.algorithm !== 'aes-256-gcm') {
-            Logger.warn(`[GistSync] Decryption failed: unknown algorithm "${payload.algorithm}"`);
-            return undefined;
-        }
-
-        const salt = Buffer.from(payload.salt, 'hex');
         const passphrase = await this.getPassphrase();
-        const key = this.deriveKey(salt, passphrase);
-        if (!key) {
-            Logger.warn('[GistSync] Decryption failed: unable to derive key (GitHub ID missing?)');
-            return undefined;
-        }
-        const iv = Buffer.from(payload.iv, 'hex');
-        const tag = Buffer.from(payload.tag, 'hex');
-        const encrypted = Buffer.from(payload.data, 'hex');
-
-        try {
-            const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
-            decipher.setAuthTag(tag);
-            const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
-            return decrypted.toString('utf8');
-        } catch (error) {
+        const result = cryptoDecrypt(githubId, encryptedPayload, passphrase);
+        if (result === undefined) {
             // AES-256-GCM 认证失败（tag 不匹配）说明密钥/口令已变更，或数据被篡改
             Logger.warn(
                 '[GistSync] Decryption failed: auth tag mismatch -- passphrase/identity may have changed since upload'
             );
-            Logger.debug('[GistSync] Decryption auth failure detail:', error);
-            return undefined;
         }
+        return result;
     }
 
     // ==================== 密钥收集与应用 ====================
@@ -923,12 +834,17 @@ export class GistSyncService {
             return undefined;
         }
 
+        const githubId = this.getGithubId();
+        if (!githubId) {
+            return undefined;
+        }
+
         const remoteKeys: Record<string, string> = {};
         for (const [keyName, encryptedValue] of Object.entries(syncData.keys)) {
             if (!encryptedValue || encryptedValue.trim().length === 0) {
                 continue;
             }
-            const plainValue = this.decryptWithPassphrase(encryptedValue, passphrase);
+            const plainValue = cryptoDecryptWithPassphrase(githubId, encryptedValue, passphrase);
             if (plainValue !== undefined) {
                 remoteKeys[keyName] = plainValue;
             }

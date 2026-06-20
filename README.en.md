@@ -788,15 +788,15 @@ GCMP provides an API Key synchronization feature based on **GitHub Secret Gists*
 | ------------------ | ---------------------------------------------------------------------------------------------------------- |
 | **Remote Storage** | GitHub **Secret Gist** (private), file named `gcmp-sync.json`                                              |
 | **Encryption**     | **AES-256-GCM** (authenticated encryption — confidentiality + integrity)                                   |
-| **Key Derivation** | **PBKDF2** (SHA-256, 600,000 iterations) with `GitHub User ID + fixed pepper + optional custom passphrase` |
+| **Key Derivation** | **scrypt** (N=16384, r=8, p=1) with `GitHub User ID + fixed pepper + optional custom passphrase`           |
 | **Authentication** | VS Code built-in **GitHub OAuth** via `vscode.authentication` API                                          |
 | **Token Scope**    | First-time authorization requests `gist` scope; subsequent operations reuse the session silently           |
 
 ### Encryption Flow
 
 ```
-GitHub numeric ID + pepper + [custom passphrase] → PBKDF2(600K rounds) → AES-256 key
-                                                               ↓
+GitHub numeric ID + pepper + [custom passphrase] → scrypt(N=16384, r=8, p=1) → AES-256 key
+                                                                                 ↓
 Each API Key → Random Salt(32B) + Random IV(16B) → AES-256-GCM → Salt+IV+Tag+Ciphertext → JSON
 ```
 
@@ -806,7 +806,7 @@ Each API Key → Random Salt(32B) + Random IV(16B) → AES-256-GCM → Salt+IV+T
 
 ### Custom Encryption Passphrase
 
-> Since this extension is **open source**, the encryption method (pepper, PBKDF2 parameters, etc.) is visible in the source code. If you want extra protection, you can set a custom encryption passphrase.
+> Since this extension is **open source**, the encryption method (pepper, scrypt parameters, etc.) is visible in the source code. If you want extra protection, you can set a custom encryption passphrase.
 
 - Select "Set Encryption Passphrase" from the sync actions menu; you'll be asked to enter it twice for confirmation
 - The passphrase is combined with the GitHub user ID and pepper for key derivation — all three are required (minimum 8 characters)

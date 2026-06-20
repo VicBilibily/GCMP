@@ -789,15 +789,15 @@ GCMP 提供基于 **GitHub Secret Gist** 的 API Key 跨设备同步功能，支
 | ------------ | --------------------------------------------------------------------------------------------- |
 | **远端存储** | GitHub **Secret Gist**（私有 Gist），文件名为 `gcmp-sync.json`                                |
 | **加密算法** | **AES-256-GCM**（认证加密，保证机密性 + 完整性）                                              |
-| **密钥派生** | **PBKDF2**（SHA-256，600,000 次迭代），输入为 `GitHub 用户 ID + 固定 pepper + 可选自定义口令` |
+| **密钥派生** | **scrypt**（N=16384, r=8, p=1），输入为 `GitHub 用户 ID + 固定 pepper + 可选自定义口令`       |
 | **认证方式** | VS Code 内置 **GitHub OAuth**，通过 `vscode.authentication` API 获取 token                    |
-| **本地方便** | 首次授权 `gist` scope；后续操作静默复用已授权 session                                         |
+| **认证复用** | 首次授权 `gist` scope；后续操作静默复用已授权 session                                         |
 
 ### 加密流程
 
 ```
-GitHub 数字ID + pepper + [自定义口令] → PBKDF2(600K次) → AES-256 密钥
-                                                          ↓
+GitHub 数字ID + pepper + [自定义口令] → scrypt(N=16384, r=8, p=1) → AES-256 密钥
+                                                                       ↓
  每个 API Key → 随机 Salt(32B) + 随机 IV(16B) → AES-256-GCM 加密 → Salt+IV+Tag+密文 → JSON
 ```
 
@@ -807,7 +807,7 @@ GitHub 数字ID + pepper + [自定义口令] → PBKDF2(600K次) → AES-256 密
 
 ### 自定义加密口令
 
-> 由于扩展是**开源项目**，加密方式（pepper、PBKDF2 参数等）均可在源码中直接查看。如果希望额外加强保护，可以设置自定义加密口令。
+> 由于扩展是**开源项目**，加密方式（pepper、scrypt 参数等）均可在源码中直接查看。如果希望额外加强保护，可以设置自定义加密口令。
 
 - 在同步菜单中选择「设置加密口令」即可添加，输入两次确认
 - 口令与 GitHub 用户 ID、pepper 共同参与密钥派生，三者缺一不可（最少 8 个字符）

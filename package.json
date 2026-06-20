@@ -1463,13 +1463,7 @@
         "package": "vsce package",
         "publish": "vsce publish --allow-proposed-apis chatProvider",
         "pretest": "npm run compile:dev",
-        "test": "npm run test:schema-sanitizer && npm run test:stateful-marker && npm run test:reasoning-replay && npm run test:copilot-usage && npm run test:usage-parser && npm run test:git-service",
-        "test:copilot-usage": "tsx --test src/utils/copilotUsage.test.ts",
-        "test:git-service": "tsx --test src/commit/gitService.test.ts",
-        "test:reasoning-replay": "tsx --test src/handlers/reasoningReplayPolicy.test.ts",
-        "test:schema-sanitizer": "tsx --test src/utils/schemaSanitizer.test.ts",
-        "test:stateful-marker": "tsx --test src/handlers/statefulMarkerCodec.test.ts",
-        "test:usage-parser": "tsx --test src/usages/fileLogger/usageParser.test.ts"
+        "test": "node --import=tsx --test src/**/*.test.ts"
     },
     "dependencies": {
         "@anthropic-ai/sdk": "^0.80.0",
