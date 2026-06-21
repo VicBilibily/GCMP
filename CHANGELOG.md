@@ -2,7 +2,17 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
-## [0.25.0] - 2026-06-21
+## [0.25.1] - 2026-06-21
+
+### 修复
+
+- **视觉工具路径解析**：视觉分析工具现在直接接收图片缓存的完整绝对路径，移除了短路径（`sessionId/hash.ext`）传递与 `VisionCache.resolveShortPath()` 解析逻辑，避免部分模型对路径进行拼接猜测导致图片读取失败
+
+---
+
+### Fixed
+
+- **Vision Tool Path Resolution**: Vision analysis tools now receive the full absolute cache path directly; removed short path (`sessionId/hash.ext`) passing and `VisionCache.resolveShortPath()` parsing to prevent some models from path splicing/guessing and failing to read images
 
 ### 新增
 
@@ -45,26 +55,6 @@
 - **CLI Version Detection**: Added timeout protection for CLI version detection
 - **Leader Release Race**: Fixed leader info residue window caused by incorrect ordering of `_isLeader=false` and `globalState.update` in `leaderElectionService.stop()`
 - **MCP Cache Key Unification**: Unified MCP client cache keys for DashScope / StepFun / Zhipu to include the endpoint dimension, preventing stale connection reuse after endpoint changes
-
-## [0.24.16] - 2026-06-21
-
-### 供应商调整
-
-- **腾讯云TokenPlan**：新增 DeepSeek-V4-Flash、DeepSeek-V4-Pro
-- **百度千帆**：新增 Kimi-K2.6、GLM-5.2（PayGo）；移除 MiniMax-M2.5（CodingPlan / PayGo）
-- **Charm Hyper**：[#241](https://github.com/VicBilibily/GCMP/issues/241) 新增 GLM-5.2、Kimi-K2.7-Code
-- **智谱AI**：移除 GLM-5.1（CodingPlan）、GLM-4.5-Air（CodingPlan / PayGo）
-- **火山方舟**：移除 GLM-5.1（CodingPlan / AgentPlan）、DeepSeek-V3.2（CodingPlan / AgentPlan）
-
----
-
-### Provider Adjustments
-
-- **Tencent TokenPlan**: Added DeepSeek-V4-Flash, DeepSeek-V4-Pro
-- **Baidu Qianfan**: Added Kimi-K2.6, GLM-5.2 (PayGo); removed MiniMax-M2.5 (CodingPlan / PayGo)
-- **Charm Hyper**: [#241](https://github.com/VicBilibily/GCMP/issues/241) Added GLM-5.2, Kimi-K2.7-Code
-- **ZhipuAI**: Removed GLM-5.1 (CodingPlan), GLM-4.5-Air (CodingPlan / PayGo)
-- **Volcengine**: Removed GLM-5.1 (CodingPlan / AgentPlan), DeepSeek-V3.2 (CodingPlan / AgentPlan)
 
 ## 历史版本（仅保留功能日志）
 

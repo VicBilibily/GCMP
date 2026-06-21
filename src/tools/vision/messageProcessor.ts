@@ -27,7 +27,7 @@ const VISION_GUIDE_MARKER = '<!-- GCMP-Vision-Guide -->';
 const VISION_TOOL_GUIDE = [
     VISION_GUIDE_MARKER,
     'When you see <attachment filePath="..."> tags in this conversation, the user has attached images.',
-    'The filePath is a short cache path (sessionId/hash.ext). Pass it verbatim as the filePath argument to the appropriate vision tool (use the # reference name):',
+    'Pass the filePath verbatim as the filePath argument to the appropriate vision tool (use the # reference name). Do not modify, shorten, or prepend any directory:',
     '- UI screenshot / mockup → #gcmpUiToArtifact',
     '- error screenshot / stack trace → #gcmpDiagnoseErrorScreenshot',
     '- code or text screenshot → #gcmpExtractTextFromScreenshot',
@@ -40,13 +40,12 @@ const VISION_TOOL_GUIDE = [
 ].join('\n');
 
 /**
- * 单张图片的精简引用：替代原本 ~250 字符的 hintText，仅保留短路径与类型信息。
- * 使用短路径（sessionId/hash.ext）而非绝对路径，可省去冗长的 vision-cache 根前缀，
- * 工具侧通过 VisionCache.resolveShortPath() 还原。
+ * 单张图片的精简引用：保留完整缓存绝对路径，避免模型进行短路径解析或路径拼接猜测。
+ * 工具侧可直接用该路径读取图片。
  * 模型通过会话级 VISION_TOOL_GUIDE 知道如何处理 <attachment> 标签。
  */
-function buildImageRef(shortPath: string, mimeType: string): string {
-    return `<attachment filePath="${shortPath}" mimeType="${mimeType}" />`;
+function buildImageRef(filePath: string, mimeType: string): string {
+    return `<attachment filePath="${filePath}" mimeType="${mimeType}" />`;
 }
 
 /**
@@ -135,7 +134,7 @@ export async function processVisionMessages(
                     const saved = visionCache.saveImage(sessionId, base64, part.mimeType);
                     cachedFiles.push(saved.path);
 
-                    newParts.push(new vscode.LanguageModelTextPart(buildImageRef(saved.shortPath, part.mimeType)));
+                    newParts.push(new vscode.LanguageModelTextPart(buildImageRef(saved.path, part.mimeType)));
                     Logger.trace(`[VisionProcessor] Cached image: ${saved.path}`);
                 } catch (err) {
                     Logger.warn(
