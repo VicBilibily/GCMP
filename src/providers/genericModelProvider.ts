@@ -464,6 +464,18 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         requestStartTime = Date.now()
     ): Promise<void> {
         const sdkMode = modelConfig.sdkMode || 'openai';
+
+        // 派发请求开始事件，使 WebView 首令延迟从 0 开始滚动
+        if (requestId) {
+            liveMetrics.emitLiveMetrics({
+                type: 'requestStarted',
+                requestId,
+                requestStartTime,
+                providerName: this.providerConfig.displayName,
+                modelName: model.name || modelConfig.name
+            });
+        }
+
         const retryManager = new RetryManager(this.getRequestRetryConfig());
 
         // 请求分类（仅当上层未设置时写入，避免覆盖 provideLanguageModelChatResponse 的值）
@@ -487,73 +499,86 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             }
         }
 
-        await retryManager.executeWithRetry(
-            async () => {
-                if (sdkMode === 'anthropic') {
-                    await this.anthropicHandler.handleRequest(
-                        model,
-                        modelConfig,
-                        messages,
-                        options,
-                        progress,
-                        requestId,
-                        sessionId,
-                        token,
-                        requestStartTime
-                    );
-                } else if (sdkMode === 'gemini-sse') {
-                    await this.geminiHandler.handleRequest(
-                        model,
-                        modelConfig,
-                        messages,
-                        options,
-                        progress,
-                        requestId,
-                        sessionId,
-                        token,
-                        requestStartTime
-                    );
-                } else if (sdkMode === 'openai-sse') {
-                    await this.openaiCustomHandler.handleRequest(
-                        model,
-                        modelConfig,
-                        messages,
-                        options,
-                        progress,
-                        requestId,
-                        sessionId,
-                        token,
-                        requestStartTime
-                    );
-                } else if (sdkMode === 'openai-responses') {
-                    await this.openaiResponsesHandler.handleResponsesRequest(
-                        model,
-                        { ...modelConfig, provider: effectiveProviderKey },
-                        messages,
-                        options,
-                        progress,
-                        requestId,
-                        sessionId,
-                        token,
-                        requestStartTime
-                    );
-                } else {
-                    await this.openaiHandler.handleRequest(
-                        model,
-                        modelConfig,
-                        messages,
-                        options,
-                        progress,
-                        requestId,
-                        sessionId,
-                        token,
-                        requestStartTime
-                    );
-                }
-            },
-            error => this.shouldRetryRequest(error),
-            this.providerConfig.displayName
-        );
+        try {
+            await retryManager.executeWithRetry(
+                async () => {
+                    if (sdkMode === 'anthropic') {
+                        await this.anthropicHandler.handleRequest(
+                            model,
+                            modelConfig,
+                            messages,
+                            options,
+                            progress,
+                            requestId,
+                            sessionId,
+                            token,
+                            requestStartTime
+                        );
+                    } else if (sdkMode === 'gemini-sse') {
+                        await this.geminiHandler.handleRequest(
+                            model,
+                            modelConfig,
+                            messages,
+                            options,
+                            progress,
+                            requestId,
+                            sessionId,
+                            token,
+                            requestStartTime
+                        );
+                    } else if (sdkMode === 'openai-sse') {
+                        await this.openaiCustomHandler.handleRequest(
+                            model,
+                            modelConfig,
+                            messages,
+                            options,
+                            progress,
+                            requestId,
+                            sessionId,
+                            token,
+                            requestStartTime
+                        );
+                    } else if (sdkMode === 'openai-responses') {
+                        await this.openaiResponsesHandler.handleResponsesRequest(
+                            model,
+                            { ...modelConfig, provider: effectiveProviderKey },
+                            messages,
+                            options,
+                            progress,
+                            requestId,
+                            sessionId,
+                            token,
+                            requestStartTime
+                        );
+                    } else {
+                        await this.openaiHandler.handleRequest(
+                            model,
+                            modelConfig,
+                            messages,
+                            options,
+                            progress,
+                            requestId,
+                            sessionId,
+                            token,
+                            requestStartTime
+                        );
+                    }
+                },
+                error => this.shouldRetryRequest(error),
+                this.providerConfig.displayName
+            );
+        } finally {
+            // 整个重试流程结束后发送 streamEnd，清理 WebView 实时状态
+            if (requestId) {
+                liveMetrics.emitLiveMetrics({
+                    type: 'streamEnd',
+                    requestId,
+                    requestStartTime,
+                    providerName: this.providerConfig.displayName,
+                    modelName: model.name || modelConfig.name
+                });
+            }
+        }
     }
 
     protected getEstimatedRequestMetadata(options: ProvideLanguageModelChatResponseOptions): {
@@ -576,7 +601,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         traceId: otelTraceContext.traceId,
                         spanId: otelTraceContext.spanId
                     }
-                :   undefined
+                    : undefined
         };
     }
 
@@ -656,17 +681,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 Logger.warn('Failed to record estimated tokens, continuing request:', err);
             }
 
-            // 派发请求开始事件，使 WebView 首令延迟从 0 开始滚动
-            if (requestId) {
-                liveMetrics.emitLiveMetrics({
-                    type: 'requestStarted',
-                    requestId,
-                    requestStartTime,
-                    providerName: this.providerConfig.displayName,
-                    modelName: model.name || modelConfig.name
-                });
-            }
-
             await this.executeModelRequest(
                 model,
                 modelConfig,
@@ -687,16 +701,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             // 直接抛出错误，让VS Code处理重试
             throw error;
         } finally {
-            // 整个重试流程结束后发送 streamEnd，清理 WebView 实时状态
-            if (requestId) {
-                liveMetrics.emitLiveMetrics({
-                    type: 'streamEnd',
-                    requestId,
-                    requestStartTime,
-                    providerName: this.providerConfig.displayName,
-                    modelName: model.name || modelConfig.name
-                });
-            }
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);
         }
     }
