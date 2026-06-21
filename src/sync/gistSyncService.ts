@@ -208,7 +208,7 @@ export class GistSyncService {
         token: string
     ): Promise<{ login: string; id: number; token: string } | undefined> {
         try {
-            const response = await fetch('https://api.github.com/user', {
+            const response = await ConfigManager.fetchWithProxy('https://api.github.com/user', {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     Accept: 'application/vnd.github.v3+json',
@@ -272,7 +272,7 @@ export class GistSyncService {
      */
     static async findExistingSyncGist(token: string): Promise<string | undefined> {
         try {
-            const response = await fetch('https://api.github.com/gists', {
+            const response = await ConfigManager.fetchWithProxy('https://api.github.com/gists', {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     Accept: 'application/vnd.github.v3+json',
@@ -325,7 +325,7 @@ export class GistSyncService {
      */
     static async readSyncData(token: string, gistId: string): Promise<SyncData | undefined> {
         try {
-            const response = await fetch(`https://api.github.com/gists/${gistId}`, {
+            const response = await ConfigManager.fetchWithProxy(`https://api.github.com/gists/${gistId}`, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     Accept: 'application/vnd.github.v3+json',
@@ -367,7 +367,7 @@ export class GistSyncService {
                 }
             };
 
-            const response = await fetch('https://api.github.com/gists', {
+            const response = await ConfigManager.fetchWithProxy('https://api.github.com/gists', {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -407,7 +407,7 @@ export class GistSyncService {
                 }
             };
 
-            const response = await fetch(`https://api.github.com/gists/${gistId}`, {
+            const response = await ConfigManager.fetchWithProxy(`https://api.github.com/gists/${gistId}`, {
                 method: 'PATCH',
                 headers: {
                     Authorization: `Bearer ${token}`,

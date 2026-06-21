@@ -106,11 +106,19 @@ export class AuxiliaryModelSettingsPanel {
         try {
             const config = vscode.workspace.getConfiguration();
 
+            // 前置检测：若 Agent 配置存在差异化且用户未选择覆盖，
+            // 直接中止整个保存流程，避免出现"部分设置已写入但提示成功"的不一致状态
+            const agentOverwriteConfirmed = await this.confirmAgentOverwriteIfNeeded(config, values.agent);
+            if (!agentOverwriteConfirmed) {
+                this.panel?.webview.postMessage({ command: 'savedPartial', skippedAgent: true });
+                return;
+            }
+
             await this.updateModelSetting(config, 'gcmp.commit.model', values.commit);
             await this.updateModelSetting(config, 'gcmp.vision.model', values.vision);
             await this.updateCopilotUtilitySetting(config, 'chat.utilityModel', values.utility);
             await this.updateCopilotUtilitySetting(config, 'chat.utilitySmallModel', values.utilitySmall);
-            await this.updateCopilotAgentSetting(config, values.agent);
+            await this.applyCopilotAgentSetting(config, values.agent);
 
             this.panel?.webview.postMessage({ command: 'saved', success: true });
         } catch (err) {
@@ -120,6 +128,40 @@ export class AuxiliaryModelSettingsPanel {
                 error: err instanceof Error ? err.message : String(err)
             });
         }
+    }
+
+    /**
+     * 检测 Agent 配置是否已存在差异化。若存在且用户需要覆盖，弹窗确认。
+     * 仅在用户选择了一个 Agent 模型（非清除）时触发，因为清除操作本身就是显式重置。
+     * @returns true 表示可以继续写入（含清除场景），false 表示用户取消
+     */
+    private async confirmAgentOverwriteIfNeeded(
+        config: vscode.WorkspaceConfiguration,
+        value: { provider: string; model: string } | null
+    ): Promise<boolean> {
+        const ref = this.isValidModelValue(value) ? this.toModelRef(value) : undefined;
+        if (!ref) {
+            return true; // 清除场景，无需确认
+        }
+
+        const existingValues = AuxiliaryModelSettingsPanel.COPILOT_AGENT_SETTING_KEYS.map(k => config.get<string>(k));
+        const first = existingValues[0];
+        const hasDivergence = existingValues.some(v => v !== first);
+        if (!hasDivergence) {
+            return true; // 无差异化，直接写入
+        }
+
+        const overwriteBtn = t('Overwrite', '覆盖');
+        const cancelBtn = t('Cancel', '取消');
+        const choice = await vscode.window.showWarningMessage(
+            t(
+                'Your Copilot agents currently use different models. Saving will unify them all to the selected model. Continue?',
+                '检测到各 Copilot Agent 当前配置了不同模型，统一设置将覆盖所有 Agent 的现有配置。是否继续？'
+            ),
+            overwriteBtn,
+            cancelBtn
+        );
+        return choice === overwriteBtn;
     }
 
     private async updateModelSetting(
@@ -147,7 +189,7 @@ export class AuxiliaryModelSettingsPanel {
         }
     }
 
-    private async updateCopilotAgentSetting(
+    private async applyCopilotAgentSetting(
         config: vscode.WorkspaceConfiguration,
         value: { provider: string; model: string } | null
     ): Promise<void> {

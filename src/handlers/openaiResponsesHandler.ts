@@ -318,6 +318,10 @@ export class OpenAIResponsesHandler {
 
     /**
      * 收集工具结果的文本内容
+     *
+     * 仅保留有意义的语义内容：文本取 value，图片用 [Image] 占位符。
+     * 其他所有 DataPart（cache_control / stateful_marker / thinking / context_management / usage
+     * 等扩展内部元数据）一律跳过，不序列化，避免污染请求体和模型上下文。
      */
     public collectToolResultText(part: vscode.LanguageModelToolResultPart): string {
         if (!part.content || part.content.length === 0) {
@@ -329,19 +333,9 @@ export class OpenAIResponsesHandler {
             if (item instanceof vscode.LanguageModelTextPart) {
                 texts.push(item.value);
             } else if (item instanceof vscode.LanguageModelDataPart && this.handler.isImageMimeType(item.mimeType)) {
-                // 工具结果中的图片添加占位符
                 texts.push('[Image]');
-            } else if (item && typeof item === 'object') {
-                // 尝试转换为字符串
-                try {
-                    const str = JSON.stringify(item);
-                    if (str && str !== '{}') {
-                        texts.push(str);
-                    }
-                } catch {
-                    // 忽略无法序列化的对象
-                }
             }
+            // 其他 DataPart（扩展内部元数据）和其他非文本 part 统一跳过
         }
         return texts.join('\n');
     }

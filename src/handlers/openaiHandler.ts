@@ -1455,14 +1455,21 @@ export class OpenAIHandler {
 
     /**
      * 转换工具结果内容
+     *
+     * 仅保留有意义的语义内容：文本取 value，图片用 [Image] 占位符。
+     * 其他所有 DataPart（cache_control / stateful_marker / thinking / context_management / usage
+     * 等扩展内部元数据）一律跳过，不序列化，避免污染请求体和模型上下文。
      */
     private convertToolResultContent(content: unknown): string {
-        const ignoredMimeType = CustomDataPartMimeTypes.CacheControl;
         if (typeof content === 'string') {
             return content;
         }
-        if (content instanceof vscode.LanguageModelDataPart && content.mimeType === ignoredMimeType) {
-            return '';
+        if (content instanceof vscode.LanguageModelTextPart) {
+            return content.value;
+        }
+        if (content instanceof vscode.LanguageModelDataPart) {
+            // 图片用占位符，其他 DataPart 全部跳过
+            return this.isImageMimeType(content.mimeType) ? '[Image]' : '';
         }
         if (Array.isArray(content)) {
             return content
@@ -1470,14 +1477,19 @@ export class OpenAIHandler {
                     if (resultPart instanceof vscode.LanguageModelTextPart) {
                         return [resultPart.value];
                     }
-                    if (resultPart instanceof vscode.LanguageModelDataPart && resultPart.mimeType === ignoredMimeType) {
-                        return [];
+                    if (
+                        resultPart instanceof vscode.LanguageModelDataPart &&
+                        this.isImageMimeType(resultPart.mimeType)
+                    ) {
+                        return ['[Image]'];
                     }
-                    return [JSON.stringify(resultPart)];
+                    // 其他 DataPart（扩展内部元数据）和其他非文本 part 统一跳过
+                    return [];
                 })
                 .join('\n');
         }
-        return JSON.stringify(content);
+        // 兜底：未知结构不序列化，返回空字符串
+        return '';
     }
 
     /**

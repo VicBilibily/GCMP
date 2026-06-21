@@ -26,19 +26,23 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 
 VS Code uses lightweight background models for **utility tasks** like title generation, commit messages, search, and intent detection. GCMP features such as commit message generation and vision analysis also require their own model selections. If not configured manually, VS Code falls back to Copilot's built-in models, which consume your monthly quota — especially limited for free-tier users. Pointing these tasks to GCMP-provided models saves Copilot quota for more important work.
 
+> 💡 **Quick configuration entry**: hover the Token-usage icon in the status bar and click the `Set auxiliary tool models` link at the bottom of the daily-statistics popup to open a visual panel for unified configuration of all the models below. You can also run `GCMP: Set Auxiliary Tool Models` from the command palette.
+
 ```json
 {
     // General utility tasks: title generation, summaries, intent classification, rename suggestions, terminal commands/fixes, search, VS Code Q&A
     "chat.utilityModel": "gcmp.deepseek/gcmp.deepseek:::deepseek-v4-pro",
     // Lightweight utility tasks: commit messages, branch names, progress messages, todo tracking
     "chat.utilitySmallModel": "gcmp.deepseek/gcmp.deepseek:::deepseek-v4-flash",
+    // Inline Chat default model
+    "inlineChat.defaultModel": "GLM-4.7 (CodingPlan) (gcmp.zhipu)",
     // Agent-mode sub-agents for exploration/planning (e.g., codebase search, plan generation)
-    "chat.exploreAgent.defaultModel": "MiniMax-M2.7-HighSpeed (TokenPlan) (gcmp.minimax)",
-    "chat.planAgent.defaultModel": "MiniMax-M2.7-HighSpeed (TokenPlan) (gcmp.minimax)",
+    "chat.exploreAgent.defaultModel": "GLM-4.7 (CodingPlan) (gcmp.zhipu)",
+    "chat.planAgent.defaultModel": "GLM-4.7 (CodingPlan) (gcmp.zhipu)",
     // GitHub Copilot Chat dedicated agents (Ask / Implement / Explore)
-    "github.copilot.chat.askAgent.model": "MiniMax-M2.7-HighSpeed (TokenPlan) (gcmp.minimax)",
-    "github.copilot.chat.implementAgent.model": "MiniMax-M2.7-HighSpeed (TokenPlan) (gcmp.minimax)",
-    "github.copilot.chat.exploreAgent.model": "MiniMax-M2.7-HighSpeed (TokenPlan) (gcmp.minimax)",
+    "github.copilot.chat.askAgent.model": "GLM-4.7 (CodingPlan) (gcmp.zhipu)",
+    "github.copilot.chat.implementAgent.model": "GLM-4.7 (CodingPlan) (gcmp.zhipu)",
+    "github.copilot.chat.exploreAgent.model": "GLM-4.7 (CodingPlan) (gcmp.zhipu)",
     // GCMP built-in commit message generation model
     "gcmp.commit.model": {
         "provider": "zhipu",
@@ -57,12 +61,15 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 > When editing `settings.json`, place the cursor on the value and use VS Code IntelliSense to choose from registered models. **If left unset**, VS Code will use Copilot's built-in models for utility tasks, which may consume Copilot monthly quota for free-tier users. Using a GCMP model here helps avoid that.
 >
 > You can also run `GCMP: Set Auxiliary Tool Models` from the command palette to open a visual panel for unified configuration of all the models above.
+>
+> Shortcut entry: hover the Token-usage icon in the status bar and click the `Set auxiliary tool models` link at the bottom of the daily-statistics popup to open the same panel.
 
 <details>
 <summary>Click to expand detailed parameter descriptions</summary>
 
 - `chat.utilitySmallModel`: Lightweight utility tasks (default: `gpt-4o-mini`). Covers `chat-title`, `git-commit-message`, `git-branch-name`, `inline-progress-message`, `prompt-categorizer`, `todo-tracker`, `rename-suggestions`, `terminal-command/quickfix/explain`, and `workspace-search`.
 - `chat.utilityModel`: General utility tasks (default: CAPI fallback). Covers `settings-resolver`, `explain-code`, and `vscode-qa`.
+- `inlineChat.defaultModel`: Inline Chat default model, used for in-editor inline chat (`Ctrl+I` / right-click "Chat Inline").
 - `chat.exploreAgent.defaultModel`: Explore sub-agent default model, used for `search-subagent` codebase exploration and search.
 - `chat.planAgent.defaultModel`: Plan sub-agent default model, used for planning and task decomposition in Agent mode.
 - `github.copilot.chat.askAgent.model`: Ask Agent default model, used for Ask-mode Q&A.

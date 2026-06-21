@@ -303,7 +303,10 @@ function isImageMimeType(mimeType: string | undefined): boolean {
 
 /**
  * 将 tool result 的 content 汇总为字符串。
- * 关键点：content 可能包含 TextPart 及其他结构体，尽量 JSON.stringify 以保留信息。
+ *
+ * 仅保留有意义的语义内容：文本取 value，图片用 [Image] 占位符。
+ * 其他所有 DataPart（cache_control / stateful_marker / thinking / context_management / usage
+ * 等扩展内部元数据）一律跳过，不序列化，避免污染请求体和模型上下文。
  */
 function collectToolResultText(part: vscode.LanguageModelToolResultPart): string {
     if (!part.content || part.content.length === 0) {
@@ -313,13 +316,10 @@ function collectToolResultText(part: vscode.LanguageModelToolResultPart): string
     for (const item of part.content) {
         if (item instanceof vscode.LanguageModelTextPart) {
             texts.push(item.value);
-        } else if (item && typeof item === 'object') {
-            try {
-                texts.push(JSON.stringify(item));
-            } catch {
-                texts.push(String(item));
-            }
+        } else if (item instanceof vscode.LanguageModelDataPart && isImageMimeType(item.mimeType)) {
+            texts.push('[Image]');
         }
+        // 其他 DataPart（扩展内部元数据）和其他非文本 part 统一跳过
     }
     return texts.join('');
 }

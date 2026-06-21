@@ -26,6 +26,8 @@
 
 VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、搜索、意图检测等**实用任务**；GCMP 的提交消息生成、视觉分析等功能也需要独立指定模型。若未手动配置，VS Code 会回退到 Copilot 内置模型，这会消耗月度额度（尤其是免费用户的有限配额）；将这些任务指向 GCMP 提供的模型可节省 Copilot 额度给更重要的用途。
 
+> 💡 **快速配置入口**：悬停状态栏的 Token 消耗图标，在弹出的每日统计底部文本菜单点击「设置辅助工具模型」，即可打开可视化面板统一配置下列全部模型；也可通过命令面板执行 `GCMP: 设置辅助工具模型`。
+
 <details>
 <summary>展开查看各参数详细说明</summary>
 
@@ -35,13 +37,15 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
     "chat.utilityModel": "gcmp.deepseek/gcmp.deepseek:::deepseek-v4-pro",
     // 轻量实用任务：提交信息、分支名生成、进度消息、待办跟踪（建议用快速低成本模型）
     "chat.utilitySmallModel": "gcmp.deepseek/gcmp.deepseek:::deepseek-v4-flash",
+    // 内联聊天（Inline Chat）默认模型
+    "inlineChat.defaultModel": "GLM-4.7 (CodingPlan) (gcmp.zhipu)",
     // Agent 模式中的探索/规划子 Agent（如代码库搜索、方案规划）
-    "chat.exploreAgent.defaultModel": "MiniMax-M2.7-HighSpeed (TokenPlan) (gcmp.minimax)",
-    "chat.planAgent.defaultModel": "MiniMax-M2.7-HighSpeed (TokenPlan) (gcmp.minimax)",
+    "chat.exploreAgent.defaultModel": "GLM-4.7 (CodingPlan) (gcmp.zhipu)",
+    "chat.planAgent.defaultModel": "GLM-4.7 (CodingPlan) (gcmp.zhipu)",
     // GitHub Copilot Chat 各专用 Agent（Ask / Implement / Explore）
-    "github.copilot.chat.askAgent.model": "MiniMax-M2.7-HighSpeed (TokenPlan) (gcmp.minimax)",
-    "github.copilot.chat.implementAgent.model": "MiniMax-M2.7-HighSpeed (TokenPlan) (gcmp.minimax)",
-    "github.copilot.chat.exploreAgent.model": "MiniMax-M2.7-HighSpeed (TokenPlan) (gcmp.minimax)",
+    "github.copilot.chat.askAgent.model": "GLM-4.7 (CodingPlan) (gcmp.zhipu)",
+    "github.copilot.chat.implementAgent.model": "GLM-4.7 (CodingPlan) (gcmp.zhipu)",
+    "github.copilot.chat.exploreAgent.model": "GLM-4.7 (CodingPlan) (gcmp.zhipu)",
     // GCMP 内置 Commit 消息生成模型
     "gcmp.commit.model": {
         "provider": "zhipu",
@@ -60,9 +64,12 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 > 在 `settings.json` 中编辑时，将光标置于值位置，使用 VS Code 智能提示从已注册的模型中选择即可。**若未配置**这些设置，VS Code 会使用 Copilot 内置模型执行实用任务，**这可能会消耗免费用户的 Copilot 月度额度**。推荐配置为 GCMP 模型，可避免实用任务占用 Copilot 配额。
 >
 > 也可通过命令面板执行 `GCMP: 设置辅助工具模型`，在可视化面板中统一配置上述所有模型。
+>
+> 入口快捷方式：悬停状态栏的 Token 消耗图标，在弹出的每日统计底部文本菜单中点击「设置辅助工具模型」即可进入同一面板。
 
 - `chat.utilitySmallModel`：轻量实用任务模型（默认 `gpt-4o-mini`）。覆盖 `chat-title`（标题）、`git-commit-message`（提交信息）、`git-branch-name`（分支名）、`inline-progress-message`（进度消息）、`prompt-categorizer`（意图分类）、`todo-tracker`（待办跟踪）、`rename-suggestions`（重命名建议）、`terminal-command/quickfix/explain`（终端命令/修复/解释）、`workspace-search`（搜索助手）。
 - `chat.utilityModel`：通用实用任务模型（默认 CAPI fallback）。覆盖 `settings-resolver`（设置搜索）、`explain-code`（代码解释）、`vscode-qa`（VS Code 问答）。
+- `inlineChat.defaultModel`：内联聊天（Inline Chat）默认模型，用于编辑器内联对话（`Ctrl+I` / 右键 "在行内聊天"）。
 - `chat.exploreAgent.defaultModel`：Explore 子 Agent 默认模型，用于 `search-subagent` 代码库探索与搜索。
 - `chat.planAgent.defaultModel`：Plan 子 Agent 默认模型，用于 Agent 模式中的方案规划与任务拆解。
 - `github.copilot.chat.askAgent.model`：Ask Agent 默认模型，用于 Ask 模式问答。

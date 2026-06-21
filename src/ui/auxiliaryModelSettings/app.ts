@@ -357,6 +357,12 @@ function handleMessage(event: MessageEvent): void {
         render();
     } else if (message.command === 'saved') {
         postToVSCode({ command: 'cancel' });
+    } else if (message.command === 'savedPartial') {
+        // 用户取消了 Agent 统一覆盖，其他设置也未写入；保留面板打开，提示用户
+        showActionMessage(
+            t('Save cancelled: Copilot agent models were kept as-is.', '已取消保存：Copilot Agent 模型保持不变。'),
+            'info'
+        );
     } else if (message.command === 'saveError') {
         showActionMessage(message.error, 'error');
     }

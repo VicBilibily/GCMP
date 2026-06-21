@@ -27,14 +27,14 @@ const VISION_GUIDE_MARKER = '<!-- GCMP-Vision-Guide -->';
 const VISION_TOOL_GUIDE = [
     VISION_GUIDE_MARKER,
     'When you see <attachment filePath="..."> tags in this conversation, the user has attached images.',
-    'The filePath is a short cache path (sessionId/hash.ext). Pass it verbatim as the filePath argument to the appropriate gcmpVisionTool tool:',
-    '- UI screenshot / mockup → gcmpVisionTool_uiToArtifact',
-    '- error screenshot / stack trace → gcmpVisionTool_diagnoseErrorScreenshot',
-    '- code or text screenshot → gcmpVisionTool_extractTextFromScreenshot',
-    '- architecture / technical diagram → gcmpVisionTool_understandTechnicalDiagram',
-    '- chart / data visualization → gcmpVisionTool_analyzeDataVisualization',
-    '- two images to compare → gcmpVisionTool_uiDiffCheck',
-    '- general image → gcmpVisionTool_analyzeImage',
+    'The filePath is a short cache path (sessionId/hash.ext). Pass it verbatim as the filePath argument to the appropriate vision tool (use the # reference name):',
+    '- UI screenshot / mockup → #gcmpUiToArtifact',
+    '- error screenshot / stack trace → #gcmpDiagnoseErrorScreenshot',
+    '- code or text screenshot → #gcmpExtractTextFromScreenshot',
+    '- architecture / technical diagram → #gcmpUnderstandTechnicalDiagram',
+    '- chart / data visualization → #gcmpAnalyzeDataVisualization',
+    '- two images to compare → #gcmpUiDiffCheck',
+    '- general image → #gcmpAnalyzeImage',
     '',
     'Do NOT use any VS Code built-in tools (such as readFile, read_file, file search, or image viewer tools) to inspect image files directly.'
 ].join('\n');

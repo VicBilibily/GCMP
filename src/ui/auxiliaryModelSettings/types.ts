@@ -8,6 +8,7 @@
 export type HostMessage =
     | { command: 'init'; providers: AuxiliaryProviderData[]; initialValues: InitialValues }
     | { command: 'saved'; success: true }
+    | { command: 'savedPartial'; skippedAgent: true }
     | { command: 'saveError'; error: string };
 
 /**
