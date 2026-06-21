@@ -85,18 +85,6 @@
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
-            "id": "minimax-m2.5-coding-plan",
-            "name": "MiniMax-M2.5 (CodingPlan)",
-            "tooltip": "百度千帆 Coding Plan 专属接入点中的 MiniMax M2.5。MiniMax 推出的新一代旗舰编程模型，致力于提升真实世界复杂任务中的表现。在编程、工具调用、搜索以及办公等生产场景达到行业SOTA。",
-            "provider": "baidu-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://qianfan.baidubce.com/anthropic/coding",
-            "model": "minimax-m2.5",
-            "maxInputTokens": 192000,
-            "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
             "id": "deepseek-v4-flash",
             "name": "DeepSeek-V4-Flash (PayGo)",
             "tooltip": "DeepSeek-V4 拥有百万字超长上下文，在 Agent 能力、世界知识和推理性能上均实现国内与开源领域的领先。DeepSeek-V4-Flash 是 DeepSeek-V4 系列的轻量高效版本，在保持 1M 超长上下文能力的同时，通过更小的模型参数与激活规模，提供更为快捷、经济的 API 服务。",
@@ -149,6 +137,17 @@
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
+            "id": "glm-5.2",
+            "name": "GLM-5.2 (PayGo)",
+            "tooltip": "GLM-5.2 是面向长任务时代的旗舰模型。一次任务即可完成“从需求到多端可部署产物”的完整开发链路。",
+            "contextSize": [500000, 200000],
+            "maxInputTokens": 500000,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
+            "thinkingFormat": "object",
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
             "id": "kimi-k2.5",
             "name": "Kimi-K2.5 (PayGo)",
             "tooltip": "Kimi-K2.5 是 Kimi 迄今最全能的模型，原生的多模态架构设计，支持文本输入（当前暂不支持图像理解）、思考与非思考模式、对话与 Agent 任务。",
@@ -159,11 +158,13 @@
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
-            "id": "minimax-m2.5",
-            "name": "MiniMax-M2.5 (PayGo)",
-            "tooltip": "MiniMax-M2.5 是 MiniMax 推出的新一代旗舰编程模型，致力于提升真实世界复杂任务中的表现。在编程、工具调用和搜索、办公等生产力场景都达到或刷新了行业的 SOTA。",
-            "maxInputTokens": 192000,
+            "id": "kimi-k2.6",
+            "name": "Kimi-K2.6 (PayGo)",
+            "tooltip": "Kimi K2.6 是 Kimi 最新最智能的模型，Kimi K2.6 的通用 Agent、代码、视觉理解等综合能力得到全面提升，其中在博士级难度的完整版人类最后的考试（Humanity’s Last Exam）、在考察模型真实软件工程能力的 SWE-Bench Pro、评估 Agent 深度检索能力的 DeepSearchQA 等基准测试中均取得行业领先的成绩，同时支持文本、图片与视频输入，思考与非思考模式，对话与 Agent 任务。",
+            "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
+            "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {

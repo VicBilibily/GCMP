@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.24.16] - 2026-06-21
+
+### 供应商调整
+
+- **腾讯云TokenPlan**：新增 DeepSeek-V4-Flash、DeepSeek-V4-Pro
+- **百度千帆**：新增 Kimi-K2.6、GLM-5.2（PayGo）；移除 MiniMax-M2.5（CodingPlan / PayGo）
+- **Charm Hyper**：[#241](https://github.com/VicBilibily/GCMP/issues/241) 新增 GLM-5.2、Kimi-K2.7-Code
+- **智谱AI**：移除 GLM-5.1（CodingPlan）、GLM-4.5-Air（CodingPlan / PayGo）
+- **火山方舟**：移除 GLM-5.1（CodingPlan / AgentPlan）、DeepSeek-V3.2（CodingPlan / AgentPlan）
+
+---
+
+### Provider Adjustments
+
+- **Tencent TokenPlan**: Added DeepSeek-V4-Flash, DeepSeek-V4-Pro
+- **Baidu Qianfan**: Added Kimi-K2.6, GLM-5.2 (PayGo); removed MiniMax-M2.5 (CodingPlan / PayGo)
+- **Charm Hyper**: [#241](https://github.com/VicBilibily/GCMP/issues/241) Added GLM-5.2, Kimi-K2.7-Code
+- **ZhipuAI**: Removed GLM-5.1 (CodingPlan), GLM-4.5-Air (CodingPlan / PayGo)
+- **Volcengine**: Removed GLM-5.1 (CodingPlan / AgentPlan), DeepSeek-V3.2 (CodingPlan / AgentPlan)
+
 ## [0.24.15] - 2026-06-19
 
 ### 新增

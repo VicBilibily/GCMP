@@ -55,6 +55,18 @@
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
+            "id": "glm-5.2",
+            "name": "GLM-5.2 (Hyper)",
+            "tooltip": "Charm Hyper — GLM-5.2。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 600000, 400000, 200000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 128000,
+            "reasoningEffort": ["high", "max"],
+            "reasoningFormat": "nested",
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
             "id": "gpt-oss-120b",
             "name": "GPT-OSS-120B (Hyper)",
             "tooltip": "Charm Hyper — GPT-OSS-120B。",
@@ -80,6 +92,16 @@
             "sdkMode": "openai-sse",
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
+            "id": "kimi-k2.7-code",
+            "name": "Kimi-K2.7-Code (Hyper)",
+            "tooltip": "Charm Hyper — Kimi-K2.7-Code。",
+            "sdkMode": "openai-sse",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "extraBody": { "enabled_thinking": true },
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {

@@ -28,9 +28,9 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 
 ### [**ZhipuAI**](https://bigmodel.cn/)
 
-- [**Coding Plan**](https://bigmodel.cn/glm-coding): **GLM-5.2**, **GLM-5.1**, **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-4.7**, **GLM-4.6**, **GLM-4.6V**, **GLM-4.5-Air**
+- [**Coding Plan**](https://bigmodel.cn/glm-coding): **GLM-5.2**, **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-4.7**, **GLM-4.6**, **GLM-4.6V**
     - **Usage tracking**: Status bar displays remaining cycle quota for GLM Coding Plan.
-- **PayGo**: **GLM-5.2**, **GLM-5.1** (HighSpeed), **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-5**, **GLM-4.7**, **GLM-4.7-FlashX**, **GLM-4.6**, **GLM-4.6V**, **GLM-4.5-Air**
+- **PayGo**: **GLM-5.2**, **GLM-5.1** (HighSpeed), **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-5**, **GLM-4.7**, **GLM-4.7-FlashX**, **GLM-4.6**, **GLM-4.6V**
 - **Free models**: **GLM-4.6V-Flash**, **GLM-4.7-Flash**
 - [**International site**](https://z.ai/model-api): Supports switching to the international site (z.ai).
 - **Search**: Integrated `Web Search MCP` and `Web Search API`, supports `#zhipuWebSearch` for web searches.
@@ -78,10 +78,10 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 
 - [**Coding Plan**](https://www.volcengine.com/activity/codingplan):
     - Doubao models: **Doubao-Seed-2.0-Code**, **Doubao-Seed-Code**, **Doubao-Seed-2.0-lite**, **Doubao-Seed-2.0-pro**
-    - Open-source models: **GLM-5.2**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **GLM-5.1**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **MiniMax-M3**, **MiniMax-M2.7**, **MiniMax-M2.5**, **Kimi-K2.5**, **GLM-4.7**, **DeepSeek-V3.2**
+    - Open-source models: **GLM-5.2**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **MiniMax-M3**, **MiniMax-M2.7**
 - [**Agent Plan**](https://www.volcengine.com/activity/agentplan):
     - Doubao models: **Doubao-Seed-2.0** (Code/pro/lite/mini)
-    - Open-source models: **GLM-5.2**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **GLM-5.1**, **MiniMax-M3**, **MiniMax-M2.7**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **DeepSeek-V3.2**
+    - Open-source models: **GLM-5.2**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **MiniMax-M3**, **MiniMax-M2.7**, **Kimi-K2.7-Code**, **Kimi-K2.6**
 - **Doubao series**: **Doubao-Seed-2.0** (lite/mini/pro/Code), **Doubao-Seed-1.8**
 - **Collaboration rewards**: **GLM-4.7**, **DeepSeek-V3.2**
 - **PayGo**: **DeepSeek-V4-Flash-260425**, **DeepSeek-V4-Pro-260425**
@@ -90,10 +90,14 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 ### [**Tencent Cloud**](https://cloud.tencent.com/product/hunyuan)
 
 - [**Coding Plan**](https://console.cloud.tencent.com/tokenhub/codingplan)
-    - Hunyuan models: **Tencent HY 2.0 Instruct**, **Tencent HY 2.0 Think**
-    - Open-source models: **GLM-5**, **Kimi-K2.5**, **MiniMax-M2.5**, **DeepSeek-V3.2**
-- [**Token Plan**](https://console.cloud.tencent.com/tokenhub/tokenplan): **HY 3 Preview**, **GLM-5.1**, **GLM-5**, **Kimi-K2.5**, **MiniMax-M2.7**, **MiniMax-M2.5**
-- [**TokenHub**](https://console.cloud.tencent.com/tokenhub/models): **MiniMax-M3**, **GLM-5.2**, **HY 3 Preview**, **GLM-5.1**, **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-5**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **DeepSeek-V3.2**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.7**, **MiniMax-M2.5**
+    - Open-source models: **GLM-5**, **Kimi-K2.5**, **MiniMax-M2.5**
+- [**Token Plan**](https://console.cloud.tencent.com/tokenhub/tokenplan): **HY 3 Preview**, **GLM-5.1**, **GLM-5**, **Kimi-K2.5**, **MiniMax-M2.7**, **MiniMax-M2.5**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**
+- [**TokenHub**](https://console.cloud.tencent.com/tokenhub/models):
+    - **GLM series**: **GLM-5.2**, **GLM-5.1**, **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-5**
+    - **DeepSeek series**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **DeepSeek-V3.2**
+    - **Kimi series**: **Kimi-K2.7-Code**, **Kimi-K2.6**, **Kimi-K2.5**
+    - **MiniMax series**: **MiniMax-M3**, **MiniMax-M2.7**, **MiniMax-M2.5**
+    - **Hunyuan series**: **HY 3 Preview**, **Tencent HY 2.0 Instruct**, **Tencent HY 2.0 Think**
 - **Key configuration**: Tencent Cloud API keys are categorized into [paid model API Key](https://hunyuan.cloud.tencent.com/#/app/apiKeyManage), [Coding Plan API Key](https://console.cloud.tencent.com/tokenhub/codingplan), [Token Plan API Key](https://console.cloud.tencent.com/tokenhub/tokenplan), [DeepSeek API Key](https://console.cloud.tencent.com/lkeap/api), and [TokenHub API Key](https://console.cloud.tencent.com/tokenhub/apikey). Each must be generated from the correct key management page.
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)
@@ -105,16 +109,14 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 
 ### [**Baidu Qianfan**](https://cloud.baidu.com/product-s/qianfan_home)
 
-- **PayGo**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **DeepSeek-V3.2**, **GLM-5**, **GLM-5.1**, **Kimi-K2.5**, **MiniMax-M2.5**, **ERNIE-5.1**, **ERNIE-5.0**
-- [**Coding Plan**](https://cloud.baidu.com/product/codingplan): **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **GLM-5.1**, **DeepSeek-V3.2**, **GLM-5**, **Kimi-K2.5**, **MiniMax-M2.5**
+- **PayGo**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **DeepSeek-V3.2**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **Kimi-K2.6**, **Kimi-K2.5**, **ERNIE-5.1**, **ERNIE-5.0**
+- [**Coding Plan**](https://cloud.baidu.com/product/codingplan): **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **GLM-5.1**, **DeepSeek-V3.2**, **GLM-5**, **Kimi-K2.5**
 - **Key configuration**: Supports separate [Baidu Qianfan API Key](https://console.bce.baidu.com/qianfan/ais/console/apiKey) and [Coding Plan API Key](https://console.bce.baidu.com/qianfan/resource/subscribe).
 
-### [**StepFun**](https://platform.stepfun.com/) - 阶跃星辰
+### [**StepFun**](https://platform.stepfun.com/)
 
-StepFun open-source LLM series with Step Reasoning mode support.
-
-- [**Step Plan**](https://platform.stepfun.com/step-plan): **Step-2.5-Pro**, **Step-2.5-Flash**, **Step-3-Mini**
-- **PayGo**: **Step-3-Mini**, **Step-2.5-Pro**, **Step-2.5-Flash**, **Step-2-Video**
+- [**Step Plan**](https://platform.stepfun.com/step-plan): **Step-3.7-Flash**, **Step-3.5-Flash**, **Step-3.5-Flash-2603**, **Step-Router-V1**
+- **PayGo**: **Step-3.7-Flash**, **Step-3.5-Flash**, **Step-3.5-Flash-2603**
 - **Search**: Integrated `#stepfunWebSearch` MCP web search tool with category filtering.
     - Step Plan subscriptions use MCP; non-subscription users use standard pay-per-request billing.
 
@@ -136,7 +138,7 @@ Ant Group's open-source MoE-architecture LLM family, accessed via Anthropic mode
 
 ### [**Hyper**](https://hyper.charm.land/) - Charm Hyper
 
-- **Preset models**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **Qwen3.7-Max**, **Qwen3.6-Plus**, **Qwen3.6-Max**, **Qwen3.6-Flash**, **GLM-5.1**, **GLM-5**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.7**, **Gemma-4-26B-A4B**, **GPT-OSS-120B**
+- **Preset models**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **Qwen3.7-Max**, **Qwen3.6-Plus**, **Qwen3.6-Max**, **Qwen3.6-Flash**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.7**, **Gemma-4-26B-A4B**, **GPT-OSS-120B**
 
 ### OAuth Coding Assistant Providers
 

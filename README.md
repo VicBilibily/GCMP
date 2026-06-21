@@ -28,9 +28,9 @@
 
 ### [**智谱AI**](https://bigmodel.cn/) - ZhipuAI
 
-- [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-5.2**、**GLM-5.1**、**GLM-5V-Turbo**、**GLM-5-Turbo**、**GLM-4.7**、**GLM-4.6**、**GLM-4.6V**、**GLM-4.5-Air**
+- [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-5.2**、**GLM-5V-Turbo**、**GLM-5-Turbo**、**GLM-4.7**、**GLM-4.6**、**GLM-4.6V**
     - **用量查询**：已支持状态栏显示周期剩余用量，可查看 GLM Coding Plan 用量信息。
-- **按量计费(PayGo)**：**GLM-5.2**、**GLM-5.1**(极速版)、**GLM-5V-Turbo**、**GLM-5-Turbo**、**GLM-5**、**GLM-4.7**、**GLM-4.7-FlashX**、**GLM-4.6**、**GLM-4.6V**、**GLM-4.5-Air**
+- **按量计费(PayGo)**：**GLM-5.2**、**GLM-5.1**(极速版)、**GLM-5V-Turbo**、**GLM-5-Turbo**、**GLM-5**、**GLM-4.7**、**GLM-4.7-FlashX**、**GLM-4.6**、**GLM-4.6V**
 - **免费模型**：**GLM-4.6V-Flash**、**GLM-4.7-Flash**
 - [**国际站点**](https://z.ai/model-api)：已支持国际站(z.ai)切换设置。
 - **搜索功能**：集成 `联网搜索MCP` 及 `Web Search API`，支持 `#zhipuWebSearch` 进行联网搜索。
@@ -44,7 +44,7 @@
     - **图片识别**：集成 Token Plan 图片理解MCP，直接直接粘贴图片或截图进行 Agent 交互。
     - **用量查询**：已支持状态栏显示周期剩余用量，可查看 Token Plan 套餐用量信息。
     - **[国际站点](https://platform.minimax.io/subscribe/token-plan)**：已支持国际站 Token Plan 套餐使用。
-- **按量计费(PayGo)**：**MiniMax-M3**、**MiniMax-M2.7**(极速版)、**MiniMax-M2.5**(极速版)、**MiniMax-M2.1**(极速版)、**MiniMax-M2**
+- **按量计费(PayGo)**：**MiniMax-M3**、**MiniMax-M2.7**(极速版)、**MiniMax-M2.5**(极速版)、**MiniMax-M2.1**、**MiniMax-M2**
 
 ### [**MoonshotAI**](https://platform.kimi.com/)
 
@@ -78,10 +78,10 @@
 
 - [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：
     - 豆包模型：**Doubao-Seed-2.0-Code**、**Doubao-Seed-Code**、**Doubao-Seed-2.0-lite**、**Doubao-Seed-2.0-pro**
-    - 开源模型：**GLM-5.2**、**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**GLM-5.1**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**MiniMax-M3**、**MiniMax-M2.7**、**MiniMax-M2.5**、**Kimi-K2.5**、**GLM-4.7**、**DeepSeek-V3.2**
+    - 开源模型：**GLM-5.2**、**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**MiniMax-M3**、**MiniMax-M2.7**
 - [**Agent Plan 套餐**](https://www.volcengine.com/activity/agentplan)：
     - 豆包模型：**Doubao-Seed-2.0**(Code/pro/lite/mini)
-    - 开源模型：**GLM-5.2**、**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**GLM-5.1**、**MiniMax-M3**、**MiniMax-M2.7**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**DeepSeek-V3.2**
+    - 开源模型：**GLM-5.2**、**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**MiniMax-M3**、**MiniMax-M2.7**
 - **豆包系列**：**Doubao-Seed-2.0**(lite/mini/pro/Code)、**Doubao-Seed-1.8**
 - **协作奖励计划**：**GLM-4.7**、**DeepSeek-V3.2**
 - **按量计费(PayGo)**：**DeepSeek-V4-Flash-260425**、**DeepSeek-V4-Pro-260425**
@@ -90,10 +90,14 @@
 ### [**腾讯云**](https://cloud.tencent.com/product/hunyuan) - Tencent
 
 - [**Coding Plan**](https://console.cloud.tencent.com/tokenhub/codingplan)
-    - 混元模型：**Tencent HY 2.0 Instruct**、**Tencent HY 2.0 Think**
-    - 开源模型：**GLM-5**、**Kimi-K2.5**、**MiniMax-M2.5**、**DeepSeek-V3.2**
-- [**Token Plan**](https://console.cloud.tencent.com/tokenhub/tokenplan)：**HY 3 Preview**、**GLM-5.1**、**GLM-5**、**Kimi-K2.5**、**MiniMax-M2.7**、**MiniMax-M2.5**
-- [**TokenHub**](https://console.cloud.tencent.com/tokenhub/models)：**MiniMax-M3**、**GLM-5.2**、**HY 3 Preview**、**GLM-5.1**、**GLM-5V-Turbo**、**GLM-5-Turbo**、**GLM-5**、**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**DeepSeek-V3.2**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**Kimi-K2.5**、**MiniMax-M2.7**、**MiniMax-M2.5**
+    - 开源模型：**GLM-5**、**Kimi-K2.5**、**MiniMax-M2.5**
+- [**Token Plan**](https://console.cloud.tencent.com/tokenhub/tokenplan)：**HY 3 Preview**、**GLM-5.1**、**GLM-5**、**Kimi-K2.5**、**MiniMax-M2.7**、**MiniMax-M2.5**、**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**
+- [**TokenHub**](https://console.cloud.tencent.com/tokenhub/models)：
+    - **GLM 系列**：**GLM-5.2**、**GLM-5.1**、**GLM-5V-Turbo**、**GLM-5-Turbo**、**GLM-5**
+    - **DeepSeek 系列**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**DeepSeek-V3.2**
+    - **Kimi 系列**：**Kimi-K2.7-Code**、**Kimi-K2.6**、**Kimi-K2.5**
+    - **MiniMax 系列**：**MiniMax-M3**、**MiniMax-M2.7**、**MiniMax-M2.5**
+    - **Hunyuan 系列**：**HY 3 Preview**、**Tencent HY 2.0 Instruct**、**Tencent HY 2.0 Think**
 - **密钥配置**：腾讯云API密钥分为 [腾讯云付费模型 API Key](https://hunyuan.cloud.tencent.com/#/app/apiKeyManage)、[Coding Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/codingplan)、[Token Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan)、[DeepSeek 专用 API Key](https://console.cloud.tencent.com/lkeap/api)、[TokenHub 付费 API Key](https://console.cloud.tencent.com/tokenhub/apikey)，需要进入正确的密钥获取界面生成密钥。
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)
@@ -105,16 +109,14 @@
 
 ### [**百度千帆**](https://cloud.baidu.com/product-s/qianfan_home) - Baidu Qianfan
 
-- **按量计费(PayGo)**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**DeepSeek-V3.2**、**GLM-5**、**GLM-5.1**、**Kimi-K2.5**、**MiniMax-M2.5**、**ERNIE-5.1**、**ERNIE-5.0**
-- [**Coding Plan 编程套餐**](https://cloud.baidu.com/product/codingplan)：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**GLM-5.1**、**DeepSeek-V3.2**、**GLM-5**、**Kimi-K2.5**、**MiniMax-M2.5**
+- **按量计费(PayGo)**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**DeepSeek-V3.2**、**GLM-5.2**、**GLM-5.1**、**GLM-5**、**Kimi-K2.6**、**Kimi-K2.5**、**ERNIE-5.1**、**ERNIE-5.0**
+- [**Coding Plan 编程套餐**](https://cloud.baidu.com/product/codingplan)：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**GLM-5.1**、**DeepSeek-V3.2**、**GLM-5**、**Kimi-K2.5**
 - **密钥配置**：支持设置 [百度千帆 API Key](https://console.bce.baidu.com/qianfan/ais/console/apiKey) 与 [Coding Plan 专用 API Key](https://console.bce.baidu.com/qianfan/resource/subscribe) 分别设置。
 
-### [**阶跃星辰**](https://platform.stepfun.com/) - StepFun
+### [**阶跃星辰**](https://platform.stepfun.com/?invite_code=VMQHFFSU) - StepFun
 
-阶跃星辰开源大模型系列，支持 Step Reasoning 推理模式。
-
-- [**Step Plan 套餐**](https://platform.stepfun.com/step-plan)：**Step-2.5-Pro**、**Step-2.5-Flash**、**Step-3-Mini**
-- **按量计费(PayGo)**：**Step-3-Mini**、**Step-2.5-Pro**、**Step-2.5-Flash**、**Step-2-Video**
+- [**Step Plan 套餐**](https://platform.stepfun.com/step-plan)：**Step-3.7-Flash**、**Step-3.5-Flash**、**Step-3.5-Flash-2603**、**Step-Router-V1**
+- **按量计费(PayGo)**：**Step-3.7-Flash**、**Step-3.5-Flash**、**Step-3.5-Flash-2603**
 - **搜索功能**：集成 `#stepfunWebSearch` MCP 联网搜索工具，支持 category 参数过滤。
     - Step Plan 套餐可使用 MCP 调用，非订阅套餐使用标准按次计费接口。
 
@@ -136,7 +138,7 @@
 
 ### [**Hyper**](https://hyper.charm.land/) - Charm Hyper
 
-- **预置模型**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**Qwen3.7-Max**、**Qwen3.6-Plus**、**Qwen3.6-Max**、**Qwen3.6-Flash**、**GLM-5.1**、**GLM-5**、**Kimi-K2.6**、**Kimi-K2.5**、**MiniMax-M2.7**、**Gemma-4-26B-A4B**、**GPT-OSS-120B**
+- **预置模型**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**Qwen3.7-Max**、**Qwen3.6-Plus**、**Qwen3.6-Max**、**Qwen3.6-Flash**、**GLM-5.2**、**GLM-5.1**、**GLM-5**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**Kimi-K2.5**、**MiniMax-M2.7**、**Gemma-4-26B-A4B**、**GPT-OSS-120B**
 
 ### OAuth 认证编程助手提供商
 

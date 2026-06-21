@@ -27,17 +27,6 @@
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
-            "id": "glm-5.1",
-            "name": "GLM-5.1 (CodingPlan)",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://open.bigmodel.cn/api/anthropic",
-            "tooltip": "GLM-5.1 是智谱最新旗舰模型，代码能力大大增强，长程任务显著提升，能够在单次任务中持续、自主地工作长达 8 小时，完成从规划、执行到迭代优化的完整闭环，交付工程级成果。",
-            "maxInputTokens": 200000,
-            "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
             "id": "glm-5-turbo",
             "name": "GLM-5-Turbo (CodingPlan)",
             "sdkMode": "anthropic",
@@ -54,24 +43,6 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://open.bigmodel.cn/api/anthropic",
             "tooltip": "GLM-4.7 是智谱最新旗舰模型，GLM-4.7 面向 Agentic Coding 场景强化了编码能力、长程任务规划与工具协同，并在多个公开基准的当期榜单中取得开源模型中的领先表现。通用能力提升，回复更简洁自然，写作更具沉浸感。在执行复杂智能体任务，在工具调用时指令遵循更强，Artifacts 与 Agentic Coding 的前端美感和长程任务完成效率进一步提升。",
-            "maxInputTokens": 200000,
-            "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "glm-4.7-flash",
-            "name": "GLM-4.7-Flash",
-            "tooltip": "GLM-4.7-Flash 作为 30B 级 SOTA 模型，提供了一个兼顾性能与效率的新选择。面向 Agentic Coding 场景强化了编码能力、长程任务规划与工具协同，并在多个公开基准的当期榜单中取得同尺寸开源模型中的领先表现。在执行复杂智能体任务，在工具调用时指令遵循更强，Artifacts 与 Agentic Coding 的前端美感和长程任务完成效率进一步提升。",
-            "maxInputTokens": 200000,
-            "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "glm-4.7-flashx",
-            "name": "GLM-4.7-FlashX (PayGo)",
-            "tooltip": "GLM-4.7-Flash 作为 30B 级 SOTA 模型，提供了一个兼顾性能与效率的新选择。面向 Agentic Coding 场景强化了编码能力、长程任务规划与工具协同，并在多个公开基准的当期榜单中取得同尺寸开源模型中的领先表现。在执行复杂智能体任务，在工具调用时指令遵循更强，Artifacts 与 Agentic Coding 的前端美感和长程任务完成效率进一步提升。",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
@@ -98,17 +69,6 @@
             "maxOutputTokens": 16000,
             "thinking": ["disabled", "enabled"],
             "capabilities": { "toolCalling": true, "imageInput": true }
-        },
-        {
-            "id": "glm-4.5-air",
-            "name": "GLM-4.5-Air (CodingPlan)",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://open.bigmodel.cn/api/anthropic",
-            "tooltip": "ZHIPU GLM-4.5-Air - 高性价比模型，轻量级设计，强性能表现",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 96000,
-            "thinking": ["disabled", "enabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-5.2-billing",
@@ -203,18 +163,26 @@
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
-            "id": "glm-4.5-air-billing",
-            "model": "glm-4.5-air",
-            "name": "GLM-4.5-Air (PayGo)",
-            "tooltip": "GLM-4.5-Air - 高性价比模型，轻量级设计，强性能表现",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 96000,
-            "thinking": ["disabled", "enabled"],
+            "id": "glm-4.7-flash",
+            "name": "GLM-4.7-Flash (Free)",
+            "tooltip": "GLM-4.7-Flash 作为 30B 级 SOTA 模型，提供了一个兼顾性能与效率的新选择。面向 Agentic Coding 场景强化了编码能力、长程任务规划与工具协同，并在多个公开基准的当期榜单中取得同尺寸开源模型中的领先表现。在执行复杂智能体任务，在工具调用时指令遵循更强，Artifacts 与 Agentic Coding 的前端美感和长程任务完成效率进一步提升。",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "glm-4.7-flashx",
+            "name": "GLM-4.7-FlashX (PayGo)",
+            "tooltip": "GLM-4.7-Flash 作为 30B 级 SOTA 模型，提供了一个兼顾性能与效率的新选择。面向 Agentic Coding 场景强化了编码能力、长程任务规划与工具协同，并在多个公开基准的当期榜单中取得同尺寸开源模型中的领先表现。在执行复杂智能体任务，在工具调用时指令遵循更强，Artifacts 与 Agentic Coding 的前端美感和长程任务完成效率进一步提升。",
+            "maxInputTokens": 200000,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-4.6v-flash",
-            "name": "GLM-4.6V-Flash",
+            "name": "GLM-4.6V-Flash (Free)",
             "tooltip": "GLM-4.6V-Flash - 全新免费模型，128K上下文，支持深度思考、工具调用和流式输出，具备强大推理能力和稳定代码生成。",
             "maxInputTokens": 128000,
             "maxOutputTokens": 16000,

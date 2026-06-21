@@ -77,18 +77,6 @@
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
-            "id": "ark-code-kimi-k2.5",
-            "name": "Kimi-K2.5 (CodingPlan)",
-            "model": "kimi-k2.5",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。Moonshot AI 最新编程模型，进一步强化前端代码质量与设计表现力前端能力。",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
-        },
-        {
             "id": "ark-code-glm-5.2",
             "name": "GLM-5.2 (CodingPlan)",
             "model": "glm-5.2",
@@ -99,30 +87,6 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "ark-code-glm-5.1",
-            "name": "GLM-5.1 (CodingPlan)",
-            "model": "glm-5.1",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。智谱新一代旗舰模型，代码能力增强，长程任务显著提升，能够在单次任务中持续、自主地工作长达 8 小时。",
-            "maxInputTokens": 200000,
-            "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "ark-code-glm-4.7",
-            "name": "GLM-4.7 (CodingPlan)",
-            "model": "glm-4.7",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。智谱 AI 旗舰代码大模型，可轻松解析超长代码库、处理复杂智能体（Agent）任务，在代码生成、调试、全链路理解场景中表现优异。",
-            "maxInputTokens": 200000,
-            "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -144,17 +108,6 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
             "tooltip": "Coding Plan Code模型。M2.7 能够自行构建复杂 Agent Harness，并基于 Agent Teams、复杂 Skills、Tool 等能力，完成高度复杂的生产力任务。",
-            "maxInputTokens": 204800,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "ark-code-MiniMax-M2.5",
-            "name": "MiniMax-M2.5 (CodingPlan)",
-            "model": "MiniMax-M2.5",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。MiniMax 旗舰级开源大模型，在编程、工具调用和搜索、办公等生产力场景都达到或者刷新了行业的 SOTA。",
             "maxInputTokens": 204800,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
@@ -183,18 +136,6 @@
             "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "ark-code-deepseek-v3.2",
-            "name": "Deepseek-V3.2 (CodingPlan)",
-            "model": "deepseek-v3.2",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。DeepSeek-V3.2，平衡推理能力与输出长度，在通用问答、日常 Agent 任务、轻量级代码开发场景中稳定高效，适配多元AI 需求。",
-            "maxInputTokens": 96000,
-            "maxOutputTokens": 32000,
-            "thinking": ["disabled", "enabled"],
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -261,19 +202,6 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "ark-plan-glm-5.1",
-            "name": "GLM-5.1 (AgentPlan)",
-            "model": "glm-5.1",
-            "provider": "volcengine-agent",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
-            "tooltip": "Agent Plan 模型。智谱新一代旗舰模型，开源版本。默认 thinking，支持关闭深度思考。",
-            "maxInputTokens": 200000,
-            "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -353,19 +281,6 @@
             "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "ark-plan-deepseek-v3.2",
-            "name": "DeepSeek-V3.2 (AgentPlan)",
-            "model": "deepseek-v3.2",
-            "provider": "volcengine-agent",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
-            "tooltip": "Agent Plan 模型。平衡推理能力与输出长度，在通用问答、日常 Agent 任务、轻量级代码开发场景中稳定高效，适配多元AI 需求。默认 non-thinking，支持开启深度思考。",
-            "maxInputTokens": 96000,
-            "maxOutputTokens": 32000,
-            "thinking": ["disabled", "enabled"],
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {

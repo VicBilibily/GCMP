@@ -6,30 +6,6 @@
     "tokenKeyTemplate": "sk-tp-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
-            "id": "hunyuan-2.0-instruct-coding-plan",
-            "name": "Tencent HY 2.0 Instruct (CodingPlan)",
-            "tooltip": "腾讯云 Coding Plan 专属接入点中的 Tencent HY 2.0 Instruct。",
-            "provider": "tencent-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://api.lkeap.cloud.tencent.com/coding/anthropic",
-            "model": "hunyuan-2.0-instruct",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 16000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
-            "id": "hunyuan-2.0-thinking-coding-plan",
-            "name": "Tencent HY 2.0 Think (CodingPlan)",
-            "tooltip": "腾讯云 Coding Plan 专属接入点中的 Tencent HY 2.0 Think。",
-            "provider": "tencent-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://api.lkeap.cloud.tencent.com/coding/anthropic",
-            "model": "hunyuan-2.0-thinking",
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
-        },
-        {
             "id": "glm-5-coding-plan",
             "name": "GLM-5 (CodingPlan)",
             "tooltip": "腾讯云 Coding Plan 专属接入点中的 GLM-5。",
@@ -69,7 +45,7 @@
         {
             "id": "hy3-preview-token-plan",
             "name": "HY 3 Preview (TokenPlan)",
-            "tooltip": "腾讯云 Token Plan 按量付费中的 Hy3 preview。",
+            "tooltip": "腾讯云 Token Plan 专属接入点中的 Hy3 preview。",
             "provider": "tencent-token",
             "sdkMode": "anthropic",
             "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
@@ -77,6 +53,34 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "deepseek-v4-flash-202605-token-plan",
+            "name": "DeepSeek-V4-Flash (TokenPlan)",
+            "tooltip": "腾讯云 Token Plan 专属接入点中的 DeepSeek-V4-Flash 原厂直供。",
+            "provider": "tencent-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
+            "model": "deepseek-v4-flash-202605",
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 384000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "deepseek-v4-pro-2026065-token-plan",
+            "name": "DeepSeek-V4-Pro (TokenPlan)",
+            "tooltip": "腾讯云 Token Plan 专属接入点中的 DeepSeek-V4-Pro 原厂直供。",
+            "provider": "tencent-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
+            "model": "deepseek-v4-pro-202606",
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 384000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
