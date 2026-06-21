@@ -13,7 +13,11 @@ import { createElement } from '../utils';
 // 导入组件
 import { createSidebar, updateDateList } from './components/dateList';
 import { createMainContent, updateMainContent } from './components/mainContent';
-import { createRequestRecordsSection, createRequestRecordsTable, resetRequestRecordsState } from './components/requestRecords';
+import {
+    createRequestRecordsSection,
+    createRequestRecordsTable,
+    resetRequestRecordsState
+} from './components/requestRecords';
 
 // ============= 全局状态管理 =============
 
@@ -139,6 +143,7 @@ interface LiveMetricsState {
     lastOutputChangeAt: number; // 最后一次 provider 可计数字符增加的时间
     providerName?: string;
     modelName?: string;
+    hasFirstChunk?: boolean; // 首令延迟/流开始时间已固定（retry 幂等）
 }
 
 // 支持多个并发请求的实时指标状态
@@ -191,7 +196,8 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
                 charsPerSecond: 0,
                 lastOutputChangeAt: 0,
                 providerName: event.providerName,
-                modelName: event.modelName
+                modelName: event.modelName,
+                hasFirstChunk: false
             });
             startRenderClock();
             break;
@@ -208,8 +214,17 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
                 modelName: event.modelName
             };
             chunkState.requestStartTime = event.requestStartTime;
-            chunkState.streamStartTime = event.streamStartTime;
-            chunkState.firstChunkLatencyMs = event.firstChunkLatencyMs ?? 0;
+            // 幂等：retry 会创建新 StreamReporter 并再次触发 firstChunk，
+            // 只在首次设置 streamStartTime / firstChunkLatencyMs，避免后续重试覆盖真实值
+            if (!chunkState.hasFirstChunk) {
+                chunkState.streamStartTime = event.streamStartTime;
+                chunkState.firstChunkLatencyMs =
+                    event.firstChunkLatencyMs ??
+                    (event.streamStartTime !== undefined ?
+                        Math.max(0, event.streamStartTime - event.requestStartTime)
+                    :   0);
+                chunkState.hasFirstChunk = true;
+            }
             chunkState.providerName = chunkState.providerName || event.providerName;
             chunkState.modelName = chunkState.modelName || event.modelName;
             liveMetricsMap.set(requestId, chunkState);
@@ -222,13 +237,13 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
             if (!state) {
                 state = {
                     requestStartTime: event.requestStartTime,
-                    streamStartTime: event.streamStartTime,
-                    firstChunkLatencyMs: event.firstChunkLatencyMs ?? 0,
                     outputChars: 0,
                     charsPerSecond: 0,
                     lastOutputChangeAt: 0,
                     providerName: event.providerName,
-                    modelName: event.modelName
+                    modelName: event.modelName,
+                    firstChunkLatencyMs: 0,
+                    hasFirstChunk: false
                 };
                 liveMetricsMap.set(requestId, state);
                 startRenderClock();
@@ -244,11 +259,13 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
             // 补齐 provider/model（requestStarted 可能未被 WebView 接收到）
             state.providerName = state.providerName || event.providerName;
             state.modelName = state.modelName || event.modelName;
-            if (event.streamStartTime !== undefined) {
+            // 首令延迟/流开始时间：仅在尚未固定时从 streamingUpdate 补充
+            // （正常流程由 firstChunk 固定，streamingUpdate 仅作首次丢失的 fallback）
+            if (!state.hasFirstChunk && event.streamStartTime !== undefined) {
                 state.streamStartTime = event.streamStartTime;
-            }
-            if (event.firstChunkLatencyMs !== undefined) {
-                state.firstChunkLatencyMs = event.firstChunkLatencyMs;
+                state.firstChunkLatencyMs =
+                    event.firstChunkLatencyMs ?? Math.max(0, event.streamStartTime - event.requestStartTime);
+                state.hasFirstChunk = true;
             }
             break;
         }
@@ -278,8 +295,9 @@ function removeLivePlaceholderRow(requestId: string): void {
     if (!tbody) {
         return;
     }
-    const row = Array.from(tbody.querySelectorAll('tr'))
-        .find(r => r.getAttribute('data-request-id') === requestId) as HTMLTableRowElement | undefined;
+    const row = Array.from(tbody.querySelectorAll('tr')).find(r => r.getAttribute('data-request-id') === requestId) as
+        | HTMLTableRowElement
+        | undefined;
     if (row?.getAttribute('data-live-placeholder') === 'true') {
         row.remove();
         // 占位行删除后若表格为空，恢复"暂无请求记录"空行
@@ -338,8 +356,9 @@ function updateRequestRecordsWithLiveMetrics(): void {
     const hasSessionFilter = !!state.selectedSessionId;
 
     liveMetricsMap.forEach((metricState, requestId) => {
-        let targetRow = Array.from(tbody!.querySelectorAll('tr'))
-            .find(row => row.getAttribute('data-request-id') === requestId) as HTMLTableRowElement | undefined;
+        let targetRow = Array.from(tbody!.querySelectorAll('tr')).find(
+            row => row.getAttribute('data-request-id') === requestId
+        ) as HTMLTableRowElement | undefined;
 
         // 占位行：liveMetrics 已有数据但表格行尚未创建（updateDateDetails 尚未到达）
         if (!targetRow) {
@@ -419,14 +438,11 @@ function updateRequestRecordsWithLiveMetrics(): void {
 
         // 实时计算首令延迟：首流事件前持续增长，首流事件后固定
         const hasStreamStarted = metricState.streamStartTime !== undefined;
-        const latencyMs = hasStreamStarted
-            ? metricState.firstChunkLatencyMs
-            : Math.max(0, now - metricState.requestStartTime);
+        const latencyMs =
+            hasStreamStarted ? metricState.firstChunkLatencyMs : Math.max(0, now - metricState.requestStartTime);
 
         // 实时计算输出耗时：首流事件后开始计算
-        const durationMs = hasStreamStarted
-            ? Math.max(0, now - metricState.streamStartTime!)
-            : 0;
+        const durationMs = hasStreamStarted ? Math.max(0, now - metricState.streamStartTime!) : 0;
 
         // 输出速度：使用 StreamReporter 缓存的值，暂停期间不会衰减
         const charsPerSecond = metricState.charsPerSecond ?? 0;
@@ -500,7 +516,7 @@ function handleVSCodeMessage(event: MessageEvent): void {
                     sessionGroups.some(group => group.sessionId === state.selectedSessionId)
                 ) ?
                     state.selectedSessionId
-                    : null;
+                :   null;
 
             if (dateChanged) {
                 resetRequestRecordsState();

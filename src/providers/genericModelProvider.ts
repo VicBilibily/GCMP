@@ -601,7 +601,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         traceId: otelTraceContext.traceId,
                         spanId: otelTraceContext.spanId
                     }
-                    : undefined
+                :   undefined
         };
     }
 

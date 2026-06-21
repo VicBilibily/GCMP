@@ -301,12 +301,15 @@ export class AnthropicHandler {
                 requestStartTime,
                 onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
             });
+            // 局部收窄：try 块内用 const 引用确保 TypeScript 知道非 undefined，
+            // 外层 let reporter 供 finally 兜底使用
+            const streamReporter = reporter;
 
             const stream = await client.messages.create(createParams, anthropicStreamOptions);
 
             // 使用完整的流处理函数
-            const result = await this.handleAnthropicStream(stream, reporter, token);
-            reporter.reportUsage(result?.usage);
+            const result = await this.handleAnthropicStream(stream, streamReporter, token);
+            streamReporter.reportUsage(result?.usage);
 
             Logger.info(`[${model.name}] Anthropic request completed`, result?.usage);
 
@@ -480,7 +483,9 @@ export class AnthropicHandler {
                             try {
                                 const parsedJson = JSON.parse(pendingToolCall.jsonInput);
                                 // JSON 解析成功，立即报告工具调用（countArgs: false，已通过 reportToolArgDelta 统计）
-                                reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson, { countArgs: false });
+                                reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson, {
+                                    countArgs: false
+                                });
                                 Logger.trace(
                                     `[${reporter.getModelName()}] Tool call completed: ${pendingToolCall.name}`
                                 );
@@ -491,8 +496,7 @@ export class AnthropicHandler {
                         } else if (chunk.delta.type === 'input_json_delta' && pendingServerToolCall) {
                             const partialJson = chunk.delta.partial_json ?? '';
                             const partialLen = partialJson.length;
-                            pendingServerToolCall.jsonInput =
-                                (pendingServerToolCall.jsonInput || '') + partialJson;
+                            pendingServerToolCall.jsonInput = (pendingServerToolCall.jsonInput || '') + partialJson;
                             // tool argument delta 是 provider 实际回传的一部分
                             reporter.reportToolArgDelta(partialLen);
                         } else if (chunk.delta.type === 'thinking_delta') {
@@ -537,7 +541,9 @@ export class AnthropicHandler {
                                     parsedJson = {};
                                 }
 
-                                reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson, { countArgs: false });
+                                reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson, {
+                                    countArgs: false
+                                });
                             } catch (e) {
                                 Logger.error(`Fallback tool call handling failed (${pendingToolCall.name}):`, e);
                             }

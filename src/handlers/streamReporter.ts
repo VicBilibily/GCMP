@@ -80,8 +80,8 @@ export class StreamReporter {
     private firstChunkEmitted = false;
     private streamEnded = false;
     private outputChars = 0;
-    private lastCharsPerSecond = 0;  // 仅在收到实际 provider 输出字符时更新
-    private lastOutputAt = 0;        // 最后一次收到 provider 输出字符的时间（内部使用，不暴露给 WebView）
+    private lastCharsPerSecond = 0; // 仅在收到实际 provider 输出字符时更新
+    private lastOutputAt = 0; // 最后一次收到 provider 输出字符的时间（内部使用，不暴露给 WebView）
     private lastLiveUpdateAt = 0;
     private firstStreamTime = 0; // 首个流事件到达时间（与 handler 的 streamStartTime 对齐，共用时间戳）
     private fixedFirstChunkLatencyMs = 0; // 固定的首令延迟（首流事件后不再变化）
@@ -126,6 +126,13 @@ export class StreamReporter {
     /**
      * 标记流已开始（由 handler 在设置 streamStartTime 的同一时刻调用，共用同一个时间戳）
      * @param streamStartTime handler 设置的 streamStartTime，必须与持久化记录一致
+     *
+     * 各 handler 的首流事件时机不同：
+     * - Anthropic: message_start
+     * - OpenAI Chat SDK: 首个 chunk 事件
+     * - OpenAI Responses: response.created
+     * - Gemini/SSE: 首个有效 JSON event
+     * 本方法记录的是"首个流事件"，不等同于"首个可见文字"。
      */
     markStreamStarted(streamStartTime: number): void {
         if (this.firstChunkEmitted || !this.canEmitMetrics()) {
@@ -162,14 +169,11 @@ export class StreamReporter {
         }
 
         // 首令延迟：已收到首流事件则使用固定值，否则从请求开始持续计时
-        const firstChunkLatencyMs = this.firstChunkEmitted
-            ? this.fixedFirstChunkLatencyMs
-            : Math.max(0, now - this.requestStartTime!);
+        const firstChunkLatencyMs =
+            this.firstChunkEmitted ? this.fixedFirstChunkLatencyMs : Math.max(0, now - this.requestStartTime!);
 
         // 输出耗时：从 firstStreamTime 开始计算（仅用于耗时显示，不参与速度计算）
-        const elapsedMs = this.firstStreamTime > 0
-            ? Math.max(0, now - this.firstStreamTime)
-            : 0;
+        const elapsedMs = this.firstStreamTime > 0 ? Math.max(0, now - this.firstStreamTime) : 0;
 
         // 输出速度：使用 updateOutputSpeed 中缓存的值，暂停期间不会衰减
         const charsPerSecond = this.lastCharsPerSecond;
@@ -191,7 +195,9 @@ export class StreamReporter {
 
     /**
      * 结束实时指标上报（发送最后一帧 streamingUpdate，不发送 streamEnd）
-     * streamEnd 由 GenericModelProvider 在整个重试流程结束后发送
+     * streamEnd 由 GenericModelProvider 在整个重试流程结束后发送。
+     * 注意：本方法由 flushAll()（正常完成）和 handler finally（异常/取消）双路径调用，
+     * 通过 streamEnded 标志保证幂等——只有第一次调用生效。
      */
     finishMetrics(): void {
         if (this.streamEnded) {
@@ -329,18 +335,16 @@ export class StreamReporter {
      * 速度仅在收到实际输出字符时更新，暂停期间保持冻结
      */
     private updateOutputSpeed(addedChars: number): void {
-        if (addedChars <= 0) {
+        if (!Number.isFinite(addedChars) || addedChars <= 0) {
             return;
         }
 
         this.outputChars += addedChars;
         this.lastOutputAt = Date.now();
 
-        const elapsedMs = this.firstStreamTime > 0
-            ? Math.max(1, this.lastOutputAt - this.firstStreamTime) : 0;
+        const elapsedMs = this.firstStreamTime > 0 ? Math.max(1, this.lastOutputAt - this.firstStreamTime) : 0;
 
-        this.lastCharsPerSecond = elapsedMs > 0 && this.outputChars > 0
-            ? (this.outputChars / elapsedMs) * 1000 : 0;
+        this.lastCharsPerSecond = elapsedMs > 0 && this.outputChars > 0 ? (this.outputChars / elapsedMs) * 1000 : 0;
 
         this.emitStreamingUpdate();
     }
