@@ -452,6 +452,7 @@ function updateRequestRecordsWithLiveMetrics(): void {
         if (outputCell) {
             const ttftSpan = outputCell.querySelector('.output-ttft') as HTMLElement;
             if (ttftSpan) {
+                ttftSpan.title = '首流延迟：从 provider 开始处理请求到首个流事件的近似耗时，不一定是首个可见文字';
                 ttftSpan.textContent = latencyMs >= 1000 ?
                     `${(latencyMs / 1000).toFixed(1)}s` :
                     `${Math.round(latencyMs)}ms`;

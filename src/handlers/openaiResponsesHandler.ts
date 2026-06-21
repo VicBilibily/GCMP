@@ -779,23 +779,31 @@ export class OpenAIResponsesHandler {
                         }
                     })
                     .on('response.function_call_arguments.delta', event => {
-                        // 累计工具参数增量到 live chars/s
+                        // Tool arguments delta only counts toward live chars/s when it can be mapped
+                        // to a stable output item (item_id). If a compatibility gateway omits item_id
+                        // and no stable index can be resolved, skip delta counting and let the
+                        // done/fallback path count the complete arguments once.
+                        // Prefer under-counting to double-counting.
                         if (token.isCancellationRequested) {
                             return;
                         }
+
                         const itemId = event.item_id;
                         const idx = itemId ? getToolCallIndex(itemId) : undefined;
-                        // 某些兼容网关可能在 output_item.added 已带完整 args 后又补发 delta，
-                        // 此时该 call 已 completed，跳过避免重复计数
-                        if (idx !== undefined && completedToolCallIndices.has(idx)) {
+                        if (idx === undefined) {
                             return;
                         }
+
+                        // 某些兼容网关可能在 output_item.added 已带完整 args 后又补发 delta，
+                        // 此时该 call 已 completed，跳过避免重复计数
+                        if (completedToolCallIndices.has(idx)) {
+                            return;
+                        }
+
                         const delta = typeof event.delta === 'string' ? event.delta : '';
                         if (delta.length > 0) {
                             streamReporter.reportToolArgDelta(delta.length);
-                            if (idx !== undefined) {
-                                deltaCountedToolCallIndices.add(idx);
-                            }
+                            deltaCountedToolCallIndices.add(idx);
                         }
                     })
                     .on('response.function_call_arguments.done', event => {

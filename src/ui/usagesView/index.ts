@@ -251,15 +251,11 @@ export class TokenUsagesView {
 
     /**
      * 处理实时流式指标事件，发送给 WebView 更新显示
+     * 不在 Extension 层过滤日期——WebView 端已有 isViewingToday() 控制是否渲染，
+     * 这样用户从历史日期切回今天时不会丢失正在进行的 live events。
      */
     private handleLiveMetricEvent(event: LiveStreamMetricEvent): void {
         if (!this.panel) {
-            return;
-        }
-
-        // 只在查看今日数据时发送实时更新
-        const today = getTodayDateString();
-        if (this.currentSelectedDate !== today) {
             return;
         }
 

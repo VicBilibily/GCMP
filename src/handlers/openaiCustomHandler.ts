@@ -158,7 +158,8 @@ export class OpenAICustomHandler {
         const abortController = new AbortController();
         const cancellationListener = token.onCancellationRequested(() => abortController.abort());
 
-        // 提前创建 reporter，使首令延迟从请求发出后就开始滚动
+        // 提前创建 reporter，使实时 TTFT 从 provider 请求处理起点开始滚动；
+        // 该起点不等同于严格的网络请求发出时刻。
         let reporter: StreamReporter | undefined;
 
         try {
