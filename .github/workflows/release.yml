@@ -45,10 +45,39 @@ jobs:
                   echo "filename=${PACKAGE_NAME}-${PACKAGE_VERSION}.vsix" >> $GITHUB_OUTPUT
 
             - name: Publish to VS Code Marketplace
+              id: publish
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
               run: |
-                  npx vsce publish --allow-proposed-apis chatProvider --pat $VSCE_PAT
+                  set +e
+                  MAX_ATTEMPTS=3
+                  ATTEMPT=0
+                  SKIPPED="false"
+                  while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+                    ATTEMPT=$((ATTEMPT + 1))
+                    echo "::group::Publish attempt $ATTEMPT/$MAX_ATTEMPTS"
+                    OUTPUT=$(npx vsce publish --allow-proposed-apis chatProvider --pat $VSCE_PAT 2>&1)
+                    EXIT_CODE=$?
+                    echo "$OUTPUT"
+                    echo "::endgroup::"
+                    if [ $EXIT_CODE -eq 0 ]; then
+                      break
+                    fi
+                    if echo "$OUTPUT" | grep -qiE "already exists"; then
+                      echo "::warning::Marketplace version already exists, skipping publish but continuing workflow"
+                      SKIPPED="true"
+                      break
+                    fi
+                    if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+                      echo "::warning::Publish failed (exit $EXIT_CODE), retrying ($ATTEMPT/$MAX_ATTEMPTS)..."
+                      sleep 15
+                    else
+                      echo "::error::Publish failed after $MAX_ATTEMPTS attempts"
+                      echo "$OUTPUT" >&2
+                      exit $EXIT_CODE
+                    fi
+                  done
+                  echo "skipped=$SKIPPED" >> $GITHUB_OUTPUT
 
             - name: Extract changelog for release
               run: |
@@ -64,7 +93,8 @@ jobs:
                       --notes-file /tmp/release_body.md
 
             - name: Upload VSIX as release asset
-              uses: softprops/action-gh-release@v2
+              uses: softprops/action-gh-release@v3
               with:
+                  tag_name: ${{ github.event.release.tag_name }}
                   files: ${{ steps.package.outputs.filename }}
                   token: ${{ secrets.GITHUB_TOKEN }}
