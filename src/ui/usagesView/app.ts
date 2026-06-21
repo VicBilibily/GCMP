@@ -222,7 +222,7 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
                     event.firstChunkLatencyMs ??
                     (event.streamStartTime !== undefined ?
                         Math.max(0, event.streamStartTime - event.requestStartTime)
-                    :   0);
+                        : 0);
                 chunkState.hasFirstChunk = true;
             }
             chunkState.providerName = chunkState.providerName || event.providerName;
@@ -304,7 +304,7 @@ function removeLivePlaceholderRow(requestId: string): void {
         if (!tbody.querySelector('tr')) {
             const emptyRow = document.createElement('tr');
             const emptyCell = document.createElement('td');
-            emptyCell.colSpan = 10;
+            emptyCell.colSpan = 6;
             emptyCell.textContent = t('No request records yet', '暂无请求记录');
             emptyCell.style.textAlign = 'center';
             emptyRow.appendChild(emptyCell);
@@ -376,45 +376,39 @@ function updateRequestRecordsWithLiveMetrics(): void {
             timeCell.textContent = new Date(metricState.requestStartTime).toLocaleTimeString('zh-CN');
             targetRow.appendChild(timeCell);
 
-            // 提供商
-            const providerCell = document.createElement('td');
-            providerCell.textContent = metricState.providerName || '-';
-            targetRow.appendChild(providerCell);
-
-            // 模型
-            const modelCell = document.createElement('td');
-            modelCell.textContent = metricState.modelName || '-';
-            targetRow.appendChild(modelCell);
+            // 提供商 + 模型（双行合并）
+            const providerModelCell = document.createElement('td');
+            const provName = metricState.providerName || '-';
+            const modName = metricState.modelName || '-';
+            providerModelCell.title = `${provName} · ${modName}`;
+            const providerDiv = document.createElement('div');
+            providerDiv.className = 'prov-model-provider';
+            providerDiv.textContent = provName;
+            const modelDiv = document.createElement('div');
+            modelDiv.className = 'prov-model-model';
+            modelDiv.textContent = modName;
+            providerModelCell.append(providerDiv, modelDiv);
+            targetRow.appendChild(providerModelCell);
 
             // 输入令牌
             const inputCell = document.createElement('td');
+            inputCell.className = 'records-input-merged';
             inputCell.textContent = '-';
             targetRow.appendChild(inputCell);
 
-            // 缓存命中
-            const cacheCell = document.createElement('td');
-            cacheCell.textContent = '-';
-            targetRow.appendChild(cacheCell);
-
-            // 输出令牌
-            const outputCell = document.createElement('td');
-            outputCell.textContent = '-';
-            targetRow.appendChild(outputCell);
+            // 输出列（合并：TTFT / tokens / TPOT / speed）
+            const outputMergedCell = document.createElement('td');
+            outputMergedCell.className = 'records-output-merged';
+            outputMergedCell.setAttribute('data-metric', 'output');
+            outputMergedCell.innerHTML =
+                `<div class="output-row"><span class="output-ttft">-</span><span class="output-tokens">-</span></div>` +
+                `<div class="output-detail"><span class="output-tpot">-</span><span class="output-speed">-</span></div>`;
+            targetRow.appendChild(outputMergedCell);
 
             // 消耗令牌
             const totalCell = document.createElement('td');
             totalCell.textContent = '-';
             targetRow.appendChild(totalCell);
-
-            // 首令延迟 + 输出耗时
-            const timingCell = document.createElement('td');
-            timingCell.setAttribute('data-metric', 'timing');
-            targetRow.appendChild(timingCell);
-
-            // 输出速度
-            const speedCell = document.createElement('td');
-            speedCell.setAttribute('data-metric', 'speed');
-            targetRow.appendChild(speedCell);
 
             // 状态
             const statusCell = document.createElement('td');
@@ -450,6 +444,12 @@ function updateRequestRecordsWithLiveMetrics(): void {
         // 更新首令延迟 + 输出耗时 + 速度
         const outputCell = targetRow.querySelector('td.records-output-merged[data-metric="output"]') as HTMLElement;
         if (outputCell) {
+            // 防御性兜底：兼容旧 DOM 或未来变更，确保 span 结构存在
+            if (!outputCell.querySelector('.output-ttft')) {
+                outputCell.innerHTML =
+                    `<div class="output-row"><span class="output-ttft">-</span><span class="output-tokens">-</span></div>` +
+                    `<div class="output-detail"><span class="output-tpot">-</span><span class="output-speed">-</span></div>`;
+            }
             const ttftSpan = outputCell.querySelector('.output-ttft') as HTMLElement;
             if (ttftSpan) {
                 ttftSpan.title = '首流延迟：从 provider 开始处理请求到首个流事件的近似耗时，不一定是首个可见文字';
@@ -517,7 +517,7 @@ function handleVSCodeMessage(event: MessageEvent): void {
                     sessionGroups.some(group => group.sessionId === state.selectedSessionId)
                 ) ?
                     state.selectedSessionId
-                :   null;
+                    : null;
 
             if (dateChanged) {
                 resetRequestRecordsState();

@@ -395,7 +395,11 @@ export function createRequestRecordsTable(
         const provName = getProviderDisplayName(record.providerKey, record.providerName) || '-';
         const modName = record.modelName || '-';
         providerModel.title = `${provName} · ${modName}`;
-        providerModel.innerHTML = `<div class="prov-model-provider">${provName}</div><div class="prov-model-model">${modName}</div>`;
+        const providerDiv = createElement('div', 'prov-model-provider');
+        providerDiv.textContent = provName;
+        const modelDiv = createElement('div', 'prov-model-model');
+        modelDiv.textContent = modName;
+        providerModel.append(providerDiv, modelDiv);
 
         const input = createElement('td', 'records-input-merged');
         const isCompleted = record.status === 'completed' && record.rawUsage && record.totalTokens > 0;
@@ -437,26 +441,24 @@ export function createRequestRecordsTable(
         const tpot =
             record.streamDuration !== undefined && record.streamDuration > 0 ? record.streamDuration : undefined;
 
-        if (ttft !== undefined || outputVal > 0) {
-            const ttftText =
-                ttft !== undefined ?
-                    ttft >= 1000 ?
-                        `${(ttft / 1000).toFixed(1)}s`
-                    :   `${Math.round(ttft)}ms`
-                :   '-';
-            const tpotText =
-                tpot !== undefined ?
-                    tpot >= 1000 ?
-                        `${(tpot / 1000).toFixed(1)}s`
-                    :   `${Math.round(tpot)}ms`
-                :   '-';
-            const speedText = speedVal !== undefined ? `${speedVal.toFixed(1)} t/s` : '-';
-            output.innerHTML =
-                `<div class="output-row"><span class="output-ttft" title="TTFT: ${ttft !== undefined ? ttft.toLocaleString('en-US') + 'ms' : '-'}">${ttftText}</span><span class="output-tokens" title="Output tokens: ${outputVal.toLocaleString('en-US')}">${formatTokens(outputVal)}</span></div>` +
-                `<div class="output-detail"><span class="output-tpot" title="TPOT: ${tpot !== undefined ? tpot.toLocaleString('en-US') + 'ms' : '-'}">${tpotText}</span><span class="output-speed" title="Speed: ${speedText}">${speedText}</span></div>`;
-        } else {
-            output.textContent = outputVal > 0 ? formatTokens(outputVal) : '-';
-        }
+        const ttftText =
+            ttft !== undefined ?
+                ttft >= 1000 ?
+                    `${(ttft / 1000).toFixed(1)}s`
+                :   `${Math.round(ttft)}ms`
+            :   '-';
+        const tpotText =
+            tpot !== undefined ?
+                tpot >= 1000 ?
+                    `${(tpot / 1000).toFixed(1)}s`
+                :   `${Math.round(tpot)}ms`
+            :   '-';
+        const speedText = speedVal !== undefined ? `${speedVal.toFixed(1)} t/s` : '-';
+        const outputTokensText = outputVal > 0 ? formatTokens(outputVal) : '-';
+        const outputTokensTitle = outputVal > 0 ? outputVal.toLocaleString('en-US') : '-';
+        output.innerHTML =
+            `<div class="output-row"><span class="output-ttft" title="TTFT: ${ttft !== undefined ? ttft.toLocaleString('en-US') + 'ms' : '-'}">${ttftText}</span><span class="output-tokens" title="Output tokens: ${outputTokensTitle}">${outputTokensText}</span></div>` +
+            `<div class="output-detail"><span class="output-tpot" title="TPOT: ${tpot !== undefined ? tpot.toLocaleString('en-US') + 'ms' : '-'}">${tpotText}</span><span class="output-speed" title="Speed: ${speedText}">${speedText}</span></div>`;
         if (outputVal > 0) {
             output.title = outputVal.toLocaleString('en-US');
         }
