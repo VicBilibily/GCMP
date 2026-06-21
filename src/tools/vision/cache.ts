@@ -2,7 +2,7 @@
  *  图片缓存服务
  *  将用户粘贴的图片（LanguageModelDataPart）存入工作区临时目录，
  *  供 gcmpVisionTool 视觉工具集读取并调用 Vision API 分析。
- *  存储路径：{context.storageUri}/vision-cache/{sessionId}/{fileSHA}.{ext}
+ *  存储路径：{context.storageUri}/vision-cache/{sessionId前7位}-{fileSHA}.{ext}
  *
  *  为保证工具侧拿到可直接读取的本地路径，attachment 中直接写入完整缓存绝对路径。
  *--------------------------------------------------------------------------------------------*/
@@ -25,9 +25,11 @@ export class VisionCache {
 
     /**
      * 获取缓存文件绝对路径
+     * 文件名格式：{sessionId前7位}-{hash}.{ext}，不再按 sessionId 创建子文件夹
      */
     getCachePath(sessionId: string, hash: string, ext: string): string {
-        return path.join(this.storageUri.fsPath, 'vision-cache', sessionId, `${hash}.${ext}`);
+        const sessionPrefix = sessionId.slice(0, 7);
+        return path.join(this.storageUri.fsPath, 'vision-cache', `${sessionPrefix}-${hash}.${ext}`);
     }
 
     /**

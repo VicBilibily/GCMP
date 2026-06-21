@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.2] - 2026-06-21
+
+### 优化
+
+- **视觉工具提示词精简**：精简视觉工具指引文案，明确允许使用 GCMP 视觉工具或其他合适的外部工具读取图片，同时保留禁止 VS Code 内置文件工具直接读取图片文件的约束
+
+---
+
+### Improved
+
+- **Vision Tool Prompt Streamlining**: Streamlined vision tool guide copy to explicitly allow reading images with GCMP vision tools or other suitable external tools, while keeping the restriction against using VS Code built-in file tools to inspect image files directly
+
 ## [0.25.1] - 2026-06-21
 
 ### 修复
@@ -13,6 +25,8 @@
 ### Fixed
 
 - **Vision Tool Path Resolution**: Vision analysis tools now receive the full absolute cache path directly; removed short path (`sessionId/hash.ext`) passing and `VisionCache.resolveShortPath()` parsing to prevent some models from path splicing/guessing and failing to read images
+
+## [0.25.0] - 2026-06-21
 
 ### 新增
 

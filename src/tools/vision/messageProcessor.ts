@@ -26,17 +26,19 @@ const VISION_GUIDE_MARKER = '<!-- GCMP-Vision-Guide -->';
  */
 const VISION_TOOL_GUIDE = [
     VISION_GUIDE_MARKER,
-    'When you see <attachment filePath="..."> tags in this conversation, the user has attached images.',
-    'Pass the filePath verbatim as the filePath argument to the appropriate vision tool (use the # reference name). Do not modify, shorten, or prepend any directory:',
-    '- UI screenshot / mockup → #gcmpUiToArtifact',
-    '- error screenshot / stack trace → #gcmpDiagnoseErrorScreenshot',
-    '- code or text screenshot → #gcmpExtractTextFromScreenshot',
-    '- architecture / technical diagram → #gcmpUnderstandTechnicalDiagram',
-    '- chart / data visualization → #gcmpAnalyzeDataVisualization',
-    '- two images to compare → #gcmpUiDiffCheck',
-    '- general image → #gcmpAnalyzeImage',
+    'When you see <attachment filePath="..."> tags, read the image using a GCMP vision tool or another suitable external tool.',
+    'Pass the filePath exactly as given.',
+    // '',
+    // 'Recommended GCMP vision tools:',
+    // '- UI/mockup → #gcmpUiToArtifact',
+    // '- error/stack → #gcmpDiagnoseErrorScreenshot',
+    // '- code/text → #gcmpExtractTextFromScreenshot',
+    // '- diagram → #gcmpUnderstandTechnicalDiagram',
+    // '- chart → #gcmpAnalyzeDataVisualization',
+    // '- compare → #gcmpUiDiffCheck',
+    // '- general → #gcmpAnalyzeImage',
     '',
-    'Do NOT use any VS Code built-in tools (such as readFile, read_file, file search, or image viewer tools) to inspect image files directly.'
+    'Do NOT use VS Code built-in tools (readFile, viewImage, search, terminal, etc.) to inspect image files directly.'
 ].join('\n');
 
 /**
