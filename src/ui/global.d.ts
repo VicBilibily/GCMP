@@ -13,3 +13,13 @@ declare module '*.less' {
     const content: string;
     export default content;
 }
+
+declare module '*.less?raw' {
+    const content: string;
+    export default content;
+}
+
+declare module '*.css?raw' {
+    const content: string;
+    export default content;
+}
