@@ -224,6 +224,11 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
                         Math.max(0, event.streamStartTime - event.requestStartTime)
                         : 0);
                 chunkState.hasFirstChunk = true;
+            } else {
+                // retry/new reporter: keep original firstChunkLatencyMs, reset per-attempt output state
+                chunkState.outputChars = 0;
+                chunkState.charsPerSecond = 0;
+                chunkState.lastOutputChangeAt = 0;
             }
             chunkState.providerName = chunkState.providerName || event.providerName;
             chunkState.modelName = chunkState.modelName || event.modelName;
@@ -271,7 +276,7 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
         }
 
         case 'streamEnd': {
-            removeLivePlaceholderRow(requestId);
+            markLivePlaceholderFinishing(requestId);
             liveMetricsMap.delete(requestId);
             if (liveMetricsMap.size === 0) {
                 stopRenderClock();
@@ -286,31 +291,61 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
 }
 
 /**
- * 清理由实时指标创建的临时占位行（streamEnd 时调用）
- * 仅删除标记为 data-live-placeholder 的行，不误删由 updateDateDetails 渲染的真实记录行
+ * 查找指定 requestId 的实时占位行
  */
-function removeLivePlaceholderRow(requestId: string): void {
+function findLivePlaceholderRow(requestId: string): HTMLTableRowElement | null {
     const recordsContainer = document.querySelector('#records-container') as HTMLElement | null;
     const tbody = recordsContainer?.querySelector('tbody');
     if (!tbody) {
+        return null;
+    }
+    return Array.from(tbody.querySelectorAll<HTMLTableRowElement>('tr[data-live-placeholder="true"]'))
+        .find(r => r.dataset.requestId === requestId) ?? null;
+}
+
+/**
+ * 占位行全部删除后，若表格为空则恢复"暂无请求记录"空行
+ */
+function ensureEmptyRowIfNeeded(): void {
+    const recordsContainer = document.querySelector('#records-container') as HTMLElement | null;
+    const tbody = recordsContainer?.querySelector('tbody');
+    if (!tbody || tbody.querySelector('tr')) {
         return;
     }
-    const row = Array.from(tbody.querySelectorAll('tr')).find(r => r.getAttribute('data-request-id') === requestId) as
-        | HTMLTableRowElement
-        | undefined;
-    if (row?.getAttribute('data-live-placeholder') === 'true') {
-        row.remove();
-        // 占位行删除后若表格为空，恢复"暂无请求记录"空行
-        if (!tbody.querySelector('tr')) {
-            const emptyRow = document.createElement('tr');
-            const emptyCell = document.createElement('td');
-            emptyCell.colSpan = 6;
-            emptyCell.textContent = t('No request records yet', '暂无请求记录');
-            emptyCell.style.textAlign = 'center';
-            emptyRow.appendChild(emptyCell);
-            tbody.appendChild(emptyRow);
-        }
+    const emptyRow = document.createElement('tr');
+    const emptyCell = document.createElement('td');
+    emptyCell.colSpan = 6;
+    emptyCell.textContent = t('No request records yet', '暂无请求记录');
+    emptyCell.style.textAlign = 'center';
+    emptyRow.appendChild(emptyCell);
+    tbody.appendChild(emptyRow);
+}
+
+/**
+ * 将实时占位行标记为 finishing 状态（streamEnd 时调用）
+ * 不立即删除，等 updateDateDetails 重建表格时自然替换；
+ * 5 秒兜底删除防止占位行永久残留。
+ */
+function markLivePlaceholderFinishing(requestId: string): void {
+    const row = findLivePlaceholderRow(requestId);
+    if (!row) {
+        return;
     }
+
+    // 直接操作 DOM：liveMetricsMap.delete 后 rAF 不会再刷新该行
+    if (row.dataset.liveFinishing === 'true') {
+        return;
+    }
+    row.dataset.liveFinishing = 'true';
+
+    // 5 秒兜底：重新查询确认仍是 live placeholder 才删除，避免误删已替换的真实记录
+    window.setTimeout(() => {
+        const currentRow = findLivePlaceholderRow(requestId);
+        if (currentRow?.dataset.liveFinishing === 'true') {
+            currentRow.remove();
+            ensureEmptyRowIfNeeded();
+        }
+    }, 5000);
 }
 
 /**
@@ -401,8 +436,8 @@ function updateRequestRecordsWithLiveMetrics(): void {
             outputMergedCell.className = 'records-output-merged';
             outputMergedCell.setAttribute('data-metric', 'output');
             outputMergedCell.innerHTML =
-                `<div class="output-row"><span class="output-ttft">-</span><span class="output-tokens">-</span></div>` +
-                `<div class="output-detail"><span class="output-tpot">-</span><span class="output-speed">-</span></div>`;
+                '<div class="output-row"><span class="output-ttft">-</span><span class="output-tokens">-</span></div>' +
+                '<div class="output-detail"><span class="output-tpot">-</span><span class="output-speed">-</span></div>';
             targetRow.appendChild(outputMergedCell);
 
             // 消耗令牌
@@ -447,8 +482,8 @@ function updateRequestRecordsWithLiveMetrics(): void {
             // 防御性兜底：兼容旧 DOM 或未来变更，确保 span 结构存在
             if (!outputCell.querySelector('.output-ttft')) {
                 outputCell.innerHTML =
-                    `<div class="output-row"><span class="output-ttft">-</span><span class="output-tokens">-</span></div>` +
-                    `<div class="output-detail"><span class="output-tpot">-</span><span class="output-speed">-</span></div>`;
+                    '<div class="output-row"><span class="output-ttft">-</span><span class="output-tokens">-</span></div>' +
+                    '<div class="output-detail"><span class="output-tpot">-</span><span class="output-speed">-</span></div>';
             }
             const ttftSpan = outputCell.querySelector('.output-ttft') as HTMLElement;
             if (ttftSpan) {

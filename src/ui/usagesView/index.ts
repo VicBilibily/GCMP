@@ -255,14 +255,28 @@ export class TokenUsagesView {
      * 这样用户从历史日期切回今天时不会丢失正在进行的 live events。
      */
     private handleLiveMetricEvent(event: LiveStreamMetricEvent): void {
-        if (!this.panel) {
+        const panel = this.panel;
+        if (!panel) {
             return;
         }
 
-        this.panel.webview.postMessage({
-            command: 'updateLiveMetrics',
-            event
-        } as UpdateLiveMetricsMessage);
+        try {
+            void panel.webview.postMessage({
+                command: 'updateLiveMetrics',
+                event
+            } as UpdateLiveMetricsMessage).then(
+                delivered => {
+                    if (!delivered) {
+                        StatusLogger.trace('[TokenUsagesView] live metric message dropped');
+                    }
+                },
+                err => {
+                    StatusLogger.warn('[TokenUsagesView] failed to post live metric message:', err);
+                }
+            );
+        } catch (err) {
+            StatusLogger.warn('[TokenUsagesView] failed to post live metric message:', err);
+        }
     }
 
     /**

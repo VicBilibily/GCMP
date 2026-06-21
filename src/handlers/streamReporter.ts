@@ -339,10 +339,18 @@ export class StreamReporter {
             return;
         }
 
-        this.outputChars += addedChars;
-        this.lastOutputAt = Date.now();
+        const now = Date.now();
 
-        const elapsedMs = this.firstStreamTime > 0 ? Math.max(1, this.lastOutputAt - this.firstStreamTime) : 0;
+        // 兼容 Responses / 第三方网关缺少 response.created / 首流事件的情况：
+        // 只有真实输出字符到达时才兜底固定首流时间；不在 heartbeat 中固定（避免 ping/空 chunk 过早固定）
+        if (!this.firstChunkEmitted && this.canEmitMetrics()) {
+            this.markStreamStarted(now);
+        }
+
+        this.outputChars += addedChars;
+        this.lastOutputAt = now;
+
+        const elapsedMs = this.firstStreamTime > 0 ? Math.max(1, now - this.firstStreamTime) : 0;
 
         this.lastCharsPerSecond = elapsedMs > 0 && this.outputChars > 0 ? (this.outputChars / elapsedMs) * 1000 : 0;
 
