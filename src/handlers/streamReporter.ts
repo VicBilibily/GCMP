@@ -83,7 +83,7 @@ export class StreamReporter {
     private lastCharsPerSecond = 0; // 仅在收到实际 provider 输出字符时更新
     private lastLiveUpdateAt = 0;
     private firstStreamTime = 0; // 首个流事件到达时间（与 handler 的 streamStartTime 对齐，共用时间戳）
-    private fixedFirstChunkLatencyMs = 0; // 固定的首令延迟（首流事件后不再变化）
+    private fixedFirstChunkLatencyMs = 0; // 固定的首流延迟（首流事件后不再变化）
     private readonly LIVE_UPDATE_INTERVAL = 200; // 200ms 节流间隔
 
     private readonly textBuffer = new TextBuffer();
@@ -175,7 +175,7 @@ export class StreamReporter {
             return;
         }
 
-        // 首令延迟：已收到首流事件则使用固定值，否则从请求开始持续计时
+        // 首流延迟：已收到首流事件则使用固定值，否则从请求开始持续计时
         const firstChunkLatencyMs =
             this.firstChunkEmitted ? this.fixedFirstChunkLatencyMs : Math.max(0, now - this.requestStartTime!);
 

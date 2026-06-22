@@ -726,7 +726,7 @@ export class GeminiHandler {
                 return;
             }
 
-            // 记录首次接收有效数据的时间，同时固定首令延迟（共用时间戳）
+            // 记录首次接收有效数据的时间，同时固定首流延迟（共用时间戳）
             if (streamStartTime === undefined) {
                 const now = Date.now();
                 streamStartTime = now;

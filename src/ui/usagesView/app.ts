@@ -143,7 +143,7 @@ interface LiveMetricsState {
     lastOutputChangeAt: number; // 最后一次 provider 可计数字符增加的时间
     providerName?: string;
     modelName?: string;
-    hasFirstChunk?: boolean; // 首令延迟/流开始时间已固定（retry 幂等）
+    hasFirstChunk?: boolean; // 首流延迟/流开始时间已固定（retry 幂等）
 }
 
 // 支持多个并发请求的实时指标状态
@@ -188,19 +188,24 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
     const { requestId } = event;
 
     switch (event.type) {
-        case 'requestStarted':
+        case 'requestStarted': {
+            // requestStarted 在每次 retry attempt 都会触发。
+            // 保留首次 requestStartTime，使 live TTFT 与持久化记录口径一致；
+            // 重置 stream/output 状态，让当前 attempt 的输出耗时和速度重新开始。
+            const existing = liveMetricsMap.get(requestId);
             liveMetricsMap.set(requestId, {
-                requestStartTime: event.requestStartTime,
+                requestStartTime: existing?.requestStartTime || event.requestStartTime,
                 firstChunkLatencyMs: 0,
                 outputChars: 0,
                 charsPerSecond: 0,
                 lastOutputChangeAt: 0,
-                providerName: event.providerName,
-                modelName: event.modelName,
+                providerName: existing?.providerName || event.providerName,
+                modelName: existing?.modelName || event.modelName,
                 hasFirstChunk: false
             });
             startRenderClock();
             break;
+        }
 
         case 'firstChunk': {
             // upsert：requestStarted 可能因面板未打开/日期切换而丢失
@@ -213,15 +218,17 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
                 providerName: event.providerName,
                 modelName: event.modelName
             };
-            chunkState.requestStartTime = event.requestStartTime;
+            chunkState.requestStartTime = chunkState.requestStartTime || event.requestStartTime;
             // 每次 firstChunk 代表最新已产生首流事件的 attempt：
-            // 总是覆盖流开始时间和首令延迟，总是重置 per-attempt 输出状态
+            // 总是覆盖流开始时间和首流延迟，总是重置 per-attempt 输出状态。
+            // requestStartTime 保留首次值，firstChunkLatencyMs 用保留值重算以保持口径一致。
             chunkState.streamStartTime = event.streamStartTime;
             chunkState.firstChunkLatencyMs =
-                event.firstChunkLatencyMs ??
-                (event.streamStartTime !== undefined ?
-                    Math.max(0, event.streamStartTime - event.requestStartTime)
-                    : 0);
+                Number.isFinite(event.streamStartTime) &&
+                Number.isFinite(chunkState.requestStartTime) &&
+                chunkState.requestStartTime > 0 ?
+                    Math.max(0, event.streamStartTime! - chunkState.requestStartTime)
+                    : (event.firstChunkLatencyMs ?? 0);
             chunkState.outputChars = 0;
             chunkState.charsPerSecond = 0;
             chunkState.lastOutputChangeAt = 0;
@@ -249,7 +256,9 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
                 liveMetricsMap.set(requestId, state);
                 startRenderClock();
             }
-            state.requestStartTime = event.requestStartTime;
+            // 保留首次 requestStartTime（retry 时使 TTFT 口径接近持久化记录）
+            const effectiveRequestStartTime = state.requestStartTime || event.requestStartTime;
+            state.requestStartTime = effectiveRequestStartTime;
             // 检测 attempt 切换（firstChunk 丢失时的兜底）：
             // 通过 streamStartTime 变化判断是否换了新 attempt
             const isNewAttempt =
@@ -259,8 +268,11 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
             if (isNewAttempt) {
                 state.streamStartTime = event.streamStartTime!;
                 state.firstChunkLatencyMs =
-                    event.firstChunkLatencyMs ??
-                    Math.max(0, event.streamStartTime! - event.requestStartTime);
+                    Number.isFinite(event.streamStartTime) &&
+                    Number.isFinite(effectiveRequestStartTime) &&
+                    effectiveRequestStartTime > 0 ?
+                        Math.max(0, event.streamStartTime! - effectiveRequestStartTime)
+                        : (event.firstChunkLatencyMs ?? 0);
                 state.outputChars = 0;
                 state.charsPerSecond = 0;
                 state.lastOutputChangeAt = 0;
@@ -269,7 +281,11 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
                 // 首次丢失 fallback：streamStartTime 未变但尚未固定首流
                 state.streamStartTime = event.streamStartTime;
                 state.firstChunkLatencyMs =
-                    event.firstChunkLatencyMs ?? Math.max(0, event.streamStartTime - event.requestStartTime);
+                    Number.isFinite(event.streamStartTime) &&
+                    Number.isFinite(effectiveRequestStartTime) &&
+                    effectiveRequestStartTime > 0 ?
+                        Math.max(0, event.streamStartTime - effectiveRequestStartTime)
+                        : (event.firstChunkLatencyMs ?? 0);
                 state.hasFirstChunk = true;
             }
 
@@ -476,7 +492,7 @@ function updateRequestRecordsWithLiveMetrics(): void {
             return;
         }
 
-        // 实时计算首令延迟：首流事件前持续增长，首流事件后固定
+        // 实时计算首流延迟：首流事件前持续增长，首流事件后固定
         const hasStreamStarted = metricState.streamStartTime !== undefined;
         const latencyMs =
             hasStreamStarted ? metricState.firstChunkLatencyMs : Math.max(0, now - metricState.requestStartTime);
@@ -487,7 +503,7 @@ function updateRequestRecordsWithLiveMetrics(): void {
         // 输出速度：使用 StreamReporter 缓存的值，暂停期间不会衰减
         const charsPerSecond = metricState.charsPerSecond ?? 0;
 
-        // 更新首令延迟 + 输出耗时 + 速度
+        // 更新首流延迟 + 输出耗时 + 速度
         const outputCell = targetRow.querySelector('td.records-output-merged[data-metric="output"]') as HTMLElement;
         if (outputCell) {
             // 防御性兜底：兼容旧 DOM 或未来变更，确保 span 结构存在

@@ -393,7 +393,7 @@ export class AnthropicHandler {
 
         try {
             for await (const chunk of stream) {
-                // 心跳：触发轻量刷新（不固定首令延迟）
+                // 心跳：触发轻量刷新（不固定首流延迟）
                 reporter.heartbeat();
 
                 if (token.isCancellationRequested) {
@@ -404,7 +404,7 @@ export class AnthropicHandler {
 
                 switch (chunk.type) {
                     case 'message_start': {
-                        // 消息开始 - 记录流开始时间，同时固定首令延迟（共用时间戳）
+                        // 消息开始 - 记录流开始时间，同时固定首流延迟（共用时间戳）
                         const now = Date.now();
                         streamStartTime = now;
                         reporter.markStreamStarted(now);

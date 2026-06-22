@@ -672,7 +672,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             // 注意：该时间点是 provider 请求处理起点，不是严格的网络请求发出时刻；
             // 可能包含预估 token 记录、请求体构建、SDK/client 初始化、CLI 版本探测等本地准备开销。
             // 因此 live TTFT 表示"provider 开始处理到首个流事件"的近似延迟，
-            // 不应在 UI 或日志中描述为"网络请求发出后首令延迟"。
+            // 不应在 UI 或日志中描述为"网络请求发出后首流延迟"。
             requestStartTime = Date.now();
 
             try {

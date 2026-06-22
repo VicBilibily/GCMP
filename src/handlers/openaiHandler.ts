@@ -944,14 +944,14 @@ export class OpenAIHandler {
                 // 利用 SDK 内置的事件系统处理工具调用和内容
                 stream
                     .on('chunk', (chunk, _snapshot: unknown) => {
-                        // 记录首个 chunk 的时间作为流开始时间，同时固定首令延迟（共用时间戳）
+                        // 记录首个 chunk 的时间作为流开始时间，同时固定首流延迟（共用时间戳）
                         if (streamStartTime === undefined) {
                             const now = Date.now();
                             streamStartTime = now;
                             streamReporter.markStreamStarted(now);
                         }
 
-                        // 心跳：触发轻量刷新（不固定首令延迟）
+                        // 心跳：触发轻量刷新（不固定首流延迟）
                         streamReporter.heartbeat();
 
                         // 处理token使用统计：仅保存到 finalUsage，最后再统一输出

@@ -650,7 +650,7 @@ export class OpenAIResponsesHandler {
                 // 使用 on(event) 模式处理流事件
                 stream
                     .on('response.created', () => {
-                        // 响应开始事件 - 记录流开始时间，同时固定首令延迟（共用时间戳）
+                        // 响应开始事件 - 记录流开始时间，同时固定首流延迟（共用时间戳）
                         const now = Date.now();
                         streamStartTime = now;
                         streamReporter.markStreamStarted(now);
