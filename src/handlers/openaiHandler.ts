@@ -1253,25 +1253,12 @@ export class OpenAIHandler {
         const imageParts: vscode.LanguageModelDataPart[] = [];
         // 收集图片（如果支持）
         if (modelConfig?.capabilities?.imageInput === true) {
-            // Logger.debug('Model supports image input, collecting image parts');
             for (const part of message.content) {
                 if (part instanceof vscode.LanguageModelDataPart) {
-                    // Logger.debug(`📷 发现数据部分: MIME=${part.mimeType}, 大小=${part.data.length}字节`);
                     if (this.isImageMimeType(part.mimeType)) {
                         imageParts.push(part);
                         Logger.debug(`✅ Added image: MIME=${part.mimeType}, size=${part.data.length} bytes`);
-                    } else {
-                        // // 分类处理不同类型的数据
-                        // if (part.mimeType === 'cache_control') {
-                        //     Logger.trace('Ignoring Claude cache marker: cache_control');
-                        // } else if (part.mimeType.startsWith('image/')) {
-                        //     Logger.warn(`❌ 不支持的图像MIME类型: ${part.mimeType}`);
-                        // } else {
-                        //     Logger.trace(`📄 跳过非图像数据: ${part.mimeType}`);
-                        // }
                     }
-                } else {
-                    // Logger.trace(`📝 非数据部分: ${part.constructor.name}`);
                 }
             }
         }
