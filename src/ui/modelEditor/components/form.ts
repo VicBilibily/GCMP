@@ -332,9 +332,12 @@ function createFormGroup(
     if (elementType === 'input') {
         const input = document.createElement('input');
         Object.entries(attrs).forEach(([key, value]) => {
-            if (key === 'readonly' && value) {
-                input.setAttribute('readonly', '');
-                input.classList.add('readonly');
+            if (key === 'readonly') {
+                // readonly 是 HTML 布尔属性：属性存在即生效，不能用 setAttribute('readonly', 'false')
+                if (value) {
+                    input.setAttribute('readonly', '');
+                    input.classList.add('readonly');
+                }
             } else if (key !== 'options') {
                 input.setAttribute(key, String(value ?? ''));
             }

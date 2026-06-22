@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.3] - 2026-06-22
+
+### 修复
+
+- **兼容模型创建时模型 ID 无法填写**： [#243](https://github.com/VicBilibily/GCMP/issues/243) 修复在「管理 Compatible 模型」→「添加新模型」对话框中，模型 ID 输入框始终为只读导致无法新建模型的问题。
+
+---
+
+### Fixed
+
+- **Compatible Model ID Field Not Editable When Creating**: Fixed the issue where the Model ID input in "Manage Compatible Models" → "Add new model" was always read-only, making it impossible to create new models.
+
 ## [0.25.2] - 2026-06-21
 
 ### 优化
