@@ -61,7 +61,7 @@ export async function analyzeImagesWithSystem(
 
     const providerConfigs = ConfigManager.getConfigProvider();
     const allModels = await vscode.lm.selectChatModels({});
-    let model: vscode.LanguageModelChatInformation | undefined;
+    let model: vscode.LanguageModelChat | undefined;
 
     if (visionModel.provider === 'compatible') {
         // compatible 提供商：使用 CompatibleModelManager 获取动态模型列表
@@ -82,7 +82,9 @@ export async function analyzeImagesWithSystem(
     }
 
     if (!model) {
-        throw new Error(`Vision model not found: gcmp.${visionModel.provider}:::${visionModel.model}. Please check gcmp.vision.model configuration.`);
+        throw new Error(
+            `Vision model not found: gcmp.${visionModel.provider}:::${visionModel.model}. Please check gcmp.vision.model configuration.`
+        );
     }
 
     const imageParts = filePaths.map(filePath => {

@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.5] - 2026-06-22
+
+### 修复
+
+- **视觉工具 compatible 提供商报错**：[#246](https://github.com/VicBilibily/GCMP/issues/246) 修复视觉分析工具在 `gcmp.vision.model` 配置为 `compatible` 提供商时报 `Vision model not found` 的问题；compatible 提供商现通过 `CompatibleModelManager` 查找动态模型列表，与提交消息生成器逻辑保持一致
+
+---
+
+### Fixed
+
+- **Vision Tool Failure with Compatible Provider**: [#246](https://github.com/VicBilibily/GCMP/issues/246) Fixed `Vision model not found` error when `gcmp.vision.model` points to a `compatible` provider; compatible models are now resolved via `CompatibleModelManager`, matching the commit message generator logic
+
 ## [0.25.4] - 2026-06-22
 
 ### 优化
