@@ -12,6 +12,7 @@ import { t } from '../utils/l10n';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';
+import * as liveMetrics from '../metrics/liveMetrics';
 import { getReasoningReplayPolicy, shouldInjectReasoningPlaceholder } from './reasoningReplayPolicy';
 import { decodeStatefulMarker } from './statefulMarker';
 import { CustomDataPartMimeTypes } from './types';
@@ -888,11 +889,14 @@ export class OpenAIHandler {
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
         requestId: string,
         sessionId: string,
-        token: vscode.CancellationToken
+        token: vscode.CancellationToken,
+        requestStartTime?: number
     ): Promise<void> {
         Logger.debug(`${model.name} starting ${this.displayName} request handling`);
         // 清理当前请求的事件去重跟踪器
         this.currentRequestProcessedEvents.clear();
+
+        let reporter: StreamReporter | undefined;
 
         try {
             const client = await this.createOpenAIClient(modelConfig);
@@ -903,14 +907,20 @@ export class OpenAIHandler {
             Logger.info(`🚀 ${model.name} Sending ${this.displayName} request`);
 
             // 创建统一的流报告器
-            const reporter = new StreamReporter({
+            reporter = new StreamReporter({
                 modelName: model.name,
                 modelId: model.id,
                 provider: this.provider,
                 sdkMode: 'openai',
                 progress,
-                sessionId
+                sessionId,
+                requestId,
+                requestStartTime,
+                onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
             });
+            // 局部收窄：try 块内用 const 引用确保 TypeScript 知道非 undefined，
+            // 外层 let reporter 供 finally 兜底使用
+            const streamReporter = reporter;
 
             // 使用 OpenAI SDK 的事件驱动流式方法，利用内置工具调用处理
             // 将 vscode.CancellationToken 转换为 AbortSignal
@@ -934,10 +944,15 @@ export class OpenAIHandler {
                 // 利用 SDK 内置的事件系统处理工具调用和内容
                 stream
                     .on('chunk', (chunk, _snapshot: unknown) => {
-                        // 记录首个 chunk 的时间作为流开始时间
+                        // 记录首个 chunk 的时间作为流开始时间，同时固定首流延迟（共用时间戳）
                         if (streamStartTime === undefined) {
-                            streamStartTime = Date.now();
+                            const now = Date.now();
+                            streamStartTime = now;
+                            streamReporter.markStreamStarted(now);
                         }
+
+                        // 心跳：触发轻量刷新（不固定首流延迟）
+                        streamReporter.heartbeat();
 
                         // 处理token使用统计：仅保存到 finalUsage，最后再统一输出
                         if (chunk.usage) {
@@ -958,7 +973,7 @@ export class OpenAIHandler {
                                 if (delta?.tool_calls && delta.tool_calls.length > 0) {
                                     for (const toolCall of delta.tool_calls) {
                                         const toolIndex = toolCall.index ?? 0;
-                                        reporter.accumulateToolCall(
+                                        streamReporter.accumulateToolCall(
                                             toolIndex,
                                             toolCall.id,
                                             toolCall.function?.name,
@@ -974,25 +989,25 @@ export class OpenAIHandler {
                                     message?.reasoning_content ??
                                     message?.reasoning;
                                 if (reasoningContent) {
-                                    reporter.bufferThinking(reasoningContent);
+                                    streamReporter.bufferThinking(reasoningContent);
                                 } else {
                                     // reasoning_details 作为 fallback，仅在主源为空时使用，避免重复
                                     const detailsContent = extractReasoningDetailsText(delta?.reasoning_details);
                                     if (detailsContent) {
-                                        reporter.bufferThinking(detailsContent);
+                                        streamReporter.bufferThinking(detailsContent);
                                     }
                                 }
 
                                 // 检查同一个 chunk 中是否有 delta.content（文本内容）
                                 const deltaContent = delta?.content;
                                 if (deltaContent && typeof deltaContent === 'string') {
-                                    reporter.reportText(deltaContent);
+                                    streamReporter.reportText(deltaContent);
                                 }
 
                                 // 另外兼容：如果服务端把最终文本放在 message.content（旧/混合格式），当作 content 增量处理
                                 const messageContent = message?.content;
                                 if (typeof messageContent === 'string' && messageContent.length > 0) {
-                                    reporter.reportText(messageContent);
+                                    streamReporter.reportText(messageContent);
                                 }
                             }
                         }
@@ -1009,14 +1024,14 @@ export class OpenAIHandler {
                 streamEndTime = Date.now();
 
                 // 流结束，输出所有剩余内容
-                reporter.flushAll(null);
+                streamReporter.flushAll(null);
 
                 // 检查是否有流错误
                 if (streamError) {
                     throw streamError;
                 }
 
-                reporter.reportUsage(finalUsage);
+                streamReporter.reportUsage(finalUsage);
 
                 // 计算并记录输出速度
                 const usageData = finalUsage as OpenAI.Completions.CompletionUsage | undefined;
@@ -1159,6 +1174,8 @@ export class OpenAIHandler {
                 // 其他错误类型
                 throw error;
             }
+        } finally {
+            reporter?.finishMetrics();
         }
     }
 

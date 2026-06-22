@@ -6,13 +6,18 @@ import './style.less';
 import 'chart.js/auto'; // 导入 Chart.js
 
 import type { HostMessage, State } from './types';
+import type { LiveStreamMetricEvent } from '../../metrics/liveMetrics';
 import { getTodayDateString, groupRecordsBySession, postToVSCode, t } from './utils';
 import { createElement } from '../utils';
 
 // 导入组件
 import { createSidebar, updateDateList } from './components/dateList';
 import { createMainContent, updateMainContent } from './components/mainContent';
-import { createRequestRecordsSection, resetRequestRecordsState } from './components/requestRecords';
+import {
+    createRequestRecordsSection,
+    createRequestRecordsTable,
+    resetRequestRecordsState
+} from './components/requestRecords';
 
 // ============= 全局状态管理 =============
 
@@ -127,6 +132,428 @@ function updateLoadingOverlay(): void {
 }
 
 /**
+ * 单个请求的实时流式指标状态
+ */
+interface LiveMetricsState {
+    requestStartTime: number;
+    streamStartTime?: number;
+    firstChunkLatencyMs: number;
+    outputChars: number;
+    charsPerSecond: number;
+    lastOutputChangeAt: number; // 最后一次 provider 可计数字符增加的时间
+    providerName?: string;
+    modelName?: string;
+    hasFirstChunk?: boolean; // 首流延迟/流开始时间已固定（retry 幂等）
+}
+
+// 支持多个并发请求的实时指标状态
+const liveMetricsMap = new Map<string, LiveMetricsState>();
+
+// 共享渲染时钟（rAF + 200ms 节流）
+const LIVE_RENDER_INTERVAL_MS = 200;
+let renderClockId: number | undefined;
+let lastRenderAt = 0;
+
+function startRenderClock(): void {
+    if (!isViewingToday() || liveMetricsMap.size === 0 || renderClockId !== undefined) {
+        return;
+    }
+    const tick = (frameTime: number): void => {
+        if (!isViewingToday() || liveMetricsMap.size === 0) {
+            renderClockId = undefined;
+            lastRenderAt = 0;
+            return;
+        }
+        if (frameTime - lastRenderAt >= LIVE_RENDER_INTERVAL_MS) {
+            updateRequestRecordsWithLiveMetrics();
+            lastRenderAt = frameTime;
+        }
+        renderClockId = requestAnimationFrame(tick);
+    };
+    renderClockId = requestAnimationFrame(tick);
+}
+
+function stopRenderClock(): void {
+    if (renderClockId !== undefined) {
+        cancelAnimationFrame(renderClockId);
+        renderClockId = undefined;
+    }
+    lastRenderAt = 0;
+}
+
+/**
+ * 处理实时流式指标更新
+ */
+function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
+    const { requestId } = event;
+
+    switch (event.type) {
+        case 'requestStarted': {
+            // requestStarted 在每次 retry attempt 都会触发。
+            // 保留首次 requestStartTime，使 live TTFT 与持久化记录口径一致；
+            // 重置 stream/output 状态，让当前 attempt 的输出耗时和速度重新开始。
+            const existing = liveMetricsMap.get(requestId);
+            liveMetricsMap.set(requestId, {
+                requestStartTime: existing?.requestStartTime || event.requestStartTime,
+                firstChunkLatencyMs: 0,
+                outputChars: 0,
+                charsPerSecond: 0,
+                lastOutputChangeAt: 0,
+                providerName: existing?.providerName || event.providerName,
+                modelName: existing?.modelName || event.modelName,
+                hasFirstChunk: false
+            });
+            startRenderClock();
+            break;
+        }
+
+        case 'firstChunk': {
+            // upsert：requestStarted 可能因面板未打开/日期切换而丢失
+            const chunkState = liveMetricsMap.get(requestId) ?? {
+                requestStartTime: event.requestStartTime,
+                firstChunkLatencyMs: 0,
+                outputChars: 0,
+                charsPerSecond: 0,
+                lastOutputChangeAt: 0,
+                providerName: event.providerName,
+                modelName: event.modelName
+            };
+            chunkState.requestStartTime = chunkState.requestStartTime || event.requestStartTime;
+            // 每次 firstChunk 代表最新已产生首流事件的 attempt：
+            // 总是覆盖流开始时间和首流延迟，总是重置 per-attempt 输出状态。
+            // requestStartTime 保留首次值，firstChunkLatencyMs 用保留值重算以保持口径一致。
+            chunkState.streamStartTime = event.streamStartTime;
+            chunkState.firstChunkLatencyMs =
+                Number.isFinite(event.streamStartTime) &&
+                Number.isFinite(chunkState.requestStartTime) &&
+                chunkState.requestStartTime > 0 ?
+                    Math.max(0, event.streamStartTime! - chunkState.requestStartTime)
+                    : (event.firstChunkLatencyMs ?? 0);
+            chunkState.outputChars = 0;
+            chunkState.charsPerSecond = 0;
+            chunkState.lastOutputChangeAt = 0;
+            chunkState.hasFirstChunk = true;
+            chunkState.providerName = chunkState.providerName || event.providerName;
+            chunkState.modelName = chunkState.modelName || event.modelName;
+            liveMetricsMap.set(requestId, chunkState);
+            startRenderClock();
+            break;
+        }
+
+        case 'streamingUpdate': {
+            let state = liveMetricsMap.get(requestId);
+            if (!state) {
+                state = {
+                    requestStartTime: event.requestStartTime,
+                    outputChars: 0,
+                    charsPerSecond: 0,
+                    lastOutputChangeAt: 0,
+                    providerName: event.providerName,
+                    modelName: event.modelName,
+                    firstChunkLatencyMs: 0,
+                    hasFirstChunk: false
+                };
+                liveMetricsMap.set(requestId, state);
+                startRenderClock();
+            }
+            // 保留首次 requestStartTime（retry 时使 TTFT 口径接近持久化记录）
+            const effectiveRequestStartTime = state.requestStartTime || event.requestStartTime;
+            state.requestStartTime = effectiveRequestStartTime;
+            // 检测 attempt 切换（firstChunk 丢失时的兜底）：
+            // 通过 streamStartTime 变化判断是否换了新 attempt
+            const isNewAttempt =
+                event.streamStartTime !== undefined &&
+                event.streamStartTime !== state.streamStartTime;
+
+            if (isNewAttempt) {
+                state.streamStartTime = event.streamStartTime!;
+                state.firstChunkLatencyMs =
+                    Number.isFinite(event.streamStartTime) &&
+                    Number.isFinite(effectiveRequestStartTime) &&
+                    effectiveRequestStartTime > 0 ?
+                        Math.max(0, event.streamStartTime! - effectiveRequestStartTime)
+                        : (event.firstChunkLatencyMs ?? 0);
+                state.outputChars = 0;
+                state.charsPerSecond = 0;
+                state.lastOutputChangeAt = 0;
+                state.hasFirstChunk = true;
+            } else if (!state.hasFirstChunk && event.streamStartTime !== undefined) {
+                // 首次丢失 fallback：streamStartTime 未变但尚未固定首流
+                state.streamStartTime = event.streamStartTime;
+                state.firstChunkLatencyMs =
+                    Number.isFinite(event.streamStartTime) &&
+                    Number.isFinite(effectiveRequestStartTime) &&
+                    effectiveRequestStartTime > 0 ?
+                        Math.max(0, event.streamStartTime - effectiveRequestStartTime)
+                        : (event.firstChunkLatencyMs ?? 0);
+                state.hasFirstChunk = true;
+            }
+
+            // 只在 outputChars 实际增加时更新 lastOutputChangeAt（避免 heartbeat/ping 误刷新）
+            const previousOutputChars = state.outputChars;
+            if (event.outputChars !== undefined && event.outputChars > previousOutputChars) {
+                state.outputChars = event.outputChars;
+                state.lastOutputChangeAt = Date.now();
+            }
+            state.charsPerSecond = event.charsPerSecond ?? state.charsPerSecond;
+            // 补齐 provider/model（requestStarted 可能未被 WebView 接收到）
+            state.providerName = state.providerName || event.providerName;
+            state.modelName = state.modelName || event.modelName;
+            break;
+        }
+
+        case 'streamEnd': {
+            markLivePlaceholderFinishing(requestId);
+            liveMetricsMap.delete(requestId);
+            if (liveMetricsMap.size === 0) {
+                stopRenderClock();
+            }
+            updateRequestRecordsWithLiveMetrics();
+            return;
+        }
+    }
+
+    // 触发请求记录区域的更新
+    updateRequestRecordsWithLiveMetrics();
+}
+
+/**
+ * 查找指定 requestId 的实时占位行
+ */
+function findLivePlaceholderRow(requestId: string): HTMLTableRowElement | null {
+    const recordsContainer = document.querySelector('#records-container') as HTMLElement | null;
+    const tbody = recordsContainer?.querySelector('tbody');
+    if (!tbody) {
+        return null;
+    }
+    return Array.from(tbody.querySelectorAll<HTMLTableRowElement>('tr[data-live-placeholder="true"]'))
+        .find(r => r.dataset.requestId === requestId) ?? null;
+}
+
+/**
+ * 占位行全部删除后，若表格为空则恢复"暂无请求记录"空行
+ */
+function ensureEmptyRowIfNeeded(): void {
+    const recordsContainer = document.querySelector('#records-container') as HTMLElement | null;
+    const tbody = recordsContainer?.querySelector('tbody');
+    if (!tbody || tbody.querySelector('tr')) {
+        return;
+    }
+    const emptyRow = document.createElement('tr');
+    const emptyCell = document.createElement('td');
+    emptyCell.colSpan = 6;
+    emptyCell.textContent = t('No request records yet', '暂无请求记录');
+    emptyCell.style.textAlign = 'center';
+    emptyRow.appendChild(emptyCell);
+    tbody.appendChild(emptyRow);
+}
+
+/**
+ * 将实时占位行标记为 finishing 状态（streamEnd 时调用）
+ * 不立即删除，等 updateDateDetails 重建表格时自然替换；
+ * 5 秒兜底删除防止占位行永久残留。
+ */
+function markLivePlaceholderFinishing(requestId: string): void {
+    const row = findLivePlaceholderRow(requestId);
+    if (!row) {
+        return;
+    }
+
+    // 直接操作 DOM：liveMetricsMap.delete 后 rAF 不会再刷新该行
+    if (row.dataset.liveFinishing === 'true') {
+        return;
+    }
+    row.dataset.liveFinishing = 'true';
+
+    // 5 秒兜底：重新查询确认仍是 live placeholder 才删除，避免误删已替换的真实记录
+    window.setTimeout(() => {
+        const currentRow = findLivePlaceholderRow(requestId);
+        if (currentRow?.dataset.liveFinishing === 'true') {
+            currentRow.remove();
+            ensureEmptyRowIfNeeded();
+        }
+    }, 5000);
+}
+
+/**
+ * 判断当前是否在查看今天的请求记录（实时指标仅适用于今天）
+ */
+function isViewingToday(): boolean {
+    const today = state.today || getTodayDateString();
+    return state.dateDetails?.isToday === true || state.dateDetails?.date === today;
+}
+
+/**
+ * 更新请求记录区域，显示实时指标
+ * 策略：遍历所有正在流式的请求，通过 requestId 精确匹配表格行并更新
+ */
+function updateRequestRecordsWithLiveMetrics(): void {
+    // 仅在今天页面渲染实时指标，不污染历史日期
+    if (!isViewingToday()) {
+        return;
+    }
+
+    const recordsContainer = document.querySelector('#records-container') as HTMLElement;
+    if (!recordsContainer) {
+        return;
+    }
+
+    let tbody = recordsContainer.querySelector('tbody');
+    if (!tbody) {
+        // 无 tbody（当天无记录），替换 .empty-message 为标准空表格，保留外层布局
+        const emptyMessage = recordsContainer.querySelector('.empty-message');
+        if (!emptyMessage) {
+            return;
+        }
+        const table = createRequestRecordsTable([], []);
+        emptyMessage.replaceWith(table);
+        tbody = table.querySelector('tbody');
+        if (!tbody) {
+            return;
+        }
+    }
+
+    const now = Date.now();
+    // 有会话筛选时，新请求可能不属于当前会话，不创建占位行（真实行仍可更新）
+    const hasSessionFilter = !!state.selectedSessionId;
+
+    liveMetricsMap.forEach((metricState, requestId) => {
+        let targetRow = Array.from(tbody!.querySelectorAll('tr')).find(
+            row => row.getAttribute('data-request-id') === requestId
+        ) as HTMLTableRowElement | undefined;
+
+        // 占位行：liveMetrics 已有数据但表格行尚未创建（updateDateDetails 尚未到达）
+        if (!targetRow) {
+            // 有会话筛选时，新请求不属于当前会话，跳过占位行创建
+            if (hasSessionFilter) {
+                return;
+            }
+            targetRow = document.createElement('tr');
+            targetRow.setAttribute('data-request-id', requestId);
+            targetRow.setAttribute('data-request-status', 'streaming');
+            targetRow.setAttribute('data-live-placeholder', 'true');
+
+            // 时间
+            const timeCell = document.createElement('td');
+            timeCell.textContent = new Date(metricState.requestStartTime).toLocaleTimeString('zh-CN');
+            targetRow.appendChild(timeCell);
+
+            // 提供商 + 模型（双行合并）
+            const providerModelCell = document.createElement('td');
+            const provName = metricState.providerName || '-';
+            const modName = metricState.modelName || '-';
+            providerModelCell.title = `${provName} · ${modName}`;
+            const providerDiv = document.createElement('div');
+            providerDiv.className = 'prov-model-provider';
+            providerDiv.textContent = provName;
+            const modelDiv = document.createElement('div');
+            modelDiv.className = 'prov-model-model';
+            modelDiv.textContent = modName;
+            providerModelCell.append(providerDiv, modelDiv);
+            targetRow.appendChild(providerModelCell);
+
+            // 输入令牌
+            const inputCell = document.createElement('td');
+            inputCell.className = 'records-input-merged';
+            inputCell.textContent = '-';
+            targetRow.appendChild(inputCell);
+
+            // 输出列（合并：TTFT / tokens / TPOT / speed）
+            const outputMergedCell = document.createElement('td');
+            outputMergedCell.className = 'records-output-merged';
+            outputMergedCell.setAttribute('data-metric', 'output');
+            outputMergedCell.innerHTML =
+                '<div class="output-row"><span class="output-ttft">-</span><span class="output-tokens">-</span></div>' +
+                '<div class="output-detail"><span class="output-tpot">-</span><span class="output-speed">-</span></div>';
+            targetRow.appendChild(outputMergedCell);
+
+            // 消耗令牌
+            const totalCell = document.createElement('td');
+            totalCell.textContent = '-';
+            targetRow.appendChild(totalCell);
+
+            // 状态
+            const statusCell = document.createElement('td');
+            statusCell.className = 'status-estimated';
+            statusCell.textContent = '⏳';
+            targetRow.appendChild(statusCell);
+
+            // 移除空状态行（如 "暂无请求记录"）并插入占位行
+            const firstRow = tbody!.querySelector('tr');
+            if (firstRow && firstRow.querySelector('td[colspan]')) {
+                firstRow.remove();
+            }
+            tbody!.insertBefore(targetRow, tbody!.firstChild);
+        }
+
+        // 跳过已完成/失败的行，避免实时值覆盖最终统计
+        const requestStatus = targetRow.getAttribute('data-request-status');
+        if (requestStatus === 'completed' || requestStatus === 'failed') {
+            return;
+        }
+
+        // 实时计算首流延迟：首流事件前持续增长，首流事件后固定
+        const hasStreamStarted = metricState.streamStartTime !== undefined;
+        const latencyMs =
+            hasStreamStarted ? metricState.firstChunkLatencyMs : Math.max(0, now - metricState.requestStartTime);
+
+        // 实时计算输出耗时：首流事件后开始计算
+        const durationMs = hasStreamStarted ? Math.max(0, now - metricState.streamStartTime!) : 0;
+
+        // 输出速度：使用 StreamReporter 缓存的值，暂停期间不会衰减
+        const charsPerSecond = metricState.charsPerSecond ?? 0;
+
+        // 更新首流延迟 + 输出耗时 + 速度
+        const outputCell = targetRow.querySelector('td.records-output-merged[data-metric="output"]') as HTMLElement;
+        if (outputCell) {
+            // 防御性兜底：兼容旧 DOM 或未来变更，确保 span 结构存在
+            if (!outputCell.querySelector('.output-ttft')) {
+                outputCell.innerHTML =
+                    '<div class="output-row"><span class="output-ttft">-</span><span class="output-tokens">-</span></div>' +
+                    '<div class="output-detail"><span class="output-tpot">-</span><span class="output-speed">-</span></div>';
+            }
+            const ttftSpan = outputCell.querySelector('.output-ttft') as HTMLElement;
+            if (ttftSpan) {
+                ttftSpan.title = '首流延迟：从 provider 开始处理请求到首个流事件的近似耗时，不一定是首个可见文字';
+                ttftSpan.textContent = latencyMs >= 1000 ?
+                    `${(latencyMs / 1000).toFixed(1)}s` :
+                    `${Math.round(latencyMs)}ms`;
+            }
+            const tpotSpan = outputCell.querySelector('.output-tpot') as HTMLElement;
+            if (tpotSpan) {
+                tpotSpan.textContent = durationMs > 0 ?
+                    (durationMs >= 1000 ? `${(durationMs / 1000).toFixed(1)}s` : `${Math.round(durationMs)}ms`) :
+                    '-';
+            }
+            // .output-tokens 在 streaming 阶段不更新，等最终 usage 回写
+            const speedSpan = outputCell.querySelector('.output-speed') as HTMLElement;
+            if (speedSpan) {
+                // 过时检测：长时间没有新的 provider 输出时，避免冻结的旧 speed 被误解为仍在实时更新
+                const lastOutputChangeAt = metricState.lastOutputChangeAt ?? 0;
+                const outputStaleMs = lastOutputChangeAt > 0 ? now - lastOutputChangeAt : 0;
+                const isStale = hasStreamStarted && metricState.outputChars > 0 && lastOutputChangeAt > 0 && outputStaleMs > 3000;
+
+                if (isStale) {
+                    speedSpan.textContent = t('⏳ waiting...', '⏳ 等待回传...');
+                    speedSpan.title = t(
+                        'No new provider output chunk has arrived recently. Some compatible endpoints buffer tool arguments and send them in a later chunk; speed will update when new output arrives.',
+                        '近期未收到新的 provider 输出分片。部分兼容端点会缓冲工具参数并稍后一次性发送；速度将在收到新输出时更新。'
+                    );
+                } else if (charsPerSecond > 0) {
+                    speedSpan.textContent = `~${charsPerSecond.toFixed(1)} chars/s`;
+                    speedSpan.title = t(
+                        'Average character rate from the first stream event to the latest output of the current attempt; completed requests show usage-based output tokens/s.',
+                        '累计平均字符速度：按当前尝试从首个流事件到最近一次输出的字符总量估算；请求完成后显示基于 usage 的输出 token/s。'
+                    );
+                } else {
+                    speedSpan.textContent = '-';
+                }
+            }
+        }
+    });
+}
+
+/**
  * 处理来自 VSCode 的消息
  */
 function handleVSCodeMessage(event: MessageEvent): void {
@@ -152,10 +579,15 @@ function handleVSCodeMessage(event: MessageEvent): void {
                     sessionGroups.some(group => group.sessionId === state.selectedSessionId)
                 ) ?
                     state.selectedSessionId
-                :   null;
+                    : null;
 
             if (dateChanged) {
                 resetRequestRecordsState();
+                // 切到非今天时停止实时渲染时钟，但保留 liveMetricsMap 中的活动状态；
+                // 切回今天时由 startRenderClock() 内部的 isViewingToday() 守卫自动恢复
+                if (!message.isToday) {
+                    stopRenderClock();
+                }
             }
 
             setState({
@@ -174,12 +606,22 @@ function handleVSCodeMessage(event: MessageEvent): void {
                 }
             });
 
+            // 先立即重建表格（包括仍在运行的请求），再按需启动渲染时钟
+            updateRequestRecordsWithLiveMetrics();
+            if (message.isToday && liveMetricsMap.size > 0) {
+                startRenderClock();
+            }
+
             // 仅在真正切换日期时，小屏模式才自动隐藏侧边栏
             if (dateChanged && shouldCollapseSidebar()) {
                 toggleSidebar(false);
             }
             break;
         }
+
+        case 'updateLiveMetrics':
+            handleLiveMetricsUpdate(message.event);
+            break;
     }
 }
 

@@ -12,6 +12,7 @@ import type {
     HourlyStats
 } from '../../usages/fileLogger/types';
 import type { ExtendedTokenRequestLog } from '../../usages/fileLogger/usageParser';
+import type { LiveStreamMetricEvent } from '../../metrics/liveMetrics';
 
 // ============= UI 层数据类型 =============
 
@@ -83,7 +84,15 @@ export interface UpdateDateDetailsMessage {
     records: ExtendedTokenRequestLog[];
 }
 
-export type HostMessage = UpdateDateListMessage | UpdateDateDetailsMessage;
+/**
+ * 实时流式指标更新消息
+ */
+export interface UpdateLiveMetricsMessage {
+    command: 'updateLiveMetrics';
+    event: LiveStreamMetricEvent;
+}
+
+export type HostMessage = UpdateDateListMessage | UpdateDateDetailsMessage | UpdateLiveMetricsMessage;
 
 // ============= 应用状态类型 =============
 

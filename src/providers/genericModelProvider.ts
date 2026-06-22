@@ -26,6 +26,7 @@ import {
 } from '../utils';
 import { getEffectiveMaxInputTokens } from '../utils/languageModelInfo';
 import type { RetryableError } from '../utils';
+import * as liveMetrics from '../metrics/liveMetrics';
 import { OpenAIHandler } from '../handlers/openaiHandler';
 import { OpenAICustomHandler } from '../handlers/openaiCustomHandler';
 import { AnthropicHandler } from '../handlers/anthropicHandler';
@@ -459,9 +460,15 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         requestId: string,
         sessionId: string,
         token: CancellationToken,
-        effectiveProviderKey = modelConfig.provider || this.providerKey
+        effectiveProviderKey = modelConfig.provider || this.providerKey,
+        requestStartTime = Date.now()
     ): Promise<void> {
         const sdkMode = modelConfig.sdkMode || 'openai';
+
+        // requestStarted 不再在外层发射，而是移入 retry callback 内部，
+        // 每次 attempt 使用 liveAttemptStartTime 作为 live metrics 时间基准。
+        // 外层 requestStartTime 保留给 recordEstimatedTokens / 持久化记录使用。
+
         const retryManager = new RetryManager(this.getRequestRetryConfig());
 
         // 请求分类（仅当上层未设置时写入，避免覆盖 provideLanguageModelChatResponse 的值）
@@ -485,68 +492,100 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             }
         }
 
-        await retryManager.executeWithRetry(
-            async () => {
-                if (sdkMode === 'anthropic') {
-                    await this.anthropicHandler.handleRequest(
-                        model,
-                        modelConfig,
-                        messages,
-                        options,
-                        progress,
-                        requestId,
-                        sessionId,
-                        token
-                    );
-                } else if (sdkMode === 'gemini-sse') {
-                    await this.geminiHandler.handleRequest(
-                        model,
-                        modelConfig,
-                        messages,
-                        options,
-                        progress,
-                        requestId,
-                        sessionId,
-                        token
-                    );
-                } else if (sdkMode === 'openai-sse') {
-                    await this.openaiCustomHandler.handleRequest(
-                        model,
-                        modelConfig,
-                        messages,
-                        options,
-                        progress,
-                        requestId,
-                        sessionId,
-                        token
-                    );
-                } else if (sdkMode === 'openai-responses') {
-                    await this.openaiResponsesHandler.handleResponsesRequest(
-                        model,
-                        { ...modelConfig, provider: effectiveProviderKey },
-                        messages,
-                        options,
-                        progress,
-                        requestId,
-                        sessionId,
-                        token
-                    );
-                } else {
-                    await this.openaiHandler.handleRequest(
-                        model,
-                        modelConfig,
-                        messages,
-                        options,
-                        progress,
-                        requestId,
-                        sessionId,
-                        token
-                    );
-                }
-            },
-            error => this.shouldRetryRequest(error),
-            this.providerConfig.displayName
-        );
+        try {
+            await retryManager.executeWithRetry(
+                async () => {
+                    // 每次 attempt（含首次和 retry）使用独立时间基准，
+                    // 确保 live TTFT 只反映当前 attempt 的耗时，不包含重试等待。
+                    const liveAttemptStartTime = Date.now();
+
+                    if (requestId) {
+                        liveMetrics.emitLiveMetrics({
+                            type: 'requestStarted',
+                            requestId,
+                            requestStartTime: liveAttemptStartTime,
+                            providerName: this.providerConfig.displayName,
+                            modelName: model.name || modelConfig.name
+                        });
+                    }
+
+                    if (sdkMode === 'anthropic') {
+                        await this.anthropicHandler.handleRequest(
+                            model,
+                            modelConfig,
+                            messages,
+                            options,
+                            progress,
+                            requestId,
+                            sessionId,
+                            token,
+                            liveAttemptStartTime
+                        );
+                    } else if (sdkMode === 'gemini-sse') {
+                        await this.geminiHandler.handleRequest(
+                            model,
+                            modelConfig,
+                            messages,
+                            options,
+                            progress,
+                            requestId,
+                            sessionId,
+                            token,
+                            liveAttemptStartTime
+                        );
+                    } else if (sdkMode === 'openai-sse') {
+                        await this.openaiCustomHandler.handleRequest(
+                            model,
+                            modelConfig,
+                            messages,
+                            options,
+                            progress,
+                            requestId,
+                            sessionId,
+                            token,
+                            liveAttemptStartTime
+                        );
+                    } else if (sdkMode === 'openai-responses') {
+                        await this.openaiResponsesHandler.handleResponsesRequest(
+                            model,
+                            { ...modelConfig, provider: effectiveProviderKey },
+                            messages,
+                            options,
+                            progress,
+                            requestId,
+                            sessionId,
+                            token,
+                            liveAttemptStartTime
+                        );
+                    } else {
+                        await this.openaiHandler.handleRequest(
+                            model,
+                            modelConfig,
+                            messages,
+                            options,
+                            progress,
+                            requestId,
+                            sessionId,
+                            token,
+                            liveAttemptStartTime
+                        );
+                    }
+                },
+                error => this.shouldRetryRequest(error),
+                this.providerConfig.displayName
+            );
+        } finally {
+            // 整个重试流程结束后发送 streamEnd，清理 WebView 实时状态
+            if (requestId) {
+                liveMetrics.emitLiveMetrics({
+                    type: 'streamEnd',
+                    requestId,
+                    requestStartTime,
+                    providerName: this.providerConfig.displayName,
+                    modelName: model.name || modelConfig.name
+                });
+            }
+        }
     }
 
     protected getEstimatedRequestMetadata(options: ProvideLanguageModelChatResponseOptions): {
@@ -611,25 +650,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             options
         );
 
-        // === Token 统计: 记录预估输入 token ===
-        const usagesManager = TokenUsagesManager.instance;
-        let requestId = '';
+        // 提取或生成 sessionId（根据 sdkMode，新会话时生成 UUID）
         const sessionId = this.getSessionIdFromMessages(messages, sdkMode);
-        try {
-            requestId = await usagesManager.recordEstimatedTokens({
-                providerKey: effectiveProviderKey,
-                displayName: this.providerConfig.displayName,
-                modelId: model.id,
-                modelName: model.name || modelConfig.name,
-                estimatedInputTokens: totalInputTokens,
-                maxInputTokens,
-                requestKind: rtOpts.modelOptions.requestKind ?? kind,
-                sessionId,
-                ...this.getEstimatedRequestMetadata(options)
-            });
-        } catch (err) {
-            Logger.warn('Failed to record estimated tokens, continuing request:', err);
-        }
 
         // 根据模型的 sdkMode 选择使用的 handler
         const sdkName = this.getSdkDisplayName(sdkMode);
@@ -637,9 +659,38 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             `${this.providerConfig.displayName} Provider started handling request (${sdkName}): ${modelConfig.name}`
         );
 
+        // === Token 统计: 记录预估输入 token ===
+        const usagesManager = TokenUsagesManager.instance;
+        let requestId = '';
+        let requestStartTime = Date.now();
+
         try {
             // 确保对应提供商的 API 密钥存在
             await ApiKeyManager.ensureApiKey(effectiveProviderKey, this.providerConfig.displayName);
+
+            // API Key 确认后开始计时，避免用户输入/授权时间计入实时延迟。
+            // 注意：该时间点是 provider 请求处理起点，不是严格的网络请求发出时刻；
+            // 可能包含预估 token 记录、请求体构建、SDK/client 初始化、CLI 版本探测等本地准备开销。
+            // 因此 live TTFT 表示"provider 开始处理到首个流事件"的近似延迟，
+            // 不应在 UI 或日志中描述为"网络请求发出后首流延迟"。
+            requestStartTime = Date.now();
+
+            try {
+                requestId = await usagesManager.recordEstimatedTokens({
+                    providerKey: effectiveProviderKey,
+                    displayName: this.providerConfig.displayName,
+                    modelId: model.id,
+                    modelName: model.name || modelConfig.name,
+                    estimatedInputTokens: totalInputTokens,
+                    maxInputTokens,
+                    requestKind: rtOpts.modelOptions.requestKind ?? kind,
+                    sessionId,
+                    timestamp: requestStartTime,
+                    ...this.getEstimatedRequestMetadata(options)
+                });
+            } catch (err) {
+                Logger.warn('Failed to record estimated tokens, continuing request:', err);
+            }
 
             await this.executeModelRequest(
                 model,
@@ -650,7 +701,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 requestId,
                 sessionId,
                 token,
-                effectiveProviderKey
+                effectiveProviderKey,
+                requestStartTime
             );
         } catch (error) {
             const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;

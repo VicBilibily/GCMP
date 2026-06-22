@@ -9,10 +9,11 @@ import * as path from 'path';
 import { TokenUsagesManager } from '../../usages/usagesManager';
 import { StatusLogger } from '../../utils/statusLogger';
 import { t } from '../../utils/l10n';
-import { UpdateDateDetailsMessage, UpdateDateListMessage } from './types';
+import { UpdateDateDetailsMessage, UpdateDateListMessage, UpdateLiveMetricsMessage } from './types';
 import type { WebViewMessage } from './types';
 import { getTodayDateString } from './utils';
 import { MultiDayView } from '../multiDayView';
+import { onLiveMetrics, type LiveStreamMetricEvent } from '../../metrics/liveMetrics';
 
 /**
  * Token 用量 WebView 视图
@@ -21,6 +22,7 @@ export class TokenUsagesView {
     private panel: vscode.WebviewPanel | undefined;
     private usagesManager: TokenUsagesManager;
     private updateDisposable: vscode.Disposable | undefined;
+    private liveMetricsDisposable: vscode.Disposable | undefined;
     private currentSelectedDate: string | undefined; // 当前查看的日期
     private hasCheckedOutdatedStats: boolean = false; // 是否已检查过过期统计
 
@@ -69,11 +71,21 @@ export class TokenUsagesView {
             }
         });
 
+        // 监听实时流式指标事件（retainContextWhenHidden 下隐藏面板仍可接收消息）
+        this.liveMetricsDisposable = onLiveMetrics((event: LiveStreamMetricEvent) => {
+            if (!this.panel) {
+                return;
+            }
+            this.handleLiveMetricEvent(event);
+        });
+
         // 监听关闭
         this.panel.onDidDispose(() => {
             this.panel = undefined;
             this.updateDisposable?.dispose();
             this.updateDisposable = undefined;
+            this.liveMetricsDisposable?.dispose();
+            this.liveMetricsDisposable = undefined;
         });
     }
 
@@ -234,6 +246,36 @@ export class TokenUsagesView {
             case 'openMultiDayTrend':
                 this.showMultiDayTrend();
                 break;
+        }
+    }
+
+    /**
+     * 处理实时流式指标事件，发送给 WebView 更新显示
+     * 不在 Extension 层过滤日期——WebView 端已有 isViewingToday() 控制是否渲染，
+     * 这样用户从历史日期切回今天时不会丢失正在进行的 live events。
+     */
+    private handleLiveMetricEvent(event: LiveStreamMetricEvent): void {
+        const panel = this.panel;
+        if (!panel) {
+            return;
+        }
+
+        try {
+            void panel.webview.postMessage({
+                command: 'updateLiveMetrics',
+                event
+            } as UpdateLiveMetricsMessage).then(
+                delivered => {
+                    if (!delivered) {
+                        StatusLogger.trace('[TokenUsagesView] live metric message dropped');
+                    }
+                },
+                err => {
+                    StatusLogger.warn('[TokenUsagesView] failed to post live metric message:', err);
+                }
+            );
+        } catch (err) {
+            StatusLogger.warn('[TokenUsagesView] failed to post live metric message:', err);
         }
     }
 

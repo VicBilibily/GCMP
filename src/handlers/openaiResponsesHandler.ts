@@ -13,6 +13,7 @@ import { OpenAIHandler } from './openaiHandler';
 import { getStatefulMarkerAndIndex } from './statefulMarker';
 import { StreamReporter } from './streamReporter';
 import { isSubRequest, type RequestKind } from './requestClassifier';
+import * as liveMetrics from '../metrics/liveMetrics';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
@@ -378,23 +379,32 @@ export class OpenAIResponsesHandler {
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
         requestId: string,
         sessionId: string,
-        token: vscode.CancellationToken
+        token: vscode.CancellationToken,
+        requestStartTime?: number
     ): Promise<void> {
         Logger.debug(`${model.name} starting ${this.displayName} Responses API request handling`);
+
+        let reporter: StreamReporter | undefined;
 
         try {
             const client = await this.handler.createOpenAIClient(modelConfig);
             Logger.info(`🚀 ${model.name} Sending ${this.displayName} Responses API request`);
 
             // 创建统一的流报告器
-            const reporter = new StreamReporter({
+            reporter = new StreamReporter({
                 modelName: model.name,
                 modelId: model.id,
                 provider: this.providerKey,
                 sdkMode: 'openai-responses',
                 progress,
-                sessionId
+                sessionId,
+                requestId,
+                requestStartTime,
+                onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
             });
+            // 局部收窄：try 块内用 const 引用确保 TypeScript 知道非 undefined，
+            // 外层 let reporter 供 finally 兜底使用
+            const streamReporter = reporter;
 
             const requestModel = modelConfig.model || modelConfig.id;
 
@@ -403,8 +413,8 @@ export class OpenAIResponsesHandler {
             const cancellationListener = token.onCancellationRequested(() => abortController.abort());
             let streamError: Error | null = null;
             let finalUsage: Record<string, unknown> | undefined = undefined;
-            // 记录流处理的开始和结束时间
-            let streamStartTime = Date.now();
+            // 记录流处理的开始和结束时间（response.created 到达前为 undefined，避免使用进入函数的旧时间）
+            let streamStartTime: number | undefined;
             let streamEndTime: number | undefined = undefined;
 
             // Responses API 专属：按输出项追踪 delta/done 事件，避免跨 item 误去重导致后续文本被吞掉
@@ -431,6 +441,8 @@ export class OpenAIResponsesHandler {
             // 工具调用缓冲区 - 使用索引跟踪，支持累积
             const toolCallBuffers = new Map<number, { id: string; name: string; args: string }>();
             const completedToolCallIndices = new Set<number>();
+            // 追踪已通过 delta 计数的工具调用，避免 done/fallback 重复统计
+            const deltaCountedToolCallIndices = new Set<number>();
             const toolCallIdToIndex = new Map<string, number>();
             let nextToolCallIndex = 0;
 
@@ -638,8 +650,10 @@ export class OpenAIResponsesHandler {
                 // 使用 on(event) 模式处理流事件
                 stream
                     .on('response.created', () => {
-                        // 响应开始事件 - 记录流开始时间
-                        streamStartTime = Date.now();
+                        // 响应开始事件 - 记录流开始时间，同时固定首流延迟（共用时间戳）
+                        const now = Date.now();
+                        streamStartTime = now;
+                        streamReporter.markStreamStarted(now);
                     })
                     .on('response.output_text.delta', event => {
                         if (token.isCancellationRequested) {
@@ -652,7 +666,7 @@ export class OpenAIResponsesHandler {
                         }
                         const delta = event.delta;
                         if (delta && typeof delta === 'string') {
-                            reporter.reportText(delta);
+                            streamReporter.reportText(delta);
                         }
                     })
                     .on('response.output_text.done', event => {
@@ -663,7 +677,7 @@ export class OpenAIResponsesHandler {
                         }
                         const text = event.text || '';
                         if (text) {
-                            reporter.reportText(text);
+                            streamReporter.reportText(text);
                         }
                     })
                     .on('response.refusal.delta', event => {
@@ -678,7 +692,7 @@ export class OpenAIResponsesHandler {
                         }
                         const delta = event.delta;
                         if (delta && typeof delta === 'string') {
-                            reporter.reportText(delta);
+                            streamReporter.reportText(delta);
                         }
                     })
                     .on('response.refusal.done', event => {
@@ -692,7 +706,7 @@ export class OpenAIResponsesHandler {
                         }
                         const refusal = event.refusal || '';
                         if (refusal) {
-                            reporter.reportText(refusal);
+                            streamReporter.reportText(refusal);
                         }
                     })
                     .on('response.reasoning_text.delta', event => {
@@ -707,7 +721,7 @@ export class OpenAIResponsesHandler {
                         }
                         const delta = event.delta;
                         if (delta && typeof delta === 'string') {
-                            reporter.bufferThinking(delta);
+                            streamReporter.bufferThinking(delta);
                         }
                     })
                     .on('response.reasoning_text.done', event => {
@@ -718,10 +732,10 @@ export class OpenAIResponsesHandler {
                         const eventKey = getContentEventKey(event.item_id, event.content_index);
                         // 某些网关只发送最终的 done 事件（没有增量）
                         if ((!eventKey || !reasoningTextDeltaKeys.has(eventKey)) && event.text) {
-                            reporter.bufferThinking(event.text);
+                            streamReporter.bufferThinking(event.text);
                         }
-                        reporter.flushThinking('reasoning_text 完成');
-                        reporter.endThinkingChain();
+                        streamReporter.flushThinking('reasoning_text 完成');
+                        streamReporter.endThinkingChain();
                     })
                     .on('response.reasoning_summary_text.delta', event => {
                         // 处理思维链摘要增量（与官方实现一致：记录展示过摘要防止重复）
@@ -738,7 +752,7 @@ export class OpenAIResponsesHandler {
                         }
                         const delta = event.delta;
                         if (delta && typeof delta === 'string') {
-                            reporter.bufferThinking(delta);
+                            streamReporter.bufferThinking(delta);
                         }
                     })
                     .on('response.reasoning_summary_text.done', event => {
@@ -752,10 +766,10 @@ export class OpenAIResponsesHandler {
                         }
                         // 某些网关只发送最终的 done 事件（没有增量）
                         if ((!eventKey || !reasoningSummaryDeltaKeys.has(eventKey)) && event.text) {
-                            reporter.bufferThinking(event.text);
+                            streamReporter.bufferThinking(event.text);
                         }
-                        reporter.flushThinking('reasoning_summary 完成');
-                        reporter.endThinkingChain();
+                        streamReporter.flushThinking('reasoning_summary 完成');
+                        streamReporter.endThinkingChain();
                     })
                     .on('response.reasoning_summary_part.done', event => {
                         // 推理摘要 part 完成（与官方实现对齐）
@@ -764,10 +778,32 @@ export class OpenAIResponsesHandler {
                             reasoningSummaryItemIds.add(event.item_id);
                         }
                     })
-                    .on('response.function_call_arguments.delta', () => {
-                        // SDK 会在 done 事件中提供完整的 arguments，这里不需要处理
+                    .on('response.function_call_arguments.delta', event => {
+                        // Tool arguments delta only counts toward live chars/s when it can be mapped
+                        // to a stable output item (item_id). If a compatibility gateway omits item_id
+                        // and no stable index can be resolved, skip delta counting and let the
+                        // done/fallback path count the complete arguments once.
+                        // Prefer under-counting to double-counting.
                         if (token.isCancellationRequested) {
                             return;
+                        }
+
+                        const itemId = event.item_id;
+                        const idx = itemId ? getToolCallIndex(itemId) : undefined;
+                        if (idx === undefined) {
+                            return;
+                        }
+
+                        // 某些兼容网关可能在 output_item.added 已带完整 args 后又补发 delta，
+                        // 此时该 call 已 completed，跳过避免重复计数
+                        if (completedToolCallIndices.has(idx)) {
+                            return;
+                        }
+
+                        const delta = typeof event.delta === 'string' ? event.delta : '';
+                        if (delta.length > 0) {
+                            streamReporter.reportToolArgDelta(delta.length);
+                            deltaCountedToolCallIndices.add(idx);
                         }
                     })
                     .on('response.function_call_arguments.done', event => {
@@ -802,7 +838,10 @@ export class OpenAIResponsesHandler {
                         // 尝试发送工具调用
                         try {
                             const input = JSON.parse(args || '{}');
-                            reporter.reportToolCall(callId, name, input);
+                            // delta 已逐步计数时跳过 args 字符统计，避免重复计入
+                            streamReporter.reportToolCall(callId, name, input, {
+                                countArgs: !deltaCountedToolCallIndices.has(idx)
+                            });
                             completedToolCallIndices.add(idx);
                         } catch (e) {
                             Logger.warn(`Failed to parse tool call arguments: ${args}`, e);
@@ -855,7 +894,9 @@ export class OpenAIResponsesHandler {
                             if (args && name) {
                                 try {
                                     const input = JSON.parse(args);
-                                    reporter.reportToolCall(callId, name, input);
+                                    streamReporter.reportToolCall(callId, name, input, {
+                                        countArgs: !deltaCountedToolCallIndices.has(idx)
+                                    });
                                     completedToolCallIndices.add(idx);
                                 } catch (e) {
                                     Logger.warn(`Failed to parse tool call arguments: ${args}`, e);
@@ -879,8 +920,8 @@ export class OpenAIResponsesHandler {
                                 const summaryText =
                                     reasoningItem.id && reasoningSummaryItemIds.has(reasoningItem.id) ?
                                         undefined
-                                    :   reasoningItem.summary?.map(s => s.text);
-                                reporter.reportEncryptedThinking(
+                                        : reasoningItem.summary?.map(s => s.text);
+                                streamReporter.reportEncryptedThinking(
                                     reasoningItem.encrypted_content,
                                     reasoningItem.id,
                                     summaryText
@@ -906,7 +947,9 @@ export class OpenAIResponsesHandler {
 
                             try {
                                 const input = JSON.parse(args);
-                                reporter.reportToolCall(callId as string, name, input);
+                                streamReporter.reportToolCall(callId as string, name, input, {
+                                    countArgs: !deltaCountedToolCallIndices.has(idx)
+                                });
                                 completedToolCallIndices.add(idx);
                             } catch (e) {
                                 Logger.warn(`Failed to parse tool call arguments: ${args}`, e);
@@ -946,7 +989,9 @@ export class OpenAIResponsesHandler {
 
                                         try {
                                             const input = JSON.parse(item.arguments || '{}');
-                                            reporter.reportToolCall(callId, item.name, input);
+                                            streamReporter.reportToolCall(callId, item.name, input, {
+                                                countArgs: !deltaCountedToolCallIndices.has(idx)
+                                            });
                                             completedToolCallIndices.add(idx);
                                         } catch (e) {
                                             Logger.warn(`Failed to parse tool call arguments: ${item.arguments}`, e);
@@ -958,7 +1003,7 @@ export class OpenAIResponsesHandler {
 
                         if (responseId) {
                             // 流结束，输出所有剩余内容和 StatefulMarker
-                            reporter.flushAll(null, {
+                            streamReporter.flushAll(null, {
                                 sessionId,
                                 responseId,
                                 expireAt: sessionExpireAt
@@ -967,7 +1012,7 @@ export class OpenAIResponsesHandler {
                                 `💾 ${model.name} Passed StatefulMarker: sessionId=${sessionId}, responseId=${responseId}`
                             );
                         } else {
-                            reporter.flushAll(null);
+                            streamReporter.flushAll(null);
                         }
                     })
                     .on('error', error => {
@@ -994,10 +1039,13 @@ export class OpenAIResponsesHandler {
                     throw streamError;
                 }
 
-                reporter.reportUsage(finalUsage);
+                streamReporter.reportUsage(finalUsage);
 
                 // 报告 usage 信息
                 Logger.info(`📊 ${model.name} Responses API request completed`, finalUsage);
+
+                // 补齐流开始时间：兼容网关可能未发送 response.created
+                streamStartTime ??= streamReporter.getMetricStreamStartTime();
 
                 if (requestId) {
                     try {
@@ -1092,6 +1140,8 @@ export class OpenAIResponsesHandler {
             } else {
                 throw error;
             }
+        } finally {
+            reporter?.finishMetrics();
         }
     }
 }

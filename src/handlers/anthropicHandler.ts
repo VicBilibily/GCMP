@@ -18,6 +18,7 @@ import { t } from '../utils/l10n';
 import type { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { StreamReporter } from './streamReporter';
+import * as liveMetrics from '../metrics/liveMetrics';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import { isSubRequest, type RequestKind } from './requestClassifier';
 
@@ -186,11 +187,14 @@ export class AnthropicHandler {
         progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
         requestId: string,
         sessionId: string,
-        token: vscode.CancellationToken
+        token: vscode.CancellationToken,
+        requestStartTime?: number
     ): Promise<void> {
         // 将 vscode.CancellationToken 转换为 AbortSignal
         const abortController = new AbortController();
         const cancellationListener = token.onCancellationRequested(() => abortController.abort());
+
+        let reporter: StreamReporter | undefined;
 
         try {
             const client = await this.createAnthropicClient(modelConfig);
@@ -285,21 +289,28 @@ export class AnthropicHandler {
                 anthropicStreamOptions.headers = createOpenCodeHeaders(requestId, sessionId);
             }
 
-            const stream = await client.messages.create(createParams, anthropicStreamOptions);
-
-            // 创建统一的流报告器
-            const reporter = new StreamReporter({
+            // 提前创建 reporter，使实时 TTFT 从 provider 请求处理起点开始滚动；
+            // 该起点不等同于严格的网络请求发出时刻。
+            reporter = new StreamReporter({
                 modelName: model.name,
                 modelId: model.id,
                 provider: this.provider,
                 sdkMode: 'anthropic',
                 progress,
-                sessionId
+                sessionId,
+                requestId,
+                requestStartTime,
+                onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
             });
+            // 局部收窄：try 块内用 const 引用确保 TypeScript 知道非 undefined，
+            // 外层 let reporter 供 finally 兜底使用
+            const streamReporter = reporter;
+
+            const stream = await client.messages.create(createParams, anthropicStreamOptions);
 
             // 使用完整的流处理函数
-            const result = await this.handleAnthropicStream(stream, reporter, token);
-            reporter.reportUsage(result?.usage);
+            const result = await this.handleAnthropicStream(stream, streamReporter, token);
+            streamReporter.reportUsage(result?.usage);
 
             Logger.info(`[${model.name}] Anthropic request completed`, result?.usage);
 
@@ -349,6 +360,7 @@ export class AnthropicHandler {
             // progress.report(new vscode.LanguageModelTextPart(errorMessage));
             throw error;
         } finally {
+            reporter?.finishMetrics();
             cancellationListener.dispose();
         }
     }
@@ -373,14 +385,17 @@ export class AnthropicHandler {
         const completedServerToolCalls = new Map<string, { toolId?: string; name?: string; jsonInput?: string }>();
         let usage: Anthropic.Messages.Usage | undefined;
         let responseId: string | undefined;
-        // 记录流处理的开始时间（在 message_start 事件中设置）
-        let streamStartTime = Date.now();
+        // 记录流处理的开始时间（message_start 到达前为 undefined，避免使用进入函数的旧时间）
+        let streamStartTime: number | undefined;
         let streamEndTime: number | undefined = undefined;
 
         Logger.debug('Starting Anthropic stream response processing');
 
         try {
             for await (const chunk of stream) {
+                // 心跳：触发轻量刷新（不固定首流延迟）
+                reporter.heartbeat();
+
                 if (token.isCancellationRequested) {
                     Logger.debug('Stream processing cancelled');
                     reporter.flushAll(null);
@@ -388,9 +403,11 @@ export class AnthropicHandler {
                 }
 
                 switch (chunk.type) {
-                    case 'message_start':
-                        // 消息开始 - 记录流开始时间
-                        streamStartTime = Date.now();
+                    case 'message_start': {
+                        // 消息开始 - 记录流开始时间，同时固定首流延迟（共用时间戳）
+                        const now = Date.now();
+                        streamStartTime = now;
+                        reporter.markStreamStarted(now);
                         // 收集初始使用统计
                         if (chunk.message.usage) {
                             usage = chunk.message.usage;
@@ -402,6 +419,7 @@ export class AnthropicHandler {
                             Logger.debug(`Received Anthropic message id (responseId): ${responseId}`);
                         }
                         break;
+                    }
 
                     case 'content_block_start':
                         // 内容块开始
@@ -455,13 +473,20 @@ export class AnthropicHandler {
                             reporter.reportText(chunk.delta.text);
                         } else if (chunk.delta.type === 'input_json_delta' && pendingToolCall) {
                             // 工具调用参数增量
-                            pendingToolCall.jsonInput = (pendingToolCall.jsonInput || '') + chunk.delta.partial_json;
+                            const partialJson = chunk.delta.partial_json ?? '';
+                            const partialLen = partialJson.length;
+                            pendingToolCall.jsonInput = (pendingToolCall.jsonInput || '') + partialJson;
+
+                            // tool argument delta 是 provider 实际回传的一部分，即使 Chat 面板隐藏也应计入 live chars/s
+                            reporter.reportToolArgDelta(partialLen);
 
                             // 尝试立即解析并报告工具调用（如果 JSON 已完整）
                             try {
                                 const parsedJson = JSON.parse(pendingToolCall.jsonInput);
-                                // JSON 解析成功，立即报告工具调用
-                                reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson);
+                                // JSON 解析成功，立即报告工具调用（countArgs: false，已通过 reportToolArgDelta 统计）
+                                reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson, {
+                                    countArgs: false
+                                });
                                 Logger.trace(
                                     `[${reporter.getModelName()}] Tool call completed: ${pendingToolCall.name}`
                                 );
@@ -470,8 +495,11 @@ export class AnthropicHandler {
                                 // JSON 还不完整，继续累积
                             }
                         } else if (chunk.delta.type === 'input_json_delta' && pendingServerToolCall) {
-                            pendingServerToolCall.jsonInput =
-                                (pendingServerToolCall.jsonInput || '') + chunk.delta.partial_json;
+                            const partialJson = chunk.delta.partial_json ?? '';
+                            const partialLen = partialJson.length;
+                            pendingServerToolCall.jsonInput = (pendingServerToolCall.jsonInput || '') + partialJson;
+                            // tool argument delta 是 provider 实际回传的一部分
+                            reporter.reportToolArgDelta(partialLen);
                         } else if (chunk.delta.type === 'thinking_delta') {
                             // 思考内容增量
                             const thinkingDelta = chunk.delta.thinking || '';
@@ -514,7 +542,9 @@ export class AnthropicHandler {
                                     parsedJson = {};
                                 }
 
-                                reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson);
+                                reporter.reportToolCall(pendingToolCall.toolId!, pendingToolCall.name!, parsedJson, {
+                                    countArgs: false
+                                });
                             } catch (e) {
                                 Logger.error(`Fallback tool call handling failed (${pendingToolCall.name}):`, e);
                             }
@@ -582,7 +612,10 @@ export class AnthropicHandler {
         // 记录流处理的结束时间
         streamEndTime ??= Date.now();
 
-        if (usage) {
+        // 补齐流开始时间：兼容网关可能未发送 message_start
+        streamStartTime ??= reporter.getMetricStreamStartTime();
+
+        if (usage && streamStartTime !== undefined) {
             const duration = streamEndTime - streamStartTime;
             const speed = duration > 0 ? ((usage.output_tokens / duration) * 1000).toFixed(1) : 'N/A';
             Logger.debug(
