@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { Logger, ConfigManager } from '../../utils';
+import { Logger, ConfigManager, CompatibleModelManager } from '../../utils';
 
 /**
  * Vision 分析结果
@@ -60,16 +60,29 @@ export async function analyzeImagesWithSystem(
     }
 
     const providerConfigs = ConfigManager.getConfigProvider();
-    const baseConfig = providerConfigs[visionModel.provider as keyof typeof providerConfigs];
-    const effectiveConfig =
-        baseConfig ? ConfigManager.applyProviderOverrides(visionModel.provider, baseConfig) : undefined;
-    const matchedModel = effectiveConfig?.models.find(m => m.id === visionModel.model);
-    const actualProvider = matchedModel?.provider || visionModel.provider;
-    const fullModelId = `gcmp.${actualProvider}:::${visionModel.model}`;
     const allModels = await vscode.lm.selectChatModels({});
-    const model = allModels.find(m => m.id === fullModelId);
+    let model: vscode.LanguageModelChatInformation | undefined;
+
+    if (visionModel.provider === 'compatible') {
+        // compatible 提供商：使用 CompatibleModelManager 获取动态模型列表
+        const models = CompatibleModelManager.getModels();
+        const matched = models.find(m => m.id === visionModel.model);
+        const actualProvider = matched?.provider || 'compatible';
+        const fullModelId = `gcmp.${actualProvider}:::${visionModel.model}`;
+        model = allModels.find(m => m.id === fullModelId);
+    } else {
+        // 非 compatible：检查模型是否有独立的 provider 字段
+        const baseConfig = providerConfigs[visionModel.provider as keyof typeof providerConfigs];
+        const effectiveConfig =
+            baseConfig ? ConfigManager.applyProviderOverrides(visionModel.provider, baseConfig) : undefined;
+        const matchedModel = effectiveConfig?.models.find(m => m.id === visionModel.model);
+        const actualProvider = matchedModel?.provider || visionModel.provider;
+        const fullModelId = `gcmp.${actualProvider}:::${visionModel.model}`;
+        model = allModels.find(m => m.id === fullModelId);
+    }
+
     if (!model) {
-        throw new Error(`Vision model not found: ${fullModelId}. Please check gcmp.vision.model configuration.`);
+        throw new Error(`Vision model not found: gcmp.${visionModel.provider}:::${visionModel.model}. Please check gcmp.vision.model configuration.`);
     }
 
     const imageParts = filePaths.map(filePath => {
