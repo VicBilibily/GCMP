@@ -465,16 +465,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     ): Promise<void> {
         const sdkMode = modelConfig.sdkMode || 'openai';
 
-        // 派发请求开始事件，使 WebView 首令延迟从 0 开始滚动
-        if (requestId) {
-            liveMetrics.emitLiveMetrics({
-                type: 'requestStarted',
-                requestId,
-                requestStartTime,
-                providerName: this.providerConfig.displayName,
-                modelName: model.name || modelConfig.name
-            });
-        }
+        // requestStarted 不再在外层发射，而是移入 retry callback 内部，
+        // 每次 attempt 使用 liveAttemptStartTime 作为 live metrics 时间基准。
+        // 外层 requestStartTime 保留给 recordEstimatedTokens / 持久化记录使用。
 
         const retryManager = new RetryManager(this.getRequestRetryConfig());
 
@@ -502,6 +495,20 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         try {
             await retryManager.executeWithRetry(
                 async () => {
+                    // 每次 attempt（含首次和 retry）使用独立时间基准，
+                    // 确保 live TTFT 只反映当前 attempt 的耗时，不包含重试等待。
+                    const liveAttemptStartTime = Date.now();
+
+                    if (requestId) {
+                        liveMetrics.emitLiveMetrics({
+                            type: 'requestStarted',
+                            requestId,
+                            requestStartTime: liveAttemptStartTime,
+                            providerName: this.providerConfig.displayName,
+                            modelName: model.name || modelConfig.name
+                        });
+                    }
+
                     if (sdkMode === 'anthropic') {
                         await this.anthropicHandler.handleRequest(
                             model,
@@ -512,7 +519,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             requestId,
                             sessionId,
                             token,
-                            requestStartTime
+                            liveAttemptStartTime
                         );
                     } else if (sdkMode === 'gemini-sse') {
                         await this.geminiHandler.handleRequest(
@@ -524,7 +531,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             requestId,
                             sessionId,
                             token,
-                            requestStartTime
+                            liveAttemptStartTime
                         );
                     } else if (sdkMode === 'openai-sse') {
                         await this.openaiCustomHandler.handleRequest(
@@ -536,7 +543,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             requestId,
                             sessionId,
                             token,
-                            requestStartTime
+                            liveAttemptStartTime
                         );
                     } else if (sdkMode === 'openai-responses') {
                         await this.openaiResponsesHandler.handleResponsesRequest(
@@ -548,7 +555,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             requestId,
                             sessionId,
                             token,
-                            requestStartTime
+                            liveAttemptStartTime
                         );
                     } else {
                         await this.openaiHandler.handleRequest(
@@ -560,7 +567,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             requestId,
                             sessionId,
                             token,
-                            requestStartTime
+                            liveAttemptStartTime
                         );
                     }
                 },

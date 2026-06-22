@@ -291,14 +291,8 @@ export class OpenAICustomHandler {
                     break;
                 }
 
-                // 记录首个 raw chunk 的时间作为流开始时间，同时固定首令延迟（共用时间戳，保持与原统计口径一致）
-                if (streamStartTime === undefined) {
-                    const now = Date.now();
-                    streamStartTime = now;
-                    reporter.markStreamStarted(now);
-                }
-
                 // 心跳：触发轻量刷新（不固定首令延迟）
+                // markStreamStarted 移到有效 JSON 解析后，避免 heartbeat/空行/非 JSON 噪声提前固定 TTFT
                 reporter.heartbeat();
 
                 buffer += decoder.decode(value, { stream: true });
@@ -322,6 +316,13 @@ export class OpenAICustomHandler {
                         try {
                             const chunk = JSON.parse(data);
                             chunkCount++;
+
+                            // 首个有效 JSON chunk 到达时固定首流时间（与 Gemini handler 口径对齐）
+                            if (streamStartTime === undefined) {
+                                const now = Date.now();
+                                streamStartTime = now;
+                                reporter.markStreamStarted(now);
+                            }
 
                             // 提取响应 ID（从首个 chunk）
                             if (chunk.id && typeof chunk.id === 'string') {
