@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.25.5",
+    "version": "0.25.6",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -25,11 +25,7 @@
         "qianfan",
         "antling",
         "ant-ling",
-        "百灵",
-        "蚂蚁百灵",
         "stepfun",
-        "阶跃星辰",
-        "百度千帆",
         "OpenAI Compatible",
         "Anthropic Compatible",
         "智谱AI",
@@ -40,6 +36,9 @@
         "阿里云百炼",
         "腾讯云",
         "百度千帆",
+        "阶跃星辰",
+        "百灵",
+        "蚂蚁百灵",
         "Coding Plan 编程套餐"
     ],
     "repository": {

@@ -569,7 +569,8 @@ GCMP includes comprehensive token usage tracking to help you monitor and manage 
 - **Real-time status bar**: Status bar displays today's token usage, auto-refreshing every 30 seconds
 - **Visual view**: WebView detail view supports viewing history and paginated request records
 - **Request kind classification**: Records and displays the Copilot request kind for each request (e.g., main agent, title generation, commit message, search subagent, vision recognition) so you can track the actual consumption of background utility tasks
-- **TTFT / TPOT and output speed**: Request records show time-to-first-token (TTFT), time-per-output-token (TPOT), and average output speed for evaluating model response performance
+- **Real-time Request Metrics**: Displays time-to-first-token (TTFT) and time-per-output-token (TPOT) in real time during streaming, naturally refreshed by actual usage once completed
+- **Real-time Output Token Estimation**: Streaming-phase output tokens and output speed (tokens/s) are estimated in real time via tokenizer; the output column shows the "last received estimation delta" (`+xx tks`), replaced by actual usage once completed
 - **Cache hit rate visualization**: The input column combines cache hit count and total input, showing the cache hit rate to help judge cache strategy effectiveness
 
 ### How to Use

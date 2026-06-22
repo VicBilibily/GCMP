@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.6] - 2026-06-23
+
+### 新增
+
+- **请求记录实时指标**：[#244](https://github.com/VicBilibily/GCMP/pull/244) Token 消耗统计面板的请求记录现支持流式阶段实时展示首流延迟（TTFT）与输出耗时（TPOT），完成后由真实 usage 自然刷新
+- **实时输出 token 估算**：流式阶段基于 tokenizer 实时估算输出 token 与输出速度（tokens/s），包含工具调用的完整结构开销（函数名、JSON 包装层等），预估与实际计费差距控制在 ±15% 以内；输出列以"最近一次接收的预估增量"（`+xx tks`）形式展示
+
+---
+
+### Added
+
+- **Real-time Request Metrics**: [#244](https://github.com/VicBilibily/GCMP/pull/244) Request records in the Token usage panel now display time-to-first-token (TTFT) and time-per-output-token (TPOT) during streaming, naturally refreshed by actual usage once completed
+- **Real-time Output Token Estimation**: Streaming-phase output tokens and output speed (tokens/s) are estimated in real time via tokenizer, including full tool call structural overhead (function name, JSON wrapper, etc.); estimation stays within ±15% of actual billing; output column shows the "last received estimation delta" (`+xx tks`)
+
 ## [0.25.5] - 2026-06-22
 
 ### 修复
