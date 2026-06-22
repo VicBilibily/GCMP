@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.4] - 2026-06-22
+
+### 优化
+
+- **全局代理配置适用范围调整**：[#245](https://github.com/VicBilibily/GCMP/issues/245) 将 `gcmp.proxy` 的配置作用域从 `application` 调整为 `machine`
+
+---
+
+### Improved
+
+- **Global Proxy Scope Adjustment**: [#245](https://github.com/VicBilibily/GCMP/issues/245) Changed `gcmp.proxy` configuration scope from `application` to `machine`
+
 ## [0.25.3] - 2026-06-22
 
 ### 修复
