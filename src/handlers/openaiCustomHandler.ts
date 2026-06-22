@@ -11,7 +11,7 @@ import { ApiKeyManager } from '../utils/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';
-import * as liveMetrics from '../metrics/liveMetrics';
+import * as liveMetrics from './liveMetrics';
 import { t } from '../utils/l10n';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 

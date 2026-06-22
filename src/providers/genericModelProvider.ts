@@ -26,7 +26,7 @@ import {
 } from '../utils';
 import { getEffectiveMaxInputTokens } from '../utils/languageModelInfo';
 import type { RetryableError } from '../utils';
-import * as liveMetrics from '../metrics/liveMetrics';
+import * as liveMetrics from '../handlers/liveMetrics';
 import { OpenAIHandler } from '../handlers/openaiHandler';
 import { OpenAICustomHandler } from '../handlers/openaiCustomHandler';
 import { AnthropicHandler } from '../handlers/anthropicHandler';
@@ -662,7 +662,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // === Token 统计: 记录预估输入 token ===
         const usagesManager = TokenUsagesManager.instance;
         let requestId = '';
-        let requestStartTime = Date.now();
+        let requestStartTime: number;
 
         try {
             // 确保对应提供商的 API 密钥存在

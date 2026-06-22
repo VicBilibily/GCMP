@@ -18,7 +18,7 @@ import { t } from '../utils/l10n';
 import type { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { StreamReporter } from './streamReporter';
-import * as liveMetrics from '../metrics/liveMetrics';
+import * as liveMetrics from './liveMetrics';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import { isSubRequest, type RequestKind } from './requestClassifier';
 
@@ -478,7 +478,7 @@ export class AnthropicHandler {
                             pendingToolCall.jsonInput = (pendingToolCall.jsonInput || '') + partialJson;
 
                             // tool argument delta 是 provider 实际回传的一部分，即使 Chat 面板隐藏也应计入 live chars/s
-                            reporter.reportToolArgDelta(partialLen);
+                            reporter.reportToolArgDelta(partialLen, partialJson);
 
                             // 尝试立即解析并报告工具调用（如果 JSON 已完整）
                             try {
@@ -499,7 +499,7 @@ export class AnthropicHandler {
                             const partialLen = partialJson.length;
                             pendingServerToolCall.jsonInput = (pendingServerToolCall.jsonInput || '') + partialJson;
                             // tool argument delta 是 provider 实际回传的一部分
-                            reporter.reportToolArgDelta(partialLen);
+                            reporter.reportToolArgDelta(partialLen, partialJson);
                         } else if (chunk.delta.type === 'thinking_delta') {
                             // 思考内容增量
                             const thinkingDelta = chunk.delta.thinking || '';

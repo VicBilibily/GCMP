@@ -16,6 +16,16 @@ export interface LiveStreamMetricEvent {
     firstChunkLatencyMs?: number;
     outputChars?: number;
     charsPerSecond?: number;
+    /**
+     * 实时估算的输出 token 数（基于增量 encode 累加，存在 token 边界误差）。
+     * 仅用于 streaming 阶段的预估展示，最终值仍以 usage 回写为准。
+     */
+    estimatedOutputTokens?: number;
+    /**
+     * 实时估算的输出 token 速度（tokens/s）。基于 estimatedOutputTokens 与流耗时计算。
+     * 暂停期间保持冻结（与 charsPerSecond 行为一致）。
+     */
+    tokensPerSecond?: number;
 }
 
 type LiveMetricsListener = (event: LiveStreamMetricEvent) => void;

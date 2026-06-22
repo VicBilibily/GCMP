@@ -19,7 +19,7 @@ import type { GenericUsageData, RawUsageData } from '../usages/fileLogger/types'
 import type { RequestInit as UndiciRequestInit } from 'undici';
 import { convertMessagesToGemini, convertToolsToGemini } from './geminiConverter';
 import { StreamReporter } from './streamReporter';
-import * as liveMetrics from '../metrics/liveMetrics';
+import * as liveMetrics from './liveMetrics';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import type {
     GeminiGenerationConfig,

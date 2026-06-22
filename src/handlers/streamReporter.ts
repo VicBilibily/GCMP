@@ -11,9 +11,23 @@ import { encodeStatefulMarker, StatefulMarkerContainer } from './statefulMarker'
 import { toOptionalStatefulMarkerField } from './statefulMarkerCodec';
 import { CustomDataPartMimeTypes } from './types';
 import { TextBuffer, ThinkingBuffer, SignatureBuffer, ToolCallAccumulator } from './buffers';
-import type { LiveStreamMetricEvent } from '../metrics/liveMetrics';
+import { LiveMetricsTracker } from './liveMetricsTracker';
+import type { LiveStreamMetricEvent } from './liveMetrics';
+import { TokenCounter } from '../utils/tokenCounter';
+import type { TikTokenizer } from '@microsoft/tiktokenizer';
 
 const USAGE_DATA_ENCODER = new TextEncoder();
+
+/**
+ * 将字符串序列化为工具参数 JSON（用于完整 tool call 路径的字符与 token 统计）
+ */
+function stringifyToolArgs(args: Record<string, unknown> | object): string | undefined {
+    try {
+        return JSON.stringify(args) ?? undefined;
+    } catch {
+        return undefined;
+    }
+}
 
 export type StatefulMarkerPartial = Omit<StatefulMarkerContainer, 'extension' | 'provider' | 'modelId' | 'sdkMode'>;
 
@@ -39,6 +53,11 @@ export interface StreamReporterOptions {
     requestStartTime?: number;
     /** 实时指标回调（可选） */
     onLiveMetrics?: (event: LiveStreamMetricEvent) => void;
+    /**
+     * 共享的 tokenizer 实例（可选）。注入后会用于实时估算输出 token 数。
+     * 失败/未注入时降级为只统计字符数，不影响 chars/s 速度统计。
+     */
+    tokenizer?: TikTokenizer;
 }
 
 /**
@@ -72,19 +91,7 @@ export class StreamReporter {
     private readonly provider: string;
     private readonly sdkMode: StatefulMarkerContainer['sdkMode'];
     private readonly progress: vscode.Progress<vscode.LanguageModelResponsePart2>;
-    private readonly requestId: string | undefined;
-    private readonly requestStartTime: number | undefined;
-    private readonly onLiveMetrics: ((event: LiveStreamMetricEvent) => void) | undefined;
-
-    // 实时指标状态
-    private firstChunkEmitted = false;
-    private streamEnded = false;
-    private outputChars = 0;
-    private lastCharsPerSecond = 0; // 仅在收到实际 provider 输出字符时更新
-    private lastLiveUpdateAt = 0;
-    private firstStreamTime = 0; // 首个流事件到达时间（与 handler 的 streamStartTime 对齐，共用时间戳）
-    private fixedFirstChunkLatencyMs = 0; // 固定的首流延迟（首流事件后不再变化）
-    private readonly LIVE_UPDATE_INTERVAL = 200; // 200ms 节流间隔
+    private readonly tracker: LiveMetricsTracker;
 
     private readonly textBuffer = new TextBuffer();
     private readonly thinkingBuffer = new ThinkingBuffer();
@@ -98,6 +105,18 @@ export class StreamReporter {
     private hasReceivedContent = false;
     private hasThinkingContent = false;
 
+    /**
+     * 安全获取共享 tokenizer 实例。未初始化或加载失败时返回 undefined，
+     * 所有 token 估算降级为只统计字符数。
+     */
+    private static tryGetSharedTokenizer(): TikTokenizer | undefined {
+        try {
+            return TokenCounter.getSharedTokenizer();
+        } catch {
+            return undefined;
+        }
+    }
+
     constructor(options: StreamReporterOptions) {
         this.modelName = options.modelName;
         this.modelId = options.modelId;
@@ -105,117 +124,44 @@ export class StreamReporter {
         this.sdkMode = options.sdkMode;
         this.progress = options.progress;
         this.sessionId = options.sessionId || crypto.randomUUID();
-        this.requestId = options.requestId;
-        this.requestStartTime = options.requestStartTime;
-        this.onLiveMetrics = options.onLiveMetrics;
+        this.tracker = new LiveMetricsTracker({
+            requestId: options.requestId,
+            requestStartTime: options.requestStartTime,
+            providerName: options.provider,
+            modelName: options.modelName,
+            onLiveMetrics: options.onLiveMetrics,
+            // 共享 tokenizer 由 tracker 内部按阈值批量 encode，避免每个 chunk 都触发计算
+            tokenizer: options.tokenizer ?? StreamReporter.tryGetSharedTokenizer()
+        });
     }
 
     /**
-     * 检查是否可以发送实时指标
-     */
-    private canEmitMetrics(): boolean {
-        return Boolean(
-            this.requestId &&
-            typeof this.requestStartTime === 'number' &&
-            Number.isFinite(this.requestStartTime) &&
-            this.onLiveMetrics
-        );
-    }
-
-    /**
-     * 标记流已开始（由 handler 在设置 streamStartTime 的同一时刻调用，共用同一个时间戳）
-     * @param streamStartTime handler 设置的 streamStartTime，必须与持久化记录一致
-     *
-     * 各 handler 的首流事件时机不同：
-     * - Anthropic: message_start
-     * - OpenAI Chat SDK: 首个 chunk 事件
-     * - OpenAI Responses: response.created
-     * - Gemini/SSE: 首个有效 JSON event
-     * 本方法记录的是"首个流事件"，不等同于"首个可见文字"。
+     * 标记流已开始（由 handler 在设置 streamStartTime 的同一时刻调用，共用同一个时间戳）。
+     * 详见 LiveMetricsTracker.markStreamStarted。
      */
     markStreamStarted(streamStartTime: number): void {
-        if (this.firstChunkEmitted || !this.canEmitMetrics()) {
-            return;
-        }
-
-        this.firstStreamTime = streamStartTime;
-        this.fixedFirstChunkLatencyMs = Math.max(0, streamStartTime - this.requestStartTime!);
-        this.firstChunkEmitted = true;
-
-        this.onLiveMetrics!({
-            type: 'firstChunk',
-            requestId: this.requestId!,
-            requestStartTime: this.requestStartTime!,
-            streamStartTime,
-            providerName: this.provider,
-            modelName: this.modelName,
-            firstChunkLatencyMs: this.fixedFirstChunkLatencyMs
-        });
+        this.tracker.markStreamStarted(streamStartTime);
     }
 
     /**
-     * 获取 Reporter 已记录的流开始时间（只读，不触发指标事件）
-     * 供 handler 在缺少标准首流事件时回退使用
+     * 获取已记录的流开始时间（只读，不触发指标事件）。
      */
     getMetricStreamStartTime(): number | undefined {
-        return this.firstStreamTime > 0 ? this.firstStreamTime : undefined;
+        return this.tracker.getMetricStreamStartTime();
     }
 
     /**
-     * 发送流式速度更新
-     * @param force 是否跳过 200ms 节流（供 finishMetrics 最后一帧使用）
+     * 心跳：触发受节流的轻量刷新（不固定首流时间）。
      */
-    private emitStreamingUpdate(force = false): void {
-        if (!this.canEmitMetrics()) {
-            return;
-        }
-
-        const now = Date.now();
-        if (!force && now - this.lastLiveUpdateAt < this.LIVE_UPDATE_INTERVAL) {
-            return;
-        }
-
-        // 首流延迟：已收到首流事件则使用固定值，否则从请求开始持续计时
-        const firstChunkLatencyMs =
-            this.firstChunkEmitted ? this.fixedFirstChunkLatencyMs : Math.max(0, now - this.requestStartTime!);
-
-        // 输出速度：使用 updateOutputSpeed 中缓存的值，暂停期间不会衰减
-        const charsPerSecond = this.lastCharsPerSecond;
-
-        this.onLiveMetrics!({
-            type: 'streamingUpdate',
-            requestId: this.requestId!,
-            requestStartTime: this.requestStartTime!,
-            streamStartTime: this.firstStreamTime > 0 ? this.firstStreamTime : undefined,
-            providerName: this.provider,
-            modelName: this.modelName,
-            firstChunkLatencyMs,
-            outputChars: this.outputChars,
-            charsPerSecond
-        });
-        this.lastLiveUpdateAt = now;
+    heartbeat(): void {
+        this.tracker.heartbeat();
     }
 
     /**
-     * 结束实时指标上报（发送最后一帧 streamingUpdate，不发送 streamEnd）
-     * streamEnd 由 GenericModelProvider 在整个重试流程结束后发送。
-     * 注意：本方法由 flushAll()（正常完成）和 handler finally（异常/取消）双路径调用，
-     * 通过 streamEnded 标志保证幂等——只有第一次调用生效。
+     * 结束实时指标上报（幂等）。
      */
     finishMetrics(): void {
-        if (this.streamEnded) {
-            return;
-        }
-        this.streamEnded = true;
-
-        if (!this.canEmitMetrics()) {
-            return;
-        }
-
-        // 只有已收到首个有效流事件时，才发送最后一帧 streamingUpdate
-        if (this.firstChunkEmitted) {
-            this.emitStreamingUpdate(true);
-        }
+        this.tracker.finishMetrics();
     }
 
     /**
@@ -238,8 +184,8 @@ export class StreamReporter {
         this.textBuffer.append(content);
         this.hasReceivedContent = true;
 
-        // 实时指标：更新输出字符数和速度
-        this.updateOutputSpeed(content.length);
+        // 实时指标：传原始文本给 tracker，由其按阈值批量 encode（避免每个 chunk 都触发计算）
+        this.tracker.reportOutput(content.length, content);
 
         if (this.textBuffer.shouldFlush()) {
             const part = this.textBuffer.flush();
@@ -265,7 +211,10 @@ export class StreamReporter {
         // 完整 tool arguments 也是 provider 实际回传的一部分；
         // 用于不提供 argument delta、只提供完整 tool call 的 provider/SDK 路径。
         if (options.countArgs ?? true) {
-            this.updateOutputSpeed(this.getToolArgsLength(args));
+            const argsJson = stringifyToolArgs(args);
+            if (argsJson) {
+                this.tracker.reportOutput(argsJson.length, argsJson);
+            }
         }
 
         this.progress.report(new vscode.LanguageModelToolCallPart(callId, name, args));
@@ -289,23 +238,15 @@ export class StreamReporter {
     }
 
     /**
-     * 上报工具调用参数增量字符数（仅更新速度统计，不触发 progress.report）
+     * 上报工具调用参数增量（仅更新速度统计，不触发 progress.report）
      * 适用于 handler 自行管理 tool call 缓冲的场景（如 Anthropic handler 的 input_json_delta）
      * 只用于 provider raw tool-argument delta；不要用于本地 tool result 或工具执行输出
+     *
+     * @param deltaChars 字符数增量（用于 chars/s）
+     * @param deltaText 增量原始文本（可选，用于同步 encode 估算 token）
      */
-    reportToolArgDelta(deltaChars: number): void {
-        this.updateOutputSpeed(deltaChars);
-    }
-
-    /**
-     * 获取工具调用参数的字符串长度（用于完整 tool call 路径的速度统计）
-     */
-    private getToolArgsLength(args: Record<string, unknown> | object): number {
-        try {
-            return JSON.stringify(args)?.length ?? 0;
-        } catch {
-            return 0;
-        }
+    reportToolArgDelta(deltaChars: number, deltaText?: string): void {
+        this.tracker.reportOutput(deltaChars, deltaText);
     }
 
     /**
@@ -326,44 +267,11 @@ export class StreamReporter {
     }
 
     /**
-     * 心跳方法——触发受节流的轻量刷新。
-     * 不得调用 markStreamStarted()，不得自行固定流开始时间。
-     */
-    heartbeat(): void {
-        this.emitStreamingUpdate();
-    }
-
-    /**
-     * 更新输出字符数并触发刷新（受 200ms 节流，结束时由 finishMetrics 强制最后一帧）
-     * 速度仅在收到实际输出字符时更新，暂停期间保持冻结
-     */
-    private updateOutputSpeed(addedChars: number): void {
-        if (!Number.isFinite(addedChars) || addedChars <= 0) {
-            return;
-        }
-
-        const now = Date.now();
-
-        // 兼容 Responses / 第三方网关缺少 response.created / 首流事件的情况：
-        // 只有真实输出字符到达时才兜底固定首流时间；不在 heartbeat 中固定（避免 ping/空 chunk 过早固定）
-        if (!this.firstChunkEmitted && this.canEmitMetrics()) {
-            this.markStreamStarted(now);
-        }
-
-        this.outputChars += addedChars;
-
-        const elapsedMs = this.firstStreamTime > 0 ? Math.max(1, now - this.firstStreamTime) : 0;
-        this.lastCharsPerSecond = elapsedMs > 0 && this.outputChars > 0 ? (this.outputChars / elapsedMs) * 1000 : 0;
-
-        this.emitStreamingUpdate();
-    }
-
-    /**
      * 缓冲思考内容（累积到阈值后输出，用于 delta 事件）
      */
     bufferThinking(content: string): void {
-        // 实时指标：更新输出字符数和速度
-        this.updateOutputSpeed(content.length);
+        // 实时指标：传原始文本给 tracker，由其按阈值批量 encode
+        this.tracker.reportOutput(content.length, content);
 
         this.thinkingBuffer.append(content);
         this.hasThinkingContent = true;
@@ -418,7 +326,7 @@ export class StreamReporter {
 
         // tool argument delta 是 provider 实际回传的一部分，计入 live chars/s
         if (argsFragment) {
-            this.updateOutputSpeed(argsFragment.length);
+            this.tracker.reportOutput(argsFragment.length, argsFragment);
         }
 
         if (!completed) {

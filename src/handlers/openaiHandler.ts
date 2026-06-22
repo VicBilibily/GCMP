@@ -12,7 +12,7 @@ import { t } from '../utils/l10n';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';
-import * as liveMetrics from '../metrics/liveMetrics';
+import * as liveMetrics from './liveMetrics';
 import { getReasoningReplayPolicy, shouldInjectReasoningPlaceholder } from './reasoningReplayPolicy';
 import { decodeStatefulMarker } from './statefulMarker';
 import { CustomDataPartMimeTypes } from './types';

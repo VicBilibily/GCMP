@@ -13,7 +13,7 @@ import { UpdateDateDetailsMessage, UpdateDateListMessage, UpdateLiveMetricsMessa
 import type { WebViewMessage } from './types';
 import { getTodayDateString } from './utils';
 import { MultiDayView } from '../multiDayView';
-import { onLiveMetrics, type LiveStreamMetricEvent } from '../../metrics/liveMetrics';
+import { onLiveMetrics, type LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 
 /**
  * Token 用量 WebView 视图
@@ -72,8 +72,13 @@ export class TokenUsagesView {
         });
 
         // 监听实时流式指标事件（retainContextWhenHidden 下隐藏面板仍可接收消息）
+        // 仅在查看今天时转发给 WebView，非今天直接跳过 postMessage（IPC 序列化开销）
         this.liveMetricsDisposable = onLiveMetrics((event: LiveStreamMetricEvent) => {
             if (!this.panel) {
+                return;
+            }
+            const today = getTodayDateString();
+            if (this.currentSelectedDate !== today) {
                 return;
             }
             this.handleLiveMetricEvent(event);
@@ -261,19 +266,21 @@ export class TokenUsagesView {
         }
 
         try {
-            void panel.webview.postMessage({
-                command: 'updateLiveMetrics',
-                event
-            } as UpdateLiveMetricsMessage).then(
-                delivered => {
-                    if (!delivered) {
-                        StatusLogger.trace('[TokenUsagesView] live metric message dropped');
+            void panel.webview
+                .postMessage({
+                    command: 'updateLiveMetrics',
+                    event
+                } as UpdateLiveMetricsMessage)
+                .then(
+                    delivered => {
+                        if (!delivered) {
+                            StatusLogger.trace('[TokenUsagesView] live metric message dropped');
+                        }
+                    },
+                    err => {
+                        StatusLogger.warn('[TokenUsagesView] failed to post live metric message:', err);
                     }
-                },
-                err => {
-                    StatusLogger.warn('[TokenUsagesView] failed to post live metric message:', err);
-                }
-            );
+                );
         } catch (err) {
             StatusLogger.warn('[TokenUsagesView] failed to post live metric message:', err);
         }

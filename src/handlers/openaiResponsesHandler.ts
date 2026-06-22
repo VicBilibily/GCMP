@@ -13,7 +13,7 @@ import { OpenAIHandler } from './openaiHandler';
 import { getStatefulMarkerAndIndex } from './statefulMarker';
 import { StreamReporter } from './streamReporter';
 import { isSubRequest, type RequestKind } from './requestClassifier';
-import * as liveMetrics from '../metrics/liveMetrics';
+import * as liveMetrics from './liveMetrics';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
@@ -649,6 +649,10 @@ export class OpenAIResponsesHandler {
 
                 // 使用 on(event) 模式处理流事件
                 stream
+                    .on('event', () => {
+                        // 心跳：每个 SSE 事件触发一次轻量刷新，确保首流前 latency 平滑增长
+                        streamReporter.heartbeat();
+                    })
                     .on('response.created', () => {
                         // 响应开始事件 - 记录流开始时间，同时固定首流延迟（共用时间戳）
                         const now = Date.now();
@@ -802,7 +806,7 @@ export class OpenAIResponsesHandler {
 
                         const delta = typeof event.delta === 'string' ? event.delta : '';
                         if (delta.length > 0) {
-                            streamReporter.reportToolArgDelta(delta.length);
+                            streamReporter.reportToolArgDelta(delta.length, delta);
                             deltaCountedToolCallIndices.add(idx);
                         }
                     })
@@ -920,7 +924,7 @@ export class OpenAIResponsesHandler {
                                 const summaryText =
                                     reasoningItem.id && reasoningSummaryItemIds.has(reasoningItem.id) ?
                                         undefined
-                                        : reasoningItem.summary?.map(s => s.text);
+                                    :   reasoningItem.summary?.map(s => s.text);
                                 streamReporter.reportEncryptedThinking(
                                     reasoningItem.encrypted_content,
                                     reasoningItem.id,
