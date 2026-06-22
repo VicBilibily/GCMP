@@ -14,16 +14,24 @@ export interface LiveStreamMetricEvent {
     modelName: string;
     streamStartTime?: number;
     firstChunkLatencyMs?: number;
-    outputChars?: number;
-    charsPerSecond?: number;
     /**
      * 实时估算的输出 token 数（基于增量 encode 累加，存在 token 边界误差）。
      * 仅用于 streaming 阶段的预估展示，最终值仍以 usage 回写为准。
      */
     estimatedOutputTokens?: number;
     /**
+     * 最近一次 flush（text/tool_call overhead）新增的 token 数。
+     * UI 展示为 `+xx`，反映"最近一次接收的预估增量"，比累计值更直观。
+     */
+    lastOutputTokenDelta?: number;
+    /**
+     * flush 序号（单调递增）。UI 用它判断"是否真的有新 flush 到达"，
+     * 避免依赖 delta 值大小变化做误判（稳定速度下连续 flush 的 delta 可能相同）。
+     */
+    lastFlushSeq?: number;
+    /**
      * 实时估算的输出 token 速度（tokens/s）。基于 estimatedOutputTokens 与流耗时计算。
-     * 暂停期间保持冻结（与 charsPerSecond 行为一致）。
+     * 暂停期间保持冻结。
      */
     tokensPerSecond?: number;
 }

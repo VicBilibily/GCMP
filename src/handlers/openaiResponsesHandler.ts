@@ -806,7 +806,7 @@ export class OpenAIResponsesHandler {
 
                         const delta = typeof event.delta === 'string' ? event.delta : '';
                         if (delta.length > 0) {
-                            streamReporter.reportToolArgDelta(delta.length, delta);
+                            streamReporter.reportToolArgDelta(delta);
                             deltaCountedToolCallIndices.add(idx);
                         }
                     })

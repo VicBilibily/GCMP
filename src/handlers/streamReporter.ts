@@ -185,7 +185,7 @@ export class StreamReporter {
         this.hasReceivedContent = true;
 
         // 实时指标：传原始文本给 tracker，由其按阈值批量 encode（避免每个 chunk 都触发计算）
-        this.tracker.reportOutput(content.length, content);
+        this.tracker.reportOutput(content);
 
         if (this.textBuffer.shouldFlush()) {
             const part = this.textBuffer.flush();
@@ -210,11 +210,14 @@ export class StreamReporter {
 
         // 完整 tool arguments 也是 provider 实际回传的一部分；
         // 用于不提供 argument delta、只提供完整 tool call 的 provider/SDK 路径。
-        if (options.countArgs ?? true) {
-            const argsJson = stringifyToolArgs(args);
-            if (argsJson) {
-                this.tracker.reportOutput(argsJson.length, argsJson);
-            }
+        const argsJson = stringifyToolArgs(args);
+        if ((options.countArgs ?? true) && argsJson) {
+            this.tracker.reportOutput(argsJson);
+        }
+        // 补回 name + id + type + JSON 结构开销，让预估 token 接近 provider 实际计费值
+        // （countArgs=false 时 args 已通过 reportToolArgDelta 累计，这里只补非 args 部分）
+        if (argsJson) {
+            this.tracker.reportToolCallOverhead(this.sdkMode, name, argsJson);
         }
 
         this.progress.report(new vscode.LanguageModelToolCallPart(callId, name, args));
@@ -242,11 +245,10 @@ export class StreamReporter {
      * 适用于 handler 自行管理 tool call 缓冲的场景（如 Anthropic handler 的 input_json_delta）
      * 只用于 provider raw tool-argument delta；不要用于本地 tool result 或工具执行输出
      *
-     * @param deltaChars 字符数增量（用于 chars/s）
-     * @param deltaText 增量原始文本（可选，用于同步 encode 估算 token）
+     * @param deltaText 增量原始文本（用于同步 encode 估算 token）
      */
-    reportToolArgDelta(deltaChars: number, deltaText?: string): void {
-        this.tracker.reportOutput(deltaChars, deltaText);
+    reportToolArgDelta(deltaText: string): void {
+        this.tracker.reportOutput(deltaText);
     }
 
     /**
@@ -271,7 +273,7 @@ export class StreamReporter {
      */
     bufferThinking(content: string): void {
         // 实时指标：传原始文本给 tracker，由其按阈值批量 encode
-        this.tracker.reportOutput(content.length, content);
+        this.tracker.reportOutput(content);
 
         this.thinkingBuffer.append(content);
         this.hasThinkingContent = true;
@@ -324,9 +326,9 @@ export class StreamReporter {
             this.endThinkingChain();
         }
 
-        // tool argument delta 是 provider 实际回传的一部分，计入 live chars/s
+        // tool argument delta 是 provider 实际回传的一部分，计入 token 估算
         if (argsFragment) {
-            this.tracker.reportOutput(argsFragment.length, argsFragment);
+            this.tracker.reportOutput(argsFragment);
         }
 
         if (!completed) {
@@ -346,6 +348,13 @@ export class StreamReporter {
                 })
             );
             this.thoughtSignature = null;
+        }
+
+        // 补回 name + id + type + JSON 结构开销：args 已通过 argsFragment 分片累计，
+        // 这里只补非 args 部分，让预估 token 接近 provider 实际计费值
+        const completedArgsJson = stringifyToolArgs(completed.args);
+        if (completedArgsJson) {
+            this.tracker.reportToolCallOverhead(this.sdkMode, completed.name, completedArgsJson);
         }
 
         this.progress.report(
@@ -483,6 +492,11 @@ export class StreamReporter {
                 `[${this.modelName}] Stream ended with ${this.toolCallAccumulator.pendingCount} unfinished tool calls`
             );
             for (const tool of this.toolCallAccumulator.flushAll()) {
+                // 同步补回 name + id + type + JSON 结构开销，与正常完成路径保持一致
+                const flushArgsJson = stringifyToolArgs(tool.args);
+                if (flushArgsJson) {
+                    this.tracker.reportToolCallOverhead(this.sdkMode, tool.name, flushArgsJson);
+                }
                 this.progress.report(new vscode.LanguageModelToolCallPart(tool.toolCallId, tool.name, tool.args));
                 this.hasToolCalls = true;
             }

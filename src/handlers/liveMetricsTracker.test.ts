@@ -125,7 +125,7 @@ test('reportOutput backfills markStreamStarted when no firstChunk event has been
     const clock = createClock(1500);
     const { tracker, events } = createTracker({ requestStartTime: 1000, now: clock.now });
     // 直接 reportOutput，无前置 markStreamStarted
-    tracker.reportOutput(10);
+    tracker.reportOutput('abcdefghij');
 
     // 应该产生 firstChunk + streamingUpdate 两个事件（顺序）
     assert.equal(events.length, 2);
@@ -135,21 +135,18 @@ test('reportOutput backfills markStreamStarted when no firstChunk event has been
     assert.equal(firstChunk.streamStartTime, 1500, 'firstStreamTime 由 clock 提供，可精确断言');
     assert.equal(firstChunk.streamStartTime, update1.streamStartTime);
     assert.equal(update1.type, 'streamingUpdate');
-    assert.equal(update1.outputChars, 10);
 });
 
-test('reportOutput accumulates outputChars across calls', () => {
+test('reportOutput emits streamingUpdate for each call', () => {
     const { tracker, events } = createTracker({ requestStartTime: 1000, liveUpdateIntervalMs: 0 });
-    tracker.reportOutput(5);
-    tracker.reportOutput(15);
-    tracker.reportOutput(10);
+    tracker.reportOutput('abcde');
+    tracker.reportOutput('abcdefghijklmno');
+    tracker.reportOutput('abcdefghijkl');
 
     // reportOutput 内部会触发 markStreamStarted（首次），然后 streamingUpdate
     // 节流间隔 0，每次 reportOutput 都应有一条 streamingUpdate
     const updates = events.filter(e => e.type === 'streamingUpdate');
-    assert.equal(getEvent(updates, 0).outputChars, 5);
-    assert.equal(getEvent(updates, 1).outputChars, 20);
-    assert.equal(getEvent(updates, 2).outputChars, 30);
+    assert.equal(updates.length, 3);
 });
 
 test('reportOutput accumulates estimatedOutputTokens when tokenizer is injected (batch encode)', () => {
@@ -163,17 +160,17 @@ test('reportOutput accumulates estimatedOutputTokens when tokenizer is injected 
     });
 
     // 3 字符：未达阈值，estimatedOutputTokens 仍为 0
-    tracker.reportOutput(3, 'abc');
+    tracker.reportOutput('abc');
     let updates = events.filter(e => e.type === 'streamingUpdate');
     assert.equal(getEvent(updates, 0).estimatedOutputTokens, 0, 'below threshold: not encoded yet');
 
     // 7 字符（累计 10）：刚好达到阈值，触发 encode
-    tracker.reportOutput(7, 'defghij');
+    tracker.reportOutput('defghij');
     updates = events.filter(e => e.type === 'streamingUpdate');
     assert.equal(getEvent(updates, 1).estimatedOutputTokens, 10, 'reached threshold: batch encoded');
 
     // 5 字符（缓冲 5，未达阈值）
-    tracker.reportOutput(5, 'klmno');
+    tracker.reportOutput('klmno');
     updates = events.filter(e => e.type === 'streamingUpdate');
     assert.equal(getEvent(updates, 2).estimatedOutputTokens, 10, 'below threshold again: unchanged');
 });
@@ -189,7 +186,7 @@ test('finishMetrics flushes residual pending text to estimatedOutputTokens', () 
 
     tracker.markStreamStarted(1500);
     // 累计 8 字符，未达阈值
-    tracker.reportOutput(8, 'abcdefgh');
+    tracker.reportOutput('abcdefgh');
     // finishMetrics 应 flush 残留缓冲
     tracker.finishMetrics();
 
@@ -214,14 +211,14 @@ test('high-speed model: batches multiple chunks before encoding (default 512 cha
 
     // 连续 4 个 chunk（每个 120 chars），总 480 chars，未达 512 阈值
     for (let i = 0; i < 4; i++) {
-        tracker.reportOutput(120, 'a'.repeat(120));
+        tracker.reportOutput('a'.repeat(120));
     }
     let updates = events.filter(e => e.type === 'streamingUpdate');
     // 4 个 chunk 都未触发 encode，estimatedOutputTokens 仍为 0
     assert.equal(getEvent(updates, 3).estimatedOutputTokens, 0, '4 chunks (480 chars) below 512 threshold: no encode');
 
     // 第 5 个 chunk（累计 600 chars），超过 512 阈值，触发一次性 encode
-    tracker.reportOutput(120, 'a'.repeat(120));
+    tracker.reportOutput('a'.repeat(120));
     updates = events.filter(e => e.type === 'streamingUpdate');
     assert.equal(getEvent(updates, 4).estimatedOutputTokens, 600, '5 chunks (600 chars) exceeded 512: batch encoded');
 
@@ -245,26 +242,26 @@ test('time threshold forces flush even if char threshold not reached (slow model
     tracker.markStreamStarted(2000);
 
     // 首个 chunk：初始化 lastEncodeAt = 2000
-    tracker.reportOutput(10, 'abcdefghij');
+    tracker.reportOutput('abcdefghij');
 
     // 推进 400ms（未达 500ms 阈值），不应触发
     clock.set(2400);
-    tracker.reportOutput(10, 'klmnopqrst');
+    tracker.reportOutput('klmnopqrst');
     let updates = events.filter(e => e.type === 'streamingUpdate');
     assert.equal(getEvent(updates, 1).estimatedOutputTokens, 0, '400ms < 500ms threshold: no encode');
 
     // 推进到 2501ms（距上次 encode 501ms），应触发时间阈值 flush
     clock.set(2501);
-    tracker.reportOutput(10, 'uvwxyz0123');
+    tracker.reportOutput('uvwxyz0123');
     updates = events.filter(e => e.type === 'streamingUpdate');
     assert.equal(getEvent(updates, 2).estimatedOutputTokens, 30, '501ms >= 500ms threshold: time-forced flush');
 });
 
 test('reportOutput falls back to precomputed token increments when no tokenizer', () => {
     const { tracker, events } = createTracker({ requestStartTime: 1000, liveUpdateIntervalMs: 0 });
-    tracker.reportOutput(5, 2);
-    tracker.reportOutput(15, 7);
-    tracker.reportOutput(10, 3);
+    tracker.reportOutput(2);
+    tracker.reportOutput(7);
+    tracker.reportOutput(3);
 
     const updates = events.filter(e => e.type === 'streamingUpdate');
     assert.equal(getEvent(updates, 0).estimatedOutputTokens, 2);
@@ -272,22 +269,20 @@ test('reportOutput falls back to precomputed token increments when no tokenizer'
     assert.equal(getEvent(updates, 2).estimatedOutputTokens, 12);
 });
 
-test('reportOutput ignores invalid token increments but still counts chars', () => {
+test('reportOutput ignores invalid token increments', () => {
     const { tracker, events } = createTracker({ requestStartTime: 1000, liveUpdateIntervalMs: 0 });
-    tracker.reportOutput(5, Number.NaN);
-    tracker.reportOutput(5, -1);
-    tracker.reportOutput(5, 0);
-    tracker.reportOutput(5, undefined);
+    tracker.reportOutput(Number.NaN);
+    tracker.reportOutput(-1);
+    tracker.reportOutput(0);
 
     const updates = events.filter(e => e.type === 'streamingUpdate');
-    // 所有非法 token 增量都应被忽略
+    // 所有非法 token 增量都应被忽略，estimatedOutputTokens 始终为 0
     updates.forEach(u => assert.equal(u.estimatedOutputTokens, 0));
-    // 但字符数仍正常累加
-    assert.equal(getEvent(updates, 3).outputChars, 20);
 });
 
 test('reportOutput ignores non-positive or invalid input', () => {
     const { tracker, events } = createTracker({ requestStartTime: 1000, liveUpdateIntervalMs: 0 });
+    // 无效 token 值：不应触发 markStreamStarted / streamingUpdate
     tracker.reportOutput(0);
     tracker.reportOutput(-5);
     tracker.reportOutput(Number.NaN);
@@ -295,41 +290,47 @@ test('reportOutput ignores non-positive or invalid input', () => {
     assert.equal(events.length, 0);
 });
 
-test('reportOutput computes charsPerSecond from elapsed time since first stream event', () => {
+test('reportOutput computes tokensPerSecond from elapsed time since first stream event', () => {
     const clock = createClock(2000);
+    const mockTokenizer = { encode: (text: string) => Array(text.length).fill(0) } as unknown as TikTokenizer;
     const { tracker, events } = createTracker({
         requestStartTime: 1000,
         liveUpdateIntervalMs: 0,
-        now: clock.now
+        now: clock.now,
+        tokenizer: mockTokenizer,
+        tokenBatchChars: 1 // 低阈值，单次 reportOutput 即触发 encode
     });
 
     // markStreamStarted 把 firstStreamTime 固定为 2000
     tracker.markStreamStarted(2000);
-    // 模拟 firstStreamTime 之后 100ms，收到 50 字符 → 500 chars/s
+    // 模拟 firstStreamTime 之后 100ms，收到 50 字符 → 500 tokens/s
     clock.set(2100);
-    tracker.reportOutput(50);
+    tracker.reportOutput('a'.repeat(50));
 
     const update = events.find(e => e.type === 'streamingUpdate');
     assert.ok(update, 'expected at least one streamingUpdate');
-    assert.equal(update!.charsPerSecond, 500, '50 chars over 100ms = 500 chars/s');
+    assert.equal(update!.tokensPerSecond, 500, '50 tokens over 100ms = 500 tokens/s');
 });
 
-test('reportOutput freezes charsPerSecond during pause (no decay)', () => {
+test('reportOutput freezes tokensPerSecond during pause (no decay)', () => {
     const clock = createClock(2000);
+    const mockTokenizer = { encode: (text: string) => Array(text.length).fill(0) } as unknown as TikTokenizer;
     const { tracker, events } = createTracker({
         requestStartTime: 1000,
         liveUpdateIntervalMs: 0,
-        now: clock.now
+        now: clock.now,
+        tokenizer: mockTokenizer,
+        tokenBatchChars: 1
     });
     tracker.markStreamStarted(2000);
-    // 2000 + 200ms 后收到 100 字符 → 500 chars/s
+    // 2000 + 200ms 后收到 100 字符 → 500 tokens/s
     clock.set(2200);
-    tracker.reportOutput(100);
+    tracker.reportOutput('a'.repeat(100));
 
-    const speedAfterFirst = events.at(-1)?.charsPerSecond;
+    const speedAfterFirst = events.at(-1)?.tokensPerSecond;
     assert.equal(speedAfterFirst, 500);
 
-    // 模拟暂停：推进 5 秒，连续 heartbeat 不应改变 charsPerSecond
+    // 模拟暂停：推进 5 秒，连续 heartbeat 不应改变 tokensPerSecond
     clock.set(7200);
     tracker.heartbeat();
     clock.set(9721);
@@ -340,7 +341,7 @@ test('reportOutput freezes charsPerSecond during pause (no decay)', () => {
     const lastUpdate = events.at(-1);
     assert.ok(lastUpdate);
     assert.equal(lastUpdate!.type, 'streamingUpdate');
-    assert.equal(lastUpdate!.charsPerSecond, 500, 'charsPerSecond should remain frozen during pause');
+    assert.equal(lastUpdate!.tokensPerSecond, 500, 'tokensPerSecond should remain frozen during pause');
 });
 
 test('heartbeat respects throttle interval and emits at most one streamingUpdate per tick', () => {
@@ -440,18 +441,25 @@ test('finishMetrics is a no-op when canEmitMetrics is false', () => {
 
 test('tool argument double-counting: reportOutput followed by reportToolCall countArgs=false', () => {
     // 模拟 Anthropic handler 场景：先 reportToolArgDelta 累计 delta，再 reportToolCall(countArgs: false)
-    const { tracker, events } = createTracker({ requestStartTime: 1000, liveUpdateIntervalMs: 0 });
+    const mockTokenizer = { encode: (text: string) => Array(text.length).fill(0) } as unknown as TikTokenizer;
+    const { tracker, events } = createTracker({
+        requestStartTime: 1000,
+        liveUpdateIntervalMs: 0,
+        tokenizer: mockTokenizer,
+        tokenBatchChars: 1000
+    });
     tracker.markStreamStarted(1500);
 
     // delta 累计 30 字符
-    tracker.reportOutput(30);
+    tracker.reportOutput('a'.repeat(30));
     // reportToolCall(countArgs: false) 不应再次统计
     // 注意：countArgs 在 StreamReporter 层，tracker 只暴露 reportOutput
     // 这里直接验证 tracker.reportOutput 不被外部重复调用即可
 
-    const update = events.find(e => e.type === 'streamingUpdate' && e.outputChars === 30);
-    assert.ok(update, 'expected streamingUpdate with outputChars=30');
-    assert.equal(update!.outputChars, 30);
+    const update = events.find(e => e.type === 'streamingUpdate');
+    assert.ok(update, 'expected streamingUpdate after reportOutput');
+    // 30 字符未达 tokenBatchChars=1000 阈值，estimatedOutputTokens 仍为 0
+    assert.equal(update!.estimatedOutputTokens, 0);
 });
 
 test('getMetricStreamStartTime returns undefined before markStreamStarted, value after', () => {
@@ -460,4 +468,255 @@ test('getMetricStreamStartTime returns undefined before markStreamStarted, value
 
     tracker.markStreamStarted(2500);
     assert.equal(tracker.getMetricStreamStartTime(), 2500);
+});
+
+test('reportToolCallOverhead is a no-op without tokenizer', () => {
+    const { tracker, events } = createTracker({ requestStartTime: 1000, liveUpdateIntervalMs: 0 });
+    tracker.markStreamStarted(1500);
+    tracker.reportToolCallOverhead('openai', 'get_weather', '{"location":"Beijing"}');
+
+    // 没有 tokenizer 时 reportToolCallOverhead 完全跳过，不应触发 streamingUpdate
+    const updates = events.filter(e => e.type === 'streamingUpdate');
+    assert.equal(updates.length, 0, 'no tokenizer: should not emit streamingUpdate');
+});
+
+test('reportToolCallOverhead is a no-op with empty name', () => {
+    const mockTokenizer = { encode: (text: string) => Array(text.length).fill(0) } as unknown as TikTokenizer;
+    const { tracker, events } = createTracker({
+        requestStartTime: 1000,
+        liveUpdateIntervalMs: 0,
+        tokenizer: mockTokenizer
+    });
+    tracker.markStreamStarted(1500);
+    tracker.reportToolCallOverhead('openai', '', '{"location":"Beijing"}');
+
+    const updates = events.filter(e => e.type === 'streamingUpdate');
+    assert.equal(updates.length, 0, 'empty name: should not emit streamingUpdate');
+});
+
+test('reportToolCallOverhead adds (full - args) tokens without affecting chars/s', () => {
+    // mock tokenizer：tokens === 字符数，便于精确预测 overhead
+    const mockTokenizer = { encode: (text: string) => Array(text.length).fill(0) } as unknown as TikTokenizer;
+    const { tracker, events } = createTracker({
+        requestStartTime: 1000,
+        liveUpdateIntervalMs: 0,
+        tokenizer: mockTokenizer,
+        tokenBatchChars: 1000 // 避免单次调用触发 flush
+    });
+    tracker.markStreamStarted(1500);
+
+    // 模拟 OpenAI Chat handler：先通过 accumulateToolCall 流式累计 args 分片
+    const argsJson = '{"location":"Beijing"}';
+    tracker.reportOutput(argsJson);
+
+    // 工具完成时补回 overhead（缓冲累积，未触发 flush）
+    const name = 'get_weather';
+    tracker.reportToolCallOverhead('openai', name, argsJson);
+
+    // finishMetrics 强制 flush 残留 overhead 缓冲
+    tracker.finishMetrics();
+
+    // 取最后一个 streamingUpdate
+    const updates = events.filter(e => e.type === 'streamingUpdate');
+    const lastUpdate = updates.at(-1);
+    assert.ok(lastUpdate, 'expected streamingUpdate after finishMetrics');
+    // 预期 overhead：完整 tool_call 结构字符数 - args 单独字符数
+    // openai 结构: {"id":"call_000000000000000000000000","type":"function","function":{"name":"get_weather","arguments":"{\"location\":\"Beijing\"}"}}
+    const expectedFullText = JSON.stringify({
+        id: 'call_' + '0'.repeat(24),
+        type: 'function',
+        function: { name, arguments: argsJson }
+    });
+    const expectedOverhead = expectedFullText.length - argsJson.length;
+
+    // estimatedOutputTokens = args tokens (通过 reportOutput 累计，finishMetrics flush) + overhead
+    // args 部分被 reportOutput 缓冲到 pendingOutputText，finishMetrics 时 flush 为 22 tokens
+    assert.equal(
+        lastUpdate!.estimatedOutputTokens,
+        argsJson.length + expectedOverhead,
+        'estimatedOutputTokens should include args + overhead'
+    );
+    assert.ok(expectedOverhead > argsJson.length, 'sanity: full structure should be 2x+ of args alone');
+});
+
+test('reportToolCallOverhead uses anthropic structure for anthropic sdkMode', () => {
+    const mockTokenizer = { encode: (text: string) => Array(text.length).fill(0) } as unknown as TikTokenizer;
+    const { tracker, events } = createTracker({
+        requestStartTime: 1000,
+        liveUpdateIntervalMs: 0,
+        tokenizer: mockTokenizer,
+        tokenBatchChars: 1000
+    });
+    tracker.markStreamStarted(1500);
+
+    const argsJson = '{"location":"Beijing"}';
+    const name = 'get_weather';
+    tracker.reportToolCallOverhead('anthropic', name, argsJson);
+    tracker.finishMetrics();
+
+    // anthropic 结构: {"type":"tool_use","id":"toolu_xxx","name":"get_weather","input":{"location":"Beijing"}}
+    // args 单独表示: {"location":"Beijing"} (无空白)
+    const expectedFullText = JSON.stringify({
+        type: 'tool_use',
+        id: 'toolu_' + '0'.repeat(24),
+        name,
+        input: { location: 'Beijing' }
+    });
+    const expectedArgsOnly = JSON.stringify({ location: 'Beijing' });
+    // anthropic 应用 2/3 校准系数（chat template 比 JSON.stringify 紧凑约 1/3）
+    const expectedOverhead = Math.round((expectedFullText.length - expectedArgsOnly.length) * (2 / 3));
+
+    const updates = events.filter(e => e.type === 'streamingUpdate');
+    const lastUpdate = updates.at(-1);
+    assert.ok(lastUpdate);
+    assert.equal(lastUpdate!.estimatedOutputTokens, expectedOverhead);
+});
+
+test('reportToolCallOverhead uses gemini structure for gemini sdkMode', () => {
+    const mockTokenizer = { encode: (text: string) => Array(text.length).fill(0) } as unknown as TikTokenizer;
+    const { tracker, events } = createTracker({
+        requestStartTime: 1000,
+        liveUpdateIntervalMs: 0,
+        tokenizer: mockTokenizer,
+        tokenBatchChars: 1000
+    });
+    tracker.markStreamStarted(1500);
+
+    const argsJson = '{"location":"Beijing"}';
+    const name = 'get_weather';
+    tracker.reportToolCallOverhead('gemini', name, argsJson);
+    tracker.finishMetrics();
+
+    // gemini 结构: {"functionCall":{"name":"get_weather","args":{"location":"Beijing"}}}
+    const expectedFullText = JSON.stringify({
+        functionCall: { name, args: { location: 'Beijing' } }
+    });
+    const expectedArgsOnly = JSON.stringify({ location: 'Beijing' });
+    const expectedOverhead = expectedFullText.length - expectedArgsOnly.length;
+
+    const updates = events.filter(e => e.type === 'streamingUpdate');
+    const lastUpdate = updates.at(-1);
+    assert.ok(lastUpdate);
+    assert.equal(lastUpdate!.estimatedOutputTokens, expectedOverhead);
+});
+
+test('reportToolCallOverhead batch-encodes parallel tool calls (BPE boundary reuse)', () => {
+    // mock tokenizer：tokens === 字符数，模拟"连续编码复用 BPE 边界"的极端情况
+    // 实际 BPE 会因跨 tool_call 复用 token 边界而减少总 tokens，
+    // 这里通过 chars=len 近似模拟，重点验证批量 encode 的逻辑正确性
+    const mockTokenizer = { encode: (text: string) => Array(text.length).fill(0) } as unknown as TikTokenizer;
+    const { tracker, events } = createTracker({
+        requestStartTime: 1000,
+        liveUpdateIntervalMs: 0,
+        tokenizer: mockTokenizer,
+        tokenBatchChars: 1000,
+        tokenBatchMs: 5000
+    });
+    tracker.markStreamStarted(1500);
+
+    const argsJson = '{"location":"Beijing"}';
+    const name = 'get_weather';
+
+    // 模拟 5 个并行 tool_call 连续完成
+    for (let i = 0; i < 5; i++) {
+        tracker.reportToolCallOverhead('openai', name, argsJson);
+    }
+
+    // finishMetrics 统一 flush 所有累积 overhead
+    tracker.finishMetrics();
+
+    const updates = events.filter(e => e.type === 'streamingUpdate');
+    const lastUpdate = updates.at(-1);
+    assert.ok(lastUpdate);
+
+    // 预期：5 个 tool_call 的完整结构字符数总和 - 5 个 args 字符数总和
+    // 用 '\n' 分隔累积，模拟 provider chat template 中连续 tool_use block 的边界
+    const singleFullText = JSON.stringify({
+        id: 'call_' + '0'.repeat(24),
+        type: 'function',
+        function: { name, arguments: argsJson }
+    });
+    const separator = '\n';
+    const expectedFullText = Array(5).fill(singleFullText).join(separator);
+    const expectedArgsText = Array(5).fill(argsJson).join(separator);
+    const expectedOverhead = expectedFullText.length - expectedArgsText.length;
+
+    assert.equal(
+        lastUpdate!.estimatedOutputTokens,
+        expectedOverhead,
+        'parallel tool calls should be batch-encoded together'
+    );
+});
+
+test('reportToolCallOverhead char threshold triggers mid-stream flush', () => {
+    const mockTokenizer = { encode: (text: string) => Array(text.length).fill(0) } as unknown as TikTokenizer;
+    const { tracker, events } = createTracker({
+        requestStartTime: 1000,
+        liveUpdateIntervalMs: 0,
+        tokenizer: mockTokenizer,
+        tokenBatchChars: 10, // 极低阈值，单次 overhead 即可触发 flush
+        tokenBatchMs: 5000
+    });
+    tracker.markStreamStarted(1500);
+
+    // 单个 tool_call 的 fullText 字符数 > 10，立即触发 flush
+    tracker.reportToolCallOverhead('gemini', 'get_weather', '{"location":"Beijing"}');
+
+    const updates = events.filter(e => e.type === 'streamingUpdate');
+    const lastUpdate = updates.at(-1);
+    assert.ok(lastUpdate);
+    assert.ok(
+        (lastUpdate!.estimatedOutputTokens ?? 0) > 0,
+        'char threshold should trigger immediate flush without finishMetrics'
+    );
+});
+
+test('lastFlushSeq is monotonic across flushes with identical delta values', () => {
+    // 验证稳定速度场景：连续多次相同增量的 flush，lastFlushSeq 仍单调递增
+    // 这是 UI 过时检测的关键判据（不能用 delta 值是否变化判断是否有新 flush）
+    const mockTokenizer = { encode: (text: string) => Array(text.length).fill(0) } as unknown as TikTokenizer;
+    const { tracker, events } = createTracker({
+        requestStartTime: 1000,
+        liveUpdateIntervalMs: 0,
+        tokenizer: mockTokenizer,
+        tokenBatchChars: 1 // 低阈值，每次 reportOutput 都触发 flush
+    });
+    tracker.markStreamStarted(1500);
+
+    // 连续 3 次相同字符数（10）的输出
+    tracker.reportOutput('aaaaaaaaaa'); // 10 chars
+    tracker.reportOutput('bbbbbbbbbb'); // 10 chars
+    tracker.reportOutput('cccccccccc'); // 10 chars
+
+    const updates = events.filter(e => e.type === 'streamingUpdate');
+    assert.equal(updates.length, 3);
+
+    // lastFlushSeq 应单调递增 1 → 2 → 3
+    assert.equal(getEvent(updates, 0).lastFlushSeq, 1, 'first flush: seq=1');
+    assert.equal(getEvent(updates, 1).lastFlushSeq, 2, 'second flush: seq=2');
+    assert.equal(getEvent(updates, 2).lastFlushSeq, 3, 'third flush: seq=3');
+
+    // lastOutputTokenDelta 三次都相同（都是 10），但 seq 不同
+    assert.equal(getEvent(updates, 0).lastOutputTokenDelta, 10);
+    assert.equal(getEvent(updates, 1).lastOutputTokenDelta, 10);
+    assert.equal(getEvent(updates, 2).lastOutputTokenDelta, 10);
+});
+
+test('lastFlushSeq is 0 before any flush (no tokenizer / no flush triggered)', () => {
+    const mockTokenizer = { encode: (text: string) => Array(text.length).fill(0) } as unknown as TikTokenizer;
+    const { tracker, events } = createTracker({
+        requestStartTime: 1000,
+        liveUpdateIntervalMs: 0,
+        tokenizer: mockTokenizer,
+        tokenBatchChars: 1000 // 高阈值，确保不触发 flush
+    });
+    tracker.markStreamStarted(1500);
+
+    // 输出文本但未达阈值，不触发 flush
+    tracker.reportOutput('abc');
+
+    const update = events.find(e => e.type === 'streamingUpdate');
+    assert.ok(update);
+    assert.equal(update!.lastFlushSeq, 0, 'no flush yet: seq should be 0');
+    assert.equal(update!.lastOutputTokenDelta, 0, 'no flush yet: delta should be 0');
 });

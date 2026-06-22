@@ -23,11 +23,11 @@ interface LiveMetricsState {
     attemptStartTime: number; // 当前 attempt 开始时间（live TTFT 计算）
     streamStartTime?: number; // 当前 attempt 首流事件时间
     firstChunkLatencyMs: number; // 当前 attempt 固定的首流延迟
-    outputChars: number;
     estimatedOutputTokens: number; // 实时估算的输出 token（带边界误差，仅供展示）
+    lastOutputTokenDelta: number; // 最近一次 flush 新增的 token 数（UI 显示为 +xx）
+    lastFlushSeq: number; // flush 序号（单调递增），用于过时检测判断"是否真的有新 flush"
     tokensPerSecond: number; // 实时估算的输出 token 速度（暂停期间冻结）
-    charsPerSecond: number;
-    lastOutputChangeAt: number; // 最后一次 provider 可计数字符增加的时间
+    lastOutputChangeAt: number; // 最后一次 flush 接收到非零 token 增量的时间
     providerName?: string;
     modelName?: string;
     hasFirstChunk: boolean; // 首流延迟/流开始时间已固定（retry 幂等）
@@ -136,18 +136,19 @@ export class LiveMetricsRenderer {
                     state.hasFirstChunk = true;
                 }
 
-                // 只在 outputChars 实际增加时更新 lastOutputChangeAt（避免 heartbeat/ping 误刷新）
-                const previousOutputChars = state.outputChars;
-                if (event.outputChars !== undefined && event.outputChars > previousOutputChars) {
-                    state.outputChars = event.outputChars;
+                // 用 flushSeq 判断"是否真的有新 flush 到达"，避免稳定速度下 delta 值相同被误判为无变化
+                const previousSeq = state.lastFlushSeq;
+                const newSeq = Math.max(previousSeq, event.lastFlushSeq ?? previousSeq);
+                if (newSeq > previousSeq) {
                     state.lastOutputChangeAt = Date.now();
                 }
                 // 同步最新的 token 预估（增量 encode 累加值，由 StreamReporter 上报）
                 if (event.estimatedOutputTokens !== undefined) {
                     state.estimatedOutputTokens = event.estimatedOutputTokens;
                 }
+                state.lastOutputTokenDelta = event.lastOutputTokenDelta ?? state.lastOutputTokenDelta;
+                state.lastFlushSeq = newSeq;
                 state.tokensPerSecond = event.tokensPerSecond ?? state.tokensPerSecond;
-                state.charsPerSecond = event.charsPerSecond ?? state.charsPerSecond;
                 // 补齐 provider/model（requestStarted 可能未被 WebView 接收到）
                 state.providerName = state.providerName || event.providerName;
                 state.modelName = state.modelName || event.modelName;
@@ -240,10 +241,10 @@ export class LiveMetricsRenderer {
             displayStartTime: event.requestStartTime,
             attemptStartTime: event.requestStartTime,
             firstChunkLatencyMs: 0,
-            outputChars: 0,
             estimatedOutputTokens: 0,
+            lastOutputTokenDelta: 0,
+            lastFlushSeq: 0,
             tokensPerSecond: 0,
-            charsPerSecond: 0,
             lastOutputChangeAt: 0,
             providerName: event.providerName,
             modelName: event.modelName,
@@ -252,10 +253,10 @@ export class LiveMetricsRenderer {
     }
 
     private resetAttemptOutput(state: LiveMetricsState): void {
-        state.outputChars = 0;
         state.estimatedOutputTokens = 0;
+        state.lastOutputTokenDelta = 0;
+        state.lastFlushSeq = 0;
         state.tokensPerSecond = 0;
-        state.charsPerSecond = 0;
         state.lastOutputChangeAt = 0;
     }
 
@@ -512,15 +513,16 @@ export class LiveMetricsRenderer {
                             :   `${Math.round(durationMs)}ms`
                         :   '-';
                 }
-                // .output-tokens 在 streaming 阶段显示实时预估（带 ~ 前缀），完成后由真实记录覆盖
+                // .output-tokens 在 streaming 阶段显示"最近一次接收的预估增量"（+xx），
+                // 不显示累计预估值（估算误差大易引起误解），等完成后由真实 usage 记录覆盖
                 const tokensSpan = outputCell.querySelector('.output-tokens') as HTMLElement;
                 if (tokensSpan) {
-                    const estimatedTokens = metricState.estimatedOutputTokens ?? 0;
-                    if (estimatedTokens > 0) {
-                        tokensSpan.textContent = `~${estimatedTokens.toLocaleString('en-US')}`;
+                    const lastDelta = metricState.lastOutputTokenDelta ?? 0;
+                    if (lastDelta > 0) {
+                        tokensSpan.textContent = `+${lastDelta.toLocaleString('en-US')} tks`;
                         tokensSpan.title = t(
-                            'Estimated output tokens (incrementally encoded, may differ from final usage)',
-                            '实时估算的输出 token（增量编码累加，可能与最终 usage 不一致）'
+                            'Tokens received in the last estimation window (approximate, for live speed feedback only)',
+                            '最近一次估算窗口接收到的 token（近似值，仅用于实时速度反馈）'
                         );
                     } else {
                         tokensSpan.textContent = '-';
@@ -533,7 +535,7 @@ export class LiveMetricsRenderer {
                     const outputStaleMs = lastOutputChangeAt > 0 ? now - lastOutputChangeAt : 0;
                     const isStale =
                         hasStreamStarted &&
-                        metricState.outputChars > 0 &&
+                        metricState.estimatedOutputTokens > 0 &&
                         lastOutputChangeAt > 0 &&
                         outputStaleMs > 3000;
 

@@ -474,11 +474,10 @@ export class AnthropicHandler {
                         } else if (chunk.delta.type === 'input_json_delta' && pendingToolCall) {
                             // 工具调用参数增量
                             const partialJson = chunk.delta.partial_json ?? '';
-                            const partialLen = partialJson.length;
                             pendingToolCall.jsonInput = (pendingToolCall.jsonInput || '') + partialJson;
 
-                            // tool argument delta 是 provider 实际回传的一部分，即使 Chat 面板隐藏也应计入 live chars/s
-                            reporter.reportToolArgDelta(partialLen, partialJson);
+                            // tool argument delta 是 provider 实际回传的一部分，即使 Chat 面板隐藏也应计入 token 估算
+                            reporter.reportToolArgDelta(partialJson);
 
                             // 尝试立即解析并报告工具调用（如果 JSON 已完整）
                             try {
@@ -496,10 +495,9 @@ export class AnthropicHandler {
                             }
                         } else if (chunk.delta.type === 'input_json_delta' && pendingServerToolCall) {
                             const partialJson = chunk.delta.partial_json ?? '';
-                            const partialLen = partialJson.length;
                             pendingServerToolCall.jsonInput = (pendingServerToolCall.jsonInput || '') + partialJson;
                             // tool argument delta 是 provider 实际回传的一部分
-                            reporter.reportToolArgDelta(partialLen, partialJson);
+                            reporter.reportToolArgDelta(partialJson);
                         } else if (chunk.delta.type === 'thinking_delta') {
                             // 思考内容增量
                             const thinkingDelta = chunk.delta.thinking || '';
