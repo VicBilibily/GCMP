@@ -385,8 +385,8 @@ export class AnthropicHandler {
         const completedServerToolCalls = new Map<string, { toolId?: string; name?: string; jsonInput?: string }>();
         let usage: Anthropic.Messages.Usage | undefined;
         let responseId: string | undefined;
-        // 记录流处理的开始时间（在 message_start 事件中设置）
-        let streamStartTime = Date.now();
+        // 记录流处理的开始时间（message_start 到达前为 undefined，避免使用进入函数的旧时间）
+        let streamStartTime: number | undefined;
         let streamEndTime: number | undefined = undefined;
 
         Logger.debug('Starting Anthropic stream response processing');
@@ -612,7 +612,10 @@ export class AnthropicHandler {
         // 记录流处理的结束时间
         streamEndTime ??= Date.now();
 
-        if (usage) {
+        // 补齐流开始时间：兼容网关可能未发送 message_start
+        streamStartTime ??= reporter.getMetricStreamStartTime();
+
+        if (usage && streamStartTime !== undefined) {
             const duration = streamEndTime - streamStartTime;
             const speed = duration > 0 ? ((usage.output_tokens / duration) * 1000).toFixed(1) : 'N/A';
             Logger.debug(

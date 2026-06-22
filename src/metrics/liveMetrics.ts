@@ -15,7 +15,6 @@ export interface LiveStreamMetricEvent {
     streamStartTime?: number;
     firstChunkLatencyMs?: number;
     outputChars?: number;
-    elapsedMs?: number;
     charsPerSecond?: number;
 }
 

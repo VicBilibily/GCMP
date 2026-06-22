@@ -413,8 +413,8 @@ export class OpenAIResponsesHandler {
             const cancellationListener = token.onCancellationRequested(() => abortController.abort());
             let streamError: Error | null = null;
             let finalUsage: Record<string, unknown> | undefined = undefined;
-            // 记录流处理的开始和结束时间
-            let streamStartTime = Date.now();
+            // 记录流处理的开始和结束时间（response.created 到达前为 undefined，避免使用进入函数的旧时间）
+            let streamStartTime: number | undefined;
             let streamEndTime: number | undefined = undefined;
 
             // Responses API 专属：按输出项追踪 delta/done 事件，避免跨 item 误去重导致后续文本被吞掉
@@ -920,7 +920,7 @@ export class OpenAIResponsesHandler {
                                 const summaryText =
                                     reasoningItem.id && reasoningSummaryItemIds.has(reasoningItem.id) ?
                                         undefined
-                                    :   reasoningItem.summary?.map(s => s.text);
+                                        : reasoningItem.summary?.map(s => s.text);
                                 streamReporter.reportEncryptedThinking(
                                     reasoningItem.encrypted_content,
                                     reasoningItem.id,
@@ -1043,6 +1043,9 @@ export class OpenAIResponsesHandler {
 
                 // 报告 usage 信息
                 Logger.info(`📊 ${model.name} Responses API request completed`, finalUsage);
+
+                // 补齐流开始时间：兼容网关可能未发送 response.created
+                streamStartTime ??= streamReporter.getMetricStreamStartTime();
 
                 if (requestId) {
                     try {

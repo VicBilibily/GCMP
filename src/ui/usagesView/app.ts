@@ -155,11 +155,11 @@ let renderClockId: number | undefined;
 let lastRenderAt = 0;
 
 function startRenderClock(): void {
-    if (renderClockId !== undefined) {
+    if (!isViewingToday() || liveMetricsMap.size === 0 || renderClockId !== undefined) {
         return;
     }
     const tick = (frameTime: number): void => {
-        if (liveMetricsMap.size === 0) {
+        if (!isViewingToday() || liveMetricsMap.size === 0) {
             renderClockId = undefined;
             lastRenderAt = 0;
             return;
@@ -214,22 +214,18 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
                 modelName: event.modelName
             };
             chunkState.requestStartTime = event.requestStartTime;
-            // 幂等：retry 会创建新 StreamReporter 并再次触发 firstChunk，
-            // 只在首次设置 streamStartTime / firstChunkLatencyMs，避免后续重试覆盖真实值
-            if (!chunkState.hasFirstChunk) {
-                chunkState.streamStartTime = event.streamStartTime;
-                chunkState.firstChunkLatencyMs =
-                    event.firstChunkLatencyMs ??
-                    (event.streamStartTime !== undefined ?
-                        Math.max(0, event.streamStartTime - event.requestStartTime)
-                        : 0);
-                chunkState.hasFirstChunk = true;
-            } else {
-                // retry/new reporter: keep original firstChunkLatencyMs, reset per-attempt output state
-                chunkState.outputChars = 0;
-                chunkState.charsPerSecond = 0;
-                chunkState.lastOutputChangeAt = 0;
-            }
+            // 每次 firstChunk 代表最新已产生首流事件的 attempt：
+            // 总是覆盖流开始时间和首令延迟，总是重置 per-attempt 输出状态
+            chunkState.streamStartTime = event.streamStartTime;
+            chunkState.firstChunkLatencyMs =
+                event.firstChunkLatencyMs ??
+                (event.streamStartTime !== undefined ?
+                    Math.max(0, event.streamStartTime - event.requestStartTime)
+                    : 0);
+            chunkState.outputChars = 0;
+            chunkState.charsPerSecond = 0;
+            chunkState.lastOutputChangeAt = 0;
+            chunkState.hasFirstChunk = true;
             chunkState.providerName = chunkState.providerName || event.providerName;
             chunkState.modelName = chunkState.modelName || event.modelName;
             liveMetricsMap.set(requestId, chunkState);
@@ -254,6 +250,29 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
                 startRenderClock();
             }
             state.requestStartTime = event.requestStartTime;
+            // 检测 attempt 切换（firstChunk 丢失时的兜底）：
+            // 通过 streamStartTime 变化判断是否换了新 attempt
+            const isNewAttempt =
+                event.streamStartTime !== undefined &&
+                event.streamStartTime !== state.streamStartTime;
+
+            if (isNewAttempt) {
+                state.streamStartTime = event.streamStartTime!;
+                state.firstChunkLatencyMs =
+                    event.firstChunkLatencyMs ??
+                    Math.max(0, event.streamStartTime! - event.requestStartTime);
+                state.outputChars = 0;
+                state.charsPerSecond = 0;
+                state.lastOutputChangeAt = 0;
+                state.hasFirstChunk = true;
+            } else if (!state.hasFirstChunk && event.streamStartTime !== undefined) {
+                // 首次丢失 fallback：streamStartTime 未变但尚未固定首流
+                state.streamStartTime = event.streamStartTime;
+                state.firstChunkLatencyMs =
+                    event.firstChunkLatencyMs ?? Math.max(0, event.streamStartTime - event.requestStartTime);
+                state.hasFirstChunk = true;
+            }
+
             // 只在 outputChars 实际增加时更新 lastOutputChangeAt（避免 heartbeat/ping 误刷新）
             const previousOutputChars = state.outputChars;
             if (event.outputChars !== undefined && event.outputChars > previousOutputChars) {
@@ -264,14 +283,6 @@ function handleLiveMetricsUpdate(event: LiveStreamMetricEvent): void {
             // 补齐 provider/model（requestStarted 可能未被 WebView 接收到）
             state.providerName = state.providerName || event.providerName;
             state.modelName = state.modelName || event.modelName;
-            // 首令延迟/流开始时间：仅在尚未固定时从 streamingUpdate 补充
-            // （正常流程由 firstChunk 固定，streamingUpdate 仅作首次丢失的 fallback）
-            if (!state.hasFirstChunk && event.streamStartTime !== undefined) {
-                state.streamStartTime = event.streamStartTime;
-                state.firstChunkLatencyMs =
-                    event.firstChunkLatencyMs ?? Math.max(0, event.streamStartTime - event.requestStartTime);
-                state.hasFirstChunk = true;
-            }
             break;
         }
 
@@ -515,8 +526,8 @@ function updateRequestRecordsWithLiveMetrics(): void {
                 } else if (charsPerSecond > 0) {
                     speedSpan.textContent = `~${charsPerSecond.toFixed(1)} chars/s`;
                     speedSpan.title = t(
-                        'Live speed is estimated by streamed characters; final speed uses output tokens.',
-                        '实时速度按流式字符估算，完成后以输出 token/s 为准。'
+                        'Average character rate from the first stream event to the latest output of the current attempt; completed requests show usage-based output tokens/s.',
+                        '累计平均字符速度：按当前尝试从首个流事件到最近一次输出的字符总量估算；请求完成后显示基于 usage 的输出 token/s。'
                     );
                 } else {
                     speedSpan.textContent = '-';
@@ -556,10 +567,9 @@ function handleVSCodeMessage(event: MessageEvent): void {
 
             if (dateChanged) {
                 resetRequestRecordsState();
-                // 切到非今天时停止实时渲染；切到今天时保留正在进行的 liveMetrics，
-                // 避免 requestStarted 先到达后被 updateDateDetails 清空导致 TTFT 不显示
+                // 切到非今天时停止实时渲染时钟，但保留 liveMetricsMap 中的活动状态；
+                // 切回今天时由 startRenderClock() 内部的 isViewingToday() 守卫自动恢复
                 if (!message.isToday) {
-                    liveMetricsMap.clear();
                     stopRenderClock();
                 }
             }
@@ -580,8 +590,11 @@ function handleVSCodeMessage(event: MessageEvent): void {
                 }
             });
 
-            // setState 会重建表格，立即重新覆盖仍在运行的请求
+            // 先立即重建表格（包括仍在运行的请求），再按需启动渲染时钟
             updateRequestRecordsWithLiveMetrics();
+            if (message.isToday && liveMetricsMap.size > 0) {
+                startRenderClock();
+            }
 
             // 仅在真正切换日期时，小屏模式才自动隐藏侧边栏
             if (dateChanged && shouldCollapseSidebar()) {

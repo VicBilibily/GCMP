@@ -81,7 +81,6 @@ export class StreamReporter {
     private streamEnded = false;
     private outputChars = 0;
     private lastCharsPerSecond = 0; // 仅在收到实际 provider 输出字符时更新
-    private lastOutputAt = 0; // 最后一次收到 provider 输出字符的时间（内部使用，不暴露给 WebView）
     private lastLiveUpdateAt = 0;
     private firstStreamTime = 0; // 首个流事件到达时间（与 handler 的 streamStartTime 对齐，共用时间戳）
     private fixedFirstChunkLatencyMs = 0; // 固定的首令延迟（首流事件后不再变化）
@@ -155,6 +154,14 @@ export class StreamReporter {
     }
 
     /**
+     * 获取 Reporter 已记录的流开始时间（只读，不触发指标事件）
+     * 供 handler 在缺少标准首流事件时回退使用
+     */
+    getMetricStreamStartTime(): number | undefined {
+        return this.firstStreamTime > 0 ? this.firstStreamTime : undefined;
+    }
+
+    /**
      * 发送流式速度更新
      * @param force 是否跳过 200ms 节流（供 finishMetrics 最后一帧使用）
      */
@@ -172,9 +179,6 @@ export class StreamReporter {
         const firstChunkLatencyMs =
             this.firstChunkEmitted ? this.fixedFirstChunkLatencyMs : Math.max(0, now - this.requestStartTime!);
 
-        // 输出耗时：从 firstStreamTime 开始计算（仅用于耗时显示，不参与速度计算）
-        const elapsedMs = this.firstStreamTime > 0 ? Math.max(0, now - this.firstStreamTime) : 0;
-
         // 输出速度：使用 updateOutputSpeed 中缓存的值，暂停期间不会衰减
         const charsPerSecond = this.lastCharsPerSecond;
 
@@ -187,7 +191,6 @@ export class StreamReporter {
             modelName: this.modelName,
             firstChunkLatencyMs,
             outputChars: this.outputChars,
-            elapsedMs,
             charsPerSecond
         });
         this.lastLiveUpdateAt = now;
@@ -348,10 +351,8 @@ export class StreamReporter {
         }
 
         this.outputChars += addedChars;
-        this.lastOutputAt = now;
 
         const elapsedMs = this.firstStreamTime > 0 ? Math.max(1, now - this.firstStreamTime) : 0;
-
         this.lastCharsPerSecond = elapsedMs > 0 && this.outputChars > 0 ? (this.outputChars / elapsedMs) * 1000 : 0;
 
         this.emitStreamingUpdate();
