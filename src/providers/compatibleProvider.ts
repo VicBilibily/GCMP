@@ -108,6 +108,7 @@ export class CompatibleProvider extends GenericModelProvider {
                     ...(model.thinkingFormat && { thinkingFormat: model.thinkingFormat }),
                     ...(model.reasoningFormat && { reasoningFormat: model.reasoningFormat }),
                     ...(model.reasoningEffort && { reasoningEffort: model.reasoningEffort }),
+                    ...(model.reasoningDefault && { reasoningDefault: model.reasoningDefault }),
                     ...(model.contextSize && { contextSize: model.contextSize })
                 };
             });

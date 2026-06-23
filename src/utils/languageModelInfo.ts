@@ -158,7 +158,9 @@ function buildModelConfigurationProperties(model: ModelConfig): Record<string, P
             default: model.reasoningEffort[0],
             group: 'navigation'
         };
-        if (model.reasoningEffort.includes('medium')) {
+        if (model.reasoningDefault && model.reasoningEffort.includes(model.reasoningDefault)) {
+            schema.default = model.reasoningDefault;
+        } else if (model.reasoningEffort.includes('medium')) {
             schema.default = 'medium';
         }
         properties.reasoningEffort = schema;

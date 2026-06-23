@@ -792,7 +792,7 @@ export class OpenAIHandler {
         // 默认值规则必须与 languageModelInfo.ts 中 schema.default 的逻辑保持一致，
         // 否则会出现"UI 显示默认 medium，实际请求却发 low"的不一致。
         const effectiveThinking = settings?.thinking ?? modelConfig.thinking?.[0];
-        const effectiveReasoningEffort = settings?.reasoningEffort ?? getDefaultReasoningEffort(modelConfig);
+        const effectiveReasoningEffort = settings?.reasoningEffort ?? getReasoningDefault(modelConfig);
         if (settings) {
             if (effectiveThinking && (!thinkingFormat || thinkingFormat === 'boolean' || thinkingFormat === 'object')) {
                 if (effectiveThinking === 'enabled') {
@@ -1629,13 +1629,17 @@ export class OpenAIHandler {
 /**
  * 解析模型配置的默认 reasoningEffort。
  * 规则必须与 languageModelInfo.ts 中 schema.default 的逻辑保持一致：
+ * - 若配置了 reasoningDefault 且包含在 reasoningEffort 数组中，使用该值
  * - 若 reasoningEffort 数组包含 'medium'，默认值为 'medium'
  * - 否则默认值为数组首项
  */
-function getDefaultReasoningEffort(modelConfig: ModelConfig): string | undefined {
+function getReasoningDefault(modelConfig: ModelConfig): string | undefined {
     const efforts = modelConfig.reasoningEffort;
     if (!efforts || efforts.length === 0) {
-        return undefined;
+        return modelConfig.reasoningDefault;
+    }
+    if (modelConfig.reasoningDefault && efforts.includes(modelConfig.reasoningDefault)) {
+        return modelConfig.reasoningDefault;
     }
     if (efforts.includes('medium')) {
         return 'medium';

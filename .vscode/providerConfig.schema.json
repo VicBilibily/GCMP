@@ -177,6 +177,20 @@
                     },
                     "description": "调节思维链长度，平衡不同场景对效果、时延、成本的需求"
                 },
+                "reasoningDefault": {
+                    "type": "string",
+                    "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
+                    "enumDescriptions": [
+                        "关闭思考，直接回答",
+                        "关闭思考，直接回答",
+                        "轻量思考，侧重快速响应",
+                        "均衡模式，兼顾速度与深度",
+                        "深度分析，处理复杂问题",
+                        "最大推理深度，速度较慢",
+                        "绝对最高能力，对 token 消耗没有限制"
+                    ],
+                    "description": "默认推理强度。指定时将覆盖“medium 优先 / 数组首项”规则，作为 reasoningEffort 的默认值。该值应包含在 reasoningEffort 数组中。"
+                },
                 "contextSize": {
                     "type": "array",
                     "items": {

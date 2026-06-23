@@ -134,12 +134,12 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 ### [**火山方舟**](https://www.volcengine.com/product/ark) - Volcengine
 
 - [**Coding Plan 套餐**](https://www.volcengine.com/activity/codingplan)：
-    - 豆包模型：**Doubao-Seed-2.0-Code**、**Doubao-Seed-Code**、**Doubao-Seed-2.0-lite**、**Doubao-Seed-2.0-pro**
+    - 豆包模型：**Ark-Code-Latest**(Auto)、**Doubao-Seed-2.0-Code**、**Doubao-Seed-Code**、**Doubao-Seed-2.0-lite**、**Doubao-Seed-2.0-pro**
     - 开源模型：**GLM-5.2**、**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**MiniMax-M3**、**MiniMax-M2.7**
 - [**Agent Plan 套餐**](https://www.volcengine.com/activity/agentplan)：
-    - 豆包模型：**Doubao-Seed-2.0**(Code/pro/lite/mini)
+    - 豆包模型：**Ark-Code-Latest**(Auto)、**Doubao-Seed-2.0**(Code/pro/lite/mini)
     - 开源模型：**GLM-5.2**、**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**MiniMax-M3**、**MiniMax-M2.7**
-- **豆包系列**：**Doubao-Seed-2.0**(lite/mini/pro/Code)、**Doubao-Seed-1.8**
+- **豆包系列**：**Doubao-Seed-Evolving**、**Doubao-Seed-2.1**(turbo/pro)、**Doubao-Seed-2.0**(lite/mini/pro/Code)、**Doubao-Seed-1.8**
 - **协作奖励计划**：**GLM-4.7**、**DeepSeek-V3.2**
 - **按量计费(PayGo)**：**DeepSeek-V4-Flash-260425**、**DeepSeek-V4-Pro-260425**
 - **密钥配置**：支持设置 [Coding Plan API Key](https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey) 与 [Agent Plan 专用 API Key](https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=agentPlan) 分别设置，配置向导引导选择套餐类型。
@@ -159,7 +159,7 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)
 
-- **按量计费(PayGo)**：**MiMo-V2.5-Pro**、**MiMo-V2.5**
+- **按量计费(PayGo)**：**MiMo-V2.5-Pro**(UltraSpeed)、**MiMo-V2.5**
 - [**Token Plan**](https://platform.xiaomimimo.com/#/token-plan)：**MiMo-V2.5-Pro**、**MiMo-V2.5**
     - [区域集群](https://platform.xiaomimimo.com/#/docs/tokenplan/subscription?target=快速指南)：可切换选择`中国集群(cn)`、`新加坡集群(sgp)`、`欧洲集群(ams)`，按[订阅管理](https://platform.xiaomimimo.com/#/console/plan-manage)页面展示为准。
 - **密钥配置**：支持设置 [Xiaomi MiMo API Key](https://platform.xiaomimimo.com/#/console/api-keys) 与 [Token Plan 专用 API Key](https://platform.xiaomimimo.com/#/console/plan-manage) 分别设置。
@@ -793,13 +793,13 @@ GCMP 提供基于 **GitHub Secret Gist** 的 API Key 跨设备同步功能，支
 
 ### 存储原理
 
-| 层级         | 说明                                                                                          |
-| ------------ | --------------------------------------------------------------------------------------------- |
-| **远端存储** | GitHub **Secret Gist**（私有 Gist），文件名为 `gcmp-sync.json`                                |
-| **加密算法** | **AES-256-GCM**（认证加密，保证机密性 + 完整性）                                              |
-| **密钥派生** | **scrypt**（N=16384, r=8, p=1），输入为 `GitHub 用户 ID + 固定 pepper + 可选自定义口令`       |
-| **认证方式** | VS Code 内置 **GitHub OAuth**，通过 `vscode.authentication` API 获取 token                    |
-| **认证复用** | 首次授权 `gist` scope；后续操作静默复用已授权 session                                         |
+| 层级         | 说明                                                                                    |
+| ------------ | --------------------------------------------------------------------------------------- |
+| **远端存储** | GitHub **Secret Gist**（私有 Gist），文件名为 `gcmp-sync.json`                          |
+| **加密算法** | **AES-256-GCM**（认证加密，保证机密性 + 完整性）                                        |
+| **密钥派生** | **scrypt**（N=16384, r=8, p=1），输入为 `GitHub 用户 ID + 固定 pepper + 可选自定义口令` |
+| **认证方式** | VS Code 内置 **GitHub OAuth**，通过 `vscode.authentication` API 获取 token              |
+| **认证复用** | 首次授权 `gist` scope；后续操作静默复用已授权 session                                   |
 
 ### 加密流程
 

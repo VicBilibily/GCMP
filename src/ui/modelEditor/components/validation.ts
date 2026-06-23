@@ -220,6 +220,10 @@ export function collectFormData(state: EditorState): ModelFormData | null {
         });
     }
 
+    // reasoningDefault 下拉（空字符串表示未配置）
+    const reasoningDefaultEl = document.getElementById('reasoningDefault') as HTMLSelectElement | null;
+    const reasoningDefault = reasoningDefaultEl?.value ?? '';
+
     const customHeaderText = (document.getElementById('customHeader') as HTMLTextAreaElement).value.trim();
     const extraBodyText = (document.getElementById('extraBody') as HTMLTextAreaElement).value.trim();
 
@@ -242,6 +246,7 @@ export function collectFormData(state: EditorState): ModelFormData | null {
         useInstructions,
         webSearchTool,
         reasoningEffort: reasoningEffortValues as ModelFormData['reasoningEffort'],
+        reasoningDefault: reasoningDefault as ModelFormData['reasoningDefault'],
         customHeader: parseJSON(customHeaderText) ? customHeaderText : '',
         extraBody: parseJSON(extraBodyText) ? extraBodyText : ''
     };

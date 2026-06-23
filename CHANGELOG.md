@@ -2,6 +2,22 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.9] - 2026-06-23
+
+### 新增
+
+- 新增模型级 `reasoningDefault` 配置项，可指定 `reasoningEffort` 的默认值，模型编辑器同步新增「默认推理强度」下拉框
+- 火山方舟新增 **Ark-Code-Latest**（Coding/Agent Plan，Auto 模式）、**Doubao-Seed-Evolving**、**Doubao-Seed-2.1-turbo/pro** 预置模型
+- 小米 MiMo 新增 **MiMo-V2.5-Pro-UltraSpeed** 预置模型
+
+---
+
+### Added
+
+- New model-level `reasoningDefault` option to override the default of `reasoningEffort`; model editor adds a matching dropdown
+- Volcengine adds **Ark-Code-Latest** (Coding/Agent Plan, Auto), **Doubao-Seed-Evolving**, **Doubao-Seed-2.1-turbo/pro** presets
+- Xiaomi MiMo adds **MiMo-V2.5-Pro-UltraSpeed** preset
+
 ## [0.25.8] - 2026-06-23
 
 ### 优化

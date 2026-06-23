@@ -53,6 +53,19 @@
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
+            "id": "ark-code-latest",
+            "name": "Ark-Code-Latest (CodingPlan)",
+            "model": "ark-code-latest",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。默认使用 Auto 模式，通过「效果 + 速度」双维度智能算法自动选择模型；通过开通管理页面选择或切换目标模型，切换模型后 3-5 分钟即可生效。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "reasoningDefault": "high",
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
             "id": "ark-code-kimi-k2.7-code",
             "name": "Kimi-K2.7-Code (CodingPlan)",
             "model": "kimi-k2.7-code",
@@ -191,6 +204,20 @@
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
+            "id": "ark-plan-code-latest",
+            "name": "Ark-Code-Latest (AgentPlan)",
+            "model": "ark-code-latest",
+            "provider": "volcengine-agent",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
+            "tooltip": "Agent Plan 模型。默认使用 Auto 模式，通过「效果 + 速度」双维度智能算法自动选择模型；通过开通管理页面选择或切换目标模型，切换模型后 3-5 分钟即可生效。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "reasoningDefault": "high",
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
             "id": "ark-plan-glm-5.2",
             "name": "GLM-5.2 (AgentPlan)",
             "model": "glm-5.2",
@@ -284,6 +311,44 @@
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
+            "id": "doubao-seed-evolving",
+            "name": "Doubao-Seed-Evolving",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/compatible",
+            "tooltip": "Seed-Evolving 是面向 Agent 与 Coding 场景打造的 Seed 系列模型，具备复杂任务编排、长程规划、代码生成与工具调用能力。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "reasoningDefault": "high",
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
+            "id": "doubao-seed-2-1-turbo",
+            "name": "Doubao-Seed-2.1-turbo-260628",
+            "model": "doubao-seed-2-1-turbo-260628",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/compatible",
+            "tooltip": "Doubao-Seed-2.1 是面向 Coding 和 Agent 时代打造的新一代大模型，提供 Pro 和 Turbo 两个版本，分别面向高复杂度任务探索和规模化生产场景。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "reasoningDefault": "high",
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
+            "id": "doubao-seed-2-1-pro",
+            "name": "Doubao-Seed-2.1-pro-260628",
+            "model": "doubao-seed-2-1-pro-260628",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/compatible",
+            "tooltip": "Doubao-Seed-2.1 是面向 Coding 和 Agent 时代打造的新一代大模型，提供 Pro 和 Turbo 两个版本，分别面向高复杂度任务探索和规模化生产场景。",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 128000,
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "reasoningDefault": "high",
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
             "id": "doubao-seed-2-0-code",
             "name": "Doubao-Seed-2.0-Code-preview-260215",
             "model": "doubao-seed-2-0-code-preview-260215",
@@ -321,7 +386,7 @@
         },
         {
             "id": "doubao-seed-2-0-pro",
-            "name": "Doubao-Seed-2.0-Pro-260215",
+            "name": "Doubao-Seed-2.0-pro-260215",
             "model": "doubao-seed-2-0-pro-260215",
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/compatible",

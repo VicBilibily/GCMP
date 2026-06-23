@@ -66,6 +66,7 @@ const state: EditorState = {
         useInstructions: undefined,
         webSearchTool: undefined,
         reasoningEffort: [],
+        reasoningDefault: '',
         customHeader: '',
         extraBody: ''
     },

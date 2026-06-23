@@ -517,6 +517,12 @@ export class ConfigManager {
                     `  Model ${modelOverride.id}: override reasoningEffort = ${JSON.stringify(modelOverride.reasoningEffort)}`
                 );
             }
+            if (modelOverride.reasoningDefault !== undefined) {
+                target.reasoningDefault = modelOverride.reasoningDefault;
+                Logger.debug(
+                    `  Model ${modelOverride.id}: override reasoningDefault = ${modelOverride.reasoningDefault}`
+                );
+            }
             if (modelOverride.contextSize !== undefined) {
                 target.contextSize = [...modelOverride.contextSize];
                 Logger.debug(

@@ -211,6 +211,15 @@ export class ModelEditor {
         model.reasoningEffort =
             data.reasoningEffort && data.reasoningEffort.length > 0 ? data.reasoningEffort : undefined;
 
+        // reasoningDefault：空字符串 → undefined 清理字段；
+        // 若 reasoningEffort 数组非空，则该值必须包含在其中，否则忽略
+        const defaultEffort = data.reasoningDefault;
+        if (defaultEffort && (!model.reasoningEffort || model.reasoningEffort.includes(defaultEffort))) {
+            model.reasoningDefault = defaultEffort;
+        } else {
+            model.reasoningDefault = undefined;
+        }
+
         // customHeader / extraBody JSON 解析（customHeader 值类型为 string）
         const customHeaderParsed = this.parseJsonObject(data.customHeader);
         model.customHeader = customHeaderParsed ? (customHeaderParsed as Record<string, string>) : undefined;
@@ -322,6 +331,7 @@ export class ModelEditor {
             useInstructions: model?.useInstructions,
             webSearchTool: model?.webSearchTool,
             reasoningEffort: model?.reasoningEffort || [],
+            reasoningDefault: model?.reasoningDefault || '',
             customHeader: model?.customHeader ? JSON.stringify(model.customHeader, null, 2) : '',
             extraBody: model?.extraBody ? JSON.stringify(model.extraBody, null, 2) : ''
         };

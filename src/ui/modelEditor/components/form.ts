@@ -243,6 +243,30 @@ export function createDOM(state: CreateDomState, rootEl?: HTMLElement): void {
                 '模型 picker 的可选推理强度列表。默认值规则：\n- 如果包含 "Medium"，始终以 Medium 为默认值\n- 否则以列表首项为默认值\n使用拖拽手柄 (⠿) 调整顺序。全部不选则保持未配置状态。'
             )
         ),
+        createFormGroup(
+            'reasoningDefault',
+            t('Default Reasoning Effort', '默认推理强度'),
+            'reasoningDefault',
+            'select',
+            {
+                options: [
+                    {
+                        value: '',
+                        label: t('(Auto — follow default rules)', '（自动 — 按默认规则）'),
+                        selected: !model.reasoningDefault
+                    },
+                    ...REASONING_EFFORT_OPTIONS.map(opt => ({
+                        value: opt.value,
+                        label: opt.label,
+                        selected: model.reasoningDefault === opt.value
+                    }))
+                ]
+            },
+            t(
+                'Override the default reasoning effort. When specified, it takes precedence over the "Medium-first / first-item" rule. The value must be included in the Reasoning Effort Options above.',
+                '覆盖默认推理强度。指定时优先级高于“Medium 优先 / 数组首项”规则。该值必须包含在上方的推理强度选项中。'
+            )
+        ),
         createJSONFormGroup(
             'customHeader',
             t('Custom HTTP Headers (JSON)', '自定义HTTP头部（JSON格式）'),

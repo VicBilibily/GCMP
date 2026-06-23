@@ -134,12 +134,12 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 ### [**Volcengine**](https://www.volcengine.com/product/ark)
 
 - [**Coding Plan**](https://www.volcengine.com/activity/codingplan):
-    - Doubao models: **Doubao-Seed-2.0-Code**, **Doubao-Seed-Code**, **Doubao-Seed-2.0-lite**, **Doubao-Seed-2.0-pro**
+    - Doubao models: **Ark-Code-Latest**(Auto), **Doubao-Seed-2.0-Code**, **Doubao-Seed-Code**, **Doubao-Seed-2.0-lite**, **Doubao-Seed-2.0-pro**
     - Open-source models: **GLM-5.2**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **MiniMax-M3**, **MiniMax-M2.7**
 - [**Agent Plan**](https://www.volcengine.com/activity/agentplan):
-    - Doubao models: **Doubao-Seed-2.0** (Code/pro/lite/mini)
+    - Doubao models: **Ark-Code-Latest**(Auto), **Doubao-Seed-2.0** (Code/pro/lite/mini)
     - Open-source models: **GLM-5.2**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **MiniMax-M3**, **MiniMax-M2.7**, **Kimi-K2.7-Code**, **Kimi-K2.6**
-- **Doubao series**: **Doubao-Seed-2.0** (lite/mini/pro/Code), **Doubao-Seed-1.8**
+- **Doubao series**: **Doubao-Seed-Evolving**, **Doubao-Seed-2.1** (turbo/pro), **Doubao-Seed-2.0** (lite/mini/pro/Code), **Doubao-Seed-1.8**
 - **Collaboration rewards**: **GLM-4.7**, **DeepSeek-V3.2**
 - **PayGo**: **DeepSeek-V4-Flash-260425**, **DeepSeek-V4-Pro-260425**
 - **Key configuration**: Supports separate [Coding Plan API Key](https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey) and [Agent Plan API Key](https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=agentPlan). Setup wizard guides you through plan type selection.
@@ -159,7 +159,7 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)
 
-- **PayGo**: **MiMo-V2.5-Pro**, **MiMo-V2.5**
+- **PayGo**: **MiMo-V2.5-Pro** (UltraSpeed), **MiMo-V2.5**
 - [**Token Plan**](https://platform.xiaomimimo.com/#/token-plan): **MiMo-V2.5-Pro**, **MiMo-V2.5**
     - [Regional clusters](https://platform.xiaomimimo.com/#/docs/tokenplan/subscription?target=快速指南): Switch between `China (cn)`, `Singapore (sgp)`, and `Europe (ams)` clusters. Refer to the [subscription management](https://platform.xiaomimimo.com/#/console/plan-manage) page for details.
 - **Key configuration**: Supports separate [Xiaomi MiMo API Key](https://platform.xiaomimimo.com/#/console/api-keys) and [Token Plan API Key](https://platform.xiaomimimo.com/#/console/plan-manage).
@@ -221,6 +221,7 @@ npm install -g @openai/codex@latest
     }
 }
 ```
+
 ### [**Grok Build**](https://x.ai/cli) - xAI Grok Build
 
 xAI's official Grok Build coding assistant CLI tool. Supports OAuth authentication via the `grok` CLI (requires local installation).
@@ -735,15 +736,15 @@ GCMP includes a set of dedicated vision analysis tools for converting images/scr
 
 ### Tool List
 
-| Tool Reference | Purpose |
-| --- | --- |
-| `#gcmpUiToArtifact` | Convert UI screenshots into front-end code, AI prompts, design specs, or natural language descriptions |
-| `#gcmpExtractTextFromScreenshot` | Extract and recognize text (OCR) from screenshots, supporting code, terminal output, documents, etc. |
-| `#gcmpDiagnoseErrorScreenshot` | Analyze error dialogs, stack traces, and exception screenshots to identify root causes and suggest fixes |
-| `#gcmpUnderstandTechnicalDiagram` | Analyze architecture diagrams, flowcharts, UML, ER diagrams, and system design diagrams |
-| `#gcmpAnalyzeDataVisualization` | Extract trends, anomalies, and actionable insights from charts, graphs, and dashboards |
-| `#gcmpUiDiffCheck` | Compare expected/reference UI screenshots against actual implementations to identify visual differences |
-| `#gcmpAnalyzeImage` | General image analysis for visual content not covered by specialized tools |
+| Tool Reference                    | Purpose                                                                                                  |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `#gcmpUiToArtifact`               | Convert UI screenshots into front-end code, AI prompts, design specs, or natural language descriptions   |
+| `#gcmpExtractTextFromScreenshot`  | Extract and recognize text (OCR) from screenshots, supporting code, terminal output, documents, etc.     |
+| `#gcmpDiagnoseErrorScreenshot`    | Analyze error dialogs, stack traces, and exception screenshots to identify root causes and suggest fixes |
+| `#gcmpUnderstandTechnicalDiagram` | Analyze architecture diagrams, flowcharts, UML, ER diagrams, and system design diagrams                  |
+| `#gcmpAnalyzeDataVisualization`   | Extract trends, anomalies, and actionable insights from charts, graphs, and dashboards                   |
+| `#gcmpUiDiffCheck`                | Compare expected/reference UI screenshots against actual implementations to identify visual differences  |
+| `#gcmpAnalyzeImage`               | General image analysis for visual content not covered by specialized tools                               |
 
 ### How to Use
 
@@ -779,11 +780,11 @@ GCMP provides an API Key synchronization feature based on **GitHub Secret Gists*
 - On first use, you'll be prompted to authenticate with GitHub and authorize the `gist` scope
 - After authentication, a grouped sync actions menu appears:
 
-    | Group | Actions |
-    |-------|---------|
-    | **Sync Operations** | **Upload to Gist** — encrypt & upload to GitHub Gist / **Download from Gist** — restore from Gist to local |
-    | **Key Management** | **Manage Local Keys** — view, enable, or remove local API keys / **Manage Remote Keys** — view/remove keys on Gist |
-    | **Security** | **Set/Change Passphrase** / **Clear Passphrase** — manage custom encryption passphrase |
+    | Group               | Actions                                                                                                            |
+    | ------------------- | ------------------------------------------------------------------------------------------------------------------ |
+    | **Sync Operations** | **Upload to Gist** — encrypt & upload to GitHub Gist / **Download from Gist** — restore from Gist to local         |
+    | **Key Management**  | **Manage Local Keys** — view, enable, or remove local API keys / **Manage Remote Keys** — view/remove keys on Gist |
+    | **Security**        | **Set/Change Passphrase** / **Clear Passphrase** — manage custom encryption passphrase                             |
 
 > During upload/download, you can **select which providers to sync with inline status display** (new/update/unchanged). On upload, new and changed keys are checked by default. On download, keys that match local values are unchecked by default. Partial uploads merge with existing remote data without overwriting unselected keys.
 
@@ -792,13 +793,13 @@ GCMP provides an API Key synchronization feature based on **GitHub Secret Gists*
 
 ### Storage Architecture
 
-| Layer              | Description                                                                                                |
-| ------------------ | ---------------------------------------------------------------------------------------------------------- |
-| **Remote Storage** | GitHub **Secret Gist** (private), file named `gcmp-sync.json`                                              |
-| **Encryption**     | **AES-256-GCM** (authenticated encryption — confidentiality + integrity)                                   |
-| **Key Derivation** | **scrypt** (N=16384, r=8, p=1) with `GitHub User ID + fixed pepper + optional custom passphrase`           |
-| **Authentication** | VS Code built-in **GitHub OAuth** via `vscode.authentication` API                                          |
-| **Token Scope**    | First-time authorization requests `gist` scope; subsequent operations reuse the session silently           |
+| Layer              | Description                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------ |
+| **Remote Storage** | GitHub **Secret Gist** (private), file named `gcmp-sync.json`                                    |
+| **Encryption**     | **AES-256-GCM** (authenticated encryption — confidentiality + integrity)                         |
+| **Key Derivation** | **scrypt** (N=16384, r=8, p=1) with `GitHub User ID + fixed pepper + optional custom passphrase` |
+| **Authentication** | VS Code built-in **GitHub OAuth** via `vscode.authentication` API                                |
+| **Token Scope**    | First-time authorization requests `gist` scope; subsequent operations reuse the session silently |
 
 ### Encryption Flow
 

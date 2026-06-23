@@ -121,6 +121,12 @@ export interface ModelConfig {
      */
     reasoningEffort?: Required<ModelChatResponseOptions>['reasoningEffort'][];
     /**
+     * 默认推理强度（可选）
+     * 指定时将作为 reasoningEffort 的默认值，优先级高于"medium 优先 / 数组首项"规则。
+     * 该值必须包含在 reasoningEffort 数组中（若数组非空）。
+     */
+    reasoningDefault?: Required<ModelChatResponseOptions>['reasoningEffort'];
+    /**
      * 上下文窗口调节选项列表（可选）
      * 用于 UI 配置选择，按顺序决定可选的上下文窗口大小及默认值。
      */
@@ -199,6 +205,8 @@ export interface ModelOverride {
     reasoningFormat?: ModelConfig['reasoningFormat'];
     /** 思维链长度调节选项列表（可选） */
     reasoningEffort?: ModelConfig['reasoningEffort'];
+    /** 默认推理强度（可选），优先级高于"medium 优先 / 数组首项"规则 */
+    reasoningDefault?: ModelConfig['reasoningDefault'];
     /** 上下文窗口调节选项列表（可选） */
     contextSize?: ModelConfig['contextSize'];
     /** 服务等级选项列表（可选） */

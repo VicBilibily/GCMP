@@ -629,6 +629,15 @@ export class JsonSchemaProvider {
                                 },
                                 description: this.getReasoningEffortDescription()
                             },
+                            reasoningDefault: {
+                                type: 'string',
+                                enum: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
+                                enumDescriptions: this.getReasoningEffortEnumDescriptions(),
+                                description: t(
+                                    'Default reasoning effort. When specified, it overrides the "medium-first / first-item" rule as the default value of reasoningEffort. The value should be included in the reasoningEffort array.',
+                                    '默认推理强度。指定时将覆盖“medium 优先 / 数组首项”规则，作为 reasoningEffort 的默认值。该值应包含在 reasoningEffort 数组中。'
+                                )
+                            },
                             contextSize: {
                                 type: 'array',
                                 items: {
@@ -1204,6 +1213,15 @@ export class JsonSchemaProvider {
                                     enumDescriptions: this.getReasoningEffortEnumDescriptions()
                                 },
                                 description: this.getReasoningEffortDescription()
+                            },
+                            reasoningDefault: {
+                                type: 'string',
+                                enum: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
+                                enumDescriptions: this.getReasoningEffortEnumDescriptions(),
+                                description: t(
+                                    'Default reasoning effort. When specified, it overrides the "medium-first / first-item" rule as the default value of reasoningEffort. The value should be included in the reasoningEffort array.',
+                                    '默认推理强度。指定时将覆盖“medium 优先 / 数组首项”规则，作为 reasoningEffort 的默认值。该值应包含在 reasoningEffort 数组中。'
+                                )
                             },
                             contextSize: {
                                 type: 'array',

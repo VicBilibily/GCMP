@@ -43,6 +43,7 @@ export interface ModelFormData {
     useInstructions: boolean | undefined;
     webSearchTool: boolean | undefined;
     reasoningEffort: ReasoningEffort[];
+    reasoningDefault: ReasoningEffort | '';
     customHeader: string; // JSON 字符串
     extraBody: string; // JSON 字符串
 }
