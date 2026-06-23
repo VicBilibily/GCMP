@@ -11,7 +11,7 @@
             "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
-            "reasoningEffort": ["high", "max"],
+            "reasoningEffort": ["high", "xhigh"],
             "reasoningFormat": "nested",
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
@@ -23,7 +23,7 @@
             "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
-            "reasoningEffort": ["high", "max"],
+            "reasoningEffort": ["high", "xhigh"],
             "reasoningFormat": "nested",
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
@@ -41,8 +41,8 @@
             "name": "GLM-5 (Hyper)",
             "tooltip": "Charm Hyper — GLM-5。",
             "sdkMode": "openai-sse",
-            "maxInputTokens": 200000,
-            "maxOutputTokens": 20000,
+            "maxInputTokens": 202752,
+            "maxOutputTokens": 20275,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -50,8 +50,9 @@
             "name": "GLM-5.1 (Hyper)",
             "tooltip": "Charm Hyper — GLM-5.1。",
             "sdkMode": "openai-sse",
-            "maxInputTokens": 200000,
-            "maxOutputTokens": 20000,
+            "maxInputTokens": 202800,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -62,7 +63,7 @@
             "contextSize": [1000000, 600000, 400000, 200000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
-            "reasoningEffort": ["high", "max"],
+            "reasoningEffort": ["high", "xhigh"],
             "reasoningFormat": "nested",
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
@@ -72,8 +73,8 @@
             "tooltip": "Charm Hyper — GPT-OSS-120B。",
             "sdkMode": "openai-sse",
             "reasoningEffort": ["low", "medium", "high"],
-            "maxInputTokens": 128000,
-            "maxOutputTokens": 12800,
+            "maxInputTokens": 131072,
+            "maxOutputTokens": 13107,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -81,17 +82,18 @@
             "name": "Kimi-K2.5 (Hyper)",
             "tooltip": "Charm Hyper — Kimi-K2.5。",
             "sdkMode": "openai-sse",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 26214,
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "kimi-k2.6",
             "name": "Kimi-K2.6 (Hyper)",
             "tooltip": "Charm Hyper — Kimi-K2.6。",
             "sdkMode": "openai-sse",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 128000,
+            "maxInputTokens": 262000,
+            "maxOutputTokens": 262000,
+            "reasoningEffort": ["low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
@@ -100,7 +102,8 @@
             "tooltip": "Charm Hyper — Kimi-K2.7-Code。",
             "sdkMode": "openai-sse",
             "maxInputTokens": 256000,
-            "maxOutputTokens": 128000,
+            "maxOutputTokens": 32768,
+            "reasoningEffort": ["low", "medium", "high"],
             "extraBody": { "enabled_thinking": true },
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
@@ -111,6 +114,7 @@
             "sdkMode": "openai-sse",
             "maxInputTokens": 204800,
             "maxOutputTokens": 131000,
+            "reasoningEffort": ["low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -150,6 +154,52 @@
             "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "qwen3.7-plus",
+            "name": "Qwen3.7-Plus (Hyper)",
+            "tooltip": "Charm Hyper — Qwen3.7-Plus。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
+            "id": "llama-3.3-70b-instruct",
+            "name": "Llama-3.3-70B-Instruct (Hyper)",
+            "tooltip": "Charm Hyper — Llama-3.3-70B-Instruct。",
+            "sdkMode": "openai-sse",
+            "maxInputTokens": 128000,
+            "maxOutputTokens": 12800,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "llama-4-maverick-17b-128e-instruct-fp8",
+            "name": "Llama-4-Maverick-17B-128E-Instruct-FP8 (Hyper)",
+            "tooltip": "Charm Hyper — Llama-4-Maverick-17B-128E-Instruct-FP8。",
+            "sdkMode": "openai-sse",
+            "maxInputTokens": 430000,
+            "maxOutputTokens": 43000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "qwen3-coder-480b-a35b-instruct-int4-mixed-ar",
+            "name": "Qwen3-Coder-480B-A35B-Instruct-INT4-Mixed-AR (Hyper)",
+            "tooltip": "Charm Hyper — Qwen3-Coder-480B-A35B-Instruct-INT4-Mixed-AR。",
+            "sdkMode": "openai-sse",
+            "maxInputTokens": 106000,
+            "maxOutputTokens": 10600,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "qwen3-next-80b-a3b-instruct",
+            "name": "Qwen3-Next-80B-A3B-Instruct (Hyper)",
+            "tooltip": "Charm Hyper — Qwen3-Next-80B-A3B-Instruct。",
+            "sdkMode": "openai-sse",
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 26214,
             "capabilities": { "toolCalling": true, "imageInput": false }
         }
     ]
