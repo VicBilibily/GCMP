@@ -4,8 +4,6 @@
  *  不依赖 status 层，仅作为轻量 typed event bus。
  *---------------------------------------------------------------------------------------------*/
 
-import { Logger } from '../utils/logger';
-
 export interface LiveStreamMetricEvent {
     type: 'requestStarted' | 'firstChunk' | 'streamingUpdate' | 'streamEnd';
     requestId: string;
@@ -40,6 +38,12 @@ type LiveMetricsListener = (event: LiveStreamMetricEvent) => void;
 
 const listeners = new Set<LiveMetricsListener>();
 
+/**
+ * 活跃请求的最新事件快照（requestId → 最新事件）。
+ * 面板中途打开时用于补发当前流式状态，避免因订阅晚于事件发送而丢失数据。
+ */
+const activeMetrics = new Map<string, LiveStreamMetricEvent>();
+
 export function onLiveMetrics(listener: LiveMetricsListener): { dispose(): void } {
     listeners.add(listener);
     return {
@@ -50,6 +54,13 @@ export function onLiveMetrics(listener: LiveMetricsListener): { dispose(): void 
 }
 
 export function emitLiveMetrics(event: LiveStreamMetricEvent): void {
+    // 快照更新 — 无论是否有 listener 都必须执行，否则面板未打开时无法缓存
+    if (event.type === 'streamEnd') {
+        activeMetrics.delete(event.requestId);
+    } else {
+        activeMetrics.set(event.requestId, event);
+    }
+
     if (listeners.size === 0) {
         return;
     }
@@ -58,7 +69,15 @@ export function emitLiveMetrics(event: LiveStreamMetricEvent): void {
         try {
             listener(event);
         } catch (error) {
-            Logger.warn('[LiveMetrics] listener failed:', error);
+            console.warn('[LiveMetrics] listener failed:', error);
         }
     }
+}
+
+/**
+ * 获取当前活跃请求的最新事件快照。
+ * 供面板打开 / 日期切换时补发当前流式状态。
+ */
+export function getActiveMetricsSnapshot(): LiveStreamMetricEvent[] {
+    return Array.from(activeMetrics.values());
 }

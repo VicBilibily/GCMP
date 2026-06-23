@@ -13,7 +13,7 @@ import { UpdateDateDetailsMessage, UpdateDateListMessage, UpdateLiveMetricsMessa
 import type { WebViewMessage } from './types';
 import { getTodayDateString } from './utils';
 import { MultiDayView } from '../multiDayView';
-import { onLiveMetrics, type LiveStreamMetricEvent } from '../../handlers/liveMetrics';
+import { onLiveMetrics, getActiveMetricsSnapshot, type LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 
 /**
  * Token 用量 WebView 视图
@@ -74,14 +74,10 @@ export class TokenUsagesView {
         // 监听实时流式指标事件（retainContextWhenHidden 下隐藏面板仍可接收消息）
         // 仅在查看今天时转发给 WebView，非今天直接跳过 postMessage（IPC 序列化开销）
         this.liveMetricsDisposable = onLiveMetrics((event: LiveStreamMetricEvent) => {
-            if (!this.panel) {
+            if (!this.shouldForwardLiveMetrics()) {
                 return;
             }
-            const today = getTodayDateString();
-            if (this.currentSelectedDate !== today) {
-                return;
-            }
-            this.handleLiveMetricEvent(event);
+            this.postLiveMetricEvent(event);
         });
 
         // 监听关闭
@@ -204,7 +200,7 @@ export class TokenUsagesView {
             this.currentSelectedDate = displayDate;
 
             // 发送日期列表（直接发送原始数据，全量）
-            this.panel.webview.postMessage({
+            await this.panel.webview.postMessage({
                 command: 'updateDateList',
                 dateList: dateSummaries,
                 selectedDate: displayDate,
@@ -212,7 +208,7 @@ export class TokenUsagesView {
             } as UpdateDateListMessage);
 
             // 发送日期详情（直接发送原始数据）
-            this.panel.webview.postMessage({
+            await this.panel.webview.postMessage({
                 command: 'updateDateDetails',
                 date: displayDate,
                 isToday: displayDate === today,
@@ -234,6 +230,7 @@ export class TokenUsagesView {
         switch (message.command) {
             case 'getInitialData':
                 await this.sendInitialData();
+                this.pushActiveLiveMetricsSnapshot();
                 break;
 
             case 'refresh':
@@ -242,6 +239,7 @@ export class TokenUsagesView {
 
             case 'selectDate':
                 await this.updateDateDetails(message.date);
+                this.pushActiveLiveMetricsSnapshot();
                 break;
 
             case 'openStorageDir':
@@ -255,11 +253,16 @@ export class TokenUsagesView {
     }
 
     /**
-     * 处理实时流式指标事件，发送给 WebView 更新显示
-     * 不在 Extension 层过滤日期——WebView 端已有 isViewingToday() 控制是否渲染，
-     * 这样用户从历史日期切回今天时不会丢失正在进行的 live events。
+     * 判断是否应转发实时流式指标给 WebView（面板已打开且正在查看今天）
      */
-    private handleLiveMetricEvent(event: LiveStreamMetricEvent): void {
+    private shouldForwardLiveMetrics(): boolean {
+        return !!this.panel && this.currentSelectedDate === getTodayDateString();
+    }
+
+    /**
+     * 将单个实时流式指标事件发送给 WebView
+     */
+    private postLiveMetricEvent(event: LiveStreamMetricEvent): void {
         const panel = this.panel;
         if (!panel) {
             return;
@@ -283,6 +286,19 @@ export class TokenUsagesView {
                 );
         } catch (err) {
             StatusLogger.warn('[TokenUsagesView] failed to post live metric message:', err);
+        }
+    }
+
+    /**
+     * 推送当前活跃请求的最新事件快照给 WebView。
+     * 用于面板打开（getInitialData）和日期切换（selectDate）后补发实时状态。
+     */
+    private pushActiveLiveMetricsSnapshot(): void {
+        if (!this.shouldForwardLiveMetrics()) {
+            return;
+        }
+        for (const event of getActiveMetricsSnapshot()) {
+            this.postLiveMetricEvent(event);
         }
     }
 
@@ -324,7 +340,7 @@ export class TokenUsagesView {
 
             // 发送消息给 WebView，让它更新详情区域
             if (this.panel) {
-                this.panel.webview.postMessage({
+                await this.panel.webview.postMessage({
                     command: 'updateDateDetails',
                     date,
                     isToday: date === today,

@@ -12,7 +12,7 @@ import type {
     HourlyStats
 } from '../../usages/fileLogger/types';
 import type { ExtendedTokenRequestLog } from '../../usages/fileLogger/usageParser';
-import type { LiveStreamMetricEvent } from '../../metrics/liveMetrics';
+import type { LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 
 // ============= UI 层数据类型 =============
 
