@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.7] - 2026-06-23
+
+### 新增
+
+- **视觉分析工具支持 GitHub Copilot 原生模型**：`gcmp.vision.model` 现支持配置为 GitHub Copilot 原生多模态模型，将 `provider` 设为 `copilot` 即可使用 Copilot 订阅内的视觉模型驱动 `#gcmpUiToArtifact`、`#gcmpDiagnoseErrorScreenshot` 等全部视觉分析工具；辅助工具模型设置面板在已选择 Copilot 提供商时会自动列出可用的 Copilot 视觉模型
+- **Charm Hyper 模型预设扩充**：[#247](https://github.com/VicBilibily/GCMP/pull/247) 新增 5 个模型预设：**Qwen3.7-Plus**、**Llama-4-Maverick-17B-128E-Instruct-FP8**、**Llama-3.3-70B-Instruct**、**Qwen3-Coder-480B-A35B-Instruct-INT4-Mixed-AR**、**Qwen3-Next-80B-A3B-Instruct**
+
+---
+
+### Added
+
+- **Vision Tool Support for GitHub Copilot Native Models**: `gcmp.vision.model` now supports GitHub Copilot native multimodal models — set `provider` to `copilot` to drive all vision analysis tools (`#gcmpUiToArtifact`, `#gcmpDiagnoseErrorScreenshot`, etc.) with Copilot-subscribed vision models; the auxiliary tool model settings panel automatically lists available Copilot vision models when the Copilot provider is selected
+- **Charm Hyper Model Presets Expansion**: [#247](https://github.com/VicBilibily/GCMP/pull/247) Added 5 new model presets: **Qwen3.7-Plus**, **Llama-4-Maverick-17B-128E-Instruct-FP8**, **Llama-3.3-70B-Instruct**, **Qwen3-Coder-480B-A35B-Instruct-INT4-Mixed-AR**, **Qwen3-Next-80B-A3B-Instruct**
+
 ## [0.25.6] - 2026-06-23
 
 ### 新增

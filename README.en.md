@@ -195,7 +195,7 @@ Ant Group's open-source MoE-architecture LLM family, accessed via Anthropic mode
 
 ### [**Hyper**](https://hyper.charm.land/) - Charm Hyper
 
-- **Preset models**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **Qwen3.7-Max**, **Qwen3.6-Plus**, **Qwen3.6-Max**, **Qwen3.6-Flash**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.7**, **Gemma-4-26B-A4B**, **GPT-OSS-120B**
+- **Preset models**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **Qwen3.7-Max**, **Qwen3.7-Plus**, **Qwen3.6-Plus**, **Qwen3.6-Max**, **Qwen3.6-Flash**, **Qwen3-Coder-480B-A35B-Instruct-INT4-Mixed-AR**, **Qwen3-Next-80B-A3B-Instruct**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.7**, **Llama-4-Maverick-17B-128E-Instruct-FP8**, **Llama-3.3-70B-Instruct**, **Gemma-4-26B-A4B**, **GPT-OSS-120B**
 
 ### OAuth Coding Assistant Providers
 
@@ -763,7 +763,7 @@ Vision tools rely on a multimodal model specified by `gcmp.vision.model`. If uns
 ```
 
 - The selected model must support image input (`capabilities.imageInput: true`).
-- Both built-in provider models and Compatible Provider models with image input support can be selected.
+- Built-in provider models, Compatible Provider models with image input support, and GitHub Copilot native multimodal models are all supported (set `provider` to `copilot` and `model` to the Copilot model ID).
 - If unset, the model selection wizard is launched automatically on first use, so you don't need to fill in JSON manually in advance.
 
 </details>
