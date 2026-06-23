@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Auxiliary Model Settings WebView 消息类型
  */
 

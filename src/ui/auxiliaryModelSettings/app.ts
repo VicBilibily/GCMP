@@ -40,7 +40,9 @@ function getModelsByProvider(providerKey: string): AuxiliaryProviderData | undef
 function createProviderSelect(
     currentProvider: string,
     onChange: (providerKey: string) => void,
-    allowEmpty?: boolean
+    allowEmpty?: boolean,
+    /** 当前行的 key，copilot 仅在 vision 行中可选 */
+    rowKey?: string
 ): HTMLSelectElement {
     const select = createElement('select', 'ams-select') as HTMLSelectElement;
     if (allowEmpty) {
@@ -50,6 +52,10 @@ function createProviderSelect(
         select.appendChild(empty);
     }
     for (const provider of state.providers) {
+        // copilot 仅可在 vision 行中选择
+        if (provider.key === 'copilot' && rowKey !== 'vision') {
+            continue;
+        }
         const option = createElement('option') as HTMLOptionElement;
         option.value = provider.key;
         option.textContent = provider.displayName;
@@ -257,7 +263,8 @@ function createModelRow(
             state.values[key] = providerKey ? { provider: providerKey, model: '' } : null;
             updateModelSelect(row, providerKey, key, filter);
         },
-        true
+        true,
+        key
     );
 
     const modelSelectContainer = createElement('div', 'ams-model-select');

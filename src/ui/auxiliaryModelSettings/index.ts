@@ -12,7 +12,7 @@ import { ConfigManager } from '../../utils/configManager';
 import { configProviders } from '../../providers/config';
 import { CompatibleModelManager } from '../../utils/compatibleModelManager';
 import type { ModelConfig } from '../../types/sharedTypes';
-import type { AuxiliaryProviderData, FormValues, InitialValues, WebViewMessage } from './types';
+import type { AuxiliaryModelOption, AuxiliaryProviderData, FormValues, InitialValues, WebViewMessage } from './types';
 
 interface AuxiliaryModelRef {
     providerKey: string;
@@ -84,7 +84,7 @@ export class AuxiliaryModelSettingsPanel {
     }
 
     private async sendInitialData(): Promise<void> {
-        const providers = this.getProviders();
+        const providers = await this.getProviders();
         const initialValues: InitialValues = {
             commit: ConfigManager.getCommitConfig().model,
             vision: ConfigManager.getConfig().vision.model,
@@ -284,7 +284,7 @@ export class AuxiliaryModelSettingsPanel {
         return { provider: providerKey, model: model.id };
     }
 
-    private getProviders(): AuxiliaryProviderData[] {
+    private async getProviders(): Promise<AuxiliaryProviderData[]> {
         const result: AuxiliaryProviderData[] = [];
 
         for (const [providerKey, cfg] of Object.entries(configProviders)) {
@@ -322,7 +322,40 @@ export class AuxiliaryModelSettingsPanel {
             });
         }
 
+        // 仅在当前 vision.model.provider 已设为 "copilot" 时，
+        // 才将 copilot 加入提供商标识列表，使 UI 中能正常显示已选值。
+        const visionProvider = ConfigManager.getConfig().vision.model.provider;
+        if (visionProvider === 'copilot') {
+            const copilotModels = await this.getCopilotVisionModels();
+            if (copilotModels.length > 0) {
+                result.push({
+                    key: 'copilot',
+                    displayName: 'GitHub Copilot',
+                    models: copilotModels
+                });
+            }
+        }
+
         return result;
+    }
+
+    /**
+     * 获取可用的 Copilot 原生视觉模型列表（从 VS Code LM API 查询，仅限 vendor=copilot 且支持 imageToText）
+     */
+    private async getCopilotVisionModels(): Promise<AuxiliaryModelOption[]> {
+        try {
+            const models = await vscode.lm.selectChatModels({ vendor: 'copilot' });
+            return models
+                .filter(m => m.capabilities?.supportsImageToText)
+                .map(m => ({
+                    id: m.id,
+                    name: m.name,
+                    hasToolCalling: m.capabilities?.supportsToolCalling ?? false,
+                    hasImageInput: true
+                }));
+        } catch {
+            return [];
+        }
     }
 
     private getWebviewContent(webview: vscode.Webview): string {

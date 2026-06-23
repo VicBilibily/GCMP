@@ -38,6 +38,28 @@ export class JsonSchemaProvider {
     private static schemaCtime = Date.now();
     private static schemaMtime = Date.now();
 
+    /** Copilot 原生模型中支持 imageToText 的模型列表 */
+    private static copilotVisionModels: Array<Pick<vscode.LanguageModelChat, 'id' | 'name'>> = [];
+
+    /**
+     * 刷新 Copilot 原生模型列表缓存，确保其在 provider 枚举中可选时已就绪。
+     */
+    static async refreshCopilotModelsIfNeeded(): Promise<void> {
+        try {
+            const allModels = await vscode.lm.selectChatModels({ vendor: 'copilot' });
+            this.copilotVisionModels = allModels
+                .filter(m => m.capabilities?.supportsImageToText)
+                .map(m => ({ id: m.id, name: m.name }))
+                .sort((a, b) => a.id.localeCompare(b.id));
+            Logger.debug(
+                `[JsonSchemaProvider] Copilot vision models cached: ${this.copilotVisionModels.length} models`
+            );
+        } catch (error) {
+            Logger.warn('[JsonSchemaProvider] Failed to refresh copilot models:', error);
+            this.copilotVisionModels = [];
+        }
+    }
+
     private static isSchemaUri(uri: vscode.Uri): boolean {
         return uri.scheme === 'gcmp-settings' && uri.authority === 'root' && uri.path === '/schema.json';
     }
@@ -315,14 +337,23 @@ export class JsonSchemaProvider {
 
         // 监听配置变化，及时更新 schema
         this.eventDisposables.push(
-            vscode.workspace.onDidChangeConfiguration(e => {
+            vscode.workspace.onDidChangeConfiguration(async e => {
                 if (e.affectsConfiguration('gcmp')) {
+                    // 先刷新 copilot 模型缓存，再更新 schema
+                    await this.refreshCopilotModelsIfNeeded();
                     this.invalidateCache();
                 }
             })
         );
 
         Logger.debug('Dynamic JSON Schema provider initialized');
+
+        // 初始化时检查，若已配置 copilot 则刷新模型缓存后更新 schema
+        this.refreshCopilotModelsIfNeeded()
+            .then(() => {
+                this.updateSchema();
+            })
+            .catch(() => {});
     }
 
     /**
@@ -1485,7 +1516,7 @@ export class JsonSchemaProvider {
     }
 
     private static getVisionModelSchema(): JSONSchema7 {
-        return this.createProviderModelSchema(
+        const base = this.createProviderModelSchema(
             [
                 'Vision analysis model configuration (provider + model). Only models with image input support are listed.',
                 '视觉分析模型配置（provider + model）。仅列出支持图像输入的模型。'
@@ -1494,6 +1525,44 @@ export class JsonSchemaProvider {
             ['Model ID for vision analysis. Must support image input.', '视觉分析的模型 ID。必须支持图像输入。'],
             m => m.capabilities?.imageInput === true
         );
+
+        // 始终在 provider 枚举中追加 "copilot" 选项
+        const providerProp = base.properties?.provider as JSONSchema7 | undefined;
+        if (providerProp) {
+            const existingEnum = (providerProp.enum ?? []) as string[];
+            if (!existingEnum.includes('copilot')) {
+                const existingDesc = (providerProp.enumDescriptions ?? []) as string[];
+                providerProp.enum = [...existingEnum, 'copilot'];
+                providerProp.enumDescriptions = [...existingDesc, 'GitHub Copilot（使用 Copilot 原生模型）'];
+            }
+        }
+
+        // 始终追加 copilot 的模型关联规则（模型列表来自缓存）
+        const copilotRule: JSONSchema7 = {
+            if: {
+                properties: { provider: { const: 'copilot' } },
+                required: ['provider']
+            },
+            then: {
+                properties: {
+                    model: {
+                        type: 'string',
+                        ...(this.copilotVisionModels.length > 0 ?
+                            {
+                                enum: this.copilotVisionModels.map(m => m.id),
+                                enumDescriptions: this.copilotVisionModels.map(m => m.name)
+                            }
+                        :   {}),
+                        description: 'Copilot 视觉模型 ID'
+                    }
+                },
+                required: ['model']
+            }
+        };
+
+        base.allOf = [copilotRule, ...(base.allOf ?? [])];
+
+        return base;
     }
 
     /**
