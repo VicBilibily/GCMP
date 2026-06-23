@@ -2,6 +2,30 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.8] - 2026-06-23
+
+### 优化
+
+- **视觉模型配置失效自动恢复**：当 `gcmp.vision.model` 配置的模型不可用时（如 API Key 失效、模型被禁用），自动拉起模型选择向导让用户重选，取消则静默终止
+- **视觉模型选择向导支持 Copilot**：当 `provider` 已为 `copilot` 时，向导会列出可用 Copilot 多模态模型，便于已选 Copilot 的用户切换模型
+
+### 修复
+
+- **取消向导污染模型上下文**：`BaseVisionTool` 现识别 `CancellationError` 原样上抛，避免用户关闭向导被错误包装为「图片分析失败」反馈给模型
+- **Xiaomi MiMo 模型清理**：移除已下线的 **MiMo-V2-Flash** 预置模型
+
+---
+
+### Improved
+
+- **Vision Model Auto-Recovery**: When the configured `gcmp.vision.model` is unavailable (e.g. API key revoked, model disabled), the selection wizard is auto-launched for the user to re-pick; cancelling silently aborts
+- **Vision Wizard Supports Copilot**: When `provider` is `copilot`, the wizard lists available Copilot multimodal models for switching
+
+### Fixed
+
+- **Wizard Cancellation Polluting Context**: `BaseVisionTool` now recognizes `CancellationError` and re-throws it as-is, preventing the "image analysis failed" message from being sent to the model when the user closes the wizard
+- **Xiaomi MiMo Model Cleanup**: Removed the delisted **MiMo-V2-Flash** preset
+
 ## [0.25.7] - 2026-06-23
 
 ### 新增

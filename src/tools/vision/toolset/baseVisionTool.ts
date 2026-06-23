@@ -50,6 +50,10 @@ export abstract class BaseVisionTool implements vscode.LanguageModelTool<Record<
 
             return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(result.content)]);
         } catch (error) {
+            // 用户主动取消（例如关闭模型选择向导）：原样上抛，交由 VS Code 工具机制统一处理
+            if (error instanceof vscode.CancellationError) {
+                throw error;
+            }
             const errMsg = error instanceof Error ? error.message : t('Unknown error', '未知错误');
             Logger.error(`[${this.toolName}] Vision analysis failed: ${errMsg}`);
             return new vscode.LanguageModelToolResult([

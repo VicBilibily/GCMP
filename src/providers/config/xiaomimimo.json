@@ -53,16 +53,6 @@
             "thinking": ["enabled", "disabled"],
             "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": true }
-        },
-        {
-            "id": "mimo-v2-flash",
-            "name": "MiMo-V2-Flash",
-            "tooltip": "小米MiMo-V2-Flash 通用大语言模型，支持文本生成、深度思考、流式输出、函数调用、结构化输出、联网搜索。上下文长度 256K，最大输出 64K。高性价比选择。",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 64000,
-            "thinking": ["disabled", "enabled"],
-            "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": false }
         }
     ]
 }

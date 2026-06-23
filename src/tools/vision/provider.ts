@@ -47,55 +47,88 @@ export async function analyzeImagesWithSystem(
         throw new Error('Vision analysis cancelled before processing started.');
     }
 
-    let visionModel = ConfigManager.getConfig().vision.model;
-    if (!visionModel.provider || !visionModel.model) {
-        Logger.warn('[gcmpVisionTool] No vision model configured, launching wizard');
-        await (await import('../../wizards/visionWizard')).selectVisionModel();
-        visionModel = ConfigManager.getConfig().vision.model;
-        if (!visionModel.provider || !visionModel.model) {
-            throw new Error(
-                'Vision analysis is not configured. Please configure a vision model via the wizard or set gcmp.vision.model in settings.'
-            );
-        }
-    }
-
     const providerConfigs = ConfigManager.getConfigProvider();
-    let model: vscode.LanguageModelChat | undefined;
 
-    if (visionModel.provider === 'copilot') {
-        // copilot 原生模型：按 vendor + id 精准查找
-        [model] = await vscode.lm.selectChatModels({ vendor: 'copilot', id: visionModel.model });
+    /**
+     * 解析模型选择为 LanguageModelChat。
+     * - copilot：按 vendor + id 精准查找
+     * - compatible：使用 CompatibleModelManager 获取动态模型列表
+     * - 其他：检查模型是否有独立的 provider 字段
+     * 查找失败返回 null（不抛错，由调用方决定后续行为）。
+     */
+    const resolveModel = async (
+        selection: { provider?: string; model?: string } | undefined
+    ): Promise<vscode.LanguageModelChat | null> => {
+        const provider = (selection?.provider ?? '').trim();
+        const modelId = (selection?.model ?? '').trim();
+        if (!provider || !modelId) {
+            return null;
+        }
+
+        try {
+            if (provider === 'copilot') {
+                const [m] = await vscode.lm.selectChatModels({ vendor: 'copilot', id: modelId });
+                return m ?? null;
+            }
+            if (provider === 'compatible') {
+                const models = CompatibleModelManager.getModels();
+                const matched = models.find(m => m.id === modelId);
+                if (!matched) {
+                    return null;
+                }
+                const queryId = `gcmp.${matched.provider || 'compatible'}:::${modelId}`;
+                const [m] = await vscode.lm.selectChatModels({ id: queryId, vendor: 'gcmp.compatible' });
+                return m ?? null;
+            }
+            // 非 compatible：检查模型是否有独立的 provider 字段
+            const baseConfig = providerConfigs[provider as keyof typeof providerConfigs];
+            const effectiveConfig = baseConfig ? ConfigManager.applyProviderOverrides(provider, baseConfig) : undefined;
+            const matchedModel = effectiveConfig?.models.find(m => m.id === modelId);
+            const actualProvider = matchedModel?.provider || provider;
+            const queryId = `gcmp.${actualProvider}:::${modelId}`;
+            const [m] = await vscode.lm.selectChatModels({ id: queryId, vendor: `gcmp.${provider}` });
+            return m ?? null;
+        } catch {
+            return null;
+        }
+    };
+
+    // 1) 优先使用已配置且可用的模型
+    const configuredSelection = ConfigManager.getConfig().vision.model;
+    let model = await resolveModel(configuredSelection);
+    if (model) {
+        Logger.trace(`[gcmpVisionTool] Using configured model: ${model.name}`);
+    } else {
+        // 2) 未配置或配置失效：弹出模型选择向导，并在成功选择后重试
+        const reason =
+            !configuredSelection.provider || !configuredSelection.model ?
+                'No vision model configured'
+            :   'Configured vision model unavailable';
+        Logger.warn(`[gcmpVisionTool] ${reason}, launching wizard`);
+
+        const before = JSON.stringify(configuredSelection ?? {});
+        await vscode.commands.executeCommand('gcmp.vision.selectModel');
+
+        const afterSelection = ConfigManager.getConfig().vision.model;
+        const after = JSON.stringify(afterSelection ?? {});
+        if (after === before) {
+            // 用户未更新配置（通常表示取消/关闭了向导）
+            throw new vscode.CancellationError();
+        }
+
+        model = await resolveModel(afterSelection);
         if (!model) {
+            const providerKey =
+                (afterSelection?.provider || configuredSelection?.provider || '(unspecified)').trim() ||
+                '(unspecified)';
+            const modelId =
+                (afterSelection?.model || configuredSelection?.model || '(unspecified)').trim() || '(unspecified)';
             throw new Error(
-                `Copilot model not found: ${visionModel.model}. ` +
-                    'Please ensure GitHub Copilot is signed in and the model is available, ' +
-                    'or check gcmp.vision.model configuration.'
+                `Configured vision model "${providerKey}:${modelId}" is unavailable or not enabled. ` +
+                    'Run "GCMP: Select Vision Model" to choose another one, or check whether the provider model is enabled.'
             );
         }
-    } else if (visionModel.provider === 'compatible') {
-        // compatible 提供商：使用 CompatibleModelManager 获取动态模型列表
-        const models = CompatibleModelManager.getModels();
-        const matched = models.find(m => m.id === visionModel.model);
-        const actualProvider = matched?.provider || 'compatible';
-        const queryId = `gcmp.${actualProvider}:::${visionModel.model}`;
-        [model] = await vscode.lm.selectChatModels({ id: queryId, vendor: 'gcmp.compatible' });
-    } else {
-        // 非 compatible：检查模型是否有独立的 provider 字段
-        const baseConfig = providerConfigs[visionModel.provider as keyof typeof providerConfigs];
-        const effectiveConfig =
-            baseConfig ? ConfigManager.applyProviderOverrides(visionModel.provider, baseConfig) : undefined;
-        const matchedModel = effectiveConfig?.models.find(m => m.id === visionModel.model);
-        const actualProvider = matchedModel?.provider || visionModel.provider;
-        const queryId = `gcmp.${actualProvider}:::${visionModel.model}`;
-        [model] = await vscode.lm.selectChatModels({ id: queryId, vendor: `gcmp.${visionModel.provider}` });
-    }
-
-    if (!model) {
-        const modelRef =
-            visionModel.provider === 'copilot' ?
-                visionModel.model
-            :   `gcmp.${visionModel.provider}:::${visionModel.model}`;
-        throw new Error(`Vision model not found: ${modelRef}. Please check gcmp.vision.model configuration.`);
+        Logger.trace(`[gcmpVisionTool] Using user-selected model: ${model.name}`);
     }
 
     const imageParts = filePaths.map(filePath => {

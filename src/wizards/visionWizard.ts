@@ -29,9 +29,9 @@ interface VisionProviderOption {
 
 /**
  * 获取可用的 GCMP 提供商列表（至少有一个支持图像输入的模型）
- * 来源：configProviders + providerOverrides + Compatible Provider
+ * 来源：configProviders + providerOverrides + Compatible Provider + GitHub Copilot 原生多模态模型
  */
-function getVisionProviders(): VisionProviderOption[] {
+async function getVisionProviders(): Promise<VisionProviderOption[]> {
     const result: VisionProviderOption[] = [];
     const seenKeys = new Set<string>();
 
@@ -66,6 +66,33 @@ function getVisionProviders(): VisionProviderOption[] {
         });
     }
 
+    // GitHub Copilot 原生多模态模型
+    // 仅在当前 vision.model.provider 已设为 "copilot" 时，
+    // 才将 copilot 加入向导选项，使已选 Copilot 的用户能正常切换模型。
+    const visionProvider = ConfigManager.getConfig().vision.model.provider;
+    if (visionProvider === 'copilot') {
+        try {
+            const copilotModels = await vscode.lm.selectChatModels({ vendor: 'copilot' });
+            const copilotVisionModels = copilotModels
+                .filter(m => m.capabilities?.supportsImageToText)
+                .map(m => ({ id: m.id, name: m.name || m.id }))
+                .filter(m => Boolean(m.id));
+            if (copilotVisionModels.length > 0) {
+                result.push({
+                    providerKey: 'copilot',
+                    displayName: 'GitHub Copilot',
+                    vendor: 'copilot',
+                    models: copilotVisionModels
+                });
+            }
+        } catch (err) {
+            Logger.warn(
+                '[VisionWizard] Failed to query Copilot vision models:',
+                err instanceof Error ? err.message : String(err)
+            );
+        }
+    }
+
     return result;
 }
 
@@ -74,7 +101,7 @@ export async function selectVisionModel(): Promise<void> {
         const config = vscode.workspace.getConfiguration('gcmp');
 
         // 1. 选择支持图像输入的提供商（界面参照 commit 模式）
-        const providers = getVisionProviders();
+        const providers = await getVisionProviders();
         if (providers.length === 0) {
             vscode.window.showWarningMessage(
                 t('No GCMP providers with multimodal models available.', '没有支持多模态模型的 GCMP 提供商。')

@@ -159,7 +159,7 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)
 
-- **PayGo**: **MiMo-V2.5-Pro**, **MiMo-V2.5**, **MiMo-V2-Flash**
+- **PayGo**: **MiMo-V2.5-Pro**, **MiMo-V2.5**
 - [**Token Plan**](https://platform.xiaomimimo.com/#/token-plan): **MiMo-V2.5-Pro**, **MiMo-V2.5**
     - [Regional clusters](https://platform.xiaomimimo.com/#/docs/tokenplan/subscription?target=快速指南): Switch between `China (cn)`, `Singapore (sgp)`, and `Europe (ams)` clusters. Refer to the [subscription management](https://platform.xiaomimimo.com/#/console/plan-manage) page for details.
 - **Key configuration**: Supports separate [Xiaomi MiMo API Key](https://platform.xiaomimimo.com/#/console/api-keys) and [Token Plan API Key](https://platform.xiaomimimo.com/#/console/plan-manage).
