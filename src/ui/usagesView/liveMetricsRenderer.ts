@@ -9,7 +9,6 @@
 import type { LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 import type { State } from './types';
 import { getTodayDateString, t } from './utils';
-import { createRequestRecordsTable } from './components/requestRecords';
 
 /**
  * 单个请求的实时流式指标状态
@@ -156,7 +155,6 @@ export class LiveMetricsRenderer {
             }
 
             case 'streamEnd': {
-                this.markLivePlaceholderFinishing(requestId);
                 this.liveMetricsMap.delete(requestId);
                 this.rowCache.delete(requestId);
                 if (this.liveMetricsMap.size === 0) {
@@ -304,74 +302,13 @@ export class LiveMetricsRenderer {
         return found;
     }
 
-    private findLivePlaceholderRow(requestId: string): HTMLTableRowElement | null {
-        // 优先使用缓存（streamEnd 路径使用，此时行已被标记为 placeholder）
-        const cached = this.rowCache.get(requestId);
-        if (cached && cached.isConnected && cached.dataset.requestId === requestId) {
-            return cached.dataset.livePlaceholder === 'true' ? cached : null;
-        }
-        const recordsContainer = document.querySelector('#records-container') as HTMLElement | null;
-        const tbody = recordsContainer?.querySelector('tbody');
-        if (!tbody) {
-            return null;
-        }
-        const found = Array.from(tbody.querySelectorAll<HTMLTableRowElement>('tr[data-live-placeholder="true"]')).find(
-            r => r.dataset.requestId === requestId
-        );
-        if (found) {
-            this.rowCache.set(requestId, found);
-            return found;
-        }
-        return null;
-    }
-
-    private ensureEmptyRowIfNeeded(): void {
-        const recordsContainer = document.querySelector('#records-container') as HTMLElement | null;
-        const tbody = recordsContainer?.querySelector('tbody');
-        if (!tbody || tbody.querySelector('tr')) {
-            return;
-        }
-        const emptyRow = document.createElement('tr');
-        const emptyCell = document.createElement('td');
-        emptyCell.colSpan = 6;
-        emptyCell.textContent = t('No request records yet', '暂无请求记录');
-        emptyCell.style.textAlign = 'center';
-        emptyRow.appendChild(emptyCell);
-        tbody.appendChild(emptyRow);
-    }
-
-    /**
-     * 将实时占位行标记为 finishing 状态（streamEnd 时调用）
-     * 不立即删除，等 updateDateDetails 重建表格时自然替换；
-     * 5 秒兜底删除防止占位行永久残留。
-     */
-    private markLivePlaceholderFinishing(requestId: string): void {
-        const row = this.findLivePlaceholderRow(requestId);
-        if (!row) {
-            return;
-        }
-
-        // 直接操作 DOM：liveMetricsMap.delete 后 rAF 不会再刷新该行
-        if (row.dataset.liveFinishing === 'true') {
-            return;
-        }
-        row.dataset.liveFinishing = 'true';
-
-        // 5 秒兜底：重新查询确认仍是 live placeholder 才删除，避免误删已替换的真实记录
-        window.setTimeout(() => {
-            const currentRow = this.findLivePlaceholderRow(requestId);
-            if (currentRow?.dataset.liveFinishing === 'true') {
-                currentRow.remove();
-                this.ensureEmptyRowIfNeeded();
-            }
-        }, 5000);
-    }
-
     // ============= 内部：表格行渲染 =============
 
     /**
      * 更新请求记录区域，显示实时指标
-     * 策略：遍历所有正在流式的请求，通过 requestId 精确匹配表格行并更新
+     * 策略：遍历所有正在流式的请求，通过 requestId 精确匹配已存在的真实记录行并更新。
+     * 不创建任何占位行——如果当前页/筛选下没有该请求的真实行，实时指标就不展示，
+     * 等 updateDateDetails 后续把记录写入正确位置时（用户切到对应页/取消筛选）再显示。
      */
     private render(): void {
         // 仅在今天页面渲染实时指标，不污染历史日期
@@ -384,92 +321,18 @@ export class LiveMetricsRenderer {
             return;
         }
 
-        let tbody = recordsContainer.querySelector('tbody');
+        const tbody = recordsContainer.querySelector('tbody');
         if (!tbody) {
-            // 无 tbody（当天无记录），替换 .empty-message 为标准空表格，保留外层布局
-            const emptyMessage = recordsContainer.querySelector('.empty-message');
-            if (!emptyMessage) {
-                return;
-            }
-            const table = createRequestRecordsTable([], []);
-            emptyMessage.replaceWith(table);
-            tbody = table.querySelector('tbody');
-            if (!tbody) {
-                return;
-            }
+            return;
         }
 
         const now = Date.now();
-        // 有会话筛选时，新请求可能不属于当前会话，不创建占位行（真实行仍可更新）
-        const hasSessionFilter = !!this.getState().selectedSessionId;
 
         this.liveMetricsMap.forEach((metricState, requestId) => {
-            // 优先使用缓存：避免每次 render 都全表 querySelectorAll
-            let targetRow = this.resolveTargetRow(tbody!, requestId);
-
-            // 占位行：liveMetrics 已有数据但表格行尚未创建（updateDateDetails 尚未到达）
+            // 只更新已存在的真实记录行；找不到就跳过（不创建占位行）
+            const targetRow = this.resolveTargetRow(tbody, requestId);
             if (!targetRow) {
-                // 有会话筛选时，新请求不属于当前会话，跳过占位行创建
-                if (hasSessionFilter) {
-                    return;
-                }
-                targetRow = document.createElement('tr');
-                targetRow.setAttribute('data-request-id', requestId);
-                targetRow.setAttribute('data-request-status', 'streaming');
-                targetRow.setAttribute('data-live-placeholder', 'true');
-
-                // 时间
-                const timeCell = document.createElement('td');
-                timeCell.textContent = new Date(metricState.displayStartTime).toLocaleTimeString('zh-CN');
-                targetRow.appendChild(timeCell);
-
-                // 提供商 + 模型（双行合并）
-                const providerModelCell = document.createElement('td');
-                const provName = metricState.providerName || '-';
-                const modName = metricState.modelName || '-';
-                providerModelCell.title = `${provName} · ${modName}`;
-                const providerDiv = document.createElement('div');
-                providerDiv.className = 'prov-model-provider';
-                providerDiv.textContent = provName;
-                const modelDiv = document.createElement('div');
-                modelDiv.className = 'prov-model-model';
-                modelDiv.textContent = modName;
-                providerModelCell.append(providerDiv, modelDiv);
-                targetRow.appendChild(providerModelCell);
-
-                // 输入令牌
-                const inputCell = document.createElement('td');
-                inputCell.className = 'records-input-merged';
-                inputCell.textContent = '-';
-                targetRow.appendChild(inputCell);
-
-                // 输出列（合并：TTFT / tokens / TPOT / speed）
-                const outputMergedCell = document.createElement('td');
-                outputMergedCell.className = 'records-output-merged';
-                outputMergedCell.setAttribute('data-metric', 'output');
-                outputMergedCell.innerHTML =
-                    '<div class="output-row"><span class="output-ttft">-</span><span class="output-tokens">-</span></div>' +
-                    '<div class="output-detail"><span class="output-tpot">-</span><span class="output-speed">-</span></div>';
-                targetRow.appendChild(outputMergedCell);
-
-                // 消耗令牌
-                const totalCell = document.createElement('td');
-                totalCell.textContent = '-';
-                targetRow.appendChild(totalCell);
-
-                // 状态
-                const statusCell = document.createElement('td');
-                statusCell.className = 'status-estimated';
-                statusCell.textContent = '⏳';
-                targetRow.appendChild(statusCell);
-
-                // 移除空状态行（如 "暂无请求记录"）并插入占位行
-                const firstRow = tbody!.querySelector('tr');
-                if (firstRow && firstRow.querySelector('td[colspan]')) {
-                    firstRow.remove();
-                }
-                tbody!.insertBefore(targetRow, tbody!.firstChild);
-                this.rowCache.set(requestId, targetRow);
+                return;
             }
 
             // 跳过已完成/失败的行，避免实时值覆盖最终统计

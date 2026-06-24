@@ -69,6 +69,8 @@ export function emitLiveMetrics(event: LiveStreamMetricEvent): void {
         try {
             listener(event);
         } catch (error) {
+            // 使用 console.warn 而非 Logger.warn：本模块刻意不依赖 utils/logger
+            // （其会拉入 vscode 模块），以保持轻量 event bus 在 node:test 下的可测试性
             console.warn('[LiveMetrics] listener failed:', error);
         }
     }
