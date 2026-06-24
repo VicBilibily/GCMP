@@ -79,7 +79,7 @@ export interface StreamReporterOptions {
  *
  * 关键实现约定：
  * - 文本/思考缓冲阈值均为 20 字符
- * - accumulateToolCall 首次创建某 index 的 buffer 时立即 flushThinking + flushText + endThinkingChain
+ * - accumulateToolCall 首次创建某 index 的 buffer 时立即 flushThinking + endThinkingChain + flushText
  * - 工具调用完成时只 flushThinking + flushSignature + thoughtSignature，不主动 endThinkingChain
  * - flushSignature 输出"空文本 + signature"的 ThinkingPart，不消费 thinking buffer 内容
  * - flushAll 中 signature 紧跟 thinking 输出，在 endThinkingChain 之前
@@ -232,8 +232,8 @@ export class StreamReporter {
      */
     reportToolResult(callId: string, content: string | vscode.LanguageModelTextPart[]): void {
         this.flushThinking('Before reporting tool result');
-        this.flushText('Before reporting tool result');
         this.endThinkingChain();
+        this.flushText('Before reporting tool result');
 
         const parts = typeof content === 'string' ? [new vscode.LanguageModelTextPart(content)] : content;
         this.progress.report(new vscode.LanguageModelToolResultPart(callId, parts));
@@ -307,7 +307,7 @@ export class StreamReporter {
      * 当检测到工具调用完成时，立即报告
      *
      * 关键实现约定：
-     * - 首次为某 index 创建工具调用 buffer 时：flushThinking + flushText + endThinkingChain
+ * - 首次为某 index 创建工具调用 buffer 时：flushThinking + endThinkingChain + flushText
      * - 工具完成时：flushText + flushThinking + flushSignature + thoughtSignature
      *   （不调用 endThinkingChain，思维链的结束留给后续 reportText / flushAll 处理）
      */
@@ -319,11 +319,13 @@ export class StreamReporter {
     ): void {
         const { isNew, completed } = this.toolCallAccumulator.accumulate(index, id, name, argsFragment);
 
-        // 首次为该 index 创建工具调用 buffer 时，flush 剩余 thinking 和文本，并结束思维链
+        // 首次为该 index 创建工具调用 buffer 时，flush 剩余 thinking，结束思维链，再输出文本
+        // 必须在 endThinkingChain 之后再 flushText，否则 TextPart 会在 thinking chain 仍 active 时被报告，
+        // 导致 VS Code 将文本归入 thinking fold 内部（表现为内容被折叠、下方出现空框）
         if (isNew) {
             this.flushThinking('Before tool call start');
-            this.flushText('Before tool call start');
             this.endThinkingChain();
+            this.flushText('Before tool call start');
         }
 
         // tool argument delta 是 provider 实际回传的一部分，计入 token 估算
