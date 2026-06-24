@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.12] - 2026-06-24
+
+### 修复
+
+- **工具调用场景下思考折叠与回复文本渲染错乱**：[#252](https://github.com/VicBilibily/GCMP/issues/252) 修复 `flushText()` 在 `endThinkingChain()` 之前被调用导致 VS Code Chat UI 将回复文本归入思考折叠区的问题。现已交换调用顺序，确保思考折叠关闭后再输出文本
+
+---
+
+### Fixed
+
+- **Tool Call Thinking Fold Rendering Bug**: [#252](https://github.com/VicBilibily/GCMP/issues/252) Fixed `flushText()` being called before `endThinkingChain()` in tool call scenarios, causing VS Code Chat UI to collapse response text into the thinking fold. Swapped calls to close thinking fold before emitting text
+
+---
+
 ## [0.25.11] - 2026-06-24
 
 ### 修复
