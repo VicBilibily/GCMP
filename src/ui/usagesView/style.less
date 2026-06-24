@@ -435,7 +435,6 @@ body {
 
         &-item-stats,
         &-item-detail {
-            margin-top: 4px;
             color: var(--vscode-descriptionForeground);
             font-size: 11px;
             line-height: 1.4;
@@ -542,6 +541,13 @@ body {
 
     /* 列宽分配 */
     .records-table {
+        th {
+            height: 16px;
+        }
+        td {
+            height: 15px;
+        }
+
         /* 第1列（时间+类型） */
         th:nth-child(1),
         td:nth-child(1) {
@@ -805,6 +811,41 @@ body {
         /* 第4-5列数值右对齐 */
         &:nth-child(n + 4):nth-child(-n + 5) {
             text-align: right;
+        }
+
+        /* 第5列（令牌消耗）两行布局 — 参照第3/4列样式 */
+        &:nth-child(5) {
+            line-height: 1;
+            padding: 1px 3px;
+
+            .tokens-row {
+                display: block;
+                margin-top: -8px;
+                padding: 0;
+                padding-bottom: 1px;
+
+                .tokens-value {
+                    font-size: 0.9em;
+                }
+            }
+
+            .tokens-detail {
+                display: block;
+                padding: 0;
+                margin-top: -3px;
+                margin-bottom: -0.6em;
+
+                .tokens-session-link {
+                    font-size: 0.75em;
+                    color: var(--vscode-descriptionForeground);
+                    cursor: pointer;
+                    text-decoration: none;
+
+                    &:hover {
+                        text-decoration: underline;
+                    }
+                }
+            }
         }
 
         /* 第6列（状态）居中对齐 */

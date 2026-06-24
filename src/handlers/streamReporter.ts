@@ -566,6 +566,10 @@ export class StreamReporter {
 
     /**
      * 报告 StatefulMarker DataPart
+     *
+     * completeThinking / completeSignature 通过 base64url 编码安全传递，
+     * 避免 VS Code 聊天历史序列化管道因特殊字符（\n, \\, \", 等）导致的截断。
+     * 详见 statefulMarkerCodec.ts 的 JSON_PAYLOAD_PREFIX 说明。
      */
     private reportStatefulMarker(statefulMarkerData?: StatefulMarkerPartial): void {
         const completeThinking = toOptionalStatefulMarkerField(this.thinkingBuffer.completeContent);

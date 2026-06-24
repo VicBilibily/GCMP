@@ -2,6 +2,36 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.11] - 2026-06-24
+
+### 修复
+
+- **会话追踪跨轮次丢失（sessionId 不一致）**：修复每轮对话都生成新 sessionId、无法进行会话级 token 统计的问题。根因是 `StatefulMarker` payload 中的 `completeThinking`/`completeSignature` 大字段包含大量特殊字符，超出 VS Code 序列化管道对自定义 DataPart 的容量限制（约 400B），导致静默截断 → `JSON.parse` 失败 → 下轮请求找不到前序 sessionId。现改用 base64url 编码 JSON payload，彻底规避特殊字符截断问题，同时保留了完整 thinking/signature 的跨轮次回传能力
+
+### 新增
+
+- **Token 用量面板请求记录表支持会话快速筛选**：在「全部会话」视图下，每条请求的令牌列下方显示可点击的 session 短 ID（`#abc1234`），点击即可直接筛选到该会话详情，替代左侧会话列表的手动查找
+- **实时 token 增量显示**：`.output-tokens` 实时列显示最近一次 flush 的 token delta，流式过程中直观反映输出节奏
+
+### 重构
+
+- **小米 MiMo 与 DeepSeek-V4 思考回放策略统一**：小米 MiMo 的 `missingReasoningFieldPolicy` 从 `tool-calls-only` 升级为 `always`，与 DeepSeek-V4 一致。合并 `isMiMoReasoningModel` 独立函数到主匹配分支，消除重复代码。确保两类模型在多轮对话中即使无 thinking 内容也始终注入空白占位符，维持思维链连续性
+
+---
+
+### Fixed
+
+- **Session Tracking Lost Across Turns (Inconsistent sessionId)**: Fixed each request generating a new `sessionId` instead of reusing the conversation's existing one. Root cause: `completeThinking`/`completeSignature` in `StatefulMarker` contain special characters that exceed VS Code's serialization limit (~400B) for custom DataPart MIME types, causing silent truncation → `JSON.parse` failure → next turn couldn't find the previous `sessionId`. Migrated to base64url-encoded JSON payload to completely avoid special character truncation while preserving full thinking/signature replay across turns
+
+### Added
+
+- **Session Quick-Filter in Token Usage Table**: In "All Sessions" view, each request's token column now shows a clickable session short ID (`#abc1234`). Clicking it directly filters to that session's details, eliminating manual hunting through the session sidebar
+- **Live Token Delta Display**: The `.output-tokens` live column shows the latest flush delta, giving a real-time view of output cadence during streaming
+
+### Refactored
+
+- **Unified MiMo & DeepSeek-V4 Reasoning Replay Policy**: Upgraded Xiaomi MiMo's `missingReasoningFieldPolicy` from `tool-calls-only` to `always`, matching DeepSeek-V4. Inlined the standalone `isMiMoReasoningModel` function into the main matching branch, eliminating duplicate code. Both model families now always inject a blank placeholder even without thinking content, maintaining thinking chain continuity across turns
+
 ## [0.25.10] - 2026-06-24
 
 ### 修复

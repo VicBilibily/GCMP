@@ -17,17 +17,20 @@ export function getReasoningReplayPolicy(context: ReasoningReplayContext): Reaso
     const modelId = `${context.modelConfig?.model || context.modelConfig?.id || ''}`.toLowerCase();
     const baseUrl = `${context.modelConfig?.baseUrl || ''}`.toLowerCase();
 
-    if (modelId.includes('deepseek-v4')) {
+    // DeepSeek V4 和 小米 MiMo 统一使用同一策略：
+    // restoreFromStatefulMarker=true — VS Code 剥离 ThinkingPart 时从 StatefulMarker 恢复
+    // missingReasoningFieldPolicy=always — 即使无 thinking 也注入空白占位符
+    if (
+        modelId.includes('deepseek-v4') ||
+        providerKey === 'xiaomimimo' ||
+        providerKey === 'xiaomimimo-token' ||
+        modelId.startsWith('mimo-') ||
+        modelId.includes('mimo-v') ||
+        baseUrl.includes('xiaomimimo.com')
+    ) {
         return {
             restoreFromStatefulMarker: true,
             missingReasoningFieldPolicy: 'always'
-        };
-    }
-
-    if (isMiMoReasoningModel(providerKey, modelId, baseUrl)) {
-        return {
-            restoreFromStatefulMarker: true,
-            missingReasoningFieldPolicy: 'tool-calls-only'
         };
     }
 
@@ -51,14 +54,4 @@ export function shouldInjectReasoningPlaceholder(
     }
 
     return false;
-}
-
-function isMiMoReasoningModel(providerKey: string, modelId: string, baseUrl: string): boolean {
-    return (
-        providerKey === 'xiaomimimo' ||
-        providerKey === 'xiaomimimo-token' ||
-        modelId.startsWith('mimo-') ||
-        modelId.includes('mimo-v') ||
-        baseUrl.includes('xiaomimimo.com')
-    );
 }

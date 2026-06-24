@@ -34,13 +34,13 @@
 
 ### 1. VSCE_PAT (VS Code 扩展商店发布令牌)
 
-1. 访问 [Azure DevOps](https://dev.azure.com/)
-2. 创建个人访问令牌 (Personal Access Token)
-3. 权限设置：
-   - **Organization**: All accessible organizations
+1. 访问 [Azure DevOps → Personal Access Tokens](https://dev.microsoft.com)
+2. 创建组织范围 PAT (Organization-scoped PAT)：
+   - **Organization**: 选择任一所属组织
    - **Scopes**: Marketplace > Manage
-4. 复制生成的令牌
-5. 在 GitHub 仓库设置中添加 Secret:
+   - ⚠️ **不要选择 "All accessible organizations"**（全局 PAT 将于 2026-12-01 停用）
+3. 复制生成的令牌
+4. 在 GitHub 仓库设置中添加 Secret:
    - Name: `VSCE_PAT`
    - Value: 你的 Azure DevOps PAT
 

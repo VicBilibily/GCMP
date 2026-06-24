@@ -11,6 +11,7 @@ import {
     formatTokens,
     getProviderDisplayName,
     getRequestKindDisplayName,
+    getSessionDisplayId,
     summarizeSessionRecords,
     t,
     UNKNOWN_SESSION_ID
@@ -372,6 +373,13 @@ export function createRequestRecordsTable(
         return table;
     }
 
+    // 预计算左侧会话列表中可见的 sessionId 集合，供后续每行判断是否显示可点击链接
+    const visibleSessionIds = new Set(
+        getCurrentSessionGroups()
+            .filter(shouldShowSessionGroupInFilter)
+            .map(g => g.sessionId)
+    );
+
     records.forEach(record => {
         const row = createElement('tr');
         // 存储请求ID和状态，用于实时指标精确匹配
@@ -465,7 +473,19 @@ export function createRequestRecordsTable(
 
         const total = createElement('td');
         const totalVal = record.status === 'completed' && record.totalTokens > 0 ? record.totalTokens : 0;
-        total.textContent = totalVal > 0 ? formatTokens(record.totalTokens) : '-';
+        const isAllSessions = window.usagesState?.selectedSessionId === null;
+        // 仅对左侧会话列表中可见（requestCount > 1）的会话显示可点击链接
+        if (isAllSessions && record.sessionId && visibleSessionIds.has(record.sessionId)) {
+            const displayId = getSessionDisplayId(record.sessionId);
+            total.innerHTML =
+                `<div class="tokens-row"><span class="tokens-value">${totalVal > 0 ? formatTokens(record.totalTokens) : '-'}</span></div>` +
+                `<div class="tokens-detail"><a class="tokens-session-link" href="javascript:void(0)" title="SESSION: #${displayId}">#${displayId}</a></div>`;
+            total
+                .querySelector('.tokens-session-link')
+                ?.addEventListener('click', () => changeSelectedSession(record.sessionId!));
+        } else {
+            total.textContent = totalVal > 0 ? formatTokens(record.totalTokens) : '-';
+        }
         if (totalVal > 0) {
             total.title = totalVal.toLocaleString('en-US');
         }

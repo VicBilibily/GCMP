@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { getReasoningReplayPolicy, shouldInjectReasoningPlaceholder } from './reasoningReplayPolicy';
 
-test('MiMo models replay reasoning from marker and only require placeholder on tool calls', () => {
+test('MiMo models replay reasoning from marker — unified to always-inject like DeepSeek-V4', () => {
     const policy = getReasoningReplayPolicy({
         providerKey: 'compatible',
         modelConfig: {
@@ -14,9 +14,9 @@ test('MiMo models replay reasoning from marker and only require placeholder on t
 
     assert.deepEqual(policy, {
         restoreFromStatefulMarker: true,
-        missingReasoningFieldPolicy: 'tool-calls-only'
+        missingReasoningFieldPolicy: 'always'
     });
-    assert.equal(shouldInjectReasoningPlaceholder(policy, false, false), false);
+    assert.equal(shouldInjectReasoningPlaceholder(policy, false, false), true);
     assert.equal(shouldInjectReasoningPlaceholder(policy, true, false), true);
 });
 
@@ -32,7 +32,7 @@ test('MiMo token-plan provider still requires placeholder when marker says tool 
     assert.equal(shouldInjectReasoningPlaceholder(policy, false, true), true);
 });
 
-test('MiMo anthropic-compatible endpoint uses the same tool-call replay policy', () => {
+test('MiMo anthropic-compatible endpoint uses the same always-inject policy', () => {
     const policy = getReasoningReplayPolicy({
         providerKey: 'xiaomimimo-token',
         modelConfig: {
@@ -44,7 +44,7 @@ test('MiMo anthropic-compatible endpoint uses the same tool-call replay policy',
 
     assert.deepEqual(policy, {
         restoreFromStatefulMarker: true,
-        missingReasoningFieldPolicy: 'tool-calls-only'
+        missingReasoningFieldPolicy: 'always'
     });
     assert.equal(shouldInjectReasoningPlaceholder(policy, true, false), true);
 });
@@ -145,14 +145,15 @@ test('OpenAI: MiMo with marker completeThinking uses it directly', () => {
     assert.equal(result, 'full reasoning from marker');
 });
 
-test('OpenAI: MiMo without marker thinking and without tool calls does NOT inject placeholder', () => {
+test('OpenAI: MiMo always injects placeholder even without marker thinking or tool calls', () => {
     const result = simulateOpenAIAssistantThinkingRecovery(
         { providerKey: 'xiaomimimo-token', modelConfig: { id: 'mimo-v2.5' } },
         undefined,
         undefined,
         0
     );
-    assert.equal(result, null);
+    // Unified with DeepSeek-V4: always inject placeholder
+    assert.equal(result, ' ');
 });
 
 test('OpenAI: MiMo without marker thinking but with current tool calls DOES inject placeholder', () => {
@@ -212,14 +213,15 @@ test('Anthropic: MiMo with marker thinking uses it directly', () => {
     assert.deepEqual(result, { thinking: 'full anthropic thinking', signature: '' });
 });
 
-test('Anthropic: MiMo without marker thinking and without tool_use blocks does NOT inject', () => {
+test('Anthropic: MiMo always injects thinking block even without marker thinking or tool_use', () => {
     const result = simulateAnthropicThinkingRecovery(
         { providerKey: 'compatible', modelConfig: { id: 'mimo-v2.5-pro', baseUrl: 'https://api.xiaomimimo.com/v1' } },
         undefined,
         false,
         false
     );
-    assert.equal(result, null);
+    // Unified with DeepSeek-V4: always inject placeholder
+    assert.deepEqual(result, { thinking: ' ', signature: '' });
 });
 
 test('Anthropic: MiMo without marker thinking but with tool_use blocks DOES inject placeholder', () => {

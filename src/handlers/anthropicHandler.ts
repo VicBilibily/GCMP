@@ -587,10 +587,11 @@ export class AnthropicHandler {
 
                     case 'message_stop': {
                         streamEndTime = Date.now();
-                        if (responseId) {
-                            // 消息停止 - 传递 StatefulMarker
-                            reporter.flushAll(null, { sessionId: reporter.getSessionId(), responseId });
-                        }
+                        // 即便没有 responseId，也输出 StatefulMarker（仅携带 sessionId）
+                        reporter.flushAll(
+                            null,
+                            responseId ? { sessionId: reporter.getSessionId(), responseId } : undefined
+                        );
                         Logger.trace('Message stream completed');
                         break;
                     }
@@ -598,7 +599,7 @@ export class AnthropicHandler {
                     default:
                         // 未知事件类型 - 根据官方建议优雅处理
                         // 可能包括 ping 事件或未来的新事件类型
-                        Logger.trace('Received other event type');
+                        Logger.trace(`Received other event type: ${(chunk as { type: string }).type}`);
                         break;
                 }
             }
