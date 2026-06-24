@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.10] - 2026-06-24
+
+### 修复
+
+- **中途打开面板实时指标丢失**：[#250](https://github.com/VicBilibily/GCMP/issues/250) 修复在请求流式传输中途打开 Token 用量面板时，实时指标因订阅晚于事件发送而丢失的问题；引入活跃请求事件快照机制（`getActiveMetricsSnapshot`），在面板打开或日期切换时自动补发当前流式状态
+
+### 重构
+
+- **移除实时指标占位行**：删除 `liveMetricsRenderer` 中的流式占位行机制，大幅简化渲染逻辑，减少冗余状态维护
+
+---
+
+### Fixed
+
+- **Live Metrics Lost When Panel Opened Mid-Stream**: [#250](https://github.com/VicBilibily/GCMP/issues/250) Fixed real-time metrics being lost when the Token Usage panel is opened mid-stream — introduced `getActiveMetricsSnapshot()` to cache the latest state of active requests and replay it when the panel opens or switches dates
+
+### Refactored
+
+- **Removed Live Metrics Placeholder Rows**: Eliminated the streaming placeholder row mechanism in `liveMetricsRenderer`, greatly simplifying rendering logic and reducing redundant state management
+
 ## [0.25.9] - 2026-06-23
 
 ### 新增
