@@ -244,6 +244,25 @@
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
+            "id": "kimi-k2.7-code-token-plan",
+            "name": "Kimi-K2.7-Code (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "kimi-k2.7-code",
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 262144,
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
             "id": "kimi-k2.6-token-plan",
             "name": "Kimi-K2.6 (TokenPlan)",
             "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
@@ -423,6 +442,29 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
             "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "glm-5.2",
+            "name": "GLM-5.2",
+            "tooltip": "智谱 GLM-5.2 旗舰模型，支持 100 万上下文窗口，推理能力强。",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 200000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 128000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "kimi-k2.7-code",
+            "name": "Kimi-K2.7-Code",
+            "tooltip": "Moonshot AI 代码推理模型，支持 262K 上下文与输出窗口，擅长代码生成与理解。",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 262144,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         }
     ]
 }
