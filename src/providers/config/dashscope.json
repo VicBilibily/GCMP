@@ -253,14 +253,8 @@
             "model": "kimi-k2.7-code",
             "maxInputTokens": 262144,
             "maxOutputTokens": 262144,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "kimi-k2.6-token-plan",
@@ -399,10 +393,7 @@
             "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "qwen3.5-flash",
@@ -414,10 +405,7 @@
             "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "deepseek-v4-flash",

@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.13] - 2026-06-25
+
+### 新增
+
+- **阿里云百炼**：[#255](https://github.com/VicBilibily/GCMP/issues/255) GLM-5.2、Kimi-K2.7-Code
+- **阿里云百炼 TokenPlan**：Kimi-K2.7-Code
+
+---
+
+### Added
+
+- **DashScope**: [#255](https://github.com/VicBilibily/GCMP/issues/255) GLM-5.2, Kimi-K2.7-Code
+- **DashScope TokenPlan**: Kimi-K2.7-Code
+
 ## [0.25.12] - 2026-06-24
 
 ### 修复
