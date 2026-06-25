@@ -42,13 +42,20 @@ export class OpenrouterBalanceQuery implements IBalanceQuery {
             }
 
             // 调用OpenRouter余额查询API
+            const allOverrides = ConfigManager.getProviderOverrides();
+            // 合并顺序：compatible 全局默认 → provider 专属覆盖
+            const mergedCustomHeader = {
+                ...(allOverrides['compatible']?.customHeader || {}),
+                ...(allOverrides[providerId]?.customHeader || {})
+            };
             const response = await ConfigManager.fetchWithProxy(
                 'https://openrouter.ai/api/v1/credits',
                 {
                     method: 'GET',
                     headers: {
                         Authorization: `Bearer ${apiKey}`,
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        ...mergedCustomHeader
                     }
                 },
                 {

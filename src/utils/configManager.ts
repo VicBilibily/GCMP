@@ -159,7 +159,7 @@ export class ConfigManager {
 
     /**
      * 解析 provider 代理查找键。
-     * 顺序：精确 providerKey -> 所属根 providerKey（如 minimax-token -> minimax）
+     * 顺序：精确 providerKey -> 所属根 providerKey（如 minimax-token -> minimax）-> compatible（仅非内置 provider）
      */
     private static getProxyLookupKeys(providerKey?: string): string[] {
         if (!providerKey) {
@@ -168,12 +168,22 @@ export class ConfigManager {
 
         const lookupKeys = new Set<string>([providerKey]);
 
-        if (!(providerKey in configProviders)) {
-            for (const [rootProviderKey, providerConfig] of Object.entries(configProviders)) {
-                if (providerConfig.models.some(model => model.provider === providerKey)) {
-                    lookupKeys.add(rootProviderKey);
-                }
+        // 内置 provider：直接返回自身
+        if (providerKey in configProviders) {
+            return Array.from(lookupKeys);
+        }
+
+        // 非内置：查找是否属于内置 provider 的子 provider（如 dashscope-coding → dashscope）
+        for (const [rootProviderKey, providerConfig] of Object.entries(configProviders)) {
+            if (providerConfig.models.some(model => model.provider === providerKey)) {
+                lookupKeys.add(rootProviderKey);
+                return Array.from(lookupKeys);
             }
+        }
+
+        // 非内置子 provider（已知/自定义）回退到 compatible 作为全局默认
+        if (providerKey !== 'compatible') {
+            lookupKeys.add('compatible');
         }
 
         return Array.from(lookupKeys);
@@ -657,7 +667,7 @@ export class ConfigManager {
 
     /**
      * 解析模型请求应使用的代理地址
-     * 优先级：model.proxy > providerOverrides.{provider}.proxy > provider config.proxy > gcmp.proxy > VS Code http.proxy > 环境变量
+     * 优先级：model.proxy > providerOverrides.{provider}.proxy > providerOverrides.compatible.proxy（非内置 provider） > provider config.proxy > gcmp.proxy > VS Code http.proxy > 环境变量
      * 当显式设置为 `noproxy` 时，停止继续回退并直接绕过代理。
      */
     static resolveProxyForModel(

@@ -11,7 +11,7 @@ import {
     Progress
 } from 'vscode';
 import { ProviderConfig, ModelConfig, ModelOverride } from '../types/sharedTypes';
-import { Logger, ApiKeyManager, CompatibleModelManager, KnownProviders } from '../utils';
+import { Logger, ApiKeyManager, CompatibleModelManager, ConfigManager, KnownProviders } from '../utils';
 import { classifyRequest } from '../handlers/requestClassifier';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { GenericModelProvider } from './genericModelProvider';
@@ -62,21 +62,22 @@ export class CompatibleProvider extends GenericModelProvider {
     getProviderConfig(): ProviderConfig {
         try {
             const models = CompatibleModelManager.getModels();
+            const allOverrides = ConfigManager.getProviderOverrides();
             // 将 CompatibleModelManager 的模型转换为 ModelConfig 格式
             const modelConfigs: ModelConfig[] = models.map(model => {
                 let customHeader = model.customHeader;
                 if (model.provider) {
-                    const provider = KnownProviders[model.provider];
-                    if (provider?.customHeader) {
+                    const knownProvider = KnownProviders[model.provider];
+                    if (knownProvider?.customHeader) {
                         const existingHeaders = model.customHeader || {};
-                        customHeader = { ...existingHeaders, ...provider.customHeader };
+                        customHeader = { ...existingHeaders, ...knownProvider.customHeader };
                     }
 
                     let knownOverride: Omit<ModelOverride, 'id'> | undefined;
-                    if (model.sdkMode === 'anthropic' && provider?.anthropic) {
-                        knownOverride = provider.anthropic;
-                    } else if (model.sdkMode !== 'anthropic' && provider?.openai) {
-                        knownOverride = provider.openai.extraBody;
+                    if (model.sdkMode === 'anthropic' && knownProvider?.anthropic) {
+                        knownOverride = knownProvider.anthropic;
+                    } else if (model.sdkMode !== 'anthropic' && knownProvider?.openai) {
+                        knownOverride = knownProvider.openai.extraBody;
                     }
 
                     if (knownOverride) {
@@ -85,7 +86,8 @@ export class CompatibleProvider extends GenericModelProvider {
                         model.extraBody = { ...extraBody, ...modelBody };
                     }
                 }
-                return {
+
+                const config: ModelConfig = {
                     id: model.id,
                     name: model.name,
                     provider: model.provider,
@@ -98,7 +100,7 @@ export class CompatibleProvider extends GenericModelProvider {
                     ...(model.endpoint && { endpoint: model.endpoint }),
                     ...(model.modelsEndpoint && { modelsEndpoint: model.modelsEndpoint }),
                     ...(model.model && { model: model.model }),
-                    ...(customHeader && { customHeader: customHeader }),
+                    ...(customHeader && { customHeader }),
                     ...(model.extraBody && { extraBody: model.extraBody }),
                     ...(model.proxy !== undefined && { proxy: model.proxy }),
                     ...(model.useInstructions !== undefined && { useInstructions: model.useInstructions }),
@@ -111,6 +113,36 @@ export class CompatibleProvider extends GenericModelProvider {
                     ...(model.reasoningDefault && { reasoningDefault: model.reasoningDefault }),
                     ...(model.contextSize && { contextSize: model.contextSize })
                 };
+
+                // 应用 gcmp.providerOverrides 覆盖
+                // 优先使用 model.provider 对应的覆盖，再回退到 compatible 全局默认
+                // 使用大小写不敏感查找，兼容 schema 中因去重被小写化的键名
+                const compatibleOverride = allOverrides['compatible'];
+                if (model.provider) {
+                    const providerOverrideKey = Object.keys(allOverrides).find(
+                        k => k.toLowerCase() === model.provider!.toLowerCase()
+                    );
+                    const providerOverride = providerOverrideKey ? allOverrides[providerOverrideKey] : undefined;
+                    for (const override of [providerOverride, compatibleOverride]) {
+                        if (!override) continue;
+                        if (override.proxy && !config.proxy) {
+                            config.proxy = override.proxy;
+                        }
+                        if (override.customHeader) {
+                            config.customHeader = { ...override.customHeader, ...config.customHeader };
+                        }
+                    }
+                } else if (compatibleOverride) {
+                    // 无 provider 的模型仅应用 compatible 全局默认
+                    if (compatibleOverride.proxy && !config.proxy) {
+                        config.proxy = compatibleOverride.proxy;
+                    }
+                    if (compatibleOverride.customHeader) {
+                        config.customHeader = { ...compatibleOverride.customHeader, ...config.customHeader };
+                    }
+                }
+
+                return config;
             });
 
             Logger.debug(`Compatible Provider loaded ${modelConfigs.length} user-configured models`);

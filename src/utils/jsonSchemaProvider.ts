@@ -418,17 +418,52 @@ export class JsonSchemaProvider {
     static getSettingsSchema(): JSONSchema7 {
         const providerConfigs = ConfigManager.getConfigProvider();
         const patternProperties: Record<string, JSONSchema7> = {};
+        const allProviderEntries: Record<string, string> = {}; // key -> displayName
+
+        // 1. 内置提供商
+        for (const [providerKey, config] of Object.entries(providerConfigs)) {
+            allProviderEntries[providerKey] = config.displayName || providerKey;
+            patternProperties[`^${providerKey}$`] = this.createProviderSchema(providerKey, config);
+        }
+
+        // 2. 已知提供商（aihubmix, openrouter, siliconflow 等）
+        for (const [providerKey, knownConfig] of Object.entries(KnownProviders)) {
+            if (!allProviderEntries[providerKey]) {
+                allProviderEntries[providerKey] = knownConfig.displayName || providerKey;
+                patternProperties[`^${providerKey}$`] = this.createSimpleProviderSchema(
+                    knownConfig.displayName || providerKey
+                );
+            }
+        }
+
+        // 3. 自定义模型中的历史提供商
+        const compatibleModels = CompatibleModelManager.getModels();
+        const customProvidersFromModels = new Set<string>();
+        for (const model of compatibleModels) {
+            const p = (model.provider || '').trim().toLowerCase();
+            if (p && p !== 'compatible' && !allProviderEntries[p] && !this.CLI_RESERVED_PROVIDERS.includes(p)) {
+                customProvidersFromModels.add(p);
+            }
+        }
+        for (const providerKey of Array.from(customProvidersFromModels).sort()) {
+            allProviderEntries[providerKey] = t('Custom provider: {0}', '自定义提供商：{0}', providerKey);
+            patternProperties[`^${providerKey}$`] = this.createSimpleProviderSchema(providerKey);
+        }
+
+        // 4. Compatible 提供商自身
+        if (!allProviderEntries['compatible']) {
+            allProviderEntries['compatible'] = t('Compatible', '兼容');
+            patternProperties['^compatible$'] = this.createSimpleProviderSchema('Compatible');
+        }
+
+        // 生成 propertyNames（带顺序：内置 → 已知 → 自定义）
+        const providerKeysOrdered = Object.keys(allProviderEntries);
         const propertyNames: JSONSchema7 = {
             type: 'string',
             description: t('Provider configuration key', '提供商配置键名'),
-            enum: Object.keys(providerConfigs),
-            enumDescriptions: Object.entries(providerConfigs).map(([key, config]) => config.displayName || key)
+            enum: providerKeysOrdered,
+            enumDescriptions: providerKeysOrdered.map(k => allProviderEntries[k])
         };
-
-        // 为每个提供商生成 schema
-        for (const [providerKey, config] of Object.entries(providerConfigs)) {
-            patternProperties[`^${providerKey}$`] = this.createProviderSchema(providerKey, config);
-        }
 
         // 获取所有可用的提供商ID（用于其它配置项，如 fim/nes/compatibleModels.provider）
         const { providerIds, enumDescriptions: allProviderDescriptions } = this.getAllAvailableProviders();
@@ -1359,6 +1394,48 @@ export class JsonSchemaProvider {
                         ],
                         additionalProperties: false
                     }
+                }
+            },
+            additionalProperties: false
+        };
+    }
+
+    /**
+     * 为已知/自定义/compatible 提供商生成简化的 JSON Schema
+     * 仅包含 customHeader、proxy 字段，不含 models 列表定义及 baseUrl 覆盖
+     */
+    private static createSimpleProviderSchema(displayName: string): JSONSchema7 {
+        return {
+            type: 'object',
+            description: t(
+                '{0} configuration override (provider-level only)',
+                '{0} 配置覆盖（仅提供商级别）',
+                displayName
+            ),
+            properties: {
+                customHeader: {
+                    type: 'object',
+                    description: this.getProviderCustomHeaderDescription(),
+                    additionalProperties: {
+                        type: 'string',
+                        description: this.getHttpHeaderValueDescription()
+                    }
+                },
+                proxy: {
+                    type: 'string',
+                    description: t(
+                        'Override the provider-level proxy server URL for API requests (optional). Credentials in the URL will be masked in logs. Protocol is optional for host:port values such as 127.0.0.1:7890. Use "noproxy" to bypass both configured and system proxies.',
+                        '覆盖提供商级别的代理服务器地址（可选）。URL 中的凭据将在日志中被脱敏。像 127.0.0.1:7890 这样的 host:port 可省略协议。填写"noproxy"可显式绕过已配置代理和系统代理。'
+                    ),
+                    anyOf: [
+                        { const: '' },
+                        { const: 'noproxy' },
+                        { format: 'uri' },
+                        {
+                            pattern:
+                                '^(?:(?:[^:@/\\s]+(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::\\d{1,5})?)$'
+                        }
+                    ]
                 }
             },
             additionalProperties: false

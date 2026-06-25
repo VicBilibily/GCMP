@@ -53,13 +53,20 @@ export class AiPingBalanceQuery implements IBalanceQuery {
             }
 
             // 调用AIPing余额查询API
+            const allOverrides = ConfigManager.getProviderOverrides();
+            // 合并顺序：compatible 全局默认 → provider 专属覆盖
+            const mergedCustomHeader = {
+                ...(allOverrides['compatible']?.customHeader || {}),
+                ...(allOverrides[providerId]?.customHeader || {})
+            };
             const response = await ConfigManager.fetchWithProxy(
                 'https://aiping.cn/api/v1/user/remain/points',
                 {
                     method: 'GET',
                     headers: {
                         Authorization: `Bearer ${apiKey}`,
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        ...mergedCustomHeader
                     }
                 },
                 {

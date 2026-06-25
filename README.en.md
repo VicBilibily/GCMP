@@ -121,9 +121,10 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 - [**Coding Plan**](https://www.aliyun.com/benefit/scene/codingplan)
     - Recommended: **Qwen3.6-Plus**, **Kimi-K2.5**, **GLM-5**, **MiniMax-M2.5**
     - More: **Qwen3.5-Plus**, **Qwen3-Max**, **Qwen3-Coder-Next**, **Qwen3-Coder-Plus**, **GLM-4.7**
-- [**Token Plan**](https://www.aliyun.com/benefit/scene/tokenplan): **Qwen3.7-Max**, **Qwen3.6-Plus**, **Qwen3.6-Flash**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.5**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **DeepSeek-V3.2**
+- [**Token Plan**](https://www.aliyun.com/benefit/scene/tokenplan): **Qwen3.7-Max**, **Qwen3.6-Plus**, **Qwen3.6-Flash**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.5**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **DeepSeek-V3.2**
 - **Qwen series**: **Qwen3.7-Plus**, **Qwen3.7-Max**, **Qwen3.6-Max**, **Qwen3.6-Plus**, **Qwen3.6-Flash**, **Qwen3.5-Plus**, **Qwen3.5-Flash**
 - **DeepSeek-V4**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**
+- **Other PayGo models**: **GLM-5.2**, **Kimi-K2.7-Code**
 - **Search**: Integrated [Web Search MCP](https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=3023217) tool (2,000/month), supports `#bailianWebSearch`. (Uses [DashScope API Key](https://bailian.console.aliyun.com/cn-beijing/?tab=model#/api-key), not the Coding Plan API Key)
 
 ### [**StreamLake**](https://streamlake.com/product/kat-coder) - Kwai WanQing
@@ -271,7 +272,7 @@ GCMP supports customizing AI model behavior parameters through VS Code settings 
 ```
 
 - `gcmp.proxy` acts as the default proxy for all extension network requests, including chat requests, FIM / NES completions, web search tools, MCP clients, status-bar quota/balance queries, Compatible Provider model discovery requests, and CLI OAuth refresh calls.
-- Proxy precedence is: `model.proxy` → `gcmp.providerOverrides.<provider>.proxy` → `gcmp.proxy` → VS Code `http.proxy` → environment variables (`HTTPS_PROXY` / `HTTP_PROXY`) → **System proxy (auto-detected)**.
+- Proxy precedence is: `model.proxy` → `gcmp.providerOverrides.<provider>.proxy` → `gcmp.providerOverrides.compatible.proxy` (non-built-in only) → `gcmp.proxy` → VS Code `http.proxy` → environment variables (`HTTPS_PROXY` / `HTTP_PROXY`) → **System proxy (auto-detected)**.
 - Supports `host:port` shorthand (e.g., `127.0.0.1:7890`), but using a full URL like `http://127.0.0.1:7890` is recommended.
 - Set to `noproxy` to bypass all proxies (including system proxies and configured ones). When any layer in the proxy chain is set to `noproxy`, fallback short-circuits immediately.
 - When no explicit proxy is configured, the extension automatically detects system proxy settings from the Windows Registry or macOS `scutil`.
@@ -304,7 +305,24 @@ GCMP supports customizing AI model behavior parameters through VS Code settings 
 
 #### Provider Configuration Overrides
 
-GCMP supports overriding provider defaults (including `baseUrl`, `proxy`, `customHeader`, model config, etc.) through the `gcmp.providerOverrides` setting.
+GCMP supports overriding provider defaults through the `gcmp.providerOverrides` setting. Support varies by provider type:
+
+| Provider Type                        | Supported Fields                               | models[]                               |
+| ------------------------------------ | ---------------------------------------------- | -------------------------------------- |
+| **Built-in** (deepseek/zhipu etc.)   | `baseUrl`, `customHeader`, `proxy`, `models[]` | ✅ Full model add/override             |
+| **Known** (aihubmix/openrouter etc.) | `customHeader`, `proxy`                        | ❌ Use `gcmp.compatibleModels` instead |
+| **Custom** (from compatibleModels)   | `customHeader`, `proxy`                        | ❌ Use `gcmp.compatibleModels` instead |
+| **compatible** itself                | `customHeader`, `proxy`                        | ❌ Use `gcmp.compatibleModels` instead |
+
+**Override precedence**:
+
+```
+model-level > providerOverrides.{provider} > providerOverrides.compatible
+```
+
+- `providerOverrides.compatible` acts as global defaults for all Compatible Provider models
+- Proxy: `model.proxy` > `providerOverrides.{provider}.proxy` > `providerOverrides.compatible.proxy` (non-built-in only) > `gcmp.proxy` > VS Code `http.proxy` > environment variables
+- Custom headers: `providerOverrides.{provider}.customHeader` > model `customHeader` > `providerOverrides.compatible.customHeader`
 
 **Configuration example**:
 
@@ -326,6 +344,13 @@ GCMP supports overriding provider defaults (including `baseUrl`, `proxy`, `custo
                     }
                 }
             ]
+        },
+        "aihubmix": {
+            "proxy": "http://127.0.0.1:7890", // proxy override also supported
+            "customHeader": { "X-Custom": "value" }
+        },
+        "compatible": {
+            "proxy": "http://127.0.0.1:7890" // global default proxy for all Compatible Provider models
         }
     }
 }
@@ -346,7 +371,8 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
 ### Built-in Known Provider IDs and Display Names
 
 > Aggregation/relay providers may receive built-in special adaptations and are not listed as standalone providers.<br/>
-> If you need built-in or special adaptation support, please submit an Issue with relevant information.
+> If you need built-in or special adaptation support, please submit an Issue with relevant information.<br/>
+> Known providers support `gcmp.providerOverrides.{providerId}` for `customHeader` and `proxy` overrides.
 
 | Provider ID     | Provider Name                                              | Description | Balance Query   |
 | --------------- | ---------------------------------------------------------- | ----------- | --------------- |

@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.14] - 2026-06-25
+
+### 新增
+
+- **`gcmp.providerOverrides` 支持已知/自定义/compatible 提供商基础覆盖**：schema 提示 + runtime 应用 customHeader/proxy，proxy 回退链兼容 `providerOverrides.compatible`，余额查询器匹配 compatible 全局 customHeader
+
+---
+
+### Added
+
+- **`gcmp.providerOverrides` support for known/custom/compatible providers**: schema hints + runtime customHeader/proxy, proxy chain falls back to `providerOverrides.compatible`, balance queries respect compatible global customHeader
+
 ## [0.25.13] - 2026-06-25
 
 ### 新增
