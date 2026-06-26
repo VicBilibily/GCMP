@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.15] - 2026-06-26
+
+### 新增
+
+- **OpenCode 模型配置调整**：Go 套餐移除 GLM-5、MiniMax-M2.5、Qwen3.5-Plus；Zen 套餐新增 **GLM-5.2**、**DeepSeek-V4-Pro**
+
+---
+
+### Added
+
+- **OpenCode model config updated**: Go plan removes GLM-5, MiniMax-M2.5, Qwen3.5-Plus; Zen plan adds **GLM-5.2**, **DeepSeek-V4-Pro**
+
 ## [0.25.14] - 2026-06-25
 
 ### 新增
