@@ -60,7 +60,6 @@ export type { ExtendedTokenRequestLog };
  */
 export type WebViewMessage =
     | { command: 'getInitialData' }
-    | { command: 'refresh'; date?: string }
     | { command: 'selectDate'; date: string }
     | { command: 'openStorageDir' }
     | { command: 'openMultiDayTrend' };

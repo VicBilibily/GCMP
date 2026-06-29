@@ -22,7 +22,14 @@ import { t } from '../utils/l10n';
  * CommitMessage - 提交消息生成的 UI 协调器。
  */
 export class CommitMessage {
+    /**
+     * 命令面板入口（无 sourceControlRepository / resContext）的全局串行锁：
+     * 保持原"单仓库选择"流程不并发，避免同时弹出多个 QuickPick。
+     */
     private static isGenerating: boolean = false;
+
+    /** 按仓库路径互斥：同一仓库不可并发生成；键已规范化，规避 Windows 大小写差异 */
+    private static generatingRepos = new Set<string>();
 
     private static normalizeFsPath(p: string): string {
         // Windows 下 fsPath 大小写不敏感，做一次规范化方便匹配。
@@ -78,18 +85,22 @@ export class CommitMessage {
         sourceControlRepository?: Repository,
         options?: { scope?: 'staged' | 'workingTree'; resContext?: vscode.SourceControlResourceGroup }
     ): Promise<void> {
-        if (this.isGenerating) {
-            vscode.window.showInformationMessage(
-                t(
-                    'A commit message is already being generated. Please wait or click Stop to cancel.',
-                    '正在生成提交消息，请稍候或点击“停止”中止。'
-                )
-            );
-            return;
+        // 区分入口：
+        // - SCM 菜单/按钮回调（带 sourceControlRepository 或 resContext）：允许跨仓库并发，仅按仓互斥
+        // - 纯命令面板调用（两者均无）：保持原串行行为，避免并发触发多个 QuickPick
+        const hasResolvedRepoHint = !!sourceControlRepository || !!options?.resContext;
+        if (!hasResolvedRepoHint) {
+            if (this.isGenerating) {
+                vscode.window.showInformationMessage(
+                    t(
+                        'A commit message is already being generated. Please wait or click Stop to cancel.',
+                        '正在生成提交消息，请稍候或点击"停止"中止。'
+                    )
+                );
+                return;
+            }
+            this.isGenerating = true;
         }
-
-        this.isGenerating = true;
-
         try {
             // 进度展示应尽早开始，避免点击后出现“无响应”的感知延迟
             await this.executeWithProgress(async (progress, token) => {
@@ -135,36 +146,56 @@ export class CommitMessage {
 
                 this.throwIfCancelled(token);
 
-                // 3. 生成提交消息
-                const commitMessage = await this.generateCommitMessage(
-                    progress,
-                    sourceControlRepository!,
-                    token,
-                    options?.scope
-                );
-                this.throwIfCancelled(token);
+                // 3. 按仓库互斥检查（键已规范化，规避 Windows 大小写差异绕过）
+                const repoPath = this.normalizeFsPath(sourceControlRepository!.rootUri.fsPath);
+                if (this.generatingRepos.has(repoPath)) {
+                    vscode.window.showInformationMessage(
+                        t(
+                            'A commit message is already being generated for this repository.',
+                            '此仓库正在生成提交消息，请稍候。'
+                        )
+                    );
+                    return;
+                }
+                this.generatingRepos.add(repoPath);
+                try {
+                    // 4. 生成提交消息
+                    const commitMessage = await this.generateCommitMessage(
+                        progress,
+                        sourceControlRepository!,
+                        token,
+                        options?.scope
+                    );
+                    this.throwIfCancelled(token);
 
-                // 4. 应用提交消息
-                progress.report({ message: t('Applying commit message...', '正在应用提交消息...'), increment: 10 });
-                sourceControlRepository!.inputBox.value = commitMessage.message;
-                const sourceLabel =
-                    commitMessage.diffSource === 'staged' ? t('staging area', '暂存区') : t('working tree', '工作树');
-                vscode.window.showInformationMessage(
-                    t(
-                        'Commit message generated successfully (based on the {0}).',
-                        '提交消息已生成（基于{0}）。',
-                        sourceLabel
-                    )
-                );
+                    // 5. 应用提交消息
+                    progress.report({ message: t('Applying commit message...', '正在应用提交消息...'), increment: 10 });
+                    sourceControlRepository!.inputBox.value = commitMessage.message;
+                    const sourceLabel =
+                        commitMessage.diffSource === 'staged' ?
+                            t('staging area', '暂存区')
+                        :   t('working tree', '工作树');
+                    vscode.window.showInformationMessage(
+                        t(
+                            'Commit message generated successfully (based on the {0}).',
+                            '提交消息已生成（基于{0}）。',
+                            sourceLabel
+                        )
+                    );
 
-                Logger.info(
-                    `[CommitMessage] Commit message generated [${commitMessage.diffSource}]: ${commitMessage.message.substring(0, 50)}...`
-                );
+                    Logger.info(
+                        `[CommitMessage] Commit message generated [${commitMessage.diffSource}]: ${commitMessage.message.substring(0, 50)}...`
+                    );
+                } finally {
+                    this.generatingRepos.delete(repoPath);
+                }
             });
         } catch (error: unknown) {
             await this.handleError(error);
         } finally {
-            this.isGenerating = false;
+            if (!hasResolvedRepoHint) {
+                this.isGenerating = false;
+            }
         }
     }
 

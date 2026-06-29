@@ -120,6 +120,8 @@ export class TokenUsagesManager {
             throw new Error('TokenUsagesManager is not initialized. Call initialize() first.');
         }
 
+        // requestId 仅用于日志关联、内存索引和 UI 的 data-request-id；
+        // OpenCode 请求头会通过 formatOpenCodeId 进一步格式化，无需额外做文件名级字符限制。
         const requestId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
         try {

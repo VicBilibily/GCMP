@@ -32,27 +32,22 @@ export class LogIndexManager {
     }
 
     /**
-     * 获取缓存时间戳信息
-     * @returns 版本时间戳和缓存创建时间戳
+     * 获取代码版本时间戳
+     * @returns 版本时间戳，不存在时返回 null
      */
-    async getCacheTimestamps(): Promise<{ versionTimestamp: number | null; cacheTimestamp: number | null }> {
+    async getVersionTimestamp(): Promise<number | null> {
         const index = await this.readIndex();
         if (!index) {
-            return { versionTimestamp: null, cacheTimestamp: null };
+            return null;
         }
-        return {
-            versionTimestamp: index.versionTimestamp ?? null,
-            cacheTimestamp: index.cacheTimestamp ?? null
-        };
+        return index.versionTimestamp ?? null;
     }
 
     /**
-     * 设置缓存时间戳
-     * 同时设置版本时间戳和缓存创建时间戳
+     * 设置代码版本时间戳
      * @param versionTimestamp 代码版本时间戳
-     * @param cacheTimestamp 缓存创建时间戳（通常为 Date.now()）
      */
-    async setCacheTimestamps(versionTimestamp: number, cacheTimestamp: number): Promise<void> {
+    async setVersionTimestamp(versionTimestamp: number): Promise<void> {
         const indexPath = this.getIndexPath();
 
         try {
@@ -60,16 +55,15 @@ export class LogIndexManager {
                 const index = (await this.readIndexFile(indexPath)) ?? { dates: {} };
 
                 index.versionTimestamp = versionTimestamp;
-                index.cacheTimestamp = cacheTimestamp;
 
                 await this.saveIndexUnlocked(indexPath, index);
             });
 
             StatusLogger.debug(
-                `[LogIndexManager] Updated cache timestamps: version=${new Date(versionTimestamp).toISOString()}, cache=${new Date(cacheTimestamp).toISOString()}`
+                `[LogIndexManager] Updated version timestamp: ${new Date(versionTimestamp).toISOString()}`
             );
         } catch (err) {
-            StatusLogger.warn('[LogIndexManager] Failed to set cache timestamps', err);
+            StatusLogger.warn('[LogIndexManager] Failed to set version timestamp', err);
             throw err;
         }
     }
@@ -251,9 +245,6 @@ export class LogIndexManager {
                 const nextIndex: DateIndex = { dates: summaries };
                 if (index?.versionTimestamp !== undefined) {
                     nextIndex.versionTimestamp = index.versionTimestamp;
-                }
-                if (index?.cacheTimestamp !== undefined) {
-                    nextIndex.cacheTimestamp = index.cacheTimestamp;
                 }
                 await this.saveIndexUnlocked(indexPath, nextIndex);
             }

@@ -76,7 +76,7 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
     }
 
     /**
-     * 临时重写 provideLanguageModelChatInformation 以支持非静默模式触发向导
+     * 重写 provideLanguageModelChatInformation，在非静默模式下触发配置向导。
      */
     override async provideLanguageModelChatInformation(
         options: PrepareLanguageModelChatModelOptions,

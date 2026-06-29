@@ -408,8 +408,7 @@ export class LiveMetricsRenderer {
                             'No new provider output chunk has arrived recently. Some compatible endpoints buffer tool arguments and send them in a later chunk; speed will update when new output arrives.',
                             '近期未收到新的 provider 输出分片。部分兼容端点会缓冲工具参数并稍后一次性发送；速度将在收到新输出时更新。'
                         );
-                    } else if (tokensPerSecond > 0 && hasStreamStarted && durationMs >= 500) {
-                        // 首流后至少累计 0.5s 才显示速度，避免早期样本过少导致的瞬时夸张值
+                    } else if (tokensPerSecond > 0 && hasStreamStarted) {
                         speedSpan.textContent = `${tokensPerSecond.toFixed(1)} t/s`;
                         speedSpan.title = t(
                             'Estimated output tokens/s from the first stream event to the latest output of the current attempt; completed requests show usage-based output tokens/s.',

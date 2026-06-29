@@ -40,11 +40,14 @@ export class TokenUsageStatusBar {
 
         this.statusBarItem.name = 'GCMP: Token Usage';
         this.statusBarItem.command = 'gcmp.tokenUsage.showDetails';
+        this.statusBarItem.text = '$(pulse)';
+        this.statusBarItem.tooltip = t('Loading token usage...', '正在加载 Token 统计...');
+
+        // 先立即显示占位，避免首次异步统计读取较慢时状态栏完全不出现
+        this.statusBarItem.show();
 
         // 初始更新显示
-        this.updateDisplay().then(() => {
-            this.statusBarItem?.show();
-        });
+        void this.updateDisplay();
 
         // 监听文件日志系统的统计更新事件
         const fileLogger = this.usagesManager.getFileLogger();
@@ -143,12 +146,14 @@ export class TokenUsageStatusBar {
 
             // 更新 Tooltip (异步生成)
             this.statusBarItem.tooltip = await this.generateTooltip(todayStats);
+            this.statusBarItem.show();
 
             // 更新最后更新时间
             this.lastUpdateTime = Date.now();
         } catch (err) {
             StatusLogger.error('[TokenUsageStatusBar] Failed to update display:', err);
             this.statusBarItem.text = '$(pulse)';
+            this.statusBarItem.show();
         }
     }
 

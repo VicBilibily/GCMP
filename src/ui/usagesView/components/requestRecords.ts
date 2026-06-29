@@ -422,14 +422,29 @@ export function createRequestRecordsTable(
                 : ratioNum >= 80 ? 'cache-ratio-mid'
                 : ratioNum >= 60 ? 'cache-ratio-low'
                 : 'cache-ratio-none';
-            input.innerHTML =
-                `<div class="input-row"><span class="cache-ratio ${ratioClass}" title="${cacheVal.toLocaleString('en-US')} cacheReadTokens">${ratio}%</span><span class="input-total">${!isCompleted ? '~' : ''}${formatTokens(inputVal)}</span></div>` +
-                `<div class="input-detail"><span class="cache-amount">${formatTokens(cacheVal)}</span><span class="input-miss" title="${miss.toLocaleString('en-US')} miss">${miss.toLocaleString('en-US')}</span></div>`;
+            const inputPrefix = !isCompleted ? '~' : '';
+            const formattedInput = `${inputPrefix}${formatTokens(inputVal)}`;
+            const formattedCache = formatTokens(cacheVal);
+            const formattedMiss = miss.toLocaleString('en-US');
+            const totalInputTitle = `${inputPrefix}${inputVal.toLocaleString('en-US')} input tokens`;
+            const cacheAmountTitle = `${cacheVal.toLocaleString('en-US')} cacheReadTokens`;
+            const missTitle = `${formattedMiss} miss`;
+            const inputRowHtml =
+                '<div class="input-row">' +
+                `<span class="cache-ratio ${ratioClass}" title="${cacheAmountTitle}">${ratio}%</span>` +
+                `<span class="input-total" title="${totalInputTitle}">${formattedInput}</span>` +
+                '</div>';
+            const inputDetailHtml =
+                '<div class="input-detail">' +
+                `<span class="cache-amount" title="${cacheAmountTitle}">${formattedCache}</span>` +
+                `<span class="input-miss" title="${missTitle}">${formattedMiss}</span>` +
+                '</div>';
+            input.innerHTML = inputRowHtml + inputDetailHtml;
         } else {
             input.textContent = inputVal > 0 ? `${!isCompleted ? '~' : ''}${formatTokens(inputVal)}` : '-';
-        }
-        if (inputVal > 0) {
-            input.title = inputVal.toLocaleString('en-US');
+            if (inputVal > 0) {
+                input.title = `${!isCompleted ? '~' : ''}${inputVal.toLocaleString('en-US')} input tokens`;
+            }
         }
 
         // 合并输出列：上行 TTFT | 输出令牌，下行 TPOT | 输出速度
@@ -463,13 +478,21 @@ export function createRequestRecordsTable(
             :   '-';
         const speedText = speedVal !== undefined ? `${speedVal.toFixed(1)} t/s` : '-';
         const outputTokensText = outputVal > 0 ? formatTokens(outputVal) : '-';
-        const outputTokensTitle = outputVal > 0 ? outputVal.toLocaleString('en-US') : '-';
-        output.innerHTML =
-            `<div class="output-row"><span class="output-ttft" title="TTFT: ${ttft !== undefined ? ttft.toLocaleString('en-US') + 'ms' : '-'}">${ttftText}</span><span class="output-tokens" title="Output tokens: ${outputTokensTitle}">${outputTokensText}</span></div>` +
-            `<div class="output-detail"><span class="output-tpot" title="TPOT: ${tpot !== undefined ? tpot.toLocaleString('en-US') + 'ms' : '-'}">${tpotText}</span><span class="output-speed" title="Speed: ${speedText}">${speedText}</span></div>`;
-        if (outputVal > 0) {
-            output.title = outputVal.toLocaleString('en-US');
-        }
+        const ttftTitle = `TTFT: ${ttft !== undefined ? ttft.toLocaleString('en-US') + 'ms' : '-'}`;
+        const outputTokensTitle = `Output tokens: ${outputVal > 0 ? outputVal.toLocaleString('en-US') : '-'}`;
+        const tpotTitle = `TPOT: ${tpot !== undefined ? tpot.toLocaleString('en-US') + 'ms' : '-'}`;
+        const speedTitle = `Speed: ${speedText}`;
+        const outputRowHtml =
+            '<div class="output-row">' +
+            `<span class="output-ttft" title="${ttftTitle}">${ttftText}</span>` +
+            `<span class="output-tokens" title="${outputTokensTitle}">${outputTokensText}</span>` +
+            '</div>';
+        const outputDetailHtml =
+            '<div class="output-detail">' +
+            `<span class="output-tpot" title="${tpotTitle}">${tpotText}</span>` +
+            `<span class="output-speed" title="${speedTitle}">${speedText}</span>` +
+            '</div>';
+        output.innerHTML = outputRowHtml + outputDetailHtml;
 
         const total = createElement('td');
         const totalVal = record.status === 'completed' && record.totalTokens > 0 ? record.totalTokens : 0;

@@ -25,14 +25,6 @@ export class LogPathManager {
     }
 
     /**
-     * 获取指定时间戳的日志文件路径
-     */
-    getLogPath(timestamp: number): LogFilePath {
-        const date = new Date(timestamp);
-        return this.getLogPathFromDate(date);
-    }
-
-    /**
      * 获取指定日期对象的日志文件路径
      */
     getLogPathFromDate(date: Date): LogFilePath {
@@ -60,19 +52,19 @@ export class LogPathManager {
     }
 
     /**
+     * 获取历史请求快照文件路径 (requests.jsonl)
+     */
+    getSnapshotFilePath(dateStr: string): string {
+        return path.join(this.baseDir, dateStr, 'requests.jsonl');
+    }
+
+    /**
      * 获取指定日期和小时的文件路径
      */
     getHourFilePath(dateStr: string, hour: number): string {
         const dateFolder = this.getDateFolderPath(dateStr);
         const hourFileName = `${String(hour).padStart(2, '0')}.jsonl`;
         return path.join(dateFolder, hourFileName);
-    }
-
-    /**
-     * 获取当前时刻的日志文件路径
-     */
-    getCurrentLogPath(): LogFilePath {
-        return this.getLogPath(Date.now());
     }
 
     /**

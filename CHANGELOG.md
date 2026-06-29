@@ -2,6 +2,28 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.16] - 2026-06-29
+
+### 重构
+
+- **统计刷新链路改为快照+签名缓存**：2 天前的数据由 requests.jsonl 快照替代，删除原始文件释放磁盘；新增签名缓存避免无意义重算与 I/O；UI 侧新增智能防抖，先渲染 HTML 再异步检查过期统计。
+- **速度与首 Token 延迟统计增加异常样本过滤**：对速度样本增加上限 2000 tokens/s，首 Token 延迟下限从 0 提高到 10ms，排除缓存命中等极短响应对统计均值的干扰。
+
+### 修复
+
+- **Commit 消息生成入口互斥策略**：区分命令面板（全局串行）与 SCM 入口（按仓库互斥），允许跨仓库并发生成提交消息。
+
+---
+
+### Refactor
+
+- **Stats refresh pipeline changed to snapshot + signature caching**: Data older than 2 days is now served by requests.jsonl snapshots, freeing disk space. Added signature caching to skip unnecessary recalculations. UI adds debounced smart refresh.
+- **Anomalous speed and first-token latency filtering added**: Added a 2000 tokens/s cap on speed samples and raised the first-token latency floor from 0 to 10ms, eliminating cache-hit extremes from the mean calculation.
+
+### Fixed
+
+- **Commit message generation mutex strategy**: Differentiated between command palette (global serialization) and SCM entry points (per-repo mutual exclusion), allowing cross-repo concurrent commit message generation.
+
 ## [0.25.15] - 2026-06-26
 
 ### 新增

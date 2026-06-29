@@ -136,7 +136,6 @@ const liveMetricsRenderer = new LiveMetricsRenderer({ getState: () => state });
  */
 function handleVSCodeMessage(event: MessageEvent): void {
     const message = event.data as HostMessage;
-    console.log('[UsagesView] Received message:', message.command, message);
 
     switch (message.command) {
         case 'updateDateList':
@@ -235,12 +234,6 @@ function updateRequestRecords(): void {
  * 刷新所有视图
  */
 function refreshViews(): void {
-    console.log('[UsagesView] State changed:', {
-        state,
-        selectedDate: state.selectedDate,
-        dateListLength: state.dateList.length,
-        hasDetails: !!state.dateDetails
-    });
     updateDateList(state.dateList);
     updateMainContent();
     updateRequestRecords();
@@ -317,8 +310,6 @@ function createSidebarToggle(): HTMLElement {
  * 初始化应用
  */
 function initApp(): void {
-    console.log('[UsagesView] Initializing webview app');
-
     // 将状态和工具函数挂载到 window 对象，供所有组件访问
     window.usagesState = state;
     window.usagesSetLoading = setLoading;

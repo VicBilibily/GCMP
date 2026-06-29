@@ -109,6 +109,10 @@ export interface TokenRequestLog {
     streamStartTime?: number;
     /** 流结束时间 (毫秒时间戳) */
     streamEndTime?: number;
+    /** 实时输出速度 (tokens/s)，由 live metrics streaming 期间注入，最终值以 usage 回写为准 */
+    outputSpeed?: number;
+    /** 输出 token 数（streaming 期间为预估值，最终值以 usage 回写为准） */
+    outputTokens?: number;
 }
 
 /**
@@ -187,6 +191,8 @@ export interface HourlyStats extends TokenStats {
 export interface TokenUsageStatsFromFile {
     /** 代码版本时间戳 - 用于判断缓存是否由当前版本代码生成 */
     versionTimestamp?: number;
+    /** 记录指纹 - 用于增量判断：records:completed:failed:maxStreamEndTime */
+    recordSignature?: string;
     /** 总计 */
     total: TokenStats;
     /** 按提供商分组 (直接使用 providerId 作为 key) */
@@ -212,7 +218,5 @@ export interface DateIndexEntry {
 export interface DateIndex {
     /** 代码版本时间戳 - 用于判断缓存是否由当前版本代码生成 */
     versionTimestamp?: number;
-    /** 缓存创建时间戳 - 用于判断缓存是否比日志文件更新 */
-    cacheTimestamp?: number;
     dates: Record<string, DateIndexEntry>;
 }

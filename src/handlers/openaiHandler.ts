@@ -951,7 +951,7 @@ export class OpenAIHandler {
                             streamReporter.markStreamStarted(now);
                         }
 
-                        // 心跳：触发轻量刷新（不固定首流延迟）
+                        // 心跳：触发实时指标更新（不固定首流延迟）
                         streamReporter.heartbeat();
 
                         // 处理token使用统计：仅保存到 finalUsage，最后再统一输出

@@ -124,7 +124,9 @@ export class CompatibleProvider extends GenericModelProvider {
                     );
                     const providerOverride = providerOverrideKey ? allOverrides[providerOverrideKey] : undefined;
                     for (const override of [providerOverride, compatibleOverride]) {
-                        if (!override) continue;
+                        if (!override) {
+                            continue;
+                        }
                         if (override.proxy && !config.proxy) {
                             config.proxy = override.proxy;
                         }

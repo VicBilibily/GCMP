@@ -54,7 +54,7 @@ export class LogReadManager {
 
         try {
             const files = await fs.readdir(dateFolder);
-            const hourFiles = files.filter(f => f.endsWith('.jsonl')).sort();
+            const hourFiles = files.filter(f => /^\d{2}\.jsonl$/.test(f)).sort();
             // 并行读取所有文件
             const readPromises = hourFiles.map(file => {
                 const filePath = path.join(dateFolder, file);
@@ -139,25 +139,6 @@ export class LogReadManager {
         } catch (err) {
             StatusLogger.error(`[LogReadManager] Failed to get recent request details: ${dateStr}`, err);
             return [];
-        }
-    }
-
-    /**
-     * 获取小时日志文件的修改时间戳（毫秒）
-     * 如果文件不存在，返回 0
-     */
-    async getHourFileModifiedTime(dateStr: string, hour: number): Promise<number> {
-        const filePath = this.pathManager.getHourFilePath(dateStr, hour);
-        if (!fsSync.existsSync(filePath)) {
-            return 0;
-        }
-
-        try {
-            const stats = await fs.stat(filePath);
-            return stats.mtime.getTime();
-        } catch (err) {
-            StatusLogger.warn(`[LogReadManager] Failed to get file modified time: ${filePath}`, err);
-            return 0;
         }
     }
 

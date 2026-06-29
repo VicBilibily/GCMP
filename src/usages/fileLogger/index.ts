@@ -12,6 +12,7 @@
 const USAGES_CACHE_VERSION_TIMESTAMP = new Date('2026-03-05T21:35:00+08:00').getTime();
 
 import * as vscode from 'vscode';
+import * as fsSync from 'fs';
 import { StatusLogger } from '../../utils/statusLogger';
 import { LogPathManager } from './logPathManager';
 import { LogWriteManager } from './logWriteManager';
@@ -19,8 +20,10 @@ import { LogReadManager } from './logReadManager';
 import { LogCleanupManager } from './logCleanupManager';
 import { LogIndexManager } from './logIndexManager';
 import { LogStatsManager } from './logStatsManager';
+import { SnapshotManager } from './snapshotManager';
 import { DateUtils } from './dateUtils';
 import { EventEmitter } from 'events';
+import { onLiveMetrics, type LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 import type { DateIndexEntry, TokenRequestLog, TokenUsageStatsFromFile } from './types';
 
 /**
@@ -28,13 +31,20 @@ import type { DateIndexEntry, TokenRequestLog, TokenUsageStatsFromFile } from '.
  * 主入口,提供完整的日志记录和统计功能
  */
 export class TokenFileLogger {
+    // 启动时将 2 天前及更早的日志整理为 requests.jsonl。
+    private readonly startupHistoricalCompactionDaysThreshold = 2;
+
     private readonly pathManager: LogPathManager;
     private readonly writeManager: LogWriteManager;
     private readonly readManager: LogReadManager;
     private readonly cleanupManager: LogCleanupManager;
     private readonly indexManager: LogIndexManager;
     private readonly logStatsManager: LogStatsManager;
+    private readonly snapshotManager: SnapshotManager;
     private readonly eventEmitter: EventEmitter;
+
+    // live metrics 订阅：仅驱动当前实例的 realtime UI / 内存态
+    private readonly liveMetricsDisposable: vscode.Disposable;
 
     // 内存中的待更新日志(requestId -> log)
     private pendingLogs = new Map<string, TokenRequestLog>();
@@ -44,9 +54,9 @@ export class TokenFileLogger {
     private readonly pendingLogsTTL: number = 5 * 60 * 1000; // 5分钟 TTL
     private readonly pendingLogsCleanupInterval: number = 60 * 1000; // 1分钟检查一次
 
-    // 缓存版本时间戳：早于此时间的缓存都会重新计算
-    // 由常量 USAGES_CACHE_VERSION_TIMESTAMP 手动控制，在 initialize() 中从 index.json 读取或更新
-    cacheVersionTimestamp: number = 0;
+    // refreshCurrentStats 防抖：突发完成时合并为一次重算
+    private statsRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+    private readonly statsRefreshDebounceMs = 1000; // 1秒防抖窗口
 
     constructor(private context: vscode.ExtensionContext) {
         const storageDir = context.globalStorageUri.fsPath;
@@ -56,8 +66,23 @@ export class TokenFileLogger {
         this.readManager = new LogReadManager(this.pathManager);
         this.indexManager = new LogIndexManager(storageDir);
         this.cleanupManager = new LogCleanupManager(this.pathManager, this.indexManager);
-        this.logStatsManager = new LogStatsManager(this.readManager, storageDir, this.indexManager);
+        this.snapshotManager = new SnapshotManager(this.pathManager);
+        this.logStatsManager = new LogStatsManager(
+            this.readManager,
+            storageDir,
+            this.indexManager,
+            this.snapshotManager
+        );
         this.eventEmitter = new EventEmitter();
+
+        // 订阅 live metrics streaming 事件：仅更新内存 pendingLog，不写文件。
+        // 当前实例的实时指标通过 onLiveMetrics 事件总线直接驱动 liveMetricsRenderer（DOM 覆盖），
+        // 无需文件 I/O。
+        this.liveMetricsDisposable = onLiveMetrics((event: LiveStreamMetricEvent) => {
+            if (event.type === 'firstChunk' || event.type === 'streamingUpdate') {
+                this.updateStreamingMetrics(event);
+            }
+        });
     }
 
     /**
@@ -76,45 +101,52 @@ export class TokenFileLogger {
         // 启动 pendingLogs 清理任务
         this.startPendingLogsCleanup();
 
+        // 启动后后台清理历史日志。
+        // 不 await，避免拖慢扩展初始化；阈值为 2，只处理 2 天前及更早的日期，
+        // 今天/昨天只读原始 hourly .jsonl，不生成 requests.jsonl。
+        void this.snapshotManager
+            .compactHistoricalDates(this.startupHistoricalCompactionDaysThreshold)
+            .then(compactedCount => {
+                if (compactedCount > 0) {
+                    StatusLogger.info(
+                        `[TokenFileLogger] Startup historical snapshot compaction cleaned ${compactedCount} date folders`
+                    );
+                }
+            })
+            .catch(err => StatusLogger.warn('[TokenFileLogger] Startup historical snapshot compaction failed:', err));
+
         const elapsed = Date.now() - startTime;
         StatusLogger.info(`[TokenFileLogger] File logging system initialization completed (elapsed: ${elapsed}ms)`);
     }
 
     /**
      * 初始化缓存版本时间戳
-     * 从 index.json 读取缓存创建时间，若不存在则创建当前时间
+     * 从 index.json 读取版本时间戳，若不存在或落后于代码版本则更新
      * 判断逻辑：
      * - 如果没有版本时间戳（旧缓存），需要重新计算
      * - 如果版本时间戳 < 代码版本时间，需要重新计算
-     * - 否则使用缓存时间戳判断
      */
     private async initCacheVersionTimestamp(): Promise<void> {
-        // 读取 index.json 中存储的时间戳
-        const { versionTimestamp, cacheTimestamp } = await this.indexManager.getCacheTimestamps();
+        // 读取 index.json 中存储的版本时间戳
+        const versionTimestamp = await this.indexManager.getVersionTimestamp();
 
-        // 判断是否需要重新创建缓存
+        // 判断是否需要更新版本时间戳
         // 条件：没有版本时间戳（旧缓存）或版本时间戳小于代码版本时间
-        const needsRecreate = !versionTimestamp || versionTimestamp < USAGES_CACHE_VERSION_TIMESTAMP;
+        const needsUpdate = !versionTimestamp || versionTimestamp < USAGES_CACHE_VERSION_TIMESTAMP;
 
-        if (needsRecreate) {
-            // 创建当前时间作为缓存时间
-            const now = Date.now();
-            await this.indexManager.setCacheTimestamps(USAGES_CACHE_VERSION_TIMESTAMP, now);
-            this.cacheVersionTimestamp = now;
+        if (needsUpdate) {
+            await this.indexManager.setVersionTimestamp(USAGES_CACHE_VERSION_TIMESTAMP);
             StatusLogger.debug(
-                `[TokenFileLogger] Created new cache: version=${new Date(USAGES_CACHE_VERSION_TIMESTAMP).toISOString()}, cache=${new Date(this.cacheVersionTimestamp).toISOString()}`
+                `[TokenFileLogger] Updated version timestamp: ${new Date(USAGES_CACHE_VERSION_TIMESTAMP).toISOString()}`
             );
         } else {
-            // 使用存储的缓存时间
-            this.cacheVersionTimestamp = cacheTimestamp || 0;
             StatusLogger.debug(
-                `[TokenFileLogger] Using existing cache: version=${new Date(versionTimestamp).toISOString()}, cache=${new Date(this.cacheVersionTimestamp).toISOString()}`
+                `[TokenFileLogger] Using existing version timestamp: ${new Date(versionTimestamp).toISOString()}`
             );
         }
 
-        // 同步更新 LogStatsManager 中的时间戳
-        // 同时传递代码版本时间戳和缓存创建时间戳
-        this.logStatsManager.updateCacheVersionTimestamp(this.cacheVersionTimestamp, USAGES_CACHE_VERSION_TIMESTAMP);
+        // 同步代码版本时间戳到 LogStatsManager
+        this.logStatsManager.updateCodeVersionTimestamp(USAGES_CACHE_VERSION_TIMESTAMP);
     }
 
     /**
@@ -164,6 +196,20 @@ export class TokenFileLogger {
     }
 
     // ==================== 写入操作 ====================
+
+    /**
+     * 判断指定日期是否应从原始 hourly .jsonl 读取。
+     * 仅“今天”和“昨天”读 raw .jsonl；更早的日期统一读 requests.jsonl 快照。
+     * 使用日历日对比，避免跨 48h 边界时把已整理为快照的日期误判为 raw。
+     */
+    private shouldReadRawJsonl(dateStr: string): boolean {
+        const today = DateUtils.getTodayDateString();
+        if (dateStr === today) {
+            return true;
+        }
+        const yesterday = DateUtils.getDateStringDaysAgo(1);
+        return dateStr === yesterday;
+    }
 
     /**
      * 获取提供商显示名称（处理特殊情况）
@@ -293,9 +339,8 @@ export class TokenFileLogger {
         // 从内存移除
         this.pendingLogs.delete(params.requestId);
 
-        // 只有当前实例在请求完成时立即计算统计
-        // 这样可以避免多实例同时计算的问题
-        await this.refreshCurrentStats();
+        // 触发统计刷新（防抖，1s 内多次完成合并为一次重算）
+        this.refreshCurrentStats();
 
         // 通知本实例的监听者
         this.notifyUpdate();
@@ -324,11 +369,12 @@ export class TokenFileLogger {
     }
 
     /**
-     * 获取指定日期的统计(直接计算，忽略缓存)
-     * 适用于详情界面,确保显示最新的准确数据
+     * 获取指定日期的统计(优先走缓存，由签名机制保证正确性)
+     * 适用于详情界面：refreshCurrentStats 已在请求路径上更新了 stats.json，
+     * 这里走 needsRegeneration 检查即可命中缓存，避免重复 calculateDateStats
      */
     async getDateStatsFromFile(dateStr: string): Promise<TokenUsageStatsFromFile> {
-        return this.logStatsManager.getDateStats(dateStr, true);
+        return this.logStatsManager.getDateStats(dateStr);
     }
 
     /**
@@ -365,10 +411,54 @@ export class TokenFileLogger {
 
     /**
      * 获取请求详情列表(每个requestId的最终状态)
-     * 用于详情页面展示
+     * 用于详情页面展示。
+     * 今天/昨天直接读取原始 hourly .jsonl；更早的日期读取 requests.jsonl，必要时从 jsonl 构建。
+     * 兜底：raw jsonl 可能因手动清理/迁移已被删除，若不存在 raw 文件则尝试历史 requests.jsonl 快照。
      */
     async getRequestDetails(dateStr: string): Promise<TokenRequestLog[]> {
-        return this.readManager.getRequestDetails(dateStr);
+        if (this.shouldReadRawJsonl(dateStr)) {
+            const hasRaw = this.hasRawJsonlFiles(dateStr);
+            if (hasRaw) {
+                return this.readManager.getRequestDetails(dateStr);
+            }
+            // raw jsonl 已被清理：尝试 snapshot 兜底，避免该日期请求记录显示为空
+            const snapshotRecords = await this.snapshotManager.read(dateStr);
+            if (snapshotRecords) {
+                return snapshotRecords;
+            }
+            return [];
+        }
+
+        // 历史日期：从 requests.jsonl 读取，回退到 JSONL 合并并构建历史快照。
+        const snapshotRecords = await this.snapshotManager.read(dateStr);
+        if (snapshotRecords) {
+            return snapshotRecords;
+        }
+        const details = await this.readManager.getRequestDetails(dateStr);
+        if (details.length > 0) {
+            this.snapshotManager
+                .buildSnapshotFromLogs(dateStr, details)
+                .catch(err =>
+                    StatusLogger.warn(`[TokenFileLogger] Failed to build requests snapshot from logs: ${dateStr}`, err)
+                );
+        }
+        return details;
+    }
+
+    /**
+     * 判断指定日期目录是否存在原始 hourly .jsonl 文件。
+     */
+    private hasRawJsonlFiles(dateStr: string): boolean {
+        const dateFolder = this.pathManager.getDateFolderPath(dateStr);
+        if (!fsSync.existsSync(dateFolder)) {
+            return false;
+        }
+        try {
+            const files = fsSync.readdirSync(dateFolder);
+            return files.some((f: string) => /^\d{2}\.jsonl$/.test(f));
+        } catch {
+            return false;
+        }
     }
 
     /**
@@ -377,7 +467,49 @@ export class TokenFileLogger {
      * 用于状态栏等需要快速响应的场景
      */
     async getRecentRequestDetails(dateStr: string, limit: number = 100): Promise<TokenRequestLog[]> {
-        return this.readManager.getRecentRequestDetails(dateStr, limit);
+        const pendingLogs = this.getPendingLogs();
+        const pendingRequestIds = new Set(pendingLogs.map(l => l.requestId));
+
+        if (this.shouldReadRawJsonl(dateStr)) {
+            // 若 raw hourly .jsonl 存在，优先用它；仅在 raw 被清理后才 fallback snapshot，
+            // 避免今天/昨天有 raw 时仍读到旧的 requests.jsonl 快照。
+            const useRaw = this.hasRawJsonlFiles(dateStr);
+            if (useRaw) {
+                const details = await this.readManager.getRecentRequestDetails(dateStr, limit);
+                const completed = details.filter(l => !pendingRequestIds.has(l.requestId));
+                return [...completed, ...pendingLogs].sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
+            }
+            // raw jsonl 已被清理：用 snapshot 兜底，仍按限制返回
+            const snapshotRecords = await this.snapshotManager.read(dateStr);
+            if (snapshotRecords) {
+                const completed = snapshotRecords.filter(l => !pendingRequestIds.has(l.requestId));
+                return [...completed, ...pendingLogs].sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
+            }
+            return pendingLogs.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
+        }
+
+        // 历史日期：先读 requests.jsonl 快照（更快）
+        const snapshotRecords = await this.snapshotManager.read(dateStr);
+        if (snapshotRecords) {
+            // 合并 pending logs（内存中未完成的请求）
+            const completed = snapshotRecords.filter(l => !pendingRequestIds.has(l.requestId));
+            const all = [...completed, ...pendingLogs].sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
+            return all;
+        }
+        // 回退路径
+        const details = await this.readManager.getRecentRequestDetails(dateStr, limit);
+        // 异步构建 requests.jsonl 快照（buildSnapshotFromLogs 内部已处理今天不删 .jsonl）
+        if (details.length > 0) {
+            this.readManager
+                .getRequestDetails(dateStr)
+                .then(full => {
+                    if (full.length > 0) {
+                        this.snapshotManager.buildSnapshotFromLogs(dateStr, full).catch(() => {});
+                    }
+                })
+                .catch(() => {});
+        }
+        return details;
     }
 
     /**
@@ -400,8 +532,14 @@ export class TokenFileLogger {
 
     /**
      * 清理过期日志和统计(保留最近N天)
+     * 先将 2 天前及更早的历史日期整理为 requests.jsonl 快照并删除原始 .jsonl
      */
     async cleanupExpiredLogs(retentionDays: number): Promise<number> {
+        // 与读取策略保持一致：今天/昨天保留 raw .jsonl，更早历史优先整理为 requests.jsonl 快照
+        await this.snapshotManager
+            .compactHistoricalDates(this.startupHistoricalCompactionDaysThreshold)
+            .catch(err => StatusLogger.warn('[TokenFileLogger] Historical snapshot compaction failed:', err));
+
         return this.cleanupManager.cleanupExpiredLogs(retentionDays);
     }
 
@@ -426,6 +564,13 @@ export class TokenFileLogger {
                 StatusLogger.debug('[TokenFileLogger] Pending logs cleanup task stopped');
             }
 
+            // 取消待触发的统计刷新（如有），避免 dispose 后再触发
+            if (this.statsRefreshTimer) {
+                clearTimeout(this.statsRefreshTimer);
+                this.statsRefreshTimer = null;
+                StatusLogger.debug('[TokenFileLogger] Stats refresh timer cancelled');
+            }
+
             // 检查是否有待处理的日志
             const pendingLogCount = this.pendingLogs.size;
             if (pendingLogCount > 0) {
@@ -436,6 +581,10 @@ export class TokenFileLogger {
                 this.pendingLogs.clear();
             }
 
+            // 取消 live metrics 订阅
+            this.liveMetricsDisposable.dispose();
+            StatusLogger.debug('[TokenFileLogger] Live metrics subscription disposed');
+
             // 清理事件监听器
             this.eventEmitter.removeAllListeners();
             StatusLogger.debug('[TokenFileLogger] Event listeners cleaned up');
@@ -443,6 +592,10 @@ export class TokenFileLogger {
             // 等待写入队列完成并销毁
             await this.writeManager.dispose();
             StatusLogger.debug('[TokenFileLogger] Write manager disposed');
+
+            // 清理历史快照管理器缓存
+            this.snapshotManager.clearCache();
+            StatusLogger.debug('[TokenFileLogger] Snapshot manager cache cleared');
 
             StatusLogger.info('[TokenFileLogger] File logging system disposed');
         } catch (error) {
@@ -470,13 +623,51 @@ export class TokenFileLogger {
         this.eventEmitter.emit('update');
     }
 
+    /**
+     * 处理 streaming 实时指标更新：仅更新内存 pendingLog，不写文件。
+     *
+     * 当前实例的实时指标通过 onLiveMetrics 事件总线直接驱动 liveMetricsRenderer，
+     * 后者在表格行上覆盖 DOM（TTFT / 输出速度 / 最近输出增量），无需文件 I/O。
+     * streaming 期间的中间指标只用于当前实例的实时展示，不参与持久化同步。
+     */
+    private updateStreamingMetrics(event: LiveStreamMetricEvent): void {
+        const pendingLog = this.pendingLogs.get(event.requestId);
+        if (!pendingLog) {
+            return; // 请求已结束（updateActualTokens 已清除 pendingLog）
+        }
+
+        // 仅更新内存中的实时指标字段，供 getRecentRequestDetails（状态栏）合并使用
+        if (event.streamStartTime !== undefined) {
+            pendingLog.streamStartTime = event.streamStartTime;
+        }
+        if (event.tokensPerSecond !== undefined) {
+            pendingLog.outputSpeed = event.tokensPerSecond;
+        }
+        if (event.estimatedOutputTokens !== undefined) {
+            pendingLog.outputTokens = event.estimatedOutputTokens;
+        }
+    }
+
     // ==================== Private Helper Methods ====================
 
     /**
-     * 刷新当前日期的统计（请求结束后立即调用）
-     * 确保统计是最新的，缓存由上层调用者(usagesStatusBar)维护
+     * 刷新当前日期的统计（请求结束后调用，带 1s 防抖）
+     *
+     * 防抖理由：突发完成（如批量 tool-use）会在数百毫秒内触发多次 updateActualTokens，
+     * 每次都调 getDateStats 会重复读 compact + 签名比对 + 写 stats.json。
+     * 合并为窗口末尾的一次重算，期间多次完成的签名变化都会被捕获。
      */
-    private async refreshCurrentStats(): Promise<void> {
+    private refreshCurrentStats(): void {
+        if (this.statsRefreshTimer) {
+            return; // 已有待触发的刷新，复用即可（窗口末尾会看到最新数据）
+        }
+        this.statsRefreshTimer = setTimeout(() => {
+            this.statsRefreshTimer = null;
+            void this.doRefreshCurrentStats();
+        }, this.statsRefreshDebounceMs);
+    }
+
+    private async doRefreshCurrentStats(): Promise<void> {
         const dateStr = DateUtils.getTodayDateString();
 
         try {

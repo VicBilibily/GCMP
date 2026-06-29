@@ -650,7 +650,7 @@ export class OpenAIResponsesHandler {
                 // 使用 on(event) 模式处理流事件
                 stream
                     .on('event', () => {
-                        // 心跳：每个 SSE 事件触发一次轻量刷新，确保首流前 latency 平滑增长
+                        // 心跳：每个 SSE 事件触发一次实时指标更新，确保首流前 latency 平滑增长
                         streamReporter.heartbeat();
                     })
                     .on('response.created', () => {

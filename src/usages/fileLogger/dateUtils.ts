@@ -33,29 +33,4 @@ export class DateUtils {
         date.setDate(date.getDate() - daysAgo);
         return this.formatDate(date);
     }
-
-    /**
-     * 从日期字符串解析出日期范围(开始和结束时间戳)
-     * @param dateStr YYYY-MM-DD 格式的日期字符串
-     */
-    static parseDateRange(dateStr: string): { start: number; end: number } {
-        const date = new Date(dateStr);
-        const start = date.getTime();
-        const end = start + 86400000 - 1; // 86400000 = 24 * 60 * 60 * 1000
-        return { start, end };
-    }
-
-    /**
-     * 判断两个日期是否是同一天
-     */
-    static isSameDay(date1: Date, date2: Date): boolean {
-        return this.formatDate(date1) === this.formatDate(date2);
-    }
-
-    /**
-     * 判断是否是今天
-     */
-    static isToday(date: Date): boolean {
-        return this.isSameDay(date, new Date());
-    }
 }

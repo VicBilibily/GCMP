@@ -393,7 +393,7 @@ export class AnthropicHandler {
 
         try {
             for await (const chunk of stream) {
-                // 心跳：触发轻量刷新（不固定首流延迟）
+                // 心跳：触发实时指标更新（不固定首流延迟）
                 reporter.heartbeat();
 
                 if (token.isCancellationRequested) {

@@ -40,7 +40,10 @@ test('streamEnd removes requestId from snapshot', () => {
     emitLiveMetrics(makeEvent({ requestId: 'req-end', type: 'streamingUpdate' }));
 
     let snapshot = getActiveMetricsSnapshot();
-    assert.ok(snapshot.some(e => e.requestId === 'req-end'), 'should exist before streamEnd');
+    assert.ok(
+        snapshot.some(e => e.requestId === 'req-end'),
+        'should exist before streamEnd'
+    );
 
     emitLiveMetrics(makeEvent({ requestId: 'req-end', type: 'streamEnd' }));
 
@@ -50,23 +53,29 @@ test('streamEnd removes requestId from snapshot', () => {
 
 test('snapshot is updated to latest event for the same requestId', () => {
     cleanupAllSnapshots();
-    emitLiveMetrics(makeEvent({
-        requestId: 'req-update',
-        type: 'requestStarted',
-        requestStartTime: 1000
-    }));
-    emitLiveMetrics(makeEvent({
-        requestId: 'req-update',
-        type: 'firstChunk',
-        streamStartTime: 1200,
-        firstChunkLatencyMs: 200
-    }));
-    emitLiveMetrics(makeEvent({
-        requestId: 'req-update',
-        type: 'streamingUpdate',
-        estimatedOutputTokens: 50,
-        tokensPerSecond: 25.5
-    }));
+    emitLiveMetrics(
+        makeEvent({
+            requestId: 'req-update',
+            type: 'requestStarted',
+            requestStartTime: 1000
+        })
+    );
+    emitLiveMetrics(
+        makeEvent({
+            requestId: 'req-update',
+            type: 'firstChunk',
+            streamStartTime: 1200,
+            firstChunkLatencyMs: 200
+        })
+    );
+    emitLiveMetrics(
+        makeEvent({
+            requestId: 'req-update',
+            type: 'streamingUpdate',
+            estimatedOutputTokens: 50,
+            tokensPerSecond: 25.5
+        })
+    );
 
     const snapshot = getActiveMetricsSnapshot();
     const found = snapshot.find(e => e.requestId === 'req-update');
@@ -97,7 +106,10 @@ test('multiple concurrent requests have independent snapshots', () => {
     emitLiveMetrics(makeEvent({ requestId: 'req-a', type: 'streamEnd' }));
     const afterCleanup = getActiveMetricsSnapshot();
     assert.ok(!afterCleanup.some(e => e.requestId === 'req-a'), 'req-a should be removed');
-    assert.ok(afterCleanup.some(e => e.requestId === 'req-b'), 'req-b should still exist');
+    assert.ok(
+        afterCleanup.some(e => e.requestId === 'req-b'),
+        'req-b should still exist'
+    );
 
     cleanupAllSnapshots();
 });
@@ -232,34 +244,40 @@ test('full lifecycle: requestStarted -> firstChunk -> streamingUpdate -> streamE
 
     try {
         // requestStarted 阶段
-        emitLiveMetrics(makeEvent({
-            requestId: 'req-lifecycle',
-            type: 'requestStarted',
-            requestStartTime: 1000
-        }));
+        emitLiveMetrics(
+            makeEvent({
+                requestId: 'req-lifecycle',
+                type: 'requestStarted',
+                requestStartTime: 1000
+            })
+        );
         let snapshot = getActiveMetricsSnapshot();
         assert.equal(snapshot.find(e => e.requestId === 'req-lifecycle')!.type, 'requestStarted');
 
         // firstChunk 阶段
-        emitLiveMetrics(makeEvent({
-            requestId: 'req-lifecycle',
-            type: 'firstChunk',
-            streamStartTime: 1200,
-            firstChunkLatencyMs: 200
-        }));
+        emitLiveMetrics(
+            makeEvent({
+                requestId: 'req-lifecycle',
+                type: 'firstChunk',
+                streamStartTime: 1200,
+                firstChunkLatencyMs: 200
+            })
+        );
         snapshot = getActiveMetricsSnapshot();
         const fc = snapshot.find(e => e.requestId === 'req-lifecycle')!;
         assert.equal(fc.type, 'firstChunk');
         assert.equal(fc.firstChunkLatencyMs, 200);
 
         // streamingUpdate 阶段
-        emitLiveMetrics(makeEvent({
-            requestId: 'req-lifecycle',
-            type: 'streamingUpdate',
-            estimatedOutputTokens: 42,
-            lastOutputTokenDelta: 10,
-            tokensPerSecond: 21.0
-        }));
+        emitLiveMetrics(
+            makeEvent({
+                requestId: 'req-lifecycle',
+                type: 'streamingUpdate',
+                estimatedOutputTokens: 42,
+                lastOutputTokenDelta: 10,
+                tokensPerSecond: 21.0
+            })
+        );
         snapshot = getActiveMetricsSnapshot();
         const su = snapshot.find(e => e.requestId === 'req-lifecycle')!;
         assert.equal(su.type, 'streamingUpdate');
@@ -268,10 +286,12 @@ test('full lifecycle: requestStarted -> firstChunk -> streamingUpdate -> streamE
         assert.equal(su.tokensPerSecond, 21.0);
 
         // streamEnd 阶段
-        emitLiveMetrics(makeEvent({
-            requestId: 'req-lifecycle',
-            type: 'streamEnd'
-        }));
+        emitLiveMetrics(
+            makeEvent({
+                requestId: 'req-lifecycle',
+                type: 'streamEnd'
+            })
+        );
         snapshot = getActiveMetricsSnapshot();
         assert.ok(!snapshot.some(e => e.requestId === 'req-lifecycle'), 'should be removed after streamEnd');
 
@@ -325,24 +345,30 @@ test('snapshot preserves all event fields', () => {
 
 test('retry (new requestStarted for same requestId) resets snapshot', () => {
     cleanupAllSnapshots();
-    emitLiveMetrics(makeEvent({
-        requestId: 'req-retry',
-        type: 'requestStarted',
-        requestStartTime: 1000
-    }));
-    emitLiveMetrics(makeEvent({
-        requestId: 'req-retry',
-        type: 'streamingUpdate',
-        requestStartTime: 1000,
-        estimatedOutputTokens: 100
-    }));
+    emitLiveMetrics(
+        makeEvent({
+            requestId: 'req-retry',
+            type: 'requestStarted',
+            requestStartTime: 1000
+        })
+    );
+    emitLiveMetrics(
+        makeEvent({
+            requestId: 'req-retry',
+            type: 'streamingUpdate',
+            requestStartTime: 1000,
+            estimatedOutputTokens: 100
+        })
+    );
 
     // 重试：新的 requestStarted 带不同 requestStartTime
-    emitLiveMetrics(makeEvent({
-        requestId: 'req-retry',
-        type: 'requestStarted',
-        requestStartTime: 3000
-    }));
+    emitLiveMetrics(
+        makeEvent({
+            requestId: 'req-retry',
+            type: 'requestStarted',
+            requestStartTime: 3000
+        })
+    );
 
     const snapshot = getActiveMetricsSnapshot();
     const found = snapshot.find(e => e.requestId === 'req-retry')!;

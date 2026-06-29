@@ -17,15 +17,6 @@ export abstract class StatsCalculator {
         // 私有构造函数，防止实例化
     }
 
-    /** 计算算术均值（忽略非正/非有限值） */
-    static calculateMean(values: number[]): number {
-        const cleaned = (values || []).filter(v => Number.isFinite(v) && v > 0);
-        if (cleaned.length === 0) {
-            return 0;
-        }
-        return cleaned.reduce((sum, v) => sum + v, 0) / cleaned.length;
-    }
-
     /**
      * 计算鲁棒均值：先在 log 空间用 MAD 过滤离群点；若出现明显断层则保留包含中位数的主簇。
      */
@@ -272,7 +263,16 @@ export abstract class StatsCalculator {
             modelStats.requests++;
 
             // 速度样本仅收集到“模型”维度。
-            if (parsed.outputSpeed && parsed.outputSpeed > 0) {
+            // 排除速度超过 2000 tokens/s 的异常峰值（快速模型正常完成仅需 3-5ms，
+            // 但极端输出量+极短耗时仍会算出荒谬值），避免 MAD 在中位数被整体拉高时失效。
+            const streamDuration = parsed.streamDuration;
+            if (
+                parsed.outputSpeed &&
+                parsed.outputSpeed > 0 &&
+                parsed.outputSpeed <= 2000 &&
+                streamDuration !== undefined &&
+                streamDuration > 0
+            ) {
                 if (!modelSpeedValues[log.providerKey]) {
                     modelSpeedValues[log.providerKey] = {};
                 }
@@ -283,9 +283,10 @@ export abstract class StatsCalculator {
             }
 
             // 首 Token 延迟样本同样仅收集到“模型”维度（不做置信处理）。
+            // 过滤 10ms 以内的异常极值（响应过快的数据通常是缓存命中或系统内部请求，不代表真实首流延迟）。
             if (log.streamStartTime !== undefined && log.timestamp !== undefined) {
                 const firstTokenLatency = log.streamStartTime - log.timestamp;
-                if (Number.isFinite(firstTokenLatency) && firstTokenLatency >= 0) {
+                if (Number.isFinite(firstTokenLatency) && firstTokenLatency >= 10) {
                     if (!modelFirstTokenLatencyAcc[log.providerKey]) {
                         modelFirstTokenLatencyAcc[log.providerKey] = {};
                     }

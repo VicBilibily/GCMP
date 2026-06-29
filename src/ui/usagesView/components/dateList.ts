@@ -34,7 +34,6 @@ function createDateListItem(summary: DateSummary): HTMLElement {
     const inner = createElement('div');
     inner.onclick = () => {
         if (window.usagesState) {
-            console.log('selectDate:', summary.date, 'current:', window.usagesState.selectedDate);
             window.usagesState.selectedDate = summary.date;
         }
         // 设置加载状态

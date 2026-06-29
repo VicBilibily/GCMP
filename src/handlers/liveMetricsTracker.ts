@@ -174,7 +174,7 @@ export interface LiveMetricsTrackerOptions {
  * - finishMetrics 幂等：可由 flushAll（正常完成）与 handler finally（异常）双路径调用
  *
  * 关键约定：
- * - heartbeat() 只触发受节流的轻量刷新，不会固定首流时间（避免 ping/空 chunk 过早固定）
+ * - heartbeat() 只触发受节流的实时指标更新，不会固定首流时间（避免 ping/空 chunk 过早固定）
  * - reportOutput() 在首流未固定时会用当前时间兜底固定首流时间
  * - charsPerSecond 在暂停期间保持冻结（仅在实际收到输出字符时更新）
  */
@@ -282,7 +282,7 @@ export class LiveMetricsTracker {
     }
 
     /**
-     * 心跳：触发受节流的轻量刷新。
+     * 心跳：触发受节流的实时指标更新。
      * 不得固定首流时间（避免 ping/空 chunk 过早固定）。
      */
     heartbeat(): void {

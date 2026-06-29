@@ -16,10 +16,13 @@ import { LogReadManager } from './logReadManager';
 import { LogIndexManager } from './logIndexManager';
 import { StatsCalculator } from './statsCalculator';
 import { AtomicJsonFile } from '../atomicJsonFile';
+import { SnapshotManager } from './snapshotManager';
+import { DateUtils } from './dateUtils';
 import type {
     FileLoggerModelStats,
     FileLoggerProviderStats,
     HourlyStats,
+    TokenRequestLog,
     TokenStats,
     TokenUsageStatsFromFile
 } from './types';
@@ -33,35 +36,25 @@ export class LogStatsManager {
     private readonly baseDir: string;
     private readonly indexManager: LogIndexManager;
     private readonly inFlightRegenerations = new Map<string, Promise<TokenUsageStatsFromFile>>();
-    // 缓存创建时间戳：用于判断缓存是否比日志文件更新
-    private _cacheVersionTimestamp: number = 0;
     // 代码版本时间戳：用于判断缓存是否由当前版本代码生成
     private _codeVersionTimestamp: number = 0;
 
     constructor(
         private readManager: LogReadManager,
         baseDir: string,
-        indexManager: LogIndexManager
+        indexManager: LogIndexManager,
+        private snapshotManager: SnapshotManager
     ) {
         this.baseDir = path.join(baseDir, 'usages');
         this.indexManager = indexManager;
     }
 
     /**
-     * 更新缓存版本时间戳
-     * @param cacheTimestamp 缓存创建时间戳
+     * 更新代码版本时间戳
      * @param codeVersionTimestamp 代码版本时间戳
      */
-    updateCacheVersionTimestamp(cacheTimestamp: number, codeVersionTimestamp: number): void {
-        this._cacheVersionTimestamp = cacheTimestamp;
+    updateCodeVersionTimestamp(codeVersionTimestamp: number): void {
         this._codeVersionTimestamp = codeVersionTimestamp;
-    }
-
-    /**
-     * 获取当前缓存创建时间戳
-     */
-    private getCacheVersionTimestamp(): number {
-        return this._cacheVersionTimestamp;
     }
 
     /**
@@ -111,6 +104,16 @@ export class LogStatsManager {
         const regenerationPromise = (async () => {
             StatusLogger.debug(`[LogStatsManager] Regenerating stats: ${dateStr}`);
             const stats = await this.calculateDateStats(dateStr);
+            // calculateDateStats 在签名一致时会直接返回 existingStats（未重算）。
+            // 此时若版本戳已是当前代码版本，说明磁盘内容完全有效，跳过 saveDateStats 的重写 I/O。
+            if (
+                stats.recordSignature &&
+                stats.versionTimestamp !== undefined &&
+                stats.versionTimestamp >= this.getCodeVersionTimestamp()
+            ) {
+                StatusLogger.trace(`[LogStatsManager] Stats unchanged, skip save: ${dateStr}`);
+                return stats;
+            }
             await this.saveDateStats(dateStr, stats);
             return stats;
         })();
@@ -123,6 +126,20 @@ export class LogStatsManager {
 
         this.inFlightRegenerations.set(dateStr, sharedPromise);
         return sharedPromise;
+    }
+
+    /**
+     * 判断指定日期是否应优先读取原始 hourly .jsonl。
+     * 仅“今天”和“昨天”读 raw .jsonl；更早的日期统一读 requests.jsonl 快照。
+     * 与 TokenFileLogger.shouldReadRawJsonl 保持一致，避免今天/昨天统计读到旧 snapshot。
+     */
+    private shouldReadRawJsonl(dateStr: string): boolean {
+        const today = DateUtils.getTodayDateString();
+        if (dateStr === today) {
+            return true;
+        }
+        const yesterday = DateUtils.getDateStringDaysAgo(1);
+        return dateStr === yesterday;
     }
 
     /**
@@ -142,68 +159,100 @@ export class LogStatsManager {
      * @private 内部使用，通过 getDateStats 访问
      */
     private async calculateDateStats(dateStr: string): Promise<TokenUsageStatsFromFile> {
-        // 读取现有的统计数据
+        // 今天/昨天优先从 raw hourly .jsonl 读取，避免读到旧的 requests.jsonl 快照；
+        // 更早日期优先从 requests.jsonl 快照读取（缓存命中时零 I/O），全量按小时分桶聚合。
+        const snapshotRecords = this.shouldReadRawJsonl(dateStr) ? null : await this.snapshotManager.read(dateStr);
+
+        // 计算快照记录指纹：records:completed:failed:maxStreamEndTime
+        // - records 变化：有新请求
+        // - completed/failed 变化：状态转移（estimated → completed/failed）
+        // - maxStreamEndTime 变化：有新的实际 token 数据写入（updateActualTokens 触发）
+        // 仅 snapshotRecords 存在时启用签名快返；JSONL fallback 必须实际读取日志，避免旧 "0:0:0:0" 误命中。
+        let signature: string | undefined;
+        if (snapshotRecords) {
+            let totalRecords = 0;
+            let completedCount = 0;
+            let failedCount = 0;
+            let maxStreamEndTime = 0;
+            for (const r of snapshotRecords) {
+                totalRecords++;
+                if (r.status === 'completed') {
+                    completedCount++;
+                } else if (r.status === 'failed') {
+                    failedCount++;
+                }
+                if (r.streamEndTime && r.streamEndTime > maxStreamEndTime) {
+                    maxStreamEndTime = r.streamEndTime;
+                }
+            }
+            signature = `${totalRecords}:${completedCount}:${failedCount}:${maxStreamEndTime}`;
+        }
+
+        // 签名一致且版本戳有效：跳过全量聚合，直接返回现有 stats（消除无意义的重算与 stats.json 重写）
+        // 必须同时校验 versionTimestamp：否则代码升级（统计口径变化）后，
+        // 只要 signature 恰好一致，旧版本生成的 stats 会被原样返回并保存（versionTimestamp 被刷新），
+        // 导致新口径永远不会重算。versionTimestamp 由 needsRegeneration/getCodeVersionTimestamp 控制。
         const existingStats = await this.loadStats(dateStr);
-
-        // 检查是否需要跳过旧缓存：
-        // - 没有缓存
-        // - 缓存没有 versionTimestamp（旧格式）
-        // - 缓存版本 < 当前代码版本
-        const hasValidCache =
+        if (
+            signature &&
             existingStats &&
+            existingStats.recordSignature === signature &&
             existingStats.versionTimestamp !== undefined &&
-            existingStats.versionTimestamp >= this.getCodeVersionTimestamp();
-        const existingHourly = hasValidCache ? existingStats.hourly || {} : {};
-        if (!hasValidCache) {
-            StatusLogger.debug(`[LogStatsManager] Cache version is invalid, recalculating from scratch: ${dateStr}`);
+            existingStats.versionTimestamp >= this.getCodeVersionTimestamp()
+        ) {
+            StatusLogger.trace(`[LogStatsManager] Stats unchanged (sig: ${signature}), skip: ${dateStr}`);
+            return existingStats;
         }
 
-        // 获取日期文件夹中所有存在的小时文件
-        const dateFolder = path.join(this.baseDir, dateStr);
-        let hourFiles: number[] = [];
-        try {
-            const files = await fs.readdir(dateFolder);
-            hourFiles = files
-                .filter(f => f.endsWith('.jsonl'))
-                .map(f => parseInt(f.slice(0, 2), 10))
-                .filter(h => !Number.isNaN(h) && h >= 0 && h <= 23)
-                .sort((a, b) => a - b);
-        } catch {
-            StatusLogger.debug(`[LogStatsManager] Date folder does not exist or cannot be read: ${dateStr}`);
-        }
+        const hourly: Record<string, HourlyStats> = {};
 
-        // 初始化小时统计结果
-        const hourly: Record<string, HourlyStats> = { ...existingHourly };
-
-        // 遍历所有小时文件，增量更新 hourly cache
-        for (const hour of hourFiles) {
-            const hourKey = String(hour).padStart(2, '0');
-            const hourFileModified = await this.readManager.getHourFileModifiedTime(dateStr, hour);
-            const existingHourlyStats = existingHourly[hourKey];
-            const existingModified = existingHourlyStats?.modifiedTime;
-
-            // 检查是否需要重新计算：
-            // 1. 如果没有现有统计，需要计算
-            // 2. 如果文件修改时间变了，需要重新计算
-            const needsRecalculate = !existingHourlyStats || existingModified !== hourFileModified;
-            if (!needsRecalculate) {
-                // 文件未改变，保留现有统计
-                StatusLogger.trace(
-                    `[LogStatsManager] Hourly file unchanged, skipping recalculation: ${dateStr} ${hourKey}:00`
-                );
-                continue;
+        if (snapshotRecords && snapshotRecords.length > 0) {
+            // 按小时分桶（使用本地时区，与历史 .jsonl 文件名口径一致）
+            const recordsByHour = new Map<string, TokenRequestLog[]>();
+            for (const record of snapshotRecords) {
+                const hour = new Date(record.timestamp).getHours();
+                const hourKey = String(hour).padStart(2, '0');
+                let bucket = recordsByHour.get(hourKey);
+                if (!bucket) {
+                    bucket = [];
+                    recordsByHour.set(hourKey, bucket);
+                }
+                bucket.push(record);
             }
 
-            // 需要重新计算
-            StatusLogger.debug(`[LogStatsManager] Hourly file changed, recalculating: ${dateStr} ${hourKey}:00`);
-            const logs = await this.readManager.readHourLogs(dateStr, hour);
-            const hourStats = StatsCalculator.aggregateLogs(logs);
-            // 更新该小时的统计（包含 modifiedTime 和 providers）
-            hourly[hourKey] = {
-                ...hourStats.total,
-                modifiedTime: hourFileModified,
-                providers: hourStats.providers
-            };
+            // 逐小时聚合
+            for (const [hourKey, hourRecords] of recordsByHour) {
+                const hourStats = StatsCalculator.aggregateLogs(hourRecords);
+                hourly[hourKey] = {
+                    ...hourStats.total,
+                    modifiedTime: Date.now(),
+                    providers: hourStats.providers
+                };
+            }
+        } else {
+            // 回退：从 JSONL 读取（首次安装等尚无 requests.jsonl 快照的场景）
+            StatusLogger.debug(`[LogStatsManager] No snapshot data for ${dateStr}, falling back to JSONL`);
+            const dateFolder = path.join(this.baseDir, dateStr);
+            try {
+                const files = await fs.readdir(dateFolder);
+                const hourFiles = files
+                    .filter(f => /^\d{2}\.jsonl$/.test(f))
+                    .map(f => parseInt(f.slice(0, 2), 10))
+                    .filter(h => !Number.isNaN(h) && h >= 0 && h <= 23)
+                    .sort((a, b) => a - b);
+                for (const hour of hourFiles) {
+                    const hourKey = String(hour).padStart(2, '0');
+                    const logs = await this.readManager.readHourLogs(dateStr, hour);
+                    const hourStats = StatsCalculator.aggregateLogs(logs);
+                    hourly[hourKey] = {
+                        ...hourStats.total,
+                        modifiedTime: Date.now(),
+                        providers: hourStats.providers
+                    };
+                }
+            } catch {
+                StatusLogger.debug(`[LogStatsManager] Date folder does not exist or cannot be read: ${dateStr}`);
+            }
         }
 
         // 小时缓存就绪后：
@@ -363,7 +412,11 @@ export class LogStatsManager {
             }
         }
 
-        return { total, providers, hourly };
+        const result: TokenUsageStatsFromFile = { total, providers, hourly };
+        if (signature) {
+            result.recordSignature = signature;
+        }
+        return result;
     }
 
     /**
@@ -507,8 +560,7 @@ export class LogStatsManager {
      * 1. 如果 stats.json 不存在，需要生成
      * 2. 如果没有 versionTimestamp（旧格式缓存），需要重新生成
      * 3. 如果 versionTimestamp < 代码版本时间戳，需要重新生成（代码更新了）
-     * 4. 如果 stats.json 修改时间 < 缓存创建时间，说明是缓存重建前生成的旧统计，需要重新生成
-     * 5. 如果 stats.json 修改时间 >= 缓存创建时间，检查是否有更新的日志文件
+     * 4. 检查是否有更新的日志文件（snapshot / hourly jsonl）
      * @param dateStr 日期字符串 (YYYY-MM-DD)
      * @returns true 表示需要重新生成，false 表示无需重新生成
      */
@@ -544,26 +596,28 @@ export class LogStatsManager {
                 return true;
             }
 
-            // 步骤4: 检查缓存是否比日志文件更新
+            // 步骤4: 检查是否有更新的数据源
             const statsStats = fsSync.statSync(statsFilePath);
             const statsMtime = statsStats.mtimeMs;
-            const cacheVersionTimestamp = this.getCacheVersionTimestamp();
-
-            // 如果 stats.json 修改时间 < 缓存创建时间，说明是缓存重建前生成的旧统计，需要重新生成
-            if (statsMtime < cacheVersionTimestamp) {
-                return true;
-            }
-
-            // stats.json 修改时间 >= 缓存创建时间，检查是否有更新的日志文件
             const dateFolder = path.join(this.baseDir, dateStr);
             if (!fsSync.existsSync(dateFolder)) {
                 return false;
             }
 
-            // 读取日期文件夹中的所有文件
+            // 新 snapshot 数据源：requests.jsonl
+            const snapshotPath = path.join(dateFolder, 'requests.jsonl');
+            const snapshotSourcePath = fsSync.existsSync(snapshotPath) ? snapshotPath : null;
+            if (snapshotSourcePath) {
+                const snapshotStats = fsSync.statSync(snapshotSourcePath);
+                if (snapshotStats.mtimeMs > statsMtime) {
+                    StatusLogger.debug(`[LogStatsManager] stats.json for ${dateStr} is outdated (snapshot changed)`);
+                    return true;
+                }
+            }
+
+            // 旧 JSONL 数据源：兼容尚未整理的历史/回退路径
             const files = await fs.readdir(dateFolder);
-            const logFiles = files.filter(f => f.endsWith('.jsonl'));
-            // 检查是否有任何日志文件的修改时间晚于 stats.json
+            const logFiles = files.filter(f => /^\d{2}\.jsonl$/.test(f));
             for (const logFile of logFiles) {
                 const logFilePath = path.join(dateFolder, logFile);
                 const logStats = fsSync.statSync(logFilePath);
@@ -575,30 +629,11 @@ export class LogStatsManager {
                 }
             }
 
-            // 没有更新的日志文件，缓存有效
+            // 没有更新的数据源，缓存有效
             return false;
         } catch (err) {
             StatusLogger.warn(`[LogStatsManager] Failed to check whether date ${dateStr} needs regeneration:`, err);
             return false;
-        }
-    }
-
-    /**
-     * 确保目录存在(递归创建)
-     */
-    private async ensureDirectoryExists(dirPath: string): Promise<void> {
-        try {
-            // 同步检查避免竞态条件
-            if (!fsSync.existsSync(dirPath)) {
-                await fs.mkdir(dirPath, { recursive: true });
-                StatusLogger.debug(`[LogStatsManager] Created directory: ${dirPath}`);
-            }
-        } catch (err) {
-            // 忽略已存在错误
-            const error = err as NodeJS.ErrnoException;
-            if (error.code !== 'EEXIST') {
-                throw err;
-            }
         }
     }
 }

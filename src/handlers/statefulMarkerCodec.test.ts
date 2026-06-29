@@ -56,7 +56,7 @@ test('backward compatibility: old raw JSON format can still be decoded', () => {
         'deepseek-v4-flash\\{"sessionId":"old-uuid-xxxx-yyyy","responseId":"resp-123"}'
     );
 
-    const decoded = decodeStatefulMarkerPayload(oldRawPayload);
+    const decoded = decodeStatefulMarkerPayload<{ sessionId: string; responseId: string }>(oldRawPayload);
 
     assert.ok(decoded, 'old raw JSON format should be decoded');
     assert.equal(decoded.modelId, 'deepseek-v4-flash');

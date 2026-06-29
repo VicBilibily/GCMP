@@ -53,31 +53,6 @@ export class LogWriteManager {
     }
 
     /**
-     * 批量追加日志条目
-     */
-    async appendLogs(logs: TokenRequestLog[]): Promise<void> {
-        if (this.isDisposed) {
-            throw new Error(
-                t('[LogWriteManager] Write manager has been disposed', '[LogWriteManager] 写入管理器已销毁')
-            );
-        }
-
-        // 批量添加到队列
-        const promises = logs.map(
-            log =>
-                new Promise<void>((resolve, reject) => {
-                    this.writeQueue.push({ log, resolve, reject });
-                })
-        );
-
-        // 触发处理
-        this.processQueue();
-
-        // 等待所有任务完成
-        await Promise.all(promises);
-    }
-
-    /**
      * 处理写入队列
      */
     private async processQueue(): Promise<void> {

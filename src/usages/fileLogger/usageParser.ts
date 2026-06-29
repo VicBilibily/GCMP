@@ -5,9 +5,6 @@
 
 import type { TokenRequestLog } from './types';
 
-/** 可接受的最大输出速度(tokens/s)；超过此值视为异常采样数据并丢弃 */
-const MAX_REASONABLE_OUTPUT_SPEED = 2000;
-
 /**
  * 解析后的 token 统计
  */
@@ -123,9 +120,9 @@ export class UsageParser {
             const totalTokens = typeof rawUsage.total_tokens === 'number' ? rawUsage.total_tokens : 0;
 
             const rawCachedTokens =
-                typeof rawUsage.prompt_tokens_details?.cached_tokens === 'number'
-                    ? rawUsage.prompt_tokens_details.cached_tokens
-                    : 0;
+                typeof rawUsage.prompt_tokens_details?.cached_tokens === 'number' ?
+                    rawUsage.prompt_tokens_details.cached_tokens
+                :   0;
 
             // 标准 OpenAI 口径：prompt_tokens 通常已包含 cached_tokens。
             // 部分 OpenAI-compatible 网关（例如 Hyper）可能将 prompt_tokens 仅作为新增/未缓存输入，
@@ -182,11 +179,6 @@ export class UsageParser {
         let duration: number | undefined;
         if (log.streamStartTime && log.streamEndTime) {
             duration = log.streamEndTime - log.streamStartTime;
-            // 如果流耗时小于 10ms，使用整个请求的耗时
-            if (duration < 10 && log.timestamp) {
-                duration = log.streamEndTime - log.timestamp;
-                log.streamStartTime = undefined; // 不可信，重置流开始时间
-            }
         } else if (log.streamEndTime) {
             // 如果只有流结束时间，使用流结束时间和请求时间的差值作为耗时
             duration = log.streamEndTime - log.timestamp;
@@ -196,11 +188,7 @@ export class UsageParser {
         if (duration && duration > 0) {
             result.streamDuration = duration;
             if (result.outputTokens > 0) {
-                const speed = (result.outputTokens / duration) * 1000; // tokens/s
-                // 速度超过合理上限时视为异常采样数据（如计时抖动导致的极大值），直接抛弃
-                if (speed <= MAX_REASONABLE_OUTPUT_SPEED) {
-                    result.outputSpeed = speed;
-                }
+                result.outputSpeed = (result.outputTokens / duration) * 1000;
             }
         }
 

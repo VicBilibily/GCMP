@@ -151,7 +151,7 @@ export class StreamReporter {
     }
 
     /**
-     * 心跳：触发受节流的轻量刷新（不固定首流时间）。
+     * 心跳：触发受节流的实时指标更新（不固定首流时间）。
      */
     heartbeat(): void {
         this.tracker.heartbeat();
@@ -307,7 +307,7 @@ export class StreamReporter {
      * 当检测到工具调用完成时，立即报告
      *
      * 关键实现约定：
- * - 首次为某 index 创建工具调用 buffer 时：flushThinking + endThinkingChain + flushText
+     * - 首次为某 index 创建工具调用 buffer 时：flushThinking + endThinkingChain + flushText
      * - 工具完成时：flushText + flushThinking + flushSignature + thoughtSignature
      *   （不调用 endThinkingChain，思维链的结束留给后续 reportText / flushAll 处理）
      */

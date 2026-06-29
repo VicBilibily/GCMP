@@ -25,6 +25,10 @@ export class TokenUsagesView {
     private liveMetricsDisposable: vscode.Disposable | undefined;
     private currentSelectedDate: string | undefined; // 当前查看的日期
     private hasCheckedOutdatedStats: boolean = false; // 是否已检查过过期统计
+    // smartRefresh 防抖：合并短时间内的多次刷新请求，避免并发读到不一致中间状态
+    private smartRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+    private smartRefreshInFlight: Promise<void> | null = null;
+    private smartRefreshPending: boolean = false; // 执行期间又有新请求，需再刷一次
 
     constructor(private context: vscode.ExtensionContext) {
         this.usagesManager = TokenUsagesManager.instance;
@@ -64,7 +68,7 @@ export class TokenUsagesView {
             this.context.subscriptions
         );
 
-        // 监听统计更新事件，智能刷新视图
+        // 监听统计更新事件，智能刷新视图（带防抖）
         this.updateDisposable = this.usagesManager.onStatsUpdate(() => {
             if (this.panel) {
                 this.smartRefresh();
@@ -99,15 +103,6 @@ export class TokenUsagesView {
         }
 
         try {
-            // 检查并重新生成过期的统计数据（仅在首次打开时执行）
-            if (!this.hasCheckedOutdatedStats) {
-                await this.usagesManager.getFileLogger().regenerateOutdatedStats();
-                this.hasCheckedOutdatedStats = true;
-            }
-
-            // 获取所有日期摘要
-            await this.usagesManager.getAllDateSummaries();
-
             // 确定要显示的日期（默认为今日）
             const today = getTodayDateString();
             const displayDate = selectedDate || today;
@@ -115,18 +110,86 @@ export class TokenUsagesView {
             // 记录当前查看的日期
             this.currentSelectedDate = displayDate;
 
+            // 先把 HTML 设置好，让 WebView 立即可见，避免 regenerateOutdatedStats 阻塞加载
             this.panel.webview.html = this.getWebviewContent();
+
+            // 异步检查并重新生成过期的统计数据（仅在首次打开时执行，不阻塞 HTML 渲染）
+            if (!this.hasCheckedOutdatedStats) {
+                this.hasCheckedOutdatedStats = true;
+                this.usagesManager
+                    .getFileLogger()
+                    .regenerateOutdatedStats()
+                    .then(regenerated => {
+                        // 后台重建会更新 stats.json / index.json，但不会触发 onStatsUpdate。
+                        // 若确实重建了统计，主动刷新一次当前视图，避免首次打开后历史统计停留在旧值。
+                        if (this.panel && Object.keys(regenerated).length > 0) {
+                            void this.refreshAfterOutdatedStatsRegenerated(new Set(Object.keys(regenerated)));
+                        }
+                    })
+                    .catch(err => StatusLogger.warn('[TokenUsagesView] Failed to regenerate outdated stats:', err));
+            }
         } catch (err) {
             StatusLogger.error('[TokenUsagesView] Failed to update view:', err);
         }
     }
 
     /**
-     * 智能刷新 - 数据变更时总是通知页面更新
-     * - 如果正在查看今日：刷新整个详情（包括请求记录）+ 更新日期列表
-     * - 如果正在查看其他日期：只刷新左侧日期列表的统计数字
+     * 后台重建过期统计后刷新当前视图。
+     * 若当前正在查看的日期刚被重建，需要刷新右侧详情；否则只刷新左侧日期列表。
      */
-    private async smartRefresh(): Promise<void> {
+    private async refreshAfterOutdatedStatsRegenerated(regeneratedDates: Set<string>): Promise<void> {
+        if (!this.panel) {
+            return;
+        }
+
+        const today = getTodayDateString();
+        const selectedDate = this.currentSelectedDate || today;
+        if (regeneratedDates.has(selectedDate)) {
+            await this.updateDateDetails(selectedDate);
+        }
+        await this.updateDateListOnly();
+    }
+
+    /**
+     * 智能刷新 - 数据变更时通知页面更新（带防抖 + 去重）
+     *
+     * 防抖理由：recordEstimatedTokens 和 updateActualTokens 都会触发 notifyUpdate，
+     * 短时间内多次刷新会并发读到不一致中间状态（estimated 写入但 completed 未写入等），
+     * 且后发的可能先到 webview 造成闪烁/错乱。
+     * 合并为 50ms 窗口内的一次刷新，确保读到一致状态。
+     * 执行期间若有新请求，会在当前完成后再刷一次（避免漏掉最新数据）。
+     */
+    private smartRefresh(): void {
+        // 已有待执行的任务（在防抖窗口内），新请求会被它覆盖，无需再加
+        if (this.smartRefreshTimer) {
+            return;
+        }
+        this.smartRefreshTimer = setTimeout(() => {
+            this.smartRefreshTimer = null;
+            void this.runSmartRefresh();
+        }, 50);
+    }
+
+    private async runSmartRefresh(): Promise<void> {
+        // 已有刷新在执行：标记需要在完成后追加一次
+        if (this.smartRefreshInFlight) {
+            this.smartRefreshPending = true;
+            return;
+        }
+        this.smartRefreshInFlight = this.doSmartRefresh();
+        try {
+            await this.smartRefreshInFlight;
+        } finally {
+            this.smartRefreshInFlight = null;
+            // 执行期间有新请求到来，再刷一次
+            if (this.smartRefreshPending) {
+                this.smartRefreshPending = false;
+                void this.runSmartRefresh();
+            }
+        }
+    }
+
+    private async doSmartRefresh(): Promise<void> {
         if (!this.panel) {
             return;
         }
@@ -134,17 +197,14 @@ export class TokenUsagesView {
         const today = getTodayDateString();
         const isViewingToday = this.currentSelectedDate === today;
 
-        StatusLogger.debug(
-            `[TokenUsagesView] Smart refresh: viewingDate=${this.currentSelectedDate}, today=${today}, viewingToday=${isViewingToday}`
-        );
-
         if (isViewingToday) {
-            // 查看今日 - 刷新整个详情（包括请求记录）+ 更新日期列表
             StatusLogger.debug("[TokenUsagesView] Refreshing today's details + date list");
+            // 顺序执行：updateDateDetails 内部 getDateStatsFromFile 会触发 saveDateStats →
+            // indexManager.updateIndex 更新日期索引；先完成详情刷新，updateDateListOnly 才能读到最新索引，
+            // 避免左侧日期列表统计比右侧详情慢一拍。
             await this.updateDateDetails(today);
             await this.updateDateListOnly();
         } else {
-            // 查看其他日期 - 只刷新日期列表统计
             StatusLogger.debug('[TokenUsagesView] Refreshing date list only');
             await this.updateDateListOnly();
         }
@@ -182,13 +242,16 @@ export class TokenUsagesView {
         }
 
         try {
-            const dateSummaries = await this.usagesManager.getAllDateSummaries();
             const today = getTodayDateString();
             const displayDate = today;
 
-            // 获取选中日期的详细数据
+            // 先获取选中日期的详细数据：getDateStatsFromFile 可能触发 stats.json / index.json 更新。
+            // 完成后再读取日期摘要，确保初始左侧日期列表和右侧详情口径一致。
             const dateStats = await this.usagesManager.getDateStatsFromFile(displayDate);
-            const dateRecords = await this.usagesManager.getDateRecords(displayDate);
+            const [dateSummaries, dateRecords] = await Promise.all([
+                this.usagesManager.getAllDateSummaries(),
+                this.usagesManager.getDateRecords(displayDate)
+            ]);
 
             // 转换 providers 为数组，同时添加 providerKey 字段（因为 Object.values 会丢失 key）
             const providers = Object.entries(dateStats.providers).map(([key, value]) => ({
@@ -231,10 +294,6 @@ export class TokenUsagesView {
             case 'getInitialData':
                 await this.sendInitialData();
                 this.pushActiveLiveMetricsSnapshot();
-                break;
-
-            case 'refresh':
-                await this.updateView(message.date);
                 break;
 
             case 'selectDate':
@@ -320,9 +379,11 @@ export class TokenUsagesView {
         try {
             const today = getTodayDateString();
 
-            // 从文件直接读取,不使用缓存
-            const dateStats = await this.usagesManager.getDateStatsFromFile(date);
-            const dateRecords = await this.usagesManager.getDateRecords(date);
+            // 并行读取 stats 和 records（两者无依赖），一次性发送避免闪屏
+            const [dateStats, dateRecords] = await Promise.all([
+                this.usagesManager.getDateStatsFromFile(date),
+                this.usagesManager.getDateRecords(date)
+            ]);
 
             // 转换 providers 为数组，同时添加 providerKey 字段（因为 Object.values 会丢失 key）
             const providers = Object.entries(dateStats.providers).map(([key, value]) => ({
@@ -344,9 +405,9 @@ export class TokenUsagesView {
                     command: 'updateDateDetails',
                     date,
                     isToday: date === today,
-                    providers: providers,
+                    providers,
                     hourlyStats: dateStats.hourly || {},
-                    records: dateRecords // getDateRecords 已经返回扩展后的记录
+                    records: dateRecords
                 } as UpdateDateDetailsMessage);
             }
 
@@ -415,6 +476,10 @@ export class TokenUsagesView {
      * 销毁视图
      */
     dispose(): void {
+        if (this.smartRefreshTimer) {
+            clearTimeout(this.smartRefreshTimer);
+            this.smartRefreshTimer = null;
+        }
         this.updateDisposable?.dispose();
         this.panel?.dispose();
         this.multiDayView?.dispose();
