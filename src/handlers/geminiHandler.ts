@@ -795,10 +795,14 @@ export class GeminiHandler {
         const streamEndTime = Date.now();
 
         // 流结束，输出所有剩余内容
-        reporter.flushAll(null, {
-            sessionId: reporter.getSessionId(),
-            responseId: reporter.getResponseId() as string
-        });
+        reporter.flushAll(
+            null,
+            {
+                sessionId: reporter.getSessionId(),
+                responseId: reporter.getResponseId() as string
+            },
+            finalUsage
+        );
         reporter.reportUsage(finalUsage);
 
         // Token 统计: 更新实际 token

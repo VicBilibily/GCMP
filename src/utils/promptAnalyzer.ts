@@ -16,6 +16,8 @@ import { PromptPartTokens } from '../status/contextUsageStatusBar';
 import { Logger } from './logger';
 import { sanitizeToolSchemaForSdkMode } from './schemaSanitizer';
 import { TokenCounter } from './tokenCounter';
+import { decodeStatefulMarker } from '../handlers/statefulMarker';
+import { CustomDataPartMimeTypes } from '../handlers/types';
 
 /**
  * 提示词分析器
@@ -213,6 +215,53 @@ export class PromptAnalyzer {
                 Logger.debug(`[${providerKey}] Detected environment message, tokens=${environmentTokens}`);
             }
 
+            // ===== 支持增量 token 预估：检测 stateful marker 中的 usage =====
+            // 如果上一轮请求的 API 返回了 usage 信息，会记录在 stateful marker 的 usage 字段中。
+            // 本轮可以基于该实际 usage 做增量预估：仅计算新增消息的 token，历史部分直接复用 baseline。
+            // 这样可以避免不同模型 tokenizer 差异在长上下文中被反复放大。
+            let usageBaseline: number | undefined;
+            let usageMarkerIndex = -1;
+            // 累计标记索引之后的新增消息 token（增量预估的 delta 部分）
+            let deltaTokens = 0;
+
+            for (let i = messages.length - 1; i >= 0; i--) {
+                const message = messages[i];
+                if (message.role === vscode.LanguageModelChatMessageRole.Assistant && Array.isArray(message.content)) {
+                    for (const part of message.content) {
+                        if (
+                            typeof part === 'object' &&
+                            part !== null &&
+                            'mimeType' in part &&
+                            (part as { mimeType: string }).mimeType === CustomDataPartMimeTypes.StatefulMarker &&
+                            'data' in part
+                        ) {
+                            const dataPart = part as { data: Uint8Array };
+                            try {
+                                const decoded = decodeStatefulMarker(dataPart.data);
+                                const promptTokens = decoded?.marker?.usage?.prompt_tokens;
+                                if (typeof promptTokens === 'number' && promptTokens > 0) {
+                                    usageBaseline = promptTokens;
+                                    usageMarkerIndex = i;
+                                    break;
+                                }
+                            } catch {
+                                // 解码失败，忽略
+                            }
+                        }
+                    }
+                    if (usageBaseline !== undefined) {
+                        break;
+                    }
+                }
+            }
+
+            if (usageBaseline !== undefined) {
+                Logger.debug(
+                    `[${providerKey}] Incremental estimation enabled: baseline=${usageBaseline} ` +
+                        `(from usage at message ${usageMarkerIndex})`
+                );
+            }
+
             // ===== 4. 分析消息：用户、助手、其他角色合并为 userAssistantMessage =====
             // 同时拆分为历史消息和本轮消息
 
@@ -353,6 +402,11 @@ export class PromptAnalyzer {
 
                 // Logger.debug(`[${providerKey}] 处理消息 [${i}] role=${role}, tokens=${messageTokens}`);
 
+                // 增量预估：累计标记索引及之后的消息作为 delta，包括上轮 assistant 回复本身的 token 开销
+                if (usageBaseline !== undefined && i >= usageMarkerIndex) {
+                    deltaTokens += messageTokens;
+                }
+
                 // 按官方标准合并：所有非系统、非压缩的消息都并入 userAssistantMessage
                 // 包括：user、assistant、tool、function 等所有对话角色
                 if (
@@ -393,13 +447,38 @@ export class PromptAnalyzer {
             );
 
             // ===== 5. 计算上下文总占用 =====
-            // context = systemPrompt + availableTools + environment + userAssistantMessage + autoCompressed
-            const contextTotal =
-                (promptParts.systemPrompt || 0) +
-                (promptParts.availableTools || 0) +
-                (promptParts.environment || 0) +
-                (promptParts.autoCompressed || 0) +
-                (promptParts.userAssistantMessage || 0);
+            // 支持增量预估模式：如果存在 usage baseline，使用实际 usage 作为历史部分的 baseline，
+            // 配合新增消息的 delta，拼出当前总占用。这样不同模型的 tokenizer 差异只影响新增部分，
+            // 不会在长上下文中被反复放大。
+            let contextTotal: number;
+            if (usageBaseline !== undefined) {
+                // 增量模式：baseline（来自上一轮 API 实际 usage）+ delta（本轮新增消息）
+                contextTotal = usageBaseline + deltaTokens;
+                promptParts.requestIncrement = deltaTokens;
+                Logger.debug(
+                    `[${providerKey}] Incremental context: baseline=${usageBaseline}, delta=${deltaTokens}, total=${contextTotal}`
+                );
+
+                // 重新推算 userAssistantMessage：总占用减去其他已知部分
+                // 注意：baseline 已包含旧的 system/tools/env，此处使用当前计算的新值做减法，
+                // 得到的是"当前消息部分"的近似值。由于 system/tools/env 在会话中通常稳定，此近似足够准确。
+                promptParts.userAssistantMessage = Math.max(
+                    0,
+                    contextTotal -
+                        (promptParts.systemPrompt || 0) -
+                        (promptParts.availableTools || 0) -
+                        (promptParts.environment || 0) -
+                        (promptParts.autoCompressed || 0)
+                );
+            } else {
+                // 传统全量模式：逐项累加
+                contextTotal =
+                    (promptParts.systemPrompt || 0) +
+                    (promptParts.availableTools || 0) +
+                    (promptParts.environment || 0) +
+                    (promptParts.autoCompressed || 0) +
+                    (promptParts.userAssistantMessage || 0);
+            }
             promptParts.context = contextTotal;
             Logger.debug(
                 `[${providerKey}] Token breakdown:\n` +
@@ -412,6 +491,9 @@ export class PromptAnalyzer {
                     `    - Thinking content: ${promptParts.thinking} tokens (LanguageModelThinkingPart)\n` +
                     `    - Current round messages: ${promptParts.currentRoundMessages} tokens (starting from the last user text message, excluding images and thinking)\n` +
                     `    - Current round images: ${promptParts.currentRoundImages || 0} tokens\n` +
+                    (usageBaseline !== undefined ?
+                        `  [Incremental mode] baseline=${usageBaseline}, delta=${deltaTokens}\n`
+                    :   '') +
                     `  = Total context: ${promptParts.context} tokens`
             );
             return promptParts;

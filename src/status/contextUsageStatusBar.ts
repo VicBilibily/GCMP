@@ -27,6 +27,8 @@ export interface PromptPartTokens {
     currentRoundMessages?: number;
     /** 本轮图片 token 数 (仅统计本轮消息中的图片 DataPart) */
     currentRoundImages?: number;
+    /** 增量预估模式下，本次请求新增 token 数 (delta) */
+    requestIncrement?: number;
     /** 思考过程 token 数 (thinking 内容) */
     thinking?: number;
     /** 自动压缩部分 token 数 */
@@ -226,6 +228,28 @@ export class ContextUsageStatusBar {
             md.appendMarkdown(
                 `| **${t('Request Source', '请求来源')}** | ${getRequestKindDisplayName(data.requestKind as RequestKind)} |\n`
             );
+        }
+
+        // 增量预估模式：显示 baseline + delta 详细信息
+        if (data.promptParts?.requestIncrement !== undefined && data.promptParts.requestIncrement > 0) {
+            md.appendMarkdown('\n---\n');
+            md.appendMarkdown('|          |          |\n');
+            md.appendMarkdown('| :------- | -------: |\n');
+            const increment = data.promptParts.requestIncrement;
+            const baseline = Math.max(0, data.inputTokens - increment);
+            const baselineTokens = this.formatTokens(baseline);
+            const incrementTokens = this.formatTokens(increment);
+            const totalTokensFormatted = this.formatTokens(data.inputTokens);
+
+            if (vscode.env.language.toLowerCase().startsWith('zh')) {
+                md.appendMarkdown(`| **预估总值** | ${totalTokensFormatted} |\n`);
+                md.appendMarkdown(`| **本次新增** | +${incrementTokens} |\n`);
+                md.appendMarkdown(`| **历史基线** | ${baselineTokens} |\n`);
+            } else {
+                md.appendMarkdown(`| **Total (est.)** | ${totalTokensFormatted} |\n`);
+                md.appendMarkdown(`| **Increment** | +${incrementTokens} |\n`);
+                md.appendMarkdown(`| **Baseline** | ${baselineTokens} |\n`);
+            }
         }
 
         if (data.promptParts) {

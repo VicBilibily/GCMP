@@ -89,6 +89,8 @@ export interface TokenRequestLog {
     modelName: string;
     /** 预估输入token */
     estimatedInput: number;
+    /** 增量预估增量：本请求新增 token 数（仅增量模式有值） */
+    estimatedIncrement?: number;
     /** 原始 usage 对象 (请求完成时存储，支持多种提供商格式) */
     rawUsage: GenericUsageData | null;
     /** 请求状态 */

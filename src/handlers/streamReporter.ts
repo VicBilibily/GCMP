@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
 import { buildCopilotUsageData } from '../utils/copilotUsage';
 import { Logger } from '../utils';
-import { encodeStatefulMarker, StatefulMarkerContainer } from './statefulMarker';
+import { encodeStatefulMarker, MarkerUsage, StatefulMarkerContainer } from './statefulMarker';
 import { toOptionalStatefulMarkerField } from './statefulMarkerCodec';
 import { CustomDataPartMimeTypes } from './types';
 import { TextBuffer, ThinkingBuffer, SignatureBuffer, ToolCallAccumulator } from './buffers';
@@ -465,9 +465,10 @@ export class StreamReporter {
      * 完成流处理，输出所有剩余内容
      * @param finishReason 结束原因
      * @param customStatefulData 自定义的 StatefulMarker 数据（可选，用于 Responses API 等特殊场景）
+     * @param finalUsage API 返回的 usage 数据（可选），写入 stateful marker 的 usage 供下轮增量预估
      * @returns 是否有内容输出
      */
-    flushAll(finishReason: string | null, customStatefulData?: StatefulMarkerPartial): boolean {
+    flushAll(finishReason: string | null, customStatefulData?: StatefulMarkerPartial, finalUsage?: unknown): boolean {
         if (finishReason) {
             Logger.debug(`[${this.modelName}] Stream finished, reason: ${finishReason}`);
         }
@@ -512,7 +513,7 @@ export class StreamReporter {
         }
 
         // 7. 报告 StatefulMarker
-        this.reportStatefulMarker(customStatefulData);
+        this.reportStatefulMarker(customStatefulData, finalUsage);
 
         // 8. 结束实时指标上报
         this.finishMetrics();
@@ -572,9 +573,23 @@ export class StreamReporter {
      * 避免 VS Code 聊天历史序列化管道因特殊字符（\n, \\, \", 等）导致的截断。
      * 详见 statefulMarkerCodec.ts 的 JSON_PAYLOAD_PREFIX 说明。
      */
-    private reportStatefulMarker(statefulMarkerData?: StatefulMarkerPartial): void {
+    private reportStatefulMarker(statefulMarkerData?: StatefulMarkerPartial, finalUsage?: unknown): void {
         const completeThinking = toOptionalStatefulMarkerField(this.thinkingBuffer.completeContent);
         const completeSignature = toOptionalStatefulMarkerField(this.signatureBuffer.completeContent);
+
+        // 从 finalUsage 构建 usage：归一化后的 prompt_tokens / completion_tokens / total_tokens
+        let innerUsage: MarkerUsage | undefined;
+        if (finalUsage) {
+            const usageData = buildCopilotUsageData(finalUsage);
+            if (usageData) {
+                innerUsage = {
+                    prompt_tokens: usageData.prompt_tokens,
+                    completion_tokens: usageData.completion_tokens,
+                    total_tokens: usageData.total_tokens
+                };
+            }
+        }
+
         const marker = encodeStatefulMarker(this.modelId, {
             ...Object.assign(
                 {
@@ -586,6 +601,7 @@ export class StreamReporter {
             completeThinking,
             completeSignature,
             hasToolCalls: this.hasToolCalls,
+            usage: innerUsage,
             provider: this.provider,
             modelId: this.modelId,
             sdkMode: this.sdkMode

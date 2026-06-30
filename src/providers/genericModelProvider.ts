@@ -44,6 +44,8 @@ import * as crypto from 'node:crypto';
 interface ContextUsageSummary {
     totalInputTokens: number;
     maxInputTokens: number;
+    /** 增量预估模式下，本次新增 token 数 (delta) */
+    estimatedIncrement?: number;
 }
 
 interface RuntimeModelOptionsTelemetry {
@@ -691,7 +693,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const kind = rtOpts.modelOptions.requestKind;
 
         // 计算输入 token 数量并更新状态栏
-        const { totalInputTokens, maxInputTokens } = await this.updateContextUsageStatusBar(
+        const { totalInputTokens, maxInputTokens, estimatedIncrement } = await this.updateContextUsageStatusBar(
             model,
             messages,
             modelConfig,
@@ -730,6 +732,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     modelId: model.id,
                     modelName: model.name || modelConfig.name,
                     estimatedInputTokens: totalInputTokens,
+                    estimatedIncrement,
                     maxInputTokens,
                     requestKind: rtOpts.modelOptions.requestKind ?? kind,
                     sessionId,
@@ -904,7 +907,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     `[${this.providerKey}] Token calc: ${totalInputTokens}/${maxInputTokens} (${percentage.toFixed(1)}%)`
                 );
             }
-            return { totalInputTokens, maxInputTokens };
+            return { totalInputTokens, maxInputTokens, estimatedIncrement: promptParts.requestIncrement };
         } catch (error) {
             // Token 计算失败不应阻止请求，只记录警告
             Logger.warn(`[${this.providerKey}] Token calculation failed:`, error);

@@ -419,7 +419,23 @@ export function createRequestRecordsTable(
             record.totalTokens > 0;
         const inputVal = hasActualUsage ? record.actualInput || 0 : record.estimatedInput || 0;
         const cacheVal = hasActualUsage && record.cacheReadTokens > 0 ? record.cacheReadTokens : 0;
-        if (cacheVal > 0 && inputVal > 0) {
+
+        // 增量预估模式：显示 预估总值 / +本次新增
+        if (
+            !hasActualUsage &&
+            record.estimatedIncrement !== undefined &&
+            record.estimatedIncrement > 0 &&
+            inputVal > 0
+        ) {
+            const increment = record.estimatedIncrement;
+            const totalFormatted = formatTokens(inputVal);
+            const incrementFormatted = increment.toLocaleString('en-US');
+            const totalTitle = `~${inputVal.toLocaleString('en-US')} input tokens (estimated)`;
+            const incrementTitle = `+${increment.toLocaleString('en-US')} tokens (this request)`;
+            input.innerHTML =
+                `<div class="input-row"><span></span><span class="input-total" title="${totalTitle}">~${totalFormatted}</span></div>` +
+                `<div class="input-detail"><span></span><span class="input-increment" title="${incrementTitle}">~${incrementFormatted}</span></div>`;
+        } else if (cacheVal > 0 && inputVal > 0) {
             const ratio = ((cacheVal / inputVal) * 100).toFixed(1);
             const miss = inputVal - cacheVal;
             const ratioNum = parseFloat(ratio);

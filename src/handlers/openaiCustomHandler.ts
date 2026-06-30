@@ -403,7 +403,7 @@ export class OpenAICustomHandler {
         const streamEndTime = Date.now();
 
         // 流结束，输出所有剩余内容
-        reporter.flushAll(null);
+        reporter.flushAll(null, undefined, finalUsage);
         reporter.reportUsage(finalUsage);
 
         Logger.trace(`[${model.name}] SSE stream stats: ${chunkCount} chunks, hasContent=${reporter.hasContent}`);

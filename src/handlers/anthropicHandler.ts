@@ -576,10 +576,11 @@ export class AnthropicHandler {
 
                     case 'message_stop': {
                         streamEndTime = Date.now();
-                        // 即便没有 responseId，也输出 StatefulMarker（仅携带 sessionId）
+                        // 即便没有 responseId，也输出 StatefulMarker（仅携带 sessionId），usage 写入 marker.usage
                         reporter.flushAll(
                             null,
-                            responseId ? { sessionId: reporter.getSessionId(), responseId } : undefined
+                            responseId ? { sessionId: reporter.getSessionId(), responseId } : undefined,
+                            usage
                         );
                         Logger.trace('Message stream completed');
                         break;

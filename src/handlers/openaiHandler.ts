@@ -1064,7 +1064,7 @@ export class OpenAIHandler {
                 streamEndTime = Date.now();
 
                 // 流结束，输出所有剩余内容
-                streamReporter.flushAll(null);
+                streamReporter.flushAll(null, undefined, finalUsage);
 
                 // 检查是否有流错误
                 if (streamError) {

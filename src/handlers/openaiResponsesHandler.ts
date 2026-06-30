@@ -1006,17 +1006,21 @@ export class OpenAIResponsesHandler {
                         }
 
                         if (responseId) {
-                            // 流结束，输出所有剩余内容和 StatefulMarker
-                            streamReporter.flushAll(null, {
-                                sessionId,
-                                responseId,
-                                expireAt: sessionExpireAt
-                            });
+                            // 流结束，输出所有剩余内容，并将 usage 写入 StatefulMarker usage
+                            streamReporter.flushAll(
+                                null,
+                                {
+                                    sessionId,
+                                    responseId,
+                                    expireAt: sessionExpireAt
+                                },
+                                finalUsage
+                            );
                             Logger.debug(
                                 `💾 ${model.name} Passed StatefulMarker: sessionId=${sessionId}, responseId=${responseId}`
                             );
                         } else {
-                            streamReporter.flushAll(null);
+                            streamReporter.flushAll(null, undefined, finalUsage);
                         }
                     })
                     .on('error', error => {

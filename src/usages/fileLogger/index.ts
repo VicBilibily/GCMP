@@ -233,6 +233,7 @@ export class TokenFileLogger {
         modelId: string;
         modelName: string;
         estimatedInput: number;
+        estimatedIncrement?: number;
         maxInputTokens?: number;
         requestKind?: string; // 请求来源类型
         sessionId?: string;
@@ -255,6 +256,7 @@ export class TokenFileLogger {
             modelId: params.modelId,
             modelName: params.modelName,
             estimatedInput: params.estimatedInput,
+            estimatedIncrement: params.estimatedIncrement,
             rawUsage: null,
             status: 'estimated',
             maxInputTokens: params.maxInputTokens,

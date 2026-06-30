@@ -108,6 +108,7 @@ export class TokenUsagesManager {
         modelId: string;
         modelName: string;
         estimatedInputTokens: number;
+        estimatedIncrement?: number;
         maxInputTokens?: number;
         requestKind?: string;
         sessionId?: string;
@@ -134,6 +135,7 @@ export class TokenUsagesManager {
                     modelId: params.modelId,
                     modelName: params.modelName,
                     estimatedInput: params.estimatedInputTokens,
+                    estimatedIncrement: params.estimatedIncrement,
                     maxInputTokens: params.maxInputTokens,
                     requestKind: params.requestKind,
                     sessionId: params.sessionId,

@@ -33,6 +33,15 @@ export interface StatefulMarkerContainer {
     completeSignature?: string;
     /** 当前 assistant 轮次是否发生过工具调用 */
     hasToolCalls?: boolean;
+    /** 跨轮次持久化的 API 实际 usage（归一化格式），供下轮增量 token 预估 */
+    usage?: MarkerUsage;
+}
+
+/** 归一化的跨轮次 usage 数据 */
+export interface MarkerUsage {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
 }
 
 export interface StatefulMarkerWithModel {
