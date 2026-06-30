@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.17] - 2026-06-30
+
+### 修复
+
+- **移除 only-thinking 响应的空白占位符**：当模型只输出思维链（`reasoning_content`）无正文时，不再注入 `\n```\n```\n\n` 历史兼容占位符，消除聊天界面中的大段空白（fixes [#260](https://github.com/VicBilibily/GCMP/issues/260)）。
+
+---
+
+### Fixed
+
+- **Removed blank placeholder for thinking-only responses**: The legacy `\n```\n```\n\n` compatibility placeholder is no longer injected when the model outputs only reasoning content without text body, eliminating large blank areas in chat UI (fixes [#260](https://github.com/VicBilibily/GCMP/issues/260)). 
+
 ## [0.25.16] - 2026-06-29
 
 ### 重构

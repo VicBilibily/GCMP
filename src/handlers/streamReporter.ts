@@ -504,18 +504,10 @@ export class StreamReporter {
             }
         }
 
-        // 6. 处理 \n 占位符（只有在没有任何内容时才添加）
-        if (this.hasThinkingContent && !this.hasReceivedContent) {
-            this.progress.report(new vscode.LanguageModelTextPart('\n```\n```\n\n'));
-            Logger.warn(
-                `[${this.modelName}] Stream ended with thinking content only and no text content; added placeholder output`
-            );
-        }
-
-        // 7. 报告 StatefulMarker
+        // 6. 报告 StatefulMarker
         this.reportStatefulMarker(customStatefulData);
 
-        // 8. 结束实时指标上报
+        // 7. 结束实时指标上报
         this.finishMetrics();
 
         return this.hasReceivedContent;
