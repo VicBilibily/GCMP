@@ -114,7 +114,7 @@ function buildModelConfigurationProperties(model: ModelConfig): Record<string, P
                         adaptive: t('Adapt reasoning depth to the current context.', '根据上下文自适应')
                     })[value] || value
             ),
-            default: thinkingOptions.includes('enabled') ? 'enabled' : thinkingOptions[0],
+            default: thinkingOptions[0],
             group: 'navigation'
         };
         if (thinkingOptions.includes('auto')) {

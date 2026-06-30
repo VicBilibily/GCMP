@@ -2,17 +2,39 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.18] - 2026-06-30
+
+### 新增
+
+- **讯飞星辰 Astron**：新增 **XunFei Astron** 原生大模型提供商，支持 Coding Plan / Token Plan 双套餐，预置 **Spark X2**、**Spark-X2-Flash**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**、**DeepSeek-V3.2**、**GLM-5.2**、**GLM-5.1**、**GLM-5**、**GLM-4.7-Flash**、**Kimi-K2.6**、**Kimi-K2.5**、**MiniMax-M2.5**、**Qwen3.6-35B-A3B**、**Qwen3.5-35B-A3B**、**Qwen3.5-397B-A17B**、**Qwen3-Coder-Next-FP8**（implements [#249](https://github.com/VicBilibily/GCMP/issues/249)）。
+
+### 修复
+
+- **thinking 默认值修复**：将 `thinking` 选项默认值逻辑简化为 `thinkingOptions[0]`，修复某些模型列表顺序下默认值选取不正确的问题。
+- **only-thinking 响应的空白占位符改为输出 DONE**：将原 `\n```\n```\n\n` 空块占位符改为输出 `DONE`，在消除聊天界面中大段空白的同时保留完整的流结束标识（fixes [#260](https://github.com/VicBilibily/GCMP/issues/260)）。
+
+---
+
+### Added
+
+- **XunFei Astron**: New native model provider with Coding Plan / Token Plan support. Presets include **Spark X2**, **Spark-X2-Flash**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **DeepSeek-V3.2**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **GLM-4.7-Flash**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.5**, **Qwen3.6-35B-A3B**, **Qwen3.5-35B-A3B**, **Qwen3.5-397B-A17B**, **Qwen3-Coder-Next-FP8** (implements [#249](https://github.com/VicBilibily/GCMP/issues/249)).
+
+### Fixed
+
+- **Thinking default value fix**: Simplified default logic to `thinkingOptions[0]`, fixing incorrect default selection in certain model list orders.
+- **Blank placeholder for thinking-only responses changed to DONE**: The legacy `\n```\n```\n\n` empty-block placeholder is replaced with `DONE`, eliminating large blank areas in chat UI while preserving a clear stream-end signal (fixes [#260](https://github.com/VicBilibily/GCMP/issues/260)).
+
 ## [0.25.17] - 2026-06-30
 
 ### 修复
 
-- **移除 only-thinking 响应的空白占位符**：当模型只输出思维链（`reasoning_content`）无正文时，不再注入 `\n```\n```\n\n` 历史兼容占位符，消除聊天界面中的大段空白（fixes [#260](https://github.com/VicBilibily/GCMP/issues/260)）。
+- ~~**移除 only-thinking 响应的空白占位符**：当模型只输出思维链（`reasoning_content`）无正文时，不再注入 `\n```\n```\n\n` 历史兼容占位符，消除聊天界面中的大段空白（fixes [#260](https://github.com/VicBilibily/GCMP/issues/260)）。~~
 
 ---
 
 ### Fixed
 
-- **Removed blank placeholder for thinking-only responses**: The legacy `\n```\n```\n\n` compatibility placeholder is no longer injected when the model outputs only reasoning content without text body, eliminating large blank areas in chat UI (fixes [#260](https://github.com/VicBilibily/GCMP/issues/260)). 
+- ~~**Removed blank placeholder for thinking-only responses**: The legacy `\n```\n```\n\n` compatibility placeholder is no longer injected when the model outputs only reasoning content without text body, eliminating large blank areas in chat UI (fixes [#260](https://github.com/VicBilibily/GCMP/issues/260)).~~
 
 ## [0.25.16] - 2026-06-29
 

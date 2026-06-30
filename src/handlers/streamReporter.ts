@@ -75,7 +75,7 @@ export interface StreamReporterOptions {
  * 1. Handler 持续调用 bufferThinking / reportText / accumulateToolCall / bufferSignature 等方法
  * 2. 各 Buffer 内部累积内容，达到阈值或条件时由 StreamReporter 调用 progress.report 输出
  * 3. 遇到工具调用开始时，先 flush 剩余 thinking/text 并结束当前思维链
- * 4. 流结束时调用 flushAll，依次输出剩余 thinking、signature、结束思维链、剩余 text、未完成 tool call、占位符和 StatefulMarker
+ * 4. 流结束时调用 flushAll，依次输出剩余 thinking、signature、结束思维链、剩余 text、DONE 占位符、未完成 tool call 和 StatefulMarker
  *
  * 关键实现约定：
  * - 文本/思考缓冲阈值均为 20 字符
@@ -83,7 +83,7 @@ export interface StreamReporterOptions {
  * - 工具调用完成时只 flushThinking + flushSignature + thoughtSignature，不主动 endThinkingChain
  * - flushSignature 输出"空文本 + signature"的 ThinkingPart，不消费 thinking buffer 内容
  * - flushAll 中 signature 紧跟 thinking 输出，在 endThinkingChain 之前
- * - 仅有 thinking 没有 text 时输出 \n```\n```\n\n 占位符
+ * - 仅有 thinking 没有 text 时输出 DONE 占位符
  */
 export class StreamReporter {
     private readonly modelName: string;
@@ -488,7 +488,14 @@ export class StreamReporter {
         // 4. 输出剩余文本内容
         this.flushText('Before stream end');
 
-        // 5. 处理未完成的工具调用（如果有）
+        // 5. 仅有 thinking 没有 text 时输出 DONE 占位符，避免聊天界面大段空白
+        if (this.hasThinkingContent && !this.hasReceivedContent && !this.hasToolCalls) {
+            this.progress.report(new vscode.LanguageModelTextPart('DONE'));
+            this.hasReceivedContent = true;
+            Logger.trace(`[${this.modelName}] Only thinking content, output DONE placeholder`);
+        }
+
+        // 6. 处理未完成的工具调用（如果有）
         if (this.toolCallAccumulator.hasPending) {
             Logger.warn(
                 `[${this.modelName}] Stream ended with ${this.toolCallAccumulator.pendingCount} unfinished tool calls`
@@ -504,10 +511,10 @@ export class StreamReporter {
             }
         }
 
-        // 6. 报告 StatefulMarker
+        // 7. 报告 StatefulMarker
         this.reportStatefulMarker(customStatefulData);
 
-        // 7. 结束实时指标上报
+        // 8. 结束实时指标上报
         this.finishMetrics();
 
         return this.hasReceivedContent;

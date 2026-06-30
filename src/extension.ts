@@ -10,6 +10,7 @@ import { XiaomimimoProvider } from './providers/xiaomimimoProvider';
 import { BaiduProvider } from './providers/baiduProvider';
 import { VolcengineProvider } from './providers/volcengineProvider';
 import { StepFunProvider } from './providers/stepfunProvider';
+import { XfyunProvider } from './providers/xfyunProvider';
 import { CompatibleProvider } from './providers/compatibleProvider';
 import { InlineCompletionShim } from './copilot/inlineCompletionShim';
 import { Logger, StatusLogger, CompletionLogger, TokenCounter } from './utils';
@@ -72,7 +73,8 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
                 | TencentProvider
                 | XiaomimimoProvider
                 | BaiduProvider
-                | VolcengineProvider;
+                | VolcengineProvider
+                | XfyunProvider;
             let disposables: vscode.Disposable[];
 
             if (providerKey === 'zhipu') {
@@ -118,6 +120,11 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
             } else if (providerKey === 'stepfun') {
                 // 对阶跃星辰 StepFun 使用专门的 provider（配置向导功能）
                 const result = StepFunProvider.createAndActivate(context, providerKey, providerConfig);
+                provider = result.provider;
+                disposables = result.disposables;
+            } else if (providerKey === 'xfyun') {
+                // 对讯飞星辰 iFLYTEK 使用专门的 provider（按量计费 / Coding Plan / Token Plan 三密钥管理）
+                const result = XfyunProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
             } else if (cliAuthProviders.includes(providerKey)) {

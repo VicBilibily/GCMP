@@ -185,6 +185,14 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 - **预置模型(PayGo)**：**Ling-2.6-1T**、**Ling-2.6-flash**、**Ring-2.6-1T**
 - [**免费额度**](https://developer.ant-ling.com/zh-CN/docs/models/price/)：每日赠送 50 万免费 token（输入输出共享）。
 
+### [**讯飞星辰**](https://maas.xfyun.cn/) - XunFei Astron
+
+科大讯飞旗下大模型服务平台，采用 Anthropic SDK 模式接入，支持双套餐密钥管理。
+
+- [**Coding Plan 编程套餐**](https://maas.xfyun.cn/packageSubscription)：**Spark X2**、**Spark-X2-Flash**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**、**DeepSeek-V3.2**、**GLM-5.2**、**GLM-5.1**、**GLM-5**、**GLM-4.7-Flash**、**Kimi-K2.6**、**Kimi-K2.5**、**MiniMax-M2.5**、**Qwen3.6-35B-A3B**、**Qwen3.5-35B-A3B**、**Qwen3.5-397B-A17B**、**Qwen3-Coder-Next-FP8**
+- [**Token Plan 套餐**](https://maas.xfyun.cn/tokenPlan)：同样 16 款模型通过独立 Token Plan 端点提供。
+- **密钥配置**：支持 [Coding Plan 专用密钥](https://maas.xfyun.cn/packageSubscription) 与 [Token Plan 专用密钥](https://maas.xfyun.cn/tokenPlan) 分别配置，配置向导引导选择套餐类型。
+
 ### CLI 编程工具 API 提供商
 
 > 以下提供商本身是开源或商业的 AI 编程 CLI 工具（类似 Claude Code），开放了 API 接口供第三方调用其聚合的模型能力。

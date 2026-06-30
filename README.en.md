@@ -185,6 +185,14 @@ Ant Group's open-source MoE-architecture LLM family, accessed via Anthropic mode
 - **PayGo**: **Ling-2.6-1T** (flagship), **Ling-2.6-flash** (cost-effective), **Ring-2.6-1T** (deep reasoning)
 - [**Free quota**](https://developer.ant-ling.com/zh-CN/docs/models/price/): 500,000 free tokens per day (input + output shared).
 
+### [**XunFei Astron**](https://maas.xfyun.cn/)
+
+LLM service platform under iFLYTEK, accessed via Anthropic SDK mode with dual-plan key management.
+
+- [**Coding Plan**](https://maas.xfyun.cn/packageSubscription): **Spark X2**, **Spark-X2-Flash**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **DeepSeek-V3.2**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **GLM-4.7-Flash**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.5**, **Qwen3.6-35B-A3B**, **Qwen3.5-35B-A3B**, **Qwen3.5-397B-A17B**, **Qwen3-Coder-Next-FP8**
+- [**Token Plan**](https://maas.xfyun.cn/tokenPlan): Same 16 models served via a dedicated Token Plan endpoint.
+- **Key configuration**: Supports separate [Coding Plan API Key](https://maas.xfyun.cn/packageSubscription) and [Token Plan API Key](https://maas.xfyun.cn/tokenPlan). Setup wizard guides you through plan type selection.
+
 ### CLI Coding Tool API Providers
 
 > The following providers are themselves AI coding CLI tools (similar to Claude Code) that expose API endpoints for third-party access to their aggregated model capabilities.

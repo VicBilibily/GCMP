@@ -112,7 +112,9 @@ const KNOWN_KEY_LABELS: Record<string, string> = {
     'tencent-tokenhub': 'Tencent Cloud TokenHub',
     'volcengine-agent': 'Volcengine Agent Plan',
     'xiaomimimo-token': 'Xiaomi MiMo Token Plan',
-    'baidu-coding': 'Baidu Qianfan Coding Plan'
+    'baidu-coding': 'Baidu Qianfan Coding Plan',
+    'xfyun-coding': 'XunFei Astron Coding Plan',
+    'xfyun-token': 'XunFei Astron Token Plan'
 };
 
 /**
