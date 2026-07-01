@@ -15,6 +15,7 @@ import {
 } from '../types/sharedTypes';
 import { configProviders } from '../providers/config';
 import { CommitFormat, CommitLanguage, ModelSelection } from '../commit/types';
+import { InterInstanceBus } from '../interInstance';
 import { t } from './l10n';
 import {
     createProxiedFetch,
@@ -232,11 +233,27 @@ export class ConfigManager {
             if (event.affectsConfiguration(this.CONFIG_SECTION)) {
                 this.cache = null; // 清除缓存，强制重新读取
                 Logger.info('GCMP config updated, cache cleared');
+
+                // 广播配置变更事件到其他 VS Code 实例
+                InterInstanceBus.publish({
+                    type: 'configChanged',
+                    payload: {
+                        changedKeys: [] // 精确键列表可通过 event 推断，但 VS Code 未暴露具体键，留空表示整体刷新
+                    }
+                });
             }
         });
 
         Logger.debug('Config manager initialized');
         return this.configListener;
+    }
+
+    /**
+     * 清除配置缓存
+     * 用于跨实例配置变更时强制重新读取
+     */
+    static clearCache(): void {
+        this.cache = null;
     }
 
     /**

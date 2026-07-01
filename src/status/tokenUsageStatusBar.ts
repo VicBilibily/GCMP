@@ -8,6 +8,7 @@ import { TokenUsagesManager } from '../usages/usagesManager';
 import { StatusLogger } from '../utils/statusLogger';
 import { DateUtils } from '../usages/fileLogger/dateUtils';
 import { UserActivityService } from './userActivityService';
+import { InterInstanceBus } from '../interInstance';
 import type { TokenUsageStatsFromFile } from '../usages/fileLogger/types';
 import { t } from '../utils/l10n';
 
@@ -52,6 +53,11 @@ export class TokenUsageStatusBar {
         // 监听文件日志系统的统计更新事件
         const fileLogger = this.usagesManager.getFileLogger();
         this.updateDisposable = fileLogger.onStatsUpdate(async () => {
+            await this.updateDisplay();
+        });
+
+        // 监听跨实例的 Token 用量更新事件
+        InterInstanceBus.subscribe('tokenUsageUpdated', async () => {
             await this.updateDisplay();
         });
 

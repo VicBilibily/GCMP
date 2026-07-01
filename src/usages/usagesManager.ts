@@ -8,6 +8,7 @@ import { StatusLogger } from '../utils/statusLogger';
 import { TokenFileLogger, TokenUsageStatsFromFile } from './fileLogger';
 import { UsageParser, ExtendedTokenRequestLog } from './fileLogger/usageParser';
 import { DateUtils } from './fileLogger/dateUtils';
+import { InterInstanceBus } from '../interInstance';
 import { EventEmitter } from 'events';
 import type { DateSummary } from './types';
 import type { GenericUsageData, RawUsageData, DateIndexEntry, OTelTraceContextLog } from './fileLogger/types';
@@ -335,6 +336,24 @@ export class TokenUsagesManager {
      */
     private notifyUpdate() {
         this.eventEmitter.emit('update');
+
+        // 异步广播跨实例 Token 用量更新
+        const today = DateUtils.getTodayDateString();
+        void this.fileLogger
+            .getTodayStats()
+            .then(stats => {
+                InterInstanceBus.publish({
+                    type: 'tokenUsageUpdated',
+                    payload: {
+                        date: today,
+                        totalTokens: (stats.total.actualInput ?? 0) + (stats.total.outputTokens ?? 0),
+                        totalRequests: stats.total.requests ?? 0
+                    }
+                });
+            })
+            .catch(error => {
+                StatusLogger.trace(`[UsagesManager] Failed to publish token usage update: ${error}`);
+            });
     }
 
     /**

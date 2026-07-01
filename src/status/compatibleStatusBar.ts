@@ -11,6 +11,8 @@ import { CompatibleModelManager } from '../utils/compatibleModelManager';
 import { BalanceQueryManager } from './compatible/balanceQueryManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { KnownProviders } from '../utils/knownProviders';
+import { LeaderElectionService } from './leaderElectionService';
+import { InterInstanceBus } from '../interInstance';
 import { t } from '../utils/l10n';
 
 /**
@@ -600,6 +602,18 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
                         this.context.globalState.update(this.getCacheKey('statusData'), this.lastStatusData);
                     }
 
+                    // 跨实例广播状态更新（Leader 查询成功后同步到其他窗口）
+                    if (LeaderElectionService.isLeader()) {
+                        InterInstanceBus.publish({
+                            type: 'statusUpdated',
+                            payload: {
+                                providerKey: this.config.cacheKeyPrefix,
+                                data: this.lastStatusData,
+                                source: 'api'
+                            }
+                        });
+                    }
+
                     // 更新状态栏 UI
                     this.updateStatusBarUI(data);
 
@@ -667,6 +681,28 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
         } catch (error) {
             StatusLogger.error(`[${this.config.logPrefix}] Failed to load provider caches`, error);
         }
+    }
+
+    /**
+     * 接收到跨实例状态更新事件后同步各提供商缓存
+     */
+    protected override onStatusUpdatedFromEvent(data: CompatibleStatusData): void {
+        for (const provider of data.providers) {
+            const cacheData: ProviderCacheData = {
+                balance: provider,
+                timestamp: Date.now()
+            };
+            this.providerCaches.set(provider.providerId, cacheData);
+            if (this.context) {
+                const cacheKey = this.getProviderCacheKey(provider.providerId);
+                Promise.resolve(this.context.globalState.update(cacheKey, cacheData)).catch(error =>
+                    StatusLogger.error(`[${this.config.logPrefix}] Failed to sync provider cache from event`, error)
+                );
+            }
+        }
+        StatusLogger.debug(
+            `[${this.config.logPrefix}] Synced ${data.providers.length} provider caches from inter-instance event`
+        );
     }
 
     /**

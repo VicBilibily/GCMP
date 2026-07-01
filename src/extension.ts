@@ -23,6 +23,8 @@ import { TokenUsagesManager } from './usages/usagesManager';
 import { TokenUsagesView } from './ui/usagesView';
 import { CompatibleModelManager } from './utils/compatibleModelManager';
 import { LeaderElectionService, StatusBarManager } from './status';
+import { InterInstanceBus } from './interInstance';
+import { setCrossInstanceBroadcaster } from './handlers/liveMetrics';
 import { registerAllTools } from './tools';
 import { CliAuthFactory } from './cli/auth/cliAuthFactory';
 import { registerCommitCommands, checkGitAvailability } from './commit';
@@ -249,6 +251,25 @@ export async function activate(context: vscode.ExtensionContext) {
         LeaderElectionService.initialize(context);
         Logger.trace(`Leader election service initialized (${Date.now() - stepStartTime}ms)`);
 
+        // 步骤0.1: 初始化跨实例总线（Leader/Follower IPC + 轮询回退）
+        stepStartTime = Date.now();
+        await InterInstanceBus.initialize(context);
+        Logger.trace(`Inter-instance bus initialized (${Date.now() - stepStartTime}ms)`);
+
+        // 订阅 Leader 卸任通知：主实例关闭前会广播此事件，Follower 收到后立即开始竞选
+        LeaderElectionService.subscribeToLeaderResigning();
+
+        // 注册实时流式指标跨实例广播器：高频事件走 IPC-only，不启用文件降级
+        setCrossInstanceBroadcaster(event => {
+            InterInstanceBus.publishIpcOnly({ type: 'liveMetricsUpdated', payload: { event } });
+        });
+
+        // 订阅远程配置变更，强制刷新本地配置缓存
+        InterInstanceBus.subscribe('configChanged', () => {
+            ConfigManager.clearCache();
+            Logger.trace('[InterInstanceBus] Config cache cleared due to remote change');
+        });
+
         // 步骤1: 初始化API密钥管理器
         stepStartTime = Date.now();
         ApiKeyManager.initialize(context);
@@ -388,9 +409,14 @@ export async function deactivate() {
         StatusBarManager.disposeAll();
         Logger.trace('All status bars disposed');
 
-        // 停止主实例竞选服务
+        // 先停止主实例竞选服务：Leader 会在此步骤广播 leaderResigning 并清除 globalState。
+        // InterInstanceBus 必须在它之后 dispose，否则 IPC Server 已关闭，leaderResigning 无法发出。
         await LeaderElectionService.stop();
         Logger.trace('Leader election service stopped');
+
+        // 再停止跨实例总线
+        await InterInstanceBus.dispose();
+        Logger.trace('Inter-instance bus disposed');
 
         // 清理所有已注册提供商的资源
         for (const [providerKey, provider] of Object.entries(registeredProviders)) {

@@ -14,6 +14,8 @@ import type { WebViewMessage } from './types';
 import { getTodayDateString } from './utils';
 import { MultiDayView } from '../multiDayView';
 import { onLiveMetrics, getActiveMetricsSnapshot, type LiveStreamMetricEvent } from '../../handlers/liveMetrics';
+import { InterInstanceBus } from '../../interInstance';
+import type { LiveMetricsUpdatedEvent } from '../../interInstance';
 
 /**
  * Token 用量 WebView 视图
@@ -23,6 +25,7 @@ export class TokenUsagesView {
     private usagesManager: TokenUsagesManager;
     private updateDisposable: vscode.Disposable | undefined;
     private liveMetricsDisposable: vscode.Disposable | undefined;
+    private crossInstanceLiveMetricsDisposable: vscode.Disposable | undefined;
     private currentSelectedDate: string | undefined; // 当前查看的日期
     private hasCheckedOutdatedStats: boolean = false; // 是否已检查过过期统计
     // smartRefresh 防抖：合并短时间内的多次刷新请求，避免并发读到不一致中间状态
@@ -77,11 +80,14 @@ export class TokenUsagesView {
 
         // 监听实时流式指标事件（retainContextWhenHidden 下隐藏面板仍可接收消息）
         // 仅在查看今天时转发给 WebView，非今天直接跳过 postMessage（IPC 序列化开销）
+        // requestStarted / streamEnd 会触发请求记录立即刷新，避免状态长时间停留在 estimated
         this.liveMetricsDisposable = onLiveMetrics((event: LiveStreamMetricEvent) => {
-            if (!this.shouldForwardLiveMetrics()) {
-                return;
-            }
-            this.postLiveMetricEvent(event);
+            this.handleLiveMetricsEvent(event);
+        });
+
+        // 监听来自其他实例的实时流式指标事件（IPC-only，高频事件不走 fallback）
+        this.crossInstanceLiveMetricsDisposable = InterInstanceBus.subscribe('liveMetricsUpdated', event => {
+            this.handleLiveMetricsEvent((event as LiveMetricsUpdatedEvent).payload.event);
         });
 
         // 监听关闭
@@ -91,6 +97,8 @@ export class TokenUsagesView {
             this.updateDisposable = undefined;
             this.liveMetricsDisposable?.dispose();
             this.liveMetricsDisposable = undefined;
+            this.crossInstanceLiveMetricsDisposable?.dispose();
+            this.crossInstanceLiveMetricsDisposable = undefined;
         });
     }
 
@@ -308,6 +316,19 @@ export class TokenUsagesView {
             case 'openMultiDayTrend':
                 this.showMultiDayTrend();
                 break;
+        }
+    }
+
+    /**
+     * 统一处理实时流式指标事件：转发给 WebView，并在请求开始/结束时立即刷新请求记录
+     */
+    private handleLiveMetricsEvent(event: LiveStreamMetricEvent): void {
+        if (!this.shouldForwardLiveMetrics()) {
+            return;
+        }
+        this.postLiveMetricEvent(event);
+        if (event.type === 'requestStarted' || event.type === 'streamEnd') {
+            this.smartRefresh();
         }
     }
 

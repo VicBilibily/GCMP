@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { ApiKeyValidation } from '../types/sharedTypes';
 import { Logger } from './logger';
 import { StatusBarManager } from '../status';
+import { InterInstanceBus } from '../interInstance';
 import { configProviders } from '../providers/config';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { t } from './l10n';
@@ -93,6 +94,12 @@ export class ApiKeyManager {
             return;
         }
         await this.context.secrets.store(secretKey, apiKey);
+
+        // 广播 API Key 变更事件到其他 VS Code 实例
+        InterInstanceBus.publish({
+            type: 'apiKeyChanged',
+            payload: { provider, action: apiKey ? 'set' : 'delete' }
+        });
     }
 
     /**
@@ -101,6 +108,12 @@ export class ApiKeyManager {
     static async deleteApiKey(provider: string): Promise<void> {
         const secretKey = this.getSecretKey(provider);
         await this.context.secrets.delete(secretKey);
+
+        // 广播 API Key 变更事件到其他 VS Code 实例
+        InterInstanceBus.publish({
+            type: 'apiKeyChanged',
+            payload: { provider, action: 'delete' }
+        });
     }
 
     /**

@@ -8,6 +8,7 @@
 import * as vscode from 'vscode';
 import { StatusLogger } from '../utils/statusLogger';
 import { LeaderElectionService } from './leaderElectionService';
+import { InterInstanceBus, StatusUpdatedEvent } from '../interInstance';
 import { t } from '../utils/l10n';
 
 /**
@@ -87,6 +88,9 @@ export abstract class BaseStatusBarItem<T> {
     // 标志位
     protected isLoading = false;
     protected initialized = false;
+
+    // 跨实例事件订阅
+    private interInstanceSubscription: vscode.Disposable | undefined;
 
     // 常量配置
     // 最小延时更新间隔：节流阈值，避免短时间内多次 delayedUpdate 触发 API 请求
@@ -216,6 +220,14 @@ export abstract class BaseStatusBarItem<T> {
         // 默认为空实现，子类可以重写
     }
 
+    /**
+     * 接收到跨实例状态更新事件后的钩子方法
+     * 子类可重写以同步额外的内部状态
+     */
+    protected onStatusUpdatedFromEvent(_data: T): void {
+        // 默认为空实现
+    }
+
     // ==================== 公共方法 ====================
 
     /**
@@ -280,6 +292,12 @@ export abstract class BaseStatusBarItem<T> {
         });
 
         this.initialized = true;
+
+        // 注册跨实例事件订阅
+        this.interInstanceSubscription = InterInstanceBus.subscribe('statusUpdated', event => {
+            this.handleStatusUpdatedEvent(event as StatusUpdatedEvent);
+        });
+        this.context.subscriptions.push(this.interInstanceSubscription);
 
         // 注册主实例定时刷新任务
         this.registerLeaderPeriodicTask();
@@ -357,6 +375,10 @@ export abstract class BaseStatusBarItem<T> {
             clearInterval(this.cacheUpdateTimer);
             this.cacheUpdateTimer = undefined;
         }
+
+        // 清理跨实例事件订阅
+        this.interInstanceSubscription?.dispose();
+        this.interInstanceSubscription = undefined;
 
         // 清理内存状态
         this.lastStatusData = null;
@@ -493,6 +515,16 @@ export abstract class BaseStatusBarItem<T> {
                         this.context.globalState.update(this.getCacheKey('statusData'), this.lastStatusData);
                     }
 
+                    // 跨实例广播状态更新（任何实例查询成功后都广播，Leader 直接广播，Follower 通过 IPC 发给 Leader 再中继）
+                    InterInstanceBus.publish({
+                        type: 'statusUpdated',
+                        payload: {
+                            providerKey: this.config.cacheKeyPrefix,
+                            data: this.lastStatusData,
+                            source: 'api'
+                        }
+                    });
+
                     // 更新状态栏 UI
                     this.updateStatusBarUI(data);
 
@@ -606,6 +638,43 @@ export abstract class BaseStatusBarItem<T> {
         }, this.CACHE_UPDATE_INTERVAL);
 
         StatusLogger.debug(`[${this.config.logPrefix}] Cache update timer started (${this.CACHE_UPDATE_INTERVAL}ms)`);
+    }
+
+    /**
+     * 处理跨实例状态更新事件
+     * 当 Leader 实例完成查询并广播事件时，Follower 实例通过此方法刷新 UI
+     */
+    private handleStatusUpdatedEvent(event: StatusUpdatedEvent): void {
+        if (event.payload.providerKey !== this.config.cacheKeyPrefix) {
+            return;
+        }
+
+        if (!this.statusBarItem || !this.initialized) {
+            return;
+        }
+
+        try {
+            const cachedData = event.payload.data as CachedStatusData<T> | undefined;
+            if (!cachedData || !cachedData.data) {
+                return;
+            }
+
+            this.lastStatusData = cachedData;
+
+            // 同步保存到 globalState，让本窗口的缓存定时器也能读取到
+            if (this.context) {
+                this.context.globalState.update(this.getCacheKey('statusData'), this.lastStatusData);
+            }
+
+            this.updateStatusBarUI(cachedData.data);
+            this.onStatusUpdatedFromEvent(cachedData.data);
+
+            StatusLogger.debug(
+                `[${this.config.logPrefix}] Updated status from inter-instance event (${((Date.now() - cachedData.timestamp) / 1000).toFixed(1)}s ago)`
+            );
+        } catch (error) {
+            StatusLogger.warn(`[${this.config.logPrefix}] Failed to handle status update event`, error);
+        }
     }
 
     /**

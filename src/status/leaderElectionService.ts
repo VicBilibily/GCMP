@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
 import { StatusLogger } from '../utils/statusLogger';
 import { UserActivityService } from './userActivityService';
+import { InterInstanceBus, type LeaderResigningEvent } from '../interInstance';
 
 interface LeaderInfo {
     instanceId: string;
@@ -14,7 +15,7 @@ interface LeaderInfo {
  * 确保在多 VS Code 实例中只有一个主实例负责执行周期性任务
  */
 export class LeaderElectionService {
-    private static readonly LEADER_KEY = 'gcmp.leader.info';
+    private static readonly LEADER_KEY = 'gcmp.leader.info.v2';
     private static readonly HEARTBEAT_INTERVAL = 5000; // 5秒心跳
     private static readonly LEADER_TIMEOUT = 15000; // 15秒超时
     private static readonly TASK_INTERVAL = 60 * 1000; // 默认任务执行间隔（1分钟）
@@ -28,6 +29,10 @@ export class LeaderElectionService {
     private static initialized = false;
 
     private static periodicTasks: Array<() => Promise<void>> = [];
+
+    // Leader 状态变更事件
+    private static leaderChangedEmitter = new vscode.EventEmitter<boolean>();
+    static readonly onLeaderChanged = LeaderElectionService.leaderChangedEmitter.event;
 
     /**
      * 私有构造函数 - 防止实例化
@@ -104,6 +109,26 @@ export class LeaderElectionService {
         // 停止用户活跃检测服务
         UserActivityService.stop();
 
+        // 如果是 Leader，先通过 IPC 通知其他实例即将卸任，让它们立即开始竞选。
+        // 优先从已连接的 Follower 中指定下一任 Leader（最长连接者），减少广播竞选。
+        if (this._isLeader) {
+            try {
+                const followers = InterInstanceBus.getConnectedFollowerIds();
+                const nextLeaderId = followers.length > 0 ? followers[0] : undefined;
+                InterInstanceBus.publishIpcOnly({
+                    type: 'leaderResigning',
+                    payload: { leaderId: this.instanceId, nextLeaderId }
+                });
+                StatusLogger.info(
+                    `[LeaderElectionService] Broadcast leaderResigning before shutdown${
+                        nextLeaderId ? `, nominated next leader: ${nextLeaderId}` : ''
+                    }`
+                );
+            } catch (error) {
+                StatusLogger.warn('[LeaderElectionService] Failed to broadcast leaderResigning', error);
+            }
+        }
+
         // 如果是 Leader，必须 await 释放流程，确保 globalState 清除完成
         try {
             await this.resignLeader();
@@ -119,6 +144,18 @@ export class LeaderElectionService {
      */
     public static registerPeriodicTask(task: () => Promise<void>): void {
         this.periodicTasks.push(task);
+    }
+
+    /**
+     * 设置 Leader 状态并触发事件
+     */
+    private static setLeaderState(value: boolean): void {
+        if (this._isLeader === value) {
+            return;
+        }
+        this._isLeader = value;
+        StatusLogger.info(`[LeaderElectionService] Leader state changed: isLeader=${value}`);
+        this.leaderChangedEmitter.fire(value);
     }
 
     /**
@@ -146,6 +183,47 @@ export class LeaderElectionService {
         return leaderInfo?.instanceId;
     }
 
+    /**
+     * 监听 Leader 卸任通知。
+     * 在 LeaderElectionService.initialize 完成后调用，避免 InterInstanceBus 尚未初始化。
+     */
+    public static subscribeToLeaderResigning(): void {
+        if (!this.context) {
+            return;
+        }
+        this.context.subscriptions.push(
+            InterInstanceBus.subscribe('leaderResigning', event => {
+                const { leaderId: resigningLeaderId, nextLeaderId } = (event as LeaderResigningEvent).payload;
+                if (resigningLeaderId === this.instanceId) {
+                    return;
+                }
+
+                StatusLogger.info(
+                    `[LeaderElectionService] Received leaderResigning from ${resigningLeaderId}${
+                        nextLeaderId ? `, nominated next leader: ${nextLeaderId}` : ''
+                    }`
+                );
+
+                // 如果当前实例被提名为下一任 Leader，立即尝试接管，不等待心跳超时。
+                // 最多重试 3 次，全部失败后退回到常规竞选。
+                if (nextLeaderId === this.instanceId) {
+                    void this.takeoverAsNominated();
+                    return;
+                }
+
+                // 已指定下一任 Leader 时，非提名实例等待几次确认新 Leader 是否已接管，
+                // 若接管成功则无需竞争；若超时未接管再进入竞选。
+                if (nextLeaderId) {
+                    void this.waitForNominatedTakeover(nextLeaderId, resigningLeaderId);
+                    return;
+                }
+
+                // 未指定下一任 Leader 时，退回到普通快速检查
+                void this.checkLeader();
+            })
+        );
+    }
+
     private static async checkLeader(): Promise<void> {
         if (!this.context) {
             return;
@@ -169,7 +247,7 @@ export class LeaderElectionService {
             StatusLogger.trace('[LeaderElectionService] Confirmed as Leader, updating heartbeat');
             await this.updateHeartbeat();
             if (!this._isLeader) {
-                this._isLeader = true;
+                this.setLeaderState(true);
                 StatusLogger.info('[LeaderElectionService] Current instance has become the leader');
             }
         } else {
@@ -177,7 +255,7 @@ export class LeaderElectionService {
             StatusLogger.trace(`[LeaderElectionService] Detected another leader: ${leaderInfo.instanceId}`);
             // 如果我之前是 Leader，但现在 globalState 中的 Leader 不是我，说明被其他实例覆盖了
             if (this._isLeader) {
-                this._isLeader = false;
+                this.setLeaderState(false);
                 StatusLogger.warn(
                     `[LeaderElectionService] Leader role was overridden by instance ${leaderInfo.instanceId}, stepping down`
                 );
@@ -197,7 +275,75 @@ export class LeaderElectionService {
         }
     }
 
-    private static async becomeLeader(): Promise<void> {
+    /**
+     * 被提名实例尝试接管 Leader 身份，最多重试 NOMINATED_TAKEOVER_ATTEMPTS 次。
+     * 每次失败后等待 NOMINATED_TAKEOVER_DELAY_MS 再重试，全部失败后退回到常规竞选。
+     */
+    private static async takeoverAsNominated(): Promise<void> {
+        const NOMINATED_TAKEOVER_ATTEMPTS = 3;
+        const NOMINATED_TAKEOVER_DELAY_MS = 200;
+
+        for (let attempt = 1; attempt <= NOMINATED_TAKEOVER_ATTEMPTS; attempt++) {
+            if (this._isLeader) {
+                return;
+            }
+
+            StatusLogger.info(
+                `[LeaderElectionService] Attempting nominated takeover, attempt ${attempt}/${NOMINATED_TAKEOVER_ATTEMPTS}`
+            );
+            await this.becomeLeader(true);
+
+            if (this._isLeader) {
+                return;
+            }
+
+            if (attempt < NOMINATED_TAKEOVER_ATTEMPTS) {
+                await new Promise(resolve => setTimeout(resolve, NOMINATED_TAKEOVER_DELAY_MS));
+            }
+        }
+
+        StatusLogger.info(
+            '[LeaderElectionService] Nominated takeover failed after all attempts, falling back to election'
+        );
+        await this.checkLeader();
+    }
+
+    /**
+     * 收到 leaderResigning 后，等待并确认新 Leader 是否已接管。
+     * 最多检查 NOMINATED_TAKEOVER_ATTEMPTS 次，若新 Leader 仍未写入 globalState，则进入竞选。
+     */
+    private static async waitForNominatedTakeover(
+        nominatedNextLeaderId: string,
+        resigningLeaderId: string
+    ): Promise<void> {
+        const NOMINATED_TAKEOVER_ATTEMPTS = 3;
+        const NOMINATED_TAKEOVER_DELAY_MS = 200;
+
+        for (let attempt = 1; attempt <= NOMINATED_TAKEOVER_ATTEMPTS; attempt++) {
+            const currentInfo = this.context?.globalState.get<LeaderInfo>(this.LEADER_KEY);
+
+            if (currentInfo && currentInfo.instanceId !== resigningLeaderId) {
+                StatusLogger.info(
+                    `[LeaderElectionService] Nominated takeover observed: new leader ${currentInfo.instanceId} at attempt ${attempt}`
+                );
+                return;
+            }
+
+            if (attempt < NOMINATED_TAKEOVER_ATTEMPTS) {
+                StatusLogger.trace(
+                    `[LeaderElectionService] Waiting for nominated takeover ${nominatedNextLeaderId}, attempt ${attempt}/${NOMINATED_TAKEOVER_ATTEMPTS}`
+                );
+                await new Promise(resolve => setTimeout(resolve, NOMINATED_TAKEOVER_DELAY_MS));
+            }
+        }
+
+        StatusLogger.info(
+            '[LeaderElectionService] Nominated takeover did not happen in time, falling back to election'
+        );
+        await this.checkLeader();
+    }
+
+    private static async becomeLeader(force: boolean = false): Promise<void> {
         if (!this.context) {
             return;
         }
@@ -206,8 +352,8 @@ export class LeaderElectionService {
         // 读取当前 Leader 信息
         const existingLeader = this.context.globalState.get<LeaderInfo>(this.LEADER_KEY);
 
-        // 如果已有 Leader 且未超时，不应该尝试竞选
-        if (existingLeader) {
+        // 如果已有 Leader 且未超时，不应该尝试竞选（除非被强制接管）
+        if (existingLeader && !force) {
             const now = Date.now();
             const heartbeatAge = now - existingLeader.lastHeartbeat;
             if (heartbeatAge <= this.LEADER_TIMEOUT) {
@@ -253,7 +399,7 @@ export class LeaderElectionService {
 
         if (isWinner && currentInfo.instanceId === this.instanceId) {
             if (!this._isLeader) {
-                this._isLeader = true;
+                this.setLeaderState(true);
                 StatusLogger.info('[LeaderElectionService] Election succeeded, current instance is the leader');
             }
         } else {
@@ -262,7 +408,7 @@ export class LeaderElectionService {
             );
             // 如果之前误以为自己是 Leader，现在退位
             if (this._isLeader) {
-                this._isLeader = false;
+                this.setLeaderState(false);
                 StatusLogger.info(
                     `[LeaderElectionService] Election lost, instance ${currentInfo.instanceId} became the leader`
                 );
@@ -290,13 +436,18 @@ export class LeaderElectionService {
 
     private static async resignLeader(): Promise<void> {
         if (this._isLeader && this.context) {
+            // 广播 leaderResigning 后，被提名实例可能已经写入新的 Leader 信息。
+            // 清除前重新读取并确认仍是自己的信息，避免误清被提名实例的接管结果。
             const currentInfo = this.context.globalState.get<LeaderInfo>(this.LEADER_KEY);
-            // 无条件清除 Leader 信息，确保释放时完全退出主实例
             if (currentInfo && currentInfo.instanceId === this.instanceId) {
                 await this.context.globalState.update(this.LEADER_KEY, undefined);
                 StatusLogger.info('[LeaderElectionService] Instance released: leader identity cleared');
+            } else if (currentInfo) {
+                StatusLogger.info(
+                    `[LeaderElectionService] Skip clearing leader identity: already taken over by ${currentInfo.instanceId}`
+                );
             }
-            this._isLeader = false;
+            this.setLeaderState(false);
             StatusLogger.debug('[LeaderElectionService] Instance released: exited leader identity');
         }
     }

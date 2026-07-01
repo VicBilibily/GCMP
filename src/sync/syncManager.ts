@@ -9,6 +9,7 @@ import { GistSyncService, getKeyDisplayName } from './gistSyncService';
 import { Logger } from '../utils/logger';
 import { t } from '../utils/l10n';
 import { ApiKeyManager } from '../utils/apiKeyManager';
+import { InterInstanceBus } from '../interInstance';
 
 /**
  * 同步管理器
@@ -423,6 +424,10 @@ export class SyncManager {
                         )
                     );
                     Logger.info(`[SyncManager] Upload complete: ${uploadedCount} keys to gist ${uploadGistId}`);
+                    InterInstanceBus.publish({
+                        type: 'syncCompleted',
+                        payload: { direction: 'upload', success: true, keyCount: uploadedCount }
+                    });
                 } catch (error) {
                     Logger.error('[SyncManager] Upload failed:', error);
                     vscode.window.showErrorMessage(
@@ -641,6 +646,10 @@ export class SyncManager {
 
                     vscode.window.showInformationMessage(message);
                     Logger.info(`[SyncManager] Download complete: ${appliedKeyCount} keys applied`);
+                    InterInstanceBus.publish({
+                        type: 'syncCompleted',
+                        payload: { direction: 'download', success: true, keyCount: appliedKeyCount }
+                    });
                 } catch (error) {
                     Logger.error('[SyncManager] Download failed:', error);
                     vscode.window.showErrorMessage(

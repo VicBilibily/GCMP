@@ -35,8 +35,10 @@ export interface LiveStreamMetricEvent {
 }
 
 type LiveMetricsListener = (event: LiveStreamMetricEvent) => void;
+type CrossInstanceBroadcaster = (event: LiveStreamMetricEvent) => void;
 
 const listeners = new Set<LiveMetricsListener>();
+let crossInstanceBroadcaster: CrossInstanceBroadcaster | undefined;
 
 /**
  * 活跃请求的最新事件快照（requestId → 最新事件）。
@@ -53,12 +55,30 @@ export function onLiveMetrics(listener: LiveMetricsListener): { dispose(): void 
     };
 }
 
+/**
+ * 注册跨实例广播器。
+ * 本模块刻意不直接依赖 InterInstanceBus/vscode，以保持轻量 event bus 在 node:test 下的可测试性。
+ * 由 extension.ts 在初始化时注入 IPC-only 发布逻辑。
+ */
+export function setCrossInstanceBroadcaster(broadcaster: CrossInstanceBroadcaster | undefined): void {
+    crossInstanceBroadcaster = broadcaster;
+}
+
 export function emitLiveMetrics(event: LiveStreamMetricEvent): void {
     // 快照更新 — 无论是否有 listener 都必须执行，否则面板未打开时无法缓存
     if (event.type === 'streamEnd') {
         activeMetrics.delete(event.requestId);
     } else {
         activeMetrics.set(event.requestId, event);
+    }
+
+    // 跨实例广播：高频事件走 IPC-only 通道，失败即丢弃，不阻塞本地 listener
+    if (crossInstanceBroadcaster) {
+        try {
+            crossInstanceBroadcaster(event);
+        } catch (error) {
+            console.warn('[LiveMetrics] cross-instance broadcast failed:', error);
+        }
     }
 
     if (listeners.size === 0) {
