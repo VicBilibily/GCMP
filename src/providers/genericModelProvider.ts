@@ -858,9 +858,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     }
 
     /**
-     * 更新上下文占用状态栏
-     * 计算输入 token 数量和占用百分比，更新状态栏显示
-     * 供子类复用
+     * 估算输入 token 数量
      * @returns 返回计算的输入 token 数量及当前生效的上下文窗口大小，供 Token 统计使用
      */
     protected async updateContextUsageStatusBar(
@@ -870,7 +868,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         options?: ProvideLanguageModelChatResponseOptions
     ): Promise<ContextUsageSummary> {
         try {
-            const promptParts = await PromptAnalyzer.analyzePromptParts(
+            const analysis = await PromptAnalyzer.analyzePromptParts(
                 this.providerKey,
                 model,
                 messages,
@@ -878,23 +876,18 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 options
             );
 
-            // 使用 promptParts.context 作为总 token 占用
-            const totalInputTokens = promptParts.context || 0;
+            const totalInputTokens = analysis.context || 0;
             const maxInputTokens = getEffectiveMaxInputTokens(model, modelConfig, options, this.providerKey);
-            const percentage = maxInputTokens > 0 ? (totalInputTokens / maxInputTokens) * 100 : 0;
-
-            // 从 modelOptions 中读取 requestKind（由 executeModelRequest 注入）
-            const rtOpts = options as RuntimeProvideLanguageModelChatResponseOptions | undefined;
-            const requestKind = rtOpts?.modelOptions?.requestKind;
 
             // 更新上下文占用状态栏
             const contextUsageStatusBar = ContextUsageStatusBar.getInstance();
             if (contextUsageStatusBar) {
-                contextUsageStatusBar.updateWithPromptParts(
+                contextUsageStatusBar.updateContextUsage(
                     model.name || modelConfig.name,
                     maxInputTokens,
-                    promptParts,
-                    requestKind
+                    totalInputTokens,
+                    (options as RuntimeProvideLanguageModelChatResponseOptions)?.modelOptions?.requestKind,
+                    Date.now()
                 );
             }
 
@@ -904,10 +897,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 );
             } else {
                 Logger.debug(
-                    `[${this.providerKey}] Token calc: ${totalInputTokens}/${maxInputTokens} (${percentage.toFixed(1)}%)`
+                    `[${this.providerKey}] Token calc: ${totalInputTokens}/${maxInputTokens} (${((totalInputTokens / maxInputTokens) * 100).toFixed(1)}%)`
                 );
             }
-            return { totalInputTokens, maxInputTokens, estimatedIncrement: promptParts.requestIncrement };
+            return { totalInputTokens, maxInputTokens, estimatedIncrement: analysis.requestIncrement };
         } catch (error) {
             // Token 计算失败不应阻止请求，只记录警告
             Logger.warn(`[${this.providerKey}] Token calculation failed:`, error);

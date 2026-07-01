@@ -30,6 +30,9 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 
 > 💡 **Quick configuration entry**: hover the Token-usage icon in the status bar and click the `Set auxiliary tool models` link at the bottom of the daily-statistics popup to open a visual panel for unified configuration of all the models below. You can also run `GCMP: Set Auxiliary Tool Models` from the command palette.
 
+<details>
+<summary>Click to expand detailed parameter descriptions</summary>
+
 ```json
 {
     // General utility tasks: title generation, summaries, intent classification, rename suggestions, terminal commands/fixes, search, VS Code Q&A
@@ -65,9 +68,6 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 > You can also run `GCMP: Set Auxiliary Tool Models` from the command palette to open a visual panel for unified configuration of all the models above.
 >
 > Shortcut entry: hover the Token-usage icon in the status bar and click the `Set auxiliary tool models` link at the bottom of the daily-statistics popup to open the same panel.
-
-<details>
-<summary>Click to expand detailed parameter descriptions</summary>
 
 - `chat.utilitySmallModel`: Lightweight utility tasks (default: `gpt-4o-mini`). Covers `chat-title`, `git-commit-message`, `git-branch-name`, `inline-progress-message`, `prompt-categorizer`, `todo-tracker`, `rename-suggestions`, `terminal-command/quickfix/explain`, and `workspace-search`.
 - `chat.utilityModel`: General utility tasks (default: CAPI fallback). Covers `settings-resolver`, `explain-code`, and `vscode-qa`.
@@ -740,23 +740,16 @@ When FIM or NES completion requests fail consecutively, the circuit breaker temp
 
 ## 🪟 Context Window Usage Status Bar
 
-GCMP provides a status bar indicator showing the current session's context window usage ratio.
+GCMP provides a status bar indicator showing the current session's context window usage ratio via a pie chart icon.
 
 <details>
 <summary>Click to expand feature details</summary>
 
 ### Key Features
 
-- **Real-time monitoring**: Status bar displays the current session's context window usage ratio in real time
-- **Detailed statistics**: Hover over the status bar to view detailed context usage, including:
-    - **System prompt**: Tokens consumed by the system prompt
-    - **Available tools**: Tokens consumed by tool and MCP definitions
-    - **Environment info**: Tokens consumed by editor environment information
-    - **Compressed messages**: Tokens consumed by compressed historical messages
-    - **History messages**: Tokens consumed by historical conversation messages
-    - **Thinking content**: Tokens consumed by session thinking process
-    - **Current images**: Tokens consumed by current session image attachments
-    - **Current messages**: Tokens consumed by current session messages
+- **Real-time monitoring**: The status bar displays the current session's context window usage ratio as a pie chart icon (0/8 ~ 8/8)
+- **Hover details**: Hover to view the model name, usage percentage, token count, and request kind
+- **Incremental estimation**: Supports delta estimation based on the previous request's actual API usage. The WebView detail view shows a "this request" increment column (`~+xx`) to help track per-request token growth in long conversations
 
 </details>
 

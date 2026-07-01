@@ -217,7 +217,7 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         const kind = rtOpts.modelOptions.requestKind ?? classifyRequest(messages, options.tools);
         rtOpts.modelOptions.requestKind = kind;
 
-        const { totalInputTokens, maxInputTokens } = await this.updateContextUsageStatusBar(
+        const { totalInputTokens, maxInputTokens, estimatedIncrement } = await this.updateContextUsageStatusBar(
             model,
             messages,
             modelConfig,
@@ -235,6 +235,7 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
                 modelId: model.id,
                 modelName: model.name || modelConfig.name,
                 estimatedInputTokens: totalInputTokens,
+                estimatedIncrement,
                 maxInputTokens,
                 requestKind: kind,
                 sessionId,

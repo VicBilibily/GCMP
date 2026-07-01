@@ -233,7 +233,7 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
         rtOpts.modelOptions.requestKind = kind;
 
         // 计算输入 token 数量并更新状态栏
-        const { totalInputTokens, maxInputTokens } = await this.updateContextUsageStatusBar(
+        const { totalInputTokens, maxInputTokens, estimatedIncrement } = await this.updateContextUsageStatusBar(
             model,
             messages,
             modelConfig,
@@ -255,6 +255,7 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
                 modelId: model.id,
                 modelName: model.name || modelConfig.name,
                 estimatedInputTokens: totalInputTokens,
+                estimatedIncrement,
                 maxInputTokens,
                 requestKind: kind,
                 sessionId,

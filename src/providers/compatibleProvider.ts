@@ -356,8 +356,8 @@ export class CompatibleProvider extends GenericModelProvider {
             const kind = rtOpts.modelOptions.requestKind ?? classifyRequest(messages, options.tools);
             rtOpts.modelOptions.requestKind = kind;
 
-            // 计算输入 token 数量并更新状态栏
-            const { totalInputTokens, maxInputTokens } = await this.updateContextUsageStatusBar(
+            // 计算输入 token 数量
+            const { totalInputTokens, maxInputTokens, estimatedIncrement } = await this.updateContextUsageStatusBar(
                 model,
                 messages,
                 modelConfig,
@@ -383,6 +383,7 @@ export class CompatibleProvider extends GenericModelProvider {
                     modelId: model.id,
                     modelName: model.name,
                     estimatedInputTokens: totalInputTokens,
+                    estimatedIncrement,
                     maxInputTokens,
                     requestKind: kind,
                     sessionId,
