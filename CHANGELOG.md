@@ -2,6 +2,28 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.19] - 2026-07-01
+
+### 新增
+
+- **模型编辑器智能回填**：选中已知提供商时，BASE URL 字段按 SDK 模式自动填充默认地址；切换 SDK 模式时自动同步更新（覆盖 OpenAI / Anthropic 协议）。
+- **新增已知提供商预置 baseUrl**：AIPing（`aiping.cn`）、OpenRouter（`openrouter.ai`）、硅基流动（`api.siliconflow.cn`）、MistralAI（`api.mistral.ai`），选中即自动填入。
+
+### 变更
+
+- **AIHubMix 端点迁移**：OpenAI 与 Anthropic baseUrl 从 `aihubmix.com` 迁移至 `api.inferera.com`，余额查询端点同步更新（[#267](https://github.com/VicBilibily/GCMP/issues/267)）。
+
+---
+
+### Added
+
+- **Smart model editor auto-fill**: BASE URL is now automatically filled based on SDK mode when a known provider is selected; auto-updates when switching SDK modes (covers OpenAI / Anthropic protocols).
+- **Preset baseUrls for known providers**: AIPing (`aiping.cn`), OpenRouter (`openrouter.ai`), SiliconFlow (`api.siliconflow.cn`), MistralAI (`api.mistral.ai`) — auto-filled on selection.
+
+### Changed
+
+- **AIHubMix endpoint migration**: OpenAI and Anthropic baseUrls migrated from `aihubmix.com` to `api.inferera.com`; balance query endpoint updated accordingly ([#267](https://github.com/VicBilibily/GCMP/issues/267)).
+
 ## [0.25.18] - 2026-06-30
 
 ### 新增
