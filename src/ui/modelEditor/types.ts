@@ -54,6 +54,8 @@ export interface ModelFormData {
 export interface ProviderOption {
     id: string;
     name: string;
+    /** 已知提供商的默认 baseUrl；选中该提供商且 BASE URL 为空时自动回填 */
+    defaultBaseUrl?: string;
 }
 
 /**

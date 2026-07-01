@@ -295,6 +295,20 @@ function handleModelsError(error: string): void {
 
 // ============= 列表渲染 =============
 
+/**
+ * 选中已知提供商时，若 BASE URL 为空则自动回填其默认地址（如 AIHubMix → api.inferera.com）
+ */
+export function autofillBaseUrl(provider: ProviderOption): void {
+    if (!provider.defaultBaseUrl) {
+        return;
+    }
+    const baseUrlInput = document.getElementById('baseUrl') as HTMLInputElement | null;
+    if (baseUrlInput && !baseUrlInput.value.trim()) {
+        baseUrlInput.value = provider.defaultBaseUrl;
+        baseUrlInput.classList.remove('invalid');
+    }
+}
+
 function renderProviderList(providers: ProviderOption[]): void {
     const list = document.getElementById('providerList');
     const input = document.getElementById('provider') as HTMLInputElement | null;
@@ -324,6 +338,7 @@ function renderProviderList(providers: ProviderOption[]): void {
         item.addEventListener('click', () => {
             input.value = provider.id;
             input.classList.remove('invalid');
+            autofillBaseUrl(provider);
             list.classList.remove('show');
         });
         list.appendChild(item);

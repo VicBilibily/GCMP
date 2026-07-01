@@ -23,11 +23,12 @@ export const KnownProviders: Record<string, KnownProviderConfig> = {
     aihubmix: {
         displayName: 'AIHubMix',
         customHeader: { 'APP-Code': 'TFUV4759' },
+        // 厂商仍为 AIHubMix，仅将本平台请求导向新域名 api.inferera.com（同一后端）
         openai: {
-            baseUrl: 'https://aihubmix.com/v1'
+            baseUrl: 'https://api.inferera.com/v1'
         },
         anthropic: {
-            baseUrl: 'https://aihubmix.com',
+            baseUrl: 'https://api.inferera.com',
             extraBody: {
                 top_p: null
             }

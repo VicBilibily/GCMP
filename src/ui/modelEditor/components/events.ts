@@ -5,9 +5,9 @@
 
 import type { EditorState } from '../app';
 import { t } from '../l10n';
-import { CLI_RESERVED_PROVIDERS } from '../types';
+import { CLI_RESERVED_PROVIDERS, type ProviderOption } from '../types';
 import { addNumberValidation, addSimpleValidation, normalizeProxyInput, isValidProxyInput } from '../utils';
-import { formatJSON, clearJSON, validateJSON_UI } from '../app';
+import { formatJSON, clearJSON, validateJSON_UI, autofillBaseUrl } from '../app';
 import { validateForm, showGlobalError, hideGlobalError } from './validation';
 import { applyInitialValues } from './form';
 
@@ -269,7 +269,7 @@ export function bindEvents(state: EditorState, actions: Actions): void {
 
 // ============= 列表渲染（局部） =============
 
-function renderProviderList(providers: { id: string; name: string }[]): void {
+function renderProviderList(providers: ProviderOption[]): void {
     const providerListDiv = document.getElementById('providerList');
     const input = document.getElementById('provider') as HTMLInputElement | null;
     if (!providerListDiv || !input) {
@@ -298,6 +298,7 @@ function renderProviderList(providers: { id: string; name: string }[]): void {
         item.addEventListener('click', () => {
             input.value = provider.id;
             input.classList.remove('invalid');
+            autofillBaseUrl(provider);
             providerListDiv.classList.remove('show');
         });
         providerListDiv.appendChild(item);
