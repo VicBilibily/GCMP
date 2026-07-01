@@ -295,17 +295,47 @@ function handleModelsError(error: string): void {
 
 // ============= 列表渲染 =============
 
+function getProviderDefaultBaseUrl(provider: ProviderOption): string | undefined {
+    const sdkModeSelect = document.getElementById('sdkMode') as HTMLSelectElement | null;
+    const sdkMode = (sdkModeSelect?.value || 'openai') as ModelFormData['sdkMode'];
+    const baseUrls = provider.baseUrls;
+
+    if (!baseUrls) {
+        return undefined;
+    }
+
+    if (sdkMode === 'openai-sse' || sdkMode === 'openai-responses') {
+        return baseUrls[sdkMode] || baseUrls.openai;
+    }
+
+    return baseUrls[sdkMode];
+}
+
 /**
- * 选中已知提供商时，若 BASE URL 为空则自动回填其默认地址（如 AIHubMix → api.inferera.com）
+ * 选中提供商时，若 BASE URL 为空或仍为自动回填值，则按当前 SDK 模式自动回填默认地址
  */
-export function autofillBaseUrl(provider: ProviderOption): void {
-    if (!provider.defaultBaseUrl) {
+export function autofillBaseUrl(provider: ProviderOption, preserveWhenMissing = false): void {
+    const baseUrlInput = document.getElementById('baseUrl') as HTMLInputElement | null;
+    if (!baseUrlInput) {
         return;
     }
-    const baseUrlInput = document.getElementById('baseUrl') as HTMLInputElement | null;
-    if (baseUrlInput && !baseUrlInput.value.trim()) {
-        baseUrlInput.value = provider.defaultBaseUrl;
+
+    const defaultBaseUrl = getProviderDefaultBaseUrl(provider);
+    if (!defaultBaseUrl) {
+        if (!preserveWhenMissing && baseUrlInput.dataset.autofilled === 'true') {
+            baseUrlInput.value = '';
+            baseUrlInput.classList.add('invalid');
+            delete baseUrlInput.dataset.autofilled;
+            delete baseUrlInput.dataset.autofilledValue;
+        }
+        return;
+    }
+
+    if (!baseUrlInput.value.trim() || baseUrlInput.dataset.autofilled === 'true') {
+        baseUrlInput.value = defaultBaseUrl;
         baseUrlInput.classList.remove('invalid');
+        baseUrlInput.dataset.autofilled = 'true';
+        baseUrlInput.dataset.autofilledValue = defaultBaseUrl;
     }
 }
 

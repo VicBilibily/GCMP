@@ -12,6 +12,8 @@ import type { CompatibleModelConfig } from '../../utils/compatibleModelManager';
  */
 export type SdkMode = NonNullable<CompatibleModelConfig['sdkMode']>;
 
+export type ProviderBaseUrls = Partial<Record<SdkMode, string>>;
+
 /**
  * 推理强度选项（与 CompatibleModelConfig.reasoningEffort 元素一致）
  */
@@ -54,8 +56,8 @@ export interface ModelFormData {
 export interface ProviderOption {
     id: string;
     name: string;
-    /** 已知提供商的默认 baseUrl；选中该提供商且 BASE URL 为空时自动回填 */
-    defaultBaseUrl?: string;
+    /** 提供商按 SDK 模式区分的默认 baseUrl */
+    baseUrls?: ProviderBaseUrls;
 }
 
 /**

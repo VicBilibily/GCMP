@@ -23,7 +23,6 @@ export const KnownProviders: Record<string, KnownProviderConfig> = {
     aihubmix: {
         displayName: 'AIHubMix',
         customHeader: { 'APP-Code': 'TFUV4759' },
-        // 厂商仍为 AIHubMix，仅将本平台请求导向新域名 api.inferera.com（同一后端）
         openai: {
             baseUrl: 'https://api.inferera.com/v1'
         },
@@ -34,8 +33,34 @@ export const KnownProviders: Record<string, KnownProviderConfig> = {
             }
         }
     },
-    aiping: { displayName: 'AIPing' },
-    openrouter: { displayName: 'OpenRouter' },
-    siliconflow: { displayName: '硅基流动' },
-    mistral: { displayName: 'MistralAI' }
+    aiping: {
+        displayName: 'AIPing',
+        openai: {
+            baseUrl: 'https://aiping.cn/api/v1'
+        }
+    },
+    openrouter: {
+        displayName: 'OpenRouter',
+        openai: {
+            baseUrl: 'https://openrouter.ai/api/v1'
+        },
+        anthropic: {
+            baseUrl: 'https://openrouter.ai/api'
+        }
+    },
+    siliconflow: {
+        displayName: 'SiliconFlow',
+        openai: {
+            baseUrl: 'https://api.siliconflow.cn/v1'
+        },
+        anthropic: {
+            baseUrl: 'https://api.siliconflow.cn/'
+        }
+    },
+    mistral: {
+        displayName: 'MistralAI',
+        openai: {
+            baseUrl: 'https://api.mistral.ai/v1'
+        }
+    }
 };

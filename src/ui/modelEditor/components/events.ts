@@ -47,6 +47,11 @@ export function bindEvents(state: EditorState, actions: Actions): void {
 
     // baseUrl 必填 + URL 格式校验
     baseUrl?.addEventListener('input', function (this: HTMLInputElement) {
+        if (this.dataset.autofilled === 'true' && this.value.trim() !== (this.dataset.autofilledValue || '').trim()) {
+            delete this.dataset.autofilled;
+            delete this.dataset.autofilledValue;
+        }
+
         const value = this.value.trim();
         if (!value) {
             this.classList.add('invalid');
@@ -199,6 +204,13 @@ export function bindEvents(state: EditorState, actions: Actions): void {
         const updateSdkSpecificOptionsVisibility = function () {
             useInstructionsContainer.style.display = sdkModeSelect.value === 'openai-responses' ? '' : 'none';
             webSearchToolContainer.style.display = sdkModeSelect.value === 'anthropic' ? '' : 'none';
+
+            if (provider?.value) {
+                const selectedProvider = state.providers.find(item => item.id === provider.value);
+                if (selectedProvider) {
+                    autofillBaseUrl(selectedProvider, true);
+                }
+            }
         };
         sdkModeSelect.addEventListener('change', updateSdkSpecificOptionsVisibility);
         updateSdkSpecificOptionsVisibility();

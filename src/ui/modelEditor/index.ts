@@ -354,7 +354,7 @@ export class ModelEditor {
             providersMap.set(key, {
                 id: key,
                 name: config.displayName || key,
-                defaultBaseUrl: config.openai?.baseUrl
+                baseUrls: this.getKnownProviderBaseUrls(config)
             });
         });
 
@@ -362,6 +362,23 @@ export class ModelEditor {
             command: 'setProviders',
             providers: Array.from(providersMap.values())
         });
+    }
+
+    private static getKnownProviderBaseUrls(
+        config: (typeof KnownProviders)[keyof typeof KnownProviders]
+    ): ProviderOption['baseUrls'] {
+        const baseUrls: NonNullable<ProviderOption['baseUrls']> = {};
+
+        if (config.openai?.baseUrl) {
+            baseUrls.openai = config.openai.baseUrl;
+            baseUrls['openai-sse'] = config.openai.baseUrl;
+            baseUrls['openai-responses'] = config.openai.baseUrl;
+        }
+        if (config.anthropic?.baseUrl) {
+            baseUrls.anthropic = config.anthropic.baseUrl;
+        }
+
+        return Object.keys(baseUrls).length > 0 ? baseUrls : undefined;
     }
 
     /**

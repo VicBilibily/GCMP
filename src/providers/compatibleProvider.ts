@@ -87,13 +87,6 @@ export class CompatibleProvider extends GenericModelProvider {
                     }
                 }
 
-                // 已知提供商默认 baseUrl：模型未显式配置 baseUrl 时兜底使用（如 AIHubMix → api.inferera.com）
-                const knownBaseUrl = model.provider
-                    ? model.sdkMode === 'anthropic'
-                        ? KnownProviders[model.provider]?.anthropic?.baseUrl
-                        : KnownProviders[model.provider]?.openai?.baseUrl
-                    : undefined;
-                const effectiveBaseUrl = model.baseUrl || knownBaseUrl;
                 const config: ModelConfig = {
                     id: model.id,
                     name: model.name,
@@ -103,7 +96,7 @@ export class CompatibleProvider extends GenericModelProvider {
                     maxOutputTokens: model.maxOutputTokens,
                     sdkMode: model.sdkMode,
                     capabilities: model.capabilities,
-                    ...(effectiveBaseUrl && { baseUrl: effectiveBaseUrl }),
+                    ...(model.baseUrl && { baseUrl: model.baseUrl }),
                     ...(model.endpoint && { endpoint: model.endpoint }),
                     ...(model.modelsEndpoint && { modelsEndpoint: model.modelsEndpoint }),
                     ...(model.model && { model: model.model }),
