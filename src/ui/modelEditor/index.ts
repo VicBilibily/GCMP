@@ -353,7 +353,8 @@ export class ModelEditor {
         Object.entries(KnownProviders).forEach(([key, config]) => {
             providersMap.set(key, {
                 id: key,
-                name: config.displayName || key
+                name: config.displayName || key,
+                defaultBaseUrl: config.openai?.baseUrl
             });
         });
 

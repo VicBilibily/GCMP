@@ -59,7 +59,7 @@ export class AiHubMixBalanceQuery implements IBalanceQuery {
                 ...(allOverrides[providerId]?.customHeader || {})
             };
             const response = await ConfigManager.fetchWithProxy(
-                'https://aihubmix.com/dashboard/billing/remain',
+                'https://api.inferera.com/dashboard/billing/remain',
                 {
                     method: 'GET',
                     headers: {
