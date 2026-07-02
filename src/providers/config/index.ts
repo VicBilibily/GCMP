@@ -12,11 +12,12 @@ import xiaomimimo from './xiaomimimo.json';
 import baidu from './baidu.json';
 import stepfun from './stepfun.json';
 import antling from './antling.json';
+import xfyun from './xfyun.json';
+import longcat from './longcat.json';
 import codex from './codex.json';
 import grok from './grok.json';
 import opencode from './opencode.json';
 import hyper from './hyper.json';
-import xfyun from './xfyun.json';
 
 const providers = {
     zhipu,
@@ -31,11 +32,12 @@ const providers = {
     baidu,
     stepfun,
     antling,
+    xfyun,
+    longcat,
     codex,
     grok,
     opencode,
-    hyper,
-    xfyun
+    hyper
 };
 
 export type ProviderName = keyof typeof providers;

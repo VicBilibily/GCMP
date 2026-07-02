@@ -26,6 +26,7 @@
         "antling",
         "ant-ling",
         "stepfun",
+        "LongCat",
         "OpenAI Compatible",
         "Anthropic Compatible",
         "智谱AI",
@@ -76,11 +77,12 @@
         "onLanguageModelProvider:gcmp.baidu",
         "onLanguageModelProvider:gcmp.stepfun",
         "onLanguageModelProvider:gcmp.antling",
+        "onLanguageModelProvider:gcmp.xfyun",
+        "onLanguageModelProvider:gcmp.longcat",
         "onLanguageModelProvider:gcmp.codex",
         "onLanguageModelProvider:gcmp.grok",
         "onLanguageModelProvider:gcmp.opencode",
         "onLanguageModelProvider:gcmp.hyper",
-        "onLanguageModelProvider:gcmp.xfyun",
         "onLanguageModelProvider:gcmp.compatible",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
         "onLanguageModelTool:gcmp_minimaxWebSearch",
@@ -269,16 +271,6 @@
                 "category": "GCMP"
             },
             {
-                "command": "gcmp.opencode.setApiKey",
-                "title": "%command.opencode.setApiKey%",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.hyper.setApiKey",
-                "title": "%command.hyper.setApiKey%",
-                "category": "GCMP"
-            },
-            {
                 "command": "gcmp.xfyun.setCodingPlanApiKey",
                 "title": "%command.xfyun.setCodingPlanApiKey%",
                 "category": "GCMP"
@@ -291,6 +283,21 @@
             {
                 "command": "gcmp.xfyun.configWizard",
                 "title": "%command.xfyun.configWizard%",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.longcat.setApiKey",
+                "title": "%command.longcat.setApiKey%",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.opencode.setApiKey",
+                "title": "%command.opencode.setApiKey%",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.hyper.setApiKey",
+                "title": "%command.hyper.setApiKey%",
                 "category": "GCMP"
             },
             {
@@ -876,6 +883,16 @@
                 "managementCommand": "gcmp.antling.setApiKey"
             },
             {
+                "vendor": "gcmp.xfyun",
+                "displayName": "GCMP · XunFei Astron",
+                "managementCommand": "gcmp.xfyun.configWizard"
+            },
+            {
+                "vendor": "gcmp.longcat",
+                "displayName": "GCMP · LongCat",
+                "managementCommand": "gcmp.longcat.setApiKey"
+            },
+            {
                 "vendor": "gcmp.opencode",
                 "displayName": "GCMP · OpenCode",
                 "managementCommand": "gcmp.opencode.setApiKey"
@@ -884,11 +901,6 @@
                 "vendor": "gcmp.hyper",
                 "displayName": "GCMP · Charm Hyper",
                 "managementCommand": "gcmp.hyper.setApiKey"
-            },
-            {
-                "vendor": "gcmp.xfyun",
-                "displayName": "GCMP · XunFei Astron",
-                "managementCommand": "gcmp.xfyun.configWizard"
             },
             {
                 "vendor": "gcmp.codex",

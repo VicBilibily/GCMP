@@ -1,0 +1,18 @@
+﻿{
+    "displayName": "LongCat",
+    "baseUrl": "https://api.longcat.chat/anthropic",
+    "apiKeyTemplate": "ak_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "models": [
+        {
+            "id": "LongCat-2.0",
+            "name": "LongCat-2.0",
+            "tooltip": "LongCat-2.0 是 LongCat API 开放平台的高性能 Agentic 模型，擅长代码编写与智能体任务。",
+            "sdkMode": "anthropic",
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        }
+    ]
+}
