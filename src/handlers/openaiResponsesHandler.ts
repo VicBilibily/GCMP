@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import OpenAI, { ClientOptions } from 'openai';
 import { TokenUsagesManager } from '../usages/usagesManager';
-import { Logger, sanitizeToolSchemaForTarget } from '../utils';
+import { Logger, sanitizeToolSchemaForTarget, isCancellationError } from '../utils';
 import { t } from '../utils/l10n';
 import { ModelChatResponseOptions, ModelConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
@@ -1058,8 +1058,8 @@ export class OpenAIResponsesHandler {
                         await usagesManager.updateActualTokens({
                             requestId,
                             sessionId,
-                            rawUsage: finalUsage || {},
-                            status: 'completed',
+                            rawUsage: finalUsage,
+                            status: token.isCancellationRequested ? 'cancelled' : 'completed',
                             streamStartTime,
                             streamEndTime
                         });
@@ -1070,13 +1070,20 @@ export class OpenAIResponsesHandler {
 
                 Logger.debug(`${model.name} ${this.displayName} Responses API stream completed`);
             } catch (error) {
-                if (
-                    token.isCancellationRequested ||
-                    error instanceof vscode.CancellationError ||
-                    error instanceof OpenAI.APIUserAbortError ||
-                    (error instanceof Error && error.name === 'AbortError')
-                ) {
+                if (token.isCancellationRequested || isCancellationError(error)) {
                     Logger.info(`${model.name} Responses API request was cancelled by the user`);
+                    // 记录为中止状态，而非错误或完成
+                    try {
+                        await TokenUsagesManager.instance.updateActualTokens({
+                            requestId,
+                            sessionId,
+                            status: 'cancelled',
+                            streamStartTime,
+                            streamEndTime: streamEndTime ?? Date.now()
+                        });
+                    } catch (err) {
+                        Logger.warn('Failed to update token stats for cancelled request:', err);
+                    }
                     throw new vscode.CancellationError();
                 } else {
                     Logger.error(`${model.name} Responses API stream processing error: ${error}`);
@@ -1137,8 +1144,9 @@ export class OpenAIResponsesHandler {
                 throw error;
             }
 
-            if (error instanceof vscode.CancellationError) {
-                throw error;
+            if (isCancellationError(error)) {
+                // 内层已通过 updateActualTokens 记录为 cancelled，规范化为 CancellationError 后抛出
+                throw new vscode.CancellationError();
             } else if (error instanceof vscode.LanguageModelError) {
                 throw error;
             } else {

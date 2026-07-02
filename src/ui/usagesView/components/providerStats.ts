@@ -20,13 +20,20 @@ import {
 /**
  * 创建表格单元格
  */
-function createCell(content: string | number, className = ''): HTMLElement {
+function createCell(content: string | number, className = '', title?: string): HTMLElement {
     const cell = createElement('td');
     if (className) {
         cell.className = className;
     }
     cell.textContent = String(content);
+    if (title) {
+        cell.title = title;
+    }
     return cell;
+}
+
+function formatRequestBreakdown(completed: number, failed: number, cancelled: number): string {
+    return `✅ ${completed} | ❌ ${failed} | 🚫 ${cancelled}`;
 }
 
 // ============= 组件渲染 =============
@@ -71,6 +78,9 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
         let totalCache = 0;
         let totalOutput = 0;
         let totalRequests = 0;
+        let totalCompletedRequests = 0;
+        let totalFailedRequests = 0;
+        let totalCancelledRequests = 0;
 
         providers.forEach(provider => {
             // 累加合计数据
@@ -78,6 +88,9 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             totalCache += provider.cacheTokens || 0;
             totalOutput += provider.outputTokens || 0;
             totalRequests += provider.requests || 0;
+            totalCompletedRequests += provider.completedRequests || 0;
+            totalFailedRequests += provider.failedRequests || 0;
+            totalCancelledRequests += provider.cancelledRequests || 0;
 
             // 提供商行
             const providerRow = createElement('tr');
@@ -91,7 +104,17 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             providerRow.appendChild(createCell(formatTokens(provider.cacheTokens)));
             providerRow.appendChild(createCell(formatTokens(provider.outputTokens)));
             providerRow.appendChild(createCell(formatTokens(totalTokens)));
-            providerRow.appendChild(createCell(provider.requests));
+            providerRow.appendChild(
+                createCell(
+                    provider.requests,
+                    '',
+                    formatRequestBreakdown(
+                        provider.completedRequests || 0,
+                        provider.failedRequests || 0,
+                        provider.cancelledRequests || 0
+                    )
+                )
+            );
             providerRow.appendChild(createCell(calculateAverageFirstTokenLatency(provider)));
             providerRow.appendChild(createCell(calculateAverageSpeed(provider)));
 
@@ -130,7 +153,13 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
         totalRow.appendChild(createCell(formatTokens(totalCache)));
         totalRow.appendChild(createCell(formatTokens(totalOutput)));
         totalRow.appendChild(createCell(formatTokens(grandTotal)));
-        totalRow.appendChild(createCell(totalRequests));
+        totalRow.appendChild(
+            createCell(
+                totalRequests,
+                '',
+                formatRequestBreakdown(totalCompletedRequests, totalFailedRequests, totalCancelledRequests)
+            )
+        );
         const mean = (values: number[]): number => {
             const cleaned = values.filter(v => Number.isFinite(v) && v > 0);
             if (cleaned.length === 0) {
@@ -159,8 +188,9 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             cacheTokens: 0,
             outputTokens: 0,
             requests: 0,
-            completedRequests: 0,
-            failedRequests: 0,
+            completedRequests: totalCompletedRequests,
+            failedRequests: totalFailedRequests,
+            cancelledRequests: totalCancelledRequests,
             firstTokenLatency: mean(allModelLatencies),
             outputSpeeds: mean(allModelSpeeds)
         } as TokenStats;

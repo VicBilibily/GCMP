@@ -64,6 +64,7 @@ export function summarizeSessionRecords(records: ExtendedTokenRequestLog[]): Ses
         endTime: timestamps.length > 0 ? Math.max(...timestamps) : undefined,
         completedCount: records.filter(record => record.status === 'completed').length,
         failedCount: records.filter(record => record.status === 'failed').length,
+        cancelledCount: records.filter(record => record.status === 'cancelled').length,
         avgSpeed:
             speedRecords.length > 0 ?
                 speedRecords.reduce((sum, record) => sum + (record.outputSpeed || 0), 0) / speedRecords.length

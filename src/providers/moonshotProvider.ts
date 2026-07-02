@@ -15,7 +15,7 @@ import {
 } from 'vscode';
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { Logger, ApiKeyManager } from '../utils';
+import { Logger, ApiKeyManager, isCancellationError } from '../utils';
 import { MoonshotWizard } from '../wizards/moonshotWizard';
 import { StatusBarManager } from '../status';
 import { TokenUsagesManager } from '../usages/usagesManager';
@@ -282,6 +282,10 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
                 providerKey
             );
         } catch (error) {
+            if (isCancellationError(error)) {
+                await this.reportRequestCancelled(requestId, sessionId);
+                throw error;
+            }
             const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
             Logger.error(errorMessage);
             this.reportRequestFailure(requestId, sessionId);

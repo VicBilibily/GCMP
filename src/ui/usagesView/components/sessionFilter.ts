@@ -60,6 +60,7 @@ function createSessionItem(options: {
     title: string;
     titleMeta?: string;
     stats: string;
+    /** 预留插槽：附加在会话条目底部的可选详情文本 */
     detail?: string;
     selected: boolean;
     onClick: () => void;
@@ -89,6 +90,7 @@ function createSessionItem(options: {
     inner.appendChild(title);
     inner.appendChild(stats);
 
+    // 预留插槽：未传 detail 时不渲染，保持 DOM 紧凑
     if (options.detail) {
         const detail = createElement('div', 'session-filter-item-detail');
         detail.textContent = options.detail;

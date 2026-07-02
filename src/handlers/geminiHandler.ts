@@ -12,6 +12,7 @@ import * as path from 'path';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { ConfigManager } from '../utils/configManager';
 import { Logger } from '../utils/logger';
+import { isCancellationError } from '../utils';
 import { t } from '../utils/l10n';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import type { ModelConfig, ProviderConfig } from '../types/sharedTypes';
@@ -654,12 +655,17 @@ export class GeminiHandler {
 
             Logger.debug(`✅ ${model.name} ${this.displayName} Gemini HTTP request completed`);
         } catch (error) {
-            if (
-                token.isCancellationRequested ||
-                error instanceof vscode.CancellationError ||
-                (error instanceof Error && error.name === 'AbortError')
-            ) {
+            if (token.isCancellationRequested || isCancellationError(error)) {
                 Logger.warn(`[${model.name}] Request was cancelled by the user`);
+                try {
+                    await TokenUsagesManager.instance.updateActualTokens({
+                        requestId,
+                        sessionId: reporter?.getSessionId(),
+                        status: 'cancelled'
+                    });
+                } catch (err) {
+                    Logger.warn('Failed to update token stats for cancelled request:', err);
+                }
                 throw new vscode.CancellationError();
             }
 
@@ -756,7 +762,7 @@ export class GeminiHandler {
         try {
             while (true) {
                 if (token.isCancellationRequested) {
-                    break;
+                    throw new vscode.CancellationError();
                 }
                 const { done, value } = await reader.read();
                 if (done) {
@@ -777,8 +783,7 @@ export class GeminiHandler {
                 processRawLine(buffer);
             }
         } catch (error) {
-            if (error instanceof Error && error.name === 'AbortError') {
-                Logger.warn(`[${reporter.getModelName()}] Request was cancelled by the user`);
+            if (isCancellationError(error)) {
                 throw new vscode.CancellationError();
             }
             throw error;
@@ -804,7 +809,7 @@ export class GeminiHandler {
                     requestId,
                     sessionId: reporter.getSessionId(),
                     rawUsage: finalUsage,
-                    status: 'completed',
+                    status: token.isCancellationRequested ? 'cancelled' : 'completed',
                     streamStartTime,
                     streamEndTime
                 });

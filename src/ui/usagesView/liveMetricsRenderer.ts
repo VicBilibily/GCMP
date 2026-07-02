@@ -337,7 +337,7 @@ export class LiveMetricsRenderer {
 
             // 跳过已完成/失败的行，避免实时值覆盖最终统计
             const requestStatus = targetRow.getAttribute('data-request-status');
-            if (requestStatus === 'completed' || requestStatus === 'failed') {
+            if (requestStatus === 'completed' || requestStatus === 'failed' || requestStatus === 'cancelled') {
                 return;
             }
 

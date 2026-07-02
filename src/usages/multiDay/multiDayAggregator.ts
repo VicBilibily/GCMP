@@ -82,7 +82,8 @@ export class MultiDayAggregator {
             grandCache = 0,
             grandOutput = 0,
             grandRequests = 0,
-            grandCompleted = 0;
+            grandCompleted = 0,
+            grandCancelled = 0;
         const providerAcc = new Map<string, { name: string; input: number; cache: number; output: number }>();
         const modelAcc = new Map<
             string,
@@ -114,6 +115,7 @@ export class MultiDayAggregator {
             grandOutput += ds.totalOutput;
             grandRequests += ds.totalRequests;
             grandCompleted += ds.completedRequests;
+            grandCancelled += ds.cancelledRequests;
             for (const [k, ps] of Object.entries(stats.providers)) {
                 const pi = ps.actualInput || ps.estimatedInput || 0;
                 const pc = ps.cacheTokens || 0;
@@ -180,7 +182,9 @@ export class MultiDayAggregator {
         // === 汇总 ===
         const dayCount = dates.length;
         const dailyAvgTokens = dayCount > 0 ? Math.round(grandTokens / dayCount) : 0;
-        const successRate = grandRequests > 0 ? grandCompleted / grandRequests : 0;
+        // 成功率/失败率分母排除已中止的请求（用户主动取消，不应计入系统成功率/失败率）
+        const effectiveTotal = grandRequests - grandCancelled;
+        const successRate = effectiveTotal > 0 ? grandCompleted / effectiveTotal : 0;
         const topProvider =
             providerRanking[0] ?
                 { key: providerRanking[0].key, name: providerRanking[0].name, share: providerRanking[0].share }
@@ -232,7 +236,9 @@ export class MultiDayAggregator {
         const tr = stats.total.requests;
         const cr = stats.total.completedRequests;
         const fr = stats.total.failedRequests;
-        const frate = tr > 0 ? fr / tr : 0;
+        const cancelR = stats.total.cancelledRequests;
+        // 失败率分母排除已中止的请求（用户主动取消，不应计入系统失败率）
+        const frate = tr > cancelR ? fr / (tr - cancelR) : 0;
         const tt = ti + tc + to;
         const chr = ti + to + tc > 0 ? tc / (ti + to + tc) : 0;
 
@@ -281,6 +287,7 @@ export class MultiDayAggregator {
             totalRequests: tr,
             completedRequests: cr,
             failedRequests: fr,
+            cancelledRequests: cancelR,
             failureRate: frate,
             cacheHitRate: chr,
             providers

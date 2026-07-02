@@ -8,7 +8,7 @@
     modelName: string;
     estimatedInput: number;
     rawUsage: Record<string, unknown> | null;
-    status: 'estimated' | 'completed' | 'failed';
+    status: 'estimated' | 'completed' | 'failed' | 'cancelled';
     maxInputTokens?: number;
     requestKind?: string;
     sessionId?: string;
@@ -32,6 +32,7 @@ function getStatusRank(status: SnapshotRequestRecord['status']): number {
     switch (status) {
         case 'completed':
         case 'failed':
+        case 'cancelled':
             return 2;
         case 'estimated':
         default:

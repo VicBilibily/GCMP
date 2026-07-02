@@ -15,7 +15,7 @@ import {
 } from 'vscode';
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { Logger, ApiKeyManager } from '../utils';
+import { Logger, ApiKeyManager, isCancellationError } from '../utils';
 import { XiaomimimoWizard } from '../wizards/xiaomimimoWizard';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { classifyRequest } from '../handlers/requestClassifier';
@@ -240,6 +240,10 @@ export class XiaomimimoProvider extends GenericModelProvider implements Language
                 providerKey
             );
         } catch (error) {
+            if (isCancellationError(error)) {
+                await this.reportRequestCancelled(requestId, sessionId);
+                throw error;
+            }
             this.reportRequestFailure(requestId, sessionId);
             throw error;
         } finally {

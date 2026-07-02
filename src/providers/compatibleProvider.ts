@@ -11,7 +11,14 @@ import {
     Progress
 } from 'vscode';
 import { ProviderConfig, ModelConfig, ModelOverride } from '../types/sharedTypes';
-import { Logger, ApiKeyManager, CompatibleModelManager, ConfigManager, KnownProviders } from '../utils';
+import {
+    Logger,
+    ApiKeyManager,
+    CompatibleModelManager,
+    ConfigManager,
+    isCancellationError,
+    KnownProviders
+} from '../utils';
 import { classifyRequest } from '../handlers/requestClassifier';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { GenericModelProvider } from './genericModelProvider';
@@ -398,6 +405,10 @@ export class CompatibleProvider extends GenericModelProvider {
                     modelConfig.provider || this.providerKey
                 );
             } catch (error) {
+                if (isCancellationError(error)) {
+                    await this.reportRequestCancelled(requestId, sessionId);
+                    throw error;
+                }
                 const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
                 Logger.error(errorMessage);
                 this.reportRequestFailure(requestId, sessionId);
@@ -412,6 +423,9 @@ export class CompatibleProvider extends GenericModelProvider {
                 }
             }
         } catch (error) {
+            if (isCancellationError(error)) {
+                throw error;
+            }
             Logger.error('Compatible Provider request processing failed:', error);
             throw error;
         }

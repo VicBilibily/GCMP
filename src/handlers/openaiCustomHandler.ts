@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
-import { Logger, createOpenCodeHeaders } from '../utils';
+import { Logger, createOpenCodeHeaders, isCancellationError } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
@@ -248,8 +248,18 @@ export class OpenAICustomHandler {
 
             Logger.debug(`[${model.name}] API request completed`);
         } catch (error) {
-            if (error instanceof Error && error.name === 'AbortError') {
+            if (isCancellationError(error)) {
                 Logger.warn(`[${model.name}] Request was cancelled by the user`);
+                // 记录为中止状态，而非错误或完成
+                try {
+                    await TokenUsagesManager.instance.updateActualTokens({
+                        requestId: requestId || '',
+                        sessionId: reporter?.getSessionId(),
+                        status: 'cancelled'
+                    });
+                } catch (err) {
+                    Logger.warn('Failed to update token stats for cancelled request:', err);
+                }
                 throw new vscode.CancellationError();
             }
             throw error;
@@ -282,8 +292,7 @@ export class OpenAICustomHandler {
         try {
             while (true) {
                 if (token.isCancellationRequested) {
-                    Logger.warn(`[${model.name}] Request was cancelled by the user`);
-                    break;
+                    throw new vscode.CancellationError();
                 }
 
                 const { done, value } = await reader.read();
@@ -407,8 +416,8 @@ export class OpenAICustomHandler {
             await usagesManager.updateActualTokens({
                 requestId,
                 sessionId: reporter.getSessionId(),
-                rawUsage: finalUsage || {},
-                status: 'completed',
+                rawUsage: finalUsage,
+                status: token.isCancellationRequested ? 'cancelled' : 'completed',
                 streamStartTime,
                 streamEndTime
             });

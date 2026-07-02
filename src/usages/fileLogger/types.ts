@@ -92,7 +92,7 @@ export interface TokenRequestLog {
     /** 原始 usage 对象 (请求完成时存储，支持多种提供商格式) */
     rawUsage: GenericUsageData | null;
     /** 请求状态 */
-    status: 'estimated' | 'completed' | 'failed';
+    status: 'estimated' | 'completed' | 'failed' | 'cancelled';
     /** 最大输入token(上下文窗口大小) */
     maxInputTokens?: number;
     /** 请求来源类型（main-agent / git-commit-message / chat-title 等） */
@@ -153,6 +153,7 @@ export interface BaseStats {
 export interface TokenStats extends BaseStats {
     completedRequests: number;
     failedRequests: number;
+    cancelledRequests: number;
 }
 
 /**

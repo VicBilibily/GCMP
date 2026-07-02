@@ -22,6 +22,7 @@ export { PromptAnalyzer } from './promptAnalyzer';
 export { sanitizeToolSchema, sanitizeToolSchemaForSdkMode, sanitizeToolSchemaForTarget } from './schemaSanitizer';
 export type { ToolSchemaTarget } from './schemaSanitizer';
 export { formatOpenCodeId as formatOpencodeId, createOpenCodeHeaders } from './formatUtils';
+export { isCancellationError } from './cancellationError';
 export {
     getProxyAgent,
     createProxiedFetch,

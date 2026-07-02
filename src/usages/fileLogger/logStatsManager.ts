@@ -163,9 +163,9 @@ export class LogStatsManager {
         // 更早日期优先从 requests.jsonl 快照读取（缓存命中时零 I/O），全量按小时分桶聚合。
         const snapshotRecords = this.shouldReadRawJsonl(dateStr) ? null : await this.snapshotManager.read(dateStr);
 
-        // 计算快照记录指纹：records:completed:failed:maxStreamEndTime
+        // 计算快照记录指纹：records:completed:failed:cancelled:maxStreamEndTime
         // - records 变化：有新请求
-        // - completed/failed 变化：状态转移（estimated → completed/failed）
+        // - completed/failed/cancelled 变化：状态转移（estimated → completed/failed/cancelled）
         // - maxStreamEndTime 变化：有新的实际 token 数据写入（updateActualTokens 触发）
         // 仅 snapshotRecords 存在时启用签名快返；JSONL fallback 必须实际读取日志，避免旧 "0:0:0:0" 误命中。
         let signature: string | undefined;
@@ -173,6 +173,7 @@ export class LogStatsManager {
             let totalRecords = 0;
             let completedCount = 0;
             let failedCount = 0;
+            let cancelledCount = 0;
             let maxStreamEndTime = 0;
             for (const r of snapshotRecords) {
                 totalRecords++;
@@ -180,12 +181,14 @@ export class LogStatsManager {
                     completedCount++;
                 } else if (r.status === 'failed') {
                     failedCount++;
+                } else if (r.status === 'cancelled') {
+                    cancelledCount++;
                 }
                 if (r.streamEndTime && r.streamEndTime > maxStreamEndTime) {
                     maxStreamEndTime = r.streamEndTime;
                 }
             }
-            signature = `${totalRecords}:${completedCount}:${failedCount}:${maxStreamEndTime}`;
+            signature = `${totalRecords}:${completedCount}:${failedCount}:${cancelledCount}:${maxStreamEndTime}`;
         }
 
         // 签名一致且版本戳有效：跳过全量聚合，直接返回现有 stats（消除无意义的重算与 stats.json 重写）
@@ -280,6 +283,7 @@ export class LogStatsManager {
             requests: 0,
             completedRequests: 0,
             failedRequests: 0,
+            cancelledRequests: 0,
             firstTokenLatency: 0,
             outputSpeeds: 0
         };
@@ -324,6 +328,7 @@ export class LogStatsManager {
             total.requests += hourStats.requests;
             total.completedRequests += hourStats.completedRequests;
             total.failedRequests += hourStats.failedRequests;
+            total.cancelledRequests += hourStats.cancelledRequests;
 
             // 3) daily total：对每小时的聚合值做算术平均（不加权）
             if (hourStats.firstTokenLatency && hourStats.firstTokenLatency > 0) {
@@ -345,6 +350,7 @@ export class LogStatsManager {
                         requests: 0,
                         completedRequests: 0,
                         failedRequests: 0,
+                        cancelledRequests: 0,
                         models: {}
                     };
                 }
@@ -357,6 +363,7 @@ export class LogStatsManager {
                 provider.requests += providerHour.requests;
                 provider.completedRequests += providerHour.completedRequests;
                 provider.failedRequests += providerHour.failedRequests;
+                provider.cancelledRequests += providerHour.cancelledRequests;
 
                 const pAcc = providerMetricAccByDay.get(provider) ?? {};
                 if (providerHour.firstTokenLatency && providerHour.firstTokenLatency > 0) {

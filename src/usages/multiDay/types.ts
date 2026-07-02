@@ -16,6 +16,7 @@ export interface MultiDayDateStats {
     totalRequests: number;
     completedRequests: number;
     failedRequests: number;
+    cancelledRequests: number;
     failureRate: number;
     cacheHitRate: number;
     providers: Record<string, MultiDayProviderStats>;

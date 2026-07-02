@@ -15,7 +15,7 @@ import {
 } from 'vscode';
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { Logger, ApiKeyManager } from '../utils';
+import { Logger, ApiKeyManager, isCancellationError } from '../utils';
 import { DashscopeWizard } from '../wizards/dashscopeWizard';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { classifyRequest } from '../handlers/requestClassifier';
@@ -262,6 +262,10 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
                 providerKey
             );
         } catch (error) {
+            if (isCancellationError(error)) {
+                await this.reportRequestCancelled(requestId, sessionId);
+                throw error;
+            }
             this.reportRequestFailure(requestId, sessionId);
             throw error;
         } finally {

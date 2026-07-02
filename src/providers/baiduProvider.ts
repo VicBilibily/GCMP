@@ -14,7 +14,7 @@ import {
 } from 'vscode';
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { Logger, ApiKeyManager } from '../utils';
+import { Logger, ApiKeyManager, isCancellationError } from '../utils';
 import { BaiduWizard } from '../wizards/baiduWizard';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { classifyRequest } from '../handlers/requestClassifier';
@@ -246,6 +246,10 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
                 providerKey
             );
         } catch (error) {
+            if (isCancellationError(error)) {
+                await this.reportRequestCancelled(requestId, sessionId);
+                throw error;
+            }
             const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
             Logger.error(errorMessage);
             this.reportRequestFailure(requestId, sessionId);

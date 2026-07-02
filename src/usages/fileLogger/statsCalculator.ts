@@ -106,7 +106,7 @@ export abstract class StatsCalculator {
 
     /**
      * 合并同一requestId的多条流水记录,取最终状态
-     * 保留最后一条记录的状态（completed/failed），但使用第一条记录的时间戳（请求开始时间）
+     * 保留最后一条记录的状态（completed/failed/cancelled），但使用第一条记录的时间戳（请求开始时间）
      * @param logs 流水记录列表
      * @returns 按requestId合并后的记录Map
      */
@@ -126,7 +126,7 @@ export abstract class StatsCalculator {
                     existing.timestamp = log.timestamp;
                     existing.isoTime = log.isoTime;
                 }
-                // 无论时间戳如何，都更新为最新状态（completed/failed 和 rawUsage）
+                // 无论时间戳如何，都更新为最新状态（completed/failed/cancelled 和 rawUsage）
                 existing.status = log.status;
                 existing.rawUsage = log.rawUsage;
                 // 更新流时间信息
@@ -149,7 +149,7 @@ export abstract class StatsCalculator {
     /**
      * 聚合日志为统计数据
      * 1. 先按requestId合并流水记录,取最终状态
-     * 2. 只统计成功(completed)的请求
+     * 2. 统计 completed 请求，以及带实际 usage 的 cancelled 请求
      * 3. 从 rawUsage 解析 token 统计
      */
     static aggregateLogs(logs: TokenRequestLog[]): TokenUsageStatsFromFile {
@@ -162,6 +162,7 @@ export abstract class StatsCalculator {
                 requests: 0,
                 completedRequests: 0,
                 failedRequests: 0,
+                cancelledRequests: 0,
                 firstTokenLatency: 0,
                 outputSpeeds: 0
             },
@@ -186,6 +187,8 @@ export abstract class StatsCalculator {
                 stats.total.completedRequests++;
             } else if (log.status === 'failed') {
                 stats.total.failedRequests++;
+            } else if (log.status === 'cancelled') {
+                stats.total.cancelledRequests++;
             }
 
             // 初始化提供商统计（确保所有提供商都被记录，即使请求失败）
@@ -199,6 +202,7 @@ export abstract class StatsCalculator {
                     requests: 0,
                     completedRequests: 0,
                     failedRequests: 0,
+                    cancelledRequests: 0,
                     firstTokenLatency: 0,
                     outputSpeeds: 0,
                     models: {}
@@ -212,11 +216,17 @@ export abstract class StatsCalculator {
                 providerStats.completedRequests++;
             } else if (log.status === 'failed') {
                 providerStats.failedRequests++;
+            } else if (log.status === 'cancelled') {
+                providerStats.cancelledRequests++;
             }
 
-            // 只统计成功的请求到 token 用量和速度
-            if (log.status !== 'completed' || !log.rawUsage) {
-                // 如果没有 rawUsage，使用预估的 input
+            // 只统计具备最终 usage 的 completed/cancelled 请求到 token 用量和速度
+            const hasFinalUsage =
+                (log.status === 'completed' || log.status === 'cancelled') &&
+                !!log.rawUsage &&
+                Object.keys(log.rawUsage).length > 0;
+            if (!hasFinalUsage) {
+                // completed 但没有 rawUsage 时，仍回退到预估输入
                 if (log.status === 'completed') {
                     stats.total.estimatedInput += log.estimatedInput;
                     stats.total.actualInput += log.estimatedInput;
@@ -229,7 +239,7 @@ export abstract class StatsCalculator {
             // 从 rawUsage 解析 token 统计
             const parsed = UsageParser.parseFromLog(log);
 
-            // 更新总计(仅成功的请求)
+            // 更新总计（completed 与带实际 usage 的 cancelled）
             stats.total.estimatedInput += log.estimatedInput;
             stats.total.actualInput += parsed.actualInput;
             stats.total.cacheTokens += parsed.cacheReadTokens;
@@ -241,7 +251,7 @@ export abstract class StatsCalculator {
             providerStats.cacheTokens += parsed.cacheReadTokens;
             providerStats.outputTokens += parsed.outputTokens;
 
-            // 按模型聚合(仅成功的请求)
+            // 按模型聚合（completed 与带实际 usage 的 cancelled）
             if (!providerStats.models[log.modelId]) {
                 providerStats.models[log.modelId] = {
                     modelName: log.modelName,

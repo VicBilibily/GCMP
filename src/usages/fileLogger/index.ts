@@ -287,7 +287,7 @@ export class TokenFileLogger {
         requestId: string;
         sessionId?: string;
         rawUsage?: TokenRequestLog['rawUsage'];
-        status: 'completed' | 'failed';
+        status: 'completed' | 'failed' | 'cancelled';
         /** 流开始时间 (毫秒时间戳) */
         streamStartTime?: number;
         /** 流结束时间 (毫秒时间戳) */

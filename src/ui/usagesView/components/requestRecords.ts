@@ -220,10 +220,12 @@ function createSummarySection(summary: SessionSummary): HTMLElement {
     const summaryEl = createElement('div', 'session-detail-summary');
     const avgSpeedText = summary.avgSpeed ? `${summary.avgSpeed.toFixed(1)} t/s` : '-';
     const timeRange = formatSessionTimeRange(summary.startTime, summary.endTime);
+    const statusBreakdown = `✅ ${summary.completedCount} / ❌ ${summary.failedCount} / 🚫 ${summary.cancelledCount}`;
 
     summaryEl.appendChild(createSummaryChip(t('Tokens', 'Tokens'), formatTokens(summary.totalTokens)));
     summaryEl.appendChild(createSummaryChip(t('Time', '时间'), timeRange, timeRange));
     summaryEl.appendChild(createSummaryChip(t('Avg Speed', '平均速度'), avgSpeedText));
+    summaryEl.appendChild(createSummaryChip(t('Status', '状态'), statusBreakdown));
 
     return summaryEl;
 }
@@ -253,10 +255,11 @@ function buildRequestTotals(records: ExtendedTokenRequestLog[]): {
     const durations: number[] = [];
 
     records.forEach(record => {
-        inputTokens +=
-            record.status === 'completed' && record.rawUsage && record.totalTokens > 0 ?
-                Math.max(record.actualInput || 0, 0)
-            :   Math.max(record.estimatedInput || 0, 0);
+        const hasActualUsage =
+            (record.status === 'completed' || record.status === 'cancelled') &&
+            !!record.rawUsage &&
+            record.totalTokens > 0;
+        inputTokens += hasActualUsage ? Math.max(record.actualInput || 0, 0) : Math.max(record.estimatedInput || 0, 0);
         cacheTokens += Math.max(record.cacheReadTokens || 0, 0);
         outputTokens += Math.max(record.outputTokens || 0, 0);
 
@@ -410,9 +413,12 @@ export function createRequestRecordsTable(
         providerModel.append(providerDiv, modelDiv);
 
         const input = createElement('td', 'records-input-merged');
-        const isCompleted = record.status === 'completed' && record.rawUsage && record.totalTokens > 0;
-        const inputVal = isCompleted ? record.actualInput || 0 : record.estimatedInput || 0;
-        const cacheVal = isCompleted && record.cacheReadTokens > 0 ? record.cacheReadTokens : 0;
+        const hasActualUsage =
+            (record.status === 'completed' || record.status === 'cancelled') &&
+            !!record.rawUsage &&
+            record.totalTokens > 0;
+        const inputVal = hasActualUsage ? record.actualInput || 0 : record.estimatedInput || 0;
+        const cacheVal = hasActualUsage && record.cacheReadTokens > 0 ? record.cacheReadTokens : 0;
         if (cacheVal > 0 && inputVal > 0) {
             const ratio = ((cacheVal / inputVal) * 100).toFixed(1);
             const miss = inputVal - cacheVal;
@@ -422,7 +428,7 @@ export function createRequestRecordsTable(
                 : ratioNum >= 80 ? 'cache-ratio-mid'
                 : ratioNum >= 60 ? 'cache-ratio-low'
                 : 'cache-ratio-none';
-            const inputPrefix = !isCompleted ? '~' : '';
+            const inputPrefix = !hasActualUsage ? '~' : '';
             const formattedInput = `${inputPrefix}${formatTokens(inputVal)}`;
             const formattedCache = formatTokens(cacheVal);
             const formattedMiss = miss.toLocaleString('en-US');
@@ -441,16 +447,16 @@ export function createRequestRecordsTable(
                 '</div>';
             input.innerHTML = inputRowHtml + inputDetailHtml;
         } else {
-            input.textContent = inputVal > 0 ? `${!isCompleted ? '~' : ''}${formatTokens(inputVal)}` : '-';
+            input.textContent = inputVal > 0 ? `${!hasActualUsage ? '~' : ''}${formatTokens(inputVal)}` : '-';
             if (inputVal > 0) {
-                input.title = `${!isCompleted ? '~' : ''}${inputVal.toLocaleString('en-US')} input tokens`;
+                input.title = `${!hasActualUsage ? '~' : ''}${inputVal.toLocaleString('en-US')} input tokens`;
             }
         }
 
         // 合并输出列：上行 TTFT | 输出令牌，下行 TPOT | 输出速度
         const output = createElement('td', 'records-output-merged');
         output.setAttribute('data-metric', 'output');
-        const outputVal = record.status === 'completed' && record.outputTokens > 0 ? record.outputTokens : 0;
+        const outputVal = hasActualUsage && record.outputTokens > 0 ? record.outputTokens : 0;
         const ttft =
             (
                 record.streamStartTime !== undefined &&
@@ -495,7 +501,7 @@ export function createRequestRecordsTable(
         output.innerHTML = outputRowHtml + outputDetailHtml;
 
         const total = createElement('td');
-        const totalVal = record.status === 'completed' && record.totalTokens > 0 ? record.totalTokens : 0;
+        const totalVal = hasActualUsage && record.totalTokens > 0 ? record.totalTokens : 0;
         const isAllSessions = window.usagesState?.selectedSessionId === null;
         // 仅对左侧会话列表中可见（requestCount > 1）的会话显示可点击链接
         if (isAllSessions && record.sessionId && visibleSessionIds.has(record.sessionId)) {
@@ -517,10 +523,12 @@ export function createRequestRecordsTable(
         status.className =
             record.status === 'completed' ? 'status-completed'
             : record.status === 'failed' ? 'status-failed'
+            : record.status === 'cancelled' ? 'status-cancelled'
             : 'status-estimated';
         status.textContent =
             record.status === 'completed' ? '✅'
             : record.status === 'failed' ? '❌'
+            : record.status === 'cancelled' ? '🚫'
             : '⏳';
 
         row.append(time, providerModel, input, output, total, status);

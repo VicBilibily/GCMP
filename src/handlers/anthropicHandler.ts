@@ -10,7 +10,7 @@ import { apiMessageToAnthropicMessage, convertToAnthropicTools } from './anthrop
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { Logger } from '../utils/logger';
 import { ConfigManager } from '../utils/configManager';
-import { redactHeaders } from '../utils';
+import { redactHeaders, isCancellationError } from '../utils';
 import { VersionManager } from '../utils/versionManager';
 import { createOpenCodeHeaders } from '../utils/formatUtils';
 import { TokenUsagesManager } from '../usages/usagesManager';
@@ -322,8 +322,8 @@ export class AnthropicHandler {
                     await usagesManager.updateActualTokens({
                         requestId,
                         sessionId,
-                        rawUsage: result?.usage || {},
-                        status: 'completed',
+                        rawUsage: result?.usage,
+                        status: token.isCancellationRequested ? 'cancelled' : 'completed',
                         streamStartTime: result?.streamStartTime,
                         streamEndTime: result?.streamEndTime
                     });
@@ -332,12 +332,20 @@ export class AnthropicHandler {
                 }
             }
         } catch (error) {
-            if (
-                token.isCancellationRequested ||
-                error instanceof Anthropic.APIUserAbortError ||
-                (error instanceof Error && error.name === 'AbortError')
-            ) {
+            if (token.isCancellationRequested || isCancellationError(error)) {
                 Logger.info(`[${model.name}] Request was cancelled by the user`);
+                // 记录为中止状态，而非错误或完成
+                if (requestId) {
+                    try {
+                        await TokenUsagesManager.instance.updateActualTokens({
+                            requestId,
+                            sessionId,
+                            status: 'cancelled'
+                        });
+                    } catch (err) {
+                        Logger.warn('Failed to update token stats for cancelled request:', err);
+                    }
+                }
                 throw new vscode.CancellationError();
             }
 
@@ -398,8 +406,7 @@ export class AnthropicHandler {
 
                 if (token.isCancellationRequested) {
                     Logger.debug('Stream processing cancelled');
-                    reporter.flushAll(null);
-                    break;
+                    throw new vscode.CancellationError();
                 }
 
                 switch (chunk.type) {
@@ -604,8 +611,16 @@ export class AnthropicHandler {
                 }
             }
         } catch (error) {
+            if (isCancellationError(error)) {
+                throw error;
+            }
             Logger.error('Error processing Anthropic stream:', error);
             throw error;
+        }
+
+        // 流结束后补检：工具调用执行期间用户可能已取消
+        if (token.isCancellationRequested) {
+            throw new vscode.CancellationError();
         }
 
         // 记录流处理的结束时间

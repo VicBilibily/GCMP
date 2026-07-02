@@ -238,6 +238,8 @@ export class TokenUsageStatusBar {
                         statusIcon = '✅'; // 真正完成
                     } else if (req.status === 'failed') {
                         statusIcon = '❌'; // 失败
+                    } else if (req.status === 'cancelled') {
+                        statusIcon = '🚫'; // 已取消
                     } else if (req.status === 'estimated') {
                         statusIcon = '⏳'; // 预估中
                     }
@@ -270,14 +272,16 @@ export class TokenUsageStatusBar {
                     let cacheStr = '-';
                     let outputStr = '-';
                     let totalStr = '-';
-                    if (req.status === 'completed' && req.rawUsage && totalTokens > 0) {
-                        // 完成状态且有实际值：显示实际值
+                    const hasActualUsage =
+                        (req.status === 'completed' || req.status === 'cancelled') && !!req.rawUsage && totalTokens > 0;
+                    if (hasActualUsage) {
+                        // 终态且有实际值：显示实际值
                         inputStr = this.formatTokens(actualInput);
                         cacheStr = cacheTokens > 0 ? this.formatTokens(cacheTokens) : '-';
                         outputStr = outputTokens > 0 ? this.formatTokens(outputTokens) : '-';
                         totalStr = this.formatTokens(totalTokens);
                     } else {
-                        // 预估或失败状态或无实际值：显示预估值（带 ~ 前缀）
+                        // 预估、失败、取消状态或无实际值：显示预估值（带 ~ 前缀）
                         if (req.estimatedInput !== undefined && req.estimatedInput > 0) {
                             totalStr = inputStr = `~${this.formatTokens(req.estimatedInput)}`;
                         }

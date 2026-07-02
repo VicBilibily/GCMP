@@ -35,6 +35,7 @@ export interface SessionSummary {
     endTime?: number;
     completedCount: number;
     failedCount: number;
+    cancelledCount: number;
     avgSpeed?: number;
 }
 

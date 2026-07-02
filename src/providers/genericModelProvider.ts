@@ -18,6 +18,7 @@ import {
     ApiKeyManager,
     ConfigManager,
     createLanguageModelChatInformation,
+    isCancellationError,
     Logger,
     ModelInfoCache,
     PromptAnalyzer,
@@ -705,6 +706,12 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 requestStartTime
             );
         } catch (error) {
+            // 取消请求不应记为失败：handler 已记录 cancelled，或在此兜底记录
+            if (isCancellationError(error)) {
+                await this.reportRequestCancelled(requestId, sessionId);
+                throw error;
+            }
+
             const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
             Logger.error(errorMessage);
             // === Token 统计: 更新失败状态（仅在最终失败时上报）===
@@ -766,6 +773,26 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 });
         } catch (err) {
             Logger.warn('Failed to report request failure:', err);
+        }
+    }
+
+    /**
+     * 上报请求取消状态到 Token 统计系统
+     * handler 通常已记录 cancelled；这里作为 Provider 层兜底，避免取消发生在 handler 之外时遗漏状态迁移
+     */
+    protected async reportRequestCancelled(requestId: string, sessionId: string): Promise<void> {
+        if (!requestId) {
+            return;
+        }
+
+        try {
+            await TokenUsagesManager.instance.updateActualTokens({
+                requestId,
+                sessionId,
+                status: 'cancelled'
+            });
+        } catch {
+            // handler 可能已记录 cancelled，二次调用会因 pendingLog 已删除而失败，忽略
         }
     }
 
