@@ -2,6 +2,36 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.20] - 2026-07-02
+
+### 新增
+
+- **LongCat 提供商**：新增 LongCat API 开放平台大模型提供商，预置 **LongCat-2.0** Agentic 模型（Anthropic SDK 协议、1M 上下文窗口、thinking 支持）。
+
+### 变更
+
+- **请求取消状态精细化**：所有 handler/provider 层取消请求时统一记录为 `cancelled` 状态，不再误计为 `failed`；cancelled 状态支持记录实际 token 用量（流式中途取消仍可获取部分 usage）；新增 `isCancellationError` 统一检测工具（深层嵌套 + 循环引用安全遍历）。
+- **UI 统计视图增强**：Token 用量视图新增 cancelled 状态展示（🚫 图标），统计表格增加完成/失败/取消三列分解；成功率/失败率计算排除已取消请求，更准确反映系统可靠性。
+
+### 修复
+
+- **Responses API 流错误处理**：修复 `response.failed` 先于 `response.created` 到达时 OpenAI SDK 内部抛出异常、导致错误信息丢失的问题，改为在 `stream.done()` 外层捕获并正确填充到 `streamError`。
+
+---
+
+### Added
+
+- **LongCat provider**: New native model provider for LongCat API, with preset **LongCat-2.0** Agentic model (Anthropic SDK protocol, 1M context window, thinking support).
+
+### Changed
+
+- **Refined cancellation status tracking**: All handler/provider layers now uniformly record cancelled requests as `cancelled` instead of incorrectly marking them as `failed`; cancelled status supports recording actual token usage (partial usage from mid-stream cancellation); added `isCancellationError` unified detection utility (deep nesting + circular reference safe traversal).
+- **Enhanced statistics UI**: Token usage view now displays cancelled status (🚫 icon); stats table shows completion/failure/cancellation breakdown; success/failure rate calculation excludes cancelled requests for more accurate reliability metrics.
+
+### Fixed
+
+- **Responses API stream error handling**: Fixed an issue where OpenAI SDK internally threw an exception when `response.failed` arrived before `response.created`, causing error message loss; now caught at `stream.done()` and correctly propagated to `streamError`.
+
 ## [0.25.19] - 2026-07-01
 
 ### 新增

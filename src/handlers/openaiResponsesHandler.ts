@@ -1033,7 +1033,15 @@ export class OpenAIResponsesHandler {
                     });
 
                 // 等待流处理完成
-                await stream.done();
+                try {
+                    await stream.done();
+                } catch (doneError) {
+                    // SDK 内部处理器可能在 response.failed 先于 response.created 到达时抛出异常，
+                    // 导致我们的 response.failed 处理器未运行、streamError 未被设置
+                    if (!streamError) {
+                        streamError = doneError instanceof Error ? doneError : new Error(String(doneError));
+                    }
+                }
 
                 // 记录流结束时间
                 streamEndTime ??= Date.now();

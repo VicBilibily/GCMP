@@ -4,7 +4,7 @@ import test from 'node:test';
 import { isCancellationError } from './cancellationError';
 
 test('detects cancellation error through deeply nested cause chain without recursion', () => {
-    let root: Record<string, unknown> = { name: 'RootError' };
+    const root: Record<string, unknown> = { name: 'RootError' };
     let current = root;
 
     for (let index = 0; index < 2048; index++) {
