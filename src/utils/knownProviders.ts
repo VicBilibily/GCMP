@@ -35,12 +35,34 @@ export const KnownProviders: Record<string, KnownProviderConfig> = {
     },
     aiping: {
         displayName: 'AIPing',
+        usage: {
+            url: 'https://aiping.cn/api/v1/user/remain/points',
+            successConditions: [{ path: 'code', equals: 0 }],
+            errorMessagePath: 'msg',
+            fields: {
+                balance: 'data.total_remain',
+                paid: 'data.recharge_remain',
+                granted: 'data.gift_remain'
+            },
+            unit: 'CNY'
+        },
         openai: {
             baseUrl: 'https://aiping.cn/api/v1'
         }
     },
     openrouter: {
         displayName: 'OpenRouter',
+        usage: {
+            url: 'https://openrouter.ai/api/v1/credits',
+            fields: {
+                balance: {
+                    operation: 'subtract',
+                    paths: ['data.total_credits', 'data.total_usage'],
+                    treatMissingAsZero: true
+                }
+            },
+            unit: 'USD'
+        },
         openai: {
             baseUrl: 'https://openrouter.ai/api/v1'
         },
@@ -50,6 +72,20 @@ export const KnownProviders: Record<string, KnownProviderConfig> = {
     },
     siliconflow: {
         displayName: 'SiliconFlow',
+        usage: {
+            url: 'https://api.siliconflow.cn/v1/user/info',
+            successConditions: [
+                { path: 'code', equals: 20000 },
+                { path: 'status', equals: true }
+            ],
+            errorMessagePath: 'message',
+            fields: {
+                balance: 'data.totalBalance',
+                paid: 'data.chargeBalance',
+                granted: 'data.balance'
+            },
+            unit: 'CNY'
+        },
         openai: {
             baseUrl: 'https://api.siliconflow.cn/v1'
         },

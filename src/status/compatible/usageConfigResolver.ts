@@ -1,4 +1,9 @@
-﻿import type { ProviderOverride, ProviderUsageConfig, ProviderUsageOverrideConfig } from '../../types/sharedTypes';
+﻿import type {
+    ProviderOverride,
+    ProviderUsageConfig,
+    ProviderUsageOverrideConfig,
+    ProviderUsagesConfig
+} from '../../types/sharedTypes';
 
 export const CUSTOM_USAGE_ENTRY_SEPARATOR = '::';
 
@@ -102,6 +107,8 @@ export function resolveUsageConfig(
         headers: mergeRecord(baseUsage?.headers, usageOverride?.headers),
         params: mergeRecord(baseUsage?.params, usageOverride?.params),
         body: mergeRecord(baseUsage?.body, usageOverride?.body),
+        successConditions: usageOverride?.successConditions ?? baseUsage?.successConditions,
+        errorMessagePath: usageOverride?.errorMessagePath ?? baseUsage?.errorMessagePath,
         fields: mergedFields,
         unit: usageOverride?.unit ?? baseUsage?.unit
     };
@@ -112,7 +119,7 @@ export function resolveUsageConfig(
 function isCompleteUsageConfig(
     config: Omit<Partial<ProviderUsageConfig>, 'fields'> & { fields?: Partial<ProviderUsageConfig['fields']> }
 ): config is ProviderUsageConfig {
-    return typeof config.url === 'string' && config.url.length > 0 && typeof config.fields?.balance === 'string';
+    return config.fields?.balance !== undefined && typeof config.url === 'string' && config.url.length > 0;
 }
 
 function areEquivalentUsageConfigs(left: ProviderUsageConfig, right: ProviderUsageConfig): boolean {
@@ -124,6 +131,8 @@ function areEquivalentUsageConfigs(left: ProviderUsageConfig, right: ProviderUsa
         JSON.stringify(left.headers || {}) === JSON.stringify(right.headers || {}) &&
         JSON.stringify(left.params || {}) === JSON.stringify(right.params || {}) &&
         JSON.stringify(left.body || {}) === JSON.stringify(right.body || {}) &&
+        JSON.stringify(left.successConditions || []) === JSON.stringify(right.successConditions || []) &&
+        (left.errorMessagePath || '') === (right.errorMessagePath || '') &&
         JSON.stringify(left.fields) === JSON.stringify(right.fields)
     );
 }
@@ -137,4 +146,63 @@ function mergeRecord<T extends Record<string, unknown> | undefined>(baseRecord: 
         ...(baseRecord || {}),
         ...(overrideRecord || {})
     } as T;
+}
+
+function mergeUsageOverrideItem(
+    baseItem: ProviderUsageOverrideConfig | undefined,
+    overrideItem: ProviderUsageOverrideConfig | undefined
+): ProviderUsageOverrideConfig | undefined {
+    if (!baseItem && !overrideItem) {
+        return undefined;
+    }
+
+    return {
+        ...baseItem,
+        ...overrideItem,
+        headers: mergeRecord(baseItem?.headers, overrideItem?.headers),
+        params: mergeRecord(baseItem?.params, overrideItem?.params),
+        body: mergeRecord(baseItem?.body, overrideItem?.body),
+        fields: {
+            ...(baseItem?.fields || {}),
+            ...(overrideItem?.fields || {})
+        }
+    };
+}
+
+function mergeUsages(
+    baseUsages: ProviderUsagesConfig | undefined,
+    overrideUsages: ProviderUsagesConfig | undefined
+): ProviderUsagesConfig | undefined {
+    const usageKeys = new Set([...Object.keys(baseUsages || {}), ...Object.keys(overrideUsages || {})]);
+    if (usageKeys.size === 0) {
+        return undefined;
+    }
+
+    const merged: ProviderUsagesConfig = {};
+    for (const usageKey of usageKeys) {
+        const mergedItem = mergeUsageOverrideItem(baseUsages?.[usageKey], overrideUsages?.[usageKey]);
+        if (mergedItem) {
+            merged[usageKey] = mergedItem;
+        }
+    }
+
+    return Object.keys(merged).length > 0 ? merged : undefined;
+}
+
+export function mergeProviderUsageOverride(
+    baseOverride: Partial<ProviderOverride> | undefined,
+    override: ProviderOverride | undefined
+): ProviderOverride | undefined {
+    if (!baseOverride && !override) {
+        return undefined;
+    }
+
+    return {
+        baseUrl: override?.baseUrl ?? baseOverride?.baseUrl,
+        customHeader: mergeRecord(baseOverride?.customHeader, override?.customHeader),
+        proxy: override?.proxy ?? baseOverride?.proxy,
+        models: override?.models ?? baseOverride?.models,
+        usage: resolveUsageConfig(baseOverride?.usage, override?.usage),
+        usages: mergeUsages(baseOverride?.usages, override?.usages)
+    };
 }

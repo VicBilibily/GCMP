@@ -2,6 +2,7 @@
 import assert from 'node:assert';
 import {
     CUSTOM_USAGE_ENTRY_SEPARATOR,
+    mergeProviderUsageOverride,
     parseCustomUsageTarget,
     resolveCustomUsageEntries,
     resolveUsageConfig
@@ -25,7 +26,9 @@ describe('resolveUsageConfig', () => {
             method: undefined,
             headers: undefined,
             params: undefined,
-            body: undefined
+            body: undefined,
+            successConditions: undefined,
+            errorMessagePath: undefined
         });
     });
 
@@ -55,6 +58,8 @@ describe('resolveUsageConfig', () => {
             headers: { 'X-App': 'gcmp', 'X-Plan': 'pro' },
             params: { region: 'global' },
             body: undefined,
+            successConditions: undefined,
+            errorMessagePath: undefined,
             fields: {
                 balance: 'data.balance',
                 paid: 'data.paid',
@@ -70,6 +75,40 @@ describe('resolveUsageConfig', () => {
         });
 
         assert.strictEqual(resolved, undefined);
+    });
+
+    it('preserves computed balance field options', () => {
+        const resolved = resolveUsageConfig(undefined, {
+            url: 'https://api.example.com/credits',
+            fields: {
+                balance: {
+                    operation: 'subtract',
+                    paths: ['data.total_credits', 'data.total_usage'],
+                    treatMissingAsZero: true
+                }
+            },
+            unit: 'USD'
+        });
+
+        assert.deepStrictEqual(resolved, {
+            url: 'https://api.example.com/credits',
+            fields: {
+                balance: {
+                    operation: 'subtract',
+                    paths: ['data.total_credits', 'data.total_usage'],
+                    treatMissingAsZero: true
+                }
+            },
+            unit: 'USD',
+            displayName: undefined,
+            method: undefined,
+            authType: undefined,
+            headers: undefined,
+            params: undefined,
+            body: undefined,
+            successConditions: undefined,
+            errorMessagePath: undefined
+        });
     });
 });
 
@@ -211,5 +250,68 @@ describe('parseCustomUsageTarget', () => {
             usageKey: 'pro'
         });
         assert.deepStrictEqual(parseCustomUsageTarget('NekoCode'), { baseProviderId: 'NekoCode' });
+    });
+});
+
+describe('mergeProviderUsageOverride', () => {
+    it('merges built-in usage defaults with provider overrides', () => {
+        const merged = mergeProviderUsageOverride(
+            {
+                usage: {
+                    url: 'https://api.example.com/default',
+                    successConditions: [{ path: 'code', equals: 0 }],
+                    errorMessagePath: 'msg',
+                    fields: { balance: 'data.balance', paid: 'data.paid' },
+                    unit: 'USD'
+                },
+                usages: {
+                    pro: {
+                        url: 'https://api.example.com/pro',
+                        fields: { granted: 'data.granted' }
+                    }
+                }
+            },
+            {
+                usages: {
+                    pro: {
+                        displayName: 'Pro',
+                        fields: { balance: 'data.remaining' }
+                    }
+                }
+            }
+        );
+
+        assert.deepStrictEqual(merged, {
+            baseUrl: undefined,
+            customHeader: undefined,
+            proxy: undefined,
+            models: undefined,
+            usage: {
+                url: 'https://api.example.com/default',
+                method: undefined,
+                authType: undefined,
+                headers: undefined,
+                params: undefined,
+                body: undefined,
+                successConditions: [{ path: 'code', equals: 0 }],
+                errorMessagePath: 'msg',
+                fields: { balance: 'data.balance', paid: 'data.paid' },
+                unit: 'USD',
+                displayName: undefined
+            },
+            usages: {
+                pro: {
+                    url: 'https://api.example.com/pro',
+                    displayName: 'Pro',
+                    fields: {
+                        granted: 'data.granted',
+                        balance: 'data.remaining'
+                    },
+                    headers: undefined,
+                    params: undefined,
+                    body: undefined
+                }
+            }
+        });
     });
 });

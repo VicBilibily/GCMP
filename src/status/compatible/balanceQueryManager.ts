@@ -7,13 +7,12 @@
 import { StatusLogger } from '../../utils/statusLogger';
 import { ConfigManager } from '../../utils/configManager';
 import { CompatibleModelManager } from '../../utils/compatibleModelManager';
+import { KnownProviders } from '../../utils/knownProviders';
 import { IBalanceQuery, BalanceQueryResult } from './balanceQuery';
 import { AiHubMixBalanceQuery } from './providers/aihubmixBalanceQuery';
-import { AiPingBalanceQuery } from './providers/aipingBalanceQuery';
-import { SiliconflowBalanceQuery } from './providers/siliconflowBalanceQuery';
-import { OpenrouterBalanceQuery } from './providers/openrouterBalanceQuery';
 import { CustomUsageQuery } from './customUsageQuery';
 import {
+    mergeProviderUsageOverride,
     parseCustomUsageTarget,
     type ResolvedCustomUsageEntry,
     resolveCustomUsageEntries
@@ -48,9 +47,6 @@ export class BalanceQueryManager {
      */
     private static registerDefaultHandlers(): void {
         BalanceQueryManager.registerHandler('aihubmix', new AiHubMixBalanceQuery());
-        BalanceQueryManager.registerHandler('aiping', new AiPingBalanceQuery());
-        BalanceQueryManager.registerHandler('siliconflow', new SiliconflowBalanceQuery());
-        BalanceQueryManager.registerHandler('openrouter', new OpenrouterBalanceQuery());
     }
 
     /**
@@ -97,7 +93,7 @@ export class BalanceQueryManager {
             }
         }
 
-        // 2. 自定义 provider usage/usages 配置，使用通用查询
+        // 2. provider usage/usages 配置，使用通用查询
         if (BalanceQueryManager.isCustomProviderWithUsage(providerId)) {
             try {
                 const result = await BalanceQueryManager.customUsageQuery.queryBalance(providerId);
@@ -123,7 +119,7 @@ export class BalanceQueryManager {
 
     /**
      * 获取所有已注册的提供商ID
-     * 包含内置/已知 provider 以及配置了 usage/usages 的自定义 provider
+     * 包含内置/已知 provider 以及配置了 usage/usages 的 provider
      * @returns 提供商ID列表
      */
     static getRegisteredProviders(): string[] {
@@ -155,12 +151,18 @@ export class BalanceQueryManager {
     }
 
     /**
-     * 获取配置了 usage/usages 的自定义 provider 基础 ID 列表
-     * @returns 自定义 provider ID 列表
+     * 获取配置了 usage/usages 的 provider 基础 ID 列表
+     * @returns provider ID 列表
      */
     static getCustomProvidersWithUsage(): string[] {
-        const customProviderIds = CompatibleModelManager.getCustomProviderIds();
-        return customProviderIds.filter(id => BalanceQueryManager.getCustomUsageEntries(id).length > 0);
+        const providerIds = Array.from(
+            new Set(
+                CompatibleModelManager.getModels()
+                    .map(model => model.provider)
+                    .filter(Boolean)
+            )
+        );
+        return providerIds.filter(id => BalanceQueryManager.getCustomUsageEntries(id).length > 0);
     }
 
     /**
@@ -230,10 +232,20 @@ export class BalanceQueryManager {
 
     private static getCustomUsageEntries(baseProviderId?: string) {
         const overrides = ConfigManager.getProviderOverrides();
-        const customProviderIds = CompatibleModelManager.getCustomProviderIds();
-        const providerIds = baseProviderId ? customProviderIds.filter(id => id === baseProviderId) : customProviderIds;
+        const configuredProviderIds = Array.from(
+            new Set(
+                CompatibleModelManager.getModels()
+                    .map(model => model.provider)
+                    .filter(Boolean)
+            )
+        );
+        const providerIds =
+            baseProviderId ? configuredProviderIds.filter(id => id === baseProviderId) : configuredProviderIds;
 
-        return providerIds.flatMap(providerId => resolveCustomUsageEntries(providerId, overrides[providerId]));
+        return providerIds.flatMap(providerId => {
+            const override = mergeProviderUsageOverride(KnownProviders[providerId], overrides[providerId]);
+            return resolveCustomUsageEntries(providerId, override);
+        });
     }
 
     private static getCustomUsageEntry(providerId: string): ResolvedCustomUsageEntry | undefined {

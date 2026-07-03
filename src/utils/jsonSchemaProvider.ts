@@ -1574,25 +1574,53 @@ export class JsonSchemaProvider {
                     type: 'object',
                     description: t('Request body (only for POST)', '请求体（仅 POST）')
                 },
+                successConditions: {
+                    type: 'array',
+                    description: t(
+                        'Optional business success conditions. All conditions must match, otherwise the response is treated as a business failure.',
+                        '可选的业务成功条件。所有条件都匹配才视为成功，否则按业务失败处理。'
+                    ),
+                    items: {
+                        type: 'object',
+                        required: ['path', 'equals'],
+                        properties: {
+                            path: {
+                                type: 'string',
+                                description: t('JSON path to inspect', '要检查的 JSON 路径')
+                            },
+                            equals: {
+                                description: t('Expected value', '期望值'),
+                                anyOf: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }, { type: 'null' }]
+                            }
+                        },
+                        additionalProperties: false
+                    }
+                },
+                errorMessagePath: {
+                    type: 'string',
+                    description: t(
+                        'Optional JSON path used to extract the business error message when successConditions are not matched.',
+                        '当 successConditions 不匹配时，可选的业务错误消息字段路径。'
+                    )
+                },
                 fields: {
                     type: 'object',
-                    required: ['balance'],
+                    ...(requireCoreFields ? { required: ['balance'] } : {}),
                     description: t(
                         'JSON response field paths (dot notation). Example: "data.balance" or "data[0].credit_balance".',
                         'JSON 返回字段路径（dot 表示法）。示例："data.balance" 或 "data[0].credit_balance"。'
                     ),
                     properties: {
                         balance: {
-                            type: 'string',
-                            description: t('Available/remaining balance path', '可用/剩余余额路径')
+                            ...this.createUsageFieldValueSchema(
+                                t('Available/remaining balance source', '可用/剩余余额来源')
+                            )
                         },
                         paid: {
-                            type: 'string',
-                            description: t('Paid balance path', '充值余额路径')
+                            ...this.createUsageFieldValueSchema(t('Paid balance source', '充值余额来源'))
                         },
                         granted: {
-                            type: 'string',
-                            description: t('Granted balance path', '赠送余额路径')
+                            ...this.createUsageFieldValueSchema(t('Granted balance source', '赠送余额来源'))
                         }
                     },
                     additionalProperties: false
@@ -1604,6 +1632,49 @@ export class JsonSchemaProvider {
                 }
             },
             additionalProperties: false
+        };
+    }
+
+    private static createUsageFieldValueSchema(description: string): JSONSchema7 {
+        return {
+            description,
+            oneOf: [
+                {
+                    type: 'string',
+                    description: t('JSON field path', 'JSON 字段路径')
+                },
+                {
+                    type: 'object',
+                    required: ['operation', 'paths'],
+                    description: t(
+                        'Simple numeric calculation based on multiple JSON paths.',
+                        '基于多个 JSON 路径的简单数值计算。'
+                    ),
+                    properties: {
+                        operation: {
+                            type: 'string',
+                            enum: ['sum', 'subtract'],
+                            description: t('Calculation operation', '计算方式')
+                        },
+                        paths: {
+                            type: 'array',
+                            minItems: 1,
+                            items: {
+                                type: 'string'
+                            },
+                            description: t('JSON paths used by the calculation', '参与计算的 JSON 路径')
+                        },
+                        treatMissingAsZero: {
+                            type: 'boolean',
+                            description: t(
+                                'When enabled, missing numeric paths are treated as 0 during the calculation.',
+                                '启用后，计算时缺失的数值路径会按 0 处理。'
+                            )
+                        }
+                    },
+                    additionalProperties: false
+                }
+            ]
         };
     }
 

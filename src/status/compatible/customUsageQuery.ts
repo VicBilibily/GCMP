@@ -1,39 +1,45 @@
 ﻿/**---------------------------------------------------------------------------------------------
- *  自定义 Compatible 提供商余额查询器
- *  通过 gcmp.providerOverrides.<customProviderId>.usage / usages 配置查询余额
+ *  Compatible 提供商通用余额查询器
+ *  通过 provider usage / usages 配置查询余额
  *--------------------------------------------------------------------------------------------*/
 
 import { IBalanceQuery, BalanceQueryResult } from './balanceQuery';
 import { StatusLogger } from '../../utils/statusLogger';
 import { ApiKeyManager } from '../../utils/apiKeyManager';
 import { ConfigManager } from '../../utils/configManager';
-import { getNumberByPath } from '../../utils/pathExtractor';
+import { getNumberByPath, getValueByPath } from '../../utils/pathExtractor';
+import { KnownProviders } from '../../utils/knownProviders';
 import { Logger } from '../../utils/logger';
-import type { ProviderUsageConfig } from '../../types/sharedTypes';
-import { parseCustomUsageTarget, resolveCustomUsageEntries, resolveUsageConfig } from './usageConfigResolver';
+import type { ProviderUsageConfig, UsageFieldValueSource } from '../../types/sharedTypes';
+import {
+    mergeProviderUsageOverride,
+    parseCustomUsageTarget,
+    resolveCustomUsageEntries,
+    resolveUsageConfig
+} from './usageConfigResolver';
 
 /**
- * 自定义 Compatible 提供商余额查询器
- * 仅处理在 gcmp.providerOverrides 中配置了 usage/usages 的自定义 provider
+ * Compatible 提供商通用余额查询器
+ * 处理内置默认 usage 配置及 providerOverrides 中的 usage/usages 覆盖
  */
 export class CustomUsageQuery implements IBalanceQuery {
     /**
-     * 查询自定义 provider 余额
-     * @param providerId 自定义提供商标识
+     * 查询 Compatible provider 余额
+     * @param providerId 提供商标识
      */
     async queryBalance(providerId: string): Promise<BalanceQueryResult> {
-        StatusLogger.debug(`[CustomUsageQuery] Querying balance for custom provider ${providerId}`);
+        StatusLogger.debug(`[CustomUsageQuery] Querying balance for provider ${providerId}`);
 
         const usageTarget = parseCustomUsageTarget(providerId);
         const usageConfig = this.getUsageConfig(providerId);
         if (!usageConfig) {
-            throw new Error(`No usage configuration found for custom provider ${providerId}`);
+            throw new Error(`No usage configuration found for provider ${providerId}`);
         }
 
         const requiresApiKey = usageConfig.authType !== 'none';
         const apiKey = requiresApiKey ? await ApiKeyManager.getApiKey(usageTarget.baseProviderId) : undefined;
         if (requiresApiKey && !apiKey) {
-            throw new Error(`No API key found for custom provider ${providerId}`);
+            throw new Error(`No API key found for provider ${providerId}`);
         }
 
         const requestUrl = this.buildRequestUrl(usageConfig, apiKey);
@@ -75,21 +81,30 @@ export class CustomUsageQuery implements IBalanceQuery {
                 throw new Error(`Invalid JSON response: ${responseText.substring(0, 200)}`);
             }
 
-            const balance = getNumberByPath(data, usageConfig.fields.balance);
+            this.assertSuccessConditions(data, usageConfig);
+
+            const paid = this.resolveFieldValue(data, usageConfig.fields.paid, 'paid');
+            const granted = this.resolveFieldValue(data, usageConfig.fields.granted, 'granted');
+
+            let balance = this.resolveFieldValue(data, usageConfig.fields.balance, 'balance');
+            if (balance === undefined && paid !== undefined && granted !== undefined) {
+                balance = paid + granted;
+            }
+
             if (balance === undefined) {
-                throw new Error(`Failed to extract balance from response using path "${usageConfig.fields.balance}"`);
+                throw new Error('Failed to extract balance from response');
             }
 
             return {
                 balance,
                 currency: usageConfig.unit || 'USD',
-                paid: getNumberByPath(data, usageConfig.fields.paid),
-                granted: getNumberByPath(data, usageConfig.fields.granted)
+                paid,
+                granted
             };
         } catch (error) {
             Logger.error(`[CustomUsageQuery] Failed to query balance for ${providerId}`, error);
             throw new Error(
-                `Custom provider balance query failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+                `Provider balance query failed: ${error instanceof Error ? error.message : 'Unknown error'}`
             );
         }
     }
@@ -100,12 +115,12 @@ export class CustomUsageQuery implements IBalanceQuery {
     private getUsageConfig(providerId: string): ProviderUsageConfig | undefined {
         const overrides = ConfigManager.getProviderOverrides();
         const { baseProviderId, usageKey } = parseCustomUsageTarget(providerId);
-        const override = overrides[baseProviderId];
+        const override = mergeProviderUsageOverride(KnownProviders[baseProviderId], overrides[baseProviderId]);
         if (!override) {
             return undefined;
         }
 
-        const usageEntries = override.usages ? resolveCustomUsageEntries(baseProviderId, override) : [];
+        const usageEntries = resolveCustomUsageEntries(baseProviderId, override);
 
         if (usageKey) {
             const usageEntry = usageEntries.find(entry => entry.usageKey === usageKey);
@@ -137,6 +152,7 @@ export class CustomUsageQuery implements IBalanceQuery {
         const mergedCustomHeader = this.filterProviderCustomHeaders(
             {
                 ...(allOverrides['compatible']?.customHeader || {}),
+                ...(KnownProviders[providerId]?.customHeader || {}),
                 ...(allOverrides[providerId]?.customHeader || {})
             },
             authType
@@ -183,7 +199,7 @@ export class CustomUsageQuery implements IBalanceQuery {
      */
     private buildRequestUrl(usageConfig: ProviderUsageConfig, apiKey: string | undefined): string {
         if (!/^https?:\/\//.test(usageConfig.url)) {
-            throw new Error('Custom provider usage.url must be a valid http(s) URL');
+            throw new Error('Provider usage.url must be a valid http(s) URL');
         }
 
         const endpoint = usageConfig.url;
@@ -210,5 +226,71 @@ export class CustomUsageQuery implements IBalanceQuery {
 
         const separator = endpoint.includes('?') ? '&' : '?';
         return `${endpoint}${separator}${queryString}`;
+    }
+
+    private assertSuccessConditions(data: unknown, usageConfig: ProviderUsageConfig): void {
+        if (!usageConfig.successConditions || usageConfig.successConditions.length === 0) {
+            return;
+        }
+
+        const isSuccess = usageConfig.successConditions.every(condition => {
+            const actualValue = getValueByPath(data, condition.path);
+            return actualValue === condition.equals;
+        });
+
+        if (isSuccess) {
+            return;
+        }
+
+        const configuredMessage =
+            usageConfig.errorMessagePath ? getValueByPath(data, usageConfig.errorMessagePath) : undefined;
+        const errorMessage =
+            typeof configuredMessage === 'string' && configuredMessage ?
+                configuredMessage
+            :   'Business success condition not matched';
+        throw new Error(errorMessage);
+    }
+
+    private resolveFieldValue(
+        data: unknown,
+        fieldSource: UsageFieldValueSource | undefined,
+        fieldName: 'balance' | 'paid' | 'granted'
+    ): number | undefined {
+        if (fieldSource === undefined) {
+            return undefined;
+        }
+
+        if (typeof fieldSource === 'string') {
+            return getNumberByPath(data, fieldSource);
+        }
+
+        if (fieldSource === null || typeof fieldSource !== 'object' || Array.isArray(fieldSource)) {
+            throw new Error(`Invalid usage.fields.${fieldName} computed field configuration`);
+        }
+
+        if (
+            (fieldSource.operation !== 'sum' && fieldSource.operation !== 'subtract') ||
+            (fieldSource.treatMissingAsZero !== undefined && typeof fieldSource.treatMissingAsZero !== 'boolean') ||
+            !Array.isArray(fieldSource.paths) ||
+            fieldSource.paths.length === 0 ||
+            fieldSource.paths.some(path => typeof path !== 'string' || path.trim().length === 0)
+        ) {
+            throw new Error(`Invalid usage.fields.${fieldName} computed field configuration`);
+        }
+
+        const values = fieldSource.paths.map(path => {
+            const value = getNumberByPath(data, path);
+            return value === undefined && fieldSource.treatMissingAsZero ? 0 : value;
+        });
+        if (values.some(value => value === undefined)) {
+            return undefined;
+        }
+
+        const resolvedValues = values as number[];
+        if (fieldSource.operation === 'sum') {
+            return resolvedValues.reduce((total, value) => total + value, 0);
+        }
+
+        return resolvedValues.slice(1).reduce((total, value) => total - value, resolvedValues[0]);
     }
 }

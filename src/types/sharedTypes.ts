@@ -233,6 +233,26 @@ export interface ModelOverride {
  * 余额/用量查询接口配置
  * 支持自定义查询端点和返回字段解析路径
  */
+export interface UsageComputedField {
+    /** 简单数值计算方式 */
+    operation: 'sum' | 'subtract';
+    /** 参与计算的字段路径 */
+    paths: string[];
+    /** 缺失路径是否按 0 处理（可选） */
+    treatMissingAsZero?: boolean;
+}
+
+/** 余额字段来源：直接路径或简单计算 */
+export type UsageFieldValueSource = string | UsageComputedField;
+
+/** 响应成功条件：从 JSON 路径取值后与 equals 比较 */
+export interface UsageSuccessCondition {
+    /** JSON 路径 */
+    path: string;
+    /** 期望值 */
+    equals: string | number | boolean | null;
+}
+
 export interface ProviderUsageConfig {
     /** 模式显示名称（可选），用于区分不同套餐/余额来源 */
     displayName?: string;
@@ -248,6 +268,10 @@ export interface ProviderUsageConfig {
     params?: Record<string, string>;
     /** POST 请求体（仅 POST 生效，可选） */
     body?: Record<string, unknown>;
+    /** 业务成功条件（可选，全部满足才视为成功） */
+    successConditions?: UsageSuccessCondition[];
+    /** 业务失败时用于提取错误消息的字段路径（可选） */
+    errorMessagePath?: string;
     /** 返回字段解析路径（dot 表示法） */
     fields: UsageFieldPaths;
     /** 余额单位，默认 USD */
@@ -275,11 +299,11 @@ export type ProviderUsagesConfig = Record<string, ProviderUsageOverrideConfig>;
  */
 export interface UsageFieldPaths {
     /** 可用余额/剩余额度 */
-    balance: string;
+    balance: UsageFieldValueSource;
     /** 充值/已付余额（可选） */
-    paid?: string;
+    paid?: UsageFieldValueSource;
     /** 赠送余额（可选） */
-    granted?: string;
+    granted?: UsageFieldValueSource;
 }
 
 /**
