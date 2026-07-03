@@ -18,6 +18,7 @@ import codex from './codex.json';
 import grok from './grok.json';
 import opencode from './opencode.json';
 import hyper from './hyper.json';
+import clinepass from './clinepass.json';
 
 const providers = {
     zhipu,
@@ -37,7 +38,8 @@ const providers = {
     codex,
     grok,
     opencode,
-    hyper
+    hyper,
+    clinepass
 };
 
 export type ProviderName = keyof typeof providers;

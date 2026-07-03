@@ -210,6 +210,13 @@ LLM service platform under iFLYTEK, accessed via Anthropic SDK mode with dual-pl
 
 - **Preset models**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **Qwen3.7-Max**, **Qwen3.7-Plus**, **Qwen3.6-Plus**, **Qwen3.6-Max**, **Qwen3.6-Flash**, **Qwen3-Coder-480B-A35B-Instruct-INT4-Mixed-AR**, **Qwen3-Next-80B-A3B-Instruct**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.7**, **Llama-4-Maverick-17B-128E-Instruct-FP8**, **Llama-3.3-70B-Instruct**, **Gemma-4-26B-A4B**, **GPT-OSS-120B**
 
+### [**ClinePass**](https://docs.cline.bot/getting-started/clinepass) - ClinePass
+
+Cline's official model subscription service, providing OpenAI-compatible API access via the Cline API with `openai-sse` mode.
+
+- **Preset models**: **GLM-5.2**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **MiMo-V2.5**, **MiMo-V2.5-Pro**, **MiniMax-M3**, **Qwen3.7-Max**, **Qwen3.7-Plus**
+- **API Key**: Create and copy your API key from [Cline App → API Keys](https://app.cline.bot/dashboard/account?tab=api-keys), then use the `GCMP: Set ClinePass API Key` command to configure it.
+
 ### OAuth Coding Assistant Providers
 
 > ⚠️ **Risk Warning**: The following providers access APIs by simulating OAuth authentication of official CLI tools. **This may violate third-party terms of service and carries the risk of account bans.** Use only if you are fully informed and voluntarily accept the risks.

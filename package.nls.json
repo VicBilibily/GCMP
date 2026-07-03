@@ -41,6 +41,7 @@
     "command.grok.configWizard": "Grok Build Configuration Wizard (CLI Auth)",
     "command.opencode.setApiKey": "Set OpenCode API Key",
     "command.hyper.setApiKey": "Set Charm Hyper API Key",
+    "command.clinepass.setApiKey": "Set ClinePass API Key",
     "command.compatible.manageModels": "Compatible Provider Settings",
     "command.nesCompletion.toggleManual": "Toggle NES Manual Trigger Mode",
     "command.tokenUsage.showDetails": "View Today's Token Usage Details",

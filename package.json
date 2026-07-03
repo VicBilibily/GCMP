@@ -27,6 +27,7 @@
         "ant-ling",
         "stepfun",
         "LongCat",
+        "clinepass",
         "OpenAI Compatible",
         "Anthropic Compatible",
         "智谱AI",
@@ -83,6 +84,7 @@
         "onLanguageModelProvider:gcmp.grok",
         "onLanguageModelProvider:gcmp.opencode",
         "onLanguageModelProvider:gcmp.hyper",
+        "onLanguageModelProvider:gcmp.clinepass",
         "onLanguageModelProvider:gcmp.compatible",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
         "onLanguageModelTool:gcmp_minimaxWebSearch",
@@ -298,6 +300,11 @@
             {
                 "command": "gcmp.hyper.setApiKey",
                 "title": "%command.hyper.setApiKey%",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.clinepass.setApiKey",
+                "title": "%command.clinepass.setApiKey%",
                 "category": "GCMP"
             },
             {
@@ -901,6 +908,11 @@
                 "vendor": "gcmp.hyper",
                 "displayName": "GCMP · Charm Hyper",
                 "managementCommand": "gcmp.hyper.setApiKey"
+            },
+            {
+                "vendor": "gcmp.clinepass",
+                "displayName": "GCMP · ClinePass",
+                "managementCommand": "gcmp.clinepass.setApiKey"
             },
             {
                 "vendor": "gcmp.codex",
