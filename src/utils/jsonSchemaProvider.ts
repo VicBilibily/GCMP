@@ -20,6 +20,7 @@ declare module 'json-schema' {
         enumDescriptions?: string[];
         deprecationMessage?: string;
         errorMessage?: string;
+        markdownDescription?: string;
     }
 }
 
@@ -437,17 +438,24 @@ export class JsonSchemaProvider {
         }
 
         // 3. 自定义模型中的历史提供商
+        // 自定义 provider 保持原始大小写，与 compatibleModelManager 运行时行为一致
         const compatibleModels = CompatibleModelManager.getModels();
         const customProvidersFromModels = new Set<string>();
         for (const model of compatibleModels) {
-            const p = (model.provider || '').trim().toLowerCase();
-            if (p && p !== 'compatible' && !allProviderEntries[p] && !this.CLI_RESERVED_PROVIDERS.includes(p)) {
+            const p = (model.provider || '').trim();
+            const pLower = p.toLowerCase();
+            if (
+                p &&
+                pLower !== 'compatible' &&
+                !allProviderEntries[p] &&
+                !this.CLI_RESERVED_PROVIDERS.includes(pLower)
+            ) {
                 customProvidersFromModels.add(p);
             }
         }
         for (const providerKey of Array.from(customProvidersFromModels).sort()) {
             allProviderEntries[providerKey] = t('Custom provider: {0}', '自定义提供商：{0}', providerKey);
-            patternProperties[`^${providerKey}$`] = this.createSimpleProviderSchema(providerKey);
+            patternProperties[`^${providerKey}$`] = this.createCustomProviderSchema(providerKey);
         }
 
         // 4. Compatible 提供商自身
@@ -1442,6 +1450,163 @@ export class JsonSchemaProvider {
         };
     }
 
+    /**
+     * 创建自定义 provider 的 override schema
+     * 在 createSimpleProviderSchema 基础上增加 usage/usages 配置
+     */
+    private static createCustomProviderSchema(displayName: string): JSONSchema7 {
+        const base = this.createSimpleProviderSchema(displayName);
+        return {
+            ...base,
+            description: t(
+                '{0} configuration override (custom Compatible provider)',
+                '{0} 配置覆盖（自定义 Compatible 提供商）',
+                displayName
+            ),
+            properties: {
+                ...base.properties,
+                usage: {
+                    ...this.createUsageItemSchema(),
+                    description: t(
+                        'Default or single balance/usage query configuration. Use this when the provider has only one balance endpoint or one default mode. When `usages` is also provided, this object acts as the shared default configuration merged into each usage mode; if a named usage resolves to the same query config, that named mode is used instead of emitting an extra default mode.',
+                        '默认或单一余额/用量查询配置。提供商只有一个余额接口或一个默认模式时使用。当同时提供 `usages` 时，该对象会作为共享默认配置合并到每个 usage 模式中；若某个命名 usage 最终解析出的查询配置与它一致，则优先使用该命名模式，而不会额外生成一个 default 模式。'
+                    )
+                },
+                usages: {
+                    type: 'object',
+                    description: t(
+                        'One or more balance/usage query modes. When `usage` exists, each item can override its defaults; otherwise each item must provide a complete usage configuration.',
+                        '一个或多个余额/用量查询模式。存在 `usage` 时，每个条目都可覆盖其默认值；否则每个条目都需要提供完整的 usage 配置。'
+                    )
+                }
+            },
+            allOf: [
+                {
+                    if: {
+                        required: ['usage']
+                    },
+                    then: {
+                        properties: {
+                            usages: this.createUsagesConfigSchema(true)
+                        }
+                    },
+                    else: {
+                        properties: {
+                            usages: this.createUsagesConfigSchema()
+                        }
+                    }
+                }
+            ]
+        };
+    }
+
+    /**
+     * 创建 usages 配置 schema
+     */
+    private static createUsagesConfigSchema(allowPartialItems = false): JSONSchema7 {
+        return {
+            type: 'object',
+            description: t(
+                allowPartialItems ?
+                    'One or more balance/usage query modes for a custom provider. Each item can override the defaults defined in `usage`, so only the differing fields need to be specified.'
+                :   'One or more balance/usage query modes for a custom provider. Each item must provide a complete usage configuration when no shared `usage` defaults exist.',
+                allowPartialItems ?
+                    '自定义提供商的一个或多个余额/用量查询模式。每个条目都可以覆盖 `usage` 中定义的默认值，因此只需要填写差异字段。'
+                :   '自定义提供商的一个或多个余额/用量查询模式。不存在共享 `usage` 默认值时，每个条目都必须提供完整的 usage 配置。'
+            ),
+            minProperties: 1,
+            additionalProperties: this.createUsageItemSchema(!allowPartialItems)
+        };
+    }
+
+    /**
+     * 创建单个 usage 模式配置 schema
+     */
+    private static createUsageItemSchema(requireCoreFields = true): JSONSchema7 {
+        return {
+            type: 'object',
+            description: t(
+                'Custom provider balance/usage query configuration. Only effective for custom Compatible providers.',
+                '自定义提供商余额/用量查询配置。仅对自定义 Compatible 提供商生效。'
+            ),
+            ...(requireCoreFields ? { required: ['url', 'fields'] } : {}),
+            properties: {
+                displayName: {
+                    type: 'string',
+                    description: t(
+                        'Optional display name for this usage mode. Helpful when one provider exposes multiple plans or balance pools.',
+                        '该 usage 模式的可选显示名称。适用于一个提供商暴露多个套餐或余额池的场景。'
+                    )
+                },
+                url: {
+                    type: 'string',
+                    pattern: '^https?://',
+                    description: t('Balance query URL.', '余额查询 URL。')
+                },
+                method: {
+                    type: 'string',
+                    enum: ['GET', 'POST'],
+                    default: 'GET',
+                    description: t('HTTP method', 'HTTP 方法')
+                },
+                authType: {
+                    type: 'string',
+                    enum: ['bearer', 'url_key', 'none'],
+                    default: 'bearer',
+                    description: t('Authentication type', '认证方式')
+                },
+                headers: {
+                    type: 'object',
+                    description: t('Additional request headers', '额外请求头'),
+                    additionalProperties: {
+                        type: 'string',
+                        description: t('HTTP header value', 'HTTP 头值')
+                    }
+                },
+                params: {
+                    type: 'object',
+                    description: t('Additional query parameters', '额外查询参数'),
+                    additionalProperties: {
+                        type: 'string'
+                    }
+                },
+                body: {
+                    type: 'object',
+                    description: t('Request body (only for POST)', '请求体（仅 POST）')
+                },
+                fields: {
+                    type: 'object',
+                    required: ['balance'],
+                    description: t(
+                        'JSON response field paths (dot notation). Example: "data.balance" or "data[0].credit_balance".',
+                        'JSON 返回字段路径（dot 表示法）。示例："data.balance" 或 "data[0].credit_balance"。'
+                    ),
+                    properties: {
+                        balance: {
+                            type: 'string',
+                            description: t('Available/remaining balance path', '可用/剩余余额路径')
+                        },
+                        paid: {
+                            type: 'string',
+                            description: t('Paid balance path', '充值余额路径')
+                        },
+                        granted: {
+                            type: 'string',
+                            description: t('Granted balance path', '赠送余额路径')
+                        }
+                    },
+                    additionalProperties: false
+                },
+                unit: {
+                    type: 'string',
+                    default: 'USD',
+                    description: t('Display unit, e.g. USD, CNY, Token', '展示单位，如 USD、CNY、Token')
+                }
+            },
+            additionalProperties: false
+        };
+    }
+
     /** CLI 专用的提供商 ID，禁止在通用配置中使用 */
     private static readonly CLI_RESERVED_PROVIDERS = ['codex', 'grok'];
 
@@ -1476,12 +1641,9 @@ export class JsonSchemaProvider {
             const customProviders = new Set<string>();
 
             for (const model of customModels) {
-                const p = (model.provider || '').trim().toLowerCase();
-                if (
-                    p &&
-                    !providerIds.map(id => id.toLowerCase()).includes(p) &&
-                    !this.CLI_RESERVED_PROVIDERS.includes(p)
-                ) {
+                const p = (model.provider || '').trim();
+                const pLower = p.toLowerCase();
+                if (p && !providerIds.includes(p) && !this.CLI_RESERVED_PROVIDERS.includes(pLower)) {
                     customProviders.add(p);
                 }
             }

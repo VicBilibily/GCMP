@@ -83,7 +83,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
     /** 各提供商的最后延时更新时间戳 */
     private providerLastDelayedUpdateTimes = new Map<string, number>();
 
-    /** 支持延时更新的提供商列表 */
+    /** 内置支持定向延时更新的提供商列表 */
     private static readonly SUPPORTED_DELAYED_UPDATE_PROVIDERS = ['aihubmix', 'openrouter'];
 
     constructor() {
@@ -103,35 +103,107 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
     // ==================== 实现基类抽象方法 ====================
 
     /**
-     * 检查是否应该显示状态栏
-     * 通过检查是否有配置支持的兼容提供商且该提供商有 API Key 来决定
-     * 逐个检查，找到第一个有效 API Key 就立即返回 true
+     * 获取当前已配置模型对应的所有可查询 provider 条目。
      */
-    protected async shouldShowStatusBar(): Promise<boolean> {
+    private getConfiguredProviderEntries(): string[] {
         const models = CompatibleModelManager.getModels();
-        const supportedProviders = new Set(BalanceQueryManager.getRegisteredProviders());
+        const providerEntries = new Set<string>();
 
-        // 收集所有需要检查的提供商(去重)
-        const providersToCheck = new Set<string>();
         for (const model of models) {
-            if (model.provider && supportedProviders.has(model.provider)) {
-                providersToCheck.add(model.provider);
+            if (!model.provider) {
+                continue;
+            }
+
+            const registeredProviders = BalanceQueryManager.getRegisteredProvidersForBaseProvider(model.provider);
+            for (const providerId of registeredProviders) {
+                providerEntries.add(providerId);
             }
         }
 
-        if (providersToCheck.size === 0) {
+        return Array.from(providerEntries);
+    }
+
+    /**
+     * 获取 provider 条目的显示名称。
+     */
+    private getProviderDisplayName(providerId: string): string {
+        const baseProviderId = BalanceQueryManager.getBaseProviderId(providerId);
+        const baseDisplayName = KnownProviders[baseProviderId]?.displayName || baseProviderId;
+        const usageDisplayName = BalanceQueryManager.getCustomUsageDisplayName(providerId);
+        return usageDisplayName ? `${baseDisplayName} / ${usageDisplayName}` : baseDisplayName;
+    }
+
+    /**
+     * 检查 provider 是否支持请求后的定向余额刷新。
+     * 内置支持列表外，凡是配置了 usage/usages 的自定义 provider 也应立即刷新，
+     * 否则请求完成后只能等定时轮询，状态栏不会及时反映最新余额。
+     */
+    private supportsTargetedDelayedUpdate(providerId: string): boolean {
+        return (
+            CompatibleStatusBar.SUPPORTED_DELAYED_UPDATE_PROVIDERS.includes(providerId) ||
+            BalanceQueryManager.hasCustomUsageEntries(providerId)
+        );
+    }
+
+    /**
+     * 检查是否应该显示状态栏
+     * 通过检查是否有配置支持的兼容提供商且该提供商有 API Key（或无需鉴权）来决定
+     * 逐个检查，找到第一个有效就立即返回 true
+     */
+    protected async shouldShowStatusBar(): Promise<boolean> {
+        const providersToCheck = this.getConfiguredProviderEntries();
+        if (providersToCheck.length === 0) {
             return false;
         }
 
-        // 逐个检查提供商的 API Key，找到第一个有效的就立即返回 true
+        // 逐个检查，无需鉴权或有有效 API Key 即认为可显示
         for (const provider of providersToCheck) {
-            const hasApiKey = await ApiKeyManager.hasValidApiKey(provider);
+            if (!BalanceQueryManager.requiresApiKey(provider)) {
+                return true;
+            }
+            const hasApiKey = await ApiKeyManager.hasValidApiKey(BalanceQueryManager.getBaseProviderId(provider));
             if (hasApiKey) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * 获取单位前缀/符号
+     */
+    private getUnitPrefix(currency: string): string {
+        switch (currency) {
+            case 'USD':
+                return '$';
+            case 'CNY':
+            case 'RMB':
+                return '¥';
+            default:
+                return '';
+        }
+    }
+
+    /**
+     * 格式化余额显示
+     */
+    private formatBalance(balance: number, currency: string): string {
+        if (balance === Number.MAX_SAFE_INTEGER) {
+            return t('Unlimited', '无限制');
+        }
+        if (balance === Number.MIN_SAFE_INTEGER) {
+            return t('Depleted', '耗尽');
+        }
+
+        const prefix = this.getUnitPrefix(currency);
+        if (prefix) {
+            return `${prefix}${balance.toFixed(2)}`;
+        }
+
+        // Token / 次 / 点数等场景：数值后追加单位
+        const formatted = Number.isInteger(balance) ? balance.toString() : balance.toFixed(2);
+        return `${formatted} ${currency}`;
     }
 
     /**
@@ -149,17 +221,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
         const sortedProviders = successfulProviders.sort((a, b) => a.providerId.localeCompare(b.providerId));
 
         for (const provider of sortedProviders) {
-            if (provider.balance === Number.MAX_SAFE_INTEGER) {
-                // balanceTexts.push('∞');
-                continue;
-            }
-            if (provider.balance === Number.MIN_SAFE_INTEGER) {
-                balanceTexts.push(t('Depleted', '耗尽'));
-                continue;
-            }
-            // 默认货币为CNY，除非明确指定为USD
-            const currencySymbol = provider.currency === 'USD' ? '$' : '¥';
-            balanceTexts.push(`${currencySymbol}${provider.balance.toFixed(2)}`);
+            balanceTexts.push(this.formatBalance(provider.balance, provider.currency));
         }
 
         const balanceText = balanceTexts.join(' ');
@@ -184,30 +246,43 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             return md;
         }
 
-        md.appendMarkdown(
-            `| ${t('Provider', '提供商')} | ${t('Paid Balance', '充值余额')} | ${t('Granted', '赠金余额')} | ${t('Available', '可用余额')} |\n`
-        );
-        md.appendMarkdown('| :--- |---: | ---: | ---: |\n');
-
         const sortedProviders = [...data.providers].sort((a, b) => a.providerId.localeCompare(b.providerId));
+        const hasDetailedBalances = sortedProviders.some(
+            provider => provider.success && (provider.paid !== undefined || provider.granted !== undefined)
+        );
+
+        if (hasDetailedBalances) {
+            md.appendMarkdown(
+                `| ${t('Provider', '提供商')} | ${t('Paid Balance', '充值余额')} | ${t('Granted', '赠金余额')} | ${t('Available', '可用余额')} |\n`
+            );
+            md.appendMarkdown('| :--- |---: | ---: | ---: |\n');
+        } else {
+            md.appendMarkdown(`| ${t('Provider', '提供商')} | ${t('Available', '可用余额')} |\n`);
+            md.appendMarkdown('| :--- | ---: |\n');
+        }
+
         for (const provider of sortedProviders) {
             if (provider.success) {
-                const currencySymbol = provider.currency === 'USD' ? '$' : '¥';
-                const paidBalance = provider.paid !== undefined ? `${currencySymbol}${provider.paid.toFixed(2)}` : '-';
-                const grantedBalance =
-                    provider.granted !== undefined ? `${currencySymbol}${provider.granted.toFixed(2)}` : '-';
-                let availableBalance = `${currencySymbol}${provider.balance.toFixed(2)}`;
-                if (provider.balance === Number.MAX_SAFE_INTEGER) {
-                    availableBalance = t('Unlimited', '无限制');
-                } else if (provider.balance === Number.MIN_SAFE_INTEGER) {
-                    availableBalance = t('Depleted', '已耗尽');
-                }
+                const availableBalance = this.formatBalance(provider.balance, provider.currency);
 
-                md.appendMarkdown(
-                    `| ${provider.providerName} | ${paidBalance} | ${grantedBalance} | ${availableBalance} |\n`
-                );
+                if (hasDetailedBalances) {
+                    const paidBalance =
+                        provider.paid !== undefined ? this.formatBalance(provider.paid, provider.currency) : '-';
+                    const grantedBalance =
+                        provider.granted !== undefined ? this.formatBalance(provider.granted, provider.currency) : '-';
+
+                    md.appendMarkdown(
+                        `| ${provider.providerName} | ${paidBalance} | ${grantedBalance} | ${availableBalance} |\n`
+                    );
+                } else {
+                    md.appendMarkdown(`| ${provider.providerName} | ${availableBalance} |\n`);
+                }
             } else {
-                md.appendMarkdown(`| ${provider.providerName} |  - | - | ${t('Query failed', '查询失败')} |\n`);
+                if (hasDetailedBalances) {
+                    md.appendMarkdown(`| ${provider.providerName} |  - | - | ${t('Query failed', '查询失败')} |\n`);
+                } else {
+                    md.appendMarkdown(`| ${provider.providerName} | ${t('Query failed', '查询失败')} |\n`);
+                }
             }
         }
 
@@ -227,55 +302,49 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
         isManualRefresh = false
     ): Promise<{ success: boolean; data?: CompatibleStatusData; error?: string }> {
         try {
-            const models = CompatibleModelManager.getModels();
-            const supportedProviders = new Set(BalanceQueryManager.getRegisteredProviders());
+            const providerEntries = this.getConfiguredProviderEntries();
             const providerMap = new Map<string, CompatibleProviderBalance>();
 
-            // 按提供商分组模型，只处理支持的提供商
-            for (const model of models) {
-                if (!model.provider || !supportedProviders.has(model.provider)) {
-                    continue;
-                }
+            for (const providerId of providerEntries) {
+                const baseProviderId = BalanceQueryManager.getBaseProviderId(providerId);
 
-                // 检查提供商是否有有效的 API Key，没有则跳过
-                const hasApiKey = await ApiKeyManager.hasValidApiKey(model.provider);
+                // 检查提供商是否有有效的 API Key（或无需鉴权），没有则跳过
+                const requiresApiKey = BalanceQueryManager.requiresApiKey(providerId);
+                const hasApiKey = requiresApiKey ? await ApiKeyManager.hasValidApiKey(baseProviderId) : true;
                 if (!hasApiKey) {
                     StatusLogger.debug(
-                        `[${this.config.logPrefix}] Skipping provider without a configured API key: ${model.provider}`
+                        `[${this.config.logPrefix}] Skipping provider without a configured API key: ${providerId}`
                     );
                     continue;
                 }
 
-                if (!providerMap.has(model.provider)) {
-                    const knownProvider = KnownProviders[model.provider];
+                if (!providerMap.has(providerId)) {
+                    const providerName = this.getProviderDisplayName(providerId);
 
-                    // 手动刷新时强制查询所有提供商，忽略缓存
                     if (isManualRefresh) {
-                        providerMap.set(model.provider, {
-                            providerId: model.provider,
-                            providerName: knownProvider?.displayName || model.provider,
+                        providerMap.set(providerId, {
+                            providerId,
+                            providerName,
                             balance: 0,
-                            currency: 'CNY', // 默认货币
+                            currency: 'CNY',
                             lastUpdated: new Date(),
                             success: false
                         });
+                        continue;
+                    }
+
+                    const cachedProvider = this.providerCaches.get(providerId);
+                    if (cachedProvider && !this.isProviderCacheExpired(providerId)) {
+                        providerMap.set(providerId, cachedProvider.balance);
                     } else {
-                        // 自动刷新时，首先尝试从独立缓存加载
-                        const cachedProvider = this.providerCaches.get(model.provider);
-                        if (cachedProvider && !this.isProviderCacheExpired(model.provider)) {
-                            // 使用缓存数据
-                            providerMap.set(model.provider, cachedProvider.balance);
-                        } else {
-                            // 需要查询的提供商
-                            providerMap.set(model.provider, {
-                                providerId: model.provider,
-                                providerName: knownProvider?.displayName || model.provider,
-                                balance: 0,
-                                currency: 'CNY', // 默认货币
-                                lastUpdated: new Date(),
-                                success: false
-                            });
-                        }
+                        providerMap.set(providerId, {
+                            providerId,
+                            providerName,
+                            balance: 0,
+                            currency: 'CNY',
+                            lastUpdated: new Date(),
+                            success: false
+                        });
                     }
                 }
             }
@@ -350,16 +419,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             return true;
         }
 
-        // 检查是否有任何提供商缓存过期
-        const models = CompatibleModelManager.getModels();
-        const providerIds = new Set<string>();
-        for (const model of models) {
-            if (model.provider) {
-                providerIds.add(model.provider);
-            }
-        }
-
-        for (const providerId of providerIds) {
+        for (const providerId of this.getConfiguredProviderEntries()) {
             if (this.isProviderCacheExpired(providerId)) {
                 StatusLogger.debug(
                     `[${this.config.logPrefix}] Cache age exceeded the fixed 5-minute expiration, triggering API refresh`
@@ -419,11 +479,8 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             return;
         }
 
-        // 检查提供商是否在支持列表中
-        const supportedProviders = new Set(BalanceQueryManager.getRegisteredProviders());
-        if (!CompatibleStatusBar.SUPPORTED_DELAYED_UPDATE_PROVIDERS.includes(providerId)) {
-            // 只在已知支持查询的列表中才输出此日志
-            if (supportedProviders.has(providerId)) {
+        if (!this.supportsTargetedDelayedUpdate(providerId)) {
+            if (BalanceQueryManager.getRegisteredProvidersForBaseProvider(providerId).length > 0) {
                 StatusLogger.debug(
                     `[${this.config.logPrefix}] Provider ${providerId} does not need delayed updates and is handled by the scheduled refresh`
                 );
@@ -668,9 +725,8 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             return;
         }
 
-        // 检查提供商是否支持
-        const supportedProviders = new Set(BalanceQueryManager.getRegisteredProviders());
-        if (!supportedProviders.has(providerId)) {
+        const targetProviderIds = BalanceQueryManager.getRegisteredProvidersForBaseProvider(providerId);
+        if (targetProviderIds.length === 0) {
             StatusLogger.warn(`[${this.config.logPrefix}] Provider ${providerId} does not support balance queries`);
             return;
         }
@@ -680,77 +736,74 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
         try {
             StatusLogger.debug(`[${this.config.logPrefix}] Starting balance query for provider ${providerId}...`);
 
-            // 获取提供商信息
-            const knownProvider = KnownProviders[providerId];
-            const providerName = knownProvider?.displayName || providerId;
+            for (const targetProviderId of targetProviderIds) {
+                const baseProviderId = BalanceQueryManager.getBaseProviderId(targetProviderId);
+                const providerBalance: CompatibleProviderBalance = {
+                    providerId: targetProviderId,
+                    providerName: this.getProviderDisplayName(targetProviderId),
+                    balance: 0,
+                    currency: 'CNY',
+                    lastUpdated: new Date(),
+                    success: false
+                };
 
-            // 创建提供商余额信息对象
-            const providerBalance: CompatibleProviderBalance = {
-                providerId,
-                providerName,
-                balance: 0,
-                currency: 'CNY', // 默认货币
-                lastUpdated: new Date(),
-                success: false
-            };
+                try {
+                    if (BalanceQueryManager.requiresApiKey(targetProviderId)) {
+                        const hasApiKey = await ApiKeyManager.hasValidApiKey(baseProviderId);
+                        if (!hasApiKey) {
+                            throw new Error(`No API key configured for provider ${baseProviderId}`);
+                        }
+                    }
 
-            // 查询余额
-            try {
-                const balanceInfo = await BalanceQueryManager.queryBalance(providerId);
+                    const balanceInfo = await BalanceQueryManager.queryBalance(targetProviderId);
 
-                providerBalance.paid = balanceInfo.paid;
-                providerBalance.granted = balanceInfo.granted;
-                providerBalance.balance = balanceInfo.balance;
-                providerBalance.currency = balanceInfo.currency;
-                providerBalance.lastUpdated = new Date();
-                providerBalance.success = true;
+                    providerBalance.paid = balanceInfo.paid;
+                    providerBalance.granted = balanceInfo.granted;
+                    providerBalance.balance = balanceInfo.balance;
+                    providerBalance.currency = balanceInfo.currency;
+                    providerBalance.lastUpdated = new Date();
+                    providerBalance.success = true;
 
-                // 保存到独立缓存
-                await this.saveProviderCache(providerId, providerBalance);
+                    await this.saveProviderCache(targetProviderId, providerBalance);
 
-                StatusLogger.info(`[${this.config.logPrefix}] Balance query succeeded for provider ${providerId}`);
-            } catch (error) {
-                StatusLogger.error(
-                    `[${this.config.logPrefix}] Failed to query balance for provider ${providerId}`,
-                    error
-                );
-                providerBalance.error = typeof error === 'string' ? error : t('Query failed', '查询失败');
-                providerBalance.success = false;
-            }
-
-            // 更新状态数据
-            if (this.lastStatusData && this.lastStatusData.data) {
-                // 查找并更新现有提供商数据
-                const existingProviderIndex = this.lastStatusData.data.providers.findIndex(
-                    p => p.providerId === providerId
-                );
-
-                if (existingProviderIndex >= 0) {
-                    // 更新现有提供商
-                    this.lastStatusData.data.providers[existingProviderIndex] = providerBalance;
-                } else {
-                    // 添加新提供商
-                    this.lastStatusData.data.providers.push(providerBalance);
-                    this.lastStatusData.data.totalCount++;
+                    StatusLogger.info(
+                        `[${this.config.logPrefix}] Balance query succeeded for provider ${targetProviderId}`
+                    );
+                } catch (error) {
+                    StatusLogger.error(
+                        `[${this.config.logPrefix}] Failed to query balance for provider ${targetProviderId}`,
+                        error
+                    );
+                    providerBalance.error = typeof error === 'string' ? error : t('Query failed', '查询失败');
+                    providerBalance.success = false;
                 }
 
-                // 更新成功计数
+                if (this.lastStatusData && this.lastStatusData.data) {
+                    const existingProviderIndex = this.lastStatusData.data.providers.findIndex(
+                        p => p.providerId === targetProviderId
+                    );
+
+                    if (existingProviderIndex >= 0) {
+                        this.lastStatusData.data.providers[existingProviderIndex] = providerBalance;
+                    } else {
+                        this.lastStatusData.data.providers.push(providerBalance);
+                        this.lastStatusData.data.totalCount++;
+                    }
+                }
+            }
+
+            if (this.lastStatusData && this.lastStatusData.data) {
                 this.lastStatusData.data.successCount = this.lastStatusData.data.providers.filter(
                     p => p.success
                 ).length;
-
-                // 更新时间戳
                 this.lastStatusData.timestamp = Date.now();
 
-                // 保存到全局状态
                 if (this.context) {
                     this.context.globalState.update(this.getCacheKey('statusData'), this.lastStatusData);
                 }
 
-                // 更新状态栏 UI
                 this.updateStatusBarUI(this.lastStatusData.data);
             } else {
-                // 如果没有现有数据，执行 checkAndShowStatus 进行完整更新
                 await this.checkAndShowStatus();
             }
         } catch (error) {

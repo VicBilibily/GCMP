@@ -122,7 +122,7 @@
     "setting.vision.model.description": "视觉分析模型。配置由哪个 GCMP 提供商和模型处理图片识别。",
     "setting.vision.model.provider.description": "视觉模型的提供商 key（例如 zhipu、minimax、dashscope）。使用 \"copilot\" 可使用 GitHub Copilot 原生模型（需在 settings.json 中手动配置）。",
     "setting.vision.model.model.description": "用于视觉分析的模型 ID（例如 glm-4.6v、minimax-m3、gpt-4o），必须支持图像输入能力。",
-    "setting.providerOverrides.description": "提供商配置覆盖。允许覆盖提供商的baseUrl和模型配置，支持添加新模型或覆盖现有模型的参数。",
+    "setting.providerOverrides.description": "提供商配置覆盖。允许覆盖提供商的baseUrl和模型配置，支持添加新模型或覆盖现有模型的参数。自定义 Compatible 提供商还可配置单个 usage 查询或一个或多个 usages 查询模式用于余额检查，且 usages 可基于 usage 中的默认值进行扩展。",
     "setting.compatibleModels.description": "Compatible Provider 的自定义模型配置。完全由用户配置的 OpenAI / Anthropic 兼容模型列表。",
     "tool.zhipuWebSearch.displayName": "智谱AI联网搜索",
     "tool.zhipuWebSearch.userDescription": "通过智谱AI联网搜索获取最新信息",

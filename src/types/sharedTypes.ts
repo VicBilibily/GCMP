@@ -230,6 +230,59 @@ export interface ModelOverride {
 }
 
 /**
+ * 余额/用量查询接口配置
+ * 支持自定义查询端点和返回字段解析路径
+ */
+export interface ProviderUsageConfig {
+    /** 模式显示名称（可选），用于区分不同套餐/余额来源 */
+    displayName?: string;
+    /** 查询接口 URL */
+    url: string;
+    /** HTTP 方法，默认 GET */
+    method?: 'GET' | 'POST';
+    /** 认证方式，默认 bearer */
+    authType?: 'bearer' | 'url_key' | 'none';
+    /** 额外请求头（可选，会与 provider customHeader 合并） */
+    headers?: Record<string, string>;
+    /** 额外查询参数（可选） */
+    params?: Record<string, string>;
+    /** POST 请求体（仅 POST 生效，可选） */
+    body?: Record<string, unknown>;
+    /** 返回字段解析路径（dot 表示法） */
+    fields: UsageFieldPaths;
+    /** 余额单位，默认 USD */
+    unit?: string;
+}
+
+/**
+ * usages 条目的增量覆盖配置。
+ * 当同时存在 usage 与 usages 时，usages 中的每个条目会基于 usage 进行智能合并。
+ */
+export interface ProviderUsageOverrideConfig extends Omit<Partial<ProviderUsageConfig>, 'fields'> {
+    /** 返回字段解析路径增量覆盖（可选） */
+    fields?: Partial<UsageFieldPaths>;
+}
+
+/**
+ * 自定义 provider 的多模式余额/用量查询配置
+ * key 通常用于区分不同套餐、余额池或查询路径
+ */
+export type ProviderUsagesConfig = Record<string, ProviderUsageOverrideConfig>;
+
+/**
+ * 余额查询返回字段解析路径
+ * 用 dot 路径从返回 JSON 中提取对应数值
+ */
+export interface UsageFieldPaths {
+    /** 可用余额/剩余额度 */
+    balance: string;
+    /** 充值/已付余额（可选） */
+    paid?: string;
+    /** 赠送余额（可选） */
+    granted?: string;
+}
+
+/**
  * 提供商覆盖配置接口 - 用于用户配置覆盖
  */
 export interface ProviderOverride {
@@ -241,6 +294,10 @@ export interface ProviderOverride {
     proxy?: string;
     /** 模型覆盖配置列表 */
     models?: ModelOverride[];
+    /** 自定义提供商默认/单模式余额/用量查询配置（可选） */
+    usage?: ProviderUsageConfig;
+    /** 自定义提供商多模式余额/用量查询配置（多个模式时使用，可选；可基于 usage 增量覆盖） */
+    usages?: ProviderUsagesConfig;
 }
 
 /**

@@ -122,7 +122,7 @@
     "setting.vision.model.description": "Vision analysis model. Configure which GCMP provider and model handles image recognition.",
     "setting.vision.model.provider.description": "Provider key for the vision model (e.g., zhipu, minimax, dashscope). Use \"copilot\" to use native GitHub Copilot models (manual settings.json configuration required).",
     "setting.vision.model.model.description": "Model ID for vision analysis (e.g., glm-4.6v, minimax-m3, gpt-4o). Must support image input capabilities.",
-    "setting.providerOverrides.description": "Provider configuration overrides. Allows overriding provider baseUrl and model configuration, supports adding new models or overriding existing model parameters.",
+    "setting.providerOverrides.description": "Provider configuration overrides. Allows overriding provider baseUrl and model configuration, supports adding new models or overriding existing model parameters. Custom Compatible providers can also configure a single usage query or one or more usages query modes for balance checks, and usages can extend the defaults defined in usage.",
     "setting.compatibleModels.description": "Custom model configuration for Compatible Provider. Fully user-configured OpenAI / Anthropic compatible model list.",
     "tool.zhipuWebSearch.displayName": "ZhipuAI Web Search",
     "tool.zhipuWebSearch.userDescription": "Get real-time information via ZhipuAI web search",

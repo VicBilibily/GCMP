@@ -455,6 +455,101 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
     - Suitable when your gateway exposes a Gemini `:streamGenerateContent` style interface (typically requires `alt=sse`).
     - Tool parameters are automatically cleaned and converted to Gemini dialect, supporting `const`, `$ref`, nullable union types, and empty object/array patterns.
 
+### Custom provider balance/usage query example: intelligent merge of `usage` + `usages`
+
+For a `Compatible` custom provider, you can configure the following under `gcmp.providerOverrides.{providerId}`:
+
+- `usage`: optional; for a single balance query, configuring only this is enough, and it can also serve as the shared defaults for `usages`
+- `usages`: optional; use this only when you need multiple named balance/amount query modes, and each item can incrementally override fields from `usage`
+
+In other words:
+
+- configure only `usage`: a single balance query
+- use `usages` only when you need multiple query modes for different balances/amounts
+- configure neither `usage` nor `usages`: no balance/usage query will be registered for this custom provider
+
+> Note: the provider key in `gcmp.providerOverrides` must match `gcmp.compatibleModels[*].provider` **exactly**, including letter case.
+>
+
+For example, the following [NekoCode](https://nekocode.ai?aff=U9XPRBID)-related snippet is closer to a real-world `settings.json` setup:
+
+- multiple models in `gcmp.compatibleModels` share the same `provider: "NekoCode"`
+- `gcmp.providerOverrides.NekoCode.usage` defines the default query URL `https://api2.nekoapi.ai/v1/usage` and the shared field path `balance`
+- `gcmp.providerOverrides.NekoCode.usages.pay` resolves to the same final query config as `usage`, and only adds the display name `Balance`
+- `gcmp.providerOverrides.NekoCode.usages.sub` reuses `usage.fields.balance` but overrides the query URL to `https://api2.nekoapi.ai/v1/user/balance`
+
+```json
+{
+    "gcmp.compatibleModels": [
+        {
+            "id": "nekocode:gpt-5.5",
+            "name": "GPT-5.5 (NekoCode)",
+            "provider": "NekoCode",
+            "model": "gpt-5.5",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://api2.nekoapi.ai/v1",
+            "proxy": "noproxy",
+            "maxInputTokens": 272000,
+            "maxOutputTokens": 128000,
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            },
+            "reasoningDefault": "xhigh",
+            "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
+            "extraBody": {
+                "store": false,
+                "reasoning": {
+                    "effort": "xhigh",
+                    "summary": "auto"
+                }
+            },
+            "useInstructions": true,
+            "customHeader": {
+                "version": "0.134.0",
+                "user-agent": "codex-tui/0.134.0 (Windows 10.0.26200; x86_64) unknown (codex-tui; 0.134.0)",
+                "originator": "codex-tui"
+            }
+        }
+    ],
+    "gcmp.providerOverrides": {
+        "NekoCode": {
+            "usage": {
+                "url": "https://api2.nekoapi.ai/v1/usage",
+                "fields": {
+                    "balance": "balance"
+                }
+            },
+            "usages": {
+                "pay": {
+                    "displayName": "Balance",
+                    "url": "https://api2.nekoapi.ai/v1/usage"
+                },
+                "sub": {
+                    "displayName": "Subscription",
+                    "url": "https://api2.nekoapi.ai/v1/user/balance",
+                    "fields": {
+                        "balance": "remaining"
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+The effective behavior of this configuration is:
+
+- `providerOverrides.NekoCode` applies to all compatible models whose `provider` is `"NekoCode"`, such as `GPT-5.4 (NekoCode)` and `GPT-5.5 (NekoCode)` above
+- `pay` inherits `usage.fields.balance = "balance"`
+- `sub` also inherits `usage.fields.balance = "balance"`
+- because `pay` resolves to the same final query config as `usage`, no extra duplicate `default` mode will be emitted
+
+The status bar will therefore query and display two named modes:
+
+- `NekoCode / Balance`
+- `NekoCode / Subscription`
+
 </details>
 
 ## 💡 FIM / NES Inline Completion Suggestions
