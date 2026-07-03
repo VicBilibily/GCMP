@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.25.20",
+    "version": "0.25.21",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -27,7 +27,6 @@
         "ant-ling",
         "stepfun",
         "LongCat",
-        "clinepass",
         "OpenAI Compatible",
         "Anthropic Compatible",
         "智谱AI",

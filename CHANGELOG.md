@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.21] - 2026-07-03
+
+### 新增
+
+- **ClinePass 提供商**：新增 ClinePass 大模型聚合平台，预置 GLM-5.2、Kimi-K2.7-Code、Kimi-K2.6、DeepSeek-V4-Pro、DeepSeek-V4-Flash、MiMo-V2.5、MiMo-V2.5-Pro、MiniMax-M3、Qwen3.7-Max、Qwen3.7-Plus 共 10 个模型（[#272](https://github.com/VicBilibily/GCMP/pull/272)）。
+
+---
+
+### Added
+
+- **ClinePass provider**: New model aggregator platform with 10 preset models including GLM-5.2, Kimi-K2.7-Code, DeepSeek-V4 series, MiMo-V2.5 series, MiniMax-M3, and Qwen3.7 series ([#272](https://github.com/VicBilibily/GCMP/pull/272)).
+
 ## [0.25.20] - 2026-07-02
 
 ### 新增

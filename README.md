@@ -210,9 +210,7 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 
 - **预置模型**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**Qwen3.7-Max**、**Qwen3.7-Plus**、**Qwen3.6-Plus**、**Qwen3.6-Max**、**Qwen3.6-Flash**、**Qwen3-Coder-480B-A35B-Instruct-INT4-Mixed-AR**、**Qwen3-Next-80B-A3B-Instruct**、**GLM-5.2**、**GLM-5.1**、**GLM-5**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**Kimi-K2.5**、**MiniMax-M2.7**、**Llama-4-Maverick-17B-128E-Instruct-FP8**、**Llama-3.3-70B-Instruct**、**Gemma-4-26B-A4B**、**GPT-OSS-120B**
 
-### [**ClinePass**](https://docs.cline.bot/getting-started/clinepass) - ClinePass
-
-Cline 官方推出的模型订阅服务，通过 Cline API 提供 OpenAI-compatible 接口，支持 `openai-sse` 模式接入。
+### [**ClinePass**](https://docs.cline.bot/getting-started/clinepass) - Cline 官方推出的模型订阅服务
 
 - **预置模型**：**GLM-5.2**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**、**MiMo-V2.5**、**MiMo-V2.5-Pro**、**MiniMax-M3**、**Qwen3.7-Max**、**Qwen3.7-Plus**
 - **API Key**：在 [Cline App → API Keys](https://app.cline.bot/dashboard/account?tab=api-keys) 页面创建并复制 API Key，使用 `GCMP: 设置 ClinePass API 密钥` 命令配置。
