@@ -41,6 +41,7 @@
     "command.grok.configWizard": "Grok Build 配置向导（CLI 认证）",
     "command.opencode.setApiKey": "设置 OpenCode API 密钥",
     "command.hyper.setApiKey": "设置 Charm Hyper API 密钥",
+    "command.clinepass.setApiKey": "设置 ClinePass API 密钥",
     "command.compatible.manageModels": "Compatible Provider 设置",
     "command.nesCompletion.toggleManual": "切换 NES 手动触发模式",
     "command.tokenUsage.showDetails": "查看今日 Token 消耗统计详情",

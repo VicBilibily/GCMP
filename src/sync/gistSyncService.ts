@@ -102,6 +102,7 @@ const KNOWN_KEY_LABELS: Record<string, string> = {
     stepfun: 'StepFun',
     opencode: 'OpenCode',
     hyper: 'Charm Hyper',
+    clinepass: 'ClinePass',
     // ── 多密钥变体 ──
     'minimax-token': 'MiniMax Token Plan',
     'dashscope-coding': 'DashScope Coding Plan',

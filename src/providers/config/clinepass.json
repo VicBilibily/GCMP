@@ -1,0 +1,123 @@
+{
+    "displayName": "ClinePass",
+    "baseUrl": "https://api.cline.bot/api/v1",
+    "apiKeyTemplate": "your_cline_api_key_here",
+    "models": [
+        {
+            "id": "cline-pass/glm-5.2",
+            "name": "GLM-5.2 (ClinePass)",
+            "tooltip": "ClinePass — GLM-5.2。1M 上下文，131K 输出，支持推理与工具调用，纯文本模型，开源。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 131072,
+            "reasoningEffort": ["high", "xhigh"],
+            "reasoningFormat": "nested",
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "cline-pass/kimi-k2.7-code",
+            "name": "Kimi-K2.7-Code (ClinePass)",
+            "tooltip": "ClinePass — Kimi K2.7 Code。262K 上下文，262K 输出，支持推理、工具调用与图片/视频输入。",
+            "sdkMode": "openai-sse",
+            "contextSize": [262144, 192000, 128000],
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 262144,
+            "reasoningEffort": ["low", "medium", "high"],
+            "extraBody": { "enabled_thinking": true },
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
+            "id": "cline-pass/kimi-k2.6",
+            "name": "Kimi-K2.6 (ClinePass)",
+            "tooltip": "ClinePass — Kimi K2.6。262K 上下文，262K 输出，支持推理、工具调用与图片/视频输入，开源。",
+            "sdkMode": "openai-sse",
+            "contextSize": [262144, 192000, 128000],
+            "maxInputTokens": 262144,
+            "maxOutputTokens": 262144,
+            "reasoningEffort": ["low", "medium", "high"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
+            "id": "cline-pass/deepseek-v4-pro",
+            "name": "DeepSeek-V4-Pro (ClinePass)",
+            "tooltip": "ClinePass — DeepSeek V4 Pro。1M 上下文，384K 输出，支持推理与工具调用，开源。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 384000,
+            "reasoningEffort": ["high", "xhigh"],
+            "reasoningFormat": "nested",
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "cline-pass/deepseek-v4-flash",
+            "name": "DeepSeek-V4-Flash (ClinePass)",
+            "tooltip": "ClinePass — DeepSeek V4 Flash。1M 上下文，384K 输出，支持推理与工具调用，开源。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 384000,
+            "reasoningEffort": ["high", "xhigh"],
+            "reasoningFormat": "nested",
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "cline-pass/mimo-v2.5",
+            "name": "MiMo-V2.5 (ClinePass)",
+            "tooltip": "ClinePass — MiMo-V2.5。1M 上下文，131K 输出，支持推理、工具调用与图片/音频/视频输入，开源。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1048576, 600000, 400000, 256000, 192000],
+            "maxInputTokens": 1048576,
+            "maxOutputTokens": 131072,
+            "thinking": ["enabled", "disabled"],
+            "thinkingFormat": "object",
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
+            "id": "cline-pass/mimo-v2.5-pro",
+            "name": "MiMo-V2.5-Pro (ClinePass)",
+            "tooltip": "ClinePass — MiMo-V2.5-Pro。1M 上下文，131K 输出，支持推理与工具调用，纯文本模型，开源。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1048576, 600000, 400000, 256000, 192000],
+            "maxInputTokens": 1048576,
+            "maxOutputTokens": 131072,
+            "thinking": ["enabled", "disabled"],
+            "thinkingFormat": "object",
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "cline-pass/minimax-m3",
+            "name": "MiniMax-M3 (ClinePass)",
+            "tooltip": "ClinePass — MiniMax M3。512K 上下文，128K 输出，支持推理、工具调用与图片/视频输入，开源。",
+            "sdkMode": "openai-sse",
+            "contextSize": [512000, 400000, 256000, 192000, 128000],
+            "maxInputTokens": 512000,
+            "maxOutputTokens": 128000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
+            "id": "cline-pass/qwen3.7-max",
+            "name": "Qwen3.7-Max (ClinePass)",
+            "tooltip": "ClinePass — Qwen3.7 Max。1M 上下文，65K 输出，支持推理与工具调用，纯文本模型。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 65536,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
+            "id": "cline-pass/qwen3.7-plus",
+            "name": "Qwen3.7-Plus (ClinePass)",
+            "tooltip": "ClinePass — Qwen3.7 Plus。1M 上下文，64K 输出，支持推理、工具调用与图片输入。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        }
+    ]
+}
