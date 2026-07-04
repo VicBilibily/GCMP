@@ -468,6 +468,8 @@ In other words:
 - use `usages` only when you need multiple query modes for different balances/amounts
 - configure neither `usage` nor `usages`: no balance/usage query will be registered for this custom provider
 
+For built-in known provider `usage` / `usages` reference configurations, see the source file [src/utils/knownProviders.ts](src/utils/knownProviders.ts).
+
 > Note: the provider key in `gcmp.providerOverrides` must match `gcmp.compatibleModels[*].provider` **exactly**, including letter case.
 >
 

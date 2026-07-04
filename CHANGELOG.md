@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.22] - 2026-07-04
+
+### 新增
+
+- **Compatible Provider 余额查询配置化**：自定义 Compatible 提供商现在可通过 `gcmp.providerOverrides` 的 `usage` / `usages` 字段配置多模式余额查询。支持 JSON 路径提取、加减运算、成功条件判断、错误消息提取，覆盖单余额、多金额/多余额查询场景。参考配置方式见 [src/utils/knownProviders.ts](src/utils/knownProviders.ts)。
+
+### 变更
+
+- **内置提供商余额查询统一化**：移除 AIPing、OpenRouter、SiliconFlow 三家的专用余额查询器实现，改用统一的 `usage` 字段配置，通过 JSON Schema 驱动声明式查询。配置集中管理于 `knownProviders.ts`，新增 `usageConfigResolver` 解析器与 `pathExtractor` JSON 路径提取工具。
+
+---
+
+### Added
+
+- **Configurable balance queries for Compatible providers**: Custom compatible providers can now configure multi-mode balance queries via the `usage` / `usages` fields in `gcmp.providerOverrides`. Supports JSON path extraction, arithmetic operations, success condition checks, and error message extraction — covering single balance, multi-amount, and multi-balance query scenarios. See [src/utils/knownProviders.ts](src/utils/knownProviders.ts) for reference configurations.
+
+### Changed
+
+- **Unified balance query for built-in providers**: Removed dedicated balance queryer implementations for AIPing, OpenRouter, and SiliconFlow — replaced with a unified `usage` field configuration driven by JSON Schema. Configs centralized in `knownProviders.ts`; added `usageConfigResolver` and `pathExtractor` JSON path extraction utility.
+
 ## [0.25.21] - 2026-07-03
 
 ### 新增
