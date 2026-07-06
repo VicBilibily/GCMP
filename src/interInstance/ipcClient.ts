@@ -75,6 +75,14 @@ export class IpcClient {
     }
 
     /**
+     * 当前是否仍持有可写 socket。
+     * 用于上层决定是否继续走 IPC，避免在断线重连窗口内把事件静默写入 no-op send。
+     */
+    isConnected(): boolean {
+        return !!this.socket;
+    }
+
+    /**
      * 向 Leader 发送事件
      */
     send(event: InterInstanceEvent): void {

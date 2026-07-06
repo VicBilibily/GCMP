@@ -98,6 +98,8 @@ export class ClinePassStatusBar extends ProviderStatusBarItem<ClinePassStatusDat
      * 格式: icon min(周剩余%,月剩余%) (5h剩余%)
      */
     protected getDisplayText(data: ClinePassStatusData): string {
+        // API 契约：ClinePass 固定返回 weekly / monthly / five_hour 三种窗口，
+        // 当前仅 resetsAt 允许为空，因此这里保留非空断言以简化渲染路径。
         const weekly = data.limits.find(l => l.type === 'weekly')!;
         const monthly = data.limits.find(l => l.type === 'monthly')!;
         const fiveHour = data.limits.find(l => l.type === 'five_hour')!;
@@ -274,6 +276,8 @@ export class ClinePassStatusBar extends ProviderStatusBarItem<ClinePassStatusDat
                 };
             }
 
+            // API 契约要求三种 limit 始终存在；此处仅校验是否返回了非空 limits，
+            // 不重复逐项校验 weekly/monthly/five_hour，避免把契约层问题扩散到渲染逻辑。
             if (!parsedResponse.data?.limits || parsedResponse.data.limits.length === 0) {
                 return {
                     success: false,

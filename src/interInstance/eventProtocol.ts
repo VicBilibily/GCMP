@@ -104,6 +104,7 @@ export interface LeaderChangedEvent extends InterInstanceEventBase {
  * Leader 实例关闭前广播此事件，提示 Follower 立即开始新 Leader 竞选，
  * 避免等待心跳超时（15 秒）造成的任务空窗。
  * 可指定建议的下一任 Leader，非提名实例默认不参与本轮竞选，减少抢占。
+ * 该事件属于停机优化信号而非可靠控制消息；IPC 不可用时允许自然退化为 session 级心跳选举。
  */
 export interface LeaderResigningEvent extends InterInstanceEventBase {
     type: 'leaderResigning';

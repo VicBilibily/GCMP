@@ -25,7 +25,12 @@ export interface InterInstanceBusOptions {
  * 负责：
  * 1. 监听 Leader 角色变化，启动/停止 IPC Server 或 Client
  * 2. 提供发布/订阅接口
- * 3. 在 IPC 不可用时降级到 globalState 轮询
+ * 3. 在 IPC 不可用时将基础通知类事件降级到 globalState 轮询
+ *
+ * 说明：
+ * - 高频实时事件（如 liveMetrics）只走 IPC，不保证补投递。
+ * - 基础通知类事件（状态栏/配置/API Key/统计/同步完成）也属于非关键事件，允许短暂丢失；
+ *   但在可低成本优化的情况下，仍尽量在 IPC 断线窗口回退到 fallback 通道。
  */
 export class InterInstanceBus {
     private static context: vscode.ExtensionContext | undefined;
@@ -141,11 +146,16 @@ export class InterInstanceBus {
             senderInstanceId: this.instanceId ?? 'unknown'
         } as InterInstanceEvent;
 
-        // Leader 通过 IPC 广播；Follower 通过 IPC client 发送给 Leader，再由 Leader 中继
-        const ipcAvailable = !!this.server || !!this.client;
+        // 基础通知类事件采用 best-effort 语义：
+        // 1. 优先走 IPC；
+        // 2. IPC 当前不可用时再走 fallback；
+        // 3. 即便瞬时丢失也不影响核心正确性。
+        // 注意这里必须检查 client 的真实连接状态，而不是仅判断对象是否存在，
+        // 否则 follower 在断线重连窗口内会把事件静默写入 no-op send，错过 fallback 优化机会。
+        const ipcAvailable = !!this.server || this.client?.isConnected() === true;
         if (this.server) {
             this.server.broadcast(fullEvent);
-        } else if (this.client) {
+        } else if (this.client?.isConnected()) {
             this.client.send(fullEvent);
         }
 
@@ -176,9 +186,10 @@ export class InterInstanceBus {
             senderInstanceId: this.instanceId ?? 'unknown'
         } as InterInstanceEvent;
 
+        // 设计意图：高频实时状态只走 IPC，IPC 不可用时直接降级为“当前 session 内可见”。
         if (this.server) {
             this.server.broadcast(fullEvent);
-        } else if (this.client) {
+        } else if (this.client?.isConnected()) {
             this.client.send(fullEvent);
         }
     }
@@ -213,7 +224,7 @@ export class InterInstanceBus {
         if (LeaderElectionService.isLeader()) {
             return !!this.server;
         }
-        return !!this.client;
+        return this.client?.isConnected() === true;
     }
 
     /**
@@ -284,6 +295,8 @@ export class InterInstanceBus {
                 this.dispatchEvent(event);
             },
             onDisconnect: () => {
+                // 基础事件为非关键通知；断线后无需补历史，仅尽快重连。
+                // 但 publish() 会基于真实连接状态选择 fallback，从而减少重连窗口内的静默丢失。
                 this.scheduleReconnect();
             }
         });

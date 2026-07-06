@@ -154,6 +154,9 @@ export class PromptAnalyzer {
 
             // ===== 6. 计算上下文总占用 =====
             if (usageBaseline !== undefined) {
+                // 设计取舍：增量模式直接复用上一轮 API 返回的 prompt_tokens 作为 baseline，
+                // 不额外重算并叠加当前轮 system/tools 的变化量。
+                // 这样会带来少量估算失真，但可避免为了边缘差异引入更高实现复杂度与额外计量成本。
                 result.context = usageBaseline + deltaTokens;
                 result.requestIncrement = deltaTokens;
                 Logger.debug(

@@ -110,6 +110,7 @@ export class LeaderElectionService {
         UserActivityService.stop();
 
         // 如果是 Leader，先通过 IPC 通知其他实例即将卸任，让它们立即开始竞选。
+        // 该通知只用于优化停机切换速度；IPC 不可用时允许退化回 session 级心跳选举。
         // 优先从已连接的 Follower 中指定下一任 Leader（最长连接者），减少广播竞选。
         if (this._isLeader) {
             try {
