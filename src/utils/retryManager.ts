@@ -5,6 +5,7 @@
 
 import { Logger } from './logger';
 import { t } from './l10n';
+import { isRateLimitLikeError } from './retryClassifier';
 
 /**
  * 重试配置接口
@@ -181,43 +182,8 @@ export class RetryManager {
      * @param error 错误对象
      * @returns 是否是 429 错误
      */
-    static isRateLimitError(error: RetryableError, deep = 0): boolean {
-        // 检查 OpenAI 错误对象
-        if ('status' in error && (error.status === 429 || error.status === 529)) {
-            return true;
-        }
-        // 检查是否有 statusCode 属性
-        if ('statusCode' in error && (error.statusCode === 429 || error.statusCode === 529)) {
-            return true;
-        }
-
-        if (error.message && typeof error.message === 'string') {
-            // 检查错误消息中是否包含 429/529 字样
-            if (error.message.includes('429') || error.message.includes('529')) {
-                return true;
-            }
-            // 一些提供商可能在错误消息中包含特定的速率限制提示
-            if (
-                error.message.toLowerCase().includes('rate limit') ||
-                error.message.toLowerCase().includes('limit exceeded') ||
-                error.message.includes('请求过于频繁')
-            ) {
-                return true;
-            }
-            // 某些提供商可能使用“temporarily overloaded”或“访问量过大”等提示来表示服务器过载，也可以视为需要重试的情况
-            if (
-                error.message.toLowerCase().includes('temporarily overloaded') ||
-                error.message.includes('访问量过大')
-            ) {
-                return true;
-            }
-        }
-
-        // 检查是否有嵌套的 error 对象
-        if (deep <= 3 && 'error' in error && typeof error.error === 'object' && error.error !== null) {
-            return this.isRateLimitError(error.error as RetryableError, deep + 1);
-        }
-        return false;
+    static isRateLimitError(error: RetryableError, _deep = 0): boolean {
+        return isRateLimitLikeError(error as unknown as Record<string, unknown>);
     }
 
     /**

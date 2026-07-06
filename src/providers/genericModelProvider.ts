@@ -25,7 +25,7 @@ import {
     RetryManager,
     TokenCounter
 } from '../utils';
-import { getEffectiveMaxInputTokens } from '../utils/languageModelInfo';
+import { getEffectiveMaxInputTokens, getEffectiveContextWindow } from '../utils/languageModelInfo';
 import type { RetryableError } from '../utils';
 import * as liveMetrics from '../handlers/liveMetrics';
 import { OpenAIHandler } from '../handlers/openaiHandler';
@@ -878,13 +878,14 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
             const totalInputTokens = analysis.context || 0;
             const maxInputTokens = getEffectiveMaxInputTokens(model, modelConfig, options, this.providerKey);
+            const contextWindow = getEffectiveContextWindow(model, modelConfig, options, this.providerKey);
 
-            // 更新上下文占用状态栏
+            // 更新上下文占用状态栏（显示总上下文窗口）
             const contextUsageStatusBar = ContextUsageStatusBar.getInstance();
             if (contextUsageStatusBar) {
                 contextUsageStatusBar.updateContextUsage(
                     model.name || modelConfig.name,
-                    maxInputTokens,
+                    contextWindow,
                     totalInputTokens,
                     (options as RuntimeProvideLanguageModelChatResponseOptions)?.modelOptions?.requestKind,
                     Date.now()

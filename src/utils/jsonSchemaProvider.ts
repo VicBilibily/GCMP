@@ -625,7 +625,10 @@ export class JsonSchemaProvider {
                             },
                             maxInputTokens: {
                                 type: 'number',
-                                description: t('Maximum number of input tokens', '最大输入token数量'),
+                                description: t(
+                                    'Maximum number of input tokens (input + output = context)',
+                                    '最大输入Token数（input + output = context）'
+                                ),
                                 minimum: 128
                             },
                             maxOutputTokens: {
@@ -1161,13 +1164,18 @@ export class JsonSchemaProvider {
                                 type: 'number',
                                 minimum: 1,
                                 maximum: 2000000,
-                                description: t('Override the maximum number of input tokens', '覆盖最大输入token数量')
+                                description: t(
+                                    'Override the maximum number of input tokens (input + output = context)',
+                                    '覆盖最大输入Token数（input + output = context）'
+                                )
                             },
                             maxOutputTokens: {
                                 type: 'number',
                                 minimum: 1,
-                                maximum: 200000,
-                                description: t('Override the maximum number of output tokens', '覆盖最大输出token数量')
+                                description: t(
+                                    'Override the maximum number of output tokens. Overrides are not capped by a built-in schema upper bound.',
+                                    '覆盖最大输出token数量。Override 不受内置 schema 的固定上限约束。'
+                                )
                             },
                             sdkMode: {
                                 type: 'string',

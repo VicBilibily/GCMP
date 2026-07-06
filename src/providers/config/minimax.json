@@ -11,9 +11,9 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "MiniMax-M3 - 原生多模态、1M 上下文的 Frontier Coding 模型",
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "provider": "minimax-token",
-            "maxInputTokens": 1000000,
+            "contextSize": [1000000, 640000, 400000, 320000],
+            "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
         },
@@ -25,8 +25,8 @@
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "MiniMax-M2.7 - 开启模型的自我迭代 (输出速度约60tps)",
             "provider": "minimax-token",
-            "maxInputTokens": 204800,
-            "maxOutputTokens": 128000,
+            "maxInputTokens": 140800,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -37,8 +37,8 @@
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "M2.7 极速版：效果不变，更快，更敏捷 (输出速度约100tps)",
             "provider": "minimax-token",
-            "maxInputTokens": 204800,
-            "maxOutputTokens": 128000,
+            "maxInputTokens": 140800,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -49,8 +49,8 @@
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "MiniMax-M2.5 - 强大多语言编程能力，全面升级编程体验",
             "provider": "minimax-token",
-            "maxInputTokens": 204800,
-            "maxOutputTokens": 128000,
+            "maxInputTokens": 140800,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -61,8 +61,8 @@
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "M2.5 极速版：效果不变，更快，更敏捷（输出速度约 100 TPS）",
             "provider": "minimax-token",
-            "maxInputTokens": 204800,
-            "maxOutputTokens": 128000,
+            "maxInputTokens": 140800,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -73,7 +73,7 @@
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "MiniMax-M2.1 - 强大多语言编程能力，全面升级编程体验",
             "provider": "minimax-token",
-            "maxInputTokens": 204800,
+            "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
@@ -85,7 +85,7 @@
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "MiniMax-M2 - 专为高效编码与Agent工作流而生",
             "provider": "minimax-token",
-            "maxInputTokens": 204800,
+            "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
@@ -95,8 +95,8 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "原生多模态、1M 上下文的 Frontier Coding 模型",
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
-            "maxInputTokens": 1000000,
+            "contextSize": [1000000, 640000, 400000, 320000],
+            "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "serviceTier": ["default", "priority"],
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
@@ -107,8 +107,8 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "开启模型的自我迭代（输出速度约 60 TPS）",
-            "maxInputTokens": 204800,
-            "maxOutputTokens": 128000,
+            "maxInputTokens": 140800,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -117,8 +117,8 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "M2.7 极速版：效果不变，更快，更敏捷（输出速度约 100 TPS）",
-            "maxInputTokens": 204800,
-            "maxOutputTokens": 128000,
+            "maxInputTokens": 140800,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -127,8 +127,8 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "顶尖性能与极致性价比，轻松驾驭复杂任务（输出速度约 60 TPS）",
-            "maxInputTokens": 204800,
-            "maxOutputTokens": 128000,
+            "maxInputTokens": 140800,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -137,8 +137,8 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "M2.5 极速版：效果不变，更快，更敏捷（输出速度约 100 TPS）",
-            "maxInputTokens": 204800,
-            "maxOutputTokens": 128000,
+            "maxInputTokens": 140800,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -147,8 +147,8 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "强大多语言编程能力，全面升级编程体验（输出速度约 60 TPS）",
-            "maxInputTokens": 204800,
-            "maxOutputTokens": 128000,
+            "maxInputTokens": 140800,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -157,8 +157,8 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "M2.1 极速版：效果不变，更快，更敏捷（输出速度约 100 TPS）",
-            "maxInputTokens": 204800,
-            "maxOutputTokens": 128000,
+            "maxInputTokens": 140800,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -167,7 +167,7 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "专为高效编码与Agent工作流而生",
-            "maxInputTokens": 204800,
+            "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         }

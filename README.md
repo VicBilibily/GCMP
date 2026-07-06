@@ -124,7 +124,7 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
     - 推荐模型：**Qwen3.6-Plus**、**Kimi-K2.5**、**GLM-5**、**MiniMax-M2.5**
     - 更多模型：**Qwen3.5-Plus**、**Qwen3-Max**、**Qwen3-Coder-Next**、**Qwen3-Coder-Plus**、**GLM-4.7**
 - [**Token Plan**](https://www.aliyun.com/benefit/scene/tokenplan)：**Qwen3.7-Max**、**Qwen3.6-Plus**、**Qwen3.6-Flash**、**GLM-5.2**、**GLM-5.1**、**GLM-5**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**Kimi-K2.5**、**MiniMax-M2.5**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**、**DeepSeek-V3.2**
-- **通义千问系列**：**Qwen3.7-Plus**、**Qwen3.7-Max**、**Qwen3.6-Max**、**Qwen3.6-Plus**、**Qwen3.6-Flash**、**Qwen3.5-Plus**、**Qwen3.5-Flash**
+- **通义千问系列**：**Qwen3.7-Plus**、**Qwen3.7-Max**、**Qwen3.6-Plus**、**Qwen3.6-Flash**、**Qwen3.5-Plus**、**Qwen3.5-Flash**
 - **DeepSeek-V4**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**
 - **其他按量计费**：**GLM-5.2**、**Kimi-K2.7-Code**
 - **搜索功能**：集成 [联网搜索MCP](https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=3023217) 工具（2000次/月），支持通过 `#bailianWebSearch` 进行联网搜索。（使用[阿里云百炼ApiKey](https://bailian.console.aliyun.com/cn-beijing/?tab=model#/api-key)而非编程套餐的ApiKey）
@@ -158,7 +158,7 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
     - **DeepSeek 系列**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**DeepSeek-V3.2**
     - **Kimi 系列**：**Kimi-K2.7-Code**、**Kimi-K2.6**、**Kimi-K2.5**
     - **MiniMax 系列**：**MiniMax-M3**、**MiniMax-M2.7**、**MiniMax-M2.5**
-    - **Hunyuan 系列**：**HY 3 Preview**、**Tencent HY 2.0 Instruct**、**Tencent HY 2.0 Think**
+    - **Hunyuan 系列**：**HY 3 Preview**
 - **密钥配置**：腾讯云API密钥分为 [腾讯云付费模型 API Key](https://hunyuan.cloud.tencent.com/#/app/apiKeyManage)、[Coding Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/codingplan)、[Token Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan)、[Token Plan 企业版 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan)、[DeepSeek 专用 API Key](https://console.cloud.tencent.com/lkeap/api)、[TokenHub 付费 API Key](https://console.cloud.tencent.com/tokenhub/apikey)，需要进入正确的密钥获取界面生成密钥。
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)

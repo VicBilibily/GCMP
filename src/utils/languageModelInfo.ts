@@ -42,7 +42,7 @@ interface CreateLanguageModelChatInformationOptions {
 }
 
 export function getContextSizeOptions(
-    model: Pick<ModelConfig, 'contextSize' | 'maxInputTokens'>
+    model: Pick<ModelConfig, 'contextSize' | 'maxInputTokens' | 'maxOutputTokens'>
 ): ContextSizeOption[] | undefined {
     const configuredSizes = model.contextSize || [];
 
@@ -50,9 +50,13 @@ export function getContextSizeOptions(
         return undefined;
     }
 
+    const outputTokens = model.maxOutputTokens || 0;
+    const contextWindow = model.maxInputTokens + (model.maxOutputTokens || 0);
     const uniqueSizes: number[] = [];
     for (const size of configuredSizes) {
-        if (!Number.isInteger(size) || size <= 0 || size > model.maxInputTokens || uniqueSizes.includes(size)) {
+        // contextSize 需要大于 maxOutputTokens，保证 schema 编码后不会出现负数，
+        // 同时至少为输入侧保留 1 个 token。
+        if (!Number.isInteger(size) || size <= outputTokens || size > contextWindow || uniqueSizes.includes(size)) {
             continue;
         }
         uniqueSizes.push(size);
@@ -68,16 +72,53 @@ export function getContextSizeOptions(
     }));
 }
 
+/**
+ * 获取当前请求实际可用的最大输入 token 上限。
+ *
+ * 兼容链路与逻辑结果：
+ * 1. 若用户选择了 `contextSize`，运行时先将该配置解析为“真实总窗口”，
+ *    再减去 `maxOutputTokens`，得到当前档位下允许的最大输入 token。
+ *    结果：告警阈值与 token 统计上限会跟随用户当前档位变化。
+ * 2. 若用户未选择 `contextSize`，则回退到 VS Code 注册时暴露的 `maxInputTokens`；
+ *    若该值缺失，再回退到模型原始配置中的 `maxInputTokens`。
+ *    结果：维持旧行为，不影响未使用 contextSize 的模型。
+ *
+ * 注意：该函数返回的是“输入上限”，不是“总上下文窗口”；
+ * 状态栏展示总窗口时应使用 `getEffectiveContextWindow()`。
+ */
 export function getEffectiveMaxInputTokens(
     model: Pick<vscode.LanguageModelChatInformation, 'maxInputTokens'>,
-    modelConfig: Pick<ModelConfig, 'contextSize' | 'maxInputTokens'>,
+    modelConfig: Pick<ModelConfig, 'contextSize' | 'maxInputTokens' | 'maxOutputTokens'>,
     options?: Pick<vscode.ProvideLanguageModelChatResponseOptions, 'modelConfiguration'>,
     providerKey?: string
 ): number {
+    const contextWindow = resolveConfiguredContextSize(model, modelConfig, options, providerKey);
+    if (contextWindow) {
+        return contextWindow - (modelConfig.maxOutputTokens || 0);
+    }
+
+    return model.maxInputTokens || modelConfig.maxInputTokens;
+}
+
+/**
+ * 获取有效总上下文窗口大小（input + output = context）
+ * 当用户通过 contextSize 选择了特定档位时，返回该档位的总窗口值；
+ * 否则返回注册的总窗口（maxInputTokens + maxOutputTokens）。
+ *
+ * 逻辑结果：
+ * 1. 用户显式选择了 contextSize：状态栏和占用比例按该档位的真实总窗口展示。
+ * 2. 用户未选择 contextSize：回退到模型注册的默认总窗口展示。
+ */
+export function getEffectiveContextWindow(
+    model: Pick<vscode.LanguageModelChatInformation, 'maxInputTokens'>,
+    modelConfig: Pick<ModelConfig, 'contextSize' | 'maxInputTokens' | 'maxOutputTokens'>,
+    options?: Pick<vscode.ProvideLanguageModelChatResponseOptions, 'modelConfiguration'>,
+    providerKey?: string
+): number {
+    const config = modelConfig as ModelConfig;
     return (
         resolveConfiguredContextSize(model, modelConfig, options, providerKey) ||
-        model.maxInputTokens ||
-        modelConfig.maxInputTokens
+        config.maxInputTokens + config.maxOutputTokens
     );
 }
 
@@ -188,12 +229,19 @@ function buildModelConfigurationProperties(model: ModelConfig): Record<string, P
 
     const contextSizeOptions = getContextSizeOptions(model);
     if (contextSizeOptions) {
+        // Schema 中存储 (totalWindow - maxOutput) 的值，使 VS Code 上下文指示器显示正确
+        // VS Code 公式：显示总量 = schema值 + maxOutputTokens = totalWindow
+        // 逻辑结果：
+        // - schema 持久化值不再直接等于 totalWindow
+        // - UI 选项标签仍显示真实总窗口（如 400K / 1M）
+        // - 运行时需要在 resolveConfiguredContextSize() 中把 outputTokens 加回去
+        const outputTokens = model.maxOutputTokens || 0;
         properties.contextSize = {
             type: 'number',
             title: t('Context Window', '上下文窗口'),
-            enum: contextSizeOptions.map(option => option.value),
+            enum: contextSizeOptions.map(option => option.value - outputTokens),
             enumItemLabels: contextSizeOptions.map(option => formatTokenCount(option.value)),
-            default: contextSizeOptions[0].value,
+            default: contextSizeOptions[0].value - outputTokens,
             group: 'tokens'
         };
     }
@@ -240,7 +288,7 @@ function buildModelConfigurationProperties(model: ModelConfig): Record<string, P
 
 function resolveConfiguredContextSize(
     model: Pick<vscode.LanguageModelChatInformation, 'maxInputTokens'>,
-    modelConfig: Pick<ModelConfig, 'contextSize' | 'maxInputTokens'>,
+    modelConfig: Pick<ModelConfig, 'contextSize' | 'maxInputTokens' | 'maxOutputTokens'>,
     options?: Pick<vscode.ProvideLanguageModelChatResponseOptions, 'modelConfiguration'>,
     providerKey?: string
 ): number | undefined {
@@ -251,11 +299,24 @@ function resolveConfiguredContextSize(
         return undefined;
     }
 
+    // Schema 中存储的是 (totalWindow - maxOutput)，还原为总窗口
+    const outputTokens = modelConfig.maxOutputTokens || 0;
+    const totalWindow = configuredContextSize + outputTokens;
+
     const supportedContextSizes = getContextSizeOptions(modelConfig)?.map(option => option.value) || [];
+    // 新版 schema：持久化值为 (totalWindow - maxOutputTokens)
+    // 逻辑结果：命中后返回真实总窗口，供状态栏展示与输入上限换算复用。
+    if (supportedContextSizes.includes(totalWindow)) {
+        return totalWindow;
+    }
+    // 兼容旧版 schema：升级前 contextSize 直接存储 totalWindow
+    // 逻辑结果：老用户升级后仍保留原上下文档位，不会因编码方式改变而被静默重置。
     if (supportedContextSizes.includes(configuredContextSize)) {
-        return Math.min(configuredContextSize, model.maxInputTokens || modelConfig.maxInputTokens);
+        return configuredContextSize;
     }
 
+    // 新旧两条链路都未命中时，视为无效配置。
+    // 逻辑结果：调用方会回退到模型默认窗口，并保留 warning 便于排查异常持久化值。
     if (providerKey) {
         Logger.warn(`[${providerKey}] Ignoring undeclared contextSize configuration: ${configuredContextSize}`);
     }

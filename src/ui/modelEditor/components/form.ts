@@ -174,7 +174,10 @@ export function createDOM(state: CreateDomState, rootEl?: HTMLElement): void {
                 min: '128',
                 value: String(model.maxInputTokens)
             },
-            t('Maximum input context supported by the model.', '模型支持的最大输入上下文限制')
+            t(
+                'Maximum input tokens supported by the model (input + output = context).',
+                '模型支持的最大输入Token限制（input + output = context）'
+            )
         ),
         createFormGroup(
             'maxOutputTokens',

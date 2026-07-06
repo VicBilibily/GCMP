@@ -2,6 +2,30 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.0] - 2026-07-02
+
+### 新增
+
+- **跨实例状态同步**：新增 Leader/Follower 跨实例通信模块，基于本地 IPC 广播事件在多 VS Code 窗口间同步状态栏、实时指标、配置变更和 API Key 变更，IPC 不可用时自动降级到文件系统轮询；支持 Leader 卸任通知，无缝切换主实例。
+
+### 变更
+
+- **增量 Token 预估**：基于上一轮 API 实际用量做增量预估，消除长上下文中累积估算误差；WebView 详细视图新增"本次新增"（`~+xx`）列，帮助追踪长会话每轮请求的新增 Token 消耗。
+- **上下文状态栏简化**：饼图图标直观反映当前会话上下文窗口占用比例（0/8 ~ 8/8），悬停即可查看模型名称、占用百分比、Token 用量和请求来源类型，移除了细分类别拆解与状态缓存。
+
+---
+
+### Added
+
+- **Cross-instance state sync**: New Leader/Follower inter-instance communication module that broadcasts events via local IPC across VS Code windows for status bar, live metrics, config changes, and API key changes, with automatic fallback to file-system polling when IPC is unavailable; supports leader resignation notification for seamless primary instance switching.
+
+### Changed
+
+- **Incremental token estimation**: Based on the previous request's actual API usage, eliminating cumulative estimation errors in long contexts; the WebView detail view now shows a "this request" increment column (`~+xx`) to help track per-request token growth in long conversations.
+- **Simplified context status bar**: A pie-chart icon intuitively reflects the current session's context window usage ratio (0/8 ~ 8/8); hover to view model name, usage percentage, token count, and request source type; removed detailed category breakdown and status caching.
+
+
+
 ## [0.25.38] - 2026-07-16
 
 ### 新增

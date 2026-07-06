@@ -9,9 +9,9 @@
             "tooltip": "DeepSeek-V4 快速模式",
             "sdkMode": "anthropic",
             "reasoningEffort": ["high", "max", "none"],
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
-            "maxInputTokens": 1000000,
-            "maxOutputTokens": 384000,
+            "contextSize": [1000000, 640000, 400000, 320000],
+            "maxInputTokens": 872000,
+            "maxOutputTokens": 128000,
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
@@ -20,9 +20,9 @@
             "tooltip": "DeepSeek-V4 专家模式",
             "sdkMode": "anthropic",
             "reasoningEffort": ["high", "max", "none"],
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
-            "maxInputTokens": 1000000,
-            "maxOutputTokens": 384000,
+            "contextSize": [1000000, 640000, 400000, 320000],
+            "maxInputTokens": 872000,
+            "maxOutputTokens": 128000,
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         }
     ]

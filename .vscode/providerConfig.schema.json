@@ -153,13 +153,14 @@
                 },
                 "maxInputTokens": {
                     "type": "integer",
-                    "minimum": 1,
-                    "description": "提供商接受的最大输入令牌数。"
+                    "minimum": 64000,
+                    "description": "提供商接受的最大输入令牌数。最大输入Token数（input + output = context）"
                 },
                 "maxOutputTokens": {
                     "type": "integer",
-                    "minimum": 1,
-                    "description": "提供商在单个响应中可以生成的最大令牌数。"
+                    "minimum": 128,
+                    "maximum": 128000,
+                    "description": "提供商在单个响应中可以生成的最大令牌数。内置 provider 配置限制为不超过 128K。Copilot暂不支持根据窗口调整此值，以一个最保守的值作为最大输出令牌数。"
                 },
                 "version": {
                     "type": "string",
