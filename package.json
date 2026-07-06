@@ -1457,6 +1457,13 @@
                     "fontCharacter": "\\eac8"
                 }
             },
+            "gcmp-cline": {
+                "description": "ClinePass",
+                "default": {
+                    "fontPath": "./fonts/cline.ttf",
+                    "fontCharacter": "\\e6fc"
+                }
+            },
             "gcmp-compatible": {
                 "description": "Compatible",
                 "default": {

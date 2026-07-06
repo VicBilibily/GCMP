@@ -14,6 +14,7 @@ import { ChatGPTStatusBar } from './chatgptStatusBar';
 import { CompatibleStatusBar } from './compatibleStatusBar';
 import { ContextUsageStatusBar } from './contextUsageStatusBar';
 import { TokenUsageStatusBar } from './tokenUsageStatusBar';
+import { ClinePassStatusBar } from './clinepassStatusBar';
 
 /**
  * 状态栏项接口
@@ -49,6 +50,8 @@ export class StatusBarManager {
     static zhipu: IStatusBar | undefined;
     /** Codex 用量查询状态栏 */
     static codex: IStatusBar | undefined;
+    /** ClinePass 用量查询状态栏 */
+    static clinepass: IStatusBar | undefined;
     /** Compatible 提供商状态栏 */
     static compatible: ICompatibleStatusBar | undefined;
     /** 模型上下文窗口占用情况状态栏 */
@@ -88,6 +91,10 @@ export class StatusBarManager {
         // 创建并注册 Codex 状态栏
         const chatgptStatusBar = new ChatGPTStatusBar();
         this.registerStatusBar('codex', chatgptStatusBar);
+
+        // 创建并注册 ClinePass 状态栏
+        const clinepassStatusBar = new ClinePassStatusBar();
+        this.registerStatusBar('clinepass', clinepassStatusBar);
 
         // 创建并注册 Compatible 提供商状态栏
         const compatibleStatusBar = new CompatibleStatusBar();
@@ -133,6 +140,9 @@ export class StatusBarManager {
                 break;
             case 'codex':
                 this.codex = statusBar;
+                break;
+            case 'clinepass':
+                this.clinepass = statusBar;
                 break;
             case 'compatible':
                 this.compatible = statusBar as ICompatibleStatusBar;
@@ -253,6 +263,7 @@ export class StatusBarManager {
         this.deepseek = undefined;
         this.moonshot = undefined;
         this.codex = undefined;
+        this.clinepass = undefined;
         this.compatible = undefined;
         this.contextUsage = undefined;
         this.tokenUsage = undefined;
