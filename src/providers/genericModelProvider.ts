@@ -39,6 +39,7 @@ import { getAllStatefulMarkersAndIndicies } from '../handlers/statefulMarker';
 import { classifyRequest } from '../handlers/requestClassifier';
 import { VisionCache } from '../tools/vision/cache';
 import { processVisionMessages } from '../tools/vision/messageProcessor';
+import { StatusBarManager } from '../status/statusBarManager';
 import * as crypto from 'node:crypto';
 
 interface ContextUsageSummary {
@@ -770,6 +771,14 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             throw error;
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);
+
+            try {
+                // 通用 provider 也可能绑定独立状态栏（如 deepseek / codex / clinepass）。
+                // 请求完成后统一触发一次延迟刷新，让额度/用量类状态栏拉取最新服务端数据。
+                StatusBarManager.getStatusBar(effectiveProviderKey)?.delayedUpdate();
+            } catch (err) {
+                Logger.warn('Failed to update status bar:', err);
+            }
         }
     }
 
