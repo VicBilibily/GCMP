@@ -135,8 +135,10 @@ export class UsageParser {
             // 防御异常数据：禁止缓存读取 token 为负数或超过实际输入。
             const cacheReadTokens = Math.min(Math.max(0, rawCachedTokens), actualInput);
 
-            // OpenAI-compatible usage 没有 Anthropic 风格的 cache_creation_input_tokens 字段。
-            // 这里将未缓存输入作为兼容展示值，主要避免出现负数缓存统计。
+            // OpenAI-compatible usage 没有 Anthropic 风格的 cache_creation_input_tokens 字段，
+            // 此处 cacheCreationTokens 仅用于 usage 日志展示（非 costCalculator 计费依据，
+            // costCalculator 通过 getExplicitCacheWriteTokens 只读 Anthropic 专有字段）。
+            // 将"非缓存的 input"记为 cacheCreationTokens 以避免负值统计。
             const cacheCreationTokens = Math.max(0, actualInput - cacheReadTokens);
 
             const calculatedTotalTokens = actualInput + completionTokens;

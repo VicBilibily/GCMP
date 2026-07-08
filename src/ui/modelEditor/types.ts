@@ -48,6 +48,7 @@ export interface ModelFormData {
     webSearchTool: boolean | undefined;
     reasoningEffort: ReasoningEffort[];
     reasoningDefault: ReasoningEffort | '';
+    tokenPricing: string; // JSON 字符串
     customHeader: string; // JSON 字符串
     extraBody: string; // JSON 字符串
 }

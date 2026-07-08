@@ -15,7 +15,29 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": {
+                "inputPrice": 0.3,
+                "outputPrice": 1.2,
+                "cacheReadPrice": 0.06,
+                "tiers": [
+                    {
+                        "serviceTier": "priority",
+                        "contextSizeMin": 512001,
+                        "inputPrice": 0.9,
+                        "outputPrice": 3.6,
+                        "cacheReadPrice": 0.18
+                    },
+                    { "serviceTier": "priority", "inputPrice": 0.45, "outputPrice": 1.8, "cacheReadPrice": 0.09 },
+                    {
+                        "serviceTier": "default",
+                        "contextSizeMin": 512001,
+                        "inputPrice": 0.6,
+                        "outputPrice": 2.4,
+                        "cacheReadPrice": 0.12
+                    }
+                ]
+            }
         },
         {
             "id": "MiniMax-M2.7-Token-Plan",
@@ -27,7 +49,8 @@
             "provider": "minimax-token",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 1.2, 0.06, 0.375]
         },
         {
             "id": "MiniMax-M2.7-HighSpeed-Token-Plan",
@@ -39,7 +62,8 @@
             "provider": "minimax-token",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.6, 2.4, 0.06, 0.375]
         },
         {
             "id": "MiniMax-M2.5-Token-Plan",
@@ -51,7 +75,8 @@
             "provider": "minimax-token",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 1.2, 0.03, 0.375]
         },
         {
             "id": "MiniMax-M2.5-HighSpeed-Token-Plan",
@@ -63,7 +88,8 @@
             "provider": "minimax-token",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.6, 2.4, 0.03, 0.375]
         },
         {
             "id": "MiniMax-M2.1-Token-Plan",
@@ -75,7 +101,8 @@
             "provider": "minimax-token",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 1.2, 0.03, 0.375]
         },
         {
             "id": "MiniMax-M2-Token-Plan",
@@ -87,7 +114,8 @@
             "provider": "minimax-token",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 1.2, 0.03, 0.375]
         },
         {
             "id": "MiniMax-M3",
@@ -95,11 +123,38 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "原生多模态、1M 上下文的 Frontier Coding 模型",
-            "contextSize": [1000000, 640000, 400000, 320000],
+            "contextSize": [1000000, 640000, 512000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "serviceTier": ["default", "priority"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": {
+                "inputPrice": 0.3,
+                "outputPrice": 1.2,
+                "cacheReadPrice": 0.06,
+                "tiers": [
+                    {
+                        "serviceTier": "priority",
+                        "contextSizeMin": 512001,
+                        "inputPrice": 0.9,
+                        "outputPrice": 3.6,
+                        "cacheReadPrice": 0.18
+                    },
+                    {
+                        "serviceTier": "priority",
+                        "inputPrice": 0.45,
+                        "outputPrice": 1.8,
+                        "cacheReadPrice": 0.09
+                    },
+                    {
+                        "serviceTier": "default",
+                        "contextSizeMin": 512001,
+                        "inputPrice": 0.6,
+                        "outputPrice": 2.4,
+                        "cacheReadPrice": 0.12
+                    }
+                ]
+            }
         },
         {
             "id": "MiniMax-M2.7",
@@ -109,7 +164,8 @@
             "tooltip": "开启模型的自我迭代（输出速度约 60 TPS）",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 1.2, 0.06, 0.375]
         },
         {
             "id": "MiniMax-M2.7-HighSpeed",
@@ -119,7 +175,8 @@
             "tooltip": "M2.7 极速版：效果不变，更快，更敏捷（输出速度约 100 TPS）",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.6, 2.4, 0.06, 0.375]
         },
         {
             "id": "MiniMax-M2.5",
@@ -129,7 +186,8 @@
             "tooltip": "顶尖性能与极致性价比，轻松驾驭复杂任务（输出速度约 60 TPS）",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 1.2, 0.03, 0.375]
         },
         {
             "id": "MiniMax-M2.5-HighSpeed",
@@ -139,7 +197,8 @@
             "tooltip": "M2.5 极速版：效果不变，更快，更敏捷（输出速度约 100 TPS）",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.6, 2.4, 0.03, 0.375]
         },
         {
             "id": "MiniMax-M2.1",
@@ -149,7 +208,8 @@
             "tooltip": "强大多语言编程能力，全面升级编程体验（输出速度约 60 TPS）",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 1.2, 0.03, 0.375]
         },
         {
             "id": "MiniMax-M2.1-HighSpeed",
@@ -159,7 +219,8 @@
             "tooltip": "M2.1 极速版：效果不变，更快，更敏捷（输出速度约 100 TPS）",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.6, 2.4, 0.03, 0.375]
         },
         {
             "id": "MiniMax-M2",
@@ -169,7 +230,8 @@
             "tooltip": "专为高效编码与Agent工作流而生",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 1.2, 0.03, 0.375]
         }
     ]
 }

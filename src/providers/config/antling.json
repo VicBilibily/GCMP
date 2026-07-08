@@ -11,7 +11,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 2.5, 0.06]
         },
         {
             "id": "Ling-2.6-flash",
@@ -21,7 +22,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.1, 0.3, 0.02]
         },
         {
             "id": "Ring-2.6-1T",
@@ -31,7 +33,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["high", "xhigh"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 2.5, 0.06]
         }
     ]
 }

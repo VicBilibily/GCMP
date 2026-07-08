@@ -16,7 +16,20 @@
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": {
+                "inputPrice": 0.571429,
+                "outputPrice": 2.571429,
+                "cacheReadPrice": 0.142857,
+                "tiers": [
+                    {
+                        "contextSizeMin": 32001,
+                        "inputPrice": 0.857143,
+                        "outputPrice": 3.142857,
+                        "cacheReadPrice": 0.214286
+                    }
+                ]
+            }
         },
         {
             "id": "minimax-m2.5-coding-plan",
@@ -28,7 +41,8 @@
             "model": "minimax-m2.5",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 1.2, 0.03]
         },
         {
             "id": "kimi-k2.5-coding-plan",
@@ -40,11 +54,26 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.571429, 3, 0.1]
+        },
+        {
+            "id": "hy3-token-plan",
+            "name": "Hy3 (TokenPlan)",
+            "tooltip": "腾讯云 Token Plan 专属接入点中的 Hy3。",
+            "provider": "tencent-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
+            "model": "hy3",
+            "maxInputTokens": 192000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.142857, 0.571429, 0.035714]
         },
         {
             "id": "hy3-preview-token-plan",
-            "name": "HY 3 Preview (TokenPlan)",
+            "name": "Hy3 preview (TokenPlan)",
             "tooltip": "腾讯云 Token Plan 专属接入点中的 Hy3 preview。",
             "provider": "tencent-token",
             "sdkMode": "anthropic",
@@ -53,7 +82,26 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": {
+                "inputPrice": 0.171429,
+                "outputPrice": 0.571429,
+                "cacheReadPrice": 0.057143,
+                "tiers": [
+                    {
+                        "contextSizeMin": 16001,
+                        "inputPrice": 0.228571,
+                        "outputPrice": 0.914286,
+                        "cacheReadPrice": 0.085714
+                    },
+                    {
+                        "contextSizeMin": 32001,
+                        "inputPrice": 0.285714,
+                        "outputPrice": 1.142857,
+                        "cacheReadPrice": 0.114286
+                    }
+                ]
+            }
         },
         {
             "id": "deepseek-v4-flash-202605-token-plan",
@@ -67,7 +115,8 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [0.142857, 0.285714, 0.002857]
         },
         {
             "id": "deepseek-v4-pro-2026065-token-plan",
@@ -81,7 +130,8 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [0.428571, 0.857143, 0.003571]
         },
         {
             "id": "glm-5.1-token-plan",
@@ -94,7 +144,15 @@
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": {
+                "inputPrice": 0.857143,
+                "outputPrice": 3.428571,
+                "cacheReadPrice": 0.185714,
+                "tiers": [
+                    { "contextSizeMin": 32001, "inputPrice": 1.142857, "outputPrice": 4, "cacheReadPrice": 0.285714 }
+                ]
+            }
         },
         {
             "id": "glm-5-token-plan",
@@ -107,7 +165,20 @@
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": {
+                "inputPrice": 0.571429,
+                "outputPrice": 2.571429,
+                "cacheReadPrice": 0.142857,
+                "tiers": [
+                    {
+                        "contextSizeMin": 32001,
+                        "inputPrice": 0.857143,
+                        "outputPrice": 3.142857,
+                        "cacheReadPrice": 0.214286
+                    }
+                ]
+            }
         },
         {
             "id": "minimax-m2.7-token-plan",
@@ -119,7 +190,8 @@
             "model": "minimax-m2.7",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 1.2, 0.06]
         },
         {
             "id": "minimax-m2.5-token-plan",
@@ -131,7 +203,8 @@
             "model": "minimax-m2.5",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 1.2, 0.03]
         },
         {
             "id": "kimi-k2.5-token-plan",
@@ -144,7 +217,8 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": [0.571429, 3, 0.1]
         },
         {
             "id": "glm-5",
@@ -194,8 +268,22 @@
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
+            "id": "hy3-tokenhub",
+            "name": "Hy3 (TokenHub)",
+            "tooltip": "腾讯云 TokenHub 按量付费中的 Hy3。",
+            "provider": "tencent-tokenhub",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://tokenhub.tencentmaas.com",
+            "model": "hy3",
+            "maxInputTokens": 192000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.142857, 0.571429, 0.035714]
+        },
+        {
             "id": "hy3-preview-tokenhub",
-            "name": "HY 3 Preview (TokenHub)",
+            "name": "Hy3 preview (TokenHub)",
             "tooltip": "腾讯云 TokenHub 按量付费中的 Hy3 preview。",
             "provider": "tencent-tokenhub",
             "sdkMode": "anthropic",
@@ -204,7 +292,26 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": {
+                "inputPrice": 0.171429,
+                "outputPrice": 0.571429,
+                "cacheReadPrice": 0.057143,
+                "tiers": [
+                    {
+                        "contextSizeMin": 16001,
+                        "inputPrice": 0.228571,
+                        "outputPrice": 0.914286,
+                        "cacheReadPrice": 0.085714
+                    },
+                    {
+                        "contextSizeMin": 32001,
+                        "inputPrice": 0.285714,
+                        "outputPrice": 1.142857,
+                        "cacheReadPrice": 0.114286
+                    }
+                ]
+            }
         },
         {
             "id": "glm-5.2-tokenhub",
@@ -214,11 +321,12 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://tokenhub.tencentmaas.com",
             "model": "glm-5.2",
-            "contextSize": [1000000, 600000, 400000, 200000],
+            "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [1.142857, 4, 0.285714]
         },
         {
             "id": "glm-5.1-tokenhub",
@@ -231,7 +339,15 @@
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": {
+                "inputPrice": 0.857143,
+                "outputPrice": 3.428571,
+                "cacheReadPrice": 0.185714,
+                "tiers": [
+                    { "contextSizeMin": 32001, "inputPrice": 1.142857, "outputPrice": 4, "cacheReadPrice": 0.285714 }
+                ]
+            }
         },
         {
             "id": "glm-5v-turbo-tokenhub",
@@ -243,7 +359,15 @@
             "model": "glm-5v-turbo",
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "inputPrice": 0.714286,
+                "outputPrice": 3.142857,
+                "cacheReadPrice": 0.171429,
+                "tiers": [
+                    { "contextSizeMin": 32001, "inputPrice": 1, "outputPrice": 3.714286, "cacheReadPrice": 0.257143 }
+                ]
+            }
         },
         {
             "id": "glm-5-turbo-tokenhub",
@@ -255,7 +379,15 @@
             "model": "glm-5-turbo",
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": {
+                "inputPrice": 0.714286,
+                "outputPrice": 3.142857,
+                "cacheReadPrice": 0.171429,
+                "tiers": [
+                    { "contextSizeMin": 32001, "inputPrice": 1, "outputPrice": 3.714286, "cacheReadPrice": 0.257143 }
+                ]
+            }
         },
         {
             "id": "glm-5-tokenhub",
@@ -268,7 +400,20 @@
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": {
+                "inputPrice": 0.571429,
+                "outputPrice": 2.571429,
+                "cacheReadPrice": 0.142857,
+                "tiers": [
+                    {
+                        "contextSizeMin": 32001,
+                        "inputPrice": 0.857143,
+                        "outputPrice": 3.142857,
+                        "cacheReadPrice": 0.214286
+                    }
+                ]
+            }
         },
         {
             "id": "deepseek-v4-flash-tokenhub",
@@ -282,7 +427,8 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [0.142857, 0.285714, 0.028571]
         },
         {
             "id": "deepseek-v4-pro-tokenhub",
@@ -296,7 +442,8 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [1.714286, 3.428571, 0.142857]
         },
         {
             "id": "deepseek-v3.2-tokenhub",
@@ -309,7 +456,8 @@
             "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
             "thinking": ["disabled", "enabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.285714, 0.428571, 0.057143]
         },
         {
             "id": "kimi-k2.7-code-tokenhub",
@@ -325,8 +473,9 @@
                 "thinking": {
                     "type": "enabled"
                 }
-        },
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            },
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": [0.928571, 3.857143, 0.185714]
         },
         {
             "id": "kimi-k2.6-tokenhub",
@@ -339,7 +488,8 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": [0.928571, 3.857143, 0.157143]
         },
         {
             "id": "kimi-k2.5-tokenhub",
@@ -352,7 +502,8 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": [0.571429, 3, 0.1]
         },
         {
             "id": "minimax-m3-tokenhub",
@@ -362,10 +513,16 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://tokenhub.tencentmaas.com",
             "model": "minimax-m3",
-            "contextSize": [1000000, 640000, 400000, 320000],
+            "contextSize": [512000, 1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": {
+                "inputPrice": 0.3,
+                "outputPrice": 1.2,
+                "cacheReadPrice": 0.06,
+                "tiers": [{ "contextSizeMin": 512001, "inputPrice": 0.6, "outputPrice": 2.4, "cacheReadPrice": 0.12 }]
+            }
         },
         {
             "id": "minimax-m2.7-tokenhub",
@@ -377,7 +534,8 @@
             "model": "minimax-m2.7",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 1.2, 0.06]
         },
         {
             "id": "minimax-m2.5-tokenhub",
@@ -389,7 +547,8 @@
             "model": "minimax-m2.5",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 1.2, 0.03]
         },
         {
             "id": "deepseek-v4-flash-token-enterprise",

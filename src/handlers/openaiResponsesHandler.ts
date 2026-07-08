@@ -7,8 +7,9 @@ import * as vscode from 'vscode';
 import OpenAI, { ClientOptions } from 'openai';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { Logger, sanitizeToolSchemaForTarget, isCancellationError } from '../utils';
+import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu } from '../utils';
 import { t } from '../utils/l10n';
-import { ModelChatResponseOptions, ModelConfig } from '../types/sharedTypes';
+import { ModelChatResponseOptions, ModelConfig, ModelTokenPricing } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { getStatefulMarkerAndIndex } from './statefulMarker';
 import { StreamReporter } from './streamReporter';
@@ -383,6 +384,7 @@ export class OpenAIResponsesHandler {
         requestStartTime?: number
     ): Promise<void> {
         Logger.debug(`${model.name} starting ${this.displayName} Responses API request handling`);
+        const tokenPricing: ModelTokenPricing | undefined = modelConfig.tokenPricing;
 
         let reporter: StreamReporter | undefined;
 
@@ -1055,7 +1057,22 @@ export class OpenAIResponsesHandler {
                     throw streamError;
                 }
 
-                streamReporter.reportUsage(finalUsage);
+                // 客户端成本估算：仅在模型配置了 tokenPricing 时才执行
+                // 峰谷定价：用请求开始时间匹配 tier
+                // 服务等级计费：传入 serviceTier，让 tier 按 serviceTier 匹配
+                let costNanoAiu: number | undefined;
+                if (tokenPricing) {
+                    const costAt = requestStartTime ? new Date(requestStartTime) : new Date();
+                    const requestServiceTier = (options.modelConfiguration as ModelChatResponseOptions)?.serviceTier;
+                    const breakdown = calculateCostWithBreakdown(finalUsage, tokenPricing, costAt, requestServiceTier);
+                    if (breakdown) {
+                        if (breakdown.total > 0) {
+                            Logger.debug(formatCostBreakdownLog(streamReporter.getModelName(), breakdown));
+                        }
+                        costNanoAiu = toNanoAiu(breakdown.total);
+                    }
+                }
+                streamReporter.reportUsage(finalUsage, costNanoAiu);
 
                 // 报告 usage 信息
                 Logger.info(`📊 ${model.name} Responses API request completed`, finalUsage);

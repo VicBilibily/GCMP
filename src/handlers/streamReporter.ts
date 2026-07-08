@@ -253,9 +253,10 @@ export class StreamReporter {
 
     /**
      * 上报 Copilot 可识别的 usage DataPart，用于更新上下文窗口 token 统计。
+     * 若提供 nanoAiu，一并写入 copilot_usage.total_nano_aiu 供 Copilot 计费体系读取。
      */
-    reportUsage(rawUsage: unknown): void {
-        const usageData = buildCopilotUsageData(rawUsage);
+    reportUsage(rawUsage: unknown, nanoAiu?: number): void {
+        const usageData = buildCopilotUsageData(rawUsage, nanoAiu);
         if (!usageData) {
             return;
         }

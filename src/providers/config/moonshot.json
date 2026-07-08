@@ -14,7 +14,8 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": [0.95, 4, 0.19]
         },
         {
             "id": "kimi-for-coding-highspeed",
@@ -29,7 +30,7 @@
                 "thinking": {
                     "type": "enabled"
                 }
-        },
+            },
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
         },
         {
@@ -41,7 +42,8 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": [0.6, 3, 0.1]
         },
         {
             "id": "kimi-k2.6",
@@ -52,7 +54,8 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": [0.95, 4, 0.16]
         },
         {
             "id": "kimi-k2.7-code",
@@ -66,8 +69,9 @@
                 "thinking": {
                     "type": "enabled"
                 }
-        },
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            },
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": [0.95, 4, 0.19]
         },
         {
             "id": "kimi-k2.7-code-highspeed",
@@ -80,9 +84,10 @@
             "extraBody": {
                 "thinking": {
                     "type": "enabled"
-        }
+                }
             },
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": [1.9, 8, 0.38]
         }
     ]
 }

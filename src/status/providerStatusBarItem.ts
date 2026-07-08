@@ -79,7 +79,6 @@ export abstract class ProviderStatusBarItem<T> extends BaseStatusBarItem<T> {
 
         // API Key 变更后刷新状态栏显示状态
         this.checkAndShowStatus().catch(error =>
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
             console.error(`[${this.config.logPrefix}] Failed to refresh after API key change`, error)
         );
     }

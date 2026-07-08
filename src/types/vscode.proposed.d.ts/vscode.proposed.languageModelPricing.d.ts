@@ -32,6 +32,12 @@ declare module 'vscode' {
         readonly cacheCost?: number;
 
         /**
+         * Optional cache write cost in AI credits for this model.
+         * Displayed in the model management UI as the cost per million cache-write tokens.
+         */
+        readonly cacheWriteCost?: number;
+
+        /**
          * Optional long-context input cost in AI credits for this model.
          * Present only when long-context pricing differs from default pricing.
          * Displayed in the model picker hover as the cost per million input tokens
@@ -52,10 +58,22 @@ declare module 'vscode' {
         readonly longContextCacheCost?: number;
 
         /**
+         * Optional long-context cache write cost in AI credits for this model.
+         * Present only when long-context pricing differs from default pricing.
+         */
+        readonly longContextCacheWriteCost?: number;
+
+        /**
          * Optional relative pricing category for this model (e.g. "low", "medium", "high", "very_high").
          * Displayed in the model picker as a visual indicator of relative cost.
          */
         readonly priceCategory?: string;
+
+        /**
+         * Optional model category describing the model's tier (e.g. "lightweight", "versatile", "powerful").
+         * Displayed in the model picker as a tag. Clients should be resilient to additional categories.
+         */
+        readonly category?: string;
     }
 
     export interface LanguageModelChat {
@@ -81,6 +99,11 @@ declare module 'vscode' {
         readonly cacheCost?: number;
 
         /**
+         * Optional cache write cost in AI credits for this model.
+         */
+        readonly cacheWriteCost?: number;
+
+        /**
          * Optional long-context input cost in AI credits for this model.
          * Present only when long-context pricing differs from default pricing.
          */
@@ -99,9 +122,21 @@ declare module 'vscode' {
         readonly longContextCacheCost?: number;
 
         /**
+         * Optional long-context cache write cost in AI credits for this model.
+         * Present only when long-context pricing differs from default pricing.
+         */
+        readonly longContextCacheWriteCost?: number;
+
+        /**
          * Optional relative pricing category for this model (e.g. "low", "medium", "high", "very_high").
          * Displayed in the model picker as a visual indicator of relative cost.
          */
         readonly priceCategory?: string;
+
+        /**
+         * Optional model category describing the model's tier (e.g. "lightweight", "versatile", "powerful").
+         * Displayed in the model picker as a tag. Clients should be resilient to additional categories.
+         */
+        readonly category?: string;
     }
 }

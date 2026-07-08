@@ -176,6 +176,120 @@ export interface ModelConfig {
      * 如果提供，将覆盖提供商级别的代理设置
      */
     proxy?: string;
+    /**
+     * Token 定价（USD / 每百万 token），用于客户端成本估算和模型选择器展示。
+     *
+     * 字段映射到 VS Code LanguageModelChatInformation 的 cost 槽位：
+     * - inputPrice     → inputCost（非缓存输入，即 cache miss）
+     * - cacheReadPrice → cacheCost（缓存命中读取）
+     * - outputPrice    → outputCost
+     * - cacheWritePrice → cacheWriteCost（缓存写入定价，各 provider 计费规则不同）
+     */
+    tokenPricing?: ModelTokenPricing;
+}
+
+/**
+ * 配置层允许的 Token 定价输入。
+ *
+ * - 运行时内部统一使用对象形式 `ModelTokenPricing`
+ * - 用户配置/自定义模型允许使用数组简写 `[input, output, cacheRead?, cacheWrite?]`
+ */
+export type ModelTokenPricingInput =
+    | ModelTokenPricing
+    | [number, number]
+    | [number, number, number]
+    | [number, number, number, number];
+
+/**
+ * Token 定价信息（USD 每百万 token）。
+ *
+ * 所有价格均为客户端估算用，实际计费以 API 提供商账单为准。
+ *
+ * 支持两种定价模式：
+ * 1. 静态单档：直接用 `inputPrice`/`outputPrice` 等字段，适用于无峰谷差异的模型。
+ *    该档位同时作为 VS Code 模型选择器的展示值（因为 VS Code API 只接受静态数值）。
+ * 2. 峰谷分档：配置 `tiers` 后，`calculateCost` 会按请求发生时间匹配生效 tier，
+ *    未匹配到任何 tier 时回退到静态单档。静态单档的值建议填"基础档/默认档"，
+ *    便于模型选择器展示一个合理的默认价格。
+ */
+export interface ModelTokenPricing {
+    /** 输入 token 单价（cache miss），USD / 百万 token。同时作为模型选择器展示值与默认回退价 */
+    inputPrice: number;
+    /** 输出 token 单价，USD / 百万 token。同时作为模型选择器展示值与默认回退价 */
+    outputPrice: number;
+    /** 缓存读取 token 单价（cache hit），USD / 百万 token */
+    cacheReadPrice?: number;
+    /** 缓存写入 token 单价，USD / 百万 token（通常高于 inputPrice） */
+    cacheWritePrice?: number;
+    /**
+     * 峰谷分档定价（可选）。
+     * 配置后，`calculateCost` 会按请求发生时间匹配 tier；
+     * 未匹配到任何 tier 时回退到上方的静态单档。
+     * 数组顺序即匹配优先级，首个匹配成功的 tier 生效。
+     */
+    tiers?: PricingTier[];
+}
+
+/**
+ * 峰谷定价的一个时段档位。
+ *
+ * 通过 cron 表达式定义生效时段，配合时区判断请求是否落入该档。
+ * cron 语义采用 5 字段标准格式：分 时 日 月 周（与 unix cron 一致，不含秒）。
+ * 注意：cron 是"精确匹配时间点"语义，若要表达一个时段（如工作日 9:00-23:59 峰时），
+ * 应使用范围/通配写法，例如 "* 9-23 * * 1-5" 表示工作日 9-23 点每分钟都命中。
+ *
+ * 可选的 serviceTier 字段用于"按服务等级计费"场景：当该字段非空时，只有用户在 Chat UI
+ * 选择了匹配的 serviceTier 才命中此 tier；为空则不限制 serviceTier。这样同一个模型可以
+ * 同时配置"峰谷分档"和"服务等级分档"，匹配规则：cron 命中 且（tier 未限定 serviceTier
+ * 或 tier.serviceTier === 请求的 serviceTier）。
+ *
+ * 示例：
+ * - "* 9-23 * * 1-5" = 工作日 9:00-23:59 每分钟生效（峰时）
+ * - "* 0-23 * * 0,6" = 周末全天每分钟生效（谷时）
+ * - "0 9 * * 1-5"   = 仅工作日 9:00 整点命中（通常不是想要的时段表达）
+ * - cron="* * * * *", serviceTier="priority" = 仅当用户选了 priority 时生效
+ * - contextSizeMin=512001 = 仅当实际消耗的 input token 数 >= 512001 时生效
+ */
+export interface PricingTier {
+    /**
+     * cron 表达式（5 字段：分 时 日 月 周），定义该档位的生效时段。
+     * 缺省为 "* * * * *"（全时段生效）。纯 serviceTier 或 contextSizeMin 计费场景可不配。
+     */
+    cron?: string;
+    /** 时区，IANA 时区名（如 "Asia/Shanghai"）。缺省为北京时间（UTC+8），因为峰谷定价主要面向国内服务商的计费规则 */
+    timezone?: string;
+    /**
+     * 服务等级匹配条件（可选）。
+     * 非空时，仅当请求的 serviceTier 与此值相等才命中此 tier；
+     * 为空（undefined）时不限制 serviceTier，仅按 cron 匹配。
+     * 用于"按服务等级计费"场景，如 priority 档位单独特价。
+     */
+    serviceTier?: string;
+    /**
+     * 上下文窗口匹配条件（可选）。
+     * 设置后，仅当请求消耗的 input token 数大于等于此值时该 tier 才生效。
+     * 未设置则不限制。匹配在 calculateCostWithBreakdown 中根据 usage 判断，
+     * 确保按实际消耗计费而非预分配窗口大小。
+     *
+     * 配合 contextSizeInputOnly 可控制统计口径：
+     * - 默认（false）：按 raw prompt_tokens（含缓存）判断，匹配 Codex 等按 input+cache 分段计费
+     * - true：仅按非缓存 input（排除 cache_read）判断
+     */
+    contextSizeMin?: number;
+    /**
+     * contextSizeMin 的统计口径（可选，默认 false）。
+     * - false：按 raw prompt_tokens（含缓存）判断
+     * - true：仅按非缓存 input（排除 cache_read tokens）判断
+     */
+    contextSizeInputOnly?: boolean;
+    /** 该档位生效时的输入 token 单价，USD / 百万 token */
+    inputPrice: number;
+    /** 该档位生效时的输出 token 单价，USD / 百万 token */
+    outputPrice: number;
+    /** 该档位生效时的缓存读取 token 单价，USD / 百万 token */
+    cacheReadPrice?: number;
+    /** 该档位生效时的缓存写入 token 单价，USD / 百万 token */
+    cacheWritePrice?: number;
 }
 
 /**
@@ -235,6 +349,11 @@ export interface ModelOverride {
     webSearchTool?: boolean;
     /** 模型特定的代理服务器地址（可选） */
     proxy?: string;
+    /**
+     * Token 定价覆盖（USD / 每百万 token），用于客户端成本估算和模型选择器展示。
+     * 若提供，将完全替换对应模型的内置定价。
+     */
+    tokenPricing?: ModelTokenPricingInput;
 }
 
 /**

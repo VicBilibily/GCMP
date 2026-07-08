@@ -12,6 +12,7 @@ import { configProviders } from '../providers/config';
 import { t } from './l10n';
 import { sanitizeConfigForLogging } from './proxyAgent';
 import { ModelEditor } from '../ui/modelEditor';
+import type { ModelTokenPricingInput } from '../types/sharedTypes';
 
 /**
  * 后退按钮点击事件
@@ -153,6 +154,10 @@ export interface CompatibleModelConfig {
      * 第一个值作为默认值。
      */
     serviceTier?: string[];
+    /**
+     * Token 定价（USD / 每百万 token），用于客户端成本估算和模型选择器展示。
+     */
+    tokenPricing?: ModelTokenPricingInput;
     /** 是否由向导创建（内部标记，不持久化） */
     _isFromWizard?: boolean;
 }

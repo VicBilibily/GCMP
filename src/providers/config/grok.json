@@ -21,7 +21,8 @@
             "sdkMode": "openai-responses",
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [1, 2, 0.2]
         },
         {
             "id": "grok-composer-2.5-fast",
@@ -31,6 +32,6 @@
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": true }
-            }
+        }
     ]
 }

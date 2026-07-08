@@ -7,6 +7,11 @@ export interface CopilotUsageData {
     total_tokens: number;
     prompt_tokens_details: Record<string, number | undefined>;
     completion_tokens_details?: Record<string, number | undefined>;
+    /**
+     * 预估计费信息（与 Copilot 官方 API 的 copilot_usage.total_nano_aiu 对齐）。
+     * 可选：仅当 handler 提供了客户端估算成本时才会填充。
+     */
+    copilot_usage?: { total_nano_aiu: number };
 }
 
 type NumericDetails = Record<string, number | undefined>;
@@ -108,7 +113,11 @@ function getFirstDetails(rawUsage: Record<string, unknown>, keys: readonly strin
     return undefined;
 }
 
-export function buildCopilotUsageData(rawUsage: unknown): CopilotUsageData | undefined {
+export function buildCopilotUsageData(
+    rawUsage: unknown,
+    /** 客户端估算的成本（nano-AIU），由 handler 通过 pricing 计算后传入 */
+    nanoAiu?: number
+): CopilotUsageData | undefined {
     if (!isRecord(rawUsage)) {
         return undefined;
     }
@@ -149,6 +158,10 @@ export function buildCopilotUsageData(rawUsage: unknown): CopilotUsageData | und
         total_tokens: totalTokens,
         prompt_tokens_details: promptDetails
     };
+
+    if (typeof nanoAiu === 'number' && nanoAiu >= 0) {
+        usageData.copilot_usage = { total_nano_aiu: nanoAiu };
+    }
 
     if (completionDetails) {
         usageData.completion_tokens_details = completionDetails;

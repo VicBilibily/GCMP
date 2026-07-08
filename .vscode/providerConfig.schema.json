@@ -131,6 +131,102 @@
                 }
             }
         },
+        "tokenPricing": {
+            "description": "Token 定价信息（USD / 每百万 token），用于客户端成本估算和模型选择器展示。支持对象形式（含 tiers 分档）或简写数组形式 [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]（2~4 项数字）。",
+            "oneOf": [
+                {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["inputPrice", "outputPrice"],
+                    "properties": {
+                        "inputPrice": {
+                            "type": "number",
+                            "minimum": 0,
+                            "description": "输入 token 单价（cache miss / 非缓存输入），USD / 百万 token。映射到模型选择器的 inputCost 槽位。同时作为无 tier 命中时的回退价。"
+                        },
+                        "outputPrice": {
+                            "type": "number",
+                            "minimum": 0,
+                            "description": "输出 token 单价，USD / 百万 token。映射到模型选择器的 outputCost 槽位。同时作为无 tier 命中时的回退价。"
+                        },
+                        "cacheReadPrice": {
+                            "type": "number",
+                            "minimum": 0,
+                            "description": "缓存命中读取 token 单价（cache hit），USD / 百万 token。映射到模型选择器的 cacheCost 槽位。通常远低于 inputPrice。"
+                        },
+                        "cacheWritePrice": {
+                            "type": "number",
+                            "minimum": 0,
+                            "description": "缓存写入 token 单价，USD / 百万 token。映射到模型选择器的 cacheWriteCost 槽位。通常等于或高于 inputPrice（缓存写入计费倍率）。"
+                        },
+                        "tiers": {
+                            "type": "array",
+                            "description": "峰谷分档定价。首个 cron 表达式命中请求时间的 tier 生效。若无 tier 命中，回退到上方的静态单档。",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["inputPrice", "outputPrice"],
+                                "properties": {
+                                    "cron": {
+                                        "type": "string",
+                                        "pattern": "^(?:[0-9*][0-9*/,\\-]*)(?:\\s+(?:[0-9*][0-9*/,\\-]*)){4}$",
+                                        "description": "Cron 表达式（5 字段：分 时 日 月 周），定义该档位生效时段。缺省为全时段（\"* * * * *\"）。用范围/通配表达时间窗口，如 \"* 9-23 * * 1-5\" = 工作日 9:00-23:59。默认按北京时间匹配。"
+                                    },
+                                    "timezone": {
+                                        "type": "string",
+                                        "description": "IANA 时区（如 \"Asia/Shanghai\"）。缺省为北京时间（UTC+8），因为峰谷定价主要面向国内服务商的计费规则。"
+                                    },
+                                    "serviceTier": {
+                                        "type": "string",
+                                        "description": "可选的服务等级匹配条件（如 \"priority\"）。设置后，仅当用户在 Chat UI 选择了匹配的 serviceTier 时此 tier 才生效；缺省则仅按时间匹配。用于\"按服务等级计费\"场景。"
+                                    },
+                                    "contextSizeMin": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "description": "可选的最小 input token 数。设置后，仅当实际消耗的 input token 数 >= 此值时该 tier 才生效（与 usage 对比，而非预分配窗口）。用于\"按上下文大小阶梯计费\"场景。"
+                                    },
+                                    "contextSizeInputOnly": {
+                                        "type": "boolean",
+                                        "default": false,
+                                        "description": "为 true 时，contextSizeMin 的判断排除缓存读取 token（仅比较非缓存 input）。默认 false 按 raw prompt_tokens（含缓存）判断。"
+                                    },
+                                    "inputPrice": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "description": "该档位生效时的输入 token 单价，USD / 百万 token。"
+                                    },
+                                    "outputPrice": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "description": "该档位生效时的输出 token 单价，USD / 百万 token。"
+                                    },
+                                    "cacheReadPrice": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "description": "该档位生效时的缓存读取 token 单价，USD / 百万 token。未配置时回退到静态单档的 cacheReadPrice。"
+                                    },
+                                    "cacheWritePrice": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "description": "该档位生效时的缓存写入 token 单价，USD / 百万 token。未配置时回退到静态单档的 cacheWritePrice。"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "type": "array",
+                    "description": "Token 定价简写形式：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。支持 2~4 项数字。等价于不含 tiers 的对象形式。",
+                    "minItems": 2,
+                    "maxItems": 4,
+                    "items": {
+                        "type": "number",
+                        "minimum": 0
+                    }
+                }
+            ]
+        },
         "model": {
             "type": "object",
             "additionalProperties": false,
@@ -308,6 +404,9 @@
                     "type": "boolean",
                     "description": "是否启用 Anthropic 原生 web_search 工具（仅 sdkMode=anthropic 时生效）",
                     "default": false
+                },
+                "tokenPricing": {
+                    "$ref": "#/$defs/tokenPricing"
                 }
             },
             "allOf": [

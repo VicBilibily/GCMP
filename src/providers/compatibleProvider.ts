@@ -24,6 +24,7 @@ import { TokenUsagesManager } from '../usages/usagesManager';
 import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status';
 import { configProviders } from './config';
+import { collectInvalidTierCrons, normalizeTokenPricing } from '../utils/pricingTierResolver';
 
 /**
  * 独立兼容模型提供商类
@@ -94,6 +95,19 @@ export class CompatibleProvider extends GenericModelProvider {
                     }
                 }
 
+                const normalizedTokenPricing =
+                    model.tokenPricing ? normalizeTokenPricing(model.tokenPricing) : undefined;
+                if (normalizedTokenPricing) {
+                    const invalidCrons = collectInvalidTierCrons(normalizedTokenPricing);
+                    if (invalidCrons.length > 0) {
+                        Logger.warn(
+                            `[CompatibleProvider] Invalid tokenPricing cron ignored: model=${model.id}, cron=${invalidCrons.join(', ')}`
+                        );
+                    }
+                } else if (model.tokenPricing) {
+                    Logger.warn(`[CompatibleProvider] Invalid tokenPricing format ignored: model=${model.id}`);
+                }
+
                 const config: ModelConfig = {
                     id: model.id,
                     name: model.name,
@@ -118,7 +132,8 @@ export class CompatibleProvider extends GenericModelProvider {
                     ...(model.reasoningFormat && { reasoningFormat: model.reasoningFormat }),
                     ...(model.reasoningEffort && { reasoningEffort: model.reasoningEffort }),
                     ...(model.reasoningDefault && { reasoningDefault: model.reasoningDefault }),
-                    ...(model.contextSize && { contextSize: model.contextSize })
+                    ...(model.contextSize && { contextSize: model.contextSize }),
+                    ...(normalizedTokenPricing && { tokenPricing: normalizedTokenPricing })
                 };
 
                 // 应用 gcmp.providerOverrides 覆盖

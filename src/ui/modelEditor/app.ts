@@ -68,6 +68,7 @@ const state: EditorState = {
         webSearchTool: undefined,
         reasoningEffort: [],
         reasoningDefault: '',
+        tokenPricing: '',
         customHeader: '',
         extraBody: ''
     },

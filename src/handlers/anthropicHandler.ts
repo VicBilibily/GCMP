@@ -11,6 +11,7 @@ import { ApiKeyManager } from '../utils/apiKeyManager';
 import { Logger } from '../utils/logger';
 import { ConfigManager } from '../utils/configManager';
 import { redactHeaders, isCancellationError } from '../utils';
+import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu } from '../utils';
 import { VersionManager } from '../utils/versionManager';
 import { createOpenCodeHeaders } from '../utils/formatUtils';
 import { TokenUsagesManager } from '../usages/usagesManager';
@@ -292,7 +293,27 @@ export class AnthropicHandler {
 
             // 使用完整的流处理函数
             const result = await this.handleAnthropicStream(stream, streamReporter, token);
-            streamReporter.reportUsage(result?.usage);
+
+            // 客户端成本估算：仅在模型配置了 tokenPricing 时才执行
+            // 峰谷定价：用请求开始时间匹配 tier，确保整条流式响应按同一档位计费
+            // 服务等级计费：传入 settings.serviceTier，让 tier 按 serviceTier 匹配
+            let costNanoAiu: number | undefined;
+            if (modelConfig.tokenPricing) {
+                const costAt = requestStartTime ? new Date(requestStartTime) : new Date();
+                const breakdown = calculateCostWithBreakdown(
+                    result?.usage,
+                    modelConfig.tokenPricing,
+                    costAt,
+                    settings?.serviceTier
+                );
+                if (breakdown) {
+                    if (breakdown.total > 0) {
+                        Logger.debug(formatCostBreakdownLog(model.name, breakdown));
+                    }
+                    costNanoAiu = toNanoAiu(breakdown.total);
+                }
+            }
+            streamReporter.reportUsage(result?.usage, costNanoAiu);
 
             Logger.info(`[${model.name}] Anthropic request completed`, result?.usage);
 

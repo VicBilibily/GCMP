@@ -90,7 +90,7 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 
 - [**编程套餐**](https://bigmodel.cn/glm-coding)：**GLM-5.2**、**GLM-5V-Turbo**、**GLM-5-Turbo**、**GLM-4.7**、**GLM-4.6**、**GLM-4.6V**
     - **用量查询**：已支持状态栏显示周期剩余用量，可查看 GLM Coding Plan 用量信息。
-- **按量计费(PayGo)**：**GLM-5.2**、**GLM-5.1**(极速版)、**GLM-5V-Turbo**、**GLM-5-Turbo**、**GLM-5**、**GLM-4.7**、**GLM-4.7-FlashX**、**GLM-4.6**、**GLM-4.6V**
+- **按量计费(PayGo)**：**GLM-5.2**、**GLM-5.1**、**GLM-5V-Turbo**、**GLM-5-Turbo**、**GLM-5**、**GLM-4.7**、**GLM-4.7-FlashX**、**GLM-4.6**、**GLM-4.6V**
 - **免费模型**：**GLM-4.6V-Flash**
 - [**国际站点**](https://z.ai/model-api)：已支持国际站(z.ai)切换设置。
 - **搜索功能**：集成 `联网搜索MCP` 及 `Web Search API`，支持 `#zhipuWebSearch` 进行联网搜索。
@@ -143,7 +143,7 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
     - 豆包模型：**Ark-Code-Latest**(Auto)、**Doubao-Seed-2.0**(Code/pro/lite/mini)
     - 开源模型：**GLM-5.2**、**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**MiniMax-M3**、**MiniMax-M2.7**
 - **豆包系列**：**Doubao-Seed-Evolving**、**Doubao-Seed-2.1**(turbo/pro)、**Doubao-Seed-2.0**(lite/mini/pro/Code)、**Doubao-Seed-1.8**
-- **协作奖励计划**：**GLM-4.7**、**DeepSeek-V3.2**
+- **协作奖励计划**：**GLM-5.2**、**GLM-4.7**、**DeepSeek-V3.2**
 - **按量计费(PayGo)**：**DeepSeek-V4-Flash-260425**、**DeepSeek-V4-Pro-260425**
 - **密钥配置**：支持设置 [Coding Plan API Key](https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey) 与 [Agent Plan 专用 API Key](https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=agentPlan) 分别设置，配置向导引导选择套餐类型。
 
@@ -151,14 +151,14 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 
 - [**Coding Plan**](https://console.cloud.tencent.com/tokenhub/codingplan)
     - 开源模型：**GLM-5**、**Kimi-K2.5**、**MiniMax-M2.5**
-- [**Token Plan**](https://console.cloud.tencent.com/tokenhub/tokenplan)：**HY 3 Preview**、**GLM-5.1**、**GLM-5**、**Kimi-K2.5**、**MiniMax-M2.7**、**MiniMax-M2.5**、**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**
+- [**Token Plan**](https://console.cloud.tencent.com/tokenhub/tokenplan)：**Hy3**、**Hy3 preview**、**GLM-5.1**、**GLM-5**、**Kimi-K2.5**、**MiniMax-M2.7**、**MiniMax-M2.5**、**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**
 - [**Token Plan 企业版**](https://console.cloud.tencent.com/tokenhub/tokenplan)：**DeepSeek-V4-Flash**、**DeepSeek-V4-Flash-202605**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Pro-202606**、**GLM-5**、**GLM-5-Turbo**、**GLM-5.1**、**GLM-5.2**、**Kimi-K2.5**、**Kimi-K2.6**、**Kimi-K2.7-Code**、**Kimi-K2.7-Code HighSpeed**、**MiniMax-M2.5**、**MiniMax-M2.7**、**MiniMax-M3**
 - [**TokenHub**](https://console.cloud.tencent.com/tokenhub/models)：
     - **GLM 系列**：**GLM-5.2**、**GLM-5.1**、**GLM-5V-Turbo**、**GLM-5-Turbo**、**GLM-5**
     - **DeepSeek 系列**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**DeepSeek-V3.2**
     - **Kimi 系列**：**Kimi-K2.7-Code**、**Kimi-K2.6**、**Kimi-K2.5**
     - **MiniMax 系列**：**MiniMax-M3**、**MiniMax-M2.7**、**MiniMax-M2.5**
-    - **Hunyuan 系列**：**HY 3 Preview**
+    - **Hunyuan 系列**：**Hy3**、**Hy3 preview**
 - **密钥配置**：腾讯云API密钥分为 [腾讯云付费模型 API Key](https://hunyuan.cloud.tencent.com/#/app/apiKeyManage)、[Coding Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/codingplan)、[Token Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan)、[Token Plan 企业版 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan)、[DeepSeek 专用 API Key](https://console.cloud.tencent.com/lkeap/api)、[TokenHub 付费 API Key](https://console.cloud.tencent.com/tokenhub/apikey)，需要进入正确的密钥获取界面生成密钥。
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)

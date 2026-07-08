@@ -12,7 +12,15 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": {
+                "inputPrice": 0.14,
+                "outputPrice": 0.28,
+                "cacheReadPrice": 0.0028,
+                "tiers": [
+                    { "cron": "* 9-11,14-17 * * *", "inputPrice": 0.14, "outputPrice": 0.28, "cacheReadPrice": 0.0028 }
+                ]
+            }
         },
         {
             "id": "deepseek-v4-pro",
@@ -23,7 +31,20 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": {
+                "inputPrice": 0.435,
+                "outputPrice": 0.87,
+                "cacheReadPrice": 0.003625,
+                "tiers": [
+                    {
+                        "cron": "* 9-11,14-17 * * *",
+                        "inputPrice": 0.435,
+                        "outputPrice": 0.87,
+                        "cacheReadPrice": 0.003625
+                    }
+                ]
+            }
         }
     ]
 }

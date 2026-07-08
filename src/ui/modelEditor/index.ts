@@ -12,6 +12,7 @@ import { KnownProviders } from '../../utils/knownProviders';
 import { ApiKeyManager } from '../../utils/apiKeyManager';
 import { VersionManager } from '../../utils/versionManager';
 import { ConfigManager } from '../../utils/configManager';
+import { normalizeTokenPricing } from '../../utils/pricingTierResolver';
 import { t } from '../../utils/l10n';
 import type { ModelFormData, ProviderOption, WebViewMessage } from './types';
 // 样式以 raw 字符串形式内联到 HTML（由 esbuild 的 inlineLessPlugin 处理）
@@ -227,6 +228,10 @@ export class ModelEditor {
         model.customHeader = customHeaderParsed ? (customHeaderParsed as Record<string, string>) : undefined;
         model.extraBody = this.parseJsonObject(data.extraBody) ?? undefined;
 
+        // tokenPricing 允许对象或数组简写，保存时统一归一化为对象形式
+        const tokenPricingParsed = this.parseJsonValue(data.tokenPricing);
+        model.tokenPricing = normalizeTokenPricing(tokenPricingParsed);
+
         // apiKey 单独保留在 EditedModelConfig 上
         model.apiKey = data.apiKey || undefined;
 
@@ -246,6 +251,20 @@ export class ModelEditor {
                 return parsed as Record<string, unknown>;
             }
             return null;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * 解析 JSON 字符串为任意 JSON 值，空或无效返回 null。
+     */
+    private static parseJsonValue(text: string): unknown | null {
+        if (!text || !text.trim()) {
+            return null;
+        }
+        try {
+            return JSON.parse(text);
         } catch {
             return null;
         }
@@ -335,6 +354,7 @@ export class ModelEditor {
             webSearchTool: model?.webSearchTool,
             reasoningEffort: model?.reasoningEffort || [],
             reasoningDefault: model?.reasoningDefault || '',
+            tokenPricing: model?.tokenPricing ? JSON.stringify(model.tokenPricing, null, 2) : '',
             customHeader: model?.customHeader ? JSON.stringify(model.customHeader, null, 2) : '',
             extraBody: model?.extraBody ? JSON.stringify(model.extraBody, null, 2) : ''
         };

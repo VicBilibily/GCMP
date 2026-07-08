@@ -13,9 +13,10 @@ import { ApiKeyManager } from '../utils/apiKeyManager';
 import { ConfigManager } from '../utils/configManager';
 import { Logger } from '../utils/logger';
 import { isCancellationError } from '../utils';
+import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu } from '../utils';
 import { t } from '../utils/l10n';
 import { TokenUsagesManager } from '../usages/usagesManager';
-import type { ModelConfig, ProviderConfig } from '../types/sharedTypes';
+import type { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import type { GenericUsageData, RawUsageData } from '../usages/fileLogger/types';
 import type { RequestInit as UndiciRequestInit } from 'undici';
 import { convertMessagesToGemini, convertToolsToGemini } from './geminiConverter';
@@ -650,8 +651,56 @@ export class GeminiHandler {
                 throw new Error(t('Response body is empty', '响应体为空'));
             }
 
-            // 用途：处理流式响应
-            await this.processStream(response.body as ReadableStream<Uint8Array>, reporter, requestId || '', token);
+            // 用途：处理流式响应，返回 usage 和时间戳
+            const { finalUsage, streamStartTime, streamEndTime } = await this.processStream(
+                response.body as ReadableStream<Uint8Array>,
+                reporter,
+                token
+            );
+
+            // 客户端成本估算：仅在模型配置了 tokenPricing 时才执行
+            // 峰谷定价：用请求开始时间匹配 tier
+            // 服务等级计费：传入 serviceTier
+            let costNanoAiu: number | undefined;
+            if (modelConfig.tokenPricing) {
+                const costAt = requestStartTime ? new Date(requestStartTime) : new Date();
+                const requestServiceTier = (options.modelConfiguration as ModelChatResponseOptions | undefined)
+                    ?.serviceTier;
+                try {
+                    const breakdown = calculateCostWithBreakdown(
+                        finalUsage,
+                        modelConfig.tokenPricing,
+                        costAt,
+                        requestServiceTier
+                    );
+                    if (breakdown) {
+                        if (breakdown.total > 0) {
+                            Logger.debug(formatCostBreakdownLog(model.name, breakdown));
+                        }
+                        costNanoAiu = toNanoAiu(breakdown.total);
+                    }
+                } catch (err) {
+                    Logger.warn(`[${model.name}] Failed to calculate cost:`, err);
+                }
+            }
+            reporter.reportUsage(finalUsage, costNanoAiu);
+
+            // Token 统计: 更新实际 token
+            if (finalUsage) {
+                try {
+                    const usagesManager = TokenUsagesManager.instance;
+                    await usagesManager.updateActualTokens({
+                        requestId,
+                        sessionId: reporter.getSessionId(),
+                        rawUsage: finalUsage,
+                        status: token.isCancellationRequested ? 'cancelled' : 'completed',
+                        streamStartTime,
+                        streamEndTime
+                    });
+                } catch (err) {
+                    Logger.warn('Failed to update token stats:', err);
+                }
+            }
 
             Logger.debug(`✅ ${model.name} ${this.displayName} Gemini HTTP request completed`);
         } catch (error) {
@@ -679,20 +728,17 @@ export class GeminiHandler {
     }
 
     /**
-     * 处理 Gemini HTTP 流式响应，解析 SSE/行流增量输出。
-     *
-     * 输出内容包含：
-     * - 文本：LanguageModelTextPart
-     * - thinking：LanguageModelThinkingPart
-     * - 工具调用：LanguageModelToolCallPart
-     * - usage：原样透传 usageMetadata 供后续统计解析
+     * 处理 Gemini HTTP 流式响应，解析 SSE/行流增量输出并返回 usage 及时间戳。
      */
     private async processStream(
         body: ReadableStream<Uint8Array>,
         reporter: StreamReporter,
-        requestId: string,
         token: vscode.CancellationToken
-    ): Promise<void> {
+    ): Promise<{
+        finalUsage?: RawUsageData;
+        streamStartTime?: number;
+        streamEndTime?: number;
+    }> {
         // 用途：读取 Web ReadableStream，逐块 decode 并按行切分。
         const reader = body.getReader();
         const decoder = new TextDecoder();
@@ -803,24 +849,8 @@ export class GeminiHandler {
             },
             finalUsage
         );
-        reporter.reportUsage(finalUsage);
 
-        // Token 统计: 更新实际 token
-        if (finalUsage) {
-            try {
-                const usagesManager = TokenUsagesManager.instance;
-                await usagesManager.updateActualTokens({
-                    requestId,
-                    sessionId: reporter.getSessionId(),
-                    rawUsage: finalUsage,
-                    status: token.isCancellationRequested ? 'cancelled' : 'completed',
-                    streamStartTime,
-                    streamEndTime
-                });
-            } catch (err) {
-                Logger.warn('Failed to update token stats:', err);
-            }
-        }
+        return { finalUsage, streamStartTime, streamEndTime };
     }
 
     /**

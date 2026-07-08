@@ -13,7 +13,8 @@
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "xhigh"],
             "reasoningFormat": "nested",
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [1.4, 4.4, 0.26]
         },
         {
             "id": "cline-pass/kimi-k2.7-code",
@@ -26,7 +27,8 @@
             "extraBody": {
                 "enabled_thinking": true
             },
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.95, 4.0, 0.19]
         },
         {
             "id": "cline-pass/kimi-k2.6",
@@ -36,7 +38,8 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "reasoningEffort": ["low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.95, 4.0, 0.16]
         },
         {
             "id": "cline-pass/deepseek-v4-pro",
@@ -48,7 +51,8 @@
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "xhigh"],
             "reasoningFormat": "nested",
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [1.74, 3.48, 0.0145]
         },
         {
             "id": "cline-pass/deepseek-v4-flash",
@@ -60,7 +64,8 @@
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "xhigh"],
             "reasoningFormat": "nested",
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.14, 0.28, 0.0028]
         },
         {
             "id": "cline-pass/mimo-v2.5",
@@ -72,7 +77,8 @@
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
             "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.14, 0.28, 0.0028]
         },
         {
             "id": "cline-pass/mimo-v2.5-pro",
@@ -84,7 +90,8 @@
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
             "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [1.74, 3.48, 0.0145]
         },
         {
             "id": "cline-pass/minimax-m3",
@@ -95,7 +102,8 @@
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.3, 1.2, 0.06]
         },
         {
             "id": "cline-pass/qwen3.7-max",
@@ -106,7 +114,8 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [2.5, 7.5, 0.5, 3.125]
         },
         {
             "id": "cline-pass/qwen3.7-plus",
@@ -117,7 +126,22 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "inputPrice": 0.4,
+                "outputPrice": 1.6,
+                "cacheReadPrice": 0.04,
+                "cacheWritePrice": 0.5,
+                "tiers": [
+                    {
+                        "contextSizeMin": 256000,
+                        "inputPrice": 1.2,
+                        "outputPrice": 4.8,
+                        "cacheReadPrice": 0.12,
+                        "cacheWritePrice": 1.5
+                    }
+                ]
+            }
         }
     ]
 }

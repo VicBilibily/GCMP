@@ -155,3 +155,49 @@ test('buildCopilotUsageData skips empty usage payloads', () => {
     assert.equal(buildCopilotUsageData({}), undefined);
     assert.equal(buildCopilotUsageData(undefined), undefined);
 });
+
+test('buildCopilotUsageData includes copilot_usage when nanoAiu is provided', () => {
+    const usage = buildCopilotUsageData(
+        {
+            prompt_tokens: 120,
+            completion_tokens: 30,
+            total_tokens: 150,
+            prompt_tokens_details: {
+                cached_tokens: 45
+            }
+        },
+        23226
+    );
+
+    assert.deepEqual(usage, {
+        prompt_tokens: 120,
+        completion_tokens: 30,
+        total_tokens: 150,
+        prompt_tokens_details: {
+            cached_tokens: 45
+        },
+        copilot_usage: {
+            total_nano_aiu: 23226
+        }
+    });
+});
+
+test('buildCopilotUsageData ignores invalid nanoAiu values', () => {
+    const usage = buildCopilotUsageData(
+        {
+            prompt_tokens: 12,
+            completion_tokens: 3,
+            total_tokens: 15
+        },
+        -1
+    );
+
+    assert.deepEqual(usage, {
+        prompt_tokens: 12,
+        completion_tokens: 3,
+        total_tokens: 15,
+        prompt_tokens_details: {
+            cached_tokens: 0
+        }
+    });
+});

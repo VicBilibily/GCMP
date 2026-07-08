@@ -1,4 +1,4 @@
-import { ProviderConfig } from '../../types/sharedTypes';
+import type { ProviderConfig } from '../../types/sharedTypes';
 // 统一导出所有模型配置，便于代码 import
 import zhipu from './zhipu.json';
 import volcengine from './volcengine.json';

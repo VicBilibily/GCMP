@@ -163,7 +163,14 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "inputPrice": 0.4,
+                "outputPrice": 1.6,
+                "cacheReadPrice": 0.08,
+                "cacheWritePrice": 0.4,
+                "tiers": [{ "contextSizeMin": 256000, "inputPrice": 1.2, "outputPrice": 4.8 }]
+            }
         },
         {
             "id": "qwen3.7-max-token-plan",
@@ -177,7 +184,8 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [2.5, 7.5, 0.5, 2.5]
         },
         {
             "id": "qwen3.6-plus-token-plan",
@@ -191,7 +199,14 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "inputPrice": 0.5,
+                "outputPrice": 3.0,
+                "cacheReadPrice": 0.1,
+                "cacheWritePrice": 0.5,
+                "tiers": [{ "contextSizeMin": 256000, "inputPrice": 2.0, "outputPrice": 6.0 }]
+            }
         },
         {
             "id": "qwen3.6-flash-token-plan",
@@ -205,7 +220,14 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "inputPrice": 0.25,
+                "outputPrice": 1.5,
+                "cacheReadPrice": 0.05,
+                "cacheWritePrice": 0.25,
+                "tiers": [{ "contextSizeMin": 256000, "inputPrice": 1.0, "outputPrice": 4.0 }]
+            }
         },
         {
             "id": "glm-5.2-token-plan",
@@ -219,7 +241,8 @@
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [1.4, 4.4, 0.28, 1.4]
         },
         {
             "id": "glm-5.1-token-plan",
@@ -232,7 +255,8 @@
             "maxInputTokens": 184000,
             "maxOutputTokens": 16000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [1.4, 4.4, 0.26, 1.4]
         },
         {
             "id": "glm-5-token-plan",
@@ -245,7 +269,14 @@
             "maxInputTokens": 184000,
             "maxOutputTokens": 16000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": {
+                "inputPrice": 0.573,
+                "outputPrice": 2.58,
+                "cacheReadPrice": 0.1146,
+                "cacheWritePrice": 0.573,
+                "tiers": [{ "contextSizeMin": 32000, "inputPrice": 0.86, "outputPrice": 3.154 }]
+            }
         },
         {
             "id": "kimi-k2.7-code-token-plan",
@@ -258,7 +289,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": [0.95, 4.0, 0.19, 0.95]
         },
         {
             "id": "kimi-k2.6-token-plan",
@@ -271,7 +303,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": [0.8939, 3.7131, 0.17878, 0.8939]
         },
         {
             "id": "kimi-k2.5-token-plan",
@@ -284,7 +317,8 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": [0.574, 3.011, 0.1148, 0.574]
         },
         {
             "id": "minimax-m2.5-token-plan",
@@ -296,7 +330,8 @@
             "model": "MiniMax-M2.5",
             "maxInputTokens": 172800,
             "maxOutputTokens": 32000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.304, 1.213, 0.0608, 0.304]
         },
         {
             "id": "deepseek-v4-pro-token-plan",
@@ -310,7 +345,8 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [2.4, 4.8, 0.2, 2.4]
         },
         {
             "id": "deepseek-v4-flash-token-plan",
@@ -324,7 +360,8 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [0.2, 0.4, 0.04, 0.2]
         },
         {
             "id": "deepseek-v3.2-token-plan",
@@ -336,7 +373,8 @@
             "model": "deepseek-v3.2",
             "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.57, 1.71, 0.114, 0.57]
         },
         {
             "id": "qwen3.7-plus",
@@ -346,7 +384,14 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "inputPrice": 0.4,
+                "outputPrice": 1.6,
+                "cacheReadPrice": 0.08,
+                "cacheWritePrice": 0.4,
+                "tiers": [{ "contextSizeMin": 256000, "inputPrice": 1.2, "outputPrice": 4.8 }]
+            }
         },
         {
             "id": "qwen3.7-max",
@@ -356,7 +401,8 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [2.5, 7.5, 0.5, 2.5]
         },
         {
             "id": "qwen3.6-plus",
@@ -366,7 +412,14 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "inputPrice": 0.5,
+                "outputPrice": 3.0,
+                "cacheReadPrice": 0.1,
+                "cacheWritePrice": 0.5,
+                "tiers": [{ "contextSizeMin": 256000, "inputPrice": 2.0, "outputPrice": 6.0 }]
+            }
         },
         {
             "id": "qwen3.6-flash",
@@ -376,7 +429,14 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "inputPrice": 0.25,
+                "outputPrice": 1.5,
+                "cacheReadPrice": 0.05,
+                "cacheWritePrice": 0.25,
+                "tiers": [{ "contextSizeMin": 256000, "inputPrice": 1.0, "outputPrice": 4.0 }]
+            }
         },
         {
             "id": "qwen3.5-plus",
@@ -388,7 +448,14 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "inputPrice": 0.4,
+                "outputPrice": 2.4,
+                "cacheReadPrice": 0.08,
+                "cacheWritePrice": 0.4,
+                "tiers": [{ "contextSizeMin": 256000, "inputPrice": 0.5, "outputPrice": 3.0 }]
+            }
         },
         {
             "id": "qwen3.5-flash",
@@ -400,7 +467,8 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.1, 0.4, 0.02, 0.1]
         },
         {
             "id": "deepseek-v4-flash",
@@ -412,7 +480,8 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [0.2, 0.4, 0.04, 0.2]
         },
         {
             "id": "deepseek-v4-pro",
@@ -424,7 +493,8 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [2.4, 4.8, 0.2, 2.4]
         },
         {
             "id": "glm-5.2",
@@ -436,7 +506,8 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [1.4, 4.4, 0.28, 1.4]
         },
         {
             "id": "kimi-k2.7-code",
@@ -447,7 +518,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": [0.95, 4.0, 0.19, 0.95]
         }
     ]
 }

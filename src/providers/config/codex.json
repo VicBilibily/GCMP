@@ -19,6 +19,7 @@
             "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
             "serviceTier": ["default", "priority"],
             "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [2.5, 15, 0.25],
             "extraBody": {
                 "store": false,
                 "tool_choice": "auto",
@@ -38,6 +39,7 @@
             "useInstructions": true,
             "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
             "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.75, 4.5, 0.075],
             "extraBody": {
                 "store": false,
                 "tool_choice": "auto",
@@ -58,6 +60,7 @@
             "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
             "serviceTier": ["default", "priority"],
             "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [5, 30, 0.5],
             "extraBody": {
                 "store": false,
                 "tool_choice": "auto",

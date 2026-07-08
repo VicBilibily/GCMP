@@ -52,7 +52,9 @@ export class ContextUsageStatusBar {
         requestKind?: string,
         timestamp?: number
     ): void {
-        if (!this.statusBarItem) return;
+        if (!this.statusBarItem) {
+            return;
+        }
 
         const percentage = maxInputTokens > 0 ? (inputTokens / maxInputTokens) * 100 : 0;
         const icon = this.getPieChartIcon(percentage);
@@ -69,20 +71,40 @@ export class ContextUsageStatusBar {
     }
 
     private getPieChartIcon(percentage: number): string {
-        if (percentage === 0) return '$(gcmp-tokens)';
-        if (percentage <= 25) return '$(gcmp-token1)';
-        if (percentage <= 35) return '$(gcmp-token2)';
-        if (percentage <= 45) return '$(gcmp-token3)';
-        if (percentage <= 55) return '$(gcmp-token4)';
-        if (percentage <= 65) return '$(gcmp-token5)';
-        if (percentage <= 75) return '$(gcmp-token6)';
-        if (percentage <= 85) return '$(gcmp-token7)';
+        if (percentage === 0) {
+            return '$(gcmp-tokens)';
+        }
+        if (percentage <= 25) {
+            return '$(gcmp-token1)';
+        }
+        if (percentage <= 35) {
+            return '$(gcmp-token2)';
+        }
+        if (percentage <= 45) {
+            return '$(gcmp-token3)';
+        }
+        if (percentage <= 55) {
+            return '$(gcmp-token4)';
+        }
+        if (percentage <= 65) {
+            return '$(gcmp-token5)';
+        }
+        if (percentage <= 75) {
+            return '$(gcmp-token6)';
+        }
+        if (percentage <= 85) {
+            return '$(gcmp-token7)';
+        }
         return '$(gcmp-token8)';
     }
 
     private formatTokens(tokens: number): string {
-        if (tokens >= 1000000) return (tokens / 1000000).toFixed(1) + 'M';
-        if (tokens >= 1000) return (tokens / 1000).toFixed(1) + 'K';
+        if (tokens >= 1000000) {
+            return (tokens / 1000000).toFixed(1) + 'M';
+        }
+        if (tokens >= 1000) {
+            return (tokens / 1000).toFixed(1) + 'K';
+        }
         return tokens.toString();
     }
 

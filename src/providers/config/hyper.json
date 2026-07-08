@@ -13,7 +13,8 @@
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "xhigh"],
             "reasoningFormat": "nested",
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.14, 0.28, 0.03]
         },
         {
             "id": "deepseek-v4-pro",
@@ -25,7 +26,8 @@
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "xhigh"],
             "reasoningFormat": "nested",
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [1.74, 3.49, 0.15]
         },
         {
             "id": "gemma-4-26b-a4b-it",
@@ -34,7 +36,8 @@
             "sdkMode": "openai-sse",
             "maxInputTokens": 230400,
             "maxOutputTokens": 25600,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.116, 0.408, 0.058]
         },
         {
             "id": "glm-5",
@@ -43,7 +46,8 @@
             "sdkMode": "openai-sse",
             "maxInputTokens": 180000,
             "maxOutputTokens": 20000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.91, 2.836, 0.455]
         },
         {
             "id": "glm-5.1",
@@ -53,7 +57,8 @@
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
             "reasoningEffort": ["low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [1.3, 4.3, 0, 0.26]
         },
         {
             "id": "glm-5.2",
@@ -65,7 +70,8 @@
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "xhigh"],
             "reasoningFormat": "nested",
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [1.4, 4.4, 0.26]
         },
         {
             "id": "gpt-oss-120b",
@@ -75,7 +81,8 @@
             "reasoningEffort": ["low", "medium", "high"],
             "maxInputTokens": 115200,
             "maxOutputTokens": 12800,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.178, 0.68, 0.089]
         },
         {
             "id": "kimi-k2.5",
@@ -84,7 +91,8 @@
             "sdkMode": "openai-sse",
             "maxInputTokens": 230400,
             "maxOutputTokens": 25600,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.51, 2.67, 0.255]
         },
         {
             "id": "kimi-k2.6",
@@ -94,7 +102,8 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "reasoningEffort": ["low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.95, 4.0, 0.16]
         },
         {
             "id": "kimi-k2.7-code",
@@ -107,7 +116,8 @@
             "extraBody": {
                 "enabled_thinking": true
             },
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.95, 4.0, 0.19]
         },
         {
             "id": "minimax-m2.7",
@@ -117,7 +127,8 @@
             "maxInputTokens": 172800,
             "maxOutputTokens": 32000,
             "reasoningEffort": ["low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 1.2, 0.375, 0.06]
         },
         {
             "id": "qwen3.6-flash",
@@ -127,7 +138,8 @@
             "contextSize": [1000000, 640000, 512000, 320000, 256000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [1.0, 4.0, 1.25, 0.1]
         },
         {
             "id": "qwen3.6-max",
@@ -136,7 +148,8 @@
             "sdkMode": "openai-sse",
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [2.0, 12.0, 2.5, 0.2]
         },
         {
             "id": "qwen3.6-plus",
@@ -146,7 +159,8 @@
             "contextSize": [1000000, 640000, 512000, 320000, 256000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [2.0, 6.0, 2.5, 0.2]
         },
         {
             "id": "qwen3.7-max",
@@ -156,7 +170,8 @@
             "contextSize": [1000000, 640000, 512000, 320000, 256000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [2.5, 7.5, 3.125]
         },
         {
             "id": "qwen3.7-plus",
@@ -166,7 +181,8 @@
             "contextSize": [1000000, 640000, 512000, 320000, 256000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [1.2, 4.8, 1.5]
         },
         {
             "id": "llama-3.3-70b-instruct",
@@ -175,7 +191,8 @@
             "sdkMode": "openai-sse",
             "maxInputTokens": 115200,
             "maxOutputTokens": 12800,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.6066, 1.0386, 0.3033]
         },
         {
             "id": "llama-4-maverick-17b-128e-instruct-fp8",
@@ -184,7 +201,8 @@
             "sdkMode": "openai-sse",
             "maxInputTokens": 387000,
             "maxOutputTokens": 43000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.274, 0.894, 0.137]
         },
         {
             "id": "qwen3-coder-480b-a35b-instruct-int4-mixed-ar",
@@ -193,7 +211,8 @@
             "sdkMode": "openai-sse",
             "maxInputTokens": 95400,
             "maxOutputTokens": 10600,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.601, 2.085, 0.3005]
         },
         {
             "id": "qwen3-next-80b-a3b-instruct",
@@ -202,7 +221,8 @@
             "sdkMode": "openai-sse",
             "maxInputTokens": 230000,
             "maxOutputTokens": 26000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.1175, 1.136, 0.0587]
         }
     ]
 }

@@ -5,11 +5,18 @@
 
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
-import { Logger, createOpenCodeHeaders, isCancellationError, type RetryableError } from '../utils';
+import {
+    Logger,
+    createOpenCodeHeaders,
+    isCancellationError,
+    calculateCostWithBreakdown,
+    formatCostBreakdownLog,
+    toNanoAiu
+} from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
-import { ModelConfig, ProviderConfig } from '../types/sharedTypes';
+import { ModelConfig, ModelChatResponseOptions, ModelTokenPricing, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';
 import * as liveMetrics from './liveMetrics';
 import { t } from '../utils/l10n';
@@ -223,11 +230,11 @@ export class OpenAICustomHandler {
                             errorMessage = errorJson.error;
                         } else {
                             if (errorJson.error.message) {
-                                errorMessage = errorJson.error.message;
-                            }
+                            errorMessage = errorJson.error.message;
+                        }
                             if (errorJson.error.code !== undefined) {
                                 errorCode = errorJson.error.code;
-                            }
+                    }
                         }
                     }
                 } catch {
@@ -253,7 +260,10 @@ export class OpenAICustomHandler {
                 response.body as ReadableStream<Uint8Array>,
                 reporter,
                 requestId || '',
-                token
+                token,
+                modelConfig.tokenPricing,
+                requestStartTime,
+                (options.modelConfiguration as ModelChatResponseOptions | undefined)?.serviceTier
             );
 
             Logger.debug(`[${model.name}] API request completed`);
@@ -287,7 +297,10 @@ export class OpenAICustomHandler {
         body: ReadableStream<Uint8Array>,
         reporter: StreamReporter,
         requestId: string,
-        token: vscode.CancellationToken
+        token: vscode.CancellationToken,
+        tokenPricing: ModelTokenPricing | undefined,
+        requestStartTime?: number,
+        requestServiceTier?: string
     ): Promise<void> {
         const reader = body.getReader();
         const decoder = new TextDecoder();
@@ -404,7 +417,21 @@ export class OpenAICustomHandler {
 
         // 流结束，输出所有剩余内容
         reporter.flushAll(null, undefined, finalUsage);
-        reporter.reportUsage(finalUsage);
+        // 客户端成本估算：仅在模型配置了 tokenPricing 时才执行
+        // 峰谷定价：用请求开始时间匹配 tier
+        // 服务等级计费：传入 requestServiceTier
+        let costNanoAiu: number | undefined;
+        if (tokenPricing) {
+            const costAt = requestStartTime ? new Date(requestStartTime) : new Date();
+            const breakdown = calculateCostWithBreakdown(finalUsage, tokenPricing, costAt, requestServiceTier);
+            if (breakdown) {
+                if (breakdown.total > 0) {
+                    Logger.debug(formatCostBreakdownLog(model.name, breakdown));
+                }
+                costNanoAiu = toNanoAiu(breakdown.total);
+            }
+        }
+        reporter.reportUsage(finalUsage, costNanoAiu);
 
         Logger.trace(`[${model.name}] SSE stream stats: ${chunkCount} chunks, hasContent=${reporter.hasContent}`);
         Logger.debug(`[${model.name}] Stream processing completed`);

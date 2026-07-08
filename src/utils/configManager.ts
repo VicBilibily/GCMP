@@ -796,10 +796,60 @@ export class ConfigManager {
     }
 
     /**
-     * 获取提供商配置（新模式：直接 import configProviders）
+     * 归一化单个 provider JSON 配置中的 tokenPricing（支持数组简写）。
+     * 在消费方按需调用，不在模块顶层转换，保持原始 JSON 形态不变。
+     */
+    private static normalizeProviderPricing(config: { models?: readonly Record<string, unknown>[] }): {
+        models?: readonly Record<string, unknown>[];
+    } {
+        if (!config.models) {
+            return config;
+        }
+        let changed = false;
+        const normalizedModels = config.models.map(model => {
+            const tokenPricing = model.tokenPricing;
+            if (tokenPricing === undefined || tokenPricing === null) {
+                return model;
+            }
+            const normalized = normalizeTokenPricing(tokenPricing);
+            if (!normalized) {
+                Logger.warn(
+                    `[GCMP] Invalid tokenPricing in built-in provider config: model=${String(model.id ?? '(unknown)')}`
+                );
+                // 剥离无效 tokenPricing，避免消费方拿到未归一化结构
+                changed = true;
+                return { ...model, tokenPricing: undefined };
+            }
+
+            const invalidCrons = collectInvalidTierCrons(normalized);
+            if (invalidCrons.length > 0) {
+                Logger.warn(
+                    `[GCMP] Invalid tokenPricing cron ignored in built-in provider config: model=${String(model.id ?? '(unknown)')}, cron=${invalidCrons.join(', ')}`
+                );
+            }
+
+            if (normalized === tokenPricing) {
+                return model;
+            }
+
+            changed = true;
+            return { ...model, tokenPricing: normalized };
+        });
+        return changed ? { ...config, models: normalizedModels } : config;
+    }
+
+    /**
+     * 获取提供商配置（新模式：直接 import configProviders）。
+     * 在返回前对 tokenPricing 做归一化，确保消费方拿到的始终是对象形式。
      */
     static getConfigProvider(): ConfigProvider {
-        return configProviders;
+        const normalized: ConfigProvider = {};
+        for (const [key, config] of Object.entries(configProviders)) {
+            normalized[key] = this.normalizeProviderPricing(
+                config as unknown as { models?: readonly Record<string, unknown>[] }
+            ) as unknown as ProviderConfig;
+        }
+        return normalized;
     }
 
     /**
@@ -934,6 +984,23 @@ export class ConfigManager {
                 Logger.debug(
                     `  Model ${modelOverride.id}: override proxy = ${redactProxyUrl(modelOverride.proxy) || '(cleared)'}`
                 );
+            }
+            if (modelOverride.tokenPricing !== undefined) {
+                const normalized = normalizeTokenPricing(modelOverride.tokenPricing);
+                if (normalized) {
+                    const invalidCrons = collectInvalidTierCrons(normalized);
+                    if (invalidCrons.length > 0) {
+                        Logger.warn(
+                            `  Model ${modelOverride.id}: invalid tokenPricing cron ignored: ${invalidCrons.join(', ')}`
+                        );
+                    }
+                    target.tokenPricing = normalized;
+                    Logger.debug(`  Model ${modelOverride.id}: override tokenPricing = ${JSON.stringify(normalized)}`);
+                } else {
+                    Logger.warn(
+                        `  Model ${modelOverride.id}: invalid tokenPricing override ignored: ${JSON.stringify(modelOverride.tokenPricing)}`
+                    );
+                }
             }
         };
 

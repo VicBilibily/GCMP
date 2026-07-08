@@ -250,6 +250,9 @@ export function collectFormData(state: EditorState): ModelFormData | null {
         webSearchTool,
         reasoningEffort: reasoningEffortValues as ModelFormData['reasoningEffort'],
         reasoningDefault: reasoningDefault as ModelFormData['reasoningDefault'],
+        // 当前可视化编辑器尚未提供 tokenPricing 单独输入控件；保存时保留已有值，
+        // 避免用户编辑其他字段时把 settings.json 中的 tokenPricing 清空。
+        tokenPricing: state.model.tokenPricing || '',
         customHeader: parseJSON(customHeaderText) ? customHeaderText : '',
         extraBody: parseJSON(extraBodyText) ? extraBodyText : ''
     };

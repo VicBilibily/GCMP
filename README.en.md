@@ -90,7 +90,7 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 
 - [**Coding Plan**](https://bigmodel.cn/glm-coding): **GLM-5.2**, **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-4.7**, **GLM-4.6**, **GLM-4.6V**
     - **Usage tracking**: Status bar displays remaining cycle quota for GLM Coding Plan.
-- **PayGo**: **GLM-5.2**, **GLM-5.1** (HighSpeed), **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-5**, **GLM-4.7**, **GLM-4.7-FlashX**, **GLM-4.6**, **GLM-4.6V**
+- **PayGo**: **GLM-5.2**, **GLM-5.1**, **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-5**, **GLM-4.7**, **GLM-4.7-FlashX**, **GLM-4.6**, **GLM-4.6V**
 - **Free models**: **GLM-4.6V-Flash**
 - [**International site**](https://z.ai/model-api): Supports switching to the international site (z.ai).
 - **Search**: Integrated `Web Search MCP` and `Web Search API`, supports `#zhipuWebSearch` for web searches.
@@ -143,7 +143,7 @@ VS Code uses lightweight background models for **utility tasks** like title gene
     - Doubao models: **Ark-Code-Latest**(Auto), **Doubao-Seed-2.0** (Code/pro/lite/mini)
     - Open-source models: **GLM-5.2**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **MiniMax-M3**, **MiniMax-M2.7**, **Kimi-K2.7-Code**, **Kimi-K2.6**
 - **Doubao series**: **Doubao-Seed-Evolving**, **Doubao-Seed-2.1** (turbo/pro), **Doubao-Seed-2.0** (lite/mini/pro/Code), **Doubao-Seed-1.8**
-- **Collaboration rewards**: **GLM-4.7**, **DeepSeek-V3.2**
+- **Collaboration rewards**: **GLM-5.2**, **GLM-4.7**, **DeepSeek-V3.2**
 - **PayGo**: **DeepSeek-V4-Flash-260425**, **DeepSeek-V4-Pro-260425**
 - **Key configuration**: Supports separate [Coding Plan API Key](https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey) and [Agent Plan API Key](https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=agentPlan). Setup wizard guides you through plan type selection.
 
@@ -151,14 +151,14 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 
 - [**Coding Plan**](https://console.cloud.tencent.com/tokenhub/codingplan)
     - Open-source models: **GLM-5**, **Kimi-K2.5**, **MiniMax-M2.5**
-- [**Token Plan**](https://console.cloud.tencent.com/tokenhub/tokenplan): **HY 3 Preview**, **GLM-5.1**, **GLM-5**, **Kimi-K2.5**, **MiniMax-M2.7**, **MiniMax-M2.5**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**
+- [**Token Plan**](https://console.cloud.tencent.com/tokenhub/tokenplan): **Hy3**, **Hy3 preview**, **GLM-5.1**, **GLM-5**, **Kimi-K2.5**, **MiniMax-M2.7**, **MiniMax-M2.5**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**
 - [**Token Plan Enterprise**](https://console.cloud.tencent.com/tokenhub/tokenplan): **DeepSeek-V4-Flash**, **DeepSeek-V4-Flash-202605**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Pro-202606**, **GLM-5**, **GLM-5-Turbo**, **GLM-5.1**, **GLM-5.2**, **Kimi-K2.5**, **Kimi-K2.6**, **Kimi-K2.7-Code**, **Kimi-K2.7-Code HighSpeed**, **MiniMax-M2.5**, **MiniMax-M2.7**, **MiniMax-M3**
 - [**TokenHub**](https://console.cloud.tencent.com/tokenhub/models):
     - **GLM series**: **GLM-5.2**, **GLM-5.1**, **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-5**
     - **DeepSeek series**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **DeepSeek-V3.2**
     - **Kimi series**: **Kimi-K2.7-Code**, **Kimi-K2.6**, **Kimi-K2.5**
     - **MiniMax series**: **MiniMax-M3**, **MiniMax-M2.7**, **MiniMax-M2.5**
-    - **Hunyuan series**: **HY 3 Preview**
+    - **Hunyuan series**: **Hy3**, **Hy3 preview**
 - **Key configuration**: Tencent Cloud API keys are categorized into [paid model API Key](https://hunyuan.cloud.tencent.com/#/app/apiKeyManage), [Coding Plan API Key](https://console.cloud.tencent.com/tokenhub/codingplan), [Token Plan API Key](https://console.cloud.tencent.com/tokenhub/tokenplan), [Token Plan Enterprise API Key](https://console.cloud.tencent.com/tokenhub/tokenplan), [DeepSeek API Key](https://console.cloud.tencent.com/lkeap/api), and [TokenHub API Key](https://console.cloud.tencent.com/tokenhub/apikey). Each must be generated from the correct key management page.
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)

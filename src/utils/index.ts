@@ -24,6 +24,16 @@ export type { ToolSchemaTarget } from './schemaSanitizer';
 export { formatOpenCodeId as formatOpencodeId, createOpenCodeHeaders } from './formatUtils';
 export { isCancellationError } from './cancellationError';
 export {
+    calculateCost,
+    formatCost,
+    calculateCostWithBreakdown,
+    formatCostBreakdownLog,
+    toNanoAiu
+} from './costCalculator';
+export type { RawTokenUsage, CostBreakdown } from './costCalculator';
+export { parseCron, resolveActiveTier, normalizeTokenPricing } from './pricingTierResolver';
+export type { ParsedCron } from './pricingTierResolver';
+export {
     getProxyAgent,
     createProxiedFetch,
     closeProxyAgents,

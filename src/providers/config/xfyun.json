@@ -307,7 +307,7 @@
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "contextSize": [1000000, 600000, 400000, 200000],
+            "contextSize": [1000000, 640000, 400000, 320000],
             "reasoningEffort": ["high", "max", "none"]
         },
         {

@@ -14,7 +14,8 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.171428, 1.142857, 0.034285]
         },
         {
             "id": "ark-code-doubao-seed-2.0-code",
@@ -26,7 +27,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.457142, 2.285714, 0.091428]
         },
         {
             "id": "ark-code-doubao-seed-2.0-lite",
@@ -38,7 +40,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.085714, 0.514285, 0.017142]
         },
         {
             "id": "ark-code-doubao-seed-2.0-pro",
@@ -50,7 +53,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.528571, 2.285714, 0.091428]
         },
         {
             "id": "ark-code-latest",
@@ -79,7 +83,8 @@
                     "type": "enabled"
                 }
             },
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.95, 4, 0.19]
         },
         {
             "id": "ark-code-kimi-k2.6",
@@ -91,7 +96,8 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.95, 4, 0.16]
         },
         {
             "id": "ark-code-glm-5.2",
@@ -100,11 +106,12 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
             "tooltip": "Coding Plan Code模型。智谱最新旗舰模型，支持 1M 上下文窗口，长程任务效果表现突出，多项权威评测榜单成绩稳居前列。",
-            "contextSize": [1000000, 600000, 400000, 200000],
+            "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [1.142857, 4, 0.285714]
         },
         {
             "id": "ark-code-MiniMax-M3",
@@ -115,7 +122,8 @@
             "tooltip": "Coding Plan Code模型。新一代 M 系列语言模型，在编码与智能体评测中达到行业顶尖水平，适用于 Agent 推理、工具调用、代码和长上下文任务。",
             "maxInputTokens": 384000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.3, 1.2, 0.06]
         },
         {
             "id": "ark-code-MiniMax-M2.7",
@@ -126,7 +134,8 @@
             "tooltip": "Coding Plan Code模型。M2.7 能够自行构建复杂 Agent Harness，并基于 Agent Teams、复杂 Skills、Tool 等能力，完成高度复杂的生产力任务。",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 1.2, 0.06]
         },
         {
             "id": "ark-code-deepseek-v4-flash",
@@ -139,7 +148,8 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.142857, 0.285714, 0.028571]
         },
         {
             "id": "ark-code-deepseek-v4-pro",
@@ -152,7 +162,8 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [1.714285, 3.428571, 0.142857]
         },
         {
             "id": "ark-plan-doubao-seed-2.0-code",
@@ -165,7 +176,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "thinking": ["disabled", "enabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.457142, 2.285714, 0.091428]
         },
         {
             "id": "ark-plan-doubao-seed-2.0-pro",
@@ -178,7 +190,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.528571, 2.285714, 0.091428]
         },
         {
             "id": "ark-plan-doubao-seed-2.0-lite",
@@ -191,7 +204,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.085714, 0.514285, 0.017142]
         },
         {
             "id": "ark-plan-doubao-seed-2.0-mini",
@@ -204,7 +218,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.085714, 0.285714, 0.005714]
         },
         {
             "id": "ark-plan-code-latest",
@@ -228,11 +243,12 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
             "tooltip": "Agent Plan 模型。智谱最新旗舰模型，支持 1M 上下文窗口，长程任务效果表现突出，多项权威评测榜单成绩稳居前列。",
-            "contextSize": [1000000, 600000, 400000, 200000],
+            "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [1.142857, 4, 0.285714]
         },
         {
             "id": "ark-plan-minimax-m3",
@@ -244,7 +260,8 @@
             "tooltip": "Agent Plan 模型。新一代 M 系列语言模型，在编码与智能体评测中达到行业顶尖水平，适用于 Agent 推理、工具调用、代码和长上下文任务。",
             "maxInputTokens": 384000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.3, 1.2, 0.06]
         },
         {
             "id": "ark-plan-minimax-m2.7",
@@ -256,7 +273,8 @@
             "tooltip": "Agent Plan 模型。M2.7 能够自行构建复杂 Agent Harness，并基于 Agent Teams、复杂 Skills、Tool 等能力，完成高度复杂的生产力任务。默认 thinking，支持关闭深度思考。",
             "maxInputTokens": 140800,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 1.2, 0.06]
         },
         {
             "id": "ark-plan-kimi-k2.7-code",
@@ -273,7 +291,8 @@
                     "type": "enabled"
                 }
             },
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.95, 4, 0.19]
         },
         {
             "id": "ark-plan-kimi-k2.6",
@@ -286,7 +305,8 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.95, 4, 0.16]
         },
         {
             "id": "ark-plan-deepseek-v4-flash",
@@ -300,7 +320,8 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.142857, 0.285714, 0.028571]
         },
         {
             "id": "ark-plan-deepseek-v4-pro",
@@ -314,7 +335,8 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [1.714285, 3.428571, 0.142857]
         },
         {
             "id": "doubao-seed-evolving",
@@ -326,7 +348,8 @@
             "maxOutputTokens": 64000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
             "reasoningDefault": "high",
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.857142, 4.285714, 0.171428]
         },
         {
             "id": "doubao-seed-2-1-turbo",
@@ -339,7 +362,8 @@
             "maxOutputTokens": 64000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
             "reasoningDefault": "high",
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.428571, 2.142857, 0.085714]
         },
         {
             "id": "doubao-seed-2-1-pro",
@@ -352,7 +376,8 @@
             "maxOutputTokens": 64000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
             "reasoningDefault": "high",
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.857142, 4.285714, 0.171428]
         },
         {
             "id": "doubao-seed-2-0-code",
@@ -364,7 +389,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.457142, 2.285714, 0.091428]
         },
         {
             "id": "doubao-seed-2-0-mini",
@@ -376,7 +402,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.085714, 0.285714, 0.005714]
         },
         {
             "id": "doubao-seed-2-0-lite",
@@ -388,7 +415,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.085714, 0.514285, 0.017142]
         },
         {
             "id": "doubao-seed-2-0-pro",
@@ -400,28 +428,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
-        },
-        {
-            "id": "doubao-seed-1-8",
-            "name": "Doubao-Seed-1.8-251228",
-            "model": "doubao-seed-1-8-251228",
-            "tooltip": "全新面向多模态 Agent 场景定向优化模型。更强Agent能力、升级多模态理解、更灵活的上下文管理。",
-            "maxInputTokens": 192000,
-            "maxOutputTokens": 64000,
-            "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
-        },
-        {
-            "id": "doubao-seed-1-8-caching",
-            "name": "Doubao-Seed-1.8-251228 (Caching)",
-            "model": "doubao-seed-1-8-251228",
-            "sdkMode": "openai-responses",
-            "tooltip": "全新面向多模态 Agent 场景定向优化模型。更强Agent能力、升级多模态理解、更灵活的上下文管理。",
-            "maxInputTokens": 192000,
-            "maxOutputTokens": 64000,
-            "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.528571, 2.285714, 0.091428]
         },
         {
             "id": "deepseek-v4-flash",
@@ -433,7 +441,8 @@
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.142857, 0.285714, 0.028571]
         },
         {
             "id": "deepseek-v4-pro",
@@ -445,7 +454,8 @@
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [1.714285, 3.428571, 0.142857]
         },
         {
             "id": "deepseek-v3.2",
@@ -455,7 +465,8 @@
             "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
             "thinking": ["disabled", "enabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.285714, 0.428571, 0.057142]
         },
         {
             "id": "glm-4.7",
@@ -465,23 +476,24 @@
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.285714, 1.142857, 0.057142]
         },
         {
-            "id": "glm-4.7-caching",
-            "name": "GLM-4.7-251222 (Caching)",
-            "model": "glm-4-7-251222",
-            "sdkMode": "openai-responses",
-            "tooltip": "GLM-4.7 是智谱最新旗舰模型，更强的编程能力与更稳定的多步骤推理/执行能力。在执行复杂智能体任务提升明显，同时对话更自然，前端审美更好。",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
+            "id": "glm-5.2",
+            "name": "GLM-5.2-260617",
+            "model": "glm-5-2-260617",
+            "tooltip": "GLM-5.2 是智谱面向长程自主编码场景的旗舰开源模型，全面强化了大型代码库工程、长程任务规划与工具协同能力，在多个榜单上斩获开源第一，整体表现对齐海外闭源 SOTA 模型，开发场景的成功率进一步提升。它支持真正可用的 1M 上下文，可一次性承载项目级工程，且在执行复杂智能体任务时，指令遵循与工具调用更加稳定，一次任务即可贯通需求到多端可部署产物的完整开发链路。",
+            "contextSize": [1000000, 640000, 400000, 320000],
+            "maxInputTokens": 872000,
+            "maxOutputTokens": 128000,
             "capabilities": { "toolCalling": true, "imageInput": false },
             "extraBody": {
                 "caching": {
                     "type": "enabled"
                 }
-            }
+            },
+            "tokenPricing": [1.142857, 4, 0.285714]
         }
     ]
 }

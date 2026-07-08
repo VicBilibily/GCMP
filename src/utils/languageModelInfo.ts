@@ -146,7 +146,15 @@ export function createLanguageModelChatInformation(
         },
         isBYOK: true,
         isUserSelectable: true,
-        configurationSchema: Object.keys(properties).length > 0 ? { properties } : undefined
+        configurationSchema: Object.keys(properties).length > 0 ? { properties } : undefined,
+        ...(model.tokenPricing ?
+            {
+                inputCost: model.tokenPricing.inputPrice,
+                outputCost: model.tokenPricing.outputPrice,
+                cacheCost: model.tokenPricing.cacheReadPrice,
+                cacheWriteCost: model.tokenPricing.cacheWritePrice
+            }
+        :   {})
     };
 }
 

@@ -12,7 +12,8 @@
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [0.3, 1.2, 0.006]
         }
     ]
 }

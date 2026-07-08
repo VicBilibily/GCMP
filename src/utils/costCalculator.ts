@@ -1,0 +1,334 @@
+/*---------------------------------------------------------------------------------------------
+ *  Cost Calculator — 客户端 Token 成本估算
+ *  参考 Copilot CLI 的 yF9() 实现，根据 usage + pricing 计算预估费用。
+ *--------------------------------------------------------------------------------------------*/
+
+import type { ModelTokenPricing, ModelTokenPricingInput, PricingTier } from '../types/sharedTypes';
+import type { GenericUsageData } from '../usages/fileLogger/types';
+import { UsageParser } from '../usages/fileLogger/usageParser';
+import { resolveActiveTier, normalizeTokenPricing } from './pricingTierResolver';
+
+/**
+ * 镜像 Anthropic SDK 的 Usage 结构，允许传入部分字段。
+ */
+export interface RawTokenUsage {
+    input_tokens?: number | null;
+    output_tokens?: number | null;
+    cache_read_input_tokens?: number | null;
+    cache_creation_input_tokens?: number | null;
+    /** 来自 Anthropic stream event 的 usage.cache_creation 嵌套字段 */
+    cache_creation?: {
+        ephemeral_5m_input_tokens?: number | null;
+        ephemeral_1h_input_tokens?: number | null;
+    } | null;
+    /** 兼容 OpenAI 风格 */
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+    prompt_tokens_details?: {
+        cached_tokens?: number;
+        cache_creation_input_tokens?: number;
+    };
+    /** 兼容 Responses API 风格 */
+    input_tokens_details?: {
+        cached_tokens?: number;
+    };
+    /** 兼容 Gemini usageMetadata */
+    promptTokenCount?: number;
+    responseTokenCount?: number;
+    candidatesTokenCount?: number;
+    totalTokenCount?: number;
+    cachedContentTokenCount?: number;
+}
+
+const TOKENS_PER_MILLION = 1_000_000;
+
+/**
+ * 根据 token 用量和定价计算预估成本。
+ *
+ * @param pricing 模型定价配置，支持 {inputPrice, outputPrice, ...} 对象或 [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?] 数组简写
+ */
+export function calculateCost(
+    usage: RawTokenUsage | undefined,
+    pricing: ModelTokenPricingInput | undefined,
+    at: Date = new Date(),
+    requestServiceTier?: string
+): number {
+    return calculateCostWithBreakdown(usage, pricing, at, requestServiceTier)?.total ?? 0;
+}
+
+/**
+ * 格式化成本为显示字符串。
+ */
+export function formatCost(cost: number): string {
+    if (cost === 0) {
+        return '0';
+    }
+    if (cost < 0.01) {
+        return cost < 0.0001 ? '~0' : cost.toFixed(4);
+    }
+    return cost.toFixed(2);
+}
+
+/**
+ * 成本计算明细，用于 debug 日志输出。
+ */
+export interface CostBreakdown {
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens: number;
+    cacheCreationTokens: number;
+    inputCost: number;
+    outputCost: number;
+    cacheReadCost: number;
+    cacheWriteCost: number;
+    total: number;
+    /**
+     * 生效的定价档位标识（峰谷定价时用于日志区分）。
+     * - undefined：使用静态单档（未配置 tiers 或无 tier 命中）
+     * - 其他值：匹配到的 tier 的 cron 表达式，便于在日志中回溯
+     */
+    activeTierCron?: string;
+    /**
+     * 生效的 serviceTier 标识（按服务等级计费时用于日志区分）。
+     * 当 tier 配置了 serviceTier 且命中时，记录该值便于日志回溯。
+     */
+    activeTierServiceTier?: string;
+    /**
+     * 实际生效的单价（来自 tier 或回退到静态单档），供日志准确展示。
+     */
+    effectiveInputPrice: number;
+    effectiveOutputPrice: number;
+    effectiveCacheReadPrice?: number;
+    effectiveCacheWritePrice?: number;
+}
+
+interface ResolvedPricingBreakdown {
+    activeTier?: PricingTier;
+    effectivePricing: Pick<ModelTokenPricing, 'inputPrice' | 'outputPrice' | 'cacheReadPrice' | 'cacheWritePrice'>;
+}
+
+/**
+ * 解析请求实际生效的定价信息（含命中的 activeTier）。
+ *
+ * 在 resolveActiveTier 的 cron + serviceTier 匹配基础上，额外检查 contextSizeMin：
+ * 若命中的 tier 不满足 contextSizeMin，跳过它继续检查下一个 tier。
+ *
+ * @param actualInput 从 usage 解析出的实际 input token 数（含缓存）
+ * @param cacheReadTokens 缓存读取 token 数，用于 contextSizeInputOnly 模式
+ *
+ * 导出供测试直接验证 contextSizeMin 回退逻辑。
+ */
+export function resolvePricingBreakdown(
+    pricing: ModelTokenPricing | undefined,
+    at: Date,
+    requestServiceTier?: string,
+    actualInput?: number,
+    cacheReadTokens?: number
+): ResolvedPricingBreakdown | undefined {
+    if (!pricing) {
+        return undefined;
+    }
+
+    // 先按 cron + serviceTier 匹配（不含 contextSizeMin）
+    const activeTier = resolveActiveTier(pricing, at, requestServiceTier);
+    if (activeTier) {
+        // contextSizeMin 检查：根据 contextSizeInputOnly 选择统计口径
+        const effectiveInput =
+            activeTier.contextSizeInputOnly && actualInput !== undefined && cacheReadTokens !== undefined ?
+                Math.max(0, actualInput - cacheReadTokens)
+            :   actualInput;
+        if (
+            activeTier.contextSizeMin === undefined ||
+            (effectiveInput !== undefined && effectiveInput >= activeTier.contextSizeMin)
+        ) {
+            return {
+                activeTier,
+                effectivePricing: {
+                    inputPrice: activeTier.inputPrice,
+                    outputPrice: activeTier.outputPrice,
+                    cacheReadPrice: activeTier.cacheReadPrice ?? pricing.cacheReadPrice,
+                    cacheWritePrice: activeTier.cacheWritePrice ?? pricing.cacheWritePrice
+                }
+            };
+        }
+        // contextSizeMin 不满足 → 移除该 tier，用剩余 tiers 重新匹配
+        const remainingTiers = pricing.tiers?.filter(t => t !== activeTier);
+        if (remainingTiers && remainingTiers.length > 0) {
+            const retryPricing: ModelTokenPricing = { ...pricing, tiers: remainingTiers };
+            const retryResult = resolvePricingBreakdown(
+                retryPricing,
+                at,
+                requestServiceTier,
+                actualInput,
+                cacheReadTokens
+            );
+            if (retryResult) {
+                return retryResult;
+            }
+        }
+        // 无剩余 tier 或剩余 tier 都不匹配 → 回退静态单档
+        return {
+            activeTier: undefined,
+            effectivePricing: {
+                inputPrice: pricing.inputPrice,
+                outputPrice: pricing.outputPrice,
+                cacheReadPrice: pricing.cacheReadPrice,
+                cacheWritePrice: pricing.cacheWritePrice
+            }
+        };
+    }
+
+    // 无 tier 命中 → 回退静态单档
+    return {
+        activeTier: undefined,
+        effectivePricing: {
+            inputPrice: pricing.inputPrice,
+            outputPrice: pricing.outputPrice,
+            cacheReadPrice: pricing.cacheReadPrice,
+            cacheWritePrice: pricing.cacheWritePrice
+        }
+    };
+}
+
+/**
+ * 将 USD 成本换算为 nano-AIU。
+ *
+ * 对任意正成本使用 `Math.ceil`，避免极小的非零成本被 `Math.round()` 舍入为 0，
+ * 从而在 usage DataPart 中伪装成“零成本请求”。
+ */
+export function toNanoAiu(cost: number): number | undefined {
+    if (!(cost > 0)) {
+        return undefined;
+    }
+    return Math.ceil(cost * 1_000_000_000);
+}
+
+/**
+ * 生成统一的成本明细日志文本。
+ *
+ * 只负责格式化，不做阈值/是否输出判断；调用方可据 `breakdown.total` 决定是否记录。
+ */
+export function formatCostBreakdownLog(modelName: string, breakdown: CostBreakdown): string {
+    return (
+        `[${modelName}] Cost breakdown:\n` +
+        `  pricing  input=$${breakdown.effectiveInputPrice} output=$${breakdown.effectiveOutputPrice}` +
+        (breakdown.effectiveCacheReadPrice !== undefined ? ` cacheRead=$${breakdown.effectiveCacheReadPrice}` : '') +
+        (breakdown.effectiveCacheWritePrice !== undefined ? ` cacheWrite=$${breakdown.effectiveCacheWritePrice}` : '') +
+        ' per 1M tokens\n' +
+        (breakdown.activeTierCron || breakdown.activeTierServiceTier ?
+            `  tier     ${breakdown.activeTierCron || 'all-time'}` +
+            (breakdown.activeTierServiceTier ? ` (serviceTier: ${breakdown.activeTierServiceTier})` : '') +
+            '\n'
+        :   '') +
+        `  usage   input=${breakdown.inputTokens} output=${breakdown.outputTokens}` +
+        (breakdown.cacheReadTokens > 0 ? ` cacheRead=${breakdown.cacheReadTokens}` : '') +
+        (breakdown.cacheCreationTokens > 0 ? ` cacheWrite=${breakdown.cacheCreationTokens}` : '') +
+        '\n' +
+        `  subtotal input=$${breakdown.inputCost.toFixed(6)} output=$${breakdown.outputCost.toFixed(6)}` +
+        (breakdown.cacheReadCost > 0 ? ` cacheRead=$${breakdown.cacheReadCost.toFixed(6)}` : '') +
+        (breakdown.cacheWriteCost > 0 ? ` cacheWrite=$${breakdown.cacheWriteCost.toFixed(6)}` : '') +
+        '\n' +
+        `  total=$${breakdown.total.toFixed(6)} (${toNanoAiu(breakdown.total) ?? 0} nano-AIU)`
+    );
+}
+
+/**
+ * 计算成本并返回明细（供 handler 写 debug 日志）。
+ *
+ * @param pricing 模型定价配置，支持 {inputPrice, outputPrice, ...} 对象或 [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?] 数组简写
+ * @param at 请求发生时间，用于峰谷定价 tier 匹配。默认当前时间。
+ * @param requestServiceTier 请求携带的 serviceTier，用于按服务等级计费的 tier 匹配。
+ */
+export function calculateCostWithBreakdown(
+    usage: RawTokenUsage | undefined,
+    pricing: ModelTokenPricingInput | undefined,
+    at: Date = new Date(),
+    requestServiceTier?: string
+): CostBreakdown | undefined {
+    if (!usage || !pricing) {
+        return undefined;
+    }
+
+    // 支持数组简写形式：在入口处归一化，后续逻辑统一按对象处理
+    const normalizedPricing = normalizeTokenPricing(pricing);
+    if (!normalizedPricing) {
+        return undefined;
+    }
+
+    const parsed = UsageParser.parseRawUsage(usage as GenericUsageData);
+    const actualInput = parsed.actualInput;
+    const cacheReadTokens = Math.max(0, parsed.cacheReadTokens);
+
+    const resolvedPricing = resolvePricingBreakdown(
+        normalizedPricing,
+        at,
+        requestServiceTier,
+        actualInput,
+        cacheReadTokens
+    );
+    if (!resolvedPricing) {
+        return undefined;
+    }
+
+    const { activeTier, effectivePricing } = resolvedPricing;
+
+    const cacheCreationTokens = getExplicitCacheWriteTokens(usage);
+    const outputTokens = Math.max(0, parsed.outputTokens);
+    const inputTokens = getUncachedInputTokens(usage, parsed.actualInput, cacheReadTokens, cacheCreationTokens);
+
+    const inputCost = (inputTokens / TOKENS_PER_MILLION) * effectivePricing.inputPrice;
+    const outputCost = (outputTokens / TOKENS_PER_MILLION) * effectivePricing.outputPrice;
+    const cacheReadCost =
+        cacheReadTokens > 0 && effectivePricing.cacheReadPrice !== undefined ?
+            (cacheReadTokens / TOKENS_PER_MILLION) * effectivePricing.cacheReadPrice
+        :   0;
+    const cacheWriteCost =
+        cacheCreationTokens > 0 && effectivePricing.cacheWritePrice !== undefined ?
+            (cacheCreationTokens / TOKENS_PER_MILLION) * effectivePricing.cacheWritePrice
+        :   0;
+
+    return {
+        inputTokens,
+        outputTokens,
+        cacheReadTokens,
+        cacheCreationTokens,
+        inputCost,
+        outputCost,
+        cacheReadCost,
+        cacheWriteCost,
+        total: Math.max(0, inputCost + outputCost + cacheReadCost + cacheWriteCost),
+        activeTierCron: activeTier?.cron,
+        activeTierServiceTier: activeTier?.serviceTier,
+        effectiveInputPrice: effectivePricing.inputPrice,
+        effectiveOutputPrice: effectivePricing.outputPrice,
+        effectiveCacheReadPrice: effectivePricing.cacheReadPrice,
+        effectiveCacheWritePrice: effectivePricing.cacheWritePrice
+    };
+}
+
+function getExplicitCacheWriteTokens(usage: RawTokenUsage): number {
+    // cache_creation_input_tokens（顶层）与 cache_creation.ephemeral_*_input_tokens（嵌套）
+    // 是同一缓存写入事件的不同表示，并非可叠加的独立来源。
+    // 取 max 防止两者同时出现时重复计费。
+    const topLevel = typeof usage.cache_creation_input_tokens === 'number' ? usage.cache_creation_input_tokens : 0;
+    const nested5m = usage.cache_creation?.ephemeral_5m_input_tokens ?? 0;
+    const nested1h = usage.cache_creation?.ephemeral_1h_input_tokens ?? 0;
+    return Math.max(0, topLevel, nested5m + nested1h);
+}
+
+function getUncachedInputTokens(
+    usage: RawTokenUsage,
+    actualInputTokens: number,
+    cacheReadTokens: number,
+    cacheCreationTokens: number
+): number {
+    // Anthropic/Claude 风格：input_tokens 不含缓存 token，可直接信任。
+    // 注意：此判断依赖 input_tokens_details?.cached_tokens 为 undefined 作为 Anthropic 信号，
+    // 若未来有 provider 设置 input_tokens（含缓存）但未填充 input_tokens_details，会产生过计费。
+    if (typeof usage.input_tokens === 'number' && usage.input_tokens_details?.cached_tokens === undefined) {
+        return Math.max(0, usage.input_tokens);
+    }
+
+    return Math.max(0, actualInputTokens - cacheReadTokens - cacheCreationTokens);
+}

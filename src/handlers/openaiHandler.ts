@@ -11,7 +11,10 @@ import {
     sanitizeToolSchemaForTarget,
     createOpenCodeHeaders,
     redactHeaders,
-    isCancellationError
+    isCancellationError,
+    calculateCostWithBreakdown,
+    formatCostBreakdownLog,
+    toNanoAiu
 } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
@@ -1071,7 +1074,27 @@ export class OpenAIHandler {
                     throw streamError;
                 }
 
-                streamReporter.reportUsage(finalUsage);
+                // 客户端成本估算：仅在模型配置了 tokenPricing 时才执行
+                // 峰谷定价：用请求开始时间匹配 tier，确保整条流式响应按同一档位计费
+                // 服务等级计费：传入 serviceTier，让 tier 按 serviceTier 匹配
+                let costNanoAiu: number | undefined;
+                if (modelConfig.tokenPricing) {
+                    const costAt = requestStartTime ? new Date(requestStartTime) : new Date();
+                    const requestServiceTier = (options.modelConfiguration as ModelChatResponseOptions)?.serviceTier;
+                    const breakdown = calculateCostWithBreakdown(
+                        finalUsage,
+                        modelConfig.tokenPricing,
+                        costAt,
+                        requestServiceTier
+                    );
+                    if (breakdown) {
+                        if (breakdown.total > 0) {
+                            Logger.debug(formatCostBreakdownLog(model.name, breakdown));
+                        }
+                        costNanoAiu = toNanoAiu(breakdown.total);
+                    }
+                }
+                streamReporter.reportUsage(finalUsage, costNanoAiu);
 
                 // 计算并记录输出速度
                 const usageData = finalUsage as OpenAI.Completions.CompletionUsage | undefined;

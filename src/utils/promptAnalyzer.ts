@@ -116,7 +116,9 @@ export class PromptAnalyzer {
                             }
                         }
                     }
-                    if (usageBaseline !== undefined) break;
+                    if (usageBaseline !== undefined) {
+                        break;
+                    }
                 }
             }
 
