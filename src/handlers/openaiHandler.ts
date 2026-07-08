@@ -515,6 +515,8 @@ export class OpenAIHandler {
         const encoder = new TextEncoder();
         const displayName = this.displayName;
         const escapeControlCharsInJsonString = this.escapeControlCharsInJsonString.bind(this);
+        // 跟踪已见的 content_part.added，用于在缺失时自动注入
+        const addedContentParts = new Set<string>();
         const processSSELine = (line: string): string => {
             const trimmedLine = line.trimStart();
             if (
@@ -651,11 +653,42 @@ export class OpenAIHandler {
                 }
                 //#endregion
 
-                if (objModified || candidateJson !== jsonStr) {
-                    return `data: ${JSON.stringify(obj)}`;
+                // #region 注入缺失的 response.content_part.added 事件
+                // 某些兼容网关只发送 output_text.delta 而不发送 content_part.added，
+                // 导致 OpenAI SDK 的 ResponseStream.#accumulateResponse 找不到 content[index]。
+                let injectedContentPart: string | undefined;
+                if (obj.type === 'response.content_part.added') {
+                    const ev = obj as unknown as Record<string, unknown>;
+                    if (ev.item_id != null && ev.content_index != null) {
+                        addedContentParts.add(`${ev.item_id}:${ev.content_index}`);
+                    }
+                } else if (obj.type === 'response.output_text.delta' || obj.type === 'response.reasoning_text.delta') {
+                    const ev = obj as unknown as Record<string, unknown>;
+                    const key = `${ev.item_id}:${ev.content_index}`;
+                    if (!addedContentParts.has(key)) {
+                        const isReasoning = obj.type === 'response.reasoning_text.delta';
+                        const syntheticEvent: Record<string, unknown> = {
+                            type: 'response.content_part.added',
+                            item_id: ev.item_id,
+                            output_index: ev.output_index,
+                            content_index: ev.content_index,
+                            part:
+                                isReasoning ?
+                                    { type: 'reasoning_text', text: '' }
+                                :   { type: 'output_text', text: '', annotations: [] },
+                            sequence_number: ((ev.sequence_number as number) ?? 0) - 0.5
+                        };
+                        injectedContentPart = `data: ${JSON.stringify(syntheticEvent)}`;
+                        addedContentParts.add(key);
+                        Logger.debug(`${displayName} injected missing response.content_part.added for ${key}`);
+                    }
                 }
+                // #endregion
 
-                return normalizedLine;
+                const resultLine =
+                    objModified || candidateJson !== jsonStr ? `data: ${JSON.stringify(obj)}` : normalizedLine;
+
+                return injectedContentPart ? `${injectedContentPart}\n\n${resultLine}` : resultLine;
             } catch (parseError) {
                 if (parseError instanceof Error && parseError.name === 'SSEFatalError') {
                     throw parseError;

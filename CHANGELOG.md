@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.23] - 2026-07-08
+
+### 修复
+
+- **Responses API 缺失 content_part.added 自动注入**：某些 OpenAI 兼容网关仅发送 `response.output_text.delta` 或 `response.reasoning_text.delta` 而缺失前置的 `response.content_part.added` 事件，导致 OpenAI SDK 内部 `#accumulateResponse` 找不到 `content[index]` 而报错；handler 现已自动跟踪已见的 content part，并在检测到缺失时注入合成的 `content_part.added` 事件，恢复流式响应完整性。
+
+---
+
+### Fixed
+
+- **Auto-inject missing content_part.added in Responses API**: Some OpenAI-compatible gateways only send `response.output_text.delta` or `response.reasoning_text.delta` without the preceding `response.content_part.added` event, causing OpenAI SDK's `#accumulateResponse` to fail looking up `content[index]`. The handler now tracks seen content parts and synthesizes the missing `content_part.added` event when detected, restoring streaming response integrity.
+
 ## [0.25.22] - 2026-07-04
 
 ### 新增
