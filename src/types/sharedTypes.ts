@@ -194,11 +194,83 @@ export interface ModelConfig {
  * - 运行时内部统一使用对象形式 `ModelTokenPricing`
  * - 用户配置/自定义模型允许使用数组简写 `[input, output, cacheRead?, cacheWrite?]`
  */
-export type ModelTokenPricingInput =
-    | ModelTokenPricing
-    | [number, number]
-    | [number, number, number]
-    | [number, number, number, number];
+
+/** 定价数组简写形式：[input, output, cacheRead?, cacheWrite?] */
+export type PricingArray = [number, number] | [number, number, number] | [number, number, number, number];
+
+/**
+ * 共用定价字段 — 被 ModelTokenPricing 和 PricingTier 继承，减少重复定义。
+ */
+export interface PricingFields {
+    /** 原始数组输入（保留用于多参数传递检查），仅当配置使用数组简写时存在 */
+    pricing?: PricingArray;
+    /** 输入 token 单价（cache miss），USD / 百万 token */
+    inputPrice: number;
+    /** 输出 token 单价，USD / 百万 token */
+    outputPrice: number;
+    /** 缓存读取 token 单价（cache hit），USD / 百万 token */
+    cacheReadPrice?: number;
+    /** 缓存写入 token 单价，USD / 百万 token（通常高于 inputPrice） */
+    cacheWritePrice?: number;
+}
+
+/** tier 匹配条件字段（与价格字段解耦，供完整对象与 pricing 简写共用） */
+export interface PricingTierMatchFields {
+    /** cron 表达式（5 字段：分 时 日 月 周），定义该档位的生效时段 */
+    cron?: string;
+    /** 时区，IANA 时区名（如 "Asia/Shanghai"） */
+    timezone?: string;
+    /** 服务等级匹配条件（如 priority） */
+    serviceTier?: string;
+    /** 最小 input token 数阈值 */
+    contextSizeMin?: number;
+    /** contextSizeMin 是否仅按非缓存 input 判断 */
+    contextSizeInputOnly?: boolean;
+}
+
+/**
+ * tier 对象简写输入：通过 pricing 数组定义价格，匹配条件仍通过 cron / serviceTier / contextSizeMin 等字段表达。
+ */
+export interface PricingTierShorthandInput extends PricingTierMatchFields {
+    /** 定价数组简写：[input, output, cacheRead?, cacheWrite?] */
+    pricing: PricingArray;
+    /** 显式 cache 价格优先于 pricing 数组中的第 3/4 项 */
+    cacheReadPrice?: number;
+    /** 显式 cache 价格优先于 pricing 数组中的第 3/4 项 */
+    cacheWritePrice?: number;
+    /** 避免与显式主价格字段混用 */
+    inputPrice?: never;
+    /** 避免与显式主价格字段混用 */
+    outputPrice?: never;
+}
+
+export type PricingTierInput = PricingTier | PricingTierShorthandInput;
+
+/**
+ * 顶层对象简写输入：仅通过 pricing 数组定义主价格，无显式 inputPrice/outputPrice 字段。
+ * 对应 schema 中 anyOf 的 { required: ["pricing"] } 分支。
+ */
+export interface PricingShorthandInput {
+    /** 定价数组简写：[input, output, cacheRead?, cacheWrite?] */
+    pricing: PricingArray;
+    /** 显式 cache 价格优先于 pricing 数组中的第 3/4 项 */
+    cacheReadPrice?: number;
+    /** 显式 cache 价格优先于 pricing 数组中的第 3/4 项 */
+    cacheWritePrice?: number;
+    /** 避免与显式主价格字段混用 */
+    inputPrice?: never;
+    /** 避免与显式主价格字段混用 */
+    outputPrice?: never;
+    /** 峰谷分档定价（可选），允许 tier 使用完整对象或 pricing 简写 */
+    tiers?: PricingTierInput[];
+}
+
+/** 顶层显式对象输入，允许内部 tiers 使用完整对象或 pricing 简写 */
+export interface ModelTokenPricingInputObject extends PricingFields {
+    tiers?: PricingTierInput[];
+}
+
+export type ModelTokenPricingInput = ModelTokenPricingInputObject | PricingShorthandInput | PricingArray;
 
 /**
  * Token 定价信息（USD 每百万 token）。
@@ -212,15 +284,11 @@ export type ModelTokenPricingInput =
  *    未匹配到任何 tier 时回退到静态单档。静态单档的值建议填"基础档/默认档"，
  *    便于模型选择器展示一个合理的默认价格。
  */
-export interface ModelTokenPricing {
+export interface ModelTokenPricing extends PricingFields {
     /** 输入 token 单价（cache miss），USD / 百万 token。同时作为模型选择器展示值与默认回退价 */
     inputPrice: number;
     /** 输出 token 单价，USD / 百万 token。同时作为模型选择器展示值与默认回退价 */
     outputPrice: number;
-    /** 缓存读取 token 单价（cache hit），USD / 百万 token */
-    cacheReadPrice?: number;
-    /** 缓存写入 token 单价，USD / 百万 token（通常高于 inputPrice） */
-    cacheWritePrice?: number;
     /**
      * 峰谷分档定价（可选）。
      * 配置后，`calculateCost` 会按请求发生时间匹配 tier；
@@ -250,47 +318,8 @@ export interface ModelTokenPricing {
  * - cron="* * * * *", serviceTier="priority" = 仅当用户选了 priority 时生效
  * - contextSizeMin=512001 = 仅当实际消耗的 input token 数 >= 512001 时生效
  */
-export interface PricingTier {
-    /**
-     * cron 表达式（5 字段：分 时 日 月 周），定义该档位的生效时段。
-     * 缺省为 "* * * * *"（全时段生效）。纯 serviceTier 或 contextSizeMin 计费场景可不配。
-     */
-    cron?: string;
-    /** 时区，IANA 时区名（如 "Asia/Shanghai"）。缺省为北京时间（UTC+8），因为峰谷定价主要面向国内服务商的计费规则 */
-    timezone?: string;
-    /**
-     * 服务等级匹配条件（可选）。
-     * 非空时，仅当请求的 serviceTier 与此值相等才命中此 tier；
-     * 为空（undefined）时不限制 serviceTier，仅按 cron 匹配。
-     * 用于"按服务等级计费"场景，如 priority 档位单独特价。
-     */
-    serviceTier?: string;
-    /**
-     * 上下文窗口匹配条件（可选）。
-     * 设置后，仅当请求消耗的 input token 数大于等于此值时该 tier 才生效。
-     * 未设置则不限制。匹配在 calculateCostWithBreakdown 中根据 usage 判断，
-     * 确保按实际消耗计费而非预分配窗口大小。
-     *
-     * 配合 contextSizeInputOnly 可控制统计口径：
-     * - 默认（false）：按 raw prompt_tokens（含缓存）判断，匹配 Codex 等按 input+cache 分段计费
-     * - true：仅按非缓存 input（排除 cache_read）判断
-     */
-    contextSizeMin?: number;
-    /**
-     * contextSizeMin 的统计口径（可选，默认 false）。
-     * - false：按 raw prompt_tokens（含缓存）判断
-     * - true：仅按非缓存 input（排除 cache_read tokens）判断
-     */
-    contextSizeInputOnly?: boolean;
-    /** 该档位生效时的输入 token 单价，USD / 百万 token */
-    inputPrice: number;
-    /** 该档位生效时的输出 token 单价，USD / 百万 token */
-    outputPrice: number;
-    /** 该档位生效时的缓存读取 token 单价，USD / 百万 token */
-    cacheReadPrice?: number;
-    /** 该档位生效时的缓存写入 token 单价，USD / 百万 token */
-    cacheWritePrice?: number;
-}
+
+export interface PricingTier extends PricingFields, PricingTierMatchFields {}
 
 /**
  * 模型覆盖配置接口 - 用于用户配置覆盖

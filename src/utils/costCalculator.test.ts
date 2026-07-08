@@ -1082,29 +1082,35 @@ test('formatCostBreakdownLog: zero-cost breakdown shows 0 nano-AIU', () => {
 
 test('normalizeTokenPricing: 2-element array becomes object without cache prices', () => {
     const result = normalizeTokenPricing([2.5, 15]);
-    assert.deepEqual(result, { inputPrice: 2.5, outputPrice: 15 });
+    assert.deepEqual(result, { inputPrice: 2.5, outputPrice: 15, pricing: [2.5, 15] });
 });
 
 test('normalizeTokenPricing: 3-element array sets cacheReadPrice', () => {
     const result = normalizeTokenPricing([2.5, 15, 0.25]);
-    assert.deepEqual(result, { inputPrice: 2.5, outputPrice: 15, cacheReadPrice: 0.25 });
+    assert.deepEqual(result, { inputPrice: 2.5, outputPrice: 15, cacheReadPrice: 0.25, pricing: [2.5, 15, 0.25] });
 });
 
 test('normalizeTokenPricing: 4-element array sets all prices', () => {
     const result = normalizeTokenPricing([2.5, 15, 0.25, 99]);
-    assert.deepEqual(result, { inputPrice: 2.5, outputPrice: 15, cacheReadPrice: 0.25, cacheWritePrice: 99 });
+    assert.deepEqual(result, {
+        inputPrice: 2.5,
+        outputPrice: 15,
+        cacheReadPrice: 0.25,
+        cacheWritePrice: 99,
+        pricing: [2.5, 15, 0.25, 99]
+    });
 });
 
 test('normalizeTokenPricing: invalid array lengths return undefined', () => {
-    assert.equal(normalizeTokenPricing([]), undefined);
-    assert.equal(normalizeTokenPricing([1]), undefined);
-    assert.equal(normalizeTokenPricing([1, 2, 3, 4, 5]), undefined);
+    assert.equal(normalizeTokenPricing([] as any), undefined);
+    assert.equal(normalizeTokenPricing([1] as any), undefined);
+    assert.equal(normalizeTokenPricing([1, 2, 3, 4, 5] as any), undefined);
 });
 
 test('normalizeTokenPricing: non-numeric elements return undefined', () => {
-    assert.equal(normalizeTokenPricing(['a', 15]), undefined);
-    assert.equal(normalizeTokenPricing([2.5, 'b']), undefined);
-    assert.equal(normalizeTokenPricing([2.5, 15, 'c']), undefined);
+    assert.equal(normalizeTokenPricing(['a', 15] as any), undefined);
+    assert.equal(normalizeTokenPricing([2.5, 'b'] as any), undefined);
+    assert.equal(normalizeTokenPricing([2.5, 15, 'c'] as any), undefined);
 });
 
 test('normalizeTokenPricing: object passes through unchanged', () => {
@@ -1118,8 +1124,8 @@ test('normalizeTokenPricing: undefined / null return undefined', () => {
 });
 
 test('normalizeTokenPricing: invalid object shape returns undefined', () => {
-    assert.equal(normalizeTokenPricing({ cacheReadPrice: 1 }), undefined);
-    assert.equal(normalizeTokenPricing({ inputPrice: '2.5', outputPrice: 15 }), undefined);
+    assert.equal(normalizeTokenPricing({ cacheReadPrice: 1 } as any), undefined);
+    assert.equal(normalizeTokenPricing({ inputPrice: '2.5', outputPrice: 15 } as any), undefined);
 });
 
 test('calculateCostWithBreakdown: array form [input, output] works like object', () => {

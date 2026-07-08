@@ -137,8 +137,15 @@
                 {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": ["inputPrice", "outputPrice"],
+                    "anyOf": [{ "required": ["inputPrice", "outputPrice"] }, { "required": ["pricing"] }],
                     "properties": {
+                        "pricing": {
+                            "type": "array",
+                            "description": "原始数组简写输入，保留用于多参数传递检查。仅当配置使用数组简写时存在。格式：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。",
+                            "minItems": 2,
+                            "maxItems": 4,
+                            "items": { "type": "number", "minimum": 0 }
+                        },
                         "inputPrice": {
                             "type": "number",
                             "minimum": 0,
@@ -161,12 +168,28 @@
                         },
                         "tiers": {
                             "type": "array",
-                            "description": "峰谷分档定价。首个 cron 表达式命中请求时间的 tier 生效。若无 tier 命中，回退到上方的静态单档。",
+                            "description": "峰谷分档定价。首个命中条件的 tier 生效。若无 tier 命中，回退到上方的静态单档。每个 tier 为对象，必须包含至少一个匹配条件（cron/serviceTier/contextSizeMin）。",
                             "items": {
                                 "type": "object",
                                 "additionalProperties": false,
-                                "required": ["inputPrice", "outputPrice"],
+                                "anyOf": [{ "required": ["inputPrice", "outputPrice"] }, { "required": ["pricing"] }],
+                                "allOf": [
+                                    {
+                                        "anyOf": [
+                                            { "required": ["cron"] },
+                                            { "required": ["serviceTier"] },
+                                            { "required": ["contextSizeMin"] }
+                                        ]
+                                    }
+                                ],
                                 "properties": {
+                                    "pricing": {
+                                        "type": "array",
+                                        "description": "该 tier 的原始数组简写输入。格式：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。",
+                                        "minItems": 2,
+                                        "maxItems": 4,
+                                        "items": { "type": "number", "minimum": 0 }
+                                    },
                                     "cron": {
                                         "type": "string",
                                         "pattern": "^(?:[0-9*][0-9*/,\\-]*)(?:\\s+(?:[0-9*][0-9*/,\\-]*)){4}$",

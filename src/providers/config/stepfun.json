@@ -12,7 +12,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.19, 1.13, 0.04]
         },
         {
             "id": "step-3.5-flash-billing",
@@ -22,7 +23,8 @@
             "tooltip": "Step-3.5-Flash 是阶跃星辰旗舰语言推理模型，196B总参数/11B激活参数的稀疏MoE架构。具备顶尖推理能力与快速可靠的执行能力，能够完成复杂任务的分解与计划，可快速可靠地调用工具执行任务。",
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.1, 0.29, 0.02]
         },
         {
             "id": "step-3.5-flash-2603-billing",
@@ -33,7 +35,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["low", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.1, 0.29, 0.02]
         },
         {
             "id": "step-3.7-flash-step-plan",
@@ -45,7 +48,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.19, 1.13, 0.04]
         },
         {
             "id": "step-3.5-flash-step-plan",
@@ -56,7 +60,8 @@
             "tooltip": "Step-3.5-Flash（Step Plan 通道）阶跃星辰旗舰语言推理模型，196B总参数/11B激活参数的稀疏MoE架构。具备顶尖推理能力与快速可靠的执行能力，能够完成复杂任务的分解与计划。",
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.1, 0.29, 0.02]
         },
         {
             "id": "step-3.5-flash-2603-step-plan",
@@ -68,7 +73,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["low", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.1, 0.29, 0.02]
         },
         {
             "id": "step-router-v1",
@@ -80,7 +86,8 @@
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.1, 0.29, 0.02]
         }
     ]
 }

@@ -72,7 +72,8 @@
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
             "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.6, 3.0, 0.1]
         },
         {
             "id": "mimo-v2.5-go",
@@ -156,19 +157,8 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "inputPrice": 0.4,
-                "outputPrice": 1.6,
-                "cacheReadPrice": 0.04,
-                "cacheWritePrice": 0.5,
-                "tiers": [
-                    {
-                        "contextSizeMin": 256000,
-                        "inputPrice": 1.2,
-                        "outputPrice": 4.8,
-                        "cacheReadPrice": 0.12,
-                        "cacheWritePrice": 1.5
-                    }
-                ]
+                "pricing": [0.4, 1.6, 0.04, 0.5],
+                "tiers": [{ "contextSizeMin": 256000, "pricing": [1.2, 4.8, 0.12, 1.5] }]
             }
         },
         {
@@ -184,19 +174,8 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "inputPrice": 0.5,
-                "outputPrice": 3.0,
-                "cacheReadPrice": 0.05,
-                "cacheWritePrice": 0.625,
-                "tiers": [
-                    {
-                        "contextSizeMin": 256000,
-                        "inputPrice": 2.0,
-                        "outputPrice": 6.0,
-                        "cacheReadPrice": 0.2,
-                        "cacheWritePrice": 2.5
-                    }
-                ]
+                "pricing": [0.5, 3.0, 0.05, 0.625],
+                "tiers": [{ "contextSizeMin": 256000, "pricing": [2.0, 6.0, 0.2, 2.5] }]
             }
         },
         {

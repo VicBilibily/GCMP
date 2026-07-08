@@ -9,7 +9,13 @@
  *     实际匹配时只要当前时间点命中 cron 字段，即视为该 tier 生效。
  *--------------------------------------------------------------------------------------------*/
 
-import type { ModelTokenPricing, ModelTokenPricingInput, PricingTier } from '../types/sharedTypes';
+import type {
+    ModelTokenPricing,
+    ModelTokenPricingInput,
+    ModelTokenPricingInputObject,
+    PricingTier,
+    PricingTierInput
+} from '../types/sharedTypes';
 
 /**
  * cron 字段含义（5 字段，顺序固定）
@@ -383,7 +389,9 @@ export function collectInvalidTierCrons(pricing: ModelTokenPricing | undefined):
  *
  * 超出范围或非数组/对象时返回 undefined，由调用方决定是否保留原值。
  */
-export function normalizeTokenPricing(pricing: ModelTokenPricingInput | unknown): ModelTokenPricing | undefined {
+export function normalizeTokenPricing(
+    pricing: ModelTokenPricingInput | null | undefined
+): ModelTokenPricing | undefined {
     if (pricing === undefined || pricing === null) {
         return undefined;
     }
@@ -415,7 +423,7 @@ export function normalizeTokenPricing(pricing: ModelTokenPricingInput | unknown)
         ) {
             return undefined;
         }
-        const result: ModelTokenPricing = { inputPrice, outputPrice };
+        const result: ModelTokenPricing = { inputPrice, outputPrice, pricing };
         if (cacheReadPrice !== undefined) {
             result.cacheReadPrice = cacheReadPrice;
         }
@@ -426,7 +434,62 @@ export function normalizeTokenPricing(pricing: ModelTokenPricingInput | unknown)
     }
 
     if (typeof pricing === 'object') {
-        const obj = pricing as Record<string, unknown>;
+        const obj = pricing;
+
+        // 兼容 { pricing: [1, 2] } 形式：从 pricing 数组转换
+        if (
+            obj.inputPrice === undefined &&
+            obj.outputPrice === undefined &&
+            obj.pricing !== undefined &&
+            Array.isArray(obj.pricing) &&
+            obj.pricing.length >= 2 &&
+            obj.pricing.length <= 4 &&
+            typeof obj.pricing[0] === 'number' &&
+            typeof obj.pricing[1] === 'number' &&
+            isFinite(obj.pricing[0]) &&
+            isFinite(obj.pricing[1]) &&
+            obj.pricing[0] >= 0 &&
+            obj.pricing[1] >= 0
+        ) {
+            const converted: ModelTokenPricingInputObject = {
+                inputPrice: obj.pricing[0],
+                outputPrice: obj.pricing[1],
+                pricing: obj.pricing
+            };
+            // 转发 tiers（兼容 { pricing: [1, 2], tiers: [...] } 形式）
+            if (obj.tiers !== undefined) {
+                converted.tiers = obj.tiers;
+            }
+            // 显式定义的 cache 价格优先于 pricing 数组简写
+            if (obj.cacheReadPrice !== undefined) {
+                if (typeof obj.cacheReadPrice !== 'number' || !isFinite(obj.cacheReadPrice) || obj.cacheReadPrice < 0) {
+                    return undefined;
+                }
+                converted.cacheReadPrice = obj.cacheReadPrice;
+            } else if (obj.pricing[2] !== undefined) {
+                if (typeof obj.pricing[2] !== 'number' || !isFinite(obj.pricing[2]) || obj.pricing[2] < 0) {
+                    return undefined;
+                }
+                converted.cacheReadPrice = obj.pricing[2];
+            }
+            if (obj.cacheWritePrice !== undefined) {
+                if (
+                    typeof obj.cacheWritePrice !== 'number' ||
+                    !isFinite(obj.cacheWritePrice) ||
+                    obj.cacheWritePrice < 0
+                ) {
+                    return undefined;
+                }
+                converted.cacheWritePrice = obj.cacheWritePrice;
+            } else if (obj.pricing[3] !== undefined) {
+                if (typeof obj.pricing[3] !== 'number' || !isFinite(obj.pricing[3]) || obj.pricing[3] < 0) {
+                    return undefined;
+                }
+                converted.cacheWritePrice = obj.pricing[3];
+            }
+            return normalizeTokenPricing(converted);
+        }
+
         if (
             typeof obj.inputPrice !== 'number' ||
             typeof obj.outputPrice !== 'number' ||
@@ -449,16 +512,44 @@ export function normalizeTokenPricing(pricing: ModelTokenPricingInput | unknown)
         ) {
             return undefined;
         }
+        if (obj.pricing !== undefined) {
+            if (
+                !Array.isArray(obj.pricing) ||
+                obj.pricing.length < 2 ||
+                obj.pricing.length > 4 ||
+                typeof obj.pricing[0] !== 'number' ||
+                typeof obj.pricing[1] !== 'number' ||
+                !isFinite(obj.pricing[0]) ||
+                !isFinite(obj.pricing[1]) ||
+                obj.pricing[0] < 0 ||
+                obj.pricing[1] < 0
+            ) {
+                return undefined;
+            }
+            if (
+                obj.pricing[2] !== undefined &&
+                (typeof obj.pricing[2] !== 'number' || !isFinite(obj.pricing[2]) || obj.pricing[2] < 0)
+            ) {
+                return undefined;
+            }
+            if (
+                obj.pricing[3] !== undefined &&
+                (typeof obj.pricing[3] !== 'number' || !isFinite(obj.pricing[3]) || obj.pricing[3] < 0)
+            ) {
+                return undefined;
+            }
+        }
         // 校验 tiers 数组结构，防止非法值传入后续 tier 匹配逻辑
         if (obj.tiers !== undefined) {
             if (!Array.isArray(obj.tiers)) {
                 return undefined;
             }
-            for (const tier of obj.tiers) {
+            const normalizedTiers: PricingTier[] = [];
+            for (const tier of obj.tiers as Array<PricingTierInput | unknown>) {
                 if (typeof tier !== 'object' || tier === null) {
                     return undefined;
                 }
-                const t = tier as Record<string, unknown>;
+                const t = tier as PricingTierInput;
                 // 结构性可选字段类型校验，防手误传错类型
                 if (t.cron !== undefined && typeof t.cron !== 'string') {
                     return undefined;
@@ -477,6 +568,93 @@ export function normalizeTokenPricing(pricing: ModelTokenPricingInput | unknown)
                 if (t.contextSizeInputOnly !== undefined && typeof t.contextSizeInputOnly !== 'boolean') {
                     return undefined;
                 }
+                if (t.pricing !== undefined) {
+                    if (
+                        !Array.isArray(t.pricing) ||
+                        t.pricing.length < 2 ||
+                        t.pricing.length > 4 ||
+                        typeof t.pricing[0] !== 'number' ||
+                        typeof t.pricing[1] !== 'number' ||
+                        !isFinite(t.pricing[0]) ||
+                        !isFinite(t.pricing[1]) ||
+                        t.pricing[0] < 0 ||
+                        t.pricing[1] < 0
+                    ) {
+                        return undefined;
+                    }
+                    if (
+                        t.pricing[2] !== undefined &&
+                        (typeof t.pricing[2] !== 'number' || !isFinite(t.pricing[2]) || t.pricing[2] < 0)
+                    ) {
+                        return undefined;
+                    }
+                    if (
+                        t.pricing[3] !== undefined &&
+                        (typeof t.pricing[3] !== 'number' || !isFinite(t.pricing[3]) || t.pricing[3] < 0)
+                    ) {
+                        return undefined;
+                    }
+                }
+
+                // 兼容 tier 的 { pricing: [1, 2], cron: '...' } 形式
+                if (
+                    t.inputPrice === undefined &&
+                    t.outputPrice === undefined &&
+                    Array.isArray(t.pricing) &&
+                    t.pricing.length >= 2 &&
+                    t.pricing.length <= 4 &&
+                    typeof t.pricing[0] === 'number' &&
+                    typeof t.pricing[1] === 'number' &&
+                    isFinite(t.pricing[0]) &&
+                    isFinite(t.pricing[1]) &&
+                    t.pricing[0] >= 0 &&
+                    t.pricing[1] >= 0
+                ) {
+                    const converted: PricingTier = {
+                        inputPrice: t.pricing[0],
+                        outputPrice: t.pricing[1],
+                        pricing: t.pricing,
+                        cron: t.cron,
+                        timezone: t.timezone,
+                        serviceTier: t.serviceTier,
+                        contextSizeMin: t.contextSizeMin,
+                        contextSizeInputOnly: t.contextSizeInputOnly
+                    };
+                    // 显式定义的 cache 价格优先于 pricing 数组简写
+                    if (t.cacheReadPrice !== undefined) {
+                        if (
+                            typeof t.cacheReadPrice !== 'number' ||
+                            !isFinite(t.cacheReadPrice) ||
+                            t.cacheReadPrice < 0
+                        ) {
+                            return undefined;
+                        }
+                        converted.cacheReadPrice = t.cacheReadPrice;
+                    } else if (t.pricing[2] !== undefined) {
+                        if (typeof t.pricing[2] !== 'number' || !isFinite(t.pricing[2]) || t.pricing[2] < 0) {
+                            return undefined;
+                        }
+                        converted.cacheReadPrice = t.pricing[2];
+                    }
+                    if (t.cacheWritePrice !== undefined) {
+                        if (
+                            typeof t.cacheWritePrice !== 'number' ||
+                            !isFinite(t.cacheWritePrice) ||
+                            t.cacheWritePrice < 0
+                        ) {
+                            return undefined;
+                        }
+                        converted.cacheWritePrice = t.cacheWritePrice;
+                    } else if (t.pricing[3] !== undefined) {
+                        if (typeof t.pricing[3] !== 'number' || !isFinite(t.pricing[3]) || t.pricing[3] < 0) {
+                            return undefined;
+                        }
+                        converted.cacheWritePrice = t.pricing[3];
+                    }
+                    normalizedTiers.push(converted);
+                    continue;
+                }
+
                 if (
                     typeof t.inputPrice !== 'number' ||
                     typeof t.outputPrice !== 'number' ||
@@ -499,7 +677,29 @@ export function normalizeTokenPricing(pricing: ModelTokenPricingInput | unknown)
                 ) {
                     return undefined;
                 }
+                const normalizedTier: PricingTier = {
+                    inputPrice: t.inputPrice,
+                    outputPrice: t.outputPrice,
+                    pricing: t.pricing,
+                    cacheReadPrice: t.cacheReadPrice,
+                    cacheWritePrice: t.cacheWritePrice,
+                    cron: t.cron,
+                    timezone: t.timezone,
+                    serviceTier: t.serviceTier,
+                    contextSizeMin: t.contextSizeMin,
+                    contextSizeInputOnly: t.contextSizeInputOnly
+                };
+                normalizedTiers.push(normalizedTier);
             }
+            const normalizedPricing: ModelTokenPricing = {
+                inputPrice: obj.inputPrice,
+                outputPrice: obj.outputPrice,
+                pricing: obj.pricing,
+                cacheReadPrice: obj.cacheReadPrice,
+                cacheWritePrice: obj.cacheWritePrice,
+                tiers: normalizedTiers
+            };
+            return normalizedPricing;
         }
         return pricing as ModelTokenPricing;
     }

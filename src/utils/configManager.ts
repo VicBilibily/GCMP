@@ -7,12 +7,14 @@ import * as vscode from 'vscode';
 import { Logger } from './logger';
 import {
     ConfigProvider,
+    ModelTokenPricingInput,
     UserConfigOverrides,
     ProviderConfig,
+    ProviderRetryOverride,
     ModelConfig,
-    ModelOverride,
-    ProviderRetryOverride
+    ModelOverride
 } from '../types/sharedTypes';
+import { collectInvalidTierCrons, normalizeTokenPricing } from './pricingTierResolver';
 import { configProviders } from '../providers/config';
 import { CommitFormat, CommitLanguage, ModelSelection } from '../commit/types';
 import { InterInstanceBus } from '../interInstance';
@@ -811,7 +813,7 @@ export class ConfigManager {
             if (tokenPricing === undefined || tokenPricing === null) {
                 return model;
             }
-            const normalized = normalizeTokenPricing(tokenPricing);
+            const normalized = normalizeTokenPricing(tokenPricing as ModelTokenPricingInput);
             if (!normalized) {
                 Logger.warn(
                     `[GCMP] Invalid tokenPricing in built-in provider config: model=${String(model.id ?? '(unknown)')}`

@@ -13,6 +13,7 @@ import { ApiKeyManager } from '../../utils/apiKeyManager';
 import { VersionManager } from '../../utils/versionManager';
 import { ConfigManager } from '../../utils/configManager';
 import { normalizeTokenPricing } from '../../utils/pricingTierResolver';
+import type { ModelTokenPricingInput } from '../../types/sharedTypes';
 import { t } from '../../utils/l10n';
 import type { ModelFormData, ProviderOption, WebViewMessage } from './types';
 // 样式以 raw 字符串形式内联到 HTML（由 esbuild 的 inlineLessPlugin 处理）
@@ -230,7 +231,7 @@ export class ModelEditor {
 
         // tokenPricing 允许对象或数组简写，保存时统一归一化为对象形式
         const tokenPricingParsed = this.parseJsonValue(data.tokenPricing);
-        model.tokenPricing = normalizeTokenPricing(tokenPricingParsed);
+        model.tokenPricing = normalizeTokenPricing(tokenPricingParsed as ModelTokenPricingInput);
 
         // apiKey 单独保留在 EditedModelConfig 上
         model.apiKey = data.apiKey || undefined;

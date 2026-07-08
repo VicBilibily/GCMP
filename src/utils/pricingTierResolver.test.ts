@@ -1,7 +1,7 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { collectInvalidTierCrons, parseCron, resolveActiveTier } from './pricingTierResolver';
+import { collectInvalidTierCrons, normalizeTokenPricing, parseCron, resolveActiveTier } from './pricingTierResolver';
 import type { ModelTokenPricing } from '../types/sharedTypes';
 
 // ============= parseCron =============
@@ -436,4 +436,274 @@ test('resolveActiveTier falls back to undefined when no tier matches', () => {
         tiers: [{ cron: '* 9-23 * * 1-5', inputPrice: 0.28, outputPrice: 0.56 }]
     };
     assert.equal(resolveActiveTier(pricing, wedEarlyBeijing), undefined);
+});
+
+// ============= normalizeTokenPricing：数组简写 → 对象归一化 =============
+
+test('normalizeTokenPricing: 2-element array becomes object with pricing field preserved', () => {
+    const result = normalizeTokenPricing([2.5, 15]);
+    assert.ok(result);
+    assert.equal(result.inputPrice, 2.5);
+    assert.equal(result.outputPrice, 15);
+    assert.deepEqual(result.pricing, [2.5, 15]);
+    assert.equal(result.cacheReadPrice, undefined);
+    assert.equal(result.cacheWritePrice, undefined);
+});
+
+test('normalizeTokenPricing: 3-element array sets cacheReadPrice', () => {
+    const result = normalizeTokenPricing([2.5, 15, 0.25]);
+    assert.ok(result);
+    assert.equal(result.cacheReadPrice, 0.25);
+    assert.deepEqual(result.pricing, [2.5, 15, 0.25]);
+});
+
+test('normalizeTokenPricing: 4-element array sets all prices', () => {
+    const result = normalizeTokenPricing([2.5, 15, 0.25, 99]);
+    assert.ok(result);
+    assert.equal(result.cacheReadPrice, 0.25);
+    assert.equal(result.cacheWritePrice, 99);
+    assert.deepEqual(result.pricing, [2.5, 15, 0.25, 99]);
+});
+
+test('normalizeTokenPricing: invalid array lengths return undefined', () => {
+    assert.equal(normalizeTokenPricing([] as any), undefined);
+    assert.equal(normalizeTokenPricing([1] as any), undefined);
+    assert.equal(normalizeTokenPricing([1, 2, 3, 4, 5] as any), undefined);
+});
+
+test('normalizeTokenPricing: non-numeric array elements return undefined', () => {
+    assert.equal(normalizeTokenPricing(['a', 15] as any), undefined);
+    assert.equal(normalizeTokenPricing([2.5, 'b'] as any), undefined);
+    assert.equal(normalizeTokenPricing([2.5, 15, 'c'] as any), undefined);
+});
+
+test('normalizeTokenPricing: negative prices return undefined', () => {
+    assert.equal(normalizeTokenPricing([-1, 15]), undefined);
+    assert.equal(normalizeTokenPricing([2.5, -0.1]), undefined);
+    assert.equal(normalizeTokenPricing([2.5, 15, -0.5]), undefined);
+    assert.equal(normalizeTokenPricing([2.5, 15, 0.25, -1]), undefined);
+});
+
+test('normalizeTokenPricing: Infinity and NaN return undefined', () => {
+    assert.equal(normalizeTokenPricing([Infinity, 15]), undefined);
+    assert.equal(normalizeTokenPricing([2.5, NaN]), undefined);
+    assert.equal(normalizeTokenPricing([2.5, 15, Infinity]), undefined);
+});
+
+test('normalizeTokenPricing: undefined / null return undefined', () => {
+    assert.equal(normalizeTokenPricing(undefined), undefined);
+    assert.equal(normalizeTokenPricing(null), undefined);
+});
+
+// ============= normalizeTokenPricing：对象输入 =============
+
+test('normalizeTokenPricing: object passes through unchanged', () => {
+    const obj: ModelTokenPricing = { inputPrice: 1, outputPrice: 2 };
+    const result = normalizeTokenPricing(obj);
+    assert.equal(result, obj); // same reference
+});
+
+test('normalizeTokenPricing: object with cache prices', () => {
+    const obj: ModelTokenPricing = { inputPrice: 1, outputPrice: 2, cacheReadPrice: 0.1, cacheWritePrice: 8 };
+    const result = normalizeTokenPricing(obj);
+    assert.equal(result, obj);
+});
+
+test('normalizeTokenPricing: object with tiers (object form)', () => {
+    const obj: ModelTokenPricing = {
+        inputPrice: 1,
+        outputPrice: 2,
+        tiers: [{ cron: '* 9-23 * * 1-5', inputPrice: 3, outputPrice: 4, cacheReadPrice: 0.2 }]
+    };
+    const result = normalizeTokenPricing(obj);
+    assert.ok(result);
+    assert.equal(result.tiers?.length, 1);
+    assert.equal(result.tiers?.[0].inputPrice, 3);
+    assert.equal(result.tiers?.[0].cron, '* 9-23 * * 1-5');
+});
+
+test('normalizeTokenPricing: object with pricing-only (no inputPrice/outputPrice) converts from array', () => {
+    // schema 允许 { pricing: [2.5, 15] }，运行时也需兼容
+    const result = normalizeTokenPricing({ pricing: [2.5, 15] });
+    assert.ok(result);
+    assert.equal(result.inputPrice, 2.5);
+    assert.equal(result.outputPrice, 15);
+    assert.deepEqual(result.pricing, [2.5, 15]);
+});
+
+test('normalizeTokenPricing: object with pricing-only 3 elements converts cacheReadPrice', () => {
+    const result = normalizeTokenPricing({ pricing: [2.5, 15, 0.25] });
+    assert.ok(result);
+    assert.equal(result.cacheReadPrice, 0.25);
+});
+
+test('normalizeTokenPricing: object with pricing-only 4 elements converts all', () => {
+    const result = normalizeTokenPricing({ pricing: [2.5, 15, 0.25, 99] });
+    assert.ok(result);
+    assert.equal(result.cacheWritePrice, 99);
+});
+
+test('normalizeTokenPricing: object with pricing-only prefers explicit cache prices over shorthand array', () => {
+    const result = normalizeTokenPricing({
+        pricing: [2.5, 15, 0.25, 99],
+        cacheReadPrice: 0.5,
+        cacheWritePrice: 100
+    });
+    assert.ok(result);
+    assert.equal(result.cacheReadPrice, 0.5);
+    assert.equal(result.cacheWritePrice, 100);
+});
+
+test('normalizeTokenPricing: object with pricing-only and tiers combined', () => {
+    // OCR 修复：{ pricing: [1, 2], tiers: [...] } 时 tiers 不应被丢弃
+    const result = normalizeTokenPricing({
+        pricing: [2.5, 15],
+        tiers: [{ cron: '* 9-23 * * 1-5', inputPrice: 5, outputPrice: 10 }]
+    });
+    assert.ok(result);
+    assert.equal(result.inputPrice, 2.5);
+    assert.equal(result.tiers?.length, 1);
+    assert.equal(result.tiers?.[0].inputPrice, 5);
+    assert.equal(result.tiers?.[0].cron, '* 9-23 * * 1-5');
+});
+
+test('normalizeTokenPricing: explicit object supports tier pricing shorthand', () => {
+    const result = normalizeTokenPricing({
+        inputPrice: 1,
+        outputPrice: 2,
+        tiers: [{ cron: '* 9-23 * * 1-5', pricing: [3, 4, 0.2], cacheReadPrice: 0.5 }]
+    });
+    assert.ok(result);
+    assert.equal(result.tiers?.length, 1);
+    assert.equal(result.tiers?.[0].inputPrice, 3);
+    assert.equal(result.tiers?.[0].outputPrice, 4);
+    assert.equal(result.tiers?.[0].cacheReadPrice, 0.5);
+    assert.deepEqual(result.tiers?.[0].pricing, [3, 4, 0.2]);
+});
+
+test('normalizeTokenPricing: object with invalid pricing-only returns undefined', () => {
+    // pricing 不是数组
+    assert.equal(normalizeTokenPricing({ pricing: 'not-array' } as any), undefined);
+    // pricing 长度不足
+    assert.equal(normalizeTokenPricing({ pricing: [1] } as any), undefined);
+    // pricing 含非法值
+    assert.equal(normalizeTokenPricing({ pricing: [-1, 2] }), undefined);
+});
+
+test('normalizeTokenPricing: object without inputPrice/outputPrice and without pricing returns undefined', () => {
+    assert.equal(normalizeTokenPricing({ cacheReadPrice: 0.1 } as any), undefined);
+    assert.equal(normalizeTokenPricing({ tiers: [] } as any), undefined);
+});
+
+test('normalizeTokenPricing: invalid object inputPrice types return undefined', () => {
+    assert.equal(normalizeTokenPricing({ inputPrice: '2.5' } as any), undefined);
+    assert.equal(normalizeTokenPricing({ inputPrice: null } as any), undefined);
+    assert.equal(normalizeTokenPricing({ inputPrice: '2.5', pricing: [1, 2] } as any), undefined);
+    assert.equal(normalizeTokenPricing({ inputPrice: 1, outputPrice: '2', pricing: [1, 2] } as any), undefined);
+    assert.equal(normalizeTokenPricing({ inputPrice: 1, outputPrice: 2, pricing: 'bad' as any } as any), undefined);
+    assert.equal(normalizeTokenPricing({ inputPrice: 1, outputPrice: 2, pricing: [1] as any } as any), undefined);
+});
+
+test('normalizeTokenPricing: invalid cache prices return undefined', () => {
+    assert.equal(
+        normalizeTokenPricing({
+            inputPrice: 1,
+            outputPrice: 2,
+            cacheReadPrice: 'bad'
+        } as any),
+        undefined
+    );
+    assert.equal(
+        normalizeTokenPricing({
+            inputPrice: 1,
+            outputPrice: 2,
+            cacheWritePrice: -1
+        }),
+        undefined
+    );
+});
+
+// ============= normalizeTokenPricing：对象 tiers 校验 =============
+
+test('normalizeTokenPricing: tiers with invalid object entries return undefined', () => {
+    // 缺失 inputPrice
+    assert.equal(
+        normalizeTokenPricing({
+            inputPrice: 1,
+            outputPrice: 2,
+            tiers: [{ cron: '* * * * *' }]
+        } as any),
+        undefined
+    );
+    // null tier
+    assert.equal(normalizeTokenPricing({ inputPrice: 1, outputPrice: 2, tiers: [null] } as any), undefined);
+    // 字符串 tier
+    assert.equal(normalizeTokenPricing({ inputPrice: 1, outputPrice: 2, tiers: ['bad'] } as any), undefined);
+    // 显式 tier 的 pricing 元数据非法时应拒绝
+    assert.equal(
+        normalizeTokenPricing({
+            inputPrice: 1,
+            outputPrice: 2,
+            tiers: [{ cron: '* * * * *', inputPrice: 3, outputPrice: 4, pricing: 'bad' as any }]
+        } as any),
+        undefined
+    );
+    assert.equal(
+        normalizeTokenPricing({
+            inputPrice: 1,
+            outputPrice: 2,
+            tiers: [{ cron: '* * * * *', inputPrice: 3, outputPrice: 4, pricing: [3] as any }]
+        } as any),
+        undefined
+    );
+    // tier 存在显式主价格字段但类型非法时，即使提供 pricing 简写也应拒绝
+    assert.equal(
+        normalizeTokenPricing({
+            inputPrice: 1,
+            outputPrice: 2,
+            tiers: [{ cron: '* * * * *', inputPrice: '3', pricing: [3, 4] }]
+        } as any),
+        undefined
+    );
+});
+
+test('normalizeTokenPricing: tiers field must be array', () => {
+    assert.equal(
+        normalizeTokenPricing({
+            inputPrice: 1,
+            outputPrice: 2,
+            tiers: 'not-array'
+        } as any),
+        undefined
+    );
+    assert.equal(normalizeTokenPricing({ inputPrice: 1, outputPrice: 2, tiers: {} } as any), undefined);
+});
+
+// ============= resolveActiveTier：contextSizeMin 匹配（由 calculateCost 处理，resolveActiveTier 不处理） =============
+
+test('resolveActiveTier: tier with only contextSizeMin (no cron, no serviceTier) matches via default all-time cron', () => {
+    // contextSizeMin 本身不是匹配条件（resolveActiveTier 按 cron 匹配），
+    // 缺 cron 时默认全时段 * * * * * 会命中，contextSizeMin 的过滤在 calculateCost 中处理
+    const t = new Date('2026-07-06T01:30:00Z');
+    const pricing: ModelTokenPricing = {
+        inputPrice: 1,
+        outputPrice: 2,
+        tiers: [{ contextSizeMin: 1000, inputPrice: 3, outputPrice: 4 }]
+    };
+    const tier = resolveActiveTier(pricing, t);
+    assert.ok(tier);
+    assert.equal(tier.contextSizeMin, 1000);
+});
+
+test('resolveActiveTier: tier with both cron and contextSizeMin matches by cron (contextSizeMin checked later by calculator)', () => {
+    // contextSizeMin 的过滤在 calculateCostWithBreakdown 中处理，resolveActiveTier 只按 cron 匹配
+    const t = new Date('2026-07-06T01:30:00Z'); // 北京时间 09:30
+    const pricing: ModelTokenPricing = {
+        inputPrice: 1,
+        outputPrice: 2,
+        tiers: [{ cron: '* 9-23 * * 1-5', contextSizeMin: 100000, inputPrice: 3, outputPrice: 4 }]
+    };
+    const tier = resolveActiveTier(pricing, t);
+    assert.ok(tier);
+    assert.equal(tier.contextSizeMin, 100000);
 });

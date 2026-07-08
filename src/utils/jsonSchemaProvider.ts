@@ -185,8 +185,18 @@ export class JsonSchemaProvider {
                 'Token 定价（USD / 每百万 token），用于客户端成本估算和模型选择器展示。支持通过 "tiers" 数组配置峰谷分档；配置 tiers 后，成本计算会按请求时间匹配 cron 表达式。所有价格均为估算用，实际计费以 API 提供商账单为准。'
             ),
             additionalProperties: false,
-            required: ['inputPrice', 'outputPrice'],
+            anyOf: [{ required: ['inputPrice', 'outputPrice'] }, { required: ['pricing'] }],
             properties: {
+                pricing: {
+                    type: 'array',
+                    description: t(
+                        'Original array shorthand input, preserved for multi-parameter inspection. Only present when the config uses array shorthand. Format: [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?].',
+                        '原始数组简写输入，保留用于多参数传递检查。仅当配置使用数组简写时存在。格式：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。'
+                    ),
+                    minItems: 2,
+                    maxItems: 4,
+                    items: { type: 'number', minimum: 0 }
+                },
                 inputPrice: {
                     type: 'number',
                     minimum: 0,
@@ -222,14 +232,33 @@ export class JsonSchemaProvider {
                 tiers: {
                     type: 'array',
                     description: t(
-                        'Peak/off-peak pricing tiers. The first tier whose cron expression matches the request time takes effect. If no tier matches, the static single-tier prices above are used',
-                        '峰谷分档定价。首个 cron 表达式命中请求时间的 tier 生效。若无 tier 命中，回退到上方的静态单档'
+                        'Peak/off-peak pricing tiers. The first matching tier takes effect. If no tier matches, the static single-tier prices above are used. Each tier is an object that must include at least one matching condition (cron/serviceTier/contextSizeMin).',
+                        '峰谷分档定价。首个命中条件的 tier 生效。若无 tier 命中，回退到上方的静态单档。每个 tier 为对象，必须包含至少一个匹配条件（cron/serviceTier/contextSizeMin）。'
                     ),
                     items: {
                         type: 'object',
                         additionalProperties: false,
-                        required: ['inputPrice', 'outputPrice'],
+                        anyOf: [{ required: ['inputPrice', 'outputPrice'] }, { required: ['pricing'] }],
+                        allOf: [
+                            {
+                                anyOf: [
+                                    { required: ['cron'] },
+                                    { required: ['serviceTier'] },
+                                    { required: ['contextSizeMin'] }
+                                ]
+                            }
+                        ],
                         properties: {
+                            pricing: {
+                                type: 'array',
+                                description: t(
+                                    'Original array shorthand input for this tier. Format: [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?].',
+                                    '该 tier 的原始数组简写输入。格式：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。'
+                                ),
+                                minItems: 2,
+                                maxItems: 4,
+                                items: { type: 'number', minimum: 0 }
+                            },
                             cron: {
                                 type: 'string',
                                 pattern: '^(?:[0-9*][0-9*/,\\-]*)(?:\\s+(?:[0-9*][0-9*/,\\-]*)){4}$',

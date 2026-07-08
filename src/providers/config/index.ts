@@ -44,4 +44,4 @@ const providers = {
 
 export type ProviderName = keyof typeof providers;
 
-export const configProviders = providers as Record<ProviderName, ProviderConfig>;
+export const configProviders = providers as unknown as Record<ProviderName, ProviderConfig>;

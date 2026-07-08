@@ -128,17 +128,11 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "inputPrice": 0.4,
-                "outputPrice": 1.6,
-                "cacheReadPrice": 0.04,
-                "cacheWritePrice": 0.5,
+                "pricing": [0.4, 1.6, 0.04, 0.5],
                 "tiers": [
                     {
                         "contextSizeMin": 256000,
-                        "inputPrice": 1.2,
-                        "outputPrice": 4.8,
-                        "cacheReadPrice": 0.12,
-                        "cacheWritePrice": 1.5
+                        "pricing": [1.2, 4.8, 0.12, 1.5]
                     }
                 ]
             }

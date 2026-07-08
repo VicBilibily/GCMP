@@ -15,10 +15,8 @@
             "reasoningEffort": ["high", "max", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
             "tokenPricing": {
-                "inputPrice": 1.4,
-                "outputPrice": 4.4,
-                "cacheReadPrice": 0.26,
-                "tiers": [{ "cron": "* 14-17 * * *", "inputPrice": 4.2, "outputPrice": 13.2, "cacheReadPrice": 0.78 }]
+                "pricing": [1.4, 4.4, 0.26],
+                "tiers": [{ "cron": "* 14-17 * * *", "pricing": [4.2, 13.2, 0.78] }]
             }
         },
         {
@@ -44,15 +42,11 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
             "tokenPricing": {
-                "inputPrice": 1.2,
-                "outputPrice": 4,
-                "cacheReadPrice": 0.24,
+                "pricing": [1.2, 4, 0.24],
                 "tiers": [
                     {
                         "cron": "* 14-17 * * *",
-                        "inputPrice": 3.6,
-                        "outputPrice": 12,
-                        "cacheReadPrice": 0.72
+                        "pricing": [3.6, 12, 0.72]
                     }
                 ]
             }

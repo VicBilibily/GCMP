@@ -146,12 +146,8 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
             "tokenPricing": {
-                "inputPrice": 0.857143,
-                "outputPrice": 3.428571,
-                "cacheReadPrice": 0.185714,
-                "tiers": [
-                    { "contextSizeMin": 32001, "inputPrice": 1.142857, "outputPrice": 4, "cacheReadPrice": 0.285714 }
-                ]
+                "pricing": [0.857143, 3.428571, 0.185714],
+                "tiers": [{ "contextSizeMin": 32001, "pricing": [1.142857, 4, 0.285714] }]
             }
         },
         {
@@ -167,17 +163,8 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
             "tokenPricing": {
-                "inputPrice": 0.571429,
-                "outputPrice": 2.571429,
-                "cacheReadPrice": 0.142857,
-                "tiers": [
-                    {
-                        "contextSizeMin": 32001,
-                        "inputPrice": 0.857143,
-                        "outputPrice": 3.142857,
-                        "cacheReadPrice": 0.214286
-                    }
-                ]
+                "pricing": [0.571429, 2.571429, 0.142857],
+                "tiers": [{ "contextSizeMin": 32001, "pricing": [0.857143, 3.142857, 0.214286] }]
             }
         },
         {
@@ -341,12 +328,8 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
             "tokenPricing": {
-                "inputPrice": 0.857143,
-                "outputPrice": 3.428571,
-                "cacheReadPrice": 0.185714,
-                "tiers": [
-                    { "contextSizeMin": 32001, "inputPrice": 1.142857, "outputPrice": 4, "cacheReadPrice": 0.285714 }
-                ]
+                "pricing": [0.857143, 3.428571, 0.185714],
+                "tiers": [{ "contextSizeMin": 32001, "pricing": [1.142857, 4, 0.285714] }]
             }
         },
         {
@@ -361,12 +344,8 @@
             "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "inputPrice": 0.714286,
-                "outputPrice": 3.142857,
-                "cacheReadPrice": 0.171429,
-                "tiers": [
-                    { "contextSizeMin": 32001, "inputPrice": 1, "outputPrice": 3.714286, "cacheReadPrice": 0.257143 }
-                ]
+                "pricing": [0.714286, 3.142857, 0.171429],
+                "tiers": [{ "contextSizeMin": 32001, "pricing": [1, 3.714286, 0.257143] }]
             }
         },
         {
@@ -381,12 +360,8 @@
             "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
-                "inputPrice": 0.714286,
-                "outputPrice": 3.142857,
-                "cacheReadPrice": 0.171429,
-                "tiers": [
-                    { "contextSizeMin": 32001, "inputPrice": 1, "outputPrice": 3.714286, "cacheReadPrice": 0.257143 }
-                ]
+                "pricing": [0.714286, 3.142857, 0.171429],
+                "tiers": [{ "contextSizeMin": 32001, "pricing": [1, 3.714286, 0.257143] }]
             }
         },
         {
@@ -518,10 +493,8 @@
             "maxOutputTokens": 128000,
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
             "tokenPricing": {
-                "inputPrice": 0.3,
-                "outputPrice": 1.2,
-                "cacheReadPrice": 0.06,
-                "tiers": [{ "contextSizeMin": 512001, "inputPrice": 0.6, "outputPrice": 2.4, "cacheReadPrice": 0.12 }]
+                "pricing": [0.3, 1.2, 0.06],
+                "tiers": [{ "contextSizeMin": 512001, "pricing": [0.6, 2.4, 0.12] }]
             }
         },
         {
