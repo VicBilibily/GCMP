@@ -7,6 +7,20 @@ import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 
 /**
+ * 成本分解日志格式（精简，用于 JSONL 存储）
+ * 字段顺序固定：tokens: [input, output, cacheRead, cacheWrite]
+ *              pricing: [input, output, cacheRead?, cacheWrite?]  USD/1M tokens
+ *              cost:    [input, output, cacheRead?, cacheWrite?]  USD
+ */
+export interface CostBreakdownLog {
+    tokens: [number, number, number, number];
+    pricing: [number, number, number?, number?];
+    cost: [number, number, number?, number?];
+    total: number;
+    activeTier?: string;
+}
+
+/**
  * 通用的 Token 使用数据格式 - 支持多个 SDK
  */
 export interface GenericUsageData {
@@ -115,6 +129,19 @@ export interface TokenRequestLog {
     outputSpeed?: number;
     /** 输出 token 数（streaming 期间为预估值，最终值以 usage 回写为准） */
     outputTokens?: number;
+    /**
+     * 客户端预估成本（USD）
+     * 由 Handler 在请求完成后通过 calculateCostWithBreakdown 计算，
+     * 基于实际用量和模型定价估算，非 API 实际账单。
+     * 用于请求记录展示和聚合统计。
+     */
+    estimatedCost?: number;
+    /**
+     * 成本计算明细（命中单价、成本组成等）
+     * 由 Handler 在请求完成后通过 calculateCostWithBreakdown 计算并写入，
+     * 用于最终日志中记录完整的成本分解信息。
+     */
+    costBreakdown?: CostBreakdownLog;
 }
 
 /**
@@ -146,6 +173,16 @@ export interface BaseStats {
     outputSpeeds?: number;
     outputTokens: number;
     requests: number;
+    /** 预估成本总计 (USD) */
+    estimatedCost: number;
+    /** 成本分解：输入成本 (USD) */
+    inputCost: number;
+    /** 成本分解：输出成本 (USD) */
+    outputCost: number;
+    /** 成本分解：缓存读取成本 (USD) */
+    cacheReadCost: number;
+    /** 成本分解：缓存写入成本 (USD) */
+    cacheWriteCost: number;
 }
 
 /**
@@ -212,6 +249,7 @@ export interface DateIndexEntry {
     total_cache: number;
     total_output: number;
     total_requests: number;
+    total_cost: number;
 }
 
 /**

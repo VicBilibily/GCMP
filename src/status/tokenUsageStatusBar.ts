@@ -204,7 +204,8 @@ export class TokenUsageStatusBar {
                 `| ${providerStats.providerName} | ${this.formatTokens(providerStats.actualInput)} | ` +
                     `${this.formatTokens(providerStats.cacheTokens)} | ` +
                     `${this.formatTokens(providerStats.outputTokens)} | ` +
-                    `**${this.formatTokens(providerTotal)}** | ${providerStats.requests} | ${avgLatency} | ${avgSpeed} |\n`
+                    `**${this.formatTokens(providerTotal)}** | ` +
+                    `${providerStats.requests} | ${avgLatency} | ${avgSpeed} |\n`
             );
         }
         // 合计行（仅当有多个提供商时显示）
@@ -216,7 +217,8 @@ export class TokenUsageStatusBar {
                 `| **${t('Total', '合计')}** | **${this.formatTokens(stats.total.actualInput)}** | ` +
                     `**${this.formatTokens(stats.total.cacheTokens)}** | ` +
                     `**${this.formatTokens(stats.total.outputTokens)}** | ` +
-                    `**${this.formatTokens(total)}** | **${stats.total.requests}** | **${avgLatencyTotal}** | **${avgSpeedTotal}** |\n`
+                    `**${this.formatTokens(total)}** | ` +
+                    `**${stats.total.requests}** | **${avgLatencyTotal}** | **${avgSpeedTotal}** |\n`
             );
         }
 

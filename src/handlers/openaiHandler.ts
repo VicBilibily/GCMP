@@ -14,7 +14,8 @@ import {
     isCancellationError,
     calculateCostWithBreakdown,
     formatCostBreakdownLog,
-    toNanoAiu
+    toNanoAiu,
+    toCostBreakdownLog
 } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
@@ -1078,10 +1079,11 @@ export class OpenAIHandler {
                 // 峰谷定价：用请求开始时间匹配 tier，确保整条流式响应按同一档位计费
                 // 服务等级计费：传入 serviceTier，让 tier 按 serviceTier 匹配
                 let costNanoAiu: number | undefined;
+                let breakdown: ReturnType<typeof calculateCostWithBreakdown> | undefined;
                 if (modelConfig.tokenPricing) {
                     const costAt = requestStartTime ? new Date(requestStartTime) : new Date();
                     const requestServiceTier = (options.modelConfiguration as ModelChatResponseOptions)?.serviceTier;
-                    const breakdown = calculateCostWithBreakdown(
+                    breakdown = calculateCostWithBreakdown(
                         finalUsage,
                         modelConfig.tokenPricing,
                         costAt,
@@ -1121,7 +1123,9 @@ export class OpenAIHandler {
                             rawUsage: finalUsage,
                             status: token.isCancellationRequested ? 'cancelled' : 'completed',
                             streamStartTime,
-                            streamEndTime
+                            streamEndTime,
+                            estimatedCost: breakdown?.total,
+                            costBreakdown: breakdown ? toCostBreakdownLog(breakdown) : undefined
                         });
                     } catch (err) {
                         Logger.warn('Failed to update token stats:', err);

@@ -28,7 +28,8 @@ export {
     formatCost,
     calculateCostWithBreakdown,
     formatCostBreakdownLog,
-    toNanoAiu
+    toNanoAiu,
+    toCostBreakdownLog
 } from './costCalculator';
 export type { RawTokenUsage, CostBreakdown } from './costCalculator';
 export { parseCron, resolveActiveTier, normalizeTokenPricing } from './pricingTierResolver';

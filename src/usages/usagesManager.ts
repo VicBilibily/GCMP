@@ -173,6 +173,10 @@ export class TokenUsagesManager {
         streamStartTime?: number;
         /** 流结束时间 (毫秒时间戳) */
         streamEndTime?: number;
+        /** 客户端预估成本 (USD)，由 Handler 通过 calculateCostWithBreakdown 计算 */
+        estimatedCost?: number;
+        /** 成本计算明细（命中单价、成本组成等） */
+        costBreakdown?: import('./fileLogger/types').CostBreakdownLog;
     }): Promise<void> {
         if (!this.initialized) {
             StatusLogger.warn('TokenUsagesManager is not initialized, skipping token usage update');
@@ -194,7 +198,9 @@ export class TokenUsagesManager {
                     rawUsage: normalizedUsage,
                     status: params.status,
                     streamStartTime: params.streamStartTime,
-                    streamEndTime: params.streamEndTime
+                    streamEndTime: params.streamEndTime,
+                    estimatedCost: params.estimatedCost,
+                    costBreakdown: params.costBreakdown
                 })
                 .finally(() => {
                     // 通知更新

@@ -332,3 +332,31 @@ function getUncachedInputTokens(
 
     return Math.max(0, actualInputTokens - cacheReadTokens - cacheCreationTokens);
 }
+
+/**
+ * 将 CostBreakdown 转为精简日志格式 CostBreakdownLog。
+ * 字段顺序固定：tokens/pricing/cost 均为 [input, output, cacheRead, cacheWrite]。
+ */
+export function toCostBreakdownLog(breakdown: CostBreakdown): import('../usages/fileLogger/types').CostBreakdownLog {
+    const activeTier =
+        breakdown.activeTierCron || breakdown.activeTierServiceTier ?
+            [breakdown.activeTierCron, breakdown.activeTierServiceTier].filter(Boolean).join(' ')
+        :   undefined;
+    return {
+        tokens: [
+            breakdown.inputTokens,
+            breakdown.outputTokens,
+            breakdown.cacheReadTokens,
+            breakdown.cacheCreationTokens
+        ],
+        pricing: [
+            breakdown.effectiveInputPrice,
+            breakdown.effectiveOutputPrice,
+            breakdown.effectiveCacheReadPrice,
+            breakdown.effectiveCacheWritePrice
+        ],
+        cost: [breakdown.inputCost, breakdown.outputCost, breakdown.cacheReadCost, breakdown.cacheWriteCost],
+        total: breakdown.total,
+        activeTier
+    };
+}

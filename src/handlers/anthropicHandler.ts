@@ -11,7 +11,7 @@ import { ApiKeyManager } from '../utils/apiKeyManager';
 import { Logger } from '../utils/logger';
 import { ConfigManager } from '../utils/configManager';
 import { redactHeaders, isCancellationError } from '../utils';
-import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu } from '../utils';
+import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu, toCostBreakdownLog } from '../utils';
 import { VersionManager } from '../utils/versionManager';
 import { createOpenCodeHeaders } from '../utils/formatUtils';
 import { TokenUsagesManager } from '../usages/usagesManager';
@@ -298,9 +298,10 @@ export class AnthropicHandler {
             // 峰谷定价：用请求开始时间匹配 tier，确保整条流式响应按同一档位计费
             // 服务等级计费：传入 settings.serviceTier，让 tier 按 serviceTier 匹配
             let costNanoAiu: number | undefined;
+            let breakdown: ReturnType<typeof calculateCostWithBreakdown> | undefined;
             if (modelConfig.tokenPricing) {
                 const costAt = requestStartTime ? new Date(requestStartTime) : new Date();
-                const breakdown = calculateCostWithBreakdown(
+                breakdown = calculateCostWithBreakdown(
                     result?.usage,
                     modelConfig.tokenPricing,
                     costAt,
@@ -328,7 +329,9 @@ export class AnthropicHandler {
                         rawUsage: result?.usage,
                         status: token.isCancellationRequested ? 'cancelled' : 'completed',
                         streamStartTime: result?.streamStartTime,
-                        streamEndTime: result?.streamEndTime
+                        streamEndTime: result?.streamEndTime,
+                        estimatedCost: breakdown?.total,
+                        costBreakdown: breakdown ? toCostBreakdownLog(breakdown) : undefined
                     });
                 } catch (err) {
                     Logger.warn('Failed to update token stats:', err);

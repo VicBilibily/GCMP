@@ -336,7 +336,9 @@ export class SnapshotManager {
             cacheCreation: parsed?.cacheCreationTokens,
             streamDuration:
                 log.streamEndTime && log.streamStartTime ? log.streamEndTime - log.streamStartTime : undefined,
-            outputSpeed: log.outputSpeed
+            outputSpeed: log.outputSpeed,
+            estimatedCost: log.estimatedCost,
+            costBreakdown: log.costBreakdown
         };
     }
 
@@ -388,7 +390,9 @@ export class SnapshotManager {
             outputTokens,
             totalTokens,
             streamDuration,
-            outputSpeed
+            outputSpeed,
+            estimatedCost: c.estimatedCost,
+            costBreakdown: c.costBreakdown
         } as ExtendedTokenRequestLog;
     }
 

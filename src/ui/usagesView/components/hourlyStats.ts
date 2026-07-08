@@ -6,6 +6,7 @@
 import type { HourlyStats, ModelData, ProviderData } from '../types';
 import { createElement } from '../../utils';
 import {
+    formatCost,
     formatTokens,
     calculateAverageSpeed,
     calculateAverageFirstTokenLatency,
@@ -30,11 +31,7 @@ let currentViewMode: ViewMode = 'hour';
  */
 function createStatCell(value: string, isBold: boolean = false): HTMLTableCellElement {
     const cell = createElement('td') as HTMLTableCellElement;
-    if (isBold) {
-        cell.innerHTML = `<strong>${value}</strong>`;
-    } else {
-        cell.textContent = value;
-    }
+    cell.innerHTML = isBold ? `<strong>${value}</strong>` : value;
     return cell;
 }
 
@@ -54,6 +51,7 @@ function appendStatCells(
     row.appendChild(createStatCell(formatTokens(stats.cacheTokens), isBold));
     row.appendChild(createStatCell(formatTokens(stats.outputTokens), isBold));
     row.appendChild(createStatCell(formatTokens(totalTokens), isBold));
+    row.appendChild(createStatCell(formatCost(stats.estimatedCost), isBold));
     row.appendChild(createStatCell(String(stats.requests), isBold));
     row.appendChild(createStatCell(calculateAverageFirstTokenLatency(stats), isBold));
     row.appendChild(createStatCell(calculateAverageSpeed(stats), isBold));
@@ -101,6 +99,7 @@ function renderTable(
         t('Cache', '缓存命中'),
         t('Output', '输出Tokens'),
         t('Tokens', '消耗Tokens'),
+        t('Cost', '预估成本'),
         t('Requests', '请求次数'),
         t('Latency', '平均延迟'),
         t('Speed', '平均速度')

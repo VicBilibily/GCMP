@@ -112,7 +112,8 @@ export class LogIndexManager {
             total_input: total.actualInput,
             total_cache: total.cacheTokens,
             total_output: total.outputTokens,
-            total_requests: total.requests
+            total_requests: total.requests,
+            total_cost: total.estimatedCost
         };
     }
 
@@ -122,7 +123,8 @@ export class LogIndexManager {
             left.total_input === right.total_input &&
             left.total_cache === right.total_cache &&
             left.total_output === right.total_output &&
-            left.total_requests === right.total_requests
+            left.total_requests === right.total_requests &&
+            left.total_cost === right.total_cost
         );
     }
 

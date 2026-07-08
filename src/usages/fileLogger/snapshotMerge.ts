@@ -1,4 +1,6 @@
-﻿export interface SnapshotRequestRecord {
+﻿import type { CostBreakdownLog } from './types';
+
+export interface SnapshotRequestRecord {
     requestId: string;
     timestamp: number;
     isoTime: string;
@@ -24,6 +26,8 @@
     cacheCreation?: number;
     streamDuration?: number;
     outputSpeed?: number;
+    estimatedCost?: number;
+    costBreakdown?: CostBreakdownLog;
 }
 
 export type SnapshotFile = Record<string, SnapshotRequestRecord>;
@@ -93,7 +97,9 @@ export function mergeSnapshotRecord(
         cacheRead: preferredRecord.cacheRead ?? fallbackRecord.cacheRead,
         cacheCreation: preferredRecord.cacheCreation ?? fallbackRecord.cacheCreation,
         streamDuration: preferredRecord.streamDuration ?? fallbackRecord.streamDuration,
-        outputSpeed: preferredRecord.outputSpeed ?? fallbackRecord.outputSpeed
+        outputSpeed: preferredRecord.outputSpeed ?? fallbackRecord.outputSpeed,
+        estimatedCost: preferredRecord.estimatedCost ?? fallbackRecord.estimatedCost,
+        costBreakdown: preferredRecord.costBreakdown ?? fallbackRecord.costBreakdown
     };
 }
 

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { collectInvalidTierCrons, normalizeTokenPricing, parseCron, resolveActiveTier } from './pricingTierResolver';
 import type { ModelTokenPricing } from '../types/sharedTypes';
 

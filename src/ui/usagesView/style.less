@@ -181,8 +181,8 @@ body {
 
             th,
             td {
-                /* 提供商表格和小时表格：数值列右对齐（第2-8列） */
-                &:nth-child(n + 2):nth-child(-n + 8) {
+                /* 提供商表格和小时表格：数值列右对齐（第2-9列） */
+                &:nth-child(n + 2):nth-child(-n + 9) {
                     width: 60px;
                     text-align: right;
                 }
@@ -827,10 +827,32 @@ body {
                 margin-top: -8px;
                 padding: 0;
                 padding-bottom: 1px;
+                font-size: 0.9em;
+            }
 
-                .tokens-value {
-                    font-size: 0.9em;
+            .tokens-detail {
+                display: block;
+                padding: 0;
+                margin-top: -3px;
+                margin-bottom: -0.6em;
+
+                .tokens-cost {
+                    font-size: 0.75em;
+                    color: var(--vscode-charts-yellow, #d4a017);
                 }
+            }
+        }
+
+        /* 第6列（状态 + 会话链接）居中对齐 */
+        &:last-child {
+            text-align: center;
+            line-height: 1;
+
+            .status-label {
+                display: block;
+                margin-top: -6px;
+                padding-bottom: 1px;
+                font-size: 0.9em;
             }
 
             .tokens-detail {
@@ -850,11 +872,6 @@ body {
                     }
                 }
             }
-        }
-
-        /* 第6列（状态）居中对齐 */
-        &:last-child {
-            text-align: center;
         }
     }
 }
@@ -885,18 +902,38 @@ button {
 
 .status-completed {
     color: var(--vscode-testing-iconPassed);
+
+    .status-label {
+        color: var(--vscode-testing-iconPassed);
+        font-weight: 500;
+    }
 }
 
 .status-failed {
     color: var(--vscode-testing-iconFailed);
+
+    .status-label {
+        color: var(--vscode-testing-iconFailed);
+        font-weight: 500;
+    }
 }
 
 .status-cancelled {
     color: var(--vscode-descriptionForeground);
+
+    .status-label {
+        color: var(--vscode-descriptionForeground);
+        font-weight: 500;
+    }
 }
 
 .status-estimated {
     color: var(--vscode-descriptionForeground);
+
+    .status-label {
+        color: var(--vscode-descriptionForeground);
+        font-weight: 500;
+    }
 }
 
 .empty-message {

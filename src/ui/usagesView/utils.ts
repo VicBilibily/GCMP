@@ -215,6 +215,18 @@ export function getRequestKindDisplayName(kind?: string): string {
 }
 
 /**
+ * 格式化预估成本显示（自适应小数位，最多 6 位）
+ */
+export function formatCost(cost: number | undefined | null): string {
+    if (cost === undefined || cost === null || cost <= 0) {
+        return '-';
+    }
+    // 取整到小数点后最多 6 位，去除多余的末尾 0
+    const rounded = parseFloat(cost.toFixed(6));
+    return `${rounded}`;
+}
+
+/**
  * 格式化 Token 数量显示
  */
 export function formatTokens(tokens: number | undefined | null): string {

@@ -8,6 +8,7 @@ import { createElement } from '../../utils';
 import { TokenStats } from '../../../usages/fileLogger/types';
 import {
     calculateTotalTokens,
+    formatCost,
     formatTokens,
     calculateAverageSpeed,
     calculateAverageFirstTokenLatency,
@@ -59,6 +60,7 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             t('Cache', '缓存命中'),
             t('Output', '输出Tokens'),
             t('Tokens', '消耗Tokens'),
+            t('Cost', '预估成本'),
             t('Requests', '请求次数'),
             t('Latency', '平均延迟'),
             t('Speed', '平均速度')
@@ -81,6 +83,7 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
         let totalCompletedRequests = 0;
         let totalFailedRequests = 0;
         let totalCancelledRequests = 0;
+        let totalCost = 0;
 
         providers.forEach(provider => {
             // 累加合计数据
@@ -91,6 +94,7 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             totalCompletedRequests += provider.completedRequests || 0;
             totalFailedRequests += provider.failedRequests || 0;
             totalCancelledRequests += provider.cancelledRequests || 0;
+            totalCost += provider.estimatedCost || 0;
 
             // 提供商行
             const providerRow = createElement('tr');
@@ -104,6 +108,7 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             providerRow.appendChild(createCell(formatTokens(provider.cacheTokens)));
             providerRow.appendChild(createCell(formatTokens(provider.outputTokens)));
             providerRow.appendChild(createCell(formatTokens(totalTokens)));
+            providerRow.appendChild(createCell(formatCost(provider.estimatedCost)));
             providerRow.appendChild(
                 createCell(
                     provider.requests,
@@ -130,6 +135,7 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
                 modelRow.appendChild(createCell(formatTokens(stats.cacheTokens)));
                 modelRow.appendChild(createCell(formatTokens(stats.outputTokens)));
                 modelRow.appendChild(createCell(formatTokens(totalTokens)));
+                modelRow.appendChild(createCell(formatCost(stats.estimatedCost)));
                 modelRow.appendChild(createCell(stats.requests));
                 modelRow.appendChild(createCell(calculateAverageFirstTokenLatency(stats)));
                 modelRow.appendChild(createCell(calculateAverageSpeed(stats)));
@@ -153,6 +159,7 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
         totalRow.appendChild(createCell(formatTokens(totalCache)));
         totalRow.appendChild(createCell(formatTokens(totalOutput)));
         totalRow.appendChild(createCell(formatTokens(grandTotal)));
+        totalRow.appendChild(createCell(formatCost(totalCost)));
         totalRow.appendChild(
             createCell(
                 totalRequests,

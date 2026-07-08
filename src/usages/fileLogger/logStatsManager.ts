@@ -285,7 +285,12 @@ export class LogStatsManager {
             failedRequests: 0,
             cancelledRequests: 0,
             firstTokenLatency: 0,
-            outputSpeeds: 0
+            outputSpeeds: 0,
+            estimatedCost: 0,
+            inputCost: 0,
+            outputCost: 0,
+            cacheReadCost: 0,
+            cacheWriteCost: 0
         };
 
         let totalSpeedAcc: AvgAcc | undefined;
@@ -329,6 +334,11 @@ export class LogStatsManager {
             total.completedRequests += hourStats.completedRequests;
             total.failedRequests += hourStats.failedRequests;
             total.cancelledRequests += hourStats.cancelledRequests;
+            total.estimatedCost += hourStats.estimatedCost || 0;
+            total.inputCost += hourStats.inputCost || 0;
+            total.outputCost += hourStats.outputCost || 0;
+            total.cacheReadCost += hourStats.cacheReadCost || 0;
+            total.cacheWriteCost += hourStats.cacheWriteCost || 0;
 
             // 3) daily total：对每小时的聚合值做算术平均（不加权）
             if (hourStats.firstTokenLatency && hourStats.firstTokenLatency > 0) {
@@ -351,6 +361,11 @@ export class LogStatsManager {
                         completedRequests: 0,
                         failedRequests: 0,
                         cancelledRequests: 0,
+                        estimatedCost: 0,
+                        inputCost: 0,
+                        outputCost: 0,
+                        cacheReadCost: 0,
+                        cacheWriteCost: 0,
                         models: {}
                     };
                 }
@@ -364,6 +379,11 @@ export class LogStatsManager {
                 provider.completedRequests += providerHour.completedRequests;
                 provider.failedRequests += providerHour.failedRequests;
                 provider.cancelledRequests += providerHour.cancelledRequests;
+                provider.estimatedCost += providerHour.estimatedCost || 0;
+                provider.inputCost += providerHour.inputCost || 0;
+                provider.outputCost += providerHour.outputCost || 0;
+                provider.cacheReadCost += providerHour.cacheReadCost || 0;
+                provider.cacheWriteCost += providerHour.cacheWriteCost || 0;
 
                 const pAcc = providerMetricAccByDay.get(provider) ?? {};
                 if (providerHour.firstTokenLatency && providerHour.firstTokenLatency > 0) {
@@ -382,7 +402,12 @@ export class LogStatsManager {
                             actualInput: 0,
                             cacheTokens: 0,
                             outputTokens: 0,
-                            requests: 0
+                            requests: 0,
+                            estimatedCost: 0,
+                            inputCost: 0,
+                            outputCost: 0,
+                            cacheReadCost: 0,
+                            cacheWriteCost: 0
                         };
                     }
 
@@ -392,6 +417,11 @@ export class LogStatsManager {
                     model.cacheTokens += modelHour.cacheTokens;
                     model.outputTokens += modelHour.outputTokens;
                     model.requests += modelHour.requests;
+                    model.estimatedCost += modelHour.estimatedCost || 0;
+                    model.inputCost += modelHour.inputCost || 0;
+                    model.outputCost += modelHour.outputCost || 0;
+                    model.cacheReadCost += modelHour.cacheReadCost || 0;
+                    model.cacheWriteCost += modelHour.cacheWriteCost || 0;
 
                     const mAcc = modelMetricAccByDay.get(model) ?? {};
                     if (modelHour.firstTokenLatency && modelHour.firstTokenLatency > 0) {

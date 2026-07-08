@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import OpenAI, { ClientOptions } from 'openai';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { Logger, sanitizeToolSchemaForTarget, isCancellationError } from '../utils';
-import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu } from '../utils';
+import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu, toCostBreakdownLog } from '../utils';
 import { t } from '../utils/l10n';
 import { ModelChatResponseOptions, ModelConfig, ModelTokenPricing } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
@@ -1061,10 +1061,11 @@ export class OpenAIResponsesHandler {
                 // 峰谷定价：用请求开始时间匹配 tier
                 // 服务等级计费：传入 serviceTier，让 tier 按 serviceTier 匹配
                 let costNanoAiu: number | undefined;
+                let breakdown: ReturnType<typeof calculateCostWithBreakdown> | undefined;
                 if (tokenPricing) {
                     const costAt = requestStartTime ? new Date(requestStartTime) : new Date();
                     const requestServiceTier = (options.modelConfiguration as ModelChatResponseOptions)?.serviceTier;
-                    const breakdown = calculateCostWithBreakdown(finalUsage, tokenPricing, costAt, requestServiceTier);
+                    breakdown = calculateCostWithBreakdown(finalUsage, tokenPricing, costAt, requestServiceTier);
                     if (breakdown) {
                         if (breakdown.total > 0) {
                             Logger.debug(formatCostBreakdownLog(streamReporter.getModelName(), breakdown));
@@ -1090,7 +1091,9 @@ export class OpenAIResponsesHandler {
                             rawUsage: finalUsage,
                             status: token.isCancellationRequested ? 'cancelled' : 'completed',
                             streamStartTime,
-                            streamEndTime
+                            streamEndTime,
+                            estimatedCost: breakdown?.total,
+                            costBreakdown: breakdown ? toCostBreakdownLog(breakdown) : undefined
                         });
                     } catch (err) {
                         Logger.warn('Failed to update token stats:', err);

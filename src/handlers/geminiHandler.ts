@@ -13,7 +13,7 @@ import { ApiKeyManager } from '../utils/apiKeyManager';
 import { ConfigManager } from '../utils/configManager';
 import { Logger } from '../utils/logger';
 import { isCancellationError } from '../utils';
-import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu } from '../utils';
+import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu, toCostBreakdownLog } from '../utils';
 import { t } from '../utils/l10n';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import type { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
@@ -662,12 +662,14 @@ export class GeminiHandler {
             // 峰谷定价：用请求开始时间匹配 tier
             // 服务等级计费：传入 serviceTier
             let costNanoAiu: number | undefined;
+            let estimatedCost: number | undefined;
+            let breakdown: ReturnType<typeof calculateCostWithBreakdown> | undefined;
             if (modelConfig.tokenPricing) {
                 const costAt = requestStartTime ? new Date(requestStartTime) : new Date();
                 const requestServiceTier = (options.modelConfiguration as ModelChatResponseOptions | undefined)
                     ?.serviceTier;
                 try {
-                    const breakdown = calculateCostWithBreakdown(
+                    breakdown = calculateCostWithBreakdown(
                         finalUsage,
                         modelConfig.tokenPricing,
                         costAt,
@@ -678,6 +680,7 @@ export class GeminiHandler {
                             Logger.debug(formatCostBreakdownLog(model.name, breakdown));
                         }
                         costNanoAiu = toNanoAiu(breakdown.total);
+                        estimatedCost = breakdown.total;
                     }
                 } catch (err) {
                     Logger.warn(`[${model.name}] Failed to calculate cost:`, err);
@@ -695,7 +698,9 @@ export class GeminiHandler {
                         rawUsage: finalUsage,
                         status: token.isCancellationRequested ? 'cancelled' : 'completed',
                         streamStartTime,
-                        streamEndTime
+                        streamEndTime,
+                        estimatedCost,
+                        costBreakdown: breakdown ? toCostBreakdownLog(breakdown) : undefined
                     });
                 } catch (err) {
                     Logger.warn('Failed to update token stats:', err);

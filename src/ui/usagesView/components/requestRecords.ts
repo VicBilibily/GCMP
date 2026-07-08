@@ -7,6 +7,7 @@ import type { ExtendedTokenRequestLog, SessionGroup, SessionSummary } from '../t
 import { createElement } from '../../utils';
 import { createSessionFilter, shouldShowSessionGroupInFilter } from './sessionFilter';
 import {
+    formatCost,
     formatSessionTimeRange,
     formatTokens,
     getProviderDisplayName,
@@ -247,10 +248,12 @@ function buildRequestTotals(records: ExtendedTokenRequestLog[]): {
     outputTokens: number;
     latencyValueText: string;
     durationValueText: string;
+    totalCost: number;
 } {
     let inputTokens = 0;
     let cacheTokens = 0;
     let outputTokens = 0;
+    let totalCost = 0;
     const latencies: number[] = [];
     const durations: number[] = [];
 
@@ -262,6 +265,10 @@ function buildRequestTotals(records: ExtendedTokenRequestLog[]): {
         inputTokens += hasActualUsage ? Math.max(record.actualInput || 0, 0) : Math.max(record.estimatedInput || 0, 0);
         cacheTokens += Math.max(record.cacheReadTokens || 0, 0);
         outputTokens += Math.max(record.outputTokens || 0, 0);
+
+        if (record.estimatedCost !== undefined && record.estimatedCost > 0) {
+            totalCost += record.estimatedCost;
+        }
 
         if (record.streamDuration !== undefined && record.streamDuration > 0) {
             durations.push(record.streamDuration);
@@ -284,7 +291,8 @@ function buildRequestTotals(records: ExtendedTokenRequestLog[]): {
         cacheTokens,
         outputTokens,
         latencyValueText: avgLatency > 0 ? formatDuration(avgLatency) : '-',
-        durationValueText: avgDuration > 0 ? formatDuration(avgDuration) : '-'
+        durationValueText: avgDuration > 0 ? formatDuration(avgDuration) : '-',
+        totalCost
     };
 }
 
@@ -325,7 +333,13 @@ function appendTotalsRow(tbody: HTMLElement, summaryRecords: ExtendedTokenReques
         `<div class="output-detail"><span class="output-tpot">${totals.durationValueText}</span><span class="output-speed">${totals.summary.avgSpeed ? `${totals.summary.avgSpeed.toFixed(1)} t/s` : '-'}</span></div>`;
 
     const totalCell = createElement('td', 'records-total-number');
-    totalCell.textContent = formatTokens(totals.summary.totalTokens);
+    const totalTokenStr = formatTokens(totals.summary.totalTokens);
+    const totalCostStr = totals.totalCost > 0 ? formatCost(totals.totalCost) : '';
+    if (totalCostStr) {
+        totalCell.innerHTML = `<div class="tokens-row">${totalTokenStr}</div><div class="tokens-detail"><span class="tokens-cost">${totalCostStr}</span></div>`;
+    } else {
+        totalCell.textContent = totalTokenStr;
+    }
     if (totals.summary.totalTokens > 0) {
         totalCell.title = totals.summary.totalTokens.toLocaleString('en-US');
     }
@@ -517,35 +531,51 @@ export function createRequestRecordsTable(
         output.innerHTML = outputRowHtml + outputDetailHtml;
 
         const total = createElement('td');
-        const totalVal = hasActualUsage && record.totalTokens > 0 ? record.totalTokens : 0;
-        const isAllSessions = window.usagesState?.selectedSessionId === null;
-        // 仅对左侧会话列表中可见（requestCount > 1）的会话显示可点击链接
-        if (isAllSessions && record.sessionId && visibleSessionIds.has(record.sessionId)) {
-            const displayId = getSessionDisplayId(record.sessionId);
-            total.innerHTML =
-                `<div class="tokens-row"><span class="tokens-value">${totalVal > 0 ? formatTokens(record.totalTokens) : '-'}</span></div>` +
-                `<div class="tokens-detail"><a class="tokens-session-link" href="javascript:void(0)" title="SESSION: #${displayId}">#${displayId}</a></div>`;
-            total
-                .querySelector('.tokens-session-link')
-                ?.addEventListener('click', () => changeSelectedSession(record.sessionId!));
+        // 有实际消耗数据时显示 total（input+output），否则仅显示 output
+        const totalVal =
+            hasActualUsage && record.totalTokens > 0 ? record.totalTokens
+            : record.outputTokens > 0 ? record.outputTokens
+            : 0;
+        const costText =
+            record.estimatedCost !== undefined && record.estimatedCost > 0 ? formatCost(record.estimatedCost) : '';
+        const displayVal = totalVal > 0 ? formatTokens(totalVal) : '-';
+        if (costText) {
+            const tokensRowHtml = `<div class="tokens-row">${displayVal}</div>`;
+            const tokensDetailHtml = `<div class="tokens-detail"><span class="tokens-cost">${costText}</span></div>`;
+            total.innerHTML = tokensRowHtml + tokensDetailHtml;
         } else {
-            total.textContent = totalVal > 0 ? formatTokens(record.totalTokens) : '-';
+            total.textContent = displayVal;
         }
         if (totalVal > 0) {
             total.title = totalVal.toLocaleString('en-US');
         }
 
         const status = createElement('td');
+        const isAllSessions = window.usagesState?.selectedSessionId === null;
+        const statusLabel =
+            record.status === 'completed' ? 'DONE'
+            : record.status === 'failed' ? 'ERROR'
+            : record.status === 'cancelled' ? 'CANCEL'
+            : 'WAIT';
         status.className =
             record.status === 'completed' ? 'status-completed'
             : record.status === 'failed' ? 'status-failed'
             : record.status === 'cancelled' ? 'status-cancelled'
             : 'status-estimated';
-        status.textContent =
-            record.status === 'completed' ? '✅'
-            : record.status === 'failed' ? '❌'
-            : record.status === 'cancelled' ? '🚫'
-            : '⏳';
+        let statusHtml = `<span class="status-label">${statusLabel}</span>`;
+        // session 链接放在状态文字下方
+        if (isAllSessions && record.sessionId && visibleSessionIds.has(record.sessionId)) {
+            const displayId = getSessionDisplayId(record.sessionId);
+            const linkHtml = `<a class="tokens-session-link" href="javascript:void(0)" title="SESSION: #${displayId}">#${displayId}</a>`;
+            statusHtml += `<div class="tokens-detail">${linkHtml}</div>`;
+            status.innerHTML = statusHtml;
+            status
+                .querySelector('.tokens-session-link')
+                ?.addEventListener('click', () => changeSelectedSession(record.sessionId!));
+        } else {
+            statusHtml += '<div class="tokens-detail">-</div>';
+            status.innerHTML = statusHtml;
+        }
 
         row.append(time, providerModel, input, output, total, status);
         tbody.appendChild(row);

@@ -129,6 +129,14 @@ export abstract class StatsCalculator {
                 // 无论时间戳如何，都更新为最新状态（completed/failed/cancelled 和 rawUsage）
                 existing.status = log.status;
                 existing.rawUsage = log.rawUsage;
+                // 传播预估成本（如果有）
+                if (log.estimatedCost !== undefined) {
+                    existing.estimatedCost = log.estimatedCost;
+                }
+                // 传播成本分解（如果有）
+                if (log.costBreakdown) {
+                    existing.costBreakdown = log.costBreakdown;
+                }
                 // 更新流时间信息
                 if (log.streamStartTime !== undefined) {
                     existing.streamStartTime = log.streamStartTime;
@@ -164,7 +172,12 @@ export abstract class StatsCalculator {
                 failedRequests: 0,
                 cancelledRequests: 0,
                 firstTokenLatency: 0,
-                outputSpeeds: 0
+                outputSpeeds: 0,
+                estimatedCost: 0,
+                inputCost: 0,
+                outputCost: 0,
+                cacheReadCost: 0,
+                cacheWriteCost: 0
             },
             providers: {}
         };
@@ -205,6 +218,11 @@ export abstract class StatsCalculator {
                     cancelledRequests: 0,
                     firstTokenLatency: 0,
                     outputSpeeds: 0,
+                    estimatedCost: 0,
+                    inputCost: 0,
+                    outputCost: 0,
+                    cacheReadCost: 0,
+                    cacheWriteCost: 0,
                     models: {}
                 };
             }
@@ -244,12 +262,30 @@ export abstract class StatsCalculator {
             stats.total.actualInput += parsed.actualInput;
             stats.total.cacheTokens += parsed.cacheReadTokens;
             stats.total.outputTokens += parsed.outputTokens;
+            if (log.estimatedCost !== undefined) {
+                stats.total.estimatedCost += log.estimatedCost;
+            }
+            if (log.costBreakdown) {
+                stats.total.inputCost += log.costBreakdown.cost[0];
+                stats.total.outputCost += log.costBreakdown.cost[1];
+                stats.total.cacheReadCost += log.costBreakdown.cost[2] ?? 0;
+                stats.total.cacheWriteCost += log.costBreakdown.cost[3] ?? 0;
+            }
 
             // 更新提供商的 token 统计
             providerStats.estimatedInput += log.estimatedInput;
             providerStats.actualInput += parsed.actualInput;
             providerStats.cacheTokens += parsed.cacheReadTokens;
             providerStats.outputTokens += parsed.outputTokens;
+            if (log.estimatedCost !== undefined) {
+                providerStats.estimatedCost += log.estimatedCost;
+            }
+            if (log.costBreakdown) {
+                providerStats.inputCost += log.costBreakdown.cost[0];
+                providerStats.outputCost += log.costBreakdown.cost[1];
+                providerStats.cacheReadCost += log.costBreakdown.cost[2] ?? 0;
+                providerStats.cacheWriteCost += log.costBreakdown.cost[3] ?? 0;
+            }
 
             // 按模型聚合（completed 与带实际 usage 的 cancelled）
             if (!providerStats.models[log.modelId]) {
@@ -261,7 +297,12 @@ export abstract class StatsCalculator {
                     outputTokens: 0,
                     requests: 0,
                     firstTokenLatency: 0,
-                    outputSpeeds: 0
+                    outputSpeeds: 0,
+                    estimatedCost: 0,
+                    inputCost: 0,
+                    outputCost: 0,
+                    cacheReadCost: 0,
+                    cacheWriteCost: 0
                 };
             }
 
@@ -271,6 +312,15 @@ export abstract class StatsCalculator {
             modelStats.cacheTokens += parsed.cacheReadTokens;
             modelStats.outputTokens += parsed.outputTokens;
             modelStats.requests++;
+            if (log.estimatedCost !== undefined) {
+                modelStats.estimatedCost += log.estimatedCost;
+            }
+            if (log.costBreakdown) {
+                modelStats.inputCost += log.costBreakdown.cost[0];
+                modelStats.outputCost += log.costBreakdown.cost[1];
+                modelStats.cacheReadCost += log.costBreakdown.cost[2] ?? 0;
+                modelStats.cacheWriteCost += log.costBreakdown.cost[3] ?? 0;
+            }
 
             // 速度样本仅收集到“模型”维度。
             // 排除速度超过 2000 tokens/s 的异常峰值（快速模型正常完成仅需 3-5ms，
