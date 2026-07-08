@@ -183,16 +183,8 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         const CompletionLogger = getCompletionLogger();
         CompletionLogger.trace('[InlineCompletionProvider.activate] Activation started');
 
-        try {
-            // 注册内联建议提供
-            const provider = vscode.languages.registerInlineCompletionItemProvider({ pattern: '**/*' }, this);
-            this.disposables.push(provider);
-
-            CompletionLogger.info('✅ [InlineCompletionProvider] Activated (using lazy load)');
-        } catch (error) {
-            CompletionLogger.error('[InlineCompletionProvider.activate] Activation failed:', error);
-            throw error;
-        }
+        // 不在此处注册 InlineCompletionItemProvider，所有请求均由 InlineCompletionShim 统一入口分发
+        CompletionLogger.info('✅ [InlineCompletionProvider] Activated (using lazy load)');
     }
 
     async provideInlineCompletionItems(
@@ -207,6 +199,11 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         const nesConfig = ConfigManager.getNESConfig();
         if (!fimConfig.enabled && !nesConfig.enabled) {
             CompletionLogger.trace('[InlineCompletionProvider] Completion feature not enabled');
+            return undefined;
+        }
+
+        // 编辑器失焦时不做任何请求
+        if (vscode.window.activeTextEditor?.document !== document) {
             return undefined;
         }
 

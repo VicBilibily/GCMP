@@ -183,6 +183,11 @@ export class InlineCompletionShim implements vscode.InlineCompletionItemProvider
             return undefined;
         }
 
+        // 编辑器失焦时不做任何请求
+        if (vscode.window.activeTextEditor?.document !== document) {
+            return undefined;
+        }
+
         // 加载真实的 provider 并委托给它
         // shim 层不进行防抖，防抖逻辑由真实的 InlineCompletionProvider 处理
         const realProvider = await this.loadRealProvider();

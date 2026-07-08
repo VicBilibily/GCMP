@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.24] - 2026-07-08
+
+### 修复
+
+- **FIM/NES 编辑器失焦后仍持续发起请求**：修复编辑器失焦或切换到其他窗口后，FIM/NES 内联补全仍然持续发起 API 请求的问题。`InlineCompletionShim` 与 `InlineCompletionProvider` 两个入口均增加活动编辑器焦点检查，当请求文档非当前活动编辑器时直接返回，不再发起任何网络请求（[#279](https://github.com/VicBilibily/GCMP/issues/279)）。
+- **移除冗余的 InlineCompletionItemProvider 重复注册**：`InlineCompletionProvider.activate()` 不再重复注册 `registerInlineCompletionItemProvider`，所有 FIM/NES 请求统一由 `InlineCompletionShim` 单入口分发，避免同一请求被触发两次导致的请求量翻倍。
+
+---
+
+### Fixed
+
+- **FIM/NES requests continuing after editor loses focus**: Fixed an issue where FIM/NES inline completions kept sending API requests after the editor lost focus or the user switched to another window. Both `InlineCompletionShim` and `InlineCompletionProvider` entry points now check the active editor focus — when the requesting document is not the current active editor, the request is dropped immediately without any network call ([#279](https://github.com/VicBilibily/GCMP/issues/279)).
+- **Removed redundant InlineCompletionItemProvider duplicate registration**: `InlineCompletionProvider.activate()` no longer registers a duplicate `registerInlineCompletionItemProvider`. All FIM/NES requests are now routed through the single `InlineCompletionShim` entry point, eliminating doubled request volume caused by two providers registered for the same pattern.
+
 ## [0.25.23] - 2026-07-08
 
 ### 修复
