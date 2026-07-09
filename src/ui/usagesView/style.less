@@ -181,10 +181,37 @@ body {
 
             th,
             td {
-                /* 提供商表格和小时表格：数值列右对齐（第2-9列） */
-                &:nth-child(n + 2):nth-child(-n + 9) {
+                /* 提供商表格和小时表格：数值列右对齐（第2-8列） */
+                &:nth-child(n + 2):nth-child(-n + 8) {
                     width: 60px;
                     text-align: right;
+                }
+
+                /* 第2-5列（输入/缓存/输出/消耗Tokens）内联成本样式 */
+                &:nth-child(n + 2):nth-child(-n + 5) {
+                    line-height: 1;
+                    padding: 1px 3px;
+
+                    .tokens-row {
+                        display: block;
+                        margin-top: -5px;
+                        padding: 0;
+                        padding-bottom: 1px;
+                        font-size: 0.9em;
+                    }
+
+                    .tokens-detail {
+                        display: block;
+                        padding: 0;
+                        margin-top: -3px;
+                        margin-bottom: -0.6em;
+
+                        .tokens-cost {
+                            font-size: 0.75em;
+                            font-weight: 500;
+                            color: var(--vscode-charts-yellow);
+                        }
+                    }
                 }
             }
 
@@ -613,11 +640,6 @@ body {
 
     .records-total-number {
         text-align: right !important;
-
-        span {
-            display: inline-block;
-            width: 4em;
-        }
     }
 
     .records-total-empty {
@@ -838,7 +860,8 @@ body {
 
                 .tokens-cost {
                     font-size: 0.75em;
-                    color: var(--vscode-charts-yellow, #d4a017);
+                    font-weight: 500;
+                    color: var(--vscode-charts-yellow);
                 }
             }
         }

@@ -215,11 +215,16 @@ export function getRequestKindDisplayName(kind?: string): string {
 }
 
 /**
- * 格式化预估成本显示（自适应小数位，最多 6 位）
+ * 格式化预估成本显示
+ * @param cost 成本金额 (USD)
+ * @param fixedDecimals 固定小数位数，不传则自适应（最多 6 位，去除末尾 0）
  */
-export function formatCost(cost: number | undefined | null): string {
+export function formatCost(cost: number | undefined | null, fixedDecimals?: number): string {
     if (cost === undefined || cost === null || cost <= 0) {
         return '-';
+    }
+    if (fixedDecimals !== undefined) {
+        return cost.toFixed(fixedDecimals);
     }
     // 取整到小数点后最多 6 位，去除多余的末尾 0
     const rounded = parseFloat(cost.toFixed(6));

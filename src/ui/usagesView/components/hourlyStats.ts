@@ -36,6 +36,31 @@ function createStatCell(value: string, isBold: boolean = false): HTMLTableCellEl
 }
 
 /**
+ * 创建带内联成本的统计单元格
+ * 上方显示 token 数，下方显示预估成本（2 位小数）
+ */
+function createTokensCell(tokens: number, cost: number | undefined, isBold: boolean = false): HTMLTableCellElement {
+    const cell = createElement('td') as HTMLTableCellElement;
+    const tokenStr = tokens > 0 ? formatTokens(tokens) : '-';
+    const costStr = cost !== undefined && cost > 0 ? formatCost(cost, 2) : '';
+    const tokenHtml = isBold ? `<strong>${tokenStr}</strong>` : tokenStr;
+    if (costStr) {
+        cell.innerHTML = [
+            `<div class="tokens-row">${tokenHtml}</div>`,
+            '<div class="tokens-detail">',
+            `<span class="tokens-cost">${costStr}</span>`,
+            '</div>'
+        ].join('');
+    } else {
+        cell.innerHTML = tokenHtml;
+    }
+    if (tokens > 0) {
+        cell.title = tokens.toLocaleString('en-US');
+    }
+    return cell;
+}
+
+/**
  * 为行添加统计单元格（输入、缓存、输出、总计、请求次数、延迟、速度）
  * @param row 表格行
  * @param stats 统计数据
@@ -47,11 +72,11 @@ function appendStatCells(
     isBold: boolean = false
 ): void {
     const totalTokens = stats.actualInput + stats.outputTokens;
-    row.appendChild(createStatCell(formatTokens(stats.actualInput), isBold));
-    row.appendChild(createStatCell(formatTokens(stats.cacheTokens), isBold));
-    row.appendChild(createStatCell(formatTokens(stats.outputTokens), isBold));
-    row.appendChild(createStatCell(formatTokens(totalTokens), isBold));
-    row.appendChild(createStatCell(formatCost(stats.estimatedCost), isBold));
+    const cacheCost = (stats.cacheReadCost || 0) + (stats.cacheWriteCost || 0);
+    row.appendChild(createTokensCell(stats.actualInput, stats.inputCost, isBold));
+    row.appendChild(createTokensCell(stats.cacheTokens, cacheCost, isBold));
+    row.appendChild(createTokensCell(stats.outputTokens, stats.outputCost, isBold));
+    row.appendChild(createTokensCell(totalTokens, stats.estimatedCost, isBold));
     row.appendChild(createStatCell(String(stats.requests), isBold));
     row.appendChild(createStatCell(calculateAverageFirstTokenLatency(stats), isBold));
     row.appendChild(createStatCell(calculateAverageSpeed(stats), isBold));
@@ -99,7 +124,6 @@ function renderTable(
         t('Cache', '缓存命中'),
         t('Output', '输出Tokens'),
         t('Tokens', '消耗Tokens'),
-        t('Cost', '预估成本'),
         t('Requests', '请求次数'),
         t('Latency', '平均延迟'),
         t('Speed', '平均速度')

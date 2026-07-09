@@ -37,6 +37,30 @@ function formatRequestBreakdown(completed: number, failed: number, cancelled: nu
     return `✅ ${completed} | ❌ ${failed} | 🚫 ${cancelled}`;
 }
 
+/**
+ * 创建带内联成本的 Tokens 单元格
+ * 上方显示 token 数，下方显示预估成本
+ */
+function createTokensCell(tokens: number, cost: number | undefined): HTMLElement {
+    const cell = createElement('td');
+    const tokenStr = tokens > 0 ? formatTokens(tokens) : '-';
+    const costStr = cost !== undefined && cost > 0 ? formatCost(cost, 2) : '';
+    if (costStr) {
+        cell.innerHTML = [
+            `<div class="tokens-row">${tokenStr}</div>`,
+            '<div class="tokens-detail">',
+            `<span class="tokens-cost">${costStr}</span>`,
+            '</div>'
+        ].join('');
+    } else {
+        cell.textContent = tokenStr;
+    }
+    if (tokens > 0) {
+        cell.title = tokens.toLocaleString('en-US');
+    }
+    return cell;
+}
+
 // ============= 组件渲染 =============
 
 /**
@@ -60,7 +84,6 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             t('Cache', '缓存命中'),
             t('Output', '输出Tokens'),
             t('Tokens', '消耗Tokens'),
-            t('Cost', '预估成本'),
             t('Requests', '请求次数'),
             t('Latency', '平均延迟'),
             t('Speed', '平均速度')
@@ -84,6 +107,9 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
         let totalFailedRequests = 0;
         let totalCancelledRequests = 0;
         let totalCost = 0;
+        let totalInputCost = 0;
+        let totalCacheCost = 0;
+        let totalOutputCost = 0;
 
         providers.forEach(provider => {
             // 累加合计数据
@@ -95,6 +121,9 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             totalFailedRequests += provider.failedRequests || 0;
             totalCancelledRequests += provider.cancelledRequests || 0;
             totalCost += provider.estimatedCost || 0;
+            totalInputCost += provider.inputCost || 0;
+            totalCacheCost += (provider.cacheReadCost || 0) + (provider.cacheWriteCost || 0);
+            totalOutputCost += provider.outputCost || 0;
 
             // 提供商行
             const providerRow = createElement('tr');
@@ -104,11 +133,12 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             const totalTokens = calculateTotalTokens(provider);
 
             providerRow.appendChild(createCell(getProviderDisplayName(provider.providerKey, provider.providerName)));
-            providerRow.appendChild(createCell(formatTokens(provider.actualInput)));
-            providerRow.appendChild(createCell(formatTokens(provider.cacheTokens)));
-            providerRow.appendChild(createCell(formatTokens(provider.outputTokens)));
-            providerRow.appendChild(createCell(formatTokens(totalTokens)));
-            providerRow.appendChild(createCell(formatCost(provider.estimatedCost)));
+            providerRow.appendChild(createTokensCell(provider.actualInput, provider.inputCost));
+            providerRow.appendChild(
+                createTokensCell(provider.cacheTokens, (provider.cacheReadCost || 0) + (provider.cacheWriteCost || 0))
+            );
+            providerRow.appendChild(createTokensCell(provider.outputTokens, provider.outputCost));
+            providerRow.appendChild(createTokensCell(totalTokens, provider.estimatedCost));
             providerRow.appendChild(
                 createCell(
                     provider.requests,
@@ -131,11 +161,12 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
                 const totalTokens = calculateTotalTokens(stats);
 
                 modelRow.appendChild(createCell(`└─ ${stats.modelName}`, 'model-cell'));
-                modelRow.appendChild(createCell(formatTokens(stats.actualInput)));
-                modelRow.appendChild(createCell(formatTokens(stats.cacheTokens)));
-                modelRow.appendChild(createCell(formatTokens(stats.outputTokens)));
-                modelRow.appendChild(createCell(formatTokens(totalTokens)));
-                modelRow.appendChild(createCell(formatCost(stats.estimatedCost)));
+                modelRow.appendChild(createTokensCell(stats.actualInput, stats.inputCost));
+                modelRow.appendChild(
+                    createTokensCell(stats.cacheTokens, (stats.cacheReadCost || 0) + (stats.cacheWriteCost || 0))
+                );
+                modelRow.appendChild(createTokensCell(stats.outputTokens, stats.outputCost));
+                modelRow.appendChild(createTokensCell(totalTokens, stats.estimatedCost));
                 modelRow.appendChild(createCell(stats.requests));
                 modelRow.appendChild(createCell(calculateAverageFirstTokenLatency(stats)));
                 modelRow.appendChild(createCell(calculateAverageSpeed(stats)));
@@ -155,11 +186,10 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
 
         const grandTotal = totalInput + totalOutput;
         totalRow.appendChild(createCell(t('Total', '合计')));
-        totalRow.appendChild(createCell(formatTokens(totalInput)));
-        totalRow.appendChild(createCell(formatTokens(totalCache)));
-        totalRow.appendChild(createCell(formatTokens(totalOutput)));
-        totalRow.appendChild(createCell(formatTokens(grandTotal)));
-        totalRow.appendChild(createCell(formatCost(totalCost)));
+        totalRow.appendChild(createTokensCell(totalInput, totalInputCost));
+        totalRow.appendChild(createTokensCell(totalCache, totalCacheCost));
+        totalRow.appendChild(createTokensCell(totalOutput, totalOutputCost));
+        totalRow.appendChild(createTokensCell(grandTotal, totalCost));
         totalRow.appendChild(
             createCell(
                 totalRequests,
