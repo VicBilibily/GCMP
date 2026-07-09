@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.25.24",
+    "version": "0.25.25",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -47,15 +47,12 @@
         "url": "https://github.com/VicBilibily/GCMP.git"
     },
     "engines": {
-        "vscode": ">=1.120.0",
+        "vscode": ">=1.125.0",
         "node": ">=22.22.3",
         "npm": ">=10.8.2"
     },
     "enabledApiProposals": [
         "chatProvider"
-    ],
-    "extensionDependencies": [
-        "github.copilot-chat"
     ],
     "categories": [
         "AI",
@@ -1513,7 +1510,7 @@
         "@anthropic-ai/sdk": "^0.80.0",
         "@microsoft/tiktokenizer": "^1.0.10",
         "@modelcontextprotocol/sdk": "^1.29.0",
-        "@vscode/chat-lib": "^0.47.0",
+        "@vscode/chat-lib": "0.54.0",
         "chart.js": "^4.5.1",
         "openai": "^6.7.0",
         "undici": "^7.24.5"
@@ -1523,7 +1520,7 @@
         "@stylistic/eslint-plugin": "^5.4.0",
         "@types/json-schema": "^7.0.15",
         "@types/node": "^20.0.0",
-        "@types/vscode": "^1.120.0",
+        "@types/vscode": "^1.125.0",
         "@vscode/vsce": "^3.9.2",
         "esbuild": "^0.25.10",
         "eslint": "^9.13.0",

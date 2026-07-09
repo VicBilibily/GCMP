@@ -2,6 +2,28 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.25] - 2026-07-09
+
+### 修复
+
+- **FIM/NES onDidChange 反馈循环导致请求自激（根因）**：移除 `provideInlineCompletionItems` 中自动触发和手动触发两条路径末尾的 `setTimeout(() => this.onDidChangeEmitter.fire(), 200)` 调用。这是 [#279](https://github.com/VicBilibily/GCMP/issues/279) 请求风暴的**根本原因**——每次补全完成后 VS Code 收到 `onDidChange` 通知，认为编辑器内容已变化，立即重新查询 `provideInlineCompletionItems` 创建新请求，形成永不停止的自激循环（[#279](https://github.com/VicBilibily/GCMP/issues/279)）。
+
+### 变更
+
+- **升级 @vscode/chat-lib 至 0.54.0**：从 `^0.47.0` 升级到固定版本 `0.54.0`；同步升级 `@types/vscode` 至 `^1.125.0`，最低 VS Code 引擎版本提升至 `>=1.125.0`。
+- **移除 extensionDependencies**：不再声明 `github.copilot-chat` 为扩展硬依赖，降低安装冲突和版本锁定风险（[#261](https://github.com/VicBilibily/GCMP/issues/261)）。
+
+---
+
+### Fixed
+
+- **FIM/NES onDidChange feedback loop causing self-triggered request storm (root cause)**: Removed `setTimeout(() => this.onDidChangeEmitter.fire(), 200)` from both auto-trigger and manual-trigger paths in `provideInlineCompletionItems`. This was the **root cause** of the [#279](https://github.com/VicBilibily/GCMP/issues/279) request flood — after every completion, VS Code received an `onDidChange` notification, interpreted it as editor content change, and immediately re-queried `provideInlineCompletionItems`, creating a never-ending self-triggering loop ([#279](https://github.com/VicBilibily/GCMP/issues/279)).
+
+### Changed
+
+- **Upgraded @vscode/chat-lib to 0.54.0**: Pinned to `0.54.0` (from `^0.47.0`); upgraded `@types/vscode` to `^1.125.0`, minimum VS Code engine bumped to `>=1.125.0`.
+- **Removed extensionDependencies**: No longer declares `github.copilot-chat` as a hard extension dependency, reducing installation conflicts and version lock-in risks ([#261](https://github.com/VicBilibily/GCMP/issues/261)).
+
 ## [0.25.24] - 2026-07-08
 
 ### 修复

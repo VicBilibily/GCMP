@@ -267,8 +267,6 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                                 tokenDisposable.dispose();
                                 completionsCts.dispose();
                                 nesCts.dispose();
-                                // 延时通知可能存在新的可用提示
-                                setTimeout(() => this.onDidChangeEmitter.fire(), 200);
                             });
                     }
                 }, debounceMs);
@@ -288,9 +286,6 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
         } finally {
             tokenDisposable.dispose();
             nesCts.dispose();
-
-            // 延时通知可能存在新的可用提示
-            setTimeout(() => this.onDidChangeEmitter.fire(), 200);
         }
     }
 

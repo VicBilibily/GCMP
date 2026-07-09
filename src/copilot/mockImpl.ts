@@ -54,6 +54,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
     private readonly _onDidCopilotTokenRefresh = this._register(new Emitter<void>());
     readonly onDidCopilotTokenRefresh: Event<void> = this._onDidCopilotTokenRefresh.event;
 
+    private readonly _onDidCopilotTokenChange = this._register(new Emitter<void>());
+    readonly onDidCopilotTokenChange: Event<void> = this._onDidCopilotTokenChange.event;
+
     private readonly _onDidAuthenticationChange = this._register(new Emitter<void>());
     readonly onDidAuthenticationChange: Event<void> = this._onDidAuthenticationChange.event;
 
@@ -86,6 +89,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
     resetCopilotToken(_httpError?: number): void {
         this._onDidCopilotTokenRefresh.fire();
+        this._onDidCopilotTokenChange.fire();
     }
 
     async getAdoAccessTokenBase64(_options?: AuthenticationGetSessionOptions): Promise<string | undefined> {
