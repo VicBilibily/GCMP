@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.26] - 2026-07-09
+
+### 新增
+
+- **Grok 4.5 模型**：新增 xAI Grok 4.5 编程模型，`openai-responses` SDK 模式，`high` 默认推理强度，支持工具调用与图片输入（[#282](https://github.com/VicBilibily/GCMP/pull/282)）。
+
+### 变更
+
+- **Grok 模型参数调整**：更新 `grok-build-0.1` 等模型的 `maxInputTokens`/`maxOutputTokens`，统一 `maxOutputTokens` 为 32767（[#282](https://github.com/VicBilibily/GCMP/pull/282)）。
+
+---
+
+### Added
+
+- **Grok 4.5 model**: New xAI Grok 4.5 programming model with `openai-responses` SDK mode, default `high` reasoning effort; supports tool calling and image input ([#282](https://github.com/VicBilibily/GCMP/pull/282)).
+
+### Changed
+
+- **Grok model parameter adjustments**: Updated `maxInputTokens`/`maxOutputTokens` for existing Grok models; unified `maxOutputTokens` to 32767 ([#282](https://github.com/VicBilibily/GCMP/pull/282)).
+
 ## [0.25.25] - 2026-07-09
 
 ### 修复

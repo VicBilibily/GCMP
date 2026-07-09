@@ -253,7 +253,7 @@ curl -fsSL https://x.ai/cli/install.sh | bash
 irm https://x.ai/cli/install.ps1 | iex
 ```
 
-- **支持模型**：**Grok Build 0.1**、**Grok Composer 2.5 (fast)**
+- **支持模型**：**Grok 4.5**、**Grok Build 0.1**、**Grok Composer 2.5 (fast)**
 
 ## ⚙️ 高级配置
 
