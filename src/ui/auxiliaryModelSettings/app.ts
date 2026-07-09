@@ -177,6 +177,14 @@ function createForm(): HTMLElement {
     // Copilot 辅助模型组
     form.appendChild(createGroupTitle(t('Copilot Auxiliary Models', 'Copilot 辅助模型')));
     form.appendChild(
+        createWarningBox(
+            t(
+                'Important: When the main agent uses a non-official Copilot model (BYOK/custom provider), unconfigured utility models will cause "No utility model is configured" errors.',
+                '重要：主 Agent 使用非官方 Copilot 模型（BYOK/自定义提供商）时，若未配置通用辅助模型会触发 "No utility model is configured" 报错。'
+            )
+        )
+    );
+    form.appendChild(
         createModelRow(
             'utility',
             t('Utility Model', '通用辅助模型'),
@@ -225,6 +233,17 @@ function createForm(): HTMLElement {
 function createSuggestion(text: string): HTMLElement {
     const note = createElement('div', 'ams-suggestion');
     note.textContent = text;
+    return note;
+}
+
+function createWarningBox(text: string): HTMLElement {
+    const note = createElement('div', 'ams-warning-box');
+    const icon = createElement('span', 'ams-warning-icon');
+    icon.textContent = '⚠️ ';
+    const content = createElement('span');
+    content.textContent = text;
+    note.appendChild(icon);
+    note.appendChild(content);
     return note;
 }
 

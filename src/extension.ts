@@ -27,6 +27,7 @@ import { CliAuthFactory } from './cli/auth/cliAuthFactory';
 import { registerCommitCommands, checkGitAvailability } from './commit';
 import { clearRegisteredProviders, registerProvider, registeredProviders } from './utils/providerRegistry';
 import { t } from './utils/l10n';
+import { runStartupUtilityModelWizardIfNeeded } from './wizards/startupUtilityModelWizard';
 
 /**
  * 全局变量 - 存储已注册的提供商实例，用于扩展卸载时的清理
@@ -348,6 +349,11 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.commands.executeCommand('setContext', 'gcmp.gitAvailable', false);
         const gitDisposable = checkGitAvailability();
         context.subscriptions.push(gitDisposable);
+
+        // 步骤12: 启动后提示 utility 模型配置（VS Code 1.128+）
+        stepStartTime = Date.now();
+        void runStartupUtilityModelWizardIfNeeded();
+        Logger.trace(`Utility model setup guidance scheduled (${Date.now() - stepStartTime}ms)`);
 
         const totalActivationTime = Date.now() - activationStartTime;
         Logger.info(`GCMP extension activated successfully (${totalActivationTime}ms)`);

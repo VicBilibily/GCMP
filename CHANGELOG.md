@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.28] - 2026-07-09
+
+### 新增
+
+- **启动 Utility 模型配置引导**：检测到 VS Code 1.128+ 且通用辅助模型（`chat.utilityModel`/`chat.utilitySmallModel`）均未配置时，启动后弹窗引导用户手动设置或自动跟随主模型。避免使用非官方 Copilot 模型（BYOK/自定义提供商）时触发 "No utility model is configured" 报错（[#283](https://github.com/VicBilibily/GCMP/issues/283)）。
+
+---
+
+### Added
+
+- **Startup utility model configuration guidance**: Detects VS Code 1.128+ with unconfigured utility models (`chat.utilityModel`/`chat.utilitySmallModel`); shows a startup dialog guiding users to configure models manually or auto-follow the main agent. Prevents "No utility model is configured" errors when using non-official Copilot models (BYOK/custom providers) ([#283](https://github.com/VicBilibily/GCMP/issues/283)).
+
 ## [0.25.27] - 2026-07-09
 
 ### 修复
@@ -43,7 +55,7 @@
 ### 变更
 
 - **升级 @vscode/chat-lib 至 0.54.0**：从 `^0.47.0` 升级到固定版本 `0.54.0`；同步升级 `@types/vscode` 至 `^1.125.0`，最低 VS Code 引擎版本提升至 `>=1.125.0`。
-- **移除 extensionDependencies**：不再声明 `github.copilot-chat` 为扩展硬依赖，降低安装冲突和版本锁定风险（[#261](https://github.com/VicBilibily/GCMP/issues/261)）。
+- ~~**移除 extensionDependencies**：不再声明 `github.copilot-chat` 为扩展硬依赖，降低安装冲突和版本锁定风险（[#261](https://github.com/VicBilibily/GCMP/issues/261)）。~~
 
 ---
 
@@ -54,7 +66,7 @@
 ### Changed
 
 - **Upgraded @vscode/chat-lib to 0.54.0**: Pinned to `0.54.0` (from `^0.47.0`); upgraded `@types/vscode` to `^1.125.0`, minimum VS Code engine bumped to `>=1.125.0`.
-- **Removed extensionDependencies**: No longer declares `github.copilot-chat` as a hard extension dependency, reducing installation conflicts and version lock-in risks ([#261](https://github.com/VicBilibily/GCMP/issues/261)).
+- ~~**Removed extensionDependencies**: No longer declares `github.copilot-chat` as a hard extension dependency, reducing installation conflicts and version lock-in risks ([#261](https://github.com/VicBilibily/GCMP/issues/261)).~~
 
 ## [0.25.24] - 2026-07-08
 

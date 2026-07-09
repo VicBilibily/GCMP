@@ -22,7 +22,9 @@ Search for `GCMP` in the VS Code Extension Marketplace, or use the identifier: [
 3. On first use, you'll be prompted to set an API Key. Complete the configuration and return to the model selector to enable the model
 4. Select your target model in the model selector and start chatting with the AI assistant
 
-### 3. Configure VS Code Utility and GCMP Auxiliary Models (Optional)
+### 3. Configure VS Code Utility and GCMP Auxiliary Models (Recommended)
+
+> **VS Code 1.128+**: A startup dialog will automatically detect if `chat.utilityModel` and `chat.utilitySmallModel` are configured. If both are unset, a prompt will guide you through the setup. When using non-official Copilot models (BYOK/custom providers), unconfigured utility models will cause "No utility model is configured" errors.
 
 VS Code uses lightweight background models for **utility tasks** like title generation, commit messages, search, and intent detection. GCMP features such as commit message generation and vision analysis also require their own model selections. If not configured manually, VS Code falls back to Copilot's built-in models, which consume your monthly quota — especially limited for free-tier users. Pointing these tasks to GCMP-provided models saves Copilot quota for more important work.
 
