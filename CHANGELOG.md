@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.27] - 2026-07-09
+
+### 修复
+
+- **恢复 github.copilot-chat 扩展依赖**：重新将 `github.copilot-chat` 声明为扩展硬依赖（`extensionDependencies`），修复因移除该依赖导致的 Chat 模型选择回退到 Copilot 模型的问题（[#284](https://github.com/VicBilibily/GCMP/issues/284)）。
+
+---
+
+### Fixed
+
+- **Restored github.copilot-chat extension dependency**: Re-declared `github.copilot-chat` as a hard extension dependency (`extensionDependencies`), fixing chat model fallback to Copilot models caused by the dependency removal ([#284](https://github.com/VicBilibily/GCMP/issues/284)).
+
 ## [0.25.26] - 2026-07-09
 
 ### 新增

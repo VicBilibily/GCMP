@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.25.26",
+    "version": "0.25.27",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -53,6 +53,9 @@
     },
     "enabledApiProposals": [
         "chatProvider"
+    ],
+    "extensionDependencies": [
+        "github.copilot-chat"
     ],
     "categories": [
         "AI",
