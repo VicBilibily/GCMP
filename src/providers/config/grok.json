@@ -4,12 +4,26 @@
     "apiKeyTemplate": "Bearer xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "grok-4.5",
+            "name": "Grok 4.5",
+            "tooltip": "xAI 的 Grok 4.5 编程模型，通过 Grok Build OAuth 登录态访问。",
+            "sdkMode": "openai-responses",
+            "maxInputTokens": 467233,
+            "maxOutputTokens": 32767,
+            "reasoningDefault": "high",
+            "reasoningEffort": ["low", "medium", "high"],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
+        },
+        {
             "id": "grok-build-0.1",
             "name": "Grok Build 0.1",
             "tooltip": "xAI 的 Grok Build 编程模型，通过 Grok Build OAuth 登录态访问。",
             "sdkMode": "openai-responses",
-            "maxInputTokens": 190464,
-            "maxOutputTokens": 65536,
+            "maxInputTokens": 223233,
+            "maxOutputTokens": 32767,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
@@ -20,8 +34,8 @@
             "name": "Grok Composer 2.5 (fast)",
             "tooltip": "Cursor 的 Composer 2.5 (fast) 编程模型，通过 Grok Build OAuth 登录态访问。",
             "sdkMode": "openai-responses",
-            "maxInputTokens": 134464,
-            "maxOutputTokens": 65536,
+            "maxInputTokens": 167233,
+            "maxOutputTokens": 32767,
             "capabilities": {
                 "toolCalling": true,
                 "imageInput": true
