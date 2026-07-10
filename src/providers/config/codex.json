@@ -19,7 +19,10 @@
             "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
             "serviceTier": ["default", "priority"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [2.5, 15, 0.25],
+            "tokenPricing": {
+                "pricing": [2.5, 15, 0.25],
+                "tiers": [{ "serviceTier": "priority", "pricing": [5, 30, 0.5] }]
+            },
             "extraBody": {
                 "store": false,
                 "tool_choice": "auto",
@@ -60,7 +63,10 @@
             "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
             "serviceTier": ["default", "priority"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [5, 30, 0.5],
+            "tokenPricing": {
+                "pricing": [5, 30, 0.5],
+                "tiers": [{ "serviceTier": "priority", "pricing": [12.5, 75, 1.25] }]
+            },
             "extraBody": {
                 "store": false,
                 "tool_choice": "auto",
@@ -81,6 +87,10 @@
             "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
             "serviceTier": ["default", "priority"],
             "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": [5, 30, 0.5],
+                "tiers": [{ "serviceTier": "priority", "pricing": [10, 60, 1] }]
+            },
             "extraBody": {
                 "store": false,
                 "tool_choice": "auto",
@@ -101,6 +111,10 @@
             "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
             "serviceTier": ["default", "priority"],
             "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": [2.5, 15, 0.25],
+                "tiers": [{ "serviceTier": "priority", "pricing": [5, 30, 0.5] }]
+            },
             "extraBody": {
                 "store": false,
                 "tool_choice": "auto",
@@ -121,6 +135,10 @@
             "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
             "serviceTier": ["default", "priority"],
             "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": [1, 6, 0.1],
+                "tiers": [{ "serviceTier": "priority", "pricing": [2, 12, 0.2] }]
+            },
             "extraBody": {
                 "store": false,
                 "tool_choice": "auto",

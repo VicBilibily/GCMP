@@ -334,7 +334,7 @@ function appendTotalsRow(tbody: HTMLElement, summaryRecords: ExtendedTokenReques
 
     const totalCell = createElement('td', 'records-total-number');
     const totalTokenStr = formatTokens(totals.summary.totalTokens);
-    const totalCostStr = totals.totalCost > 0 ? formatCost(totals.totalCost) : '';
+    const totalCostStr = totals.totalCost > 0 ? formatCost(totals.totalCost, 2) : '';
     if (totalCostStr) {
         totalCell.innerHTML = `<div class="tokens-row">${totalTokenStr}</div><div class="tokens-detail"><span class="tokens-cost">${totalCostStr}</span></div>`;
     } else {
@@ -556,7 +556,7 @@ export function createRequestRecordsTable(
             record.status === 'completed' ? 'DONE'
             : record.status === 'failed' ? 'ERROR'
             : record.status === 'cancelled' ? 'CANCEL'
-            : 'WAIT';
+            : 'ACTIVE';
         status.className =
             record.status === 'completed' ? 'status-completed'
             : record.status === 'failed' ? 'status-failed'
@@ -573,7 +573,7 @@ export function createRequestRecordsTable(
                 .querySelector('.tokens-session-link')
                 ?.addEventListener('click', () => changeSelectedSession(record.sessionId!));
         } else {
-            statusHtml += '<div class="tokens-detail">-</div>';
+            statusHtml = `<span class="status-label status-full-row">${statusLabel}</span>`;
             status.innerHTML = statusHtml;
         }
 

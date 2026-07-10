@@ -226,9 +226,18 @@ export function formatCost(cost: number | undefined | null, fixedDecimals?: numb
     if (fixedDecimals !== undefined) {
         return cost.toFixed(fixedDecimals);
     }
-    // 取整到小数点后最多 6 位，去除多余的末尾 0
-    const rounded = parseFloat(cost.toFixed(6));
-    return `${rounded}`;
+    // 从 4 位开始，若全部小数位为 0 则递增，最多 6 位
+    let n = 4;
+    while (n < 6) {
+        const formatted = cost.toFixed(n);
+        const frac = formatted.split('.')[1] || '';
+        if (/^0+$/.test(frac)) {
+            n++;
+        } else {
+            return formatted;
+        }
+    }
+    return cost.toFixed(6);
 }
 
 /**

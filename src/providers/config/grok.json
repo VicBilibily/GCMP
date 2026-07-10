@@ -8,11 +8,12 @@
             "name": "Grok 4.5",
             "tooltip": "xAI 的 Grok 4.5 编程模型，通过 Grok Build OAuth 登录态访问。",
             "sdkMode": "openai-responses",
-            "maxInputTokens": 467233,
-            "maxOutputTokens": 32767,
+            "maxInputTokens": 436000,
+            "maxOutputTokens": 64000,
             "reasoningDefault": "high",
             "reasoningEffort": ["low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [2, 6, 0.4]
         },
         {
             "id": "grok-build-0.1",
