@@ -107,7 +107,7 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 
 ### [**MoonshotAI**](https://platform.kimi.com/)
 
-- [**会员权益**](https://www.kimi.com/coding)：Kimi `会员计划` 套餐的附带的 `Kimi For Coding`。
+- [**会员权益**](https://www.kimi.com/coding)：Kimi `会员计划` 套餐的附带的 `Kimi For Coding` (HighSpeed)。
     - **搜索功能**：集成 Kimi Search 联网搜索工具，支持通过 `#kimiWebSearch` 进行联网搜索。
     - **用量查询**：已支持状态栏显示周期剩余用量，可查看套餐的剩余用量及限频重置时间。
 - 预置模型(PayGo)：**Kimi K2.5**、**Kimi K2.6**、**Kimi K2.7 Code**(极速版)

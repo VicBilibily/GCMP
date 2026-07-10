@@ -107,7 +107,7 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 
 ### [**MoonshotAI**](https://platform.kimi.com/)
 
-- [**Membership**](https://www.kimi.com/coding): Kimi membership plan includes `Kimi For Coding`.
+- [**Membership**](https://www.kimi.com/coding): Kimi membership plan includes `Kimi For Coding` (HighSpeed).
     - **Search**: Integrated Kimi Search web search tool, supports `#kimiWebSearch`.
     - **Usage tracking**: Status bar displays remaining quota and rate-limit reset time.
 - Preset models: **Kimi K2.5**, **Kimi K2.6**, **Kimi K2.7 Code** (HighSpeed)

@@ -17,6 +17,18 @@
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
+            "id": "kimi-for-coding-highspeed",
+            "name": "Kimi For Coding · HighSpeed",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.kimi.com/coding",
+            "provider": "kimi",
+            "tooltip": "Kimi For Coding · HighSpeed - 月之暗面推出的专业编程模型高速版，提供更快的代码生成和理解能力",
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 32000,
+            "extraBody": { "thinking": { "type": "enabled" } },
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
             "id": "kimi-k2.5",
             "name": "Kimi K2.5",
             "sdkMode": "anthropic",

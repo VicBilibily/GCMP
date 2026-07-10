@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.29] - 2026-07-10
+
+### 新增
+
+- **FIM / NES 请求熔断器**：FIM 与 NES 补全请求新增熔断器机制（Circuit Breaker）。当请求连续失败达到阈值后自动暂停请求，冷却期后进入半开状态允许一次探测请求，成功则恢复、失败则重新熔断。支持手动重试/查看设置的通知弹窗，配置即时生效（[#279](https://github.com/VicBilibily/GCMP/issues/279)）。
+- **Kimi For Coding · HighSpeed 模型**：月之暗面 Kimi For Coding 专业编程模型高速版，提供更快的代码生成速度，跟随会员套餐权益。
+
+---
+
+### Added
+
+- **FIM / NES circuit breaker**: New circuit breaker mechanism for FIM and NES completion requests. When consecutive failures reach the threshold, requests are automatically paused. After a cooldown period, enters half-open state allowing one probe request — success restores service, failure re-trips the breaker. Includes notification popup with manual retry and settings navigation; configuration changes take effect immediately ([#279](https://github.com/VicBilibily/GCMP/issues/279)).
+- **Kimi For Coding · HighSpeed model**: High-speed variant of Kimi For Coding, the professional coding model by MoonshotAI, offering faster code generation speed. Available with membership plan.
+
 ## [0.25.28] - 2026-07-09
 
 ### 新增
