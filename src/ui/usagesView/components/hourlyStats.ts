@@ -42,7 +42,7 @@ function createStatCell(value: string, isBold: boolean = false): HTMLTableCellEl
 function createTokensCell(tokens: number, cost: number | undefined, isBold: boolean = false): HTMLTableCellElement {
     const cell = createElement('td') as HTMLTableCellElement;
     const tokenStr = tokens > 0 ? formatTokens(tokens) : '-';
-    const costStr = cost !== undefined && cost > 0 ? formatCost(cost, 2) : '';
+    const costStr = cost !== undefined && cost > 0 ? formatCost(cost) : '';
     const tokenHtml = isBold ? `<strong>${tokenStr}</strong>` : tokenStr;
     if (costStr) {
         cell.innerHTML = [
@@ -72,9 +72,15 @@ function appendStatCells(
     isBold: boolean = false
 ): void {
     const totalTokens = stats.actualInput + stats.outputTokens;
-    const cacheCost = (stats.cacheReadCost || 0) + (stats.cacheWriteCost || 0);
-    row.appendChild(createTokensCell(stats.actualInput, stats.inputCost, isBold));
-    row.appendChild(createTokensCell(stats.cacheTokens, cacheCost, isBold));
+    const miss = (stats.actualInput || 0) - (stats.cacheTokens || 0);
+    row.appendChild(
+        createTokensCell(
+            miss > 0 ? miss : stats.actualInput,
+            (stats.inputCost || 0) + (stats.cacheWriteCost || 0),
+            isBold
+        )
+    );
+    row.appendChild(createTokensCell(stats.cacheTokens, stats.cacheReadCost, isBold));
     row.appendChild(createTokensCell(stats.outputTokens, stats.outputCost, isBold));
     row.appendChild(createTokensCell(totalTokens, stats.estimatedCost, isBold));
     row.appendChild(createStatCell(String(stats.requests), isBold));

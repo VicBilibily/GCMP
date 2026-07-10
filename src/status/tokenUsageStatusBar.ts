@@ -182,42 +182,47 @@ export class TokenUsageStatusBar {
             return md;
         }
 
-        // ========== 今日用量表格 ==========
-        // 按提供商统计（按总 token 排序）
+        // ========== 今日用量摘要 ==========
         const sortedProviders = providers.sort((a, b) => {
             const totalA = a.actualInput + a.outputTokens;
             const totalB = b.actualInput + b.outputTokens;
             return totalB - totalA;
         });
-        // 创建提供商统计表格
         md.appendMarkdown(
-            `| ${t('Provider', '提供商')} | ${t('Input', '输入Tokens')} | ${t('Cache', '缓存命中')} | ${t('Output', '输出Tokens')} | ${t('Tokens', '消耗Tokens')} | ${t('Requests', '请求数')} | ${t('Latency', '平均延迟')} | ${t('Speed', '平均速度')} |\n`
+            `| ${t('Provider', '提供商')} | ${t('Tokens', '消耗Tokens')} | ${t('Cost', '预估成本')} | ${t('Requests', '请求次数')} | ${t('Latency', '平均延迟')} | ${t('Speed', '平均速度')} |\n`
         );
-        md.appendMarkdown('| :------------ | ------: | ------: | ------: | ------: | ----: | ------: | ------: |\n');
+        md.appendMarkdown('| :------------ | ------: | ---: | ----: | ------: | ------: |\n');
         for (const providerStats of sortedProviders) {
             const providerTotal = providerStats.actualInput + providerStats.outputTokens;
-            // 计算平均输出速度
             const avgSpeed = this.calculateAverageSpeed(providerStats);
-            // 计算平均首Token延迟
             const avgLatency = this.calculateAverageFirstTokenLatency(providerStats.firstTokenLatency);
+            const cost = providerStats.estimatedCost || 0;
+            const costStr =
+                cost > 0 ?
+                    cost >= 1 ?
+                        `$${parseFloat(cost.toPrecision(5)).toString()}`
+                    :   `$${parseFloat(cost.toFixed(4)).toString()}`
+                :   '-';
             md.appendMarkdown(
-                `| ${providerStats.providerName} | ${this.formatTokens(providerStats.actualInput)} | ` +
-                    `${this.formatTokens(providerStats.cacheTokens)} | ` +
-                    `${this.formatTokens(providerStats.outputTokens)} | ` +
-                    `**${this.formatTokens(providerTotal)}** | ` +
+                `| ${providerStats.providerName} | ${this.formatTokens(providerTotal)} | ` +
+                    `${costStr} | ` +
                     `${providerStats.requests} | ${avgLatency} | ${avgSpeed} |\n`
             );
         }
-        // 合计行（仅当有多个提供商时显示）
         if (providers.length > 1) {
             const total = stats.total.actualInput + stats.total.outputTokens;
             const avgSpeedTotal = this.calculateAverageSpeed(stats.total);
             const avgLatencyTotal = this.calculateAverageFirstTokenLatency(stats.total.firstTokenLatency);
+            const totalCost = stats.total.estimatedCost || 0;
+            const totalCostStr =
+                totalCost > 0 ?
+                    totalCost >= 1 ?
+                        `$${parseFloat(totalCost.toPrecision(5)).toString()}`
+                    :   `$${parseFloat(totalCost.toFixed(4)).toString()}`
+                :   '-';
             md.appendMarkdown(
-                `| **${t('Total', '合计')}** | **${this.formatTokens(stats.total.actualInput)}** | ` +
-                    `**${this.formatTokens(stats.total.cacheTokens)}** | ` +
-                    `**${this.formatTokens(stats.total.outputTokens)}** | ` +
-                    `**${this.formatTokens(total)}** | ` +
+                `| **${t('Total', '合计')}** | **${this.formatTokens(total)}** | ` +
+                    `**${totalCostStr}** | ` +
                     `**${stats.total.requests}** | **${avgLatencyTotal}** | **${avgSpeedTotal}** |\n`
             );
         }
@@ -230,10 +235,10 @@ export class TokenUsageStatusBar {
                 md.appendMarkdown('\n\n ---- \n\n\n\n');
                 // 创建表格标题
                 md.appendMarkdown(
-                    `| ${t('Provider', '提供商')} | ${t('Time', '请求时间')} | ${t('Tokens', '消耗量')} | ${t('Status', '状态')} | ${t('Input', '输入Tokens')} | ${t('Cache', '缓存命中')} | ${t('Output', '输出Tokens')} | ${t('Latency', '响应延迟')} | ${t('Speed', '输出速度')} |\n`
+                    `| ${t('Provider', '提供商')} | ${t('Time', '请求时间')} | ${t('Status', '状态')} | ${t('Input', '输入Tokens')} | ${t('Cache', '缓存命中')} | ${t('Output', '输出Tokens')} | ${t('Latency', '响应延迟')} | ${t('Speed', '输出速度')} |\n`
                 );
                 md.appendMarkdown(
-                    '| :----------- | :-----: | -----: | :----: | -----: | -----: | -----: | ------: | -----: |\n'
+                    '| :----------- | :-----: | :----: | -----: | -----: | -----: | ------: | -----: |\n'
                 );
 
                 // 反转数组，让最近的请求在最下方显示
@@ -279,7 +284,6 @@ export class TokenUsageStatusBar {
                     let inputStr = '-';
                     let cacheStr = '-';
                     let outputStr = '-';
-                    let totalStr = '-';
                     const hasActualUsage =
                         (req.status === 'completed' || req.status === 'cancelled') && !!req.rawUsage && totalTokens > 0;
                     if (hasActualUsage) {
@@ -287,16 +291,15 @@ export class TokenUsageStatusBar {
                         inputStr = this.formatTokens(actualInput);
                         cacheStr = cacheTokens > 0 ? this.formatTokens(cacheTokens) : '-';
                         outputStr = outputTokens > 0 ? this.formatTokens(outputTokens) : '-';
-                        totalStr = this.formatTokens(totalTokens);
                     } else {
-                        // 预估、失败、取消状态或无实际值：显示预估值（带 ~ 前缀）
+                        // 预估、失败、取消状态：显示预估输入
                         if (req.estimatedInput !== undefined && req.estimatedInput > 0) {
-                            totalStr = inputStr = `~${this.formatTokens(req.estimatedInput)}`;
+                            inputStr = `~${this.formatTokens(req.estimatedInput)}`;
                         }
                     }
 
                     md.appendMarkdown(
-                        `| ${req.providerName} | ${timeStr} | ${totalStr} | ${statusIcon} | ${inputStr} | ${cacheStr} | ${outputStr} | ${latencyStr} | ${speedStr} |\n`
+                        `| ${req.providerName} | ${timeStr} | ${statusIcon} | ${inputStr} | ${cacheStr} | ${outputStr} | ${latencyStr} | ${speedStr} |\n`
                     );
                 }
             }

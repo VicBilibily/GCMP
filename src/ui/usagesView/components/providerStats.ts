@@ -108,12 +108,14 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
         let totalCancelledRequests = 0;
         let totalCost = 0;
         let totalInputCost = 0;
-        let totalCacheCost = 0;
+        let totalCacheReadCost = 0;
+        let totalCacheWriteCost = 0;
         let totalOutputCost = 0;
 
         providers.forEach(provider => {
             // 累加合计数据
-            totalInput += provider.actualInput || 0;
+            const miss = (provider.actualInput || 0) - (provider.cacheTokens || 0);
+            totalInput += miss > 0 ? miss : provider.actualInput || 0;
             totalCache += provider.cacheTokens || 0;
             totalOutput += provider.outputTokens || 0;
             totalRequests += provider.requests || 0;
@@ -122,7 +124,8 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             totalCancelledRequests += provider.cancelledRequests || 0;
             totalCost += provider.estimatedCost || 0;
             totalInputCost += provider.inputCost || 0;
-            totalCacheCost += (provider.cacheReadCost || 0) + (provider.cacheWriteCost || 0);
+            totalCacheReadCost += provider.cacheReadCost || 0;
+            totalCacheWriteCost += provider.cacheWriteCost || 0;
             totalOutputCost += provider.outputCost || 0;
 
             // 提供商行
@@ -133,10 +136,13 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             const totalTokens = calculateTotalTokens(provider);
 
             providerRow.appendChild(createCell(getProviderDisplayName(provider.providerKey, provider.providerName)));
-            providerRow.appendChild(createTokensCell(provider.actualInput, provider.inputCost));
             providerRow.appendChild(
-                createTokensCell(provider.cacheTokens, (provider.cacheReadCost || 0) + (provider.cacheWriteCost || 0))
+                createTokensCell(
+                    miss > 0 ? miss : provider.actualInput,
+                    (provider.inputCost || 0) + (provider.cacheWriteCost || 0)
+                )
             );
+            providerRow.appendChild(createTokensCell(provider.cacheTokens, provider.cacheReadCost));
             providerRow.appendChild(createTokensCell(provider.outputTokens, provider.outputCost));
             providerRow.appendChild(createTokensCell(totalTokens, provider.estimatedCost));
             providerRow.appendChild(
@@ -159,12 +165,16 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             Object.entries(provider.models).forEach(([, stats]) => {
                 const modelRow = createElement('tr') as HTMLTableRowElement;
                 const totalTokens = calculateTotalTokens(stats);
+                const modelMiss = (stats.actualInput || 0) - (stats.cacheTokens || 0);
 
                 modelRow.appendChild(createCell(`└─ ${stats.modelName}`, 'model-cell'));
-                modelRow.appendChild(createTokensCell(stats.actualInput, stats.inputCost));
                 modelRow.appendChild(
-                    createTokensCell(stats.cacheTokens, (stats.cacheReadCost || 0) + (stats.cacheWriteCost || 0))
+                    createTokensCell(
+                        modelMiss > 0 ? modelMiss : stats.actualInput,
+                        (stats.inputCost || 0) + (stats.cacheWriteCost || 0)
+                    )
                 );
+                modelRow.appendChild(createTokensCell(stats.cacheTokens, stats.cacheReadCost));
                 modelRow.appendChild(createTokensCell(stats.outputTokens, stats.outputCost));
                 modelRow.appendChild(createTokensCell(totalTokens, stats.estimatedCost));
                 modelRow.appendChild(createCell(stats.requests));
@@ -186,8 +196,8 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
 
         const grandTotal = totalInput + totalOutput;
         totalRow.appendChild(createCell(t('Total', '合计')));
-        totalRow.appendChild(createTokensCell(totalInput, totalInputCost));
-        totalRow.appendChild(createTokensCell(totalCache, totalCacheCost));
+        totalRow.appendChild(createTokensCell(totalInput, totalInputCost + totalCacheWriteCost));
+        totalRow.appendChild(createTokensCell(totalCache, totalCacheReadCost));
         totalRow.appendChild(createTokensCell(totalOutput, totalOutputCost));
         totalRow.appendChild(createTokensCell(grandTotal, totalCost));
         totalRow.appendChild(
