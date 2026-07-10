@@ -131,7 +131,7 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
                 provider = result.provider;
                 disposables = result.disposables;
             } else if (providerKey === 'codex') {
-                const result = CodexModelProvider.createAndActivate(context, providerConfig);
+                const result = CodexModelProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
             } else if (cliAuthProviders.includes(providerKey)) {
