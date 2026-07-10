@@ -60,11 +60,7 @@ export class CliModelProvider extends GenericModelProvider {
                 Logger.trace(`[CliModelProvider] ${this.providerKey} token expired, trying refresh`);
             }
 
-            // 无凭证缓存，走带超时的 ensureAuthenticated
-            hasApiKey = await Promise.race([
-                ApiKeyManager.ensureApiKey(this.providerKey, this.providerConfig.displayName, false),
-                new Promise<boolean>(resolve => setTimeout(() => resolve(false), 1500)) // 避免远程环境下误判为未认证
-            ]);
+            hasApiKey = await ApiKeyManager.ensureApiKey(this.providerKey, this.providerConfig.displayName, false);
         } else {
             // 非静默模式下，直接触发用户交互确保有密钥
             await vscode.commands.executeCommand(`gcmp.${this.providerKey}.configWizard`);

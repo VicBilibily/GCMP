@@ -15,7 +15,7 @@ interface CodexRemoteModel {
     displayName?: string;
     description?: string;
     contextWindow?: number;
-    inputModalities: string[];
+    inputModalities?: string[];
     reasoningEffort: NonNullable<ModelConfig['reasoningEffort']>;
     reasoningDefault?: ModelConfig['reasoningDefault'];
     serviceTier?: string[];
@@ -80,7 +80,7 @@ function parseRemoteModel(value: unknown): CodexRemoteModel | undefined {
         displayName: nonEmptyString(record.display_name),
         description: nonEmptyString(record.description),
         contextWindow,
-        inputModalities: stringArray(record.input_modalities),
+        inputModalities: Array.isArray(record.input_modalities) ? stringArray(record.input_modalities) : undefined,
         reasoningEffort,
         reasoningDefault:
             defaultReasoning && reasoningEffort.includes(defaultReasoning) ? defaultReasoning : undefined,
@@ -125,6 +125,16 @@ function withReasoningEffort(
 
 function createDefaultModel(remote: CodexRemoteModel): ModelConfig {
     const reasoningDefault = resolveReasoningDefault(remote.reasoningEffort, remote.reasoningDefault);
+    const extraBody: Record<string, unknown> = {
+        store: false,
+        tool_choice: 'auto'
+    };
+    if (reasoningDefault) {
+        extraBody.reasoning = {
+            effort: reasoningDefault,
+            summary: 'auto'
+        };
+    }
     return {
         id: remote.slug,
         name: `${remote.displayName ?? remote.slug} (ChatGPT)`,
@@ -138,16 +148,9 @@ function createDefaultModel(remote: CodexRemoteModel): ModelConfig {
         serviceTier: remote.serviceTier,
         capabilities: {
             toolCalling: true,
-            imageInput: remote.inputModalities.includes('image')
+            imageInput: remote.inputModalities?.includes('image') ?? false
         },
-        extraBody: {
-            store: false,
-            tool_choice: 'auto',
-            reasoning: {
-                effort: reasoningDefault ?? 'medium',
-                summary: 'auto'
-            }
-        }
+        extraBody
     };
 }
 
@@ -191,7 +194,7 @@ export function parseCodexModelsResponse(payload: unknown, staticModels: ModelCo
                 maxInputTokens: remote.contextWindow ?? base.maxInputTokens,
                 capabilities: {
                     ...base.capabilities,
-                    imageInput: remote.inputModalities.includes('image')
+                    imageInput: remote.inputModalities?.includes('image') ?? base.capabilities.imageInput
                 },
                 reasoningEffort,
                 reasoningDefault,
