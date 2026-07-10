@@ -168,14 +168,13 @@ export class CodexCliAuth extends BaseCliAuth {
         const expiryDate =
             expiresIn > 0 ? Date.now() + expiresIn * 1000 : credentials.expiry_date || Date.now() + 23 * 60 * 60 * 1000;
 
-        const newCredentials: OAuthCredentials = {
+        const accountId = this.extractAccountIdFromIdToken(responseData.id_token);
+        const newCredentials: CodexOAuthCredentials = {
             access_token: accessToken,
             refresh_token: refreshToken,
-            expiry_date: expiryDate
+            expiry_date: expiryDate,
+            account_id: accountId
         };
-
-        // 从 id_token 中提取 account_id（如果存在）
-        const accountId = this.extractAccountIdFromIdToken(responseData.id_token);
 
         // 保存刷新后的凭证
         this.saveCredentials({
@@ -221,7 +220,7 @@ export class CodexCliAuth extends BaseCliAuth {
                 access_token: tokens.access_token || '',
                 refresh_token: tokens.refresh_token || '',
                 expiry_date: 0,
-                account_id: tokens.account_id
+                account_id: tokens.account_id || this.extractAccountIdFromIdToken(tokens.id_token)
             };
 
             // 尝试从 access_token (JWT) 中解析过期时间
