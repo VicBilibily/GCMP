@@ -142,7 +142,7 @@ export class CliModelProvider extends GenericModelProvider {
      * @param providerKey 提供商标识
      * @param displayName 显示名称
      */
-    private static async startConfigWizard(providerKey: string, displayName: string): Promise<void> {
+    protected static async startConfigWizard(providerKey: string, displayName: string): Promise<void> {
         // 获取支持的 CLI 类型列表
         const supportedCliTypes = CliAuthFactory.getSupportedCliTypes();
         const supportedCliIds = supportedCliTypes.map(cli => cli.id);

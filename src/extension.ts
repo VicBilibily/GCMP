@@ -3,6 +3,7 @@ import { GenericModelProvider } from './providers/genericModelProvider';
 import { ZhipuProvider } from './providers/zhipuProvider';
 import { MoonshotProvider } from './providers/moonshotProvider';
 import { CliModelProvider } from './cli/cliModelProvider';
+import { CodexModelProvider } from './providers/codexModelProvider';
 import { MiniMaxProvider } from './providers/minimaxProvider';
 import { DashscopeProvider } from './providers/dashscopeProvider';
 import { TencentProvider } from './providers/tencentProvider';
@@ -69,6 +70,7 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
                 | ZhipuProvider
                 | MoonshotProvider
                 | CliModelProvider
+                | CodexModelProvider
                 | MiniMaxProvider
                 | DashscopeProvider
                 | TencentProvider
@@ -126,6 +128,10 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
             } else if (providerKey === 'xfyun') {
                 // 对讯飞星辰 iFLYTEK 使用专门的 provider（按量计费 / Coding Plan / Token Plan 三密钥管理）
                 const result = XfyunProvider.createAndActivate(context, providerKey, providerConfig);
+                provider = result.provider;
+                disposables = result.disposables;
+            } else if (providerKey === 'codex') {
+                const result = CodexModelProvider.createAndActivate(context, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
             } else if (cliAuthProviders.includes(providerKey)) {

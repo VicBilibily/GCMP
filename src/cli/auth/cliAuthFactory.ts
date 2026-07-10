@@ -104,6 +104,12 @@ export class CliAuthFactory {
         return instance ? instance.getCliProcessEnv() : { ...process.env };
     }
 
+    /** 获取 Codex 请求所需的 ChatGPT 账户 ID */
+    static async getCodexAccountId(): Promise<string | null> {
+        const instance = this.getInstance('codex');
+        return instance instanceof CodexCliAuth ? instance.getAccountId() : null;
+    }
+
     /**
      * 获取支持的 CLI 类型列表
      */
