@@ -229,7 +229,7 @@ OpenAI's official coding assistant Codex CLI tool. Supports authentication via t
 npm install -g @openai/codex@latest
 ```
 
-- **Supported models**: **GPT-5.5**, **GPT-5.4-mini**, **GPT-5.4**
+- **Supported models**: **GPT-5.6** (Sol/Terra/Luna), **GPT-5.5**, **GPT-5.4-mini**, **GPT-5.4**
 - **Usage tracking**: Status bar displays remaining ChatGPT subscription cycle quota.- **Independent proxy settings**: Codex CLI uses its own proxy configuration (independent of the extension-wide `gcmp.proxy`). You can specify a dedicated proxy for Codex requests via `gcmp.providerOverrides.codex.proxy`.
 
 ```json
@@ -473,7 +473,6 @@ In other words:
 For built-in known provider `usage` / `usages` reference configurations, see the source file [src/utils/knownProviders.ts](src/utils/knownProviders.ts).
 
 > Note: the provider key in `gcmp.providerOverrides` must match `gcmp.compatibleModels[*].provider` **exactly**, including letter case.
->
 
 For example, the following [NekoCode](https://nekocode.ai?aff=U9XPRBID)-related snippet is closer to a real-world `settings.json` setup:
 
@@ -657,6 +656,50 @@ FIM and NES completions use separate model configurations, configurable via `gcm
     }
 }
 ```
+
+### Circuit Breaker
+
+When FIM or NES completion requests fail consecutively, the circuit breaker temporarily pauses requests to prevent endless retries, saving both resources and costs.
+
+**Three-state model**:
+
+| State        | Description                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------------- |
+| **Closed**   | Normal operation — requests pass through, failures are counted                              |
+| **Open**     | Tripped — all requests are rejected, cooldown countdown begins                              |
+| **HalfOpen** | Cooldown elapsed — allows one probe request; success restores Closed, failure re-trips Open |
+
+**Workflow**:
+
+1. Consecutive failures reach `failureThreshold` → breaker transitions Closed → Open
+2. In Open state, all requests are immediately rejected; wait `cooldownSeconds` seconds
+3. After cooldown, the first `allowRequest()` enters HalfOpen and issues one probe request
+4. Probe succeeds (`recordSuccess()`) → back to Closed, service restored
+5. Probe fails (`recordFailure()`) → back to Open, cooldown restarts. **One retry per cooldown cycle** (once every 30 seconds by default) until success or manual "Retry Now"
+6. Request cancelled by user (`recordCancellation()`) → probe slot is returned, re-probing allowed
+
+**Notification**: A warning popup appears on the first Open transition (throttled to once per 30 seconds), offering "Retry Now" to reset the breaker or "View Settings" to navigate to the configuration page.
+
+**Configuration**:
+
+```json
+{
+    // FIM circuit breaker settings (enabled by default)
+    "gcmp.fimCompletion.circuitBreaker": {
+        "enabled": true, // Enable circuit breaker
+        "failureThreshold": 10, // Default 10, range 2-60
+        "cooldownSeconds": 30 // Default 30, range 10-300
+    },
+    // NES circuit breaker settings (enabled by default)
+    "gcmp.nesCompletion.circuitBreaker": {
+        "enabled": true, // Enable circuit breaker
+        "failureThreshold": 5, // Default 5, range 2-20
+        "cooldownSeconds": 30 // Default 30, range 10-300
+    }
+}
+```
+
+> Configuration changes take effect immediately, no VS Code restart needed.
 
 ### Keyboard Shortcuts
 

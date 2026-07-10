@@ -3,8 +3,8 @@
     "baseUrl": "https://chatgpt.com/backend-api/codex",
     "apiKeyTemplate": "eyJhbGciOiJSUzI1NiIsImtpZCI6I...",
     "customHeader": {
-        "version": "0.134.0",
-        "user-agent": "codex-tui/0.134.0 (Windows 10.0.26200; x86_64) unknown (codex-tui; 0.134.0)",
+        "version": "0.144.1",
+        "user-agent": "codex-tui/0.144.1 (Windows 10.0.26200; x86_64) unknown (codex-tui; 0.144.1)",
         "originator": "codex-tui"
     },
     "models": [
@@ -52,6 +52,66 @@
             "name": "GPT-5.5 (ChatGPT)",
             "sdkMode": "openai-responses",
             "tooltip": "ChatGPT 提供的 GPT-5.5 模型，通过 Codex 端点访问，适合代码生成与理解任务",
+            "maxInputTokens": 272000,
+            "maxOutputTokens": 128000,
+            "useInstructions": true,
+            "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
+            "serviceTier": ["default", "priority"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "extraBody": {
+                "store": false,
+                "tool_choice": "auto",
+                "reasoning": {
+                    "effort": "medium",
+                    "summary": "auto"
+                }
+            }
+        },
+        {
+            "id": "gpt-5.6-sol",
+            "name": "GPT-5.6 Sol (ChatGPT)",
+            "sdkMode": "openai-responses",
+            "tooltip": "ChatGPT 提供的 GPT-5.6 系列旗舰模型，面向复杂专业工作，Terminal-Bench 2.1 得分 91.9%，支持 Ultra 多子智能体模式",
+            "maxInputTokens": 272000,
+            "maxOutputTokens": 128000,
+            "useInstructions": true,
+            "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
+            "serviceTier": ["default", "priority"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "extraBody": {
+                "store": false,
+                "tool_choice": "auto",
+                "reasoning": {
+                    "effort": "medium",
+                    "summary": "auto"
+                }
+            }
+        },
+        {
+            "id": "gpt-5.6-terra",
+            "name": "GPT-5.6 Terra (ChatGPT)",
+            "sdkMode": "openai-responses",
+            "tooltip": "ChatGPT 提供的 GPT-5.6 均衡型模型，性能接近 GPT-5.5，价格仅为其一半，适合日常 Agent 工作流",
+            "maxInputTokens": 272000,
+            "maxOutputTokens": 128000,
+            "useInstructions": true,
+            "reasoningEffort": ["none", "low", "medium", "high", "xhigh"],
+            "serviceTier": ["default", "priority"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "extraBody": {
+                "store": false,
+                "tool_choice": "auto",
+                "reasoning": {
+                    "effort": "medium",
+                    "summary": "auto"
+                }
+            }
+        },
+        {
+            "id": "gpt-5.6-luna",
+            "name": "GPT-5.6 Luna (ChatGPT)",
+            "sdkMode": "openai-responses",
+            "tooltip": "ChatGPT 提供的 GPT-5.6 低成本高速模型，适合高频批量任务和成本敏感场景",
             "maxInputTokens": 272000,
             "maxOutputTokens": 128000,
             "useInstructions": true,

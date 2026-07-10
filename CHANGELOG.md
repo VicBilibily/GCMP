@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.30] - 2026-07-10
+
+### 新增
+
+- **Codex GPT-5.6 模型**：新增 GPT-5.6 Sol/Terra/Luna 三款模型配置，同步更新 README 模型列表（[#287](https://github.com/VicBilibily/GCMP/issues/287)）。
+
+---
+
+### Added
+
+- **Codex GPT-5.6 models**: Added GPT-5.6 Sol/Terra/Luna model configs; updated README model listings ([#287](https://github.com/VicBilibily/GCMP/issues/287)).
+
 ## [0.25.29] - 2026-07-10
 
 ### 新增
