@@ -30,6 +30,8 @@ import { MutableObservableWorkspace } from '@vscode/chat-lib/dist/src/_internal/
 import { CopilotTextDocument } from '@vscode/chat-lib/dist/src/_internal/extension/completions-core/vscode-node/lib/src/textDocument';
 import { NullTerminalService } from '@vscode/chat-lib/dist/src/_internal/platform/terminal/common/terminalService';
 import { getCompletionLogger, getConfigManager } from './singletons';
+import { CompletionCircuitBreaker } from './completionCircuitBreaker';
+import { isCancellationError } from '../utils/cancellationError';
 
 // ========================================================================
 // 类型定义
@@ -76,8 +78,16 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
 
     private invocationCount = 0;
 
+    // ========================================================================
+    // 熔断器
+    // ========================================================================
+    private fimCircuitBreaker: CompletionCircuitBreaker;
+    private nesCircuitBreaker: CompletionCircuitBreaker;
+
     constructor(private readonly context: vscode.ExtensionContext) {
         this.disposables.push(this.onDidChangeEmitter);
+        this.fimCircuitBreaker = new CompletionCircuitBreaker('FIM', 'gcmp.fimCompletion.circuitBreaker');
+        this.nesCircuitBreaker = new CompletionCircuitBreaker('NES', 'gcmp.nesCompletion.circuitBreaker');
     }
 
     // ========================================================================
@@ -431,8 +441,16 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             return undefined;
         }
 
+        // 熔断检查
+        if (!this.fimCircuitBreaker.allowRequest()) {
+            CompletionLogger.trace('[InlineCompletionProvider] FIM circuit breaker is open, skipping request');
+            return undefined;
+        }
+
         CompletionLogger.trace('[InlineCompletionProvider] Invoking FIM');
         const startTime = Date.now();
+        // 声明在 try 外，确保 catch 能清理（textDoc.create 等提前抛错时为 undefined）
+        let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
 
         try {
             const textDoc = CopilotTextDocument.create(
@@ -442,9 +460,9 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                 document.getText()
             );
 
-            // 创建超时 Promise
+            // 创建超时 Promise（保存 handle 以便请求结束后清理，避免悬挂 timer 存活至 timeoutMs）
             const timeoutPromise = new Promise<null>((_, reject) => {
-                setTimeout(() => {
+                timeoutHandle = setTimeout(() => {
                     reject(new Error(`FIM request timed out (${config.timeoutMs}ms)`));
                 }, config.timeoutMs);
             });
@@ -458,13 +476,23 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
 
             // 处理请求与超时
             const fimResult = await Promise.race([fimPromise, timeoutPromise]);
+            // 请求已返回，清理超时 timer
+            if (timeoutHandle) {
+                clearTimeout(timeoutHandle);
+            }
 
             const elapsed = Date.now() - startTime;
             CompletionLogger.trace(`[InlineCompletionProvider] FIM request completed, elapsed: ${elapsed}ms`);
 
             if (!fimResult || !fimResult.length) {
+                if (typeof fimResult !== 'string') {
+                    this.fimCircuitBreaker.recordFailure();
+                }
                 return undefined;
             }
+
+            // 有实际结果才记录成功，避免空响应重置失败计数
+            this.fimCircuitBreaker.recordSuccess();
 
             const items = fimResult.map((completion, index) => {
                 const range = new vscode.Range(
@@ -481,17 +509,27 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
 
             return new vscode.InlineCompletionList(items);
         } catch (error) {
+            // 清理可能仍在等待的超时 timer（对已触发的 timer 是 no-op）
+            if (timeoutHandle) {
+                clearTimeout(timeoutHandle);
+            }
             const elapsed = Date.now() - startTime;
 
             if (error instanceof Error && error.message.includes('timed out')) {
+                // 真实超时，记录失败
+                this.fimCircuitBreaker.recordFailure();
                 CompletionLogger.warn(`[InlineCompletionProvider] ${error.message}`);
                 return undefined;
             }
 
-            if (error instanceof Error && error.name === 'AbortError') {
+            if (isCancellationError(error)) {
+                // 用户侧取消（含 cause 链），不计入失败，归还 HalfOpen 探测名额
+                this.fimCircuitBreaker.recordCancellation();
                 return undefined;
             }
 
+            // 其他错误，记录失败
+            this.fimCircuitBreaker.recordFailure();
             CompletionLogger.error(`[InlineCompletionProvider] FIM request failed (${elapsed}ms):`, error);
             return undefined;
         }
@@ -508,16 +546,24 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             return undefined;
         }
 
+        // 熔断检查
+        if (!this.nesCircuitBreaker.allowRequest()) {
+            CompletionLogger.trace('[InlineCompletionProvider] NES circuit breaker is open, skipping request');
+            return undefined;
+        }
+
         CompletionLogger.trace('[InlineCompletionProvider] Invoking NES');
         const startTime = Date.now();
+        // 声明在 try 外，确保 catch 能清理（syncDocument 等提前抛错时为 undefined）
+        let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
 
         try {
             // 同步文档到 NES 工作区
             this.nesWorkspaceAdapter.syncDocument(document);
 
-            // 创建超时 Promise
+            // 创建超时 Promise（保存 handle 以便请求结束后清理，避免悬挂 timer 存活至 timeoutMs）
             const timeoutPromise = new Promise<null>((_, reject) => {
-                setTimeout(() => {
+                timeoutHandle = setTimeout(() => {
                     reject(new Error(`NES request timed out (${config.timeoutMs}ms)`));
                 }, config.timeoutMs);
             });
@@ -530,6 +576,10 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
 
             // 处理请求与超时
             const nesResult = await Promise.race([nesPromise, timeoutPromise]);
+            // 请求已返回，清理超时 timer
+            if (timeoutHandle) {
+                clearTimeout(timeoutHandle);
+            }
 
             const elapsed = Date.now() - startTime;
             CompletionLogger.trace(`[InlineCompletionProvider] NES request completed, elapsed: ${elapsed}ms`);
@@ -537,6 +587,9 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
             if (!nesResult || !nesResult.result) {
                 return undefined;
             }
+
+            // 有实际结果才记录成功，避免空响应重置失败计数
+            this.nesCircuitBreaker.recordSuccess();
 
             // 将 NES 结果转换为 VS Code InlineCompletionItem
             const { newText, range } = nesResult.result;
@@ -561,17 +614,27 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
 
             return new vscode.InlineCompletionList([completionItem]);
         } catch (error) {
+            // 清理可能仍在等待的超时 timer（对已触发的 timer 是 no-op）
+            if (timeoutHandle) {
+                clearTimeout(timeoutHandle);
+            }
             const elapsed = Date.now() - startTime;
 
             if (error instanceof Error && error.message.includes('timed out')) {
+                // 真实超时，记录失败
+                this.nesCircuitBreaker.recordFailure();
                 CompletionLogger.warn(`[InlineCompletionProvider] ${error.message}`);
                 return undefined;
             }
 
-            if (error instanceof Error && error.name === 'AbortError') {
+            if (isCancellationError(error)) {
+                // 用户侧取消（含 cause 链），不计入失败，归还 HalfOpen 探测名额
+                this.nesCircuitBreaker.recordCancellation();
                 return undefined;
             }
 
+            // 其他错误，记录失败
+            this.nesCircuitBreaker.recordFailure();
             const stack = error instanceof Error ? error.stack : '';
             CompletionLogger.error(
                 `[InlineCompletionProvider] NES request failed (${elapsed}ms): ${error instanceof Error ? error.message : String(error)}\n${stack}`

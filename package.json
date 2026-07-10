@@ -543,6 +543,36 @@
                     "description": "%setting.fimCompletion.timeoutMs.description%",
                     "scope": "application"
                 },
+                "gcmp.fimCompletion.circuitBreaker": {
+                    "type": "object",
+                    "default": {
+                        "enabled": true,
+                        "failureThreshold": 10,
+                        "cooldownSeconds": 30
+                    },
+                    "description": "%setting.fimCompletion.circuitBreaker.description%",
+                    "scope": "application",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "description": "%setting.fimCompletion.circuitBreaker.enabled.description%"
+                        },
+                        "failureThreshold": {
+                            "type": "number",
+                            "default": 10,
+                            "minimum": 2,
+                            "maximum": 60,
+                            "description": "%setting.fimCompletion.circuitBreaker.failureThreshold.description%"
+                        },
+                        "cooldownSeconds": {
+                            "type": "number",
+                            "default": 30,
+                            "minimum": 10,
+                            "maximum": 300,
+                            "description": "%setting.fimCompletion.circuitBreaker.cooldownSeconds.description%"
+                        }
+                    }
+                },
                 "gcmp.fimCompletion.modelConfig": {
                     "type": "object",
                     "default": {
@@ -632,6 +662,36 @@
                     "default": false,
                     "description": "%setting.nesCompletion.manualOnly.description%",
                     "scope": "application"
+                },
+                "gcmp.nesCompletion.circuitBreaker": {
+                    "type": "object",
+                    "default": {
+                        "enabled": true,
+                        "failureThreshold": 5,
+                        "cooldownSeconds": 30
+                    },
+                    "description": "%setting.nesCompletion.circuitBreaker.description%",
+                    "scope": "application",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "description": "%setting.nesCompletion.circuitBreaker.enabled.description%"
+                        },
+                        "failureThreshold": {
+                            "type": "number",
+                            "default": 5,
+                            "minimum": 2,
+                            "maximum": 20,
+                            "description": "%setting.nesCompletion.circuitBreaker.failureThreshold.description%"
+                        },
+                        "cooldownSeconds": {
+                            "type": "number",
+                            "default": 30,
+                            "minimum": 10,
+                            "maximum": 300,
+                            "description": "%setting.nesCompletion.circuitBreaker.cooldownSeconds.description%"
+                        }
+                    }
                 },
                 "gcmp.nesCompletion.modelConfig": {
                     "type": "object",
