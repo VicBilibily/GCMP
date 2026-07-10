@@ -1,8 +1,8 @@
 ﻿/*---------------------------------------------------------------------------------------------
  *  Astron (讯飞星辰) 专用 Provider
  *  继承 GenericModelProvider，支持 Coding Plan / Token Plan 两类 API Key
- *  Coding Plan：https://maas-coding-api.cn-huabei-1.xf-yun.com/anthropic
- *  Token Plan：https://maas-token-api.cn-huabei-1.xf-yun.com/anthropic
+ *  Coding Plan：https://maas-coding-api.cn-huabei-1.xf-yun.com/v2
+ *  Token Plan：https://maas-token-api.cn-huabei-1.xf-yun.com/v2
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';

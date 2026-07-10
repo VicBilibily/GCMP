@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.31] - 2026-07-10
+
+### 新增
+
+- **Codex 自动从后端拉取可用模型**：Codex 模型提供商新增从 ChatGPT 后端动态拉取可用模型列表的能力，支持本地预置模型与远端模型的智能整合。远端拉取失败时自动回退到本地预置模型，支持缓存机制减少重复请求（[#288](https://github.com/VicBilibily/GCMP/issues/288)）。
+
+### 优化
+
+- **讯飞星辰切换为 OpenAI 兼容模式**：将讯飞星辰（XunFei Astron）的 SDK 模式从 Anthropic 切换为 OpenAI SSE，API 端点从 `/anthropic` 迁移至 `/v2`（[#277](https://github.com/VicBilibily/GCMP/issues/277)）。
+
+---
+
+### Added
+
+- **Codex auto-fetch models from backend**: Codex model provider now dynamically fetches available model list from ChatGPT backend, with intelligent merging of local presets and remote models. Falls back to local presets on remote fetch failure, with caching to reduce redundant requests ([#288](https://github.com/VicBilibily/GCMP/issues/288)).
+
+### Optimized
+
+- **XunFei Astron switched to OpenAI-compatible mode**: Changed XunFei Astron provider's SDK mode from Anthropic to OpenAI SSE, migrated API endpoint from `/anthropic` to `/v2` ([#277](https://github.com/VicBilibily/GCMP/issues/277)).
+
 ## [0.25.30] - 2026-07-10
 
 ### 新增
