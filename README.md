@@ -152,13 +152,14 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 - [**Coding Plan**](https://console.cloud.tencent.com/tokenhub/codingplan)
     - 开源模型：**GLM-5**、**Kimi-K2.5**、**MiniMax-M2.5**
 - [**Token Plan**](https://console.cloud.tencent.com/tokenhub/tokenplan)：**HY 3 Preview**、**GLM-5.1**、**GLM-5**、**Kimi-K2.5**、**MiniMax-M2.7**、**MiniMax-M2.5**、**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**
+- [**Token Plan 企业版**](https://console.cloud.tencent.com/tokenhub/tokenplan)：**DeepSeek-V4-Flash**、**DeepSeek-V4-Flash-202605**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Pro-202606**、**GLM-5**、**GLM-5-Turbo**、**GLM-5.1**、**GLM-5.2**、**Kimi-K2.5**、**Kimi-K2.6**、**Kimi-K2.7-Code**、**Kimi-K2.7-Code HighSpeed**、**MiniMax-M2.5**、**MiniMax-M2.7**、**MiniMax-M3**
 - [**TokenHub**](https://console.cloud.tencent.com/tokenhub/models)：
     - **GLM 系列**：**GLM-5.2**、**GLM-5.1**、**GLM-5V-Turbo**、**GLM-5-Turbo**、**GLM-5**
     - **DeepSeek 系列**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**DeepSeek-V3.2**
     - **Kimi 系列**：**Kimi-K2.7-Code**、**Kimi-K2.6**、**Kimi-K2.5**
     - **MiniMax 系列**：**MiniMax-M3**、**MiniMax-M2.7**、**MiniMax-M2.5**
     - **Hunyuan 系列**：**HY 3 Preview**、**Tencent HY 2.0 Instruct**、**Tencent HY 2.0 Think**
-- **密钥配置**：腾讯云API密钥分为 [腾讯云付费模型 API Key](https://hunyuan.cloud.tencent.com/#/app/apiKeyManage)、[Coding Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/codingplan)、[Token Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan)、[DeepSeek 专用 API Key](https://console.cloud.tencent.com/lkeap/api)、[TokenHub 付费 API Key](https://console.cloud.tencent.com/tokenhub/apikey)，需要进入正确的密钥获取界面生成密钥。
+- **密钥配置**：腾讯云API密钥分为 [腾讯云付费模型 API Key](https://hunyuan.cloud.tencent.com/#/app/apiKeyManage)、[Coding Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/codingplan)、[Token Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan)、[Token Plan 企业版 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan)、[DeepSeek 专用 API Key](https://console.cloud.tencent.com/lkeap/api)、[TokenHub 付费 API Key](https://console.cloud.tencent.com/tokenhub/apikey)，需要进入正确的密钥获取界面生成密钥。
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)
 

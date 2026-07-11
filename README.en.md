@@ -152,13 +152,14 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 - [**Coding Plan**](https://console.cloud.tencent.com/tokenhub/codingplan)
     - Open-source models: **GLM-5**, **Kimi-K2.5**, **MiniMax-M2.5**
 - [**Token Plan**](https://console.cloud.tencent.com/tokenhub/tokenplan): **HY 3 Preview**, **GLM-5.1**, **GLM-5**, **Kimi-K2.5**, **MiniMax-M2.7**, **MiniMax-M2.5**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**
+- [**Token Plan Enterprise**](https://console.cloud.tencent.com/tokenhub/tokenplan): **DeepSeek-V4-Flash**, **DeepSeek-V4-Flash-202605**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Pro-202606**, **GLM-5**, **GLM-5-Turbo**, **GLM-5.1**, **GLM-5.2**, **Kimi-K2.5**, **Kimi-K2.6**, **Kimi-K2.7-Code**, **Kimi-K2.7-Code HighSpeed**, **MiniMax-M2.5**, **MiniMax-M2.7**, **MiniMax-M3**
 - [**TokenHub**](https://console.cloud.tencent.com/tokenhub/models):
     - **GLM series**: **GLM-5.2**, **GLM-5.1**, **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-5**
     - **DeepSeek series**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **DeepSeek-V3.2**
     - **Kimi series**: **Kimi-K2.7-Code**, **Kimi-K2.6**, **Kimi-K2.5**
     - **MiniMax series**: **MiniMax-M3**, **MiniMax-M2.7**, **MiniMax-M2.5**
     - **Hunyuan series**: **HY 3 Preview**, **Tencent HY 2.0 Instruct**, **Tencent HY 2.0 Think**
-- **Key configuration**: Tencent Cloud API keys are categorized into [paid model API Key](https://hunyuan.cloud.tencent.com/#/app/apiKeyManage), [Coding Plan API Key](https://console.cloud.tencent.com/tokenhub/codingplan), [Token Plan API Key](https://console.cloud.tencent.com/tokenhub/tokenplan), [DeepSeek API Key](https://console.cloud.tencent.com/lkeap/api), and [TokenHub API Key](https://console.cloud.tencent.com/tokenhub/apikey). Each must be generated from the correct key management page.
+- **Key configuration**: Tencent Cloud API keys are categorized into [paid model API Key](https://hunyuan.cloud.tencent.com/#/app/apiKeyManage), [Coding Plan API Key](https://console.cloud.tencent.com/tokenhub/codingplan), [Token Plan API Key](https://console.cloud.tencent.com/tokenhub/tokenplan), [Token Plan Enterprise API Key](https://console.cloud.tencent.com/tokenhub/tokenplan), [DeepSeek API Key](https://console.cloud.tencent.com/lkeap/api), and [TokenHub API Key](https://console.cloud.tencent.com/tokenhub/apikey). Each must be generated from the correct key management page.
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)
 

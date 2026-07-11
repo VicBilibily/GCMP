@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.32] - 2026-07-11
+
+### 新增
+
+- **腾讯云 Token Plan 企业版接入支持**：新增 `tencent-token-enterprise` 提供商，接入腾讯云-大模型服务平台 TokenHub-Token Plan 企业版端点（`https://tokenhub.tencentmaas.com/plan/anthropic`），预置 15 款企业版模型，涵盖 DeepSeek-V4 系列、GLM-5 系列、Kimi-K2 系列与 MiniMax-M 系列。同步新增 `GCMP: 设置 腾讯云 Token Plan 企业版密钥` 命令与配置向导入口，并在 Gist 同步中增加友好显示名（[#290](https://github.com/VicBilibily/GCMP/issues/290)）。
+
+---
+
+### Added
+
+- **Tencent Cloud Token Plan Enterprise support**: Added `tencent-token-enterprise` provider for Tencent Cloud TokenHub-Token Plan Enterprise endpoint (`https://tokenhub.tencentmaas.com/plan/anthropic`), with 15 preset enterprise models covering DeepSeek-V4, GLM-5, Kimi-K2, and MiniMax-M series. Also added the `GCMP: Set Tencent Cloud Token Plan Enterprise API Key` command and configuration wizard entry, plus a friendly display name in Gist sync ([#290](https://github.com/VicBilibily/GCMP/issues/290)).
+
 ## [0.25.31] - 2026-07-10
 
 ### 新增
