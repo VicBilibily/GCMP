@@ -11,7 +11,7 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "reasoningEffort": ["high", "xhigh"],
+            "reasoningEffort": ["high", "max"],
             "reasoningFormat": "nested",
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [1.4, 4.4, 0.26]
@@ -23,7 +23,6 @@
             "sdkMode": "openai-sse",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "reasoningEffort": ["low", "medium", "high"],
             "extraBody": {
                 "enabled_thinking": true
             },
@@ -37,7 +36,6 @@
             "sdkMode": "openai-sse",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "reasoningEffort": ["low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [0.95, 4.0, 0.16]
         },
@@ -49,7 +47,7 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "reasoningEffort": ["high", "xhigh"],
+            "reasoningEffort": ["high", "max"],
             "reasoningFormat": "nested",
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [1.74, 3.48, 0.0145]
@@ -62,7 +60,7 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "reasoningEffort": ["high", "xhigh"],
+            "reasoningEffort": ["high", "max"],
             "reasoningFormat": "nested",
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [0.14, 0.28, 0.0028]
@@ -75,8 +73,6 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
-            "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [0.14, 0.28, 0.0028]
         },
@@ -88,8 +84,6 @@
             "contextSize": [1000000, 640000, 400000, 320000],
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
-            "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [1.74, 3.48, 0.0145]
         },

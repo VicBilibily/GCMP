@@ -56,6 +56,78 @@ export interface KimiParallelInfo {
 }
 
 /**
+ * Kimi 加油包余额信息
+ */
+export interface KimiBoosterWalletBalance {
+    /** 余额 ID */
+    id: string;
+    /** 功能类型 */
+    feature: string;
+    /** 余额类型 */
+    type: string;
+    /** 总余额金额 */
+    amount: string;
+    /** 剩余余额金额 */
+    amountLeft: string;
+    /** 余额单位 */
+    unit: string;
+    /** 有效期开始时间 */
+    periodStart: string;
+    /** 有效期结束时间 */
+    periodEnd: string;
+    /** 订阅 ID */
+    subscriptionId: string;
+    /** 用户 ID */
+    userId: string;
+    /** 创建时间 */
+    createTime: string;
+    /** 更新时间 */
+    updateTime: string;
+}
+
+/**
+ * Kimi 加油包金额限制
+ */
+export interface KimiBoosterWalletLimit {
+    /** 货币代码 */
+    currency: string;
+    /** 金额（单位：分） */
+    priceInCents: string;
+}
+
+/**
+ * Kimi 加油包钱包数据
+ */
+export interface KimiBoosterWallet {
+    /** 钱包 ID */
+    id: string;
+    /** 用户 ID */
+    userId: string;
+    /** 余额信息 */
+    balance: KimiBoosterWalletBalance;
+    /** 状态（如 STATUS_ACTIVE / STATUS_DISABLED） */
+    status: string;
+    /** 是否允许充值 */
+    allowTopup: boolean;
+    /** 单次充值上限 */
+    topupLimit: KimiBoosterWalletLimit;
+    /** 自动续费金额 */
+    autoRefillCharge: KimiBoosterWalletLimit;
+    /** 自动续费触发阈值 */
+    autoRefillThreshold: KimiBoosterWalletLimit;
+    /** 是否启用月度扣费上限 */
+    monthlyChargeLimitEnabled: boolean;
+    /** 月度扣费上限 */
+    monthlyChargeLimit: KimiBoosterWalletLimit;
+    /** 当月已用金额 */
+    monthlyUsed: KimiBoosterWalletLimit;
+    /** 创建时间 */
+    createdAt: string;
+    /** 更新时间 */
+    updatedAt: string;
+}
+
+/**
  * Kimi 状态数据
  */
 export interface KimiStatusData {
@@ -65,6 +137,8 @@ export interface KimiStatusData {
     windows: KimiUsageWindow[];
     /** 并发上限（可选） */
     parallel?: KimiParallelInfo;
+    /** 加油包钱包（可选） */
+    boosterWallet?: KimiBoosterWallet;
 }
 
 /**
@@ -94,7 +168,7 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
      * 获取显示文本
      */
     protected getDisplayText(data: KimiStatusData): string {
-        const { summary, windows } = data;
+        const { summary, windows, boosterWallet } = data;
         let displayText = `${this.config.icon} ${summary.remaining}%`;
         // 如果有窗口数据，添加每个窗口的剩余（排除剩余100%的窗口）
         if (windows.length > 0) {
@@ -105,19 +179,18 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
                 displayText += ` (${windowTexts.join(',')})`;
             }
         }
-        return displayText;
-    }
-
-    /**
-     * 格式化Token数量显示
-     */
-    private formatTokenCount(tokens: number): string {
-        if (tokens >= 1000000) {
-            return `${(tokens / 1000000).toFixed(1)}M`;
-        } else if (tokens >= 1000) {
-            return `${(tokens / 1000).toFixed(1)}K`;
+        // 有加油包且余额大于 0 时，在右侧显示余额
+        if (boosterWallet) {
+            const amountLeft = parseInt(boosterWallet.balance.amountLeft, 10);
+            if (amountLeft > 0) {
+                const balanceText = this.formatBoosterCurrency(
+                    boosterWallet.topupLimit.currency,
+                    boosterWallet.balance.amountLeft
+                );
+                displayText += ` ${balanceText}`;
+            }
         }
-        return tokens.toString();
+        return displayText;
     }
 
     /**
@@ -152,14 +225,40 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
             }
         }
 
+        // 添加加油包信息：仅当加油包存在且余额大于 0 时显示
+        if (data.boosterWallet) {
+            const wallet = data.boosterWallet;
+            const amountLeft = parseInt(wallet.balance.amountLeft, 10);
+            if (amountLeft > 0) {
+                md.appendMarkdown('\n---\n');
+
+                // 状态行：放到标题右侧，标题加粗但状态不加粗
+                const statusText = this.translateBoosterStatus(wallet.status);
+                md.appendMarkdown(`**${t('Quota Booster', '额度加油包')}** (${statusText})\n\n`);
+
+                // 加油包信息表格：横向表头，金额保留两位小数
+                md.appendMarkdown(
+                    `| ${t('Current Balance', '当前余额')} | ${t('Monthly Consumption', '本月消费')} | ${t('Monthly Limit', '本月限额')} |\n`
+                );
+                md.appendMarkdown('| ---: | ---: | ---: |\n');
+
+                const balanceText = this.formatBoosterCurrency(wallet.topupLimit.currency, wallet.balance.amountLeft);
+                const monthlyUsedText = this.formatCurrencyLimit(wallet.monthlyUsed, false, 2);
+                const monthlyLimitText =
+                    wallet.monthlyChargeLimitEnabled ?
+                        this.formatCurrencyLimit(wallet.monthlyChargeLimit, true, 2)
+                    :   t('Unlimited', '无限制');
+                md.appendMarkdown(`| ${balanceText} | ${monthlyUsedText} | ${monthlyLimitText} |\n`);
+            }
+        }
+
         // 添加并发上限行
         if (data.parallel) {
-            md.appendMarkdown('\n');
+            md.appendMarkdown('\n---\n');
             md.appendMarkdown(`**${t('Maximum concurrency', '最高并发上限')}**: ${data.parallel.limit}\n`);
         }
 
-        md.appendMarkdown('\n');
-        md.appendMarkdown('---\n');
+        md.appendMarkdown('\n---\n');
         md.appendMarkdown(`${t('Click the status bar to refresh manually', '点击状态栏可手动刷新')}\n`);
         return md;
     }
@@ -247,6 +346,58 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
                 }[];
                 parallel?: {
                     limit: string | number;
+                };
+                totalQuota?: {
+                    limit: string | number;
+                    remaining: string | number;
+                };
+                authentication?: {
+                    method: string;
+                    scope: string;
+                };
+                subType?: string;
+                boosterWallet?: {
+                    id: string;
+                    userId: string;
+                    balance: {
+                        id: string;
+                        feature: string;
+                        type: string;
+                        amount: string;
+                        amountLeft: string;
+                        unit: string;
+                        periodStart: string;
+                        periodEnd: string;
+                        subscriptionId: string;
+                        userId: string;
+                        createTime: string;
+                        updateTime: string;
+                    };
+                    status: string;
+                    allowTopup: boolean;
+                    topupLimit: {
+                        currency: string;
+                        priceInCents: string;
+                    };
+                    autoRefillCharge: {
+                        currency: string;
+                        priceInCents: string;
+                    };
+                    autoRefillThreshold: {
+                        currency: string;
+                        priceInCents: string;
+                    };
+                    monthlyChargeLimitEnabled: boolean;
+                    monthlyChargeLimit: {
+                        currency: string;
+                        priceInCents: string;
+                    };
+                    monthlyUsed: {
+                        currency: string;
+                        priceInCents: string;
+                    };
+                    createdAt: string;
+                    updatedAt: string;
                 };
                 code?: string;
                 details?: {
@@ -366,12 +517,34 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
                 parallel = { limit: parallelLimit };
             }
 
+            // 加油包钱包
+            let boosterWallet: KimiBoosterWallet | undefined;
+            if (parsedResponse.boosterWallet) {
+                const wallet = parsedResponse.boosterWallet;
+                boosterWallet = {
+                    id: wallet.id,
+                    userId: wallet.userId,
+                    balance: wallet.balance,
+                    status: wallet.status,
+                    allowTopup: wallet.allowTopup,
+                    topupLimit: wallet.topupLimit,
+                    autoRefillCharge: wallet.autoRefillCharge,
+                    autoRefillThreshold: wallet.autoRefillThreshold,
+                    monthlyChargeLimitEnabled: wallet.monthlyChargeLimitEnabled,
+                    monthlyChargeLimit: wallet.monthlyChargeLimit,
+                    monthlyUsed: wallet.monthlyUsed,
+                    createdAt: wallet.createdAt,
+                    updatedAt: wallet.updatedAt
+                };
+            }
+
             return {
                 success: true,
                 data: {
                     summary,
                     windows,
-                    parallel
+                    parallel,
+                    boosterWallet
                 }
             };
         } catch (error) {
@@ -465,6 +638,65 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
         const hours = String(date.getHours()).padStart(2, '0');
         const minutes = String(date.getMinutes()).padStart(2, '0');
         return `${month}/${day} ${hours}:${minutes}`;
+    }
+
+    /**
+     * 根据货币代码返回符号
+     */
+    private getCurrencySymbol(currency: string): string {
+        switch (currency) {
+            case 'USD':
+                return '$';
+            case 'CNY':
+            case 'RMB':
+                return '¥';
+            default:
+                return '';
+        }
+    }
+
+    /**
+     * 格式化加油包金额限制（分 -> 元）
+     * 注意：金额为 0 时对于“已用”应显示 ¥0.00，只有上限为 0 时才表示无限制。
+     */
+    private formatCurrencyLimit(
+        limit: { currency: string; priceInCents: string },
+        treatZeroAsUnlimited = false,
+        decimals = 2
+    ): string {
+        const amount = parseInt(limit.priceInCents, 10);
+        if (amount === 0 && treatZeroAsUnlimited) {
+            return t('Unlimited', '无限制');
+        }
+        const symbol = this.getCurrencySymbol(limit.currency);
+        return `${symbol}${(amount / 100).toFixed(decimals)}`;
+    }
+
+    /**
+     * 格式化加油包余额金额
+     * 官方 API 返回的金额是放大 10^8 后的整数字符串，需要还原为以元为单位的显示金额。
+     * 加油包余额展示统一保留两位小数，作为默认精度。
+     * @param currency 货币代码（如 CNY、USD），用于推断货币符号
+     */
+    private formatBoosterCurrency(currency: string, amount: string, decimals = 2): string {
+        const numericAmount = parseInt(amount, 10);
+        const symbol = this.getCurrencySymbol(currency);
+        return `${symbol}${(numericAmount / 1e8).toFixed(decimals)}`;
+    }
+
+    /**
+     * 翻译加油包状态
+     */
+    private translateBoosterStatus(status: string): string {
+        const statusMap: Record<string, { en: string; zh: string }> = {
+            STATUS_ACTIVE: { en: 'Active', zh: '已开启' },
+            STATUS_DISABLED: { en: 'Closed', zh: '已关闭' }
+        };
+        const mapped = statusMap[status];
+        if (!mapped) {
+            return status;
+        }
+        return vscode.env.language.toLowerCase().startsWith('zh') ? mapped.zh : mapped.en;
     }
 
     /**

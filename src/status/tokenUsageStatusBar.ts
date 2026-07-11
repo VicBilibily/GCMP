@@ -189,11 +189,15 @@ export class TokenUsageStatusBar {
             return totalB - totalA;
         });
         md.appendMarkdown(
-            `| ${t('Provider', '提供商')} | ${t('Tokens', '消耗Tokens')} | ${t('Cost', '预估成本')} | ${t('Requests', '请求次数')} | ${t('Latency', '平均延迟')} | ${t('Speed', '平均速度')} |\n`
+            `| ${t('Provider', '提供商')} | ${t('Input(+Cache)+Output=Total', '输入(+缓存)+输出=消耗Tokens')} | ${t('Cost', '预估成本')} | ${t('Requests', '请求数')} | ${t('Latency', '平均延迟')} | ${t('Speed', '平均速度')} |\n`
         );
         md.appendMarkdown('| :------------ | ------: | ---: | ----: | ------: | ------: |\n');
         for (const providerStats of sortedProviders) {
-            const providerTotal = providerStats.actualInput + providerStats.outputTokens;
+            const consumptionPath = this.formatConsumptionPath(
+                providerStats.actualInput,
+                providerStats.cacheTokens,
+                providerStats.outputTokens
+            );
             const avgSpeed = this.calculateAverageSpeed(providerStats);
             const avgLatency = this.calculateAverageFirstTokenLatency(providerStats.firstTokenLatency);
             const cost = providerStats.estimatedCost || 0;
@@ -204,13 +208,17 @@ export class TokenUsageStatusBar {
                     :   `$${parseFloat(cost.toFixed(4)).toString()}`
                 :   '-';
             md.appendMarkdown(
-                `| ${providerStats.providerName} | ${this.formatTokens(providerTotal)} | ` +
+                `| ${providerStats.providerName} | ${consumptionPath} | ` +
                     `${costStr} | ` +
                     `${providerStats.requests} | ${avgLatency} | ${avgSpeed} |\n`
             );
         }
         if (providers.length > 1) {
-            const total = stats.total.actualInput + stats.total.outputTokens;
+            const totalPath = this.formatConsumptionPath(
+                stats.total.actualInput,
+                stats.total.cacheTokens,
+                stats.total.outputTokens
+            );
             const avgSpeedTotal = this.calculateAverageSpeed(stats.total);
             const avgLatencyTotal = this.calculateAverageFirstTokenLatency(stats.total.firstTokenLatency);
             const totalCost = stats.total.estimatedCost || 0;
@@ -220,8 +228,11 @@ export class TokenUsageStatusBar {
                         `$${parseFloat(totalCost.toPrecision(5)).toString()}`
                     :   `$${parseFloat(totalCost.toFixed(4)).toString()}`
                 :   '-';
+            const eqIndex = totalPath.lastIndexOf('=');
+            const formulaPart = totalPath.slice(0, eqIndex + 1);
+            const resultPart = totalPath.slice(eqIndex + 1);
             md.appendMarkdown(
-                `| **${t('Total', '合计')}** | **${this.formatTokens(total)}** | ` +
+                `| **${t('Total', '合计')}** | ${formulaPart}**${resultPart}** | ` +
                     `**${totalCostStr}** | ` +
                     `**${stats.total.requests}** | **${avgLatencyTotal}** | **${avgSpeedTotal}** |\n`
             );
@@ -375,6 +386,19 @@ export class TokenUsageStatusBar {
         } else {
             return tokens.toString();
         }
+    }
+
+    /**
+     * 格式化消耗路径：输入(+缓存)+输出=总计
+     * 例如：2.2K(+20.3M)+2000=22.5M
+     */
+    private formatConsumptionPath(actualInput: number, cacheTokens: number, outputTokens: number): string {
+        const nonCacheInput = actualInput - cacheTokens;
+        const inputStr = this.formatTokens(nonCacheInput);
+        const cacheStr = cacheTokens > 0 ? `(+${this.formatTokens(cacheTokens)})` : '';
+        const outputStr = this.formatTokens(outputTokens);
+        const total = this.formatTokens(actualInput + outputTokens);
+        return `${inputStr}${cacheStr}+${outputStr}=${total}`;
     }
 
     /**
