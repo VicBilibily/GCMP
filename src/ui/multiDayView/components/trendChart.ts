@@ -1,7 +1,7 @@
 import Chart from 'chart.js/auto';
 import type { MultiDayAnalysisResult } from '../../../usages/multiDay/types';
 import { t } from '../../usagesView/utils';
-import { createElement } from '../../utils';
+import { createElement, formatCost, formatTokens } from '../../utils';
 
 const COLORS = ['#4a90d9', '#50c878', '#ff8c42', '#9b59b6', '#e74c3c', '#1abc9c', '#f39c12', '#3498db'];
 
@@ -93,7 +93,7 @@ function render(canvasId: string, data: MultiDayAnalysisResult): void {
                 y: {
                     stacked: true,
                     beginAtZero: true,
-                    ticks: { callback: v => (Number(v) >= 1000 ? abbrev(Number(v)) : v) }
+                    ticks: { callback: v => (Number(v) >= 1000 ? formatTokens(Number(v)) : String(v)) }
                 }
             },
             plugins: {
@@ -106,12 +106,111 @@ function render(canvasId: string, data: MultiDayAnalysisResult): void {
     });
 }
 
-function abbrev(n: number): string {
-    if (n >= 1_000_000) {
-        return (n / 1_000_000).toFixed(2) + 'M';
+// ============= 每日成本趋势图 =============
+
+export function createCostTrendChart(data: MultiDayAnalysisResult): HTMLElement {
+    const section = createElement('div', 'chart-section');
+    const title = createElement('h3', 'chart-section-title');
+    title.textContent = t('Daily Token Cost', '每日 Token 成本');
+    section.appendChild(title);
+
+    const wrapper = createElement('div', 'chart-wrapper');
+    const canvas = document.createElement('canvas');
+    canvas.id = 'chart-daily-cost';
+    wrapper.appendChild(canvas);
+    section.appendChild(wrapper);
+
+    setTimeout(() => renderCostChart(canvas.id, data), 0);
+    return section;
+}
+
+function renderCostChart(canvasId: string, data: MultiDayAnalysisResult): void {
+    const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
+    if (!canvas) {
+        return;
     }
-    if (n >= 1_000) {
-        return (n / 1_000).toFixed(1) + 'K';
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+        return;
     }
-    return String(n);
+
+    const { dates } = data;
+    if (dates.length < 2) {
+        canvas.parentElement!.innerHTML = `<div class="empty-message">💡 ${t('Need at least 2 days', '至少需要 2 天数据')}</div>`;
+        return;
+    }
+
+    const labels = data.trendSeries.dates.map((d: string) => d.slice(5));
+
+    // 收集所有 provider 的每日成本
+    const allProviderKeys = new Set<string>();
+    const keyToName = new Map<string, string>();
+    for (const d of dates) {
+        for (const [k, ps] of Object.entries(d.providers)) {
+            allProviderKeys.add(k);
+            if (!keyToName.has(k)) {
+                keyToName.set(k, ps.providerName || k);
+            }
+        }
+    }
+
+    const providers = new Map<string, number[]>();
+    for (const key of allProviderKeys) {
+        providers.set(key, []);
+    }
+    for (const d of dates) {
+        for (const key of allProviderKeys) {
+            providers.get(key)!.push(d.providers[key]?.estimatedCost ?? 0);
+        }
+    }
+
+    const barDatasets = Array.from(providers.entries()).map(([key, vals], i) => ({
+        label: keyToName.get(key) || key,
+        data: vals,
+        backgroundColor: COLORS[i % COLORS.length],
+        borderRadius: 2,
+        type: 'bar' as const,
+        stack: 'providers'
+    }));
+
+    const lineDataset = {
+        label: t('Total', '总量'),
+        data: data.trendSeries.estimatedCost,
+        borderColor: '#e74c3c',
+        backgroundColor: 'transparent',
+        borderWidth: 2.5,
+        tension: 0.3,
+        type: 'line' as const,
+        pointRadius: 3,
+        pointBackgroundColor: '#e74c3c'
+    };
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets: [...barDatasets, lineDataset] },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                y: {
+                    stacked: true,
+                    beginAtZero: true,
+                    ticks: { callback: v => (Number(v) === 0 ? '$0.00' : formatCost(Number(v), 2)) }
+                }
+            },
+            plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8 } },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => {
+                            const val = ctx.raw as number;
+                            return `${ctx.dataset.label}: ${formatCost(val, 2)}`;
+                        }
+                    },
+                    filter: item => (item.raw as number) > 0
+                }
+            }
+        }
+    });
 }

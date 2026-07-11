@@ -83,8 +83,22 @@ export class MultiDayAggregator {
             grandOutput = 0,
             grandRequests = 0,
             grandCompleted = 0,
-            grandCancelled = 0;
-        const providerAcc = new Map<string, { name: string; input: number; cache: number; output: number }>();
+            grandCancelled = 0,
+            grandCost = 0;
+        const providerAcc = new Map<
+            string,
+            {
+                name: string;
+                input: number;
+                cache: number;
+                output: number;
+                estimatedCost: number;
+                inputCost: number;
+                outputCost: number;
+                cacheReadCost: number;
+                cacheWriteCost: number;
+            }
+        >();
         const modelAcc = new Map<
             string,
             {
@@ -95,6 +109,11 @@ export class MultiDayAggregator {
                 input: number;
                 cache: number;
                 output: number;
+                estimatedCost: number;
+                inputCost: number;
+                outputCost: number;
+                cacheReadCost: number;
+                cacheWriteCost: number;
             }
         >();
 
@@ -116,6 +135,7 @@ export class MultiDayAggregator {
             grandRequests += ds.totalRequests;
             grandCompleted += ds.completedRequests;
             grandCancelled += ds.cancelledRequests;
+            grandCost += ds.estimatedCost;
             for (const [k, ps] of Object.entries(stats.providers)) {
                 const pi = ps.actualInput || ps.estimatedInput || 0;
                 const pc = ps.cacheTokens || 0;
@@ -125,7 +145,12 @@ export class MultiDayAggregator {
                     name: ps.providerName,
                     input: (prev?.input || 0) + pi,
                     cache: (prev?.cache || 0) + pc,
-                    output: (prev?.output || 0) + po
+                    output: (prev?.output || 0) + po,
+                    estimatedCost: (prev?.estimatedCost || 0) + (ps.estimatedCost || 0),
+                    inputCost: (prev?.inputCost || 0) + (ps.inputCost || 0),
+                    outputCost: (prev?.outputCost || 0) + (ps.outputCost || 0),
+                    cacheReadCost: (prev?.cacheReadCost || 0) + (ps.cacheReadCost || 0),
+                    cacheWriteCost: (prev?.cacheWriteCost || 0) + (ps.cacheWriteCost || 0)
                 });
                 for (const [mk, ms] of Object.entries(ps.models)) {
                     const mi = ms.actualInput || ms.estimatedInput || 0;
@@ -140,7 +165,12 @@ export class MultiDayAggregator {
                         requests: (pv?.requests || 0) + ms.requests,
                         input: (pv?.input || 0) + mi,
                         cache: (pv?.cache || 0) + mc,
-                        output: (pv?.output || 0) + mo
+                        output: (pv?.output || 0) + mo,
+                        estimatedCost: (pv?.estimatedCost || 0) + (ms.estimatedCost || 0),
+                        inputCost: (pv?.inputCost || 0) + (ms.inputCost || 0),
+                        outputCost: (pv?.outputCost || 0) + (ms.outputCost || 0),
+                        cacheReadCost: (pv?.cacheReadCost || 0) + (ms.cacheReadCost || 0),
+                        cacheWriteCost: (pv?.cacheWriteCost || 0) + (ms.cacheWriteCost || 0)
                     });
                 }
             }
@@ -150,7 +180,7 @@ export class MultiDayAggregator {
         const totalAllTokens = grandTokens || 1;
         const providerRanking = Array.from(providerAcc.entries())
             .map(([k, v]) => {
-                const tokens = v.input + v.cache + v.output;
+                const tokens = v.input + v.output;
                 return {
                     key: k,
                     name: v.name,
@@ -158,13 +188,18 @@ export class MultiDayAggregator {
                     totalCache: v.cache,
                     totalOutput: v.output,
                     totalTokens: tokens,
-                    share: tokens / totalAllTokens
+                    share: tokens / totalAllTokens,
+                    estimatedCost: v.estimatedCost,
+                    inputCost: v.inputCost,
+                    outputCost: v.outputCost,
+                    cacheReadCost: v.cacheReadCost,
+                    cacheWriteCost: v.cacheWriteCost
                 };
             })
             .sort((a, b) => b.totalTokens - a.totalTokens);
         const modelRanking = Array.from(modelAcc.entries())
             .map(([id, v]) => {
-                const tokens = v.input + v.cache + v.output;
+                const tokens = v.input + v.output;
                 return {
                     id,
                     name: v.displayName,
@@ -174,7 +209,12 @@ export class MultiDayAggregator {
                     totalCache: v.cache,
                     totalOutput: v.output,
                     totalRequests: v.requests,
-                    totalTokens: tokens
+                    totalTokens: tokens,
+                    estimatedCost: v.estimatedCost,
+                    inputCost: v.inputCost,
+                    outputCost: v.outputCost,
+                    cacheReadCost: v.cacheReadCost,
+                    cacheWriteCost: v.cacheWriteCost
                 };
             })
             .sort((a, b) => b.totalTokens - a.totalTokens);
@@ -182,6 +222,7 @@ export class MultiDayAggregator {
         // === 汇总 ===
         const dayCount = dates.length;
         const dailyAvgTokens = dayCount > 0 ? Math.round(grandTokens / dayCount) : 0;
+        const dailyAvgCost = dayCount > 0 ? grandCost / dayCount : 0;
         // 成功率/失败率分母排除已中止的请求（用户主动取消，不应计入系统成功率/失败率）
         const effectiveTotal = grandRequests - grandCancelled;
         const successRate = effectiveTotal > 0 ? grandCompleted / effectiveTotal : 0;
@@ -215,6 +256,8 @@ export class MultiDayAggregator {
                 totalRequests: grandRequests,
                 successRate,
                 dailyAvgTokens,
+                totalCost: grandCost,
+                dailyAvgCost,
                 topProvider,
                 topModel,
                 tokensChangePct: null
@@ -239,8 +282,8 @@ export class MultiDayAggregator {
         const cancelR = stats.total.cancelledRequests;
         // 失败率分母排除已中止的请求（用户主动取消，不应计入系统失败率）
         const frate = tr > cancelR ? fr / (tr - cancelR) : 0;
-        const tt = ti + tc + to;
-        const chr = ti + to + tc > 0 ? tc / (ti + to + tc) : 0;
+        const tt = ti + to;
+        const chr = ti > 0 ? tc / ti : 0;
 
         const providers: Record<string, MultiDayProviderStats> = {};
         for (const [k, ps] of Object.entries(stats.providers)) {
@@ -257,7 +300,7 @@ export class MultiDayAggregator {
                     totalInput: mi,
                     totalCache: mc,
                     totalOutput: mo,
-                    totalTokens: mi + mc + mo,
+                    totalTokens: mi + mo,
                     totalRequests: ms.requests,
                     avgSpeed: ms.outputSpeeds || 0,
                     avgLatency: ms.firstTokenLatency || 0
@@ -269,10 +312,11 @@ export class MultiDayAggregator {
                 totalInput: pi,
                 totalCache: pc,
                 totalOutput: po,
-                totalTokens: pi + pc + po,
+                totalTokens: pi + po,
                 totalRequests: ps.requests,
                 avgSpeed: ps.outputSpeeds || 0,
                 avgLatency: ps.firstTokenLatency || 0,
+                estimatedCost: ps.estimatedCost || 0,
                 models
             };
         }
@@ -290,6 +334,7 @@ export class MultiDayAggregator {
             cancelledRequests: cancelR,
             failureRate: frate,
             cacheHitRate: chr,
+            estimatedCost: stats.total.estimatedCost || 0,
             providers
         };
     }
@@ -303,7 +348,8 @@ export class MultiDayAggregator {
             cacheTokens: dates.map(d => d.totalCache),
             requests: dates.map(d => d.totalRequests),
             failureRate: dates.map(d => d.failureRate),
-            cacheHitRate: dates.map(d => d.cacheHitRate)
+            cacheHitRate: dates.map(d => d.cacheHitRate),
+            estimatedCost: dates.map(d => d.estimatedCost)
         };
     }
 
@@ -322,7 +368,8 @@ export class MultiDayAggregator {
                 cacheTokens: [],
                 requests: [],
                 failureRate: [],
-                cacheHitRate: []
+                cacheHitRate: [],
+                estimatedCost: []
             },
             summary: {
                 totalTokens: 0,
@@ -332,6 +379,8 @@ export class MultiDayAggregator {
                 totalRequests: 0,
                 successRate: 0,
                 dailyAvgTokens: 0,
+                totalCost: 0,
+                dailyAvgCost: 0,
                 topProvider: null,
                 topModel: null,
                 tokensChangePct: null

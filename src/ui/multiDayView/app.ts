@@ -10,6 +10,7 @@ import {
     createDateRangePicker,
     createSummaryCards,
     createTrendChart,
+    createCostTrendChart,
     createProviderModelRank,
     initDefaultRange
 } from './components/index';
@@ -102,6 +103,7 @@ function render(): void {
     }
     root.appendChild(createSummaryCards(data));
     root.appendChild(createTrendChart(data));
+    root.appendChild(createCostTrendChart(data));
     root.appendChild(createProviderModelRank(data));
 }
 

@@ -1,16 +1,6 @@
 import type { MultiDayAnalysisResult } from '../../../usages/multiDay/types';
 import { t } from '../../usagesView/utils';
-import { createElement } from '../../utils';
-
-function abbrev(n: number): string {
-    if (n >= 1_000_000) {
-        return (n / 1_000_000).toFixed(2) + 'M';
-    }
-    if (n >= 1_000) {
-        return (n / 1_000).toFixed(1) + 'K';
-    }
-    return String(n);
-}
+import { createElement, formatCost, formatTokens } from '../../utils';
 
 function formatNum(n: number): string {
     return n.toLocaleString('en-US');
@@ -21,7 +11,7 @@ export function createSummaryCards(data: MultiDayAnalysisResult): HTMLElement {
 
     const card1 = makeCard(
         t('Total Tokens', '总 Token'),
-        abbrev(data.summary.totalTokens),
+        formatTokens(data.summary.totalTokens),
         data.summary.tokensChangePct !== null ?
             `${data.summary.tokensChangePct > 0 ? '↑' : '↓'} ${Math.abs(data.summary.tokensChangePct).toFixed(1)}% (${t('vs prev period', '环比')})`
         :   '-',
@@ -39,11 +29,19 @@ export function createSummaryCards(data: MultiDayAnalysisResult): HTMLElement {
 
     const card3 = makeCard(
         t('Daily Avg', '日均 Token'),
-        abbrev(data.summary.dailyAvgTokens),
+        formatTokens(data.summary.dailyAvgTokens),
         `${data.dayCount} ${t('days', '天')}`,
         'daily'
     );
     container.appendChild(card3);
+
+    const card4 = makeCard(
+        t('Total Cost', '总成本'),
+        formatCost(data.summary.totalCost, 2),
+        `${t('Daily Avg', '日均')}: ${formatCost(data.summary.dailyAvgCost, 2)}`,
+        'cost'
+    );
+    container.appendChild(card4);
 
     return container;
 }

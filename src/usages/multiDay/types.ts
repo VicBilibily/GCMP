@@ -19,6 +19,8 @@ export interface MultiDayDateStats {
     cancelledRequests: number;
     failureRate: number;
     cacheHitRate: number;
+    /** 当日预估成本总计 (USD) */
+    estimatedCost: number;
     providers: Record<string, MultiDayProviderStats>;
 }
 
@@ -33,6 +35,8 @@ export interface MultiDayProviderStats {
     totalRequests: number;
     avgSpeed: number;
     avgLatency: number;
+    /** 当日预估成本总计 (USD) */
+    estimatedCost: number;
     models: Record<string, MultiDayModelStats>;
 }
 
@@ -59,6 +63,8 @@ export interface TrendSeries {
     requests: number[];
     failureRate: number[];
     cacheHitRate: number[];
+    /** 每日预估成本总计 (USD) */
+    estimatedCost: number[];
     movingAvg7Day?: number[];
 }
 
@@ -80,6 +86,10 @@ export interface MultiDayAnalysisResult {
         totalRequests: number;
         successRate: number;
         dailyAvgTokens: number;
+        /** 总预估成本 (USD) */
+        totalCost: number;
+        /** 日均成本 (USD) */
+        dailyAvgCost: number;
         /** 最活跃提供商 */
         topProvider: { key: string; name: string; share: number } | null;
         /** 最活跃模型 */
@@ -95,6 +105,11 @@ export interface MultiDayAnalysisResult {
         totalOutput: number;
         totalTokens: number;
         share: number;
+        estimatedCost: number;
+        inputCost: number;
+        outputCost: number;
+        cacheReadCost: number;
+        cacheWriteCost: number;
     }>;
     modelRanking: Array<{
         id: string;
@@ -106,5 +121,10 @@ export interface MultiDayAnalysisResult {
         totalOutput: number;
         totalRequests: number;
         totalTokens: number;
+        estimatedCost: number;
+        inputCost: number;
+        outputCost: number;
+        cacheReadCost: number;
+        cacheWriteCost: number;
     }>;
 }

@@ -6,6 +6,9 @@ import type { BaseStats, HourlyStats } from '../../usages/fileLogger/types';
 import type { ExtendedTokenRequestLog, SessionGroup, SessionSummary, WebViewMessage } from './types';
 import { REQUEST_KIND_DISPLAY_NAMES } from '../../handlers/requestKindDisplayNames';
 
+// 复用共享工具函数
+export { formatTokens, formatCost } from '../utils';
+
 export const UNKNOWN_SESSION_ID = 'unknown';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -212,41 +215,6 @@ export function getRequestKindDisplayName(kind?: string): string {
         return kind;
     }
     return isChineseLocale() ? names[1] : names[0];
-}
-
-/**
- * 格式化预估成本显示
- * @param cost 成本金额 (USD)
- * @param fixedDecimals 固定小数位数，不传则自适应（最多 6 位，去除末尾 0）
- */
-export function formatCost(cost: number | undefined | null, fixedDecimals?: number): string {
-    if (cost === undefined || cost === null || cost <= 0) {
-        return '-';
-    }
-    let n = fixedDecimals ?? 4;
-    while (n < 6) {
-        const formatted = cost.toFixed(n);
-        const frac = formatted.split('.')[1] || '';
-        if (/^0+$/.test(frac)) {
-            n++;
-        } else {
-            return `$${formatted}`;
-        }
-    }
-    return `$${cost.toFixed(6)}`;
-}
-
-/**
- * 格式化 Token 数量显示
- */
-export function formatTokens(tokens: number | undefined | null): string {
-    const safeTokens = tokens ?? 0;
-    if (safeTokens >= 1000000) {
-        return (safeTokens / 1000000).toFixed(1) + 'M';
-    } else if (safeTokens >= 1000) {
-        return (safeTokens / 1000).toFixed(1) + 'K';
-    }
-    return safeTokens.toString();
 }
 
 /**

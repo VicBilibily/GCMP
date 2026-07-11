@@ -130,6 +130,9 @@ body {
         &.type-daily .card-value {
             color: #ff8c42;
         }
+        &.type-cost .card-value {
+            color: #e74c3c;
+        }
     }
 }
 
@@ -178,6 +181,31 @@ body {
         th {
             font-weight: 600;
             color: var(--vscode-descriptionForeground);
+        }
+        tr:hover {
+            background-color: var(--vscode-list-hoverBackground);
+        }
+        .tokens-row {
+            display: block;
+            font-size: 0.9em;
+            margin-top: -5px;
+        }
+        .tokens-detail {
+            display: block;
+            margin-top: -5px;
+            margin-bottom: -0.6em;
+        }
+        .tokens-cost {
+            font-size: 0.75em;
+            font-weight: 500;
+            color: var(--vscode-charts-yellow);
+        }
+        .donut-total-row {
+            background-color: var(--vscode-editor-selectionBackground);
+            font-weight: bold;
+            td {
+                border-top: 2px solid var(--vscode-editor-selectionForeground);
+            }
         }
     }
 

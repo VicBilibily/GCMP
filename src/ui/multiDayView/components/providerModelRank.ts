@@ -1,19 +1,9 @@
 import Chart from 'chart.js/auto';
 import type { MultiDayAnalysisResult } from '../../../usages/multiDay/types';
 import { t } from '../../usagesView/utils';
-import { createElement } from '../../utils';
+import { createElement, formatCost, formatTokens } from '../../utils';
 
 const COLORS = ['#4a90d9', '#50c878', '#ff8c42', '#9b59b6', '#e74c3c', '#1abc9c', '#f39c12', '#3498db'];
-
-function abbrev(n: number): string {
-    if (n >= 1_000_000) {
-        return (n / 1_000_000).toFixed(2) + 'M';
-    }
-    if (n >= 1_000) {
-        return (n / 1_000).toFixed(1) + 'K';
-    }
-    return String(n);
-}
 
 export function createProviderModelRank(data: MultiDayAnalysisResult): HTMLElement {
     const container = createElement('div', 'provider-model-rank');
@@ -70,26 +60,85 @@ function createDonutTable(items: Array<Record<string, unknown>>, nameKey: string
         '<th>' +
         t('Output', '输出') +
         '</th>' +
+        '<th>' +
+        t('Tokens', '消耗') +
+        '</th>' +
         '<th>%</th>';
     table.innerHTML = '<thead><tr>' + headCells + '</tr></thead>';
     const tbody = document.createElement('tbody');
+
+    let grandInput = 0,
+        grandCache = 0,
+        grandOutput = 0;
+    let grandInputCost = 0,
+        grandCacheReadCost = 0,
+        grandOutputCost = 0,
+        grandEstimatedCost = 0;
+
     for (const item of items) {
         const share = ((((item.totalTokens as number) || 0) / totalTokens) * 100).toFixed(1);
         const providerName = showProvider ? (item.providerName as string) || '-' : '';
         const modelName =
             showProvider ? (item.modelName as string) || (item[nameKey] as string) : (item[nameKey] as string) || '';
+        const input = (item.totalInput as number) || 0;
+        const cache = (item.totalCache as number) || 0;
+        const output = (item.totalOutput as number) || 0;
+        const miss = input - cache;
+        const inputCost = ((item.inputCost as number) || 0) + ((item.cacheWriteCost as number) || 0);
+        const cacheReadCost = (item.cacheReadCost as number) || 0;
+        const outputCost = (item.outputCost as number) || 0;
+        const estimatedCost = (item.estimatedCost as number) || 0;
+
+        grandInput += miss > 0 ? miss : input;
+        grandCache += cache;
+        grandOutput += output;
+        grandInputCost += inputCost;
+        grandCacheReadCost += cacheReadCost;
+        grandOutputCost += outputCost;
+        grandEstimatedCost += estimatedCost;
+
         const tr = document.createElement('tr');
         tr.innerHTML =
             (showProvider ? `<td>${providerName}</td>` : '') +
             `<td>${modelName}</td>` +
-            `<td>${abbrev((item.totalInput as number) || 0)}</td>` +
-            `<td>${abbrev((item.totalCache as number) || 0)}</td>` +
-            `<td>${abbrev((item.totalOutput as number) || 0)}</td>` +
+            buildTokensCell(miss > 0 ? miss : input, inputCost) +
+            buildTokensCell(cache, cacheReadCost) +
+            buildTokensCell(output, outputCost) +
+            buildTokensCell(input + output, estimatedCost) +
             `<td>${share}%</td>`;
         tbody.appendChild(tr);
     }
+
+    // 合计行（与日报表 providerStats 样式一致）
+    const totalRow = document.createElement('tr');
+    totalRow.className = 'donut-total-row';
+    const grandTotal = grandInput + grandCache + grandOutput;
+    const grandShare = totalTokens > 0 ? ((grandTotal / totalTokens) * 100).toFixed(1) : '0.0';
+    totalRow.innerHTML =
+        (showProvider ? '<td></td>' : '') +
+        `<td><strong>${t('Total', '合计')}</strong></td>` +
+        buildTokensCell(grandInput, grandInputCost) +
+        buildTokensCell(grandCache, grandCacheReadCost) +
+        buildTokensCell(grandOutput, grandOutputCost) +
+        buildTokensCell(grandTotal, grandEstimatedCost) +
+        `<td>${grandShare}%</td>`;
+    tbody.appendChild(totalRow);
+
     table.appendChild(tbody);
     return table;
+}
+
+/** 构建内联成本的 Token 单元格（与日报表格式一致） */
+function buildTokensCell(tokens: number, cost: number): string {
+    const tokenStr = tokens > 0 ? formatTokens(tokens) : '-';
+    const costStr = cost > 0 ? formatCost(cost, 2) : '';
+    if (costStr) {
+        return (
+            `<td><div class="tokens-row">${tokenStr}</div>` +
+            `<div class="tokens-detail"><span class="tokens-cost">${costStr}</span></div></td>`
+        );
+    }
+    return `<td>${tokenStr}</td>`;
 }
 
 function renderDonut(canvasId: string, items: Array<Record<string, unknown>>, nameKey: string): void {
