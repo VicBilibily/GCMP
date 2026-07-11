@@ -217,6 +217,11 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.tencent.setTokenEnterpriseApiKey",
+                "title": "%command.tencent.setTokenEnterpriseApiKey%",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.tencent.configWizard",
                 "title": "%command.tencent.configWizard%",
                 "category": "GCMP"
