@@ -111,6 +111,7 @@ const KNOWN_KEY_LABELS: Record<string, string> = {
     'tencent-token': 'Tencent Cloud Token Plan',
     'tencent-deepseek': 'Tencent Cloud DeepSeek',
     'tencent-tokenhub': 'Tencent Cloud TokenHub',
+    'tencent-tokenplan': 'Tencent Cloud TokenPlan Enterprise',
     'volcengine-agent': 'Volcengine Agent Plan',
     'xiaomimimo-token': 'Xiaomi MiMo Token Plan',
     'baidu-coding': 'Baidu Qianfan Coding Plan',

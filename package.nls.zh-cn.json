@@ -22,6 +22,7 @@
     "command.tencent.setTokenPlanApiKey": "设置 腾讯云 Token Plan 专用密钥",
     "command.tencent.setDeepSeekApiKey": "设置 腾讯云 DeepSeek 专用密钥",
     "command.tencent.setTokenHubApiKey": "设置 腾讯云 TokenHub 密钥",
+    "command.tencent.setTokenPlanEnterpriseApiKey": "设置 腾讯云 TokenPlan 企业版密钥",
     "command.tencent.configWizard": "启动 腾讯云 配置向导",
     "command.xiaomimimo.setApiKey": "设置 Xiaomi MiMo API密钥",
     "command.xiaomimimo.setTokenPlanApiKey": "设置 Xiaomi MiMo Token Plan 专用密钥",
