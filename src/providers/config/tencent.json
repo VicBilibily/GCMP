@@ -411,18 +411,6 @@
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
-            "id": "auto-token-enterprise",
-            "name": "Auto (Token Plan Enterprise)",
-            "tooltip": "腾讯云 Token Plan 企业版按量付费中的 Auto 智能路由。",
-            "provider": "tencent-token-enterprise",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://tokenhub.tencentmaas.com/plan/anthropic",
-            "model": "auto",
-            "maxInputTokens": 1000000,
-            "maxOutputTokens": 384000,
-            "capabilities": { "toolCalling": true, "imageInput": true }
-        },
-        {
             "id": "deepseek-v4-flash-token-enterprise",
             "name": "DeepSeek-V4-Flash (Token Plan Enterprise)",
             "tooltip": "腾讯云 Token Plan 企业版按量付费中的 DeepSeek-V4-Flash。",
