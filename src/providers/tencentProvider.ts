@@ -72,10 +72,10 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             }
         );
 
-        const setTokenPlanEnterpriseApiKeyCommand = vscode.commands.registerCommand(
-            `gcmp.${providerKey}.setTokenPlanEnterpriseApiKey`,
+        const setTokenEnterpriseApiKeyCommand = vscode.commands.registerCommand(
+            `gcmp.${providerKey}.setTokenEnterpriseApiKey`,
             async () => {
-                await TencentWizard.setTokenPlanEnterpriseApiKey(providerConfig.apiKeyTemplate);
+                await TencentWizard.setTokenEnterpriseApiKey(providerConfig.apiKeyTemplate);
                 provider._onDidChangeLanguageModelChatInformation.fire();
             }
         );
@@ -98,7 +98,7 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             setTokenPlanApiKeyCommand,
             setDeepSeekApiKeyCommand,
             setTokenHubApiKeyCommand,
-            setTokenPlanEnterpriseApiKeyCommand,
+            setTokenEnterpriseApiKeyCommand,
             configWizardCommand
         ];
         disposables.forEach(disposable => context.subscriptions.push(disposable));
@@ -123,7 +123,7 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
         const hasTokenPlanKey = await ApiKeyManager.hasValidApiKey('tencent-token');
         const hasDeepSeekKey = await ApiKeyManager.hasValidApiKey('tencent-deepseek');
         const hasTokenHubKey = await ApiKeyManager.hasValidApiKey('tencent-tokenhub');
-        const hasTokenPlanEnterpriseKey = await ApiKeyManager.hasValidApiKey('tencent-tokenplan');
+        const hasTokenPlanEnterpriseKey = await ApiKeyManager.hasValidApiKey('tencent-token-enterprise');
         const hasAnyKey =
             hasNormalKey || hasCodingKey || hasTokenPlanKey || hasDeepSeekKey || hasTokenHubKey || hasTokenPlanEnterpriseKey;
 
@@ -147,7 +147,7 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             const tokenPlanKeyValid = await ApiKeyManager.hasValidApiKey('tencent-token');
             const deepSeekKeyValid = await ApiKeyManager.hasValidApiKey('tencent-deepseek');
             const tokenHubKeyValid = await ApiKeyManager.hasValidApiKey('tencent-tokenhub');
-            const tokenPlanEnterpriseKeyValid = await ApiKeyManager.hasValidApiKey('tencent-tokenplan');
+            const tokenPlanEnterpriseKeyValid = await ApiKeyManager.hasValidApiKey('tencent-token-enterprise');
             if (
                 !normalKeyValid &&
                 !codingKeyValid &&
@@ -271,8 +271,8 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
                 return 'DeepSeek dedicated';
             case 'tencent-tokenhub':
                 return 'TokenHub dedicated';
-            case 'tencent-tokenplan':
-                return 'TokenPlan Enterprise dedicated';
+            case 'tencent-token-enterprise':
+                return 'Token Plan Enterprise dedicated';
             default:
                 return 'paid model';
         }
@@ -300,8 +300,8 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             await TencentWizard.setDeepSeekApiKey(this.providerConfig.apiKeyTemplate);
         } else if (providerKey === 'tencent-tokenhub') {
             await TencentWizard.setTokenHubApiKey(this.providerConfig.apiKeyTemplate);
-        } else if (providerKey === 'tencent-tokenplan') {
-            await TencentWizard.setTokenPlanEnterpriseApiKey(this.providerConfig.apiKeyTemplate);
+        } else if (providerKey === 'tencent-token-enterprise') {
+            await TencentWizard.setTokenEnterpriseApiKey(this.providerConfig.apiKeyTemplate);
         } else {
             await TencentWizard.setApiKey(this.providerConfig.apiKeyTemplate);
         }

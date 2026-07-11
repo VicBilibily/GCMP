@@ -14,7 +14,7 @@ export class TencentWizard extends BaseWizard {
     private static readonly TOKEN_PLAN_KEY = 'tencent-token';
     private static readonly DEEPSEEK_KEY = 'tencent-deepseek';
     private static readonly TOKENHUB_KEY = 'tencent-tokenhub';
-    private static readonly TOKENPLAN_KEY = 'tencent-tokenplan';
+    private static readonly TOKEN_ENTERPRISE_KEY = 'tencent-token-enterprise';
 
     static async startWizard(
         displayName: string,
@@ -45,14 +45,14 @@ export class TencentWizard extends BaseWizard {
                     },
                     {
                         label: t(
-                            '$(key) Set TokenPlan Enterprise key',
-                            '$(key) 设置 TokenPlan 企业版密钥'
+                            '$(key) Set Token Plan Enterprise key',
+                            '$(key) 设置 Token Plan 企业版密钥'
                         ),
                         detail: t(
-                            'Used for Tencent Cloud TokenPlan Enterprise pay-as-you-go models',
-                            '用于腾讯云 TokenPlan 企业版按量付费模型'
+                            'Used for Tencent Cloud Token Plan Enterprise pay-as-you-go models',
+                            '用于腾讯云 Token Plan 企业版按量付费模型'
                         ),
-                        value: 'tokenplanEnterprise'
+                        value: 'tokenEnterprise'
                     },
                     {
                         label: t('$(key) Set DeepSeek API key', '$(key) 设置 DeepSeek 专用密钥'),
@@ -73,8 +73,8 @@ export class TencentWizard extends BaseWizard {
                     {
                         label: t('$(check-all) Configure all items', '$(check-all) 依次配置全部项目'),
                         detail: t(
-                            'Configure the pay-as-you-go, Coding Plan, Token Plan, TokenPlan Enterprise, DeepSeek, and TokenHub keys in order',
-                            '按顺序配置付费密钥、Coding Plan 密钥、Token Plan 密钥、TokenPlan 企业版密钥、DeepSeek 密钥和 TokenHub 密钥'
+                            'Configure the pay-as-you-go, Coding Plan, Token Plan, Token Plan Enterprise, DeepSeek, and TokenHub keys in order',
+                            '按顺序配置付费密钥、Coding Plan 密钥、Token Plan 密钥、Token Plan 企业版密钥、DeepSeek 密钥和 TokenHub 密钥'
                         ),
                         value: 'all'
                     }
@@ -98,8 +98,8 @@ export class TencentWizard extends BaseWizard {
             if (choice.value === 'tokenPlan' || choice.value === 'all') {
                 await this.setTokenPlanApiKey(tokenPlanKeyTemplate || apiKeyTemplate);
             }
-            if (choice.value === 'tokenplanEnterprise' || choice.value === 'all') {
-                await this.setTokenPlanEnterpriseApiKey(apiKeyTemplate);
+            if (choice.value === 'tokenEnterprise' || choice.value === 'all') {
+                await this.setTokenEnterpriseApiKey(apiKeyTemplate);
             }
             if (choice.value === 'deepseek' || choice.value === 'all') {
                 await this.setDeepSeekApiKey(apiKeyTemplate);
@@ -184,25 +184,25 @@ export class TencentWizard extends BaseWizard {
         });
     }
 
-    static async setTokenPlanEnterpriseApiKey(apiKeyTemplate?: string): Promise<void> {
+    static async setTokenEnterpriseApiKey(apiKeyTemplate?: string): Promise<void> {
         await this.promptForApiKey({
-            providerKey: this.TOKENPLAN_KEY,
+            providerKey: this.TOKEN_ENTERPRISE_KEY,
             prompt: t(
-                'Enter the Tencent Cloud TokenPlan Enterprise API key (leave empty to clear)',
-                '请输入 腾讯云 TokenPlan 企业版 API Key（留空可清除）'
+                'Enter the Tencent Cloud Token Plan Enterprise API key (leave empty to clear)',
+                '请输入 腾讯云 Token Plan 企业版 API Key（留空可清除）'
             ),
             title: t(
-                'Set Tencent Cloud TokenPlan Enterprise API key',
-                '设置 腾讯云 TokenPlan 企业版 API Key'
+                'Set Tencent Cloud Token Plan Enterprise API key',
+                '设置 腾讯云 Token Plan 企业版 API Key'
             ),
             placeHolder: apiKeyTemplate,
             successMessage: t(
-                'Tencent Cloud TokenPlan Enterprise API key set',
-                '腾讯云 TokenPlan 企业版 API Key 已设置'
+                'Tencent Cloud Token Plan Enterprise API key set',
+                '腾讯云 Token Plan 企业版 API Key 已设置'
             ),
             clearMessage: t(
-                'Tencent Cloud TokenPlan Enterprise API key cleared',
-                '腾讯云 TokenPlan 企业版 API Key 已清除'
+                'Tencent Cloud Token Plan Enterprise API key cleared',
+                '腾讯云 Token Plan 企业版 API Key 已清除'
             )
         });
     }
