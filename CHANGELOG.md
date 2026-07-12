@@ -12,6 +12,7 @@
 - **ClinePass 用量查询状态栏**：新增 ClinePass 套餐周期剩余用量、重置时间和总利用率的状态栏展示。
 - **增量 Token 预估**：基于上一轮 API 实际用量做增量预估，消除长上下文中累积估算误差。
 - **多日视图成本展示**：多日趋势页新增成本趋势折线图与成本卡片汇总，优化 Token 与成本格式化工具函数。
+- **HAR 请求录制**：新增 `gcmp.debug.captureHar` 与 `gcmp.debug.harRetentionCount` 调试设置，可在 `globalStorage/har/` 中记录 HTTP 请求与响应（HAR 1.2 格式），便于排查兼容性与网关问题。默认关闭，FIM/NES 补全、Gist 同步、CLI OAuth 刷新等敏感或高频请求默认跳过录制；敏感请求头、URL 查询参数及重定向 URL 中的凭据会自动脱敏。
 - **错误重试分类器增强**：新增 `Codex` 和 `Responses API` 的 `rate_limits` / `snapshot_bootstrap` 等重试条件判定，覆盖更多限流和快照引导失败场景。
 
 ### 变更
@@ -27,6 +28,7 @@
 ### 修复
 
 - **IPC 断线重连窗口事件静默丢失**：修复 Follower 实例在 IPC 断线重连窗口期间发布的事件被静默丢弃的问题，补充事件可靠性语义说明。
+- **OpenAI 流式 keepalive 心跳过滤**：修复网关 keepalive 心跳事件在 `response.created` 之前进入 Responses SDK 流导致崩溃的问题。
 
 ---
 
@@ -38,6 +40,7 @@
 - **ClinePass usage status bar**: Displays ClinePass plan cycle remaining usage, reset time, and total utilization in the status bar.
 - **Incremental token estimation**: Based on the previous request's actual API usage, eliminating cumulative estimation errors in long contexts.
 - **Multi-day cost view**: Added cost trend line chart and cost card summary to the multi-day trend page; optimized token and cost formatting utilities.
+- **HAR request capture**: Added `gcmp.debug.captureHar` and `gcmp.debug.harRetentionCount` debug settings to record HTTP requests and responses (HAR 1.2 format) under `globalStorage/har/`, making it easier to diagnose compatibility and gateway issues. Disabled by default; FIM/NES completions, Gist sync, and CLI OAuth refresh requests skip capture by default; credentials in sensitive headers, URL query parameters, and redirect URLs are automatically redacted.
 - **Enhanced retry classifier**: Added retry conditions for Codex `rate_limits` and Responses API `snapshot_bootstrap` scenarios, covering more rate-limit and snapshot bootstrap failure cases.
 
 ### Changed
@@ -53,6 +56,7 @@
 ### Fixed
 
 - **IPC reconnection window event loss**: Fixed silent event drops during Follower instance IPC reconnection windows; added event reliability semantic documentation.
+- **OpenAI streaming keepalive heartbeat filtering**: Fixed gateway keepalive heartbeat events arriving before `response.created` and crashing the Responses SDK stream.
 
 
 

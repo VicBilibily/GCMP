@@ -3,6 +3,8 @@
  *  用于管理GCMP扩展的全局配置设置和提供商配置
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { Logger } from './logger';
 import {
@@ -27,6 +29,7 @@ import {
     redactHeaders,
     sanitizeConfigForLogging
 } from './proxyAgent';
+import { HarRecorder } from './harRecorder';
 
 /**
  * 智谱AI搜索配置
@@ -133,9 +136,21 @@ export interface VisionConfig {
 }
 
 /**
+ * 调试配置
+ */
+export interface DebugConfig {
+    /** 是否将所有 HTTP 请求记录为 HAR 文件 */
+    captureHar: boolean;
+    /** 保留的 HAR 文件数量（默认 7，0 表示不清理） */
+    harRetentionCount: number;
+}
+
+/**
  * GCMP配置接口
  */
 export interface GCMPConfig {
+    /** 调试配置 */
+    debug: DebugConfig;
     /** 请求失败重试配置 */
     retry: RequestRetryConfig;
     /** 智谱AI配置 */
@@ -164,6 +179,8 @@ interface ProxyFetchOptions {
     modelConfig?: Pick<ModelConfig, 'proxy' | 'provider'>;
     providerKey?: string;
     proxyUrl?: string;
+    /** 跳过 HAR 记录。FIM/NES 补全等高频请求应设为 true */
+    skipHar?: boolean;
 }
 
 /**
@@ -174,6 +191,8 @@ export class ConfigManager {
     private static readonly CONFIG_SECTION = 'gcmp';
     private static cache: GCMPConfig | null = null;
     private static configListener: vscode.Disposable | null = null;
+    private static context: vscode.ExtensionContext | null = null;
+    private static extensionVersion: string | null = null;
 
     /**
      * 解析 provider 代理查找键。
@@ -224,7 +243,10 @@ export class ConfigManager {
      * 初始化配置管理器
      * 设置配置变更监听器
      */
-    static initialize(): vscode.Disposable {
+    static initialize(context: vscode.ExtensionContext): vscode.Disposable {
+        this.context = context;
+        this.extensionVersion = this.readExtensionVersion(context.extensionPath);
+
         // 清理之前的监听器
         if (this.configListener) {
             this.configListener.dispose();
@@ -243,11 +265,42 @@ export class ConfigManager {
                         changedKeys: [] // 精确键列表可通过 event 推断，但 VS Code 未暴露具体键，留空表示整体刷新
                     }
                 });
+
+                // 根据新的调试配置更新 HAR 记录器
+                this.updateHarRecorder();
             }
         });
 
+        // 首次启动时根据当前配置初始化 HAR 记录器
+        this.updateHarRecorder();
+
         Logger.debug('Config manager initialized');
         return this.configListener;
+    }
+
+    private static readExtensionVersion(extensionPath: string): string | null {
+        try {
+            const packageJsonPath = path.join(extensionPath, 'package.json');
+            const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as { version?: string };
+            return packageJson.version ?? null;
+        } catch (error) {
+            Logger.warn('[ConfigManager] Failed to read extension version from package.json', error);
+            return null;
+        }
+    }
+
+    private static updateHarRecorder(): void {
+        if (!this.context) {
+            return;
+        }
+
+        const config = this.getConfig();
+        HarRecorder.getInstance().initialize({
+            enabled: config.debug.captureHar,
+            extensionVersion: this.extensionVersion ?? 'unknown',
+            defaultStoragePath: this.context.globalStorageUri.fsPath,
+            retentionCount: config.debug.harRetentionCount
+        });
     }
 
     /**
@@ -256,6 +309,14 @@ export class ConfigManager {
      */
     static clearCache(): void {
         this.cache = null;
+    }
+
+    /**
+     * 处理来自其他 VS Code 实例的配置变更
+     */
+    static handleExternalConfigChange(): void {
+        this.clearCache();
+        this.updateHarRecorder();
     }
 
     /**
@@ -272,6 +333,10 @@ export class ConfigManager {
         const providerOverrides = config.get<UserConfigOverrides>('providerOverrides') ?? {};
 
         this.cache = {
+            debug: {
+                captureHar: config.get<boolean>('debug.captureHar', false),
+                harRetentionCount: this.validateHarRetentionCount(config.get<number>('debug.harRetentionCount', 7))
+            },
             retry: {
                 enabled: config.get<boolean>('retry.enabled', true),
                 maxAttempts: this.validateRetryMaxAttempts(config.get<number>('retry.maxAttempts', 3))
@@ -798,6 +863,17 @@ export class ConfigManager {
     }
 
     /**
+     * 验证 HAR 文件保留数量
+     */
+    private static validateHarRetentionCount(value: number): number {
+        if (isNaN(value) || value < 0 || value > 100) {
+            Logger.warn(`Invalid debug.harRetentionCount value: ${value}; using default 7`);
+            return 7;
+        }
+        return Math.floor(value);
+    }
+
+    /**
      * 归一化单个 provider JSON 配置中的 tokenPricing（支持数组简写）。
      * 在消费方按需调用，不在模块顶层转换，保持原始 JSON 形态不变。
      */
@@ -1182,7 +1258,11 @@ export class ConfigManager {
             hasExplicitProxyUrl ?
                 options.proxyUrl
             :   this.resolveProxyForModel(options.modelConfig, options.providerKey);
-        return createProxiedFetch(proxyUrl);
+        const proxiedFetch = createProxiedFetch(proxyUrl);
+        if (options.skipHar) {
+            return proxiedFetch;
+        }
+        return HarRecorder.getInstance().wrapFetch(proxiedFetch);
     }
 
     /**
@@ -1205,6 +1285,9 @@ export class ConfigManager {
             this.configListener = null;
         }
         this.cache = null;
+        this.context = null;
+        this.extensionVersion = null;
+        HarRecorder.getInstance().dispose();
         Logger.trace('Config manager disposed');
     }
 }

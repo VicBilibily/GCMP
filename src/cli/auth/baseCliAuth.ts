@@ -148,7 +148,7 @@ export abstract class BaseCliAuth {
      * 通过当前 provider 对应的代理配置发送请求
      */
     protected fetchWithProxy(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-        return ConfigManager.fetchWithProxy(input, init, { proxyUrl: this.getProxyUrl() });
+        return ConfigManager.fetchWithProxy(input, init, { proxyUrl: this.getProxyUrl(), skipHar: true });
     }
 
     /**

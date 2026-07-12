@@ -213,13 +213,17 @@ export class GistSyncService {
         token: string
     ): Promise<{ login: string; id: number; token: string } | undefined> {
         try {
-            const response = await ConfigManager.fetchWithProxy('https://api.github.com/user', {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    Accept: 'application/vnd.github.v3+json',
-                    'User-Agent': 'GCMP-VSCode-Extension'
-                }
-            });
+            const response = await ConfigManager.fetchWithProxy(
+                'https://api.github.com/user',
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        Accept: 'application/vnd.github.v3+json',
+                        'User-Agent': 'GCMP-VSCode-Extension'
+                    }
+                },
+                { skipHar: true }
+            );
 
             if (!response.ok) {
                 Logger.warn(`[GistSync] GitHub API user call failed: ${response.status}`);
@@ -277,13 +281,17 @@ export class GistSyncService {
      */
     static async findExistingSyncGist(token: string): Promise<string | undefined> {
         try {
-            const response = await ConfigManager.fetchWithProxy('https://api.github.com/gists', {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    Accept: 'application/vnd.github.v3+json',
-                    'User-Agent': 'GCMP-VSCode-Extension'
-                }
-            });
+            const response = await ConfigManager.fetchWithProxy(
+                'https://api.github.com/gists',
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        Accept: 'application/vnd.github.v3+json',
+                        'User-Agent': 'GCMP-VSCode-Extension'
+                    }
+                },
+                { skipHar: true }
+            );
 
             if (!response.ok) {
                 Logger.warn(`[GistSync] List gists failed: ${response.status}`);
@@ -330,13 +338,17 @@ export class GistSyncService {
      */
     static async readSyncData(token: string, gistId: string): Promise<SyncData | undefined> {
         try {
-            const response = await ConfigManager.fetchWithProxy(`https://api.github.com/gists/${gistId}`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    Accept: 'application/vnd.github.v3+json',
-                    'User-Agent': 'GCMP-VSCode-Extension'
-                }
-            });
+            const response = await ConfigManager.fetchWithProxy(
+                `https://api.github.com/gists/${gistId}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        Accept: 'application/vnd.github.v3+json',
+                        'User-Agent': 'GCMP-VSCode-Extension'
+                    }
+                },
+                { skipHar: true }
+            );
 
             if (!response.ok) {
                 Logger.warn(`[GistSync] Read gist failed: ${response.status}`);
@@ -372,16 +384,20 @@ export class GistSyncService {
                 }
             };
 
-            const response = await ConfigManager.fetchWithProxy('https://api.github.com/gists', {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    Accept: 'application/vnd.github.v3+json',
-                    'Content-Type': 'application/json',
-                    'User-Agent': 'GCMP-VSCode-Extension'
+            const response = await ConfigManager.fetchWithProxy(
+                'https://api.github.com/gists',
+                {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        Accept: 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json',
+                        'User-Agent': 'GCMP-VSCode-Extension'
+                    },
+                    body: JSON.stringify(body)
                 },
-                body: JSON.stringify(body)
-            });
+                { skipHar: true }
+            );
 
             if (!response.ok) {
                 const errText = await response.text();
@@ -412,16 +428,20 @@ export class GistSyncService {
                 }
             };
 
-            const response = await ConfigManager.fetchWithProxy(`https://api.github.com/gists/${gistId}`, {
-                method: 'PATCH',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    Accept: 'application/vnd.github.v3+json',
-                    'Content-Type': 'application/json',
-                    'User-Agent': 'GCMP-VSCode-Extension'
+            const response = await ConfigManager.fetchWithProxy(
+                `https://api.github.com/gists/${gistId}`,
+                {
+                    method: 'PATCH',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        Accept: 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json',
+                        'User-Agent': 'GCMP-VSCode-Extension'
+                    },
+                    body: JSON.stringify(body)
                 },
-                body: JSON.stringify(body)
-            });
+                { skipHar: true }
+            );
 
             if (!response.ok) {
                 const errText = await response.text();

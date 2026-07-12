@@ -186,7 +186,8 @@ export class Fetcher implements IFetcher {
             logger.info(`[Fetcher] Sending request: ${url}`);
             const response = await ConfigManager.fetchWithProxy(url, fetchOptions, {
                 modelConfig,
-                providerKey: modelConfig.provider
+                providerKey: modelConfig.provider,
+                skipHar: true
             });
             logger.debug(`[Fetcher] Received response - status: ${response.status} ${response.statusText}`);
 

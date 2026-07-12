@@ -883,6 +883,20 @@
                     "default": [],
                     "description": "%setting.compatibleModels.description%",
                     "scope": "application"
+                },
+                "gcmp.debug.captureHar": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "%setting.debug.captureHar.description%",
+                    "scope": "machine"
+                },
+                "gcmp.debug.harRetentionCount": {
+                    "type": "number",
+                    "default": 7,
+                    "minimum": 0,
+                    "maximum": 100,
+                    "description": "%setting.debug.harRetentionCount.description%",
+                    "scope": "machine"
                 }
             }
         },

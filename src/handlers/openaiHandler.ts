@@ -538,6 +538,10 @@ export class OpenAIHandler {
 
             const normalizedLine = line.replace(/^data:([^\s])/g, 'data: $1');
             if (!normalizedLine.startsWith('data:')) {
+                // 过滤网关 keepalive 心跳事件的 event 行
+                if (normalizedLine.trimStart().startsWith('event: keepalive')) {
+                    return '';
+                }
                 return normalizedLine;
             }
 
@@ -581,6 +585,12 @@ export class OpenAIHandler {
                     );
                     rateLimitError.name = 'SSEFatalError';
                     throw rateLimitError;
+                }
+
+                // 过滤网关 keepalive 心跳事件，避免 SDK ResponseStream 的 _accumulateResponse 在
+                // response.created 之前收到 keepalive 时抛出异常
+                if (obj.type === 'keepalive') {
+                    return '';
                 }
 
                 let objModified = false;

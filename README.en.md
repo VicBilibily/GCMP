@@ -152,14 +152,14 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 - [**Coding Plan**](https://console.cloud.tencent.com/tokenhub/codingplan)
     - Open-source models: **GLM-5**, **Kimi-K2.5**, **MiniMax-M2.5**
 - [**Token Plan**](https://console.cloud.tencent.com/tokenhub/tokenplan): **Hy3**, **Hy3 preview**, **GLM-5.1**, **GLM-5**, **Kimi-K2.5**, **MiniMax-M2.7**, **MiniMax-M2.5**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**
-- [**Token Plan Enterprise**](https://console.cloud.tencent.com/tokenhub/tokenplan): **DeepSeek-V4-Flash**, **DeepSeek-V4-Flash-202605**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Pro-202606**, **GLM-5**, **GLM-5-Turbo**, **GLM-5.1**, **GLM-5.2**, **Kimi-K2.5**, **Kimi-K2.6**, **Kimi-K2.7-Code**, **Kimi-K2.7-Code HighSpeed**, **MiniMax-M2.5**, **MiniMax-M2.7**, **MiniMax-M3**
+- [**Token Plan Enterprise**](https://console.cloud.tencent.com/tokenhub/tokenplan-e): **DeepSeek-V4-Flash**, **DeepSeek-V4-Flash-202605**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Pro-202606**, **GLM-5**, **GLM-5-Turbo**, **GLM-5.1**, **GLM-5.2**, **Kimi-K2.5**, **Kimi-K2.6**, **Kimi-K2.7-Code**, **Kimi-K2.7-Code HighSpeed**, **MiniMax-M2.5**, **MiniMax-M2.7**, **MiniMax-M3**
 - [**TokenHub**](https://console.cloud.tencent.com/tokenhub/models):
     - **GLM series**: **GLM-5.2**, **GLM-5.1**, **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-5**
     - **DeepSeek series**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **DeepSeek-V3.2**
     - **Kimi series**: **Kimi-K2.7-Code**, **Kimi-K2.7-Code HighSpeed**, **Kimi-K2.6**, **Kimi-K2.5**
     - **MiniMax series**: **MiniMax-M3**, **MiniMax-M2.7**, **MiniMax-M2.5**
     - **Hunyuan series**: **Hy3**, **Hy3 preview**
-- **Key configuration**: Tencent Cloud API keys are categorized into [Coding Plan API Key](https://console.cloud.tencent.com/tokenhub/codingplan), [Token Plan API Key](https://console.cloud.tencent.com/tokenhub/tokenplan), [Token Plan Enterprise API Key](https://console.cloud.tencent.com/tokenhub/tokenplan), and [TokenHub API Key](https://console.cloud.tencent.com/tokenhub/apikey). Each must be generated from the correct key management page.
+- **Key configuration**: Tencent Cloud API keys are categorized into [Coding Plan API Key](https://console.cloud.tencent.com/tokenhub/codingplan), [Token Plan API Key](https://console.cloud.tencent.com/tokenhub/tokenplan), [Token Plan Enterprise API Key](https://console.cloud.tencent.com/tokenhub/tokenplan-e), and [TokenHub API Key](https://console.cloud.tencent.com/tokenhub/apikey). Each must be generated from the correct key management page.
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)
 
@@ -325,6 +325,20 @@ providerOverrides["retry.{subProvider}"] → providerOverrides.retry → built-i
 
 > Feature-specific settings such as `gcmp.commit.enabled`, `gcmp.vision.model`, and `gcmp.zhipu.search.enableMCP` are documented in their respective feature sections, not here.
 
+#### Debugging & HAR Capture
+
+```json
+{
+    "gcmp.debug.captureHar": false, // Capture all HTTP requests as HAR files (default false)
+    "gcmp.debug.harRetentionCount": 7 // Number of recent HAR files to keep per VS Code instance (0 = no cleanup)
+}
+```
+
+- When `gcmp.debug.captureHar` is enabled, GCMP writes HAR 1.2 files under `globalStorage/har/`, grouped by VS Code instance and date, to help diagnose compatibility and gateway issues.
+- FIM / NES completions, Gist sync, and CLI OAuth refresh requests skip capture by default to avoid recording sensitive credentials and high-frequency duplicate traffic.
+- Credentials in sensitive headers, URL query parameters, and redirect URLs are redacted before writing, but request and response bodies are stored as-is. Keep HAR files secure.
+- Files older than 2 days are cleaned up automatically when a new recording starts or a file rotates; `harRetentionCount` controls how many recent files each process keeps.
+
 #### Proxy & System Certificate Settings
 
 ```json
@@ -421,12 +435,12 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
 > If you need built-in or special adaptation support, please submit an Issue with relevant information.<br/>
 > Known providers support `gcmp.providerOverrides.{providerId}` for `customHeader` and `proxy` overrides.
 
-| Provider ID     | Provider Name                                              | Description | Balance Query   |
-| --------------- | ---------------------------------------------------------- | ----------- | --------------- |
-| **aiping**      | [**AI Ping**](https://aiping.cn/#?invitation_code=EBQQKW)  |             | Account balance |
-| **aihubmix**    | [**AIHubMix**](https://aihubmix.com/?aff=xb8N)             | 10% off     | API Key balance |
-| **openrouter**  | [**OpenRouter**](https://openrouter.ai/)                   |             | Account balance |
-| **siliconflow** | [**SiliconFlow**](https://cloud.siliconflow.cn/i/tQkcsZbJ) |             | Account balance |
+| Provider ID     | Provider Name                                                 | Description | Balance Query   |
+| --------------- | ------------------------------------------------------------- | ----------- | --------------- |
+| **aiping**      | [**AI Ping**](https://aiping.cn/#?invitation_code=UV5BVMCVJF) |             | Account balance |
+| **aihubmix**    | [**AIHubMix**](https://aihubmix.com/?aff=xb8N)                | 10% off     | API Key balance |
+| **openrouter**  | [**OpenRouter**](https://openrouter.ai/)                      |             | Account balance |
+| **siliconflow** | [**SiliconFlow**](https://cloud.siliconflow.cn/i/tQkcsZbJ)    |             | Account balance |
 
 **Configuration example**:
 

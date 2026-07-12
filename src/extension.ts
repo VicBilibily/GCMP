@@ -266,8 +266,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // 订阅远程配置变更，强制刷新本地配置缓存
         InterInstanceBus.subscribe('configChanged', () => {
-            ConfigManager.clearCache();
-            Logger.trace('[InterInstanceBus] Config cache cleared due to remote change');
+            ConfigManager.handleExternalConfigChange();
+            Logger.trace('[InterInstanceBus] Config cache and HAR recorder refreshed due to remote change');
         });
 
         // 步骤1: 初始化API密钥管理器
@@ -277,7 +277,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // 步骤2: 初始化配置管理器
         stepStartTime = Date.now();
-        const configDisposable = ConfigManager.initialize();
+        const configDisposable = ConfigManager.initialize(context);
         context.subscriptions.push(configDisposable);
         Logger.trace(`Configuration manager initialized (${Date.now() - stepStartTime}ms)`);
         // 步骤2.1: 初始化 JSON Schema 提供者
