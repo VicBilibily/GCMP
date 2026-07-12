@@ -58,19 +58,6 @@ export function calculateCost(
 }
 
 /**
- * 格式化成本为显示字符串。
- */
-export function formatCost(cost: number): string {
-    if (cost === 0) {
-        return '0';
-    }
-    if (cost < 0.01) {
-        return cost < 0.0001 ? '~0' : cost.toFixed(4);
-    }
-    return cost.toFixed(2);
-}
-
-/**
  * 成本计算明细，用于 debug 日志输出。
  */
 export interface CostBreakdown {

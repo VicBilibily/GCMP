@@ -10,7 +10,9 @@ import { DateUtils } from '../usages/fileLogger/dateUtils';
 import { UserActivityService } from './userActivityService';
 import { InterInstanceBus } from '../interInstance';
 import type { TokenUsageStatsFromFile } from '../usages/fileLogger/types';
+import type { ExtendedTokenRequestLog } from '../usages/fileLogger/usageParser';
 import { t } from '../utils/l10n';
+import { formatCost } from '../ui/utils';
 
 /**
  * Token 用量状态栏
@@ -200,13 +202,7 @@ export class TokenUsageStatusBar {
             );
             const avgSpeed = this.calculateAverageSpeed(providerStats);
             const avgLatency = this.calculateAverageFirstTokenLatency(providerStats.firstTokenLatency);
-            const cost = providerStats.estimatedCost || 0;
-            const costStr =
-                cost > 0 ?
-                    cost >= 1 ?
-                        `$${parseFloat(cost.toPrecision(5)).toString()}`
-                    :   `$${parseFloat(cost.toFixed(4)).toString()}`
-                :   '-';
+            const costStr = formatCost(providerStats.estimatedCost, 2);
             md.appendMarkdown(
                 `| ${providerStats.providerName} | ${consumptionPath} | ` +
                     `${costStr} | ` +
@@ -221,13 +217,7 @@ export class TokenUsageStatusBar {
             );
             const avgSpeedTotal = this.calculateAverageSpeed(stats.total);
             const avgLatencyTotal = this.calculateAverageFirstTokenLatency(stats.total.firstTokenLatency);
-            const totalCost = stats.total.estimatedCost || 0;
-            const totalCostStr =
-                totalCost > 0 ?
-                    totalCost >= 1 ?
-                        `$${parseFloat(totalCost.toPrecision(5)).toString()}`
-                    :   `$${parseFloat(totalCost.toFixed(4)).toString()}`
-                :   '-';
+            const totalCostStr = formatCost(stats.total.estimatedCost, 2);
             const eqIndex = totalPath.lastIndexOf('=');
             const formulaPart = totalPath.slice(0, eqIndex + 1);
             const resultPart = totalPath.slice(eqIndex + 1);
@@ -246,11 +236,9 @@ export class TokenUsageStatusBar {
                 md.appendMarkdown('\n\n ---- \n\n\n\n');
                 // 创建表格标题
                 md.appendMarkdown(
-                    `| ${t('Provider', '提供商')} | ${t('Time', '请求时间')} | ${t('Status', '状态')} | ${t('Input', '输入Tokens')} | ${t('Cache', '缓存命中')} | ${t('Output', '输出Tokens')} | ${t('Latency', '响应延迟')} | ${t('Speed', '输出速度')} |\n`
+                    `| ${t('Provider', '提供商')} | ${t('Time', '请求时间')} | ${t('Status', '状态')} | ${t('Read+Write=Input', '读取+写入=输入量')} | ${t('Output', '输出量')} | ${t('Cost', '预估成本')} | ${t('Latency', '响应延迟')} | ${t('Speed', '输出速度')} |\n`
                 );
-                md.appendMarkdown(
-                    '| :----------- | :-----: | :----: | -----: | -----: | -----: | ------: | -----: |\n'
-                );
+                md.appendMarkdown('| :----------- | :-----: | :----: | -----: | -----: | ---: | ------: | -----: |\n');
 
                 // 反转数组，让最近的请求在最下方显示
                 const reversedRequests = [...recentRequests].reverse();
@@ -270,8 +258,6 @@ export class TokenUsageStatusBar {
                     const timeStr = startTime.toLocaleTimeString('zh-CN');
 
                     // 直接访问扩展属性
-                    const actualInput = req.actualInput;
-                    const cacheTokens = req.cacheReadTokens;
                     const outputTokens = req.outputTokens;
                     const totalTokens = req.totalTokens;
 
@@ -291,26 +277,19 @@ export class TokenUsageStatusBar {
                         }
                     }
 
-                    // 根据状态决定显示实际值还是预估值
-                    let inputStr = '-';
-                    let cacheStr = '-';
+                    const inputStr = this.formatRecentInputTokens(req);
+
                     let outputStr = '-';
                     const hasActualUsage =
                         (req.status === 'completed' || req.status === 'cancelled') && !!req.rawUsage && totalTokens > 0;
-                    if (hasActualUsage) {
-                        // 终态且有实际值：显示实际值
-                        inputStr = this.formatTokens(actualInput);
-                        cacheStr = cacheTokens > 0 ? this.formatTokens(cacheTokens) : '-';
-                        outputStr = outputTokens > 0 ? this.formatTokens(outputTokens) : '-';
-                    } else {
-                        // 预估、失败、取消状态：显示预估输入
-                        if (req.estimatedInput !== undefined && req.estimatedInput > 0) {
-                            inputStr = `~${this.formatTokens(req.estimatedInput)}`;
-                        }
+                    if (hasActualUsage && outputTokens > 0) {
+                        outputStr = this.formatTokens(outputTokens);
                     }
 
+                    const costStr = formatCost(req.estimatedCost ?? 0);
+
                     md.appendMarkdown(
-                        `| ${req.providerName} | ${timeStr} | ${statusIcon} | ${inputStr} | ${cacheStr} | ${outputStr} | ${latencyStr} | ${speedStr} |\n`
+                        `| ${req.providerName} | ${timeStr} | ${statusIcon} | ${inputStr} | ${outputStr} | ${costStr} | ${latencyStr} | ${speedStr} |\n`
                     );
                 }
             }
@@ -393,12 +372,56 @@ export class TokenUsageStatusBar {
      * 例如：2.2K(+20.3M)+2000=22.5M
      */
     private formatConsumptionPath(actualInput: number, cacheTokens: number, outputTokens: number): string {
+        const total = actualInput + outputTokens;
+        if (total === 0) {
+            return '0';
+        }
         const nonCacheInput = actualInput - cacheTokens;
         const inputStr = this.formatTokens(nonCacheInput);
         const cacheStr = cacheTokens > 0 ? `(+${this.formatTokens(cacheTokens)})` : '';
         const outputStr = this.formatTokens(outputTokens);
-        const total = this.formatTokens(actualInput + outputTokens);
-        return `${inputStr}${cacheStr}+${outputStr}=${total}`;
+        const totalStr = this.formatTokens(actualInput + outputTokens);
+        return `${inputStr}${cacheStr}+${outputStr}=${totalStr}`;
+    }
+
+    /**
+     * 格式化最近请求记录的输入Tokens：读取(缓存)+写入(新增)=输入Tokens
+     * 预测阶段：若无增量(estimatedIncrement)则直接显示预测总量；
+     *          否则显示 上一请求输入(缓存)+新增(写入)=总输入预计
+     * 请求完成后：显示实际的 cacheReadTokens + (actualInput - cacheReadTokens) = actualInput
+     */
+    private formatRecentInputTokens(record: ExtendedTokenRequestLog): string {
+        const hasActualUsage =
+            (record.status === 'completed' || record.status === 'cancelled') &&
+            !!record.rawUsage &&
+            record.totalTokens > 0;
+
+        if (hasActualUsage) {
+            const totalInput = record.actualInput || 0;
+            const readTokens = record.cacheReadTokens || 0;
+            const writeTokens = Math.max(0, totalInput - readTokens);
+            if (totalInput === 0) {
+                return '0';
+            }
+            const readStr = this.formatTokens(readTokens);
+            const writeStr = this.formatTokens(writeTokens);
+            return `${readStr}+${writeStr}=${this.formatTokens(totalInput)}`;
+        }
+
+        const estimatedInput = record.estimatedInput || 0;
+        if (estimatedInput === 0) {
+            return '-';
+        }
+
+        const estimatedIncrement = record.estimatedIncrement;
+        if (estimatedIncrement === undefined || estimatedIncrement <= 0 || estimatedIncrement >= estimatedInput) {
+            return `~${this.formatTokens(estimatedInput)}`;
+        }
+
+        const previousInput = estimatedInput - estimatedIncrement;
+        const readStr = this.formatTokens(previousInput);
+        const writeStr = this.formatTokens(estimatedIncrement);
+        return `${readStr}+${writeStr}=${this.formatTokens(estimatedInput)}`;
     }
 
     /**

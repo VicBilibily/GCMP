@@ -6,7 +6,6 @@ import test from 'node:test';
 import {
     calculateCost,
     calculateCostWithBreakdown,
-    formatCost,
     formatCostBreakdownLog,
     resolvePricingBreakdown,
     toNanoAiu
@@ -178,9 +177,6 @@ test('calculateCostWithBreakdown: nested anthropic cache_creation details are tr
 test('calculateCost helpers handle missing inputs and formatting thresholds', () => {
     assert.equal(calculateCost(undefined, undefined), 0);
     assert.equal(calculateCostWithBreakdown(undefined, undefined), undefined);
-    assert.equal(formatCost(0.00005), '~0');
-    assert.equal(formatCost(0.004321), '0.0043');
-    assert.equal(formatCost(1.2345), '1.23');
     assert.equal(toNanoAiu(0), undefined);
     assert.equal(toNanoAiu(-1), undefined);
     assert.equal(toNanoAiu(4e-10), 1);

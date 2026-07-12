@@ -25,7 +25,6 @@ export { formatOpenCodeId as formatOpencodeId, createOpenCodeHeaders } from './f
 export { isCancellationError } from './cancellationError';
 export {
     calculateCost,
-    formatCost,
     calculateCostWithBreakdown,
     formatCostBreakdownLog,
     toNanoAiu,
