@@ -109,7 +109,7 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 
 - [**Membership**](https://www.kimi.com/coding): Kimi membership plan includes `Kimi For Coding` (HighSpeed).
     - **Search**: Integrated Kimi Search web search tool, supports `#kimiWebSearch`.
-    - **Usage tracking**: Status bar displays remaining quota and rate-limit reset time.
+    - **Usage tracking**: Status bar displays remaining quota, top-up wallet balance and expiration, and rate-limit reset time.
 - Preset models: **Kimi K2.5**, **Kimi K2.6**, **Kimi K2.7 Code** (HighSpeed)
     - **Balance query**: Status bar displays current account balance.
 
@@ -218,6 +218,7 @@ LLM service platform under iFLYTEK, accessed via Anthropic SDK mode with dual-pl
 ### [**ClinePass**](https://docs.cline.bot/getting-started/clinepass) - Cline's official model subscription service
 
 - **Preset models**: **GLM-5.2**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **MiMo-V2.5**, **MiMo-V2.5-Pro**, **MiniMax-M3**, **Qwen3.7-Max**, **Qwen3.7-Plus**
+- **Usage tracking**: Status bar displays plan cycle remaining usage, reset time, and total utilization.
 - **API Key**: Create and copy your API key from [Cline App → API Keys](https://app.cline.bot/dashboard/account?tab=api-keys), then use the `GCMP: Set ClinePass API Key` command to configure it.
 
 ### OAuth Coding Assistant Providers
@@ -779,6 +780,8 @@ GCMP includes comprehensive token usage tracking to help you monitor and manage 
 - **Real-time Request Metrics**: Displays time-to-first-token (TTFT) and time-per-output-token (TPOT) in real time during streaming, naturally refreshed by actual usage once completed
 - **Real-time Output Token Estimation**: Streaming-phase output tokens and output speed (tokens/s) are estimated in real time via tokenizer; the output column shows the "last received estimation delta" (`+xx tks`), replaced by actual usage once completed
 - **Cache hit rate visualization**: The input column combines cache hit count and total input, showing the cache hit rate to help judge cache strategy effectiveness
+- **Client cost estimation**: Supports peak/off-peak tiered pricing, service-tier billing, and context-size conditional tiers. Estimated costs are displayed inline below token counts, integrated in the status bar, detail view, and multi-day trend view
+- **Multi-day cost view**: Cost trend line chart and cost card summary in the multi-day trend view
 
 ### How to Use
 

@@ -114,8 +114,8 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
 
         providers.forEach(provider => {
             // 累加合计数据
-            const miss = (provider.actualInput || 0) - (provider.cacheTokens || 0);
-            totalInput += miss > 0 ? miss : provider.actualInput || 0;
+            const nonCacheInput = Math.max(0, (provider.actualInput || 0) - (provider.cacheTokens || 0));
+            totalInput += nonCacheInput;
             totalCache += provider.cacheTokens || 0;
             totalOutput += provider.outputTokens || 0;
             totalRequests += provider.requests || 0;
@@ -137,10 +137,7 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
 
             providerRow.appendChild(createCell(getProviderDisplayName(provider.providerKey, provider.providerName)));
             providerRow.appendChild(
-                createTokensCell(
-                    miss > 0 ? miss : provider.actualInput,
-                    (provider.inputCost || 0) + (provider.cacheWriteCost || 0)
-                )
+                createTokensCell(nonCacheInput, (provider.inputCost || 0) + (provider.cacheWriteCost || 0))
             );
             providerRow.appendChild(createTokensCell(provider.cacheTokens, provider.cacheReadCost));
             providerRow.appendChild(createTokensCell(provider.outputTokens, provider.outputCost));
@@ -165,14 +162,11 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             Object.entries(provider.models).forEach(([, stats]) => {
                 const modelRow = createElement('tr') as HTMLTableRowElement;
                 const totalTokens = calculateTotalTokens(stats);
-                const modelMiss = (stats.actualInput || 0) - (stats.cacheTokens || 0);
+                const modelNonCacheInput = Math.max(0, (stats.actualInput || 0) - (stats.cacheTokens || 0));
 
                 modelRow.appendChild(createCell(`└─ ${stats.modelName}`, 'model-cell'));
                 modelRow.appendChild(
-                    createTokensCell(
-                        modelMiss > 0 ? modelMiss : stats.actualInput,
-                        (stats.inputCost || 0) + (stats.cacheWriteCost || 0)
-                    )
+                    createTokensCell(modelNonCacheInput, (stats.inputCost || 0) + (stats.cacheWriteCost || 0))
                 );
                 modelRow.appendChild(createTokensCell(stats.cacheTokens, stats.cacheReadCost));
                 modelRow.appendChild(createTokensCell(stats.outputTokens, stats.outputCost));
@@ -194,7 +188,7 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
         totalRow.style.fontWeight = 'bold';
         totalRow.style.borderTop = '2px solid var(--vscode-editor-selectionForeground)';
 
-        const grandTotal = totalInput + totalOutput;
+        const grandTotal = totalInput + totalCache + totalOutput;
         totalRow.appendChild(createCell(t('Total', '合计')));
         totalRow.appendChild(createTokensCell(totalInput, totalInputCost + totalCacheWriteCost));
         totalRow.appendChild(createTokensCell(totalCache, totalCacheReadCost));

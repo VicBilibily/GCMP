@@ -2,27 +2,57 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
-## [0.26.0] - 2026-07-02
+## [0.26.0] - 2026-07-12
 
 ### 新增
 
-- **跨实例状态同步**：新增 Leader/Follower 跨实例通信模块，基于本地 IPC 广播事件在多 VS Code 窗口间同步状态栏、实时指标、配置变更和 API Key 变更，IPC 不可用时自动降级到文件系统轮询；支持 Leader 卸任通知，无缝切换主实例。
+- **Token 定价与客户端成本估算**：支持峰谷分档定价、服务等级（`serviceTier`）计费和上下文大小（`contextSizeMin`）条件分档。估算成本内联显示在 Token 数量下方，状态栏、详情页、多日趋势页均集成展示；新增 `formatCostBreakdownLog` 日志输出格式，便于运营商审计对账。同步新增 `gcmp.providerOverrides` 的 `pricing` 配置通道，支持数组简写 `[inputPrice, outputPrice]` / `[inputPrice, cacheReadPrice, outputPrice]` / `[inputPrice, cacheReadPrice, cacheWritePrice, outputPrice]` 四种形式。
+- **跨实例状态同步**：新增 Leader/Follower 跨实例通信模块，基于本地 IPC 广播事件在多 VS Code 窗口间同步状态栏、实时指标、配置变更和 API Key 变更，IPC 不可用时自动降级到文件系统轮询；支持 Leader 卸任通知和推荐下一任 Leader，无缝切换主实例。
+- **Kimi 加油包钱包查询**：月之暗面 Kimi 会员套餐的加油包（Top-up Wallet）余额查询与状态栏展示，支持查看加油包额度与到期时间。
+- **ClinePass 用量查询状态栏**：新增 ClinePass 套餐周期剩余用量、重置时间和总利用率的状态栏展示。
+- **增量 Token 预估**：基于上一轮 API 实际用量做增量预估，消除长上下文中累积估算误差。
+- **多日视图成本展示**：多日趋势页新增成本趋势折线图与成本卡片汇总，优化 Token 与成本格式化工具函数。
+- **错误重试分类器增强**：新增 `Codex` 和 `Responses API` 的 `rate_limits` / `snapshot_bootstrap` 等重试条件判定，覆盖更多限流和快照引导失败场景。
 
 ### 变更
 
-- **增量 Token 预估**：基于上一轮 API 实际用量做增量预估，消除长上下文中累积估算误差；WebView 详细视图新增"本次新增"（`~+xx`）列，帮助追踪长会话每轮请求的新增 Token 消耗。
-- **上下文状态栏简化**：饼图图标直观反映当前会话上下文窗口占用比例（0/8 ~ 8/8），悬停即可查看模型名称、占用百分比、Token 用量和请求来源类型，移除了细分类别拆解与状态缓存。
+- **上下文窗口状态栏简化**：饼图图标直观反映当前会话上下文窗口占用比例（0/8 ~ 8/8），悬停即可查看模型名称、占用百分比、Token 用量和请求来源类型，移除了细分类别拆解与状态缓存。
+- **Token 成本内联展示**：状态栏表格、详情页提供商统计表和最近请求记录中的 Token 数量下方内联显示预估成本，移除独立成本列，节省横向空间。
+- **状态栏表格列结构调整**：状态栏每日统计弹窗合并消耗 Tokens 列与成本列，简化表头为「输入(+缓存)+输出=消耗Tokens」，缓存命中与输入 Token 成本拆分展示。
+- **通用请求完成后统一触发状态栏延迟刷新**：所有提供商的模型请求完成后，统一通过 `TokenUsageStatusBar.triggerDelayedUpdate` 延迟刷新 Token 消耗展示，避免高频请求导致的频繁 I/O。
+- **定价配置结构优化**：`pricing` 字段支持对象和数组简写两种形式，数组自动扩展为 `{inputPrice, cacheReadPrice, cacheWritePrice, outputPrice}` 对象，兼容现有对象配置。
+- **腾讯云付费模型与 DeepSeek 专用密钥配置移除**：腾讯云 TokenHub 渠道的付费模型和 DeepSeek 专用密钥配置已废弃，统一使用 TokenHub / Token Plan 密钥接入。
+- **上下文窗口与 Token 限配置优化**：内置提供商模型配置的 `maxInputTokens`/`maxOutputTokens` 上限调优，提升长上下文场景兼容性（[#269](https://github.com/VicBilibily/GCMP/issues/269)）。
+
+### 修复
+
+- **IPC 断线重连窗口事件静默丢失**：修复 Follower 实例在 IPC 断线重连窗口期间发布的事件被静默丢弃的问题，补充事件可靠性语义说明。
 
 ---
 
 ### Added
 
-- **Cross-instance state sync**: New Leader/Follower inter-instance communication module that broadcasts events via local IPC across VS Code windows for status bar, live metrics, config changes, and API key changes, with automatic fallback to file-system polling when IPC is unavailable; supports leader resignation notification for seamless primary instance switching.
+- **Token pricing & client cost estimation**: Supports peak/off-peak tiered pricing, service-tier-based billing, and context-size conditional tiers. Estimated costs are displayed inline below token counts across the status bar, details view, and multi-day trend view. New `formatCostBreakdownLog` output for operator audit reconciliation. Added `gcmp.providerOverrides.pricing` configuration channel with array shorthand: `[inputPrice, outputPrice]`, `[inputPrice, cacheReadPrice, outputPrice]`, or `[inputPrice, cacheReadPrice, cacheWritePrice, outputPrice]`.
+- **Cross-instance state sync**: New Leader/Follower inter-instance communication module that broadcasts events via local IPC across VS Code windows for status bar, live metrics, config changes, and API key changes, with automatic fallback to file-system polling when IPC is unavailable; supports leader resignation notification with next-leader nomination for seamless primary instance switching.
+- **Kimi Top-up wallet query**: Balance query and status bar display for Kimi membership plan top-up wallets, showing credit balance and expiration time.
+- **ClinePass usage status bar**: Displays ClinePass plan cycle remaining usage, reset time, and total utilization in the status bar.
+- **Incremental token estimation**: Based on the previous request's actual API usage, eliminating cumulative estimation errors in long contexts.
+- **Multi-day cost view**: Added cost trend line chart and cost card summary to the multi-day trend page; optimized token and cost formatting utilities.
+- **Enhanced retry classifier**: Added retry conditions for Codex `rate_limits` and Responses API `snapshot_bootstrap` scenarios, covering more rate-limit and snapshot bootstrap failure cases.
 
 ### Changed
 
-- **Incremental token estimation**: Based on the previous request's actual API usage, eliminating cumulative estimation errors in long contexts; the WebView detail view now shows a "this request" increment column (`~+xx`) to help track per-request token growth in long conversations.
 - **Simplified context status bar**: A pie-chart icon intuitively reflects the current session's context window usage ratio (0/8 ~ 8/8); hover to view model name, usage percentage, token count, and request source type; removed detailed category breakdown and status caching.
+- **Inline cost display in token cells**: Estimated costs are displayed inline below token counts in the status bar, provider stats table, and recent request records; removed standalone cost column to save horizontal space.
+- **Status bar table column restructure**: Merged the tokens and cost columns in the daily statistics popup into a simplified "Input(+Cache)+Output=Consumed" header; cache hit and input token costs are shown separately.
+- **Unified delayed status bar refresh**: All provider model requests now trigger a delayed `TokenUsageStatusBar.triggerDelayedUpdate` refresh after completion, reducing frequent I/O from high-frequency requests.
+- **Pricing configuration structure optimized**: `pricing` fields support both object and array shorthand forms; arrays are auto-expanded to `{inputPrice, cacheReadPrice, cacheWritePrice, outputPrice}` objects, compatible with existing object configs.
+- **Removed Tencent paid models & DeepSeek dedicated key config**: Deprecated Tencent Cloud TokenHub paid models and DeepSeek dedicated API key config; unified to TokenHub / Token Plan key access.
+- **Context window & token limit config optimized**: Bumped `maxInputTokens`/`maxOutputTokens` limits for built-in provider model configs to improve long-context compatibility ([#269](https://github.com/VicBilibily/GCMP/issues/269)).
+
+### Fixed
+
+- **IPC reconnection window event loss**: Fixed silent event drops during Follower instance IPC reconnection windows; added event reliability semantic documentation.
 
 
 
