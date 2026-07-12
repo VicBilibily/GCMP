@@ -156,10 +156,10 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 - [**TokenHub**](https://console.cloud.tencent.com/tokenhub/models)：
     - **GLM 系列**：**GLM-5.2**、**GLM-5.1**、**GLM-5V-Turbo**、**GLM-5-Turbo**、**GLM-5**
     - **DeepSeek 系列**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**DeepSeek-V3.2**
-    - **Kimi 系列**：**Kimi-K2.7-Code**、**Kimi-K2.6**、**Kimi-K2.5**
+    - **Kimi 系列**：**Kimi-K2.7-Code**、**Kimi-K2.7-Code HighSpeed**、**Kimi-K2.6**、**Kimi-K2.5**
     - **MiniMax 系列**：**MiniMax-M3**、**MiniMax-M2.7**、**MiniMax-M2.5**
     - **Hunyuan 系列**：**Hy3**、**Hy3 preview**
-- **密钥配置**：腾讯云API密钥分为 [腾讯云付费模型 API Key](https://hunyuan.cloud.tencent.com/#/app/apiKeyManage)、[Coding Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/codingplan)、[Token Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan)、[Token Plan 企业版 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan)、[DeepSeek 专用 API Key](https://console.cloud.tencent.com/lkeap/api)、[TokenHub 付费 API Key](https://console.cloud.tencent.com/tokenhub/apikey)，需要进入正确的密钥获取界面生成密钥。
+- **密钥配置**：腾讯云API密钥分为 [Coding Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/codingplan)、[Token Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan)、[Token Plan 企业版 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan)、[TokenHub 付费 API Key](https://console.cloud.tencent.com/tokenhub/apikey)，需要进入正确的密钥获取界面生成密钥。
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)
 

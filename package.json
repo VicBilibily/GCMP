@@ -192,11 +192,6 @@
                 "category": "GCMP"
             },
             {
-                "command": "gcmp.tencent.setApiKey",
-                "title": "%command.tencent.setApiKey%",
-                "category": "GCMP"
-            },
-            {
                 "command": "gcmp.tencent.setCodingPlanApiKey",
                 "title": "%command.tencent.setCodingPlanApiKey%",
                 "category": "GCMP"
@@ -204,11 +199,6 @@
             {
                 "command": "gcmp.tencent.setTokenPlanApiKey",
                 "title": "%command.tencent.setTokenPlanApiKey%",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.tencent.setDeepSeekApiKey",
-                "title": "%command.tencent.setDeepSeekApiKey%",
                 "category": "GCMP"
             },
             {

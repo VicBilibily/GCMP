@@ -109,7 +109,6 @@ const KNOWN_KEY_LABELS: Record<string, string> = {
     'dashscope-token': 'DashScope Token Plan',
     'tencent-coding': 'Tencent Cloud Coding Plan',
     'tencent-token': 'Tencent Cloud Token Plan',
-    'tencent-deepseek': 'Tencent Cloud DeepSeek',
     'tencent-tokenhub': 'Tencent Cloud TokenHub',
     'tencent-token-enterprise': 'Tencent Cloud Token Plan Enterprise',
     'volcengine-agent': 'Volcengine Agent Plan',

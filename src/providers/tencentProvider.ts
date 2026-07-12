@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  腾讯云专用 Provider
- *  为腾讯云付费模型、Coding Plan、Token Plan 与 DeepSeek 提供多密钥管理和协议切换功能
+ *  为腾讯云 Coding Plan、Token Plan、TokenHub 与 Token Plan Enterprise 提供多密钥管理和协议切换功能
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -35,11 +35,6 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
         const provider = new TencentProvider(context, providerKey, providerConfig);
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
 
-        const setApiKeyCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.setApiKey`, async () => {
-            await TencentWizard.setApiKey(providerConfig.apiKeyTemplate);
-            provider._onDidChangeLanguageModelChatInformation.fire();
-        });
-
         const setCodingPlanApiKeyCommand = vscode.commands.registerCommand(
             `gcmp.${providerKey}.setCodingPlanApiKey`,
             async () => {
@@ -52,14 +47,6 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             `gcmp.${providerKey}.setTokenPlanApiKey`,
             async () => {
                 await TencentWizard.setTokenPlanApiKey(providerConfig.tokenKeyTemplate);
-                provider._onDidChangeLanguageModelChatInformation.fire();
-            }
-        );
-
-        const setDeepSeekApiKeyCommand = vscode.commands.registerCommand(
-            `gcmp.${providerKey}.setDeepSeekApiKey`,
-            async () => {
-                await TencentWizard.setDeepSeekApiKey(providerConfig.apiKeyTemplate);
                 provider._onDidChangeLanguageModelChatInformation.fire();
             }
         );
@@ -93,10 +80,8 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
 
         const disposables = [
             providerDisposable,
-            setApiKeyCommand,
             setCodingPlanApiKeyCommand,
             setTokenPlanApiKeyCommand,
-            setDeepSeekApiKeyCommand,
             setTokenHubApiKeyCommand,
             setTokenEnterpriseApiKeyCommand,
             configWizardCommand
@@ -118,19 +103,11 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             return [];
         }
 
-        const hasNormalKey = await ApiKeyManager.hasValidApiKey(this.providerKey);
         const hasCodingKey = await ApiKeyManager.hasValidApiKey('tencent-coding');
         const hasTokenPlanKey = await ApiKeyManager.hasValidApiKey('tencent-token');
-        const hasDeepSeekKey = await ApiKeyManager.hasValidApiKey('tencent-deepseek');
         const hasTokenHubKey = await ApiKeyManager.hasValidApiKey('tencent-tokenhub');
         const hasTokenPlanEnterpriseKey = await ApiKeyManager.hasValidApiKey('tencent-token-enterprise');
-        const hasAnyKey =
-            hasNormalKey ||
-            hasCodingKey ||
-            hasTokenPlanKey ||
-            hasDeepSeekKey ||
-            hasTokenHubKey ||
-            hasTokenPlanEnterpriseKey;
+        const hasAnyKey = hasCodingKey || hasTokenPlanKey || hasTokenHubKey || hasTokenPlanEnterpriseKey;
 
         if (options.silent && !hasAnyKey) {
             Logger.debug(
@@ -147,20 +124,11 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
                 this.providerConfig.tokenKeyTemplate
             );
 
-            const normalKeyValid = await ApiKeyManager.hasValidApiKey(this.providerKey);
             const codingKeyValid = await ApiKeyManager.hasValidApiKey('tencent-coding');
             const tokenPlanKeyValid = await ApiKeyManager.hasValidApiKey('tencent-token');
-            const deepSeekKeyValid = await ApiKeyManager.hasValidApiKey('tencent-deepseek');
             const tokenHubKeyValid = await ApiKeyManager.hasValidApiKey('tencent-tokenhub');
             const tokenPlanEnterpriseKeyValid = await ApiKeyManager.hasValidApiKey('tencent-token-enterprise');
-            if (
-                !normalKeyValid &&
-                !codingKeyValid &&
-                !tokenPlanKeyValid &&
-                !deepSeekKeyValid &&
-                !tokenHubKeyValid &&
-                !tokenPlanEnterpriseKeyValid
-            ) {
+            if (!codingKeyValid && !tokenPlanKeyValid && !tokenHubKeyValid && !tokenPlanEnterpriseKeyValid) {
                 Logger.warn(
                     `${this.providerConfig.displayName}: user did not configure any keys, returning empty model list`
                 );
@@ -273,14 +241,12 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
                 return 'Coding Plan dedicated';
             case 'tencent-token':
                 return 'Token Plan dedicated';
-            case 'tencent-deepseek':
-                return 'DeepSeek dedicated';
             case 'tencent-tokenhub':
                 return 'TokenHub dedicated';
             case 'tencent-token-enterprise':
                 return 'Token Plan Enterprise dedicated';
             default:
-                return 'paid model';
+                return 'unknown plan';
         }
     }
 
@@ -302,14 +268,14 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             await TencentWizard.setCodingPlanApiKey(this.providerConfig.codingKeyTemplate);
         } else if (providerKey === 'tencent-token') {
             await TencentWizard.setTokenPlanApiKey(this.providerConfig.tokenKeyTemplate);
-        } else if (providerKey === 'tencent-deepseek') {
-            await TencentWizard.setDeepSeekApiKey(this.providerConfig.apiKeyTemplate);
         } else if (providerKey === 'tencent-tokenhub') {
             await TencentWizard.setTokenHubApiKey(this.providerConfig.apiKeyTemplate);
         } else if (providerKey === 'tencent-token-enterprise') {
             await TencentWizard.setTokenEnterpriseApiKey(this.providerConfig.apiKeyTemplate);
         } else {
-            await TencentWizard.setApiKey(this.providerConfig.apiKeyTemplate);
+            Logger.warn(
+                `${this.providerConfig.displayName}: unsupported provider key "${providerKey}" for model ${modelConfig.name}, no setup flow available`
+            );
         }
 
         const apiKey = await ApiKeyManager.getApiKey(providerKey);
