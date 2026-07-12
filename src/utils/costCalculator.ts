@@ -33,7 +33,7 @@ export interface RawTokenUsage {
     input_tokens_details?: {
         cached_tokens?: number;
     };
-    /** 兼容 Gemini usageMetadata */
+    /** 兼容 usageMetadata */
     promptTokenCount?: number;
     responseTokenCount?: number;
     candidatesTokenCount?: number;

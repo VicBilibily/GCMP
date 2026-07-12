@@ -11,7 +11,7 @@ import {
 } from 'vscode';
 import { ModelConfig } from '../types/sharedTypes';
 import { Logger } from './logger';
-import { sanitizeToolSchemaForSdkMode } from './schemaSanitizer';
+import { sanitizeToolSchema } from './schemaSanitizer';
 import { TokenCounter } from './tokenCounter';
 import { decodeStatefulMarker } from '../handlers/statefulMarker';
 import { CustomDataPartMimeTypes } from '../handlers/types';
@@ -78,9 +78,7 @@ export class PromptAnalyzer {
                         toolsTokens += await tokenCounter.countTokens(model, tool.description);
                     }
                     if ('inputSchema' in tool && tool.inputSchema) {
-                        const schemaJson = JSON.stringify(
-                            sanitizeToolSchemaForSdkMode(tool.inputSchema, modelConfig?.sdkMode)
-                        );
+                        const schemaJson = JSON.stringify(sanitizeToolSchema(tool.inputSchema));
                         toolsTokens += await tokenCounter.countTokens(model, schemaJson);
                     }
                 }

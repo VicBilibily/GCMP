@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import OpenAI, { ClientOptions } from 'openai';
 import { TokenUsagesManager } from '../usages/usagesManager';
-import { Logger, sanitizeToolSchemaForTarget, isCancellationError } from '../utils';
+import { Logger, sanitizeToolSchema, isCancellationError } from '../utils';
 import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu, toCostBreakdownLog } from '../utils';
 import { t } from '../utils/l10n';
 import { ModelChatResponseOptions, ModelConfig, ModelTokenPricing } from '../types/sharedTypes';
@@ -293,10 +293,7 @@ export class OpenAIResponsesHandler {
             // 处理参数schema
             if (tool.inputSchema) {
                 if (typeof tool.inputSchema === 'object' && tool.inputSchema !== null) {
-                    functionTool.parameters = sanitizeToolSchemaForTarget(
-                        tool.inputSchema as Record<string, unknown>,
-                        'openai'
-                    );
+                    functionTool.parameters = sanitizeToolSchema(tool.inputSchema as Record<string, unknown>);
                 } else {
                     // 如果不是对象，提供默认schema
                     functionTool.parameters = {

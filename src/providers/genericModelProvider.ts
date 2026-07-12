@@ -31,7 +31,6 @@ import * as liveMetrics from '../handlers/liveMetrics';
 import { OpenAIHandler } from '../handlers/openaiHandler';
 import { OpenAICustomHandler } from '../handlers/openaiCustomHandler';
 import { AnthropicHandler } from '../handlers/anthropicHandler';
-import { GeminiHandler } from '../handlers/geminiHandler';
 import { ContextUsageStatusBar } from '../status/contextUsageStatusBar';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { OpenAIResponsesHandler } from '../handlers/openaiResponsesHandler';
@@ -72,7 +71,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     protected readonly openaiCustomHandler: OpenAICustomHandler;
     protected readonly openaiResponsesHandler: OpenAIResponsesHandler;
     protected readonly anthropicHandler: AnthropicHandler;
-    protected readonly geminiHandler: GeminiHandler;
     protected readonly providerKey: string;
     protected baseProviderConfig: ProviderConfig; // protected 以支持子类访问
     protected cachedProviderConfig: ProviderConfig; // 缓存的配置
@@ -123,8 +121,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         this.openaiResponsesHandler = new OpenAIResponsesHandler(this, this.openaiHandler);
         // 创建 Anthropic SDK 处理器
         this.anthropicHandler = new AnthropicHandler(this);
-        // 创建 Gemini HTTP SSE 处理器
-        this.geminiHandler = new GeminiHandler(this);
 
         // 延迟触发模型信息变更事件，确保所有提供商都已注册完成后重新报告一次模型列表
         setTimeout(() => {
@@ -299,8 +295,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 根据 sdkMode 自动推断默认值
         const sdkMode = model.sdkMode || 'openai';
         switch (sdkMode) {
-            case 'gemini-sse':
-                return 'gemini-3-pro';
             // 默认全部归为 claude-sonnet-4.6 系列，用户可以通过 family 字段覆盖
             case 'anthropic':
             default:
@@ -446,9 +440,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         if (sdkMode === 'openai-responses') {
             return 'OpenAI Responses API';
         }
-        if (sdkMode === 'gemini-sse') {
-            return 'Gemini SSE';
-        }
         return 'OpenAI SDK';
     }
 
@@ -549,18 +540,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             token,
                             liveAttemptStartTime
                         );
-                    } else if (sdkMode === 'gemini-sse') {
-                        await this.geminiHandler.handleRequest(
-                            model,
-                            modelConfig,
-                            messages,
-                            options,
-                            wrappedProgress,
-                            requestId,
-                            sessionId,
-                            token,
-                            liveAttemptStartTime
-                        );
                     } else if (sdkMode === 'openai-sse') {
                         await this.openaiCustomHandler.handleRequest(
                             model,
@@ -610,7 +589,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         const delaySec = Math.ceil(delayMs / 1000);
                         retryMessageDisposable = vscode.window.setStatusBarMessage(
                             `$(sync~spin) ${modelName} retry #${attempt}/${maxLabel} in ${delaySec}s`
-                        );
+            );
                     },
                     onRetryAttempt: (attempt, maxAttempts) => {
                         retryMessageDisposable?.dispose();

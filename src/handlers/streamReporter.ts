@@ -80,7 +80,7 @@ export interface StreamReporterOptions {
  * 关键实现约定：
  * - 文本/思考缓冲阈值均为 20 字符
  * - accumulateToolCall 首次创建某 index 的 buffer 时立即 flushThinking + endThinkingChain + flushText
- * - 工具调用完成时只 flushThinking + flushSignature + thoughtSignature，不主动 endThinkingChain
+ * - 工具调用完成时只 flushThinking + flushSignature，不主动 endThinkingChain
  * - flushSignature 输出"空文本 + signature"的 ThinkingPart，不消费 thinking buffer 内容
  * - flushAll 中 signature 紧跟 thinking 输出，在 endThinkingChain 之前
  * - 仅有 thinking 没有 text 时输出 DONE 占位符
@@ -100,7 +100,6 @@ export class StreamReporter {
 
     private readonly sessionId: string;
     private responseId: string | null = null;
-    private thoughtSignature: string | null = null;
     private hasToolCalls = false;
     private hasReceivedContent = false;
     private hasThinkingContent = false;
@@ -309,7 +308,7 @@ export class StreamReporter {
      *
      * 关键实现约定：
      * - 首次为某 index 创建工具调用 buffer 时：flushThinking + endThinkingChain + flushText
-     * - 工具完成时：flushText + flushThinking + flushSignature + thoughtSignature
+     * - 工具完成时：flushText + flushThinking + flushSignature
      *   （不调用 endThinkingChain，思维链的结束留给后续 reportText / flushAll 处理）
      */
     accumulateToolCall(
@@ -342,16 +341,6 @@ export class StreamReporter {
         this.flushText('Before tool call completion');
         this.flushThinking('Before tool call completion');
         this.flushSignature();
-
-        // 如果有 thoughtSignature，输出一个带 signature 的空 ThinkingPart（无 ID）
-        if (this.thoughtSignature) {
-            this.progress.report(
-                new vscode.LanguageModelThinkingPart('', undefined, {
-                    signature: this.thoughtSignature
-                })
-            );
-            this.thoughtSignature = null;
-        }
 
         // 补回 name + id + type + JSON 结构开销：args 已通过 argsFragment 分片累计，
         // 这里只补非 args 部分，让预估 token 接近 provider 实际计费值
@@ -397,13 +386,6 @@ export class StreamReporter {
     }
 
     /**
-     * Gemini 特殊：设置思维签名（用于关联 tool call）
-     */
-    setThoughtSignature(signature: string): void {
-        this.thoughtSignature = signature;
-    }
-
-    /**
      * 输出剩余思考内容（公开方法）
      */
     flushThinking(_context: string): void {
@@ -425,7 +407,7 @@ export class StreamReporter {
 
     /**
      * 结束当前思维链（输出空的 ThinkingPart）
-     * 公开方法，允许在 Responses API / Gemini 等场景中手动结束思维链
+     * 公开方法，允许在 Responses API 等场景中手动结束思维链
      */
     endThinkingChain(): void {
         const chainId = this.thinkingBuffer.activeId;
@@ -556,15 +538,6 @@ export class StreamReporter {
         this.flushThinking('Before tool call');
         this.flushText('Before tool call');
         this.endThinkingChain();
-
-        if (this.thoughtSignature) {
-            this.progress.report(
-                new vscode.LanguageModelThinkingPart('', undefined, {
-                    signature: this.thoughtSignature
-                })
-            );
-            this.thoughtSignature = null;
-        }
     }
 
     /**

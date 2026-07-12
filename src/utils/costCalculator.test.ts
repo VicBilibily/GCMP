@@ -122,33 +122,6 @@ test('calculateCostWithBreakdown: Anthropic usage separately charges cache write
     assertClose(breakdown.cacheWriteCost, (10 / 1_000_000) * 3.75);
 });
 
-test('calculateCostWithBreakdown: Gemini usageMetadata charges uncached prompt tokens and cached reads', () => {
-    const pricing: ModelTokenPricing = {
-        inputPrice: 0.14,
-        outputPrice: 0.28,
-        cacheReadPrice: 0.0028,
-        cacheWritePrice: 99
-    };
-
-    const breakdown = calculateCostWithBreakdown(
-        {
-            promptTokenCount: 90,
-            responseTokenCount: 35,
-            totalTokenCount: 125,
-            cachedContentTokenCount: 20
-        },
-        pricing
-    );
-
-    assert.ok(breakdown);
-    assert.equal(breakdown.inputTokens, 70);
-    assert.equal(breakdown.outputTokens, 35);
-    assert.equal(breakdown.cacheReadTokens, 20);
-    assert.equal(breakdown.cacheCreationTokens, 0);
-    assertClose(breakdown.cacheWriteCost, 0);
-    assertClose(breakdown.total, (70 * 0.14 + 35 * 0.28 + 20 * 0.0028) / 1_000_000);
-});
-
 test('calculateCostWithBreakdown: nested anthropic cache_creation details are treated as explicit cache write tokens', () => {
     const pricing: ModelTokenPricing = {
         inputPrice: 0.1,

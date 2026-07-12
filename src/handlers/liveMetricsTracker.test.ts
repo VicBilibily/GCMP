@@ -572,34 +572,6 @@ test('reportToolCallOverhead uses anthropic structure for anthropic sdkMode', ()
     assert.equal(lastUpdate!.estimatedOutputTokens, expectedOverhead);
 });
 
-test('reportToolCallOverhead uses gemini structure for gemini sdkMode', () => {
-    const mockTokenizer = { encode: (text: string) => Array(text.length).fill(0) } as unknown as TikTokenizer;
-    const { tracker, events } = createTracker({
-        requestStartTime: 1000,
-        liveUpdateIntervalMs: 0,
-        tokenizer: mockTokenizer,
-        tokenBatchChars: 1000
-    });
-    tracker.markStreamStarted(1500);
-
-    const argsJson = '{"location":"Beijing"}';
-    const name = 'get_weather';
-    tracker.reportToolCallOverhead('gemini', name, argsJson);
-    tracker.finishMetrics();
-
-    // gemini 结构: {"functionCall":{"name":"get_weather","args":{"location":"Beijing"}}}
-    const expectedFullText = JSON.stringify({
-        functionCall: { name, args: { location: 'Beijing' } }
-    });
-    const expectedArgsOnly = JSON.stringify({ location: 'Beijing' });
-    const expectedOverhead = expectedFullText.length - expectedArgsOnly.length;
-
-    const updates = events.filter(e => e.type === 'streamingUpdate');
-    const lastUpdate = updates.at(-1);
-    assert.ok(lastUpdate);
-    assert.equal(lastUpdate!.estimatedOutputTokens, expectedOverhead);
-});
-
 test('reportToolCallOverhead batch-encodes parallel tool calls (BPE boundary reuse)', () => {
     // mock tokenizer：tokens === 字符数，模拟"连续编码复用 BPE 边界"的极端情况
     // 实际 BPE 会因跨 tool_call 复用 token 边界而减少总 tokens，
@@ -660,7 +632,7 @@ test('reportToolCallOverhead char threshold triggers mid-stream flush', () => {
     tracker.markStreamStarted(1500);
 
     // 单个 tool_call 的 fullText 字符数 > 10，立即触发 flush
-    tracker.reportToolCallOverhead('gemini', 'get_weather', '{"location":"Beijing"}');
+    tracker.reportToolCallOverhead('openai', 'get_weather', '{"location":"Beijing"}');
 
     const updates = events.filter(e => e.type === 'streamingUpdate');
     const lastUpdate = updates.at(-1);

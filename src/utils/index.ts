@@ -19,8 +19,7 @@ export type { RetryableError } from './retryManager';
 export { ModelInfoCache } from './modelInfoCache';
 export { TokenCounter } from './tokenCounter';
 export { PromptAnalyzer } from './promptAnalyzer';
-export { sanitizeToolSchema, sanitizeToolSchemaForSdkMode, sanitizeToolSchemaForTarget } from './schemaSanitizer';
-export type { ToolSchemaTarget } from './schemaSanitizer';
+export { sanitizeToolSchema } from './schemaSanitizer';
 export { formatOpenCodeId as formatOpencodeId, createOpenCodeHeaders } from './formatUtils';
 export { isCancellationError } from './cancellationError';
 export {

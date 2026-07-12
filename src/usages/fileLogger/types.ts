@@ -54,7 +54,7 @@ export interface GenericUsageData {
         [key: string]: number | undefined;
     };
 
-    // === Gemini usageMetadata（HTTP/SSE 网关返回）===
+    // === usageMetadata（HTTP/SSE 网关返回）===
     // 不同网关字段名可能不同：有的用 responseTokenCount，有的用 candidatesTokenCount（都表示输出 token 数）。
     promptTokenCount?: number;
     responseTokenCount?: number;

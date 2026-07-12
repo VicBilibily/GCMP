@@ -482,23 +482,9 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
 
 - `gcmp.compatibleModels[*].proxy` applies only to the current custom model. When you click "Fetch Models" after entering `baseUrl`, the same proxy setting is also used for the discovery request.
 
-### Experimental: `sdkMode` (OpenAI Responses / Gemini SSE)
+### `sdkMode`
 
-`gcmp.compatibleModels[*].sdkMode` specifies the compatible layer's request/streaming parsing mode. Beyond the standard `openai` / `anthropic` modes, the following are **experimental**:
-
-- `openai-responses`: OpenAI Responses API mode (experimental)
-    - Uses the OpenAI SDK's Responses API (`/responses`) for request and streaming processing.
-    - Parameters: `max_output_tokens` is not sent by default; set via `extraBody` if needed.
-    - Codex: Sends `conversation_id` and `session_id` via request headers by default, and `prompt_cache_key` in the request body (except Volcengine which sends `previous_response_id`).
-    - Note: Not all OpenAI-compatible services implement `/responses`. If you get 404 or compatibility errors, switch back to `openai` or `openai-sse`.
-    - `useInstructions` (only for `openai-responses`): Whether to use the Responses API's `instructions` parameter for system prompts.
-        - `false`: System prompts sent as "user messages" (default, better compatibility)
-        - `true`: System prompts sent via `instructions` (some gateways may not support this)
-
-- `gemini-sse`: Gemini HTTP SSE mode (experimental)
-    - Uses pure HTTP + SSE (`data:`) / JSON line stream parsing without the Google SDK, primarily for third-party Gemini gateway compatibility.
-    - Suitable when your gateway exposes a Gemini `:streamGenerateContent` style interface (typically requires `alt=sse`).
-    - Tool parameters are automatically cleaned and converted to Gemini dialect, supporting `const`, `$ref`, nullable union types, and empty object/array patterns.
+`gcmp.compatibleModels[*].sdkMode` specifies the request/streaming parsing mode. Available values: `openai` (default), `openai-sse`, `openai-responses`, `anthropic`.
 
 ### Custom provider balance/usage query example: intelligent merge of `usage` + `usages`
 

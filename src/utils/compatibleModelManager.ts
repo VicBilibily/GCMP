@@ -66,7 +66,6 @@ export interface CompatibleModelConfig {
      * - anthropic → claude-sonnet-4.6
      * - openai/openai-sse: id/model 包含 gpt → gpt-5.2，否则 → claude-sonnet-4.6
      * - openai-responses → gpt-5.2
-     * - gemini-sse → gemini-3-pro
      */
     family?: string;
     /** 最大输入token数 */
@@ -74,7 +73,7 @@ export interface CompatibleModelConfig {
     /** 最大输出token数 */
     maxOutputTokens: number;
     /** SDK模式 */
-    sdkMode?: 'anthropic' | 'openai' | 'openai-sse' | 'openai-responses' | 'gemini-sse';
+    sdkMode?: 'anthropic' | 'openai' | 'openai-sse' | 'openai-responses';
     /** 模型能力 */
     capabilities: {
         /** 工具调用 */
@@ -176,8 +175,6 @@ export class CompatibleModelManager {
         switch (sdkMode) {
             case 'anthropic':
                 return 'Anthropic';
-            case 'gemini-sse':
-                return 'Gemini';
             case 'openai':
             case 'openai-sse':
             case 'openai-responses':

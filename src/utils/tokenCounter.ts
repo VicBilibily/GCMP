@@ -14,7 +14,7 @@ import {
 import { createTokenizer, getRegexByEncoder, getSpecialTokensByEncoder, TikTokenizer } from '@microsoft/tiktokenizer';
 import { Logger } from './logger';
 import { t } from './l10n';
-import { sanitizeToolSchemaForSdkMode } from './schemaSanitizer';
+import { sanitizeToolSchema } from './schemaSanitizer';
 import { CustomDataPartMimeTypes } from '../handlers/types';
 
 /* ---------------------------------------------------------------------------------------------
@@ -437,8 +437,7 @@ export class TokenCounter {
         const baseTokensPerTool = 8;
         for (const tool of tools) {
             numTokens += baseTokensPerTool;
-            const serializedSchema =
-                tool.inputSchema ? sanitizeToolSchemaForSdkMode(tool.inputSchema, modelConfig?.sdkMode) : undefined;
+            const serializedSchema = tool.inputSchema ? sanitizeToolSchema(tool.inputSchema) : undefined;
             // 计算工具对象的 token 数（name、description、parameters）
             const toolObj = {
                 name: tool.name,

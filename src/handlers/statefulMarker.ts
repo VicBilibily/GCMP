@@ -20,7 +20,7 @@ export interface StatefulMarkerContainer {
     extension: StatefulMarkerExtension;
     provider: string;
     modelId: string;
-    sdkMode: 'openai' | 'openai-responses' | 'anthropic' | 'gemini';
+    sdkMode: 'openai' | 'openai-responses' | 'anthropic';
     /** 会话ID，标识会话上下文 */
     sessionId: string;
     /** 响应ID，模型返回响应标识 */

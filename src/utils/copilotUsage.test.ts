@@ -76,58 +76,6 @@ test('buildCopilotUsageData converts Responses API usage into completion usage s
     });
 });
 
-test('buildCopilotUsageData converts Gemini usageMetadata into completion usage shape', () => {
-    const usage = buildCopilotUsageData({
-        promptTokenCount: 90,
-        responseTokenCount: 35,
-        totalTokenCount: 125,
-        cachedContentTokenCount: 20
-    });
-
-    assert.deepEqual(usage, {
-        prompt_tokens: 90,
-        completion_tokens: 35,
-        total_tokens: 125,
-        prompt_tokens_details: {
-            cached_tokens: 20,
-            cache_creation_tokens: 70
-        }
-    });
-});
-
-test('buildCopilotUsageData includes Gemini modality details in report details', () => {
-    const usage = buildCopilotUsageData({
-        promptTokenCount: 90,
-        responseTokenCount: 35,
-        totalTokenCount: 125,
-        cachedContentTokenCount: 20,
-        thoughtsTokenCount: 5,
-        promptTokensDetails: [
-            { modality: 'TEXT', tokenCount: 60 },
-            { modality: 'IMAGE', tokenCount: 30 }
-        ],
-        cacheTokensDetails: [{ modality: 'TEXT', tokenCount: 20 }],
-        candidatesTokensDetails: [{ modality: 'TEXT', tokenCount: 35 }]
-    });
-
-    assert.deepEqual(usage, {
-        prompt_tokens: 90,
-        completion_tokens: 40,
-        total_tokens: 125,
-        prompt_tokens_details: {
-            text_tokens: 60,
-            image_tokens: 30,
-            cached_text_tokens: 20,
-            cached_tokens: 20,
-            cache_creation_tokens: 70
-        },
-        completion_tokens_details: {
-            text_tokens: 35,
-            reasoning_tokens: 5
-        }
-    });
-});
-
 test('buildCopilotUsageData keeps nested cache_creation details from anthropic-style usage', () => {
     const usage = buildCopilotUsageData({
         input_tokens: 6,

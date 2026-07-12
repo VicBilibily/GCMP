@@ -105,7 +105,7 @@ export type WebViewMessage =
 /**
  * CLI 专用的提供商 ID，禁止在通用配置中使用（与旧 modelEditor.js 保持一致）
  */
-export const CLI_RESERVED_PROVIDERS = ['codex', 'gemini', 'grok'] as const;
+export const CLI_RESERVED_PROVIDERS = ['codex', 'grok'] as const;
 
 /**
  * 模型列表端点（modelsEndpoint）常见预设值
@@ -150,18 +150,12 @@ export const SDK_MODE_OPTIONS: { value: SdkMode; labelEn: string; labelZh: strin
     },
     {
         value: 'openai-responses',
-        labelEn: 'OpenAI Responses (experimental; uses the Responses API for request and response handling)',
-        labelZh: 'OpenAI Responses (实验性支持，使用 Responses API 进行请求响应处理)'
+        labelEn: 'OpenAI Responses (uses the Responses API for request and response handling)',
+        labelZh: 'OpenAI Responses (使用 Responses API 进行请求响应处理)'
     },
     {
         value: 'anthropic',
         labelEn: 'Anthropic SDK (uses the official SDK for streaming responses)',
         labelZh: 'Anthropic SDK (使用官方SDK进行流式传输数据处理)'
-    },
-    {
-        value: 'gemini-sse',
-        labelEn:
-            'Gemini HTTP SSE (experimental; uses the built-in compatible parser for streaming responses and works with third-party gateways)',
-        labelZh: 'Gemini HTTP SSE (实验性支持，使用内置兼容解析进行流式传输数据处理，兼容第三方网关)'
     }
 ];

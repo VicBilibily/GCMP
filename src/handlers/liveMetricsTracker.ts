@@ -38,13 +38,11 @@ const PLACEHOLDER_RESPONSES_ID = 'fc_' + '0'.repeat(24);
  * - openai/openai-responses: 计费结构与 JSON.stringify 高度一致，系数 1.0
  * - anthropic: 内部 chat template 把 schema 字段名（type/id/name/input）作为标签而非字符串，
  *   比 JSON.stringify 紧凑约 30%（实测反馈：JSON.stringify 系统性高估 tool_use 结构开销）
- * - gemini: protobuf 风格，与 JSON.stringify 接近，系数 1.0
  */
-const TOOL_CALL_OVERHEAD_CALIBRATION: Record<'openai' | 'openai-responses' | 'anthropic' | 'gemini', number> = {
+const TOOL_CALL_OVERHEAD_CALIBRATION: Record<'openai' | 'openai-responses' | 'anthropic', number> = {
     openai: 1.0,
     'openai-responses': 1.0,
-    anthropic: 2 / 3,
-    gemini: 1.0
+    anthropic: 2 / 3
 };
 
 /**
@@ -52,11 +50,11 @@ const TOOL_CALL_OVERHEAD_CALIBRATION: Record<'openai' | 'openai-responses' | 'an
  * 用于估算 provider 真实 output_tokens（包含 id/type/包装层等开销）。
  */
 function buildProviderToolCallText(
-    sdkMode: 'openai' | 'openai-responses' | 'anthropic' | 'gemini',
+    sdkMode: 'openai' | 'openai-responses' | 'anthropic',
     name: string,
     argsJson: string
 ): string {
-    // Anthropic/Gemini 的 args 在结构中是对象；解析失败时退化为空对象
+    // Anthropic 的 args 在结构中是对象；解析失败时退化为空对象
     let argsObject: unknown = {};
     try {
         argsObject = JSON.parse(argsJson);
@@ -83,14 +81,6 @@ function buildProviderToolCallText(
                 name,
                 arguments: argsJson
             });
-        case 'gemini':
-            // Gemini: {"functionCall":{"name":...,"args":{...}}}
-            return JSON.stringify({
-                functionCall: {
-                    name,
-                    args: argsObject
-                }
-            });
         case 'openai':
         default:
             // OpenAI Chat Completions: {"id":"call_xxx","type":"function","function":{"name":...,"arguments":"<argsJson>"}}
@@ -108,13 +98,10 @@ function buildProviderToolCallText(
 /**
  * 构造 args 在 provider 计费结构中的"单独表示"。
  * - openai/openai-responses: args 是 stringified JSON（带转义），即 argsJson 原文
- * - anthropic/gemini: args 是对象，需要 parse + stringify（去除 argsJson 多余空白）
+ * - anthropic: args 是对象，需要 parse + stringify（去除 argsJson 多余空白）
  */
-function buildProviderArgsOnlyText(
-    sdkMode: 'openai' | 'openai-responses' | 'anthropic' | 'gemini',
-    argsJson: string
-): string {
-    if (sdkMode === 'anthropic' || sdkMode === 'gemini') {
+function buildProviderArgsOnlyText(sdkMode: 'openai' | 'openai-responses' | 'anthropic', argsJson: string): string {
+    if (sdkMode === 'anthropic') {
         try {
             return JSON.stringify(JSON.parse(argsJson));
         } catch {
@@ -249,7 +236,6 @@ export class LiveMetricsTracker {
      * - Anthropic: message_start
      * - OpenAI Chat SDK: 首个 chunk 事件
      * - OpenAI Responses: response.created
-     * - Gemini/SSE: 首个有效 JSON event
      *
      * 本方法记录的是"首个流事件"，不等同于"首个可见文字"。幂等：重复调用不重置首流时间。
      */
@@ -365,7 +351,6 @@ export class LiveMetricsTracker {
      * - openai (Chat Completions): `{"id":"call_xxx","type":"function","function":{"name":...,"arguments":"<argsJson>"}}`
      * - openai-responses: `{"type":"function_call","id":"fc_xxx","call_id":"call_xxx","name":...,"arguments":"<argsJson>"}`
      * - anthropic: `{"type":"tool_use","id":"toolu_xxx","name":...,"input":<argsObject>}`
-     * - gemini: `{"functionCall":{"name":...,"args":<argsObject>}}`
      *
      * 此前实现只编码了 `{"name":...,"arguments":argsJson}` 最小结构，仍比实际少约 50%。
      * 本方法构造接近 provider 实际计费的完整结构，再做 subtraction 扣除 args 单独编码的部分，
@@ -378,17 +363,13 @@ export class LiveMetricsTracker {
      * @param name 函数名
      * @param argsJson 已累积的 args JSON 字符串（用于计算扣除部分）
      */
-    reportToolCallOverhead(
-        sdkMode: 'openai' | 'openai-responses' | 'anthropic' | 'gemini',
-        name: string,
-        argsJson: string
-    ): void {
+    reportToolCallOverhead(sdkMode: 'openai' | 'openai-responses' | 'anthropic', name: string, argsJson: string): void {
         if (!this.tokenizer || !name) {
             return;
         }
         // 构造 provider 实际计费的完整结构（含 id/type 等字段开销）
         const fullText = buildProviderToolCallText(sdkMode, name, argsJson);
-        // Anthropic/Gemini 的 args 在结构中是对象，需要把 argsJson 解析后重新 stringify，
+        // Anthropic 的 args 在结构中是对象，需要把 argsJson 解析后重新 stringify，
         // 与 provider 计费的 args 字符表示保持一致
         const argsOnlyText = buildProviderArgsOnlyText(sdkMode, argsJson);
 

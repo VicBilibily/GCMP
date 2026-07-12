@@ -11,7 +11,7 @@
 
 import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
-import { sanitizeToolSchemaForTarget } from '../utils';
+import { sanitizeToolSchema } from '../utils';
 import { getReasoningReplayPolicy, shouldInjectReasoningPlaceholder } from './reasoningReplayPolicy';
 import { decodeStatefulMarker } from './statefulMarker';
 import type {
@@ -429,7 +429,7 @@ export function convertToAnthropicTools(tools: readonly vscode.LanguageModelChat
             };
         }
 
-        const sanitized = sanitizeToolSchemaForTarget(inputSchema, 'anthropic');
+        const sanitized = sanitizeToolSchema(inputSchema);
         return {
             name: tool.name,
             description: tool.description || '',

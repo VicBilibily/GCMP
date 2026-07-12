@@ -82,7 +82,7 @@ const GITHUB_ID_KEY = 'gcmp-sync.githubId';
 const USER_PASSPHRASE_KEY = 'gcmp-sync.passphrase';
 
 /** CLI 专用提供商，同步时排除 */
-const CLI_ONLY_PROVIDERS = new Set(['codex', 'gemini', 'grok']);
+const CLI_ONLY_PROVIDERS = new Set(['codex', 'grok']);
 
 /** 所有已知密钥的显示名（主 key + 多密钥变体，英文名与 ConfigProvider.displayName 一致） */
 const KNOWN_KEY_LABELS: Record<string, string> = {

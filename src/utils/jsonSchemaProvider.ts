@@ -399,10 +399,6 @@ export class JsonSchemaProvider {
             t(
                 'Anthropic SDK standard mode, using the official Anthropic SDK for request/response handling',
                 'Anthropic SDK 标准模式，使用官方 Anthropic SDK 进行请求响应处理'
-            ),
-            t(
-                'Gemini HTTP SSE mode (experimental), using pure HTTP + SSE parsing and compatible with third-party Gemini gateways',
-                'Gemini HTTP SSE 模式（实验性），使用纯 HTTP + SSE 解析，兼容第三方 Gemini 网关'
             )
         ];
     }
@@ -584,10 +580,10 @@ export class JsonSchemaProvider {
         return {
             type: 'string',
             description: t(
-                'Model family identifier used to determine the editing tool mode.\nIf it is not set, the default is inferred from sdkMode:\n- anthropic → claude-sonnet-4.6\n- openai/openai-sse/openai-responses → claude-sonnet-4.6\n- gemini-sse → gemini-3-pro',
-                '模型的 family 标识，用于确定编辑工具模式。\n如果未设置，将根据 sdkMode 自动推断默认值：\n- anthropic → claude-sonnet-4.6\n- openai/openai-sse/openai-responses → claude-sonnet-4.6\n- gemini-sse → gemini-3-pro'
+                'Model family identifier used to determine the editing tool mode.\nIf it is not set, the default is inferred from sdkMode:\n- anthropic → claude-sonnet-4.6\n- openai/openai-sse/openai-responses → claude-sonnet-4.6',
+                '模型的 family 标识，用于确定编辑工具模式。\n如果未设置，将根据 sdkMode 自动推断默认值：\n- anthropic → claude-sonnet-4.6\n- openai/openai-sse/openai-responses → claude-sonnet-4.6'
             ),
-            enum: ['claude-sonnet-4.6', 'gpt-5.2', 'gemini-3-pro'],
+            enum: ['claude-sonnet-4.6', 'gpt-5.2'],
             enumDescriptions: [
                 t(
                     'Claude-style editing tool (replace_string_in_file) - efficient, precise single replacements with multi-file support',
@@ -596,10 +592,6 @@ export class JsonSchemaProvider {
                 t(
                     'GPT-5-style editing tool (apply_patch) - batch diff application with support for complex refactors',
                     'GPT-5 风格编辑工具 (apply_patch) - 批量差异应用，支持复杂重构'
-                ),
-                t(
-                    'Gemini-style editing tool (replace_string_in_file) - efficient, precise single replacements',
-                    'Gemini 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换'
                 )
             ]
         };
@@ -785,7 +777,7 @@ export class JsonSchemaProvider {
                             },
                             sdkMode: {
                                 type: 'string',
-                                enum: ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini-sse'],
+                                enum: ['openai', 'openai-sse', 'openai-responses', 'anthropic'],
                                 enumDescriptions: this.getSdkModeEnumDescriptions(),
                                 description: t('SDK mode defaults to openai.', 'SDK模式默认为 openai。'),
                                 default: 'openai'
@@ -973,7 +965,7 @@ export class JsonSchemaProvider {
                         allOf: [
                             {
                                 // endpoint 仅对 openai / openai-sse / openai-responses 生效
-                                // anthropic 和 gemini-sse 不提示，且已配置时标红警告
+                                // anthropic 不提示，且已配置时标红警告
                                 if: {
                                     anyOf: [
                                         { not: { required: ['sdkMode'] } },
@@ -1132,51 +1124,11 @@ export class JsonSchemaProvider {
                                                 '模型的 family 标识。anthropic 模式默认: claude-sonnet-4.6\nClaude 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换'
                                             ),
                                             default: 'claude-sonnet-4.6',
-                                            enum: ['claude-sonnet-4.6', 'gpt-5.2', 'gemini-3-pro'],
+                                            enum: ['claude-sonnet-4.6', 'gpt-5.2'],
                                             enumDescriptions: [
                                                 t(
                                                     'Claude-style editing tool (replace_string_in_file) - recommended',
                                                     'Claude 风格编辑工具 (replace_string_in_file) - 推荐'
-                                                ),
-                                                t(
-                                                    'GPT-5-style editing tool (apply_patch)',
-                                                    'GPT-5 风格编辑工具 (apply_patch)'
-                                                ),
-                                                t(
-                                                    'Gemini-style editing tool (replace_string_in_file)',
-                                                    'Gemini 风格编辑工具 (replace_string_in_file)'
-                                                )
-                                            ]
-                                        }
-                                    }
-                                }
-                            },
-                            {
-                                // gemini-sse 模式推荐 gemini-3-pro
-                                if: {
-                                    properties: {
-                                        sdkMode: { const: 'gemini-sse' }
-                                    },
-                                    required: ['sdkMode']
-                                },
-                                then: {
-                                    properties: {
-                                        family: {
-                                            type: 'string',
-                                            description: t(
-                                                'Model family identifier. Default for gemini-sse mode: gemini-3-pro\nGemini-style editing tool (replace_string_in_file) - efficient, precise single replacements',
-                                                '模型的 family 标识。gemini-sse 模式默认: gemini-3-pro\nGemini 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换'
-                                            ),
-                                            default: 'gemini-3-pro',
-                                            enum: ['gemini-3-pro', 'claude-sonnet-4.6', 'gpt-5.2'],
-                                            enumDescriptions: [
-                                                t(
-                                                    'Gemini-style editing tool (replace_string_in_file) - recommended',
-                                                    'Gemini 风格编辑工具 (replace_string_in_file) - 推荐'
-                                                ),
-                                                t(
-                                                    'Claude-style editing tool (replace_string_in_file)',
-                                                    'Claude 风格编辑工具 (replace_string_in_file)'
                                                 ),
                                                 t(
                                                     'GPT-5-style editing tool (apply_patch)',
@@ -1208,7 +1160,7 @@ export class JsonSchemaProvider {
                                                 'Model family identifier.\nDefault for openai/openai-sse/openai-responses modes: claude-sonnet-4.6\nClaude-style editing tool (replace_string_in_file) - efficient, precise single replacements',
                                                 '模型的 family 标识。\nopenai/openai-sse/openai-responses 模式默认: claude-sonnet-4.6\nClaude 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换'
                                             ),
-                                            enum: ['claude-sonnet-4.6', 'gpt-5.2', 'gemini-3-pro'],
+                                            enum: ['claude-sonnet-4.6', 'gpt-5.2'],
                                             enumDescriptions: [
                                                 t(
                                                     'Claude-style editing tool (replace_string_in_file) - recommended',
@@ -1217,10 +1169,6 @@ export class JsonSchemaProvider {
                                                 t(
                                                     'GPT-5-style editing tool (apply_patch) - batch diff application',
                                                     'GPT-5 风格编辑工具 (apply_patch) - 批量差异应用'
-                                                ),
-                                                t(
-                                                    'Gemini-style editing tool (replace_string_in_file)',
-                                                    'Gemini 风格编辑工具 (replace_string_in_file)'
                                                 )
                                             ]
                                         }
@@ -1366,7 +1314,7 @@ export class JsonSchemaProvider {
                             },
                             sdkMode: {
                                 type: 'string',
-                                enum: ['openai', 'openai-sse', 'openai-responses', 'anthropic', 'gemini-sse'],
+                                enum: ['openai', 'openai-sse', 'openai-responses', 'anthropic'],
                                 enumDescriptions: [
                                     t('OpenAI SDK standard mode', 'OpenAI SDK 标准模式'),
                                     t(
@@ -1374,8 +1322,7 @@ export class JsonSchemaProvider {
                                         'OpenAI SSE 兼容模式（自定义流式处理）'
                                     ),
                                     t('OpenAI Responses API mode', 'OpenAI Responses API 模式'),
-                                    t('Anthropic SDK standard mode', 'Anthropic SDK 标准模式'),
-                                    t('Gemini HTTP SSE mode (experimental)', 'Gemini HTTP SSE 模式（实验性）')
+                                    t('Anthropic SDK standard mode', 'Anthropic SDK 标准模式')
                                 ],
                                 description: t(
                                     'Override the SDK mode; defaults to openai',
@@ -2069,7 +2016,7 @@ export class JsonSchemaProvider {
 
     /**
      * 获取所有可用的提供商ID（包括内置、已知、自定义和历史提供商）
-     * 注意：会过滤掉 CLI 专用的提供商（codex、gemini、grok）
+     * 注意：会过滤掉 CLI 专用的提供商（codex、grok）
      */
     private static getAllAvailableProviders(): { providerIds: string[]; enumDescriptions: string[] } {
         const providerIds: string[] = [];

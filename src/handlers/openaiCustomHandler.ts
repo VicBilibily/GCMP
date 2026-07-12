@@ -350,7 +350,7 @@ export class OpenAICustomHandler {
                             const chunk = JSON.parse(data);
                             chunkCount++;
 
-                            // 首个有效 JSON chunk 到达时固定首流时间（与 Gemini handler 口径对齐）
+                            // 首个有效 JSON chunk 到达时固定首流时间
                             if (streamStartTime === undefined) {
                                 const now = Date.now();
                                 streamStartTime = now;
