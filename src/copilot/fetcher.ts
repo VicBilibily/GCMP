@@ -42,8 +42,8 @@ export class Fetcher implements IFetcher {
         const keyManager = getApiKeyManager();
 
         if (options?.method === 'GET' && url.endsWith('/models')) {
-            // 返回一个空模型列表的响应
-            const emptyModelsResponse = '{"object":"list","data":[]}';
+            // 返回一个空模型列表的响应（需符合 chat-lib ProxyModelsService 期望的 { models: [...] } 格式）
+            const emptyModelsResponse = '{"models":[]}';
             // 创建符合 IHeaders 接口的 headers 对象
             const headers: IHeaders = {
                 get: (name: string) => {

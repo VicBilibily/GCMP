@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.33] - 2026-07-13
+
+### 修复
+
+- **修复 NES 请求偶发 `Cannot read properties of undefined (reading 'filter')` 崩溃**：FIM/NES 对 Copilot proxy `/models` 返回了 OpenAI 风格的空列表，但 chat-lib 期望 `{ "models": [...] }`。错误格式通过校验后导致 `cursorJumpModels` 等 getter 空引用。已修正为 chat-lib 期望的格式（[#279](https://github.com/VicBilibily/GCMP/issues/279#issuecomment-4951477031)）。
+
+---
+
+### Fixed
+
+- **Fixed occasional NES crash `Cannot read properties of undefined (reading 'filter')`**: The FIM/NES interceptor returned an OpenAI-style empty list for the Copilot proxy `/models` endpoint, but chat-lib expects `{ "models": [...] }`. The malformed response passed validation and caused getters like `cursorJumpModels` to dereference `_models.models` as undefined. The mock response has been corrected to the format expected by chat-lib ([#279](https://github.com/VicBilibily/GCMP/issues/279#issuecomment-4951477031)).
+
 ## [0.25.32] - 2026-07-11
 
 ### 新增
