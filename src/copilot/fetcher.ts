@@ -138,17 +138,34 @@ export class Fetcher implements IFetcher {
                     }
                 }
             }
-            // if (Array.isArray(requestBody.messages)) {
-            //     const messages = requestBody.messages;
-            //     const promptAddition =
-            //         '\n IMPORTANT: Do NOT use markdown code blocks (```). Output ONLY the raw code. Do not explain.';
-            //     // 尝试添加到 system message
-            //     const systemMessage = messages.find(m => m.role === 'system');
-            //     if (systemMessage) {
-            //         systemMessage.content = (systemMessage.content || '') + promptAddition;
-            //     }
-            //     CompletionLogger.trace('[Fetcher] Injected Prompt directive to disable Markdown');
-            // }
+
+            // 拦截 NES 请求，在 system message 尾部追加输出格式指令
+            // 模型默认倾向于用 ``` 代码块包裹输出，但 NES 解析器期望纯文本代码，
+            // 需要明确引导模型直接输出原始代码，避免因代码块导致解析拒绝
+            if (Array.isArray(requestBody.messages) && !isFimRequest) {
+                const messages = requestBody.messages as Array<{
+                    role: string;
+                    content: string | Array<{ type: string; text: string }>;
+                }>;
+                const systemMessage = messages.find(m => m.role === 'system');
+                if (systemMessage) {
+                    const formatInstruct =
+                        '\n\n# Output Format\n- Output ONLY the raw code. Do NOT wrap it in markdown code blocks (```) or any other formatting.\n- Do NOT include any explanation, commentary, or markdown syntax.\n- Output the code directly, preserving indentation and line breaks exactly.';
+
+                    if (typeof systemMessage.content === 'string') {
+                        systemMessage.content += formatInstruct;
+                    } else if (Array.isArray(systemMessage.content)) {
+                        // 若 content 是结构化数组，追加到最后一个 text part
+                        const lastPart = systemMessage.content[systemMessage.content.length - 1];
+                        if (lastPart?.type === 'text') {
+                            lastPart.text += formatInstruct;
+                        } else {
+                            systemMessage.content.push({ type: 'text', text: formatInstruct });
+                        }
+                    }
+                    logger.trace('[Fetcher] Appended output format instruction to system prompt (NES)');
+                }
+            }
 
             const fetchOptions: {
                 method: string;

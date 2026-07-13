@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.35] - 2026-07-13
+
+### 修复
+
+- **修复 NES 请求因模型输出 \`\`\` 代码块被全部拒绝**：模型默认倾向于用 markdown 代码块包裹输出，但 NES 解析器期望纯文本代码。在 `Fetcher` 中拦截 NES 请求，在 system prompt 尾部追加输出格式指令，明确要求模型直接输出原始代码、不使用 \`\`\` 等格式化包装（[#279](https://github.com/VicBilibily/GCMP/issues/279)）。
+
+---
+
+### Fixed
+
+- **Fixed NES requests rejected due to model \`\`\` code block wrapping**: Models tend to wrap output in markdown code blocks by default, but the NES parser expects plain code. Intercepted NES requests in `Fetcher` and appended output format instructions to the system prompt, explicitly requiring the model to output raw code without \`\`\` formatting ([#279](https://github.com/VicBilibily/GCMP/issues/279)).
+
 ## [0.25.34] - 2026-07-13
 
 ### 新增
