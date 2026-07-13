@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.34] - 2026-07-13
+
+### 新增
+
+- **`@vscode/chat-lib` 升级至 0.56.0**：从 0.54.0 升级至 0.56.0，内部路径导入与类型签名完全兼容，无破坏性变更，全量 typecheck 通过。
+
+### 修复
+
+- **修复 NES `cursorJumpModels` 空引用崩溃**：`createNESProvider` 内部创建的 `ProxyModelsService` 因 `CopilotTokenStore` 始终为空而无法执行模型列表获取，导致 `cursorJumpModels` getter 在特定构建条件下触发 `Cannot read properties of undefined (reading 'filter')`。在 `createNESProvider` 返回后主动调用 `resetCopilotToken()`，将 GCMP 的 mock token 注入 `CopilotTokenStore`，使 `ProxyModelsService` 的 `autorun` 响应式地完成模型列表获取链路（[#279](https://github.com/VicBilibily/GCMP/issues/279)）。
+
+---
+
+### Added
+
+- **`@vscode/chat-lib` upgraded to 0.56.0**: Upgraded from 0.54.0 to 0.56.0. All internal path imports and type signatures are fully compatible — no breaking changes, full typecheck passed.
+
+### Fixed
+
+- **Fixed NES `cursorJumpModels` null reference crash**: The `ProxyModelsService` created inside `createNESProvider` could never fetch the model list because `CopilotTokenStore` was always empty, causing the `cursorJumpModels` getter to throw `Cannot read properties of undefined (reading 'filter')` under certain build conditions. Added a `resetCopilotToken()` call after `createNESProvider` returns, which injects the GCMP mock token into `CopilotTokenStore`. This allows `ProxyModelsService`'s `autorun` to reactively complete the model-fetching chain ([#279](https://github.com/VicBilibily/GCMP/issues/279)).
+
 ## [0.25.33] - 2026-07-13
 
 ### 修复

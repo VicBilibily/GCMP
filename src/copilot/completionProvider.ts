@@ -178,6 +178,19 @@ export class InlineCompletionProvider implements vscode.InlineCompletionItemProv
                 waitForTreatmentVariables: false
             });
 
+            // 触发 Copilot token 刷新，将 GCMP 的假 token 注入到 CopilotTokenStore
+            // 这是 ProxyModelsService（在 createNESProvider 内部创建）获取模型列表的前提
+            // 没有这一步，cursorJumpModels 将始终返回 undefined，进而导致
+            // "Cannot read properties of undefined (reading 'filter')" 错误
+            try {
+                this._authService.resetCopilotToken();
+                CompletionLogger.trace(
+                    '[InlineCompletionProvider] CopilotToken injected into CopilotTokenStore for ProxyModelsService'
+                );
+            } catch (tokenError) {
+                CompletionLogger.warn('[InlineCompletionProvider] Failed to inject CopilotToken:', tokenError);
+            }
+
             CompletionLogger.info('[InlineCompletionProvider] FIM/NES provider lazy loading completed');
         } catch (error) {
             CompletionLogger.error('[InlineCompletionProvider] Lazy loading initialization of provider failed:', error);

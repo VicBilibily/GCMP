@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.25.33",
+    "version": "0.25.34",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -1578,7 +1578,7 @@
         "@anthropic-ai/sdk": "^0.80.0",
         "@microsoft/tiktokenizer": "^1.0.10",
         "@modelcontextprotocol/sdk": "^1.29.0",
-        "@vscode/chat-lib": "0.54.0",
+        "@vscode/chat-lib": "^0.56.0",
         "chart.js": "^4.5.1",
         "openai": "^6.7.0",
         "undici": "^7.24.5"
