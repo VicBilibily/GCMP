@@ -77,15 +77,15 @@ export class JsonSchemaProvider {
 
     private static getAnthropicWebSearchDescription(): string {
         return t(
-            'Whether to enable the native Anthropic web_search tool (only effective when sdkMode=anthropic)',
-            '是否启用 Anthropic 原生 web_search 工具（仅 sdkMode=anthropic 时生效）'
+            'Whether to enable the native web_search tool for the model. Supported in anthropic mode (Anthropic web_search_20250305) and openai-responses mode (Responses API web_search).',
+            '是否启用模型的联网搜索原生工具。支持 anthropic 模式（Anthropic web_search_20250305）和 openai-responses 模式（Responses API web_search）。'
         );
     }
 
     private static getAnthropicWebSearchEnabledDescription(): string {
         return t(
-            'Whether to enable the native Anthropic web_search tool. When enabled, web_search is exposed to the model automatically.',
-            '是否启用 Anthropic 原生 web_search 工具。启用后会自动向模型暴露 web_search。'
+            'Whether to enable the native web_search tool. When enabled, web_search is exposed to the model automatically. Supported in anthropic and openai-responses modes.',
+            '是否启用联网搜索原生工具。启用后会自动向模型暴露 web_search。支持 anthropic 和 openai-responses 模式。'
         );
     }
 
@@ -820,9 +820,45 @@ export class JsonSchemaProvider {
                                 default: false
                             },
                             webSearchTool: {
-                                type: 'boolean',
-                                description: this.getAnthropicWebSearchDescription(),
-                                default: false
+                                oneOf: [
+                                    {
+                                        type: 'boolean',
+                                        description: this.getAnthropicWebSearchDescription(),
+                                        default: false
+                                    },
+                                    {
+                                        type: 'object',
+                                        description: t(
+                                            'Detailed configuration for the web_search tool',
+                                            'web_search 工具的详细配置'
+                                        ),
+                                        properties: {
+                                            maxUses: { type: 'integer', minimum: 1, default: 5 },
+                                            allowedDomains: {
+                                                type: 'array',
+                                                items: { type: 'string', minLength: 1 },
+                                                uniqueItems: true
+                                            },
+                                            blockedDomains: {
+                                                type: 'array',
+                                                items: { type: 'string', minLength: 1 },
+                                                uniqueItems: true
+                                            },
+                                            userLocation: {
+                                                type: 'object',
+                                                properties: {
+                                                    city: { type: 'string', minLength: 1 },
+                                                    region: { type: 'string', minLength: 1 },
+                                                    country: { type: 'string', minLength: 1 },
+                                                    timezone: { type: 'string', minLength: 1 }
+                                                },
+                                                additionalProperties: false
+                                            }
+                                        },
+                                        additionalProperties: false
+                                    }
+                                ],
+                                description: this.getAnthropicWebSearchDescription()
                             },
                             family: this.getFamilySchema(),
                             thinking: {
@@ -1028,19 +1064,53 @@ export class JsonSchemaProvider {
                                 }
                             },
                             {
-                                // webSearchTool 仅对 anthropic 生效
+                                // webSearchTool 对 anthropic 和 openai-responses 均生效
                                 if: {
-                                    properties: {
-                                        sdkMode: { const: 'anthropic' }
-                                    },
-                                    required: ['sdkMode']
+                                    anyOf: [
+                                        { properties: { sdkMode: { const: 'anthropic' } }, required: ['sdkMode'] },
+                                        {
+                                            properties: { sdkMode: { const: 'openai-responses' } },
+                                            required: ['sdkMode']
+                                        }
+                                    ]
                                 },
                                 then: {
                                     properties: {
                                         webSearchTool: {
-                                            type: 'boolean',
-                                            description: this.getAnthropicWebSearchEnabledDescription(),
-                                            default: false
+                                            oneOf: [
+                                                {
+                                                    type: 'boolean',
+                                                    description: this.getAnthropicWebSearchEnabledDescription(),
+                                                    default: false
+                                                },
+                                                {
+                                                    type: 'object',
+                                                    properties: {
+                                                        maxUses: { type: 'integer', minimum: 1, default: 5 },
+                                                        allowedDomains: {
+                                                            type: 'array',
+                                                            items: { type: 'string', minLength: 1 },
+                                                            uniqueItems: true
+                                                        },
+                                                        blockedDomains: {
+                                                            type: 'array',
+                                                            items: { type: 'string', minLength: 1 },
+                                                            uniqueItems: true
+                                                        },
+                                                        userLocation: {
+                                                            type: 'object',
+                                                            properties: {
+                                                                city: { type: 'string', minLength: 1 },
+                                                                region: { type: 'string', minLength: 1 },
+                                                                country: { type: 'string', minLength: 1 },
+                                                                timezone: { type: 'string', minLength: 1 }
+                                                            },
+                                                            additionalProperties: false
+                                                        }
+                                                    },
+                                                    additionalProperties: false
+                                                }
+                                            ]
                                         }
                                     }
                                 },
@@ -1048,8 +1118,8 @@ export class JsonSchemaProvider {
                                     properties: {
                                         webSearchTool: {
                                             deprecationMessage: t(
-                                                'webSearchTool is only effective for anthropic mode',
-                                                'webSearchTool 仅对 anthropic 模式生效'
+                                                'webSearchTool is only effective for anthropic and openai-responses modes',
+                                                'webSearchTool 仅对 anthropic 和 openai-responses 模式生效'
                                             )
                                         }
                                     }
@@ -1407,9 +1477,45 @@ export class JsonSchemaProvider {
                                 default: false
                             },
                             webSearchTool: {
-                                type: 'boolean',
-                                description: this.getAnthropicWebSearchDescription(),
-                                default: false
+                                oneOf: [
+                                    {
+                                        type: 'boolean',
+                                        description: this.getAnthropicWebSearchDescription(),
+                                        default: false
+                                    },
+                                    {
+                                        type: 'object',
+                                        description: t(
+                                            'Detailed configuration for the web_search tool',
+                                            'web_search 工具的详细配置'
+                                        ),
+                                        properties: {
+                                            maxUses: { type: 'integer', minimum: 1, default: 5 },
+                                            allowedDomains: {
+                                                type: 'array',
+                                                items: { type: 'string', minLength: 1 },
+                                                uniqueItems: true
+                                            },
+                                            blockedDomains: {
+                                                type: 'array',
+                                                items: { type: 'string', minLength: 1 },
+                                                uniqueItems: true
+                                            },
+                                            userLocation: {
+                                                type: 'object',
+                                                properties: {
+                                                    city: { type: 'string', minLength: 1 },
+                                                    region: { type: 'string', minLength: 1 },
+                                                    country: { type: 'string', minLength: 1 },
+                                                    timezone: { type: 'string', minLength: 1 }
+                                                },
+                                                additionalProperties: false
+                                            }
+                                        },
+                                        additionalProperties: false
+                                    }
+                                ],
+                                description: this.getAnthropicWebSearchDescription()
                             },
                             family: this.getFamilySchema(),
                             thinking: {
@@ -1487,17 +1593,51 @@ export class JsonSchemaProvider {
                         allOf: [
                             {
                                 if: {
-                                    properties: {
-                                        sdkMode: { const: 'anthropic' }
-                                    },
-                                    required: ['sdkMode']
+                                    anyOf: [
+                                        { properties: { sdkMode: { const: 'anthropic' } }, required: ['sdkMode'] },
+                                        {
+                                            properties: { sdkMode: { const: 'openai-responses' } },
+                                            required: ['sdkMode']
+                                        }
+                                    ]
                                 },
                                 then: {
                                     properties: {
                                         webSearchTool: {
-                                            type: 'boolean',
-                                            description: this.getAnthropicWebSearchEnabledDescription(),
-                                            default: false
+                                            oneOf: [
+                                                {
+                                                    type: 'boolean',
+                                                    description: this.getAnthropicWebSearchEnabledDescription(),
+                                                    default: false
+                                                },
+                                                {
+                                                    type: 'object',
+                                                    properties: {
+                                                        maxUses: { type: 'integer', minimum: 1, default: 5 },
+                                                        allowedDomains: {
+                                                            type: 'array',
+                                                            items: { type: 'string', minLength: 1 },
+                                                            uniqueItems: true
+                                                        },
+                                                        blockedDomains: {
+                                                            type: 'array',
+                                                            items: { type: 'string', minLength: 1 },
+                                                            uniqueItems: true
+                                                        },
+                                                        userLocation: {
+                                                            type: 'object',
+                                                            properties: {
+                                                                city: { type: 'string', minLength: 1 },
+                                                                region: { type: 'string', minLength: 1 },
+                                                                country: { type: 'string', minLength: 1 },
+                                                                timezone: { type: 'string', minLength: 1 }
+                                                            },
+                                                            additionalProperties: false
+                                                        }
+                                                    },
+                                                    additionalProperties: false
+                                                }
+                                            ]
                                         }
                                     }
                                 },
@@ -1505,8 +1645,8 @@ export class JsonSchemaProvider {
                                     properties: {
                                         webSearchTool: {
                                             deprecationMessage: t(
-                                                'webSearchTool is only effective for anthropic mode',
-                                                'webSearchTool 仅对 anthropic 模式生效'
+                                                'webSearchTool is only effective for anthropic and openai-responses modes',
+                                                'webSearchTool 仅对 anthropic 和 openai-responses 模式生效'
                                             )
                                         }
                                     }

@@ -100,8 +100,8 @@ export interface CompatibleModelConfig {
      *  - 当设置为 false 时，使用用户消息传递系统消息指令
      */
     useInstructions?: boolean;
-    /** 是否启用 Anthropic 原生 web_search 工具（仅 sdkMode=anthropic 生效） */
-    webSearchTool?: boolean;
+    /** 是否启用模型的联网搜索原生工具（anthropic / openai-responses 均支持）。支持布尔值或详细配置对象 */
+    webSearchTool?: boolean | import('../types/sharedTypes').WebSearchToolConfig;
     /**
      * 深度思考模式选项列表（可选）
      * 用于 UI 配置选择，决定用户可选择的思考模式范围：

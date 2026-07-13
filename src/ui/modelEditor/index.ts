@@ -186,6 +186,8 @@ export class ModelEditor {
         delete (model as { toolCalling?: boolean }).toolCalling;
         delete (model as { imageInput?: boolean }).imageInput;
         delete (model as { editTools?: boolean | string[] }).editTools;
+        // 删除仅用于表单内部传输的辅助字段，避免泄露到 settings.json
+        delete (model as { webSearchToolConfig?: string }).webSearchToolConfig;
 
         // tooltip: 空字符串 → undefined 表示清空（CompatibleModelConfig 字段为可选，不用 null）
         model.tooltip = data.tooltip || undefined;
@@ -204,10 +206,23 @@ export class ModelEditor {
             model.useInstructions = undefined;
         }
 
-        // 仅当 sdkMode 为 anthropic 时才更新 webSearchTool
-        if (data.sdkMode === 'anthropic') {
-            model.webSearchTool = data.webSearchTool ?? false;
-        } else if (!model.webSearchTool) {
+        // 仅当 sdkMode 为 anthropic 或 openai-responses 时才更新 webSearchTool
+        // 复选框状态优先：未勾选时明确禁用，忽略 JSON 配置；
+        // 勾选时解析 JSON 对象配置，无效或为空时退化为 true（仅启用，不传额外字段）
+        if (data.sdkMode === 'anthropic' || data.sdkMode === 'openai-responses') {
+            if (!data.webSearchTool) {
+                model.webSearchTool = false;
+            } else {
+                const parsedConfig = this.parseJsonValue(data.webSearchToolConfig);
+                if (parsedConfig && typeof parsedConfig === 'object' && !Array.isArray(parsedConfig)) {
+                    model.webSearchTool = parsedConfig as Record<string, unknown>;
+                } else {
+                    model.webSearchTool = true;
+                }
+            }
+        } else {
+            // 非 anthropic / 非 openai-responses 模式下 webSearchTool 不生效，强制清空
+            // 避免用户从生效模式切走后，隐藏的旧值被保存回 settings.json
             model.webSearchTool = undefined;
         }
 
@@ -352,7 +367,11 @@ export class ModelEditor {
             imageInput: model?.capabilities?.imageInput || false,
             editTools: model?.capabilities?.editTools,
             useInstructions: model?.useInstructions,
-            webSearchTool: model?.webSearchTool,
+            webSearchTool: model?.webSearchTool ? true : undefined,
+            webSearchToolConfig:
+                model?.webSearchTool && typeof model.webSearchTool === 'object' ?
+                    JSON.stringify(model.webSearchTool, null, 2)
+                :   '',
             reasoningEffort: model?.reasoningEffort || [],
             reasoningDefault: model?.reasoningDefault || '',
             tokenPricing: model?.tokenPricing ? JSON.stringify(model.tokenPricing, null, 2) : '',

@@ -9,7 +9,7 @@ import { TokenUsagesManager } from '../usages/usagesManager';
 import { Logger, sanitizeToolSchema, isCancellationError } from '../utils';
 import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu, toCostBreakdownLog } from '../utils';
 import { t } from '../utils/l10n';
-import { ModelChatResponseOptions, ModelConfig, ModelTokenPricing } from '../types/sharedTypes';
+import { ModelChatResponseOptions, ModelConfig, ModelTokenPricing, WebSearchToolConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { getStatefulMarkerAndIndex } from './statefulMarker';
 import { StreamReporter } from './streamReporter';
@@ -445,6 +445,34 @@ export class OpenAIResponsesHandler {
             const toolCallIdToIndex = new Map<string, number>();
             let nextToolCallIndex = 0;
 
+            // 追踪已上报的 web_search_call，避免 done/completed 两处重复上报
+            const completedWebSearchCallIds = new Set<string>();
+
+            // 从 web_search_call 的 action 提取语义内容，覆盖 search/open_page/find_in_page 三种动作
+            const buildWebSearchCallContent = (item: Record<string, unknown>): string => {
+                const action = item.action as Record<string, unknown> | undefined;
+                if (!action) {
+                    return JSON.stringify({ type: 'web_search_call' });
+                }
+                const actionType = typeof action.type === 'string' ? action.type : '';
+                if (actionType === 'search') {
+                    const queries = Array.isArray(action.queries) ? action.queries : undefined;
+                    const query = typeof action.query === 'string' ? action.query : undefined;
+                    return JSON.stringify({ type: 'web_search_call', action_type: 'search', query, queries });
+                }
+                if (actionType === 'open_page' && typeof action.url === 'string') {
+                    return JSON.stringify({ type: 'web_search_call', action_type: 'open_page', url: action.url });
+                }
+                if (actionType === 'find_in_page' && typeof action.pattern === 'string') {
+                    return JSON.stringify({
+                        type: 'web_search_call',
+                        action_type: 'find_in_page',
+                        pattern: action.pattern
+                    });
+                }
+                return JSON.stringify({ type: 'web_search_call', action_type: actionType || undefined });
+            };
+
             // 获取工具调用索引的辅助函数
             const getToolCallIndex = (callId: string): number => {
                 if (!toolCallIdToIndex.has(callId)) {
@@ -577,6 +605,50 @@ export class OpenAIResponsesHandler {
                     }
                 }
 
+                // 添加原生 Responses API 工具（web_search）
+                // 仅根据模型能力配置（webSearchTool）决定是否注入，不受 provider 缓存过滤影响：
+                // web_search 为固定原生工具，续聊时追加同一工具定义不会破坏 previous_response_id 缓存语义；
+                // 不支持 web_search 的模型/提供商不会开启 webSearchTool 配置，天然被过滤
+                //
+                // 配置映射（WebSearchToolConfig -> OpenAI WebSearchTool）：
+                // - allowedDomains -> filters.allowed_domains
+                // - blockedDomains -> filters.blocked_domains
+                // - userLocation   -> user_location（补充 type: 'approximate'）
+                // - maxUses：OpenAI Responses API 不支持，忽略
+                // 未配置或仅为 true 时，只保留 type 字段，其余字段均不传递（让 API 使用默认值）
+                if (modelConfig.webSearchTool) {
+                    const raw = modelConfig.webSearchTool;
+                    const config: WebSearchToolConfig = typeof raw === 'object' && raw !== null ? raw : {};
+                    const webSearchTool: Record<string, unknown> = { type: 'web_search' };
+                    // allowedDomains / blockedDomains 合并到同一个 filters 对象
+                    const filters: Record<string, unknown> = {};
+                    if (config.allowedDomains?.length) {
+                        filters.allowed_domains = config.allowedDomains;
+                    }
+                    if (config.blockedDomains?.length) {
+                        filters.blocked_domains = config.blockedDomains;
+                    }
+                    if (Object.keys(filters).length > 0) {
+                        webSearchTool.filters = filters;
+                    }
+                    if (config.userLocation) {
+                        webSearchTool.user_location = {
+                            type: 'approximate',
+                            ...config.userLocation
+                        };
+                    }
+                    const nativeTools: Array<Record<string, unknown>> = [webSearchTool];
+                    const existingTools = requestBody.tools as unknown[] | undefined;
+                    if (existingTools) {
+                        requestBody.tools = [...existingTools, ...nativeTools];
+                    } else {
+                        requestBody.tools = nativeTools;
+                    }
+                    Logger.debug(
+                        `${this.displayName} Added native Responses API tools: ${nativeTools.map(t => t.type).join(', ')}`
+                    );
+                }
+
                 // Process extra configuration parameters from extraBody
                 if (modelConfig?.extraBody) {
                     // 过滤掉不可修改的核心参数
@@ -681,6 +753,34 @@ export class OpenAIResponsesHandler {
                         const text = event.text || '';
                         if (text) {
                             streamReporter.reportText(text);
+                        }
+                    })
+                    .on('response.output_text.annotation.added', event => {
+                        // 处理输出文本中的 URL 引用注解
+                        // 官方 Responses API 在 web_search 结果中会附带 url_citation 注解
+                        if (token.isCancellationRequested) {
+                            return;
+                        }
+                        const annotation = event.annotation as Record<string, unknown> | undefined;
+                        if (annotation?.type === 'url_citation') {
+                            const url = typeof annotation.url === 'string' ? annotation.url : '';
+                            const title = typeof annotation.title === 'string' ? annotation.title : '';
+                            if (url) {
+                                const citationContent = JSON.stringify({
+                                    type: 'url_citation',
+                                    url,
+                                    title: title || undefined,
+                                    start_index:
+                                        typeof annotation.start_index === 'number' ? annotation.start_index : undefined,
+                                    end_index:
+                                        typeof annotation.end_index === 'number' ? annotation.end_index : undefined
+                                });
+                                streamReporter.reportToolResult(
+                                    `citation_${event.item_id || ''}_${event.annotation_index ?? ''}`,
+                                    citationContent
+                                );
+                                Logger.debug(`${this.displayName} url_citation: ${url}${title ? ` "${title}"` : ''}`);
+                            }
                         }
                     })
                     .on('response.refusal.delta', event => {
@@ -958,6 +1058,19 @@ export class OpenAIResponsesHandler {
                                 Logger.warn(`Failed to parse tool call arguments: ${args}`, e);
                             }
                         }
+                        // 处理内置 web_search_call：在 output_item.done 上报（此时 item 含完整 action）
+                        // 抓包验证：output_item.added 时 item 仅含 id/type/status，无 action；
+                        // action（search/open_page/find_in_page）只在 output_item.done 的 item.action 中出现
+                        if (item && typeof item === 'object' && item.type === 'web_search_call') {
+                            const wsItem = item as unknown as Record<string, unknown>;
+                            const wsId = typeof wsItem.id === 'string' ? wsItem.id : '';
+                            if (wsId && !completedWebSearchCallIds.has(wsId)) {
+                                completedWebSearchCallIds.add(wsId);
+                                const content = buildWebSearchCallContent(wsItem);
+                                streamReporter.reportToolResult(wsId, content);
+                                Logger.debug(`${this.displayName} web_search_call done: ${wsId}`);
+                            }
+                        }
                     })
                     .on('response.failed', event => {
                         streamEndTime ??= Date.now();
@@ -998,6 +1111,17 @@ export class OpenAIResponsesHandler {
                                             completedToolCallIndices.add(idx);
                                         } catch (e) {
                                             Logger.warn(`Failed to parse tool call arguments: ${item.arguments}`, e);
+                                        }
+                                    }
+                                    // 处理 web_search_call 备用（response.completed 兜底）
+                                    if (item.type === 'web_search_call' && item.id) {
+                                        const wsItem = item as unknown as Record<string, unknown>;
+                                        const wsId = typeof wsItem.id === 'string' ? wsItem.id : '';
+                                        if (wsId && !completedWebSearchCallIds.has(wsId)) {
+                                            completedWebSearchCallIds.add(wsId);
+                                            const content = buildWebSearchCallContent(wsItem);
+                                            streamReporter.reportToolResult(wsId, content);
+                                            Logger.debug(`${this.displayName} web_search_call completed: ${wsId}`);
                                         }
                                     }
                                 }

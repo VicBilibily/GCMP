@@ -45,11 +45,36 @@ export class AnthropicHandler {
         return this.providerConfig?.baseUrl;
     }
 
-    private createAnthropicWebSearchTool(): Anthropic.Messages.WebSearchTool20250305 {
-        return {
+    private createAnthropicWebSearchTool(modelConfig: ModelConfig): Anthropic.Messages.WebSearchTool20250305 {
+        const raw = modelConfig.webSearchTool;
+        const config: import('../types/sharedTypes').WebSearchToolConfig =
+            typeof raw === 'boolean' ? {}
+            : typeof raw === 'object' ? raw
+            : {};
+
+        const tool: Anthropic.Messages.WebSearchTool20250305 = {
             name: 'web_search',
             type: 'web_search_20250305'
         };
+
+        if (config.maxUses !== undefined) {
+            tool.max_uses = config.maxUses;
+        }
+
+        if (config.allowedDomains?.length) {
+            tool.allowed_domains = config.allowedDomains;
+        }
+        if (config.blockedDomains?.length) {
+            tool.blocked_domains = config.blockedDomains;
+        }
+        if (config.userLocation) {
+            tool.user_location = {
+                type: 'approximate',
+                ...config.userLocation
+            };
+        }
+
+        return tool;
     }
 
     private formatWebSearchToolResult(resultBlock: Anthropic.Messages.WebSearchToolResultBlock): string {
@@ -206,7 +231,7 @@ export class AnthropicHandler {
             const tools: Anthropic.Messages.ToolUnion[] =
                 options.tools ? convertToAnthropicTools([...options.tools]) : [];
             if (modelConfig.webSearchTool && !tools.some(tool => tool.name === 'web_search')) {
-                tools.push(this.createAnthropicWebSearchTool());
+                tools.push(this.createAnthropicWebSearchTool(modelConfig));
             }
 
             // 使用模型配置中的 model 字段，如果没有则使用 model.id

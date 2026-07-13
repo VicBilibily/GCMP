@@ -131,6 +131,41 @@
                 }
             }
         },
+        "webSearchToolConfig": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "原生联网搜索工具的详细配置。maxUses 仅在 anthropic 模式下生效；allowedDomains、blockedDomains 和 userLocation 在 anthropic 与 openai-responses 模式下均生效。",
+            "properties": {
+                "maxUses": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "最大搜索次数（仅 anthropic 模式生效）。"
+                },
+                "allowedDomains": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 },
+                    "uniqueItems": true,
+                    "description": "域名白名单，仅在这些域名中搜索。"
+                },
+                "blockedDomains": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 },
+                    "uniqueItems": true,
+                    "description": "域名黑名单，搜索时排除这些域名。"
+                },
+                "userLocation": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "city": { "type": "string", "minLength": 1, "description": "用户所在城市" },
+                        "region": { "type": "string", "minLength": 1, "description": "用户所在地区" },
+                        "country": { "type": "string", "minLength": 1, "description": "ISO 国家代码" },
+                        "timezone": { "type": "string", "minLength": 1, "description": "IANA 时区" }
+                    },
+                    "description": "用户近似位置，用于影响搜索结果的本地化。"
+                }
+            }
+        },
         "tokenPricing": {
             "description": "Token 定价信息（USD / 每百万 token），用于客户端成本估算和模型选择器展示。支持对象形式（含 tiers 分档）或简写数组形式 [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]（2~4 项数字）。",
             "oneOf": [
@@ -424,8 +459,8 @@
                     "default": false
                 },
                 "webSearchTool": {
-                    "type": "boolean",
-                    "description": "是否启用 Anthropic 原生 web_search 工具（仅 sdkMode=anthropic 时生效）",
+                    "description": "是否启用原生联网搜索工具（anthropic / openai-responses 模式生效）。为 true 时使用默认配置；也可传入详细配置对象。",
+                    "oneOf": [{ "type": "boolean" }, { "$ref": "#/$defs/webSearchToolConfig" }],
                     "default": false
                 },
                 "tokenPricing": {
@@ -435,18 +470,22 @@
             "allOf": [
                 {
                     "if": {
-                        "properties": {
-                            "sdkMode": {
-                                "const": "anthropic"
+                        "anyOf": [
+                            {
+                                "properties": { "sdkMode": { "const": "anthropic" } },
+                                "required": ["sdkMode"]
+                            },
+                            {
+                                "properties": { "sdkMode": { "const": "openai-responses" } },
+                                "required": ["sdkMode"]
                             }
-                        },
-                        "required": ["sdkMode"]
+                        ]
                     },
                     "then": {
                         "properties": {
                             "webSearchTool": {
-                                "type": "boolean",
-                                "description": "是否启用 Anthropic 原生 web_search 工具。启用后会自动向模型暴露 web_search。",
+                                "description": "启用原生联网搜索工具。anthropic 模式使用 Anthropic web_search_20250305；openai-responses 模式使用 Responses API web_search。为 true 时使用默认配置，也可传入详细配置对象。",
+                                "oneOf": [{ "type": "boolean" }, { "$ref": "#/$defs/webSearchToolConfig" }],
                                 "default": false
                             }
                         }
@@ -454,7 +493,7 @@
                     "else": {
                         "properties": {
                             "webSearchTool": {
-                                "deprecationMessage": "webSearchTool 仅对 anthropic 模式生效"
+                                "deprecationMessage": "webSearchTool 仅对 anthropic 和 openai-responses 模式生效"
                             }
                         }
                     }

@@ -165,10 +165,12 @@ export interface ModelConfig {
      */
     useInstructions?: boolean;
     /**
-     * 是否启用 Anthropic 原生 web_search 工具（可选）
-     * 仅对 sdkMode=anthropic 的模型生效。
+     * 是否启用模型的联网搜索原生工具（可选）
+     * - sdkMode=anthropic: 使用 Anthropic web_search_20250305 工具
+     * - sdkMode=openai-responses: 使用 Responses API web_search 工具
+     * 为 true 时使用默认配置，也可传入详细配置对象。
      */
-    webSearchTool?: boolean;
+    webSearchTool?: boolean | WebSearchToolConfig;
     /**
      * 模型特定的代理服务器地址（可选）
      * 如果提供，将覆盖提供商级别的代理设置
@@ -320,6 +322,25 @@ export interface ModelTokenPricing extends PricingFields {
 export interface PricingTier extends PricingFields, PricingTierMatchFields {}
 
 /**
+ * 联网搜索原生工具详细配置
+ */
+export interface WebSearchToolConfig {
+    /** 最大搜索次数，默认 5 */
+    maxUses?: number;
+    /** 域名白名单 */
+    allowedDomains?: string[];
+    /** 域名黑名单 */
+    blockedDomains?: string[];
+    /** 用户近似位置 */
+    userLocation?: {
+        city?: string;
+        region?: string;
+        country?: string;
+        timezone?: string;
+    };
+}
+
+/**
  * 模型覆盖配置接口 - 用于用户配置覆盖
  */
 export interface ModelOverride {
@@ -372,8 +393,8 @@ export interface ModelOverride {
     extraBody?: Record<string, unknown>;
     /** 是否在 Responses API 中使用 instructions 参数（仅 sdkMode=openai-responses 生效） */
     useInstructions?: boolean;
-    /** 是否启用 Anthropic 原生 web_search 工具（仅 sdkMode=anthropic 生效） */
-    webSearchTool?: boolean;
+    /** 是否启用模型的联网搜索原生工具（anthropic / openai-responses 均支持）。支持布尔值或详细配置对象（两模式均支持对象配置） */
+    webSearchTool?: boolean | WebSearchToolConfig;
     /** 模型特定的代理服务器地址（可选） */
     proxy?: string;
     /**

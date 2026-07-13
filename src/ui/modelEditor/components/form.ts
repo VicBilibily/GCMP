@@ -225,14 +225,28 @@ export function createDOM(state: CreateDomState, rootEl?: HTMLElement): void {
         createCheckboxFormGroup(
             'webSearchTool',
             t(
-                'Enable Anthropic native web_search tool (anthropic only)',
-                '启用 Anthropic 原生 web_search 工具（仅 anthropic 有效）'
+                'Enable native web_search tool (anthropic / openai-responses)',
+                '启用联网搜索原生工具（anthropic / openai-responses）'
             ),
             'webSearchTool',
             model.webSearchTool,
             t(
-                'Enable this when the endpoint supports Anthropic native web_search. The tool is exposed to the model automatically.',
-                '当接口兼容 Anthropic 原生 web_search 工具时启用。启用后会自动向模型暴露 web_search。'
+                'Enable this when the endpoint supports native web_search. Supported in anthropic mode (Anthropic web_search_20250305) and openai-responses mode (Responses API web_search). The tool is exposed to the model automatically.',
+                '当接口支持原生联网搜索时启用。支持 anthropic 模式（Anthropic web_search_20250305）和 openai-responses 模式（Responses API web_search）。启用后会自动向模型暴露搜索工具。'
+            )
+        ),
+        createJSONFormGroup(
+            'webSearchToolConfig',
+            t('Web Search Tool Config (JSON)', '联网搜索工具详细配置（JSON）'),
+            'webSearchToolConfig',
+            model.webSearchToolConfig,
+            t(
+                'e.g. {"maxUses": 10, "allowedDomains": ["example.com"]}',
+                '例如: {"maxUses": 10, "allowedDomains": ["example.com"]}'
+            ),
+            t(
+                'Optional advanced configuration for the native web_search tool. allowedDomains, blockedDomains and userLocation are effective in both anthropic and openai-responses modes; maxUses is only effective in anthropic mode.',
+                '联网搜索原生工具的可选详细配置。allowedDomains、blockedDomains 和 userLocation 在 anthropic 与 openai-responses 模式下均生效；maxUses 仅在 anthropic 模式下生效。'
             )
         ),
         createMultiSelectCheckboxFormGroup(

@@ -101,7 +101,7 @@ export function bindEvents(state: EditorState, actions: Actions): void {
     }
 
     // JSON 验证事件 + 工具栏按钮
-    ['customHeader', 'extraBody'].forEach(fieldId => {
+    ['customHeader', 'extraBody', 'webSearchToolConfig'].forEach(fieldId => {
         const textarea = document.getElementById(fieldId) as HTMLTextAreaElement | null;
         textarea?.addEventListener('input', () => validateJSON_UI(fieldId));
         textarea?.addEventListener('change', () => validateJSON_UI(fieldId));
@@ -200,10 +200,22 @@ export function bindEvents(state: EditorState, actions: Actions): void {
     const webSearchToolContainer = document
         .getElementById('webSearchTool')
         ?.closest('.form-group') as HTMLElement | null;
+    const webSearchToolToggle = document.getElementById('webSearchTool') as HTMLInputElement | null;
+    const webSearchToolConfigContainer = document
+        .getElementById('webSearchToolConfig')
+        ?.closest('.form-group') as HTMLElement | null;
     if (sdkModeSelect && useInstructionsContainer && webSearchToolContainer) {
         const updateSdkSpecificOptionsVisibility = function () {
-            useInstructionsContainer.style.display = sdkModeSelect.value === 'openai-responses' ? '' : 'none';
-            webSearchToolContainer.style.display = sdkModeSelect.value === 'anthropic' ? '' : 'none';
+            const sdkMode = sdkModeSelect.value;
+            const webSearchToolEnabled = webSearchToolToggle?.checked ?? false;
+
+            useInstructionsContainer.style.display = sdkMode === 'openai-responses' ? '' : 'none';
+            webSearchToolContainer.style.display =
+                sdkMode === 'anthropic' || sdkMode === 'openai-responses' ? '' : 'none';
+            if (webSearchToolConfigContainer) {
+                webSearchToolConfigContainer.style.display =
+                    (sdkMode === 'anthropic' || sdkMode === 'openai-responses') && webSearchToolEnabled ? '' : 'none';
+            }
 
             if (provider?.value) {
                 const selectedProvider = state.providers.find(item => item.id === provider.value);
@@ -213,6 +225,7 @@ export function bindEvents(state: EditorState, actions: Actions): void {
             }
         };
         sdkModeSelect.addEventListener('change', updateSdkSpecificOptionsVisibility);
+        webSearchToolToggle?.addEventListener('change', updateSdkSpecificOptionsVisibility);
         updateSdkSpecificOptionsVisibility();
     }
 

@@ -66,6 +66,7 @@ const state: EditorState = {
         editTools: undefined,
         useInstructions: undefined,
         webSearchTool: undefined,
+        webSearchToolConfig: '',
         reasoningEffort: [],
         reasoningDefault: '',
         tokenPricing: '',
@@ -94,6 +95,7 @@ function initializeEditor(): void {
     autoResizeAllTextareas();
     validateJSON_UI('customHeader');
     validateJSON_UI('extraBody');
+    validateJSON_UI('webSearchToolConfig');
 
     postToVSCode({ command: 'ready' });
 

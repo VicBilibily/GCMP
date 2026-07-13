@@ -992,7 +992,9 @@ export class ConfigManager {
             }
             if (modelOverride.webSearchTool !== undefined) {
                 target.webSearchTool = modelOverride.webSearchTool;
-                Logger.debug(`  Model ${modelOverride.id}: override webSearchTool = ${modelOverride.webSearchTool}`);
+                Logger.debug(
+                    `  Model ${modelOverride.id}: override webSearchTool = ${JSON.stringify(modelOverride.webSearchTool)}`
+                );
             }
             if (modelOverride.family !== undefined) {
                 target.family = modelOverride.family;

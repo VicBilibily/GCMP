@@ -7,7 +7,7 @@ import type { EditorState } from '../app';
 import type { ModelFormData } from '../types';
 import { t } from '../l10n';
 import { CLI_RESERVED_PROVIDERS } from '../types';
-import { isValidProxyInput, normalizeProxyInput, parseJSON, validateJSON } from '../utils';
+import { isValidProxyInput, normalizeProxyInput, parseJSON, validateJSON, validateWebSearchToolConfig } from '../utils';
 
 /**
  * 显示全局错误提示
@@ -30,6 +30,12 @@ export function hideGlobalError(): void {
     if (banner) {
         banner.style.display = 'none';
     }
+}
+
+function isFieldVisible(fieldId: string): boolean {
+    const field = document.getElementById(fieldId);
+    const container = field?.closest('.form-group') as HTMLElement | null;
+    return container?.style.display !== 'none';
 }
 
 /**
@@ -173,6 +179,18 @@ export function validateForm(): boolean {
         return false;
     }
 
+    const webSearchToolConfigJson = (
+        document.getElementById('webSearchToolConfig') as HTMLTextAreaElement
+    ).value.trim();
+    if (isFieldVisible('webSearchToolConfig') && webSearchToolConfigJson) {
+        const configError = validateWebSearchToolConfig(webSearchToolConfigJson);
+        if (configError) {
+            showGlobalError(configError);
+            document.getElementById('webSearchToolConfig')?.focus();
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -205,11 +223,17 @@ export function collectFormData(state: EditorState): ModelFormData | null {
     const editTools = state.model.editTools;
     const useInstructionsEl = document.getElementById('useInstructions') as HTMLInputElement | null;
     const webSearchToolEl = document.getElementById('webSearchTool') as HTMLInputElement | null;
+    const webSearchToolConfigEl = document.getElementById('webSearchToolConfig') as HTMLTextAreaElement | null;
 
     const useInstructions =
         sdkMode === 'openai-responses' ? (useInstructionsEl?.checked ?? false) : (state.model.useInstructions ?? false);
     const webSearchTool =
-        sdkMode === 'anthropic' ? (webSearchToolEl?.checked ?? false) : (state.model.webSearchTool ?? false);
+        sdkMode === 'anthropic' || sdkMode === 'openai-responses' ?
+            (webSearchToolEl?.checked ?? false)
+        :   (state.model.webSearchTool ?? false);
+
+    // webSearchToolConfig 从 JSON textarea 收集
+    const webSearchToolConfig = (webSearchToolConfigEl?.value ?? '').trim();
 
     // reasoningEffort 多选
     const reasoningEffortContainer = document.getElementById('reasoningEffortOptions');
@@ -248,6 +272,7 @@ export function collectFormData(state: EditorState): ModelFormData | null {
         editTools,
         useInstructions,
         webSearchTool,
+        webSearchToolConfig,
         reasoningEffort: reasoningEffortValues as ModelFormData['reasoningEffort'],
         reasoningDefault: reasoningDefault as ModelFormData['reasoningDefault'],
         // 当前可视化编辑器尚未提供 tokenPricing 单独输入控件；保存时保留已有值，
