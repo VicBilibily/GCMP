@@ -369,6 +369,14 @@ export class TokenUsagesManager {
     }
 
     /**
+     * 对外暴露的统计更新通知入口
+     * 供跨实例协调场景调用（如主实例收到 statsRefreshRequested 完成刷新后广播）
+     */
+    notifyStatsUpdate(): void {
+        this.notifyUpdate();
+    }
+
+    /**
      * 获取文件日志系统实例
      */
     getFileLogger(): TokenFileLogger {

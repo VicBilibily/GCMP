@@ -20,6 +20,7 @@ import { closeProxyAgents } from './utils/proxyAgent';
 import { registerCliAuthCommands } from './cli/cliAuthCommands';
 import { SyncManager } from './sync/syncManager';
 import { TokenUsagesManager } from './usages/usagesManager';
+import { DateUtils } from './usages/fileLogger/dateUtils';
 import { TokenUsagesView } from './ui/usagesView';
 import { CompatibleModelManager } from './utils/compatibleModelManager';
 import { LeaderElectionService, StatusBarManager } from './status';
@@ -295,6 +296,84 @@ export async function activate(context: vscode.ExtensionContext) {
         stepStartTime = Date.now();
         await TokenUsagesManager.instance.initialize(context);
         Logger.trace(`Token usage manager initialized (${Date.now() - stepStartTime}ms)`);
+
+        // 订阅 statsRefreshRequested：非主实例通过跨实例总线委托主实例刷新 stats.json。
+        // 只有主实例会响应此请求并执行写盘，非主实例收到时忽略（避免循环）。
+        // 直连 IPC 不可用时可退化到 fallback 通道；若 leader 尚未选出，主实例周期任务仍会兜底刷新今日 stats。
+        context.subscriptions.push(
+            InterInstanceBus.subscribe('statsRefreshRequested', event => {
+                if (!LeaderElectionService.isLeader()) {
+                    return; // 非主实例不响应
+                }
+                const payload = event.payload as {
+                    requestId: string;
+                    date?: string;
+                    regenerateAll: boolean;
+                    requestedBy: string;
+                };
+                Logger.trace(
+                    `[InterInstanceBus] Received statsRefreshRequested from ${payload.requestedBy}` +
+                        (payload.regenerateAll ? ' (regenerateAll)' : ` (date=${payload.date ?? 'today'})`)
+                );
+                const fileLogger = TokenUsagesManager.instance.getFileLogger();
+                void (async () => {
+                    try {
+                        // 先等待本实例写队列落盘，避免基于不完整日志重算并覆盖最新 stats。
+                        await fileLogger.flush();
+
+                        if (payload.regenerateAll) {
+                            // 等待重建完成，再广播完成回执 + tokenUsageUpdated，让等待中的 Follower 和所有 UI 都更新。
+                            // 即使失败也要发送空回执，避免 Follower 一直等到超时。
+                            const results = await fileLogger.regenerateOutdatedStats();
+                            InterInstanceBus.publish({
+                                type: 'statsRefreshCompleted',
+                                payload: {
+                                    requestId: payload.requestId,
+                                    regeneratedDates: Object.keys(results)
+                                }
+                            });
+                            TokenUsagesManager.instance.notifyStatsUpdate();
+                            return;
+                        }
+
+                        // 刷新指定日期（默认今日）：先 flush，再按需重算，避免无变化时强制全量重算。
+                        const dateStr = payload.date ?? DateUtils.getTodayDateString();
+                        await fileLogger.getDateStats(dateStr);
+                        // 刷新完成后通过 notifyUpdate 广播 tokenUsageUpdated，非主实例 UI 自然更新
+                        TokenUsagesManager.instance.notifyStatsUpdate();
+                    } catch (error) {
+                        if (payload.regenerateAll) {
+                            Logger.warn(`[InterInstanceBus] Failed to regenerate outdated stats: ${error}`);
+                            InterInstanceBus.publish({
+                                type: 'statsRefreshCompleted',
+                                payload: {
+                                    requestId: payload.requestId,
+                                    regeneratedDates: []
+                                }
+                            });
+                            return;
+                        }
+
+                        const dateStr = payload.date ?? DateUtils.getTodayDateString();
+                        Logger.warn(`[InterInstanceBus] Failed to refresh stats for ${dateStr}: ${error}`);
+                    }
+                })();
+            })
+        );
+
+        // 注册主实例周期任务：每分钟刷新今日 stats，作为非主实例 IPC 请求丢失时的兜底。
+        // registerPeriodicTask 内部已保证仅 Leader 执行（见 LeaderElectionService.executePeriodicTasks）。
+        LeaderElectionService.registerPeriodicTask(async () => {
+            try {
+                const fileLogger = TokenUsagesManager.instance.getFileLogger();
+                const today = DateUtils.getTodayDateString();
+                await fileLogger.flush();
+                await fileLogger.getDateStats(today);
+                TokenUsagesManager.instance.notifyStatsUpdate();
+            } catch (error) {
+                Logger.trace(`[LeaderTask] Failed to refresh today stats: ${error}`);
+            }
+        });
 
         // 步骤3: 激活提供商（并行优化）
         stepStartTime = Date.now();

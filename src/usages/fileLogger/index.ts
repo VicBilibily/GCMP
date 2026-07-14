@@ -24,6 +24,8 @@ import { SnapshotManager } from './snapshotManager';
 import { DateUtils } from './dateUtils';
 import { EventEmitter } from 'events';
 import { onLiveMetrics, type LiveStreamMetricEvent } from '../../handlers/liveMetrics';
+import { LeaderElectionService } from '../../status/leaderElectionService';
+import { InterInstanceBus } from '../../interInstance';
 import type { DateIndexEntry, TokenRequestLog, TokenUsageStatsFromFile } from './types';
 
 /**
@@ -58,6 +60,14 @@ export class TokenFileLogger {
     private statsRefreshTimer: ReturnType<typeof setTimeout> | null = null;
     private readonly statsRefreshDebounceMs = 1000; // 1秒防抖窗口
 
+    // 跨实例 statsRefreshCompleted 等待：Follower 调 regenerateOutdatedStats 时同步等待 Leader 完成回执
+    private readonly statsRefreshCompletedDisposable: vscode.Disposable;
+    private readonly pendingStatsRefreshRequests = new Map<
+        string,
+        { resolve: (dates: string[]) => void; timer: ReturnType<typeof setTimeout> }
+    >();
+    private static readonly STATS_REFRESH_TIMEOUT_MS = 10_000; // 10s 超时
+
     constructor(private context: vscode.ExtensionContext) {
         const storageDir = context.globalStorageUri.fsPath;
 
@@ -73,6 +83,16 @@ export class TokenFileLogger {
             this.indexManager,
             this.snapshotManager
         );
+        // 注入写盘守卫：只要已知存在其他 Leader，就始终由 Leader 独占写 stats.json，
+        // 避免 IPC / fallback 重连窗口里 Follower 因瞬时断线误判为“可本地写”。
+        // 仅在 Leader 尚未选出时回退为当前实例自写，避免启动早期完全无统计。
+        this.logStatsManager.setCanWriteStats(() => {
+            const leaderId = LeaderElectionService.getLeaderId();
+            if (!leaderId) {
+                return true; // 尚未选出 Leader：允许当前实例临时写盘
+            }
+            return leaderId === LeaderElectionService.getInstanceId();
+        });
         this.eventEmitter = new EventEmitter();
 
         // 订阅 live metrics streaming 事件：仅更新内存 pendingLog，不写文件。
@@ -81,6 +101,17 @@ export class TokenFileLogger {
         this.liveMetricsDisposable = onLiveMetrics((event: LiveStreamMetricEvent) => {
             if (event.type === 'firstChunk' || event.type === 'streamingUpdate') {
                 this.updateStreamingMetrics(event);
+            }
+        });
+
+        // 订阅 statsRefreshCompleted：Follower 等待 Leader 完成重建后解除阻塞
+        this.statsRefreshCompletedDisposable = InterInstanceBus.subscribe('statsRefreshCompleted', event => {
+            const payload = event.payload as { requestId: string; regeneratedDates: string[] };
+            const pending = this.pendingStatsRefreshRequests.get(payload.requestId);
+            if (pending) {
+                clearTimeout(pending.timer);
+                this.pendingStatsRefreshRequests.delete(payload.requestId);
+                pending.resolve(payload.regeneratedDates);
             }
         });
     }
@@ -379,9 +410,11 @@ export class TokenFileLogger {
     /**
      * 获取指定日期的统计
      * 优先从缓存读取
+     * @param dateStr 日期字符串 (YYYY-MM-DD)
+     * @param ignoreCache 是否忽略缓存强制重算（默认 false）
      */
-    async getDateStats(dateStr: string): Promise<TokenUsageStatsFromFile> {
-        return this.logStatsManager.getDateStats(dateStr);
+    async getDateStats(dateStr: string, ignoreCache: boolean = false): Promise<TokenUsageStatsFromFile> {
+        return this.logStatsManager.getDateStats(dateStr, ignoreCache);
     }
 
     /**
@@ -413,8 +446,42 @@ export class TokenFileLogger {
      * 检查并重新生成过期的统计数据
      * 在打开统计页面时调用，确保所有日期的 stats.json 都是最新的
      * @returns 成功重新生成的日期统计
+     *
+     * 多实例协调：只要已知存在其他 Leader，非主实例就不直接重算写盘，
+     * 而是通过跨实例总线委托 Leader 执行（直连 IPC 不可用时可退化到 fallback 通道）。
+     * Leader 完成刷新后通过 tokenUsageUpdated 广播，非主实例 UI 自然更新。
+     * 仅在 Leader 尚未选出时回退为本实例直接执行。
      */
     async regenerateOutdatedStats(): Promise<Record<string, TokenUsageStatsFromFile>> {
+        // 已知存在其他 Leader：委托 Leader 执行，并同步等待完成回执
+        const leaderId = LeaderElectionService.getLeaderId();
+        if (leaderId && leaderId !== LeaderElectionService.getInstanceId()) {
+            const requestId = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+            const waitForCompletion = this.waitForStatsRefreshCompletion(requestId);
+            StatusLogger.debug(
+                '[TokenFileLogger] Non-leader instance, delegating regenerateOutdatedStats to leader via IPC'
+            );
+            InterInstanceBus.publish({
+                type: 'statsRefreshRequested',
+                payload: {
+                    requestId,
+                    regenerateAll: true,
+                    requestedBy: LeaderElectionService.getInstanceId()
+                }
+            });
+            // 等待 Leader 完成重建（带超时），完成后从磁盘读取重建日期的 stats
+            const regeneratedDates = await waitForCompletion;
+            const results: Record<string, TokenUsageStatsFromFile> = {};
+            for (const dateStr of regeneratedDates) {
+                try {
+                    results[dateStr] = await this.logStatsManager.getDateStats(dateStr);
+                } catch {
+                    // 忽略单个日期读取失败
+                }
+            }
+            return results;
+        }
+
         return this.logStatsManager.regenerateOutdatedStats();
     }
 
@@ -601,6 +668,15 @@ export class TokenFileLogger {
             this.liveMetricsDisposable.dispose();
             StatusLogger.debug('[TokenFileLogger] Live metrics subscription disposed');
 
+            // 取消跨实例 statsRefreshCompleted 订阅，并拒绝所有等待中的请求
+            this.statsRefreshCompletedDisposable.dispose();
+            for (const [id, pending] of this.pendingStatsRefreshRequests) {
+                clearTimeout(pending.timer);
+                pending.resolve([]);
+            }
+            this.pendingStatsRefreshRequests.clear();
+            StatusLogger.debug('[TokenFileLogger] Stats refresh subscription disposed');
+
             // 清理事件监听器
             this.eventEmitter.removeAllListeners();
             StatusLogger.debug('[TokenFileLogger] Event listeners cleaned up');
@@ -683,8 +759,45 @@ export class TokenFileLogger {
         }, this.statsRefreshDebounceMs);
     }
 
+    /**
+     * 等待 Leader 完成 statsRefreshRequested 对应的重建（带超时）。
+     * 超时后返回空数组，调用方使用当前磁盘上的可用数据继续。
+     */
+    private waitForStatsRefreshCompletion(requestId: string): Promise<string[]> {
+        return new Promise<string[]>(resolve => {
+            const timer = setTimeout(() => {
+                if (this.pendingStatsRefreshRequests.has(requestId)) {
+                    this.pendingStatsRefreshRequests.delete(requestId);
+                    StatusLogger.warn(`[TokenFileLogger] Stats refresh request timed out: ${requestId}`);
+                }
+                resolve([]);
+            }, TokenFileLogger.STATS_REFRESH_TIMEOUT_MS);
+            this.pendingStatsRefreshRequests.set(requestId, { resolve, timer });
+        });
+    }
+
     private async doRefreshCurrentStats(): Promise<void> {
         const dateStr = DateUtils.getTodayDateString();
+
+        // 已知存在其他 Leader：不直接重算写盘，改为委托 Leader 刷新今日 stats。
+        // 主实例刷新完成后通过 tokenUsageUpdated 广播，本实例 UI 自然更新。
+        // 仅在 Leader 尚未选出时回退为本实例直接执行。
+        const leaderId = LeaderElectionService.getLeaderId();
+        if (leaderId && leaderId !== LeaderElectionService.getInstanceId()) {
+            StatusLogger.trace(
+                `[TokenFileLogger] Non-leader instance, delegating refresh to leader via IPC: ${dateStr}`
+            );
+            InterInstanceBus.publish({
+                type: 'statsRefreshRequested',
+                payload: {
+                    requestId: `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`,
+                    date: dateStr,
+                    regenerateAll: false,
+                    requestedBy: LeaderElectionService.getInstanceId()
+                }
+            });
+            return;
+        }
 
         try {
             // 等待写入队列完成

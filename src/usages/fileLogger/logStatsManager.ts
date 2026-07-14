@@ -38,6 +38,12 @@ export class LogStatsManager {
     private readonly inFlightRegenerations = new Map<string, Promise<TokenUsageStatsFromFile>>();
     // 代码版本时间戳：用于判断缓存是否由当前版本代码生成
     private _codeVersionTimestamp: number = 0;
+    /**
+     * 写盘守卫：返回 true 时允许写 stats.json/index.json。
+     * 多实例环境下，只有主实例（Leader）才允许写，避免跨进程并发写覆盖。
+     * 默认返回 true（单实例或未注入时保持原行为）。
+     */
+    private _canWriteStats: () => boolean = () => true;
 
     constructor(
         private readManager: LogReadManager,
@@ -47,6 +53,21 @@ export class LogStatsManager {
     ) {
         this.baseDir = path.join(baseDir, 'usages');
         this.indexManager = indexManager;
+    }
+
+    /**
+     * 设置写盘守卫
+     * @param canWriteStats 返回 true 时允许写盘；false 时跳过写盘（仅返回内存计算结果）
+     */
+    setCanWriteStats(canWriteStats: () => boolean): void {
+        this._canWriteStats = canWriteStats;
+    }
+
+    /**
+     * 当前实例是否被允许写 stats.json
+     */
+    private canWriteStats(): boolean {
+        return this._canWriteStats();
     }
 
     /**
@@ -463,6 +484,13 @@ export class LogStatsManager {
      * @private 内部使用，通过 getDateStats 访问
      */
     private async saveDateStats(dateStr: string, stats: TokenUsageStatsFromFile): Promise<void> {
+        // 多实例写盘守卫：非主实例不写盘，避免跨进程并发写覆盖 stats.json/index.json。
+        // 内存计算结果仍返回给本实例使用（如详情界面立即展示），主实例会通过 IPC 请求刷新写盘。
+        if (!this.canWriteStats()) {
+            StatusLogger.trace(`[LogStatsManager] Skip saving stats (non-leader instance): ${dateStr}`);
+            return;
+        }
+
         const filePath = this.getStatsFilePath(dateStr);
 
         try {

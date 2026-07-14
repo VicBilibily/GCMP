@@ -24,6 +24,7 @@ export class TokenUsagesView {
     private panel: vscode.WebviewPanel | undefined;
     private usagesManager: TokenUsagesManager;
     private updateDisposable: vscode.Disposable | undefined;
+    private crossInstanceUsageUpdateDisposable: vscode.Disposable | undefined;
     private liveMetricsDisposable: vscode.Disposable | undefined;
     private crossInstanceLiveMetricsDisposable: vscode.Disposable | undefined;
     private currentSelectedDate: string | undefined; // 当前查看的日期
@@ -78,6 +79,13 @@ export class TokenUsagesView {
             }
         });
 
+        // 监听来自其他实例的统计更新事件，确保 Follower 打开的视图也能刷新今日/日期列表
+        this.crossInstanceUsageUpdateDisposable = InterInstanceBus.subscribe('tokenUsageUpdated', () => {
+            if (this.panel) {
+                this.smartRefresh();
+            }
+        });
+
         // 监听实时流式指标事件（retainContextWhenHidden 下隐藏面板仍可接收消息）
         // 仅在查看今天时转发给 WebView，非今天直接跳过 postMessage（IPC 序列化开销）
         // requestStarted / streamEnd 会触发请求记录立即刷新，避免状态长时间停留在 estimated
@@ -95,6 +103,8 @@ export class TokenUsagesView {
             this.panel = undefined;
             this.updateDisposable?.dispose();
             this.updateDisposable = undefined;
+            this.crossInstanceUsageUpdateDisposable?.dispose();
+            this.crossInstanceUsageUpdateDisposable = undefined;
             this.liveMetricsDisposable?.dispose();
             this.liveMetricsDisposable = undefined;
             this.crossInstanceLiveMetricsDisposable?.dispose();

@@ -52,9 +52,8 @@ export class TokenUsageStatusBar {
         // 初始更新显示
         void this.updateDisplay();
 
-        // 监听文件日志系统的统计更新事件
-        const fileLogger = this.usagesManager.getFileLogger();
-        this.updateDisposable = fileLogger.onStatsUpdate(async () => {
+        // 监听本实例的统计更新事件
+        this.updateDisposable = this.usagesManager.onStatsUpdate(async () => {
             await this.updateDisplay();
         });
 

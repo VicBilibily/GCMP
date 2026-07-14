@@ -142,6 +142,46 @@ export interface LiveMetricsUpdatedEvent extends InterInstanceEventBase {
 }
 
 /**
+ * 统计刷新请求
+ * 由非主实例（Follower）发出，请求主实例（Leader）执行 stats.json 的重算与写盘。
+ * 触发场景：
+ * - 本实例有请求完成需要刷新今日 stats（doRefreshCurrentStats）
+ * - 用户在本实例打开统计页面，需要全量重建过期 stats（regenerateOutdatedStats）
+ *
+ * 设计意图：stats.json 写入由 Leader 串行化，避免多实例并发写覆盖。
+ * 直连 IPC 不可用时可退化到 fallback 通道；若 leader 尚未选出或请求丢失，Leader 的周期任务仍会兜底刷新今日 stats。
+ */
+export interface StatsRefreshRequestedEvent extends InterInstanceEventBase {
+    type: 'statsRefreshRequested';
+    payload: {
+        /** 请求 ID，用于匹配 Leader 的完成回执（statsRefreshCompleted） */
+        requestId: string;
+        /** 要刷新的日期字符串 (YYYY-MM-DD)。regenerateAll=true 时忽略此字段 */
+        date?: string;
+        /** 是否触发全量过期检测并重建所有过期日期的 stats */
+        regenerateAll: boolean;
+        /** 请求来源实例 ID（用于日志追踪，与 senderInstanceId 相同但语义更明确） */
+        requestedBy: string;
+    };
+}
+
+/**
+ * 统计刷新完成回执
+ * 由主实例（Leader）在完成 statsRefreshRequested 对应的刷新后广播。
+ * 非主实例（Follower）中等待同步结果的调用方（如 getMultiDayStats 前的 regenerateOutdatedStats）
+ * 通过 requestId 匹配并解除阻塞，确保后续读取到的 stats.json/index.json 已是最新。
+ */
+export interface StatsRefreshCompletedEvent extends InterInstanceEventBase {
+    type: 'statsRefreshCompleted';
+    payload: {
+        /** 对应的请求 ID（与 statsRefreshRequested.requestId 匹配） */
+        requestId: string;
+        /** 成功重建的日期列表 */
+        regeneratedDates: string[];
+    };
+}
+
+/**
  * 跨实例事件联合类型
  */
 export type InterInstanceEvent =
@@ -152,7 +192,9 @@ export type InterInstanceEvent =
     | SyncCompletedEvent
     | LeaderChangedEvent
     | LeaderResigningEvent
-    | LiveMetricsUpdatedEvent;
+    | LiveMetricsUpdatedEvent
+    | StatsRefreshRequestedEvent
+    | StatsRefreshCompletedEvent;
 
 /**
  * 事件类型名称集合（用于运行时校验）
@@ -165,7 +207,9 @@ export const INTER_INSTANCE_EVENT_TYPES = [
     'syncCompleted',
     'leaderChanged',
     'leaderResigning',
-    'liveMetricsUpdated'
+    'liveMetricsUpdated',
+    'statsRefreshRequested',
+    'statsRefreshCompleted'
 ] as const;
 
 /**
