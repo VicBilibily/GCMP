@@ -76,7 +76,7 @@ export class GrokCliAuth extends BaseCliAuth {
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
         }
-        fs.writeFileSync(credentialPath, JSON.stringify(data, null, 2));
+        this.writeJsonFileAtomically(credentialPath, data);
         this.recordKey = finalRecordKey;
     }
 

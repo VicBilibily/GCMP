@@ -171,8 +171,11 @@ export class ApiKeyManager {
             return false;
         }
 
-        const apiKey = await CliAuthFactory.getInstance(provider)?.getApiKey(true);
+        const credentials = await CliAuthFactory.ensureAuthenticated(provider, true);
+        const apiKey = credentials?.access_token;
         if (apiKey) {
+            await this.setApiKey(provider, apiKey);
+            this.cachedCliAuthStatus[provider] = apiKey;
             Logger.info(`[ApiKeyManager] Force refreshed ${displayName} CLI authentication`);
             return true;
         }
@@ -191,12 +194,8 @@ export class ApiKeyManager {
      */
     private static async handleCliAuth(provider: string, displayName: string): Promise<boolean> {
         const credentials = await CliAuthFactory.ensureAuthenticated(provider);
-        if (credentials) {
-            const apiKey = await CliAuthFactory.getInstance(provider)?.getApiKey();
-            if (!apiKey) {
-                Logger.warn(`[ApiKeyManager] Failed to load credentials from ${displayName} CLI`);
-                return false;
-            }
+        if (credentials?.access_token) {
+            const apiKey = credentials.access_token;
             // Cli 访问密钥验证通过后保存到密钥存储
             await this.setApiKey(provider, apiKey);
 
@@ -205,6 +204,10 @@ export class ApiKeyManager {
                 Logger.info(`[ApiKeyManager] Loaded credentials from ${displayName} CLI`);
             }
             return true;
+        }
+
+        if (credentials) {
+            Logger.warn(`[ApiKeyManager] Failed to load credentials from ${displayName} CLI`);
         }
         return false;
     }

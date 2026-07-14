@@ -142,6 +142,43 @@ export interface LiveMetricsUpdatedEvent extends InterInstanceEventBase {
 }
 
 /**
+ * CLI 认证刷新请求
+ * 由非主实例发出，请求主实例刷新指定 CLI provider 的 OAuth 凭证文件。
+ * 仅传递 provider 标识与请求元数据，不在跨实例事件中携带 access_token / refresh_token。
+ */
+export interface CliAuthRefreshRequestedEvent extends InterInstanceEventBase {
+    type: 'cliAuthRefreshRequested';
+    payload: {
+        /** 请求 ID，用于匹配完成回执 */
+        requestId: string;
+        /** CLI provider 标识（如 codex / grok） */
+        providerKey: string;
+        /** 是否强制刷新访问令牌（true 表示即使未过期也刷新） */
+        forceRefresh: boolean;
+        /** 请求来源实例 ID */
+        requestedBy: string;
+    };
+}
+
+/**
+ * CLI 认证刷新完成回执
+ * 主实例完成指定 provider 的刷新后广播结果；调用方随后自行从本地凭证文件重新加载。
+ */
+export interface CliAuthRefreshCompletedEvent extends InterInstanceEventBase {
+    type: 'cliAuthRefreshCompleted';
+    payload: {
+        /** 对应的请求 ID */
+        requestId: string;
+        /** CLI provider 标识 */
+        providerKey: string;
+        /** 是否刷新成功 */
+        success: boolean;
+        /** 失败时的错误摘要 */
+        error?: string;
+    };
+}
+
+/**
  * 统计刷新请求
  * 由非主实例（Follower）发出，请求主实例（Leader）执行 stats.json 的重算与写盘。
  * 触发场景：
@@ -193,6 +230,8 @@ export type InterInstanceEvent =
     | LeaderChangedEvent
     | LeaderResigningEvent
     | LiveMetricsUpdatedEvent
+    | CliAuthRefreshRequestedEvent
+    | CliAuthRefreshCompletedEvent
     | StatsRefreshRequestedEvent
     | StatsRefreshCompletedEvent;
 
@@ -208,6 +247,8 @@ export const INTER_INSTANCE_EVENT_TYPES = [
     'leaderChanged',
     'leaderResigning',
     'liveMetricsUpdated',
+    'cliAuthRefreshRequested',
+    'cliAuthRefreshCompleted',
     'statsRefreshRequested',
     'statsRefreshCompleted'
 ] as const;

@@ -20,6 +20,7 @@ const proxyEnvKeys = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 
  */
 export abstract class BaseCliAuth {
     private cachedCredentials: { data: OAuthCredentials; timestamp: number } | null = null;
+    private refreshPromise: Promise<OAuthCredentials> | null = null;
 
     constructor(protected config: CliAuthConfig) {}
 
@@ -27,15 +28,8 @@ export abstract class BaseCliAuth {
      * 获取 API 访问令牌
      */
     async getApiKey(forceRefresh = false): Promise<string | null> {
-        const credentials = await this.ensureAuthenticated();
-        if (credentials) {
-            if (forceRefresh) {
-                const refreshedCredentials = await this.refreshAccessToken(credentials);
-                return refreshedCredentials.access_token;
-            }
-            return credentials.access_token;
-        }
-        return null;
+        const credentials = await this.ensureAuthenticated(forceRefresh);
+        return credentials?.access_token ?? null;
     }
 
     /**
@@ -74,23 +68,67 @@ export abstract class BaseCliAuth {
     /**
      * 确保认证有效（自动刷新过期令牌）
      */
-    async ensureAuthenticated(): Promise<OAuthCredentials | null> {
+    async ensureAuthenticated(forceRefresh = false): Promise<OAuthCredentials | null> {
         let credentials = await this.loadCredentials();
         if (!credentials) {
             // Logger.info(`[${this.config.name}] 未认证，请先运行 CLI 登录`);
             return null;
         }
 
-        if (this.isExpired(credentials) && credentials.refresh_token) {
+        const needsRefresh = forceRefresh || this.isExpired(credentials);
+        if (needsRefresh && credentials.refresh_token) {
             try {
-                credentials = await this.refreshAccessToken(credentials);
+                credentials = await this.refreshCredentials(credentials);
                 Logger.info(`[${this.config.name}] Token refreshed`);
             } catch (error) {
                 Logger.error(`[${this.config.name}] Failed to refresh token:`, error);
                 return null;
             }
         }
+
+        if (forceRefresh && !credentials.refresh_token) {
+            Logger.warn(`[${this.config.name}] Credentials are missing refresh_token and cannot be force refreshed`);
+            return null;
+        }
+
         return credentials;
+    }
+
+    /**
+     * 刷新访问令牌（当前进程内单飞）
+     */
+    async refreshCredentials(credentials?: OAuthCredentials): Promise<OAuthCredentials> {
+        const currentCredentials = credentials ?? (await this.loadCredentials());
+        if (!currentCredentials?.refresh_token) {
+            throw new Error(`${this.config.name} credentials are missing refresh_token and cannot refresh`);
+        }
+
+        if (this.refreshPromise) {
+            return this.refreshPromise;
+        }
+
+        const refreshPromise = (async () => {
+            const refreshedCredentials = await this.refreshAccessToken(currentCredentials);
+            this.invalidateCredentialCache();
+            const reloadedCredentials = await this.loadCredentials();
+            return reloadedCredentials ?? refreshedCredentials;
+        })();
+
+        this.refreshPromise = refreshPromise;
+        try {
+            return await refreshPromise;
+        } finally {
+            if (this.refreshPromise === refreshPromise) {
+                this.refreshPromise = null;
+            }
+        }
+    }
+
+    /**
+     * 使凭证缓存失效，强制下次从文件重新加载
+     */
+    invalidateCredentialCache(): void {
+        this.cachedCredentials = null;
     }
 
     /**
@@ -237,6 +275,28 @@ export abstract class BaseCliAuth {
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
         }
-        fs.writeFileSync(credentialPath, JSON.stringify(mergedData, null, 2));
+        this.writeJsonFileAtomically(credentialPath, mergedData);
+    }
+
+    /**
+     * 原子写入 JSON 文件，避免半写入导致凭证损坏
+     */
+    protected writeJsonFileAtomically(filePath: string, data: unknown): void {
+        const tempPath = `${filePath}.${process.pid}.${Date.now().toString(36)}.${Math.random().toString(36).slice(2)}.tmp`;
+
+        try {
+            fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf-8');
+            fs.renameSync(tempPath, filePath);
+            this.invalidateCredentialCache();
+        } catch (error) {
+            try {
+                if (fs.existsSync(tempPath)) {
+                    fs.unlinkSync(tempPath);
+                }
+            } catch {
+                // ignore cleanup failures
+            }
+            throw error;
+        }
     }
 }

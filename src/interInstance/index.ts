@@ -14,6 +14,8 @@ export {
     type LeaderChangedEvent,
     type LeaderResigningEvent,
     type LiveMetricsUpdatedEvent,
+    type CliAuthRefreshRequestedEvent,
+    type CliAuthRefreshCompletedEvent,
     type InterInstanceEventHandler,
     INTER_INSTANCE_EVENT_TYPES,
     serializeEvent,

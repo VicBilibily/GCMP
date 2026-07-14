@@ -273,6 +273,11 @@ export async function activate(context: vscode.ExtensionContext) {
             Logger.trace('[InterInstanceBus] Config cache and HAR recorder refreshed due to remote change');
         });
 
+        // 步骤0.2: 初始化 CLI 认证跨实例刷新协调
+        stepStartTime = Date.now();
+        CliAuthFactory.initialize(context);
+        Logger.trace(`CLI auth coordinator initialized (${Date.now() - stepStartTime}ms)`);
+
         // 步骤1: 初始化API密钥管理器
         stepStartTime = Date.now();
         ApiKeyManager.initialize(context);
