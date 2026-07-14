@@ -2,6 +2,22 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.36] - 2026-07-14
+
+### 新增
+
+- **百度千帆 Token Plan 个人版与企业版接入**：新增 `baidu-token`（个人版）和 `baidu-token-enterprise`（企业版）两个 provider，通过百度千帆 Token Plan 专属接入点提供更低延迟与更优性价比的推理服务。个人版已接入 GLM-5.2、GLM-5.1、DeepSeek-V4-Pro、DeepSeek-V4-Flash、Kimi-K2.6、ERNIE-5.1；企业版额外接入 GLM-5 与 DeepSeek-V3.2。同时更新向导页支持 Token Plan API Key 配置，并为 GLM-5.2（PayGo）开放百万级上下文与 `reasoningEffort` 支持（[#293](https://github.com/VicBilibily/GCMP/issues/293)）。
+
+- **StreamLake 新增 KAT-Coder V2.5 系列模型**：新增 KAT-Coder-Pro-V2.5-Coding-Plan、KAT-Coder-Pro-V2.5（PayGo）和 KAT-Coder-Air-V2.5（PayGo）三款模型，并精简 V2 模型提示文本（[#296](https://github.com/VicBilibily/GCMP/issues/296)）。
+
+---
+
+### Added
+
+- **Baidu Qianfan Token Plan Personal & Enterprise access**: Added `baidu-token` (Personal) and `baidu-token-enterprise` (Enterprise) providers, offering lower latency and better cost-effectiveness through dedicated Token Plan endpoints. Personal models include GLM-5.2, GLM-5.1, DeepSeek-V4-Pro, DeepSeek-V4-Flash, Kimi-K2.6, ERNIE-5.1; Enterprise adds GLM-5 and DeepSeek-V3.2. Updated wizard for Token Plan API Key configuration, and opened 1M context + `reasoningEffort` for GLM-5.2 (PayGo) ([#293](https://github.com/VicBilibily/GCMP/issues/293)).
+
+- **StreamLake new KAT-Coder V2.5 models**: Added KAT-Coder-Pro-V2.5-Coding-Plan, KAT-Coder-Pro-V2.5 (PayGo), and KAT-Coder-Air-V2.5 (PayGo) with streamlined V2 model tooltips ([#296](https://github.com/VicBilibily/GCMP/issues/296)).
+
 ## [0.25.35] - 2026-07-13
 
 ### 修复
