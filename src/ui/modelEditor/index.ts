@@ -188,6 +188,7 @@ export class ModelEditor {
         delete (model as { editTools?: boolean | string[] }).editTools;
         // 删除仅用于表单内部传输的辅助字段，避免泄露到 settings.json
         delete (model as { webSearchToolConfig?: string }).webSearchToolConfig;
+        delete (model as { nativeTools?: string }).nativeTools;
 
         // tooltip: 空字符串 → undefined 表示清空（CompatibleModelConfig 字段为可选，不用 null）
         model.tooltip = data.tooltip || undefined;
@@ -224,6 +225,19 @@ export class ModelEditor {
             // 非 anthropic / 非 openai-responses 模式下 webSearchTool 不生效，强制清空
             // 避免用户从生效模式切走后，隐藏的旧值被保存回 settings.json
             model.webSearchTool = undefined;
+        }
+
+        // nativeTools 仅在 anthropic / openai-responses 模式下生效
+        // 解析 JSON 数组，无效或为空时清空；非生效模式强制清空
+        if (data.sdkMode === 'anthropic' || data.sdkMode === 'openai-responses') {
+            const parsedNativeTools = this.parseJsonValue(data.nativeTools);
+            if (Array.isArray(parsedNativeTools) && parsedNativeTools.length > 0) {
+                model.nativeTools = parsedNativeTools as typeof model.nativeTools;
+            } else {
+                model.nativeTools = undefined;
+            }
+        } else {
+            model.nativeTools = undefined;
         }
 
         // reasoningEffort 多选值，空数组 → undefined 清理字段
@@ -371,6 +385,10 @@ export class ModelEditor {
             webSearchToolConfig:
                 model?.webSearchTool && typeof model.webSearchTool === 'object' ?
                     JSON.stringify(model.webSearchTool, null, 2)
+                :   '',
+            nativeTools:
+                model?.nativeTools && Array.isArray(model.nativeTools) && model.nativeTools.length > 0 ?
+                    JSON.stringify(model.nativeTools, null, 2)
                 :   '',
             reasoningEffort: model?.reasoningEffort || [],
             reasoningDefault: model?.reasoningDefault || '',

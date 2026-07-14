@@ -7,7 +7,14 @@ import type { EditorState } from '../app';
 import type { ModelFormData } from '../types';
 import { t } from '../l10n';
 import { CLI_RESERVED_PROVIDERS } from '../types';
-import { isValidProxyInput, normalizeProxyInput, parseJSON, validateJSON, validateWebSearchToolConfig } from '../utils';
+import {
+    isValidProxyInput,
+    normalizeProxyInput,
+    parseJSON,
+    validateJSON,
+    validateNativeTools,
+    validateWebSearchToolConfig
+} from '../utils';
 
 /**
  * 显示全局错误提示
@@ -191,6 +198,16 @@ export function validateForm(): boolean {
         }
     }
 
+    const nativeToolsJson = (document.getElementById('nativeTools') as HTMLTextAreaElement).value.trim();
+    if (isFieldVisible('nativeTools') && nativeToolsJson) {
+        const nativeToolsError = validateNativeTools(nativeToolsJson);
+        if (nativeToolsError) {
+            showGlobalError(nativeToolsError);
+            document.getElementById('nativeTools')?.focus();
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -224,6 +241,7 @@ export function collectFormData(state: EditorState): ModelFormData | null {
     const useInstructionsEl = document.getElementById('useInstructions') as HTMLInputElement | null;
     const webSearchToolEl = document.getElementById('webSearchTool') as HTMLInputElement | null;
     const webSearchToolConfigEl = document.getElementById('webSearchToolConfig') as HTMLTextAreaElement | null;
+    const nativeToolsEl = document.getElementById('nativeTools') as HTMLTextAreaElement | null;
 
     const useInstructions =
         sdkMode === 'openai-responses' ? (useInstructionsEl?.checked ?? false) : (state.model.useInstructions ?? false);
@@ -234,6 +252,9 @@ export function collectFormData(state: EditorState): ModelFormData | null {
 
     // webSearchToolConfig 从 JSON textarea 收集
     const webSearchToolConfig = (webSearchToolConfigEl?.value ?? '').trim();
+
+    // nativeTools 从 JSON textarea 收集
+    const nativeTools = (nativeToolsEl?.value ?? '').trim();
 
     // reasoningEffort 多选
     const reasoningEffortContainer = document.getElementById('reasoningEffortOptions');
@@ -273,6 +294,7 @@ export function collectFormData(state: EditorState): ModelFormData | null {
         useInstructions,
         webSearchTool,
         webSearchToolConfig,
+        nativeTools,
         reasoningEffort: reasoningEffortValues as ModelFormData['reasoningEffort'],
         reasoningDefault: reasoningDefault as ModelFormData['reasoningDefault'],
         // 当前可视化编辑器尚未提供 tokenPricing 单独输入控件；保存时保留已有值，

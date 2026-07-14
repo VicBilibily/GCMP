@@ -40,11 +40,6 @@ function normalizeDetailKey(key: string): string {
         .replace(/^_+|_+$/g, '');
 }
 
-function getNumericField(source: Record<string, unknown>, key: string): number | undefined {
-    const value = source[key];
-    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-}
-
 function toNestedNumericDetails(value: unknown, prefix: string): NumericDetails | undefined {
     if (!isRecord(value)) {
         return undefined;

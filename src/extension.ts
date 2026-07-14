@@ -31,6 +31,8 @@ import { registerCommitCommands, checkGitAvailability } from './commit';
 import { clearRegisteredProviders, registerProvider, registeredProviders } from './utils/providerRegistry';
 import { t } from './utils/l10n';
 import { runStartupUtilityModelWizardIfNeeded } from './wizards/startupUtilityModelWizard';
+import { selectVisionModel } from './wizards/visionWizard';
+import { AuxiliaryModelSettingsPanel } from './ui/auxiliaryModelSettings';
 
 /**
  * 全局变量 - 存储已注册的提供商实例，用于扩展卸载时的清理
@@ -353,8 +355,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // 步骤9: 注册模型设置向导命令
         stepStartTime = Date.now();
-        const { selectVisionModel } = await import('./wizards/visionWizard');
-        const { AuxiliaryModelSettingsPanel } = await import('./ui/auxiliaryModelSettings');
         context.subscriptions.push(
             vscode.commands.registerCommand('gcmp.modelSettings.wizard', () =>
                 AuxiliaryModelSettingsPanel.createAndShow(context)

@@ -19,6 +19,7 @@ import {
     addNumberValidation,
     addSimpleValidation,
     autoResizeAllTextareas,
+    autoResizeTextarea,
     isValidJSONObject,
     normalizeProxyInput,
     parseJSON,
@@ -67,6 +68,7 @@ const state: EditorState = {
         useInstructions: undefined,
         webSearchTool: undefined,
         webSearchToolConfig: '',
+        nativeTools: '',
         reasoningEffort: [],
         reasoningDefault: '',
         tokenPricing: '',
@@ -96,6 +98,7 @@ function initializeEditor(): void {
     validateJSON_UI('customHeader');
     validateJSON_UI('extraBody');
     validateJSON_UI('webSearchToolConfig');
+    validateJSON_UI('nativeTools');
 
     postToVSCode({ command: 'ready' });
 
@@ -505,7 +508,7 @@ export function formatJSON(fieldId: string): void {
         }
         textarea.value = JSON.stringify(parsed, null, 2);
         validateJSON_UI(fieldId);
-        import('./utils').then(({ autoResizeTextarea }) => autoResizeTextarea(textarea));
+        autoResizeTextarea(textarea);
         textarea.style.opacity = '0.7';
         setTimeout(() => (textarea.style.opacity = '1'), 200);
         hideGlobalError();
@@ -523,7 +526,7 @@ export function clearJSON(fieldId: string): void {
     }
     textarea.value = '';
     validateJSON_UI(fieldId);
-    import('./utils').then(({ autoResizeTextarea }) => autoResizeTextarea(textarea));
+    autoResizeTextarea(textarea);
 }
 
 // ============= 启动 =============

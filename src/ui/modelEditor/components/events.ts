@@ -101,7 +101,7 @@ export function bindEvents(state: EditorState, actions: Actions): void {
     }
 
     // JSON 验证事件 + 工具栏按钮
-    ['customHeader', 'extraBody', 'webSearchToolConfig'].forEach(fieldId => {
+    ['customHeader', 'extraBody', 'webSearchToolConfig', 'nativeTools'].forEach(fieldId => {
         const textarea = document.getElementById(fieldId) as HTMLTextAreaElement | null;
         textarea?.addEventListener('input', () => validateJSON_UI(fieldId));
         textarea?.addEventListener('change', () => validateJSON_UI(fieldId));
@@ -204,17 +204,20 @@ export function bindEvents(state: EditorState, actions: Actions): void {
     const webSearchToolConfigContainer = document
         .getElementById('webSearchToolConfig')
         ?.closest('.form-group') as HTMLElement | null;
+    const nativeToolsContainer = document.getElementById('nativeTools')?.closest('.form-group') as HTMLElement | null;
     if (sdkModeSelect && useInstructionsContainer && webSearchToolContainer) {
         const updateSdkSpecificOptionsVisibility = function () {
             const sdkMode = sdkModeSelect.value;
             const webSearchToolEnabled = webSearchToolToggle?.checked ?? false;
+            const nativeToolsEffective = sdkMode === 'anthropic' || sdkMode === 'openai-responses';
 
             useInstructionsContainer.style.display = sdkMode === 'openai-responses' ? '' : 'none';
-            webSearchToolContainer.style.display =
-                sdkMode === 'anthropic' || sdkMode === 'openai-responses' ? '' : 'none';
+            webSearchToolContainer.style.display = nativeToolsEffective ? '' : 'none';
             if (webSearchToolConfigContainer) {
-                webSearchToolConfigContainer.style.display =
-                    (sdkMode === 'anthropic' || sdkMode === 'openai-responses') && webSearchToolEnabled ? '' : 'none';
+                webSearchToolConfigContainer.style.display = nativeToolsEffective && webSearchToolEnabled ? '' : 'none';
+            }
+            if (nativeToolsContainer) {
+                nativeToolsContainer.style.display = nativeToolsEffective ? '' : 'none';
             }
 
             if (provider?.value) {

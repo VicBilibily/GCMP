@@ -11,7 +11,13 @@ import { DateUtils } from './fileLogger/dateUtils';
 import { InterInstanceBus } from '../interInstance';
 import { EventEmitter } from 'events';
 import type { DateSummary } from './types';
-import type { GenericUsageData, RawUsageData, DateIndexEntry, OTelTraceContextLog } from './fileLogger/types';
+import type {
+    CostBreakdownLog,
+    DateIndexEntry,
+    GenericUsageData,
+    OTelTraceContextLog,
+    RawUsageData
+} from './fileLogger/types';
 import type { MultiDayAnalysisResult } from './multiDay/types';
 import { MultiDayAggregator } from './multiDay/multiDayAggregator';
 import { TrendCalculator } from './multiDay/trendCalculator';
@@ -176,7 +182,7 @@ export class TokenUsagesManager {
         /** 客户端预估成本 (USD)，由 Handler 通过 calculateCostWithBreakdown 计算 */
         estimatedCost?: number;
         /** 成本计算明细（命中单价、成本组成等） */
-        costBreakdown?: import('./fileLogger/types').CostBreakdownLog;
+        costBreakdown?: CostBreakdownLog;
     }): Promise<void> {
         if (!this.initialized) {
             StatusLogger.warn('TokenUsagesManager is not initialized, skipping token usage update');

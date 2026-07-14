@@ -1,4 +1,4 @@
-{
+﻿{
     "displayName": "AliDashScope",
     "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
@@ -156,14 +156,15 @@
             "name": "Qwen3.7-Plus (TokenPlan)",
             "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
             "provider": "dashscope-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
             "model": "qwen3.7-plus",
             "contextSize": [1000000, 640000, 512000, 320000, 256000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
+            "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
                 "pricing": [0.4, 1.6, 0.08, 0.4],
                 "tiers": [{ "contextSizeMin": 256000, "pricing": [1.2, 4.8] }]
@@ -174,14 +175,15 @@
             "name": "Qwen3.7-Max (TokenPlan)",
             "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
             "provider": "dashscope-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
             "model": "qwen3.7-max",
             "contextSize": [1000000, 640000, 512000, 320000, 256000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
+            "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": [2.5, 7.5, 0.5, 2.5]
         },
         {
@@ -189,14 +191,15 @@
             "name": "Qwen3.6-Plus (TokenPlan)",
             "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
             "provider": "dashscope-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
             "model": "qwen3.6-plus",
             "contextSize": [1000000, 640000, 512000, 320000, 256000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
+            "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
                 "pricing": [0.5, 3.0, 0.1, 0.5],
                 "tiers": [{ "contextSizeMin": 256000, "pricing": [2.0, 6.0] }]
@@ -207,14 +210,15 @@
             "name": "Qwen3.6-Flash (TokenPlan)",
             "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
             "provider": "dashscope-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
             "model": "qwen3.6-flash",
             "contextSize": [1000000, 640000, 512000, 320000, 256000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
+            "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
                 "pricing": [0.25, 1.5, 0.05, 0.25],
                 "tiers": [{ "contextSizeMin": 256000, "pricing": [1.0, 4.0] }]
@@ -371,8 +375,10 @@
             "contextSize": [1000000, 640000, 512000, 320000, 256000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
+            "sdkMode": "openai-responses",
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
+            "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
                 "pricing": [0.4, 1.6, 0.08, 0.4],
                 "tiers": [{ "contextSizeMin": 256000, "pricing": [1.2, 4.8] }]
@@ -385,8 +391,10 @@
             "contextSize": [1000000, 640000, 512000, 320000, 256000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
+            "sdkMode": "openai-responses",
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
+            "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": [2.5, 7.5, 0.5, 2.5]
         },
         {
@@ -396,8 +404,10 @@
             "contextSize": [1000000, 640000, 512000, 320000, 256000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
+            "sdkMode": "openai-responses",
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
+            "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
                 "pricing": [0.5, 3.0, 0.1, 0.5],
                 "tiers": [{ "contextSizeMin": 256000, "pricing": [2.0, 6.0] }]
@@ -410,8 +420,10 @@
             "contextSize": [1000000, 640000, 512000, 320000, 256000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
+            "sdkMode": "openai-responses",
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
+            "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
                 "pricing": [0.25, 1.5, 0.05, 0.25],
                 "tiers": [{ "contextSizeMin": 256000, "pricing": [1.0, 4.0] }]
@@ -420,14 +432,14 @@
         {
             "id": "qwen3.5-plus",
             "name": "Qwen3.5-Plus",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
             "tooltip": "Qwen3.5原生视觉语言系列Plus模型，基于混合架构设计，融合了线性注意力机制与稀疏混合专家模型，实现了更高的推理效率。在多项任务评测中，3.5系列均展现出与当前顶尖前沿模型相媲美的卓越性能，模型效果在纯文本与多模态方面相较3系列均实现飞跃式进步。",
             "contextSize": [1000000, 640000, 512000, 320000, 256000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
+            "sdkMode": "openai-responses",
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
+            "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
                 "pricing": [0.4, 2.4, 0.08, 0.4],
                 "tiers": [{ "contextSizeMin": 256000, "pricing": [0.5, 3.0] }]
@@ -436,14 +448,14 @@
         {
             "id": "qwen3.5-flash",
             "name": "Qwen3.5-Flash",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
             "tooltip": "Qwen3.5原生视觉语言系列Flash模型，基于混合架构设计，融合了线性注意力机制与稀疏混合专家模型，实现了更高的推理效率。模型效果在纯文本与多模态方面相较3系列均实现飞跃式进步；响应速度快，兼具推理速度和性能。",
             "contextSize": [1000000, 640000, 512000, 320000, 256000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
+            "sdkMode": "openai-responses",
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
+            "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": [0.1, 0.4, 0.02, 0.1]
         },
         {

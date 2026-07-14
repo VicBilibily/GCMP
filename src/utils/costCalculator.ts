@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ModelTokenPricing, ModelTokenPricingInput, PricingTier } from '../types/sharedTypes';
-import type { GenericUsageData } from '../usages/fileLogger/types';
+import type { CostBreakdownLog, GenericUsageData } from '../usages/fileLogger/types';
 import { UsageParser } from '../usages/fileLogger/usageParser';
 import { resolveActiveTier, normalizeTokenPricing } from './pricingTierResolver';
 
@@ -324,7 +324,7 @@ function getUncachedInputTokens(
  * 将 CostBreakdown 转为精简日志格式 CostBreakdownLog。
  * 字段顺序固定：tokens/pricing/cost 均为 [input, output, cacheRead, cacheWrite]。
  */
-export function toCostBreakdownLog(breakdown: CostBreakdown): import('../usages/fileLogger/types').CostBreakdownLog {
+export function toCostBreakdownLog(breakdown: CostBreakdown): CostBreakdownLog {
     const activeTier =
         breakdown.activeTierCron || breakdown.activeTierServiceTier ?
             [breakdown.activeTierCron, breakdown.activeTierServiceTier].filter(Boolean).join(' ')

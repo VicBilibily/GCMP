@@ -249,6 +249,17 @@ export function createDOM(state: CreateDomState, rootEl?: HTMLElement): void {
                 '联网搜索原生工具的可选详细配置。allowedDomains、blockedDomains 和 userLocation 在 anthropic 与 openai-responses 模式下均生效；maxUses 仅在 anthropic 模式下生效。'
             )
         ),
+        createJSONFormGroup(
+            'nativeTools',
+            t('Native Tools (JSON array)', '额外原生工具箱（JSON 数组）'),
+            'nativeTools',
+            model.nativeTools,
+            t('e.g. [{"type": "web_extractor"}]', '例如: [{"type": "web_extractor"}]'),
+            t(
+                'Additional native tools to inject (e.g. web_extractor). Stacked with webSearchTool; if web_search is present, nativeTools takes precedence. openai-responses injects all; anthropic only uses web_search items.',
+                '额外注入的原生工具（如 web_extractor）。与 webSearchTool 叠加注入；若含 web_search 则以 nativeTools 为准。openai-responses 注入全部；anthropic 仅取 web_search 项。'
+            )
+        ),
         createMultiSelectCheckboxFormGroup(
             'reasoningEffortOptions',
             t('Reasoning Effort Options', '推理强度选项'),

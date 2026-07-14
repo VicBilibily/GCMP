@@ -16,9 +16,10 @@ import { VersionManager } from '../utils/versionManager';
 import { createOpenCodeHeaders } from '../utils/formatUtils';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { t } from '../utils/l10n';
-import type { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
+import type { ModelChatResponseOptions, ModelConfig, NativeToolConfig, ProviderConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { StreamReporter } from './streamReporter';
+import { mergeNativeToolConfigs } from './nativeToolUtils';
 import * as liveMetrics from './liveMetrics';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import { isSubRequest, type RequestKind } from './requestClassifier';
@@ -45,13 +46,7 @@ export class AnthropicHandler {
         return this.providerConfig?.baseUrl;
     }
 
-    private createAnthropicWebSearchTool(modelConfig: ModelConfig): Anthropic.Messages.WebSearchTool20250305 {
-        const raw = modelConfig.webSearchTool;
-        const config: import('../types/sharedTypes').WebSearchToolConfig =
-            typeof raw === 'boolean' ? {}
-            : typeof raw === 'object' ? raw
-            : {};
-
+    private createAnthropicWebSearchTool(config: NativeToolConfig): Anthropic.Messages.WebSearchTool20250305 {
         const tool: Anthropic.Messages.WebSearchTool20250305 = {
             name: 'web_search',
             type: 'web_search_20250305'
@@ -230,8 +225,15 @@ export class AnthropicHandler {
             // 准备工具定义
             const tools: Anthropic.Messages.ToolUnion[] =
                 options.tools ? convertToAnthropicTools([...options.tools]) : [];
-            if (modelConfig.webSearchTool && !tools.some(tool => tool.name === 'web_search')) {
-                tools.push(this.createAnthropicWebSearchTool(modelConfig));
+            // 合并 nativeTools 中的 web_search 项与 webSearchTool，去重（nativeTools 优先）
+            // Anthropic 仅支持 web_search，其他工具类型（如 web_extractor）忽略
+            if (!tools.some(tool => tool.name === 'web_search')) {
+                const wsConfig = mergeNativeToolConfigs(modelConfig.nativeTools, modelConfig.webSearchTool).find(
+                    tool => tool.type === 'web_search'
+                );
+                if (wsConfig) {
+                    tools.push(this.createAnthropicWebSearchTool(wsConfig));
+                }
             }
 
             // 使用模型配置中的 model 字段，如果没有则使用 model.id

@@ -425,7 +425,7 @@ export class TokenCounter {
      * - 每个工具：8 tokens + 对象内容 token 数
      * - 最后乘以 1.1 的安全系数（官方标准）
      */
-    private countToolsTokens(tools?: readonly LanguageModelChatTool[], modelConfig?: { sdkMode?: string }): number {
+    private countToolsTokens(tools?: readonly LanguageModelChatTool[], _modelConfig?: { sdkMode?: string }): number {
         const baseToolTokens = 16;
         let numTokens = 0;
         if (!tools || tools.length === 0) {

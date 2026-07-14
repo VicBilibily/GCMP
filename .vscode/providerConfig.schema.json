@@ -166,6 +166,47 @@
                 }
             }
         },
+        "nativeToolConfig": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "原生工具配置项。type 为工具类型，其余字段仅对 web_search 生效，其他工具忽略。",
+            "required": ["type"],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "原生工具类型（如 web_search、web_extractor）。不限定枚举，允许任意字符串以兼容未来新增的内置工具。"
+                },
+                "maxUses": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "最大搜索次数，默认 5（仅 anthropic 模式、web_search 生效）。"
+                },
+                "allowedDomains": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 },
+                    "uniqueItems": true,
+                    "description": "域名白名单（仅 web_search 生效）。"
+                },
+                "blockedDomains": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 },
+                    "uniqueItems": true,
+                    "description": "域名黑名单（仅 web_search 生效）。"
+                },
+                "userLocation": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "city": { "type": "string", "minLength": 1, "description": "用户所在城市" },
+                        "region": { "type": "string", "minLength": 1, "description": "用户所在地区" },
+                        "country": { "type": "string", "minLength": 1, "description": "ISO 国家代码" },
+                        "timezone": { "type": "string", "minLength": 1, "description": "IANA 时区" }
+                    },
+                    "description": "用户近似位置（仅 web_search 生效）。"
+                }
+            }
+        },
         "tokenPricing": {
             "description": "Token 定价信息（USD / 每百万 token），用于客户端成本估算和模型选择器展示。支持对象形式（含 tiers 分档）或简写数组形式 [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]（2~4 项数字）。",
             "oneOf": [
@@ -463,6 +504,11 @@
                     "oneOf": [{ "type": "boolean" }, { "$ref": "#/$defs/webSearchToolConfig" }],
                     "default": false
                 },
+                "nativeTools": {
+                    "type": "array",
+                    "description": "额外原生工具箱（可选）。补充注入 OpenAI Responses API 内置工具（如 web_extractor）。与 webSearchTool 叠加注入；若含 web_search 则以 nativeTools 为准。仅 openai-responses 生效；anthropic 仅取 web_search 项。",
+                    "items": { "$ref": "#/$defs/nativeToolConfig" }
+                },
                 "tokenPricing": {
                     "$ref": "#/$defs/tokenPricing"
                 }
@@ -487,6 +533,11 @@
                                 "description": "启用原生联网搜索工具。anthropic 模式使用 Anthropic web_search_20250305；openai-responses 模式使用 Responses API web_search。为 true 时使用默认配置，也可传入详细配置对象。",
                                 "oneOf": [{ "type": "boolean" }, { "$ref": "#/$defs/webSearchToolConfig" }],
                                 "default": false
+                            },
+                            "nativeTools": {
+                                "type": "array",
+                                "description": "额外原生工具箱。openai-responses 模式注入 web_extractor 等内置工具；anthropic 模式仅取其中的 web_search 项。与 webSearchTool 叠加，若含 web_search 则以 nativeTools 为准。",
+                                "items": { "$ref": "#/$defs/nativeToolConfig" }
                             }
                         }
                     },
@@ -494,6 +545,9 @@
                         "properties": {
                             "webSearchTool": {
                                 "deprecationMessage": "webSearchTool 仅对 anthropic 和 openai-responses 模式生效"
+                            },
+                            "nativeTools": {
+                                "deprecationMessage": "nativeTools 仅对 anthropic 和 openai-responses 模式生效"
                             }
                         }
                     }

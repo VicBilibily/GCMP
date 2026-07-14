@@ -996,6 +996,12 @@ export class ConfigManager {
                     `  Model ${modelOverride.id}: override webSearchTool = ${JSON.stringify(modelOverride.webSearchTool)}`
                 );
             }
+            if (modelOverride.nativeTools !== undefined) {
+                target.nativeTools = modelOverride.nativeTools;
+                Logger.debug(
+                    `  Model ${modelOverride.id}: override nativeTools = ${JSON.stringify(modelOverride.nativeTools)}`
+                );
+            }
             if (modelOverride.family !== undefined) {
                 target.family = modelOverride.family;
                 Logger.debug(`  Model ${modelOverride.id}: override family = ${modelOverride.family}`);

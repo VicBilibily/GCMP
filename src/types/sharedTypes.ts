@@ -172,6 +172,13 @@ export interface ModelConfig {
      */
     webSearchTool?: boolean | WebSearchToolConfig;
     /**
+     * 额外原生工具箱（可选）。
+     * 补充注入 OpenAI Responses API 内置工具（如 web_extractor）。
+     * 重复配置时以 nativeTools 为准；webSearchTool 仍独立保留，两者叠加注入。
+     * 仅 sdkMode=openai-responses 生效；anthropic 模式仅取其中的 web_search 项。
+     */
+    nativeTools?: NativeToolConfig[];
+    /**
      * 模型特定的代理服务器地址（可选）
      * 如果提供，将覆盖提供商级别的代理设置
      */
@@ -341,6 +348,33 @@ export interface WebSearchToolConfig {
 }
 
 /**
+ * 原生工具类型（OpenAI Responses API 内置工具等）。
+ * 常见值：web_search（联网搜索）、web_extractor（网页内容提取）。
+ * 不限定枚举，允许任意字符串以兼容未来新增的内置工具。
+ */
+export type NativeToolType = string;
+
+/**
+ * 原生工具配置项。type 为工具类型，其余字段仅对 web_search 生效，其他工具忽略。
+ */
+export interface NativeToolConfig {
+    type: NativeToolType;
+    /** 最大搜索次数，默认 5（仅 anthropic 模式生效） */
+    maxUses?: number;
+    /** 域名白名单（仅 web_search 生效） */
+    allowedDomains?: string[];
+    /** 域名黑名单（仅 web_search 生效） */
+    blockedDomains?: string[];
+    /** 用户近似位置（仅 web_search 生效） */
+    userLocation?: {
+        city?: string;
+        region?: string;
+        country?: string;
+        timezone?: string;
+    };
+}
+
+/**
  * 模型覆盖配置接口 - 用于用户配置覆盖
  */
 export interface ModelOverride {
@@ -395,6 +429,8 @@ export interface ModelOverride {
     useInstructions?: boolean;
     /** 是否启用模型的联网搜索原生工具（anthropic / openai-responses 均支持）。支持布尔值或详细配置对象（两模式均支持对象配置） */
     webSearchTool?: boolean | WebSearchToolConfig;
+    /** 额外原生工具箱。覆盖目标模型的 nativeTools 字段；重复配置时以新值为准。仅 openai-responses 生效，anthropic 仅取 web_search 项 */
+    nativeTools?: NativeToolConfig[];
     /** 模型特定的代理服务器地址（可选） */
     proxy?: string;
     /**

@@ -1,6 +1,17 @@
 /*---------------------------------------------------------------------------------------------
  *  Dashscope (阿里云百炼) 专用 Provider
  *  为 Dashscope 提供商提供多密钥管理和配置向导功能
+ *--------------------------------------------------------------------------------------------*
+ *  关于百炼 Responses API 内置工具（web_search / web_extractor / code_interpreter）：
+ *  GCMP 不特意适配这些工具的中间执行输出（如 web_extractor_call 的 goal/output、
+ *  code_interpreter_call 的 code/outputs），因此中间过程不会回显到对话流，仅最终
+ *  文本回复可见。但模型内部仍可自行调用这些工具完成联网搜索、网页抓取、代码执行，
+ *  底层注入链路已通过 nativeTools 完整支持。预置模型仅启用 web_search + web_extractor。
+ *
+ *  ⚠️ 不兼容 code_interpreter：code_interpreter 与 Function Calling 互斥（同时启用会报错），
+ *  而 GCMP 的 Copilot agent 场景默认携带 function tools，因此预置模型与自定义模型均不
+ *  支持 code_interpreter。用户若强行在自定义模型中配置 nativeTools 含 code_interpreter，
+ *  在带工具调用的请求中会触发百炼服务端报错。
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';

@@ -48,6 +48,8 @@ export interface ModelFormData {
     webSearchTool: boolean | undefined;
     /** webSearchTool 对象配置（JSON 字符串），anthropic / openai-responses 模式支持 */
     webSearchToolConfig: string;
+    /** 额外原生工具箱（JSON 字符串），anthropic / openai-responses 模式支持 */
+    nativeTools: string;
     reasoningEffort: ReasoningEffort[];
     reasoningDefault: ReasoningEffort | '';
     tokenPricing: string; // JSON 字符串

@@ -12,7 +12,7 @@ import { configProviders } from '../providers/config';
 import { t } from './l10n';
 import { sanitizeConfigForLogging } from './proxyAgent';
 import { ModelEditor } from '../ui/modelEditor';
-import type { ModelTokenPricingInput } from '../types/sharedTypes';
+import type { ModelTokenPricingInput, NativeToolConfig, WebSearchToolConfig } from '../types/sharedTypes';
 
 /**
  * 后退按钮点击事件
@@ -101,7 +101,9 @@ export interface CompatibleModelConfig {
      */
     useInstructions?: boolean;
     /** 是否启用模型的联网搜索原生工具（anthropic / openai-responses 均支持）。支持布尔值或详细配置对象 */
-    webSearchTool?: boolean | import('../types/sharedTypes').WebSearchToolConfig;
+    webSearchTool?: boolean | WebSearchToolConfig;
+    /** 额外原生工具箱（如 web_extractor）。仅 openai-responses 生效；anthropic 仅取 web_search 项 */
+    nativeTools?: NativeToolConfig[];
     /**
      * 深度思考模式选项列表（可选）
      * 用于 UI 配置选择，决定用户可选择的思考模式范围：
@@ -845,8 +847,7 @@ export class CompatibleModelManager {
      */
     private static async getHistoricalCustomProviders(): Promise<string[]> {
         try {
-            // 导入提供商配置以获取内置提供商列表
-            const { configProviders } = await import('../providers/config/index.js');
+            // 使用顶部已静态导入的 configProviders 获取内置提供商列表
             const builtinProviders = Object.keys(configProviders);
             const knownProviders = Object.keys(KnownProviders);
             // 从现有模型中获取所有唯一的提供商标识

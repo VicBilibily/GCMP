@@ -219,6 +219,148 @@ export function validateWebSearchToolConfig(jsonString: string): string | null {
 }
 
 /**
+ * 验证 nativeTools JSON 数组的字段类型
+ * 与 providerConfig.schema.json / jsonSchemaProvider.ts 中的 nativeToolConfig schema 约束保持一致：
+ * - 必须为数组
+ * - 每个元素必须含 type 字段（非空字符串，如 web_search / web_extractor）
+ * - 仅 web_search 支持额外字段（maxUses/allowedDomains/blockedDomains/userLocation）
+ * 返回 null 表示通过，否则返回错误消息字符串
+ */
+export function validateNativeTools(jsonString: string): string | null {
+    if (!jsonString || jsonString.trim() === '') {
+        return null;
+    }
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(jsonString);
+    } catch {
+        return t('Native Tools JSON must be a valid array.', '原生工具箱配置的JSON格式不正确，必须是数组类型');
+    }
+    if (!Array.isArray(parsed)) {
+        return t('Native Tools JSON must be a valid array.', '原生工具箱配置的JSON格式不正确，必须是数组类型');
+    }
+
+    const ALLOWED_TOP_KEYS = ['type', 'maxUses', 'allowedDomains', 'blockedDomains', 'userLocation'];
+    const ALLOWED_LOCATION_KEYS = ['city', 'region', 'country', 'timezone'];
+
+    for (let i = 0; i < parsed.length; i++) {
+        const item = parsed[i] as unknown;
+        if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+            return t('Native Tools[{0}] must be an object.', '原生工具箱第 {0} 项必须是对象', String(i));
+        }
+        const obj = item as Record<string, unknown>;
+
+        // type 必填且为非空字符串（不限定枚举，兼容未来新增工具）
+        if (typeof obj.type !== 'string' || obj.type.trim() === '') {
+            return t(
+                'Native Tools[{0}].type must be a non-empty string (e.g. web_search, web_extractor).',
+                '原生工具箱第 {0} 项的 type 必须是非空字符串（如 web_search、web_extractor）',
+                String(i)
+            );
+        }
+
+        // 顶层字段白名单（schema 用 additionalProperties: false 约束）
+        const unknownKey = Object.keys(obj).find(k => !ALLOWED_TOP_KEYS.includes(k));
+        if (unknownKey) {
+            return t(
+                'Native Tools[{0}] contains unknown field "{1}". Allowed: type, maxUses, allowedDomains, blockedDomains, userLocation.',
+                '原生工具箱第 {0} 项包含未知字段 "{1}"。允许的字段: type, maxUses, allowedDomains, blockedDomains, userLocation',
+                String(i),
+                unknownKey
+            );
+        }
+
+        // 非 web_search 跳过额外字段校验：schema 与运行时均声明"其他工具忽略额外字段"
+        if (obj.type !== 'web_search') {
+            continue;
+        }
+
+        // web_search 的额外字段校验
+        if (obj.maxUses !== undefined) {
+            if (typeof obj.maxUses !== 'number' || obj.maxUses <= 0 || !Number.isInteger(obj.maxUses)) {
+                return t(
+                    'Native Tools[{0}].maxUses must be a positive integer.',
+                    '原生工具箱第 {0} 项的 maxUses 必须是正整数',
+                    String(i)
+                );
+            }
+        }
+
+        const validateDomainArray = (value: unknown, field: string): string | null => {
+            if (!Array.isArray(value)) {
+                return t('{0} must be an array of strings.', '{0} 必须是字符串数组', field);
+            }
+            if (value.some(item => typeof item !== 'string')) {
+                return t('{0} must be an array of strings.', '{0} 必须是字符串数组', field);
+            }
+            if (value.some(item => typeof item === 'string' && item.trim() === '')) {
+                return t('{0} must not contain empty strings.', '{0} 不能包含空字符串', field);
+            }
+            const seen = new Set<string>();
+            for (const item of value as string[]) {
+                if (seen.has(item)) {
+                    return t('{0} must not contain duplicate values.', '{0} 不能包含重复值', field);
+                }
+                seen.add(item);
+            }
+            return null;
+        };
+
+        if (obj.allowedDomains !== undefined) {
+            const err = validateDomainArray(obj.allowedDomains, `Native Tools[${i}].allowedDomains`);
+            if (err) {
+                return err;
+            }
+        }
+        if (obj.blockedDomains !== undefined) {
+            const err = validateDomainArray(obj.blockedDomains, `Native Tools[${i}].blockedDomains`);
+            if (err) {
+                return err;
+            }
+        }
+
+        if (obj.userLocation !== undefined) {
+            if (typeof obj.userLocation !== 'object' || obj.userLocation === null || Array.isArray(obj.userLocation)) {
+                return t(
+                    'Native Tools[{0}].userLocation must be an object.',
+                    '原生工具箱第 {0} 项的 userLocation 必须是对象',
+                    String(i)
+                );
+            }
+            const loc = obj.userLocation as Record<string, unknown>;
+            const unknownLocKey = Object.keys(loc).find(k => !ALLOWED_LOCATION_KEYS.includes(k));
+            if (unknownLocKey) {
+                return t(
+                    'Native Tools[{0}].userLocation contains unknown field "{1}". Allowed: city, region, country, timezone.',
+                    '原生工具箱第 {0} 项的 userLocation 包含未知字段 "{1}"。允许的字段: city, region, country, timezone',
+                    String(i),
+                    unknownLocKey
+                );
+            }
+            for (const key of Object.keys(loc)) {
+                if (typeof loc[key] !== 'string') {
+                    return t(
+                        'Native Tools[{0}].userLocation.{1} must be a string.',
+                        '原生工具箱第 {0} 项的 userLocation.{1} 必须是字符串',
+                        String(i),
+                        key
+                    );
+                }
+                if ((loc[key] as string).trim() === '') {
+                    return t(
+                        'Native Tools[{0}].userLocation.{1} must not be empty.',
+                        '原生工具箱第 {0} 项的 userLocation.{1} 不能为空字符串',
+                        String(i),
+                        key
+                    );
+                }
+            }
+        }
+    }
+    return null;
+}
+
+/**
  * 解析 JSON 字符串为对象（空或无效返回 undefined）
  */
 export function parseJSON(jsonString: string): Record<string, unknown> | undefined {

@@ -9,11 +9,12 @@ import { TokenUsagesManager } from '../usages/usagesManager';
 import { Logger, sanitizeToolSchema, isCancellationError } from '../utils';
 import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu, toCostBreakdownLog } from '../utils';
 import { t } from '../utils/l10n';
-import { ModelChatResponseOptions, ModelConfig, ModelTokenPricing, WebSearchToolConfig } from '../types/sharedTypes';
+import { ModelChatResponseOptions, ModelConfig, ModelTokenPricing, NativeToolConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { getStatefulMarkerAndIndex } from './statefulMarker';
 import { StreamReporter } from './streamReporter';
 import { isSubRequest, type RequestKind } from './requestClassifier';
+import { mergeNativeToolConfigs } from './nativeToolUtils';
 import * as liveMetrics from './liveMetrics';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
@@ -605,48 +606,56 @@ export class OpenAIResponsesHandler {
                     }
                 }
 
-                // 添加原生 Responses API 工具（web_search）
-                // 仅根据模型能力配置（webSearchTool）决定是否注入，不受 provider 缓存过滤影响：
-                // web_search 为固定原生工具，续聊时追加同一工具定义不会破坏 previous_response_id 缓存语义；
-                // 不支持 web_search 的模型/提供商不会开启 webSearchTool 配置，天然被过滤
-                //
-                // 配置映射（WebSearchToolConfig -> OpenAI WebSearchTool）：
-                // - allowedDomains -> filters.allowed_domains
-                // - blockedDomains -> filters.blocked_domains
-                // - userLocation   -> user_location（补充 type: 'approximate'）
-                // - maxUses：OpenAI Responses API 不支持，忽略
-                // 未配置或仅为 true 时，只保留 type 字段，其余字段均不传递（让 API 使用默认值）
-                if (modelConfig.webSearchTool) {
-                    const raw = modelConfig.webSearchTool;
-                    const config: WebSearchToolConfig = typeof raw === 'object' && raw !== null ? raw : {};
-                    const webSearchTool: Record<string, unknown> = { type: 'web_search' };
-                    // allowedDomains / blockedDomains 合并到同一个 filters 对象
-                    const filters: Record<string, unknown> = {};
-                    if (config.allowedDomains?.length) {
-                        filters.allowed_domains = config.allowedDomains;
+                // 添加原生 Responses API 工具（web_search + 额外工具箱 nativeTools）
+                // 注入规则：
+                // - webSearchTool（布尔/对象）独立保留，向后兼容
+                // - nativeTools 为额外工具箱，与 webSearchTool 叠加注入
+                // - 若 nativeTools 已含 web_search，则 webSearchTool 不再重复注入（以 nativeTools 为准）
+                // 不受 provider 缓存过滤影响：内置工具为固定原生工具，续聊追加不会破坏缓存语义
+                {
+                    // 将 NativeToolConfig 转换为 Responses API tools 数组项
+                    const buildToolEntry = (cfg: NativeToolConfig): Record<string, unknown> => {
+                        const entry: Record<string, unknown> = { type: cfg.type };
+                        // 仅 web_search 支持额外配置；其他工具（如 web_extractor）无额外字段
+                        if (cfg.type === 'web_search') {
+                            const filters: Record<string, unknown> = {};
+                            if (cfg.allowedDomains?.length) {
+                                filters.allowed_domains = cfg.allowedDomains;
+                            }
+                            if (cfg.blockedDomains?.length) {
+                                filters.blocked_domains = cfg.blockedDomains;
+                            }
+                            if (Object.keys(filters).length > 0) {
+                                entry.filters = filters;
+                            }
+                            if (cfg.userLocation) {
+                                entry.user_location = {
+                                    type: 'approximate',
+                                    ...cfg.userLocation
+                                };
+                            }
+                            // maxUses：OpenAI Responses API 不支持，忽略
+                        }
+                        return entry;
+                    };
+
+                    // 合并 webSearchTool + nativeTools：
+                    // - nativeTools 中同一 type 重复时，以后者覆盖前者
+                    // - 若 nativeTools 已含 web_search，则不再重复注入 webSearchTool
+                    const merged = mergeNativeToolConfigs(modelConfig.nativeTools, modelConfig.webSearchTool);
+
+                    if (merged.length > 0) {
+                        const nativeToolEntries = merged.map(buildToolEntry);
+                        const existingTools = requestBody.tools as unknown[] | undefined;
+                        if (existingTools) {
+                            requestBody.tools = [...existingTools, ...nativeToolEntries];
+                        } else {
+                            requestBody.tools = nativeToolEntries;
+                        }
+                        Logger.debug(
+                            `${this.displayName} Added native Responses API tools: ${nativeToolEntries.map(t => t.type).join(', ')}`
+                        );
                     }
-                    if (config.blockedDomains?.length) {
-                        filters.blocked_domains = config.blockedDomains;
-                    }
-                    if (Object.keys(filters).length > 0) {
-                        webSearchTool.filters = filters;
-                    }
-                    if (config.userLocation) {
-                        webSearchTool.user_location = {
-                            type: 'approximate',
-                            ...config.userLocation
-                        };
-                    }
-                    const nativeTools: Array<Record<string, unknown>> = [webSearchTool];
-                    const existingTools = requestBody.tools as unknown[] | undefined;
-                    if (existingTools) {
-                        requestBody.tools = [...existingTools, ...nativeTools];
-                    } else {
-                        requestBody.tools = nativeTools;
-                    }
-                    Logger.debug(
-                        `${this.displayName} Added native Responses API tools: ${nativeTools.map(t => t.type).join(', ')}`
-                    );
                 }
 
                 // Process extra configuration parameters from extraBody

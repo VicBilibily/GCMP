@@ -89,6 +89,90 @@ export class JsonSchemaProvider {
         );
     }
 
+    /**
+     * nativeToolConfig 单项 schema（与 providerConfig.schema.json/$defs/nativeToolConfig 一致）
+     */
+    private static getNativeToolConfigSchema(): Record<string, unknown> {
+        return {
+            type: 'object',
+            additionalProperties: false,
+            required: ['type'],
+            description: t(
+                'Native tool configuration item. Only web_search supports extra fields; web_extractor ignores them.',
+                '原生工具配置项。仅 web_search 支持额外字段，web_extractor 忽略。'
+            ),
+            properties: {
+                type: {
+                    type: 'string',
+                    minLength: 1,
+                    description: t(
+                        'Native tool type (e.g. web_search, web_extractor)',
+                        '原生工具类型（如 web_search、web_extractor）'
+                    )
+                },
+                maxUses: {
+                    type: 'integer',
+                    minimum: 1,
+                    description: t(
+                        'Max search count, default 5 (anthropic + web_search only)',
+                        '最大搜索次数，默认 5（仅 anthropic 模式、web_search 生效）'
+                    )
+                },
+                allowedDomains: {
+                    type: 'array',
+                    items: { type: 'string', minLength: 1 },
+                    uniqueItems: true,
+                    description: t('Domain allowlist (web_search only)', '域名白名单（仅 web_search 生效）')
+                },
+                blockedDomains: {
+                    type: 'array',
+                    items: { type: 'string', minLength: 1 },
+                    uniqueItems: true,
+                    description: t('Domain blocklist (web_search only)', '域名黑名单（仅 web_search 生效）')
+                },
+                userLocation: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                        city: { type: 'string', minLength: 1 },
+                        region: { type: 'string', minLength: 1 },
+                        country: { type: 'string', minLength: 1 },
+                        timezone: { type: 'string', minLength: 1 }
+                    },
+                    description: t('User approximate location (web_search only)', '用户近似位置（仅 web_search 生效）')
+                }
+            }
+        };
+    }
+
+    /**
+     * nativeTools 数组 schema（root properties 用）
+     */
+    private static getNativeToolsArraySchema(): Record<string, unknown> {
+        return {
+            type: 'array',
+            description: t(
+                'Additional native tools (e.g. web_extractor). Stacked with webSearchTool; if web_search is present in nativeTools, nativeTools takes precedence. Only openai-responses effective; anthropic only uses web_search items.',
+                '额外原生工具箱（如 web_extractor）。与 webSearchTool 叠加注入；若含 web_search 则以 nativeTools 为准。仅 openai-responses 生效；anthropic 仅取 web_search 项。'
+            ),
+            items: this.getNativeToolConfigSchema()
+        };
+    }
+
+    /**
+     * nativeTools 数组 schema（then-branch 用，描述更具体）
+     */
+    private static getNativeToolsArraySchemaEnabled(): Record<string, unknown> {
+        return {
+            type: 'array',
+            description: t(
+                'Additional native tools. openai-responses injects web_extractor; anthropic only uses web_search items. Stacked with webSearchTool; if web_search is present, nativeTools takes precedence.',
+                '额外原生工具箱。openai-responses 模式注入 web_extractor 等内置工具；anthropic 模式仅取其中的 web_search 项。与 webSearchTool 叠加，若含 web_search 则以 nativeTools 为准。'
+            ),
+            items: this.getNativeToolConfigSchema()
+        };
+    }
+
     private static getThinkingDescription(): string {
         return t(
             'Thinking configuration that controls whether the model outputs chain-of-thought content',
@@ -661,9 +745,6 @@ export class JsonSchemaProvider {
         // 获取所有可用的提供商ID（用于其它配置项，如 fim/nes/compatibleModels.provider）
         const { providerIds, enumDescriptions: allProviderDescriptions } = this.getAllAvailableProviders();
 
-        // Commit 模型选择：provider 是 VS Code Language Model API 的 vendor（注册给 VS Code 的提供商ID）
-        const commitSchema = this.getCommitModelSchema();
-
         return {
             $schema: 'http://json-schema.org/draft-07/schema#',
             $id: this.SCHEMA_URI,
@@ -860,6 +941,7 @@ export class JsonSchemaProvider {
                                 ],
                                 description: this.getAnthropicWebSearchDescription()
                             },
+                            nativeTools: this.getNativeToolsArraySchema(),
                             family: this.getFamilySchema(),
                             thinking: {
                                 type: 'array',
@@ -1111,7 +1193,8 @@ export class JsonSchemaProvider {
                                                     additionalProperties: false
                                                 }
                                             ]
-                                        }
+                                        },
+                                        nativeTools: this.getNativeToolsArraySchemaEnabled()
                                     }
                                 },
                                 else: {
@@ -1120,6 +1203,12 @@ export class JsonSchemaProvider {
                                             deprecationMessage: t(
                                                 'webSearchTool is only effective for anthropic and openai-responses modes',
                                                 'webSearchTool 仅对 anthropic 和 openai-responses 模式生效'
+                                            )
+                                        },
+                                        nativeTools: {
+                                            deprecationMessage: t(
+                                                'nativeTools is only effective for anthropic and openai-responses modes',
+                                                'nativeTools 仅对 anthropic 和 openai-responses 模式生效'
                                             )
                                         }
                                     }
@@ -1249,7 +1338,7 @@ export class JsonSchemaProvider {
                     }
                 },
                 // Commit 模型选择：保存 provider + model
-                'gcmp.commit.model': commitSchema,
+                'gcmp.commit.model': this.getCommitModelSchema(),
                 // Vision 模型选择：保存 provider + model
                 'gcmp.vision.model': this.getVisionModelSchema()
             },
@@ -1517,6 +1606,7 @@ export class JsonSchemaProvider {
                                 ],
                                 description: this.getAnthropicWebSearchDescription()
                             },
+                            nativeTools: this.getNativeToolsArraySchema(),
                             family: this.getFamilySchema(),
                             thinking: {
                                 type: 'array',
@@ -1540,8 +1630,8 @@ export class JsonSchemaProvider {
                                 enumDescriptions: this.getReasoningFormatEnumDescriptions(),
                                 default: 'flat',
                                 description: t(
-                                    'Format of the reasoning parameter in API requests (only effective for openai mode)',
-                                    'API请求中 reasoning 参数的格式（仅 openai 模式生效）'
+                                    'Format of the reasoning parameter in API requests (only effective for openai/openai-sse)',
+                                    'API请求中 reasoning 参数的格式（仅 openai/openai-sse 模式生效）'
                                 )
                             },
                             reasoningEffort: {
@@ -1638,7 +1728,8 @@ export class JsonSchemaProvider {
                                                     additionalProperties: false
                                                 }
                                             ]
-                                        }
+                                        },
+                                        nativeTools: this.getNativeToolsArraySchemaEnabled()
                                     }
                                 },
                                 else: {
@@ -1647,6 +1738,12 @@ export class JsonSchemaProvider {
                                             deprecationMessage: t(
                                                 'webSearchTool is only effective for anthropic and openai-responses modes',
                                                 'webSearchTool 仅对 anthropic 和 openai-responses 模式生效'
+                                            )
+                                        },
+                                        nativeTools: {
+                                            deprecationMessage: t(
+                                                'nativeTools is only effective for anthropic and openai-responses modes',
+                                                'nativeTools 仅对 anthropic 和 openai-responses 模式生效'
                                             )
                                         }
                                     }
@@ -1725,6 +1822,75 @@ export class JsonSchemaProvider {
                                                 'reasoningFormat is only effective for openai and openai-sse modes',
                                                 'reasoningFormat 仅对 openai 和 openai-sse 模式生效'
                                             )
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                // family 条件建议：根据 sdkMode 推荐默认值
+                                // anthropic 模式推荐 claude-sonnet-4.6
+                                if: {
+                                    properties: {
+                                        sdkMode: { const: 'anthropic' }
+                                    },
+                                    required: ['sdkMode']
+                                },
+                                then: {
+                                    properties: {
+                                        family: {
+                                            type: 'string',
+                                            description: t(
+                                                'Model family identifier. Default for anthropic mode: claude-sonnet-4.6\nClaude-style editing tool (replace_string_in_file) - efficient, precise single replacements',
+                                                '模型的 family 标识。anthropic 模式默认: claude-sonnet-4.6\nClaude 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换'
+                                            ),
+                                            default: 'claude-sonnet-4.6',
+                                            enum: ['claude-sonnet-4.6', 'gpt-5.2'],
+                                            enumDescriptions: [
+                                                t(
+                                                    'Claude-style editing tool (replace_string_in_file) - recommended',
+                                                    'Claude 风格编辑工具 (replace_string_in_file) - 推荐'
+                                                ),
+                                                t(
+                                                    'GPT-5-style editing tool (apply_patch)',
+                                                    'GPT-5 风格编辑工具 (apply_patch)'
+                                                )
+                                            ]
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                // openai/openai-sse/openai-responses 模式（默认）
+                                if: {
+                                    anyOf: [
+                                        { not: { required: ['sdkMode'] } },
+                                        {
+                                            properties: {
+                                                sdkMode: { enum: ['openai', 'openai-sse', 'openai-responses'] }
+                                            },
+                                            required: ['sdkMode']
+                                        }
+                                    ]
+                                },
+                                then: {
+                                    properties: {
+                                        family: {
+                                            type: 'string',
+                                            description: t(
+                                                'Model family identifier.\nDefault for openai/openai-sse/openai-responses modes: claude-sonnet-4.6\nClaude-style editing tool (replace_string_in_file) - efficient, precise single replacements',
+                                                '模型的 family 标识。\nopenai/openai-sse/openai-responses 模式默认: claude-sonnet-4.6\nClaude 风格编辑工具 (replace_string_in_file) - 高效精确的单次替换'
+                                            ),
+                                            enum: ['claude-sonnet-4.6', 'gpt-5.2'],
+                                            enumDescriptions: [
+                                                t(
+                                                    'Claude-style editing tool (replace_string_in_file) - recommended',
+                                                    'Claude 风格编辑工具 (replace_string_in_file) - 推荐'
+                                                ),
+                                                t(
+                                                    'GPT-5-style editing tool (apply_patch) - batch diff application',
+                                                    'GPT-5 风格编辑工具 (apply_patch) - 批量差异应用'
+                                                )
+                                            ]
                                         }
                                     }
                                 }
