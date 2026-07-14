@@ -30,6 +30,8 @@
     "command.xiaomimimo.configWizard": "启动 Xiaomi MiMo 配置向导",
     "command.baidu.setApiKey": "设置 百度千帆 API密钥",
     "command.baidu.setCodingPlanApiKey": "设置 百度千帆 Coding Plan 专用密钥",
+    "command.baidu.setTokenPlanApiKey": "设置 百度千帆 Token Plan 专用密钥",
+    "command.baidu.setTokenEnterpriseApiKey": "设置 百度千帆 Token Plan 企业专用密钥",
     "command.baidu.configWizard": "启动 百度千帆 配置向导",
     "command.stepfun.setApiKey": "设置 阶跃星辰 StepFun API密钥",
     "command.stepfun.configWizard": "StepFun 配置向导（API密钥 & 搜索 MCP 模式）",

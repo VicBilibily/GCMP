@@ -115,6 +115,8 @@ const KNOWN_KEY_LABELS: Record<string, string> = {
     'volcengine-agent': 'Volcengine Agent Plan',
     'xiaomimimo-token': 'Xiaomi MiMo Token Plan',
     'baidu-coding': 'Baidu Qianfan Coding Plan',
+    'baidu-token': 'Baidu Qianfan Token Plan',
+    'baidu-token-enterprise': 'Baidu Qianfan Token Plan Enterprise',
     'xfyun-coding': 'XunFei Astron Coding Plan',
     'xfyun-token': 'XunFei Astron Token Plan'
 };

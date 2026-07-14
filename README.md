@@ -172,7 +172,9 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 
 - **按量计费(PayGo)**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**DeepSeek-V3.2**、**GLM-5.2**、**GLM-5.1**、**GLM-5**、**Kimi-K2.6**、**Kimi-K2.5**、**ERNIE-5.1**、**ERNIE-5.0**
 - [**Coding Plan 编程套餐**](https://cloud.baidu.com/product/codingplan)：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**GLM-5.1**、**DeepSeek-V3.2**、**GLM-5**、**Kimi-K2.5**
-- **密钥配置**：支持设置 [百度千帆 API Key](https://console.bce.baidu.com/qianfan/ais/console/apiKey) 与 [Coding Plan 专用 API Key](https://console.bce.baidu.com/qianfan/resource/subscribe) 分别设置。
+- [**Token Plan 套餐**](https://cloud.baidu.com/doc/qianfan/s/Dmrabu8b6)：**GLM-5.2**、**GLM-5.1**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**、**Kimi-K2.6**、**ERNIE-5.1**
+- [**Token Plan 企业版**](https://cloud.baidu.com/doc/qianfan/s/ymq8wwch2)：**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**、**DeepSeek-V3.2**、**GLM-5.2**、**GLM-5.1**、**GLM-5**、**Kimi-K2.6**
+- **密钥配置**：支持设置 [百度千帆 API Key](https://console.bce.baidu.com/qianfan/ais/console/apiKey)、[Coding Plan 专用 API Key](https://console.bce.baidu.com/qianfan/resource/subscribe)、[Token Plan 专用 API Key](https://console.bce.baidu.com/qianfan/resource/token-plan) 与 [Token Plan 企业专用 API Key](https://console.bce.baidu.com/qianfan/resource/token-plan-enterprise/my-subscription) 分别设置。
 
 ### [**阶跃星辰**](https://platform.stepfun.com/?invite_code=VMQHFFSU) - StepFun
 

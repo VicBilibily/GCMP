@@ -172,7 +172,9 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 
 - **PayGo**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **DeepSeek-V3.2**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **Kimi-K2.6**, **Kimi-K2.5**, **ERNIE-5.1**, **ERNIE-5.0**
 - [**Coding Plan**](https://cloud.baidu.com/product/codingplan): **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **GLM-5.1**, **DeepSeek-V3.2**, **GLM-5**, **Kimi-K2.5**
-- **Key configuration**: Supports separate [Baidu Qianfan API Key](https://console.bce.baidu.com/qianfan/ais/console/apiKey) and [Coding Plan API Key](https://console.bce.baidu.com/qianfan/resource/subscribe).
+- [**Token Plan**](https://cloud.baidu.com/doc/qianfan/s/Dmrabu8b6): **GLM-5.2**, **GLM-5.1**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **Kimi-K2.6**, **ERNIE-5.1**
+- [**Token Plan Enterprise**](https://cloud.baidu.com/doc/qianfan/s/ymq8wwch2): **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **DeepSeek-V3.2**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **Kimi-K2.6**
+- **Key configuration**: Supports separate [Baidu Qianfan API Key](https://console.bce.baidu.com/qianfan/ais/console/apiKey), [Coding Plan API Key](https://console.bce.baidu.com/qianfan/resource/subscribe), [Token Plan API Key](https://console.bce.baidu.com/qianfan/resource/token-plan), and [Token Plan Enterprise API Key](https://console.bce.baidu.com/qianfan/resource/token-plan-enterprise/my-subscription).
 
 ### [**StepFun**](https://platform.stepfun.com/)
 

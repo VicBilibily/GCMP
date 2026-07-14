@@ -257,6 +257,16 @@
                 "category": "GCMP"
             },
             {
+                "command": "gcmp.baidu.setTokenPlanApiKey",
+                "title": "%command.baidu.setTokenPlanApiKey%",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.baidu.setTokenEnterpriseApiKey",
+                "title": "%command.baidu.setTokenEnterpriseApiKey%",
+                "category": "GCMP"
+            },
+            {
                 "command": "gcmp.baidu.configWizard",
                 "title": "%command.baidu.configWizard%",
                 "category": "GCMP"

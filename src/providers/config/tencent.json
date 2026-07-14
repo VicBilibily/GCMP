@@ -412,13 +412,13 @@
         },
         {
             "id": "deepseek-v4-flash-token-enterprise",
-            "name": "DeepSeek-V4-Flash (Token Plan Enterprise)",
+            "name": "DeepSeek-V4-Flash (TokenPlanEnterprise)",
             "tooltip": "腾讯云 Token Plan 企业版按量付费中的 DeepSeek-V4-Flash。",
             "provider": "tencent-token-enterprise",
             "sdkMode": "anthropic",
             "baseUrl": "https://tokenhub.tencentmaas.com/plan/anthropic",
             "model": "deepseek-v4-flash",
-            "reasoningEffort": [  "high", "max", "none" ],
+            "reasoningEffort": ["high", "max", "none"],
             "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
@@ -426,7 +426,7 @@
         },
         {
             "id": "deepseek-v4-flash-202605-token-enterprise",
-            "name": "DeepSeek-V4-Flash-202605 (Token Plan Enterprise)",
+            "name": "DeepSeek-V4-Flash-202605 (TokenPlanEnterprise)",
             "tooltip": "腾讯云 Token Plan 企业版按量付费中的 DeepSeek-V4-Flash-202605。",
             "provider": "tencent-token-enterprise",
             "sdkMode": "anthropic",
@@ -440,7 +440,7 @@
         },
         {
             "id": "deepseek-v4-pro-token-enterprise",
-            "name": "DeepSeek-V4-Pro (Token Plan Enterprise)",
+            "name": "DeepSeek-V4-Pro (TokenPlanEnterprise)",
             "tooltip": "腾讯云 Token Plan 企业版按量付费中的 DeepSeek-V4-Pro。",
             "provider": "tencent-token-enterprise",
             "sdkMode": "anthropic",
@@ -454,7 +454,7 @@
         },
         {
             "id": "deepseek-v4-pro-202606-token-enterprise",
-            "name": "DeepSeek-V4-Pro-202606 (Token Plan Enterprise)",
+            "name": "DeepSeek-V4-Pro-202606 (TokenPlanEnterprise)",
             "tooltip": "腾讯云 Token Plan 企业版按量付费中的 DeepSeek-V4-Pro-202606。",
             "provider": "tencent-token-enterprise",
             "sdkMode": "anthropic",
@@ -468,7 +468,7 @@
         },
         {
             "id": "glm-5-token-enterprise",
-            "name": "GLM-5 (Token Plan Enterprise)",
+            "name": "GLM-5 (TokenPlanEnterprise)",
             "tooltip": "腾讯云 Token Plan 企业版按量付费中的 GLM-5。",
             "provider": "tencent-token-enterprise",
             "sdkMode": "anthropic",
@@ -481,7 +481,7 @@
         },
         {
             "id": "glm-5-turbo-token-enterprise",
-            "name": "GLM-5-Turbo (Token Plan Enterprise)",
+            "name": "GLM-5-Turbo (TokenPlanEnterprise)",
             "tooltip": "腾讯云 Token Plan 企业版按量付费中的 GLM-5-Turbo。",
             "provider": "tencent-token-enterprise",
             "sdkMode": "anthropic",
@@ -493,7 +493,7 @@
         },
         {
             "id": "glm-5.1-token-enterprise",
-            "name": "GLM-5.1 (Token Plan Enterprise)",
+            "name": "GLM-5.1 (TokenPlanEnterprise)",
             "tooltip": "腾讯云 Token Plan 企业版按量付费中的 GLM-5.1。",
             "provider": "tencent-token-enterprise",
             "sdkMode": "anthropic",
@@ -506,7 +506,7 @@
         },
         {
             "id": "glm-5.2-token-enterprise",
-            "name": "GLM-5.2 (Token Plan Enterprise)",
+            "name": "GLM-5.2 (TokenPlanEnterprise)",
             "tooltip": "腾讯云 Token Plan 企业版按量付费中的 GLM-5.2。",
             "provider": "tencent-token-enterprise",
             "sdkMode": "anthropic",
@@ -520,7 +520,7 @@
         },
         {
             "id": "kimi-k2.5-token-enterprise",
-            "name": "Kimi-K2.5 (Token Plan Enterprise)",
+            "name": "Kimi-K2.5 (TokenPlanEnterprise)",
             "tooltip": "腾讯云 Token Plan 企业版按量付费中的 Kimi K2.5。",
             "provider": "tencent-token-enterprise",
             "sdkMode": "anthropic",
@@ -533,7 +533,7 @@
         },
         {
             "id": "kimi-k2.6-token-enterprise",
-            "name": "Kimi-K2.6 (Token Plan Enterprise)",
+            "name": "Kimi-K2.6 (TokenPlanEnterprise)",
             "tooltip": "腾讯云 Token Plan 企业版按量付费中的 Kimi K2.6。",
             "provider": "tencent-token-enterprise",
             "sdkMode": "anthropic",
@@ -546,7 +546,7 @@
         },
         {
             "id": "kimi-k2.7-code-token-enterprise",
-            "name": "Kimi-K2.7-Code (Token Plan Enterprise)",
+            "name": "Kimi-K2.7-Code (TokenPlanEnterprise)",
             "tooltip": "腾讯云 Token Plan 企业版按量付费中的 Kimi K2.7 Code。",
             "provider": "tencent-token-enterprise",
             "sdkMode": "anthropic",
@@ -559,7 +559,7 @@
         },
         {
             "id": "kimi-k2.7-code-highspeed-token-enterprise",
-            "name": "Kimi-K2.7-Code HighSpeed (Token Plan Enterprise)",
+            "name": "Kimi-K2.7-Code HighSpeed (TokenPlanEnterprise)",
             "tooltip": "腾讯云 Token Plan 企业版按量付费中的 Kimi K2.7 Code HighSpeed。",
             "provider": "tencent-token-enterprise",
             "sdkMode": "anthropic",
@@ -572,7 +572,7 @@
         },
         {
             "id": "minimax-m2.5-token-enterprise",
-            "name": "MiniMax-M2.5 (Token Plan Enterprise)",
+            "name": "MiniMax-M2.5 (TokenPlanEnterprise)",
             "tooltip": "腾讯云 Token Plan 企业版按量付费中的 MiniMax M2.5。",
             "provider": "tencent-token-enterprise",
             "sdkMode": "anthropic",
@@ -584,7 +584,7 @@
         },
         {
             "id": "minimax-m2.7-token-enterprise",
-            "name": "MiniMax-M2.7 (Token Plan Enterprise)",
+            "name": "MiniMax-M2.7 (TokenPlanEnterprise)",
             "tooltip": "腾讯云 Token Plan 企业版按量付费中的 MiniMax M2.7。",
             "provider": "tencent-token-enterprise",
             "sdkMode": "anthropic",
@@ -596,7 +596,7 @@
         },
         {
             "id": "minimax-m3-token-enterprise",
-            "name": "MiniMax-M3 (Token Plan Enterprise)",
+            "name": "MiniMax-M3 (TokenPlanEnterprise)",
             "tooltip": "腾讯云 Token Plan 企业版按量付费中的 MiniMax M3。",
             "provider": "tencent-token-enterprise",
             "sdkMode": "anthropic",

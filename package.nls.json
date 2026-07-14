@@ -30,6 +30,8 @@
     "command.xiaomimimo.configWizard": "Xiaomi MiMo Configuration Wizard",
     "command.baidu.setApiKey": "Set Baidu Qianfan API Key",
     "command.baidu.setCodingPlanApiKey": "Set Baidu Qianfan Coding Plan API Key",
+    "command.baidu.setTokenPlanApiKey": "Set Baidu Qianfan Token Plan API Key",
+    "command.baidu.setTokenEnterpriseApiKey": "Set Baidu Qianfan Token Plan Enterprise API Key",
     "command.baidu.configWizard": "Baidu Qianfan Configuration Wizard",
     "command.stepfun.setApiKey": "Set StepFun API Key",
     "command.stepfun.configWizard": "StepFun Configuration Wizard (API Key & Search MCP Mode)",

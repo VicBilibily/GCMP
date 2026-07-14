@@ -58,18 +58,51 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
                 provider._onDidChangeLanguageModelChatInformation.fire();
             }
         );
+        // 注册设置 Token 个人专用密钥命令
+        const setTokenPlanApiKeyCommand = vscode.commands.registerCommand(
+            `gcmp.${providerKey}.setTokenPlanApiKey`,
+            async () => {
+                await BaiduWizard.setTokenPlanApiKey(
+                    providerConfig.displayName,
+                    providerConfig.tokenKeyTemplate || providerConfig.apiKeyTemplate
+                );
+                // API 密钥变更后清除缓存
+                await provider.modelInfoCache?.invalidateCache('baidu-token');
+                // 触发模型信息变更事件
+                provider._onDidChangeLanguageModelChatInformation.fire();
+            }
+        );
+        // 注册设置 Token 企业专用密钥命令
+        const setTokenEnterpriseApiKeyCommand = vscode.commands.registerCommand(
+            `gcmp.${providerKey}.setTokenEnterpriseApiKey`,
+            async () => {
+                await BaiduWizard.setTokenEnterpriseApiKey(providerConfig.displayName, providerConfig.apiKeyTemplate);
+                // API 密钥变更后清除缓存
+                await provider.modelInfoCache?.invalidateCache('baidu-token-enterprise');
+                // 触发模型信息变更事件
+                provider._onDidChangeLanguageModelChatInformation.fire();
+            }
+        );
         // 注册配置向导命令
         const configWizardCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.configWizard`, async () => {
             Logger.info(`Starting ${providerConfig.displayName} setup wizard`);
             await BaiduWizard.startWizard(
                 providerConfig.displayName,
                 providerConfig.apiKeyTemplate,
-                providerConfig.codingKeyTemplate
+                providerConfig.codingKeyTemplate,
+                providerConfig.tokenKeyTemplate
             );
             await provider.modelInfoCache?.invalidateCache(providerKey);
             provider._onDidChangeLanguageModelChatInformation.fire();
         });
-        const disposables = [providerDisposable, setApiKeyCommand, setCodingKeyCommand, configWizardCommand];
+        const disposables = [
+            providerDisposable,
+            setApiKeyCommand,
+            setCodingKeyCommand,
+            setTokenPlanApiKeyCommand,
+            setTokenEnterpriseApiKeyCommand,
+            configWizardCommand
+        ];
         disposables.forEach(disposable => context.subscriptions.push(disposable));
         return { provider, disposables };
     }
@@ -81,7 +114,13 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
     private async ensureApiKeyForModel(modelConfig: ModelConfig): Promise<string> {
         const providerKey = this.getProviderKeyForModel(modelConfig);
         const isCodingPlan = providerKey === 'baidu-coding';
-        const keyType = isCodingPlan ? 'Coding Plan dedicated' : 'standard';
+        const isToken = providerKey === 'baidu-token';
+        const isTokenEnterprise = providerKey === 'baidu-token-enterprise';
+        const keyType =
+            isCodingPlan ? 'Coding Plan dedicated'
+            : isToken ? 'Token Plan dedicated'
+            : isTokenEnterprise ? 'Token Plan Enterprise dedicated'
+            : 'standard';
         // 检查是否已有密钥
         const hasApiKey = await ApiKeyManager.hasValidApiKey(providerKey);
         if (hasApiKey) {
@@ -97,6 +136,18 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
             await BaiduWizard.setCodingPlanApiKey(
                 this.providerConfig.displayName,
                 this.providerConfig.codingKeyTemplate
+            );
+        } else if (isToken) {
+            // Token 个人模型直接进入专用密钥设置
+            await BaiduWizard.setTokenPlanApiKey(
+                this.providerConfig.displayName,
+                this.providerConfig.tokenKeyTemplate || this.providerConfig.apiKeyTemplate
+            );
+        } else if (isTokenEnterprise) {
+            // Token 企业模型直接进入专用密钥设置
+            await BaiduWizard.setTokenEnterpriseApiKey(
+                this.providerConfig.displayName,
+                this.providerConfig.apiKeyTemplate
             );
         } else {
             // 普通模型直接进入普通密钥设置
@@ -126,7 +177,9 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
         // 检查是否有任意密钥
         const hasNormalKey = await ApiKeyManager.hasValidApiKey(this.providerKey);
         const hasCodingKey = await ApiKeyManager.hasValidApiKey('baidu-coding');
-        const hasAnyKey = hasNormalKey || hasCodingKey;
+        const hasTokenKey = await ApiKeyManager.hasValidApiKey('baidu-token');
+        const hasTokenEnterpriseKey = await ApiKeyManager.hasValidApiKey('baidu-token-enterprise');
+        const hasAnyKey = hasNormalKey || hasCodingKey || hasTokenKey || hasTokenEnterpriseKey;
         // 如果是静默模式且没有任何密钥，直接返回空列表
         if (options.silent && !hasAnyKey) {
             Logger.debug(
@@ -139,13 +192,16 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
             await BaiduWizard.startWizard(
                 this.providerConfig.displayName,
                 this.providerConfig.apiKeyTemplate,
-                this.providerConfig.codingKeyTemplate
+                this.providerConfig.codingKeyTemplate,
+                this.providerConfig.tokenKeyTemplate
             );
             // 重新检查是否设置了密钥
             const normalKeyValid = await ApiKeyManager.hasValidApiKey(this.providerKey);
             const codingKeyValid = await ApiKeyManager.hasValidApiKey('baidu-coding');
+            const tokenKeyValid = await ApiKeyManager.hasValidApiKey('baidu-token');
+            const tokenEnterpriseKeyValid = await ApiKeyManager.hasValidApiKey('baidu-token-enterprise');
             // 如果用户仍未设置任何密钥，返回空列表
-            if (!normalKeyValid && !codingKeyValid) {
+            if (!normalKeyValid && !codingKeyValid && !tokenKeyValid && !tokenEnterpriseKeyValid) {
                 Logger.warn(
                     `${this.providerConfig.displayName}: user did not configure any keys, returning empty model list`
                 );
@@ -183,11 +239,20 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
         const providerKey = this.getProviderKeyForModel(modelConfig);
         const apiKey = await this.ensureApiKeyForModel(modelConfig);
         if (!apiKey) {
-            const keyType = providerKey === 'baidu-coding' ? 'Coding Plan dedicated' : 'standard';
+            const keyType =
+                providerKey === 'baidu-coding' ? 'Coding Plan dedicated'
+                : providerKey === 'baidu-token' ? 'Token Plan dedicated'
+                : providerKey === 'baidu-token-enterprise' ? 'Token Plan Enterprise dedicated'
+                : 'standard';
             throw new Error(`${this.providerConfig.displayName}: invalid ${keyType} API key`);
         }
+        const keyLabel =
+            providerKey === 'baidu-coding' ? 'Coding Plan'
+            : providerKey === 'baidu-token' ? 'Token Plan'
+            : providerKey === 'baidu-token-enterprise' ? 'Token Plan Enterprise'
+            : 'standard';
         Logger.debug(
-            `${this.providerConfig.displayName}: about to handle request using ${providerKey === 'baidu-coding' ? 'Coding Plan' : 'standard'} key - model: ${modelConfig.name}`
+            `${this.providerConfig.displayName}: about to handle request using ${keyLabel} key - model: ${modelConfig.name}`
         );
 
         // 请求分类 + 注入到 options.modelOptions（上层已设置 requestKind 时直接使用）
