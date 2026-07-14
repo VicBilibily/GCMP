@@ -112,7 +112,8 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [1.142857, 4, 0.285714]
         },
         {
             "id": "glm-5.1-token",
@@ -125,7 +126,11 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": {
+                "pricing": [0.857143, 3.428571, 0.185714],
+                "tiers": [{ "contextSizeMin": 32001, "pricing": [1.142857, 4, 0.285714] }]
+            }
         },
         {
             "id": "deepseek-v4-pro-token",
@@ -139,7 +144,8 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [1.714286, 3.428571, 0.142857]
         },
         {
             "id": "deepseek-v4-flash-token",
@@ -153,7 +159,8 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [0.142857, 0.285714, 0.028571]
         },
         {
             "id": "kimi-k2.6-token",
@@ -166,7 +173,8 @@
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [0.928571, 3.857143, 0.157143]
         },
         {
             "id": "ernie-5.1-token",
@@ -179,7 +187,11 @@
             "maxInputTokens": 119000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": {
+                "pricing": [0.571429, 2.571429],
+                "tiers": [{ "contextSizeMin": 32001, "pricing": [0.857143, 3.142857] }]
+            }
         },
         {
             "id": "deepseek-v4-pro-token-enterprise",
@@ -193,7 +205,8 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [1.714286, 3.428571, 0.142857]
         },
         {
             "id": "deepseek-v4-flash-token-enterprise",
@@ -207,7 +220,8 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [0.142857, 0.285714, 0.028571]
         },
         {
             "id": "deepseek-v3.2-token-enterprise",
@@ -220,7 +234,11 @@
             "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
             "thinking": ["disabled", "enabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": {
+                "pricing": [0.285714, 0.428571, 0.057143],
+                "tiers": [{ "contextSizeMin": 32001, "pricing": [0.571429, 0.857143, 0.057143] }]
+            }
         },
         {
             "id": "glm-5.2-token-enterprise",
@@ -234,7 +252,8 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [1.142857, 4, 0.285714]
         },
         {
             "id": "glm-5.1-token-enterprise",
@@ -247,7 +266,11 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": {
+                "pricing": [0.857143, 3.428571, 0.185714],
+                "tiers": [{ "contextSizeMin": 32001, "pricing": [1.142857, 4, 0.285714] }]
+            }
         },
         {
             "id": "glm-5-token-enterprise",
@@ -260,12 +283,16 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": {
+                "pricing": [0.571429, 2.571429, 0.142857],
+                "tiers": [{ "contextSizeMin": 32001, "pricing": [0.857143, 3.142857, 0.214286] }]
+            }
         },
         {
             "id": "kimi-k2.6-token-enterprise",
             "name": "Kimi-K2.6 (TokenPlanEnterprise)",
-            "tooltip": "百度千帆 Token Plan 企业版专属接入点中的 Kimi-K2.6。具备更强更稳的长程代码编写能力，同时支持文本、图片输入。",
+            "tooltip": "百度千帆 Token Plan 企业版专属接入点中的 Kimi-K2.6。具备更强更稳的长程代码编写能力，同时支持文本、图片与视频输入，思考与非思考模式，对话与 Agent 任务。",
             "provider": "baidu-token-enterprise",
             "sdkMode": "anthropic",
             "baseUrl": "https://qianfan.baidubce.com/anthropic/tokenplan/team",
@@ -273,7 +300,8 @@
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": [0.928571, 3.857143, 0.157143]
         },
         {
             "id": "deepseek-v4-flash",

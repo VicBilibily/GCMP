@@ -12,7 +12,8 @@
             "tooltip": "KAT-Coder-Pro V2.5 是一款能将完整 issue 或整段业务工作流直接交给它、在真实仓库中自主定位修改并跑通全流程的旗舰级 Agentic Coding 模型，同时通过多专家融合完整延续了 V2 的前端美学生成能力。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 80000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.714286, 2.857143, 0.142857]
         },
         {
             "id": "KAT-Coder-Pro-V2.5",
@@ -23,7 +24,8 @@
             "tooltip": "KAT-Coder-Pro V2.5 是一款能将完整 issue 或整段业务工作流直接交给它、在真实仓库中自主定位修改并跑通全流程的旗舰级 Agentic Coding 模型，同时通过多专家融合完整延续了 V2 的前端美学生成能力。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 80000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.714286, 2.857143, 0.142857]
         },
         {
             "id": "KAT-Coder-Air-V2.5",
@@ -34,7 +36,8 @@
             "tooltip": "KAT-Coder-Air V2.5 是一款能轻量快速版，助力开发者高效编码的模型。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 80000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.142857, 0.571429, 0.028571]
         },
         {
             "id": "KAT-Coder-Pro-V2-Coding-Plan",
