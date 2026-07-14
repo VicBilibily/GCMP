@@ -1,6 +1,6 @@
-﻿import * as fs from 'node:fs';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { Logger } from './logger';
+import { StatusLogger } from './statusLogger';
 import {
     buildHarFileName,
     calculateHarCompression,
@@ -9,6 +9,7 @@ import {
     planHarCleanup,
     readBodyData,
     readResponseBodyData,
+    shouldRotateHarFileForAge,
     shouldRotateHarFileForDayChange,
     type HarBodyData,
     type HarFileRecord
@@ -96,6 +97,7 @@ interface HarRecorderState {
     storageDir: string;
     filePath: string;
     fileDayKey: string;
+    fileCreatedAt: number;
     entries: HarEntry[];
     flushTimer: NodeJS.Timeout | undefined;
     lastFlushTime: number;
@@ -119,6 +121,8 @@ const maxBodySize = 1024 * 1024;
 const FLUSH_INTERVAL_MS = 5_000;
 const FLUSH_ENTRY_THRESHOLD = 10;
 const MAX_BUFFERED_ENTRIES = 100;
+/** 单个 HAR 文件的最长写入时长，超过则轮换到新文件，保证文件在此时长内完成轮换 */
+const FILE_ROTATION_INTERVAL_MS = 2 * 60 * 60 * 1000;
 
 export class HarRecorder {
     private static instance: HarRecorder | undefined;
@@ -169,6 +173,7 @@ export class HarRecorder {
             storageDir,
             filePath: path.join(storageDir, this.generateFileName(now)),
             fileDayKey: formatLocalDate(now),
+            fileCreatedAt: Date.now(),
             entries: [],
             flushTimer: undefined,
             lastFlushTime: Date.now(),
@@ -181,7 +186,7 @@ export class HarRecorder {
         this.cleanupOldHarFiles(state.storageDir, options.retentionCount, 1);
         this.flush(state);
         this.startFlushTimer(state);
-        Logger.info(`[HAR] Recording enabled, writing to ${state.filePath}`);
+        StatusLogger.info(`[HAR] Recording enabled, writing to ${state.filePath}`);
     }
 
     isEnabled(): boolean {
@@ -231,7 +236,7 @@ export class HarRecorder {
                             };
                         }
                     } catch (error) {
-                        Logger.warn('[HAR] Failed to clone Request body for capture', error);
+                        StatusLogger.warn('[HAR] Failed to clone Request body for capture', error);
                     }
                 }
 
@@ -259,7 +264,7 @@ export class HarRecorder {
                     fetchInit = { ...fetchInit, body: bodyForFetch };
                     captureInit = { ...(captureInit ?? {}), body: bodyForCapture };
                 } catch (error) {
-                    Logger.warn('[HAR] Failed to tee request body stream for capture', error);
+                    StatusLogger.warn('[HAR] Failed to tee request body stream for capture', error);
                     captureInit = { ...(captureInit ?? {}), body: undefined };
                 }
             }
@@ -268,7 +273,7 @@ export class HarRecorder {
                 requestBodyController = new AbortController();
                 requestBodyPromise = this.readRequestBody(captureInit.body, requestBodyController.signal).catch(
                     error => {
-                        Logger.warn('[HAR] Failed to read request body for capture', error);
+                        StatusLogger.warn('[HAR] Failed to read request body for capture', error);
                         return { byteLength: 0 };
                     }
                 );
@@ -419,7 +424,7 @@ export class HarRecorder {
             };
             this.enqueueEntry(state, entry);
         } catch (captureError) {
-            Logger.warn('[HAR] Failed to capture error entry', captureError);
+            StatusLogger.warn('[HAR] Failed to capture error entry', captureError);
         }
     }
 
@@ -454,7 +459,7 @@ export class HarRecorder {
             );
             this.enqueueEntry(state, entry);
         } catch (error) {
-            Logger.warn('[HAR] Failed to capture entry', error);
+            StatusLogger.warn('[HAR] Failed to capture entry', error);
         }
     }
 
@@ -485,6 +490,7 @@ export class HarRecorder {
         }
 
         this.rotateFileIfDayChanged(state);
+        this.rotateFileIfExpired(state);
 
         state.entries.push(entry);
         state.requestCount++;
@@ -504,6 +510,12 @@ export class HarRecorder {
         }
     }
 
+    private rotateFileIfExpired(state: HarRecorderState): void {
+        if (shouldRotateHarFileForAge(state.fileCreatedAt, Date.now(), FILE_ROTATION_INTERVAL_MS, state.accepting)) {
+            this.rotateFile(state, new Date(), 'file age exceeded rotation interval');
+        }
+    }
+
     private rotateFile(state: HarRecorderState, now = new Date(), reason = 'rotation'): void {
         if (!state.options) {
             return;
@@ -519,10 +531,11 @@ export class HarRecorder {
         const newFilePath = path.join(state.storageDir, this.generateFileName(now));
         state.filePath = newFilePath;
         state.fileDayKey = formatLocalDate(now);
+        state.fileCreatedAt = Date.now();
         state.entries = [];
         state.requestCount = 0;
         state.lastFlushTime = Date.now();
-        Logger.info(`[HAR] Rotated to new file (${reason}): ${newFilePath}`);
+        StatusLogger.info(`[HAR] Rotated to new file (${reason}): ${newFilePath}`);
     }
 
     private maybeFlush(state: HarRecorderState): void {
@@ -537,7 +550,11 @@ export class HarRecorder {
 
     private startFlushTimer(state: HarRecorderState): void {
         this.stopFlushTimer(state);
-        state.flushTimer = setInterval(() => this.maybeFlush(state), FLUSH_INTERVAL_MS);
+        state.flushTimer = setInterval(() => {
+            // 即使无新请求，也按轮换周期检查文件是否过期，保证严格在周期内完成轮换
+            this.rotateFileIfExpired(state);
+            this.maybeFlush(state);
+        }, FLUSH_INTERVAL_MS);
         // 避免计时器阻塞 Node.js 进程退出
         if (typeof state.flushTimer.unref === 'function') {
             state.flushTimer.unref();
@@ -562,7 +579,7 @@ export class HarRecorder {
             fs.writeFileSync(state.filePath, data, { encoding: 'utf8', flush: true });
             state.lastFlushTime = Date.now();
         } catch (error) {
-            Logger.warn('[HAR] Failed to flush HAR file', error);
+            StatusLogger.warn('[HAR] Failed to flush HAR file', error);
         }
     }
 
@@ -621,7 +638,7 @@ export class HarRecorder {
         this.flush(state);
         this.stopFlushTimer(state);
         this.closingStates.delete(state);
-        Logger.info(`[HAR] Recording stopped, wrote ${state.entries.length} entries to ${state.filePath}`);
+        StatusLogger.info(`[HAR] Recording stopped, wrote ${state.entries.length} entries to ${state.filePath}`);
     }
 
     private generateFileName(now = new Date()): string {
@@ -659,9 +676,11 @@ export class HarRecorder {
             const deleteFile = (file: HarFileRecord, reason: string): void => {
                 try {
                     fs.unlinkSync(file.path);
-                    Logger.debug(`[HAR] ${reason}: ${file.name}`);
+                    StatusLogger.debug(`[HAR] ${reason}: ${file.name}`);
                 } catch {
-                    Logger.debug(`[HAR] Skipped deleting HAR file ${file.name} (${reason}, in use or already removed)`);
+                    StatusLogger.debug(
+                        `[HAR] Skipped deleting HAR file ${file.name} (${reason}, in use or already removed)`
+                    );
                 }
             };
 
@@ -679,7 +698,7 @@ export class HarRecorder {
                 }
             }
         } catch (error) {
-            Logger.warn('[HAR] Failed to clean up old HAR files', error);
+            StatusLogger.warn('[HAR] Failed to clean up old HAR files', error);
         }
     }
 

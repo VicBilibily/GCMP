@@ -10,7 +10,7 @@ export interface HarBodyData {
     byteLength: number;
 }
 
-const HAR_FILE_MAX_AGE_MS = 2 * 24 * 60 * 60 * 1000;
+const HAR_FILE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
 async function readStreamBodyData(stream: ReadableStream<Uint8Array>, signal?: AbortSignal): Promise<HarBodyData> {
     const reader = stream.getReader();
@@ -70,6 +70,15 @@ export function formatLocalDate(date: Date): string {
 
 export function shouldRotateHarFileForDayChange(fileDayKey: string, now: Date, accepting: boolean): boolean {
     return accepting && fileDayKey !== formatLocalDate(now);
+}
+
+export function shouldRotateHarFileForAge(
+    fileCreatedAt: number,
+    now: number,
+    intervalMs: number,
+    accepting: boolean
+): boolean {
+    return accepting && now - fileCreatedAt >= intervalMs;
 }
 
 export function buildHarFileName(date: Date, pid: number, counter: number): string {

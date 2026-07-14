@@ -10,6 +10,7 @@ import {
     planHarCleanup,
     readBodyData,
     readResponseBodyData,
+    shouldRotateHarFileForAge,
     shouldRotateHarFileForDayChange,
     type HarFileRecord
 } from './harRecorderHelpers';
@@ -119,6 +120,20 @@ test('shouldRotateHarFileForDayChange only rotates when accepting and date chang
     assert.equal(shouldRotateHarFileForDayChange('2026-07-12', nextDay, true), true);
     assert.equal(shouldRotateHarFileForDayChange('2026-07-12', nextDay, false), false);
     assert.equal(shouldRotateHarFileForDayChange('2026-07-13', nextDay, true), false);
+});
+
+test('shouldRotateHarFileForAge only rotates when accepting and age exceeds interval', () => {
+    const now = 1_000_000_000;
+    const interval = 2 * 60 * 60 * 1000;
+
+    // 刚好超过阈值 → 轮换
+    assert.equal(shouldRotateHarFileForAge(now - interval - 1, now, interval, true), true);
+    // 非接受状态 → 不轮换
+    assert.equal(shouldRotateHarFileForAge(now - interval - 1, now, interval, false), false);
+    // 未超阈值 → 不轮换
+    assert.equal(shouldRotateHarFileForAge(now - interval + 1, now, interval, true), false);
+    // 刚好等于阈值 → 轮换（>= 语义）
+    assert.equal(shouldRotateHarFileForAge(now - interval, now, interval, true), true);
 });
 
 test('planHarCleanup removes stale files and keeps recent files per pid', () => {
