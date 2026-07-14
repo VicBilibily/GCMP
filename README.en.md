@@ -131,8 +131,8 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 
 ### [**StreamLake**](https://streamlake.com/product/kat-coder) - Kwai WanQing
 
-- [**KwaiKAT Coding Plan**](https://streamlake.com/marketing/coding-plan): **KAT-Coder-Pro-V2**
-- **KAT-Coder series**: **KAT-Coder-Pro-V2** (PayGo)
+- [**KwaiKAT Coding Plan**](https://streamlake.com/marketing/coding-plan): **KAT-Coder-Pro-V2.5**, **KAT-Coder-Pro-V2**
+- **KAT-Coder series**: **KAT-Coder-Pro-V2.5** (PayGo), **KAT-Coder-Air-V2.5** (PayGo), **KAT-Coder-Pro-V2** (PayGo)
 
 ### [**Volcengine**](https://www.volcengine.com/product/ark)
 

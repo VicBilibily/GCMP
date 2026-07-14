@@ -131,8 +131,8 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 
 ### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
 
-- [**KwaiKAT Coding Plan**](https://streamlake.com/marketing/coding-plan)：**KAT-Coder-Pro-V2**
-- **KAT-Coder系列**：**KAT-Coder-Pro-V2**(PayGo)
+- [**KwaiKAT Coding Plan**](https://streamlake.com/marketing/coding-plan)：**KAT-Coder-Pro-V2.5**、**KAT-Coder-Pro-V2**
+- **KAT-Coder系列**：**KAT-Coder-Pro-V2.5**(PayGo)、**KAT-Coder-Air-V2.5**(PayGo)、**KAT-Coder-Pro-V2**(PayGo)
 
 ### [**火山方舟**](https://www.volcengine.com/product/ark) - Volcengine
 
