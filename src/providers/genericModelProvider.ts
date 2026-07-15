@@ -425,7 +425,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     protected getRequestRetryConfig(effectiveProviderKey?: string) {
         const key = effectiveProviderKey ?? this.providerKey;
         Logger.debug(
-            `[Config] getRequestRetryConfig: effectiveProviderKey="${effectiveProviderKey}", fallback=this.providerKey="${this.providerKey}", resolved key="${key}"`
+            `[Config/Retry] getRequestRetryConfig: effectiveProviderKey="${effectiveProviderKey}", fallback=this.providerKey="${this.providerKey}", resolved key="${key}"`
         );
         return ConfigManager.getProviderRetryConfig(key);
     }
@@ -505,7 +505,19 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             }
         }
 
+        // 重试消息的 disposable，模型开始返回数据时立即清除；流程结束时兜底释放
+        let retryMessageDisposable: vscode.Disposable | undefined;
+
         try {
+            // 包装 progress：首次 report 时清除重试消息
+            const wrappedProgress: Progress<vscode.LanguageModelResponsePart> = {
+                report: (value: vscode.LanguageModelResponsePart) => {
+                    retryMessageDisposable?.dispose();
+                    retryMessageDisposable = undefined;
+                    progress.report(value);
+                }
+            };
+
             await retryManager.executeWithRetry(
                 async () => {
                     // 每次 attempt（含首次和 retry）使用独立时间基准，
@@ -528,7 +540,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             modelConfig,
                             messages,
                             options,
-                            progress,
+                            wrappedProgress,
                             requestId,
                             sessionId,
                             token,
@@ -540,7 +552,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             modelConfig,
                             messages,
                             options,
-                            progress,
+                            wrappedProgress,
                             requestId,
                             sessionId,
                             token,
@@ -552,7 +564,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             modelConfig,
                             messages,
                             options,
-                            progress,
+                            wrappedProgress,
                             requestId,
                             sessionId,
                             token,
@@ -564,7 +576,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             { ...modelConfig, provider: effectiveProviderKey },
                             messages,
                             options,
-                            progress,
+                            wrappedProgress,
                             requestId,
                             sessionId,
                             token,
@@ -576,7 +588,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             modelConfig,
                             messages,
                             options,
-                            progress,
+                            wrappedProgress,
                             requestId,
                             sessionId,
                             token,
@@ -586,9 +598,31 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 },
                 error => this.shouldRetryRequest(error),
                 this.providerConfig.displayName,
-                { shouldCancel: () => token.isCancellationRequested }
+                {
+                    shouldCancel: () => token.isCancellationRequested,
+                    onRetryScheduled: (attempt, maxAttempts, delayMs) => {
+                        retryMessageDisposable?.dispose();
+                        const maxLabel = maxAttempts === -1 ? '∞' : `${maxAttempts}`;
+                        const modelName = model.name || modelConfig.name;
+                        const delaySec = Math.ceil(delayMs / 1000);
+                        retryMessageDisposable = vscode.window.setStatusBarMessage(
+                            `$(sync~spin) ${modelName} retry #${attempt}/${maxLabel} in ${delaySec}s`
+                        );
+                    },
+                    onRetryAttempt: (attempt, maxAttempts) => {
+                        retryMessageDisposable?.dispose();
+                        const maxLabel = maxAttempts === -1 ? '∞' : `${maxAttempts}`;
+                        const modelName = model.name || modelConfig.name;
+                        retryMessageDisposable = vscode.window.setStatusBarMessage(
+                            `$(sync~spin) ${modelName} retry #${attempt}/${maxLabel}...`
+                        );
+                    }
+                }
             );
         } finally {
+            retryMessageDisposable?.dispose();
+            retryMessageDisposable = undefined;
+
             // 整个重试流程结束后发送 streamEnd，清理 WebView 实时状态
             if (requestId) {
                 liveMetrics.emitLiveMetrics({

@@ -22,6 +22,10 @@ export interface RetryConfig {
 
 export interface RetryExecutionOptions {
     shouldCancel?: () => boolean;
+    /** 重试已调度回调，在延迟等待开始时调用（用于显示倒计时等） */
+    onRetryScheduled?: (attempt: number, maxAttempts: number, delayMs: number) => void;
+    /** 重试进度回调，每次重试尝试前调用（attempt 从 1 开始） */
+    onRetryAttempt?: (attempt: number, maxAttempts: number) => void;
 }
 
 /**
@@ -109,6 +113,9 @@ export class RetryManager {
             const actualDelayMs = this.calculateDelayMs(attempt);
             Logger.info(`[${providerName}] Retrying in ${actualDelayMs / 1000}s...`);
 
+            // 通知外部：重试已调度，即将等待 delayMs
+            options?.onRetryScheduled?.(attempt, this.config.maxAttempts, actualDelayMs);
+
             // 等待延迟时间
             await this.delay(actualDelayMs, providerName, options?.shouldCancel);
 
@@ -117,6 +124,7 @@ export class RetryManager {
             // 执行重试
             const totalLabel = isUnlimited ? '∞' : `${this.config.maxAttempts}`;
             Logger.info(`[${providerName}] Retry attempt #${attempt}/${totalLabel}`);
+            options?.onRetryAttempt?.(attempt, this.config.maxAttempts);
             try {
                 const result = await operation();
                 Logger.info(`[${providerName}] Retry succeeded after attempt ${attempt}`);

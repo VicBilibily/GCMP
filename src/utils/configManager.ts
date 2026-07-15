@@ -389,7 +389,7 @@ export class ConfigManager {
         const lookupKeys = this.getProxyLookupKeys(providerKey);
 
         Logger.debug(
-            `[Config] getProviderRetryConfig("${providerKey}"): lookupKeys=${JSON.stringify(lookupKeys)}, global={maxAttempts:${globalRetry.maxAttempts},enabled:${globalRetry.enabled}}`
+            `[Config/Retry] getProviderRetryConfig("${providerKey}"): lookupKeys=${JSON.stringify(lookupKeys)}, global={maxAttempts:${globalRetry.maxAttempts},enabled:${globalRetry.enabled}}`
         );
 
         // preset：按优先级从 configProviders 中查找（子 provider 回退到根 provider）
@@ -404,7 +404,7 @@ export class ConfigManager {
                 if (subPreset) {
                     preset = subPreset;
                     Logger.debug(
-                        `[Config] getProviderRetryConfig("${providerKey}"): found flat preset from configProviders["${key}"]["${flatKey}"] = ${JSON.stringify(preset)}`
+                        `[Config/Retry] getProviderRetryConfig("${providerKey}"): found flat preset from configProviders["${key}"]["${flatKey}"] = ${JSON.stringify(preset)}`
                     );
                     break;
                 }
@@ -412,23 +412,23 @@ export class ConfigManager {
                 if (config.retry) {
                     preset = config.retry;
                     Logger.debug(
-                        `[Config] getProviderRetryConfig("${providerKey}"): found top-level preset from configProviders["${key}"].retry = ${JSON.stringify(preset)}`
+                        `[Config/Retry] getProviderRetryConfig("${providerKey}"): found top-level preset from configProviders["${key}"].retry = ${JSON.stringify(preset)}`
                     );
                     break;
                 }
                 Logger.debug(
-                    `[Config] getProviderRetryConfig("${providerKey}"): configProviders["${key}"].retry is undefined`
+                    `[Config/Retry] getProviderRetryConfig("${providerKey}"): configProviders["${key}"].retry is undefined`
                 );
             } else {
                 Logger.debug(
-                    `[Config] getProviderRetryConfig("${providerKey}"): configProviders["${key}"] is undefined`
+                    `[Config/Retry] getProviderRetryConfig("${providerKey}"): configProviders["${key}"] is undefined`
                 );
             }
         }
 
         if (!preset) {
             Logger.debug(
-                `[Config] getProviderRetryConfig("${providerKey}"): no preset found in any lookup key, falling back to global`
+                `[Config/Retry] getProviderRetryConfig("${providerKey}"): no preset found in any lookup key, falling back to global`
             );
         }
 
@@ -445,7 +445,7 @@ export class ConfigManager {
                 if (subOverride) {
                     override = subOverride;
                     Logger.debug(
-                        `[Config] getProviderRetryConfig("${providerKey}"): found flat override from providerOverrides["${key}"]["${flatKey}"] = ${JSON.stringify(override)}`
+                        `[Config/Retry] getProviderRetryConfig("${providerKey}"): found flat override from providerOverrides["${key}"]["${flatKey}"] = ${JSON.stringify(override)}`
                     );
                     break;
                 }
@@ -453,29 +453,29 @@ export class ConfigManager {
                 if (providerOverride.retry) {
                     override = providerOverride.retry;
                     Logger.debug(
-                        `[Config] getProviderRetryConfig("${providerKey}"): found top-level override from providerOverrides["${key}"].retry = ${JSON.stringify(override)}`
+                        `[Config/Retry] getProviderRetryConfig("${providerKey}"): found top-level override from providerOverrides["${key}"].retry = ${JSON.stringify(override)}`
                     );
                     break;
                 }
                 Logger.debug(
-                    `[Config] getProviderRetryConfig("${providerKey}"): providerOverrides["${key}"].retry is undefined`
+                    `[Config/Retry] getProviderRetryConfig("${providerKey}"): providerOverrides["${key}"].retry is undefined`
                 );
             } else {
                 Logger.debug(
-                    `[Config] getProviderRetryConfig("${providerKey}"): providerOverrides["${key}"] is undefined`
+                    `[Config/Retry] getProviderRetryConfig("${providerKey}"): providerOverrides["${key}"] is undefined`
                 );
             }
         }
 
         if (!override) {
             Logger.debug(
-                `[Config] getProviderRetryConfig("${providerKey}"): no override found in any lookup key, falling back to preset/global`
+                `[Config/Retry] getProviderRetryConfig("${providerKey}"): no override found in any lookup key, falling back to preset/global`
             );
         }
 
         const resolved = this.resolveProviderRetryOverride(override, preset, globalRetry, providerKey);
         Logger.debug(
-            `[Config] getProviderRetryConfig("${providerKey}"): resolved={enabled:${resolved.enabled},maxAttempts:${resolved.maxAttempts},initialDelayMs:${resolved.initialDelayMs},maxDelayMs:${resolved.maxDelayMs}}`
+            `[Config/Retry] getProviderRetryConfig("${providerKey}"): resolved={enabled:${resolved.enabled},maxAttempts:${resolved.maxAttempts},initialDelayMs:${resolved.initialDelayMs},maxDelayMs:${resolved.maxDelayMs}}`
         );
         return {
             enabled: resolved.enabled,
@@ -559,8 +559,8 @@ export class ConfigManager {
 
             if (value === -1) {
                 if (source !== 'global') {
-                    Logger.info(
-                        `[Config] Provider "${providerKey}" retry.maxAttempts = -1 (${source}, unlimited retries, governed by isRetryable)`
+                    Logger.debug(
+                        `[Config/Retry] Provider "${providerKey}" maxAttempts = -1 (${source}, unlimited retries, governed by isRetryable)`
                     );
                 }
                 return -1;
@@ -568,8 +568,8 @@ export class ConfigManager {
 
             if (value === 0) {
                 if (source !== 'global') {
-                    Logger.info(
-                        `[Config] Provider "${providerKey}" retry.maxAttempts = 0 (${source}, retries disabled)`
+                    Logger.debug(
+                        `[Config/Retry] Provider "${providerKey}" maxAttempts = 0 (${source}, retries disabled)`
                     );
                 }
                 return 0;
@@ -577,15 +577,15 @@ export class ConfigManager {
 
             if (Number.isFinite(value) && Number.isInteger(value) && value > 0) {
                 if (value > 10 && source !== 'global') {
-                    Logger.info(
-                        `[Config] Provider "${providerKey}" retry.maxAttempts = ${value} (${source} bypasses global 1-10 cap)`
+                    Logger.debug(
+                        `[Config/Retry] Provider "${providerKey}" maxAttempts = ${value} (${source} bypasses global 1-10 cap)`
                     );
                 }
                 return value;
             }
 
             Logger.warn(
-                `[Config] Provider "${providerKey}" retry.maxAttempts = ${value} from ${source} is invalid; falling back to the next layer`
+                `[Config/Retry] Provider "${providerKey}" maxAttempts = ${value} from ${source} is invalid; falling back to the next layer`
             );
         }
 
@@ -608,7 +608,7 @@ export class ConfigManager {
                 return candidate.value;
             }
             Logger.warn(
-                `[Config] ${label} = ${candidate.value} from ${candidate.source} is invalid; falling back to the next layer`
+                `[Config/Retry] ${label} = ${candidate.value} from ${candidate.source} is invalid; falling back to the next layer`
             );
         }
 

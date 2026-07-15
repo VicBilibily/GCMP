@@ -269,7 +269,7 @@ export class CodexModelProvider extends CliModelProvider {
                 timestamp: Date.now(),
                 models
             } satisfies CachedCodexModels);
-            Logger.info(`[codex] Remote model list updated (${models.length} models)`);
+            Logger.debug(`[codex] Remote model list updated (${models.length} models)`);
             return models;
         } finally {
             this.currentAbortController = undefined;
