@@ -35,10 +35,37 @@ export class AtomicJsonFile {
         try {
             await fs.writeFile(tempPath, serialized, 'utf-8');
             // rename 在 POSIX 上原子替换已存在目标；Windows (NTFS) 上同样会替换已存在文件
-            await fs.rename(tempPath, filePath);
+            await this.renameWithRetry(tempPath, filePath);
         } catch (error) {
             await fs.rm(tempPath, { force: true }).catch(() => undefined);
             throw error;
         }
+    }
+
+    /**
+     * Windows 上 rename 替换目标文件时，若目标被其他句柄（本进程的 readFile、
+     * 杀毒软件、Windows Search 索引等）瞬时占用，会抛 EPERM/EBUSY/EACCES。
+     * 对这些瞬时错误退避重试，覆盖外部进程的短时占用。
+     */
+    private static readonly RENAME_RETRYABLE_CODES = new Set(['EPERM', 'EBUSY', 'EACCES', 'EEXIST']);
+    private static async renameWithRetry(src: string, dest: string, retries = 5): Promise<void> {
+        let lastError: unknown;
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                await fs.rename(src, dest);
+                return;
+            } catch (error) {
+                lastError = error;
+                const code = (error as NodeJS.ErrnoException)?.code;
+                if (!code || !this.RENAME_RETRYABLE_CODES.has(code)) {
+                    throw error;
+                }
+                if (attempt < retries) {
+                    // 线性退避：30/60/90/120/150ms，覆盖杀软扫描与本进程 readFile 的短时占用
+                    await new Promise(resolve => setTimeout(resolve, 30 * (attempt + 1)));
+                }
+            }
+        }
+        throw lastError;
     }
 }

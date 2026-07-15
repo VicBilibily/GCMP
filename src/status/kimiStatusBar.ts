@@ -238,7 +238,7 @@ export class KimiStatusBar extends ProviderStatusBarItem<KimiStatusData> {
 
                 // 加油包信息表格：横向表头，金额保留两位小数
                 md.appendMarkdown(
-                    `| ${t('Current Balance', '当前余额')} | ${t('Monthly Consumption', '本月消费')} | ${t('Monthly Limit', '本月限额')} |\n`
+                    `| ${t('Current Bal.', '当前余额')} | ${t('Monthly Used', '本月消费')} | ${t('Monthly Cap', '本月限额')} |\n`
                 );
                 md.appendMarkdown('| ---: | ---: | ---: |\n');
 

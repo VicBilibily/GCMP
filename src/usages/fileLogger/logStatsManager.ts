@@ -100,8 +100,11 @@ export class LogStatsManager {
                 // 检查版本时间戳是否有效，如果无效需要全量重新计算
                 const needsRegen = await this.needsRegeneration(dateStr);
                 if (!needsRegen) {
+                    // needsRegeneration 检查与第一次读取之间允许写入插入。
+                    // 最小修复：命中缓存前再读取一次当前文件，避免返回已被更新覆盖的旧快照。
+                    const latest = await this.loadStats(dateStr);
                     StatusLogger.debug(`[LogStatsManager] Read stats from cache: ${dateStr}`);
-                    return saved;
+                    return latest ?? saved;
                 }
                 // 版本变化或缓存过期，需要全量重新计算
                 StatusLogger.debug(`[LogStatsManager] Cache expired, recalculating from scratch: ${dateStr}`);
@@ -609,7 +612,9 @@ export class LogStatsManager {
         }
 
         try {
-            const content = await fs.readFile(filePath, 'utf-8');
+            // 读取与写入共用同一 filePath 的串行锁，避免 Windows 上 rename 替换目标文件时
+            // 被本进程的 readFile 句柄占用导致 EPERM。
+            const content = await AtomicJsonFile.runExclusive(filePath, () => fs.readFile(filePath, 'utf-8'));
             const statsData: TokenUsageStatsFromFile = JSON.parse(content);
             StatusLogger.debug(`[LogStatsManager] Read daily stats from stats.json: ${dateStr}`);
             return statsData;
@@ -638,7 +643,8 @@ export class LogStatsManager {
 
         try {
             // 读取 stats.json 内容，检查 versionTimestamp
-            const content = await fs.readFile(statsFilePath, 'utf-8');
+            // 与写入共用同一文件的串行锁，避免 rename 时被本进程 readFile 句柄占用导致 EPERM
+            const content = await AtomicJsonFile.runExclusive(statsFilePath, () => fs.readFile(statsFilePath, 'utf-8'));
             const statsData: TokenUsageStatsFromFile = JSON.parse(content);
 
             // 检查版本时间戳

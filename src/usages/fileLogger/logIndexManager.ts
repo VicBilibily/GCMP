@@ -36,7 +36,9 @@ export class LogIndexManager {
      * @returns 版本时间戳，不存在时返回 null
      */
     async getVersionTimestamp(): Promise<number | null> {
-        const index = await this.readIndex();
+        const indexPath = this.getIndexPath();
+        // 与写入共用同一文件的串行锁，避免 rename 时被本进程 readFile 句柄占用导致 EPERM
+        const index = await AtomicJsonFile.runExclusive(indexPath, () => this.readIndexFile(indexPath));
         if (!index) {
             return null;
         }
@@ -299,7 +301,8 @@ export class LogIndexManager {
         }
 
         try {
-            const content = await fs.readFile(statsPath, 'utf-8');
+            // 与写入共用同一文件的串行锁，避免 rename 时被本进程 readFile 句柄占用导致 EPERM
+            const content = await AtomicJsonFile.runExclusive(statsPath, () => fs.readFile(statsPath, 'utf-8'));
             return JSON.parse(content) as TokenUsageStatsFromFile;
         } catch (err) {
             StatusLogger.warn(`[LogIndexManager] Failed to read date stats: ${dateStr}`, err);
