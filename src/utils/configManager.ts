@@ -354,42 +354,60 @@ export class ConfigManager {
     }
 
     /**
+     * 获取用户是否显式设置了全局 retry.enabled。
+     * 未显式设置时返回 undefined，此时 provider 级合并应继续允许 preset 生效。
+     */
+    private static getExplicitRetryEnabledSetting(
+        config = vscode.workspace.getConfiguration(this.CONFIG_SECTION)
+    ): boolean | undefined {
+        const inspected = config.inspect<boolean>('retry.enabled');
+        const hasExplicitValue =
+            inspected?.workspaceFolderLanguageValue !== undefined ||
+            inspected?.workspaceLanguageValue !== undefined ||
+            inspected?.globalLanguageValue !== undefined ||
+            inspected?.workspaceFolderValue !== undefined ||
+            inspected?.workspaceValue !== undefined ||
+            inspected?.globalValue !== undefined;
+
+        return hasExplicitValue ? config.get<boolean>('retry.enabled', true) : undefined;
+    }
+
+    /**
      * 获取指定提供商的重试配置。
      *
-     * 三层优先级（字段级合并）：
-     *   1. providerOverrides.{rootOrExact}["retry.{provider}"] → providerOverrides.{rootOrExact}.retry
-     *   2. configProviders.{rootOrExact}["retry.{provider}"] → configProviders.{rootOrExact}.retry
-     *   3. 全局 gcmp.retry.*                       （最低优先级）
+     * 合并规则：
+     *   enabled：override → explicit global → preset → global default
+     *     仅当用户显式设置 gcmp.retry.enabled 时，才让全局值优先于 config 预置；
+     *     若全局未显式设置，则继续允许 preset 决定该 provider 的默认行为。
      *
-     * 字段级合并规则：
-     * - enabled / maxAttempts：override → preset → global（三层）
-     * - initialDelayMs / maxDelayMs：override → preset → 内置默认值（两层，因全局配置无此字段）
+     *   maxAttempts：
+     *     - 若 override 显式指定，直接使用（支持 -1/0/正整数）
+     *     - 否则取 global 与 preset 的最大值（确保预置的更高重试次数不被全局上限压低）
+     *     - 特殊值 -1（无限）优先于任何正整数；preset=0 不会压低全局次数
      *
-     * 用户若只 override 了 maxAttempts，其余字段仍回退到预置 → 全局/默认，
-     * 不会被用户的单字段覆盖抹掉预置中的 initialDelayMs / maxDelayMs。
-     * 若高优先级层给出非法值，则继续回退到下一层，而不是直接退回默认值。
+     *   initialDelayMs / maxDelayMs：override → preset → 内置默认值（两层，全局配置无此字段）
      *
-     * 特殊语义（预置与 override 路径均支持）：
-     * - maxAttempts = -1：无限重试
-     * - maxAttempts =  0：禁止重试（等价于 enabled=false）
-     * - enabled = false：禁止重试
+     * 特殊语义：
+     * - override.maxAttempts = -1：无限重试
+     * - override.maxAttempts =  0：禁止重试（等价于 enabled=false）
+     * - preset.maxAttempts   = -1：将该 provider 预置为无限重试
+     * - preset.maxAttempts   =  0：不会压低全局 maxAttempts；如需强制禁用应使用 override
+     * - enabled = false：按 enabled 字段的合并优先级生效
      *
      * 与全局设置不同，预置/override 路径的 maxAttempts 不受 1-10 上限约束，
      * 允许任意正整数或 -1，以支持自建网关或特定提供商需要更长退避的场景。
-     *
-     * initialDelayMs / maxDelayMs 在预置和 override 均未指定时回退到内置默认值（1000ms / 15000ms），
-     * 与 RetryManager.DEFAULT_RETRY_CONFIG 保持一致。
      */
     static getProviderRetryConfig(providerKey: string): RequestRetryConfig & {
         initialDelayMs: number;
         maxDelayMs: number;
     } {
         const globalRetry = this.getRetryConfig();
+        const explicitGlobalRetryEnabled = this.getExplicitRetryEnabledSetting();
         // 复用 proxy 的子 provider → 根 provider 解析逻辑（如 xfyun-coding → xfyun）
         const lookupKeys = this.getProxyLookupKeys(providerKey);
 
         Logger.debug(
-            `[Config/Retry] getProviderRetryConfig("${providerKey}"): lookupKeys=${JSON.stringify(lookupKeys)}, global={maxAttempts:${globalRetry.maxAttempts},enabled:${globalRetry.enabled}}`
+            `[Config/Retry] getProviderRetryConfig("${providerKey}"): lookupKeys=${JSON.stringify(lookupKeys)}, global={maxAttempts:${globalRetry.maxAttempts},enabled:${globalRetry.enabled},explicitEnabled:${explicitGlobalRetryEnabled === undefined ? 'default' : explicitGlobalRetryEnabled}}`
         );
 
         // preset：按优先级从 configProviders 中查找（子 provider 回退到根 provider）
@@ -473,7 +491,13 @@ export class ConfigManager {
             );
         }
 
-        const resolved = this.resolveProviderRetryOverride(override, preset, globalRetry, providerKey);
+        const resolved = this.resolveProviderRetryOverride(
+            override,
+            preset,
+            globalRetry,
+            explicitGlobalRetryEnabled,
+            providerKey
+        );
         Logger.debug(
             `[Config/Retry] getProviderRetryConfig("${providerKey}"): resolved={enabled:${resolved.enabled},maxAttempts:${resolved.maxAttempts},initialDelayMs:${resolved.initialDelayMs},maxDelayMs:${resolved.maxDelayMs}}`
         );
@@ -488,22 +512,32 @@ export class ConfigManager {
     /**
      * 解析 provider 级别的 retry 配置（字段级合并）。
      *
-     * enabled / maxAttempts：override → preset → global（三层）
-     * initialDelayMs / maxDelayMs：override → preset → 内置默认值（两层）
-     * 若 override/preset 中的值非法，则不会短路回退链，而是继续回退到下一层。
+     * enabled 合并规则：override → explicit global → preset → global default
+     *   仅当用户显式设置 gcmp.retry.enabled 时，才让全局值优先于 config 预置；
+     *   若全局未显式设置，则继续允许 preset 决定该 provider 的默认行为。
+     *
+     * maxAttempts 合并规则：
+     *   - 若 override 显式指定，直接使用 override 值（支持 -1/0/正整数）
+     *   - 否则取 global 与 preset 的最大值（确保预置的更高重试次数不被全局上限压低）
+     *   - 特殊值 -1（无限）优先于任何正整数
+     *
+     * initialDelayMs / maxDelayMs：override → preset → 内置默认值（两层，全局配置无此字段）
      *
      * @param override 用户 providerOverrides.retry（最高优先级，可为 undefined）
      * @param preset   内置 configProviders.retry 预置（中间层，可为 undefined）
      * @param globalRetry 全局 gcmp.retry 配置（最低优先级，仅含 enabled/maxAttempts）
+     * @param explicitGlobalEnabled 用户是否显式设置了全局 gcmp.retry.enabled；未显式设置时为 undefined
      */
     private static resolveProviderRetryOverride(
         override: ProviderRetryOverride | undefined,
         preset: ProviderRetryOverride | undefined,
         globalRetry: RequestRetryConfig,
+        explicitGlobalEnabled: boolean | undefined,
         providerKey: string
     ): { enabled: boolean; maxAttempts: number; initialDelayMs: number; maxDelayMs: number } {
-        // 合并后的"声明层"：override 优先于 preset，二者皆未声明则回退到全局
-        const mergedEnabled = override?.enabled ?? preset?.enabled ?? globalRetry.enabled;
+        // enabled：override → explicit global → preset → global default
+        // 仅在用户显式设置全局 enabled 时才压过 preset；否则允许 preset 决定默认行为
+        const mergedEnabled = override?.enabled ?? explicitGlobalEnabled ?? preset?.enabled ?? globalRetry.enabled;
         const maxAttempts = this.resolveProviderMaxAttempts(
             override?.maxAttempts,
             preset?.maxAttempts,
@@ -537,7 +571,14 @@ export class ConfigManager {
 
     /**
      * 解析 provider 级别 maxAttempts。
-     * 非法值不会短路，而是继续回退到下一层（override → preset → global）。
+     *
+     * 合并规则：
+     *   1. 若 override 显式指定，直接使用（支持 -1/0/正整数，不受全局 1-10 上限约束）
+     *   2. 否则取 global 与 preset 的最大值（确保预置的更高重试次数不被全局上限压低）
+     *   3. preset = -1（无限）优先于任何正整数；preset = 0 不会压低全局次数
+     *
+     * 全局 maxAttempts 已由 validateRetryMaxAttempts 保证 1-10，不会出现 -1/0/超限值。
+     * 非法 override/preset 值会跳过；preset = 0 也会保留全局次数下限。
      */
     private static resolveProviderMaxAttempts(
         overrideValue: number | undefined,
@@ -545,48 +586,60 @@ export class ConfigManager {
         globalValue: number,
         providerKey: string
     ): number {
-        const candidates = [
-            { value: overrideValue, source: 'override' },
-            { value: presetValue, source: 'preset' },
-            { value: globalValue, source: 'global' }
-        ] as const;
-
-        for (const candidate of candidates) {
-            const { value, source } = candidate;
-            if (value === undefined) {
-                continue;
-            }
-
-            if (value === -1) {
-                if (source !== 'global') {
-                    Logger.debug(
-                        `[Config/Retry] Provider "${providerKey}" maxAttempts = -1 (${source}, unlimited retries, governed by isRetryable)`
-                    );
-                }
+        // 1. override 显式指定时直接使用
+        if (overrideValue !== undefined) {
+            if (overrideValue === -1) {
+                Logger.debug(
+                    `[Config/Retry] Provider "${providerKey}" maxAttempts = -1 (override, unlimited retries, governed by isRetryable)`
+                );
                 return -1;
             }
-
-            if (value === 0) {
-                if (source !== 'global') {
-                    Logger.debug(
-                        `[Config/Retry] Provider "${providerKey}" maxAttempts = 0 (${source}, retries disabled)`
-                    );
-                }
+            if (overrideValue === 0) {
+                Logger.debug(`[Config/Retry] Provider "${providerKey}" maxAttempts = 0 (override, retries disabled)`);
                 return 0;
             }
-
-            if (Number.isFinite(value) && Number.isInteger(value) && value > 0) {
-                if (value > 10 && source !== 'global') {
+            if (Number.isFinite(overrideValue) && Number.isInteger(overrideValue) && overrideValue > 0) {
+                if (overrideValue > 10) {
                     Logger.debug(
-                        `[Config/Retry] Provider "${providerKey}" maxAttempts = ${value} (${source} bypasses global 1-10 cap)`
+                        `[Config/Retry] Provider "${providerKey}" maxAttempts = ${overrideValue} (override bypasses global 1-10 cap)`
                     );
                 }
-                return value;
+                return overrideValue;
             }
-
             Logger.warn(
-                `[Config/Retry] Provider "${providerKey}" maxAttempts = ${value} from ${source} is invalid; falling back to the next layer`
+                `[Config/Retry] Provider "${providerKey}" maxAttempts = ${overrideValue} from override is invalid; falling back to max(global, preset)`
             );
+        }
+
+        // 2. 无 override 时，取 global 与 preset 的最大值
+        // 全局 maxAttempts 已由 validateRetryMaxAttempts 保证为 1-10，不会出现 -1/0/超限值
+        // preset = -1 表示"无限重试"，优先于任何正整数
+        if (presetValue === -1) {
+            Logger.debug(
+                `[Config/Retry] Provider "${providerKey}" maxAttempts = -1 (preset, unlimited retries, governed by isRetryable)`
+            );
+            return -1;
+        }
+
+        // 取 global 与 preset 的最大值（仅正整数）
+        const validPreset =
+            (
+                presetValue !== undefined &&
+                Number.isFinite(presetValue) &&
+                Number.isInteger(presetValue) &&
+                presetValue > 0
+            ) ?
+                presetValue
+            :   undefined;
+
+        if (validPreset !== undefined) {
+            const maxVal = Math.max(globalValue, validPreset);
+            if (validPreset > globalValue) {
+                Logger.debug(
+                    `[Config/Retry] Provider "${providerKey}" maxAttempts = ${maxVal} (preset=${validPreset} > global=${globalValue}, using preset)`
+                );
+            }
+            return maxVal;
         }
 
         return globalValue;

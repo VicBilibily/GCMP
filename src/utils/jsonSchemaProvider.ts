@@ -1464,7 +1464,7 @@ export class JsonSchemaProvider {
      *   -  0 → 禁止重试
      *   -  正整数 → 重试次数上限（允许大于 10，以应对自建网关等场景）
      *
-     * 所有字段可选，缺省时该提供商回退到全局 `gcmp.retry.*` 设置。
+     * 所有字段可选，缺省时按 provider 级合并规则回退到预置/全局/内置默认值。
      */
     private static getProviderRetryOverrideSchema(): JSONSchema7 {
         const providerRetryMaxAttemptsSchema: JSONSchema7 = {
@@ -1479,8 +1479,8 @@ export class JsonSchemaProvider {
             enabled: {
                 type: 'boolean',
                 description: t(
-                    'Whether retries are enabled for this provider. Defaults to the global `gcmp.retry.enabled` when omitted.',
-                    '是否对该提供商启用重试。缺省时回退到全局 `gcmp.retry.enabled`。'
+                    'Whether retries are enabled for this provider. When omitted, it falls back to the provider-level merged result (explicit global `gcmp.retry.enabled` only overrides presets when the user explicitly sets it).',
+                    '是否对该提供商启用重试。缺省时回退到 provider 级合并结果（仅当用户显式设置全局 `gcmp.retry.enabled` 时，才会覆盖预置值）。'
                 )
             },
             maxAttempts: providerRetryMaxAttemptsSchema,

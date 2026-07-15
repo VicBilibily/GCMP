@@ -317,23 +317,23 @@ export interface UsageFieldPaths {
 /**
  * 提供商级别的重试配置覆盖。
  * 所有字段可选，缺省时按字段类型回退：
- * - enabled / maxAttempts：回退到全局 `gcmp.retry.*` 设置
+ * - enabled / maxAttempts：按 provider 级合并规则回退到预置/全局解析结果
  * - initialDelayMs / maxDelayMs：回退到内置默认值（1000ms / 15000ms）
  *
  * 特殊语义：
  * - maxAttempts = -1：无限重试（仅由 isRetryable 错误判断决定退出）
- * - maxAttempts =  0：禁止重试
+ * - maxAttempts =  0：在用户 override 路径上表示禁止重试；作为 preset 时不会压低全局次数
  * - enabled = false：禁止重试（与 maxAttempts=0 等效）
  *
  * 与全局 `gcmp.retry.maxAttempts` 不同，此处 **不受 1-10 上限约束**，
  * 允许设置为任意正整数或 -1，以应对特殊场景（如自建网关、需要更长退避的提供商）。
  */
 export interface ProviderRetryOverride {
-    /** 是否启用重试，缺省时回退到全局 `gcmp.retry.enabled` */
+    /** 是否启用重试，缺省时按 provider 级合并规则回退到预置/全局解析结果 */
     enabled?: boolean;
     /**
      * 最大重试次数。
-     * -1 表示无限重试；0 表示禁止重试；正整数表示重试次数上限。
+     * -1 表示无限重试；0 在 override 路径表示禁止重试，作为 preset 时不会压低全局次数；正整数表示重试次数上限。
      * 与全局设置不同，此处不受 1-10 上限约束。
      */
     maxAttempts?: number;
@@ -401,7 +401,8 @@ export interface ProviderConfig {
      *
      * 适用于内置 provider 已知需要特殊重试策略的场景
      * （如某些提供商限流退避建议更长、或对 5xx 不敏感需禁用重试）。
-     * 字段语义与 ProviderRetryOverride 一致：-1 无限重试、0 禁止重试、正整数不限上限。
+     * 字段语义与 ProviderRetryOverride 基本一致；其中预置路径的 `maxAttempts=0` 不会压低全局次数，
+     * 若需强制禁用重试应使用 providerOverrides.retry。
      */
     retry?: ProviderRetryOverride;
     /** 内置子 provider 级别的预置重试配置（可选），键名格式：`retry.${subProvider}` */
