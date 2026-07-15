@@ -48,6 +48,12 @@ export interface ModelConfig {
     capabilities: {
         toolCalling: boolean;
         imageInput: boolean;
+        /**
+         * 模型偏好的编辑工具列表（透传到 VS Code LanguageModelChatCapabilities.editTools）
+         * 可选值：'find-replace' | 'multi-find-replace' | 'code-rewrite' | 'apply-patch' (其 V4A diff 仅适配 OpenAI 系列)
+         * 未设置时由 Copilot 走默认学习机制推断
+         */
+        editTools?: string[];
     };
     /**
      * SDK模式选择（可选）
@@ -192,6 +198,7 @@ export interface ModelOverride {
     capabilities?: {
         toolCalling?: boolean;
         imageInput?: boolean;
+        editTools?: string[];
     };
     /** 覆盖baseUrl */
     baseUrl?: string;
