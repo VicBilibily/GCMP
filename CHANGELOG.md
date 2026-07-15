@@ -2,6 +2,42 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.38] - 2026-07-16
+
+### 新增
+
+- **提供商级别重试配置覆盖**：新增 `gcmp.providerOverrides.{provider}.retry` 配置项，支持为每个提供商独立设置重试策略，覆盖全局 `gcmp.retry.*` 行为。支持 `enabled`、`maxAttempts`、`initialDelayMs`、`maxDelayMs` 四个字段，其中 `maxAttempts` 不受全局 1-10 上限约束，允许设置为任意正整数或 `-1`（无限重试）。同时支持子 provider 级别的独立重试策略（如 `retry.xfyun-coding`），优先级为：`providerOverrides["retry.{subProvider}"]` → `providerOverrides.retry` → 内置预置 → 全局默认。
+
+- **重试状态栏提示与进度包装**：请求重试时在状态栏显示重试进度（如 `模型名 retry #2/3 in 3s`），模型开始返回数据时自动清除提示。新增 `onRetryScheduled` / `onRetryAttempt` 回调机制，包装 `progress` 对象确保首次返回数据时清除重试消息。
+
+- **editTools 能力声明支持**：在模型 `capabilities` 中新增 `editTools` 字段，对应 VS Code `LanguageModelChatCapabilities.editTools`，允许配置模型偏好的编辑工具（可选值：`find-replace`、`multi-find-replace`、`code-rewrite`、`apply-patch`）。已为 GLM-5.2 等模型声明 `editTools`（[#299](https://github.com/VicBilibily/GCMP/pull/299)）。
+
+- **讯飞星辰 Coding Plan 预置重试策略**：为 `xfyun-coding` 子 provider 预置重试配置（`maxAttempts: 15`、`maxDelayMs: 30000`），提升讯飞编程套餐在服务繁忙时的重试容错能力。
+
+### 变更
+
+- **Anthropic thinking/output_config 配置逻辑重构**：将 `anthropicHandler` 中的 thinking 模式与 `output_config` 推理长度设置逻辑提取为独立模块 `anthropicThinkingConfig`，统一处理 `enabled`/`adaptive`/`auto`/`disabled` 四种 thinking 类型与 `reasoningEffort` 映射，新增 `adaptive` 类型支持与 `enabled` 模式最小预算保障（1024 tokens）（[#300](https://github.com/VicBilibily/GCMP/issues/300)）。
+
+- **provider 级重试配置合并逻辑优化**：区分 preset（内置预置）与 override（用户覆盖）语义——`enabled` 字段仅当用户显式设置全局 `gcmp.retry.enabled` 时才覆盖预置值；`maxAttempts` 取全局与预置的最大值，确保预置的更高重试次数不被全局上限压低；特殊值 `-1`（无限）优先于任何正整数，`preset.maxAttempts=0` 不会压低全局次数。
+
+---
+
+### Added
+
+- **Provider-level retry configuration override**: Added `gcmp.providerOverrides.{provider}.retry` configuration, supporting per-provider independent retry strategies that override global `gcmp.retry.*` behavior. Supports `enabled`, `maxAttempts`, `initialDelayMs`, `maxDelayMs` fields, where `maxAttempts` is NOT capped at 1-10, allowing any positive integer or `-1` (unlimited retries). Also supports sub-provider level independent retry strategies (e.g. `retry.xfyun-coding`), with priority: `providerOverrides["retry.{subProvider}"]` → `providerOverrides.retry` → built-in preset → global default.
+
+- **Retry status bar notification and progress wrapping**: Displays retry progress in the status bar during request retries (e.g. `Model retry #2/3 in 3s`), automatically cleared when the model starts returning data. Added `onRetryScheduled` / `onRetryAttempt` callback mechanism, wrapping the `progress` object to ensure retry messages are cleared on first data return.
+
+- **editTools capability declaration support**: Added `editTools` field to model `capabilities`, corresponding to VS Code `LanguageModelChatCapabilities.editTools`, allowing configuration of model-preferred editing tools (options: `find-replace`, `multi-find-replace`, `code-rewrite`, `apply-patch`). Applied to GLM-5.2 and other models ([#299](https://github.com/VicBilibily/GCMP/pull/299)).
+
+- **XunFei Astron Coding Plan preset retry strategy**: Preset retry configuration for `xfyun-coding` sub-provider (`maxAttempts: 15`, `maxDelayMs: 30000`), improving retry tolerance during service congestion.
+
+### Changed
+
+- **Anthropic thinking/output_config configuration logic refactored**: Extracted thinking mode and `output_config` reasoning effort settings from `anthropicHandler` into independent module `anthropicThinkingConfig`, unifying handling of `enabled`/`adaptive`/`auto`/`disabled` thinking types and `reasoningEffort` mapping. Added `adaptive` type support and minimum budget guarantee for `enabled` mode (1024 tokens) ([#300](https://github.com/VicBilibily/GCMP/issues/300)).
+
+- **Provider-level retry config merge logic optimized**: Distinguished preset (built-in) vs override (user) semantics — `enabled` field only overrides preset when user explicitly sets global `gcmp.retry.enabled`; `maxAttempts` takes the maximum of global and preset values, ensuring preset higher retry counts are not reduced by the global cap; special value `-1` (unlimited) takes priority over any positive integer; `preset.maxAttempts=0` does not reduce global attempts.
+
 ## [0.25.37] - 2026-07-15
 
 ### 新增

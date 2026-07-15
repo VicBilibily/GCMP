@@ -280,7 +280,46 @@ GCMP supports customizing AI model behavior parameters through VS Code settings 
 - `gcmp.retry.enabled` defaults to `true`. When enabled, automatically retries retryable errors like 429 rate limit, 503 service unavailable. Set to `false` to disable retries entirely and stop immediately on failure.
 - `gcmp.retry.maxAttempts` defaults to `3`, controlling the maximum automatic retry count for 429, 502/503/504 server errors, and network connectivity failures.
 - Retry delays increase cumulatively (1s → 3s → 6s → 10s → 15s), capped at 15s.
+- During retries, the status bar shows retry progress (e.g., `Model retry #2/3 in 3s`), automatically cleared when the model starts returning data.
 - `gcmp.maxTokens` is **deprecated**: this setting no longer takes effect; each model now automatically uses its own `maxOutputTokens` configuration.
+
+#### Provider-Level Retry Configuration Override
+
+Use `gcmp.providerOverrides.{provider}.retry` to set per-provider retry strategies that override global `gcmp.retry.*` behavior. `maxAttempts` is NOT capped at 1-10, allowing any positive integer or `-1` (unlimited retries).
+
+```json
+{
+    "gcmp.providerOverrides": {
+        "xfyun": {
+            "retry": {
+                "enabled": true,
+                "maxAttempts": 15,    // Not capped at 1-10
+                "maxDelayMs": 30000   // Max delay cap 30s
+            },
+            "retry.xfyun-coding": {  // Sub-provider independent strategy (higher priority)
+                "enabled": true,
+                "maxAttempts": 20,
+                "maxDelayMs": 60000
+            }
+        }
+    }
+}
+```
+
+**Merge priority** (field-level merge, each field falls back independently):
+
+```
+providerOverrides["retry.{subProvider}"] → providerOverrides.retry → built-in preset → global default
+```
+
+**Special semantics**:
+
+| Value | Meaning |
+|-------|---------|
+| `maxAttempts = -1` | Unlimited retries (exit only on non-retryable errors) |
+| `maxAttempts = 0` | Disable retries (override path, equivalent to `enabled: false`) |
+| `preset.maxAttempts = 0` | Does not reduce global `maxAttempts`; use override to force disable |
+| `enabled = false` | Takes effect per the `enabled` field merge priority |
 
 > Feature-specific settings such as `gcmp.commit.enabled`, `gcmp.vision.model`, and `gcmp.zhipu.search.enableMCP` are documented in their respective feature sections, not here.
 
@@ -329,12 +368,12 @@ GCMP supports customizing AI model behavior parameters through VS Code settings 
 
 GCMP supports overriding provider defaults through the `gcmp.providerOverrides` setting. Support varies by provider type:
 
-| Provider Type                        | Supported Fields                               | models[]                               |
-| ------------------------------------ | ---------------------------------------------- | -------------------------------------- |
-| **Built-in** (deepseek/zhipu etc.)   | `baseUrl`, `customHeader`, `proxy`, `models[]` | ✅ Full model add/override             |
-| **Known** (aihubmix/openrouter etc.) | `customHeader`, `proxy`                        | ❌ Use `gcmp.compatibleModels` instead |
-| **Custom** (from compatibleModels)   | `customHeader`, `proxy`                        | ❌ Use `gcmp.compatibleModels` instead |
-| **compatible** itself                | `customHeader`, `proxy`                        | ❌ Use `gcmp.compatibleModels` instead |
+| Provider Type                        | Supported Fields                                       | models[]                               |
+| ------------------------------------ | ------------------------------------------------------ | -------------------------------------- |
+| **Built-in** (deepseek/zhipu etc.)   | `baseUrl`, `customHeader`, `proxy`, `retry`, `models[]` | ✅ Full model add/override             |
+| **Known** (aihubmix/openrouter etc.) | `customHeader`, `proxy`, `retry`                       | ❌ Use `gcmp.compatibleModels` instead |
+| **Custom** (from compatibleModels)   | `customHeader`, `proxy`, `retry`                       | ❌ Use `gcmp.compatibleModels` instead |
+| **compatible** itself                | `customHeader`, `proxy`, `retry`                       | ❌ Use `gcmp.compatibleModels` instead |
 
 **Override precedence**:
 
@@ -345,6 +384,7 @@ model-level > providerOverrides.{provider} > providerOverrides.compatible
 - `providerOverrides.compatible` acts as global defaults for all Compatible Provider models
 - Proxy: `model.proxy` > `providerOverrides.{provider}.proxy` > `providerOverrides.compatible.proxy` (non-built-in only) > `gcmp.proxy` > VS Code `http.proxy` > environment variables
 - Custom headers: `providerOverrides.{provider}.customHeader` > model `customHeader` > `providerOverrides.compatible.customHeader`
+- Retry: `providerOverrides["retry.{subProvider}"]` > `providerOverrides.retry` > built-in preset > global `gcmp.retry.*`
 
 **Configuration example**:
 
@@ -369,7 +409,12 @@ model-level > providerOverrides.{provider} > providerOverrides.compatible
         },
         "aihubmix": {
             "proxy": "http://127.0.0.1:7890", // proxy override also supported
-            "customHeader": { "X-Custom": "value" }
+            "customHeader": { "X-Custom": "value" },
+            "retry": { // provider-level retry override
+                "enabled": true,
+                "maxAttempts": 5,
+                "maxDelayMs": 30000
+            }
         },
         "compatible": {
             "proxy": "http://127.0.0.1:7890" // global default proxy for all Compatible Provider models
@@ -422,7 +467,8 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
             "maxOutputTokens": 4096,
             "capabilities": {
                 "toolCalling": true, // Model must support tool calling in Agent mode
-                "imageInput": false
+                "imageInput": false,
+                // "editTools": ["multi-find-replace", "find-replace", "code-rewrite"] // Optional: model-preferred editing tools, corresponds to VS Code LanguageModelChatCapabilities.editTools
             },
             // customHeader and extraBody are optional
             "customHeader": {
