@@ -42,6 +42,8 @@ export interface ModelFormData {
     maxOutputTokens: number;
     toolCalling: boolean;
     imageInput: boolean;
+    /** 模型偏好的编辑工具列表，true 时使用默认集 */
+    editTools?: boolean | string[];
     useInstructions: boolean | undefined;
     webSearchTool: boolean | undefined;
     reasoningEffort: ReasoningEffort[];

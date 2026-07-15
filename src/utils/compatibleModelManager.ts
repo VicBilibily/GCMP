@@ -80,6 +80,13 @@ export interface CompatibleModelConfig {
         toolCalling: boolean;
         /** 图像输入 */
         imageInput: boolean;
+        /**
+         * 模型偏好的编辑工具列表（透传到 VS Code LanguageModelChatCapabilities.editTools）
+         * 可选值：'find-replace' | 'multi-find-replace' | 'code-rewrite' | 'apply-patch'
+         * true 时等价于 ["multi-find-replace", "find-replace", "code-rewrite"]
+         * 未设置时由 Copilot 走默认学习机制推断
+         */
+        editTools?: boolean | string[];
     };
     /** 自定义HTTP头部（可选） */
     customHeader?: Record<string, string>;

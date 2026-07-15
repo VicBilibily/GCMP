@@ -178,10 +178,12 @@ export class ModelEditor {
         // 还原 capabilities 嵌套结构
         model.capabilities = {
             toolCalling: data.toolCalling,
-            imageInput: data.imageInput
+            imageInput: data.imageInput,
+            editTools: data.editTools
         };
         delete (model as { toolCalling?: boolean }).toolCalling;
         delete (model as { imageInput?: boolean }).imageInput;
+        delete (model as { editTools?: boolean | string[] }).editTools;
 
         // tooltip: 空字符串 → undefined 表示清空（CompatibleModelConfig 字段为可选，不用 null）
         model.tooltip = data.tooltip || undefined;
@@ -328,6 +330,7 @@ export class ModelEditor {
             maxOutputTokens: model?.maxOutputTokens || 4096,
             toolCalling: model?.capabilities?.toolCalling || false,
             imageInput: model?.capabilities?.imageInput || false,
+            editTools: model?.capabilities?.editTools,
             useInstructions: model?.useInstructions,
             webSearchTool: model?.webSearchTool,
             reasoningEffort: model?.reasoningEffort || [],

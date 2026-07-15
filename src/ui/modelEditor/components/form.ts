@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Model Editor 表单 DOM 构建
  * 对应旧 modelEditor.js 的 createDOM 及其辅助函数
  */

@@ -10,12 +10,24 @@
             "sdkMode": "openai-sse",
             "baseUrl": "https://opencode.ai/zen/go/v1",
             "tooltip": "OpenCode Go 套餐 - 智谱 GLM-5.2 是面向长任务时代的旗舰模型，支持真正可用的 1M 上下文。",
-            "contextSize": [1000000, 600000, 400000, 200000],
+            "contextSize": [
+                1000000,
+                600000,
+                400000,
+                200000
+            ],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
-            "reasoningEffort": ["high", "max", "none"],
+            "reasoningEffort": [
+                "high",
+                "max",
+                "none"
+            ],
             "thinkingFormat": "object-none",
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
         },
         {
             "id": "glm-5.1-go",
@@ -26,7 +38,10 @@
             "tooltip": "OpenCode Go 套餐 - 智谱 GLM-5.1，代码能力增强，长程任务显著提升，单次任务可持续工作 8 小时。",
             "maxInputTokens": 200000,
             "maxOutputTokens": 32000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
         },
         {
             "id": "kimi-k2.7-code-go",
@@ -37,8 +52,15 @@
             "tooltip": "OpenCode Go 套餐 - 月之暗面 Kimi K2.7 Code。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
-            "extraBody": { "thinking": { "type": "enabled" } },
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "extraBody": {
+                "thinking": {
+                    "type": "enabled"
+                }
+            },
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
         },
         {
             "id": "kimi-k2.6-go",
@@ -49,9 +71,15 @@
             "tooltip": "OpenCode Go 套餐 - 月之暗面 Kimi K2.6，最新编程模型，强思考能力与多步工具调用。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
             "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
         },
         {
             "id": "kimi-k2.5-go",
@@ -62,9 +90,15 @@
             "tooltip": "OpenCode Go 套餐 - 月之暗面 Kimi K2.5，强大的代码生成与理解能力。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
             "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
         },
         {
             "id": "mimo-v2.5-go",
@@ -73,12 +107,24 @@
             "sdkMode": "openai-sse",
             "baseUrl": "https://opencode.ai/zen/go/v1",
             "tooltip": "OpenCode Go 套餐 - 小米 MiMo V2.5 开源编程模型。",
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "contextSize": [
+                1000000,
+                600000,
+                400000,
+                256000,
+                192000
+            ],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
             "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
         },
         {
             "id": "mimo-v2.5-pro-go",
@@ -87,12 +133,24 @@
             "sdkMode": "openai-sse",
             "baseUrl": "https://opencode.ai/zen/go/v1",
             "tooltip": "OpenCode Go 套餐 - 小米 MiMo V2.5 Pro 版本。",
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "contextSize": [
+                1000000,
+                600000,
+                400000,
+                256000,
+                192000
+            ],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
             "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
         },
         {
             "id": "minimax-m3-go",
@@ -101,10 +159,18 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://opencode.ai/zen/go",
             "tooltip": "OpenCode Go 套餐 - MiniMax M3，原生多模态、1M 上下文的 Frontier Coding 模型。",
-            "contextSize": [512000, 256000, 192000],
+            "contextSize": [
+                512000,
+                256000,
+                192000
+            ],
             "maxInputTokens": 512000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true,
+                "editTools": true
+            }
         },
         {
             "id": "minimax-m2.7-go",
@@ -115,7 +181,10 @@
             "tooltip": "OpenCode Go 套餐 - MiniMax M2.7，能够自行构建复杂 Agent Harness，完成高度复杂的生产力任务。",
             "maxInputTokens": 204800,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
         },
         {
             "id": "qwen3.7-max-go",
@@ -124,11 +193,23 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://opencode.ai/zen/go",
             "tooltip": "OpenCode Go 套餐 - 通义千问 Qwen3.7 Max。",
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "contextSize": [
+                1000000,
+                600000,
+                400000,
+                256000,
+                192000
+            ],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
         },
         {
             "id": "qwen3.7-plus-go",
@@ -137,11 +218,23 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://opencode.ai/zen/go",
             "tooltip": "OpenCode Go 套餐 - 通义千问 Qwen3.7 Plus。",
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "contextSize": [
+                1000000,
+                600000,
+                400000,
+                256000,
+                192000
+            ],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
         },
         {
             "id": "qwen3.6-plus-go",
@@ -150,11 +243,23 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://opencode.ai/zen/go",
             "tooltip": "OpenCode Go 套餐 - 通义千问 Qwen3.6 Plus。",
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "contextSize": [
+                1000000,
+                600000,
+                400000,
+                256000,
+                192000
+            ],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
         },
         {
             "id": "deepseek-v4-pro-go",
@@ -163,12 +268,25 @@
             "sdkMode": "openai-sse",
             "baseUrl": "https://opencode.ai/zen/go/v1",
             "tooltip": "OpenCode Go 套餐 - DeepSeek V4 Pro，Agent 能力显著增强，具备丰富的世界知识。",
-            "reasoningEffort": ["high", "max", "none"],
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "reasoningEffort": [
+                "high",
+                "max",
+                "none"
+            ],
+            "contextSize": [
+                1000000,
+                600000,
+                400000,
+                256000,
+                192000
+            ],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
             "thinkingFormat": "object-none",
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
         },
         {
             "id": "deepseek-v4-flash-go",
@@ -177,12 +295,25 @@
             "sdkMode": "openai-sse",
             "baseUrl": "https://opencode.ai/zen/go/v1",
             "tooltip": "OpenCode Go 套餐 - DeepSeek V4 Flash，快速经济的 API 服务。",
-            "reasoningEffort": ["high", "max", "none"],
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "reasoningEffort": [
+                "high",
+                "max",
+                "none"
+            ],
+            "contextSize": [
+                1000000,
+                600000,
+                400000,
+                256000,
+                192000
+            ],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
             "thinkingFormat": "object-none",
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
         },
         {
             "id": "deepseek-v4-flash-zen",
@@ -191,12 +322,25 @@
             "sdkMode": "openai-sse",
             "baseUrl": "https://opencode.ai/zen/v1",
             "tooltip": "OpenCode Zen - DeepSeek V4 Flash，快速经济。",
-            "reasoningEffort": ["high", "max", "none"],
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "reasoningEffort": [
+                "high",
+                "max",
+                "none"
+            ],
+            "contextSize": [
+                1000000,
+                600000,
+                400000,
+                256000,
+                192000
+            ],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
             "thinkingFormat": "object-none",
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
         },
         {
             "id": "deepseek-v4-pro-zen",
@@ -205,12 +349,25 @@
             "sdkMode": "openai-sse",
             "baseUrl": "https://opencode.ai/zen/v1",
             "tooltip": "OpenCode Zen - DeepSeek V4 Pro，Agent 能力显著增强，具备丰富的世界知识。",
-            "reasoningEffort": ["high", "max", "none"],
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "reasoningEffort": [
+                "high",
+                "max",
+                "none"
+            ],
+            "contextSize": [
+                1000000,
+                600000,
+                400000,
+                256000,
+                192000
+            ],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
             "thinkingFormat": "object-none",
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
         },
         {
             "id": "glm-5-zen",
@@ -221,7 +378,10 @@
             "tooltip": "OpenCode Zen - 智谱 GLM-5 旗舰代码模型。",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
         },
         {
             "id": "glm-5.1-zen",
@@ -232,7 +392,10 @@
             "tooltip": "OpenCode Zen - 智谱 GLM-5.1，长程任务显著提升。",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
         },
         {
             "id": "glm-5.2-zen",
@@ -241,12 +404,24 @@
             "sdkMode": "openai-sse",
             "baseUrl": "https://opencode.ai/zen/v1",
             "tooltip": "OpenCode Zen - 智谱 GLM-5.2 是面向长任务时代的旗舰模型，支持真正可用的 1M 上下文。",
-            "contextSize": [1000000, 600000, 400000, 200000],
+            "contextSize": [
+                1000000,
+                600000,
+                400000,
+                200000
+            ],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
-            "reasoningEffort": ["high", "max", "none"],
+            "reasoningEffort": [
+                "high",
+                "max",
+                "none"
+            ],
             "thinkingFormat": "object-none",
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
         },
         {
             "id": "kimi-k2.5-zen",
@@ -257,9 +432,15 @@
             "tooltip": "OpenCode Zen - 月之暗面 Kimi K2.5。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
             "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
         },
         {
             "id": "kimi-k2.6-zen",
@@ -270,9 +451,15 @@
             "tooltip": "OpenCode Zen - 月之暗面 Kimi K2.6。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
             "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
         },
         {
             "id": "qwen3.5-plus-zen",
@@ -283,8 +470,14 @@
             "tooltip": "OpenCode Zen - 通义千问 Qwen3.5 Plus。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
         },
         {
             "id": "qwen3.6-plus-zen",
@@ -293,11 +486,23 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://opencode.ai/zen",
             "tooltip": "OpenCode Zen - 通义千问 Qwen3.6 Plus。",
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "contextSize": [
+                1000000,
+                600000,
+                400000,
+                256000,
+                192000
+            ],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
         },
         {
             "id": "grok-build-0.1-zen",
@@ -308,7 +513,10 @@
             "tooltip": "OpenCode Zen - xAI Grok Build 编程模型。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 256000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
         },
         {
             "id": "minimax-m2.5-zen",
@@ -319,7 +527,10 @@
             "tooltip": "OpenCode Zen - MiniMax M2.5，编程、工具调用 SOTA。",
             "maxInputTokens": 204800,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
         },
         {
             "id": "minimax-m2.7-zen",
@@ -330,7 +541,10 @@
             "tooltip": "OpenCode Zen - MiniMax M2.7，能够自行构建复杂 Agent Harness。",
             "maxInputTokens": 204800,
             "maxOutputTokens": 128000,
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
         }
     ]
 }

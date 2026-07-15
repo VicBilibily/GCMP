@@ -17,7 +17,7 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "deepseek-v4-pro-coding-plan",
@@ -31,7 +31,7 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "deepseek-v3.2-coding-plan",
@@ -57,7 +57,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "glm-5-coding-plan",
@@ -70,7 +70,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "kimi-k2.5-coding-plan",
@@ -83,7 +83,7 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "glm-5.2-token",
@@ -97,7 +97,7 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "glm-5.1-token",
@@ -110,7 +110,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "deepseek-v4-pro-token",
@@ -124,7 +124,7 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "deepseek-v4-flash-token",
@@ -138,7 +138,7 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "kimi-k2.6-token",
@@ -151,7 +151,7 @@
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "ernie-5.1-token",
@@ -178,7 +178,7 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "deepseek-v4-flash-token-enterprise",
@@ -192,7 +192,7 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "deepseek-v3.2-token-enterprise",
@@ -219,7 +219,7 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "glm-5.1-token-enterprise",
@@ -232,7 +232,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "glm-5-token-enterprise",
@@ -245,7 +245,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "kimi-k2.6-token-enterprise",
@@ -258,7 +258,7 @@
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "deepseek-v4-flash",

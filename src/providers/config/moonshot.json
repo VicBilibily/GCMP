@@ -13,8 +13,15 @@
             "tooltip": "Kimi For Coding - 月之暗面推出的专业编程模型，提供强大的代码生成和理解能力",
             "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true,
+                "editTools": true
+            }
         },
         {
             "id": "kimi-for-coding-highspeed",
@@ -25,8 +32,16 @@
             "tooltip": "Kimi For Coding · HighSpeed - 月之暗面推出的专业编程模型高速版，提供更快的代码生成和理解能力",
             "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
-            "extraBody": { "thinking": { "type": "enabled" } },
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "extraBody": {
+                "thinking": {
+                    "type": "enabled"
+                }
+            },
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true,
+                "editTools": true
+            }
         },
         {
             "id": "kimi-k2.5",
@@ -36,8 +51,15 @@
             "tooltip": "Kimi K2.5 是 Kimi 迄今最智能的模型，同时也是最全能的模型，原生的多模态架构设计，同时支持文本、图片与视频输入，思考与非思考模式，对话与 Agent 任务。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true,
+                "editTools": true
+            }
         },
         {
             "id": "kimi-k2.6",
@@ -47,8 +69,15 @@
             "tooltip": "Kimi K2.6 是 Kimi 最新最智能的模型，具备更强更稳的长程代码编写能力，指令遵循和自我纠错能力显著提升，同时支持文本、图片与视频输入，思考与非思考模式，对话与 Agent 任务。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true,
+                "editTools": true
+            }
         },
         {
             "id": "kimi-k2.7-code",
@@ -58,8 +87,16 @@
             "tooltip": "Kimi K2.7 Code 是 Kimi 迄今最智能的 Coding 模型，在长上下文中更可靠地遵循指令，能以更高的成功率完成编程任务。同时支持文本、图片与视频输入，仅支持思考模式，对话与 Agent 任务。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
-            "extraBody": { "thinking": { "type": "enabled" } },
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "extraBody": {
+                "thinking": {
+                    "type": "enabled"
+                }
+            },
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true,
+                "editTools": true
+            }
         },
         {
             "id": "kimi-k2.7-code-highspeed",
@@ -69,8 +106,16 @@
             "tooltip": "Kimi K2.7 Code 高速版，与 Kimi K2.7 Code 是同一个模型，但输出速度约为普通版的 5-6 倍，常规编程场景下（取输入长度中位数）输出速度约 180 Token/s，短上下文场景可达 260 Token/s。",
             "maxInputTokens": 256000,
             "maxOutputTokens": 128000,
-            "extraBody": { "thinking": { "type": "enabled" } },
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "extraBody": {
+                "thinking": {
+                    "type": "enabled"
+                }
+            },
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true,
+                "editTools": true
+            }
         }
     ]
 }

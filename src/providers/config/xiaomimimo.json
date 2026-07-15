@@ -1,4 +1,4 @@
-﻿{
+{
     "displayName": "Xiaomi MiMo",
     "baseUrl": "https://api.xiaomimimo.com/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
@@ -12,11 +12,24 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://token-plan-cn.xiaomimimo.com/anthropic",
             "model": "mimo-v2.5-pro",
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "contextSize": [
+                1000000,
+                600000,
+                400000,
+                256000,
+                192000
+            ],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false,
+                "editTools": true
+            }
         },
         {
             "id": "mimo-v2.5-token-plan",
@@ -25,45 +38,93 @@
             "provider": "xiaomimimo-token",
             "baseUrl": "https://token-plan-cn.xiaomimimo.com/v1",
             "model": "mimo-v2.5",
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "contextSize": [
+                1000000,
+                600000,
+                400000,
+                256000,
+                192000
+            ],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
             "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
         },
         {
             "id": "mimo-v2.5-pro-ultraspeed",
             "name": "MiMo-V2.5-Pro-UltraSpeed",
             "tooltip": "小米MiMo-V2.5-Pro 的 UltraSpeed 体验模式，万亿参数（1T）旗舰模型，最高突破 1000 tokens/s 推理速度，为极致实时场景而生。",
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "contextSize": [
+                1000000,
+                600000,
+                400000,
+                256000,
+                192000
+            ],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
             "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
         },
         {
             "id": "mimo-v2.5-pro",
             "name": "MiMo-V2.5-Pro",
             "tooltip": "小米MiMo-V2.5-Pro 通用大语言模型，支持文本生成、深度思考、流式输出、函数调用、结构化输出、联网搜索。上下文长度 1M，最大输出 128K。",
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "contextSize": [
+                1000000,
+                600000,
+                400000,
+                256000,
+                192000
+            ],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
             "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": false
+            }
         },
         {
             "id": "mimo-v2.5",
             "name": "MiMo-V2.5",
             "tooltip": "小米MiMo-V2.5 全模态理解模型，支持全模态理解、深度思考、流式输出、函数调用、结构化输出、联网搜索。上下文长度 1M，最大输出 128K。",
-            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "contextSize": [
+                1000000,
+                600000,
+                400000,
+                256000,
+                192000
+            ],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
-            "thinking": ["enabled", "disabled"],
+            "thinking": [
+                "enabled",
+                "disabled"
+            ],
             "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": {
+                "toolCalling": true,
+                "imageInput": true
+            }
         }
     ]
 }

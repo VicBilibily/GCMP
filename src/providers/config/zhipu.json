@@ -13,7 +13,7 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": ["multi-find-replace", "find-replace", "code-rewrite"] }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "glm-5v-turbo",
@@ -24,7 +24,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
         },
         {
             "id": "glm-5-turbo",
@@ -35,7 +35,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "glm-4.7",
@@ -46,7 +46,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "glm-4.6",
@@ -57,7 +57,7 @@
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
             "thinking": ["disabled", "enabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "glm-4.6v",
@@ -68,7 +68,7 @@
             "maxInputTokens": 128000,
             "maxOutputTokens": 16000,
             "thinking": ["disabled", "enabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
         },
         {
             "id": "glm-5.2-billing",

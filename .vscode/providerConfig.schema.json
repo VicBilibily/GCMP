@@ -62,6 +62,20 @@
                 "imageInput": {
                     "type": "boolean",
                     "description": "模型是否接受图像输入。"
+                },
+                "editTools": {
+                    "description": "模型偏好的编辑工具列表，作为提示使用。true 时等价于默认集 [\"multi-find-replace\", \"find-replace\", \"code-rewrite\"]。可选值：find-replace | multi-find-replace | code-rewrite | apply-patch",
+                    "anyOf": [
+                        { "const": true },
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": ["find-replace", "multi-find-replace", "code-rewrite", "apply-patch"]
+                            },
+                            "uniqueItems": true
+                        }
+                    ]
                 }
             }
         },

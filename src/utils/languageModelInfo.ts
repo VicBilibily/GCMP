@@ -9,6 +9,25 @@ import { ModelChatResponseOptions, ModelConfig } from '../types/sharedTypes';
 import { Logger } from './logger';
 import { t } from './l10n';
 
+/** editTools: true 时的默认工具集 */
+const DEFAULT_EDIT_TOOLS: string[] = ['multi-find-replace', 'find-replace', 'code-rewrite'];
+
+/**
+ * 将 ModelConfig.capabilities.editTools 解析为 VS Code 期望的 string[] 或 undefined
+ * - true → DEFAULT_EDIT_TOOLS
+ * - string[] → 直接使用
+ * - undefined → undefined
+ */
+function resolveEditTools(editTools?: boolean | string[]): string[] | undefined {
+    if (editTools === true) {
+        return DEFAULT_EDIT_TOOLS;
+    }
+    if (typeof editTools === 'boolean') {
+        return undefined;
+    }
+    return editTools;
+}
+
 type PropertySchema = JSONSchema7 & NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string];
 
 export interface ContextSizeOption {
@@ -81,7 +100,8 @@ export function createLanguageModelChatInformation(
         version: model.id,
         capabilities: {
             ...model.capabilities,
-            imageInput: true // 始终为 true，让 VS Code 发送 DataPart
+            imageInput: true, // 始终为 true，让 VS Code 发送 DataPart
+            editTools: resolveEditTools(model.capabilities.editTools)
         },
         isBYOK: true,
         isUserSelectable: true,

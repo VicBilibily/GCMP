@@ -63,6 +63,7 @@ const state: EditorState = {
         maxOutputTokens: 4096,
         toolCalling: false,
         imageInput: false,
+        editTools: undefined,
         useInstructions: undefined,
         webSearchTool: undefined,
         reasoningEffort: [],

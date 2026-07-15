@@ -123,6 +123,13 @@ export class JsonSchemaProvider {
         return t('Whether image input is supported', '是否支持图像输入');
     }
 
+    private static getEditToolsDescription(): string {
+        return t(
+            'The edit tools the model prefers for making file edits, used as a hint. Set to true for the default set [multi-find-replace, find-replace, code-rewrite].\nRecognized values: find-replace | multi-find-replace | code-rewrite | apply-patch',
+            '模型偏好的编辑工具列表，作为提示使用。设为 true 时使用默认集 [multi-find-replace, find-replace, code-rewrite]\n可选值：find-replace | multi-find-replace | code-rewrite | apply-patch'
+        );
+    }
+
     private static getProviderCustomHeaderDescription(): string {
         return t(
             'Custom HTTP header configuration at the provider level, supporting ${APIKEY} placeholder replacement',
@@ -707,6 +714,25 @@ export class JsonSchemaProvider {
                                     imageInput: {
                                         type: 'boolean',
                                         description: this.getImageInputDescription()
+                                    },
+                                    editTools: {
+                                        description: this.getEditToolsDescription(),
+                                        anyOf: [
+                                            { const: true },
+                                            {
+                                                type: 'array',
+                                                items: {
+                                                    type: 'string',
+                                                    enum: [
+                                                        'find-replace',
+                                                        'multi-find-replace',
+                                                        'code-rewrite',
+                                                        'apply-patch'
+                                                    ]
+                                                },
+                                                uniqueItems: true
+                                            }
+                                        ]
                                     }
                                 },
                                 required: ['toolCalling', 'imageInput']
@@ -1175,6 +1201,25 @@ export class JsonSchemaProvider {
                                     imageInput: {
                                         type: 'boolean',
                                         description: this.getImageInputDescription()
+                                    },
+                                    editTools: {
+                                        description: this.getEditToolsDescription(),
+                                        anyOf: [
+                                            { const: true },
+                                            {
+                                                type: 'array',
+                                                items: {
+                                                    type: 'string',
+                                                    enum: [
+                                                        'find-replace',
+                                                        'multi-find-replace',
+                                                        'code-rewrite',
+                                                        'apply-patch'
+                                                    ]
+                                                },
+                                                uniqueItems: true
+                                            }
+                                        ]
                                     }
                                 },
                                 required: ['toolCalling', 'imageInput'],
