@@ -9,6 +9,7 @@ import { StatusLogger } from '../utils/statusLogger';
 import { DateUtils } from '../usages/fileLogger/dateUtils';
 import { UserActivityService } from './userActivityService';
 import { InterInstanceBus } from '../interInstance';
+import { LeaderElectionService } from './leaderElectionService';
 import type { TokenUsageStatsFromFile } from '../usages/fileLogger/types';
 import type { ExtendedTokenRequestLog } from '../usages/fileLogger/usageParser';
 import { t } from '../utils/l10n';
@@ -21,7 +22,6 @@ import { formatCost } from '../ui/utils';
 export class TokenUsageStatusBar {
     private statusBarItem: vscode.StatusBarItem | undefined;
     private usagesManager: TokenUsagesManager;
-    private updateDisposable: vscode.Disposable | undefined;
     private updateTimer: NodeJS.Timeout | undefined;
     private lastUpdateTime = 0;
     private readonly UPDATE_INTERVAL = 30000; // 30秒更新一次
@@ -43,7 +43,7 @@ export class TokenUsageStatusBar {
 
         this.statusBarItem.name = 'GCMP: Token Usage';
         this.statusBarItem.command = 'gcmp.tokenUsage.showDetails';
-        this.statusBarItem.text = '$(pulse)';
+        this.statusBarItem.text = '$(layers)';
         this.statusBarItem.tooltip = t('Loading token usage...', '正在加载 Token 统计...');
 
         // 先立即显示占位，避免首次异步统计读取较慢时状态栏完全不出现
@@ -53,14 +53,25 @@ export class TokenUsageStatusBar {
         void this.updateDisplay();
 
         // 监听本实例的统计更新事件
-        this.updateDisposable = this.usagesManager.onStatsUpdate(async () => {
-            await this.updateDisplay();
-        });
+        this.context.subscriptions.push(
+            this.usagesManager.onStatsUpdate(async () => {
+                await this.updateDisplay();
+            })
+        );
 
         // 监听跨实例的 Token 用量更新事件
-        InterInstanceBus.subscribe('tokenUsageUpdated', async () => {
-            await this.updateDisplay();
-        });
+        this.context.subscriptions.push(
+            InterInstanceBus.subscribe('tokenUsageUpdated', async () => {
+                await this.updateDisplay();
+            })
+        );
+
+        // 监听主/子实例角色变更事件
+        this.context.subscriptions.push(
+            LeaderElectionService.onLeaderChanged(async () => {
+                await this.updateDisplay();
+            })
+        );
 
         // 启动定时更新
         this.startPeriodicUpdate();
@@ -127,6 +138,9 @@ export class TokenUsageStatusBar {
             return;
         }
 
+        // 主实例用实心图层图标，从实例用空心图层图标
+        const roleIcon = LeaderElectionService.isLeader() ? '$(layers-dot)' : '$(layers)';
+
         try {
             const today = DateUtils.getTodayDateString();
             const todayStats = await this.usagesManager.getDateStats(today);
@@ -144,12 +158,11 @@ export class TokenUsageStatusBar {
 
             const totalTokens = totalInputTokens + totalOutputTokens;
 
-            // 更新状态栏文本
-            if (totalRequests === 0) {
-                this.statusBarItem.text = '$(pulse)';
-            } else {
-                this.statusBarItem.text = `$(pulse) ${this.formatTokens(totalTokens)}`;
-            }
+            // 更新状态栏文本：角色图标 + Token 用量 + 预估成本
+            const tokenPart = totalRequests === 0 ? '' : ` ${this.formatTokens(totalTokens)}`;
+            const costPart =
+                todayStats.total.estimatedCost > 0 ? ` ${formatCost(todayStats.total.estimatedCost, 2)}` : '';
+            this.statusBarItem.text = `${roleIcon}${tokenPart}${costPart}`;
 
             // 更新 Tooltip (异步生成)
             this.statusBarItem.tooltip = await this.generateTooltip(todayStats);
@@ -159,7 +172,7 @@ export class TokenUsageStatusBar {
             this.lastUpdateTime = Date.now();
         } catch (err) {
             StatusLogger.error('[TokenUsageStatusBar] Failed to update display:', err);
-            this.statusBarItem.text = '$(pulse)';
+            this.statusBarItem.text = `${roleIcon}`;
             this.statusBarItem.show();
         }
     }
@@ -172,7 +185,9 @@ export class TokenUsageStatusBar {
         md.supportHtml = false;
         md.isTrusted = true;
 
-        md.appendMarkdown(`**${t("GCMP: Today's Token Usage", 'GCMP: 今日 Token 消耗统计')}**\n\n`);
+        const roleLabel =
+            LeaderElectionService.isLeader() ? t('Primary Instance', '主实例') : t('Sub Instance', '从实例');
+        md.appendMarkdown(`**${t("GCMP: Today's Token Usage", 'GCMP: 今日 Token 消耗统计')}** ${roleLabel}\n\n`);
         md.appendMarkdown('\n---\n');
 
         const providers = Object.values(stats.providers);
@@ -235,9 +250,11 @@ export class TokenUsageStatusBar {
                 md.appendMarkdown('\n\n ---- \n\n\n\n');
                 // 创建表格标题
                 md.appendMarkdown(
-                    `| ${t('Provider', '提供商')} | ${t('Time', '请求时间')} | ${t('Status', '状态')} | ${t('Read+Write=Input', '读取+写入=输入量')} | ${t('Output', '输出量')} | ${t('Cost', '预估成本')} | ${t('Latency', '响应延迟')} | ${t('Speed', '输出速度')} |\n`
+                    `| ${t('Provider', '提供商')} | ${t('Time', '请求时间')} | ${t('Status', '状态')} | ${t('Read+Write=Input', '读取+写入=输入量')} | ${t('Output', '输出量')} | ${t('Cost', '预估成本')} | ${t('Delay', 'TTFT')} | ${t('Duration', 'TPOT')} | ${t('Speed', '输出速度')} |\n`
                 );
-                md.appendMarkdown('| :----------- | :-----: | :----: | -----: | -----: | ---: | ------: | -----: |\n');
+                md.appendMarkdown(
+                    '| :----------- | :-----: | :----: | -----: | -----: | ---: | -----: | -----: | -----: |\n'
+                );
 
                 // 反转数组，让最近的请求在最下方显示
                 const reversedRequests = [...recentRequests].reverse();
@@ -263,16 +280,21 @@ export class TokenUsageStatusBar {
                     // 格式化输出速度
                     const speedStr = req.outputSpeed !== undefined ? `${req.outputSpeed.toFixed(1)} t/s` : '-';
 
-                    // 格式化首Token延迟
+                    // 格式化延迟与耗时
                     let latencyStr = '-';
+                    let durationStr = '-';
                     if (req.streamStartTime !== undefined && req.timestamp !== undefined) {
                         const latency = req.streamStartTime - req.timestamp;
                         if (Number.isFinite(latency) && latency >= 0) {
-                            if (latency >= 1000) {
-                                latencyStr = `${(latency / 1000).toFixed(1)} s`;
-                            } else {
-                                latencyStr = `${Math.round(latency)} ms`;
-                            }
+                            latencyStr =
+                                latency > 100 ? `${(latency / 1000).toFixed(1)} s` : `${Math.round(latency)} ms`;
+                        }
+                    }
+                    if (req.streamEndTime !== undefined && req.streamStartTime !== undefined) {
+                        const duration = req.streamEndTime - req.streamStartTime;
+                        if (Number.isFinite(duration) && duration >= 0) {
+                            durationStr =
+                                duration > 100 ? `${(duration / 1000).toFixed(1)} s` : `${Math.round(duration)} ms`;
                         }
                     }
 
@@ -288,7 +310,7 @@ export class TokenUsageStatusBar {
                     const costStr = formatCost(req.estimatedCost ?? 0);
 
                     md.appendMarkdown(
-                        `| ${req.providerName} | ${timeStr} | ${statusIcon} | ${inputStr} | ${outputStr} | ${costStr} | ${latencyStr} | ${speedStr} |\n`
+                        `| ${req.providerName} | ${timeStr} | ${statusIcon} | ${inputStr} | ${outputStr} | ${costStr} | ${latencyStr} | ${durationStr} | ${speedStr} |\n`
                     );
                 }
             }
@@ -446,7 +468,6 @@ export class TokenUsageStatusBar {
      */
     dispose(): void {
         this.stopPeriodicUpdate();
-        this.updateDisposable?.dispose();
         this.statusBarItem?.dispose();
     }
 }
