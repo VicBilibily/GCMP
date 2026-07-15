@@ -33,7 +33,7 @@ const DEFAULT_RETRY_CONFIG: RetryConfig = {
     enabled: true,
     maxAttempts: 3,
     initialDelayMs: 1000,
-    maxDelayMs: 30000
+    maxDelayMs: 15000
 };
 
 /**
@@ -210,6 +210,48 @@ export class RetryManager {
             }
         }
 
+        return false;
+    }
+
+    /**
+     * 判断是否为可重试的服务端错误（5xx：502 / 503 / 504）
+     * 这类错误通常表示服务端临时过载或不可用，短暂退避后重试有望成功。
+     * 优先基于 HTTP status 判断；当 handler 丢失 status 时，回退到消息文案匹配常见过载提示。
+     * @param error 错误对象
+     * @returns 是否是可重试的服务端错误
+     */
+    static isServerError(error: RetryableError): boolean {
+        const isRetriableStatus = (code?: number): boolean => code === 502 || code === 503 || code === 504;
+        if (isRetriableStatus(error.status as number) || isRetriableStatus(error.statusCode as number)) {
+            return true;
+        }
+
+        // 后端返回的 error.code（如讯飞 EngineInternalError / 10012），优先精确匹配
+        if (error.code !== undefined && error.code !== null) {
+            const code = String(error.code);
+            if (code === '10012' || code.toLowerCase() === 'engineinternalerror') {
+                return true;
+            }
+        }
+
+        if (error.message && typeof error.message === 'string') {
+            const msg = error.message.toLowerCase();
+            // 通用服务端过载/不可用提示，覆盖各厂商措辞差异（如讯飞 system is busy / EngineInternalError）
+            if (
+                msg.includes('service unavailable') ||
+                msg.includes('system is busy') ||
+                msg.includes('bad gateway') ||
+                msg.includes('gateway timeout') ||
+                msg.includes('engineinternalerror') ||
+                msg.includes('please try again later') ||
+                msg.includes('服务繁忙') ||
+                msg.includes('系统繁忙') ||
+                msg.includes('服务暂时不可用') ||
+                msg.includes('请稍后重试')
+            ) {
+                return true;
+            }
+        }
         return false;
     }
 

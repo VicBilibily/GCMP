@@ -443,10 +443,14 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
     /**
      * 判断请求错误是否允许重试
-     * 包括：429/529 限流错误、网络连接中断错误（如 terminated）
+     * 包括：429/529 限流错误、5xx 服务端错误（502/503/504）、网络连接中断错误（如 terminated）
      */
     protected shouldRetryRequest(error: RetryableError): boolean {
-        return RetryManager.isRateLimitError(error) || RetryManager.isNetworkError(error);
+        return (
+            RetryManager.isRateLimitError(error) ||
+            RetryManager.isServerError(error) ||
+            RetryManager.isNetworkError(error)
+        );
     }
 
     /**

@@ -390,7 +390,7 @@ export class ConfigManager {
      * 验证最大重试次数
      */
     private static validateRetryMaxAttempts(value: number): number {
-        if (isNaN(value) || value < 1 || value > 5) {
+        if (isNaN(value) || value < 1 || value > 10) {
             Logger.warn(`Invalid retry.maxAttempts value: ${value}; using default 3`);
             return 3;
         }

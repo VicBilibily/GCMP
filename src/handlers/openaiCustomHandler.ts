@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
-import { Logger, createOpenCodeHeaders, isCancellationError } from '../utils';
+import { Logger, createOpenCodeHeaders, isCancellationError, type RetryableError } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
@@ -215,13 +215,19 @@ export class OpenAICustomHandler {
                 );
 
                 // 尝试解析错误响应，提取详细的错误信息
+                let errorCode: string | number | undefined;
                 try {
                     const errorJson = JSON.parse(errorText);
                     if (errorJson.error) {
                         if (typeof errorJson.error === 'string') {
                             errorMessage = errorJson.error;
-                        } else if (errorJson.error.message) {
-                            errorMessage = errorJson.error.message;
+                        } else {
+                            if (errorJson.error.message) {
+                                errorMessage = errorJson.error.message;
+                            }
+                            if (errorJson.error.code !== undefined) {
+                                errorCode = errorJson.error.code;
+                            }
                         }
                     }
                 } catch {
@@ -231,7 +237,11 @@ export class OpenAICustomHandler {
                     }
                 }
 
-                throw new Error(errorMessage);
+                // 保留 HTTP status 与后端 error.code，便于上层基于状态码/错误码判断是否可重试
+                const error = new Error(errorMessage) as RetryableError;
+                error.status = response.status;
+                error.code = errorCode;
+                throw error;
             }
 
             if (!response.body) {

@@ -2,6 +2,38 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.37] - 2026-07-15
+
+### 新增
+
+- **讯飞星辰新增 Spark X2 Agent 模型**：新增 `Spark X2 Agent (CodingPlan)` 模型，提供 Agent 工作负载支持。
+
+### 修复
+
+- **重试机制支持 5xx 服务端错误与扩大重试次数上限**：扩展通用重试判定，新增对 HTTP 502/503/504 服务端错误的自动退避重试；`gcmp.retry.maxAttempts` 上限从 5 放宽到 10；重试延迟封顶从 30s 调整为 15s。优化 `openai-sse` 路径的错误归一化，在非 2xx 响应时保留 HTTP status 与后端 `error.code` 字段，确保基于状态码和错误码的重试判定可靠生效（[#298](https://github.com/VicBilibily/GCMP/issues/298)）。
+
+- **讯飞星辰重试逻辑整合到通用模式**：移除 `XfyunProvider` 的专有 `shouldRetryRequest` 重写，将讯飞特有的服务繁忙错误码（如 `EngineInternalError`、`10012`）和过载提示文案纳入通用 `RetryManager.isServerError` 判断，统一由基类重试机制覆盖，消除 provider 层面的重复逻辑。
+
+### 变更
+
+- **讯飞星辰模型配置更新**：`Spark X2 (CodingPlan)` 最大输入 token 调整为 96K；`GLM-5.2 (CodingPlan)` 上下文窗口调整为 500K 并更新 tooltip。
+
+---
+
+### Added
+
+- **XunFei Astron new Spark X2 Agent model**: Added `Spark X2 Agent (CodingPlan)` model for Agent workloads.
+
+### Fixed
+
+- **Retry mechanism now covers 5xx server errors with expanded max attempts**: Added automatic backoff retry for HTTP 502/503/504 server errors in the general retry logic. Raised `gcmp.retry.maxAttempts` cap from 5 to 10, and adjusted retry delay cap from 30s to 15s. Improved `openai-sse` error normalization to preserve HTTP status and backend `error.code` on non-2xx responses, ensuring reliable retry decisions based on status codes and error codes ([#298](https://github.com/VicBilibily/GCMP/issues/298)).
+
+- **XunFei Astron retry logic consolidated into general pattern**: Removed `XfyunProvider`'s custom `shouldRetryRequest` override. XunFei-specific busy error codes (e.g. `EngineInternalError`, `10012`) and overload message patterns are now handled by the general `RetryManager.isServerError`, unifying retry coverage under the base provider and eliminating provider-level duplication.
+
+### Changed
+
+- **XunFei Astron model configuration updates**: Adjusted `Spark X2 (CodingPlan)` max input tokens to 96K. Updated `GLM-5.2 (CodingPlan)` context window to 500K with revised tooltip.
+
 ## [0.25.36] - 2026-07-14
 
 ### 新增

@@ -194,8 +194,8 @@ Ant Group's open-source MoE-architecture LLM family, accessed via Anthropic mode
 
 LLM service platform under iFLYTEK, accessed via Anthropic SDK mode with dual-plan key management.
 
-- [**Coding Plan**](https://maas.xfyun.cn/packageSubscription): **Spark X2**, **Spark-X2-Flash**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **DeepSeek-V3.2**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **GLM-4.7-Flash**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.5**, **Qwen3.6-35B-A3B**, **Qwen3.5-35B-A3B**, **Qwen3.5-397B-A17B**, **Qwen3-Coder-Next-FP8**
-- [**Token Plan**](https://maas.xfyun.cn/tokenPlan): Same 16 models served via a dedicated Token Plan endpoint.
+- [**Coding Plan**](https://maas.xfyun.cn/packageSubscription): **Spark X2 Agent**, **Spark X2**, **Spark-X2-Flash**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **DeepSeek-V3.2**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **GLM-4.7-Flash**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.5**, **Qwen3.6-35B-A3B**, **Qwen3.5-35B-A3B**, **Qwen3.5-397B-A17B**, **Qwen3-Coder-Next-FP8**
+- [**Token Plan**](https://maas.xfyun.cn/tokenPlan): 16 models (excluding **Spark X2 Agent**) served via a dedicated Token Plan endpoint.
 - **Key configuration**: Supports separate [Coding Plan API Key](https://maas.xfyun.cn/packageSubscription) and [Token Plan API Key](https://maas.xfyun.cn/tokenPlan). Setup wizard guides you through plan type selection.
 
 ### [**LongCat**](https://longcat.chat/platform/) - LongCat
@@ -273,13 +273,13 @@ GCMP supports customizing AI model behavior parameters through VS Code settings 
 ```json
 {
     "gcmp.retry.enabled": true, // Enable auto retry (default true), disable to stop on failure
-    "gcmp.retry.maxAttempts": 3 // 1-5, only effective for retryable errors
+    "gcmp.retry.maxAttempts": 3 // 1-10, only effective for retryable errors
 }
 ```
 
-- `gcmp.retry.enabled` defaults to `true`. When enabled, automatically retries retryable errors like 429. Set to `false` to disable retries entirely and stop immediately on failure.
-- `gcmp.retry.maxAttempts` defaults to `3`, controlling the maximum automatic retry count for 429, rate-limit, and temporary overload errors.
-- Current retry delay sequence: `1s → 3s → 6s → 10s → 15s`. Once the limit is reached, the last error is thrown directly.
+- `gcmp.retry.enabled` defaults to `true`. When enabled, automatically retries retryable errors like 429 rate limit, 503 service unavailable. Set to `false` to disable retries entirely and stop immediately on failure.
+- `gcmp.retry.maxAttempts` defaults to `3`, controlling the maximum automatic retry count for 429, 502/503/504 server errors, and network connectivity failures.
+- Retry delays increase cumulatively (1s → 3s → 6s → 10s → 15s), capped at 15s.
 - `gcmp.maxTokens` is **deprecated**: this setting no longer takes effect; each model now automatically uses its own `maxOutputTokens` configuration.
 
 > Feature-specific settings such as `gcmp.commit.enabled`, `gcmp.vision.model`, and `gcmp.zhipu.search.enableMCP` are documented in their respective feature sections, not here.

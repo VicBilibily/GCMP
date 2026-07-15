@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.25.36",
+    "version": "0.25.37",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -439,7 +439,7 @@
                     "type": "number",
                     "default": 3,
                     "minimum": 1,
-                    "maximum": 5,
+                    "maximum": 10,
                     "description": "%setting.retry.maxAttempts.description%",
                     "scope": "application"
                 },

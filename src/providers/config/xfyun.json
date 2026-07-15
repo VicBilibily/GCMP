@@ -6,6 +6,18 @@
     "tokenKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "code-xsparkx2agent",
+            "model": "xsparkx2agent",
+            "name": "Spark X2 Agent (CodingPlan)",
+            "sdkMode": "openai-sse",
+            "provider": "xfyun-coding",
+            "baseUrl": "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2",
+            "tooltip": "星火X2旗舰模型。",
+            "maxInputTokens": 192000,
+            "maxOutputTokens": 32000,
+            "capabilities": { "toolCalling": true, "imageInput": false }
+        },
+        {
             "id": "code-xsparkx2",
             "model": "xsparkx2",
             "name": "Spark X2 (CodingPlan)",
@@ -13,7 +25,7 @@
             "provider": "xfyun-coding",
             "baseUrl": "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2",
             "tooltip": "星火X2旗舰模型。",
-            "maxInputTokens": 192000,
+            "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
@@ -77,11 +89,11 @@
             "sdkMode": "openai-sse",
             "provider": "xfyun-coding",
             "baseUrl": "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2",
-            "tooltip": "GLM-5.2 最新尝鲜，1M上下文窗口。",
-            "maxInputTokens": 1000000,
+            "tooltip": "GLM-5.2 最新尝鲜，Code 套餐支持 500K 上下文。",
+            "maxInputTokens": 500000,
             "maxOutputTokens": 128000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "contextSize": [1000000, 600000, 400000, 200000],
+            "contextSize": [500000, 200000],
             "reasoningEffort": ["high", "max", "none"]
         },
         {

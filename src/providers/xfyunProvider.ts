@@ -17,7 +17,6 @@ import { Logger } from '../utils/logger';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 import { GenericModelProvider } from './genericModelProvider';
 import { XfyunWizard } from '../wizards/xfyunWizard';
-import type { RetryableError } from '../utils';
 
 /**
  * Astron (讯飞星辰) 专用模型提供商类
@@ -136,29 +135,5 @@ export class XfyunProvider extends GenericModelProvider implements LanguageModel
             `${this.providerConfig.displayName}: ${filteredModels.length}/${this.providerConfig.models.length} models available after key filtering`
         );
         return filteredModels.map(model => this.modelConfigToInfo(model));
-    }
-
-    /**
-     * 重写 shouldRetryRequest，增加讯飞星辰特有的错误码重试。
-     * 讯飞返回 code: 10012 / EngineInternalError 时表示服务繁忙，应自动重试。
-     */
-    protected override shouldRetryRequest(error: RetryableError): boolean {
-        if (super.shouldRetryRequest(error)) {
-            return true;
-        }
-
-        if (error.message && typeof error.message === 'string') {
-            const msg = error.message;
-            if (
-                msg.includes('系统繁忙') ||
-                msg.includes('请稍后重试') ||
-                msg.toLowerCase().includes('system is busy') ||
-                msg.toLowerCase().includes('please try again later') ||
-                msg.includes('EngineInternalError')
-            ) {
-                return true;
-            }
-        }
-        return false;
     }
 }
