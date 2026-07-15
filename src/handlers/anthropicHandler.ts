@@ -21,6 +21,7 @@ import { StreamReporter } from './streamReporter';
 import * as liveMetrics from './liveMetrics';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import { isSubRequest, type RequestKind } from './requestClassifier';
+import { applyAnthropicThinkingConfiguration } from './anthropicThinkingConfig';
 
 /**
  * Anthropic 兼容处理器类
@@ -232,30 +233,11 @@ export class AnthropicHandler {
 
             // 根据模型配置设置思考模式和推理长度
             const settings = options.modelConfiguration as ModelChatResponseOptions;
-            if (settings?.thinking) {
-                const thinking: { type: string } = createParams.thinking || { type: 'disabled' };
-                thinking.type = settings.thinking;
-                createParams.thinking = thinking as Anthropic.MessageCreateParamsStreaming['thinking'];
-            } else if (settings?.reasoningEffort) {
-                const thinking: { type: string } = createParams.thinking || { type: 'enabled' };
-                thinking.type = 'enabled';
-                const reasoning = createParams.output_config || { effort: 'medium' };
-                reasoning.effort = settings.reasoningEffort as unknown as Anthropic.Messages.OutputConfig['effort'];
-                if (settings.reasoningEffort === 'minimal') {
-                    thinking.type = 'disabled';
-                }
-                createParams.thinking = thinking as Anthropic.MessageCreateParamsStreaming['thinking'];
-                createParams.output_config = reasoning as Anthropic.MessageCreateParamsStreaming['output_config'];
-                if (settings.reasoningEffort === 'none' || settings.reasoningEffort === 'minimal') {
-                    thinking.type = 'disabled';
-                    createParams.output_config = undefined;
-                }
-            }
+            applyAnthropicThinkingConfiguration(createParams, settings, modelConfig);
             // 子请求（提交、标题生成、终端解释等）关闭思考
             const requestKind = (options.modelOptions as { requestKind?: RequestKind })?.requestKind;
-            if (requestKind && isSubRequest(requestKind) && createParams.thinking) {
-                createParams.thinking.type = 'disabled';
-                createParams.output_config = undefined;
+            if (requestKind && isSubRequest(requestKind)) {
+                applyAnthropicThinkingConfiguration(createParams, undefined, modelConfig, { disableThinking: true });
             }
 
             // 仅在 flex / priority 时传递 service_tier，auto / default 时不传递
