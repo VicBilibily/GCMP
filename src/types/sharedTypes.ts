@@ -315,6 +315,35 @@ export interface UsageFieldPaths {
 }
 
 /**
+ * 提供商级别的重试配置覆盖。
+ * 所有字段可选，缺省时按字段类型回退：
+ * - enabled / maxAttempts：回退到全局 `gcmp.retry.*` 设置
+ * - initialDelayMs / maxDelayMs：回退到内置默认值（1000ms / 15000ms）
+ *
+ * 特殊语义：
+ * - maxAttempts = -1：无限重试（仅由 isRetryable 错误判断决定退出）
+ * - maxAttempts =  0：禁止重试
+ * - enabled = false：禁止重试（与 maxAttempts=0 等效）
+ *
+ * 与全局 `gcmp.retry.maxAttempts` 不同，此处 **不受 1-10 上限约束**，
+ * 允许设置为任意正整数或 -1，以应对特殊场景（如自建网关、需要更长退避的提供商）。
+ */
+export interface ProviderRetryOverride {
+    /** 是否启用重试，缺省时回退到全局 `gcmp.retry.enabled` */
+    enabled?: boolean;
+    /**
+     * 最大重试次数。
+     * -1 表示无限重试；0 表示禁止重试；正整数表示重试次数上限。
+     * 与全局设置不同，此处不受 1-10 上限约束。
+     */
+    maxAttempts?: number;
+    /** 初始重试延迟（毫秒），缺省时回退到内置默认 1000ms */
+    initialDelayMs?: number;
+    /** 最大重试延迟（毫秒），缺省时回退到内置默认 15000ms */
+    maxDelayMs?: number;
+}
+
+/**
  * 提供商覆盖配置接口 - 用于用户配置覆盖
  */
 export interface ProviderOverride {
@@ -330,6 +359,15 @@ export interface ProviderOverride {
     usage?: ProviderUsageConfig;
     /** 自定义提供商多模式余额/用量查询配置（多个模式时使用，可选；可基于 usage 增量覆盖） */
     usages?: ProviderUsagesConfig;
+    /**
+     * 提供商级别的重试配置覆盖（可选）。
+     * 优先级：providerOverrides.{rootOrExact}["retry.{provider}"] → providerOverrides.{rootOrExact}.retry
+     *     → configProviders.{rootOrExact}["retry.{provider}"]（预置）→ configProviders.{rootOrExact}.retry → 全局默认。
+     * 设置后将覆盖全局重试行为，且 maxAttempts 不受 1-10 上限约束（支持 -1 无限重试）。
+     */
+    retry?: ProviderRetryOverride;
+    /** 子 provider 级别的重试配置覆盖（可选），键名格式：`retry.${subProvider}` */
+    [key: `retry.${string}`]: ProviderRetryOverride | undefined;
 }
 
 /**
@@ -354,6 +392,20 @@ export interface ProviderConfig {
      * 模型级别的 proxy 会覆盖提供商级别的 proxy
      */
     proxy?: string;
+    /**
+     * 内置预置重试配置（可选）。
+     *
+     * 作为「全局 gcmp.retry.*」与「用户 providerOverrides.retry」之间的中间层：
+     * 优先级：providerOverrides["retry.{subProvider}"] / providerOverrides.retry
+     *     → 此处的 `retry.{subProvider}` / `retry` 预置 → 全局默认。
+     *
+     * 适用于内置 provider 已知需要特殊重试策略的场景
+     * （如某些提供商限流退避建议更长、或对 5xx 不敏感需禁用重试）。
+     * 字段语义与 ProviderRetryOverride 一致：-1 无限重试、0 禁止重试、正整数不限上限。
+     */
+    retry?: ProviderRetryOverride;
+    /** 内置子 provider 级别的预置重试配置（可选），键名格式：`retry.${subProvider}` */
+    [key: `retry.${string}`]: ProviderRetryOverride | undefined;
 }
 
 /**

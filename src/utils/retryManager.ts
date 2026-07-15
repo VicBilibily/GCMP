@@ -8,12 +8,20 @@ import { t } from './l10n';
 
 /**
  * 重试配置接口
+ *
+ * 特殊语义（仅 provider override 路径会使用，全局设置仍受 1-10 上限约束）：
+ * - maxAttempts = -1：无限重试，仅由 isRetryable 判断决定退出
+ * - maxAttempts = 0：禁止重试（等同于 enabled = false）
  */
 export interface RetryConfig {
     enabled: boolean;
     maxAttempts: number;
     initialDelayMs: number;
     maxDelayMs: number;
+}
+
+export interface RetryExecutionOptions {
+    shouldCancel?: () => boolean;
 }
 
 /**
@@ -57,7 +65,8 @@ export class RetryManager {
     async executeWithRetry<T>(
         operation: () => Promise<T>,
         isRetryable: (error: RetryableError) => boolean,
-        providerName: string
+        providerName: string,
+        options?: RetryExecutionOptions
     ): Promise<T> {
         let lastError: RetryableError | undefined;
         let attempt = 0;
@@ -85,8 +94,15 @@ export class RetryManager {
             Logger.warn(`[${providerName}] Initial request failed, starting retry flow: ${lastError.message}`);
         }
 
+        this.throwIfCancelled(providerName, options?.shouldCancel);
+
         // 重试循环
-        while (attempt < this.config.maxAttempts) {
+        // maxAttempts 语义：
+        //   -1 → 无限重试（仅由 isRetryable 错误判断决定退出）
+        //    0 → 不进行重试（实际由 enabled=false 控制，理论上不会进入此处）
+        //   正整数 → 重试 maxAttempts 次
+        const isUnlimited = this.config.maxAttempts === -1;
+        while (isUnlimited || attempt < this.config.maxAttempts) {
             attempt++;
 
             // 计算延迟时间
@@ -94,10 +110,13 @@ export class RetryManager {
             Logger.info(`[${providerName}] Retrying in ${actualDelayMs / 1000}s...`);
 
             // 等待延迟时间
-            await this.delay(actualDelayMs);
+            await this.delay(actualDelayMs, providerName, options?.shouldCancel);
+
+            this.throwIfCancelled(providerName, options?.shouldCancel);
 
             // 执行重试
-            Logger.info(`[${providerName}] Retry attempt #${attempt}/${this.config.maxAttempts}`);
+            const totalLabel = isUnlimited ? '∞' : `${this.config.maxAttempts}`;
+            Logger.info(`[${providerName}] Retry attempt #${attempt}/${totalLabel}`);
             try {
                 const result = await operation();
                 Logger.info(`[${providerName}] Retry succeeded after attempt ${attempt}`);
@@ -124,6 +143,29 @@ export class RetryManager {
         } else {
             throw new Error(t('[{0}] Unknown error', '[{0}] 未知错误', providerName));
         }
+    }
+
+    private async delay(ms: number, providerName: string, shouldCancel?: () => boolean): Promise<void> {
+        const pollIntervalMs = 100;
+        let remainingMs = ms;
+
+        while (remainingMs > 0) {
+            this.throwIfCancelled(providerName, shouldCancel);
+            const waitMs = Math.min(pollIntervalMs, remainingMs);
+            await new Promise(resolve => setTimeout(resolve, waitMs));
+            remainingMs -= waitMs;
+        }
+    }
+
+    private throwIfCancelled(providerName: string, shouldCancel?: () => boolean): void {
+        if (!shouldCancel?.()) {
+            return;
+        }
+
+        Logger.info(`[${providerName}] Retry flow cancelled by the user`);
+        const error = new Error(t('[{0}] Request cancelled', '[{0}] 请求已取消', providerName));
+        error.name = 'Canceled';
+        throw error;
     }
 
     /**
@@ -253,15 +295,6 @@ export class RetryManager {
             }
         }
         return false;
-    }
-
-    /**
-     * 延迟指定毫秒数
-     * @param ms 毫秒数
-     * @returns Promise
-     */
-    private delay(ms: number): Promise<void> {
-        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     /**

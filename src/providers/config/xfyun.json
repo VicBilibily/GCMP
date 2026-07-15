@@ -4,6 +4,11 @@
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "codingKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "tokenKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "retry.xfyun-coding": {
+        "enabled": true,
+        "maxAttempts": 15,
+        "maxDelayMs": 30000
+    },
     "models": [
         {
             "id": "code-xsparkx2agent",
@@ -13,7 +18,7 @@
             "provider": "xfyun-coding",
             "baseUrl": "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2",
             "tooltip": "星火X2旗舰模型。",
-            "maxInputTokens": 192000,
+            "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },

@@ -5,7 +5,14 @@
 
 import * as vscode from 'vscode';
 import { Logger } from './logger';
-import { ConfigProvider, UserConfigOverrides, ProviderConfig, ModelConfig, ModelOverride } from '../types/sharedTypes';
+import {
+    ConfigProvider,
+    UserConfigOverrides,
+    ProviderConfig,
+    ModelConfig,
+    ModelOverride,
+    ProviderRetryOverride
+} from '../types/sharedTypes';
 import { configProviders } from '../providers/config';
 import { CommitFormat, CommitLanguage, ModelSelection } from '../commit/types';
 import { t } from './l10n';
@@ -96,6 +103,14 @@ export interface RequestRetryConfig {
 }
 
 /**
+ * 内置重试延迟默认值。
+ * 与 RetryManager.DEFAULT_RETRY_CONFIG 的 initialDelayMs / maxDelayMs 保持一致，
+ * 在 provider override 未显式设置延迟时作为回退基准。
+ */
+const DEFAULT_RETRY_INITIAL_DELAY_MS = 1000;
+const DEFAULT_RETRY_MAX_DELAY_MS = 15000;
+
+/**
  * Commit 配置
  */
 export interface CommitConfig {
@@ -170,6 +185,9 @@ export class ConfigManager {
 
         // 内置 provider：直接返回自身
         if (providerKey in configProviders) {
+            Logger.debug(
+                `[Config] getProxyLookupKeys("${providerKey}"): built-in provider, returning [${providerKey}]`
+            );
             return Array.from(lookupKeys);
         }
 
@@ -177,6 +195,9 @@ export class ConfigManager {
         for (const [rootProviderKey, providerConfig] of Object.entries(configProviders)) {
             if (providerConfig.models.some(model => model.provider === providerKey)) {
                 lookupKeys.add(rootProviderKey);
+                Logger.debug(
+                    `[Config] getProxyLookupKeys("${providerKey}"): found sub-provider of "${rootProviderKey}", returning [${Array.from(lookupKeys).join(', ')}]`
+                );
                 return Array.from(lookupKeys);
             }
         }
@@ -184,6 +205,13 @@ export class ConfigManager {
         // 非内置子 provider（已知/自定义）回退到 compatible 作为全局默认
         if (providerKey !== 'compatible') {
             lookupKeys.add('compatible');
+            Logger.debug(
+                `[Config] getProxyLookupKeys("${providerKey}"): unknown provider, falling back to compatible, returning [${Array.from(lookupKeys).join(', ')}]`
+            );
+        } else {
+            Logger.debug(
+                `[Config] getProxyLookupKeys("${providerKey}"): compatible provider, returning [${providerKey}]`
+            );
         }
 
         return Array.from(lookupKeys);
@@ -221,6 +249,8 @@ export class ConfigManager {
         }
 
         const config = vscode.workspace.getConfiguration(this.CONFIG_SECTION);
+
+        const providerOverrides = config.get<UserConfigOverrides>('providerOverrides') ?? {};
 
         this.cache = {
             retry: {
@@ -292,7 +322,10 @@ export class ConfigManager {
                 }
             },
             proxy: config.get<string>('proxy') || undefined,
-            providerOverrides: config.get<UserConfigOverrides>('providerOverrides', {})
+            // VS Code configuration objects may carry proxy getters for nested paths.
+            // Deep-clone here so flat keys like "retry.xfyun-coding" remain plain own-properties
+            // and later property reads do not accidentally trigger dotted-path resolution.
+            providerOverrides: JSON.parse(JSON.stringify(providerOverrides)) as UserConfigOverrides
         };
 
         Logger.debug('Config loaded', sanitizeConfigForLogging(this.cache));
@@ -318,6 +351,268 @@ export class ConfigManager {
      */
     static getRetryEnabled(): boolean {
         return this.getRetryConfig().enabled;
+    }
+
+    /**
+     * 获取指定提供商的重试配置。
+     *
+     * 三层优先级（字段级合并）：
+     *   1. providerOverrides.{rootOrExact}["retry.{provider}"] → providerOverrides.{rootOrExact}.retry
+     *   2. configProviders.{rootOrExact}["retry.{provider}"] → configProviders.{rootOrExact}.retry
+     *   3. 全局 gcmp.retry.*                       （最低优先级）
+     *
+     * 字段级合并规则：
+     * - enabled / maxAttempts：override → preset → global（三层）
+     * - initialDelayMs / maxDelayMs：override → preset → 内置默认值（两层，因全局配置无此字段）
+     *
+     * 用户若只 override 了 maxAttempts，其余字段仍回退到预置 → 全局/默认，
+     * 不会被用户的单字段覆盖抹掉预置中的 initialDelayMs / maxDelayMs。
+     * 若高优先级层给出非法值，则继续回退到下一层，而不是直接退回默认值。
+     *
+     * 特殊语义（预置与 override 路径均支持）：
+     * - maxAttempts = -1：无限重试
+     * - maxAttempts =  0：禁止重试（等价于 enabled=false）
+     * - enabled = false：禁止重试
+     *
+     * 与全局设置不同，预置/override 路径的 maxAttempts 不受 1-10 上限约束，
+     * 允许任意正整数或 -1，以支持自建网关或特定提供商需要更长退避的场景。
+     *
+     * initialDelayMs / maxDelayMs 在预置和 override 均未指定时回退到内置默认值（1000ms / 15000ms），
+     * 与 RetryManager.DEFAULT_RETRY_CONFIG 保持一致。
+     */
+    static getProviderRetryConfig(providerKey: string): RequestRetryConfig & {
+        initialDelayMs: number;
+        maxDelayMs: number;
+    } {
+        const globalRetry = this.getRetryConfig();
+        // 复用 proxy 的子 provider → 根 provider 解析逻辑（如 xfyun-coding → xfyun）
+        const lookupKeys = this.getProxyLookupKeys(providerKey);
+
+        Logger.debug(
+            `[Config] getProviderRetryConfig("${providerKey}"): lookupKeys=${JSON.stringify(lookupKeys)}, global={maxAttempts:${globalRetry.maxAttempts},enabled:${globalRetry.enabled}}`
+        );
+
+        // preset：按优先级从 configProviders 中查找（子 provider 回退到根 provider）
+        // 查找顺序：configProviders[key]["retry.{providerKey}"] → configProviders[key].retry → 下一个 key
+        let preset: ProviderRetryOverride | undefined;
+        for (const key of lookupKeys) {
+            const config = configProviders[key as keyof typeof configProviders];
+            if (config) {
+                // 优先查找子 provider 级别的 flat key（如 "retry.xfyun-coding"）
+                const flatKey: `retry.${string}` = `retry.${providerKey}`;
+                const subPreset = config[flatKey];
+                if (subPreset) {
+                    preset = subPreset;
+                    Logger.debug(
+                        `[Config] getProviderRetryConfig("${providerKey}"): found flat preset from configProviders["${key}"]["${flatKey}"] = ${JSON.stringify(preset)}`
+                    );
+                    break;
+                }
+                // 回退到顶层 retry 配置
+                if (config.retry) {
+                    preset = config.retry;
+                    Logger.debug(
+                        `[Config] getProviderRetryConfig("${providerKey}"): found top-level preset from configProviders["${key}"].retry = ${JSON.stringify(preset)}`
+                    );
+                    break;
+                }
+                Logger.debug(
+                    `[Config] getProviderRetryConfig("${providerKey}"): configProviders["${key}"].retry is undefined`
+                );
+            } else {
+                Logger.debug(
+                    `[Config] getProviderRetryConfig("${providerKey}"): configProviders["${key}"] is undefined`
+                );
+            }
+        }
+
+        if (!preset) {
+            Logger.debug(
+                `[Config] getProviderRetryConfig("${providerKey}"): no preset found in any lookup key, falling back to global`
+            );
+        }
+
+        // override：按优先级从 providerOverrides 中查找（精确 key → 根 key → compatible）
+        // 查找顺序：overrides[key]["retry.{providerKey}"] → overrides[key].retry → 下一个 key
+        let override: ProviderRetryOverride | undefined;
+        const overrides = this.getProviderOverrides();
+        for (const key of lookupKeys) {
+            const providerOverride = overrides[key];
+            if (providerOverride) {
+                // 优先查找子 provider 级别的 flat key（如 "retry.xfyun-coding"）
+                const flatKey: `retry.${string}` = `retry.${providerKey}`;
+                const subOverride = providerOverride[flatKey];
+                if (subOverride) {
+                    override = subOverride;
+                    Logger.debug(
+                        `[Config] getProviderRetryConfig("${providerKey}"): found flat override from providerOverrides["${key}"]["${flatKey}"] = ${JSON.stringify(override)}`
+                    );
+                    break;
+                }
+                // 回退到顶层 retry 配置
+                if (providerOverride.retry) {
+                    override = providerOverride.retry;
+                    Logger.debug(
+                        `[Config] getProviderRetryConfig("${providerKey}"): found top-level override from providerOverrides["${key}"].retry = ${JSON.stringify(override)}`
+                    );
+                    break;
+                }
+                Logger.debug(
+                    `[Config] getProviderRetryConfig("${providerKey}"): providerOverrides["${key}"].retry is undefined`
+                );
+            } else {
+                Logger.debug(
+                    `[Config] getProviderRetryConfig("${providerKey}"): providerOverrides["${key}"] is undefined`
+                );
+            }
+        }
+
+        if (!override) {
+            Logger.debug(
+                `[Config] getProviderRetryConfig("${providerKey}"): no override found in any lookup key, falling back to preset/global`
+            );
+        }
+
+        const resolved = this.resolveProviderRetryOverride(override, preset, globalRetry, providerKey);
+        Logger.debug(
+            `[Config] getProviderRetryConfig("${providerKey}"): resolved={enabled:${resolved.enabled},maxAttempts:${resolved.maxAttempts},initialDelayMs:${resolved.initialDelayMs},maxDelayMs:${resolved.maxDelayMs}}`
+        );
+        return {
+            enabled: resolved.enabled,
+            maxAttempts: resolved.maxAttempts,
+            initialDelayMs: resolved.initialDelayMs,
+            maxDelayMs: resolved.maxDelayMs
+        };
+    }
+
+    /**
+     * 解析 provider 级别的 retry 配置（字段级合并）。
+     *
+     * enabled / maxAttempts：override → preset → global（三层）
+     * initialDelayMs / maxDelayMs：override → preset → 内置默认值（两层）
+     * 若 override/preset 中的值非法，则不会短路回退链，而是继续回退到下一层。
+     *
+     * @param override 用户 providerOverrides.retry（最高优先级，可为 undefined）
+     * @param preset   内置 configProviders.retry 预置（中间层，可为 undefined）
+     * @param globalRetry 全局 gcmp.retry 配置（最低优先级，仅含 enabled/maxAttempts）
+     */
+    private static resolveProviderRetryOverride(
+        override: ProviderRetryOverride | undefined,
+        preset: ProviderRetryOverride | undefined,
+        globalRetry: RequestRetryConfig,
+        providerKey: string
+    ): { enabled: boolean; maxAttempts: number; initialDelayMs: number; maxDelayMs: number } {
+        // 合并后的"声明层"：override 优先于 preset，二者皆未声明则回退到全局
+        const mergedEnabled = override?.enabled ?? preset?.enabled ?? globalRetry.enabled;
+        const maxAttempts = this.resolveProviderMaxAttempts(
+            override?.maxAttempts,
+            preset?.maxAttempts,
+            globalRetry.maxAttempts,
+            providerKey
+        );
+
+        // 当 maxAttempts=0 时，强制 enabled=false 以确保不进入重试循环
+        const effectiveEnabled = maxAttempts === 0 ? false : mergedEnabled;
+
+        // initialDelayMs / maxDelayMs 校验（非法值继续回退到下一层；均未声明时回退到内置默认值）
+        const initialDelayMs = this.resolvePositiveMs(
+            [
+                { value: override?.initialDelayMs, source: 'override' },
+                { value: preset?.initialDelayMs, source: 'preset' }
+            ],
+            DEFAULT_RETRY_INITIAL_DELAY_MS,
+            `provider "${providerKey}" retry.initialDelayMs`
+        );
+        const maxDelayMs = this.resolvePositiveMs(
+            [
+                { value: override?.maxDelayMs, source: 'override' },
+                { value: preset?.maxDelayMs, source: 'preset' }
+            ],
+            DEFAULT_RETRY_MAX_DELAY_MS,
+            `provider "${providerKey}" retry.maxDelayMs`
+        );
+
+        return { enabled: effectiveEnabled, maxAttempts, initialDelayMs, maxDelayMs };
+    }
+
+    /**
+     * 解析 provider 级别 maxAttempts。
+     * 非法值不会短路，而是继续回退到下一层（override → preset → global）。
+     */
+    private static resolveProviderMaxAttempts(
+        overrideValue: number | undefined,
+        presetValue: number | undefined,
+        globalValue: number,
+        providerKey: string
+    ): number {
+        const candidates = [
+            { value: overrideValue, source: 'override' },
+            { value: presetValue, source: 'preset' },
+            { value: globalValue, source: 'global' }
+        ] as const;
+
+        for (const candidate of candidates) {
+            const { value, source } = candidate;
+            if (value === undefined) {
+                continue;
+            }
+
+            if (value === -1) {
+                if (source !== 'global') {
+                    Logger.info(
+                        `[Config] Provider "${providerKey}" retry.maxAttempts = -1 (${source}, unlimited retries, governed by isRetryable)`
+                    );
+                }
+                return -1;
+            }
+
+            if (value === 0) {
+                if (source !== 'global') {
+                    Logger.info(
+                        `[Config] Provider "${providerKey}" retry.maxAttempts = 0 (${source}, retries disabled)`
+                    );
+                }
+                return 0;
+            }
+
+            if (Number.isFinite(value) && Number.isInteger(value) && value > 0) {
+                if (value > 10 && source !== 'global') {
+                    Logger.info(
+                        `[Config] Provider "${providerKey}" retry.maxAttempts = ${value} (${source} bypasses global 1-10 cap)`
+                    );
+                }
+                return value;
+            }
+
+            Logger.warn(
+                `[Config] Provider "${providerKey}" retry.maxAttempts = ${value} from ${source} is invalid; falling back to the next layer`
+            );
+        }
+
+        return globalValue;
+    }
+
+    /**
+     * 校验正整数毫秒值；非法值继续回退到下一层，所有候选都不可用时回退到默认值
+     */
+    private static resolvePositiveMs(
+        candidates: ReadonlyArray<{ value: number | undefined; source: 'override' | 'preset' }>,
+        defaultValue: number,
+        label: string
+    ): number {
+        for (const candidate of candidates) {
+            if (candidate.value === undefined) {
+                continue;
+            }
+            if (Number.isFinite(candidate.value) && Number.isInteger(candidate.value) && candidate.value > 0) {
+                return candidate.value;
+            }
+            Logger.warn(
+                `[Config] ${label} = ${candidate.value} from ${candidate.source} is invalid; falling back to the next layer`
+            );
+        }
+
+        return defaultValue;
     }
 
     /**

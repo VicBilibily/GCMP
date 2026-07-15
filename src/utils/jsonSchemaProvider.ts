@@ -1130,6 +1130,8 @@ export class JsonSchemaProvider {
                         }
                     ]
                 },
+                retry: this.getProviderRetryOverrideSchema(),
+                ...this.getKnownSubProviderRetryOverrideProperties(providerKey),
                 models: {
                     type: 'array',
                     description: t('Model override configuration list', '模型覆盖配置列表'),
@@ -1449,7 +1451,148 @@ export class JsonSchemaProvider {
                     }
                 }
             },
+            patternProperties: this.getSubProviderRetryPatternProperties(),
             additionalProperties: false
+        };
+    }
+
+    /**
+     * 构造 provider 级别 retry override 的 JSON Schema。
+     *
+     * 与全局 `gcmp.retry.maxAttempts`（1-10 上限）不同，此处的 maxAttempts 不受上限约束：
+     *   - -1 → 无限重试（仅由可重试错误判断决定退出）
+     *   -  0 → 禁止重试
+     *   -  正整数 → 重试次数上限（允许大于 10，以应对自建网关等场景）
+     *
+     * 所有字段可选，缺省时该提供商回退到全局 `gcmp.retry.*` 设置。
+     */
+    private static getProviderRetryOverrideSchema(): JSONSchema7 {
+        const providerRetryMaxAttemptsSchema: JSONSchema7 = {
+            anyOf: [{ const: -1 }, { const: 0 }, { type: 'integer', minimum: 1 }],
+            description: t(
+                'Maximum retry attempts. -1 = unlimited retries (exit only when an error is not retryable), 0 = disable retries, positive integer = retry count cap. Unlike the global `gcmp.retry.maxAttempts` (1-10), this value is NOT capped at 10.',
+                '最大重试次数。-1 = 无限重试（仅在遇到不可重试错误时退出）、0 = 禁止重试、正整数 = 重试次数上限。与全局 `gcmp.retry.maxAttempts`（1-10）不同，此处不受 10 上限约束。'
+            )
+        };
+
+        const properties: Record<string, JSONSchema7> = {
+            enabled: {
+                type: 'boolean',
+                description: t(
+                    'Whether retries are enabled for this provider. Defaults to the global `gcmp.retry.enabled` when omitted.',
+                    '是否对该提供商启用重试。缺省时回退到全局 `gcmp.retry.enabled`。'
+                )
+            },
+            maxAttempts: providerRetryMaxAttemptsSchema,
+            initialDelayMs: {
+                type: 'integer',
+                minimum: 1,
+                description: t(
+                    'Initial retry delay in milliseconds. Defaults to the built-in default (1000ms) when omitted.',
+                    '初始重试延迟（毫秒）。缺省时回退到内置默认值 1000ms。'
+                )
+            },
+            maxDelayMs: {
+                type: 'integer',
+                minimum: 1,
+                description: t(
+                    'Maximum retry delay cap in milliseconds. Defaults to the built-in default (15000ms) when omitted.',
+                    '最大重试延迟上限（毫秒）。缺省时回退到内置默认值 15000ms。'
+                )
+            }
+        };
+
+        return {
+            type: 'object',
+            description: t(
+                'Provider-level retry configuration override (optional). When set, it overrides the global `gcmp.retry.*` settings for this provider. Unlike the global setting, maxAttempts here is NOT capped at 1-10: use -1 for unlimited retries, 0 to disable retries, or any positive integer (values > 10 are allowed for self-hosted gateways).',
+                '提供商级别的重试配置覆盖（可选）。设置后将覆盖该提供商的全局 `gcmp.retry.*` 行为。与全局设置不同，此处的 maxAttempts 不受 1-10 上限约束：-1 表示无限重试、0 表示禁止重试、正整数表示重试次数上限（允许大于 10，以适应自建网关等场景）。'
+            ),
+            properties,
+            additionalProperties: false
+        };
+    }
+
+    private static getSubProviderRetryOverrideSchema(): JSONSchema7 {
+        const subProviderRetryMaxAttemptsSchema: JSONSchema7 = {
+            anyOf: [{ const: -1 }, { const: 0 }, { type: 'integer', minimum: 1 }],
+            description: t(
+                'Maximum retry attempts for this sub-provider. -1 = unlimited, 0 = disabled, positive integer = cap.',
+                '该子 provider 的最大重试次数。-1 = 无限、0 = 禁用、正整数 = 上限。'
+            )
+        };
+
+        return {
+            type: 'object',
+            description: t(
+                'Sub-provider level retry configuration override. Apply a specific retry strategy to a sub-provider (e.g. "retry.xfyun-coding"). Fields follow the same semantics as the top-level retry config.',
+                '子 provider 级别的重试配置覆盖。为特定子 provider（如 "retry.xfyun-coding"）应用独立的重试策略，字段语义与顶层重试配置一致。'
+            ),
+            properties: {
+                enabled: {
+                    type: 'boolean',
+                    description: t(
+                        'Whether retries are enabled for this sub-provider.',
+                        '是否对该子 provider 启用重试。'
+                    )
+                },
+                maxAttempts: subProviderRetryMaxAttemptsSchema,
+                initialDelayMs: {
+                    type: 'integer',
+                    minimum: 1,
+                    description: t(
+                        'Initial retry delay (ms) for this sub-provider.',
+                        '该子 provider 的初始重试延迟（毫秒）。'
+                    )
+                },
+                maxDelayMs: {
+                    type: 'integer',
+                    minimum: 1,
+                    description: t(
+                        'Maximum retry delay cap (ms) for this sub-provider.',
+                        '该子 provider 的最大重试延迟上限（毫秒）。'
+                    )
+                }
+            },
+            additionalProperties: false
+        };
+    }
+
+    private static getKnownSubProviderRetryOverrideProperties(providerKey?: string): Record<string, JSONSchema7> {
+        if (!providerKey) {
+            return {};
+        }
+
+        const providerConfig = ConfigManager.getConfigProvider()[providerKey];
+        if (!providerConfig) {
+            return {};
+        }
+
+        const properties: Record<string, JSONSchema7> = {};
+        const subProviders = new Set<string>();
+        for (const model of providerConfig.models) {
+            if (model.provider && model.provider !== providerKey) {
+                subProviders.add(model.provider);
+            }
+        }
+
+        for (const subProvider of Array.from(subProviders).sort()) {
+            properties[`retry.${subProvider}`] = {
+                ...this.getSubProviderRetryOverrideSchema(),
+                description: t(
+                    'Retry configuration override for sub-provider "{0}". Apply a specific retry strategy to this sub-provider. Fields follow the same semantics as the top-level retry config.',
+                    '子 provider "{0}" 的重试配置覆盖。为该子 provider 应用独立的重试策略，字段语义与顶层重试配置一致。',
+                    subProvider
+                )
+            };
+        }
+
+        return properties;
+    }
+
+    private static getSubProviderRetryPatternProperties(): Record<string, JSONSchema7> {
+        return {
+            '^retry\\..+': this.getSubProviderRetryOverrideSchema()
         };
     }
 
@@ -1489,8 +1632,10 @@ export class JsonSchemaProvider {
                                 '^(?:(?:[^:@/\\s]+(?::[^@/\\s]*)?@)?(?:\\[[0-9A-Fa-f:.]+\\]|[^:/\\s?#]+)(?::\\d{1,5})?)$'
                         }
                     ]
-                }
+                },
+                retry: this.getProviderRetryOverrideSchema()
             },
+            patternProperties: this.getSubProviderRetryPatternProperties(),
             additionalProperties: false
         };
     }

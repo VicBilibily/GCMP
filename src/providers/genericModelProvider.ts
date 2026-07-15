@@ -411,15 +411,23 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     }
 
     /**
-     * 获取当前请求的重试配置
+     * 获取当前请求的重试配置。
+     *
+     * 三层优先级（字段级合并）：
+     *   1. providerOverrides.{rootOrExact}["retry.{effectiveProviderKey}"] → providerOverrides.{rootOrExact}.retry
+     *   2. configProviders.{rootOrExact}["retry.{effectiveProviderKey}"] → configProviders.{rootOrExact}.retry
+     *   3. 全局 gcmp.retry.*                                  （最低优先级）
+     *
+     * override 路径支持特殊语义：maxAttempts = -1 无限重试、0 禁止重试，且不受 1-10 全局上限约束。
+     *
+     * @param effectiveProviderKey 用于查找 override 的 provider key，默认使用 this.providerKey
      */
-    protected getRequestRetryConfig() {
-        return {
-            enabled: ConfigManager.getRetryEnabled(),
-            maxAttempts: ConfigManager.getRetryMaxAttempts(),
-            initialDelayMs: 1000,
-            maxDelayMs: 30000
-        };
+    protected getRequestRetryConfig(effectiveProviderKey?: string) {
+        const key = effectiveProviderKey ?? this.providerKey;
+        Logger.debug(
+            `[Config] getRequestRetryConfig: effectiveProviderKey="${effectiveProviderKey}", fallback=this.providerKey="${this.providerKey}", resolved key="${key}"`
+        );
+        return ConfigManager.getProviderRetryConfig(key);
     }
 
     /**
@@ -474,7 +482,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 每次 attempt 使用 liveAttemptStartTime 作为 live metrics 时间基准。
         // 外层 requestStartTime 保留给 recordEstimatedTokens / 持久化记录使用。
 
-        const retryManager = new RetryManager(this.getRequestRetryConfig());
+        const retryManager = new RetryManager(this.getRequestRetryConfig(effectiveProviderKey));
 
         // 请求分类（仅当上层未设置时写入，避免覆盖 provideLanguageModelChatResponse 的值）
         const rtOpts = options as RuntimeProvideLanguageModelChatResponseOptions;
@@ -577,7 +585,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     }
                 },
                 error => this.shouldRetryRequest(error),
-                this.providerConfig.displayName
+                this.providerConfig.displayName,
+                { shouldCancel: () => token.isCancellationRequested }
             );
         } finally {
             // 整个重试流程结束后发送 streamEnd，清理 WebView 实时状态
@@ -713,7 +722,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             // 取消请求不应记为失败：handler 已记录 cancelled，或在此兜底记录
             if (isCancellationError(error)) {
                 await this.reportRequestCancelled(requestId, sessionId);
-                throw error;
+                throw new vscode.CancellationError();
             }
 
             const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
