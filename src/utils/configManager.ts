@@ -141,7 +141,7 @@ export interface VisionConfig {
 export interface DebugConfig {
     /** 是否将所有 HTTP 请求记录为 HAR 文件 */
     captureHar: boolean;
-    /** 保留的 HAR 文件数量（默认 7，0 表示不清理） */
+    /** 保留的 HAR 文件数量（默认 7，0 表示仅禁用按数量清理，2 小时硬删除仍生效） */
     harRetentionCount: number;
 }
 

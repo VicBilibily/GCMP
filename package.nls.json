@@ -134,7 +134,7 @@
     "setting.providerOverrides.description": "Provider configuration overrides. Allows overriding provider baseUrl and model configuration, supports adding new models or overriding existing model parameters. Custom Compatible providers can also configure a single usage query or one or more usages query modes for balance checks, and usages can extend the defaults defined in usage.",
     "setting.compatibleModels.description": "Custom model configuration for Compatible Provider. Fully user-configured OpenAI / Anthropic compatible model list.",
     "setting.debug.captureHar.description": "Capture all HTTP requests made by GCMP into a HAR file for debugging. Sensitive headers and credentials in URLs (including query parameters and redirect URLs) are redacted before writing; request and response bodies are stored as-is.",
-    "setting.debug.harRetentionCount.description": "Number of recent HAR files to keep per VS Code instance in globalStorage/har/. When cleanup is enabled, files older than 2 days are also deleted when a new recording starts or rotates. Set to 0 to disable cleanup.",
+    "setting.debug.harRetentionCount.description": "Number of recent HAR files to keep per VS Code instance in globalStorage/har/. HAR files rotate at least every 30 minutes, and files older than 2 hours are force-deleted when a new recording starts or rotates. Set to 0 to disable only count-based cleanup.",
     "tool.zhipuWebSearch.displayName": "ZhipuAI Web Search",
     "tool.zhipuWebSearch.userDescription": "Get real-time information via ZhipuAI web search",
     "tool.minimaxWebSearch.displayName": "MiniMax Web Search",

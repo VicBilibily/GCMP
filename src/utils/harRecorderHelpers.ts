@@ -10,7 +10,7 @@ export interface HarBodyData {
     byteLength: number;
 }
 
-const HAR_FILE_MAX_AGE_MS = 2 * 24 * 60 * 60 * 1000;
+const HAR_FILE_MAX_AGE_MS = 2 * 60 * 60 * 1000;
 
 async function readStreamBodyData(stream: ReadableStream<Uint8Array>, signal?: AbortSignal): Promise<HarBodyData> {
     const reader = stream.getReader();
@@ -102,10 +102,6 @@ export function planHarCleanup(
     currentPid?: number,
     reserveSlotsForCurrentPid = 0
 ): string[] {
-    if (retentionCount <= 0) {
-        return [];
-    }
-
     const removed = new Set<string>();
     const deletePaths: string[] = [];
     const markDeleted = (file: HarFileRecord): void => {
@@ -121,6 +117,10 @@ export function planHarCleanup(
         if (file.mtime < staleCutoff) {
             markDeleted(file);
         }
+    }
+
+    if (retentionCount <= 0) {
+        return deletePaths;
     }
 
     const remainingAfterStale = files.filter(file => !removed.has(file.path));

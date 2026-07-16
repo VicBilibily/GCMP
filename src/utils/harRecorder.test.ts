@@ -124,7 +124,7 @@ test('shouldRotateHarFileForDayChange only rotates when accepting and date chang
 
 test('shouldRotateHarFileForAge only rotates when accepting and age exceeds interval', () => {
     const now = 1_000_000_000;
-    const interval = 2 * 60 * 60 * 1000;
+    const interval = 30 * 60 * 1000;
 
     // 刚好超过阈值 → 轮换
     assert.equal(shouldRotateHarFileForAge(now - interval - 1, now, interval, true), true);
@@ -136,17 +136,32 @@ test('shouldRotateHarFileForAge only rotates when accepting and age exceeds inte
     assert.equal(shouldRotateHarFileForAge(now - interval, now, interval, true), true);
 });
 
-test('planHarCleanup does not delete files newer than the documented 2-day stale cutoff', () => {
+test('planHarCleanup deletes files older than the 2-hour stale cutoff', () => {
     const now = Date.now();
     const files: HarFileRecord[] = [
-        { name: 'half-day.har', path: '/tmp/half-day.har', mtime: now - 12 * 60 * 60 * 1000, pid: 1001 },
+        { name: 'stale.har', path: '/tmp/stale.har', mtime: now - 3 * 60 * 60 * 1000, pid: 1001 },
         { name: 'fresh.har', path: '/tmp/fresh.har', mtime: now - 5 * 60 * 1000, pid: 1002 }
     ];
 
     const deletePaths = new Set(planHarCleanup(files, 10, now));
 
-    assert.equal(deletePaths.has('/tmp/half-day.har'), false);
+    assert.equal(deletePaths.has('/tmp/stale.har'), true);
     assert.equal(deletePaths.has('/tmp/fresh.har'), false);
+});
+
+test('planHarCleanup still deletes stale files when retentionCount is zero', () => {
+    const now = Date.now();
+    const files: HarFileRecord[] = [
+        { name: 'stale.har', path: '/tmp/stale.har', mtime: now - 3 * 60 * 60 * 1000, pid: 1001 },
+        { name: 'pid-a-old.har', path: '/tmp/pid-a-old.har', mtime: now - 4_000, pid: 3001 },
+        { name: 'pid-a-new.har', path: '/tmp/pid-a-new.har', mtime: now - 3_000, pid: 3001 }
+    ];
+
+    const deletePaths = new Set(planHarCleanup(files, 0, now));
+
+    assert.equal(deletePaths.has('/tmp/stale.har'), true);
+    assert.equal(deletePaths.has('/tmp/pid-a-old.har'), false);
+    assert.equal(deletePaths.has('/tmp/pid-a-new.har'), false);
 });
 
 test('planHarCleanup removes stale files and keeps recent files per pid', () => {

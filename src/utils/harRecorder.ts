@@ -122,7 +122,7 @@ const FLUSH_INTERVAL_MS = 5_000;
 const FLUSH_ENTRY_THRESHOLD = 10;
 const MAX_BUFFERED_ENTRIES = 100;
 /** 单个 HAR 文件的最长写入时长，超过则轮换到新文件，保证文件在此时长内完成轮换 */
-const FILE_ROTATION_INTERVAL_MS = 2 * 60 * 60 * 1000;
+const FILE_ROTATION_INTERVAL_MS = 30 * 60 * 1000;
 
 export class HarRecorder {
     private static instance: HarRecorder | undefined;
@@ -652,10 +652,6 @@ export class HarRecorder {
     }
 
     private cleanupOldHarFiles(dir: string, retentionCount: number, reserveSlotsForCurrentPid = 0): void {
-        if (retentionCount <= 0) {
-            return;
-        }
-
         try {
             const currentPid = process.pid;
             const files: { name: string; path: string; mtime: number; pid: number }[] = [];

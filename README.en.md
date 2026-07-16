@@ -330,14 +330,15 @@ providerOverrides["retry.{subProvider}"] → providerOverrides.retry → built-i
 ```json
 {
     "gcmp.debug.captureHar": false, // Capture all HTTP requests as HAR files (default false)
-    "gcmp.debug.harRetentionCount": 7 // Number of recent HAR files to keep per VS Code instance (0 = no cleanup)
+    "gcmp.debug.harRetentionCount": 7 // Number of recent HAR files to keep per VS Code instance (0 = disable count-based cleanup only; 2-hour hard deletion still applies)
 }
 ```
 
 - When `gcmp.debug.captureHar` is enabled, GCMP writes HAR 1.2 files under `globalStorage/har/`, grouped by VS Code instance and date, to help diagnose compatibility and gateway issues.
 - FIM / NES completions, Gist sync, and CLI OAuth refresh requests skip capture by default to avoid recording sensitive credentials and high-frequency duplicate traffic.
 - Credentials in sensitive headers, URL query parameters, and redirect URLs are redacted before writing, but request and response bodies are stored as-is. Keep HAR files secure.
-- Files older than 2 days are cleaned up automatically when a new recording starts or a file rotates; `harRetentionCount` controls how many recent files each process keeps.
+- HAR files rotate at least every 30 minutes; files older than 2 hours are force-deleted when a new recording starts or a file rotates.
+- `harRetentionCount` controls how many recent files each process keeps by count; setting it to `0` disables only count-based cleanup, while the 2-hour hard deletion still runs.
 
 #### Proxy & System Certificate Settings
 
