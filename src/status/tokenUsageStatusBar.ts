@@ -182,12 +182,14 @@ export class TokenUsageStatusBar {
      */
     private async generateTooltip(stats: TokenUsageStatsFromFile): Promise<vscode.MarkdownString> {
         const md = new vscode.MarkdownString();
-        md.supportHtml = false;
+        md.supportHtml = true;
         md.isTrusted = true;
 
         const roleLabel =
             LeaderElectionService.isLeader() ? t('Primary Instance', '主实例') : t('Sub Instance', '从实例');
-        md.appendMarkdown(`**${t("GCMP: Today's Token Usage", 'GCMP: 今日 Token 消耗统计')}** ${roleLabel}\n\n`);
+        md.appendMarkdown(
+            `**${t("GCMP: Today's Token Usage", 'GCMP: 今日 Token 消耗统计')}** <small>${roleLabel}</small>\n\n`
+        );
         md.appendMarkdown('\n---\n');
 
         const providers = Object.values(stats.providers);

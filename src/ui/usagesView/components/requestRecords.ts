@@ -13,6 +13,7 @@ import {
     getProviderDisplayName,
     getRequestKindDisplayName,
     getSessionDisplayId,
+    meanWithoutOutliers,
     summarizeSessionRecords,
     t,
     UNKNOWN_SESSION_ID
@@ -282,8 +283,8 @@ function buildRequestTotals(records: ExtendedTokenRequestLog[]): {
         }
     });
 
-    const avgLatency = latencies.length > 0 ? latencies.reduce((sum, value) => sum + value, 0) / latencies.length : 0;
-    const avgDuration = durations.length > 0 ? durations.reduce((sum, value) => sum + value, 0) / durations.length : 0;
+    const avgLatency = meanWithoutOutliers(latencies) ?? 0;
+    const avgDuration = meanWithoutOutliers(durations) ?? 0;
 
     return {
         summary: summarizeSessionRecords(records),

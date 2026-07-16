@@ -129,14 +129,15 @@ export class ClinePassStatusBar extends ProviderStatusBarItem<ClinePassStatusDat
 
         // 用量限制表
         md.appendMarkdown(
-            `| ${t('Window', '限频类型')} | ${t('Remaining', '剩余量')} | ${t('Reset Time', '重置时间')} |\n`
+            `| ${t('Window', '限频类型')} | ${t('Remaining', '剩余量')} | ${t('Countdown', '倒计时')} | ${t('Reset Time', '重置时间')} |\n`
         );
-        md.appendMarkdown('| :---: | ---: | :---: |\n');
+        md.appendMarkdown('| :---: | ---: | :---: | :---: |\n');
 
         for (const limit of data.limits) {
             const label = this.getLimitLabel(limit.type);
+            const countdownStr = this.formatCountdown(limit.resetsAt);
             const resetTimeStr = limit.resetsAt ? this.formatDateTime(new Date(limit.resetsAt)) : '—';
-            md.appendMarkdown(`| **${label}** | ${100 - limit.percentUsed}% | ${resetTimeStr} |\n`);
+            md.appendMarkdown(`| **${label}** | ${100 - limit.percentUsed}% | ${countdownStr} | ${resetTimeStr} |\n`);
         }
 
         md.appendMarkdown('\n---\n');

@@ -86,32 +86,6 @@ export interface ChatGPTStatusData {
 }
 
 /**
- * 格式化剩余时间为可读字符串
- * 例如: 780 -> "13m", 374400 -> "4d 13h", 30 -> "30s"
- */
-function formatCountdown(seconds: number): string {
-    if (seconds <= 0) {
-        return t('Resets soon', '即将重置');
-    }
-
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-
-    if (days > 0) {
-        return `${days}d${hours > 0 ? ` ${String(hours).padStart(2, '0')}h` : ''}`;
-    }
-    if (hours > 0) {
-        return `${hours}h${minutes > 0 ? ` ${String(minutes).padStart(2, '0')}m` : ''}`;
-    }
-    if (minutes > 0) {
-        return `${minutes}m`;
-    }
-    return `${secs}s`;
-}
-
-/**
  * 根据 limit_window_seconds 判断窗口类型
  * 只处理 300分钟(5小时) 和 1周 两种情况
  */
@@ -225,7 +199,7 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
         const primaryRemaining = Math.max(0, 100 - primaryWindow.used_percent);
         const primaryResetDate = new Date(primaryWindow.reset_at * 1000);
         const primaryResetTimeStr = this.formatDateTime(primaryResetDate);
-        const primaryCountdown = formatCountdown(primaryWindow.reset_after_seconds);
+        const primaryCountdown = this.formatCountdown(new Date(primaryWindow.reset_at * 1000).toISOString());
         md.appendMarkdown(
             `| **${primaryType.label}** | **${primaryRemaining.toFixed(0)}%** | ${primaryCountdown} | ${primaryResetTimeStr} |\n`
         );
@@ -235,7 +209,7 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
             const secondaryRemaining = Math.max(0, 100 - secondaryWindow.used_percent);
             const secondaryResetDate = new Date(secondaryWindow.reset_at * 1000);
             const secondaryResetTimeStr = this.formatDateTime(secondaryResetDate);
-            const secondaryCountdown = formatCountdown(secondaryWindow.reset_after_seconds);
+            const secondaryCountdown = this.formatCountdown(new Date(secondaryWindow.reset_at * 1000).toISOString());
             md.appendMarkdown(
                 `| **${secondaryType.label}** | **${secondaryRemaining.toFixed(0)}%** | ${secondaryCountdown} | ${secondaryResetTimeStr} |\n`
             );

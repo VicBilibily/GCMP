@@ -189,6 +189,38 @@ export abstract class BaseStatusBarItem<T> {
     }
 
     /**
+     * 从 ISO 时间字符串计算倒计时文本
+     * 例如: "2026-07-20T12:00:00Z" -> "3d 23h", "23m", "45s"
+     * @param resetsAt 重置时间的 ISO 字符串，为空或已过期时返回 "—" 或 "即将重置"
+     * @returns 格式化后的倒计时文本
+     */
+    protected formatCountdown(resetsAt?: string): string {
+        if (!resetsAt) {
+            return '—';
+        }
+        const diffMs = new Date(resetsAt).getTime() - Date.now();
+        if (diffMs <= 0) {
+            return t('Resets soon', '即将重置');
+        }
+
+        const seconds = Math.floor(diffMs / 1000);
+        const days = Math.floor(seconds / 86400);
+        const hours = Math.floor((seconds % 86400) / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+
+        if (days > 0) {
+            return `${days}d${hours > 0 ? ` ${String(hours).padStart(2, '0')}h` : ''}`;
+        }
+        if (hours > 0) {
+            return `${hours}h${minutes > 0 ? ` ${String(minutes).padStart(2, '0')}m` : ''}`;
+        }
+        if (minutes > 0) {
+            return `${minutes}m`;
+        }
+        return `${seconds}s`;
+    }
+
+    /**
      * 检查是否应该显示状态栏
      * 子类需要根据自身逻辑实现（如检查 API Key 是否存在、是否有配置的提供商等）
      * @returns 是否应该显示状态栏

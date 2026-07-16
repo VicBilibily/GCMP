@@ -52,6 +52,60 @@ function getRecordTotalTokens(record: ExtendedTokenRequestLog): number {
 }
 
 /**
+ * 基于中位数偏离度的加权均值（鲁棒统计量）。
+ *
+ * 算法：
+ * 1. 计算中位数作为中心估计
+ * 2. 计算 MAD（Median Absolute Deviation）作为鲁棒尺度
+ * 3. 每个值根据其偏离中位数的程度赋予权重：w = exp(-k * ((x - median) / MAD)^2)
+ *    - 当前 k = 2 时，偏离 1 MAD 的权重 ≈ 0.135，偏离 2 MAD 的权重 ≈ 0.0003
+ * 4. 返回加权均值
+ *
+ * 相比 IQR 硬截断，该方法：
+ * - 不完全丢弃异常值，而是根据偏离程度平滑降权
+ * - 对小样本（≥2）同样有效，无需硬性阈值
+ * - MAD 比标准差对异常值更鲁棒
+ */
+export function meanWithoutOutliers(values: number[]): number | undefined {
+    if (values.length === 0) {
+        return undefined;
+    }
+    if (values.length === 1) {
+        return values[0];
+    }
+
+    const sorted = [...values].sort((a, b) => a - b);
+
+    // 中位数
+    const mid = (sorted.length - 1) / 2;
+    const lo = Math.floor(mid);
+    const median = sorted[lo] + (sorted[lo + 1] - sorted[lo]) * (mid - lo);
+
+    // MAD = median(|x - median|)
+    const absDevs = sorted.map(v => Math.abs(v - median)).sort((a, b) => a - b);
+    const madMid = (absDevs.length - 1) / 2;
+    const madLo = Math.floor(madMid);
+    const mad = absDevs[madLo] + (absDevs[madLo + 1] - absDevs[madLo]) * (madMid - madLo);
+
+    // MAD 退化为 0 时，说明至少半数样本与中位数重合。
+    // 此时返回中位数，避免“多数正常值 + 少数极端异常值”退回算术均值。
+    if (mad < 1e-10) {
+        return median;
+    }
+
+    // 高斯权重：当前 K = 2，偏离 2 MAD 时权重约为 0.0003
+    const K = 2;
+    let totalWeight = 0;
+    let weightedSum = 0;
+    for (const v of values) {
+        const w = Math.exp(-K * ((v - median) / mad) ** 2);
+        totalWeight += w;
+        weightedSum += w * v;
+    }
+    return weightedSum / totalWeight;
+}
+
+/**
  * 汇总一组会话记录，生成展示所需的统计信息
  */
 export function summarizeSessionRecords(records: ExtendedTokenRequestLog[]): SessionSummary {
@@ -68,10 +122,7 @@ export function summarizeSessionRecords(records: ExtendedTokenRequestLog[]): Ses
         completedCount: records.filter(record => record.status === 'completed').length,
         failedCount: records.filter(record => record.status === 'failed').length,
         cancelledCount: records.filter(record => record.status === 'cancelled').length,
-        avgSpeed:
-            speedRecords.length > 0 ?
-                speedRecords.reduce((sum, record) => sum + (record.outputSpeed || 0), 0) / speedRecords.length
-            :   undefined
+        avgSpeed: speedRecords.length > 0 ? meanWithoutOutliers(speedRecords.map(r => r.outputSpeed!)) : undefined
     };
 }
 
