@@ -125,7 +125,12 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
         const hasTokenHubKey = await ApiKeyManager.hasValidApiKey('tencent-tokenhub');
         const hasTokenPlanEnterpriseKey = await ApiKeyManager.hasValidApiKey('tencent-token-enterprise');
         const hasAnyKey =
-            hasNormalKey || hasCodingKey || hasTokenPlanKey || hasDeepSeekKey || hasTokenHubKey || hasTokenPlanEnterpriseKey;
+            hasNormalKey ||
+            hasCodingKey ||
+            hasTokenPlanKey ||
+            hasDeepSeekKey ||
+            hasTokenHubKey ||
+            hasTokenPlanEnterpriseKey;
 
         if (options.silent && !hasAnyKey) {
             Logger.debug(

@@ -44,10 +44,7 @@ export class TencentWizard extends BaseWizard {
                         value: 'tokenPlan'
                     },
                     {
-                        label: t(
-                            '$(key) Set Token Plan Enterprise key',
-                            '$(key) 设置 Token Plan 企业版密钥'
-                        ),
+                        label: t('$(key) Set Token Plan Enterprise key', '$(key) 设置 Token Plan 企业版密钥'),
                         detail: t(
                             'Used for Tencent Cloud Token Plan Enterprise pay-as-you-go models',
                             '用于腾讯云 Token Plan 企业版按量付费模型'
@@ -191,10 +188,7 @@ export class TencentWizard extends BaseWizard {
                 'Enter the Tencent Cloud Token Plan Enterprise API key (leave empty to clear)',
                 '请输入 腾讯云 Token Plan 企业版 API Key（留空可清除）'
             ),
-            title: t(
-                'Set Tencent Cloud Token Plan Enterprise API key',
-                '设置 腾讯云 Token Plan 企业版 API Key'
-            ),
+            title: t('Set Tencent Cloud Token Plan Enterprise API key', '设置 腾讯云 Token Plan 企业版 API Key'),
             placeHolder: apiKeyTemplate,
             successMessage: t(
                 'Tencent Cloud Token Plan Enterprise API key set',

@@ -1,4 +1,4 @@
-﻿{
+{
     "displayName": "AntLing",
     "baseUrl": "https://api.ant-ling.com/anthropic",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",

@@ -13,23 +13,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
             "model": "qwen3.7-plus",
-            "contextSize": [
-                983000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [983000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "qwen3.6-plus-coding-plan",
@@ -39,23 +27,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
             "model": "qwen3.6-plus",
-            "contextSize": [
-                983000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [983000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "qwen3.5-plus-coding-plan",
@@ -65,23 +41,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
             "model": "qwen3.5-plus",
-            "contextSize": [
-                983000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [983000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "qwen3-max-coding-plan",
@@ -93,10 +57,7 @@
             "model": "qwen3-max-2026-01-23",
             "maxInputTokens": 256000,
             "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "qwen3-max-thinking-coding-plan",
@@ -108,10 +69,7 @@
             "model": "qwen3-max-2026-01-23",
             "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
+            "capabilities": { "toolCalling": true, "imageInput": false },
             "extraBody": {
                 "thinking": {
                     "type": "enabled"
@@ -128,10 +86,7 @@
             "model": "qwen3-coder-next",
             "maxInputTokens": 204800,
             "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "qwen3-coder-plus-coding-plan",
@@ -143,10 +98,7 @@
             "model": "qwen3-coder-plus",
             "maxInputTokens": 128000,
             "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "minimax-m2.5-coding-plan",
@@ -158,10 +110,7 @@
             "model": "MiniMax-M2.5",
             "maxInputTokens": 204800,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-5-coding-plan",
@@ -173,15 +122,8 @@
             "model": "glm-5",
             "maxInputTokens": 200000,
             "maxOutputTokens": 16000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "glm-4.7-coding-plan",
@@ -193,15 +135,8 @@
             "model": "glm-4.7",
             "maxInputTokens": 200000,
             "maxOutputTokens": 16000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "kimi-k2.5-coding-plan",
@@ -213,15 +148,8 @@
             "model": "kimi-k2.5",
             "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true,
-                "editTools": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
         },
         {
             "id": "qwen3.7-plus-token-plan",
@@ -231,23 +159,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
             "model": "qwen3.7-plus",
-            "contextSize": [
-                983000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [983000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "qwen3.7-max-token-plan",
@@ -257,23 +173,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
             "model": "qwen3.7-max",
-            "contextSize": [
-                983000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [983000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "qwen3.6-plus-token-plan",
@@ -283,23 +187,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
             "model": "qwen3.6-plus",
-            "contextSize": [
-                983000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [983000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "qwen3.6-flash-token-plan",
@@ -309,23 +201,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
             "model": "qwen3.6-flash",
-            "contextSize": [
-                983000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [983000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "glm-5.2-token-plan",
@@ -335,24 +215,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
             "model": "glm-5.2",
-            "contextSize": [
-                1000000,
-                600000,
-                400000,
-                200000
-            ],
+            "contextSize": [1000000, 600000, 400000, 200000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "reasoningEffort": ["high", "max", "none"],
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "glm-5.1-token-plan",
@@ -364,15 +231,8 @@
             "model": "glm-5.1",
             "maxInputTokens": 200000,
             "maxOutputTokens": 16000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "glm-5-token-plan",
@@ -384,15 +244,8 @@
             "model": "glm-5",
             "maxInputTokens": 200000,
             "maxOutputTokens": 16000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "kimi-k2.7-code-token-plan",
@@ -404,15 +257,8 @@
             "model": "kimi-k2.7-code",
             "maxInputTokens": 262144,
             "maxOutputTokens": 262144,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true,
-                "editTools": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
         },
         {
             "id": "kimi-k2.6-token-plan",
@@ -424,15 +270,8 @@
             "model": "kimi-k2.6",
             "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true,
-                "editTools": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
         },
         {
             "id": "kimi-k2.5-token-plan",
@@ -444,15 +283,8 @@
             "model": "kimi-k2.5",
             "maxInputTokens": 256000,
             "maxOutputTokens": 32000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true,
-                "editTools": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
         },
         {
             "id": "minimax-m2.5-token-plan",
@@ -464,10 +296,7 @@
             "model": "MiniMax-M2.5",
             "maxInputTokens": 204800,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "deepseek-v4-pro-token-plan",
@@ -477,25 +306,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
             "model": "deepseek-v4-pro",
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "contextSize": [
-                1000000,
-                600000,
-                400000,
-                256000,
-                192000
-            ],
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "deepseek-v4-flash-token-plan",
@@ -505,25 +320,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
             "model": "deepseek-v4-flash",
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "contextSize": [
-                1000000,
-                600000,
-                400000,
-                256000,
-                192000
-            ],
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "deepseek-v3.2-token-plan",
@@ -535,54 +336,27 @@
             "model": "deepseek-v3.2",
             "maxInputTokens": 256000,
             "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "qwen3.7-plus",
             "name": "Qwen3.7-Plus",
             "tooltip": "Qwen3.7系列中高性价比Plus模型，在强大文本能力的基础上全面升级了视觉-语言能力，同时保持了在编码、工具使用和生产力工作流方面的完整智能体能力。其核心特色为多模态交互混合智能体能力，能够感知真实世界场景、读取屏幕并操作 GUI、基于视觉参考生成代码、端到端导航移动应用。",
-            "contextSize": [
-                983000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [983000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "qwen3.7-max",
             "name": "Qwen3.7-Max",
             "tooltip": "Qwen3.7系列中规模最大、综合能力最强的Max模型，当前开放纯文本模型能力供体验。Qwen3.7是面向智能体时代的新一代旗舰模型，核心优势在于智能体能力的广度与深度：在编程、办公与生产力、长周期自主执行方面均能出色胜任各项任务。",
-            "contextSize": [
-                983000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [983000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "qwen3.6-max-preview",
@@ -590,58 +364,28 @@
             "tooltip": "Qwen3.6系列中规模最大、综合能力最强的Max模型Preview版本，当前开放纯文本模型能力供体验。相较于此前发布的Qwen3-Max和Qwen3.6-Plus，本模型在vibe coding能力上进一步提升、coding agent执行更加高效、前端编程开发能力显著提升；长尾知识能力进一步升级。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 64000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "qwen3.6-plus",
             "name": "Qwen3.6-Plus",
             "tooltip": "Qwen3.6原生视觉语言系列Plus模型，展现出与当前顶尖前沿模型相媲美的卓越性能，模型效果相较3.5系列显著提升。模型在Agentic coding、前端编程、Vibe coding等代码能力、多模态万物识别、OCR、物体定位等能力上显著增强。",
-            "contextSize": [
-                983000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [983000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "qwen3.6-flash",
             "name": "Qwen3.6-Flash",
             "tooltip": "Qwen3.6原生视觉语言系列Flash模型，模型效果相较3.5-Flash显著提升。本模型重点提升agentic coding能力（在多项代码智能体基准上大幅超越前代）、数学推理和代码推理能力；视觉方面在空间智能能力上显著增强，物体定位与目标检测提升尤为突出。",
-            "contextSize": [
-                983000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [983000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "qwen3.5-plus",
@@ -649,23 +393,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
             "tooltip": "Qwen3.5原生视觉语言系列Plus模型，基于混合架构设计，融合了线性注意力机制与稀疏混合专家模型，实现了更高的推理效率。在多项任务评测中，3.5系列均展现出与当前顶尖前沿模型相媲美的卓越性能，模型效果在纯文本与多模态方面相较3系列均实现飞跃式进步。",
-            "contextSize": [
-                983000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [983000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "qwen3.5-flash",
@@ -673,23 +405,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
             "tooltip": "Qwen3.5原生视觉语言系列Flash模型，基于混合架构设计，融合了线性注意力机制与稀疏混合专家模型，实现了更高的推理效率。模型效果在纯文本与多模态方面相较3系列均实现飞跃式进步；响应速度快，兼具推理速度和性能。",
-            "contextSize": [
-                983000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [983000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 983000,
             "maxOutputTokens": 64000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "deepseek-v4-flash",
@@ -697,25 +417,11 @@
             "tooltip": "DeepSeek-V4 快速模式。高效轻量化MoE模型，总参284B，激活13B，原生支持百万超长上下文能力。推理速度快、延迟低、调用成本低廉，综合能力均衡，主打高并发、轻量化任务，适合日常对话、内容创作、基础 RAG、批量文案处理等普惠刚需场景。",
             "sdkMode": "anthropic",
             "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "contextSize": [
-                1000000,
-                600000,
-                400000,
-                256000,
-                192000
-            ],
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "deepseek-v4-pro",
@@ -723,25 +429,11 @@
             "tooltip": "DeepSeek-V4 专家模式。旗舰级 MoE 大模型，总参1.6T、激活 49B，原生支持百万级超长上下文。依托海量高质量训练数据，具备顶尖数学逻辑、复杂推理、专业代码与长文本深度解析能力，适配高阶科研、复杂办公、深度智能代理等高难度场景。",
             "sdkMode": "anthropic",
             "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "contextSize": [
-                1000000,
-                600000,
-                400000,
-                256000,
-                192000
-            ],
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "glm-5.2",
@@ -749,24 +441,11 @@
             "tooltip": "智谱 GLM-5.2 旗舰模型，支持 100 万上下文窗口，推理能力强。",
             "sdkMode": "anthropic",
             "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "contextSize": [
-                1000000,
-                600000,
-                400000,
-                200000
-            ],
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 200000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "kimi-k2.7-code",
@@ -776,15 +455,8 @@
             "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
             "maxInputTokens": 262144,
             "maxOutputTokens": 262144,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true,
-                "editTools": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
         }
     ]
 }

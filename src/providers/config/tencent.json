@@ -15,15 +15,8 @@
             "model": "glm-5",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "minimax-m2.5-coding-plan",
@@ -35,10 +28,7 @@
             "model": "minimax-m2.5",
             "maxInputTokens": 200000,
             "maxOutputTokens": 192000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "kimi-k2.5-coding-plan",
@@ -49,14 +39,8 @@
             "model": "kimi-k2.5",
             "maxInputTokens": 256000,
             "maxOutputTokens": 256000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "hy3-preview-token-plan",
@@ -68,14 +52,8 @@
             "model": "hy3-preview",
             "maxInputTokens": 192000,
             "maxOutputTokens": 128000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "deepseek-v4-flash-202605-token-plan",
@@ -85,25 +63,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
             "model": "deepseek-v4-flash-202605",
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "contextSize": [
-                1000000,
-                600000,
-                400000,
-                256000,
-                192000
-            ],
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "deepseek-v4-pro-2026065-token-plan",
@@ -113,25 +77,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
             "model": "deepseek-v4-pro-202606",
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "contextSize": [
-                1000000,
-                600000,
-                400000,
-                256000,
-                192000
-            ],
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "glm-5.1-token-plan",
@@ -143,15 +93,8 @@
             "model": "glm-5.1",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "glm-5-token-plan",
@@ -163,15 +106,8 @@
             "model": "glm-5",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "minimax-m2.7-token-plan",
@@ -183,10 +119,7 @@
             "model": "minimax-m2.7",
             "maxInputTokens": 200000,
             "maxOutputTokens": 192000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "minimax-m2.5-token-plan",
@@ -198,10 +131,7 @@
             "model": "minimax-m2.5",
             "maxInputTokens": 200000,
             "maxOutputTokens": 192000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "kimi-k2.5-token-plan",
@@ -213,15 +143,8 @@
             "model": "kimi-k2.5",
             "maxInputTokens": 256000,
             "maxOutputTokens": 256000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true,
-                "editTools": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
         },
         {
             "id": "glm-5",
@@ -232,14 +155,8 @@
             "baseUrl": "https://api.lkeap.cloud.tencent.com/v3",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "minimax-m2.5",
@@ -250,10 +167,7 @@
             "baseUrl": "https://api.lkeap.cloud.tencent.com/v3",
             "maxInputTokens": 200000,
             "maxOutputTokens": 192000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "kimi-k2.5",
@@ -264,14 +178,8 @@
             "baseUrl": "https://api.lkeap.cloud.tencent.com/v3",
             "maxInputTokens": 256000,
             "maxOutputTokens": 256000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "deepseek-v3.2",
@@ -282,14 +190,8 @@
             "baseUrl": "https://api.lkeap.cloud.tencent.com/v1",
             "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
-            "thinking": [
-                "disabled",
-                "enabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "thinking": ["disabled", "enabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "hunyuan-2.0-instruct-tokenhub",
@@ -301,10 +203,7 @@
             "model": "hunyuan-2.0-instruct-20251111",
             "maxInputTokens": 128000,
             "maxOutputTokens": 16000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "hunyuan-2.0-thinking-tokenhub",
@@ -316,10 +215,7 @@
             "model": "hunyuan-2.0-thinking-20251109",
             "maxInputTokens": 128000,
             "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "hy3-preview-tokenhub",
@@ -331,14 +227,8 @@
             "model": "hy3-preview",
             "maxInputTokens": 192000,
             "maxOutputTokens": 128000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-5.2-tokenhub",
@@ -348,24 +238,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://tokenhub.tencentmaas.com",
             "model": "glm-5.2",
-            "contextSize": [
-                1000000,
-                600000,
-                400000,
-                200000
-            ],
+            "contextSize": [1000000, 600000, 400000, 200000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "reasoningEffort": ["high", "max", "none"],
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "glm-5.1-tokenhub",
@@ -377,15 +254,8 @@
             "model": "glm-5.1",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "glm-5v-turbo-tokenhub",
@@ -397,10 +267,7 @@
             "model": "glm-5v-turbo",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "glm-5-turbo-tokenhub",
@@ -412,10 +279,7 @@
             "model": "glm-5-turbo",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-5-tokenhub",
@@ -427,15 +291,8 @@
             "model": "glm-5",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "deepseek-v4-flash-tokenhub",
@@ -445,25 +302,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://tokenhub.tencentmaas.com",
             "model": "deepseek-v4-flash",
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "contextSize": [
-                1000000,
-                600000,
-                400000,
-                256000,
-                192000
-            ],
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "deepseek-v4-pro-tokenhub",
@@ -473,25 +316,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://tokenhub.tencentmaas.com",
             "model": "deepseek-v4-pro",
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "contextSize": [
-                1000000,
-                600000,
-                400000,
-                256000,
-                192000
-            ],
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false,
-                "editTools": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true }
         },
         {
             "id": "deepseek-v3.2-tokenhub",
@@ -503,14 +332,8 @@
             "model": "deepseek-v3.2",
             "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
-            "thinking": [
-                "disabled",
-                "enabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "thinking": ["disabled", "enabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "kimi-k2.7-code-tokenhub",
@@ -527,11 +350,7 @@
                     "type": "enabled"
                 }
             },
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true,
-                "editTools": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
         },
         {
             "id": "kimi-k2.6-tokenhub",
@@ -543,15 +362,8 @@
             "model": "kimi-k2.6",
             "maxInputTokens": 256000,
             "maxOutputTokens": 256000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true,
-                "editTools": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
         },
         {
             "id": "kimi-k2.5-tokenhub",
@@ -563,15 +375,8 @@
             "model": "kimi-k2.5",
             "maxInputTokens": 224000,
             "maxOutputTokens": 16000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true,
-                "editTools": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
         },
         {
             "id": "minimax-m3-tokenhub",
@@ -583,11 +388,7 @@
             "model": "minimax-m3",
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true,
-                "editTools": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
         },
         {
             "id": "minimax-m2.7-tokenhub",
@@ -599,10 +400,7 @@
             "model": "minimax-m2.7",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "minimax-m2.5-tokenhub",
@@ -614,10 +412,7 @@
             "model": "minimax-m2.5",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "deepseek-v4-flash-token-enterprise",
@@ -627,24 +422,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://tokenhub.tencentmaas.com/plan/anthropic",
             "model": "deepseek-v4-flash",
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "contextSize": [
-                1000000,
-                600000,
-                400000,
-                256000,
-                192000
-            ],
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "deepseek-v4-flash-202605-token-enterprise",
@@ -654,24 +436,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://tokenhub.tencentmaas.com/plan/anthropic",
             "model": "deepseek-v4-flash-202605",
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "contextSize": [
-                1000000,
-                600000,
-                400000,
-                256000,
-                192000
-            ],
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "deepseek-v4-pro-token-enterprise",
@@ -681,24 +450,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://tokenhub.tencentmaas.com/plan/anthropic",
             "model": "deepseek-v4-pro",
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "contextSize": [
-                1000000,
-                600000,
-                400000,
-                256000,
-                192000
-            ],
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "deepseek-v4-pro-202606-token-enterprise",
@@ -708,24 +464,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://tokenhub.tencentmaas.com/plan/anthropic",
             "model": "deepseek-v4-pro-202606",
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "contextSize": [
-                1000000,
-                600000,
-                400000,
-                256000,
-                192000
-            ],
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-5-token-enterprise",
@@ -737,14 +480,8 @@
             "model": "glm-5",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-5-turbo-token-enterprise",
@@ -756,10 +493,7 @@
             "model": "glm-5-turbo",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-5.1-token-enterprise",
@@ -771,14 +505,8 @@
             "model": "glm-5.1",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-5.2-token-enterprise",
@@ -788,23 +516,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://tokenhub.tencentmaas.com/plan/anthropic",
             "model": "glm-5.2",
-            "contextSize": [
-                1000000,
-                600000,
-                400000,
-                200000
-            ],
+            "contextSize": [1000000, 600000, 400000, 200000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "reasoningEffort": ["high", "max", "none"],
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "kimi-k2.5-token-enterprise",
@@ -816,14 +532,8 @@
             "model": "kimi-k2.5",
             "maxInputTokens": 224000,
             "maxOutputTokens": 16000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "kimi-k2.6-token-enterprise",
@@ -835,14 +545,8 @@
             "model": "kimi-k2.6",
             "maxInputTokens": 256000,
             "maxOutputTokens": 256000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "kimi-k2.7-code-token-enterprise",
@@ -859,10 +563,7 @@
                     "type": "enabled"
                 }
             },
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "kimi-k2.7-code-highspeed-token-enterprise",
@@ -879,10 +580,7 @@
                     "type": "enabled"
                 }
             },
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "minimax-m2.5-token-enterprise",
@@ -894,10 +592,7 @@
             "model": "minimax-m2.5",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "minimax-m2.7-token-enterprise",
@@ -909,10 +604,7 @@
             "model": "minimax-m2.7",
             "maxInputTokens": 200000,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "minimax-m3-token-enterprise",
@@ -924,10 +616,7 @@
             "model": "minimax-m3",
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         }
     ]
 }

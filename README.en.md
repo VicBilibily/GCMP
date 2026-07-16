@@ -293,10 +293,11 @@ Use `gcmp.providerOverrides.{provider}.retry` to set per-provider retry strategi
         "xfyun": {
             "retry": {
                 "enabled": true,
-                "maxAttempts": 15,    // Not capped at 1-10
-                "maxDelayMs": 30000   // Max delay cap 30s
+                "maxAttempts": 15, // Not capped at 1-10
+                "maxDelayMs": 30000 // Max delay cap 30s
             },
-            "retry.xfyun-coding": {  // Sub-provider independent strategy (higher priority)
+            "retry.xfyun-coding": {
+                // Sub-provider independent strategy (higher priority)
                 "enabled": true,
                 "maxAttempts": 20,
                 "maxDelayMs": 60000
@@ -314,12 +315,12 @@ providerOverrides["retry.{subProvider}"] → providerOverrides.retry → built-i
 
 **Special semantics**:
 
-| Value | Meaning |
-|-------|---------|
-| `maxAttempts = -1` | Unlimited retries (exit only on non-retryable errors) |
-| `maxAttempts = 0` | Disable retries (override path, equivalent to `enabled: false`) |
+| Value                    | Meaning                                                             |
+| ------------------------ | ------------------------------------------------------------------- |
+| `maxAttempts = -1`       | Unlimited retries (exit only on non-retryable errors)               |
+| `maxAttempts = 0`        | Disable retries (override path, equivalent to `enabled: false`)     |
 | `preset.maxAttempts = 0` | Does not reduce global `maxAttempts`; use override to force disable |
-| `enabled = false` | Takes effect per the `enabled` field merge priority |
+| `enabled = false`        | Takes effect per the `enabled` field merge priority                 |
 
 > Feature-specific settings such as `gcmp.commit.enabled`, `gcmp.vision.model`, and `gcmp.zhipu.search.enableMCP` are documented in their respective feature sections, not here.
 
@@ -341,39 +342,16 @@ providerOverrides["retry.{subProvider}"] → providerOverrides.retry → built-i
 - `gcmp.tls.useSystemCertificates` appends operating-system trusted root certificates to Node.js' default CA list, which is useful behind enterprise proxies, internal gateways, or locally installed private root CAs.
 - Authenticated proxy URLs are supported; usernames and passwords are automatically redacted in logs.
 
-**Configuration example**:
-
-```json
-{
-    "gcmp.providerOverrides": {
-        "dashscope": {
-            "models": [
-                {
-                    "id": "deepseek-v3.2",
-                    "name": "Deepseek-V3.2",
-                    "maxInputTokens": 128000,
-                    "maxOutputTokens": 16000,
-                    "capabilities": {
-                        "toolCalling": true,
-                        "imageInput": false
-                    }
-                }
-            ]
-        }
-    }
-}
-```
-
 #### Provider Configuration Overrides
 
 GCMP supports overriding provider defaults through the `gcmp.providerOverrides` setting. Support varies by provider type:
 
-| Provider Type                        | Supported Fields                                       | models[]                               |
-| ------------------------------------ | ------------------------------------------------------ | -------------------------------------- |
+| Provider Type                        | Supported Fields                                        | models[]                               |
+| ------------------------------------ | ------------------------------------------------------- | -------------------------------------- |
 | **Built-in** (deepseek/zhipu etc.)   | `baseUrl`, `customHeader`, `proxy`, `retry`, `models[]` | ✅ Full model add/override             |
-| **Known** (aihubmix/openrouter etc.) | `customHeader`, `proxy`, `retry`                       | ❌ Use `gcmp.compatibleModels` instead |
-| **Custom** (from compatibleModels)   | `customHeader`, `proxy`, `retry`                       | ❌ Use `gcmp.compatibleModels` instead |
-| **compatible** itself                | `customHeader`, `proxy`, `retry`                       | ❌ Use `gcmp.compatibleModels` instead |
+| **Known** (aihubmix/openrouter etc.) | `customHeader`, `proxy`, `retry`                        | ❌ Use `gcmp.compatibleModels` instead |
+| **Custom** (from compatibleModels)   | `customHeader`, `proxy`, `retry`                        | ❌ Use `gcmp.compatibleModels` instead |
+| **compatible** itself                | `customHeader`, `proxy`, `retry`                        | ❌ Use `gcmp.compatibleModels` instead |
 
 **Override precedence**:
 
@@ -410,7 +388,8 @@ model-level > providerOverrides.{provider} > providerOverrides.compatible
         "aihubmix": {
             "proxy": "http://127.0.0.1:7890", // proxy override also supported
             "customHeader": { "X-Custom": "value" },
-            "retry": { // provider-level retry override
+            "retry": {
+                // provider-level retry override
                 "enabled": true,
                 "maxAttempts": 5,
                 "maxDelayMs": 30000
@@ -467,7 +446,7 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
             "maxOutputTokens": 4096,
             "capabilities": {
                 "toolCalling": true, // Model must support tool calling in Agent mode
-                "imageInput": false,
+                "imageInput": false
                 // "editTools": ["multi-find-replace", "find-replace", "code-rewrite"] // Optional: model-preferred editing tools, corresponds to VS Code LanguageModelChatCapabilities.editTools
             },
             // customHeader and extraBody are optional

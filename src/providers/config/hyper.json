@@ -104,7 +104,9 @@
             "maxInputTokens": 256000,
             "maxOutputTokens": 32768,
             "reasoningEffort": ["low", "medium", "high"],
-            "extraBody": { "enabled_thinking": true },
+            "extraBody": {
+                "enabled_thinking": true
+            },
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {

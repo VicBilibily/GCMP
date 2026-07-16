@@ -74,7 +74,11 @@
             "tooltip": "Coding Plan Code模型。Kimi 最新 Coding 模型，在长上下文中更可靠地遵循指令，能以更高的成功率完成编程任务，同时支持文本、图片与视频输入，思考模式，对话与 Agent 任务。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "extraBody": { "thinking": { "type": "enabled" } },
+            "extraBody": {
+                "thinking": {
+                    "type": "enabled"
+                }
+            },
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
@@ -266,7 +270,11 @@
             "tooltip": "Kimi 最新 Coding 模型，在长上下文中更可靠地遵循指令，能以更高的成功率完成编程任务，同时支持文本、图片与视频输入，思考模式，对话与 Agent 任务。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "extraBody": { "thinking": { "type": "enabled" } },
+            "extraBody": {
+                "thinking": {
+                    "type": "enabled"
+                }
+            },
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
@@ -471,7 +479,11 @@
             "maxOutputTokens": 128000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "extraBody": { "caching": { "type": "enabled" } }
+            "extraBody": {
+                "caching": {
+                    "type": "enabled"
+                }
+            }
         }
     ]
 }

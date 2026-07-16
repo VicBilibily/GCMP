@@ -1,4 +1,4 @@
-﻿{
+{
     "displayName": "LongCat",
     "baseUrl": "https://api.longcat.chat/anthropic",
     "apiKeyTemplate": "ak_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",

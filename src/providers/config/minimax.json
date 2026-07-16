@@ -11,21 +11,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "MiniMax-M3 - 原生多模态、1M 上下文的 Frontier Coding 模型",
-            "contextSize": [
-                1000000,
-                600000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "provider": "minimax-token",
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true,
-                "editTools": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
         },
         {
             "id": "MiniMax-M2.7-Token-Plan",
@@ -37,10 +27,7 @@
             "provider": "minimax-token",
             "maxInputTokens": 204800,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "MiniMax-M2.7-HighSpeed-Token-Plan",
@@ -52,10 +39,7 @@
             "provider": "minimax-token",
             "maxInputTokens": 204800,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "MiniMax-M2.5-Token-Plan",
@@ -67,10 +51,7 @@
             "provider": "minimax-token",
             "maxInputTokens": 204800,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "MiniMax-M2.5-HighSpeed-Token-Plan",
@@ -82,10 +63,7 @@
             "provider": "minimax-token",
             "maxInputTokens": 204800,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "MiniMax-M2.1-Token-Plan",
@@ -97,10 +75,7 @@
             "provider": "minimax-token",
             "maxInputTokens": 204800,
             "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "MiniMax-M2-Token-Plan",
@@ -112,10 +87,7 @@
             "provider": "minimax-token",
             "maxInputTokens": 204800,
             "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "MiniMax-M3",
@@ -123,24 +95,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "原生多模态、1M 上下文的 Frontier Coding 模型",
-            "contextSize": [
-                1000000,
-                600000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
             "maxInputTokens": 1000000,
             "maxOutputTokens": 128000,
-            "serviceTier": [
-                "default",
-                "priority"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true,
-                "editTools": true
-            }
+            "serviceTier": ["default", "priority"],
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
         },
         {
             "id": "MiniMax-M2.7",
@@ -150,10 +109,7 @@
             "tooltip": "开启模型的自我迭代（输出速度约 60 TPS）",
             "maxInputTokens": 204800,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "MiniMax-M2.7-HighSpeed",
@@ -163,10 +119,7 @@
             "tooltip": "M2.7 极速版：效果不变，更快，更敏捷（输出速度约 100 TPS）",
             "maxInputTokens": 204800,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "MiniMax-M2.5",
@@ -176,10 +129,7 @@
             "tooltip": "顶尖性能与极致性价比，轻松驾驭复杂任务（输出速度约 60 TPS）",
             "maxInputTokens": 204800,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "MiniMax-M2.5-HighSpeed",
@@ -189,10 +139,7 @@
             "tooltip": "M2.5 极速版：效果不变，更快，更敏捷（输出速度约 100 TPS）",
             "maxInputTokens": 204800,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "MiniMax-M2.1",
@@ -202,10 +149,7 @@
             "tooltip": "强大多语言编程能力，全面升级编程体验（输出速度约 60 TPS）",
             "maxInputTokens": 204800,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "MiniMax-M2.1-HighSpeed",
@@ -215,10 +159,7 @@
             "tooltip": "M2.1 极速版：效果不变，更快，更敏捷（输出速度约 100 TPS）",
             "maxInputTokens": 204800,
             "maxOutputTokens": 128000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "MiniMax-M2",
@@ -228,10 +169,7 @@
             "tooltip": "专为高效编码与Agent工作流而生",
             "maxInputTokens": 204800,
             "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false }
         }
     ]
 }
