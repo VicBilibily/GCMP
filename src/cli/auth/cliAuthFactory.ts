@@ -19,6 +19,7 @@ import { LeaderElectionService } from '../../status';
 export class CliAuthFactory {
     private static instances = new Map<string, BaseCliAuth>();
     private static initialized = false;
+    private static readonly LEADER_REFRESH_TIMEOUT_ERROR = 'timed out waiting for leader refresh';
     private static readonly pendingRefreshRequests = new Map<
         string,
         { resolve: (result: { success: boolean; error?: string }) => void; timer: ReturnType<typeof setTimeout> }
@@ -202,6 +203,11 @@ export class CliAuthFactory {
         if (!result.success) {
             Logger.warn(`[CliAuthFactory] Leader refresh failed for ${cliType}: ${result.error ?? 'unknown error'}`);
 
+            if (result.error === this.LEADER_REFRESH_TIMEOUT_ERROR) {
+                Logger.warn(`[CliAuthFactory] Leader refresh timed out for ${cliType}, falling back to local refresh`);
+                return await instance.ensureAuthenticated(true);
+            }
+
             const currentLeaderId = LeaderElectionService.getLeaderId();
             if (!currentLeaderId || currentLeaderId === LeaderElectionService.getInstanceId()) {
                 return await instance.ensureAuthenticated(true);
@@ -221,7 +227,7 @@ export class CliAuthFactory {
                     this.pendingRefreshRequests.delete(requestId);
                     Logger.warn(`[CliAuthFactory] CLI auth refresh request timed out: ${requestId}`);
                 }
-                resolve({ success: false, error: 'timed out waiting for leader refresh' });
+                resolve({ success: false, error: this.LEADER_REFRESH_TIMEOUT_ERROR });
             }, this.CLI_AUTH_REFRESH_TIMEOUT_MS);
 
             this.pendingRefreshRequests.set(requestId, { resolve, timer });

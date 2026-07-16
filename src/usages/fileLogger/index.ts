@@ -471,6 +471,12 @@ export class TokenFileLogger {
             });
             // 等待 Leader 完成重建（带超时），完成后从磁盘读取重建日期的 stats
             const regeneratedDates = await waitForCompletion;
+            if (regeneratedDates.length === 0) {
+                StatusLogger.warn(
+                    '[TokenFileLogger] Leader regenerateOutdatedStats timed out or failed, falling back to local regeneration'
+                );
+                return this.logStatsManager.runWithForcedWrites(() => this.logStatsManager.regenerateOutdatedStats());
+            }
             const results: Record<string, TokenUsageStatsFromFile> = {};
             for (const dateStr of regeneratedDates) {
                 try {
@@ -784,19 +790,29 @@ export class TokenFileLogger {
         // 仅在 Leader 尚未选出时回退为本实例直接执行。
         const leaderId = LeaderElectionService.getLeaderId();
         if (leaderId && leaderId !== LeaderElectionService.getInstanceId()) {
+            const requestId = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+            const waitForCompletion = this.waitForStatsRefreshCompletion(requestId);
             StatusLogger.trace(
                 `[TokenFileLogger] Non-leader instance, delegating refresh to leader via IPC: ${dateStr}`
             );
             InterInstanceBus.publish({
                 type: 'statsRefreshRequested',
                 payload: {
-                    requestId: `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`,
+                    requestId,
                     date: dateStr,
                     regenerateAll: false,
                     requestedBy: LeaderElectionService.getInstanceId()
                 }
             });
-            return;
+
+            const regeneratedDates = await waitForCompletion;
+            if (regeneratedDates.length > 0) {
+                return;
+            }
+
+            StatusLogger.warn(
+                `[TokenFileLogger] Leader refresh timed out or failed for ${dateStr}, falling back to local refresh`
+            );
         }
 
         try {
@@ -804,7 +820,7 @@ export class TokenFileLogger {
             await this.writeManager.flush();
 
             // 计算并保存统计（getDateStats 会自动处理增量更新和保存）
-            await this.logStatsManager.getDateStats(dateStr, true);
+            await this.logStatsManager.runWithForcedWrites(() => this.logStatsManager.getDateStats(dateStr, true));
 
             // 通知本实例的监听者
             this.notifyUpdate();

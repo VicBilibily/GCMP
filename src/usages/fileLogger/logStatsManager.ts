@@ -18,6 +18,7 @@ import { StatsCalculator } from './statsCalculator';
 import { AtomicJsonFile } from '../atomicJsonFile';
 import { SnapshotManager } from './snapshotManager';
 import { DateUtils } from './dateUtils';
+import { WritePermissionGate } from './writePermissionGate';
 import type {
     FileLoggerModelStats,
     FileLoggerProviderStats,
@@ -36,6 +37,7 @@ export class LogStatsManager {
     private readonly baseDir: string;
     private readonly indexManager: LogIndexManager;
     private readonly inFlightRegenerations = new Map<string, Promise<TokenUsageStatsFromFile>>();
+    private readonly writePermissionGate = new WritePermissionGate();
     // 代码版本时间戳：用于判断缓存是否由当前版本代码生成
     private _codeVersionTimestamp: number = 0;
     /**
@@ -61,13 +63,22 @@ export class LogStatsManager {
      */
     setCanWriteStats(canWriteStats: () => boolean): void {
         this._canWriteStats = canWriteStats;
+        this.writePermissionGate.setEvaluator(canWriteStats);
+    }
+
+    /**
+     * 在临时强制写盘作用域内执行操作。
+     * 仅用于已确认 Leader 不可达、需要本地兜底落盘的场景。
+     */
+    async runWithForcedWrites<T>(operation: () => Promise<T>): Promise<T> {
+        return this.writePermissionGate.runWithForcedWrites(operation);
     }
 
     /**
      * 当前实例是否被允许写 stats.json
      */
     private canWriteStats(): boolean {
-        return this._canWriteStats();
+        return this.writePermissionGate.canWrite();
     }
 
     /**

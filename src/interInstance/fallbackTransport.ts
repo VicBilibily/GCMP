@@ -7,7 +7,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { InterInstanceEvent, parseEventsFromBuffer, INTER_INSTANCE_EVENT_TYPES } from './eventProtocol';
+import { InterInstanceEvent, parseIncrementalEvents, INTER_INSTANCE_EVENT_TYPES } from './eventProtocol';
 import { StatusLogger } from '../utils/statusLogger';
 
 export interface FallbackTransportOptions {
@@ -20,6 +20,8 @@ export interface FallbackTransportOptions {
 interface FileReadState {
     /** 文件最后读取的字节位置 */
     position: number;
+    /** 上次读取后残留的半条 NDJSON 事件 */
+    remaining?: string;
     /** Node fs.FSWatcher */
     watcher?: fs.FSWatcher;
 }
@@ -133,7 +135,7 @@ export class FallbackTransport {
                 }
                 const filePath = path.join(this.eventsDir, entry);
                 const stats = fs.statSync(filePath);
-                this.fileStates.set(filePath, { position: stats.size });
+                this.fileStates.set(filePath, { position: stats.size, remaining: '' });
                 this.watchFile(filePath);
             }
         } catch {
@@ -156,7 +158,7 @@ export class FallbackTransport {
                 }
                 // 新文件出现：从文件头开始读取，避免在 watcher 挂上前已经写入的事件丢失
                 try {
-                    this.fileStates.set(filePath, { position: 0 });
+                    this.fileStates.set(filePath, { position: 0, remaining: '' });
                     this.watchFile(filePath);
                     void this.readNewEvents(filePath);
                 } catch {
@@ -206,6 +208,7 @@ export class FallbackTransport {
             // 文件被截断或重写，从头读取
             if (stats.size < state.position) {
                 state.position = 0;
+                state.remaining = '';
             }
 
             const readLength = stats.size - state.position;
@@ -219,7 +222,8 @@ export class FallbackTransport {
             state.position = stats.size;
 
             const chunk = buffer.toString('utf8');
-            const { events } = parseEventsFromBuffer(chunk);
+            const { events, remaining } = parseIncrementalEvents(state.remaining ?? '', chunk);
+            state.remaining = remaining;
             for (const event of events) {
                 if (!INTER_INSTANCE_EVENT_TYPES.includes(event.type)) {
                     continue;

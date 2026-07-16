@@ -344,6 +344,13 @@ export async function activate(context: vscode.ExtensionContext) {
                         // 刷新指定日期（默认今日）：先 flush，再按需重算，避免无变化时强制全量重算。
                         const dateStr = payload.date ?? DateUtils.getTodayDateString();
                         await fileLogger.getDateStats(dateStr);
+                        InterInstanceBus.publish({
+                            type: 'statsRefreshCompleted',
+                            payload: {
+                                requestId: payload.requestId,
+                                regeneratedDates: [dateStr]
+                            }
+                        });
                         // 刷新完成后通过 notifyUpdate 广播 tokenUsageUpdated，非主实例 UI 自然更新
                         TokenUsagesManager.instance.notifyStatsUpdate();
                     } catch (error) {
@@ -361,6 +368,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
                         const dateStr = payload.date ?? DateUtils.getTodayDateString();
                         Logger.warn(`[InterInstanceBus] Failed to refresh stats for ${dateStr}: ${error}`);
+                        InterInstanceBus.publish({
+                            type: 'statsRefreshCompleted',
+                            payload: {
+                                requestId: payload.requestId,
+                                regeneratedDates: []
+                            }
+                        });
                     }
                 })();
             })

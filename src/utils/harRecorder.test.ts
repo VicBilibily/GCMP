@@ -136,6 +136,19 @@ test('shouldRotateHarFileForAge only rotates when accepting and age exceeds inte
     assert.equal(shouldRotateHarFileForAge(now - interval, now, interval, true), true);
 });
 
+test('planHarCleanup does not delete files newer than the documented 2-day stale cutoff', () => {
+    const now = Date.now();
+    const files: HarFileRecord[] = [
+        { name: 'half-day.har', path: '/tmp/half-day.har', mtime: now - 12 * 60 * 60 * 1000, pid: 1001 },
+        { name: 'fresh.har', path: '/tmp/fresh.har', mtime: now - 5 * 60 * 1000, pid: 1002 }
+    ];
+
+    const deletePaths = new Set(planHarCleanup(files, 10, now));
+
+    assert.equal(deletePaths.has('/tmp/half-day.har'), false);
+    assert.equal(deletePaths.has('/tmp/fresh.har'), false);
+});
+
 test('planHarCleanup removes stale files and keeps recent files per pid', () => {
     const now = Date.now();
     const files: HarFileRecord[] = [

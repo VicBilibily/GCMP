@@ -23,6 +23,7 @@ export class LeaderElectionService {
     // 静态成员变量
     private static instanceId: string;
     private static context: vscode.ExtensionContext | undefined;
+    private static startTimer: NodeJS.Timeout | undefined;
     private static heartbeatTimer: NodeJS.Timeout | undefined;
     private static taskTimer: NodeJS.Timeout | undefined;
     private static _isLeader = false;
@@ -49,6 +50,8 @@ export class LeaderElectionService {
             return;
         }
 
+        this.periodicTasks = [];
+
         this.registerPeriodicTask(async () => {
             StatusLogger.trace('[LeaderElectionService] Leader periodic task: recording alive log');
         });
@@ -64,7 +67,11 @@ export class LeaderElectionService {
 
         // 添加随机延迟 (0-1000ms)，避免多个实例同时启动时的竞态条件
         const startDelay = Math.random() * 1000;
-        setTimeout(() => {
+        this.startTimer = setTimeout(() => {
+            this.startTimer = undefined;
+            if (!this.initialized) {
+                return;
+            }
             this.start();
         }, startDelay);
 
@@ -97,6 +104,10 @@ export class LeaderElectionService {
      * 避免 deactivate 提前结束后 Leader 信息残留。
      */
     public static async stop(): Promise<void> {
+        if (this.startTimer) {
+            clearTimeout(this.startTimer);
+            this.startTimer = undefined;
+        }
         if (this.heartbeatTimer) {
             clearInterval(this.heartbeatTimer);
             this.heartbeatTimer = undefined;
@@ -136,6 +147,7 @@ export class LeaderElectionService {
         } catch (error) {
             StatusLogger.warn('[LeaderElectionService] Failed to release leader identity during stop', error);
         }
+        this.periodicTasks = [];
         this.initialized = false;
     }
 

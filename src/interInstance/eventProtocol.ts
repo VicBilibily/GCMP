@@ -288,6 +288,18 @@ export function parseEventsFromBuffer(buffer: string): { events: InterInstanceEv
 }
 
 /**
+ * 增量消费 NDJSON 事件块。
+ * 将上一次未解析完的尾部文本与本次新增块拼接后统一解析，
+ * 调用方必须保存返回的 remaining 用于下一次继续消费。
+ */
+export function parseIncrementalEvents(
+    previousRemaining: string,
+    chunk: string
+): { events: InterInstanceEvent[]; remaining: string } {
+    return parseEventsFromBuffer(previousRemaining + chunk);
+}
+
+/**
  * 事件订阅回调类型
  */
 export type InterInstanceEventHandler<T extends InterInstanceEvent = InterInstanceEvent> = (event: T) => void;
