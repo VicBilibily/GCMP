@@ -12,7 +12,8 @@ import {
     calculateCostWithBreakdown,
     formatCostBreakdownLog,
     toNanoAiu,
-    toCostBreakdownLog
+    toCostBreakdownLog,
+    RetryableError
 } from '../utils';
 import { ConfigManager } from '../utils/configManager';
 import { ApiKeyManager } from '../utils/apiKeyManager';
@@ -231,11 +232,11 @@ export class OpenAICustomHandler {
                             errorMessage = errorJson.error;
                         } else {
                             if (errorJson.error.message) {
-                            errorMessage = errorJson.error.message;
-                        }
+                                errorMessage = errorJson.error.message;
+                            }
                             if (errorJson.error.code !== undefined) {
                                 errorCode = errorJson.error.code;
-                    }
+                            }
                         }
                     }
                 } catch {

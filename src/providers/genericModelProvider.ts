@@ -589,7 +589,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         const delaySec = Math.ceil(delayMs / 1000);
                         retryMessageDisposable = vscode.window.setStatusBarMessage(
                             `$(sync~spin) ${modelName} retry #${attempt}/${maxLabel} in ${delaySec}s`
-            );
+                        );
                     },
                     onRetryAttempt: (attempt, maxAttempts) => {
                         retryMessageDisposable?.dispose();

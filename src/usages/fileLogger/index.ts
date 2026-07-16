@@ -670,7 +670,7 @@ export class TokenFileLogger {
 
             // 取消跨实例 statsRefreshCompleted 订阅，并拒绝所有等待中的请求
             this.statsRefreshCompletedDisposable.dispose();
-            for (const [id, pending] of this.pendingStatsRefreshRequests) {
+            for (const [, pending] of this.pendingStatsRefreshRequests) {
                 clearTimeout(pending.timer);
                 pending.resolve([]);
             }
