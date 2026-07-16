@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.25.39",
+    "version": "0.25.40",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -52,8 +52,7 @@
         "npm": ">=10.8.2"
     },
     "enabledApiProposals": [
-        "chatProvider",
-        "contribLanguageModelToolSets"
+        "chatProvider"
     ],
     "extensionDependencies": [
         "github.copilot-chat"
@@ -1399,22 +1398,6 @@
                 }
             }
         ],
-        "languageModelToolSets": [
-            {
-                "name": "gcmpVisionTool",
-                "description": "%tool.vision.description%",
-                "icon": "$(eye)",
-                "tools": [
-                    "gcmpUiToArtifact",
-                    "gcmpExtractTextFromScreenshot",
-                    "gcmpDiagnoseErrorScreenshot",
-                    "gcmpUnderstandTechnicalDiagram",
-                    "gcmpAnalyzeDataVisualization",
-                    "gcmpUiDiffCheck",
-                    "gcmpAnalyzeImage"
-                ]
-            }
-        ],
         "icons": {
             "gcmp-zhipu": {
                 "description": "Zhipu",
@@ -1581,7 +1564,7 @@
         "format:check": "prettier --check \"src/**/*.{ts,json}\"",
         "watch": "node esbuild.config.js --watch --dev",
         "package": "vsce package",
-        "publish": "vsce publish --allow-all-proposed-apis",
+        "publish": "vsce publish --allow-proposed-apis chatProvider",
         "pretest": "npm run compile:dev",
         "test": "node --import=tsx --test src/**/*.test.ts"
     },

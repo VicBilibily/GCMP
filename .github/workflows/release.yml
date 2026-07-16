@@ -56,7 +56,7 @@ jobs:
                   while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
                     ATTEMPT=$((ATTEMPT + 1))
                     echo "::group::Publish attempt $ATTEMPT/$MAX_ATTEMPTS"
-                    OUTPUT=$(npx vsce publish --allow-all-proposed-apis --pat $VSCE_PAT 2>&1)
+                    OUTPUT=$(npx vsce publish --allow-proposed-apis chatProvider --pat $VSCE_PAT 2>&1)
                     EXIT_CODE=$?
                     echo "$OUTPUT"
                     echo "::endgroup::"
