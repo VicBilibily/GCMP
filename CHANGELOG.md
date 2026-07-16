@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.39] - 2026-07-16
+
+### 修复
+
+- **启用 `contribLanguageModelToolSets` API proposal**：在 `enabledApiProposals` 中补上 `contribLanguageModelToolSets`，修复 VS Code 1.129+ 上因缺少 proposal 声明导致 `Extension CANNOT register language model tools because the 'contribLanguageModelToolSets' API proposal is not enabled` 报错。该错误仅影响 `gcmpVisionTool` 工具集的注册，导致 7 个 Vision 工具在 Copilot Chat 中无法被模型调用。
+
+### 变更
+
+- **StreamLake KAT-Coder 系列模型 token 限制调整**：将 KAT-Coder-Pro-V2.5（Coding Plan / PayGo）、KAT-Coder-Air-V2.5（PayGo）以及 KAT-Coder-Pro-V2（Coding Plan / PayGo）的 `maxInputTokens` 从 256K 下调至 192K，`maxOutputTokens` 从 80K 下调至 64K，与实际服务端限制对齐（[#301](https://github.com/VicBilibily/GCMP/issues/301)）。
+
+---
+
+### Fixed
+
+- **Enabled `contribLanguageModelToolSets` API proposal**: Added `contribLanguageModelToolSets` to `enabledApiProposals`, fixing the `Extension CANNOT register language model tools because the 'contribLanguageModelToolSets' API proposal is not enabled` error on VS Code 1.129+. Affects the `gcmpVisionTool` toolset — 7 Vision tools were blocked.
+
+### Changed
+
+- **StreamLake KAT-Coder series token limit adjustments**: Lowered `maxInputTokens` from 256K to 192K and `maxOutputTokens` from 80K to 64K for KAT-Coder-Pro-V2.5 (Coding Plan / PayGo), KAT-Coder-Air-V2.5 (PayGo), and KAT-Coder-Pro-V2 (Coding Plan / PayGo) to align with actual server limits ([#301](https://github.com/VicBilibily/GCMP/issues/301)).
+
 ## [0.25.38] - 2026-07-16
 
 ### 新增

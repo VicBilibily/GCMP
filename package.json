@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.25.38",
+    "version": "0.25.39",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -52,7 +52,8 @@
         "npm": ">=10.8.2"
     },
     "enabledApiProposals": [
-        "chatProvider"
+        "chatProvider",
+        "contribLanguageModelToolSets"
     ],
     "extensionDependencies": [
         "github.copilot-chat"
@@ -1580,7 +1581,7 @@
         "format:check": "prettier --check \"src/**/*.{ts,json}\"",
         "watch": "node esbuild.config.js --watch --dev",
         "package": "vsce package",
-        "publish": "vsce publish --allow-proposed-apis chatProvider",
+        "publish": "vsce publish --allow-all-proposed-apis",
         "pretest": "npm run compile:dev",
         "test": "node --import=tsx --test src/**/*.test.ts"
     },
