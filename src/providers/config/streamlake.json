@@ -10,8 +10,8 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://wanqing.streamlakeapi.com/api/gateway/coding/kat-coder-pro-v2.5/claude-code-proxy",
             "tooltip": "KAT-Coder-Pro V2.5 是一款能将完整 issue 或整段业务工作流直接交给它、在真实仓库中自主定位修改并跑通全流程的旗舰级 Agentic Coding 模型，同时通过多专家融合完整延续了 V2 的前端美学生成能力。",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 80000,
+            "maxInputTokens": 192000,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -21,8 +21,8 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://wanqing.streamlakeapi.com/api/gateway/v1/endpoints/kat-coder-pro-v2.5/claude-code-proxy",
             "tooltip": "KAT-Coder-Pro V2.5 是一款能将完整 issue 或整段业务工作流直接交给它、在真实仓库中自主定位修改并跑通全流程的旗舰级 Agentic Coding 模型，同时通过多专家融合完整延续了 V2 的前端美学生成能力。",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 80000,
+            "maxInputTokens": 192000,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -32,8 +32,8 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://wanqing.streamlakeapi.com/api/gateway/v1/endpoints/kat-coder-air-v2.5/claude-code-proxy",
             "tooltip": "KAT-Coder-Air V2.5 是一款能轻量快速版，助力开发者高效编码的模型。",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 80000,
+            "maxInputTokens": 192000,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -43,8 +43,8 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://wanqing.streamlakeapi.com/api/gateway/coding/kat-coder-pro-v2/claude-code-proxy",
             "tooltip": "高性能版本，适用于复杂企业项目与SaaS集成。",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 80000,
+            "maxInputTokens": 192000,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
@@ -53,8 +53,8 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://wanqing.streamlakeapi.com/api/gateway/v1/endpoints/kat-coder-pro-v2/claude-code-proxy",
             "tooltip": "高性能版本，适用于复杂企业项目与SaaS集成。",
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 80000,
+            "maxInputTokens": 192000,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false }
         }
     ]
