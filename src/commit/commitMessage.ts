@@ -171,17 +171,6 @@ export class CommitMessage {
                     // 5. 应用提交消息
                     progress.report({ message: t('Applying commit message...', '正在应用提交消息...'), increment: 10 });
                     sourceControlRepository!.inputBox.value = commitMessage.message;
-                    const sourceLabel =
-                        commitMessage.diffSource === 'staged' ?
-                            t('staging area', '暂存区')
-                        :   t('working tree', '工作树');
-                    vscode.window.showInformationMessage(
-                        t(
-                            'Commit message generated successfully (based on the {0}).',
-                            '提交消息已生成（基于{0}）。',
-                            sourceLabel
-                        )
-                    );
 
                     Logger.info(
                         `[CommitMessage] Commit message generated [${commitMessage.diffSource}]: ${commitMessage.message.substring(0, 50)}...`
