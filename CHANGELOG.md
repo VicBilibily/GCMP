@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.41] - 2026-07-16
+
+### 新增
+
+- **MoonshotAI 新增 Kimi K3 系列模型**：新增 `Kimi K3 (Kimi Code)` 会员计划模型和 `Kimi K3 (PayGo)` 按量计费模型。
+
+---
+
+### Added
+
+- **MoonshotAI new Kimi K3 series models**: Added `Kimi K3 (Kimi Code)` (membership) and `Kimi K3 (PayGo)` models.
+
 ## [0.25.40] - 2026-07-16
 
 ### 修复
