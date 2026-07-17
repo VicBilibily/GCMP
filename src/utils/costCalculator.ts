@@ -3,10 +3,16 @@
  *  参考 Copilot CLI 的 yF9() 实现，根据 usage + pricing 计算预估费用。
  *--------------------------------------------------------------------------------------------*/
 
-import type { ModelTokenPricing, ModelTokenPricingInput, PricingTier } from '../types/sharedTypes';
-import type { CostBreakdownLog, GenericUsageData } from '../usages/fileLogger/types';
+import type { ModelTokenPricing, ModelTokenPricingInput, PricingFieldsRmb, PricingTier } from '../types/sharedTypes';
+import type {
+    CostBreakdownLog,
+    CostVector,
+    CurrencyCostBreakdownLog,
+    GenericUsageData
+} from '../usages/fileLogger/types';
 import { UsageParser } from '../usages/fileLogger/usageParser';
 import { resolveActiveTier, normalizeTokenPricing } from './pricingTierResolver';
+import { sumCosts, truncateCost } from './pricingCurrency';
 
 /**
  * 镜像 Anthropic SDK 的 Usage 结构，允许传入部分字段。
@@ -83,16 +89,80 @@ export interface CostBreakdown {
     activeTierServiceTier?: string;
     /**
      * 实际生效的单价（来自 tier 或回退到静态单档），供日志准确展示。
+     * 单位：USD / 百万 token。
      */
     effectiveInputPrice: number;
     effectiveOutputPrice: number;
     effectiveCacheReadPrice?: number;
     effectiveCacheWritePrice?: number;
+    effectiveRmbPricing?: PricingFieldsRmb;
+    inputCostRmb?: number;
+    outputCostRmb?: number;
+    cacheReadCostRmb?: number;
+    cacheWriteCostRmb?: number;
+    totalRmb?: number;
 }
 
 interface ResolvedPricingBreakdown {
     activeTier?: PricingTier;
     effectivePricing: Pick<ModelTokenPricing, 'inputPrice' | 'outputPrice' | 'cacheReadPrice' | 'cacheWritePrice'>;
+    effectivePricingRmb?: PricingFieldsRmb;
+}
+
+function mergeRmbPricing(primary?: PricingFieldsRmb, fallback?: PricingFieldsRmb): PricingFieldsRmb | undefined {
+    const inputPrice = primary?.inputPrice ?? fallback?.inputPrice;
+    const outputPrice = primary?.outputPrice ?? fallback?.outputPrice;
+    if (inputPrice === undefined || outputPrice === undefined) {
+        return undefined;
+    }
+
+    return {
+        inputPrice,
+        outputPrice,
+        cacheReadPrice: primary?.cacheReadPrice ?? fallback?.cacheReadPrice,
+        cacheWritePrice: primary?.cacheWritePrice ?? fallback?.cacheWritePrice
+    };
+}
+
+function toCostVector(input: number, output: number, cacheRead?: number, cacheWrite?: number): CostVector {
+    const vector: CostVector = [input, output];
+    if (cacheWrite !== undefined) {
+        vector[2] = cacheRead ?? 0;
+        vector[3] = cacheWrite;
+        return vector;
+    }
+    if (cacheRead !== undefined) {
+        vector[2] = cacheRead;
+    }
+    return vector;
+}
+
+function toCurrencyCostBreakdownLog(
+    inputPrice: number,
+    outputPrice: number,
+    cacheReadPrice: number | undefined,
+    cacheWritePrice: number | undefined,
+    inputCost: number,
+    outputCost: number,
+    cacheReadCost: number,
+    cacheWriteCost: number,
+    total: number
+): CurrencyCostBreakdownLog {
+    return {
+        pricing: toCostVector(
+            truncateCost(inputPrice) ?? 0,
+            truncateCost(outputPrice) ?? 0,
+            truncateCost(cacheReadPrice),
+            truncateCost(cacheWritePrice)
+        ),
+        cost: toCostVector(
+            truncateCost(inputCost) ?? 0,
+            truncateCost(outputCost) ?? 0,
+            truncateCost(cacheReadCost),
+            truncateCost(cacheWriteCost)
+        ),
+        total: truncateCost(total) ?? 0
+    };
 }
 
 /**
@@ -136,7 +206,8 @@ export function resolvePricingBreakdown(
                     outputPrice: activeTier.outputPrice,
                     cacheReadPrice: activeTier.cacheReadPrice ?? pricing.cacheReadPrice,
                     cacheWritePrice: activeTier.cacheWritePrice ?? pricing.cacheWritePrice
-                }
+                },
+                effectivePricingRmb: mergeRmbPricing(activeTier.rmb, pricing.rmb)
             };
         }
         // contextSizeMin 不满足 → 移除该 tier，用剩余 tiers 重新匹配
@@ -162,7 +233,8 @@ export function resolvePricingBreakdown(
                 outputPrice: pricing.outputPrice,
                 cacheReadPrice: pricing.cacheReadPrice,
                 cacheWritePrice: pricing.cacheWritePrice
-            }
+            },
+            effectivePricingRmb: pricing.rmb
         };
     }
 
@@ -174,7 +246,8 @@ export function resolvePricingBreakdown(
             outputPrice: pricing.outputPrice,
             cacheReadPrice: pricing.cacheReadPrice,
             cacheWritePrice: pricing.cacheWritePrice
-        }
+        },
+        effectivePricingRmb: pricing.rmb
     };
 }
 
@@ -199,10 +272,10 @@ export function toNanoAiu(cost: number): number | undefined {
 export function formatCostBreakdownLog(modelName: string, breakdown: CostBreakdown): string {
     return (
         `[${modelName}] Cost breakdown:\n` +
-        `  pricing  input=$${breakdown.effectiveInputPrice} output=$${breakdown.effectiveOutputPrice}` +
-        (breakdown.effectiveCacheReadPrice !== undefined ? ` cacheRead=$${breakdown.effectiveCacheReadPrice}` : '') +
-        (breakdown.effectiveCacheWritePrice !== undefined ? ` cacheWrite=$${breakdown.effectiveCacheWritePrice}` : '') +
-        ' per 1M tokens\n' +
+        `  pricing  $${breakdown.effectiveInputPrice} $${breakdown.effectiveOutputPrice}` +
+        (breakdown.effectiveCacheReadPrice !== undefined ? ` $${breakdown.effectiveCacheReadPrice}` : '') +
+        (breakdown.effectiveCacheWritePrice !== undefined ? ` $${breakdown.effectiveCacheWritePrice}` : '') +
+        ' per 1M tokens (USD)\n' +
         (breakdown.activeTierCron || breakdown.activeTierServiceTier ?
             `  tier     ${breakdown.activeTierCron || 'all-time'}` +
             (breakdown.activeTierServiceTier ? ` (serviceTier: ${breakdown.activeTierServiceTier})` : '') +
@@ -258,22 +331,41 @@ export function calculateCostWithBreakdown(
         return undefined;
     }
 
-    const { activeTier, effectivePricing } = resolvedPricing;
+    const { activeTier, effectivePricing, effectivePricingRmb } = resolvedPricing;
 
     const cacheCreationTokens = getExplicitCacheWriteTokens(usage);
     const outputTokens = Math.max(0, parsed.outputTokens);
     const inputTokens = getUncachedInputTokens(usage, parsed.actualInput, cacheReadTokens, cacheCreationTokens);
 
-    const inputCost = (inputTokens / TOKENS_PER_MILLION) * effectivePricing.inputPrice;
-    const outputCost = (outputTokens / TOKENS_PER_MILLION) * effectivePricing.outputPrice;
+    const inputCost = truncateCost((inputTokens / TOKENS_PER_MILLION) * effectivePricing.inputPrice) ?? 0;
+    const outputCost = truncateCost((outputTokens / TOKENS_PER_MILLION) * effectivePricing.outputPrice) ?? 0;
     const cacheReadCost =
         cacheReadTokens > 0 && effectivePricing.cacheReadPrice !== undefined ?
-            (cacheReadTokens / TOKENS_PER_MILLION) * effectivePricing.cacheReadPrice
+            (truncateCost((cacheReadTokens / TOKENS_PER_MILLION) * effectivePricing.cacheReadPrice) ?? 0)
         :   0;
     const cacheWriteCost =
         cacheCreationTokens > 0 && effectivePricing.cacheWritePrice !== undefined ?
-            (cacheCreationTokens / TOKENS_PER_MILLION) * effectivePricing.cacheWritePrice
+            (truncateCost((cacheCreationTokens / TOKENS_PER_MILLION) * effectivePricing.cacheWritePrice) ?? 0)
         :   0;
+
+    const inputCostRmb =
+        effectivePricingRmb ?
+            truncateCost((inputTokens / TOKENS_PER_MILLION) * effectivePricingRmb.inputPrice)
+        :   undefined;
+    const outputCostRmb =
+        effectivePricingRmb ?
+            truncateCost((outputTokens / TOKENS_PER_MILLION) * effectivePricingRmb.outputPrice)
+        :   undefined;
+    const cacheReadCostRmb =
+        cacheReadTokens > 0 && effectivePricingRmb?.cacheReadPrice !== undefined ?
+            truncateCost((cacheReadTokens / TOKENS_PER_MILLION) * effectivePricingRmb.cacheReadPrice)
+        :   undefined;
+    const cacheWriteCostRmb =
+        cacheCreationTokens > 0 && effectivePricingRmb?.cacheWritePrice !== undefined ?
+            truncateCost((cacheCreationTokens / TOKENS_PER_MILLION) * effectivePricingRmb.cacheWritePrice)
+        :   undefined;
+    const totalRmb =
+        effectivePricingRmb ? sumCosts([inputCostRmb, outputCostRmb, cacheReadCostRmb, cacheWriteCostRmb]) : undefined;
 
     return {
         inputTokens,
@@ -284,13 +376,19 @@ export function calculateCostWithBreakdown(
         outputCost,
         cacheReadCost,
         cacheWriteCost,
-        total: Math.max(0, inputCost + outputCost + cacheReadCost + cacheWriteCost),
+        total: Math.max(0, sumCosts([inputCost, outputCost, cacheReadCost, cacheWriteCost])),
         activeTierCron: activeTier?.cron,
         activeTierServiceTier: activeTier?.serviceTier,
         effectiveInputPrice: effectivePricing.inputPrice,
         effectiveOutputPrice: effectivePricing.outputPrice,
         effectiveCacheReadPrice: effectivePricing.cacheReadPrice,
-        effectiveCacheWritePrice: effectivePricing.cacheWritePrice
+        effectiveCacheWritePrice: effectivePricing.cacheWritePrice,
+        effectiveRmbPricing: effectivePricingRmb,
+        inputCostRmb,
+        outputCostRmb,
+        cacheReadCostRmb,
+        cacheWriteCostRmb,
+        totalRmb
     };
 }
 
@@ -329,6 +427,39 @@ export function toCostBreakdownLog(breakdown: CostBreakdown): CostBreakdownLog {
         breakdown.activeTierCron || breakdown.activeTierServiceTier ?
             [breakdown.activeTierCron, breakdown.activeTierServiceTier].filter(Boolean).join(' ')
         :   undefined;
+
+    const usd = toCurrencyCostBreakdownLog(
+        breakdown.effectiveInputPrice,
+        breakdown.effectiveOutputPrice,
+        breakdown.effectiveCacheReadPrice,
+        breakdown.effectiveCacheWritePrice,
+        breakdown.inputCost,
+        breakdown.outputCost,
+        breakdown.cacheReadCost,
+        breakdown.cacheWriteCost,
+        breakdown.total
+    );
+
+    const rmb =
+        (
+            breakdown.effectiveRmbPricing &&
+            breakdown.inputCostRmb !== undefined &&
+            breakdown.outputCostRmb !== undefined &&
+            breakdown.totalRmb !== undefined
+        ) ?
+            toCurrencyCostBreakdownLog(
+                breakdown.effectiveRmbPricing.inputPrice,
+                breakdown.effectiveRmbPricing.outputPrice,
+                breakdown.effectiveRmbPricing.cacheReadPrice,
+                breakdown.effectiveRmbPricing.cacheWritePrice,
+                breakdown.inputCostRmb,
+                breakdown.outputCostRmb,
+                breakdown.cacheReadCostRmb ?? 0,
+                breakdown.cacheWriteCostRmb ?? 0,
+                breakdown.totalRmb
+            )
+        :   undefined;
+
     return {
         tokens: [
             breakdown.inputTokens,
@@ -336,14 +467,13 @@ export function toCostBreakdownLog(breakdown: CostBreakdown): CostBreakdownLog {
             breakdown.cacheReadTokens,
             breakdown.cacheCreationTokens
         ],
-        pricing: [
-            breakdown.effectiveInputPrice,
-            breakdown.effectiveOutputPrice,
-            breakdown.effectiveCacheReadPrice,
-            breakdown.effectiveCacheWritePrice
-        ],
-        cost: [breakdown.inputCost, breakdown.outputCost, breakdown.cacheReadCost, breakdown.cacheWriteCost],
-        total: breakdown.total,
-        activeTier
+        pricing: usd.pricing,
+        cost: usd.cost,
+        total: usd.total,
+        activeTier,
+        currencies: {
+            USD: usd,
+            ...(rmb ? { RMB: rmb } : {})
+        }
     };
 }

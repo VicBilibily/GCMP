@@ -179,7 +179,7 @@ export class TokenUsagesManager {
         streamStartTime?: number;
         /** 流结束时间 (毫秒时间戳) */
         streamEndTime?: number;
-        /** 客户端预估成本 (USD)，由 Handler 通过 calculateCostWithBreakdown 计算 */
+        /** 客户端预估成本，由 Handler 通过 calculateCostWithBreakdown 计算，单位 USD */
         estimatedCost?: number;
         /** 成本计算明细（命中单价、成本组成等） */
         costBreakdown?: CostBreakdownLog;

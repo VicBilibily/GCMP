@@ -11,10 +11,19 @@ import {
     toNanoAiu
 } from './costCalculator';
 import { normalizeTokenPricing } from './pricingTierResolver';
+import { sumCosts, truncateCost } from './pricingCurrency';
 import type { ModelTokenPricing } from '../types/sharedTypes';
 
 function assertClose(actual: number, expected: number, message?: string): void {
-    assert.ok(Math.abs(actual - expected) < 1e-12, message ?? `expected ${actual} to equal ${expected}`);
+    const normalizedExpected = truncateCost(expected) ?? expected;
+    assert.ok(
+        Math.abs(actual - normalizedExpected) < 1e-12,
+        message ?? `expected ${actual} to equal ${normalizedExpected}`
+    );
+}
+
+function expectedTotalCost(...parts: number[]): number {
+    return sumCosts(parts.map(part => truncateCost(part) ?? part));
 }
 
 test('calculateCostWithBreakdown: OpenAI-compatible usage charges uncached input + cached read + output', () => {
@@ -45,7 +54,10 @@ test('calculateCostWithBreakdown: OpenAI-compatible usage charges uncached input
     assertClose(breakdown.outputCost, (30 / 1_000_000) * 0.28);
     assertClose(breakdown.cacheReadCost, (45 / 1_000_000) * 0.0028);
     assertClose(breakdown.cacheWriteCost, 0);
-    assertClose(breakdown.total, (105 * 0.14 + 30 * 0.28 + 45 * 0.0028) / 1_000_000);
+    assertClose(
+        breakdown.total,
+        expectedTotalCost((105 / 1_000_000) * 0.14, (30 / 1_000_000) * 0.28, (45 / 1_000_000) * 0.0028)
+    );
     assertClose(
         calculateCost(
             {
@@ -177,7 +189,7 @@ test('calculateCostWithBreakdown: applies matching peak tier pricing', () => {
     assert.equal(breakdown.activeTierCron, '* 9-23 * * 1-5');
     assertClose(breakdown.inputCost, (100 / 1_000_000) * 0.28);
     assertClose(breakdown.outputCost, (50 / 1_000_000) * 0.56);
-    assertClose(breakdown.total, (100 * 0.28 + 50 * 0.56) / 1_000_000);
+    assertClose(breakdown.total, expectedTotalCost((100 / 1_000_000) * 0.28, (50 / 1_000_000) * 0.56));
 });
 
 test('calculateCostWithBreakdown: falls back to static single-tier when no tier matches', () => {
@@ -232,7 +244,7 @@ test('calculateCost: defaults to current time when at omitted (no tiers)', () =>
     // 无 tiers 时不需要时间参数
     const pricing: ModelTokenPricing = { inputPrice: 0.14, outputPrice: 0.28 };
     const cost = calculateCost({ prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 }, pricing);
-    assertClose(cost, (100 * 0.14 + 50 * 0.28) / 1_000_000);
+    assertClose(cost, expectedTotalCost((100 / 1_000_000) * 0.14, (50 / 1_000_000) * 0.28));
 });
 
 // ============= DeepSeek Flash 端到端：峰谷定价 + 分段时段 + 不限工作日 =============
@@ -769,7 +781,7 @@ test('formatCostBreakdownLog: formats a complete breakdown with tier info', () =
 
     const log = formatCostBreakdownLog('TestModel', breakdown);
     assert.ok(log.includes('[TestModel] Cost breakdown:'));
-    assert.ok(log.includes('pricing  input=$0.28 output=$0.56'));
+    assert.ok(log.includes('pricing  $0.28 $0.56'));
     assert.ok(log.includes('tier     * 9-23 * * 1-5'));
     assert.ok(log.includes('usage   input=100 output=50'));
     assert.ok(log.includes('subtotal input=$'));
@@ -1086,7 +1098,7 @@ test('normalizeTokenPricing: non-numeric elements return undefined', () => {
 
 test('normalizeTokenPricing: object passes through unchanged', () => {
     const obj: ModelTokenPricing = { inputPrice: 1, outputPrice: 2 };
-    assert.equal(normalizeTokenPricing(obj), obj);
+    assert.deepEqual(normalizeTokenPricing(obj), obj);
 });
 
 test('normalizeTokenPricing: undefined / null return undefined', () => {

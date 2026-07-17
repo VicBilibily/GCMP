@@ -12,7 +12,7 @@ import { KnownProviders } from '../../utils/knownProviders';
 import { ApiKeyManager } from '../../utils/apiKeyManager';
 import { VersionManager } from '../../utils/versionManager';
 import { ConfigManager } from '../../utils/configManager';
-import { normalizeTokenPricing } from '../../utils/pricingTierResolver';
+import { normalizeTokenPricing, serializeTokenPricingInput } from '../../utils/pricingTierResolver';
 import type { ModelTokenPricingInput } from '../../types/sharedTypes';
 import { t } from '../../utils/l10n';
 import type { ModelFormData, ProviderOption, WebViewMessage } from './types';
@@ -258,9 +258,10 @@ export class ModelEditor {
         model.customHeader = customHeaderParsed ? (customHeaderParsed as Record<string, string>) : undefined;
         model.extraBody = this.parseJsonObject(data.extraBody) ?? undefined;
 
-        // tokenPricing 允许对象或数组简写，保存时统一归一化为对象形式
+        // tokenPricing 允许对象或数组简写；保存时回写 canonical pricing 形式
         const tokenPricingParsed = this.parseJsonValue(data.tokenPricing);
-        model.tokenPricing = normalizeTokenPricing(tokenPricingParsed as ModelTokenPricingInput);
+        const normalizedTokenPricing = normalizeTokenPricing(tokenPricingParsed as ModelTokenPricingInput);
+        model.tokenPricing = serializeTokenPricingInput(normalizedTokenPricing);
 
         // apiKey 单独保留在 EditedModelConfig 上
         model.apiKey = data.apiKey || undefined;
@@ -392,7 +393,10 @@ export class ModelEditor {
                 :   '',
             reasoningEffort: model?.reasoningEffort || [],
             reasoningDefault: model?.reasoningDefault || '',
-            tokenPricing: model?.tokenPricing ? JSON.stringify(model.tokenPricing, null, 2) : '',
+            tokenPricing:
+                model?.tokenPricing ?
+                    JSON.stringify(serializeTokenPricingInput(normalizeTokenPricing(model.tokenPricing)), null, 2)
+                :   '',
             customHeader: model?.customHeader ? JSON.stringify(model.customHeader, null, 2) : '',
             extraBody: model?.extraBody ? JSON.stringify(model.extraBody, null, 2) : ''
         };

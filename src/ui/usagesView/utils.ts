@@ -2,14 +2,124 @@
  * UsagesView 工具函数
  */
 
-import type { BaseStats, HourlyStats } from '../../usages/fileLogger/types';
-import type { ExtendedTokenRequestLog, SessionGroup, SessionSummary, WebViewMessage } from './types';
+import {
+    createEmptyNativeCostSplit,
+    getLogNativeCostSplit,
+    hasNativeCostSplit,
+    mergeNativeCostSplit
+} from '../../usages/fileLogger/nativeCostSplit';
+import { convertUsdToRmb, sumCosts } from '../../utils/pricingCurrency';
+import type { BaseStats, HourlyStats, NativeCostSplit } from '../../usages/fileLogger/types';
+import type {
+    ExtendedTokenRequestLog,
+    NativeCostSplitIndex,
+    RequestTotals,
+    SessionGroup,
+    SessionSummary,
+    WebViewMessage
+} from './types';
 import { REQUEST_KIND_DISPLAY_NAMES } from '../../handlers/requestKindDisplayNames';
+import type { DisplayCurrency } from '../costDisplay';
 
 // 复用共享工具函数
 export { formatTokens, formatCost } from '../utils';
 
 export const UNKNOWN_SESSION_ID = 'unknown';
+
+export type { NativeCostSplit } from '../../usages/fileLogger/types';
+
+export function getRecordNativeCostSplit(record: ExtendedTokenRequestLog): NativeCostSplit | undefined {
+    return getLogNativeCostSplit(record);
+}
+
+export function buildNativeCostSplitIndex(records: ExtendedTokenRequestLog[]): NativeCostSplitIndex {
+    const index: NativeCostSplitIndex = {
+        total: createEmptyNativeCostSplit(),
+        providers: {},
+        models: {},
+        hours: {},
+        hourProviders: {},
+        hourModels: {}
+    };
+
+    records.forEach(record => {
+        const split = getRecordNativeCostSplit(record);
+        if (!hasNativeCostSplit(split)) {
+            return;
+        }
+
+        mergeNativeCostSplit(index.total, split);
+
+        const providerKey = record.providerKey;
+        index.providers[providerKey] ??= createEmptyNativeCostSplit();
+        mergeNativeCostSplit(index.providers[providerKey], split);
+
+        index.models[providerKey] ??= {};
+        index.models[providerKey][record.modelId] ??= createEmptyNativeCostSplit();
+        mergeNativeCostSplit(index.models[providerKey][record.modelId], split);
+
+        const hourKey = String(new Date(record.timestamp).getHours()).padStart(2, '0');
+        index.hours[hourKey] ??= createEmptyNativeCostSplit();
+        mergeNativeCostSplit(index.hours[hourKey], split);
+
+        index.hourProviders[hourKey] ??= {};
+        index.hourProviders[hourKey][providerKey] ??= createEmptyNativeCostSplit();
+        mergeNativeCostSplit(index.hourProviders[hourKey][providerKey], split);
+
+        index.hourModels[hourKey] ??= {};
+        index.hourModels[hourKey][providerKey] ??= {};
+        index.hourModels[hourKey][providerKey][record.modelId] ??= createEmptyNativeCostSplit();
+        mergeNativeCostSplit(index.hourModels[hourKey][providerKey][record.modelId], split);
+    });
+
+    return index;
+}
+
+export function getStatsNativeCostSplit(stats: BaseStats | undefined, fallback?: NativeCostSplit): NativeCostSplit {
+    return fallback ?? stats?.nativeCosts ?? createEmptyNativeCostSplit();
+}
+
+export function sortRecordsByTimestampDesc(records: ExtendedTokenRequestLog[]): ExtendedTokenRequestLog[] {
+    return [...records].sort((a, b) => b.timestamp - a.timestamp);
+}
+
+function isChineseLocale(): boolean {
+    const lang = (document.documentElement.lang || navigator.language || '').toLowerCase();
+    return lang === 'zh-cn' || lang === 'zh' || lang.startsWith('zh-');
+}
+
+export function getDefaultDisplayCurrency(): DisplayCurrency {
+    return isChineseLocale() ? 'MIXED' : 'USD';
+}
+
+export function getDisplayCurrency(): DisplayCurrency {
+    return window.usagesState?.displayCurrency ?? getDefaultDisplayCurrency();
+}
+
+export function getNextDisplayCurrency(currentCurrency: DisplayCurrency): DisplayCurrency {
+    if (!isChineseLocale()) {
+        return currentCurrency === 'USD' ? 'RMB' : 'USD';
+    }
+
+    if (currentCurrency === 'MIXED') {
+        return 'USD';
+    }
+    if (currentCurrency === 'USD') {
+        return 'RMB';
+    }
+    return 'MIXED';
+}
+
+export function getCurrencyToggleTitle(currentCurrency: DisplayCurrency): string {
+    const nextCurrency = getNextDisplayCurrency(currentCurrency);
+    if (nextCurrency === 'MIXED') {
+        return t('Click to switch to split currency view', '点击切换为分币种显示');
+    }
+    if (nextCurrency === 'RMB') {
+        return t('Click to switch to RMB', '点击切换为统一人民币显示');
+    }
+    return t('Click to switch to USD', '点击切换为统一美元显示');
+}
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -126,9 +236,67 @@ export function summarizeSessionRecords(records: ExtendedTokenRequestLog[]): Ses
     };
 }
 
-function isChineseLocale(): boolean {
-    const lang = (document.documentElement.lang || navigator.language || '').toLowerCase();
-    return lang === 'zh-cn' || lang === 'zh' || lang.startsWith('zh-');
+export function buildRequestTotals(records: ExtendedTokenRequestLog[]): RequestTotals {
+    let inputTokens = 0;
+    let cacheTokens = 0;
+    let outputTokens = 0;
+    let totalCost = 0;
+    let totalCostRmb = 0;
+    const nativeCosts = createEmptyNativeCostSplit();
+    let costedRequests = 0;
+    let rmbExactRequests = 0;
+    const latencies: number[] = [];
+    const durations: number[] = [];
+
+    records.forEach(record => {
+        const hasActualUsage =
+            (record.status === 'completed' || record.status === 'cancelled') &&
+            !!record.rawUsage &&
+            record.totalTokens > 0;
+        inputTokens += hasActualUsage ? Math.max(record.actualInput || 0, 0) : Math.max(record.estimatedInput || 0, 0);
+        cacheTokens += Math.max(record.cacheReadTokens || 0, 0);
+        outputTokens += Math.max(record.outputTokens || 0, 0);
+
+        if (record.estimatedCost !== undefined && record.estimatedCost > 0) {
+            const split = getRecordNativeCostSplit(record);
+            totalCost = sumCosts([totalCost, record.estimatedCost]);
+            totalCostRmb = sumCosts([
+                totalCostRmb,
+                record.costBreakdown?.currencies?.RMB?.total ?? convertUsdToRmb(record.estimatedCost)
+            ]);
+            if (split) {
+                mergeNativeCostSplit(nativeCosts, split);
+            }
+            costedRequests += 1;
+            if (record.costBreakdown?.currencies?.RMB?.total !== undefined) {
+                rmbExactRequests += 1;
+            }
+        }
+
+        if (record.streamDuration !== undefined && record.streamDuration > 0) {
+            durations.push(record.streamDuration);
+        }
+
+        if (record.streamStartTime !== undefined && record.timestamp !== undefined) {
+            const latency = record.streamStartTime - record.timestamp;
+            if (Number.isFinite(latency) && latency >= 0) {
+                latencies.push(latency);
+            }
+        }
+    });
+
+    return {
+        inputTokens,
+        cacheTokens,
+        outputTokens,
+        avgLatency: meanWithoutOutliers(latencies),
+        avgDuration: meanWithoutOutliers(durations),
+        totalCost,
+        totalCostRmb,
+        nativeCosts,
+        costedRequests,
+        rmbExactRequests
+    };
 }
 
 /**
@@ -223,12 +391,13 @@ export function groupRecordsBySession(records: ExtendedTokenRequestLog[]): Sessi
 
     return Array.from(groups.entries())
         .map(([sessionId, sessionRecords]) => {
-            const sortedRecords = [...sessionRecords].sort((a, b) => b.timestamp - a.timestamp);
+            const sortedRecords = sortRecordsByTimestampDesc(sessionRecords);
             return {
                 sessionId,
                 displayId: getSessionDisplayId(sessionId),
                 records: sortedRecords,
-                summary: summarizeSessionRecords(sortedRecords)
+                summary: summarizeSessionRecords(sortedRecords),
+                totals: buildRequestTotals(sortedRecords)
             };
         })
         .sort((a, b) => (b.summary.endTime || 0) - (a.summary.endTime || 0));

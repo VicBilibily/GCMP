@@ -10,12 +10,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type {
+    DualCurrencyPricingMap,
     ModelTokenPricing,
     ModelTokenPricingInput,
-    ModelTokenPricingInputObject,
+    PricingArray,
+    PricingFields,
+    PricingFieldsRmb,
+    PricingInput,
     PricingTier,
     PricingTierInput
 } from '../types/sharedTypes';
+import { convertRmbToUsd } from './pricingCurrency';
 
 /**
  * cron 字段含义（5 字段，顺序固定）
@@ -382,13 +387,478 @@ export function collectInvalidTierCrons(pricing: ModelTokenPricing | undefined):
 /**
  * Token 定价归一化工具。
  *
- * 运行时 ModelTokenPricing 统一使用对象形式，但配置层（JSON settings、自定义模型表单）允许使用数组简写：
- *   [inputPrice, outputPrice]                            → 2 参数
- *   [inputPrice, outputPrice, cacheReadPrice]            → 3 参数
- *   [inputPrice, outputPrice, cacheReadPrice, cacheWritePrice] → 4 参数
+ * 运行时 ModelTokenPricing 统一使用对象形式，但配置层（JSON settings、自定义模型表单）允许使用多种简写：
+ *   数组简写：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]（默认 USD）
+ *   双币映射：{ "USD": [...], "RMB": [...] }（pricing 字段扩展形式）
+ *   对象简写：{ pricing: [...], tiers? }
+ *
+ * pricing 字段支持三种形式：
+ *   1. PricingArray — 数组简写，默认 USD
+ *   2. DualCurrencyPricingMap — { "USD": [...], "RMB": [...] }，双币定价
+ *      USD 数组 → 主价格字段（inputPrice/outputPrice 等）
+ *      RMB 数组 → rmb 子对象（PricingFieldsRmb）
  *
  * 超出范围或非数组/对象时返回 undefined，由调用方决定是否保留原值。
  */
+
+const DUAL_CURRENCY_KEY_SET = new Set(['USD', 'RMB']);
+const RMB_PRICING_KEY_SET = new Set(['inputPrice', 'outputPrice', 'cacheReadPrice', 'cacheWritePrice']);
+const TOP_LEVEL_SHORTHAND_KEY_SET = new Set(['pricing', 'tiers']);
+const TOP_LEVEL_EXPLICIT_KEY_SET = new Set([
+    'inputPrice',
+    'outputPrice',
+    'pricing',
+    'cacheReadPrice',
+    'cacheWritePrice',
+    'rmb',
+    'tiers'
+]);
+const TIER_SHORTHAND_KEY_SET = new Set([
+    'pricing',
+    'cron',
+    'timezone',
+    'serviceTier',
+    'contextSizeMin',
+    'contextSizeInputOnly'
+]);
+const TIER_EXPLICIT_KEY_SET = new Set([
+    ...TIER_SHORTHAND_KEY_SET,
+    'inputPrice',
+    'outputPrice',
+    'cacheReadPrice',
+    'cacheWritePrice',
+    'rmb'
+]);
+
+function hasOnlyKnownKeys(value: object, allowedKeys: ReadonlySet<string>): boolean {
+    return Object.keys(value).every(key => allowedKeys.has(key));
+}
+
+interface TokenPricingInputObjectLike {
+    USD?: PricingArray;
+    RMB?: PricingArray;
+    inputPrice?: number;
+    outputPrice?: number;
+    pricing?: PricingInput;
+    cacheReadPrice?: number;
+    cacheWritePrice?: number;
+    rmb?: PricingFieldsRmb;
+    tiers?: PricingTierInput[];
+}
+
+interface TokenPricingTierInputLike {
+    pricing?: PricingArray;
+    inputPrice?: number;
+    outputPrice?: number;
+    cacheReadPrice?: number;
+    cacheWritePrice?: number;
+    rmb?: PricingFieldsRmb;
+    cron?: string;
+    timezone?: string;
+    serviceTier?: string;
+    contextSizeMin?: number;
+    contextSizeInputOnly?: boolean;
+}
+
+/**
+ * 从 PricingArray 提取价格字段，返回 [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。
+ * 校验失败返回 undefined。
+ */
+function extractPricingArrayFields(arr: PricingArray):
+    | {
+          inputPrice: number;
+          outputPrice: number;
+          cacheReadPrice?: number;
+          cacheWritePrice?: number;
+      }
+    | undefined {
+    if (arr.length < 2 || arr.length > 4) {
+        return undefined;
+    }
+    const [inputPrice, outputPrice, cacheReadPrice, cacheWritePrice] = arr;
+    if (
+        typeof inputPrice !== 'number' ||
+        typeof outputPrice !== 'number' ||
+        !isFinite(inputPrice) ||
+        !isFinite(outputPrice) ||
+        inputPrice < 0 ||
+        outputPrice < 0
+    ) {
+        return undefined;
+    }
+    if (
+        cacheReadPrice !== undefined &&
+        (typeof cacheReadPrice !== 'number' || !isFinite(cacheReadPrice) || cacheReadPrice < 0)
+    ) {
+        return undefined;
+    }
+    if (
+        cacheWritePrice !== undefined &&
+        (typeof cacheWritePrice !== 'number' || !isFinite(cacheWritePrice) || cacheWritePrice < 0)
+    ) {
+        return undefined;
+    }
+    const result: { inputPrice: number; outputPrice: number; cacheReadPrice?: number; cacheWritePrice?: number } = {
+        inputPrice,
+        outputPrice
+    };
+    if (cacheReadPrice !== undefined) {
+        result.cacheReadPrice = cacheReadPrice;
+    }
+    if (cacheWritePrice !== undefined) {
+        result.cacheWritePrice = cacheWritePrice;
+    }
+    return result;
+}
+
+/**
+ * 从 DualCurrencyPricingMap 提取 USD 和 RMB 价格。
+ * USD 数组 → 主价格字段；RMB 数组 → rmb 子对象。
+ * 至少需要一个币种。
+ */
+function extractDualCurrencyPricing(map: DualCurrencyPricingMap):
+    | {
+          usd:
+              | {
+                    inputPrice: number;
+                    outputPrice: number;
+                    cacheReadPrice?: number;
+                    cacheWritePrice?: number;
+                    pricing: PricingArray;
+                }
+              | undefined;
+          rmb: PricingFieldsRmb | undefined;
+      }
+    | undefined {
+    if (!hasOnlyKnownKeys(map, DUAL_CURRENCY_KEY_SET)) {
+        return undefined;
+    }
+    const usdArr = map.USD;
+    const rmbArr = map.RMB;
+    if (!usdArr && !rmbArr) {
+        return undefined;
+    }
+
+    let usd:
+        | {
+              inputPrice: number;
+              outputPrice: number;
+              cacheReadPrice?: number;
+              cacheWritePrice?: number;
+              pricing: PricingArray;
+          }
+        | undefined;
+    if (usdArr) {
+        const fields = extractPricingArrayFields(usdArr);
+        if (!fields) {
+            return undefined;
+        }
+        usd = { ...fields, pricing: usdArr };
+    }
+
+    let rmb: PricingFieldsRmb | undefined;
+    if (rmbArr) {
+        const fields = extractPricingArrayFields(rmbArr);
+        if (!fields) {
+            return undefined;
+        }
+        rmb = { inputPrice: fields.inputPrice, outputPrice: fields.outputPrice };
+        if (fields.cacheReadPrice !== undefined) {
+            rmb.cacheReadPrice = fields.cacheReadPrice;
+        }
+        if (fields.cacheWritePrice !== undefined) {
+            rmb.cacheWritePrice = fields.cacheWritePrice;
+        }
+    }
+
+    return { usd, rmb };
+}
+
+function isValidRmbPricingFields(value: unknown): value is PricingFieldsRmb {
+    if (typeof value !== 'object' || value === null) {
+        return false;
+    }
+    if (!hasOnlyKnownKeys(value, RMB_PRICING_KEY_SET)) {
+        return false;
+    }
+    const r = value as PricingFieldsRmb;
+    if (
+        typeof r.inputPrice !== 'number' ||
+        typeof r.outputPrice !== 'number' ||
+        !isFinite(r.inputPrice) ||
+        !isFinite(r.outputPrice) ||
+        r.inputPrice < 0 ||
+        r.outputPrice < 0
+    ) {
+        return false;
+    }
+    if (
+        r.cacheReadPrice !== undefined &&
+        (typeof r.cacheReadPrice !== 'number' || !isFinite(r.cacheReadPrice) || r.cacheReadPrice < 0)
+    ) {
+        return false;
+    }
+    if (
+        r.cacheWritePrice !== undefined &&
+        (typeof r.cacheWritePrice !== 'number' || !isFinite(r.cacheWritePrice) || r.cacheWritePrice < 0)
+    ) {
+        return false;
+    }
+    return true;
+}
+
+function buildPricingArray(
+    inputPrice: number,
+    outputPrice: number,
+    cacheReadPrice?: number,
+    cacheWritePrice?: number
+): PricingArray {
+    if (cacheWritePrice !== undefined) {
+        return [inputPrice, outputPrice, cacheReadPrice ?? 0, cacheWritePrice];
+    }
+    if (cacheReadPrice !== undefined) {
+        return [inputPrice, outputPrice, cacheReadPrice];
+    }
+    return [inputPrice, outputPrice];
+}
+
+function buildPricingArrayFromFields(
+    fields: Pick<PricingFields, 'inputPrice' | 'outputPrice' | 'cacheReadPrice' | 'cacheWritePrice'>
+): PricingArray {
+    return buildPricingArray(fields.inputPrice, fields.outputPrice, fields.cacheReadPrice, fields.cacheWritePrice);
+}
+
+function buildPricingArrayFromRmbFields(fields: PricingFieldsRmb): PricingArray {
+    return buildPricingArray(fields.inputPrice, fields.outputPrice, fields.cacheReadPrice, fields.cacheWritePrice);
+}
+
+function isValidPricingArray(value: unknown): value is PricingArray {
+    return Array.isArray(value) && extractPricingArrayFields(value as PricingArray) !== undefined;
+}
+
+function scaleRmbPricing(fields: PricingFieldsRmb, multiplier: number): PricingFieldsRmb {
+    return {
+        inputPrice: fields.inputPrice * multiplier,
+        outputPrice: fields.outputPrice * multiplier,
+        cacheReadPrice: fields.cacheReadPrice !== undefined ? fields.cacheReadPrice * multiplier : undefined,
+        cacheWritePrice: fields.cacheWritePrice !== undefined ? fields.cacheWritePrice * multiplier : undefined
+    };
+}
+
+function serializePricingInput(
+    fields: Pick<PricingFields, 'inputPrice' | 'outputPrice' | 'cacheReadPrice' | 'cacheWritePrice'>,
+    rmb?: PricingFieldsRmb
+): PricingInput {
+    const usdPricing = buildPricingArrayFromFields(fields);
+    if (!rmb) {
+        return usdPricing;
+    }
+
+    return { USD: usdPricing, RMB: buildPricingArrayFromRmbFields(rmb) };
+}
+
+function getTierMatchFields(tier: {
+    cron?: string;
+    timezone?: string;
+    serviceTier?: string;
+    contextSizeMin?: number;
+    contextSizeInputOnly?: boolean;
+}): Pick<PricingTier, 'cron' | 'timezone' | 'serviceTier' | 'contextSizeMin' | 'contextSizeInputOnly'> {
+    return {
+        cron: tier.cron,
+        timezone: tier.timezone,
+        serviceTier: tier.serviceTier,
+        contextSizeMin: tier.contextSizeMin,
+        contextSizeInputOnly: tier.contextSizeInputOnly
+    };
+}
+
+function hasValidTierMatchFields(tier: {
+    cron?: string;
+    timezone?: string;
+    serviceTier?: string;
+    contextSizeMin?: number;
+    contextSizeInputOnly?: boolean;
+}): boolean {
+    if (tier.cron !== undefined && typeof tier.cron !== 'string') {
+        return false;
+    }
+    if (tier.timezone !== undefined && typeof tier.timezone !== 'string') {
+        return false;
+    }
+    if (tier.serviceTier !== undefined && typeof tier.serviceTier !== 'string') {
+        return false;
+    }
+    if (tier.contextSizeMin !== undefined) {
+        if (typeof tier.contextSizeMin !== 'number' || !isFinite(tier.contextSizeMin) || tier.contextSizeMin < 0) {
+            return false;
+        }
+    }
+    if (tier.contextSizeInputOnly !== undefined && typeof tier.contextSizeInputOnly !== 'boolean') {
+        return false;
+    }
+    return true;
+}
+
+function normalizeShorthandTier(
+    tier: PricingTierInput,
+    basePricing: Pick<ModelTokenPricing, 'inputPrice' | 'outputPrice' | 'cacheReadPrice' | 'cacheWritePrice' | 'rmb'>
+): PricingTier | undefined {
+    if (!hasOnlyKnownKeys(tier, TIER_SHORTHAND_KEY_SET) || !hasValidTierMatchFields(tier)) {
+        return undefined;
+    }
+
+    const tierMatchFields = getTierMatchFields(tier);
+    if (Array.isArray(tier.pricing)) {
+        const fields = extractPricingArrayFields(tier.pricing as PricingArray);
+        if (!fields) {
+            return undefined;
+        }
+        return {
+            ...tierMatchFields,
+            ...fields,
+            pricing: tier.pricing as PricingArray
+        };
+    }
+
+    if (typeof tier.pricing === 'object' && tier.pricing !== null) {
+        const dual = extractDualCurrencyPricing(tier.pricing as DualCurrencyPricingMap);
+        if (!dual || (!dual.usd && !dual.rmb)) {
+            return undefined;
+        }
+        const converted: PricingTier =
+            dual.usd ?
+                {
+                    ...tierMatchFields,
+                    inputPrice: dual.usd.inputPrice,
+                    outputPrice: dual.usd.outputPrice,
+                    pricing: dual.usd.pricing,
+                    cacheReadPrice: dual.usd.cacheReadPrice,
+                    cacheWritePrice: dual.usd.cacheWritePrice
+                }
+            :   {
+                    ...tierMatchFields,
+                    inputPrice: convertRmbToUsd(dual.rmb!.inputPrice)!,
+                    outputPrice: convertRmbToUsd(dual.rmb!.outputPrice)!,
+                    cacheReadPrice:
+                        dual.rmb!.cacheReadPrice !== undefined ? convertRmbToUsd(dual.rmb!.cacheReadPrice) : undefined,
+                    cacheWritePrice:
+                        dual.rmb!.cacheWritePrice !== undefined ? convertRmbToUsd(dual.rmb!.cacheWritePrice) : undefined
+                };
+        if (dual.rmb) {
+            converted.rmb = dual.rmb;
+        }
+        return converted;
+    }
+
+    if (typeof tier.pricing === 'number' && isFinite(tier.pricing) && tier.pricing >= 0) {
+        const multiplier = tier.pricing;
+        return {
+            ...tierMatchFields,
+            inputPrice: basePricing.inputPrice * multiplier,
+            outputPrice: basePricing.outputPrice * multiplier,
+            cacheReadPrice:
+                basePricing.cacheReadPrice !== undefined ? basePricing.cacheReadPrice * multiplier : undefined,
+            cacheWritePrice:
+                basePricing.cacheWritePrice !== undefined ? basePricing.cacheWritePrice * multiplier : undefined,
+            rmb: basePricing.rmb ? scaleRmbPricing(basePricing.rmb, multiplier) : undefined
+        };
+    }
+
+    return undefined;
+}
+
+function normalizeShorthandTiers(
+    tiers: PricingTierInput[] | undefined,
+    basePricing: Pick<ModelTokenPricing, 'inputPrice' | 'outputPrice' | 'cacheReadPrice' | 'cacheWritePrice' | 'rmb'>
+): PricingTier[] | undefined {
+    if (tiers === undefined) {
+        return undefined;
+    }
+
+    const normalizedTiers: PricingTier[] = [];
+    for (const tier of tiers) {
+        const normalizedTier = normalizeShorthandTier(tier, basePricing);
+        if (!normalizedTier) {
+            return undefined;
+        }
+        normalizedTiers.push(normalizedTier);
+    }
+    return normalizedTiers;
+}
+
+function normalizeExplicitTier(tier: TokenPricingTierInputLike): PricingTier | undefined {
+    if (!hasOnlyKnownKeys(tier, TIER_EXPLICIT_KEY_SET) || !hasValidTierMatchFields(tier)) {
+        return undefined;
+    }
+    if (
+        typeof tier.inputPrice !== 'number' ||
+        typeof tier.outputPrice !== 'number' ||
+        !isFinite(tier.inputPrice) ||
+        !isFinite(tier.outputPrice) ||
+        tier.inputPrice < 0 ||
+        tier.outputPrice < 0
+    ) {
+        return undefined;
+    }
+    if (
+        tier.cacheReadPrice !== undefined &&
+        (typeof tier.cacheReadPrice !== 'number' || !isFinite(tier.cacheReadPrice) || tier.cacheReadPrice < 0)
+    ) {
+        return undefined;
+    }
+    if (
+        tier.cacheWritePrice !== undefined &&
+        (typeof tier.cacheWritePrice !== 'number' || !isFinite(tier.cacheWritePrice) || tier.cacheWritePrice < 0)
+    ) {
+        return undefined;
+    }
+    if (tier.rmb !== undefined && !isValidRmbPricingFields(tier.rmb)) {
+        return undefined;
+    }
+    if (tier.pricing !== undefined && !isValidPricingArray(tier.pricing)) {
+        return undefined;
+    }
+
+    const pricingFields = tier.pricing ? extractPricingArrayFields(tier.pricing) : undefined;
+
+    return {
+        inputPrice: tier.inputPrice,
+        outputPrice: tier.outputPrice,
+        ...(tier.pricing !== undefined ? { pricing: tier.pricing } : {}),
+        ...(tier.cacheReadPrice !== undefined ? { cacheReadPrice: tier.cacheReadPrice }
+        : pricingFields?.cacheReadPrice !== undefined ? { cacheReadPrice: pricingFields.cacheReadPrice }
+        : {}),
+        ...(tier.cacheWritePrice !== undefined ? { cacheWritePrice: tier.cacheWritePrice }
+        : pricingFields?.cacheWritePrice !== undefined ? { cacheWritePrice: pricingFields.cacheWritePrice }
+        : {}),
+        ...(tier.rmb !== undefined ? { rmb: tier.rmb } : {}),
+        ...getTierMatchFields(tier)
+    };
+}
+
+export function serializeTokenPricingInput(pricing: ModelTokenPricing | undefined): ModelTokenPricingInput | undefined {
+    if (!pricing) {
+        return undefined;
+    }
+
+    return {
+        pricing: serializePricingInput(pricing, pricing.rmb),
+        ...(pricing.tiers && pricing.tiers.length > 0 ?
+            {
+                tiers: pricing.tiers.map(tier => ({
+                    pricing: serializePricingInput(tier, tier.rmb),
+                    cron: tier.cron,
+                    timezone: tier.timezone,
+                    serviceTier: tier.serviceTier,
+                    contextSizeMin: tier.contextSizeMin,
+                    contextSizeInputOnly: tier.contextSizeInputOnly
+                }))
+            }
+        :   {})
+    };
+}
+
 export function normalizeTokenPricing(
     pricing: ModelTokenPricingInput | null | undefined
 ): ModelTokenPricing | undefined {
@@ -396,313 +866,222 @@ export function normalizeTokenPricing(
         return undefined;
     }
 
+    // 1. 数组简写：[input, output, cacheRead?, cacheWrite?]（默认 USD）
     if (Array.isArray(pricing)) {
-        if (pricing.length < 2 || pricing.length > 4) {
+        const fields = extractPricingArrayFields(pricing as PricingArray);
+        if (!fields) {
             return undefined;
         }
-        const [inputPrice, outputPrice, cacheReadPrice, cacheWritePrice] = pricing;
-        if (
-            typeof inputPrice !== 'number' ||
-            typeof outputPrice !== 'number' ||
-            !isFinite(inputPrice) ||
-            !isFinite(outputPrice) ||
-            inputPrice < 0 ||
-            outputPrice < 0
-        ) {
+        const result: ModelTokenPricing = { ...fields, pricing };
+        return result;
+    }
+
+    if (typeof pricing !== 'object') {
+        return undefined;
+    }
+
+    const obj = pricing as TokenPricingInputObjectLike;
+
+    // 2. 顶层双币映射：{ "USD": [...], "RMB": [...] }
+    //    判断条件：对象有 USD 或 RMB 键，且无 inputPrice/outputPrice/pricing/tiers 等字段
+    if (
+        ('USD' in obj || 'RMB' in obj) &&
+        obj.inputPrice === undefined &&
+        obj.outputPrice === undefined &&
+        obj.pricing === undefined &&
+        obj.tiers === undefined
+    ) {
+        const dual = extractDualCurrencyPricing(obj as unknown as DualCurrencyPricingMap);
+        if (!dual) {
             return undefined;
         }
-        if (
-            cacheReadPrice !== undefined &&
-            (typeof cacheReadPrice !== 'number' || !isFinite(cacheReadPrice) || cacheReadPrice < 0)
-        ) {
+        // 至少有 USD 或 RMB
+        if (!dual.usd && !dual.rmb) {
             return undefined;
         }
-        if (
-            cacheWritePrice !== undefined &&
-            (typeof cacheWritePrice !== 'number' || !isFinite(cacheWritePrice) || cacheWritePrice < 0)
-        ) {
-            return undefined;
-        }
-        const result: ModelTokenPricing = { inputPrice, outputPrice, pricing };
-        if (cacheReadPrice !== undefined) {
-            result.cacheReadPrice = cacheReadPrice;
-        }
-        if (cacheWritePrice !== undefined) {
-            result.cacheWritePrice = cacheWritePrice;
+        const result: ModelTokenPricing =
+            dual.usd ?
+                {
+                    inputPrice: dual.usd.inputPrice,
+                    outputPrice: dual.usd.outputPrice,
+                    pricing: dual.usd.pricing,
+                    cacheReadPrice: dual.usd.cacheReadPrice,
+                    cacheWritePrice: dual.usd.cacheWritePrice
+                }
+                // 无 USD 时，从 RMB 按默认汇率换算 USD 主价格
+            :   {
+                    inputPrice: convertRmbToUsd(dual.rmb!.inputPrice)!,
+                    outputPrice: convertRmbToUsd(dual.rmb!.outputPrice)!,
+                    cacheReadPrice:
+                        dual.rmb!.cacheReadPrice !== undefined ? convertRmbToUsd(dual.rmb!.cacheReadPrice) : undefined,
+                    cacheWritePrice:
+                        dual.rmb!.cacheWritePrice !== undefined ? convertRmbToUsd(dual.rmb!.cacheWritePrice) : undefined
+                };
+        if (dual.rmb) {
+            result.rmb = dual.rmb;
         }
         return result;
     }
 
-    if (typeof pricing === 'object') {
-        const obj = pricing;
+    // 3. 对象形式：{ pricing: [...] | { "USD": [...], "RMB": [...] }, ... }
+    //    兼容 { pricing: [1, 2] } 和 { pricing: { "USD": [1, 2], "RMB": [7, 14] } }
 
-        // 兼容 { pricing: [1, 2] } 形式：从 pricing 数组转换
-        if (
-            obj.inputPrice === undefined &&
-            obj.outputPrice === undefined &&
-            obj.pricing !== undefined &&
-            Array.isArray(obj.pricing) &&
-            obj.pricing.length >= 2 &&
-            obj.pricing.length <= 4 &&
-            typeof obj.pricing[0] === 'number' &&
-            typeof obj.pricing[1] === 'number' &&
-            isFinite(obj.pricing[0]) &&
-            isFinite(obj.pricing[1]) &&
-            obj.pricing[0] >= 0 &&
-            obj.pricing[1] >= 0
-        ) {
-            const converted: ModelTokenPricingInputObject = {
-                inputPrice: obj.pricing[0],
-                outputPrice: obj.pricing[1],
-                pricing: obj.pricing
-            };
-            // 转发 tiers（兼容 { pricing: [1, 2], tiers: [...] } 形式）
-            if (obj.tiers !== undefined) {
-                converted.tiers = obj.tiers;
-            }
-            // 显式定义的 cache 价格优先于 pricing 数组简写
-            if (obj.cacheReadPrice !== undefined) {
-                if (typeof obj.cacheReadPrice !== 'number' || !isFinite(obj.cacheReadPrice) || obj.cacheReadPrice < 0) {
-                    return undefined;
-                }
-                converted.cacheReadPrice = obj.cacheReadPrice;
-            } else if (obj.pricing[2] !== undefined) {
-                if (typeof obj.pricing[2] !== 'number' || !isFinite(obj.pricing[2]) || obj.pricing[2] < 0) {
-                    return undefined;
-                }
-                converted.cacheReadPrice = obj.pricing[2];
-            }
-            if (obj.cacheWritePrice !== undefined) {
-                if (
-                    typeof obj.cacheWritePrice !== 'number' ||
-                    !isFinite(obj.cacheWritePrice) ||
-                    obj.cacheWritePrice < 0
-                ) {
-                    return undefined;
-                }
-                converted.cacheWritePrice = obj.cacheWritePrice;
-            } else if (obj.pricing[3] !== undefined) {
-                if (typeof obj.pricing[3] !== 'number' || !isFinite(obj.pricing[3]) || obj.pricing[3] < 0) {
-                    return undefined;
-                }
-                converted.cacheWritePrice = obj.pricing[3];
-            }
-            return normalizeTokenPricing(converted);
-        }
-
-        if (
-            typeof obj.inputPrice !== 'number' ||
-            typeof obj.outputPrice !== 'number' ||
-            !isFinite(obj.inputPrice) ||
-            !isFinite(obj.outputPrice) ||
-            obj.inputPrice < 0 ||
-            obj.outputPrice < 0
-        ) {
+    // 3a. { pricing: [...] } 简写形式
+    if (
+        obj.inputPrice === undefined &&
+        obj.outputPrice === undefined &&
+        obj.pricing !== undefined &&
+        Array.isArray(obj.pricing)
+    ) {
+        if (!hasOnlyKnownKeys(obj, TOP_LEVEL_SHORTHAND_KEY_SET)) {
             return undefined;
         }
-        if (
-            obj.cacheReadPrice !== undefined &&
-            (typeof obj.cacheReadPrice !== 'number' || !isFinite(obj.cacheReadPrice) || obj.cacheReadPrice < 0)
-        ) {
+        const fields = extractPricingArrayFields(obj.pricing as PricingArray);
+        if (!fields) {
             return undefined;
         }
-        if (
-            obj.cacheWritePrice !== undefined &&
-            (typeof obj.cacheWritePrice !== 'number' || !isFinite(obj.cacheWritePrice) || obj.cacheWritePrice < 0)
-        ) {
+        const converted: ModelTokenPricing = {
+            inputPrice: fields.inputPrice,
+            outputPrice: fields.outputPrice,
+            pricing: obj.pricing as PricingArray,
+            cacheReadPrice: fields.cacheReadPrice,
+            cacheWritePrice: fields.cacheWritePrice
+        };
+        const normalizedTiers = normalizeShorthandTiers(obj.tiers, converted);
+        if (obj.tiers !== undefined && normalizedTiers === undefined) {
             return undefined;
         }
-        if (obj.pricing !== undefined) {
-            if (
-                !Array.isArray(obj.pricing) ||
-                obj.pricing.length < 2 ||
-                obj.pricing.length > 4 ||
-                typeof obj.pricing[0] !== 'number' ||
-                typeof obj.pricing[1] !== 'number' ||
-                !isFinite(obj.pricing[0]) ||
-                !isFinite(obj.pricing[1]) ||
-                obj.pricing[0] < 0 ||
-                obj.pricing[1] < 0
-            ) {
-                return undefined;
-            }
-            if (
-                obj.pricing[2] !== undefined &&
-                (typeof obj.pricing[2] !== 'number' || !isFinite(obj.pricing[2]) || obj.pricing[2] < 0)
-            ) {
-                return undefined;
-            }
-            if (
-                obj.pricing[3] !== undefined &&
-                (typeof obj.pricing[3] !== 'number' || !isFinite(obj.pricing[3]) || obj.pricing[3] < 0)
-            ) {
-                return undefined;
-            }
+        if (normalizedTiers) {
+            converted.tiers = normalizedTiers;
         }
-        // 校验 tiers 数组结构，防止非法值传入后续 tier 匹配逻辑
-        if (obj.tiers !== undefined) {
-            if (!Array.isArray(obj.tiers)) {
-                return undefined;
-            }
-            const normalizedTiers: PricingTier[] = [];
-            for (const tier of obj.tiers as Array<PricingTierInput | unknown>) {
-                if (typeof tier !== 'object' || tier === null) {
-                    return undefined;
-                }
-                const t = tier as PricingTierInput;
-                // 结构性可选字段类型校验，防手误传错类型
-                if (t.cron !== undefined && typeof t.cron !== 'string') {
-                    return undefined;
-                }
-                if (t.timezone !== undefined && typeof t.timezone !== 'string') {
-                    return undefined;
-                }
-                if (t.serviceTier !== undefined && typeof t.serviceTier !== 'string') {
-                    return undefined;
-                }
-                if (t.contextSizeMin !== undefined) {
-                    if (typeof t.contextSizeMin !== 'number' || !isFinite(t.contextSizeMin) || t.contextSizeMin < 0) {
-                        return undefined;
-                    }
-                }
-                if (t.contextSizeInputOnly !== undefined && typeof t.contextSizeInputOnly !== 'boolean') {
-                    return undefined;
-                }
-                if (t.pricing !== undefined) {
-                    if (
-                        !Array.isArray(t.pricing) ||
-                        t.pricing.length < 2 ||
-                        t.pricing.length > 4 ||
-                        typeof t.pricing[0] !== 'number' ||
-                        typeof t.pricing[1] !== 'number' ||
-                        !isFinite(t.pricing[0]) ||
-                        !isFinite(t.pricing[1]) ||
-                        t.pricing[0] < 0 ||
-                        t.pricing[1] < 0
-                    ) {
-                        return undefined;
-                    }
-                    if (
-                        t.pricing[2] !== undefined &&
-                        (typeof t.pricing[2] !== 'number' || !isFinite(t.pricing[2]) || t.pricing[2] < 0)
-                    ) {
-                        return undefined;
-                    }
-                    if (
-                        t.pricing[3] !== undefined &&
-                        (typeof t.pricing[3] !== 'number' || !isFinite(t.pricing[3]) || t.pricing[3] < 0)
-                    ) {
-                        return undefined;
-                    }
-                }
-
-                // 兼容 tier 的 { pricing: [1, 2], cron: '...' } 形式
-                if (
-                    t.inputPrice === undefined &&
-                    t.outputPrice === undefined &&
-                    Array.isArray(t.pricing) &&
-                    t.pricing.length >= 2 &&
-                    t.pricing.length <= 4 &&
-                    typeof t.pricing[0] === 'number' &&
-                    typeof t.pricing[1] === 'number' &&
-                    isFinite(t.pricing[0]) &&
-                    isFinite(t.pricing[1]) &&
-                    t.pricing[0] >= 0 &&
-                    t.pricing[1] >= 0
-                ) {
-                    const converted: PricingTier = {
-                        inputPrice: t.pricing[0],
-                        outputPrice: t.pricing[1],
-                        pricing: t.pricing,
-                        cron: t.cron,
-                        timezone: t.timezone,
-                        serviceTier: t.serviceTier,
-                        contextSizeMin: t.contextSizeMin,
-                        contextSizeInputOnly: t.contextSizeInputOnly
-                    };
-                    // 显式定义的 cache 价格优先于 pricing 数组简写
-                    if (t.cacheReadPrice !== undefined) {
-                        if (
-                            typeof t.cacheReadPrice !== 'number' ||
-                            !isFinite(t.cacheReadPrice) ||
-                            t.cacheReadPrice < 0
-                        ) {
-                            return undefined;
-                        }
-                        converted.cacheReadPrice = t.cacheReadPrice;
-                    } else if (t.pricing[2] !== undefined) {
-                        if (typeof t.pricing[2] !== 'number' || !isFinite(t.pricing[2]) || t.pricing[2] < 0) {
-                            return undefined;
-                        }
-                        converted.cacheReadPrice = t.pricing[2];
-                    }
-                    if (t.cacheWritePrice !== undefined) {
-                        if (
-                            typeof t.cacheWritePrice !== 'number' ||
-                            !isFinite(t.cacheWritePrice) ||
-                            t.cacheWritePrice < 0
-                        ) {
-                            return undefined;
-                        }
-                        converted.cacheWritePrice = t.cacheWritePrice;
-                    } else if (t.pricing[3] !== undefined) {
-                        if (typeof t.pricing[3] !== 'number' || !isFinite(t.pricing[3]) || t.pricing[3] < 0) {
-                            return undefined;
-                        }
-                        converted.cacheWritePrice = t.pricing[3];
-                    }
-                    normalizedTiers.push(converted);
-                    continue;
-                }
-
-                if (
-                    typeof t.inputPrice !== 'number' ||
-                    typeof t.outputPrice !== 'number' ||
-                    !isFinite(t.inputPrice) ||
-                    !isFinite(t.outputPrice) ||
-                    t.inputPrice < 0 ||
-                    t.outputPrice < 0
-                ) {
-                    return undefined;
-                }
-                if (
-                    t.cacheReadPrice !== undefined &&
-                    (typeof t.cacheReadPrice !== 'number' || !isFinite(t.cacheReadPrice) || t.cacheReadPrice < 0)
-                ) {
-                    return undefined;
-                }
-                if (
-                    t.cacheWritePrice !== undefined &&
-                    (typeof t.cacheWritePrice !== 'number' || !isFinite(t.cacheWritePrice) || t.cacheWritePrice < 0)
-                ) {
-                    return undefined;
-                }
-                const normalizedTier: PricingTier = {
-                    inputPrice: t.inputPrice,
-                    outputPrice: t.outputPrice,
-                    pricing: t.pricing,
-                    cacheReadPrice: t.cacheReadPrice,
-                    cacheWritePrice: t.cacheWritePrice,
-                    cron: t.cron,
-                    timezone: t.timezone,
-                    serviceTier: t.serviceTier,
-                    contextSizeMin: t.contextSizeMin,
-                    contextSizeInputOnly: t.contextSizeInputOnly
-                };
-                normalizedTiers.push(normalizedTier);
-            }
-            const normalizedPricing: ModelTokenPricing = {
-                inputPrice: obj.inputPrice,
-                outputPrice: obj.outputPrice,
-                pricing: obj.pricing,
-                cacheReadPrice: obj.cacheReadPrice,
-                cacheWritePrice: obj.cacheWritePrice,
-                tiers: normalizedTiers
-            };
-            return normalizedPricing;
-        }
-        return pricing as ModelTokenPricing;
+        return converted;
     }
 
-    return undefined;
+    // 3b. { pricing: { "USD": [...], "RMB": [...] } } 双币映射形式
+    if (
+        obj.inputPrice === undefined &&
+        obj.outputPrice === undefined &&
+        obj.pricing !== undefined &&
+        typeof obj.pricing === 'object' &&
+        !Array.isArray(obj.pricing)
+    ) {
+        if (!hasOnlyKnownKeys(obj, TOP_LEVEL_SHORTHAND_KEY_SET)) {
+            return undefined;
+        }
+        const dual = extractDualCurrencyPricing(obj.pricing as DualCurrencyPricingMap);
+        if (!dual) {
+            return undefined;
+        }
+        if (!dual.usd && !dual.rmb) {
+            return undefined;
+        }
+        const converted: ModelTokenPricing =
+            dual.usd ?
+                {
+                    inputPrice: dual.usd.inputPrice,
+                    outputPrice: dual.usd.outputPrice,
+                    pricing: dual.usd.pricing,
+                    cacheReadPrice: dual.usd.cacheReadPrice,
+                    cacheWritePrice: dual.usd.cacheWritePrice
+                }
+            :   {
+                    inputPrice: convertRmbToUsd(dual.rmb!.inputPrice)!,
+                    outputPrice: convertRmbToUsd(dual.rmb!.outputPrice)!,
+                    cacheReadPrice:
+                        dual.rmb!.cacheReadPrice !== undefined ? convertRmbToUsd(dual.rmb!.cacheReadPrice) : undefined,
+                    cacheWritePrice:
+                        dual.rmb!.cacheWritePrice !== undefined ? convertRmbToUsd(dual.rmb!.cacheWritePrice) : undefined
+                };
+        if (dual.rmb) {
+            converted.rmb = dual.rmb;
+        }
+        const normalizedTiers = normalizeShorthandTiers(obj.tiers, converted);
+        if (obj.tiers !== undefined && normalizedTiers === undefined) {
+            return undefined;
+        }
+        if (normalizedTiers) {
+            converted.tiers = normalizedTiers;
+        }
+        return converted;
+    }
+
+    // 3c. 显式对象形式：{ inputPrice, outputPrice, ... }
+    if (!hasOnlyKnownKeys(obj, TOP_LEVEL_EXPLICIT_KEY_SET)) {
+        return undefined;
+    }
+    if (
+        typeof obj.inputPrice !== 'number' ||
+        typeof obj.outputPrice !== 'number' ||
+        !isFinite(obj.inputPrice) ||
+        !isFinite(obj.outputPrice) ||
+        obj.inputPrice < 0 ||
+        obj.outputPrice < 0
+    ) {
+        return undefined;
+    }
+    if (
+        obj.cacheReadPrice !== undefined &&
+        (typeof obj.cacheReadPrice !== 'number' || !isFinite(obj.cacheReadPrice) || obj.cacheReadPrice < 0)
+    ) {
+        return undefined;
+    }
+    if (
+        obj.cacheWritePrice !== undefined &&
+        (typeof obj.cacheWritePrice !== 'number' || !isFinite(obj.cacheWritePrice) || obj.cacheWritePrice < 0)
+    ) {
+        return undefined;
+    }
+    // rmb 校验
+    if (obj.rmb !== undefined && !isValidRmbPricingFields(obj.rmb)) {
+        return undefined;
+    }
+    // pricing 字段校验（仅数组形式，双币映射已在 3b 处理）
+    if (obj.pricing !== undefined) {
+        if (typeof obj.pricing === 'object' && obj.pricing !== null && !Array.isArray(obj.pricing)) {
+            // 显式主价格对象不接受 dual-currency pricing 映射，避免运行时 pricing 字段污染为对象
+            return undefined;
+        }
+        if (!isValidPricingArray(obj.pricing)) {
+            // pricing 为非法类型（字符串等）
+            return undefined;
+        }
+    }
+
+    const explicitPricingFields = obj.pricing ? extractPricingArrayFields(obj.pricing) : undefined;
+    const normalizedExplicitPricing: ModelTokenPricing = {
+        inputPrice: obj.inputPrice,
+        outputPrice: obj.outputPrice,
+        ...(Array.isArray(obj.pricing) ? { pricing: obj.pricing } : {}),
+        ...(obj.cacheReadPrice !== undefined ? { cacheReadPrice: obj.cacheReadPrice }
+        : explicitPricingFields?.cacheReadPrice !== undefined ? { cacheReadPrice: explicitPricingFields.cacheReadPrice }
+        : {}),
+        ...(obj.cacheWritePrice !== undefined ? { cacheWritePrice: obj.cacheWritePrice }
+        : explicitPricingFields?.cacheWritePrice !== undefined ?
+            { cacheWritePrice: explicitPricingFields.cacheWritePrice }
+        :   {}),
+        ...(obj.rmb !== undefined ? { rmb: obj.rmb } : {})
+    };
+
+    // 校验 tiers 数组结构
+    if (obj.tiers !== undefined) {
+        if (!Array.isArray(obj.tiers)) {
+            return undefined;
+        }
+        const normalizedTiers: PricingTier[] = [];
+        for (const tier of obj.tiers as Array<TokenPricingTierInputLike | unknown>) {
+            if (typeof tier !== 'object' || tier === null) {
+                return undefined;
+            }
+            const normalizedTier = normalizeExplicitTier(tier as TokenPricingTierInputLike);
+            if (!normalizedTier) {
+                return undefined;
+            }
+            normalizedTiers.push(normalizedTier);
+        }
+        return {
+            ...normalizedExplicitPricing,
+            tiers: normalizedTiers
+        };
+    }
+    return normalizedExplicitPricing;
 }

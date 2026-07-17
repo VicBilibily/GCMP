@@ -206,10 +206,38 @@ body {
                         margin-top: -3px;
                         margin-bottom: -0.6em;
 
+                        .tokens-cost-group {
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 2px;
+                            white-space: nowrap;
+                        }
+
+                        .tokens-cost-separator {
+                            font-size: 0.7em;
+                            color: var(--vscode-descriptionForeground);
+                        }
+
                         .tokens-cost {
                             font-size: 0.75em;
                             font-weight: 500;
                             color: var(--vscode-charts-yellow);
+                            cursor: pointer;
+                            text-decoration: underline dotted;
+                            text-underline-offset: 2px;
+
+                            &:hover {
+                                color: var(--vscode-textLink-foreground);
+                            }
+
+                            &.tokens-cost-static {
+                                cursor: default;
+                                text-decoration: none;
+
+                                &:hover {
+                                    color: var(--vscode-charts-yellow);
+                                }
+                            }
                         }
                     }
                 }
@@ -862,6 +890,22 @@ body {
                     font-size: 0.75em;
                     font-weight: 500;
                     color: var(--vscode-charts-yellow);
+                    cursor: pointer;
+                    text-decoration: underline dotted;
+                    text-underline-offset: 2px;
+
+                    &:hover {
+                        color: var(--vscode-textLink-foreground);
+                    }
+
+                    &.tokens-cost-static {
+                        cursor: default;
+                        text-decoration: none;
+
+                        &:hover {
+                            color: var(--vscode-charts-yellow);
+                        }
+                    }
                 }
             }
         }

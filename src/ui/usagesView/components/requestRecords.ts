@@ -3,17 +3,20 @@
  * 负责渲染请求记录会话分栏与详情表格
  */
 
-import type { ExtendedTokenRequestLog, SessionGroup, SessionSummary } from '../types';
+import type { ExtendedTokenRequestLog, RequestTotals, SessionGroup, SessionSummary } from '../types';
 import { createElement } from '../../utils';
+import { getDisplayCostPresentation } from '../../costDisplay';
 import { createSessionFilter, shouldShowSessionGroupInFilter } from './sessionFilter';
 import {
-    formatCost,
+    buildRequestTotals,
     formatSessionTimeRange,
     formatTokens,
+    getRecordNativeCostSplit,
+    getCurrencyToggleTitle,
+    getDisplayCurrency,
     getProviderDisplayName,
     getRequestKindDisplayName,
     getSessionDisplayId,
-    meanWithoutOutliers,
     summarizeSessionRecords,
     t,
     UNKNOWN_SESSION_ID
@@ -61,9 +64,18 @@ function getRequestKindCssClass(kind: string | undefined): string {
 }
 
 const PAGE_SIZE = 20;
+const REQUEST_COST_SPAN_SELECTOR = '[data-request-cost="true"]';
 
 let currentPage = 1;
 let isSessionPopoverOpen = false;
+
+interface RequestCostPresentationData {
+    usd?: number;
+    rmb?: number;
+    nativeUsd?: number;
+    nativeRmb?: number;
+    fixedDecimals?: number;
+}
 
 /**
  * 获取当前日期详情中的会话分组列表
@@ -73,24 +85,10 @@ function getCurrentSessionGroups(): SessionGroup[] {
 }
 
 /**
- * 按时间倒序排列请求记录
+ * 获取当前日期详情缓存
  */
-function sortRecords(records: ExtendedTokenRequestLog[]): ExtendedTokenRequestLog[] {
-    return [...records].sort((a, b) => b.timestamp - a.timestamp);
-}
-
-/**
- * 合并全部会话记录，用于“全部会话”视图
- */
-function getAllRecords(sessionGroups: SessionGroup[]): ExtendedTokenRequestLog[] {
-    return sortRecords(sessionGroups.flatMap(group => group.records));
-}
-
-/**
- * 汇总全部会话记录的统计信息
- */
-function buildAllSessionsSummary(records: ExtendedTokenRequestLog[]): SessionSummary {
-    return summarizeSessionRecords(records);
+function getCurrentDateDetails(): typeof window.usagesState.dateDetails | null {
+    return window.usagesState?.dateDetails || null;
 }
 
 /**
@@ -239,69 +237,86 @@ function formatDuration(milliseconds: number): string {
     return milliseconds >= 1000 ? `${(milliseconds / 1000).toFixed(1)}s` : `${Math.round(milliseconds)}ms`;
 }
 
-/**
- * 统计当前表格对应记录的合计数据
- */
-function buildRequestTotals(records: ExtendedTokenRequestLog[]): {
-    summary: SessionSummary;
-    inputTokens: number;
-    cacheTokens: number;
-    outputTokens: number;
-    latencyValueText: string;
-    durationValueText: string;
-    totalCost: number;
-} {
-    let inputTokens = 0;
-    let cacheTokens = 0;
-    let outputTokens = 0;
-    let totalCost = 0;
-    const latencies: number[] = [];
-    const durations: number[] = [];
+function setNumericDataAttribute(element: HTMLElement, key: string, value: number | undefined): void {
+    if (value === undefined || !Number.isFinite(value)) {
+        delete element.dataset[key];
+        return;
+    }
+    element.dataset[key] = String(value);
+}
 
-    records.forEach(record => {
-        const hasActualUsage =
-            (record.status === 'completed' || record.status === 'cancelled') &&
-            !!record.rawUsage &&
-            record.totalTokens > 0;
-        inputTokens += hasActualUsage ? Math.max(record.actualInput || 0, 0) : Math.max(record.estimatedInput || 0, 0);
-        cacheTokens += Math.max(record.cacheReadTokens || 0, 0);
-        outputTokens += Math.max(record.outputTokens || 0, 0);
+function readNumericDataAttribute(element: HTMLElement, key: string): number | undefined {
+    const raw = element.dataset[key];
+    if (raw === undefined) {
+        return undefined;
+    }
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : undefined;
+}
 
-        if (record.estimatedCost !== undefined && record.estimatedCost > 0) {
-            totalCost += record.estimatedCost;
-        }
-
-        if (record.streamDuration !== undefined && record.streamDuration > 0) {
-            durations.push(record.streamDuration);
-        }
-
-        if (record.streamStartTime !== undefined && record.timestamp !== undefined) {
-            const latency = record.streamStartTime - record.timestamp;
-            if (Number.isFinite(latency) && latency >= 0) {
-                latencies.push(latency);
-            }
-        }
+function applyRequestCostPresentation(
+    element: HTMLElement,
+    data: RequestCostPresentationData,
+    currency: ReturnType<typeof getDisplayCurrency>
+): void {
+    const presentation = getDisplayCostPresentation({
+        usd: data.usd,
+        rmb: data.rmb,
+        nativeUsd: data.nativeUsd,
+        nativeRmb: data.nativeRmb,
+        currency,
+        fixedDecimals: data.fixedDecimals
     });
 
-    const avgLatency = meanWithoutOutliers(latencies) ?? 0;
-    const avgDuration = meanWithoutOutliers(durations) ?? 0;
+    element.textContent = presentation.text;
+    element.title = getCurrencyToggleTitle(currency);
+    element.className = presentation.toggleable ? 'tokens-cost' : 'tokens-cost tokens-cost-static';
+    element.dataset.toggleCostCurrency = presentation.toggleable ? 'true' : 'false';
+}
 
+function createRequestCostSpan(data: RequestCostPresentationData): HTMLElement {
+    const element = createElement('span');
+    element.dataset.requestCost = 'true';
+    setNumericDataAttribute(element, 'usd', data.usd);
+    setNumericDataAttribute(element, 'rmb', data.rmb);
+    setNumericDataAttribute(element, 'nativeUsd', data.nativeUsd);
+    setNumericDataAttribute(element, 'nativeRmb', data.nativeRmb);
+    setNumericDataAttribute(element, 'fixedDecimals', data.fixedDecimals);
+    applyRequestCostPresentation(element, data, getDisplayCurrency());
+    return element;
+}
+
+function readRequestCostPresentationData(element: HTMLElement): RequestCostPresentationData {
     return {
-        summary: summarizeSessionRecords(records),
-        inputTokens,
-        cacheTokens,
-        outputTokens,
-        latencyValueText: avgLatency > 0 ? formatDuration(avgLatency) : '-',
-        durationValueText: avgDuration > 0 ? formatDuration(avgDuration) : '-',
-        totalCost
+        usd: readNumericDataAttribute(element, 'usd'),
+        rmb: readNumericDataAttribute(element, 'rmb'),
+        nativeUsd: readNumericDataAttribute(element, 'nativeUsd'),
+        nativeRmb: readNumericDataAttribute(element, 'nativeRmb'),
+        fixedDecimals: readNumericDataAttribute(element, 'fixedDecimals')
     };
+}
+
+export function refreshRequestRecordCosts(container?: ParentNode): void {
+    const root = container ?? document.querySelector('#records-container');
+    if (!root) {
+        return;
+    }
+
+    const currency = getDisplayCurrency();
+    root.querySelectorAll<HTMLElement>(REQUEST_COST_SPAN_SELECTOR).forEach(element => {
+        applyRequestCostPresentation(element, readRequestCostPresentationData(element), currency);
+    });
 }
 
 /**
  * 在表格底部追加合计行
  */
-function appendTotalsRow(tbody: HTMLElement, summaryRecords: ExtendedTokenRequestLog[]): void {
-    const totals = buildRequestTotals(summaryRecords);
+function appendTotalsRow(
+    tbody: HTMLElement,
+    summary: SessionSummary,
+    totals: RequestTotals,
+    currency: ReturnType<typeof getDisplayCurrency>
+): void {
     const row = createElement('tr', 'records-total-row');
 
     const labelCell = createElement('td', 'records-total-empty');
@@ -329,20 +344,41 @@ function appendTotalsRow(tbody: HTMLElement, summaryRecords: ExtendedTokenReques
     }
 
     const outputCell = createElement('td');
+    const latencyValueText = totals.avgLatency && totals.avgLatency > 0 ? formatDuration(totals.avgLatency) : '-';
+    const durationValueText = totals.avgDuration && totals.avgDuration > 0 ? formatDuration(totals.avgDuration) : '-';
     outputCell.innerHTML =
-        `<div class="output-row"><span class="output-ttft">${totals.latencyValueText}</span><span class="output-tokens">${formatTokens(totals.outputTokens)}</span></div>` +
-        `<div class="output-detail"><span class="output-tpot">${totals.durationValueText}</span><span class="output-speed">${totals.summary.avgSpeed ? `${totals.summary.avgSpeed.toFixed(1)} t/s` : '-'}</span></div>`;
+        `<div class="output-row"><span class="output-ttft">${latencyValueText}</span><span class="output-tokens">${formatTokens(totals.outputTokens)}</span></div>` +
+        `<div class="output-detail"><span class="output-tpot">${durationValueText}</span><span class="output-speed">${summary.avgSpeed ? `${summary.avgSpeed.toFixed(1)} t/s` : '-'}</span></div>`;
 
     const totalCell = createElement('td', 'records-total-number');
-    const totalTokenStr = formatTokens(totals.summary.totalTokens);
-    const totalCostStr = totals.totalCost > 0 ? formatCost(totals.totalCost, 2) : '';
+    const totalTokenStr = formatTokens(summary.totalTokens);
+    const totalCostPresentation = getDisplayCostPresentation({
+        usd: totals.totalCost,
+        rmb: totals.totalCostRmb,
+        nativeUsd: totals.nativeCosts.totalUsd,
+        nativeRmb: totals.nativeCosts.totalRmb,
+        currency,
+        fixedDecimals: 2
+    });
+    const totalCostStr = totalCostPresentation.text;
     if (totalCostStr) {
-        totalCell.innerHTML = `<div class="tokens-row">${totalTokenStr}</div><div class="tokens-detail"><span class="tokens-cost">${totalCostStr}</span></div>`;
+        const costSpan = createRequestCostSpan({
+            usd: totals.totalCost,
+            rmb: totals.totalCostRmb,
+            nativeUsd: totals.nativeCosts.totalUsd,
+            nativeRmb: totals.nativeCosts.totalRmb,
+            fixedDecimals: 2
+        });
+        const tokensRow = createElement('div', 'tokens-row');
+        tokensRow.textContent = totalTokenStr;
+        const tokensDetail = createElement('div', 'tokens-detail');
+        tokensDetail.appendChild(costSpan);
+        totalCell.append(tokensRow, tokensDetail);
     } else {
         totalCell.textContent = totalTokenStr;
     }
-    if (totals.summary.totalTokens > 0) {
-        totalCell.title = totals.summary.totalTokens.toLocaleString('en-US');
+    if (summary.totalTokens > 0) {
+        totalCell.title = summary.totalTokens.toLocaleString('en-US');
     }
 
     const statusCell = createElement('td', 'records-total-empty');
@@ -357,7 +393,9 @@ function appendTotalsRow(tbody: HTMLElement, summaryRecords: ExtendedTokenReques
  */
 export function createRequestRecordsTable(
     records: ExtendedTokenRequestLog[],
-    summaryRecords: ExtendedTokenRequestLog[]
+    summary: SessionSummary,
+    totals: RequestTotals,
+    visibleSessionIds: Set<string>
 ): HTMLElement {
     const table = createElement('table', 'records-table');
     const thead = createElement('thead');
@@ -391,12 +429,7 @@ export function createRequestRecordsTable(
         return table;
     }
 
-    // 预计算左侧会话列表中可见的 sessionId 集合，供后续每行判断是否显示可点击链接
-    const visibleSessionIds = new Set(
-        getCurrentSessionGroups()
-            .filter(shouldShowSessionGroupInFilter)
-            .map(g => g.sessionId)
-    );
+    const currency = getDisplayCurrency();
 
     records.forEach(record => {
         const row = createElement('tr');
@@ -537,13 +570,29 @@ export function createRequestRecordsTable(
             hasActualUsage && record.totalTokens > 0 ? record.totalTokens
             : record.outputTokens > 0 ? record.outputTokens
             : 0;
-        const costText =
-            record.estimatedCost !== undefined && record.estimatedCost > 0 ? formatCost(record.estimatedCost) : '';
+        const nativeSplit = getRecordNativeCostSplit(record);
+        const costPresentation = getDisplayCostPresentation({
+            usd: record.estimatedCost,
+            rmb: record.costBreakdown?.currencies?.RMB?.total,
+            nativeUsd: nativeSplit?.totalUsd,
+            nativeRmb: nativeSplit?.totalRmb,
+            currency
+        });
+        const costText = costPresentation.text;
         const displayVal = totalVal > 0 ? formatTokens(totalVal) : '-';
         if (costText) {
-            const tokensRowHtml = `<div class="tokens-row">${displayVal}</div>`;
-            const tokensDetailHtml = `<div class="tokens-detail"><span class="tokens-cost">${costText}</span></div>`;
-            total.innerHTML = tokensRowHtml + tokensDetailHtml;
+            const tokensRow = createElement('div', 'tokens-row');
+            tokensRow.textContent = displayVal;
+            const tokensDetail = createElement('div', 'tokens-detail');
+            tokensDetail.appendChild(
+                createRequestCostSpan({
+                    usd: record.estimatedCost,
+                    rmb: record.costBreakdown?.currencies?.RMB?.total,
+                    nativeUsd: nativeSplit?.totalUsd,
+                    nativeRmb: nativeSplit?.totalRmb
+                })
+            );
+            total.append(tokensRow, tokensDetail);
         } else {
             total.textContent = displayVal;
         }
@@ -582,7 +631,7 @@ export function createRequestRecordsTable(
         tbody.appendChild(row);
     });
 
-    appendTotalsRow(tbody, summaryRecords);
+    appendTotalsRow(tbody, summary, totals, currency);
 
     table.appendChild(tbody);
     return table;
@@ -645,7 +694,13 @@ function createSessionPopover(
 /**
  * 创建右侧详情区，包含摘要、分页和请求表格
  */
-function createDetailView(titleText: string, summary: SessionSummary, records: ExtendedTokenRequestLog[]): HTMLElement {
+function createDetailView(
+    titleText: string,
+    summary: SessionSummary,
+    totals: RequestTotals,
+    records: ExtendedTokenRequestLog[],
+    visibleSessionIds: Set<string>
+): HTMLElement {
     const detail = createElement('div', 'records-detail');
     detail.appendChild(createDetailHeader(titleText, summary));
 
@@ -659,7 +714,9 @@ function createDetailView(titleText: string, summary: SessionSummary, records: E
     }
 
     const startIndex = (currentPage - 1) * PAGE_SIZE;
-    content.appendChild(createRequestRecordsTable(records.slice(startIndex, startIndex + PAGE_SIZE), records));
+    content.appendChild(
+        createRequestRecordsTable(records.slice(startIndex, startIndex + PAGE_SIZE), summary, totals, visibleSessionIds)
+    );
 
     if (records.length > PAGE_SIZE) {
         content.appendChild(createPagination(currentPage, totalPages, records.length));
@@ -699,7 +756,11 @@ export function createRequestRecordsSection(
     const selectedSessionId = rawSelectedSessionId === UNKNOWN_SESSION_ID ? null : rawSelectedSessionId;
     const visibleSessionGroups = sessionGroups.filter(shouldShowSessionGroupInFilter);
     const hasVisibleSessionGroups = visibleSessionGroups.length > 0;
-    const allRecords = getAllRecords(sessionGroups);
+    const allSessionIds = new Set(visibleSessionGroups.map(group => group.sessionId));
+    const dateDetails = getCurrentDateDetails();
+    const allRecords = dateDetails?.allRecords || [];
+    const allSummary = dateDetails?.allSummary || summarizeSessionRecords(allRecords);
+    const allTotals = dateDetails?.allTotals || buildRequestTotals(allRecords);
     const selectedGroup =
         selectedSessionId ? visibleSessionGroups.find(group => group.sessionId === selectedSessionId) : undefined;
 
@@ -713,11 +774,17 @@ export function createRequestRecordsSection(
 
     if (selectedGroup) {
         layout.appendChild(
-            createDetailView(`#${selectedGroup.displayId}`, selectedGroup.summary, selectedGroup.records)
+            createDetailView(
+                `#${selectedGroup.displayId}`,
+                selectedGroup.summary,
+                selectedGroup.totals,
+                selectedGroup.records,
+                allSessionIds
+            )
         );
     } else if (allRecords.length > 0) {
         layout.appendChild(
-            createDetailView(t('All Sessions', '全部会话'), buildAllSessionsSummary(allRecords), allRecords)
+            createDetailView(t('All Sessions', '全部会话'), allSummary, allTotals, allRecords, allSessionIds)
         );
     } else {
         const detail = createElement('div', 'records-detail');

@@ -6,14 +6,29 @@ import './style.less';
 import 'chart.js/auto'; // 导入 Chart.js
 
 import type { HostMessage, State } from './types';
-import { getTodayDateString, groupRecordsBySession, postToVSCode, t } from './utils';
+import {
+    buildNativeCostSplitIndex,
+    buildRequestTotals,
+    getDefaultDisplayCurrency,
+    getNextDisplayCurrency,
+    getTodayDateString,
+    groupRecordsBySession,
+    postToVSCode,
+    sortRecordsByTimestampDesc,
+    summarizeSessionRecords,
+    t
+} from './utils';
 import { createElement } from '../utils';
 import { LiveMetricsRenderer } from './liveMetricsRenderer';
 
 // 导入组件
 import { createSidebar, updateDateList } from './components/dateList';
 import { createMainContent, updateMainContent } from './components/mainContent';
-import { createRequestRecordsSection, resetRequestRecordsState } from './components/requestRecords';
+import {
+    createRequestRecordsSection,
+    refreshRequestRecordCosts,
+    resetRequestRecordsState
+} from './components/requestRecords';
 
 // ============= 全局状态管理 =============
 
@@ -24,6 +39,7 @@ const state: State = {
     selectedDate: '',
     today: '',
     selectedSessionId: null,
+    displayCurrency: 'MIXED',
     dateList: [],
     dateDetails: null,
     loading: {
@@ -44,14 +60,22 @@ function shouldCollapseSidebar(): boolean {
 /**
  * 状态监听器列表
  */
-const listeners: ((state: State) => void)[] = [];
+type StateListener = (state: State, prevState: State, patch: Partial<State>) => void;
+
+const listeners: StateListener[] = [];
 
 /**
  * 设置状态并通知监听器
  */
 function setState(newState: Partial<State>): void {
+    const prevState: State = {
+        ...state,
+        loading: state.loading,
+        dateDetails: state.dateDetails,
+        dateList: state.dateList
+    };
     Object.assign(state, newState);
-    listeners.forEach(listener => listener(state));
+    listeners.forEach(listener => listener(state, prevState, newState));
 
     // 如果更新了 loading 状态，同步更新遮罩层
     if (newState.loading) {
@@ -62,7 +86,7 @@ function setState(newState: Partial<State>): void {
 /**
  * 订阅状态变化
  */
-function subscribeState(listener: (state: State) => void): () => void {
+function subscribeState(listener: StateListener): () => void {
     listeners.push(listener);
     return () => {
         const index = listeners.indexOf(listener);
@@ -148,6 +172,10 @@ function handleVSCodeMessage(event: MessageEvent): void {
 
         case 'updateDateDetails': {
             const sessionGroups = groupRecordsBySession(message.records);
+            const allRecords = sortRecordsByTimestampDesc(message.records);
+            const allSummary = summarizeSessionRecords(allRecords);
+            const allTotals = buildRequestTotals(allRecords);
+            const nativeSplitIndex = buildNativeCostSplitIndex(message.records);
             const dateChanged = state.dateDetails?.date !== message.date;
             const nextSelectedSessionId =
                 (
@@ -163,6 +191,7 @@ function handleVSCodeMessage(event: MessageEvent): void {
             }
 
             setState({
+                selectedDate: message.date,
                 selectedSessionId: nextSelectedSessionId,
                 dateDetails: {
                     date: message.date,
@@ -170,6 +199,10 @@ function handleVSCodeMessage(event: MessageEvent): void {
                     providers: message.providers,
                     hourlyStats: message.hourlyStats,
                     records: message.records,
+                    allRecords,
+                    allSummary,
+                    allTotals,
+                    nativeSplitIndex,
                     sessionGroups
                 },
                 loading: {
@@ -233,10 +266,27 @@ function updateRequestRecords(): void {
 /**
  * 刷新所有视图
  */
-function refreshViews(): void {
-    updateDateList(state.dateList);
-    updateMainContent();
-    updateRequestRecords();
+function refreshViews(prevState: State, patch: Partial<State>): void {
+    if (patch.dateList || patch.selectedDate !== undefined || patch.today !== undefined) {
+        updateDateList(state.dateList);
+    }
+
+    if (patch.dateDetails) {
+        updateMainContent();
+        updateRequestRecords();
+        return;
+    }
+
+    if (patch.displayCurrency !== undefined && patch.displayCurrency !== prevState.displayCurrency) {
+        updateMainContent({ currencyOnly: true });
+        refreshRequestRecordCosts();
+    }
+}
+
+function toggleDisplayCurrency(): void {
+    setState({
+        displayCurrency: getNextDisplayCurrency(state.displayCurrency)
+    });
 }
 
 // ============= 主应用 =============
@@ -310,6 +360,8 @@ function createSidebarToggle(): HTMLElement {
  * 初始化应用
  */
 function initApp(): void {
+    state.displayCurrency = getDefaultDisplayCurrency();
+
     // 将状态和工具函数挂载到 window 对象，供所有组件访问
     window.usagesState = state;
     window.usagesSetLoading = setLoading;
@@ -371,10 +423,19 @@ function initApp(): void {
     state.today = getTodayDateString();
 
     // 订阅状态变化
-    subscribeState(() => refreshViews());
+    subscribeState((nextState, prevState, patch) => refreshViews(prevState, patch));
 
     // 注册消息监听
     window.addEventListener('message', handleVSCodeMessage);
+
+    document.addEventListener('click', event => {
+        const target = (event.target as HTMLElement | null)?.closest('[data-toggle-cost-currency="true"]');
+        if (!target) {
+            return;
+        }
+        event.preventDefault();
+        toggleDisplayCurrency();
+    });
 
     // 请求初始数据
     postToVSCode({ command: 'getInitialData' });

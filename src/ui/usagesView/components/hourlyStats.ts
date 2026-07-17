@@ -5,11 +5,14 @@
 
 import type { HourlyStats, ModelData, ProviderData } from '../types';
 import { createElement } from '../../utils';
+import { getDisplayCostPresentation } from '../../costDisplay';
 import {
-    formatCost,
     formatTokens,
     calculateAverageSpeed,
     calculateAverageFirstTokenLatency,
+    getStatsNativeCostSplit,
+    getCurrencyToggleTitle,
+    getDisplayCurrency,
     getProviderDisplayName,
     t
 } from '../utils';
@@ -39,16 +42,47 @@ function createStatCell(value: string, isBold: boolean = false): HTMLTableCellEl
  * 创建带内联成本的统计单元格
  * 上方显示 token 数，下方显示预估成本（2 位小数）
  */
-function createTokensCell(tokens: number, cost: number | undefined, isBold: boolean = false): HTMLTableCellElement {
+function createTokensCell(
+    tokens: number,
+    usdCost: number | undefined,
+    rmbCost: number | undefined,
+    nativeUsdCost: number | undefined,
+    nativeRmbCost: number | undefined,
+    currency: ReturnType<typeof getDisplayCurrency>,
+    isBold: boolean = false
+): HTMLTableCellElement {
     const cell = createElement('td') as HTMLTableCellElement;
     const tokenStr = tokens > 0 ? formatTokens(tokens) : '-';
-    const costStr = cost !== undefined && cost > 0 ? formatCost(cost) : '';
+    const costPresentation = getDisplayCostPresentation({
+        usd: usdCost,
+        rmb: rmbCost,
+        nativeUsd: nativeUsdCost,
+        nativeRmb: nativeRmbCost,
+        currency
+    });
+    const costStr = costPresentation.text;
     const tokenHtml = isBold ? `<strong>${tokenStr}</strong>` : tokenStr;
     if (costStr) {
+        const costClass = costPresentation.toggleable ? 'tokens-cost' : 'tokens-cost tokens-cost-static';
+        const costAttrs =
+            `class="${costClass}"` +
+            (costPresentation.toggleable ?
+                ` data-toggle-cost-currency="true" title="${getCurrencyToggleTitle(currency)}"`
+            :   '');
+        const costHtml =
+            currency === 'MIXED' && costPresentation.segments.length > 1 ?
+                `<span class="tokens-cost-group">${costPresentation.segments
+                    .map((segment, index) => {
+                        const separator =
+                            index === 0 ? '' : '<span class="tokens-cost-separator" aria-hidden="true">+</span>';
+                        return `${separator}<span ${costAttrs}>${segment.text}</span>`;
+                    })
+                    .join('')}</span>`
+            :   `<span ${costAttrs}>${costStr}</span>`;
         cell.innerHTML = [
             `<div class="tokens-row">${tokenHtml}</div>`,
             '<div class="tokens-detail">',
-            `<span class="tokens-cost">${costStr}</span>`,
+            costHtml,
             '</div>'
         ].join('');
     } else {
@@ -69,6 +103,19 @@ function createTokensCell(tokens: number, cost: number | undefined, isBold: bool
 function appendStatCells(
     row: HTMLTableRowElement,
     stats: ProviderData | ModelData | HourlyStats,
+    currency: ReturnType<typeof getDisplayCurrency>,
+    nativeCosts: {
+        inputUsd: number;
+        inputRmb: number;
+        outputUsd: number;
+        outputRmb: number;
+        cacheReadUsd: number;
+        cacheReadRmb: number;
+        cacheWriteUsd: number;
+        cacheWriteRmb: number;
+        totalUsd: number;
+        totalRmb: number;
+    },
     isBold: boolean = false
 ): void {
     const totalTokens = stats.actualInput + stats.outputTokens;
@@ -77,12 +124,46 @@ function appendStatCells(
         createTokensCell(
             miss > 0 ? miss : stats.actualInput,
             (stats.inputCost || 0) + (stats.cacheWriteCost || 0),
+            (stats.inputCostRmb || 0) + (stats.cacheWriteCostRmb || 0),
+            nativeCosts.inputUsd + nativeCosts.cacheWriteUsd,
+            nativeCosts.inputRmb + nativeCosts.cacheWriteRmb,
+            currency,
             isBold
         )
     );
-    row.appendChild(createTokensCell(stats.cacheTokens, stats.cacheReadCost, isBold));
-    row.appendChild(createTokensCell(stats.outputTokens, stats.outputCost, isBold));
-    row.appendChild(createTokensCell(totalTokens, stats.estimatedCost, isBold));
+    row.appendChild(
+        createTokensCell(
+            stats.cacheTokens,
+            stats.cacheReadCost,
+            stats.cacheReadCostRmb,
+            nativeCosts.cacheReadUsd,
+            nativeCosts.cacheReadRmb,
+            currency,
+            isBold
+        )
+    );
+    row.appendChild(
+        createTokensCell(
+            stats.outputTokens,
+            stats.outputCost,
+            stats.outputCostRmb,
+            nativeCosts.outputUsd,
+            nativeCosts.outputRmb,
+            currency,
+            isBold
+        )
+    );
+    row.appendChild(
+        createTokensCell(
+            totalTokens,
+            stats.estimatedCost,
+            stats.estimatedCostRmb,
+            nativeCosts.totalUsd,
+            nativeCosts.totalRmb,
+            currency,
+            isBold
+        )
+    );
     row.appendChild(createStatCell(String(stats.requests), isBold));
     row.appendChild(createStatCell(calculateAverageFirstTokenLatency(stats), isBold));
     row.appendChild(createStatCell(calculateAverageSpeed(stats), isBold));
@@ -96,6 +177,19 @@ function appendStatCells(
 function createHourDetailRow(
     hour: string,
     stats: ProviderData | ModelData,
+    currency: ReturnType<typeof getDisplayCurrency>,
+    nativeCosts: {
+        inputUsd: number;
+        inputRmb: number;
+        outputUsd: number;
+        outputRmb: number;
+        cacheReadUsd: number;
+        cacheReadRmb: number;
+        cacheWriteUsd: number;
+        cacheWriteRmb: number;
+        totalUsd: number;
+        totalRmb: number;
+    },
     isLast: boolean = false
 ): HTMLTableRowElement {
     const row = createElement('tr', 'hour-detail-row') as HTMLTableRowElement;
@@ -105,7 +199,7 @@ function createHourDetailRow(
     nameCell.innerHTML = `<span class="hour-detail"><strong>${prefix} ${String(hour).padStart(2, '0')}:00</strong></span>`;
     row.appendChild(nameCell);
 
-    appendStatCells(row, stats, false);
+    appendStatCells(row, stats, currency, nativeCosts, false);
 
     return row;
 }
@@ -120,6 +214,8 @@ function renderTable(
     mode: ViewMode
 ): void {
     tableContainer.innerHTML = '';
+    const nativeSplitIndex = window.usagesState?.dateDetails?.nativeSplitIndex;
+    const currency = getDisplayCurrency();
     const table = createElement('table', 'hourly-stats-table');
     const thead = createElement('thead');
     const headerRow = createElement('tr');
@@ -159,7 +255,13 @@ function renderTable(
                 timeCell.innerHTML = `<strong>${String(hour).padStart(2, '0')}:00</strong>`;
                 row.appendChild(timeCell);
 
-                appendStatCells(row, stats, false);
+                appendStatCells(
+                    row,
+                    stats,
+                    currency,
+                    getStatsNativeCostSplit(stats, nativeSplitIndex?.hours[hour]),
+                    false
+                );
 
                 tbody.appendChild(row);
             });
@@ -175,7 +277,13 @@ function renderTable(
             nameCell.innerHTML = `<strong class="provider-name">📦 ${getProviderDisplayName(provider.providerKey, provider.providerName)}</strong>`;
             providerRow.appendChild(nameCell);
 
-            appendStatCells(providerRow, provider, true);
+            appendStatCells(
+                providerRow,
+                provider,
+                currency,
+                getStatsNativeCostSplit(provider, nativeSplitIndex?.providers[provider.providerKey]),
+                true
+            );
 
             tbody.appendChild(providerRow);
 
@@ -196,7 +304,18 @@ function renderTable(
             providerHourlyData.sort(([a], [b]) => Number(a) - Number(b));
             providerHourlyData.forEach(([hour, hourStats], index) => {
                 const isLast = index === providerHourlyData.length - 1;
-                tbody.appendChild(createHourDetailRow(hour, hourStats, isLast));
+                tbody.appendChild(
+                    createHourDetailRow(
+                        hour,
+                        hourStats,
+                        currency,
+                        getStatsNativeCostSplit(
+                            hourStats,
+                            nativeSplitIndex?.hourProviders[hour]?.[provider.providerKey]
+                        ),
+                        isLast
+                    )
+                );
             });
         });
     } else if (mode === 'model') {
@@ -211,7 +330,13 @@ function renderTable(
             nameCell.innerHTML = `<strong class="provider-name">📦 ${getProviderDisplayName(provider.providerKey, provider.providerName)}</strong>`;
             providerRow.appendChild(nameCell);
 
-            appendStatCells(providerRow, provider, true);
+            appendStatCells(
+                providerRow,
+                provider,
+                currency,
+                getStatsNativeCostSplit(provider, nativeSplitIndex?.providers[provider.providerKey]),
+                true
+            );
 
             tbody.appendChild(providerRow);
 
@@ -230,7 +355,13 @@ function renderTable(
                 modelNameCell.innerHTML = `<span class="model-name"><strong>${modelPrefix} 🔧 ${modelData.modelName}</strong></span>`;
                 modelRow.appendChild(modelNameCell);
 
-                appendStatCells(modelRow, modelData, true);
+                appendStatCells(
+                    modelRow,
+                    modelData,
+                    currency,
+                    getStatsNativeCostSplit(modelData, nativeSplitIndex?.models[provider.providerKey]?.[modelId]),
+                    true
+                );
 
                 tbody.appendChild(modelRow);
 
@@ -258,7 +389,16 @@ function renderTable(
                     hourNameCell.innerHTML = `<span class="hour-detail"><strong>${hourPrefix} ${String(hour).padStart(2, '0')}:00</strong></span>`;
                     hourRow.appendChild(hourNameCell);
 
-                    appendStatCells(hourRow, hourStats, false);
+                    appendStatCells(
+                        hourRow,
+                        hourStats,
+                        currency,
+                        getStatsNativeCostSplit(
+                            hourStats,
+                            nativeSplitIndex?.hourModels[hour]?.[provider.providerKey]?.[modelId]
+                        ),
+                        false
+                    );
 
                     tbody.appendChild(hourRow);
                 });

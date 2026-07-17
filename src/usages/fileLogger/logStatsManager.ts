@@ -1,3 +1,8 @@
+import { sumCosts } from '../../utils/pricingCurrency';
+
+function addCost(current: number, delta: number | undefined): number {
+    return sumCosts([current, delta]);
+}
 /*---------------------------------------------------------------------------------------------
  *  日志统计管理器
  *  统一管理统计数据的查询、计算和持久化
@@ -14,6 +19,7 @@ import * as path from 'path';
 import { StatusLogger } from '../../utils/statusLogger';
 import { LogReadManager } from './logReadManager';
 import { LogIndexManager } from './logIndexManager';
+import { createEmptyNativeCostSplit, mergeNativeCostSplit } from './nativeCostSplit';
 import { StatsCalculator } from './statsCalculator';
 import { AtomicJsonFile } from '../atomicJsonFile';
 import { SnapshotManager } from './snapshotManager';
@@ -317,15 +323,22 @@ export class LogStatsManager {
             outputTokens: 0,
             requests: 0,
             completedRequests: 0,
+            costedRequests: 0,
+            rmbExactRequests: 0,
             failedRequests: 0,
             cancelledRequests: 0,
             firstTokenLatency: 0,
             outputSpeeds: 0,
             estimatedCost: 0,
+            estimatedCostRmb: 0,
             inputCost: 0,
+            inputCostRmb: 0,
             outputCost: 0,
+            outputCostRmb: 0,
             cacheReadCost: 0,
-            cacheWriteCost: 0
+            cacheReadCostRmb: 0,
+            cacheWriteCost: 0,
+            cacheWriteCostRmb: 0
         };
 
         let totalSpeedAcc: AvgAcc | undefined;
@@ -366,14 +379,25 @@ export class LogStatsManager {
             total.cacheTokens += hourStats.cacheTokens;
             total.outputTokens += hourStats.outputTokens;
             total.requests += hourStats.requests;
+            total.costedRequests += hourStats.costedRequests || 0;
+            total.rmbExactRequests += hourStats.rmbExactRequests || 0;
             total.completedRequests += hourStats.completedRequests;
             total.failedRequests += hourStats.failedRequests;
             total.cancelledRequests += hourStats.cancelledRequests;
-            total.estimatedCost += hourStats.estimatedCost || 0;
-            total.inputCost += hourStats.inputCost || 0;
-            total.outputCost += hourStats.outputCost || 0;
-            total.cacheReadCost += hourStats.cacheReadCost || 0;
-            total.cacheWriteCost += hourStats.cacheWriteCost || 0;
+            total.estimatedCost = addCost(total.estimatedCost, hourStats.estimatedCost || 0);
+            total.estimatedCostRmb = addCost(total.estimatedCostRmb || 0, hourStats.estimatedCostRmb || 0);
+            total.inputCost = addCost(total.inputCost, hourStats.inputCost || 0);
+            total.inputCostRmb = addCost(total.inputCostRmb || 0, hourStats.inputCostRmb || 0);
+            total.outputCost = addCost(total.outputCost, hourStats.outputCost || 0);
+            total.outputCostRmb = addCost(total.outputCostRmb || 0, hourStats.outputCostRmb || 0);
+            total.cacheReadCost = addCost(total.cacheReadCost, hourStats.cacheReadCost || 0);
+            total.cacheReadCostRmb = addCost(total.cacheReadCostRmb || 0, hourStats.cacheReadCostRmb || 0);
+            total.cacheWriteCost = addCost(total.cacheWriteCost, hourStats.cacheWriteCost || 0);
+            total.cacheWriteCostRmb = addCost(total.cacheWriteCostRmb || 0, hourStats.cacheWriteCostRmb || 0);
+            if (hourStats.nativeCosts) {
+                total.nativeCosts ??= createEmptyNativeCostSplit();
+                mergeNativeCostSplit(total.nativeCosts, hourStats.nativeCosts);
+            }
 
             // 3) daily total：对每小时的聚合值做算术平均（不加权）
             if (hourStats.firstTokenLatency && hourStats.firstTokenLatency > 0) {
@@ -393,14 +417,23 @@ export class LogStatsManager {
                         cacheTokens: 0,
                         outputTokens: 0,
                         requests: 0,
+                        costedRequests: 0,
+                        rmbExactRequests: 0,
                         completedRequests: 0,
                         failedRequests: 0,
                         cancelledRequests: 0,
+                        firstTokenLatency: 0,
+                        outputSpeeds: 0,
                         estimatedCost: 0,
+                        estimatedCostRmb: 0,
                         inputCost: 0,
+                        inputCostRmb: 0,
                         outputCost: 0,
+                        outputCostRmb: 0,
                         cacheReadCost: 0,
+                        cacheReadCostRmb: 0,
                         cacheWriteCost: 0,
+                        cacheWriteCostRmb: 0,
                         models: {}
                     };
                 }
@@ -411,14 +444,28 @@ export class LogStatsManager {
                 provider.cacheTokens += providerHour.cacheTokens;
                 provider.outputTokens += providerHour.outputTokens;
                 provider.requests += providerHour.requests;
+                provider.costedRequests += providerHour.costedRequests || 0;
+                provider.rmbExactRequests += providerHour.rmbExactRequests || 0;
                 provider.completedRequests += providerHour.completedRequests;
                 provider.failedRequests += providerHour.failedRequests;
                 provider.cancelledRequests += providerHour.cancelledRequests;
-                provider.estimatedCost += providerHour.estimatedCost || 0;
-                provider.inputCost += providerHour.inputCost || 0;
-                provider.outputCost += providerHour.outputCost || 0;
-                provider.cacheReadCost += providerHour.cacheReadCost || 0;
-                provider.cacheWriteCost += providerHour.cacheWriteCost || 0;
+                provider.estimatedCost = addCost(provider.estimatedCost, providerHour.estimatedCost || 0);
+                provider.estimatedCostRmb = addCost(provider.estimatedCostRmb || 0, providerHour.estimatedCostRmb || 0);
+                provider.inputCost = addCost(provider.inputCost, providerHour.inputCost || 0);
+                provider.inputCostRmb = addCost(provider.inputCostRmb || 0, providerHour.inputCostRmb || 0);
+                provider.outputCost = addCost(provider.outputCost, providerHour.outputCost || 0);
+                provider.outputCostRmb = addCost(provider.outputCostRmb || 0, providerHour.outputCostRmb || 0);
+                provider.cacheReadCost = addCost(provider.cacheReadCost, providerHour.cacheReadCost || 0);
+                provider.cacheReadCostRmb = addCost(provider.cacheReadCostRmb || 0, providerHour.cacheReadCostRmb || 0);
+                provider.cacheWriteCost = addCost(provider.cacheWriteCost, providerHour.cacheWriteCost || 0);
+                provider.cacheWriteCostRmb = addCost(
+                    provider.cacheWriteCostRmb || 0,
+                    providerHour.cacheWriteCostRmb || 0
+                );
+                if (providerHour.nativeCosts) {
+                    provider.nativeCosts ??= createEmptyNativeCostSplit();
+                    mergeNativeCostSplit(provider.nativeCosts, providerHour.nativeCosts);
+                }
 
                 const pAcc = providerMetricAccByDay.get(provider) ?? {};
                 if (providerHour.firstTokenLatency && providerHour.firstTokenLatency > 0) {
@@ -438,11 +485,20 @@ export class LogStatsManager {
                             cacheTokens: 0,
                             outputTokens: 0,
                             requests: 0,
+                            costedRequests: 0,
+                            rmbExactRequests: 0,
+                            firstTokenLatency: 0,
+                            outputSpeeds: 0,
                             estimatedCost: 0,
+                            estimatedCostRmb: 0,
                             inputCost: 0,
+                            inputCostRmb: 0,
                             outputCost: 0,
+                            outputCostRmb: 0,
                             cacheReadCost: 0,
-                            cacheWriteCost: 0
+                            cacheReadCostRmb: 0,
+                            cacheWriteCost: 0,
+                            cacheWriteCostRmb: 0
                         };
                     }
 
@@ -452,11 +508,22 @@ export class LogStatsManager {
                     model.cacheTokens += modelHour.cacheTokens;
                     model.outputTokens += modelHour.outputTokens;
                     model.requests += modelHour.requests;
-                    model.estimatedCost += modelHour.estimatedCost || 0;
-                    model.inputCost += modelHour.inputCost || 0;
-                    model.outputCost += modelHour.outputCost || 0;
-                    model.cacheReadCost += modelHour.cacheReadCost || 0;
-                    model.cacheWriteCost += modelHour.cacheWriteCost || 0;
+                    model.costedRequests += modelHour.costedRequests || 0;
+                    model.rmbExactRequests += modelHour.rmbExactRequests || 0;
+                    model.estimatedCost = addCost(model.estimatedCost, modelHour.estimatedCost || 0);
+                    model.estimatedCostRmb = addCost(model.estimatedCostRmb || 0, modelHour.estimatedCostRmb || 0);
+                    model.inputCost = addCost(model.inputCost, modelHour.inputCost || 0);
+                    model.inputCostRmb = addCost(model.inputCostRmb || 0, modelHour.inputCostRmb || 0);
+                    model.outputCost = addCost(model.outputCost, modelHour.outputCost || 0);
+                    model.outputCostRmb = addCost(model.outputCostRmb || 0, modelHour.outputCostRmb || 0);
+                    model.cacheReadCost = addCost(model.cacheReadCost, modelHour.cacheReadCost || 0);
+                    model.cacheReadCostRmb = addCost(model.cacheReadCostRmb || 0, modelHour.cacheReadCostRmb || 0);
+                    model.cacheWriteCost = addCost(model.cacheWriteCost, modelHour.cacheWriteCost || 0);
+                    model.cacheWriteCostRmb = addCost(model.cacheWriteCostRmb || 0, modelHour.cacheWriteCostRmb || 0);
+                    if (modelHour.nativeCosts) {
+                        model.nativeCosts ??= createEmptyNativeCostSplit();
+                        mergeNativeCostSplit(model.nativeCosts, modelHour.nativeCosts);
+                    }
 
                     const mAcc = modelMetricAccByDay.get(model) ?? {};
                     if (modelHour.firstTokenLatency && modelHour.firstTokenLatency > 0) {

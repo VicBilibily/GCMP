@@ -25,9 +25,114 @@ function createLog(overrides: Partial<TokenRequestLog> = {}): TokenRequestLog {
         streamStartTime: overrides.streamStartTime,
         streamEndTime: overrides.streamEndTime,
         outputSpeed: overrides.outputSpeed,
-        outputTokens: overrides.outputTokens
+        outputTokens: overrides.outputTokens,
+        estimatedCost: overrides.estimatedCost,
+        costBreakdown: overrides.costBreakdown
     };
 }
+
+test('aggregateLogs tracks native cost split by source currency', () => {
+    const stats = StatsCalculator.aggregateLogs([
+        createLog({
+            status: 'completed',
+            requestId: 'req-usd',
+            timestamp: 1000,
+            isoTime: '1970-01-01T00:00:01.000Z',
+            estimatedInput: 100,
+            rawUsage: {
+                prompt_tokens: 100,
+                completion_tokens: 20,
+                total_tokens: 120
+            },
+            estimatedCost: 0.12,
+            costBreakdown: {
+                tokens: [100, 20, 0, 0],
+                pricing: [1, 1],
+                cost: [0.04, 0.08],
+                total: 0.12,
+                currencies: {
+                    USD: {
+                        pricing: [1, 1],
+                        cost: [0.04, 0.08],
+                        total: 0.12
+                    }
+                }
+            }
+        }),
+        createLog({
+            status: 'completed',
+            requestId: 'req-rmb',
+            timestamp: 2000,
+            isoTime: '1970-01-01T00:00:02.000Z',
+            estimatedInput: 120,
+            rawUsage: {
+                prompt_tokens: 120,
+                completion_tokens: 30,
+                total_tokens: 150
+            },
+            estimatedCost: 0.1,
+            costBreakdown: {
+                tokens: [120, 30, 0, 0],
+                pricing: [1, 1],
+                cost: [0.04, 0.06],
+                total: 0.1,
+                currencies: {
+                    USD: {
+                        pricing: [1, 1],
+                        cost: [0.04, 0.06],
+                        total: 0.1
+                    },
+                    RMB: {
+                        pricing: [7, 7],
+                        cost: [0.28, 0.42],
+                        total: 0.7
+                    }
+                }
+            }
+        })
+    ]);
+
+    assert.deepEqual(stats.total.nativeCosts, {
+        totalUsd: 0.12,
+        totalRmb: 0.7,
+        inputUsd: 0.04,
+        inputRmb: 0.28,
+        outputUsd: 0.08,
+        outputRmb: 0.42,
+        cacheReadUsd: 0,
+        cacheReadRmb: 0,
+        cacheWriteUsd: 0,
+        cacheWriteRmb: 0
+    });
+});
+
+test('aggregateLogs keeps USD native total when only estimatedCost exists', () => {
+    const stats = StatsCalculator.aggregateLogs([
+        createLog({
+            status: 'completed',
+            estimatedInput: 90,
+            rawUsage: {
+                prompt_tokens: 90,
+                completion_tokens: 10,
+                total_tokens: 100
+            },
+            estimatedCost: 0.12
+        })
+    ]);
+
+    assert.deepEqual(stats.total.nativeCosts, {
+        totalUsd: 0.12,
+        totalRmb: 0,
+        inputUsd: 0,
+        inputRmb: 0,
+        outputUsd: 0,
+        outputRmb: 0,
+        cacheReadUsd: 0,
+        cacheReadRmb: 0,
+        cacheWriteUsd: 0,
+        cacheWriteRmb: 0
+    });
+});
 
 test('aggregateLogs counts cancelled request actual usage when rawUsage exists', () => {
     const stats = StatsCalculator.aggregateLogs([

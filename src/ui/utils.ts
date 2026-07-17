@@ -32,15 +32,28 @@ export function formatTokens(tokens: number | undefined | null): string {
 }
 
 /**
- * 格式化预估成本显示
- * @param cost 成本金额 (USD)
+ * 格式化预估成本显示（USD）
+ * @param cost 成本金额（USD）
  * @param fixedDecimals 固定小数位数，不传则自适应（最多 6 位，去除末尾 0）
  */
-export function formatCost(cost: number | undefined | null, fixedDecimals?: number): string {
+export interface FormatCostOptions {
+    fixedDecimals?: number;
+    currencySymbol?: string;
+    approximate?: boolean;
+}
+
+export function formatCost(
+    cost: number | undefined | null,
+    fixedDecimalsOrOptions?: number | FormatCostOptions
+): string {
     if (cost === undefined || cost === null || cost <= 0) {
         return '-';
     }
-    const start = fixedDecimals ?? 4;
+    const options =
+        typeof fixedDecimalsOrOptions === 'number' ? { fixedDecimals: fixedDecimalsOrOptions } : fixedDecimalsOrOptions;
+    const sym = options?.currencySymbol ?? '$';
+    const prefix = options?.approximate ? '≈' : '';
+    const start = options?.fixedDecimals ?? 4;
     let n = start;
     while (n <= 6) {
         const formatted = cost.toFixed(n);
@@ -48,9 +61,9 @@ export function formatCost(cost: number | undefined | null, fixedDecimals?: numb
         if (/^0+$/.test(frac)) {
             n++;
         } else {
-            return `$${formatted}`;
+            return `${prefix}${sym}${formatted}`;
         }
     }
     // 六个0时遵循指定的小数位截断
-    return `$${cost.toFixed(start)}`;
+    return `${prefix}${sym}${cost.toFixed(start)}`;
 }

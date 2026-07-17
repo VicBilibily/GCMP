@@ -6,15 +6,36 @@
 import type { ProviderData } from '../types';
 import { createElement } from '../../utils';
 import { TokenStats } from '../../../usages/fileLogger/types';
+import { createEmptyNativeCostSplit, mergeNativeCostSplit } from '../../../usages/fileLogger/nativeCostSplit';
+import { getDisplayCostPresentation } from '../../costDisplay';
+import { sumCosts } from '../../../utils/pricingCurrency';
 import {
     calculateTotalTokens,
-    formatCost,
     formatTokens,
+    getStatsNativeCostSplit,
     calculateAverageSpeed,
     calculateAverageFirstTokenLatency,
+    getCurrencyToggleTitle,
+    getDisplayCurrency,
     getProviderDisplayName,
     t
 } from '../utils';
+
+export function buildProviderStatsTotalNativeSplit(
+    providers: ProviderData[]
+): ReturnType<typeof createEmptyNativeCostSplit> {
+    const nativeSplitIndex = window.usagesState?.dateDetails?.nativeSplitIndex;
+    const totalNativeSplit = createEmptyNativeCostSplit();
+
+    providers.forEach(provider => {
+        mergeNativeCostSplit(
+            totalNativeSplit,
+            getStatsNativeCostSplit(provider, nativeSplitIndex?.providers[provider.providerKey])
+        );
+    });
+
+    return totalNativeSplit;
+}
 
 // ============= 工具函数 =============
 
@@ -41,15 +62,46 @@ function formatRequestBreakdown(completed: number, failed: number, cancelled: nu
  * 创建带内联成本的 Tokens 单元格
  * 上方显示 token 数，下方显示预估成本
  */
-function createTokensCell(tokens: number, cost: number | undefined): HTMLElement {
+function createTokensCell(
+    tokens: number,
+    usdCost: number | undefined,
+    rmbCost: number | undefined,
+    nativeUsdCost: number | undefined,
+    nativeRmbCost: number | undefined,
+    currency: ReturnType<typeof getDisplayCurrency>
+): HTMLElement {
     const cell = createElement('td');
     const tokenStr = tokens > 0 ? formatTokens(tokens) : '-';
-    const costStr = cost !== undefined && cost > 0 ? formatCost(cost, 2) : '';
+    const costPresentation = getDisplayCostPresentation({
+        usd: usdCost,
+        rmb: rmbCost,
+        nativeUsd: nativeUsdCost,
+        nativeRmb: nativeRmbCost,
+        currency,
+        fixedDecimals: 2
+    });
+    const costStr = costPresentation.text;
     if (costStr) {
+        const costClass = costPresentation.toggleable ? 'tokens-cost' : 'tokens-cost tokens-cost-static';
+        const costAttrs =
+            `class="${costClass}"` +
+            (costPresentation.toggleable ?
+                ` data-toggle-cost-currency="true" title="${getCurrencyToggleTitle(currency)}"`
+            :   '');
+        const costHtml =
+            currency === 'MIXED' && costPresentation.segments.length > 1 ?
+                `<span class="tokens-cost-group">${costPresentation.segments
+                    .map((segment, index) => {
+                        const separator =
+                            index === 0 ? '' : '<span class="tokens-cost-separator" aria-hidden="true">+</span>';
+                        return `${separator}<span ${costAttrs}>${segment.text}</span>`;
+                    })
+                    .join('')}</span>`
+            :   `<span ${costAttrs}>${costStr}</span>`;
         cell.innerHTML = [
             `<div class="tokens-row">${tokenStr}</div>`,
             '<div class="tokens-detail">',
-            `<span class="tokens-cost">${costStr}</span>`,
+            costHtml,
             '</div>'
         ].join('');
     } else {
@@ -67,7 +119,10 @@ function createTokensCell(tokens: number, cost: number | undefined): HTMLElement
  * 创建提供商统计区域
  */
 export function createProviderStats(providers: ProviderData[]): HTMLElement {
-    const section = createElement('section');
+    const section = createElement('section', 'provider-stats-section');
+    const dateDetails = window.usagesState?.dateDetails;
+    const nativeSplitIndex = dateDetails?.nativeSplitIndex;
+    const currency = getDisplayCurrency();
 
     const h2 = createElement('h2');
     h2.textContent = t('By Provider', '按提供商统计');
@@ -107,14 +162,23 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
         let totalFailedRequests = 0;
         let totalCancelledRequests = 0;
         let totalCost = 0;
+        let totalCostRmb = 0;
         let totalInputCost = 0;
+        let totalInputCostRmb = 0;
         let totalCacheReadCost = 0;
+        let totalCacheReadCostRmb = 0;
         let totalCacheWriteCost = 0;
+        let totalCacheWriteCostRmb = 0;
         let totalOutputCost = 0;
+        let totalOutputCostRmb = 0;
+        let totalCostedRequests = 0;
+        let totalRmbExactRequests = 0;
+        const totalNativeSplit = buildProviderStatsTotalNativeSplit(providers);
 
         providers.forEach(provider => {
             // 累加合计数据
             const nonCacheInput = Math.max(0, (provider.actualInput || 0) - (provider.cacheTokens || 0));
+            const providerSplit = getStatsNativeCostSplit(provider, nativeSplitIndex?.providers[provider.providerKey]);
             totalInput += nonCacheInput;
             totalCache += provider.cacheTokens || 0;
             totalOutput += provider.outputTokens || 0;
@@ -122,11 +186,18 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             totalCompletedRequests += provider.completedRequests || 0;
             totalFailedRequests += provider.failedRequests || 0;
             totalCancelledRequests += provider.cancelledRequests || 0;
-            totalCost += provider.estimatedCost || 0;
-            totalInputCost += provider.inputCost || 0;
-            totalCacheReadCost += provider.cacheReadCost || 0;
-            totalCacheWriteCost += provider.cacheWriteCost || 0;
-            totalOutputCost += provider.outputCost || 0;
+            totalCost = sumCosts([totalCost, provider.estimatedCost]);
+            totalCostRmb = sumCosts([totalCostRmb, provider.estimatedCostRmb]);
+            totalInputCost = sumCosts([totalInputCost, provider.inputCost]);
+            totalInputCostRmb = sumCosts([totalInputCostRmb, provider.inputCostRmb]);
+            totalCacheReadCost = sumCosts([totalCacheReadCost, provider.cacheReadCost]);
+            totalCacheReadCostRmb = sumCosts([totalCacheReadCostRmb, provider.cacheReadCostRmb]);
+            totalCacheWriteCost = sumCosts([totalCacheWriteCost, provider.cacheWriteCost]);
+            totalCacheWriteCostRmb = sumCosts([totalCacheWriteCostRmb, provider.cacheWriteCostRmb]);
+            totalOutputCost = sumCosts([totalOutputCost, provider.outputCost]);
+            totalOutputCostRmb = sumCosts([totalOutputCostRmb, provider.outputCostRmb]);
+            totalCostedRequests += provider.costedRequests || 0;
+            totalRmbExactRequests += provider.rmbExactRequests || 0;
 
             // 提供商行
             const providerRow = createElement('tr');
@@ -137,11 +208,45 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
 
             providerRow.appendChild(createCell(getProviderDisplayName(provider.providerKey, provider.providerName)));
             providerRow.appendChild(
-                createTokensCell(nonCacheInput, (provider.inputCost || 0) + (provider.cacheWriteCost || 0))
+                createTokensCell(
+                    nonCacheInput,
+                    (provider.inputCost || 0) + (provider.cacheWriteCost || 0),
+                    (provider.inputCostRmb || 0) + (provider.cacheWriteCostRmb || 0),
+                    (providerSplit?.inputUsd || 0) + (providerSplit?.cacheWriteUsd || 0),
+                    (providerSplit?.inputRmb || 0) + (providerSplit?.cacheWriteRmb || 0),
+                    currency
+                )
             );
-            providerRow.appendChild(createTokensCell(provider.cacheTokens, provider.cacheReadCost));
-            providerRow.appendChild(createTokensCell(provider.outputTokens, provider.outputCost));
-            providerRow.appendChild(createTokensCell(totalTokens, provider.estimatedCost));
+            providerRow.appendChild(
+                createTokensCell(
+                    provider.cacheTokens,
+                    provider.cacheReadCost,
+                    provider.cacheReadCostRmb,
+                    providerSplit?.cacheReadUsd,
+                    providerSplit?.cacheReadRmb,
+                    currency
+                )
+            );
+            providerRow.appendChild(
+                createTokensCell(
+                    provider.outputTokens,
+                    provider.outputCost,
+                    provider.outputCostRmb,
+                    providerSplit?.outputUsd,
+                    providerSplit?.outputRmb,
+                    currency
+                )
+            );
+            providerRow.appendChild(
+                createTokensCell(
+                    totalTokens,
+                    provider.estimatedCost,
+                    provider.estimatedCostRmb,
+                    providerSplit?.totalUsd,
+                    providerSplit?.totalRmb,
+                    currency
+                )
+            );
             providerRow.appendChild(
                 createCell(
                     provider.requests,
@@ -159,18 +264,56 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             tbody.appendChild(providerRow);
 
             // 模型行
-            Object.entries(provider.models).forEach(([, stats]) => {
+            Object.entries(provider.models).forEach(([modelId, stats]) => {
                 const modelRow = createElement('tr') as HTMLTableRowElement;
                 const totalTokens = calculateTotalTokens(stats);
                 const modelNonCacheInput = Math.max(0, (stats.actualInput || 0) - (stats.cacheTokens || 0));
+                const modelSplit = getStatsNativeCostSplit(
+                    stats,
+                    nativeSplitIndex?.models[provider.providerKey]?.[modelId]
+                );
 
                 modelRow.appendChild(createCell(`└─ ${stats.modelName}`, 'model-cell'));
                 modelRow.appendChild(
-                    createTokensCell(modelNonCacheInput, (stats.inputCost || 0) + (stats.cacheWriteCost || 0))
+                    createTokensCell(
+                        modelNonCacheInput,
+                        (stats.inputCost || 0) + (stats.cacheWriteCost || 0),
+                        (stats.inputCostRmb || 0) + (stats.cacheWriteCostRmb || 0),
+                        (modelSplit?.inputUsd || 0) + (modelSplit?.cacheWriteUsd || 0),
+                        (modelSplit?.inputRmb || 0) + (modelSplit?.cacheWriteRmb || 0),
+                        currency
+                    )
                 );
-                modelRow.appendChild(createTokensCell(stats.cacheTokens, stats.cacheReadCost));
-                modelRow.appendChild(createTokensCell(stats.outputTokens, stats.outputCost));
-                modelRow.appendChild(createTokensCell(totalTokens, stats.estimatedCost));
+                modelRow.appendChild(
+                    createTokensCell(
+                        stats.cacheTokens,
+                        stats.cacheReadCost,
+                        stats.cacheReadCostRmb,
+                        modelSplit?.cacheReadUsd,
+                        modelSplit?.cacheReadRmb,
+                        currency
+                    )
+                );
+                modelRow.appendChild(
+                    createTokensCell(
+                        stats.outputTokens,
+                        stats.outputCost,
+                        stats.outputCostRmb,
+                        modelSplit?.outputUsd,
+                        modelSplit?.outputRmb,
+                        currency
+                    )
+                );
+                modelRow.appendChild(
+                    createTokensCell(
+                        totalTokens,
+                        stats.estimatedCost,
+                        stats.estimatedCostRmb,
+                        modelSplit?.totalUsd,
+                        modelSplit?.totalRmb,
+                        currency
+                    )
+                );
                 modelRow.appendChild(createCell(stats.requests));
                 modelRow.appendChild(createCell(calculateAverageFirstTokenLatency(stats)));
                 modelRow.appendChild(createCell(calculateAverageSpeed(stats)));
@@ -189,11 +332,41 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
         totalRow.style.borderTop = '2px solid var(--vscode-editor-selectionForeground)';
 
         const grandTotal = totalInput + totalCache + totalOutput;
+        const totalSplit = totalNativeSplit;
         totalRow.appendChild(createCell(t('Total', '合计')));
-        totalRow.appendChild(createTokensCell(totalInput, totalInputCost + totalCacheWriteCost));
-        totalRow.appendChild(createTokensCell(totalCache, totalCacheReadCost));
-        totalRow.appendChild(createTokensCell(totalOutput, totalOutputCost));
-        totalRow.appendChild(createTokensCell(grandTotal, totalCost));
+        totalRow.appendChild(
+            createTokensCell(
+                totalInput,
+                totalInputCost + totalCacheWriteCost,
+                totalInputCostRmb + totalCacheWriteCostRmb,
+                totalSplit.inputUsd + totalSplit.cacheWriteUsd,
+                totalSplit.inputRmb + totalSplit.cacheWriteRmb,
+                currency
+            )
+        );
+        totalRow.appendChild(
+            createTokensCell(
+                totalCache,
+                totalCacheReadCost,
+                totalCacheReadCostRmb,
+                totalSplit.cacheReadUsd,
+                totalSplit.cacheReadRmb,
+                currency
+            )
+        );
+        totalRow.appendChild(
+            createTokensCell(
+                totalOutput,
+                totalOutputCost,
+                totalOutputCostRmb,
+                totalSplit.outputUsd,
+                totalSplit.outputRmb,
+                currency
+            )
+        );
+        totalRow.appendChild(
+            createTokensCell(grandTotal, totalCost, totalCostRmb, totalSplit.totalUsd, totalSplit.totalRmb, currency)
+        );
         totalRow.appendChild(
             createCell(
                 totalRequests,
@@ -229,9 +402,21 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             cacheTokens: 0,
             outputTokens: 0,
             requests: 0,
+            costedRequests: totalCostedRequests,
+            rmbExactRequests: totalRmbExactRequests,
             completedRequests: totalCompletedRequests,
             failedRequests: totalFailedRequests,
             cancelledRequests: totalCancelledRequests,
+            estimatedCost: totalCost,
+            estimatedCostRmb: totalCostRmb,
+            inputCost: totalInputCost,
+            inputCostRmb: totalInputCostRmb,
+            outputCost: totalOutputCost,
+            outputCostRmb: totalOutputCostRmb,
+            cacheReadCost: totalCacheReadCost,
+            cacheReadCostRmb: totalCacheReadCostRmb,
+            cacheWriteCost: totalCacheWriteCost,
+            cacheWriteCostRmb: totalCacheWriteCostRmb,
             firstTokenLatency: mean(allModelLatencies),
             outputSpeeds: mean(allModelSpeeds)
         } as TokenStats;

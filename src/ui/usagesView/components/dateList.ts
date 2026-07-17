@@ -16,6 +16,18 @@ function openStorageDir(): void {
     postToVSCode({ command: 'openStorageDir' });
 }
 
+function updateSelectedDateHighlight(selectedDate: string): void {
+    const dateListEl = document.getElementById('date-list');
+    if (!dateListEl) {
+        return;
+    }
+
+    Array.from(dateListEl.children).forEach(item => {
+        const el = item as HTMLElement;
+        el.classList.toggle('selected', el.dataset.date === selectedDate);
+    });
+}
+
 // ============= 组件渲染 =============
 
 function createDateListItem(summary: DateSummary): HTMLElement {
@@ -36,6 +48,7 @@ function createDateListItem(summary: DateSummary): HTMLElement {
         if (window.usagesState) {
             window.usagesState.selectedDate = summary.date;
         }
+        updateSelectedDateHighlight(summary.date);
         // 设置加载状态
         if (window.usagesSetLoading) {
             window.usagesSetLoading('dateDetails', true);

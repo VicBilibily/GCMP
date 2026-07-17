@@ -3,8 +3,14 @@ import test from 'node:test';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { collectInvalidTierCrons, normalizeTokenPricing, parseCron, resolveActiveTier } from './pricingTierResolver';
-import type { ModelTokenPricing } from '../types/sharedTypes';
+import {
+    collectInvalidTierCrons,
+    normalizeTokenPricing,
+    parseCron,
+    resolveActiveTier,
+    serializeTokenPricingInput
+} from './pricingTierResolver';
+import type { ModelTokenPricing, ModelTokenPricingInput } from '../types/sharedTypes';
 
 // ============= parseCron =============
 
@@ -502,13 +508,24 @@ test('normalizeTokenPricing: undefined / null return undefined', () => {
 test('normalizeTokenPricing: object passes through unchanged', () => {
     const obj: ModelTokenPricing = { inputPrice: 1, outputPrice: 2 };
     const result = normalizeTokenPricing(obj);
-    assert.equal(result, obj); // same reference
+    assert.deepEqual(result, obj);
 });
 
 test('normalizeTokenPricing: object with cache prices', () => {
     const obj: ModelTokenPricing = { inputPrice: 1, outputPrice: 2, cacheReadPrice: 0.1, cacheWritePrice: 8 };
     const result = normalizeTokenPricing(obj);
-    assert.equal(result, obj);
+    assert.deepEqual(result, obj);
+});
+
+test('normalizeTokenPricing: explicit object hydrates cache prices from pricing metadata', () => {
+    const result = normalizeTokenPricing({
+        inputPrice: 1,
+        outputPrice: 2,
+        pricing: [1, 2, 0.1, 0.2]
+    } as any);
+    assert.ok(result);
+    assert.equal(result.cacheReadPrice, 0.1);
+    assert.equal(result.cacheWritePrice, 0.2);
 });
 
 test('normalizeTokenPricing: object with tiers (object form)', () => {
@@ -545,22 +562,22 @@ test('normalizeTokenPricing: object with pricing-only 4 elements converts all', 
     assert.equal(result.cacheWritePrice, 99);
 });
 
-test('normalizeTokenPricing: object with pricing-only prefers explicit cache prices over shorthand array', () => {
-    const result = normalizeTokenPricing({
-        pricing: [2.5, 15, 0.25, 99],
-        cacheReadPrice: 0.5,
-        cacheWritePrice: 100
-    });
-    assert.ok(result);
-    assert.equal(result.cacheReadPrice, 0.5);
-    assert.equal(result.cacheWritePrice, 100);
+test('normalizeTokenPricing: canonical object rejects legacy top-level cache overrides', () => {
+    assert.equal(
+        normalizeTokenPricing({
+            pricing: [2.5, 15, 0.25, 99],
+            cacheReadPrice: 0.5,
+            cacheWritePrice: 100
+        } as any),
+        undefined
+    );
 });
 
 test('normalizeTokenPricing: object with pricing-only and tiers combined', () => {
     // OCR 修复：{ pricing: [1, 2], tiers: [...] } 时 tiers 不应被丢弃
     const result = normalizeTokenPricing({
         pricing: [2.5, 15],
-        tiers: [{ cron: '* 9-23 * * 1-5', inputPrice: 5, outputPrice: 10 }]
+        tiers: [{ cron: '* 9-23 * * 1-5', pricing: [5, 10] }]
     });
     assert.ok(result);
     assert.equal(result.inputPrice, 2.5);
@@ -569,18 +586,296 @@ test('normalizeTokenPricing: object with pricing-only and tiers combined', () =>
     assert.equal(result.tiers?.[0].cron, '* 9-23 * * 1-5');
 });
 
-test('normalizeTokenPricing: explicit object supports tier pricing shorthand', () => {
+test('normalizeTokenPricing: typed top-level dual-currency map input is accepted', () => {
+    const input: ModelTokenPricingInput = { USD: [1, 2, 0.1], RMB: [7, 14, 0.7] };
+    const result = normalizeTokenPricing(input);
+    assert.ok(result);
+    assert.equal(result.inputPrice, 1);
+    assert.equal(result.outputPrice, 2);
+    assert.equal(result.cacheReadPrice, 0.1);
+    assert.deepEqual(result.rmb, { inputPrice: 7, outputPrice: 14, cacheReadPrice: 0.7 });
+});
+
+test('normalizeTokenPricing: rejects unsupported top-level tokenPricing fields', () => {
+    assert.equal(normalizeTokenPricing({ USD: [1, 2], foo: 1 } as any), undefined);
+    assert.equal(normalizeTokenPricing({ pricing: [1, 2], foo: 1 } as any), undefined);
+    assert.equal(normalizeTokenPricing({ inputPrice: 1, outputPrice: 2, foo: 1 } as any), undefined);
+});
+
+test('normalizeTokenPricing: rejects unsupported nested pricing fields', () => {
+    assert.equal(normalizeTokenPricing({ pricing: { USD: [1, 2], foo: 1 } } as any), undefined);
+    assert.equal(
+        normalizeTokenPricing({ pricing: [1, 2], rmb: { inputPrice: 7, outputPrice: 14, foo: 1 } } as any),
+        undefined
+    );
+});
+
+test('normalizeTokenPricing: canonical dual-currency pricing object is accepted', () => {
     const result = normalizeTokenPricing({
-        inputPrice: 1,
-        outputPrice: 2,
-        tiers: [{ cron: '* 9-23 * * 1-5', pricing: [3, 4, 0.2], cacheReadPrice: 0.5 }]
+        pricing: { USD: [1, 2, 0.1, 0.2], RMB: [7, 14, 0.7, 1.4] }
+    });
+    assert.ok(result);
+    assert.equal(result.inputPrice, 1);
+    assert.equal(result.outputPrice, 2);
+    assert.equal(result.cacheReadPrice, 0.1);
+    assert.equal(result.cacheWritePrice, 0.2);
+    assert.deepEqual(result.rmb, { inputPrice: 7, outputPrice: 14, cacheReadPrice: 0.7, cacheWritePrice: 1.4 });
+    assert.deepEqual(result.pricing, [1, 2, 0.1, 0.2]);
+});
+
+test('normalizeTokenPricing: canonical dual-currency pricing object rejects legacy rmb supplement', () => {
+    assert.equal(
+        normalizeTokenPricing({
+            pricing: { USD: [1, 2], RMB: [7, 14] },
+            rmb: { inputPrice: 8, outputPrice: 16, cacheReadPrice: 0.8, cacheWritePrice: 1.6 }
+        } as any),
+        undefined
+    );
+});
+
+test('normalizeTokenPricing: pricing array with only one explicit main price returns undefined', () => {
+    assert.equal(normalizeTokenPricing({ pricing: [1, 2], inputPrice: 1 } as any), undefined);
+    assert.equal(normalizeTokenPricing({ pricing: [1, 2], outputPrice: 2 } as any), undefined);
+});
+
+test('normalizeTokenPricing: tier pricing supports dual-currency map', () => {
+    const result = normalizeTokenPricing({
+        pricing: [1, 2],
+        tiers: [{ cron: '* 9-23 * * 1-5', pricing: { USD: [3, 4, 0.3], RMB: [21, 28, 2.1] } }]
     });
     assert.ok(result);
     assert.equal(result.tiers?.length, 1);
     assert.equal(result.tiers?.[0].inputPrice, 3);
     assert.equal(result.tiers?.[0].outputPrice, 4);
-    assert.equal(result.tiers?.[0].cacheReadPrice, 0.5);
+    assert.equal(result.tiers?.[0].cacheReadPrice, 0.3);
+    assert.deepEqual(result.tiers?.[0].rmb, { inputPrice: 21, outputPrice: 28, cacheReadPrice: 2.1 });
+    assert.deepEqual(result.tiers?.[0].pricing, [3, 4, 0.3]);
+});
+
+test('normalizeTokenPricing: tier pricing supports numeric multiplier of top-level pricing', () => {
+    const result = normalizeTokenPricing({
+        pricing: { USD: [1, 2, 0.1, 0.2], RMB: [7, 14, 0.7, 1.4] },
+        tiers: [{ cron: '* 9-23 * * 1-5', pricing: 1.5 }]
+    });
+    assert.ok(result);
+    assert.equal(result.tiers?.length, 1);
+    assert.equal(result.tiers?.[0].inputPrice, 1.5);
+    assert.equal(result.tiers?.[0].outputPrice, 3);
+    assert.ok(Math.abs((result.tiers?.[0].cacheReadPrice ?? 0) - 0.15) < 1e-12);
+    assert.ok(Math.abs((result.tiers?.[0].cacheWritePrice ?? 0) - 0.3) < 1e-12);
+    assert.deepEqual(result.tiers?.[0].rmb, {
+        inputPrice: 10.5,
+        outputPrice: 21,
+        cacheReadPrice: 1.0499999999999998,
+        cacheWritePrice: 2.0999999999999996
+    });
+    assert.equal(result.tiers?.[0].pricing, undefined);
+});
+
+test('normalizeTokenPricing: tier numeric/object pricing rejects mixing explicit inputPrice/outputPrice', () => {
+    assert.equal(
+        normalizeTokenPricing({
+            inputPrice: 1,
+            outputPrice: 2,
+            tiers: [{ cron: '* 9-23 * * 1-5', inputPrice: 3, outputPrice: 4, pricing: 2 }]
+        } as any),
+        undefined
+    );
+    assert.equal(
+        normalizeTokenPricing({
+            inputPrice: 1,
+            outputPrice: 2,
+            tiers: [{ cron: '* 9-23 * * 1-5', inputPrice: 3, outputPrice: 4, pricing: { USD: [3, 4] } }]
+        } as any),
+        undefined
+    );
+});
+
+test('normalizeTokenPricing: tier pricing array with only one explicit main price returns undefined', () => {
+    assert.equal(
+        normalizeTokenPricing({
+            inputPrice: 1,
+            outputPrice: 2,
+            tiers: [{ cron: '* 9-23 * * 1-5', pricing: [3, 4], inputPrice: 3 }]
+        } as any),
+        undefined
+    );
+    assert.equal(
+        normalizeTokenPricing({
+            inputPrice: 1,
+            outputPrice: 2,
+            tiers: [{ cron: '* 9-23 * * 1-5', pricing: [3, 4], outputPrice: 4 }]
+        } as any),
+        undefined
+    );
+});
+
+test('normalizeTokenPricing: explicit tier object preserves rmb pricing', () => {
+    const result = normalizeTokenPricing({
+        inputPrice: 1,
+        outputPrice: 2,
+        tiers: [
+            {
+                cron: '* 9-23 * * 1-5',
+                inputPrice: 3,
+                outputPrice: 4,
+                rmb: { inputPrice: 21, outputPrice: 28, cacheReadPrice: 2.1, cacheWritePrice: 4.2 }
+            }
+        ]
+    } as any);
+    assert.ok(result);
+    assert.deepEqual(result.tiers?.[0].rmb, {
+        inputPrice: 21,
+        outputPrice: 28,
+        cacheReadPrice: 2.1,
+        cacheWritePrice: 4.2
+    });
+});
+
+test('normalizeTokenPricing: explicit tier object hydrates cache prices from pricing metadata', () => {
+    const result = normalizeTokenPricing({
+        inputPrice: 1,
+        outputPrice: 2,
+        tiers: [{ cron: '* 9-23 * * 1-5', inputPrice: 3, outputPrice: 4, pricing: [3, 4, 0.3, 0.4] }]
+    } as any);
+    assert.ok(result);
+    assert.equal(result.tiers?.[0].cacheReadPrice, 0.3);
+    assert.equal(result.tiers?.[0].cacheWritePrice, 0.4);
+});
+
+test('normalizeTokenPricing: explicit top-level object rejects shorthand tier pricing', () => {
+    assert.equal(
+        normalizeTokenPricing({
+            inputPrice: 1,
+            outputPrice: 2,
+            tiers: [{ cron: '* 9-23 * * 1-5', pricing: [3, 4] }]
+        } as any),
+        undefined
+    );
+    assert.equal(
+        normalizeTokenPricing({
+            inputPrice: 1,
+            outputPrice: 2,
+            tiers: [{ cron: '* 9-23 * * 1-5', pricing: 1.5 }]
+        } as any),
+        undefined
+    );
+    assert.equal(
+        normalizeTokenPricing({
+            inputPrice: 1,
+            outputPrice: 2,
+            tiers: [{ cron: '* 9-23 * * 1-5', pricing: { USD: [3, 4], RMB: [21, 28] } }]
+        } as any),
+        undefined
+    );
+});
+
+test('normalizeTokenPricing: canonical tier rejects legacy explicit price fields', () => {
+    assert.equal(
+        normalizeTokenPricing({
+            pricing: [1, 2],
+            tiers: [{ cron: '* 9-23 * * 1-5', inputPrice: 3, outputPrice: 4 }]
+        } as any),
+        undefined
+    );
+});
+
+test('normalizeTokenPricing: rejects unsupported tier fields', () => {
+    assert.equal(
+        normalizeTokenPricing({
+            inputPrice: 1,
+            outputPrice: 2,
+            tiers: [{ cron: '* 9-23 * * 1-5', inputPrice: 3, outputPrice: 4, foo: 1 }]
+        } as any),
+        undefined
+    );
+    assert.equal(
+        normalizeTokenPricing({
+            inputPrice: 1,
+            outputPrice: 2,
+            tiers: [{ cron: '* 9-23 * * 1-5', pricing: { USD: [3, 4], foo: 1 } }]
+        } as any),
+        undefined
+    );
+});
+
+test('normalizeTokenPricing: RMB-only dual-currency pricing converts cache prices into USD main fields', () => {
+    const result = normalizeTokenPricing({ pricing: { RMB: [7, 14, 0.7, 1.4] } });
+    assert.ok(result);
+    assert.equal(result.inputPrice, 1);
+    assert.equal(result.outputPrice, 2);
+    assert.ok(Math.abs((result.cacheReadPrice ?? 0) - 0.1) < 1e-12);
+    assert.ok(Math.abs((result.cacheWritePrice ?? 0) - 0.2) < 1e-12);
+    assert.deepEqual(result.rmb, { inputPrice: 7, outputPrice: 14, cacheReadPrice: 0.7, cacheWritePrice: 1.4 });
+    assert.equal(result.pricing, undefined);
+});
+
+test('normalizeTokenPricing: explicit USD object rejects dual-currency pricing object', () => {
+    assert.equal(normalizeTokenPricing({ inputPrice: 1, outputPrice: 2, pricing: { RMB: [7, 14] } } as any), undefined);
+});
+
+test('normalizeTokenPricing: canonical object supports tier pricing shorthand', () => {
+    const result = normalizeTokenPricing({
+        pricing: [1, 2],
+        tiers: [{ cron: '* 9-23 * * 1-5', pricing: [3, 4, 0.2] }]
+    });
+    assert.ok(result);
+    assert.equal(result.tiers?.length, 1);
+    assert.equal(result.tiers?.[0].inputPrice, 3);
+    assert.equal(result.tiers?.[0].outputPrice, 4);
+    assert.equal(result.tiers?.[0].cacheReadPrice, 0.2);
     assert.deepEqual(result.tiers?.[0].pricing, [3, 4, 0.2]);
+});
+
+test('serializeTokenPricingInput: always writes canonical object form', () => {
+    const result = serializeTokenPricingInput({
+        inputPrice: 1,
+        outputPrice: 2,
+        cacheReadPrice: 0.1,
+        cacheWritePrice: 0.2
+    });
+    assert.deepEqual(result, {
+        pricing: [1, 2, 0.1, 0.2]
+    });
+});
+
+test('serializeTokenPricingInput: preserves dual-currency pricing in canonical object form', () => {
+    const result = serializeTokenPricingInput({
+        inputPrice: 1,
+        outputPrice: 2,
+        cacheReadPrice: 0.1,
+        cacheWritePrice: 0.2,
+        rmb: { inputPrice: 7, outputPrice: 14, cacheReadPrice: 0.7, cacheWritePrice: 1.4 },
+        tiers: [
+            {
+                cron: '* 9-23 * * 1-5',
+                inputPrice: 3,
+                outputPrice: 4,
+                cacheReadPrice: 0.3,
+                cacheWritePrice: 0.4,
+                rmb: { inputPrice: 21, outputPrice: 28, cacheReadPrice: 2.1, cacheWritePrice: 2.8 }
+            }
+        ]
+    });
+    assert.deepEqual(result, {
+        pricing: {
+            USD: [1, 2, 0.1, 0.2],
+            RMB: [7, 14, 0.7, 1.4]
+        },
+        tiers: [
+            {
+                pricing: {
+                    USD: [3, 4, 0.3, 0.4],
+                    RMB: [21, 28, 2.1, 2.8]
+                },
+                cron: '* 9-23 * * 1-5',
+                timezone: undefined,
+                serviceTier: undefined,
+                contextSizeMin: undefined,
+                contextSizeInputOnly: undefined
+            }
+        ]
+    });
 });
 
 test('normalizeTokenPricing: object with invalid pricing-only returns undefined', () => {

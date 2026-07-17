@@ -49,7 +49,7 @@ export function createMainContent(): HTMLElement {
 /**
  * 更新主内容区
  */
-export function updateMainContent(): void {
+export function updateMainContent(options?: { currencyOnly?: boolean }): void {
     const content = document.querySelector('.content');
     if (!content || !window.usagesState) {
         return;
@@ -66,6 +66,22 @@ export function updateMainContent(): void {
 
     // 更新内容
     if (dateDetails && dateDetails.providers && dateDetails.providers.length > 0) {
+        if (options?.currencyOnly) {
+            const existingProviderSection = detailsContent.querySelector(
+                '.provider-stats-section'
+            ) as HTMLElement | null;
+            const existingStatsSection = detailsContent.querySelector('.hourly-stats-section') as HTMLElement | null;
+
+            if (existingProviderSection) {
+                existingProviderSection.replaceWith(createProviderStats(dateDetails.providers));
+            }
+
+            if (existingStatsSection) {
+                createHourlyStats(dateDetails.providers, dateDetails.hourlyStats, existingStatsSection);
+            }
+            return;
+        }
+
         // 查找并移除已存在的容器（避免被 innerHTML 清空）
         const existingChartSection = detailsContent.querySelector('.hourly-chart-section') as HTMLElement;
         const existingStatsSection = detailsContent.querySelector('.hourly-stats-section') as HTMLElement;

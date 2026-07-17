@@ -9,7 +9,7 @@
  * 缓存判断逻辑：stats.json 修改时间 >= 缓存时间时，需要重新计算
  * 更新后首次运行会自动用当前时间创建新缓存，后续使用存储的缓存时间
  */
-const USAGES_CACHE_VERSION_TIMESTAMP = new Date('2026-07-07T21:35:00+08:00').getTime();
+const USAGES_CACHE_VERSION_TIMESTAMP = new Date('2026-07-16T10:00:00+08:00').getTime();
 
 import * as vscode from 'vscode';
 import * as fsSync from 'fs';
@@ -325,7 +325,7 @@ export class TokenFileLogger {
         streamStartTime?: number;
         /** 流结束时间 (毫秒时间戳) */
         streamEndTime?: number;
-        /** 客户端预估成本 (USD)，由 Handler 通过 calculateCostWithBreakdown 计算 */
+        /** 客户端预估成本，由 Handler 通过 calculateCostWithBreakdown 计算，单位 USD */
         estimatedCost?: number;
         /** 成本计算明细（命中单价、成本组成等），用于最终日志记录完整成本分解 */
         costBreakdown?: TokenRequestLog['costBreakdown'];
@@ -369,7 +369,10 @@ export class TokenFileLogger {
 
         // 更新成本明细（如果提供）
         if (params.costBreakdown !== undefined) {
-            pendingLog.costBreakdown = params.costBreakdown;
+            pendingLog.costBreakdown = {
+                ...params.costBreakdown,
+                contextWindow: params.costBreakdown?.contextWindow ?? pendingLog.maxInputTokens
+            };
         }
 
         // 更新流时间信息（如果提供）

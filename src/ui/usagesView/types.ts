@@ -9,7 +9,8 @@ import type { DateSummary } from '../../usages/types';
 import type {
     FileLoggerProviderStats,
     FileLoggerModelStats as ModelData,
-    HourlyStats
+    HourlyStats,
+    NativeCostSplit
 } from '../../usages/fileLogger/types';
 import type { ExtendedTokenRequestLog } from '../../usages/fileLogger/usageParser';
 import type { LiveStreamMetricEvent } from '../../handlers/liveMetrics';
@@ -23,6 +24,15 @@ import type { LiveStreamMetricEvent } from '../../handlers/liveMetrics';
  */
 export interface ProviderData extends FileLoggerProviderStats {
     providerKey: string;
+}
+
+export interface NativeCostSplitIndex {
+    total: NativeCostSplit;
+    providers: Record<string, NativeCostSplit>;
+    models: Record<string, Record<string, NativeCostSplit>>;
+    hours: Record<string, NativeCostSplit>;
+    hourProviders: Record<string, Record<string, NativeCostSplit>>;
+    hourModels: Record<string, Record<string, Record<string, NativeCostSplit>>>;
 }
 
 /**
@@ -39,6 +49,19 @@ export interface SessionSummary {
     avgSpeed?: number;
 }
 
+export interface RequestTotals {
+    inputTokens: number;
+    cacheTokens: number;
+    outputTokens: number;
+    avgLatency?: number;
+    avgDuration?: number;
+    totalCost: number;
+    totalCostRmb: number;
+    nativeCosts: NativeCostSplit;
+    costedRequests: number;
+    rmbExactRequests: number;
+}
+
 /**
  * 会话分组结果，包含展示信息与原始记录
  */
@@ -47,6 +70,7 @@ export interface SessionGroup {
     displayId: string;
     records: ExtendedTokenRequestLog[];
     summary: SessionSummary;
+    totals: RequestTotals;
 }
 
 // ============= 重新导出类型供外部使用 =============
@@ -103,6 +127,7 @@ export interface State {
     selectedDate: string;
     today: string;
     selectedSessionId: string | null;
+    displayCurrency: 'MIXED' | 'USD' | 'RMB';
     dateList: DateSummary[];
     dateDetails: DateDetails | null;
     loading: {
@@ -119,6 +144,10 @@ export interface DateDetails {
     providers: ProviderData[];
     hourlyStats: Record<string, HourlyStats>;
     records: ExtendedTokenRequestLog[];
+    allRecords: ExtendedTokenRequestLog[];
+    allSummary: SessionSummary;
+    allTotals: RequestTotals;
+    nativeSplitIndex: NativeCostSplitIndex;
     sessionGroups: SessionGroup[];
 }
 

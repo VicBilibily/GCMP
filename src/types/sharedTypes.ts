@@ -184,7 +184,10 @@ export interface ModelConfig {
      */
     proxy?: string;
     /**
-     * Token 定价（USD / 每百万 token），用于客户端成本估算和模型选择器展示。
+     * Token 定价，用于客户端成本估算和模型选择器展示。
+     * 主价格字段单位为 USD / 百万 token，可通过 rmb 字段同时提供 RMB 辅助定价。
+     * 当前 UI 主展示仍为 USD，rmb 暂不直接用于主 UI 成本显示。
+     * pricing 字段支持数组简写（默认 USD）或双币映射 { "USD": [...], "RMB": [...] }。
      *
      * 字段映射到 VS Code LanguageModelChatInformation 的 cost 槽位：
      * - inputPrice     → inputCost（非缓存输入，即 cache miss）
@@ -200,13 +203,36 @@ export interface ModelConfig {
  *
  * - 运行时内部统一使用对象形式 `ModelTokenPricing`
  * - 用户配置/自定义模型允许使用数组简写 `[input, output, cacheRead?, cacheWrite?]`
+ * - 也允许直接使用顶层双币映射 `{ "USD": [...], "RMB": [...] }`
+ * - 对象形式仅保留 `{ pricing, tiers? }` 这一种 canonical 写法
+ * - `pricing` 数组本身同时承载 input / output / cacheRead / cacheWrite，不再支持额外的 cache 价格配置字段
  */
 
 /** 定价数组简写形式：[input, output, cacheRead?, cacheWrite?] */
 export type PricingArray = [number, number] | [number, number, number] | [number, number, number, number];
 
 /**
+ * 双币定价映射 — pricing 字段的扩展形式。
+ * 键为币种（"USD" / "RMB"），值为该币种下的定价数组。
+ * 至少需要一个币种，两个都提供时支持双币同时定价。
+ *
+ * 示例：
+ * - `{ "USD": [0.14, 0.28, 0.0028] }` — 仅 USD
+ * - `{ "RMB": [1, 2, 0.02] }` — 仅 RMB
+ * - `{ "USD": [0.14, 0.28, 0.0028], "RMB": [1, 2, 0.02] }` — 双币
+ */
+export interface DualCurrencyPricingMap {
+    USD?: PricingArray;
+    RMB?: PricingArray;
+}
+
+/** pricing 字段的合法输入：数组简写（默认 USD）或双币映射 */
+export type PricingInput = PricingArray | DualCurrencyPricingMap;
+
+/**
  * 共用定价字段 — 被 ModelTokenPricing 和 PricingTier 继承，减少重复定义。
+ * 所有主价格字段（inputPrice/outputPrice 等）单位为 USD / 百万 token。
+ * 可通过 rmb 字段同时提供 RMB 定价。
  */
 export interface PricingFields {
     /** 原始数组输入（保留用于多参数传递检查），仅当配置使用数组简写时存在 */
@@ -218,6 +244,26 @@ export interface PricingFields {
     /** 缓存读取 token 单价（cache hit），USD / 百万 token */
     cacheReadPrice?: number;
     /** 缓存写入 token 单价，USD / 百万 token（通常高于 inputPrice） */
+    cacheWritePrice?: number;
+    /**
+     * RMB 定价（可选）。结构与 USD 定价对应，单位为 RMB / 百万 token。
+     * 若提供，可作为辅助价格元数据保留；当前内部计算与 UI 主展示仍以 USD 为准。
+     */
+    rmb?: PricingFieldsRmb;
+}
+
+/**
+ * RMB 定价字段 — 与 USD PricingFields 对应，但不含 rmb 嵌套（避免递归）。
+ * 所有价格单位为 RMB / 百万 token。
+ */
+export interface PricingFieldsRmb {
+    /** 输入 token 单价（cache miss），RMB / 百万 token */
+    inputPrice: number;
+    /** 输出 token 单价，RMB / 百万 token */
+    outputPrice: number;
+    /** 缓存读取 token 单价（cache hit），RMB / 百万 token */
+    cacheReadPrice?: number;
+    /** 缓存写入 token 单价，RMB / 百万 token */
     cacheWritePrice?: number;
 }
 
@@ -236,53 +282,43 @@ export interface PricingTierMatchFields {
 }
 
 /**
- * tier 对象简写输入：通过 pricing 数组定义价格，匹配条件仍通过 cron / serviceTier / contextSizeMin 等字段表达。
+ * tier 的 pricing 合法输入：
+ * - PricingArray：直接给出该 tier 的 USD 价格
+ * - DualCurrencyPricingMap：直接给出该 tier 的 USD/RMB 价格
+ * - number：相对顶层静态单档的倍率（同时作用于 USD 与 RMB）
  */
-export interface PricingTierShorthandInput extends PricingTierMatchFields {
-    /** 定价数组简写：[input, output, cacheRead?, cacheWrite?] */
-    pricing: PricingArray;
-    /** 显式 cache 价格优先于 pricing 数组中的第 3/4 项 */
-    cacheReadPrice?: number;
-    /** 显式 cache 价格优先于 pricing 数组中的第 3/4 项 */
-    cacheWritePrice?: number;
-    /** 避免与显式主价格字段混用 */
-    inputPrice?: never;
-    /** 避免与显式主价格字段混用 */
-    outputPrice?: never;
-}
-
-export type PricingTierInput = PricingTier | PricingTierShorthandInput;
+export type PricingTierInputValue = PricingInput | number;
 
 /**
- * 顶层对象简写输入：仅通过 pricing 数组定义主价格，无显式 inputPrice/outputPrice 字段。
- * 对应 schema 中 anyOf 的 { required: ["pricing"] } 分支。
+ * tier 对象配置输入：价格统一通过 pricing 定义，匹配条件仍通过 cron / serviceTier / contextSizeMin 等字段表达。
+ */
+export interface PricingTierShorthandInput extends PricingTierMatchFields {
+    /** 定价：数组简写（USD）/ 双币映射 / 顶层倍率 */
+    pricing: PricingTierInputValue;
+}
+
+export type PricingTierInput = PricingTierShorthandInput;
+
+/**
+ * 顶层对象配置输入：仅通过 pricing 字段定义主价格。
+ * pricing 支持数组简写（默认 USD）或双币映射 { "USD": [...], "RMB": [...] }。
  */
 export interface PricingShorthandInput {
-    /** 定价数组简写：[input, output, cacheRead?, cacheWrite?] */
-    pricing: PricingArray;
-    /** 显式 cache 价格优先于 pricing 数组中的第 3/4 项 */
-    cacheReadPrice?: number;
-    /** 显式 cache 价格优先于 pricing 数组中的第 3/4 项 */
-    cacheWritePrice?: number;
-    /** 避免与显式主价格字段混用 */
-    inputPrice?: never;
-    /** 避免与显式主价格字段混用 */
-    outputPrice?: never;
+    /** 定价：数组简写 [input, output, cacheRead?, cacheWrite?]（USD）或双币映射 { "USD": [...], "RMB": [...] } */
+    pricing: PricingInput;
     /** 峰谷分档定价（可选），允许 tier 使用完整对象或 pricing 简写 */
     tiers?: PricingTierInput[];
 }
 
-/** 顶层显式对象输入，允许内部 tiers 使用完整对象或 pricing 简写 */
-export interface ModelTokenPricingInputObject extends PricingFields {
-    tiers?: PricingTierInput[];
-}
-
-export type ModelTokenPricingInput = ModelTokenPricingInputObject | PricingShorthandInput | PricingArray;
+export type ModelTokenPricingInput = PricingShorthandInput | PricingArray | DualCurrencyPricingMap | ModelTokenPricing;
 
 /**
- * Token 定价信息（USD 每百万 token）。
+ * Token 定价信息。
  *
  * 所有价格均为客户端估算用，实际计费以 API 提供商账单为准。
+ * 主价格字段（inputPrice/outputPrice 等）单位为 USD / 百万 token。
+ * 可通过 rmb 字段同时提供 RMB 定价；当前 UI 主展示仍为 USD。
+ * 内部计算统一以 USD 为准。
  *
  * 支持两种定价模式：
  * 1. 静态单档：直接用 `inputPrice`/`outputPrice` 等字段，适用于无峰谷差异的模型。

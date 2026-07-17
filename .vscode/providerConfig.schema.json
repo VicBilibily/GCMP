@@ -208,63 +208,99 @@
             }
         },
         "tokenPricing": {
-            "description": "Token 定价信息（USD / 每百万 token），用于客户端成本估算和模型选择器展示。支持对象形式（含 tiers 分档）或简写数组形式 [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]（2~4 项数字）。",
+            "description": "Token 定价信息，用于客户端成本估算和模型选择器展示。支持三种形式：(1) canonical 对象 { pricing, tiers? }；(2) 双币映射 { \"USD\": [...], \"RMB\": [...] }；(3) 数组简写 [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]（默认 USD）。所有价格统一通过 pricing 数组或双币映射定义。",
             "oneOf": [
                 {
                     "type": "object",
+                    "description": "canonical tokenPricing 对象形式。编辑器保存时优先回写该形式。",
                     "additionalProperties": false,
-                    "anyOf": [{ "required": ["inputPrice", "outputPrice"] }, { "required": ["pricing"] }],
+                    "required": ["pricing"],
                     "properties": {
                         "pricing": {
-                            "type": "array",
-                            "description": "原始数组简写输入，保留用于多参数传递检查。仅当配置使用数组简写时存在。格式：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。",
-                            "minItems": 2,
-                            "maxItems": 4,
-                            "items": { "type": "number", "minimum": 0 }
-                        },
-                        "inputPrice": {
-                            "type": "number",
-                            "minimum": 0,
-                            "description": "输入 token 单价（cache miss / 非缓存输入），USD / 百万 token。映射到模型选择器的 inputCost 槽位。同时作为无 tier 命中时的回退价。"
-                        },
-                        "outputPrice": {
-                            "type": "number",
-                            "minimum": 0,
-                            "description": "输出 token 单价，USD / 百万 token。映射到模型选择器的 outputCost 槽位。同时作为无 tier 命中时的回退价。"
-                        },
-                        "cacheReadPrice": {
-                            "type": "number",
-                            "minimum": 0,
-                            "description": "缓存命中读取 token 单价（cache hit），USD / 百万 token。映射到模型选择器的 cacheCost 槽位。通常远低于 inputPrice。"
-                        },
-                        "cacheWritePrice": {
-                            "type": "number",
-                            "minimum": 0,
-                            "description": "缓存写入 token 单价，USD / 百万 token。映射到模型选择器的 cacheWriteCost 槽位。通常等于或高于 inputPrice（缓存写入计费倍率）。"
+                            "description": "原始数组简写输入或双币映射。数组格式：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]（USD）。双币映射格式：{ \"USD\": [...], \"RMB\": [...] }。",
+                            "oneOf": [
+                                {
+                                    "type": "array",
+                                    "description": "数组简写：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]（USD/百万 token）。",
+                                    "minItems": 2,
+                                    "maxItems": 4,
+                                    "items": { "type": "number", "minimum": 0 }
+                                },
+                                {
+                                    "type": "object",
+                                    "description": "双币映射：USD 为主价格，RMB 为辅助显示价格。",
+                                    "additionalProperties": false,
+                                    "anyOf": [{ "required": ["USD"] }, { "required": ["RMB"] }],
+                                    "properties": {
+                                        "USD": {
+                                            "type": "array",
+                                            "description": "USD 价格数组：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。",
+                                            "minItems": 2,
+                                            "maxItems": 4,
+                                            "items": { "type": "number", "minimum": 0 }
+                                        },
+                                        "RMB": {
+                                            "type": "array",
+                                            "description": "RMB 价格数组：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。",
+                                            "minItems": 2,
+                                            "maxItems": 4,
+                                            "items": { "type": "number", "minimum": 0 }
+                                        }
+                                    }
+                                }
+                            ]
                         },
                         "tiers": {
                             "type": "array",
-                            "description": "峰谷分档定价。首个命中条件的 tier 生效。若无 tier 命中，回退到上方的静态单档。每个 tier 为对象，必须包含至少一个匹配条件（cron/serviceTier/contextSizeMin）。",
+                            "description": "峰谷分档定价。首个命中条件的 tier 生效。若无 tier 命中，回退到上方的静态单档。每个 tier 必须包含至少一个匹配条件（cron/serviceTier/contextSizeMin），且价格必须全部通过 pricing 定义。",
                             "items": {
                                 "type": "object",
                                 "additionalProperties": false,
-                                "anyOf": [{ "required": ["inputPrice", "outputPrice"] }, { "required": ["pricing"] }],
-                                "allOf": [
-                                    {
-                                        "anyOf": [
-                                            { "required": ["cron"] },
-                                            { "required": ["serviceTier"] },
-                                            { "required": ["contextSizeMin"] }
-                                        ]
-                                    }
+                                "required": ["pricing"],
+                                "anyOf": [
+                                    { "required": ["cron"] },
+                                    { "required": ["serviceTier"] },
+                                    { "required": ["contextSizeMin"] }
                                 ],
                                 "properties": {
                                     "pricing": {
-                                        "type": "array",
-                                        "description": "该 tier 的原始数组简写输入。格式：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。",
-                                        "minItems": 2,
-                                        "maxItems": 4,
-                                        "items": { "type": "number", "minimum": 0 }
+                                        "description": "该 tier 的定价输入：数组简写（USD）、双币映射，或数值倍率（相对顶层静态单档）。",
+                                        "oneOf": [
+                                            {
+                                                "type": "array",
+                                                "description": "该 tier 的原始数组简写输入（USD）。格式：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。",
+                                                "minItems": 2,
+                                                "maxItems": 4,
+                                                "items": { "type": "number", "minimum": 0 }
+                                            },
+                                            {
+                                                "type": "object",
+                                                "description": "该 tier 的双币映射：USD 为主价格，RMB 为辅助显示价格。",
+                                                "additionalProperties": false,
+                                                "anyOf": [{ "required": ["USD"] }, { "required": ["RMB"] }],
+                                                "properties": {
+                                                    "USD": {
+                                                        "type": "array",
+                                                        "description": "USD 价格数组：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。",
+                                                        "minItems": 2,
+                                                        "maxItems": 4,
+                                                        "items": { "type": "number", "minimum": 0 }
+                                                    },
+                                                    "RMB": {
+                                                        "type": "array",
+                                                        "description": "RMB 价格数组：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。",
+                                                        "minItems": 2,
+                                                        "maxItems": 4,
+                                                        "items": { "type": "number", "minimum": 0 }
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "type": "number",
+                                                "minimum": 0,
+                                                "description": "该 tier 相对顶层静态单档的倍率。1 表示与顶层价格相同，1.5 表示各价格乘以 1.5。"
+                                            }
+                                        ]
                                     },
                                     "cron": {
                                         "type": "string",
@@ -288,26 +324,6 @@
                                         "type": "boolean",
                                         "default": false,
                                         "description": "为 true 时，contextSizeMin 的判断排除缓存读取 token（仅比较非缓存 input）。默认 false 按 raw prompt_tokens（含缓存）判断。"
-                                    },
-                                    "inputPrice": {
-                                        "type": "number",
-                                        "minimum": 0,
-                                        "description": "该档位生效时的输入 token 单价，USD / 百万 token。"
-                                    },
-                                    "outputPrice": {
-                                        "type": "number",
-                                        "minimum": 0,
-                                        "description": "该档位生效时的输出 token 单价，USD / 百万 token。"
-                                    },
-                                    "cacheReadPrice": {
-                                        "type": "number",
-                                        "minimum": 0,
-                                        "description": "该档位生效时的缓存读取 token 单价，USD / 百万 token。未配置时回退到静态单档的 cacheReadPrice。"
-                                    },
-                                    "cacheWritePrice": {
-                                        "type": "number",
-                                        "minimum": 0,
-                                        "description": "该档位生效时的缓存写入 token 单价，USD / 百万 token。未配置时回退到静态单档的 cacheWritePrice。"
                                     }
                                 }
                             }
@@ -315,14 +331,33 @@
                     }
                 },
                 {
+                    "type": "object",
+                    "description": "双币映射简写：{ \"USD\": [...], \"RMB\": [...] }。USD 为主价格，RMB 为辅助显示。",
+                    "additionalProperties": false,
+                    "anyOf": [{ "required": ["USD"] }, { "required": ["RMB"] }],
+                    "properties": {
+                        "USD": {
+                            "type": "array",
+                            "description": "USD 价格数组：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。",
+                            "minItems": 2,
+                            "maxItems": 4,
+                            "items": { "type": "number", "minimum": 0 }
+                        },
+                        "RMB": {
+                            "type": "array",
+                            "description": "RMB 价格数组：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。",
+                            "minItems": 2,
+                            "maxItems": 4,
+                            "items": { "type": "number", "minimum": 0 }
+                        }
+                    }
+                },
+                {
                     "type": "array",
-                    "description": "Token 定价简写形式：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。支持 2~4 项数字。等价于不含 tiers 的对象形式。",
+                    "description": "Token 定价简写形式：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]（USD/百万 token）。支持 2~4 项数字。等价于不含 tiers 的对象形式。",
                     "minItems": 2,
                     "maxItems": 4,
-                    "items": {
-                        "type": "number",
-                        "minimum": 0
-                    }
+                    "items": { "type": "number", "minimum": 0 }
                 }
             ]
         },

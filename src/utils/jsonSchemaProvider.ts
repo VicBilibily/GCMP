@@ -255,175 +255,19 @@ export class JsonSchemaProvider {
     /**
      * 构建 tokenPricing 字段的 JSON Schema。
      *
-     * 顶层支持两种形式：
-     * - 对象：完整形式，包含 inputPrice / outputPrice / tiers 等
+     * 顶层支持三种形式：
+     * - 对象：canonical 形式，包含 pricing / tiers 等
+     * - 双币映射：{ USD: [...], RMB: [...] }
      * - 数组：简写形式 [input, output, cacheRead?, cacheWrite?]（2~4 项）
      *
      * 运行时会通过 normalizeTokenPricing() 统一归一化为对象。
      */
     private static getTokenPricingSchema(): JSONSchema7 {
-        const objectSchema: JSONSchema7 = {
-            type: 'object',
-            description: t(
-                'Token pricing (USD per million tokens) for client-side cost estimation and model picker display. Supports peak/off-peak tiers via the "tiers" array; when tiers are configured, cost calculation matches the request time against tier cron expressions. All prices are estimates only; actual billing is determined by the API provider.',
-                'Token 定价（USD / 每百万 token），用于客户端成本估算和模型选择器展示。支持通过 "tiers" 数组配置峰谷分档；配置 tiers 后，成本计算会按请求时间匹配 cron 表达式。所有价格均为估算用，实际计费以 API 提供商账单为准。'
-            ),
-            additionalProperties: false,
-            anyOf: [{ required: ['inputPrice', 'outputPrice'] }, { required: ['pricing'] }],
-            properties: {
-                pricing: {
-                    type: 'array',
-                    description: t(
-                        'Original array shorthand input, preserved for multi-parameter inspection. Only present when the config uses array shorthand. Format: [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?].',
-                        '原始数组简写输入，保留用于多参数传递检查。仅当配置使用数组简写时存在。格式：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。'
-                    ),
-                    minItems: 2,
-                    maxItems: 4,
-                    items: { type: 'number', minimum: 0 }
-                },
-                inputPrice: {
-                    type: 'number',
-                    minimum: 0,
-                    description: t(
-                        'Input token price (cache miss), USD per million tokens. Also the fallback price when no tier matches',
-                        '输入 token 单价（cache miss），USD / 百万 token。同时作为无 tier 命中时的回退价'
-                    )
-                },
-                outputPrice: {
-                    type: 'number',
-                    minimum: 0,
-                    description: t(
-                        'Output token price, USD per million tokens. Also the fallback price when no tier matches',
-                        '输出 token 单价，USD / 百万 token。同时作为无 tier 命中时的回退价'
-                    )
-                },
-                cacheReadPrice: {
-                    type: 'number',
-                    minimum: 0,
-                    description: t(
-                        'Cache read token price (cache hit), USD per million tokens',
-                        '缓存读取 token 单价（cache hit），USD / 百万 token'
-                    )
-                },
-                cacheWritePrice: {
-                    type: 'number',
-                    minimum: 0,
-                    description: t(
-                        'Cache write token price, USD per million tokens',
-                        '缓存写入 token 单价，USD / 百万 token'
-                    )
-                },
-                tiers: {
-                    type: 'array',
-                    description: t(
-                        'Peak/off-peak pricing tiers. The first matching tier takes effect. If no tier matches, the static single-tier prices above are used. Each tier is an object that must include at least one matching condition (cron/serviceTier/contextSizeMin).',
-                        '峰谷分档定价。首个命中条件的 tier 生效。若无 tier 命中，回退到上方的静态单档。每个 tier 为对象，必须包含至少一个匹配条件（cron/serviceTier/contextSizeMin）。'
-                    ),
-                    items: {
-                        type: 'object',
-                        additionalProperties: false,
-                        anyOf: [{ required: ['inputPrice', 'outputPrice'] }, { required: ['pricing'] }],
-                        allOf: [
-                            {
-                                anyOf: [
-                                    { required: ['cron'] },
-                                    { required: ['serviceTier'] },
-                                    { required: ['contextSizeMin'] }
-                                ]
-                            }
-                        ],
-                        properties: {
-                            pricing: {
-                                type: 'array',
-                                description: t(
-                                    'Original array shorthand input for this tier. Format: [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?].',
-                                    '该 tier 的原始数组简写输入。格式：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。'
-                                ),
-                                minItems: 2,
-                                maxItems: 4,
-                                items: { type: 'number', minimum: 0 }
-                            },
-                            cron: {
-                                type: 'string',
-                                pattern: '^(?:[0-9*][0-9*/,\\-]*)(?:\\s+(?:[0-9*][0-9*/,\\-]*)){4}$',
-                                description: t(
-                                    'Cron expression (5 fields: minute hour day-of-month month day-of-week) defining when this tier is active. Defaults to all-time ("* * * * *") if omitted. Use range/wildcard to express a time window, e.g. "* 9-23 * * 1-5" = weekdays 9:00-23:59',
-                                    'Cron 表达式（5 字段：分 时 日 月 周），定义该档位生效时段。缺省为全时段（"* * * * *"）。用范围/通配表达时间窗口，如 "* 9-23 * * 1-5" = 工作日 9:00-23:59'
-                                )
-                            },
-                            timezone: {
-                                type: 'string',
-                                description: t(
-                                    'IANA timezone (e.g. "Asia/Shanghai"). Defaults to Beijing time (UTC+8), since peak/off-peak pricing targets Chinese provider billing rules',
-                                    'IANA 时区（如 "Asia/Shanghai"）。缺省为北京时间（UTC+8），因为峰谷定价主要面向国内服务商的计费规则'
-                                )
-                            },
-                            serviceTier: {
-                                type: 'string',
-                                description: t(
-                                    'Optional service tier match condition (e.g. "priority"). When set, this tier only applies when the user selects the matching service tier in the chat UI. When omitted, the tier matches by time only. Used for "per-service-tier billing" scenarios',
-                                    '可选的服务等级匹配条件（如 "priority"）。设置后，仅当用户在 Chat UI 选择了匹配的 serviceTier 时此 tier 才生效；缺省则仅按时间匹配。用于"按服务等级计费"场景'
-                                )
-                            },
-                            contextSizeMin: {
-                                type: 'number',
-                                minimum: 0,
-                                description: t(
-                                    'Optional minimum input token count. When set, this tier only applies when the actual input tokens consumed are >= this value (checked against usage, not pre-allocated window). Used for "context-window tiered billing" scenarios',
-                                    '可选的最小 input token 数。设置后，仅当实际消耗的 input token 数 >= 此值时该 tier 才生效（与 usage 对比，而非预分配窗口）。用于"按上下文大小阶梯计费"场景'
-                                )
-                            },
-                            contextSizeInputOnly: {
-                                type: 'boolean',
-                                default: false,
-                                description: t(
-                                    'When true, contextSizeMin comparison excludes cache-read tokens (compares uncached input only). Default false compares raw prompt_tokens including cache',
-                                    '为 true 时，contextSizeMin 的判断排除缓存读取 token（仅比较非缓存 input）。默认 false 按 raw prompt_tokens（含缓存）判断'
-                                )
-                            },
-                            inputPrice: {
-                                type: 'number',
-                                minimum: 0,
-                                description: t(
-                                    'Input token price for this tier, USD per million tokens',
-                                    '该档位输入 token 单价，USD / 百万 token'
-                                )
-                            },
-                            outputPrice: {
-                                type: 'number',
-                                minimum: 0,
-                                description: t(
-                                    'Output token price for this tier, USD per million tokens',
-                                    '该档位输出 token 单价，USD / 百万 token'
-                                )
-                            },
-                            cacheReadPrice: {
-                                type: 'number',
-                                minimum: 0,
-                                description: t(
-                                    'Cache read token price for this tier, USD per million tokens. Falls back to static single-tier price when omitted',
-                                    '该档位缓存读取 token 单价，USD / 百万 token。缺省时回退到静态单档'
-                                )
-                            },
-                            cacheWritePrice: {
-                                type: 'number',
-                                minimum: 0,
-                                description: t(
-                                    'Cache write token price for this tier, USD per million tokens. Falls back to static single-tier price when omitted',
-                                    '该档位缓存写入 token 单价，USD / 百万 token。缺省时回退到静态单档'
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        };
-
-        const arraySchema: JSONSchema7 = {
+        const pricingArraySchema: JSONSchema7 = {
             type: 'array',
             description: t(
-                'Shorthand token pricing as [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]. Supports 2 to 4 numeric elements. Equivalent to the object form without tiers.',
-                'Token 定价简写形式：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。支持 2~4 项数字。等价于不含 tiers 的对象形式。'
+                'Shorthand token pricing as [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?] (USD per million tokens). Supports 2 to 4 numeric elements.',
+                'Token 定价简写形式：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]（USD/百万 token）。支持 2~4 项数字。'
             ),
             minItems: 2,
             maxItems: 4,
@@ -433,8 +277,189 @@ export class JsonSchemaProvider {
             }
         };
 
+        const dualCurrencyPricingSchema: JSONSchema7 = {
+            type: 'object',
+            description: t(
+                'Dual-currency pricing map: USD is used as the main price, RMB is kept for auxiliary display.',
+                '双币映射：USD 为主价格，RMB 为辅助显示价格。'
+            ),
+            additionalProperties: false,
+            anyOf: [{ required: ['USD'] }, { required: ['RMB'] }],
+            properties: {
+                USD: {
+                    type: 'array',
+                    description: t(
+                        'USD price array: [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?].',
+                        'USD 价格数组：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。'
+                    ),
+                    minItems: 2,
+                    maxItems: 4,
+                    items: { type: 'number', minimum: 0 }
+                },
+                RMB: {
+                    type: 'array',
+                    description: t(
+                        'RMB price array: [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?].',
+                        'RMB 价格数组：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。'
+                    ),
+                    minItems: 2,
+                    maxItems: 4,
+                    items: { type: 'number', minimum: 0 }
+                }
+            }
+        };
+
+        const tierPricingSchema: JSONSchema7 = {
+            description: t(
+                'Pricing for this tier: array shorthand (USD), dual-currency map, or numeric multiplier relative to the top-level static single-tier pricing.',
+                '该 tier 的定价输入：数组简写（USD）、双币映射，或数值倍率（相对顶层静态单档）。'
+            ),
+            oneOf: [
+                {
+                    type: 'array',
+                    description: t(
+                        'Original array shorthand input for this tier (USD). Format: [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?].',
+                        '该 tier 的原始数组简写输入（USD）。格式：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。'
+                    ),
+                    minItems: 2,
+                    maxItems: 4,
+                    items: { type: 'number', minimum: 0 }
+                },
+                {
+                    type: 'object',
+                    description: t(
+                        'Dual-currency pricing for this tier: USD is the main price and RMB is for auxiliary display.',
+                        '该 tier 的双币映射：USD 为主价格，RMB 为辅助显示价格。'
+                    ),
+                    additionalProperties: false,
+                    anyOf: [{ required: ['USD'] }, { required: ['RMB'] }],
+                    properties: {
+                        USD: {
+                            type: 'array',
+                            description: t(
+                                'USD price array: [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?].',
+                                'USD 价格数组：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。'
+                            ),
+                            minItems: 2,
+                            maxItems: 4,
+                            items: { type: 'number', minimum: 0 }
+                        },
+                        RMB: {
+                            type: 'array',
+                            description: t(
+                                'RMB price array: [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?].',
+                                'RMB 价格数组：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]。'
+                            ),
+                            minItems: 2,
+                            maxItems: 4,
+                            items: { type: 'number', minimum: 0 }
+                        }
+                    }
+                },
+                {
+                    type: 'number',
+                    minimum: 0,
+                    description: t(
+                        'Multiplier relative to the top-level static single-tier pricing. 1 means the same as top-level pricing, 1.5 means all prices are multiplied by 1.5.',
+                        '该 tier 相对顶层静态单档的倍率。1 表示与顶层价格相同，1.5 表示各价格乘以 1.5。'
+                    )
+                }
+            ]
+        };
+
+        const tierObjectSchema: JSONSchema7 = {
+            type: 'object',
+            additionalProperties: false,
+            required: ['pricing'],
+            anyOf: [{ required: ['cron'] }, { required: ['serviceTier'] }, { required: ['contextSizeMin'] }],
+            properties: {
+                pricing: tierPricingSchema,
+                cron: {
+                    type: 'string',
+                    pattern: '^(?:[0-9*][0-9*/,\\-]*)(?:\\s+(?:[0-9*][0-9*/,\\-]*)){4}$',
+                    description: t(
+                        'Cron expression (5 fields: minute hour day-of-month month day-of-week) defining when this tier is active. Defaults to all-time ("* * * * *") if omitted. Use range/wildcard to express a time window, e.g. "* 9-23 * * 1-5" = weekdays 9:00-23:59',
+                        'Cron 表达式（5 字段：分 时 日 月 周），定义该档位生效时段。缺省为全时段（"* * * * *"）。用范围/通配表达时间窗口，如 "* 9-23 * * 1-5" = 工作日 9:00-23:59'
+                    )
+                },
+                timezone: {
+                    type: 'string',
+                    description: t(
+                        'IANA timezone (e.g. "Asia/Shanghai"). Defaults to Beijing time (UTC+8), since peak/off-peak pricing targets Chinese provider billing rules',
+                        'IANA 时区（如 "Asia/Shanghai"）。缺省为北京时间（UTC+8），因为峰谷定价主要面向国内服务商的计费规则'
+                    )
+                },
+                serviceTier: {
+                    type: 'string',
+                    description: t(
+                        'Optional service tier match condition (e.g. "priority"). When set, this tier only applies when the user selects the matching service tier in the chat UI. When omitted, the tier matches by time only. Used for "per-service-tier billing" scenarios',
+                        '可选的服务等级匹配条件（如 "priority"）。设置后，仅当用户在 Chat UI 选择了匹配的 serviceTier 时此 tier 才生效；缺省则仅按时间匹配。用于"按服务等级计费"场景'
+                    )
+                },
+                contextSizeMin: {
+                    type: 'number',
+                    minimum: 0,
+                    description: t(
+                        'Optional minimum input token count. When set, this tier only applies when the actual input tokens consumed are >= this value (checked against usage, not pre-allocated window). Used for "context-window tiered billing" scenarios',
+                        '可选的最小 input token 数。设置后，仅当实际消耗的 input token 数 >= 此值时该 tier 才生效（与 usage 对比，而非预分配窗口）。用于"按上下文大小阶梯计费"场景'
+                    )
+                },
+                contextSizeInputOnly: {
+                    type: 'boolean',
+                    default: false,
+                    description: t(
+                        'When true, contextSizeMin comparison excludes cache-read tokens (compares uncached input only). Default false compares raw prompt_tokens including cache',
+                        '为 true 时，contextSizeMin 的判断排除缓存读取 token（仅比较非缓存 input）。默认 false 按 raw prompt_tokens（含缓存）判断'
+                    )
+                }
+            }
+        };
+
+        const canonicalObjectSchema: JSONSchema7 = {
+            type: 'object',
+            description: t(
+                'Canonical token pricing object for client-side cost estimation and model picker display. Object form is normalized as { pricing, tiers? } and all prices are expressed through pricing arrays or dual-currency maps.',
+                'canonical tokenPricing 对象形式，用于客户端成本估算和模型选择器展示。对象形式统一为 { pricing, tiers? }，所有价格均通过 pricing 数组或双币映射表达。'
+            ),
+            additionalProperties: false,
+            required: ['pricing'],
+            properties: {
+                pricing: {
+                    description: t(
+                        'Original array shorthand input or dual-currency map. Array format: [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?] (USD). Dual-currency format: { USD: [...], RMB: [...] }.',
+                        '原始数组简写输入或双币映射。数组格式：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]（USD）。双币映射格式：{ "USD": [...], "RMB": [...] }。'
+                    ),
+                    oneOf: [pricingArraySchema, dualCurrencyPricingSchema]
+                },
+                tiers: {
+                    type: 'array',
+                    description: t(
+                        'Peak/off-peak pricing tiers. The first matching tier takes effect. If no tier matches, the static single-tier prices above are used. Each tier must include at least one matching condition (cron/serviceTier/contextSizeMin). Tier prices must be defined entirely through pricing.',
+                        '峰谷分档定价。首个命中条件的 tier 生效。若无 tier 命中，回退到上方的静态单档。每个 tier 必须包含至少一个匹配条件（cron/serviceTier/contextSizeMin）。tier 价格必须全部通过 pricing 定义。'
+                    ),
+                    items: tierObjectSchema
+                }
+            }
+        };
+
+        const dualCurrencyTopLevelSchema: JSONSchema7 = {
+            ...dualCurrencyPricingSchema,
+            description: t(
+                'Dual-currency shorthand: { USD: [...], RMB: [...] }. USD is used as the main price and RMB is kept for auxiliary display.',
+                '双币映射简写：{ "USD": [...], "RMB": [...] }。USD 为主价格，RMB 为辅助显示。'
+            )
+        };
+
+        const arraySchema: JSONSchema7 = {
+            ...pricingArraySchema,
+            description: t(
+                'Shorthand token pricing as [inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?] (USD per million tokens). Supports 2 to 4 numeric elements. Equivalent to the object form without tiers.',
+                'Token 定价简写形式：[inputPrice, outputPrice, cacheReadPrice?, cacheWritePrice?]（USD/百万 token）。支持 2~4 项数字。等价于不含 tiers 的对象形式。'
+            )
+        };
+
         return {
-            oneOf: [objectSchema, arraySchema]
+            oneOf: [canonicalObjectSchema, dualCurrencyTopLevelSchema, arraySchema]
         };
     }
 

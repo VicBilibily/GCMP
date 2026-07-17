@@ -12,12 +12,38 @@ import OpenAI from 'openai';
  *              pricing: [input, output, cacheRead?, cacheWrite?]  USD/1M tokens
  *              cost:    [input, output, cacheRead?, cacheWrite?]  USD
  */
+export type CostVector = [number, number, number?, number?];
+
+export interface CurrencyCostBreakdownLog {
+    pricing: CostVector;
+    cost: CostVector;
+    total: number;
+}
+
+export interface NativeCostSplit {
+    totalUsd: number;
+    totalRmb: number;
+    inputUsd: number;
+    inputRmb: number;
+    outputUsd: number;
+    outputRmb: number;
+    cacheReadUsd: number;
+    cacheReadRmb: number;
+    cacheWriteUsd: number;
+    cacheWriteRmb: number;
+}
+
 export interface CostBreakdownLog {
     tokens: [number, number, number, number];
-    pricing: [number, number, number?, number?];
-    cost: [number, number, number?, number?];
+    pricing: CostVector;
+    cost: CostVector;
     total: number;
     activeTier?: string;
+    contextWindow?: number;
+    currencies?: {
+        USD: CurrencyCostBreakdownLog;
+        RMB?: CurrencyCostBreakdownLog;
+    };
 }
 
 /**
@@ -173,16 +199,32 @@ export interface BaseStats {
     outputSpeeds?: number;
     outputTokens: number;
     requests: number;
+    /** 具备成本统计信息的请求数 */
+    costedRequests: number;
+    /** 具备精确 RMB 定价信息的请求数 */
+    rmbExactRequests: number;
     /** 预估成本总计 (USD) */
     estimatedCost: number;
+    /** 预估成本总计 (RMB；无精确定价时按 USD×7 估算) */
+    estimatedCostRmb: number;
     /** 成本分解：输入成本 (USD) */
     inputCost: number;
+    /** 成本分解：输入成本 (RMB；无精确定价时按 USD×7 估算) */
+    inputCostRmb: number;
     /** 成本分解：输出成本 (USD) */
     outputCost: number;
+    /** 成本分解：输出成本 (RMB；无精确定价时按 USD×7 估算) */
+    outputCostRmb: number;
     /** 成本分解：缓存读取成本 (USD) */
     cacheReadCost: number;
+    /** 成本分解：缓存读取成本 (RMB；无精确定价时按 USD×7 估算) */
+    cacheReadCostRmb: number;
     /** 成本分解：缓存写入成本 (USD) */
     cacheWriteCost: number;
+    /** 成本分解：缓存写入成本 (RMB；无精确定价时按 USD×7 估算) */
+    cacheWriteCostRmb: number;
+    /** 原生币种拆分汇总：USD 原生部分与 RMB 原生部分分别累计 */
+    nativeCosts?: NativeCostSplit;
 }
 
 /**
