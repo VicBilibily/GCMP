@@ -287,7 +287,7 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-plan-kimi-k2.7-code",
@@ -300,7 +300,7 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "extraBody": { "thinking": { "type": "enabled" } },
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-plan-kimi-k2.6",
@@ -313,7 +313,7 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-plan-deepseek-v4-flash",
