@@ -16,6 +16,7 @@ import type { GitDiffParts, GitDiffSection } from './gitService';
 import { CompatibleModelManager, ConfigManager, Logger } from '../utils';
 import { t } from '../utils/l10n';
 import { getRegisteredProvider } from '../utils/providerRegistry';
+import { isVSCode129OrLater } from '../utils/languageModelInfo';
 
 function throwIfCancelled(token: vscode.CancellationToken): void {
     if (token.isCancellationRequested) {
@@ -121,12 +122,13 @@ export class GeneratorService {
         const messages: vscode.LanguageModelChatMessage[] = [];
 
         // System Role 消息：部分模型要求首条消息为 system role
-        messages.push(
-            new vscode.LanguageModelChatMessage(
-                vscode.LanguageModelChatMessageRole.System,
-                PromptService.generateCommitSystemMessage()
-            )
-        );
+        // VS Code 1.129.0+ 的 stable 构建会清空 enabledApiProposals，导致 languageModelSystem 检查失败
+        // 因此 1.129.0+ 降级为 User 消息
+        const systemRole =
+            isVSCode129OrLater() ?
+                vscode.LanguageModelChatMessageRole.User
+            :   vscode.LanguageModelChatMessageRole.System;
+        messages.push(new vscode.LanguageModelChatMessage(systemRole, PromptService.generateCommitSystemMessage()));
 
         messages.push(...this.buildPerFileAttachmentMessages(diffParts.staged, 'staged'));
         messages.push(...this.buildPerFileAttachmentMessages(diffParts.tracked, 'tracked'));

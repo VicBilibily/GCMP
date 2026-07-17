@@ -41,7 +41,7 @@ function resolveEditTools(editTools?: boolean | string[]): string[] | undefined 
  * 检测当前 VS Code 版本是否为 1.129.0 或更高（缓存结果）
  */
 let cachedIsVSCode129OrLater: boolean | undefined;
-function isVSCode129OrLater(): boolean {
+export function isVSCode129OrLater(): boolean {
     if (cachedIsVSCode129OrLater !== undefined) {
         return cachedIsVSCode129OrLater;
     }
