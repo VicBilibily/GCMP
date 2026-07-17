@@ -2,6 +2,22 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.42] - 2026-07-17
+
+### 新增
+
+- **火山方舟 Agent Plan 新增 Doubao-Seed-Evolving 模型**：新增 `Doubao-Seed-Evolving (AgentPlan)` 模型，面向 Coding 与 Agent 场景持续周级升级，支持 1M 超长上下文，具备复杂任务编排、长程规划、代码生成与工具调用能力。
+- **火山方舟 Agent Plan 新增 Kimi-K3 模型**：新增 `Kimi-K3 (AgentPlan)` 模型，支持 1M 上下文窗口，maxOutputTokens 提升至 64K，支持 `editTools`。
+- **腾讯云 TokenHub 新增 Kimi-K3 模型**：新增 `Kimi-K3 (TokenHub)` 按量付费模型，支持 1M 上下文窗口与 `editTools`。
+
+---
+
+### Added
+
+- **Volcengine Agent Plan new Doubao-Seed-Evolving model**: Added `Doubao-Seed-Evolving (AgentPlan)`, continuously updated weekly for Coding & Agent scenarios, with 1M context window, complex task orchestration, long-range planning, code generation, and tool calling capabilities.
+- **Volcengine Agent Plan new Kimi-K3 model**: Added `Kimi-K3 (AgentPlan)` with 1M context window, maxOutputTokens increased to 64K, and `editTools` support.
+- **Tencent TokenHub new Kimi-K3 model**: Added `Kimi-K3 (TokenHub)` pay-per-use model with 1M context window and `editTools` support.
+
 ## [0.25.41] - 2026-07-16
 
 ### 新增

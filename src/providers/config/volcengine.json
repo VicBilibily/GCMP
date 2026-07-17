@@ -208,6 +208,21 @@
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
+            "id": "ark-plan-doubao-seed-evolving",
+            "name": "Doubao-Seed-Evolving (AgentPlan)",
+            "model": "doubao-seed-evolving",
+            "provider": "volcengine-agent",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
+            "tooltip": "Agent Plan 模型。面向 Coding 与 Agent 场景，持续周级升级，以统一模型 ID 提供最新能力。支持 1M 超长上下文，具备复杂任务编排、长程规划、代码生成与工具调用能力。",
+            "contextSize": [1000000, 600000, 400000, 256000, 192000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 128000,
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "reasoningDefault": "high",
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
             "id": "ark-plan-code-latest",
             "name": "Ark-Code-Latest (AgentPlan)",
             "model": "ark-code-latest",
@@ -261,6 +276,20 @@
             "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
+            "id": "ark-plan-kimi-k3",
+            "name": "Kimi-K3 (AgentPlan)",
+            "model": "kimi-k3",
+            "provider": "volcengine-agent",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
+            "tooltip": "Agent Plan 模型。Kimi 最新旗舰模型，原生支持视觉理解，并拥有 100 万 token 上下文窗口，面向软件工程、知识工作和深度推理等前沿智能场景而设计。",
+            "contextSize": [1000000, 600000, 400000, 256000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "none"],
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+        },
+        {
             "id": "ark-plan-kimi-k2.7-code",
             "name": "Kimi-K2.7-Code (AgentPlan)",
             "model": "kimi-k2.7-code",
@@ -270,12 +299,8 @@
             "tooltip": "Kimi 最新 Coding 模型，在长上下文中更可靠地遵循指令，能以更高的成功率完成编程任务，同时支持文本、图片与视频输入，思考模式，对话与 Agent 任务。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "extraBody": {
-                "thinking": {
-                    "type": "enabled"
-                }
-            },
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "extraBody": { "thinking": { "type": "enabled" } },
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
         },
         {
             "id": "ark-plan-kimi-k2.6",
@@ -288,20 +313,7 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
-        },
-        {
-            "id": "ark-plan-kimi-k3",
-            "name": "Kimi-K3 (AgentPlan)",
-            "model": "kimi-k3",
-            "provider": "volcengine-agent",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
-            "tooltip": "Agent Plan 模型。月之暗面最新一代旗舰模型，支持 1M 上下文窗口，具备更强的推理、编程与 Agent 任务能力。默认 thinking，支持关闭深度思考。",
-            "maxInputTokens": 1000000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
         },
         {
             "id": "ark-plan-deepseek-v4-flash",
