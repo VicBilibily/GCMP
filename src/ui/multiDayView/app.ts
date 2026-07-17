@@ -5,7 +5,8 @@
 import './style.less';
 import 'chart.js/auto';
 
-import type { HostMessage, MultiDayState } from './types';
+import type { MultiDayAnalysisResult } from '../../usages/multiDay/types';
+import type { HostMessage, MultiDayDisplayCurrency, MultiDayRenderOptions, MultiDayState } from './types';
 import {
     createDateRangePicker,
     createSummaryCards,
@@ -22,8 +23,100 @@ import { createElement } from '../utils';
 const state: MultiDayState = {
     data: null,
     loading: false,
-    error: null
+    error: null,
+    displayCurrency: getDefaultDisplayCurrency(null)
 };
+
+function isChineseLocale(): boolean {
+    const lang = (globalThis.document?.documentElement?.lang || globalThis.navigator?.language || '').toLowerCase();
+    return lang === 'zh-cn' || lang === 'zh' || lang.startsWith('zh-');
+}
+
+function getAnalysisData(data?: MultiDayAnalysisResult | null): MultiDayAnalysisResult | null {
+    if (data !== undefined) {
+        return data;
+    }
+
+    return state?.data ?? null;
+}
+
+function hasExactRmbPricing(data?: MultiDayAnalysisResult | null): boolean {
+    return (getAnalysisData(data)?.summary.nativeCosts.totalRmb ?? 0) > 0;
+}
+
+function normalizeDisplayCurrency(
+    currentCurrency: MultiDayDisplayCurrency,
+    data?: MultiDayAnalysisResult | null
+): MultiDayDisplayCurrency {
+    if (!isChineseLocale()) {
+        return currentCurrency === 'MIXED' ? 'USD' : currentCurrency;
+    }
+
+    if (currentCurrency === 'MIXED' && !hasExactRmbPricing(data)) {
+        return 'USD';
+    }
+
+    return currentCurrency;
+}
+
+function getDefaultDisplayCurrency(data?: MultiDayAnalysisResult | null): MultiDayDisplayCurrency {
+    return isChineseLocale() ? normalizeDisplayCurrency('MIXED', data) : 'USD';
+}
+
+function getNextDisplayCurrency(
+    currentCurrency: MultiDayDisplayCurrency,
+    data?: MultiDayAnalysisResult | null
+): MultiDayDisplayCurrency {
+    const normalizedCurrency = normalizeDisplayCurrency(currentCurrency, data);
+
+    if (!isChineseLocale()) {
+        return normalizedCurrency === 'USD' ? 'RMB' : 'USD';
+    }
+
+    if (!hasExactRmbPricing(data)) {
+        return normalizedCurrency === 'USD' ? 'RMB' : 'USD';
+    }
+
+    if (normalizedCurrency === 'MIXED') {
+        return 'USD';
+    }
+    if (normalizedCurrency === 'USD') {
+        return 'RMB';
+    }
+    return 'MIXED';
+}
+
+function getCostChartCurrency(
+    currentCurrency: MultiDayDisplayCurrency,
+    data?: MultiDayAnalysisResult | null
+): 'USD' | 'RMB' {
+    const normalizedCurrency = normalizeDisplayCurrency(currentCurrency, data);
+    return normalizedCurrency === 'MIXED' ? 'RMB' : normalizedCurrency;
+}
+
+function getCurrencyModeLabel(currency: MultiDayDisplayCurrency): string {
+    if (currency === 'MIXED') {
+        return t('split currency view', '分币种显示');
+    }
+
+    return currency === 'RMB' ? t('RMB view', '统一人民币显示') : t('USD view', '统一美元显示');
+}
+
+function getCurrencyToggleTitle(currentCurrency: MultiDayDisplayCurrency): string {
+    const normalizedCurrency = normalizeDisplayCurrency(currentCurrency);
+    const nextCurrency = getNextDisplayCurrency(currentCurrency);
+    return t(
+        'Current: {0}. Click to switch to {1}.',
+        '当前：{0}。点击切换到{1}。',
+        getCurrencyModeLabel(normalizedCurrency),
+        getCurrencyModeLabel(nextCurrency)
+    );
+}
+
+function toggleDisplayCurrency(): void {
+    state.displayCurrency = getNextDisplayCurrency(state.displayCurrency);
+    render();
+}
 
 // ============= 消息处理 =============
 
@@ -33,7 +126,9 @@ function handleMessage(event: MessageEvent): void {
         if (msg.requestId !== window.multiDayRequestId) {
             return;
         }
+        const hadData = state.data !== null;
         state.data = msg.data;
+        state.displayCurrency = hadData ? normalizeDisplayCurrency(state.displayCurrency, msg.data) : getDefaultDisplayCurrency(msg.data);
         state.loading = false;
         state.error = null;
         render();
@@ -44,6 +139,17 @@ function handleMessage(event: MessageEvent): void {
         state.loading = false;
         state.error = msg.error;
         render();
+    }
+}
+
+function handleClick(event: MouseEvent): void {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+        return;
+    }
+
+    if (target.closest('[data-toggle-cost-currency="true"]')) {
+        toggleDisplayCurrency();
     }
 }
 
@@ -95,16 +201,21 @@ function render(): void {
 
     // 渲染内容
     const data = state.data;
+    const renderOptions: MultiDayRenderOptions = {
+        displayCurrency: normalizeDisplayCurrency(state.displayCurrency, data),
+        costChartCurrency: getCostChartCurrency(state.displayCurrency, data),
+        toggleTitle: getCurrencyToggleTitle(state.displayCurrency)
+    };
     if (data.missingDates.length > 0) {
         const warning = createElement('div', 'empty-message');
         warning.style.color = 'var(--vscode-editorWarning-foreground)';
         warning.textContent = `⚠ ${t('Partial data: {0}/{1} days loaded', '部分数据：已加载 {0}/{1} 天', data.dates.length, data.dates.length + data.missingDates.length)}`;
         root.appendChild(warning);
     }
-    root.appendChild(createSummaryCards(data));
+    root.appendChild(createSummaryCards(data, renderOptions));
     root.appendChild(createTrendChart(data));
-    root.appendChild(createCostTrendChart(data));
-    root.appendChild(createProviderModelRank(data));
+    root.appendChild(createCostTrendChart(data, renderOptions));
+    root.appendChild(createProviderModelRank(data, renderOptions));
 }
 
 // ============= 启动 =============
@@ -113,6 +224,7 @@ window.multiDayState = state;
 window.multiDayRender = render;
 window.multiDayRequestId = 0;
 window.addEventListener('message', handleMessage);
+document.addEventListener('click', handleClick);
 document.addEventListener('DOMContentLoaded', render);
 render();
 // 首次打开自动选中最近 7 天并分析

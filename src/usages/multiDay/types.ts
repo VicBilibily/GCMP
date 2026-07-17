@@ -2,6 +2,8 @@
  *  多天长周期用量分析 - 类型定义
  *--------------------------------------------------------------------------------------------*/
 
+import type { NativeCostSplit } from '../fileLogger/types';
+
 // ============= 单日聚合统计 =============
 
 /** 多日聚合后的单日统计 */
@@ -21,6 +23,8 @@ export interface MultiDayDateStats {
     cacheHitRate: number;
     /** 当日预估成本总计 (USD) */
     estimatedCost: number;
+    /** 当日预估成本总计 (RMB) */
+    estimatedCostRmb: number;
     providers: Record<string, MultiDayProviderStats>;
 }
 
@@ -37,6 +41,8 @@ export interface MultiDayProviderStats {
     avgLatency: number;
     /** 当日预估成本总计 (USD) */
     estimatedCost: number;
+    /** 当日预估成本总计 (RMB) */
+    estimatedCostRmb: number;
     models: Record<string, MultiDayModelStats>;
 }
 
@@ -65,6 +71,8 @@ export interface TrendSeries {
     cacheHitRate: number[];
     /** 每日预估成本总计 (USD) */
     estimatedCost: number[];
+    /** 每日预估成本总计 (RMB) */
+    estimatedCostRmb: number[];
     movingAvg7Day?: number[];
 }
 
@@ -86,10 +94,16 @@ export interface MultiDayAnalysisResult {
         totalRequests: number;
         successRate: number;
         dailyAvgTokens: number;
+        /** 原生币种拆分汇总 */
+        nativeCosts: NativeCostSplit;
         /** 总预估成本 (USD) */
         totalCost: number;
+        /** 总预估成本 (RMB) */
+        totalCostRmb: number;
         /** 日均成本 (USD) */
         dailyAvgCost: number;
+        /** 日均成本 (RMB) */
+        dailyAvgCostRmb: number;
         /** 最活跃提供商 */
         topProvider: { key: string; name: string; share: number } | null;
         /** 最活跃模型 */
@@ -105,11 +119,17 @@ export interface MultiDayAnalysisResult {
         totalOutput: number;
         totalTokens: number;
         share: number;
+        nativeCosts: NativeCostSplit;
         estimatedCost: number;
+        estimatedCostRmb: number;
         inputCost: number;
+        inputCostRmb: number;
         outputCost: number;
+        outputCostRmb: number;
         cacheReadCost: number;
+        cacheReadCostRmb: number;
         cacheWriteCost: number;
+        cacheWriteCostRmb: number;
     }>;
     modelRanking: Array<{
         id: string;
@@ -121,10 +141,16 @@ export interface MultiDayAnalysisResult {
         totalOutput: number;
         totalRequests: number;
         totalTokens: number;
+        nativeCosts: NativeCostSplit;
         estimatedCost: number;
+        estimatedCostRmb: number;
         inputCost: number;
+        inputCostRmb: number;
         outputCost: number;
+        outputCostRmb: number;
         cacheReadCost: number;
+        cacheReadCostRmb: number;
         cacheWriteCost: number;
+        cacheWriteCostRmb: number;
     }>;
 }

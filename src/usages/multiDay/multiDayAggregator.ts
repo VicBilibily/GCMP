@@ -3,7 +3,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TokenFileLogger } from '../fileLogger';
-import type { TokenUsageStatsFromFile } from '../fileLogger/types';
+import { createEmptyNativeCostSplit, mergeNativeCostSplit } from '../fileLogger/nativeCostSplit';
+import type { NativeCostSplit, TokenUsageStatsFromFile } from '../fileLogger/types';
 import { StatusLogger } from '../../utils/statusLogger';
 import type {
     MultiDayAnalysisResult,
@@ -15,6 +16,14 @@ import type {
 
 /** 分析区间最大天数上限 */
 const MAX_DATE_RANGE_DAYS = 365;
+
+function cloneNativeCostSplit(source?: NativeCostSplit): NativeCostSplit {
+    const target = createEmptyNativeCostSplit();
+    if (source) {
+        mergeNativeCostSplit(target, source);
+    }
+    return target;
+}
 
 /**
  * 跨日数据聚合器
@@ -84,7 +93,9 @@ export class MultiDayAggregator {
             grandRequests = 0,
             grandCompleted = 0,
             grandCancelled = 0,
-            grandCost = 0;
+            grandCost = 0,
+            grandCostRmb = 0;
+        const grandNativeCosts = createEmptyNativeCostSplit();
         const providerAcc = new Map<
             string,
             {
@@ -92,11 +103,17 @@ export class MultiDayAggregator {
                 input: number;
                 cache: number;
                 output: number;
+                nativeCosts: NativeCostSplit;
                 estimatedCost: number;
+                estimatedCostRmb: number;
                 inputCost: number;
+                inputCostRmb: number;
                 outputCost: number;
+                outputCostRmb: number;
                 cacheReadCost: number;
+                cacheReadCostRmb: number;
                 cacheWriteCost: number;
+                cacheWriteCostRmb: number;
             }
         >();
         const modelAcc = new Map<
@@ -109,11 +126,17 @@ export class MultiDayAggregator {
                 input: number;
                 cache: number;
                 output: number;
+                nativeCosts: NativeCostSplit;
                 estimatedCost: number;
+                estimatedCostRmb: number;
                 inputCost: number;
+                inputCostRmb: number;
                 outputCost: number;
+                outputCostRmb: number;
                 cacheReadCost: number;
+                cacheReadCostRmb: number;
                 cacheWriteCost: number;
+                cacheWriteCostRmb: number;
             }
         >();
 
@@ -136,21 +159,35 @@ export class MultiDayAggregator {
             grandCompleted += ds.completedRequests;
             grandCancelled += ds.cancelledRequests;
             grandCost += ds.estimatedCost;
+            grandCostRmb += ds.estimatedCostRmb;
+            if (stats.total.nativeCosts) {
+                mergeNativeCostSplit(grandNativeCosts, stats.total.nativeCosts);
+            }
             for (const [k, ps] of Object.entries(stats.providers)) {
                 const pi = ps.actualInput || ps.estimatedInput || 0;
                 const pc = ps.cacheTokens || 0;
                 const po = ps.outputTokens || 0;
                 const prev = providerAcc.get(k);
+                const providerNativeCosts = cloneNativeCostSplit(prev?.nativeCosts);
+                if (ps.nativeCosts) {
+                    mergeNativeCostSplit(providerNativeCosts, ps.nativeCosts);
+                }
                 providerAcc.set(k, {
                     name: ps.providerName,
                     input: (prev?.input || 0) + pi,
                     cache: (prev?.cache || 0) + pc,
                     output: (prev?.output || 0) + po,
+                    nativeCosts: providerNativeCosts,
                     estimatedCost: (prev?.estimatedCost || 0) + (ps.estimatedCost || 0),
+                    estimatedCostRmb: (prev?.estimatedCostRmb || 0) + (ps.estimatedCostRmb || 0),
                     inputCost: (prev?.inputCost || 0) + (ps.inputCost || 0),
+                    inputCostRmb: (prev?.inputCostRmb || 0) + (ps.inputCostRmb || 0),
                     outputCost: (prev?.outputCost || 0) + (ps.outputCost || 0),
+                    outputCostRmb: (prev?.outputCostRmb || 0) + (ps.outputCostRmb || 0),
                     cacheReadCost: (prev?.cacheReadCost || 0) + (ps.cacheReadCost || 0),
-                    cacheWriteCost: (prev?.cacheWriteCost || 0) + (ps.cacheWriteCost || 0)
+                    cacheReadCostRmb: (prev?.cacheReadCostRmb || 0) + (ps.cacheReadCostRmb || 0),
+                    cacheWriteCost: (prev?.cacheWriteCost || 0) + (ps.cacheWriteCost || 0),
+                    cacheWriteCostRmb: (prev?.cacheWriteCostRmb || 0) + (ps.cacheWriteCostRmb || 0)
                 });
                 for (const [mk, ms] of Object.entries(ps.models)) {
                     const mi = ms.actualInput || ms.estimatedInput || 0;
@@ -158,6 +195,10 @@ export class MultiDayAggregator {
                     const mo = ms.outputTokens || 0;
                     const globalModelKey = `${k}/${mk}`;
                     const pv = modelAcc.get(globalModelKey);
+                    const modelNativeCosts = cloneNativeCostSplit(pv?.nativeCosts);
+                    if (ms.nativeCosts) {
+                        mergeNativeCostSplit(modelNativeCosts, ms.nativeCosts);
+                    }
                     modelAcc.set(globalModelKey, {
                         providerName: ps.providerName,
                         modelName: ms.modelName,
@@ -166,11 +207,17 @@ export class MultiDayAggregator {
                         input: (pv?.input || 0) + mi,
                         cache: (pv?.cache || 0) + mc,
                         output: (pv?.output || 0) + mo,
+                        nativeCosts: modelNativeCosts,
                         estimatedCost: (pv?.estimatedCost || 0) + (ms.estimatedCost || 0),
+                        estimatedCostRmb: (pv?.estimatedCostRmb || 0) + (ms.estimatedCostRmb || 0),
                         inputCost: (pv?.inputCost || 0) + (ms.inputCost || 0),
+                        inputCostRmb: (pv?.inputCostRmb || 0) + (ms.inputCostRmb || 0),
                         outputCost: (pv?.outputCost || 0) + (ms.outputCost || 0),
+                        outputCostRmb: (pv?.outputCostRmb || 0) + (ms.outputCostRmb || 0),
                         cacheReadCost: (pv?.cacheReadCost || 0) + (ms.cacheReadCost || 0),
-                        cacheWriteCost: (pv?.cacheWriteCost || 0) + (ms.cacheWriteCost || 0)
+                        cacheReadCostRmb: (pv?.cacheReadCostRmb || 0) + (ms.cacheReadCostRmb || 0),
+                        cacheWriteCost: (pv?.cacheWriteCost || 0) + (ms.cacheWriteCost || 0),
+                        cacheWriteCostRmb: (pv?.cacheWriteCostRmb || 0) + (ms.cacheWriteCostRmb || 0)
                     });
                 }
             }
@@ -189,11 +236,17 @@ export class MultiDayAggregator {
                     totalOutput: v.output,
                     totalTokens: tokens,
                     share: tokens / totalAllTokens,
+                    nativeCosts: cloneNativeCostSplit(v.nativeCosts),
                     estimatedCost: v.estimatedCost,
+                    estimatedCostRmb: v.estimatedCostRmb,
                     inputCost: v.inputCost,
+                    inputCostRmb: v.inputCostRmb,
                     outputCost: v.outputCost,
+                    outputCostRmb: v.outputCostRmb,
                     cacheReadCost: v.cacheReadCost,
-                    cacheWriteCost: v.cacheWriteCost
+                    cacheReadCostRmb: v.cacheReadCostRmb,
+                    cacheWriteCost: v.cacheWriteCost,
+                    cacheWriteCostRmb: v.cacheWriteCostRmb
                 };
             })
             .sort((a, b) => b.totalTokens - a.totalTokens);
@@ -210,11 +263,17 @@ export class MultiDayAggregator {
                     totalOutput: v.output,
                     totalRequests: v.requests,
                     totalTokens: tokens,
+                    nativeCosts: cloneNativeCostSplit(v.nativeCosts),
                     estimatedCost: v.estimatedCost,
+                    estimatedCostRmb: v.estimatedCostRmb,
                     inputCost: v.inputCost,
+                    inputCostRmb: v.inputCostRmb,
                     outputCost: v.outputCost,
+                    outputCostRmb: v.outputCostRmb,
                     cacheReadCost: v.cacheReadCost,
-                    cacheWriteCost: v.cacheWriteCost
+                    cacheReadCostRmb: v.cacheReadCostRmb,
+                    cacheWriteCost: v.cacheWriteCost,
+                    cacheWriteCostRmb: v.cacheWriteCostRmb
                 };
             })
             .sort((a, b) => b.totalTokens - a.totalTokens);
@@ -223,6 +282,7 @@ export class MultiDayAggregator {
         const dayCount = dates.length;
         const dailyAvgTokens = dayCount > 0 ? Math.round(grandTokens / dayCount) : 0;
         const dailyAvgCost = dayCount > 0 ? grandCost / dayCount : 0;
+        const dailyAvgCostRmb = dayCount > 0 ? grandCostRmb / dayCount : 0;
         // 成功率/失败率分母排除已中止的请求（用户主动取消，不应计入系统成功率/失败率）
         const effectiveTotal = grandRequests - grandCancelled;
         const successRate = effectiveTotal > 0 ? grandCompleted / effectiveTotal : 0;
@@ -256,8 +316,11 @@ export class MultiDayAggregator {
                 totalRequests: grandRequests,
                 successRate,
                 dailyAvgTokens,
+                nativeCosts: cloneNativeCostSplit(grandNativeCosts),
                 totalCost: grandCost,
+                totalCostRmb: grandCostRmb,
                 dailyAvgCost,
+                dailyAvgCostRmb,
                 topProvider,
                 topModel,
                 tokensChangePct: null
@@ -317,6 +380,7 @@ export class MultiDayAggregator {
                 avgSpeed: ps.outputSpeeds || 0,
                 avgLatency: ps.firstTokenLatency || 0,
                 estimatedCost: ps.estimatedCost || 0,
+                estimatedCostRmb: ps.estimatedCostRmb || 0,
                 models
             };
         }
@@ -335,6 +399,7 @@ export class MultiDayAggregator {
             failureRate: frate,
             cacheHitRate: chr,
             estimatedCost: stats.total.estimatedCost || 0,
+            estimatedCostRmb: stats.total.estimatedCostRmb || 0,
             providers
         };
     }
@@ -349,7 +414,8 @@ export class MultiDayAggregator {
             requests: dates.map(d => d.totalRequests),
             failureRate: dates.map(d => d.failureRate),
             cacheHitRate: dates.map(d => d.cacheHitRate),
-            estimatedCost: dates.map(d => d.estimatedCost)
+            estimatedCost: dates.map(d => d.estimatedCost),
+            estimatedCostRmb: dates.map(d => d.estimatedCostRmb)
         };
     }
 
@@ -369,7 +435,8 @@ export class MultiDayAggregator {
                 requests: [],
                 failureRate: [],
                 cacheHitRate: [],
-                estimatedCost: []
+                estimatedCost: [],
+                estimatedCostRmb: []
             },
             summary: {
                 totalTokens: 0,
@@ -379,8 +446,11 @@ export class MultiDayAggregator {
                 totalRequests: 0,
                 successRate: 0,
                 dailyAvgTokens: 0,
+                nativeCosts: createEmptyNativeCostSplit(),
                 totalCost: 0,
+                totalCostRmb: 0,
                 dailyAvgCost: 0,
+                dailyAvgCostRmb: 0,
                 topProvider: null,
                 topModel: null,
                 tokensChangePct: null

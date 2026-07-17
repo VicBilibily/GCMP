@@ -133,6 +133,14 @@ body {
         &.type-cost .card-value {
             color: #e74c3c;
         }
+
+        &[data-toggle-cost-currency='true'] {
+            cursor: pointer;
+
+            &:hover {
+                border-color: var(--vscode-textLink-foreground);
+            }
+        }
     }
 }
 
@@ -148,6 +156,10 @@ body {
         font-size: 14px;
         font-weight: 600;
         margin: 0 0 10px 0;
+
+        &[data-toggle-cost-currency='true'] {
+            cursor: pointer;
+        }
     }
     .chart-wrapper {
         position: relative;
@@ -199,6 +211,12 @@ body {
             font-size: 0.75em;
             font-weight: 500;
             color: var(--vscode-charts-yellow);
+
+            &[data-toggle-cost-currency='true'] {
+                cursor: pointer;
+                text-decoration: underline dotted;
+                text-underline-offset: 2px;
+            }
         }
         .donut-total-row {
             background-color: var(--vscode-editor-selectionBackground);

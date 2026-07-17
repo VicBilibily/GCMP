@@ -1,11 +1,15 @@
 import Chart from 'chart.js/auto';
+import { createEmptyNativeCostSplit, mergeNativeCostSplit } from '../../../usages/fileLogger/nativeCostSplit';
+import type { NativeCostSplit } from '../../../usages/fileLogger/types';
 import type { MultiDayAnalysisResult } from '../../../usages/multiDay/types';
+import type { MultiDayRenderOptions } from '../types';
+import { formatDisplayCostAmount } from '../../costDisplay';
 import { t } from '../../usagesView/utils';
-import { createElement, formatCost, formatTokens } from '../../utils';
+import { createElement, formatTokens } from '../../utils';
 
 const COLORS = ['#4a90d9', '#50c878', '#ff8c42', '#9b59b6', '#e74c3c', '#1abc9c', '#f39c12', '#3498db'];
 
-export function createProviderModelRank(data: MultiDayAnalysisResult): HTMLElement {
+export function createProviderModelRank(data: MultiDayAnalysisResult, options: MultiDayRenderOptions): HTMLElement {
     const container = createElement('div', 'provider-model-rank');
 
     const left = createElement('div', 'rank-left');
@@ -17,7 +21,7 @@ export function createProviderModelRank(data: MultiDayAnalysisResult): HTMLEleme
     const chartW = createElement('div', 'donut-chart');
     chartW.appendChild(canvas);
     left.appendChild(chartW);
-    const table = createDonutTable(data.providerRanking, 'name');
+    const table = createDonutTable(data.providerRanking, 'name', options);
     left.appendChild(table);
     container.appendChild(left);
 
@@ -30,7 +34,7 @@ export function createProviderModelRank(data: MultiDayAnalysisResult): HTMLEleme
     const modelChartW = createElement('div', 'donut-chart');
     modelChartW.appendChild(modelCanvas);
     right.appendChild(modelChartW);
-    const modelTable = createDonutTable(data.modelRanking, 'name', true);
+    const modelTable = createDonutTable(data.modelRanking, 'name', options, true);
     right.appendChild(modelTable);
     container.appendChild(right);
 
@@ -42,7 +46,12 @@ export function createProviderModelRank(data: MultiDayAnalysisResult): HTMLEleme
     return container;
 }
 
-function createDonutTable(items: Array<Record<string, unknown>>, nameKey: string, showProvider = false): HTMLElement {
+function createDonutTable(
+    items: Array<Record<string, unknown>>,
+    nameKey: string,
+    options: MultiDayRenderOptions,
+    showProvider = false
+): HTMLElement {
     const totalTokens = items.reduce((sum, item) => sum + (item.totalTokens as number) || 0, 0) || 1;
     const table = document.createElement('table');
     table.className = 'donut-table';
@@ -70,10 +79,15 @@ function createDonutTable(items: Array<Record<string, unknown>>, nameKey: string
     let grandInput = 0,
         grandCache = 0,
         grandOutput = 0;
+    const grandNativeCosts = createEmptyNativeCostSplit();
     let grandInputCost = 0,
+        grandInputCostRmb = 0,
         grandCacheReadCost = 0,
+        grandCacheReadCostRmb = 0,
         grandOutputCost = 0,
+        grandOutputCostRmb = 0,
         grandEstimatedCost = 0;
+    let grandEstimatedCostRmb = 0;
 
     for (const item of items) {
         const share = ((((item.totalTokens as number) || 0) / totalTokens) * 100).toFixed(1);
@@ -83,28 +97,54 @@ function createDonutTable(items: Array<Record<string, unknown>>, nameKey: string
         const input = (item.totalInput as number) || 0;
         const cache = (item.totalCache as number) || 0;
         const output = (item.totalOutput as number) || 0;
+        const nativeCosts = item.nativeCosts as NativeCostSplit | undefined;
         const miss = input - cache;
         const inputCost = ((item.inputCost as number) || 0) + ((item.cacheWriteCost as number) || 0);
+        const inputCostRmb = ((item.inputCostRmb as number) || 0) + ((item.cacheWriteCostRmb as number) || 0);
         const cacheReadCost = (item.cacheReadCost as number) || 0;
+        const cacheReadCostRmb = (item.cacheReadCostRmb as number) || 0;
         const outputCost = (item.outputCost as number) || 0;
+        const outputCostRmb = (item.outputCostRmb as number) || 0;
         const estimatedCost = (item.estimatedCost as number) || 0;
+        const estimatedCostRmb = (item.estimatedCostRmb as number) || 0;
 
         grandInput += miss > 0 ? miss : input;
         grandCache += cache;
         grandOutput += output;
         grandInputCost += inputCost;
+        grandInputCostRmb += inputCostRmb;
         grandCacheReadCost += cacheReadCost;
+        grandCacheReadCostRmb += cacheReadCostRmb;
         grandOutputCost += outputCost;
+        grandOutputCostRmb += outputCostRmb;
         grandEstimatedCost += estimatedCost;
+        grandEstimatedCostRmb += estimatedCostRmb;
+        if (nativeCosts) {
+            mergeNativeCostSplit(grandNativeCosts, nativeCosts);
+        }
 
         const tr = document.createElement('tr');
         tr.innerHTML =
             (showProvider ? `<td>${providerName}</td>` : '') +
             `<td>${modelName}</td>` +
-            buildTokensCell(miss > 0 ? miss : input, inputCost) +
-            buildTokensCell(cache, cacheReadCost) +
-            buildTokensCell(output, outputCost) +
-            buildTokensCell(input + output, estimatedCost) +
+            buildTokensCell(
+                miss > 0 ? miss : input,
+                inputCost,
+                inputCostRmb,
+                nativeCosts ? nativeCosts.inputUsd + nativeCosts.cacheWriteUsd : undefined,
+                nativeCosts ? nativeCosts.inputRmb + nativeCosts.cacheWriteRmb : undefined,
+                options
+            ) +
+            buildTokensCell(
+                cache,
+                cacheReadCost,
+                cacheReadCostRmb,
+                nativeCosts?.cacheReadUsd,
+                nativeCosts?.cacheReadRmb,
+                options
+            ) +
+            buildTokensCell(output, outputCost, outputCostRmb, nativeCosts?.outputUsd, nativeCosts?.outputRmb, options) +
+            buildTokensCell(input + output, estimatedCost, estimatedCostRmb, nativeCosts?.totalUsd, nativeCosts?.totalRmb, options) +
             `<td>${share}%</td>`;
         tbody.appendChild(tr);
     }
@@ -117,10 +157,38 @@ function createDonutTable(items: Array<Record<string, unknown>>, nameKey: string
     totalRow.innerHTML =
         (showProvider ? '<td></td>' : '') +
         `<td><strong>${t('Total', '合计')}</strong></td>` +
-        buildTokensCell(grandInput, grandInputCost) +
-        buildTokensCell(grandCache, grandCacheReadCost) +
-        buildTokensCell(grandOutput, grandOutputCost) +
-        buildTokensCell(grandTotal, grandEstimatedCost) +
+        buildTokensCell(
+            grandInput,
+            grandInputCost,
+            grandInputCostRmb,
+            grandNativeCosts.inputUsd + grandNativeCosts.cacheWriteUsd,
+            grandNativeCosts.inputRmb + grandNativeCosts.cacheWriteRmb,
+            options
+        ) +
+        buildTokensCell(
+            grandCache,
+            grandCacheReadCost,
+            grandCacheReadCostRmb,
+            grandNativeCosts.cacheReadUsd,
+            grandNativeCosts.cacheReadRmb,
+            options
+        ) +
+        buildTokensCell(
+            grandOutput,
+            grandOutputCost,
+            grandOutputCostRmb,
+            grandNativeCosts.outputUsd,
+            grandNativeCosts.outputRmb,
+            options
+        ) +
+        buildTokensCell(
+            grandTotal,
+            grandEstimatedCost,
+            grandEstimatedCostRmb,
+            grandNativeCosts.totalUsd,
+            grandNativeCosts.totalRmb,
+            options
+        ) +
         `<td>${grandShare}%</td>`;
     tbody.appendChild(totalRow);
 
@@ -129,13 +197,28 @@ function createDonutTable(items: Array<Record<string, unknown>>, nameKey: string
 }
 
 /** 构建内联成本的 Token 单元格（与日报表格式一致） */
-function buildTokensCell(tokens: number, cost: number): string {
+function buildTokensCell(
+    tokens: number,
+    usdCost: number,
+    rmbCost: number,
+    nativeUsdCost: number | undefined,
+    nativeRmbCost: number | undefined,
+    options: MultiDayRenderOptions
+): string {
     const tokenStr = tokens > 0 ? formatTokens(tokens) : '-';
-    const costStr = cost > 0 ? formatCost(cost, 2) : '';
+    const costStr = formatDisplayCostAmount({
+        usd: usdCost,
+        rmb: rmbCost,
+        nativeUsd: nativeUsdCost,
+        nativeRmb: nativeRmbCost,
+        currency: options.displayCurrency,
+        fixedDecimals: 2,
+        exactRmb: (nativeRmbCost ?? 0) > 0
+    });
     if (costStr) {
         return (
             `<td><div class="tokens-row">${tokenStr}</div>` +
-            `<div class="tokens-detail"><span class="tokens-cost">${costStr}</span></div></td>`
+            `<div class="tokens-detail"><span class="tokens-cost" data-toggle-cost-currency="true" title="${options.toggleTitle}">${costStr}</span></div></td>`
         );
     }
     return `<td>${tokenStr}</td>`;

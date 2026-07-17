@@ -1,5 +1,7 @@
 import Chart from 'chart.js/auto';
 import type { MultiDayAnalysisResult } from '../../../usages/multiDay/types';
+import type { MultiDayChartCurrency, MultiDayRenderOptions } from '../types';
+import { convertUsdToRmb } from '../../../utils/pricingCurrency';
 import { t } from '../../usagesView/utils';
 import { createElement, formatCost, formatTokens } from '../../utils';
 
@@ -108,10 +110,31 @@ function render(canvasId: string, data: MultiDayAnalysisResult): void {
 
 // ============= 每日成本趋势图 =============
 
-export function createCostTrendChart(data: MultiDayAnalysisResult): HTMLElement {
+function getDisplayCostValue(
+    usd: number | undefined,
+    rmb: number | undefined,
+    currency: MultiDayChartCurrency
+): number {
+    if (currency === 'USD') {
+        return usd || 0;
+    }
+
+    return rmb || convertUsdToRmb(usd) || 0;
+}
+
+function getYAxisZeroLabel(currency: MultiDayChartCurrency): string {
+    return currency === 'RMB' ? '¥0.00' : '$0.00';
+}
+
+export function createCostTrendChart(data: MultiDayAnalysisResult, options: MultiDayRenderOptions): HTMLElement {
     const section = createElement('div', 'chart-section');
     const title = createElement('h3', 'chart-section-title');
-    title.textContent = t('Daily Token Cost', '每日 Token 成本');
+    title.textContent =
+        options.displayCurrency === 'MIXED' ?
+            t('Daily Token Cost (RMB aggregate)', '每日 Token 成本（人民币汇总）')
+        :   t('Daily Token Cost', '每日 Token 成本');
+    title.dataset.toggleCostCurrency = 'true';
+    title.title = options.toggleTitle;
     section.appendChild(title);
 
     const wrapper = createElement('div', 'chart-wrapper');
@@ -120,11 +143,11 @@ export function createCostTrendChart(data: MultiDayAnalysisResult): HTMLElement 
     wrapper.appendChild(canvas);
     section.appendChild(wrapper);
 
-    setTimeout(() => renderCostChart(canvas.id, data), 0);
+    setTimeout(() => renderCostChart(canvas.id, data, options.costChartCurrency), 0);
     return section;
 }
 
-function renderCostChart(canvasId: string, data: MultiDayAnalysisResult): void {
+function renderCostChart(canvasId: string, data: MultiDayAnalysisResult, currency: MultiDayChartCurrency): void {
     const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
     if (!canvas) {
         return;
@@ -160,7 +183,10 @@ function renderCostChart(canvasId: string, data: MultiDayAnalysisResult): void {
     }
     for (const d of dates) {
         for (const key of allProviderKeys) {
-            providers.get(key)!.push(d.providers[key]?.estimatedCost ?? 0);
+            const provider = d.providers[key];
+            providers
+                .get(key)!
+                .push(getDisplayCostValue(provider?.estimatedCost, provider?.estimatedCostRmb, currency));
         }
     }
 
@@ -175,7 +201,9 @@ function renderCostChart(canvasId: string, data: MultiDayAnalysisResult): void {
 
     const lineDataset = {
         label: t('Total', '总量'),
-        data: data.trendSeries.estimatedCost,
+        data: data.trendSeries.estimatedCost.map((usd, index) =>
+            getDisplayCostValue(usd, data.trendSeries.estimatedCostRmb[index], currency)
+        ),
         borderColor: '#e74c3c',
         backgroundColor: 'transparent',
         borderWidth: 2.5,
@@ -196,7 +224,15 @@ function renderCostChart(canvasId: string, data: MultiDayAnalysisResult): void {
                 y: {
                     stacked: true,
                     beginAtZero: true,
-                    ticks: { callback: v => (Number(v) === 0 ? '$0.00' : formatCost(Number(v), 2)) }
+                    ticks: {
+                        callback: v =>
+                            Number(v) === 0 ?
+                                getYAxisZeroLabel(currency)
+                            :   formatCost(Number(v), {
+                                    fixedDecimals: 2,
+                                    currencySymbol: currency === 'RMB' ? '¥' : '$'
+                                })
+                    }
                 }
             },
             plugins: {
@@ -205,7 +241,7 @@ function renderCostChart(canvasId: string, data: MultiDayAnalysisResult): void {
                     callbacks: {
                         label: ctx => {
                             const val = ctx.raw as number;
-                            return `${ctx.dataset.label}: ${formatCost(val, 2)}`;
+                            return `${ctx.dataset.label}: ${formatCost(val, { fixedDecimals: 2, currencySymbol: currency === 'RMB' ? '¥' : '$' })}`;
                         }
                     },
                     filter: item => (item.raw as number) > 0
