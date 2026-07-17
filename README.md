@@ -107,10 +107,10 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 
 ### [**MoonshotAI**](https://platform.kimi.com/)
 
-- [**会员权益**](https://www.kimi.com/coding)：Kimi `会员计划` 套餐的附带的 `Kimi For Coding` (HighSpeed)。
+- [**会员权益**](https://www.kimi.com/coding)：Kimi `会员计划` 套餐的附带的 `Kimi For Coding` (HighSpeed)、**Kimi K3 (Kimi Code)**。
     - **搜索功能**：集成 Kimi Search 联网搜索工具，支持通过 `#kimiWebSearch` 进行联网搜索。
     - **用量查询**：已支持状态栏显示周期剩余用量、加油包钱包余额与到期时间，可查看套餐的剩余用量及限频重置时间。
-- 预置模型(PayGo)：**Kimi K2.5**、**Kimi K2.6**、**Kimi K2.7 Code**(极速版)
+- 预置模型(PayGo)：**Kimi K3**、**Kimi K2.5**、**Kimi K2.6**、**Kimi K2.7 Code**(极速版)
     - **余额查询**：已支持状态栏显示当前账户额度，可查看账户余额状况。
 
 ### [**DeepSeek**](https://platform.deepseek.com/)
@@ -140,8 +140,8 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
     - 豆包模型：**Ark-Code-Latest**(Auto)、**Doubao-Seed-2.0-Code**、**Doubao-Seed-Code**、**Doubao-Seed-2.0-lite**、**Doubao-Seed-2.0-pro**
     - 开源模型：**GLM-5.2**、**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**MiniMax-M3**、**MiniMax-M2.7**
 - [**Agent Plan 套餐**](https://www.volcengine.com/activity/agentplan)：
-    - 豆包模型：**Ark-Code-Latest**(Auto)、**Doubao-Seed-2.0**(Code/pro/lite/mini)
-    - 开源模型：**GLM-5.2**、**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**MiniMax-M3**、**MiniMax-M2.7**
+    - 豆包模型：**Ark-Code-Latest**(Auto)、**Doubao-Seed-Evolving**、**Doubao-Seed-2.0**(Code/pro/lite/mini)
+    - 开源模型：**GLM-5.2**、**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**Kimi-K3**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**MiniMax-M3**、**MiniMax-M2.7**
 - **豆包系列**：**Doubao-Seed-Evolving**、**Doubao-Seed-2.1**(turbo/pro)、**Doubao-Seed-2.0**(lite/mini/pro/Code)、**Doubao-Seed-1.8**
 - **协作奖励计划**：**GLM-5.2**、**GLM-4.7**、**DeepSeek-V3.2**
 - **按量计费(PayGo)**：**DeepSeek-V4-Flash-260425**、**DeepSeek-V4-Pro-260425**
@@ -156,7 +156,7 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 - [**TokenHub**](https://console.cloud.tencent.com/tokenhub/models)：
     - **GLM 系列**：**GLM-5.2**、**GLM-5.1**、**GLM-5V-Turbo**、**GLM-5-Turbo**、**GLM-5**
     - **DeepSeek 系列**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**DeepSeek-V3.2**
-    - **Kimi 系列**：**Kimi-K2.7-Code**、**Kimi-K2.7-Code HighSpeed**、**Kimi-K2.6**、**Kimi-K2.5**
+    - **Kimi 系列**：**Kimi-K3**、**Kimi-K2.7-Code**、**Kimi-K2.7-Code HighSpeed**、**Kimi-K2.6**、**Kimi-K2.5**
     - **MiniMax 系列**：**MiniMax-M3**、**MiniMax-M2.7**、**MiniMax-M2.5**
     - **Hunyuan 系列**：**Hy3**、**Hy3 preview**
 - **密钥配置**：腾讯云API密钥分为 [Coding Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/codingplan)、[Token Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan)、[Token Plan 企业版 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan-e)、[TokenHub 付费 API Key](https://console.cloud.tencent.com/tokenhub/apikey)，需要进入正确的密钥获取界面生成密钥。

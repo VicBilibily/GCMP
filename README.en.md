@@ -107,10 +107,10 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 
 ### [**MoonshotAI**](https://platform.kimi.com/)
 
-- [**Membership**](https://www.kimi.com/coding): Kimi membership plan includes `Kimi For Coding` (HighSpeed).
+- [**Membership**](https://www.kimi.com/coding): Kimi membership plan includes `Kimi For Coding` (HighSpeed), **Kimi K3 (Kimi Code)**.
     - **Search**: Integrated Kimi Search web search tool, supports `#kimiWebSearch`.
     - **Usage tracking**: Status bar displays remaining quota, top-up wallet balance and expiration, and rate-limit reset time.
-- Preset models: **Kimi K2.5**, **Kimi K2.6**, **Kimi K2.7 Code** (HighSpeed)
+- Preset models (PayGo): **Kimi K3**, **Kimi K2.5**, **Kimi K2.6**, **Kimi K2.7 Code** (HighSpeed)
     - **Balance query**: Status bar displays current account balance.
 
 ### [**DeepSeek**](https://platform.deepseek.com/)
@@ -140,8 +140,8 @@ VS Code uses lightweight background models for **utility tasks** like title gene
     - Doubao models: **Ark-Code-Latest**(Auto), **Doubao-Seed-2.0-Code**, **Doubao-Seed-Code**, **Doubao-Seed-2.0-lite**, **Doubao-Seed-2.0-pro**
     - Open-source models: **GLM-5.2**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **MiniMax-M3**, **MiniMax-M2.7**
 - [**Agent Plan**](https://www.volcengine.com/activity/agentplan):
-    - Doubao models: **Ark-Code-Latest**(Auto), **Doubao-Seed-2.0** (Code/pro/lite/mini)
-    - Open-source models: **GLM-5.2**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **MiniMax-M3**, **MiniMax-M2.7**, **Kimi-K2.7-Code**, **Kimi-K2.6**
+    - Doubao models: **Ark-Code-Latest**(Auto), **Doubao-Seed-Evolving**, **Doubao-Seed-2.0** (Code/pro/lite/mini)
+    - Open-source models: **GLM-5.2**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **Kimi-K3**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **MiniMax-M3**, **MiniMax-M2.7**
 - **Doubao series**: **Doubao-Seed-Evolving**, **Doubao-Seed-2.1** (turbo/pro), **Doubao-Seed-2.0** (lite/mini/pro/Code), **Doubao-Seed-1.8**
 - **Collaboration rewards**: **GLM-5.2**, **GLM-4.7**, **DeepSeek-V3.2**
 - **PayGo**: **DeepSeek-V4-Flash-260425**, **DeepSeek-V4-Pro-260425**
@@ -156,7 +156,7 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 - [**TokenHub**](https://console.cloud.tencent.com/tokenhub/models):
     - **GLM series**: **GLM-5.2**, **GLM-5.1**, **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-5**
     - **DeepSeek series**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **DeepSeek-V3.2**
-    - **Kimi series**: **Kimi-K2.7-Code**, **Kimi-K2.7-Code HighSpeed**, **Kimi-K2.6**, **Kimi-K2.5**
+    - **Kimi series**: **Kimi-K3**, **Kimi-K2.7-Code**, **Kimi-K2.7-Code HighSpeed**, **Kimi-K2.6**, **Kimi-K2.5**
     - **MiniMax series**: **MiniMax-M3**, **MiniMax-M2.7**, **MiniMax-M2.5**
     - **Hunyuan series**: **Hy3**, **Hy3 preview**
 - **Key configuration**: Tencent Cloud API keys are categorized into [Coding Plan API Key](https://console.cloud.tencent.com/tokenhub/codingplan), [Token Plan API Key](https://console.cloud.tencent.com/tokenhub/tokenplan), [Token Plan Enterprise API Key](https://console.cloud.tencent.com/tokenhub/tokenplan-e), and [TokenHub API Key](https://console.cloud.tencent.com/tokenhub/apikey). Each must be generated from the correct key management page.

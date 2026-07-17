@@ -66,6 +66,68 @@
 
 
 
+## [0.25.42] - 2026-07-17
+
+### 新增
+
+- **火山方舟 Agent Plan 新增 Doubao-Seed-Evolving 模型**：新增 `Doubao-Seed-Evolving (AgentPlan)` 模型，面向 Coding 与 Agent 场景持续周级升级，支持 1M 超长上下文，具备复杂任务编排、长程规划、代码生成与工具调用能力。
+- **火山方舟 Agent Plan 新增 Kimi-K3 模型**：新增 `Kimi-K3 (AgentPlan)` 模型，支持 1M 上下文窗口，maxOutputTokens 提升至 64K，支持 `editTools`。
+- **腾讯云 TokenHub 新增 Kimi-K3 模型**：新增 `Kimi-K3 (TokenHub)` 按量付费模型，支持 1M 上下文窗口与 `editTools`。
+
+---
+
+### Added
+
+- **Volcengine Agent Plan new Doubao-Seed-Evolving model**: Added `Doubao-Seed-Evolving (AgentPlan)`, continuously updated weekly for Coding & Agent scenarios, with 1M context window, complex task orchestration, long-range planning, code generation, and tool calling capabilities.
+- **Volcengine Agent Plan new Kimi-K3 model**: Added `Kimi-K3 (AgentPlan)` with 1M context window, maxOutputTokens increased to 64K, and `editTools` support.
+- **Tencent TokenHub new Kimi-K3 model**: Added `Kimi-K3 (TokenHub)` pay-per-use model with 1M context window and `editTools` support.
+
+## [0.25.41] - 2026-07-16
+
+### 新增
+
+- **MoonshotAI 新增 Kimi K3 系列模型**：新增 `Kimi K3 (Kimi Code)` 会员计划模型和 `Kimi K3 (PayGo)` 按量计费模型。
+
+---
+
+### Added
+
+- **MoonshotAI new Kimi K3 series models**: Added `Kimi K3 (Kimi Code)` (membership) and `Kimi K3 (PayGo)` models.
+
+## [0.25.40] - 2026-07-16
+
+### 修复
+
+- **移除提交消息生成成功时的信息提示弹窗**：移除了 `CommitMessage` 在成功生成提交消息后调用 `vscode.window.showInformationMessage` 的弹窗提示。该弹窗在每次生成提交消息后都会弹出，打断了用户工作流，且提交消息已直接应用到源代码管理的输入框中，提示信息对用户没有额外价值（[#303](https://github.com/VicBilibily/GCMP/issues/303)）。
+- **暂时移除 `contribLanguageModelToolSets` API proposal 声明**：从 `enabledApiProposals` 中移除了 `contribLanguageModelToolSets` 声明，`gcmpVisionTool` 工具集的 7 个 Vision 工具在 VS Code 1.129+ 上暂时不可用，待后续版本重新启用。
+
+---
+
+### Fixed
+
+- **Removed information popup on commit message generation success**: Removed the `vscode.window.showInformationMessage` popup shown after `CommitMessage` successfully generates a commit message. The popup interrupted the user workflow, and the commit message is already applied directly to the source control input box — the notification provided no additional value ([#303](https://github.com/VicBilibily/GCMP/issues/303)).
+- **Temporarily removed `contribLanguageModelToolSets` API proposal declaration**: Removed `contribLanguageModelToolSets` from `enabledApiProposals`. The `gcmpVisionTool` toolset (7 Vision tools) is temporarily unavailable on VS Code 1.129+ and will be re-enabled in a future release.
+
+## [0.25.39] - 2026-07-16
+
+### 修复
+
+- ~~**启用 `contribLanguageModelToolSets` API proposal**：在 `enabledApiProposals` 中补上 `contribLanguageModelToolSets`，修复 VS Code 1.129+ 上因缺少 proposal 声明导致 `Extension CANNOT register language model tools because the 'contribLanguageModelToolSets' API proposal is not enabled` 报错。该错误仅影响 `gcmpVisionTool` 工具集的注册，导致 7 个 Vision 工具在 Copilot Chat 中无法被模型调用。~~
+
+### 变更
+
+- **StreamLake KAT-Coder 系列模型 token 限制调整**：将 KAT-Coder-Pro-V2.5（Coding Plan / PayGo）、KAT-Coder-Air-V2.5（PayGo）以及 KAT-Coder-Pro-V2（Coding Plan / PayGo）的 `maxInputTokens` 从 256K 下调至 192K，`maxOutputTokens` 从 80K 下调至 64K，与实际服务端限制对齐（[#301](https://github.com/VicBilibily/GCMP/issues/301)）。
+
+---
+
+### Fixed
+
+- ~~**Enabled `contribLanguageModelToolSets` API proposal**: Added `contribLanguageModelToolSets` to `enabledApiProposals`, fixing the `Extension CANNOT register language model tools because the 'contribLanguageModelToolSets' API proposal is not enabled` error on VS Code 1.129+. Affects the `gcmpVisionTool` toolset — 7 Vision tools were blocked.~~
+
+### Changed
+
+- **StreamLake KAT-Coder series token limit adjustments**: Lowered `maxInputTokens` from 256K to 192K and `maxOutputTokens` from 80K to 64K for KAT-Coder-Pro-V2.5 (Coding Plan / PayGo), KAT-Coder-Air-V2.5 (PayGo), and KAT-Coder-Pro-V2 (Coding Plan / PayGo) to align with actual server limits ([#301](https://github.com/VicBilibily/GCMP/issues/301)).
+
 ## [0.25.38] - 2026-07-16
 
 ### 新增

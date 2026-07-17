@@ -346,6 +346,20 @@
             "tokenPricing": [0.285714, 0.428571, 0.057143]
         },
         {
+            "id": "kimi-k3-tokenhub",
+            "name": "Kimi-K3 (TokenHub)",
+            "tooltip": "腾讯云 TokenHub 按量付费中的 Kimi K3。",
+            "provider": "tencent-tokenhub",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://tokenhub.tencentmaas.com",
+            "model": "kimi-k3",
+            "contextSize": [1000000, 600000, 400000, 256000],
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "none"],
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+        },
+        {
             "id": "kimi-k2.7-code-tokenhub",
             "name": "Kimi-K2.7-Code (TokenHub)",
             "tooltip": "腾讯云 TokenHub 按量付费中的 Kimi K2.7 Code。",
@@ -355,11 +369,7 @@
             "model": "kimi-k2.7-code",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "extraBody": {
-                "thinking": {
-                    "type": "enabled"
-                }
-            },
+            "extraBody": { "thinking": { "type": "enabled" } },
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
             "tokenPricing": [0.928571, 3.857143, 0.185714]
         },

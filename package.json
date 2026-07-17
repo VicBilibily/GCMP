@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.25.38",
+    "version": "0.25.42",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -1400,22 +1400,6 @@
                         "prompt"
                     ]
                 }
-            }
-        ],
-        "languageModelToolSets": [
-            {
-                "name": "gcmpVisionTool",
-                "description": "%tool.vision.description%",
-                "icon": "$(eye)",
-                "tools": [
-                    "gcmpUiToArtifact",
-                    "gcmpExtractTextFromScreenshot",
-                    "gcmpDiagnoseErrorScreenshot",
-                    "gcmpUnderstandTechnicalDiagram",
-                    "gcmpAnalyzeDataVisualization",
-                    "gcmpUiDiffCheck",
-                    "gcmpAnalyzeImage"
-                ]
             }
         ],
         "icons": {
