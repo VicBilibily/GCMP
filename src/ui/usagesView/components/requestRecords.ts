@@ -270,8 +270,8 @@ function applyRequestCostPresentation(
 
     element.textContent = presentation.text;
     element.title = getCurrencyToggleTitle(currency);
-    element.className = presentation.toggleable ? 'tokens-cost' : 'tokens-cost tokens-cost-static';
-    element.dataset.toggleCostCurrency = presentation.toggleable ? 'true' : 'false';
+    element.className = 'tokens-cost';
+    element.dataset.toggleCostCurrency = 'true';
 }
 
 function createRequestCostSpan(data: RequestCostPresentationData): HTMLElement {

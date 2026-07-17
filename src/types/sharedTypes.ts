@@ -186,7 +186,7 @@ export interface ModelConfig {
     /**
      * Token 定价，用于客户端成本估算和模型选择器展示。
      * 主价格字段单位为 USD / 百万 token，可通过 rmb 字段同时提供 RMB 辅助定价。
-     * 当前 UI 主展示仍为 USD，rmb 暂不直接用于主 UI 成本显示。
+     * 内部计算仍以 USD 为准；UI 可按语言环境显示 USD / RMB / MIXED，rmb 可用于精确 RMB 展示与分币种聚合。
      * pricing 字段支持数组简写（默认 USD）或双币映射 { "USD": [...], "RMB": [...] }。
      *
      * 字段映射到 VS Code LanguageModelChatInformation 的 cost 槽位：
@@ -247,7 +247,7 @@ export interface PricingFields {
     cacheWritePrice?: number;
     /**
      * RMB 定价（可选）。结构与 USD 定价对应，单位为 RMB / 百万 token。
-     * 若提供，可作为辅助价格元数据保留；当前内部计算与 UI 主展示仍以 USD 为准。
+     * 若提供，内部计算仍以 USD 为准；UI 可在支持的场景下使用它做精确 RMB 展示与分币种聚合。
      */
     rmb?: PricingFieldsRmb;
 }
@@ -317,8 +317,8 @@ export type ModelTokenPricingInput = PricingShorthandInput | PricingArray | Dual
  *
  * 所有价格均为客户端估算用，实际计费以 API 提供商账单为准。
  * 主价格字段（inputPrice/outputPrice 等）单位为 USD / 百万 token。
- * 可通过 rmb 字段同时提供 RMB 定价；当前 UI 主展示仍为 USD。
- * 内部计算统一以 USD 为准。
+ * 可通过 rmb 字段同时提供 RMB 定价；内部计算统一以 USD 为准。
+ * UI 可按语言环境显示 USD / RMB / MIXED，并在支持的场景下使用精确 RMB 定价。
  *
  * 支持两种定价模式：
  * 1. 静态单档：直接用 `inputPrice`/`outputPrice` 等字段，适用于无峰谷差异的模型。

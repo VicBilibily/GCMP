@@ -58,17 +58,13 @@ function createTokensCell(
         rmb: rmbCost,
         nativeUsd: nativeUsdCost,
         nativeRmb: nativeRmbCost,
-        currency
+        currency,
+        fixedDecimals: 2
     });
     const costStr = costPresentation.text;
     const tokenHtml = isBold ? `<strong>${tokenStr}</strong>` : tokenStr;
     if (costStr) {
-        const costClass = costPresentation.toggleable ? 'tokens-cost' : 'tokens-cost tokens-cost-static';
-        const costAttrs =
-            `class="${costClass}"` +
-            (costPresentation.toggleable ?
-                ` data-toggle-cost-currency="true" title="${getCurrencyToggleTitle(currency)}"`
-            :   '');
+        const costAttrs = `class="tokens-cost" data-toggle-cost-currency="true" title="${getCurrencyToggleTitle(currency)}"`;
         const costHtml =
             currency === 'MIXED' && costPresentation.segments.length > 1 ?
                 `<span class="tokens-cost-group">${costPresentation.segments

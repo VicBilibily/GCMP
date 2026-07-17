@@ -223,20 +223,9 @@ body {
                             font-weight: 500;
                             color: var(--vscode-charts-yellow);
                             cursor: pointer;
-                            text-decoration: underline dotted;
-                            text-underline-offset: 2px;
 
                             &:hover {
                                 color: var(--vscode-textLink-foreground);
-                            }
-
-                            &.tokens-cost-static {
-                                cursor: default;
-                                text-decoration: none;
-
-                                &:hover {
-                                    color: var(--vscode-charts-yellow);
-                                }
                             }
                         }
                     }
@@ -871,6 +860,7 @@ body {
         &:nth-child(5) {
             line-height: 1;
             padding: 1px 3px;
+            overflow: visible;
 
             .tokens-row {
                 display: block;
@@ -891,20 +881,9 @@ body {
                     font-weight: 500;
                     color: var(--vscode-charts-yellow);
                     cursor: pointer;
-                    text-decoration: underline dotted;
-                    text-underline-offset: 2px;
 
                     &:hover {
                         color: var(--vscode-textLink-foreground);
-                    }
-
-                    &.tokens-cost-static {
-                        cursor: default;
-                        text-decoration: none;
-
-                        &:hover {
-                            color: var(--vscode-charts-yellow);
-                        }
                     }
                 }
             }

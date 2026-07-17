@@ -13,6 +13,7 @@ import {
     getNextDisplayCurrency,
     getTodayDateString,
     groupRecordsBySession,
+    normalizeDisplayCurrency,
     postToVSCode,
     sortRecordsByTimestampDesc,
     summarizeSessionRecords,
@@ -193,6 +194,7 @@ function handleVSCodeMessage(event: MessageEvent): void {
             setState({
                 selectedDate: message.date,
                 selectedSessionId: nextSelectedSessionId,
+                displayCurrency: normalizeDisplayCurrency(state.displayCurrency, allTotals),
                 dateDetails: {
                     date: message.date,
                     isToday: message.isToday,

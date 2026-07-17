@@ -17,7 +17,6 @@ export interface DisplayCostSegment {
 
 export interface DisplayCostPresentation {
     text: string;
-    toggleable: boolean;
     segments: DisplayCostSegment[];
 }
 
@@ -36,7 +35,7 @@ export function getDisplayCostPresentation(options: {
 }): DisplayCostPresentation {
     const { usd, rmb, nativeUsd, nativeRmb, currency, fixedDecimals, exactRmb = false } = options;
     if (!hasPositiveCost(usd) && !hasPositiveCost(rmb)) {
-        return { text: '', toggleable: false, segments: [] };
+        return { text: '', segments: [] };
     }
 
     const usdText = hasPositiveCost(usd) ? formatCost(usd, fixedDecimals) : '';
@@ -67,7 +66,6 @@ export function getDisplayCostPresentation(options: {
         }
         return {
             text: segments.map(segment => segment.text).join(' + '),
-            toggleable: segments.length > 0,
             segments
         };
     }
@@ -76,7 +74,6 @@ export function getDisplayCostPresentation(options: {
         const segments = usdText ? [{ text: usdText, currency: 'USD' as const }] : [];
         return {
             text: usdText,
-            toggleable: Boolean(usdText),
             segments
         };
     }
@@ -86,7 +83,6 @@ export function getDisplayCostPresentation(options: {
     const segments = rmbText ? [{ text: rmbText, currency: 'RMB' as const }] : [];
     return {
         text: rmbText,
-        toggleable: displayRmb > 0,
         segments
     };
 }

@@ -16,7 +16,8 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": { "USD": [3.0, 15.0, 0.3], "RMB": [20.0, 100.0, 2.0] }
         },
         {
             "id": "kimi-for-coding",
@@ -29,7 +30,7 @@
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
-            "tokenPricing": [0.95, 4, 0.19]
+            "tokenPricing": { "USD": [0.95, 4, 0.19], "RMB": [6.5, 27.0, 1.3] }
         },
         {
             "id": "kimi-for-coding-highspeed",
@@ -42,7 +43,7 @@
             "maxOutputTokens": 32000,
             "extraBody": { "thinking": { "type": "enabled" } },
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
-            "tokenPricing": [1.9, 8, 0.38]
+            "tokenPricing": { "USD": [1.9, 8, 0.38], "RMB": [13.0, 54.0, 2.6] }
         },
         {
             "id": "kimi-k2.5",
@@ -54,7 +55,7 @@
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
-            "tokenPricing": [0.6, 3, 0.1]
+            "tokenPricing": { "USD": [0.6, 3, 0.1], "RMB": [4.0, 21.0, 0.7] }
         },
         {
             "id": "kimi-k2.6",
@@ -66,7 +67,7 @@
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
-            "tokenPricing": [0.95, 4, 0.16]
+            "tokenPricing": { "USD": [0.95, 4, 0.16], "RMB": [6.5, 27.0, 1.1] }
         },
         {
             "id": "kimi-k2.7-code",
@@ -78,7 +79,7 @@
             "maxOutputTokens": 32000,
             "extraBody": { "thinking": { "type": "enabled" } },
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
-            "tokenPricing": [0.95, 4, 0.19]
+            "tokenPricing": { "USD": [0.95, 4, 0.19], "RMB": [6.5, 27.0, 1.3] }
         },
         {
             "id": "kimi-k2.7-code-highspeed",
@@ -90,7 +91,7 @@
             "maxOutputTokens": 32000,
             "extraBody": { "thinking": { "type": "enabled" } },
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
-            "tokenPricing": [1.9, 8, 0.38]
+            "tokenPricing": { "USD": [1.9, 8, 0.38], "RMB": [13.0, 54.0, 2.6] }
         },
         {
             "id": "kimi-k3",
@@ -102,7 +103,8 @@
             "maxInputTokens": 1000000,
             "maxOutputTokens": 384000,
             "reasoningEffort": ["max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": { "USD": [3.0, 15.0, 0.3], "RMB": [20.0, 100.0, 2.0] }
         }
     ]
 }

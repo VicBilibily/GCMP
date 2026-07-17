@@ -2,7 +2,40 @@
 import test from 'node:test';
 
 import type { BaseStats, NativeCostSplit } from '../../usages/fileLogger/types';
-import { getStatsNativeCostSplit, meanWithoutOutliers } from './utils';
+import {
+    getCurrencyToggleTitle,
+    getNextDisplayCurrency,
+    getStatsNativeCostSplit,
+    meanWithoutOutliers,
+    normalizeDisplayCurrency
+} from './utils';
+
+function withLocaleAndState<T>(options: { lang: string; rmbExactRequests?: number }, fn: () => T): T {
+    const globals = globalThis as typeof globalThis & {
+        document?: any;
+        window?: any;
+    };
+    const previousDocument = globals.document;
+    const previousWindow = globals.window;
+
+    globals.document = { documentElement: { lang: options.lang } };
+    globals.window = {
+        usagesState: {
+            dateDetails: {
+                allTotals: {
+                    rmbExactRequests: options.rmbExactRequests ?? 0
+                }
+            }
+        }
+    };
+
+    try {
+        return fn();
+    } finally {
+        globals.document = previousDocument;
+        globals.window = previousWindow;
+    }
+}
 
 function createNativeCostSplit(overrides: Partial<NativeCostSplit> = {}): NativeCostSplit {
     return {
@@ -83,4 +116,38 @@ test('getStatsNativeCostSplit still falls back to cached split when record-deriv
     const result = getStatsNativeCostSplit(createBaseStats(cached), undefined);
 
     assert.deepEqual(result, cached);
+});
+
+test('normalizeDisplayCurrency downgrades MIXED to USD when current dataset has no exact RMB pricing', () => {
+    withLocaleAndState({ lang: 'zh-CN', rmbExactRequests: 0 }, () => {
+        assert.equal(normalizeDisplayCurrency('MIXED'), 'USD');
+    });
+});
+
+test('getNextDisplayCurrency toggles only between USD and RMB when current dataset has no exact RMB pricing', () => {
+    withLocaleAndState({ lang: 'zh-CN', rmbExactRequests: 0 }, () => {
+        assert.equal(getNextDisplayCurrency('USD'), 'RMB');
+        assert.equal(getNextDisplayCurrency('RMB'), 'USD');
+        assert.equal(getNextDisplayCurrency('MIXED'), 'RMB');
+    });
+});
+
+test('getNextDisplayCurrency keeps MIXED cycle when current dataset contains exact RMB pricing', () => {
+    withLocaleAndState({ lang: 'zh-CN', rmbExactRequests: 2 }, () => {
+        assert.equal(getNextDisplayCurrency('MIXED'), 'USD');
+        assert.equal(getNextDisplayCurrency('USD'), 'RMB');
+        assert.equal(getNextDisplayCurrency('RMB'), 'MIXED');
+    });
+});
+
+test('getCurrencyToggleTitle shows both current mode and next target mode', () => {
+    withLocaleAndState({ lang: 'zh-CN', rmbExactRequests: 2 }, () => {
+        assert.equal(getCurrencyToggleTitle('MIXED'), '当前：分币种显示。点击切换到统一美元显示。');
+        assert.equal(getCurrencyToggleTitle('USD'), '当前：统一美元显示。点击切换到统一人民币显示。');
+        assert.equal(getCurrencyToggleTitle('RMB'), '当前：统一人民币显示。点击切换到分币种显示。');
+    });
+
+    withLocaleAndState({ lang: 'zh-CN', rmbExactRequests: 0 }, () => {
+        assert.equal(getCurrencyToggleTitle('MIXED'), '当前：统一美元显示。点击切换到统一人民币显示。');
+    });
 });

@@ -84,7 +84,7 @@ export function sortRecordsByTimestampDesc(records: ExtendedTokenRequestLog[]): 
 }
 
 function isChineseLocale(): boolean {
-    const lang = (document.documentElement.lang || navigator.language || '').toLowerCase();
+    const lang = (globalThis.document?.documentElement?.lang || globalThis.navigator?.language || '').toLowerCase();
     return lang === 'zh-cn' || lang === 'zh' || lang.startsWith('zh-');
 }
 
@@ -96,29 +96,68 @@ export function getDisplayCurrency(): DisplayCurrency {
     return window.usagesState?.displayCurrency ?? getDefaultDisplayCurrency();
 }
 
-export function getNextDisplayCurrency(currentCurrency: DisplayCurrency): DisplayCurrency {
-    if (!isChineseLocale()) {
-        return currentCurrency === 'USD' ? 'RMB' : 'USD';
+function hasExactRmbPricing(totals?: Pick<RequestTotals, 'rmbExactRequests'> | null): boolean {
+    if ((totals?.rmbExactRequests ?? 0) > 0) {
+        return true;
     }
 
-    if (currentCurrency === 'MIXED') {
+    return (globalThis.window?.usagesState?.dateDetails?.allTotals.rmbExactRequests ?? 0) > 0;
+}
+
+export function normalizeDisplayCurrency(
+    currentCurrency: DisplayCurrency,
+    totals?: Pick<RequestTotals, 'rmbExactRequests'> | null
+): DisplayCurrency {
+    if (!isChineseLocale()) {
+        return currentCurrency === 'MIXED' ? 'USD' : currentCurrency;
+    }
+
+    if (currentCurrency === 'MIXED' && !hasExactRmbPricing(totals)) {
         return 'USD';
     }
-    if (currentCurrency === 'USD') {
+
+    return currentCurrency;
+}
+
+export function getNextDisplayCurrency(currentCurrency: DisplayCurrency): DisplayCurrency {
+    const normalizedCurrency = normalizeDisplayCurrency(currentCurrency);
+
+    if (!isChineseLocale()) {
+        return normalizedCurrency === 'USD' ? 'RMB' : 'USD';
+    }
+
+    if (!hasExactRmbPricing()) {
+        return normalizedCurrency === 'USD' ? 'RMB' : 'USD';
+    }
+
+    if (normalizedCurrency === 'MIXED') {
+        return 'USD';
+    }
+    if (normalizedCurrency === 'USD') {
         return 'RMB';
     }
     return 'MIXED';
 }
 
+function getCurrencyModeLabel(currency: DisplayCurrency): string {
+    if (currency === 'MIXED') {
+        return t('split currency view', '分币种显示');
+    }
+    if (currency === 'RMB') {
+        return t('RMB view', '统一人民币显示');
+    }
+    return t('USD view', '统一美元显示');
+}
+
 export function getCurrencyToggleTitle(currentCurrency: DisplayCurrency): string {
+    const normalizedCurrency = normalizeDisplayCurrency(currentCurrency);
     const nextCurrency = getNextDisplayCurrency(currentCurrency);
-    if (nextCurrency === 'MIXED') {
-        return t('Click to switch to split currency view', '点击切换为分币种显示');
-    }
-    if (nextCurrency === 'RMB') {
-        return t('Click to switch to RMB', '点击切换为统一人民币显示');
-    }
-    return t('Click to switch to USD', '点击切换为统一美元显示');
+    return t(
+        'Current: {0}. Click to switch to {1}.',
+        '当前：{0}。点击切换到{1}。',
+        getCurrencyModeLabel(normalizedCurrency),
+        getCurrencyModeLabel(nextCurrency)
+    );
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

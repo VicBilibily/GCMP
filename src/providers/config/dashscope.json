@@ -166,8 +166,13 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
-                "pricing": [0.4, 1.6, 0.08, 0.4],
-                "tiers": [{ "contextSizeMin": 256000, "pricing": [1.2, 4.8] }]
+                "pricing": { "USD": [0.276, 1.101, 0.028, 0.276], "RMB": [2, 8, 0.2, 2] },
+                "tiers": [
+                    {
+                        "contextSizeMin": 256000,
+                        "pricing": { "USD": [0.826, 3.301, 0.083, 0.826], "RMB": [6, 24, 0.6, 6] }
+                    }
+                ]
             }
         },
         {
@@ -184,7 +189,7 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
-            "tokenPricing": [2.5, 7.5, 0.5, 2.5]
+            "tokenPricing": { "USD": [1.65, 4.951, 0.165, 1.65], "RMB": [12, 36, 1.2, 12] }
         },
         {
             "id": "qwen3.6-plus-token-plan",
@@ -201,8 +206,13 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
-                "pricing": [0.5, 3.0, 0.1, 0.5],
-                "tiers": [{ "contextSizeMin": 256000, "pricing": [2.0, 6.0] }]
+                "pricing": { "USD": [0.276, 1.651, 0.028, 0.276], "RMB": [2, 12, 0.2, 2] },
+                "tiers": [
+                    {
+                        "contextSizeMin": 256000,
+                        "pricing": { "USD": [1.101, 6.602, 0.11, 1.101], "RMB": [8, 48, 0.8, 8] }
+                    }
+                ]
             }
         },
         {
@@ -220,8 +230,13 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
-                "pricing": [0.25, 1.5, 0.05, 0.25],
-                "tiers": [{ "contextSizeMin": 256000, "pricing": [1.0, 4.0] }]
+                "pricing": { "USD": [0.165, 0.99, 0.017, 0.165], "RMB": [1.2, 7.2, 0.12, 1.2] },
+                "tiers": [
+                    {
+                        "contextSizeMin": 256000,
+                        "pricing": { "USD": [0.66, 3.961, 0.066, 0.66], "RMB": [4.8, 28.8, 0.48, 4.8] }
+                    }
+                ]
             }
         },
         {
@@ -237,7 +252,7 @@
             "maxOutputTokens": 128000,
             "reasoningEffort": ["high", "max", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": [1.4, 4.4, 0.28, 1.4]
+            "tokenPricing": { "USD": [1.1, 3.851, 0.11, 1.1], "RMB": [8, 28, 0.8, 8] }
         },
         {
             "id": "glm-5.1-token-plan",
@@ -251,7 +266,12 @@
             "maxOutputTokens": 16000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": [1.4, 4.4, 0.26, 1.4]
+            "tokenPricing": {
+                "pricing": { "USD": [0.825, 3.301, 0.083, 0.825], "RMB": [6, 24, 0.6, 6] },
+                "tiers": [
+                    { "contextSizeMin": 32001, "pricing": { "USD": [1.1, 3.851, 0.11, 1.1], "RMB": [8, 28, 0.8, 8] } }
+                ]
+            }
         },
         {
             "id": "glm-5-token-plan",
@@ -266,8 +286,13 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
             "tokenPricing": {
-                "pricing": [0.573, 2.58, 0.1146, 0.573],
-                "tiers": [{ "contextSizeMin": 32000, "pricing": [0.86, 3.154] }]
+                "pricing": { "USD": [0.573, 2.58, 0.057, 0.573], "RMB": [4, 18, 0.4, 4] },
+                "tiers": [
+                    {
+                        "contextSizeMin": 32000,
+                        "pricing": { "USD": [0.86, 3.154, 0.086, 0.86], "RMB": [6, 22, 0.6, 6] }
+                    }
+                ]
             }
         },
         {
@@ -282,7 +307,7 @@
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
-            "tokenPricing": [0.95, 4.0, 0.19, 0.95]
+            "tokenPricing": { "USD": [0.894, 3.713, 0.089, 0.894], "RMB": [6.5, 27, 0.65, 6.5] }
         },
         {
             "id": "kimi-k2.6-token-plan",
@@ -296,7 +321,7 @@
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
-            "tokenPricing": [0.8939, 3.7131, 0.17878, 0.8939]
+            "tokenPricing": { "USD": [0.8939, 3.7131, 0.089, 0.8939], "RMB": [6.5, 27, 0.65, 6.5] }
         },
         {
             "id": "kimi-k2.5-token-plan",
@@ -310,7 +335,7 @@
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
-            "tokenPricing": [0.574, 3.011, 0.1148, 0.574]
+            "tokenPricing": { "USD": [0.574, 3.011, 0.057, 0.574], "RMB": [4, 21, 0.4, 4] }
         },
         {
             "id": "minimax-m2.5-token-plan",
@@ -323,7 +348,7 @@
             "maxInputTokens": 172800,
             "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.304, 1.213, 0.0608, 0.304]
+            "tokenPricing": { "USD": [0.304, 1.213, 0.03, 0.304], "RMB": [2.1, 8.4, 0.21, 2.1] }
         },
         {
             "id": "deepseek-v4-pro-token-plan",
@@ -338,7 +363,7 @@
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": [2.4, 4.8, 0.2, 2.4]
+            "tokenPricing": { "USD": [1.65, 3.301, 0.165, 1.65], "RMB": [12, 24, 1.2, 12] }
         },
         {
             "id": "deepseek-v4-flash-token-plan",
@@ -353,7 +378,7 @@
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": [0.2, 0.4, 0.04, 0.2]
+            "tokenPricing": { "USD": [0.138, 0.275, 0.014, 0.138], "RMB": [1, 2, 0.1, 1] }
         },
         {
             "id": "deepseek-v3.2-token-plan",
@@ -366,7 +391,7 @@
             "maxInputTokens": 96000,
             "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.57, 1.71, 0.114, 0.57]
+            "tokenPricing": { "USD": [0.287, 0.431, 0.029, 0.287], "RMB": [2, 3, 0.2, 2] }
         },
         {
             "id": "qwen3.7-plus",
@@ -380,8 +405,13 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
-                "pricing": [0.4, 1.6, 0.08, 0.4],
-                "tiers": [{ "contextSizeMin": 256000, "pricing": [1.2, 4.8] }]
+                "pricing": { "USD": [0.276, 1.101, 0.028, 0.276], "RMB": [2, 8, 0.2, 2] },
+                "tiers": [
+                    {
+                        "contextSizeMin": 256000,
+                        "pricing": { "USD": [0.826, 3.301, 0.083, 0.826], "RMB": [6, 24, 0.6, 6] }
+                    }
+                ]
             }
         },
         {
@@ -395,7 +425,7 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
-            "tokenPricing": [2.5, 7.5, 0.5, 2.5]
+            "tokenPricing": { "USD": [1.65, 4.951, 0.165, 1.65], "RMB": [12, 36, 1.2, 12] }
         },
         {
             "id": "qwen3.6-plus",
@@ -409,8 +439,13 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
-                "pricing": [0.5, 3.0, 0.1, 0.5],
-                "tiers": [{ "contextSizeMin": 256000, "pricing": [2.0, 6.0] }]
+                "pricing": { "USD": [0.276, 1.651, 0.028, 0.276], "RMB": [2, 12, 0.2, 2] },
+                "tiers": [
+                    {
+                        "contextSizeMin": 256000,
+                        "pricing": { "USD": [1.101, 6.602, 0.11, 1.101], "RMB": [8, 48, 0.8, 8] }
+                    }
+                ]
             }
         },
         {
@@ -425,8 +460,13 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
-                "pricing": [0.25, 1.5, 0.05, 0.25],
-                "tiers": [{ "contextSizeMin": 256000, "pricing": [1.0, 4.0] }]
+                "pricing": { "USD": [0.165, 0.99, 0.017, 0.165], "RMB": [1.2, 7.2, 0.12, 1.2] },
+                "tiers": [
+                    {
+                        "contextSizeMin": 256000,
+                        "pricing": { "USD": [0.66, 3.961, 0.066, 0.66], "RMB": [4.8, 28.8, 0.48, 4.8] }
+                    }
+                ]
             }
         },
         {
@@ -441,8 +481,13 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
-                "pricing": [0.4, 2.4, 0.08, 0.4],
-                "tiers": [{ "contextSizeMin": 256000, "pricing": [0.5, 3.0] }]
+                "pricing": { "USD": [0.115, 0.688, 0.012, 0.115], "RMB": [0.8, 4.8, 0.08, 0.8] },
+                "tiers": [
+                    {
+                        "contextSizeMin": 256000,
+                        "pricing": { "USD": [0.573, 3.44, 0.057, 0.573], "RMB": [4, 24, 0.4, 4] }
+                    }
+                ]
             }
         },
         {
@@ -456,7 +501,15 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
-            "tokenPricing": [0.1, 0.4, 0.02, 0.1]
+            "tokenPricing": {
+                "pricing": { "USD": [0.029, 0.287, 0.003, 0.029], "RMB": [0.2, 2, 0.02, 0.2] },
+                "tiers": [
+                    {
+                        "contextSizeMin": 256000,
+                        "pricing": { "USD": [0.172, 1.72, 0.017, 0.172], "RMB": [1.2, 12, 0.12, 1.2] }
+                    }
+                ]
+            }
         },
         {
             "id": "deepseek-v4-flash",
@@ -469,7 +522,7 @@
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": [0.2, 0.4, 0.04, 0.2]
+            "tokenPricing": { "USD": [0.138, 0.275, 0.014, 0.138], "RMB": [1, 2, 0.1, 1] }
         },
         {
             "id": "deepseek-v4-pro",
@@ -482,7 +535,7 @@
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": [2.4, 4.8, 0.2, 2.4]
+            "tokenPricing": { "USD": [1.65, 3.301, 0.165, 1.65], "RMB": [12, 24, 1.2, 12] }
         },
         {
             "id": "glm-5.2",
@@ -495,7 +548,7 @@
             "maxInputTokens": 872000,
             "maxOutputTokens": 128000,
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": [1.4, 4.4, 0.28, 1.4]
+            "tokenPricing": { "USD": [1.1, 3.851, 0.11, 1.1], "RMB": [8, 28, 0.8, 8] }
         },
         {
             "id": "kimi-k2.7-code",
@@ -507,7 +560,7 @@
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
-            "tokenPricing": [0.95, 4.0, 0.19, 0.95]
+            "tokenPricing": { "USD": [0.894, 3.713, 0.089, 0.894], "RMB": [6.5, 27, 0.65, 6.5] }
         }
     ]
 }
