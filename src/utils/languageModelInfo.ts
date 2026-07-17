@@ -17,8 +17,17 @@ const DEFAULT_EDIT_TOOLS: string[] = ['multi-find-replace', 'find-replace', 'cod
  * - true → DEFAULT_EDIT_TOOLS
  * - string[] → 直接使用
  * - undefined → undefined
+ *
+ * VS Code 1.129.0 修复了 isProposedApiEnabled 的 bug（1.128.1 中只要声明了任意
+ * enabledApiProposals 就返回 true），导致 stable 构建中 enabledApiProposals 被清空后，
+ * editTools 触发 checkProposedApiEnabled('chatProvider') 抛错。
+ * 因此 1.129.0+ 暂时不传递 editTools，待后续版本重新启用。
  */
 function resolveEditTools(editTools?: boolean | string[]): string[] | undefined {
+    // VS Code 1.129.0+ 在 stable 构建中严格检查 proposed API，editTools 会导致注册失败
+    if (isVSCode129OrLater()) {
+        return undefined;
+    }
     if (editTools === true) {
         return DEFAULT_EDIT_TOOLS;
     }
@@ -26,6 +35,26 @@ function resolveEditTools(editTools?: boolean | string[]): string[] | undefined 
         return undefined;
     }
     return editTools;
+}
+
+/**
+ * 检测当前 VS Code 版本是否为 1.129.0 或更高（缓存结果）
+ */
+let cachedIsVSCode129OrLater: boolean | undefined;
+export function isVSCode129OrLater(): boolean {
+    if (cachedIsVSCode129OrLater !== undefined) {
+        return cachedIsVSCode129OrLater;
+    }
+    const version = vscode.version;
+    const match = version.match(/^(\d+)\.(\d+)\.(\d+)/);
+    if (!match) {
+        cachedIsVSCode129OrLater = false;
+        return false;
+    }
+    const major = parseInt(match[1], 10);
+    const minor = parseInt(match[2], 10);
+    cachedIsVSCode129OrLater = major > 1 || (major === 1 && minor >= 129);
+    return cachedIsVSCode129OrLater;
 }
 
 type PropertySchema = JSONSchema7 & NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string];

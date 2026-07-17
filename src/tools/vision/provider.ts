@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Logger, ConfigManager, CompatibleModelManager } from '../../utils';
+import { isVSCode129OrLater } from '../../utils/languageModelInfo';
 
 /**
  * Vision 分析结果
@@ -137,7 +138,11 @@ export async function analyzeImagesWithSystem(
         return new vscode.LanguageModelDataPart(Buffer.from(base64, 'base64'), `image/${ext}`);
     });
 
-    const systemMessage = new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.System, systemPrompt);
+    // VS Code 1.129.0+ 的 stable 构建会清空 enabledApiProposals，导致 languageModelSystem 检查失败
+    // 因此 1.129.0+ 降级为 User 消息
+    const systemRole =
+        isVSCode129OrLater() ? vscode.LanguageModelChatMessageRole.User : vscode.LanguageModelChatMessageRole.System;
+    const systemMessage = new vscode.LanguageModelChatMessage(systemRole, systemPrompt);
     const userMessage = vscode.LanguageModelChatMessage.User([new vscode.LanguageModelTextPart(prompt), ...imageParts]);
 
     const cts = token ? undefined : new vscode.CancellationTokenSource();
