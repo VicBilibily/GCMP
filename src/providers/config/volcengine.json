@@ -291,6 +291,19 @@
             "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
+            "id": "ark-plan-kimi-k3",
+            "name": "Kimi-K3 (AgentPlan)",
+            "model": "kimi-k3",
+            "provider": "volcengine-agent",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
+            "tooltip": "Agent Plan 模型。月之暗面最新一代旗舰模型，支持 1M 上下文窗口，具备更强的推理、编程与 Agent 任务能力。默认 thinking，支持关闭深度思考。",
+            "maxInputTokens": 1000000,
+            "maxOutputTokens": 32000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true }
+        },
+        {
             "id": "ark-plan-deepseek-v4-flash",
             "name": "DeepSeek-V4-Flash (AgentPlan)",
             "model": "deepseek-v4-flash",
