@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.25.43] - 2026-07-17
+
+### 修复
+
+- **修复 VS Code 1.129.0 上部分提供商注册失败的问题**：VS Code 1.129.0 修复了 `isProposedApiEnabled` 的 bug（1.128.1 中只要声明了任意 `enabledApiProposals` 就返回 `true`），导致 stable 构建中 `enabledApiProposals` 被清空后，模型 `capabilities.editTools` 触发 `checkProposedApiEnabled('chatProvider')` 抛错。受影响的提供商包括智谱AI、百度千帆、DeepSeek、LongCat、MiniMax、MoonshotAI、OpenCode、腾讯云、火山方舟、小米MiMo、阿里百炼等。现在 `resolveEditTools` 在 VS Code 1.129.0+ 上暂时返回 `undefined`，不再传递 `editTools`，待后续版本重新启用。
+
+---
+
+### Fixed
+
+- **Fixed partial provider registration failure on VS Code 1.129.0**: VS Code 1.129.0 fixed the `isProposedApiEnabled` bug (in 1.128.1, any declared `enabledApiProposals` returned `true`), causing `checkProposedApiEnabled('chatProvider')` to throw when `enabledApiProposals` is cleared in stable builds and model `capabilities.editTools` is present. Affected providers include ZhipuAI, Baidu Qianfan, DeepSeek, LongCat, MiniMax, MoonshotAI, OpenCode, Tencent, Volcengine, Xiaomi MiMo, AliDashScope, etc. `resolveEditTools` now returns `undefined` on VS Code 1.129.0+, temporarily disabling `editTools` until re-enabled in a future release.
+
 ## [0.25.42] - 2026-07-17
 
 ### 新增
