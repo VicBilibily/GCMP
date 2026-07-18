@@ -871,8 +871,7 @@ test('serializeTokenPricingInput: preserves dual-currency pricing in canonical o
                 cron: '* 9-23 * * 1-5',
                 timezone: undefined,
                 serviceTier: undefined,
-                contextSizeMin: undefined,
-                contextSizeInputOnly: undefined
+                contextSizeMin: undefined
             }
         ]
     });

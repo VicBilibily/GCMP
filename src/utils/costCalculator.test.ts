@@ -452,15 +452,7 @@ test('calculateCostWithBreakdown: contextSizeMin tier applies when actual input 
     const pricing: ModelTokenPricing = {
         inputPrice: 0.14,
         outputPrice: 0.28,
-        tiers: [
-            {
-                cron: '* * * * *',
-                contextSizeMin: 512001,
-                contextSizeInputOnly: true,
-                inputPrice: 0.28,
-                outputPrice: 0.56
-            }
-        ]
+        tiers: [{ cron: '* * * * *', contextSizeMin: 512001, inputPrice: 0.28, outputPrice: 0.56 }]
     };
 
     // input tokens = 600K → >= 512001 → 命中 tier
@@ -682,15 +674,7 @@ test('calculateCostWithBreakdown: contextSizeMin boundary — exact match at thr
     const pricing: ModelTokenPricing = {
         inputPrice: 0.14,
         outputPrice: 0.28,
-        tiers: [
-            {
-                cron: '* * * * *',
-                contextSizeMin: 512001,
-                contextSizeInputOnly: true,
-                inputPrice: 0.28,
-                outputPrice: 0.56
-            }
-        ]
+        tiers: [{ cron: '* * * * *', contextSizeMin: 512001, inputPrice: 0.28, outputPrice: 0.56 }]
     };
 
     // input = 512001 → 刚好 >= → 命中；输出不参与该 tier 阈值判断。
@@ -894,33 +878,8 @@ test('resolvePricingBreakdown: returns undefined when pricing is undefined', () 
     assert.equal(resolvePricingBreakdown(undefined, new Date(), undefined, 100), undefined);
 });
 
-test('resolvePricingBreakdown: contextSizeInputOnly excludes output from threshold', () => {
-    // input=500K, output=50K。
-    // contextSizeMin=512001, contextSizeInputOnly=true → 500K < 512001 → 不命中 → 回退静态
-    const pricing: ModelTokenPricing = {
-        inputPrice: 0.14,
-        outputPrice: 0.28,
-        tiers: [
-            {
-                cron: '* * * * *',
-                contextSizeMin: 512001,
-                contextSizeInputOnly: true,
-                inputPrice: 0.28,
-                outputPrice: 0.56
-            }
-        ]
-    };
-    const at = new Date('2026-07-06T01:30:00Z');
-
-    const result = resolvePricingBreakdown(pricing, at, undefined, 500000, 50000);
-    assert.ok(result);
-    assert.equal(result.activeTier, undefined);
-    assert.equal(result.effectivePricing.inputPrice, 0.14);
-});
-
-test('resolvePricingBreakdown: contextSizeInputOnly false (default) includes output in threshold', () => {
-    // input=500K, output=50K → 默认口径=550K。
-    // contextSizeMin=512001 → 550K >= 512001 → 命中。
+test('resolvePricingBreakdown: output tokens excluded from threshold', () => {
+    // input=500K, output=50K。阈值仅按输入比较，500K < 512001 → 不命中 → 回退静态
     const pricing: ModelTokenPricing = {
         inputPrice: 0.14,
         outputPrice: 0.28,
@@ -928,23 +887,38 @@ test('resolvePricingBreakdown: contextSizeInputOnly false (default) includes out
     };
     const at = new Date('2026-07-06T01:30:00Z');
 
-    const result = resolvePricingBreakdown(pricing, at, undefined, 500000, 50000);
+    const result = resolvePricingBreakdown(pricing, at, undefined, 500000);
     assert.ok(result);
-    assert.ok(result.activeTier);
-    assert.equal(result.effectivePricing.inputPrice, 0.28);
+    assert.equal(result.activeTier, undefined);
+    assert.equal(result.effectivePricing.inputPrice, 0.14);
 });
 
-test('resolvePricingBreakdown: omitted cron with contextSizeInputOnly works', () => {
-    // 无 cron，仅靠 contextSizeMin + contextSizeInputOnly 判断
+test('resolvePricingBreakdown: large output alone does not trigger tier', () => {
+    // input=100K, output=500K → 输出不计入阈值，100K < 512001 → 回退静态
     const pricing: ModelTokenPricing = {
         inputPrice: 0.14,
         outputPrice: 0.28,
-        tiers: [{ contextSizeMin: 512001, contextSizeInputOnly: true, inputPrice: 0.28, outputPrice: 0.56 }]
+        tiers: [{ cron: '* * * * *', contextSizeMin: 512001, inputPrice: 0.28, outputPrice: 0.56 }]
     };
     const at = new Date('2026-07-06T01:30:00Z');
 
-    // input=500K, output=50K → input-only=500K < 512001 → 不命中
-    const result = resolvePricingBreakdown(pricing, at, undefined, 500000, 50000);
+    const result = resolvePricingBreakdown(pricing, at, undefined, 100000);
+    assert.ok(result);
+    assert.equal(result.activeTier, undefined);
+    assert.equal(result.effectivePricing.inputPrice, 0.14);
+});
+
+test('resolvePricingBreakdown: omitted cron with contextSizeMin works', () => {
+    // 无 cron，仅靠 contextSizeMin 判断
+    const pricing: ModelTokenPricing = {
+        inputPrice: 0.14,
+        outputPrice: 0.28,
+        tiers: [{ contextSizeMin: 512001, inputPrice: 0.28, outputPrice: 0.56 }]
+    };
+    const at = new Date('2026-07-06T01:30:00Z');
+
+    // input=500K → 500K < 512001 → 不命中
+    const result = resolvePricingBreakdown(pricing, at, undefined, 500000);
     assert.ok(result);
     assert.equal(result.activeTier, undefined);
     assert.equal(result.effectivePricing.inputPrice, 0.14);
@@ -961,22 +935,14 @@ test('toNanoAiu: large cost values', () => {
     assert.equal(toNanoAiu(9e-10), 1);
 });
 
-// ============= Cubence GPT-5.4 端到端：contextSizeInputOnly 按输入阶梯计费 =============
+// ============= Cubence GPT-5.4 端到端：按输入阶梯计费 =============
 
 test('Cubence GPT-5.4: tier applies when input >= 272K', () => {
     const pricing: ModelTokenPricing = {
         inputPrice: 2.5,
         outputPrice: 15,
         cacheReadPrice: 0.25,
-        tiers: [
-            {
-                contextSizeMin: 272001,
-                contextSizeInputOnly: true,
-                inputPrice: 5,
-                outputPrice: 22.5,
-                cacheReadPrice: 0.5
-            }
-        ]
+        tiers: [{ contextSizeMin: 272001, inputPrice: 5, outputPrice: 22.5, cacheReadPrice: 0.5 }]
     };
 
     // Responses API: input_tokens=300K, output=5K。按输入比较，300K >= 272001 → 命中 tier。
@@ -1003,15 +969,7 @@ test('Cubence GPT-5.4: falls back to static when input < 272K', () => {
         inputPrice: 2.5,
         outputPrice: 15,
         cacheReadPrice: 0.25,
-        tiers: [
-            {
-                contextSizeMin: 272001,
-                contextSizeInputOnly: true,
-                inputPrice: 5,
-                outputPrice: 22.5,
-                cacheReadPrice: 0.5
-            }
-        ]
+        tiers: [{ contextSizeMin: 272001, inputPrice: 5, outputPrice: 22.5, cacheReadPrice: 0.5 }]
     };
 
     // input_tokens=200K，按输入比较 < 272001 → 回退静态。
@@ -1033,30 +991,23 @@ test('Cubence GPT-5.4: falls back to static when input < 272K', () => {
     assertClose(breakdown.cacheReadCost, (30000 / 1_000_000) * 0.25);
 });
 
-test('Cubence GPT-5.4: without contextSizeInputOnly, input plus output count toward threshold', () => {
+test('Cubence GPT-5.4: output tokens do not count toward threshold', () => {
     const pricing: ModelTokenPricing = {
         inputPrice: 2.5,
         outputPrice: 15,
         cacheReadPrice: 0.25,
-        tiers: [
-            {
-                contextSizeMin: 272001,
-                inputPrice: 5,
-                outputPrice: 22.5,
-                cacheReadPrice: 0.5
-            }
-        ]
+        tiers: [{ contextSizeMin: 272001, inputPrice: 5, outputPrice: 22.5, cacheReadPrice: 0.5 }]
     };
 
-    // 默认 contextSizeInputOnly=false → input + output = 252K < 272K → 回退。
+    // input=250K < 272001 → 回退（输出不参与阈值判断）。
     const miss = calculateCostWithBreakdown(
-        { input_tokens: 250000, output_tokens: 2000, input_tokens_details: { cached_tokens: 50000 } },
+        { input_tokens: 250000, output_tokens: 30000, input_tokens_details: { cached_tokens: 50000 } },
         pricing
     );
     assert.ok(miss);
     assert.equal(miss.effectiveInputPrice, 2.5);
 
-    // input + output = 282K >= 272K → 命中。
+    // input=280K >= 272001 → 命中。
     const hit = calculateCostWithBreakdown(
         { input_tokens: 280000, output_tokens: 2000, input_tokens_details: { cached_tokens: 50000 } },
         pricing
@@ -1149,15 +1100,7 @@ test('calculateCostWithBreakdown: Cubence array form [2.5, 15, 0.25] with tiers 
         inputPrice: 2.5,
         outputPrice: 15,
         cacheReadPrice: 0.25,
-        tiers: [
-            {
-                contextSizeMin: 272001,
-                contextSizeInputOnly: true,
-                inputPrice: 5,
-                outputPrice: 22.5,
-                cacheReadPrice: 0.5
-            }
-        ]
+        tiers: [{ contextSizeMin: 272001, inputPrice: 5, outputPrice: 22.5, cacheReadPrice: 0.5 }]
     };
 
     const breakdown = calculateCostWithBreakdown(

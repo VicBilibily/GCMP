@@ -128,7 +128,8 @@ function handleMessage(event: MessageEvent): void {
         }
         const hadData = state.data !== null;
         state.data = msg.data;
-        state.displayCurrency = hadData ? normalizeDisplayCurrency(state.displayCurrency, msg.data) : getDefaultDisplayCurrency(msg.data);
+        state.displayCurrency =
+            hadData ? normalizeDisplayCurrency(state.displayCurrency, msg.data) : getDefaultDisplayCurrency(msg.data);
         state.loading = false;
         state.error = null;
         render();

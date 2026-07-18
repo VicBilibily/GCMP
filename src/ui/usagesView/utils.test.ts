@@ -12,13 +12,13 @@ import {
 
 function withLocaleAndState<T>(options: { lang: string; rmbExactRequests?: number }, fn: () => T): T {
     const globals = globalThis as typeof globalThis & {
-        document?: any;
-        window?: any;
+        document?: unknown;
+        window?: unknown;
     };
     const previousDocument = globals.document;
     const previousWindow = globals.window;
 
-    globals.document = { documentElement: { lang: options.lang } };
+    globals.document = { documentElement: { lang: options.lang } } as Document;
     globals.window = {
         usagesState: {
             dateDetails: {
@@ -27,7 +27,7 @@ function withLocaleAndState<T>(options: { lang: string; rmbExactRequests?: numbe
                 }
             }
         }
-    };
+    } as Window & typeof globalThis;
 
     try {
         return fn();

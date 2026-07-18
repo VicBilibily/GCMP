@@ -169,11 +169,9 @@ function toCurrencyCostBreakdownLog(
  * 解析请求实际生效的定价信息（含命中的 activeTier）。
  *
  * 在 resolveActiveTier 的 cron + serviceTier 匹配基础上，额外检查 contextSizeMin：
- * 默认按输入与输出之和比较；contextSizeInputOnly 为 true 时仅按输入比较。
- * 若命中的 tier 不满足 contextSizeMin，跳过它继续检查下一个 tier。
+ * 按实际输入 token 数比较。若命中的 tier 不满足 contextSizeMin，跳过它继续检查下一个 tier。
  *
  * @param actualInput 从 usage 解析出的实际 input token 数（含缓存）
- * @param outputTokens 从 usage 解析出的实际 output token 数
  *
  * 导出供测试直接验证 contextSizeMin 回退逻辑。
  */
@@ -181,8 +179,7 @@ export function resolvePricingBreakdown(
     pricing: ModelTokenPricing | undefined,
     at: Date,
     requestServiceTier?: string,
-    actualInput?: number,
-    outputTokens?: number
+    actualInput?: number
 ): ResolvedPricingBreakdown | undefined {
     if (!pricing) {
         return undefined;
@@ -191,14 +188,10 @@ export function resolvePricingBreakdown(
     // 先按 cron + serviceTier 匹配（不含 contextSizeMin）
     const activeTier = resolveActiveTier(pricing, at, requestServiceTier);
     if (activeTier) {
-        // contextSizeMin 检查：contextSizeInputOnly 为 true 时排除输出 token
-        const effectiveInput =
-            actualInput === undefined ? undefined
-            : activeTier.contextSizeInputOnly ? actualInput
-            : actualInput + Math.max(0, outputTokens ?? 0);
+        // contextSizeMin 检查：仅按实际输入 token 数判断
         if (
             activeTier.contextSizeMin === undefined ||
-            (effectiveInput !== undefined && effectiveInput >= activeTier.contextSizeMin)
+            (actualInput !== undefined && actualInput >= activeTier.contextSizeMin)
         ) {
             return {
                 activeTier,
@@ -215,13 +208,7 @@ export function resolvePricingBreakdown(
         const remainingTiers = pricing.tiers?.filter(t => t !== activeTier);
         if (remainingTiers && remainingTiers.length > 0) {
             const retryPricing: ModelTokenPricing = { ...pricing, tiers: remainingTiers };
-            const retryResult = resolvePricingBreakdown(
-                retryPricing,
-                at,
-                requestServiceTier,
-                actualInput,
-                outputTokens
-            );
+            const retryResult = resolvePricingBreakdown(retryPricing, at, requestServiceTier, actualInput);
             if (retryResult) {
                 return retryResult;
             }
@@ -322,13 +309,7 @@ export function calculateCostWithBreakdown(
     const outputTokens = Math.max(0, parsed.outputTokens);
     const cacheReadTokens = Math.max(0, parsed.cacheReadTokens);
 
-    const resolvedPricing = resolvePricingBreakdown(
-        normalizedPricing,
-        at,
-        requestServiceTier,
-        actualInput,
-        outputTokens
-    );
+    const resolvedPricing = resolvePricingBreakdown(normalizedPricing, at, requestServiceTier, actualInput);
     if (!resolvedPricing) {
         return undefined;
     }

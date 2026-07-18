@@ -276,10 +276,8 @@ export interface PricingTierMatchFields {
     timezone?: string;
     /** 服务等级匹配条件（如 priority） */
     serviceTier?: string;
-    /** 最小上下文 token 数阈值；是否包含输出由 contextSizeInputOnly 决定 */
+    /** 最小输入 token 数阈值；按实际输入 token 数判断 */
     contextSizeMin?: number;
-    /** contextSizeMin 是否仅按输入 token 判断（排除输出 token） */
-    contextSizeInputOnly?: boolean;
 }
 
 /**
@@ -360,8 +358,7 @@ export interface ModelTokenPricing extends PricingFields {
  * - "* 0-23 * * 0,6" = 周末全天每分钟生效（谷时）
  * - "0 9 * * 1-5"   = 仅工作日 9:00 整点命中（通常不是想要的时段表达）
  * - cron="* * * * *", serviceTier="priority" = 仅当用户选了 priority 时生效
- * - contextSizeMin=512001 = 仅当实际消耗的上下文 token 数达到 512001 时生效；
- *   contextSizeInputOnly=true 时仅比较输入 token，否则比较输入与输出之和
+ * - contextSizeMin=512001 = 仅当实际消耗的输入 token 数达到 512001 时生效
  */
 
 export interface PricingTier extends PricingFields, PricingTierMatchFields {}

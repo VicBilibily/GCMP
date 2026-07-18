@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Pricing Tier Resolver — 按请求时间匹配峰谷定价档位
  *
  *  设计目标：
@@ -413,14 +413,7 @@ const TOP_LEVEL_EXPLICIT_KEY_SET = new Set([
     'rmb',
     'tiers'
 ]);
-const TIER_SHORTHAND_KEY_SET = new Set([
-    'pricing',
-    'cron',
-    'timezone',
-    'serviceTier',
-    'contextSizeMin',
-    'contextSizeInputOnly'
-]);
+const TIER_SHORTHAND_KEY_SET = new Set(['pricing', 'cron', 'timezone', 'serviceTier', 'contextSizeMin']);
 const TIER_EXPLICIT_KEY_SET = new Set([
     ...TIER_SHORTHAND_KEY_SET,
     'inputPrice',
@@ -457,7 +450,6 @@ interface TokenPricingTierInputLike {
     timezone?: string;
     serviceTier?: string;
     contextSizeMin?: number;
-    contextSizeInputOnly?: boolean;
 }
 
 /**
@@ -662,14 +654,12 @@ function getTierMatchFields(tier: {
     timezone?: string;
     serviceTier?: string;
     contextSizeMin?: number;
-    contextSizeInputOnly?: boolean;
-}): Pick<PricingTier, 'cron' | 'timezone' | 'serviceTier' | 'contextSizeMin' | 'contextSizeInputOnly'> {
+}): Pick<PricingTier, 'cron' | 'timezone' | 'serviceTier' | 'contextSizeMin'> {
     return {
         cron: tier.cron,
         timezone: tier.timezone,
         serviceTier: tier.serviceTier,
-        contextSizeMin: tier.contextSizeMin,
-        contextSizeInputOnly: tier.contextSizeInputOnly
+        contextSizeMin: tier.contextSizeMin
     };
 }
 
@@ -678,7 +668,6 @@ function hasValidTierMatchFields(tier: {
     timezone?: string;
     serviceTier?: string;
     contextSizeMin?: number;
-    contextSizeInputOnly?: boolean;
 }): boolean {
     if (tier.cron !== undefined && typeof tier.cron !== 'string') {
         return false;
@@ -693,9 +682,6 @@ function hasValidTierMatchFields(tier: {
         if (typeof tier.contextSizeMin !== 'number' || !isFinite(tier.contextSizeMin) || tier.contextSizeMin < 0) {
             return false;
         }
-    }
-    if (tier.contextSizeInputOnly !== undefined && typeof tier.contextSizeInputOnly !== 'boolean') {
-        return false;
     }
     return true;
 }
@@ -851,8 +837,7 @@ export function serializeTokenPricingInput(pricing: ModelTokenPricing | undefine
                     cron: tier.cron,
                     timezone: tier.timezone,
                     serviceTier: tier.serviceTier,
-                    contextSizeMin: tier.contextSizeMin,
-                    contextSizeInputOnly: tier.contextSizeInputOnly
+                    contextSizeMin: tier.contextSizeMin
                 }))
             }
         :   {})

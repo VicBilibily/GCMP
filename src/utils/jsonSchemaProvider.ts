@@ -400,16 +400,8 @@ export class JsonSchemaProvider {
                     type: 'number',
                     minimum: 0,
                     description: t(
-                        'Optional minimum context token count. When set, this tier only applies when the usage-based context count reaches this value. By default this includes input plus output; set contextSizeInputOnly to compare input only',
-                        '可选的最小上下文 token 数。设置后，仅当基于 usage 的上下文 token 数达到此值时该 tier 才生效；默认比较输入与输出之和，设置 contextSizeInputOnly 后仅比较输入'
-                    )
-                },
-                contextSizeInputOnly: {
-                    type: 'boolean',
-                    default: false,
-                    description: t(
-                        'When true, contextSizeMin comparison excludes output tokens and compares input tokens only. Default false compares input plus output tokens',
-                        '为 true 时，contextSizeMin 的判断排除输出 token，仅比较输入 token。默认 false 按输入与输出 token 之和判断'
+                        'Optional minimum input token count. When set, this tier only applies when the actual input tokens consumed reach this value (checked against usage, not pre-allocated window). Used for "context-window tiered billing" scenarios',
+                        '可选的最小 input token 数。设置后，仅当实际消耗的 input token 数达到此值时该 tier 才生效（与 usage 对比，而非预分配窗口）。用于"按上下文大小阶梯计费"场景'
                     )
                 }
             }

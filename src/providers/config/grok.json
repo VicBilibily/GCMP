@@ -16,7 +16,7 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [2, 6, 0.5],
-                "tiers": [{ "contextSizeMin": 200000, "contextSizeInputOnly": true, "pricing": [4, 12, 1] }]
+                "tiers": [{ "contextSizeMin": 200000, "pricing": [4, 12, 1] }]
             }
         },
         {
@@ -29,7 +29,7 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [1, 2, 0.2],
-                "tiers": [{ "contextSizeMin": 200000, "contextSizeInputOnly": true, "pricing": [2, 4, 0.4] }]
+                "tiers": [{ "contextSizeMin": 200000, "pricing": [2, 4, 0.4] }]
             }
         },
         {

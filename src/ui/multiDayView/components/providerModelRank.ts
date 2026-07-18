@@ -143,8 +143,22 @@ function createDonutTable(
                 nativeCosts?.cacheReadRmb,
                 options
             ) +
-            buildTokensCell(output, outputCost, outputCostRmb, nativeCosts?.outputUsd, nativeCosts?.outputRmb, options) +
-            buildTokensCell(input + output, estimatedCost, estimatedCostRmb, nativeCosts?.totalUsd, nativeCosts?.totalRmb, options) +
+            buildTokensCell(
+                output,
+                outputCost,
+                outputCostRmb,
+                nativeCosts?.outputUsd,
+                nativeCosts?.outputRmb,
+                options
+            ) +
+            buildTokensCell(
+                input + output,
+                estimatedCost,
+                estimatedCostRmb,
+                nativeCosts?.totalUsd,
+                nativeCosts?.totalRmb,
+                options
+            ) +
             `<td>${share}%</td>`;
         tbody.appendChild(tr);
     }

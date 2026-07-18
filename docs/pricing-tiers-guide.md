@@ -58,16 +58,9 @@
 | `cron` | 生效时段，使用 5 字段 Unix cron：分、时、日、月、周。 |
 | `timezone` | `cron` 的 IANA 时区；未设置时按 `Asia/Shanghai`。 |
 | `serviceTier` | 仅在请求选择相同服务等级时命中。 |
-| `contextSizeMin` | 实际上下文 Token 达到该阈值时命中；是否包含输出由 `contextSizeInputOnly` 决定。 |
-| `contextSizeInputOnly` | 控制 `contextSizeMin` 是否排除输出 Token：`true` 时仅比较输入 Token；默认 `false`，比较输入与输出 Token 之和。 |
+| `contextSizeMin` | 实际输入 Token 达到该阈值时命中。 |
 
-`contextSizeMin` 比较的是 API usage 的实际用量：默认使用输入与输出之和；设置 `contextSizeInputOnly: true` 时仅使用输入。它**不是** `contextSize` 或用户预选的上下文窗口。
-
-`contextSizeInputOnly` 仅用于适配提供商对上下文阶梯的计费口径：
-
-- 提供商按“输入 + 输出”的总上下文长度分档时，不设置该字段（默认 `false`）。
-- 提供商明确按请求的**输入 prompt** 长度分档时，设置为 `true`；例如输入为 `190000`、输出为 `20000`、阈值为 `200000`，默认口径比较值为 `210000`，会命中；设置 `contextSizeInputOnly: true` 后比较值为 `190000`，不会命中。
-- 此字段不改变输入、输出或缓存命中的单价与计费量；它只决定是否命中 `contextSizeMin` 对应的价格档。
+`contextSizeMin` 比较的是 API usage 的实际输入 Token 数（含缓存），**不是** `contextSize` 或用户预选的上下文窗口，也不包含输出 Token。它只决定是否命中对应的价格档，不改变输入、输出或缓存命中的单价与计费量。
 
 ## 匹配优先级与排序
 
@@ -159,7 +152,7 @@
 2. 顶层 `pricing` 应是无条件的默认/回退价格。
 3. 每个 tier 至少设置一个匹配条件；不能创建没有条件的 tier。
 4. 多个上下文阈值按降序排列；高优先级服务等级、时段或组合条件排在通用规则之前。
-5. `contextSizeInputOnly: true` 时，`contextSizeMin` 不得超过 `maxInputTokens`；默认口径下不得超过 `maxInputTokens + maxOutputTokens`。
+5. `contextSizeMin` 不得超过 `maxInputTokens`。
 6. 价格数组必须为 2 至 4 个非负数字。
 7. 未经明确需求，不修改模型 ID、能力、`thinking` 或 `reasoningEffort`。
 
