@@ -400,16 +400,16 @@ export class JsonSchemaProvider {
                     type: 'number',
                     minimum: 0,
                     description: t(
-                        'Optional minimum input token count. When set, this tier only applies when the actual input tokens consumed are >= this value (checked against usage, not pre-allocated window). Used for "context-window tiered billing" scenarios',
-                        '可选的最小 input token 数。设置后，仅当实际消耗的 input token 数 >= 此值时该 tier 才生效（与 usage 对比，而非预分配窗口）。用于"按上下文大小阶梯计费"场景'
+                        'Optional minimum context token count. When set, this tier only applies when the usage-based context count reaches this value. By default this includes input plus output; set contextSizeInputOnly to compare input only',
+                        '可选的最小上下文 token 数。设置后，仅当基于 usage 的上下文 token 数达到此值时该 tier 才生效；默认比较输入与输出之和，设置 contextSizeInputOnly 后仅比较输入'
                     )
                 },
                 contextSizeInputOnly: {
                     type: 'boolean',
                     default: false,
                     description: t(
-                        'When true, contextSizeMin comparison excludes cache-read tokens (compares uncached input only). Default false compares raw prompt_tokens including cache',
-                        '为 true 时，contextSizeMin 的判断排除缓存读取 token（仅比较非缓存 input）。默认 false 按 raw prompt_tokens（含缓存）判断'
+                        'When true, contextSizeMin comparison excludes output tokens and compares input tokens only. Default false compares input plus output tokens',
+                        '为 true 时，contextSizeMin 的判断排除输出 token，仅比较输入 token。默认 false 按输入与输出 token 之和判断'
                     )
                 }
             }
@@ -541,6 +541,10 @@ export class JsonSchemaProvider {
             t(
                 "Object format (none only): only pass { thinking: { type: 'disabled' } } when reasoningEffort is 'none'",
                 '仅当 reasoningEffort 为 none 时传递 object 格式的禁用思考参数，其余情况忽略'
+            ),
+            t(
+                "Effort format (none only): pass { reasoning_effort: 'none' } directly when reasoningEffort is 'none'",
+                "当 reasoningEffort 为 none 时直接传递 { reasoning_effort: 'none' }，忽略思考参数"
             )
         ];
     }
@@ -979,7 +983,7 @@ export class JsonSchemaProvider {
                             },
                             thinkingFormat: {
                                 type: 'string',
-                                enum: ['boolean', 'boolean-none', 'object', 'object-none'],
+                                enum: ['boolean', 'boolean-none', 'object', 'object-none', 'effort-none'],
                                 enumDescriptions: this.getThinkingFormatEnumDescriptions(),
                                 default: 'boolean',
                                 description: this.getThinkingFormatDescription(true)
@@ -1256,7 +1260,7 @@ export class JsonSchemaProvider {
                                     properties: {
                                         thinkingFormat: {
                                             type: 'string',
-                                            enum: ['boolean', 'boolean-none', 'object', 'object-none'],
+                                            enum: ['boolean', 'boolean-none', 'object', 'object-none', 'effort-none'],
                                             enumDescriptions: this.getThinkingFormatEnumDescriptions(),
                                             default: 'boolean',
                                             description: this.getThinkingFormatDescription()
@@ -1644,7 +1648,7 @@ export class JsonSchemaProvider {
                             },
                             thinkingFormat: {
                                 type: 'string',
-                                enum: ['boolean', 'boolean-none', 'object', 'object-none'],
+                                enum: ['boolean', 'boolean-none', 'object', 'object-none', 'effort-none'],
                                 enumDescriptions: this.getThinkingFormatEnumDescriptions(),
                                 default: 'boolean',
                                 description: this.getThinkingFormatDescription(true)
@@ -1817,7 +1821,7 @@ export class JsonSchemaProvider {
                                     properties: {
                                         thinkingFormat: {
                                             type: 'string',
-                                            enum: ['boolean', 'boolean-none', 'object', 'object-none'],
+                                            enum: ['boolean', 'boolean-none', 'object', 'object-none', 'effort-none'],
                                             enumDescriptions: this.getThinkingFormatEnumDescriptions(),
                                             default: 'boolean',
                                             description: this.getThinkingFormatDescription()

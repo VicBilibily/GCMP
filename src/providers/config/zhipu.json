@@ -9,14 +9,14 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://open.bigmodel.cn/api/anthropic",
             "tooltip": "GLM-5.2 是面向长任务时代的旗舰模型。支持真正可用的 1M 上下文，实测可承载项目级工程上下文，长程任务执行更稳定、工程规范遵循更可靠，开发场景成功率进一步提升。一次任务即可完成“从需求到多端可部署产物”的完整开发链路。",
-            "contextSize": [1000000, 640000, 400000, 320000],
-            "maxInputTokens": 872000,
-            "maxOutputTokens": 128000,
+            "contextSize": [1000000, 640000, 400000, 320000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
             "reasoningEffort": ["high", "max", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
             "tokenPricing": {
-                "pricing": [1.4, 4.4, 0.26],
-                "tiers": [{ "cron": "* 14-17 * * *", "pricing": [4.2, 13.2, 0.78] }]
+                "pricing": { "USD": [1.4, 4.4, 0.26], "RMB": [8, 28, 2] },
+                "tiers": [{ "cron": "* 14-17 * * *", "pricing": 3 }]
             }
         },
         {
@@ -29,7 +29,7 @@
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
-            "tokenPricing": [1.2, 4, 0.24]
+            "tokenPricing": { "USD": [1.2, 4, 0.24], "RMB": [5, 22, 1.2] }
         },
         {
             "id": "glm-5-turbo",
@@ -42,13 +42,8 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
             "tokenPricing": {
-                "pricing": [1.2, 4, 0.24],
-                "tiers": [
-                    {
-                        "cron": "* 14-17 * * *",
-                        "pricing": [3.6, 12, 0.72]
-                    }
-                ]
+                "pricing": { "USD": [1.2, 4, 0.24], "RMB": [5, 22, 1.2] },
+                "tiers": [{ "cron": "* 14-17 * * *", "pricing": 3 }]
             }
         },
         {
@@ -61,7 +56,7 @@
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": [0.6, 2.2, 0.11]
+            "tokenPricing": { "USD": [0.6, 2.2, 0.11], "RMB": [2, 8, 0.4] }
         },
         {
             "id": "glm-4.6",
@@ -73,7 +68,7 @@
             "maxOutputTokens": 32000,
             "thinking": ["disabled", "enabled"],
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": [0.6, 2.2, 0.11]
+            "tokenPricing": { "USD": [0.6, 2.2, 0.11], "RMB": [2, 8, 0.4] }
         },
         {
             "id": "glm-4.6v",
@@ -85,20 +80,20 @@
             "maxOutputTokens": 16000,
             "thinking": ["disabled", "enabled"],
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
-            "tokenPricing": [0.3, 0.9, 0.05]
+            "tokenPricing": { "USD": [0.3, 0.9, 0.05], "RMB": [1, 3, 0.2] }
         },
         {
             "id": "glm-5.2-billing",
             "model": "glm-5.2",
             "name": "GLM-5.2 (PayGo)",
             "tooltip": "GLM-5.2 是面向长任务时代的旗舰模型。支持真正可用的 1M 上下文，实测可承载项目级工程上下文，长程任务执行更稳定、工程规范遵循更可靠，开发场景成功率进一步提升。一次任务即可完成“从需求到多端可部署产物”的完整开发链路。",
-            "contextSize": [1000000, 640000, 400000, 320000],
-            "maxInputTokens": 872000,
-            "maxOutputTokens": 128000,
+            "contextSize": [1000000, 640000, 400000, 320000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
             "reasoningEffort": ["high", "max", "none"],
             "thinkingFormat": "object-none",
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [1.4, 4.4, 0.26]
+            "tokenPricing": { "USD": [1.4, 4.4, 0.26], "RMB": [8, 28, 2] }
         },
         {
             "id": "glm-5.1-billing",
@@ -109,7 +104,10 @@
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [1.4, 4.4, 0.26]
+            "tokenPricing": {
+                "pricing": { "USD": [1.4, 4.4, 0.26], "RMB": [6, 24, 1.3] },
+                "tiers": [{ "contextSizeMin": 32000, "pricing": { "USD": [1.4, 4.4, 0.26], "RMB": [8, 28, 2] } }]
+            }
         },
         {
             "id": "glm-5v-turbo-billing",
@@ -120,7 +118,10 @@
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [1.2, 4, 0.24]
+            "tokenPricing": {
+                "pricing": { "USD": [1.2, 4, 0.24], "RMB": [5, 22, 1.2] },
+                "tiers": [{ "contextSizeMin": 32000, "pricing": { "USD": [1.2, 4, 0.24], "RMB": [7, 26, 1.8] } }]
+            }
         },
         {
             "id": "glm-5-turbo-billing",
@@ -131,7 +132,10 @@
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [1.2, 4, 0.24]
+            "tokenPricing": {
+                "pricing": { "USD": [1.2, 4, 0.24], "RMB": [5, 22, 1.2] },
+                "tiers": [{ "contextSizeMin": 32000, "pricing": { "USD": [1.2, 4, 0.24], "RMB": [7, 26, 1.8] } }]
+            }
         },
         {
             "id": "glm-5-billing",
@@ -142,7 +146,10 @@
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [1, 3.2, 0.2]
+            "tokenPricing": {
+                "pricing": { "USD": [1, 3.2, 0.2], "RMB": [4, 18, 1] },
+                "tiers": [{ "contextSizeMin": 32000, "pricing": { "USD": [1, 3.2, 0.2], "RMB": [6, 22, 1.5] } }]
+            }
         },
         {
             "id": "glm-4.7-billing",
@@ -153,7 +160,10 @@
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.6, 2.2, 0.11]
+            "tokenPricing": {
+                "pricing": { "USD": [0.6, 2.2, 0.11], "RMB": [2, 8, 0.4] },
+                "tiers": [{ "contextSizeMin": 32000, "pricing": { "USD": [0.6, 2.2, 0.11], "RMB": [4, 16, 0.8] } }]
+            }
         },
         {
             "id": "glm-4.6-billing",
@@ -164,7 +174,10 @@
             "maxOutputTokens": 32000,
             "thinking": ["disabled", "enabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.6, 2.2, 0.11]
+            "tokenPricing": {
+                "pricing": { "USD": [0.6, 2.2, 0.11], "RMB": [2, 8, 0.4] },
+                "tiers": [{ "contextSizeMin": 32000, "pricing": { "USD": [0.6, 2.2, 0.11], "RMB": [4, 16, 0.8] } }]
+            }
         },
         {
             "id": "glm-4.6v-billing",
@@ -175,7 +188,7 @@
             "maxOutputTokens": 16000,
             "thinking": ["disabled", "enabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.3, 0.9, 0.05]
+            "tokenPricing": { "USD": [0.3, 0.9, 0.05], "RMB": [1, 3, 0.2] }
         },
         {
             "id": "glm-4.7-flash",
@@ -184,8 +197,7 @@
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0, 0, 0]
+            "capabilities": { "toolCalling": true, "imageInput": false }
         },
         {
             "id": "glm-4.7-flashx",
@@ -195,7 +207,7 @@
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.07, 0.4, 0.01]
+            "tokenPricing": { "USD": [0.07, 0.4, 0.01], "RMB": [0.5, 3, 0.1] }
         },
         {
             "id": "glm-4.6v-flash",
@@ -204,8 +216,7 @@
             "maxInputTokens": 112000,
             "maxOutputTokens": 16000,
             "thinking": ["disabled", "enabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0, 0, 0]
+            "capabilities": { "toolCalling": true, "imageInput": true }
         }
     ]
 }

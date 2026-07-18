@@ -452,7 +452,15 @@ test('calculateCostWithBreakdown: contextSizeMin tier applies when actual input 
     const pricing: ModelTokenPricing = {
         inputPrice: 0.14,
         outputPrice: 0.28,
-        tiers: [{ cron: '* * * * *', contextSizeMin: 512001, inputPrice: 0.28, outputPrice: 0.56 }]
+        tiers: [
+            {
+                cron: '* * * * *',
+                contextSizeMin: 512001,
+                contextSizeInputOnly: true,
+                inputPrice: 0.28,
+                outputPrice: 0.56
+            }
+        ]
     };
 
     // input tokens = 600K → >= 512001 → 命中 tier
@@ -674,10 +682,18 @@ test('calculateCostWithBreakdown: contextSizeMin boundary — exact match at thr
     const pricing: ModelTokenPricing = {
         inputPrice: 0.14,
         outputPrice: 0.28,
-        tiers: [{ cron: '* * * * *', contextSizeMin: 512001, inputPrice: 0.28, outputPrice: 0.56 }]
+        tiers: [
+            {
+                cron: '* * * * *',
+                contextSizeMin: 512001,
+                contextSizeInputOnly: true,
+                inputPrice: 0.28,
+                outputPrice: 0.56
+            }
+        ]
     };
 
-    // input = 512001 → 刚好 >= → 命中
+    // input = 512001 → 刚好 >= → 命中；输出不参与该 tier 阈值判断。
     const hit = calculateCostWithBreakdown(
         { prompt_tokens: 512001, completion_tokens: 100, total_tokens: 512101 },
         pricing,
@@ -878,8 +894,8 @@ test('resolvePricingBreakdown: returns undefined when pricing is undefined', () 
     assert.equal(resolvePricingBreakdown(undefined, new Date(), undefined, 100), undefined);
 });
 
-test('resolvePricingBreakdown: contextSizeInputOnly excludes cacheRead from threshold', () => {
-    // raw prompt=550K, cacheRead=50K → uncached=500K
+test('resolvePricingBreakdown: contextSizeInputOnly excludes output from threshold', () => {
+    // input=500K, output=50K。
     // contextSizeMin=512001, contextSizeInputOnly=true → 500K < 512001 → 不命中 → 回退静态
     const pricing: ModelTokenPricing = {
         inputPrice: 0.14,
@@ -896,15 +912,15 @@ test('resolvePricingBreakdown: contextSizeInputOnly excludes cacheRead from thre
     };
     const at = new Date('2026-07-06T01:30:00Z');
 
-    const result = resolvePricingBreakdown(pricing, at, undefined, 550000, 50000);
+    const result = resolvePricingBreakdown(pricing, at, undefined, 500000, 50000);
     assert.ok(result);
     assert.equal(result.activeTier, undefined);
     assert.equal(result.effectivePricing.inputPrice, 0.14);
 });
 
-test('resolvePricingBreakdown: contextSizeInputOnly false (default) includes cache in threshold', () => {
-    // raw prompt=550K, cacheRead=50K → 默认口径=550K
-    // contextSizeMin=512001 → 550K >= 512001 → 命中
+test('resolvePricingBreakdown: contextSizeInputOnly false (default) includes output in threshold', () => {
+    // input=500K, output=50K → 默认口径=550K。
+    // contextSizeMin=512001 → 550K >= 512001 → 命中。
     const pricing: ModelTokenPricing = {
         inputPrice: 0.14,
         outputPrice: 0.28,
@@ -912,7 +928,7 @@ test('resolvePricingBreakdown: contextSizeInputOnly false (default) includes cac
     };
     const at = new Date('2026-07-06T01:30:00Z');
 
-    const result = resolvePricingBreakdown(pricing, at, undefined, 550000, 50000);
+    const result = resolvePricingBreakdown(pricing, at, undefined, 500000, 50000);
     assert.ok(result);
     assert.ok(result.activeTier);
     assert.equal(result.effectivePricing.inputPrice, 0.28);
@@ -927,8 +943,8 @@ test('resolvePricingBreakdown: omitted cron with contextSizeInputOnly works', ()
     };
     const at = new Date('2026-07-06T01:30:00Z');
 
-    // raw=550K, cacheRead=50K → uncached=500K < 512001 → 不命中
-    const result = resolvePricingBreakdown(pricing, at, undefined, 550000, 50000);
+    // input=500K, output=50K → input-only=500K < 512001 → 不命中
+    const result = resolvePricingBreakdown(pricing, at, undefined, 500000, 50000);
     assert.ok(result);
     assert.equal(result.activeTier, undefined);
     assert.equal(result.effectivePricing.inputPrice, 0.14);
@@ -945,9 +961,9 @@ test('toNanoAiu: large cost values', () => {
     assert.equal(toNanoAiu(9e-10), 1);
 });
 
-// ============= Cubence GPT-5.4 端到端：contextSizeInputOnly 按非缓存 input 阶梯计费 =============
+// ============= Cubence GPT-5.4 端到端：contextSizeInputOnly 按输入阶梯计费 =============
 
-test('Cubence GPT-5.4: tier applies when non-cached input >= 272K', () => {
+test('Cubence GPT-5.4: tier applies when input >= 272K', () => {
     const pricing: ModelTokenPricing = {
         inputPrice: 2.5,
         outputPrice: 15,
@@ -963,7 +979,7 @@ test('Cubence GPT-5.4: tier applies when non-cached input >= 272K', () => {
         ]
     };
 
-    // Responses API: input_tokens=300K, cached=20K → non-cached=280K >= 272001 → 命中 tier
+    // Responses API: input_tokens=300K, output=5K。按输入比较，300K >= 272001 → 命中 tier。
     const breakdown = calculateCostWithBreakdown(
         {
             input_tokens: 300000,
@@ -982,7 +998,7 @@ test('Cubence GPT-5.4: tier applies when non-cached input >= 272K', () => {
     assertClose(breakdown.cacheReadCost, (20000 / 1_000_000) * 0.5);
 });
 
-test('Cubence GPT-5.4: falls back to static when non-cached input < 272K', () => {
+test('Cubence GPT-5.4: falls back to static when input < 272K', () => {
     const pricing: ModelTokenPricing = {
         inputPrice: 2.5,
         outputPrice: 15,
@@ -998,7 +1014,7 @@ test('Cubence GPT-5.4: falls back to static when non-cached input < 272K', () =>
         ]
     };
 
-    // input_tokens=200K, cached=30K → non-cached=170K < 272001 → 回退静态
+    // input_tokens=200K，按输入比较 < 272001 → 回退静态。
     const breakdown = calculateCostWithBreakdown(
         {
             input_tokens: 200000,
@@ -1017,7 +1033,7 @@ test('Cubence GPT-5.4: falls back to static when non-cached input < 272K', () =>
     assertClose(breakdown.cacheReadCost, (30000 / 1_000_000) * 0.25);
 });
 
-test('Cubence GPT-5.4: without contextSizeInputOnly, raw tokens count toward threshold', () => {
+test('Cubence GPT-5.4: without contextSizeInputOnly, input plus output count toward threshold', () => {
     const pricing: ModelTokenPricing = {
         inputPrice: 2.5,
         outputPrice: 15,
@@ -1032,7 +1048,7 @@ test('Cubence GPT-5.4: without contextSizeInputOnly, raw tokens count toward thr
         ]
     };
 
-    // 默认 contextSizeInputOnly=false → raw=250K < 272K → 回退
+    // 默认 contextSizeInputOnly=false → input + output = 252K < 272K → 回退。
     const miss = calculateCostWithBreakdown(
         { input_tokens: 250000, output_tokens: 2000, input_tokens_details: { cached_tokens: 50000 } },
         pricing
@@ -1040,7 +1056,7 @@ test('Cubence GPT-5.4: without contextSizeInputOnly, raw tokens count toward thr
     assert.ok(miss);
     assert.equal(miss.effectiveInputPrice, 2.5);
 
-    // raw=280K >= 272K → 命中（即使 non-cached=230K）
+    // input + output = 282K >= 272K → 命中。
     const hit = calculateCostWithBreakdown(
         { input_tokens: 280000, output_tokens: 2000, input_tokens_details: { cached_tokens: 50000 } },
         pricing

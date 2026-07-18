@@ -318,12 +318,12 @@
                                     "contextSizeMin": {
                                         "type": "number",
                                         "minimum": 0,
-                                        "description": "可选的最小 input token 数。设置后，仅当实际消耗的 input token 数 >= 此值时该 tier 才生效（与 usage 对比，而非预分配窗口）。用于\"按上下文大小阶梯计费\"场景。"
+                                        "description": "可选的最小上下文 token 数。设置后，仅当基于 usage 的上下文 token 数达到此值时该 tier 才生效；默认比较输入与输出之和，设置 contextSizeInputOnly 后仅比较输入。"
                                     },
                                     "contextSizeInputOnly": {
                                         "type": "boolean",
                                         "default": false,
-                                        "description": "为 true 时，contextSizeMin 的判断排除缓存读取 token（仅比较非缓存 input）。默认 false 按 raw prompt_tokens（含缓存）判断。"
+                                        "description": "为 true 时，contextSizeMin 的判断排除输出 token，仅比较输入 token。默认 false 按输入与输出 token 之和判断。"
                                     }
                                 }
                             }
@@ -437,12 +437,13 @@
                 },
                 "thinkingFormat": {
                     "type": "string",
-                    "enum": ["boolean", "boolean-none", "object", "object-none"],
+                    "enum": ["boolean", "boolean-none", "object", "object-none", "effort-none"],
                     "enumDescriptions": [
                         "使用布尔值格式: { enable_thinking: true/false }",
                         "仅当 reasoningEffort 为 none 时传递布尔值 { enable_thinking: false }，其余情况忽略",
                         "使用对象格式: { thinking: { type: 'enabled' | 'disabled' } }",
-                        "仅当 reasoningEffort 为 none 时传递 object 格式的禁用思考参数，其余情况忽略"
+                        "仅当 reasoningEffort 为 none 时传递 object 格式的禁用思考参数，其余情况忽略",
+                        "当 reasoningEffort 为 none 时直接传递 { reasoning_effort: 'none' }，忽略思考参数"
                     ],
                     "default": "boolean",
                     "description": "思考模式参数的传递格式，用于兼容不同模型的API格式要求"
@@ -624,12 +625,13 @@
                         "properties": {
                             "thinkingFormat": {
                                 "type": "string",
-                                "enum": ["boolean", "boolean-none", "object", "object-none"],
+                                "enum": ["boolean", "boolean-none", "object", "object-none", "effort-none"],
                                 "enumDescriptions": [
                                     "使用布尔值格式: { enable_thinking: true/false }",
                                     "仅当 reasoningEffort 为 none 时传递布尔值 { enable_thinking: false }，其余情况忽略",
                                     "使用对象格式: { thinking: { type: 'enabled' | 'disabled' } }",
-                                    "仅当 reasoningEffort 为 none 时传递 object 格式的禁用思考参数，其余情况忽略"
+                                    "仅当 reasoningEffort 为 none 时传递 object 格式的禁用思考参数，其余情况忽略",
+                                    "当 reasoningEffort 为 none 时直接传递 { reasoning_effort: 'none' }，忽略思考参数"
                                 ],
                                 "default": "boolean",
                                 "description": "思考模式参数的传递格式，用于兼容不同模型的API格式要求"

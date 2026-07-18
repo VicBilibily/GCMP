@@ -9,13 +9,13 @@
             "tooltip": "DeepSeek-V4 快速模式",
             "sdkMode": "anthropic",
             "reasoningEffort": ["high", "max", "none"],
-            "contextSize": [1000000, 640000, 400000, 320000],
-            "maxInputTokens": 872000,
-            "maxOutputTokens": 128000,
+            "contextSize": [1000000, 640000, 400000, 320000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
             "tokenPricing": {
                 "pricing": { "USD": [0.14, 0.28, 0.0028], "RMB": [1, 2, 0.02] },
-                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 1 }]
+                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
             }
         },
         {
@@ -24,13 +24,13 @@
             "tooltip": "DeepSeek-V4 专家模式",
             "sdkMode": "anthropic",
             "reasoningEffort": ["high", "max", "none"],
-            "contextSize": [1000000, 640000, 400000, 320000],
-            "maxInputTokens": 872000,
-            "maxOutputTokens": 128000,
+            "contextSize": [1000000, 640000, 400000, 320000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
             "tokenPricing": {
                 "pricing": { "USD": [0.435, 0.87, 0.003625], "RMB": [3, 6, 0.025] },
-                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 1 }]
+                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
             }
         }
     ]

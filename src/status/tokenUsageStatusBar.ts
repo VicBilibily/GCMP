@@ -14,6 +14,7 @@ import type { TokenUsageStatsFromFile } from '../usages/fileLogger/types';
 import type { ExtendedTokenRequestLog } from '../usages/fileLogger/usageParser';
 import { t } from '../utils/l10n';
 import { convertUsdToRmb } from '../utils/pricingCurrency';
+import { formatCost } from '../ui/utils';
 
 /**
  * Token 用量状态栏
@@ -114,10 +115,10 @@ export class TokenUsageStatusBar {
         const exactRmb = record.costBreakdown?.currencies?.RMB?.total;
         const currency = this.isChineseLocale() && exactRmb !== undefined ? 'RMB' : 'USD';
         if (currency === 'USD') {
-            return this.formatFixedCost(usd, 'USD');
+            return formatCost(usd, 4);
         }
 
-        return this.formatFixedCost(exactRmb ?? convertUsdToRmb(usd) ?? 0, 'RMB');
+        return formatCost(exactRmb ?? convertUsdToRmb(usd) ?? 0, { fixedDecimals: 4, currencySymbol: '¥' });
     }
 
     private getTooltipCostHeader(): string {

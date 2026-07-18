@@ -12,12 +12,12 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://token-plan-cn.xiaomimimo.com/anthropic",
             "model": "mimo-v2.5-pro",
-            "contextSize": [1000000, 640000, 400000, 320000],
-            "maxInputTokens": 872000,
-            "maxOutputTokens": 128000,
+            "contextSize": [1000000, 640000, 400000, 320000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": [0.435, 0.87, 0.0036]
+            "tokenPricing": { "USD": [0.435, 0.87, 0.0036], "RMB": [3, 6, 0.025] }
         },
         {
             "id": "mimo-v2.5-token-plan",
@@ -26,49 +26,49 @@
             "provider": "xiaomimimo-token",
             "baseUrl": "https://token-plan-cn.xiaomimimo.com/v1",
             "model": "mimo-v2.5",
-            "contextSize": [1000000, 640000, 400000, 320000],
-            "maxInputTokens": 872000,
-            "maxOutputTokens": 128000,
+            "contextSize": [1000000, 640000, 400000, 320000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
             "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.14, 0.28, 0.0028]
+            "tokenPricing": { "USD": [0.14, 0.28, 0.0028], "RMB": [1, 2, 0.02] }
         },
         {
             "id": "mimo-v2.5-pro-ultraspeed",
             "name": "MiMo-V2.5-Pro-UltraSpeed",
             "tooltip": "小米MiMo-V2.5-Pro 的 UltraSpeed 体验模式，万亿参数（1T）旗舰模型，最高突破 1000 tokens/s 推理速度，为极致实时场景而生。",
-            "contextSize": [1000000, 640000, 400000, 320000],
-            "maxInputTokens": 872000,
-            "maxOutputTokens": 128000,
+            "contextSize": [1000000, 640000, 400000, 320000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
             "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [1.305, 2.61, 0.0108]
+            "tokenPricing": { "USD": [1.305, 2.61, 0.0108], "RMB": [9, 18, 0.075] }
         },
         {
             "id": "mimo-v2.5-pro",
             "name": "MiMo-V2.5-Pro",
             "tooltip": "小米MiMo-V2.5-Pro 通用大语言模型，支持文本生成、深度思考、流式输出、函数调用、结构化输出、联网搜索。上下文长度 1M，最大输出 128K。",
-            "contextSize": [1000000, 640000, 400000, 320000],
-            "maxInputTokens": 872000,
-            "maxOutputTokens": 128000,
+            "contextSize": [1000000, 640000, 400000, 320000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
             "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.435, 0.87, 0.0036]
+            "tokenPricing": { "USD": [0.435, 0.87, 0.0036], "RMB": [3, 6, 0.025] }
         },
         {
             "id": "mimo-v2.5",
             "name": "MiMo-V2.5",
             "tooltip": "小米MiMo-V2.5 全模态理解模型，支持全模态理解、深度思考、流式输出、函数调用、结构化输出、联网搜索。上下文长度 1M，最大输出 128K。",
-            "contextSize": [1000000, 640000, 400000, 320000],
-            "maxInputTokens": 872000,
-            "maxOutputTokens": 128000,
+            "contextSize": [1000000, 640000, 400000, 320000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
             "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.14, 0.28, 0.0028]
+            "tokenPricing": { "USD": [0.14, 0.28, 0.0028], "RMB": [1, 2, 0.02] }
         }
     ]
 }

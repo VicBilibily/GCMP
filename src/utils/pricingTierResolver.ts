@@ -317,7 +317,7 @@ function toZonedComponents(utcDate: Date, timezone: string | undefined): ZonedTi
  * 2. 若未配置 tiers，或无任何 tier 命中，返回 undefined，由调用方回退到静态单档。
  *
  * 注意：contextSizeMin 的过滤不在此处处理，而是在 calculateCostWithBreakdown 中
- * 根据实际 input token 数判断，因为上下文阶梯计费应以实际消耗为准，而非预分配窗口。
+ * 根据实际上下文用量判断，因为上下文阶梯计费应以实际消耗为准，而非预分配窗口。
  *
  * @param pricing 模型定价配置
  * @param at 请求发生时间，默认当前时间

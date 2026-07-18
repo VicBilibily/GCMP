@@ -847,6 +847,8 @@ export class OpenAIHandler {
         // 否则会出现"UI 显示默认 medium，实际请求却发 low"的不一致。
         const effectiveThinking = settings?.thinking ?? modelConfig.thinking?.[0];
         const effectiveReasoningEffort = settings?.reasoningEffort ?? getReasoningDefault(modelConfig);
+        // 注意：仅在 settings 存在时才写入 thinking/effort 参数；settings 缺失时保留 extraBody
+        // 注入的原始参数不做任何覆盖，由服务端或 extraBody 配置自行决定思考行为。
         if (settings) {
             if (effectiveThinking && (!thinkingFormat || thinkingFormat === 'boolean' || thinkingFormat === 'object')) {
                 if (effectiveThinking === 'enabled') {
@@ -871,15 +873,24 @@ export class OpenAIHandler {
             }
             if (effectiveReasoningEffort) {
                 if (effectiveReasoningEffort === 'none') {
-                    if (reasoningFormat === 'nested') {
-                        customParams.reasoning = undefined;
+                    if (modelConfig.thinkingFormat === 'effort-none') {
+                        // effort-none 模式：直接通过 effort 参数传递 none
+                        if (reasoningFormat === 'nested') {
+                            customParams.reasoning = { effort: 'none' };
+                        } else {
+                            customParams.reasoning_effort = 'none';
+                        }
                     } else {
-                        customParams.reasoning_effort = undefined;
-                    }
-                    if (modelConfig.thinkingFormat === 'object' || modelConfig.thinkingFormat === 'object-none') {
-                        customParams.thinking = { type: 'disabled' };
-                    } else if (modelConfig.thinkingFormat === 'boolean-none') {
-                        customParams.enable_thinking = false;
+                        if (reasoningFormat === 'nested') {
+                            customParams.reasoning = undefined;
+                        } else {
+                            customParams.reasoning_effort = undefined;
+                        }
+                        if (modelConfig.thinkingFormat === 'object' || modelConfig.thinkingFormat === 'object-none') {
+                            customParams.thinking = { type: 'disabled' };
+                        } else if (modelConfig.thinkingFormat === 'boolean-none') {
+                            customParams.enable_thinking = false;
+                        }
                     }
                 } else if (reasoningFormat === 'nested') {
                     // OpenAI 新版嵌套格式: { reasoning: { effort: '...' } }
@@ -910,6 +921,13 @@ export class OpenAIHandler {
                 customParams.reasoning_effort = undefined;
             } else if (thinkingFormat === 'boolean-none') {
                 customParams.enable_thinking = false;
+            } else if (thinkingFormat === 'effort-none') {
+                // effort-none 模式：子请求通过 effort=none 关闭思考
+                if (reasoningFormat === 'nested') {
+                    customParams.reasoning = { effort: 'none' };
+                } else {
+                    customParams.reasoning_effort = 'none';
+                }
             } else {
                 if (customParams.enable_thinking) {
                     customParams.enable_thinking = false;

@@ -105,9 +105,10 @@ export interface ModelConfig {
      * - boolean-none: 仅当 reasoningEffort 为 none 时传递布尔值 { enable_thinking: false }，否则忽略思考参数
      * - object: 使用对象格式 { thinking: { type: 'enabled' | 'disabled' } }
      * - object-none: 仅当 reasoningEffort 为 none 时传递 object 格式，否则忽略思考参数
+     * - effort-none: 当 reasoningEffort 为 none 时直接传递 { reasoning_effort: 'none' }，忽略思考参数
      * 默认值为 'boolean'
      */
-    thinkingFormat?: 'boolean' | 'boolean-none' | 'object' | 'object-none';
+    thinkingFormat?: 'boolean' | 'boolean-none' | 'object' | 'object-none' | 'effort-none';
     /**
      * reasoning 参数格式（可选）
      * - flat: 使用平铺格式 { reasoning_effort: '...' }（默认行为）
@@ -275,9 +276,9 @@ export interface PricingTierMatchFields {
     timezone?: string;
     /** 服务等级匹配条件（如 priority） */
     serviceTier?: string;
-    /** 最小 input token 数阈值 */
+    /** 最小上下文 token 数阈值；是否包含输出由 contextSizeInputOnly 决定 */
     contextSizeMin?: number;
-    /** contextSizeMin 是否仅按非缓存 input 判断 */
+    /** contextSizeMin 是否仅按输入 token 判断（排除输出 token） */
     contextSizeInputOnly?: boolean;
 }
 
@@ -359,7 +360,8 @@ export interface ModelTokenPricing extends PricingFields {
  * - "* 0-23 * * 0,6" = 周末全天每分钟生效（谷时）
  * - "0 9 * * 1-5"   = 仅工作日 9:00 整点命中（通常不是想要的时段表达）
  * - cron="* * * * *", serviceTier="priority" = 仅当用户选了 priority 时生效
- * - contextSizeMin=512001 = 仅当实际消耗的 input token 数 >= 512001 时生效
+ * - contextSizeMin=512001 = 仅当实际消耗的上下文 token 数达到 512001 时生效；
+ *   contextSizeInputOnly=true 时仅比较输入 token，否则比较输入与输出之和
  */
 
 export interface PricingTier extends PricingFields, PricingTierMatchFields {}

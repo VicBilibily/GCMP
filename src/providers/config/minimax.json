@@ -12,16 +12,27 @@
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "MiniMax-M3 - 原生多模态、1M 上下文的 Frontier Coding 模型",
             "provider": "minimax-token",
-            "contextSize": [1000000, 640000, 400000, 320000],
-            "maxInputTokens": 872000,
-            "maxOutputTokens": 128000,
+            "contextSize": [1000000, 640000, 400000, 320000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
             "tokenPricing": {
-                "pricing": [0.3, 1.2, 0.06],
+                "pricing": { "USD": [0.3, 1.2, 0.06], "RMB": [2.1, 8.4, 0.42] },
                 "tiers": [
-                    { "serviceTier": "priority", "contextSizeMin": 512001, "pricing": [0.9, 3.6, 0.18] },
-                    { "serviceTier": "priority", "pricing": [0.45, 1.8, 0.09] },
-                    { "serviceTier": "default", "contextSizeMin": 512001, "pricing": [0.6, 2.4, 0.12] }
+                    {
+                        "serviceTier": "priority",
+                        "contextSizeMin": 512001,
+                        "pricing": { "USD": [0.9, 3.6, 0.18], "RMB": [6.3, 25.2, 1.26] }
+                    },
+                    {
+                        "serviceTier": "priority",
+                        "pricing": { "USD": [0.45, 1.8, 0.09], "RMB": [3.15, 12.6, 0.63] }
+                    },
+                    {
+                        "serviceTier": "default",
+                        "contextSizeMin": 512001,
+                        "pricing": { "USD": [0.6, 2.4, 0.12], "RMB": [4.2, 16.8, 0.84] }
+                    }
                 ]
             }
         },
@@ -33,10 +44,10 @@
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "MiniMax-M2.7 - 开启模型的自我迭代 (输出速度约60tps)",
             "provider": "minimax-token",
-            "maxInputTokens": 140800,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 168000,
+            "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.3, 1.2, 0.06, 0.375]
+            "tokenPricing": { "USD": [0.3, 1.2, 0.06, 0.375], "RMB": [2.1, 8.4, 0.42, 2.625] }
         },
         {
             "id": "MiniMax-M2.7-HighSpeed-Token-Plan",
@@ -46,10 +57,10 @@
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "M2.7 极速版：效果不变，更快，更敏捷 (输出速度约100tps)",
             "provider": "minimax-token",
-            "maxInputTokens": 140800,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 168000,
+            "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.6, 2.4, 0.06, 0.375]
+            "tokenPricing": { "USD": [0.6, 2.4, 0.06, 0.375], "RMB": [4.2, 16.8, 0.42, 2.625] }
         },
         {
             "id": "MiniMax-M2.5-Token-Plan",
@@ -59,10 +70,10 @@
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "MiniMax-M2.5 - 强大多语言编程能力，全面升级编程体验",
             "provider": "minimax-token",
-            "maxInputTokens": 140800,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 168000,
+            "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.3, 1.2, 0.03, 0.375]
+            "tokenPricing": { "USD": [0.3, 1.2, 0.03, 0.375], "RMB": [2.1, 8.4, 0.21, 2.625] }
         },
         {
             "id": "MiniMax-M2.5-HighSpeed-Token-Plan",
@@ -72,10 +83,10 @@
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "M2.5 极速版：效果不变，更快，更敏捷（输出速度约 100 TPS）",
             "provider": "minimax-token",
-            "maxInputTokens": 140800,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 168000,
+            "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.6, 2.4, 0.03, 0.375]
+            "tokenPricing": { "USD": [0.6, 2.4, 0.03, 0.375], "RMB": [4.2, 16.8, 0.21, 2.625] }
         },
         {
             "id": "MiniMax-M2.1-Token-Plan",
@@ -85,10 +96,10 @@
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "MiniMax-M2.1 - 强大多语言编程能力，全面升级编程体验",
             "provider": "minimax-token",
-            "maxInputTokens": 140800,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 168000,
+            "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.3, 1.2, 0.03, 0.375]
+            "tokenPricing": { "USD": [0.3, 1.2, 0.03, 0.375], "RMB": [2.1, 8.4, 0.21, 2.625] }
         },
         {
             "id": "MiniMax-M2-Token-Plan",
@@ -98,10 +109,10 @@
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "MiniMax-M2 - 专为高效编码与Agent工作流而生",
             "provider": "minimax-token",
-            "maxInputTokens": 140800,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 168000,
+            "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.3, 1.2, 0.03, 0.375]
+            "tokenPricing": { "USD": [0.3, 1.2, 0.03, 0.375], "RMB": [2.1, 8.4, 0.21, 2.625] }
         },
         {
             "id": "MiniMax-M3",
@@ -110,16 +121,27 @@
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "原生多模态、1M 上下文的 Frontier Coding 模型",
             "contextSize": [1000000, 640000, 512000, 400000, 320000],
-            "maxInputTokens": 872000,
-            "maxOutputTokens": 128000,
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
             "serviceTier": ["default", "priority"],
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
             "tokenPricing": {
-                "pricing": [0.3, 1.2, 0.06],
+                "pricing": { "USD": [0.3, 1.2, 0.06], "RMB": [2.1, 8.4, 0.42] },
                 "tiers": [
-                    { "serviceTier": "priority", "contextSizeMin": 512001, "pricing": [0.9, 3.6, 0.18] },
-                    { "serviceTier": "priority", "pricing": [0.45, 1.8, 0.09] },
-                    { "serviceTier": "default", "contextSizeMin": 512001, "pricing": [0.6, 2.4, 0.12] }
+                    {
+                        "serviceTier": "priority",
+                        "contextSizeMin": 512001,
+                        "pricing": { "USD": [0.9, 3.6, 0.18], "RMB": [6.3, 25.2, 1.26] }
+                    },
+                    {
+                        "serviceTier": "priority",
+                        "pricing": { "USD": [0.45, 1.8, 0.09], "RMB": [3.15, 12.6, 0.63] }
+                    },
+                    {
+                        "serviceTier": "default",
+                        "contextSizeMin": 512001,
+                        "pricing": { "USD": [0.6, 2.4, 0.12], "RMB": [4.2, 16.8, 0.84] }
+                    }
                 ]
             }
         },
@@ -129,10 +151,10 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "开启模型的自我迭代（输出速度约 60 TPS）",
-            "maxInputTokens": 140800,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 168000,
+            "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.3, 1.2, 0.06, 0.375]
+            "tokenPricing": { "USD": [0.3, 1.2, 0.06, 0.375], "RMB": [2.1, 8.4, 0.42, 2.625] }
         },
         {
             "id": "MiniMax-M2.7-HighSpeed",
@@ -140,10 +162,10 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "M2.7 极速版：效果不变，更快，更敏捷（输出速度约 100 TPS）",
-            "maxInputTokens": 140800,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 168000,
+            "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.6, 2.4, 0.06, 0.375]
+            "tokenPricing": { "USD": [0.6, 2.4, 0.06, 0.375], "RMB": [4.2, 16.8, 0.42, 2.625] }
         },
         {
             "id": "MiniMax-M2.5",
@@ -151,10 +173,10 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "顶尖性能与极致性价比，轻松驾驭复杂任务（输出速度约 60 TPS）",
-            "maxInputTokens": 140800,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 168000,
+            "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.3, 1.2, 0.03, 0.375]
+            "tokenPricing": { "USD": [0.3, 1.2, 0.03, 0.375], "RMB": [2.1, 8.4, 0.21, 2.625] }
         },
         {
             "id": "MiniMax-M2.5-HighSpeed",
@@ -162,10 +184,10 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "M2.5 极速版：效果不变，更快，更敏捷（输出速度约 100 TPS）",
-            "maxInputTokens": 140800,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 168000,
+            "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.6, 2.4, 0.03, 0.375]
+            "tokenPricing": { "USD": [0.6, 2.4, 0.03, 0.375], "RMB": [4.2, 16.8, 0.21, 2.625] }
         },
         {
             "id": "MiniMax-M2.1",
@@ -173,10 +195,10 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "强大多语言编程能力，全面升级编程体验（输出速度约 60 TPS）",
-            "maxInputTokens": 140800,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 168000,
+            "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.3, 1.2, 0.03, 0.375]
+            "tokenPricing": { "USD": [0.3, 1.2, 0.03, 0.375], "RMB": [2.1, 8.4, 0.21, 2.625] }
         },
         {
             "id": "MiniMax-M2.1-HighSpeed",
@@ -184,10 +206,10 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "M2.1 极速版：效果不变，更快，更敏捷（输出速度约 100 TPS）",
-            "maxInputTokens": 140800,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 168000,
+            "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.6, 2.4, 0.03, 0.375]
+            "tokenPricing": { "USD": [0.6, 2.4, 0.03, 0.375], "RMB": [4.2, 16.8, 0.21, 2.625] }
         },
         {
             "id": "MiniMax-M2",
@@ -195,10 +217,10 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.minimaxi.com/anthropic",
             "tooltip": "专为高效编码与Agent工作流而生",
-            "maxInputTokens": 140800,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 168000,
+            "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.3, 1.2, 0.03, 0.375]
+            "tokenPricing": { "USD": [0.3, 1.2, 0.03, 0.375], "RMB": [2.1, 8.4, 0.21, 2.625] }
         }
     ]
 }

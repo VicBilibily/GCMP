@@ -8,9 +8,9 @@
             "name": "GLM-5.2 (ClinePass)",
             "tooltip": "ClinePass — GLM-5.2。",
             "sdkMode": "openai-sse",
-            "contextSize": [1000000, 640000, 400000, 320000],
-            "maxInputTokens": 872000,
-            "maxOutputTokens": 128000,
+            "contextSize": [1000000, 640000, 400000, 320000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
             "reasoningEffort": ["high", "max"],
             "reasoningFormat": "nested",
             "capabilities": { "toolCalling": true, "imageInput": false },
@@ -23,9 +23,7 @@
             "sdkMode": "openai-sse",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "extraBody": {
-                "enabled_thinking": true
-            },
+            "extraBody": { "enabled_thinking": true },
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [0.95, 4.0, 0.19]
         },
@@ -44,9 +42,9 @@
             "name": "DeepSeek-V4-Pro (ClinePass)",
             "tooltip": "ClinePass — DeepSeek V4 Pro。",
             "sdkMode": "openai-sse",
-            "contextSize": [1000000, 640000, 400000, 320000],
-            "maxInputTokens": 872000,
-            "maxOutputTokens": 128000,
+            "contextSize": [1000000, 640000, 400000, 320000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
             "reasoningEffort": ["high", "max"],
             "reasoningFormat": "nested",
             "capabilities": { "toolCalling": true, "imageInput": false },
@@ -57,9 +55,9 @@
             "name": "DeepSeek-V4-Flash (ClinePass)",
             "tooltip": "ClinePass — DeepSeek V4 Flash。",
             "sdkMode": "openai-sse",
-            "contextSize": [1000000, 640000, 400000, 320000],
-            "maxInputTokens": 872000,
-            "maxOutputTokens": 128000,
+            "contextSize": [1000000, 640000, 400000, 320000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
             "reasoningEffort": ["high", "max"],
             "reasoningFormat": "nested",
             "capabilities": { "toolCalling": true, "imageInput": false },
@@ -70,9 +68,9 @@
             "name": "MiMo-V2.5 (ClinePass)",
             "tooltip": "ClinePass — MiMo-V2.5。",
             "sdkMode": "openai-sse",
-            "contextSize": [1000000, 640000, 400000, 320000],
-            "maxInputTokens": 872000,
-            "maxOutputTokens": 128000,
+            "contextSize": [1000000, 640000, 400000, 320000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [0.14, 0.28, 0.0028]
         },
@@ -81,9 +79,9 @@
             "name": "MiMo-V2.5-Pro (ClinePass)",
             "tooltip": "ClinePass — MiMo-V2.5-Pro。",
             "sdkMode": "openai-sse",
-            "contextSize": [1000000, 640000, 400000, 320000],
-            "maxInputTokens": 872000,
-            "maxOutputTokens": 128000,
+            "contextSize": [1000000, 640000, 400000, 320000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [1.74, 3.48, 0.0145]
         },
@@ -92,9 +90,9 @@
             "name": "MiniMax-M3 (ClinePass)",
             "tooltip": "ClinePass — MiniMax M3。",
             "sdkMode": "openai-sse",
-            "contextSize": [1000000, 640000, 400000, 320000],
-            "maxInputTokens": 872000,
-            "maxOutputTokens": 128000,
+            "contextSize": [1000000, 640000, 400000, 320000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [0.3, 1.2, 0.06]
@@ -123,12 +121,7 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [0.4, 1.6, 0.04, 0.5],
-                "tiers": [
-                    {
-                        "contextSizeMin": 256000,
-                        "pricing": [1.2, 4.8, 0.12, 1.5]
-                    }
-                ]
+                "tiers": [{ "contextSizeMin": 256000, "pricing": [1.2, 4.8, 0.12, 1.5] }]
             }
         }
     ]

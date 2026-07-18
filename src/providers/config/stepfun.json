@@ -9,11 +9,11 @@
             "name": "Step-3.7-Flash (PayGo)",
             "sdkMode": "anthropic",
             "tooltip": "Step-3.7-Flash 是阶跃星辰旗舰多模态推理模型。基于198B总参数/11B激活参数的稀疏MoE架构，原生支持图片和视频理解，支持三档推理强度（low/medium/high），适合智能体、代码与多模态场景。",
-            "maxInputTokens": 192000,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
             "reasoningEffort": ["low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.19, 1.13, 0.04]
+            "tokenPricing": { "RMB": [1.35, 8.1, 0.27] }
         },
         {
             "id": "step-3.5-flash-billing",
@@ -21,10 +21,10 @@
             "name": "Step-3.5-Flash (PayGo)",
             "sdkMode": "anthropic",
             "tooltip": "Step-3.5-Flash 是阶跃星辰旗舰语言推理模型，196B总参数/11B激活参数的稀疏MoE架构。具备顶尖推理能力与快速可靠的执行能力，能够完成复杂任务的分解与计划，可快速可靠地调用工具执行任务。",
-            "maxInputTokens": 192000,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.1, 0.29, 0.02]
+            "tokenPricing": { "RMB": [0.7, 2.1, 0.14] }
         },
         {
             "id": "step-3.5-flash-2603-billing",
@@ -32,11 +32,11 @@
             "name": "Step-3.5-Flash-2603 (PayGo)",
             "sdkMode": "anthropic",
             "tooltip": "Step-3.5-Flash-2603 基于 step-3.5-flash 针对高频 Agent 场景优化，Token 效率提升、推理速度更快，可切换至低推理模式大幅降低 Token 消耗，对 Coding 与 Agent 框架兼容性也做了专项优化。",
-            "maxInputTokens": 192000,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
             "reasoningEffort": ["low", "high"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.1, 0.29, 0.02]
+            "tokenPricing": { "RMB": [0.7, 2.1, 0.14] }
         },
         {
             "id": "step-3.7-flash-step-plan",
@@ -45,11 +45,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.stepfun.com/step_plan",
             "tooltip": "Step-3.7-Flash（Step Plan 通道）阶跃星辰旗舰多模态推理模型。基于198B总参数/11B激活参数的稀疏MoE架构，原生支持图片和视频理解，支持三档推理强度（low/medium/high），适合智能体、代码与多模态场景。",
-            "maxInputTokens": 192000,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
             "reasoningEffort": ["low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.19, 1.13, 0.04]
+            "tokenPricing": { "RMB": [1.35, 8.1, 0.27] }
         },
         {
             "id": "step-3.5-flash-step-plan",
@@ -58,10 +58,10 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.stepfun.com/step_plan",
             "tooltip": "Step-3.5-Flash（Step Plan 通道）阶跃星辰旗舰语言推理模型，196B总参数/11B激活参数的稀疏MoE架构。具备顶尖推理能力与快速可靠的执行能力，能够完成复杂任务的分解与计划。",
-            "maxInputTokens": 192000,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.1, 0.29, 0.02]
+            "tokenPricing": { "RMB": [0.7, 2.1, 0.14] }
         },
         {
             "id": "step-3.5-flash-2603-step-plan",
@@ -70,11 +70,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.stepfun.com/step_plan",
             "tooltip": "Step-3.5-Flash-2603（Step Plan 通道）基于 step-3.5-flash 针对高频 Agent 场景优化，Token 效率提升、推理速度更快。",
-            "maxInputTokens": 192000,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
             "reasoningEffort": ["low", "high"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.1, 0.29, 0.02]
+            "tokenPricing": { "RMB": [0.7, 2.1, 0.14] }
         },
         {
             "id": "step-router-v1",
@@ -83,11 +83,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.stepfun.com/step_plan",
             "tooltip": "Step-Router-V1 是智能路由模型，仅可通过 Step Plan 通道调用。系统会自动在 deepseek-v4-pro 与 step-3.5-flash 之间路由，按实际命中模型计费。",
-            "maxInputTokens": 192000,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.1, 0.29, 0.02]
+            "tokenPricing": { "RMB": [1.35, 8.1, 0.27] }
         }
     ]
 }

@@ -8,22 +8,29 @@
             "name": "Grok 4.5",
             "tooltip": "xAI 的 Grok 4.5 编程模型，通过 Grok Build OAuth 登录态访问。",
             "sdkMode": "openai-responses",
+            "contextSize": [500000, 200000],
             "maxInputTokens": 436000,
             "maxOutputTokens": 64000,
             "reasoningDefault": "high",
             "reasoningEffort": ["low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [2, 6, 0.4]
+            "tokenPricing": {
+                "pricing": [2, 6, 0.5],
+                "tiers": [{ "contextSizeMin": 200000, "contextSizeInputOnly": true, "pricing": [4, 12, 1] }]
+            }
         },
         {
             "id": "grok-build-0.1",
             "name": "Grok Build 0.1",
             "tooltip": "xAI 的 Grok Build 编程模型，通过 Grok Build OAuth 登录态访问。",
             "sdkMode": "openai-responses",
-            "maxInputTokens": 192000,
-            "maxOutputTokens": 64000,
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [1, 2, 0.2]
+            "tokenPricing": {
+                "pricing": [1, 2, 0.2],
+                "tiers": [{ "contextSizeMin": 200000, "contextSizeInputOnly": true, "pricing": [2, 4, 0.4] }]
+            }
         },
         {
             "id": "grok-composer-2.5-fast",

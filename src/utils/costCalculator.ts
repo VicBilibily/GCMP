@@ -169,10 +169,11 @@ function toCurrencyCostBreakdownLog(
  * 解析请求实际生效的定价信息（含命中的 activeTier）。
  *
  * 在 resolveActiveTier 的 cron + serviceTier 匹配基础上，额外检查 contextSizeMin：
+ * 默认按输入与输出之和比较；contextSizeInputOnly 为 true 时仅按输入比较。
  * 若命中的 tier 不满足 contextSizeMin，跳过它继续检查下一个 tier。
  *
  * @param actualInput 从 usage 解析出的实际 input token 数（含缓存）
- * @param cacheReadTokens 缓存读取 token 数，用于 contextSizeInputOnly 模式
+ * @param outputTokens 从 usage 解析出的实际 output token 数
  *
  * 导出供测试直接验证 contextSizeMin 回退逻辑。
  */
@@ -181,7 +182,7 @@ export function resolvePricingBreakdown(
     at: Date,
     requestServiceTier?: string,
     actualInput?: number,
-    cacheReadTokens?: number
+    outputTokens?: number
 ): ResolvedPricingBreakdown | undefined {
     if (!pricing) {
         return undefined;
@@ -190,11 +191,11 @@ export function resolvePricingBreakdown(
     // 先按 cron + serviceTier 匹配（不含 contextSizeMin）
     const activeTier = resolveActiveTier(pricing, at, requestServiceTier);
     if (activeTier) {
-        // contextSizeMin 检查：根据 contextSizeInputOnly 选择统计口径
+        // contextSizeMin 检查：contextSizeInputOnly 为 true 时排除输出 token
         const effectiveInput =
-            activeTier.contextSizeInputOnly && actualInput !== undefined && cacheReadTokens !== undefined ?
-                Math.max(0, actualInput - cacheReadTokens)
-            :   actualInput;
+            actualInput === undefined ? undefined
+            : activeTier.contextSizeInputOnly ? actualInput
+            : actualInput + Math.max(0, outputTokens ?? 0);
         if (
             activeTier.contextSizeMin === undefined ||
             (effectiveInput !== undefined && effectiveInput >= activeTier.contextSizeMin)
@@ -219,7 +220,7 @@ export function resolvePricingBreakdown(
                 at,
                 requestServiceTier,
                 actualInput,
-                cacheReadTokens
+                outputTokens
             );
             if (retryResult) {
                 return retryResult;
@@ -318,6 +319,7 @@ export function calculateCostWithBreakdown(
 
     const parsed = UsageParser.parseRawUsage(usage as GenericUsageData);
     const actualInput = parsed.actualInput;
+    const outputTokens = Math.max(0, parsed.outputTokens);
     const cacheReadTokens = Math.max(0, parsed.cacheReadTokens);
 
     const resolvedPricing = resolvePricingBreakdown(
@@ -325,7 +327,7 @@ export function calculateCostWithBreakdown(
         at,
         requestServiceTier,
         actualInput,
-        cacheReadTokens
+        outputTokens
     );
     if (!resolvedPricing) {
         return undefined;
@@ -334,7 +336,6 @@ export function calculateCostWithBreakdown(
     const { activeTier, effectivePricing, effectivePricingRmb } = resolvedPricing;
 
     const cacheCreationTokens = getExplicitCacheWriteTokens(usage);
-    const outputTokens = Math.max(0, parsed.outputTokens);
     const inputTokens = getUncachedInputTokens(usage, parsed.actualInput, cacheReadTokens, cacheCreationTokens);
 
     const inputCost = truncateCost((inputTokens / TOKENS_PER_MILLION) * effectivePricing.inputPrice) ?? 0;
