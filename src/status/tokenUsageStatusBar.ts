@@ -13,7 +13,7 @@ import { LeaderElectionService } from './leaderElectionService';
 import type { TokenUsageStatsFromFile } from '../usages/fileLogger/types';
 import type { ExtendedTokenRequestLog } from '../usages/fileLogger/usageParser';
 import { t } from '../utils/l10n';
-import { formatCost } from '../ui/utils';
+import { convertUsdToRmb } from '../utils/pricingCurrency';
 
 /**
  * Token 用量状态栏
@@ -29,6 +29,99 @@ export class TokenUsageStatusBar {
 
     constructor(private context: vscode.ExtensionContext) {
         this.usagesManager = TokenUsagesManager.instance;
+    }
+
+    private isChineseLocale(): boolean {
+        const lang = vscode.env.language.toLowerCase();
+        return lang === 'zh-cn' || lang === 'zh' || lang.startsWith('zh-');
+    }
+
+    private formatFixedCost(amount: number | undefined, currency: 'USD' | 'RMB'): string {
+        if (amount === undefined || amount <= 0) {
+            return '-';
+        }
+
+        const symbol = currency === 'RMB' ? '¥' : '$';
+        return `${symbol}${amount.toFixed(2)}`;
+    }
+
+    private formatStatusBarCost(stats: TokenUsageStatsFromFile): string {
+        if (!this.isChineseLocale()) {
+            return stats.total.estimatedCost >= 0.01 ? this.formatFixedCost(stats.total.estimatedCost, 'USD') : '';
+        }
+
+        const nativeUsd = stats.total.nativeCosts?.totalUsd ?? 0;
+        const nativeRmb = stats.total.nativeCosts?.totalRmb ?? 0;
+        const parts: string[] = [];
+        if (nativeUsd >= 0.01) {
+            parts.push(this.formatFixedCost(nativeUsd, 'USD'));
+        }
+        if (nativeRmb >= 0.01) {
+            parts.push(this.formatFixedCost(nativeRmb, 'RMB'));
+        }
+        return parts.join('+');
+    }
+
+    private getTooltipPreferredCurrency(
+        stats: Pick<
+            TokenUsageStatsFromFile['total'],
+            'estimatedCost' | 'estimatedCostRmb' | 'costedRequests' | 'rmbExactRequests'
+        >
+    ): 'USD' | 'RMB' {
+        if (!this.isChineseLocale()) {
+            return 'USD';
+        }
+
+        return stats.costedRequests > 0 && stats.rmbExactRequests >= stats.costedRequests ? 'RMB' : 'USD';
+    }
+
+    private getProviderTableCostMode(stats: TokenUsageStatsFromFile): 'USD' | 'RMB' | 'MIXED' {
+        if (!this.isChineseLocale()) {
+            return 'USD';
+        }
+
+        const currencies = new Set<'USD' | 'RMB'>();
+        for (const provider of Object.values(stats.providers)) {
+            if ((provider.estimatedCost ?? 0) <= 0 && (provider.estimatedCostRmb ?? 0) <= 0) {
+                continue;
+            }
+
+            currencies.add(this.getTooltipPreferredCurrency(provider));
+            if (currencies.size > 1) {
+                return 'MIXED';
+            }
+        }
+
+        return currencies.values().next().value ?? 'USD';
+    }
+
+    private getProviderDisplayCost(
+        stats: Pick<
+            TokenUsageStatsFromFile['total'],
+            'estimatedCost' | 'estimatedCostRmb' | 'costedRequests' | 'rmbExactRequests'
+        >,
+        currency?: 'USD' | 'RMB'
+    ): string {
+        const resolvedCurrency = currency ?? this.getTooltipPreferredCurrency(stats);
+        return this.formatFixedCost(
+            resolvedCurrency === 'RMB' ? stats.estimatedCostRmb : stats.estimatedCost,
+            resolvedCurrency
+        );
+    }
+
+    private getRecordDisplayCost(record: ExtendedTokenRequestLog): string {
+        const usd = record.estimatedCost ?? 0;
+        const exactRmb = record.costBreakdown?.currencies?.RMB?.total;
+        const currency = this.isChineseLocale() && exactRmb !== undefined ? 'RMB' : 'USD';
+        if (currency === 'USD') {
+            return this.formatFixedCost(usd, 'USD');
+        }
+
+        return this.formatFixedCost(exactRmb ?? convertUsdToRmb(usd) ?? 0, 'RMB');
+    }
+
+    private getTooltipCostHeader(): string {
+        return t('Cost', '预估成本');
     }
 
     /**
@@ -160,8 +253,8 @@ export class TokenUsageStatusBar {
 
             // 更新状态栏文本：角色图标 + Token 用量 + 预估成本
             const tokenPart = totalRequests === 0 ? '' : ` ${this.formatTokens(totalTokens)}`;
-            const costPart =
-                todayStats.total.estimatedCost > 0 ? ` ${formatCost(todayStats.total.estimatedCost, 2)}` : '';
+            const displayCost = this.formatStatusBarCost(todayStats);
+            const costPart = displayCost ? ` ${displayCost}` : '';
             this.statusBarItem.text = `${roleIcon}${tokenPart}${costPart}`;
 
             // 更新 Tooltip (异步生成)
@@ -201,13 +294,14 @@ export class TokenUsageStatusBar {
         }
 
         // ========== 今日用量摘要 ==========
+        const providerTableCostMode = this.getProviderTableCostMode(stats);
         const sortedProviders = providers.sort((a, b) => {
             const totalA = a.actualInput + a.outputTokens;
             const totalB = b.actualInput + b.outputTokens;
             return totalB - totalA;
         });
         md.appendMarkdown(
-            `| ${t('Provider', '提供商')} | ${t('Input(+Cache)+Output=Total', '输入(+缓存)+输出=消耗Tokens')} | ${t('Cost', '预估成本')} | ${t('Requests', '请求数')} | ${t('Latency', '平均延迟')} | ${t('Speed', '平均速度')} |\n`
+            `| ${t('Provider', '提供商')} | ${t('Input(+Cache)+Output=Total', '输入(+缓存)+输出=消耗Tokens')} | ${this.getTooltipCostHeader()} | ${t('Requests', '请求数')} | ${t('Latency', '平均延迟')} | ${t('Speed', '平均速度')} |\n`
         );
         md.appendMarkdown('| :------------ | ------: | ---: | ----: | ------: | ------: |\n');
         for (const providerStats of sortedProviders) {
@@ -218,7 +312,7 @@ export class TokenUsageStatusBar {
             );
             const avgSpeed = this.calculateAverageSpeed(providerStats);
             const avgLatency = this.calculateAverageFirstTokenLatency(providerStats.firstTokenLatency);
-            const costStr = formatCost(providerStats.estimatedCost, 2);
+            const costStr = this.getProviderDisplayCost(providerStats);
             md.appendMarkdown(
                 `| ${providerStats.providerName} | ${consumptionPath} | ` +
                     `${costStr} | ` +
@@ -233,13 +327,16 @@ export class TokenUsageStatusBar {
             );
             const avgSpeedTotal = this.calculateAverageSpeed(stats.total);
             const avgLatencyTotal = this.calculateAverageFirstTokenLatency(stats.total.firstTokenLatency);
-            const totalCostStr = formatCost(stats.total.estimatedCost, 2);
+            const totalCostStr =
+                providerTableCostMode === 'MIXED' ? '' : (
+                    this.getProviderDisplayCost(stats.total, providerTableCostMode)
+                );
             const eqIndex = totalPath.lastIndexOf('=');
             const formulaPart = totalPath.slice(0, eqIndex + 1);
             const resultPart = totalPath.slice(eqIndex + 1);
             md.appendMarkdown(
                 `| **${t('Total', '合计')}** | ${formulaPart}**${resultPart}** | ` +
-                    `**${totalCostStr}** | ` +
+                    `${totalCostStr ? `**${totalCostStr}**` : ''} | ` +
                     `**${stats.total.requests}** | **${avgLatencyTotal}** | **${avgSpeedTotal}** |\n`
             );
         }
@@ -252,7 +349,7 @@ export class TokenUsageStatusBar {
                 md.appendMarkdown('\n\n ---- \n\n\n\n');
                 // 创建表格标题
                 md.appendMarkdown(
-                    `| ${t('Provider', '提供商')} | ${t('Time', '请求时间')} | ${t('Status', '状态')} | ${t('Read+Write=Input', '读取+写入=输入量')} | ${t('Output', '输出量')} | ${t('Cost', '预估成本')} | ${t('Delay', 'TTFT')} | ${t('Duration', 'TPOT')} | ${t('Speed', '输出速度')} |\n`
+                    `| ${t('Provider', '提供商')} | ${t('Time', '请求时间')} | ${t('Status', '状态')} | ${t('Read+Write=Input', '读取+写入=输入量')} | ${t('Output', '输出量')} | ${this.getTooltipCostHeader()} | ${t('Delay', 'TTFT')} | ${t('Duration', 'TPOT')} | ${t('Speed', '输出速度')} |\n`
                 );
                 md.appendMarkdown(
                     '| :----------- | :-----: | :----: | -----: | -----: | ---: | -----: | -----: | -----: |\n'
@@ -309,7 +406,7 @@ export class TokenUsageStatusBar {
                         outputStr = this.formatTokens(outputTokens);
                     }
 
-                    const costStr = formatCost(req.estimatedCost ?? 0);
+                    const costStr = this.getRecordDisplayCost(req);
 
                     md.appendMarkdown(
                         `| ${req.providerName} | ${timeStr} | ${statusIcon} | ${inputStr} | ${outputStr} | ${costStr} | ${latencyStr} | ${durationStr} | ${speedStr} |\n`
