@@ -411,7 +411,8 @@ const TOP_LEVEL_EXPLICIT_KEY_SET = new Set([
     'cacheReadPrice',
     'cacheWritePrice',
     'rmb',
-    'tiers'
+    'tiers',
+    'nativeCurrency'
 ]);
 const TIER_SHORTHAND_KEY_SET = new Set(['pricing', 'cron', 'timezone', 'serviceTier', 'contextSizeMin']);
 const TIER_EXPLICIT_KEY_SET = new Set([
@@ -420,7 +421,8 @@ const TIER_EXPLICIT_KEY_SET = new Set([
     'outputPrice',
     'cacheReadPrice',
     'cacheWritePrice',
-    'rmb'
+    'rmb',
+    'nativeCurrency'
 ]);
 
 function hasOnlyKnownKeys(value: object, allowedKeys: ReadonlySet<string>): boolean {
@@ -437,6 +439,7 @@ interface TokenPricingInputObjectLike {
     cacheWritePrice?: number;
     rmb?: PricingFieldsRmb;
     tiers?: PricingTierInput[];
+    nativeCurrency?: 'USD' | 'RMB';
 }
 
 interface TokenPricingTierInputLike {
@@ -450,6 +453,7 @@ interface TokenPricingTierInputLike {
     timezone?: string;
     serviceTier?: string;
     contextSizeMin?: number;
+    nativeCurrency?: 'USD' | 'RMB';
 }
 
 /**
@@ -688,7 +692,10 @@ function hasValidTierMatchFields(tier: {
 
 function normalizeShorthandTier(
     tier: PricingTierInput,
-    basePricing: Pick<ModelTokenPricing, 'inputPrice' | 'outputPrice' | 'cacheReadPrice' | 'cacheWritePrice' | 'rmb'>
+    basePricing: Pick<
+        ModelTokenPricing,
+        'inputPrice' | 'outputPrice' | 'cacheReadPrice' | 'cacheWritePrice' | 'rmb' | 'nativeCurrency'
+    >
 ): PricingTier | undefined {
     if (!hasOnlyKnownKeys(tier, TIER_SHORTHAND_KEY_SET) || !hasValidTierMatchFields(tier)) {
         return undefined;
@@ -729,7 +736,10 @@ function normalizeShorthandTier(
                     cacheReadPrice:
                         dual.rmb!.cacheReadPrice !== undefined ? convertRmbToUsd(dual.rmb!.cacheReadPrice) : undefined,
                     cacheWritePrice:
-                        dual.rmb!.cacheWritePrice !== undefined ? convertRmbToUsd(dual.rmb!.cacheWritePrice) : undefined
+                        dual.rmb!.cacheWritePrice !== undefined ?
+                            convertRmbToUsd(dual.rmb!.cacheWritePrice)
+                        :   undefined,
+                    nativeCurrency: 'RMB'
                 };
         if (dual.rmb) {
             converted.rmb = dual.rmb;
@@ -747,7 +757,8 @@ function normalizeShorthandTier(
                 basePricing.cacheReadPrice !== undefined ? basePricing.cacheReadPrice * multiplier : undefined,
             cacheWritePrice:
                 basePricing.cacheWritePrice !== undefined ? basePricing.cacheWritePrice * multiplier : undefined,
-            rmb: basePricing.rmb ? scaleRmbPricing(basePricing.rmb, multiplier) : undefined
+            rmb: basePricing.rmb ? scaleRmbPricing(basePricing.rmb, multiplier) : undefined,
+            ...(basePricing.nativeCurrency !== undefined ? { nativeCurrency: basePricing.nativeCurrency } : {})
         };
     }
 
@@ -756,7 +767,10 @@ function normalizeShorthandTier(
 
 function normalizeShorthandTiers(
     tiers: PricingTierInput[] | undefined,
-    basePricing: Pick<ModelTokenPricing, 'inputPrice' | 'outputPrice' | 'cacheReadPrice' | 'cacheWritePrice' | 'rmb'>
+    basePricing: Pick<
+        ModelTokenPricing,
+        'inputPrice' | 'outputPrice' | 'cacheReadPrice' | 'cacheWritePrice' | 'rmb' | 'nativeCurrency'
+    >
 ): PricingTier[] | undefined {
     if (tiers === undefined) {
         return undefined;
@@ -802,6 +816,9 @@ function normalizeExplicitTier(tier: TokenPricingTierInputLike): PricingTier | u
     if (tier.rmb !== undefined && !isValidRmbPricingFields(tier.rmb)) {
         return undefined;
     }
+    if (tier.nativeCurrency !== undefined && tier.nativeCurrency !== 'USD' && tier.nativeCurrency !== 'RMB') {
+        return undefined;
+    }
     if (tier.pricing !== undefined && !isValidPricingArray(tier.pricing)) {
         return undefined;
     }
@@ -819,6 +836,7 @@ function normalizeExplicitTier(tier: TokenPricingTierInputLike): PricingTier | u
         : pricingFields?.cacheWritePrice !== undefined ? { cacheWritePrice: pricingFields.cacheWritePrice }
         : {}),
         ...(tier.rmb !== undefined ? { rmb: tier.rmb } : {}),
+        ...(tier.nativeCurrency !== undefined ? { nativeCurrency: tier.nativeCurrency } : {}),
         ...getTierMatchFields(tier)
     };
 }
@@ -900,7 +918,10 @@ export function normalizeTokenPricing(
                     cacheReadPrice:
                         dual.rmb!.cacheReadPrice !== undefined ? convertRmbToUsd(dual.rmb!.cacheReadPrice) : undefined,
                     cacheWritePrice:
-                        dual.rmb!.cacheWritePrice !== undefined ? convertRmbToUsd(dual.rmb!.cacheWritePrice) : undefined
+                        dual.rmb!.cacheWritePrice !== undefined ?
+                            convertRmbToUsd(dual.rmb!.cacheWritePrice)
+                        :   undefined,
+                    nativeCurrency: 'RMB'
                 };
         if (dual.rmb) {
             result.rmb = dual.rmb;
@@ -975,7 +996,10 @@ export function normalizeTokenPricing(
                     cacheReadPrice:
                         dual.rmb!.cacheReadPrice !== undefined ? convertRmbToUsd(dual.rmb!.cacheReadPrice) : undefined,
                     cacheWritePrice:
-                        dual.rmb!.cacheWritePrice !== undefined ? convertRmbToUsd(dual.rmb!.cacheWritePrice) : undefined
+                        dual.rmb!.cacheWritePrice !== undefined ?
+                            convertRmbToUsd(dual.rmb!.cacheWritePrice)
+                        :   undefined,
+                    nativeCurrency: 'RMB'
                 };
         if (dual.rmb) {
             converted.rmb = dual.rmb;
@@ -1020,6 +1044,9 @@ export function normalizeTokenPricing(
     if (obj.rmb !== undefined && !isValidRmbPricingFields(obj.rmb)) {
         return undefined;
     }
+    if (obj.nativeCurrency !== undefined && obj.nativeCurrency !== 'USD' && obj.nativeCurrency !== 'RMB') {
+        return undefined;
+    }
     // pricing 字段校验（仅数组形式，双币映射已在 3b 处理）
     if (obj.pricing !== undefined) {
         if (typeof obj.pricing === 'object' && obj.pricing !== null && !Array.isArray(obj.pricing)) {
@@ -1044,7 +1071,8 @@ export function normalizeTokenPricing(
         : explicitPricingFields?.cacheWritePrice !== undefined ?
             { cacheWritePrice: explicitPricingFields.cacheWritePrice }
         :   {}),
-        ...(obj.rmb !== undefined ? { rmb: obj.rmb } : {})
+        ...(obj.rmb !== undefined ? { rmb: obj.rmb } : {}),
+        ...(obj.nativeCurrency !== undefined ? { nativeCurrency: obj.nativeCurrency } : {})
     };
 
     // 校验 tiers 数组结构

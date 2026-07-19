@@ -8,6 +8,7 @@ import {
     calculateCostWithBreakdown,
     formatCostBreakdownLog,
     resolvePricingBreakdown,
+    toCostBreakdownLog,
     toNanoAiu
 } from './costCalculator';
 import { normalizeTokenPricing } from './pricingTierResolver';
@@ -1116,4 +1117,30 @@ test('calculateCostWithBreakdown: Cubence array form [2.5, 15, 0.25] with tiers 
     assert.equal(breakdown.effectiveOutputPrice, 22.5);
     assertClose(breakdown.inputCost, (280000 / 1_000_000) * 5);
     assertClose(breakdown.cacheReadCost, (20000 / 1_000_000) * 0.5);
+});
+
+test('toCostBreakdownLog marks RMB-only pricing as native RMB', () => {
+    const breakdown = calculateCostWithBreakdown(
+        { prompt_tokens: 1000, completion_tokens: 500, total_tokens: 1500 },
+        { pricing: { RMB: [7, 14] } }
+    );
+
+    assert.ok(breakdown);
+    assert.equal(breakdown.effectiveNativeCurrency, 'RMB');
+    const log = toCostBreakdownLog(breakdown);
+    assert.deepEqual(log.nativeCurrencies, ['RMB']);
+    assert.equal(log.currencies?.USD?.total, 0.002);
+    assert.equal(log.currencies?.RMB?.total, 0.014);
+});
+
+test('toCostBreakdownLog keeps dual-currency pricing as native USD and RMB', () => {
+    const breakdown = calculateCostWithBreakdown(
+        { prompt_tokens: 1000, completion_tokens: 500, total_tokens: 1500 },
+        { pricing: { USD: [1, 2], RMB: [7, 14] } }
+    );
+
+    assert.ok(breakdown);
+    assert.equal(breakdown.effectiveNativeCurrency, 'USD');
+    const log = toCostBreakdownLog(breakdown);
+    assert.deepEqual(log.nativeCurrencies, ['USD', 'RMB']);
 });

@@ -4,8 +4,9 @@
  */
 
 import { DateSummary } from '../types';
-import { formatTokens, postToVSCode, t } from '../utils';
+import { formatTokens, getCurrencyToggleTitle, getDisplayCurrency, postToVSCode, t } from '../utils';
 import { createElement } from '../../utils';
+import { getDisplayCostPresentation } from '../../costDisplay';
 
 // ============= 工具函数 =============
 
@@ -28,6 +29,45 @@ function updateSelectedDateHighlight(selectedDate: string): void {
     });
 }
 
+/**
+ * 创建日期条目成本 span，纳入 refreshRequestRecordCosts 的统一刷新
+ */
+function createDateCostSpan(summary: DateSummary): HTMLElement | undefined {
+    const currency = getDisplayCurrency();
+    const presentation = getDisplayCostPresentation({
+        usd: summary.total_cost,
+        rmb: summary.total_cost_rmb,
+        nativeUsd: summary.native_total_cost,
+        nativeRmb: summary.native_total_cost_rmb,
+        currency,
+        fixedDecimals: 2
+    });
+    if (!presentation.text) {
+        return undefined;
+    }
+
+    const element = createElement('span');
+    element.dataset.requestCost = 'true';
+    if (summary.total_cost !== undefined) {
+        element.dataset.usd = String(summary.total_cost);
+    }
+    if (summary.total_cost_rmb !== undefined) {
+        element.dataset.rmb = String(summary.total_cost_rmb);
+    }
+    if (summary.native_total_cost !== undefined && summary.native_total_cost > 0) {
+        element.dataset.nativeUsd = String(summary.native_total_cost);
+    }
+    if (summary.native_total_cost_rmb !== undefined && summary.native_total_cost_rmb > 0) {
+        element.dataset.nativeRmb = String(summary.native_total_cost_rmb);
+    }
+    element.dataset.fixedDecimals = '2';
+    element.textContent = presentation.text;
+    element.title = getCurrencyToggleTitle(currency);
+    element.className = 'tokens-cost';
+    element.dataset.toggleCostCurrency = 'true';
+    return element;
+}
+
 // ============= 组件渲染 =============
 
 function createDateListItem(summary: DateSummary): HTMLElement {
@@ -43,7 +83,7 @@ function createDateListItem(summary: DateSummary): HTMLElement {
         item.classList.add('selected');
     }
 
-    const inner = createElement('div');
+    const inner = createElement('div', 'date-item-inner');
     inner.onclick = () => {
         if (window.usagesState) {
             window.usagesState.selectedDate = summary.date;
@@ -69,6 +109,14 @@ function createDateListItem(summary: DateSummary): HTMLElement {
 
     inner.appendChild(title);
     inner.appendChild(stats);
+
+    const costSpan = createDateCostSpan(summary);
+    if (costSpan) {
+        const costRow = createElement('div', 'date-item-cost');
+        costRow.textContent = t('Est. Cost: ', '预估成本: ');
+        costRow.appendChild(costSpan);
+        inner.appendChild(costRow);
+    }
 
     item.appendChild(inner);
 
@@ -137,6 +185,7 @@ export function updateDateList(dateList: DateSummary[]): void {
 
             const title = firstItem.querySelector('.date-item-title') as HTMLElement;
             const stats = firstItem.querySelector('.date-item-stats') as HTMLElement;
+            const costRow = firstItem.querySelector('.date-item-cost') as HTMLElement | null;
             const totalTokens = todaySummary.total_input + todaySummary.total_output;
 
             if (title) {
@@ -151,6 +200,23 @@ export function updateDateList(dateList: DateSummary[]): void {
                     todaySummary.total_requests,
                     formatTokens(totalTokens)
                 );
+            }
+
+            // 成本行增量更新：无成本时移除旧行，有成本时重建 span
+            const newCostSpan = createDateCostSpan(todaySummary);
+            if (newCostSpan) {
+                if (costRow) {
+                    costRow.textContent = t('Est. Cost: ', '预估成本: ');
+                    costRow.appendChild(newCostSpan);
+                } else {
+                    const row = createElement('div', 'date-item-cost');
+                    row.textContent = t('Est. Cost: ', '预估成本: ');
+                    row.appendChild(newCostSpan);
+                    const inner = firstItem.querySelector('.date-item-inner');
+                    inner?.appendChild(row);
+                }
+            } else if (costRow) {
+                costRow.remove();
             }
         }
 

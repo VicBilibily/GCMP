@@ -134,6 +134,49 @@ test('aggregateLogs keeps USD native total when only estimatedCost exists', () =
     });
 });
 
+test('aggregateLogs provides the cost fields used by date index summaries', () => {
+    const stats = StatsCalculator.aggregateLogs([
+        createLog({
+            status: 'completed',
+            requestId: 'req-index',
+            estimatedInput: 100,
+            rawUsage: {
+                prompt_tokens: 100,
+                completion_tokens: 20,
+                total_tokens: 120
+            },
+            estimatedCost: 0.1,
+            costBreakdown: {
+                tokens: [100, 20, 0, 0],
+                pricing: [1, 1],
+                cost: [0.04, 0.06],
+                total: 0.1,
+                currencies: {
+                    USD: {
+                        pricing: [1, 1],
+                        cost: [0.04, 0.06],
+                        total: 0.1
+                    },
+                    RMB: {
+                        pricing: [7, 7],
+                        cost: [0.28, 0.42],
+                        total: 0.7
+                    }
+                }
+            }
+        })
+    ]);
+
+    assert.equal(stats.total.actualInput, 100);
+    assert.equal(stats.total.cacheTokens, 0);
+    assert.equal(stats.total.outputTokens, 20);
+    assert.equal(stats.total.requests, 1);
+    assert.equal(stats.total.estimatedCost, 0.1);
+    assert.equal(stats.total.estimatedCostRmb, 0.7);
+    assert.equal(stats.total.nativeCosts?.totalUsd, 0);
+    assert.equal(stats.total.nativeCosts?.totalRmb, 0.7);
+});
+
 test('aggregateLogs counts cancelled request actual usage when rawUsage exists', () => {
     const stats = StatsCalculator.aggregateLogs([
         createLog({

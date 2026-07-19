@@ -281,7 +281,8 @@ function refreshViews(prevState: State, patch: Partial<State>): void {
 
     if (patch.displayCurrency !== undefined && patch.displayCurrency !== prevState.displayCurrency) {
         updateMainContent({ currencyOnly: true });
-        refreshRequestRecordCosts();
+        // 传 document 使侧边栏日期列表与 records-container 内的成本同步刷新
+        refreshRequestRecordCosts(document);
     }
 }
 
@@ -430,14 +431,21 @@ function initApp(): void {
     // 注册消息监听
     window.addEventListener('message', handleVSCodeMessage);
 
-    document.addEventListener('click', event => {
-        const target = (event.target as HTMLElement | null)?.closest('[data-toggle-cost-currency="true"]');
-        if (!target) {
-            return;
-        }
-        event.preventDefault();
-        toggleDisplayCurrency();
-    });
+    // 捕获阶段处理成本 span 的点击：优先完成币种切换并阻断冒泡，
+    // 避免冒泡到日期条目/会话条目的选中 onclick 触发整页重载
+    document.addEventListener(
+        'click',
+        event => {
+            const target = (event.target as HTMLElement | null)?.closest('[data-toggle-cost-currency="true"]');
+            if (!target) {
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            toggleDisplayCurrency();
+        },
+        { capture: true }
+    );
 
     // 请求初始数据
     postToVSCode({ command: 'getInitialData' });

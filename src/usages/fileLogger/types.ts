@@ -20,6 +20,8 @@ export interface CurrencyCostBreakdownLog {
     total: number;
 }
 
+export type CostBreakdownCurrency = 'USD' | 'RMB';
+
 export interface NativeCostSplit {
     totalUsd: number;
     totalRmb: number;
@@ -40,6 +42,12 @@ export interface CostBreakdownLog {
     total: number;
     activeTier?: string;
     contextWindow?: number;
+    /**
+     * 原生定价币种列表。
+     * 仅记录实际配置来源，不记录由汇率派生的币种；
+     * 旧日志缺失时由读取侧按 currencies 推断。
+     */
+    nativeCurrencies?: CostBreakdownCurrency[];
     currencies?: {
         USD: CurrencyCostBreakdownLog;
         RMB?: CurrencyCostBreakdownLog;
@@ -292,6 +300,12 @@ export interface DateIndexEntry {
     total_output: number;
     total_requests: number;
     total_cost: number;
+    /** RMB 成本合计（无精确定价时按 USD×7 估算） */
+    total_cost_rmb?: number;
+    /** 原生 USD 成本部分 */
+    native_total_cost?: number;
+    /** 原生 RMB 成本部分 */
+    native_total_cost_rmb?: number;
 }
 
 /**

@@ -109,6 +109,22 @@ body {
                     color: var(--vscode-descriptionForeground);
                     word-break: break-word;
                 }
+
+                &-cost {
+                    font-size: 10px;
+                    color: var(--vscode-descriptionForeground);
+                    word-break: break-word;
+
+                    .tokens-cost {
+                        font-weight: 500;
+                        color: var(--vscode-charts-yellow);
+                        cursor: pointer;
+
+                        &:hover {
+                            color: var(--vscode-textLink-foreground);
+                        }
+                    }
+                }
             }
         }
     }
@@ -478,15 +494,27 @@ body {
         }
 
         &-item-stats,
-        &-item-detail {
+        &-item-detail,
+        &-item-cost {
             color: var(--vscode-descriptionForeground);
             font-size: 11px;
             line-height: 1.4;
             word-break: break-word;
         }
 
+        &-item-cost .tokens-cost {
+            font-weight: 500;
+            color: var(--vscode-charts-yellow);
+            cursor: pointer;
+
+            &:hover {
+                color: var(--vscode-textLink-foreground);
+            }
+        }
+
         &-item.selected > div .session-filter-item-stats,
         &-item.selected > div .session-filter-item-detail,
+        &-item.selected > div .session-filter-item-cost,
         &-item.selected > div .session-filter-item-title-time {
             color: var(--vscode-list-activeSelectionForeground);
         }

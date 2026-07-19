@@ -288,7 +288,11 @@ export class TokenUsagesManager {
                 total_input: entry.total_input,
                 total_cache: entry.total_cache,
                 total_output: entry.total_output,
-                total_requests: entry.total_requests
+                total_requests: entry.total_requests,
+                total_cost: entry.total_cost,
+                total_cost_rmb: entry.total_cost_rmb,
+                native_total_cost: entry.native_total_cost,
+                native_total_cost_rmb: entry.native_total_cost_rmb
             });
         }
 

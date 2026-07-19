@@ -1,6 +1,7 @@
-﻿import type { SessionGroup } from '../types';
+﻿import type { RequestTotals, SessionGroup } from '../types';
 import { createElement } from '../../utils';
-import { formatTokens, t, UNKNOWN_SESSION_ID } from '../utils';
+import { getDisplayCostPresentation } from '../../costDisplay';
+import { formatTokens, getCurrencyToggleTitle, getDisplayCurrency, t, UNKNOWN_SESSION_ID } from '../utils';
 
 /**
  * 判断会话是否应该显示在会话列表中
@@ -54,12 +55,49 @@ function buildSessionTimeText(group: SessionGroup): string | undefined {
 }
 
 /**
+ * 创建会话列表成本 span，纳入 refreshRequestRecordCosts 的统一刷新
+ */
+function createSessionCostSpan(totals: RequestTotals): HTMLElement | undefined {
+    const currency = getDisplayCurrency();
+    const presentation = getDisplayCostPresentation({
+        usd: totals.totalCost,
+        rmb: totals.totalCostRmb,
+        nativeUsd: totals.nativeCosts.totalUsd,
+        nativeRmb: totals.nativeCosts.totalRmb,
+        currency,
+        fixedDecimals: 2
+    });
+    if (!presentation.text) {
+        return undefined;
+    }
+
+    const element = createElement('span');
+    element.dataset.requestCost = 'true';
+    element.dataset.usd = String(totals.totalCost);
+    element.dataset.rmb = String(totals.totalCostRmb);
+    element.dataset.fixedDecimals = '2';
+    if (totals.nativeCosts.totalUsd > 0) {
+        element.dataset.nativeUsd = String(totals.nativeCosts.totalUsd);
+    }
+    if (totals.nativeCosts.totalRmb > 0) {
+        element.dataset.nativeRmb = String(totals.nativeCosts.totalRmb);
+    }
+    element.textContent = presentation.text;
+    element.title = getCurrencyToggleTitle(currency);
+    element.className = 'tokens-cost';
+    element.dataset.toggleCostCurrency = 'true';
+    return element;
+}
+
+/**
  * 创建会话列表中的单个条目
  */
 function createSessionItem(options: {
     title: string;
     titleMeta?: string;
     stats: string;
+    /** 会话预估成本 */
+    totals?: RequestTotals;
     /** 预留插槽：附加在会话条目底部的可选详情文本 */
     detail?: string;
     selected: boolean;
@@ -90,6 +128,17 @@ function createSessionItem(options: {
     inner.appendChild(title);
     inner.appendChild(stats);
 
+    // 成本单独一行展示，带标题前缀
+    if (options.totals) {
+        const costSpan = createSessionCostSpan(options.totals);
+        if (costSpan) {
+            const costRow = createElement('div', 'session-filter-item-cost');
+            costRow.textContent = t('Est. Cost: ', '预估成本: ');
+            costRow.appendChild(costSpan);
+            inner.appendChild(costRow);
+        }
+    }
+
     // 预留插槽：未传 detail 时不渲染，保持 DOM 紧凑
     if (options.detail) {
         const detail = createElement('div', 'session-filter-item-detail');
@@ -117,6 +166,7 @@ export function createSessionFilter(
 
     const totalRequests = sessionGroups.reduce((sum, group) => sum + group.summary.requestCount, 0);
     const totalTokens = sessionGroups.reduce((sum, group) => sum + group.summary.totalTokens, 0);
+    const allTotals = globalThis.window?.usagesState?.dateDetails?.allTotals;
     pinned.appendChild(
         createSessionItem({
             title: t('All Sessions', '全部会话'),
@@ -126,6 +176,7 @@ export function createSessionFilter(
                 totalRequests,
                 formatTokens(totalTokens)
             ),
+            totals: allTotals,
             selected: selectedSessionId === null,
             onClick: () => onChange(null)
         })
@@ -142,6 +193,7 @@ export function createSessionFilter(
                     group.summary.requestCount,
                     formatTokens(group.summary.totalTokens)
                 ),
+                totals: group.totals,
                 selected: selectedSessionId === group.sessionId,
                 onClick: () => onChange(group.sessionId)
             })

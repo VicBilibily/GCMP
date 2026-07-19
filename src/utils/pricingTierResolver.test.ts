@@ -644,7 +644,9 @@ test('normalizeTokenPricing: tier pricing supports dual-currency map', () => {
         tiers: [{ cron: '* 9-23 * * 1-5', pricing: { USD: [3, 4, 0.3], RMB: [21, 28, 2.1] } }]
     });
     assert.ok(result);
+    assert.equal(result.nativeCurrency, undefined);
     assert.equal(result.tiers?.length, 1);
+    assert.equal(result.tiers?.[0].nativeCurrency, undefined);
     assert.equal(result.tiers?.[0].inputPrice, 3);
     assert.equal(result.tiers?.[0].outputPrice, 4);
     assert.equal(result.tiers?.[0].cacheReadPrice, 0.3);
@@ -804,10 +806,23 @@ test('normalizeTokenPricing: RMB-only dual-currency pricing converts cache price
     assert.ok(result);
     assert.equal(result.inputPrice, 1);
     assert.equal(result.outputPrice, 2);
+    assert.equal(result.nativeCurrency, 'RMB');
     assert.ok(Math.abs((result.cacheReadPrice ?? 0) - 0.1) < 1e-12);
     assert.ok(Math.abs((result.cacheWritePrice ?? 0) - 0.2) < 1e-12);
     assert.deepEqual(result.rmb, { inputPrice: 7, outputPrice: 14, cacheReadPrice: 0.7, cacheWritePrice: 1.4 });
     assert.equal(result.pricing, undefined);
+});
+
+test('normalizeTokenPricing: RMB-only shorthand tier keeps native currency marker', () => {
+    const result = normalizeTokenPricing({
+        pricing: { RMB: [7, 14] },
+        tiers: [{ contextSizeMin: 32001, pricing: { RMB: [14, 28] } }]
+    });
+    assert.ok(result);
+    assert.equal(result.nativeCurrency, 'RMB');
+    assert.equal(result.tiers?.[0].nativeCurrency, 'RMB');
+    assert.equal(result.tiers?.[0].inputPrice, 2);
+    assert.equal(result.tiers?.[0].outputPrice, 4);
 });
 
 test('normalizeTokenPricing: explicit USD object rejects dual-currency pricing object', () => {

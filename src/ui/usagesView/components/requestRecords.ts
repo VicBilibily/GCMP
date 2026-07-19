@@ -8,6 +8,7 @@ import { createElement } from '../../utils';
 import { getDisplayCostPresentation } from '../../costDisplay';
 import { createSessionFilter, shouldShowSessionGroupInFilter } from './sessionFilter';
 import {
+    buildCostBreakdownTitle,
     buildRequestTotals,
     formatSessionTimeRange,
     formatTokens,
@@ -75,6 +76,7 @@ interface RequestCostPresentationData {
     nativeUsd?: number;
     nativeRmb?: number;
     fixedDecimals?: number;
+    costBreakdown?: ExtendedTokenRequestLog['costBreakdown'];
 }
 
 /**
@@ -220,12 +222,10 @@ function createSummarySection(summary: SessionSummary): HTMLElement {
     const summaryEl = createElement('div', 'session-detail-summary');
     const avgSpeedText = summary.avgSpeed ? `${summary.avgSpeed.toFixed(1)} t/s` : '-';
     const timeRange = formatSessionTimeRange(summary.startTime, summary.endTime);
-    const statusBreakdown = `✅ ${summary.completedCount} / ❌ ${summary.failedCount} / 🚫 ${summary.cancelledCount}`;
 
     summaryEl.appendChild(createSummaryChip(t('Tokens', 'Tokens'), formatTokens(summary.totalTokens)));
     summaryEl.appendChild(createSummaryChip(t('Time', '时间'), timeRange, timeRange));
     summaryEl.appendChild(createSummaryChip(t('Avg Speed', '平均速度'), avgSpeedText));
-    summaryEl.appendChild(createSummaryChip(t('Status', '状态'), statusBreakdown));
 
     return summaryEl;
 }
@@ -269,7 +269,9 @@ function applyRequestCostPresentation(
     });
 
     element.textContent = presentation.text;
-    element.title = getCurrencyToggleTitle(currency);
+    const breakdownTitle = buildCostBreakdownTitle(data.costBreakdown, currency);
+    element.title =
+        breakdownTitle ? `${breakdownTitle}\n${getCurrencyToggleTitle(currency)}` : getCurrencyToggleTitle(currency);
     element.className = 'tokens-cost';
     element.dataset.toggleCostCurrency = 'true';
 }
@@ -282,17 +284,22 @@ function createRequestCostSpan(data: RequestCostPresentationData): HTMLElement {
     setNumericDataAttribute(element, 'nativeUsd', data.nativeUsd);
     setNumericDataAttribute(element, 'nativeRmb', data.nativeRmb);
     setNumericDataAttribute(element, 'fixedDecimals', data.fixedDecimals);
+    if (data.costBreakdown) {
+        element.dataset.costBreakdown = JSON.stringify(data.costBreakdown);
+    }
     applyRequestCostPresentation(element, data, getDisplayCurrency());
     return element;
 }
 
 function readRequestCostPresentationData(element: HTMLElement): RequestCostPresentationData {
+    const rawBreakdown = element.dataset.costBreakdown;
     return {
         usd: readNumericDataAttribute(element, 'usd'),
         rmb: readNumericDataAttribute(element, 'rmb'),
         nativeUsd: readNumericDataAttribute(element, 'nativeUsd'),
         nativeRmb: readNumericDataAttribute(element, 'nativeRmb'),
-        fixedDecimals: readNumericDataAttribute(element, 'fixedDecimals')
+        fixedDecimals: readNumericDataAttribute(element, 'fixedDecimals'),
+        costBreakdown: rawBreakdown ? JSON.parse(rawBreakdown) : undefined
     };
 }
 
@@ -589,7 +596,8 @@ export function createRequestRecordsTable(
                     usd: record.estimatedCost,
                     rmb: record.costBreakdown?.currencies?.RMB?.total,
                     nativeUsd: nativeSplit?.totalUsd,
-                    nativeRmb: nativeSplit?.totalRmb
+                    nativeRmb: nativeSplit?.totalRmb,
+                    costBreakdown: record.costBreakdown
                 })
             );
             total.append(tokensRow, tokensDetail);

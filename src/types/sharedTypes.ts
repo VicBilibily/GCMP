@@ -251,6 +251,11 @@ export interface PricingFields {
      * 若提供，内部计算仍以 USD 为准；UI 可在支持的场景下使用它做精确 RMB 展示与分币种聚合。
      */
     rmb?: PricingFieldsRmb;
+    /**
+     * 原生定价币种；仅在配置归一化阶段写入，表示主价格是否由 RMB 派生。
+     * 常规显式 USD 配置无需填写，缺省视为 USD。
+     */
+    nativeCurrency?: 'USD' | 'RMB';
 }
 
 /**

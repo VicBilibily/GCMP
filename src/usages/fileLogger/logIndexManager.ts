@@ -115,7 +115,10 @@ export class LogIndexManager {
             total_cache: total.cacheTokens,
             total_output: total.outputTokens,
             total_requests: total.requests,
-            total_cost: total.estimatedCost
+            total_cost: total.estimatedCost,
+            total_cost_rmb: total.estimatedCostRmb,
+            native_total_cost: total.nativeCosts?.totalUsd,
+            native_total_cost_rmb: total.nativeCosts?.totalRmb
         };
     }
 
@@ -126,7 +129,10 @@ export class LogIndexManager {
             left.total_cache === right.total_cache &&
             left.total_output === right.total_output &&
             left.total_requests === right.total_requests &&
-            left.total_cost === right.total_cost
+            left.total_cost === right.total_cost &&
+            left.total_cost_rmb === right.total_cost_rmb &&
+            left.native_total_cost === right.native_total_cost &&
+            left.native_total_cost_rmb === right.native_total_cost_rmb
         );
     }
 

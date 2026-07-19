@@ -8,7 +8,7 @@ import {
     hasNativeCostSplit,
     mergeNativeCostSplit
 } from '../../usages/fileLogger/nativeCostSplit';
-import { convertUsdToRmb, sumCosts } from '../../utils/pricingCurrency';
+import { convertUsdToRmb, sumCosts, USD_TO_RMB_RATE } from '../../utils/pricingCurrency';
 import type { BaseStats, HourlyStats, NativeCostSplit } from '../../usages/fileLogger/types';
 import type {
     ExtendedTokenRequestLog,
@@ -158,6 +158,128 @@ export function getCurrencyToggleTitle(currentCurrency: DisplayCurrency): string
         getCurrencyModeLabel(normalizedCurrency),
         getCurrencyModeLabel(nextCurrency)
     );
+}
+
+/**
+ * 构造请求成本的明细 tooltip 文本：命中档位 + 单价 + 各分项计算过程 + 合计。
+ * 无 costBreakdown 时返回 undefined（调用方回退到币种切换提示）。
+ *
+ * 币种口径：
+ * - 优先币种：MIXED 按界面语言（中文 RMB、英文 USD），RMB 视图优先 RMB，USD 视图优先 USD。
+ * - 过程与合计同币种：优先币种有原生定价时全程原生；无原生定价时过程用对方币种原生数据，
+ *   合计追加汇率换算（USD 合计 ×7 = ¥ / RMB 合计 ÷7 = $）。
+ * - MIXED 视图合计不换算：有原生 RMB 全程 ¥，无则全程 $。
+ */
+export function buildCostBreakdownTitle(
+    breakdown: ExtendedTokenRequestLog['costBreakdown'] | undefined,
+    currency: DisplayCurrency
+): string | undefined {
+    if (!breakdown) {
+        return undefined;
+    }
+
+    const usdData = breakdown.currencies?.USD;
+    const rmbData = breakdown.currencies?.RMB;
+    const preferRmb =
+        currency === 'RMB' ? true
+        : currency === 'USD' ? false
+        : isChineseLocale();
+    const nativeCurrencies = breakdown.nativeCurrencies;
+    // 旧日志没有 nativeCurrencies 时按 currencies 推断；新日志仅记录原生币种
+    const hasNativeUsd = nativeCurrencies ? nativeCurrencies.includes('USD') : usdData !== undefined;
+    const hasNativeRmb = nativeCurrencies ? nativeCurrencies.includes('RMB') : rmbData !== undefined;
+    // 双币模型按优先币种；单币模型用其原生币种
+    const processIsRmb = hasNativeRmb && (preferRmb || !hasNativeUsd);
+    // MIXED 合计不换算；RMB/USD 视图仅当过程币种与优先币种不同（单币模型）时换算
+    const needConvert = currency !== 'MIXED' && processIsRmb !== preferRmb;
+
+    const active = processIsRmb ? rmbData : usdData;
+    const pricing = active?.pricing ?? breakdown.pricing;
+    const costs = active?.cost ?? breakdown.cost;
+    const nativeTotal = active?.total ?? breakdown.total;
+    const symbol = processIsRmb ? '¥' : '$';
+
+    const [inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens] = breakdown.tokens;
+    const [inputPrice, outputPrice, cacheReadPrice, cacheWritePrice] = pricing;
+    const [inputCost = 0, outputCost = 0, cacheReadCost = 0, cacheWriteCost = 0] = costs;
+
+    const fmtPrice = (v: number): string => `${symbol}${v}`;
+    const fmtCost = (v: number): string => `${symbol}${v.toFixed(6)}`;
+
+    const lines: string[] = [];
+    lines.push(
+        breakdown.activeTier ?
+            t('Tier: {0}', '档位：{0}', breakdown.activeTier)
+        :   t('Tier: static (no tier matched)', '档位：静态单档（无 tier 命中）')
+    );
+
+    const priceParts = [`in ${fmtPrice(inputPrice)}`, `out ${fmtPrice(outputPrice)}`];
+    if (cacheReadPrice !== undefined) {
+        priceParts.push(`cacheRead ${fmtPrice(cacheReadPrice)}`);
+    }
+    if (cacheWritePrice !== undefined) {
+        priceParts.push(`cacheWrite ${fmtPrice(cacheWritePrice)}`);
+    }
+    lines.push(t('Pricing: {0} / 1M tokens', '单价：{0} / 1M tokens', priceParts.join(' · ')));
+
+    lines.push(
+        t(
+            'Billing: input {0} × {1}/1M = {2}',
+            '计费：input {0} × {1}/1M = {2}',
+            inputTokens.toLocaleString('en-US'),
+            fmtPrice(inputPrice),
+            fmtCost(inputCost)
+        )
+    );
+    lines.push(
+        t(
+            '           output {0} × {1}/1M = {2}',
+            '           output {0} × {1}/1M = {2}',
+            outputTokens.toLocaleString('en-US'),
+            fmtPrice(outputPrice),
+            fmtCost(outputCost)
+        )
+    );
+    if (cacheReadTokens > 0 && cacheReadPrice !== undefined) {
+        lines.push(
+            t(
+                '           cacheRead {0} × {1}/1M = {2}',
+                '           cacheRead {0} × {1}/1M = {2}',
+                cacheReadTokens.toLocaleString('en-US'),
+                fmtPrice(cacheReadPrice),
+                fmtCost(cacheReadCost)
+            )
+        );
+    }
+    if (cacheWriteTokens > 0 && cacheWritePrice !== undefined) {
+        lines.push(
+            t(
+                '           cacheWrite {0} × {1}/1M = {2}',
+                '           cacheWrite {0} × {1}/1M = {2}',
+                cacheWriteTokens.toLocaleString('en-US'),
+                fmtPrice(cacheWritePrice),
+                fmtCost(cacheWriteCost)
+            )
+        );
+    }
+
+    if (needConvert) {
+        const convertedTotal = preferRmb ? nativeTotal * USD_TO_RMB_RATE : nativeTotal / USD_TO_RMB_RATE;
+        const targetSymbol = preferRmb ? '¥' : '$';
+        const rateExpr = preferRmb ? `× ${USD_TO_RMB_RATE}` : `÷ ${USD_TO_RMB_RATE}`;
+        lines.push(
+            t(
+                'Total: {0} {1} = {2}',
+                '合计：{0} {1} = {2}',
+                fmtCost(nativeTotal),
+                rateExpr,
+                `${targetSymbol}${convertedTotal.toFixed(6)}`
+            )
+        );
+    } else {
+        lines.push(t('Total: {0}', '合计：{0}', fmtCost(nativeTotal)));
+    }
+    return lines.join('\n');
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

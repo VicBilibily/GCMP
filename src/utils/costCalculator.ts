@@ -96,6 +96,8 @@ export interface CostBreakdown {
     effectiveCacheReadPrice?: number;
     effectiveCacheWritePrice?: number;
     effectiveRmbPricing?: PricingFieldsRmb;
+    /** 当前生效主价格的原生币种；RMB 表示 USD 主价格由 RMB 定价派生 */
+    effectiveNativeCurrency: 'USD' | 'RMB';
     inputCostRmb?: number;
     outputCostRmb?: number;
     cacheReadCostRmb?: number;
@@ -107,6 +109,7 @@ interface ResolvedPricingBreakdown {
     activeTier?: PricingTier;
     effectivePricing: Pick<ModelTokenPricing, 'inputPrice' | 'outputPrice' | 'cacheReadPrice' | 'cacheWritePrice'>;
     effectivePricingRmb?: PricingFieldsRmb;
+    effectiveNativeCurrency: 'USD' | 'RMB';
 }
 
 function mergeRmbPricing(primary?: PricingFieldsRmb, fallback?: PricingFieldsRmb): PricingFieldsRmb | undefined {
@@ -201,7 +204,8 @@ export function resolvePricingBreakdown(
                     cacheReadPrice: activeTier.cacheReadPrice ?? pricing.cacheReadPrice,
                     cacheWritePrice: activeTier.cacheWritePrice ?? pricing.cacheWritePrice
                 },
-                effectivePricingRmb: mergeRmbPricing(activeTier.rmb, pricing.rmb)
+                effectivePricingRmb: mergeRmbPricing(activeTier.rmb, pricing.rmb),
+                effectiveNativeCurrency: activeTier.nativeCurrency ?? pricing.nativeCurrency ?? 'USD'
             };
         }
         // contextSizeMin 不满足 → 移除该 tier，用剩余 tiers 重新匹配
@@ -222,7 +226,8 @@ export function resolvePricingBreakdown(
                 cacheReadPrice: pricing.cacheReadPrice,
                 cacheWritePrice: pricing.cacheWritePrice
             },
-            effectivePricingRmb: pricing.rmb
+            effectivePricingRmb: pricing.rmb,
+            effectiveNativeCurrency: pricing.nativeCurrency ?? 'USD'
         };
     }
 
@@ -235,7 +240,8 @@ export function resolvePricingBreakdown(
             cacheReadPrice: pricing.cacheReadPrice,
             cacheWritePrice: pricing.cacheWritePrice
         },
-        effectivePricingRmb: pricing.rmb
+        effectivePricingRmb: pricing.rmb,
+        effectiveNativeCurrency: pricing.nativeCurrency ?? 'USD'
     };
 }
 
@@ -314,7 +320,7 @@ export function calculateCostWithBreakdown(
         return undefined;
     }
 
-    const { activeTier, effectivePricing, effectivePricingRmb } = resolvedPricing;
+    const { activeTier, effectivePricing, effectivePricingRmb, effectiveNativeCurrency } = resolvedPricing;
 
     const cacheCreationTokens = getExplicitCacheWriteTokens(usage);
     const inputTokens = getUncachedInputTokens(usage, parsed.actualInput, cacheReadTokens, cacheCreationTokens);
@@ -366,6 +372,7 @@ export function calculateCostWithBreakdown(
         effectiveCacheReadPrice: effectivePricing.cacheReadPrice,
         effectiveCacheWritePrice: effectivePricing.cacheWritePrice,
         effectiveRmbPricing: effectivePricingRmb,
+        effectiveNativeCurrency,
         inputCostRmb,
         outputCostRmb,
         cacheReadCostRmb,
@@ -453,6 +460,10 @@ export function toCostBreakdownLog(breakdown: CostBreakdown): CostBreakdownLog {
         cost: usd.cost,
         total: usd.total,
         activeTier,
+        nativeCurrencies:
+            breakdown.effectiveNativeCurrency === 'RMB' ? ['RMB']
+            : rmb ? ['USD', 'RMB']
+            : ['USD'],
         currencies: {
             USD: usd,
             ...(rmb ? { RMB: rmb } : {})

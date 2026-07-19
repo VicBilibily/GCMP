@@ -39,8 +39,10 @@ export function getLogNativeCostSplit(
 ): NativeCostSplit | undefined {
     const usd = log.costBreakdown?.currencies?.USD;
     const rmb = log.costBreakdown?.currencies?.RMB;
+    const nativeCurrencies = log.costBreakdown?.nativeCurrencies;
+    const hasNativeRmb = nativeCurrencies ? nativeCurrencies.includes('RMB') : rmb !== undefined;
 
-    if (rmb) {
+    if (hasNativeRmb && rmb) {
         return {
             totalUsd: 0,
             totalRmb: rmb.total,
