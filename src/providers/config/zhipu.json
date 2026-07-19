@@ -14,10 +14,7 @@
             "maxOutputTokens": 64000,
             "reasoningEffort": ["high", "max", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": {
-                "pricing": { "USD": [1.4, 4.4, 0.26], "RMB": [8, 28, 2] },
-                "tiers": [{ "cron": "* 14-17 * * *", "pricing": 3 }]
-            }
+            "tokenPricing": { "USD": [1.4, 4.4, 0.26], "RMB": [8, 28, 2] }
         },
         {
             "id": "glm-5v-turbo",

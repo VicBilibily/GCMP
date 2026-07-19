@@ -123,7 +123,8 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 - [**Coding Plan**](https://www.aliyun.com/benefit/scene/codingplan)
     - 推荐模型：**Qwen3.6-Plus**、**Kimi-K2.5**、**GLM-5**、**MiniMax-M2.5**
     - 更多模型：**Qwen3.5-Plus**、**Qwen3-Max**、**Qwen3-Coder-Next**、**Qwen3-Coder-Plus**、**GLM-4.7**
-- [**Token Plan**](https://www.aliyun.com/benefit/scene/tokenplan)：**Qwen3.7-Max**、**Qwen3.6-Plus**、**Qwen3.6-Flash**、**GLM-5.2**、**GLM-5.1**、**GLM-5**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**Kimi-K2.5**、**MiniMax-M2.5**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**、**DeepSeek-V3.2**
+- [**Token Plan 团队版**](https://www.aliyun.com/benefit/scene/tokenplan)：**Qwen3.8-Max-Preview**(限时抢先体验)、**Qwen3.7-Max**、**Qwen3.6-Plus**、**Qwen3.6-Flash**、**GLM-5.2**、**GLM-5.1**、**GLM-5**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**Kimi-K2.5**、**MiniMax-M2.5**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**、**DeepSeek-V3.2**
+- [**Token Plan 个人版**](https://bailian.console.aliyun.com/cn-beijing?tab=plan#/efm/subscription/overview)：**Qwen3.8-Max-Preview**(限时抢先体验)、**Qwen3.7-Max**、**Qwen3.7-Plus**、**Qwen3.6-Flash**、**GLM-5.2**、**DeepSeek-V4-Pro**
 - **通义千问系列**：**Qwen3.7-Plus**、**Qwen3.7-Max**、**Qwen3.6-Plus**、**Qwen3.6-Flash**、**Qwen3.5-Plus**、**Qwen3.5-Flash**
 - **DeepSeek-V4**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**
 - **其他按量计费**：**GLM-5.2**、**Kimi-K2.7-Code**

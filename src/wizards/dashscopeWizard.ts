@@ -12,6 +12,7 @@ export class DashscopeWizard extends BaseWizard {
     private static readonly PROVIDER_KEY = 'dashscope';
     private static readonly CODING_PLAN_KEY = 'dashscope-coding';
     private static readonly TOKEN_PLAN_KEY = 'dashscope-token';
+    private static readonly PERSONAL_TOKEN_PLAN_KEY = 'dashscope-token-personal';
 
     /**
      * 启动 Dashscope 配置向导
@@ -40,14 +41,26 @@ export class DashscopeWizard extends BaseWizard {
                         value: 'coding'
                     },
                     {
-                        label: t('$(key) Set Token Plan dedicated key', '$(key) 设置 Token Plan 专用密钥'),
-                        detail: t('For {0} Token Plan models', '用于 {0} Token Plan 模型', displayName),
+                        label: t('$(key) Set Token Plan (Team) dedicated key', '$(key) 设置 Token Plan 团队版专用密钥'),
+                        detail: t('For {0} Token Plan (Team) models', '用于 {0} Token Plan 团队版模型', displayName),
                         value: 'tokenPlan'
+                    },
+                    {
+                        label: t(
+                            '$(key) Set Token Plan (Personal) dedicated key',
+                            '$(key) 设置 Token Plan 个人版专用密钥'
+                        ),
+                        detail: t(
+                            'For {0} Token Plan (Personal) models',
+                            '用于 {0} Token Plan 个人版模型',
+                            displayName
+                        ),
+                        value: 'personalTokenPlan'
                     },
                     {
                         label: t('$(check-all) Configure all items in sequence', '$(check-all) 依次配置全部项目'),
                         detail: t(
-                            'Configure the standard key, Coding Plan dedicated key, and Token Plan dedicated key in order',
+                            'Configure the standard key, Coding Plan dedicated key, and Token Plan dedicated keys in order',
                             '按顺序配置普通密钥、Coding Plan 专用密钥与 Token Plan 专用密钥'
                         ),
                         value: 'all'
@@ -74,6 +87,13 @@ export class DashscopeWizard extends BaseWizard {
 
             if (choice.value === 'tokenPlan' || choice.value === 'all') {
                 await this.setTokenPlanApiKey(displayName, tokenKeyTemplate || codingKeyTemplate || apiKeyTemplate);
+            }
+
+            if (choice.value === 'personalTokenPlan' || choice.value === 'all') {
+                await this.setPersonalTokenPlanApiKey(
+                    displayName,
+                    tokenKeyTemplate || codingKeyTemplate || apiKeyTemplate
+                );
             }
         } catch (error) {
             Logger.error(`DashScope setup wizard failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -127,26 +147,61 @@ export class DashscopeWizard extends BaseWizard {
     }
 
     /**
-     * 设置 Dashscope Token Plan 专用密钥
+     * 设置 Dashscope Token Plan 团队版专用密钥
      */
     static async setTokenPlanApiKey(displayName: string, tokenKeyTemplate?: string): Promise<void> {
         await this.promptForApiKey({
             providerKey: this.TOKEN_PLAN_KEY,
             prompt: t(
-                'Enter the Token Plan dedicated API key for {0} (leave empty to clear)',
-                '请输入 {0} 的 Token Plan 专用 API Key（留空可清除）',
+                'Enter the Token Plan (Team) dedicated API key for {0} (leave empty to clear)',
+                '请输入 {0} 的 Token Plan 团队版专用 API Key（留空可清除）',
                 displayName
             ),
-            title: t('Set {0} Token Plan dedicated API Key', '设置 {0} Token Plan 专用 API Key', displayName),
+            title: t(
+                'Set {0} Token Plan (Team) dedicated API Key',
+                '设置 {0} Token Plan 团队版专用 API Key',
+                displayName
+            ),
             placeHolder: tokenKeyTemplate,
             successMessage: t(
-                '{0} Token Plan dedicated API Key configured',
-                '{0} Token Plan 专用 API Key 已设置',
+                '{0} Token Plan (Team) dedicated API Key configured',
+                '{0} Token Plan 团队版专用 API Key 已设置',
                 displayName
             ),
             clearMessage: t(
-                '{0} Token Plan dedicated API Key cleared',
-                '{0} Token Plan 专用 API Key 已清除',
+                '{0} Token Plan (Team) dedicated API Key cleared',
+                '{0} Token Plan 团队版专用 API Key 已清除',
+                displayName
+            ),
+            loggerName: displayName
+        });
+    }
+
+    /**
+     * 设置 Dashscope Token Plan 个人版专用密钥
+     */
+    static async setPersonalTokenPlanApiKey(displayName: string, tokenKeyTemplate?: string): Promise<void> {
+        await this.promptForApiKey({
+            providerKey: this.PERSONAL_TOKEN_PLAN_KEY,
+            prompt: t(
+                'Enter the Token Plan (Personal) dedicated API key for {0} (leave empty to clear)',
+                '请输入 {0} 的 Token Plan 个人版专用 API Key（留空可清除）',
+                displayName
+            ),
+            title: t(
+                'Set {0} Token Plan (Personal) dedicated API Key',
+                '设置 {0} Token Plan 个人版专用 API Key',
+                displayName
+            ),
+            placeHolder: tokenKeyTemplate,
+            successMessage: t(
+                '{0} Token Plan (Personal) dedicated API Key configured',
+                '{0} Token Plan 个人版专用 API Key 已设置',
+                displayName
+            ),
+            clearMessage: t(
+                '{0} Token Plan (Personal) dedicated API Key cleared',
+                '{0} Token Plan 个人版专用 API Key 已清除',
                 displayName
             ),
             loggerName: displayName

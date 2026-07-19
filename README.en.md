@@ -123,7 +123,8 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 - [**Coding Plan**](https://www.aliyun.com/benefit/scene/codingplan)
     - Recommended: **Qwen3.6-Plus**, **Kimi-K2.5**, **GLM-5**, **MiniMax-M2.5**
     - More: **Qwen3.5-Plus**, **Qwen3-Max**, **Qwen3-Coder-Next**, **Qwen3-Coder-Plus**, **GLM-4.7**
-- [**Token Plan**](https://www.aliyun.com/benefit/scene/tokenplan): **Qwen3.7-Max**, **Qwen3.6-Plus**, **Qwen3.6-Flash**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.5**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **DeepSeek-V3.2**
+- [**Token Plan (Team)**](https://www.aliyun.com/benefit/scene/tokenplan): **Qwen3.8-Max-Preview** (limited-time preview), **Qwen3.7-Max**, **Qwen3.6-Plus**, **Qwen3.6-Flash**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.5**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **DeepSeek-V3.2**
+- [**Token Plan (Personal)**](https://bailian.console.aliyun.com/cn-beijing?tab=plan#/efm/subscription/overview): **Qwen3.8-Max-Preview** (limited-time preview), **Qwen3.7-Max**, **Qwen3.7-Plus**, **Qwen3.6-Flash**, **GLM-5.2**, **DeepSeek-V4-Pro**
 - **Qwen series**: **Qwen3.7-Plus**, **Qwen3.7-Max**, **Qwen3.6-Plus**, **Qwen3.6-Flash**, **Qwen3.5-Plus**, **Qwen3.5-Flash**
 - **DeepSeek-V4**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**
 - **Other PayGo models**: **GLM-5.2**, **Kimi-K2.7-Code**

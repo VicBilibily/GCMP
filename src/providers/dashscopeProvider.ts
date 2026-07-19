@@ -65,12 +65,25 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
             }
         );
 
-        // Token Plan 专用 API Key
+        // Token Plan 团队版专用 API Key
         const setTokenPlanApiKeyCommand = vscode.commands.registerCommand(
             `gcmp.${providerKey}.setTokenPlanApiKey`,
             async () => {
                 await DashscopeWizard.setTokenPlanApiKey(providerConfig.displayName, providerConfig.tokenKeyTemplate);
                 await provider.modelInfoCache?.invalidateCache('dashscope-token');
+                provider._onDidChangeLanguageModelChatInformation.fire();
+            }
+        );
+
+        // Token Plan 个人版专用 API Key
+        const setPersonalTokenPlanApiKeyCommand = vscode.commands.registerCommand(
+            `gcmp.${providerKey}.setPersonalTokenPlanApiKey`,
+            async () => {
+                await DashscopeWizard.setPersonalTokenPlanApiKey(
+                    providerConfig.displayName,
+                    providerConfig.tokenKeyTemplate
+                );
+                await provider.modelInfoCache?.invalidateCache('dashscope-token-personal');
                 provider._onDidChangeLanguageModelChatInformation.fire();
             }
         );
@@ -92,6 +105,7 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
             setApiKeyCommand,
             setCodingPlanApiKeyCommand,
             setTokenPlanApiKeyCommand,
+            setPersonalTokenPlanApiKeyCommand,
             configWizardCommand
         ];
         disposables.forEach(d => context.subscriptions.push(d));
@@ -102,9 +116,11 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         const providerKey = this.getProviderKeyForModel(modelConfig);
         const isCodingPlan = providerKey === 'dashscope-coding';
         const isTokenPlan = providerKey === 'dashscope-token';
+        const isPersonalTokenPlan = providerKey === 'dashscope-token-personal';
         const keyType =
             isCodingPlan ? 'Coding Plan dedicated'
-            : isTokenPlan ? 'Token Plan dedicated'
+            : isTokenPlan ? 'Token Plan (Team) dedicated'
+            : isPersonalTokenPlan ? 'Token Plan (Personal) dedicated'
             : 'standard';
 
         const hasApiKey = await ApiKeyManager.hasValidApiKey(providerKey);
@@ -124,6 +140,11 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
             );
         } else if (isTokenPlan) {
             await DashscopeWizard.setTokenPlanApiKey(
+                this.providerConfig.displayName,
+                this.providerConfig.tokenKeyTemplate
+            );
+        } else if (isPersonalTokenPlan) {
+            await DashscopeWizard.setPersonalTokenPlanApiKey(
                 this.providerConfig.displayName,
                 this.providerConfig.tokenKeyTemplate
             );
@@ -152,7 +173,8 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         const hasNormalKey = await ApiKeyManager.hasValidApiKey(this.providerKey);
         const hasCodingKey = await ApiKeyManager.hasValidApiKey('dashscope-coding');
         const hasTokenPlanKey = await ApiKeyManager.hasValidApiKey('dashscope-token');
-        const hasAnyKey = hasNormalKey || hasCodingKey || hasTokenPlanKey;
+        const hasPersonalTokenPlanKey = await ApiKeyManager.hasValidApiKey('dashscope-token-personal');
+        const hasAnyKey = hasNormalKey || hasCodingKey || hasTokenPlanKey || hasPersonalTokenPlanKey;
 
         if (options.silent && !hasAnyKey) {
             Logger.debug(
@@ -172,7 +194,8 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
             const normalKeyValid = await ApiKeyManager.hasValidApiKey(this.providerKey);
             const codingKeyValid = await ApiKeyManager.hasValidApiKey('dashscope-coding');
             const tokenPlanKeyValid = await ApiKeyManager.hasValidApiKey('dashscope-token');
-            if (!normalKeyValid && !codingKeyValid && !tokenPlanKeyValid) {
+            const personalTokenPlanKeyValid = await ApiKeyManager.hasValidApiKey('dashscope-token-personal');
+            if (!normalKeyValid && !codingKeyValid && !tokenPlanKeyValid && !personalTokenPlanKeyValid) {
                 Logger.warn(
                     `${this.providerConfig.displayName}: user did not configure any keys, returning empty model list`
                 );
@@ -209,14 +232,16 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
         if (!apiKey) {
             const keyType =
                 providerKey === 'dashscope-coding' ? 'Coding Plan dedicated'
-                : providerKey === 'dashscope-token' ? 'Token Plan dedicated'
+                : providerKey === 'dashscope-token' ? 'Token Plan (Team) dedicated'
+                : providerKey === 'dashscope-token-personal' ? 'Token Plan (Personal) dedicated'
                 : 'standard';
             throw new Error(`${this.providerConfig.displayName}: invalid ${keyType} API key`);
         }
 
         const keyLabel =
             providerKey === 'dashscope-coding' ? 'Coding Plan'
-            : providerKey === 'dashscope-token' ? 'Token Plan'
+            : providerKey === 'dashscope-token' ? 'Token Plan (Team)'
+            : providerKey === 'dashscope-token-personal' ? 'Token Plan (Personal)'
             : 'standard';
         Logger.debug(
             `${this.providerConfig.displayName}: about to handle request using ${keyLabel} key - model: ${modelConfig.name}`

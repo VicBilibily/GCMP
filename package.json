@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.26.0",
+    "version": "0.26.1",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -184,6 +184,11 @@
             {
                 "command": "gcmp.dashscope.setTokenPlanApiKey",
                 "title": "%command.dashscope.setTokenPlanApiKey%",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.dashscope.setPersonalTokenPlanApiKey",
+                "title": "%command.dashscope.setPersonalTokenPlanApiKey%",
                 "category": "GCMP"
             },
             {

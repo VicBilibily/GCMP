@@ -106,7 +106,8 @@ const KNOWN_KEY_LABELS: Record<string, string> = {
     // ── 多密钥变体 ──
     'minimax-token': 'MiniMax Token Plan',
     'dashscope-coding': 'DashScope Coding Plan',
-    'dashscope-token': 'DashScope Token Plan',
+    'dashscope-token': 'DashScope Token Plan (Team)',
+    'dashscope-token-personal': 'DashScope Token Plan (Personal)',
     'tencent-coding': 'Tencent Cloud Coding Plan',
     'tencent-token': 'Tencent Cloud Token Plan',
     'tencent-tokenhub': 'Tencent Cloud TokenHub',

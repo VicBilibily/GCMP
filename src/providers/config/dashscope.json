@@ -220,6 +220,20 @@
             "tokenPricing": { "USD": [0.574, 3.011, 0.057, 0.718], "RMB": [4, 21, 0.4, 5] }
         },
         {
+            "id": "qwen3.8-max-preview-token-plan",
+            "name": "Qwen3.8-Max-Preview (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（OpenAI Responses API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+            "model": "qwen3.8-max-preview",
+            "contextSize": [1000000, 512000, 400000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }]
+        },
+        {
             "id": "qwen3.7-plus-token-plan",
             "name": "Qwen3.7-Plus (TokenPlan)",
             "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
@@ -230,7 +244,6 @@
             "contextSize": [1000000, 512000, 400000, 256000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
@@ -254,7 +267,6 @@
             "contextSize": [1000000, 512000, 400000, 256000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": { "USD": [1.65, 4.951, 0.165, 1.65], "RMB": [12, 36, 1.2, 12] }
@@ -270,7 +282,6 @@
             "contextSize": [1000000, 512000, 400000, 256000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
@@ -294,7 +305,6 @@
             "contextSize": [1000000, 512000, 400000, 256000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
@@ -462,6 +472,111 @@
             "tokenPricing": { "USD": [0.287, 0.431, 0.029, 0.287], "RMB": [2, 3, 0.2, 2] }
         },
         {
+            "id": "qwen3.8-max-preview-token-plan-personal",
+            "name": "Qwen3.8-Max-Preview (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 个人版专属接入点（OpenAI Responses API 兼容协议）。",
+            "provider": "dashscope-token-personal",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+            "model": "qwen3.8-max-preview",
+            "contextSize": [1000000, 512000, 400000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }]
+        },
+        {
+            "id": "qwen3.7-max-token-plan-personal",
+            "name": "Qwen3.7-Max (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 个人版专属接入点（OpenAI Responses API 兼容协议）。",
+            "provider": "dashscope-token-personal",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+            "model": "qwen3.7-max",
+            "contextSize": [1000000, 512000, 400000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
+            "tokenPricing": { "USD": [1.65, 4.951, 0.165, 1.65], "RMB": [12, 36, 1.2, 12] }
+        },
+        {
+            "id": "qwen3.7-plus-token-plan-personal",
+            "name": "Qwen3.7-Plus (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 个人版专属接入点（OpenAI Responses API 兼容协议）。",
+            "provider": "dashscope-token-personal",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+            "model": "qwen3.7-plus",
+            "contextSize": [1000000, 512000, 400000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
+            "tokenPricing": {
+                "pricing": { "USD": [0.276, 1.101, 0.028, 0.276], "RMB": [2, 8, 0.2, 2] },
+                "tiers": [
+                    {
+                        "contextSizeMin": 256000,
+                        "pricing": { "USD": [0.826, 3.301, 0.083, 0.826], "RMB": [6, 24, 0.6, 6] }
+                    }
+                ]
+            }
+        },
+        {
+            "id": "qwen3.6-flash-token-plan-personal",
+            "name": "Qwen3.6-Flash (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 个人版专属接入点（OpenAI Responses API 兼容协议）。",
+            "provider": "dashscope-token-personal",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+            "model": "qwen3.6-flash",
+            "contextSize": [1000000, 512000, 400000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
+            "tokenPricing": {
+                "pricing": { "USD": [0.165, 0.99, 0.017, 0.165], "RMB": [1.2, 7.2, 0.12, 1.2] },
+                "tiers": [
+                    {
+                        "contextSizeMin": 256000,
+                        "pricing": { "USD": [0.66, 3.961, 0.066, 0.66], "RMB": [4.8, 28.8, 0.48, 4.8] }
+                    }
+                ]
+            }
+        },
+        {
+            "id": "glm-5.2-token-plan-personal",
+            "name": "GLM-5.2 (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 个人版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token-personal",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "glm-5.2",
+            "contextSize": [1000000, 512000, 400000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "none"],
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": { "USD": [1.1, 3.851, 0.11, 1.1], "RMB": [8, 28, 0.8, 8] }
+        },
+        {
+            "id": "deepseek-v4-pro-token-plan-personal",
+            "name": "DeepSeek-V4-Pro (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 个人版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token-personal",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "deepseek-v4-pro",
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": { "USD": [1.65, 3.301, 0.165, 1.65], "RMB": [12, 24, 1.2, 12] }
+        },
+        {
             "id": "qwen3.7-plus",
             "name": "Qwen3.7-Plus",
             "tooltip": "Qwen3.7系列中高性价比Plus模型，在强大文本能力的基础上全面升级了视觉-语言能力，同时保持了在编码、工具使用和生产力工作流方面的完整智能体能力。其核心特色为多模态交互混合智能体能力，能够感知真实世界场景、读取屏幕并操作 GUI、基于视觉参考生成代码、端到端导航移动应用。",
@@ -469,7 +584,6 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "sdkMode": "openai-responses",
-            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
@@ -490,7 +604,6 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "sdkMode": "openai-responses",
-            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": { "USD": [1.65, 4.951, 0.165, 1.65], "RMB": [12, 36, 1.2, 12] }
@@ -503,7 +616,6 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "sdkMode": "openai-responses",
-            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
@@ -524,7 +636,6 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "sdkMode": "openai-responses",
-            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
@@ -545,7 +656,6 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "sdkMode": "openai-responses",
-            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
@@ -566,7 +676,6 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "sdkMode": "openai-responses",
-            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
