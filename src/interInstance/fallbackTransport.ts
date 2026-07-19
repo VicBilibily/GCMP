@@ -29,6 +29,8 @@ interface FileReadState {
 const EVENT_FILE_PREFIX = 'events-';
 const EVENT_FILE_SUFFIX = '.jsonl';
 const EVENT_FILE_RETENTION_MS = 24 * 60 * 60 * 1000; // 1 天
+/** 单个事件文件的最大体积，超过后截断仅保留尾部，避免活跃实例的事件文件无限增长 */
+const MAX_EVENT_FILE_SIZE_BYTES = 1024 * 1024; // 1MB
 
 /**
  * 基于文件系统的降级传输层
@@ -45,6 +47,8 @@ export class FallbackTransport {
     private darwinPollTimer: NodeJS.Timeout | undefined;
     private directoryWatcher: fs.FSWatcher | undefined;
     private readonly DARWIN_POLL_INTERVAL_MS = 2000;
+    /** 本实例事件文件写队列，保证截断与追加是不可交错的单一操作序列 */
+    private publishChain: Promise<void> = Promise.resolve();
 
     constructor(options: FallbackTransportOptions) {
         this.options = options;
@@ -88,7 +92,7 @@ export class FallbackTransport {
     /**
      * 停止文件传输并释放资源
      */
-    stop(): void {
+    async stop(): Promise<void> {
         this.disposed = true;
         if (this.cleanupTimer) {
             clearInterval(this.cleanupTimer);
@@ -105,22 +109,62 @@ export class FallbackTransport {
         }
         this.fileStates.clear();
         this.context = undefined;
+        await this.publishChain;
         StatusLogger.debug('[FallbackTransport] Stopped file-based fallback transport');
     }
 
     /**
      * 将事件追加写入本实例的事件文件
      */
-    async publish(event: InterInstanceEvent): Promise<void> {
+    publish(event: InterInstanceEvent): Promise<void> {
         if (this.disposed || !this.ownFilePath) {
+            return Promise.resolve();
+        }
+
+        const task = this.publishChain.then(async () => {
+            // 能进入队列说明 publish 发生在 stop 之前；即使随后开始停用，也必须完成这些已接收事件的写盘。
+            if (!this.ownFilePath) {
+                return;
+            }
+            try {
+                const line = JSON.stringify(event) + '\n';
+                await this.truncateOwnFileIfOversized();
+                await fs.promises.appendFile(this.ownFilePath, line, 'utf8');
+            } catch (error) {
+                StatusLogger.warn('[FallbackTransport] Failed to append event to own file', error);
+            }
+        });
+        this.publishChain = task.catch(() => undefined);
+        return task;
+    }
+
+    /**
+     * 事件文件超过体积上限时截断，仅保留尾部最近内容。
+     * 读取方检测到文件变小时会从头读取，截断边界的半行事件由 NDJSON 解析容错跳过。
+     */
+    private async truncateOwnFileIfOversized(): Promise<void> {
+        if (!this.ownFilePath) {
             return;
         }
-        try {
-            const line = JSON.stringify(event) + '\n';
-            await fs.promises.appendFile(this.ownFilePath, line, 'utf8');
-        } catch (error) {
-            StatusLogger.warn('[FallbackTransport] Failed to append event to own file', error);
+        const stats = await fs.promises.stat(this.ownFilePath).catch(() => null);
+        if (!stats || stats.size <= MAX_EVENT_FILE_SIZE_BYTES) {
+            return;
         }
+        const keepBytes = Math.floor(MAX_EVENT_FILE_SIZE_BYTES / 2);
+        const handle = await fs.promises.open(this.ownFilePath, 'r');
+        let tail: string;
+        try {
+            const buffer = Buffer.alloc(keepBytes);
+            await handle.read(buffer, 0, keepBytes, stats.size - keepBytes);
+            tail = buffer.toString('utf8');
+        } finally {
+            await handle.close();
+        }
+        // 丢弃可能截断的首行，从下一个换行符开始保留
+        const firstNewline = tail.indexOf('\n');
+        const safeTail = firstNewline >= 0 ? tail.slice(firstNewline + 1) : '';
+        await fs.promises.writeFile(this.ownFilePath, safeTail, 'utf8');
+        StatusLogger.debug('[FallbackTransport] Truncated oversized event file');
     }
 
     private initializeExistingFiles(): void {
@@ -200,7 +244,8 @@ export class FallbackTransport {
         try {
             const stats = await fs.promises.stat(filePath).catch(() => null);
             if (!stats) {
-                // 文件被删除
+                // 文件被删除：同步关闭 watcher，避免句柄泄漏
+                state.watcher?.close();
                 this.fileStates.delete(filePath);
                 return;
             }

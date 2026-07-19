@@ -105,6 +105,8 @@ interface HarRecorderState {
     accepting: boolean;
     activeCaptureTasks: Set<Promise<void>>;
     activeCaptureControllers: Set<AbortController>;
+    closedPromise: Promise<void>;
+    resolveClosed: (() => void) | undefined;
 }
 
 const sensitiveHeaderNamePattern =
@@ -168,6 +170,10 @@ export class HarRecorder {
         const now = new Date();
         const storageDir = path.join(options.defaultStoragePath, 'har');
         this.ensureDirectory(storageDir);
+        let resolveClosed: (() => void) | undefined;
+        const closedPromise = new Promise<void>(resolve => {
+            resolveClosed = resolve;
+        });
         const state: HarRecorderState = {
             options,
             storageDir,
@@ -180,7 +186,9 @@ export class HarRecorder {
             requestCount: 0,
             accepting: true,
             activeCaptureTasks: new Set<Promise<void>>(),
-            activeCaptureControllers: new Set<AbortController>()
+            activeCaptureControllers: new Set<AbortController>(),
+            closedPromise,
+            resolveClosed
         };
         this.currentState = state;
         this.cleanupOldHarFiles(state.storageDir, options.retentionCount, 1);
@@ -597,17 +605,22 @@ export class HarRecorder {
         };
     }
 
-    dispose(): void {
-        this.disposeInternal();
-        HarRecorder.instance = undefined;
+    async dispose(): Promise<void> {
+        await this.disposeInternal();
+        if (HarRecorder.instance === this) {
+            HarRecorder.instance = undefined;
+        }
     }
 
-    private disposeInternal(): void {
+    private async disposeInternal(): Promise<void> {
+        const closingPromises = Array.from(this.closingStates, state => state.closedPromise);
         if (this.currentState) {
             const state = this.currentState;
             this.currentState = undefined;
             this.closeState(state);
+            closingPromises.push(state.closedPromise);
         }
+        await Promise.all(closingPromises);
     }
 
     private closeState(state: HarRecorderState): void {
@@ -638,6 +651,8 @@ export class HarRecorder {
         this.flush(state);
         this.stopFlushTimer(state);
         this.closingStates.delete(state);
+        state.resolveClosed?.();
+        state.resolveClosed = undefined;
         StatusLogger.info(`[HAR] Recording stopped, wrote ${state.entries.length} entries to ${state.filePath}`);
     }
 

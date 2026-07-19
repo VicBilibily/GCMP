@@ -9,6 +9,7 @@ import * as path from 'path';
 import { TokenUsagesManager } from '../../usages/usagesManager';
 import { StatusLogger } from '../../utils/statusLogger';
 import { t } from '../../utils/l10n';
+import { InterInstanceBus } from '../../interInstance';
 
 /**
  * 多日消耗分析 WebView
@@ -16,6 +17,11 @@ import { t } from '../../utils/l10n';
 export class MultiDayView {
     private panel: vscode.WebviewPanel | undefined;
     private usagesManager: TokenUsagesManager;
+    /** 跨实例统计更新订阅：Leader 完成委托重建后广播 tokenUsageUpdated，驱动本页静默重拉 */
+    private usageUpdateSubscription: vscode.Disposable | undefined;
+    private refreshDebounceTimer: NodeJS.Timeout | undefined;
+    /** 统计更新事件较频繁（每次请求完成都会广播），合并为窗口末尾的一次刷新 */
+    private static readonly USAGE_UPDATE_REFRESH_DEBOUNCE_MS = 5000;
 
     constructor(private context: vscode.ExtensionContext) {
         this.usagesManager = TokenUsagesManager.instance;
@@ -45,9 +51,38 @@ export class MultiDayView {
             this.context.subscriptions
         );
 
+        // 订阅跨实例统计更新：委托 Leader 重建超时后本页会先展示旧数据，
+        // Leader 完成重建广播 tokenUsageUpdated 时通知 webview 按当前范围静默重拉
+        this.usageUpdateSubscription = InterInstanceBus.subscribe('tokenUsageUpdated', () => {
+            this.scheduleRefresh();
+        });
+
         this.panel.onDidDispose(() => {
+            this.disposeRefreshResources();
             this.panel = undefined;
         });
+    }
+
+    /**
+     * 防抖调度一次后台刷新：窗口内的连续更新只触发末尾一次重拉
+     */
+    private scheduleRefresh(): void {
+        if (!this.panel || this.refreshDebounceTimer) {
+            return;
+        }
+        this.refreshDebounceTimer = setTimeout(() => {
+            this.refreshDebounceTimer = undefined;
+            void this.panel?.webview.postMessage({ command: 'refreshMultiDayAnalysis' });
+        }, MultiDayView.USAGE_UPDATE_REFRESH_DEBOUNCE_MS);
+    }
+
+    private disposeRefreshResources(): void {
+        this.usageUpdateSubscription?.dispose();
+        this.usageUpdateSubscription = undefined;
+        if (this.refreshDebounceTimer) {
+            clearTimeout(this.refreshDebounceTimer);
+            this.refreshDebounceTimer = undefined;
+        }
     }
 
     private async handleMessage(message: {
@@ -111,6 +146,7 @@ export class MultiDayView {
     }
 
     dispose(): void {
+        this.disposeRefreshResources();
         this.panel?.dispose();
         this.panel = undefined;
     }

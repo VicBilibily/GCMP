@@ -13,7 +13,8 @@ import {
     createTrendChart,
     createCostTrendChart,
     createProviderModelRank,
-    initDefaultRange
+    initDefaultRange,
+    requestCurrentRangeAnalysis
 } from './components/index';
 import { t } from '../usagesView/utils';
 import { createElement } from '../utils';
@@ -140,6 +141,9 @@ function handleMessage(event: MessageEvent): void {
         state.loading = false;
         state.error = msg.error;
         render();
+    } else if (msg.command === 'refreshMultiDayAnalysis') {
+        // 跨实例统计更新（含 Leader 完成晚到的重建回执）：按当前范围静默重拉
+        requestCurrentRangeAnalysis();
     }
 }
 

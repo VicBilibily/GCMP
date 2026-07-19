@@ -23,6 +23,10 @@ export class IpcServer {
     private currentPath: string | undefined;
     private options: IpcServerOptions;
     private socketInstanceIds = new Map<net.Socket, string>();
+    /** 单连接接收缓冲区上限，防止异常对端持续发送无换行数据导致内存无限增长 */
+    private static readonly MAX_BUFFER_BYTES = 1024 * 1024; // 1MB
+    /** server.close 等待超时，避免挂起连接拖垮 stop */
+    private static readonly CLOSE_TIMEOUT_MS = 2000;
 
     constructor(options: IpcServerOptions = {}) {
         this.options = options;
@@ -72,6 +76,14 @@ export class IpcServer {
 
                 socket.on('data', data => {
                     buffer += data.toString('utf8');
+                    if (Buffer.byteLength(buffer, 'utf8') > IpcServer.MAX_BUFFER_BYTES) {
+                        // 对端持续发送无法解析的数据，判定为异常连接，直接断开
+                        StatusLogger.warn('[IpcServer] Socket buffer exceeded limit, destroying connection');
+                        socket.destroy();
+                        this.sockets.delete(socket);
+                        this.socketInstanceIds.delete(socket);
+                        return;
+                    }
                     const { events, remaining } = parseEventsFromBuffer(buffer);
                     buffer = remaining;
                     if (events.length > 0) {
@@ -161,10 +173,10 @@ export class IpcServer {
      * 停止 IPC 服务器，清理所有连接和 IPC 路径
      */
     async stop(): Promise<void> {
-        // 关闭所有 socket
+        // 强制销毁所有 socket：end() 需等对端响应，若对端进程挂起会导致 server.close 回调永不触发
         for (const socket of this.sockets) {
             try {
-                socket.end();
+                socket.destroy();
             } catch {
                 // ignore
             }
@@ -176,7 +188,13 @@ export class IpcServer {
             const server = this.server;
             this.server = undefined;
             await new Promise<void>(resolve => {
+                // 超时兜底：即使存在未预料的挂起连接，也保证 stop 在有限时间内返回，避免拖垮 deactivate
+                const timer = setTimeout(() => {
+                    StatusLogger.warn('[IpcServer] Timed out waiting for server close, continuing');
+                    resolve();
+                }, IpcServer.CLOSE_TIMEOUT_MS);
                 server.close(error => {
+                    clearTimeout(timer);
                     if (error) {
                         StatusLogger.warn('[IpcServer] Error closing server', error);
                     }

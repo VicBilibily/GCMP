@@ -85,6 +85,24 @@ export function initDefaultRange(): void {
     applyQuickRange(7);
 }
 
+/**
+ * 后台静默重新拉取当前日期范围（不切换 loading 状态，避免已有内容被「加载中」替换而闪烁）。
+ * 用于跨实例统计更新晚到时自动刷新，委托超时场景下 Leader 完成重建后展示旧数据的问题。
+ */
+export function requestCurrentRangeAnalysis(): void {
+    const { dateFrom: f, dateTo: t } = pickerState;
+    if (!f || !t || f > t) {
+        return;
+    }
+    window.multiDayRequestId += 1;
+    window.vscode.postMessage({
+        command: 'getMultiDayAnalysis',
+        dateFrom: f,
+        dateTo: t,
+        requestId: window.multiDayRequestId
+    });
+}
+
 function applyQuickRange(days: number): void {
     const today = new Date();
     const from = new Date(today);

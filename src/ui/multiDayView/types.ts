@@ -35,7 +35,12 @@ export interface MultiDayErrorMessage {
     requestId: number;
 }
 
-export type HostMessage = UpdateMultiDayAnalysisMessage | MultiDayErrorMessage;
+/** Host → WebView：统计有跨实例更新，按当前日期范围后台静默重拉 */
+export interface RefreshMultiDayAnalysisMessage {
+    command: 'refreshMultiDayAnalysis';
+}
+
+export type HostMessage = UpdateMultiDayAnalysisMessage | MultiDayErrorMessage | RefreshMultiDayAnalysisMessage;
 
 /** 前端状态 */
 export interface MultiDayState {

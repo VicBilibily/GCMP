@@ -475,8 +475,17 @@ export class TokenFileLogger {
             // 等待 Leader 完成重建（带超时），完成后从磁盘读取重建日期的 stats
             const regeneratedDates = await waitForCompletion;
             if (regeneratedDates.length === 0) {
+                // 回退前重查 Leader 心跳：委托超时≠Leader 失联（可能只是全量重建耗时）。
+                // Leader 仍存活时本地强制写会造成双进程并发写 stats.json，
+                // 此时放弃本地兜底，沿用磁盘上稍旧的 stats（Leader 周期任务每分钟兜底刷新今日）。
+                if (LeaderElectionService.isLeaderHeartbeatFresh()) {
+                    StatusLogger.warn(
+                        '[TokenFileLogger] Leader regenerateOutdatedStats timed out but leader is still alive, skip local forced regeneration'
+                    );
+                    return {};
+                }
                 StatusLogger.warn(
-                    '[TokenFileLogger] Leader regenerateOutdatedStats timed out or failed, falling back to local regeneration'
+                    '[TokenFileLogger] Leader regenerateOutdatedStats timed out and leader appears offline, falling back to local regeneration'
                 );
                 return this.logStatsManager.runWithForcedWrites(() => this.logStatsManager.regenerateOutdatedStats());
             }
@@ -813,8 +822,18 @@ export class TokenFileLogger {
                 return;
             }
 
+            // 回退前重查 Leader 心跳：委托超时≠Leader 失联（可能只是刷新耗时）。
+            // Leader 仍存活时本地强制写会造成双进程并发写 stats.json，
+            // 此时跳过本次刷新——今日 stats 稍旧，由 Leader 每分钟周期任务兜底。
+            if (LeaderElectionService.isLeaderHeartbeatFresh()) {
+                StatusLogger.warn(
+                    `[TokenFileLogger] Leader refresh timed out for ${dateStr} but leader is still alive, skip local forced refresh`
+                );
+                return;
+            }
+
             StatusLogger.warn(
-                `[TokenFileLogger] Leader refresh timed out or failed for ${dateStr}, falling back to local refresh`
+                `[TokenFileLogger] Leader refresh timed out for ${dateStr} and leader appears offline, falling back to local refresh`
             );
         }
 

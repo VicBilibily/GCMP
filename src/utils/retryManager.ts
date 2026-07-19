@@ -55,6 +55,8 @@ const DEFAULT_RETRY_CONFIG: RetryConfig = {
  */
 export class RetryManager {
     private config: RetryConfig;
+    /** 无限重试模式（maxAttempts=-1）的总时长兜底上限 */
+    private static readonly UNLIMITED_RETRY_MAX_ELAPSED_MS = 30 * 60 * 1000; // 30 分钟
 
     constructor(config?: Partial<RetryConfig>) {
         this.config = { ...DEFAULT_RETRY_CONFIG, ...config };
@@ -107,7 +109,15 @@ export class RetryManager {
         //    0 → 不进行重试（实际由 enabled=false 控制，理论上不会进入此处）
         //   正整数 → 重试 maxAttempts 次
         const isUnlimited = this.config.maxAttempts === -1;
+        // 无限重试模式的总时长兜底：防止限流分类器把永久性错误误判为可重试后无限循环
+        const unlimitedRetryStartMs = Date.now();
         while (isUnlimited || attempt < this.config.maxAttempts) {
+            if (isUnlimited && Date.now() - unlimitedRetryStartMs > RetryManager.UNLIMITED_RETRY_MAX_ELAPSED_MS) {
+                Logger.error(
+                    `[${providerName}] Unlimited retry exceeded max elapsed time (${RetryManager.UNLIMITED_RETRY_MAX_ELAPSED_MS / 60000}min), aborting`
+                );
+                break;
+            }
             attempt++;
 
             // 计算延迟时间

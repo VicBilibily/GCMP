@@ -197,6 +197,22 @@ export class LeaderElectionService {
     }
 
     /**
+     * 判断当前记录的 Leader 心跳是否仍在有效期内。
+     * 用于委托超时后的回退决策：委托超时≠Leader 失联（可能只是执行耗时），
+     * 仅当 Leader 确实失联（无记录或心跳超时）时才允许本地兜底写盘，避免与存活 Leader 并发写。
+     */
+    public static isLeaderHeartbeatFresh(): boolean {
+        if (!this.context) {
+            return false;
+        }
+        const leaderInfo = this.context.globalState.get<LeaderInfo>(this.LEADER_KEY);
+        if (!leaderInfo) {
+            return false;
+        }
+        return Date.now() - leaderInfo.lastHeartbeat <= this.LEADER_TIMEOUT;
+    }
+
+    /**
      * 监听 Leader 卸任通知。
      * 在 LeaderElectionService.initialize 完成后调用，避免 InterInstanceBus 尚未初始化。
      */

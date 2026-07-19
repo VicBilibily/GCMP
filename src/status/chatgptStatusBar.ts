@@ -246,7 +246,8 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
             }
 
             // 确保认证有效（自动刷新令牌）
-            const credentials = await codexAuth.ensureAuthenticated();
+            // 走 CliAuthFactory 静态入口：多窗口下由 Leader 单点刷新凭证，避免并发改写凭证文件
+            const credentials = await CliAuthFactory.ensureAuthenticated('codex');
             if (!credentials || !credentials.access_token) {
                 return {
                     success: false,

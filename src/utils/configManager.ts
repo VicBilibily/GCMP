@@ -1287,7 +1287,7 @@ export class ConfigManager {
     /**
      * 清理资源
      */
-    static dispose(): void {
+    static async dispose(): Promise<void> {
         if (this.configListener) {
             this.configListener.dispose();
             this.configListener = null;
@@ -1295,7 +1295,7 @@ export class ConfigManager {
         this.cache = null;
         this.context = null;
         this.extensionVersion = null;
-        HarRecorder.getInstance().dispose();
+        await HarRecorder.getInstance().dispose();
         Logger.trace('Config manager disposed');
     }
 }

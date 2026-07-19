@@ -9,6 +9,7 @@ import { TokenFileLogger, TokenUsageStatsFromFile } from './fileLogger';
 import { UsageParser, ExtendedTokenRequestLog } from './fileLogger/usageParser';
 import { DateUtils } from './fileLogger/dateUtils';
 import { InterInstanceBus } from '../interInstance';
+import { LeaderElectionService } from '../status/leaderElectionService';
 import { EventEmitter } from 'events';
 import type { DateSummary } from './types';
 import type {
@@ -67,11 +68,19 @@ export class TokenUsagesManager {
     }
 
     /**
-     * 调度后台清理任务
+     * 调度后台清理任务。
+     * 仅由 Leader 实例执行（通过 Leader 周期任务驱动，内部已保证仅 Leader 运行），
+     * 避免多窗口下清理整目录与 Leader 的 stats 写入/历史压缩交叉竞态；
+     * 周期任务每分钟触发，清理逻辑按固定间隔节流。
      */
     private scheduleBackgroundCleanup(): void {
-        // 使用 setImmediate 确保在下一个事件循环中执行，不阻塞当前流程
-        setImmediate(async () => {
+        const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 每小时最多执行一次
+        let lastCleanupTime = 0;
+        LeaderElectionService.registerPeriodicTask(async () => {
+            if (Date.now() - lastCleanupTime < CLEANUP_INTERVAL_MS) {
+                return;
+            }
+            lastCleanupTime = Date.now();
             try {
                 const config = vscode.workspace.getConfiguration('gcmp.usages');
                 const retentionDays = config.get<number>('retentionDays', 100);

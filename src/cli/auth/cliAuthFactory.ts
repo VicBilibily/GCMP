@@ -25,6 +25,9 @@ export class CliAuthFactory {
         { resolve: (result: { success: boolean; error?: string }) => void; timer: ReturnType<typeof setTimeout> }
     >();
     private static readonly CLI_AUTH_REFRESH_TIMEOUT_MS = 15_000;
+    /** 委托刷新超时后的宽限轮询：Leader 可能刚好在超时窗口后完成刷新并落盘 */
+    private static readonly LEADER_REFRESH_GRACE_PERIOD_MS = 10_000;
+    private static readonly LEADER_REFRESH_GRACE_POLL_INTERVAL_MS = 1_000;
 
     /**
      * 初始化跨实例 CLI 刷新协调
@@ -204,7 +207,44 @@ export class CliAuthFactory {
             Logger.warn(`[CliAuthFactory] Leader refresh failed for ${cliType}: ${result.error ?? 'unknown error'}`);
 
             if (result.error === this.LEADER_REFRESH_TIMEOUT_ERROR) {
-                Logger.warn(`[CliAuthFactory] Leader refresh timed out for ${cliType}, falling back to local refresh`);
+                // 回退本地刷新前先重读凭证：超时≠失败，Leader 可能刚好在超时窗口后完成刷新并落盘。
+                // refresh_token 单次轮换，若持旧凭证再次刷新会导致 invalid_grant，甚至整条授权链被撤销。
+                instance.invalidateCredentialCache();
+                const reloaded = await instance.loadCredentials();
+                if (reloaded?.access_token && !instance.isExpired(reloaded)) {
+                    Logger.info(
+                        `[CliAuthFactory] Credentials refreshed by leader after timeout for ${cliType}, using reloaded credentials`
+                    );
+                    return reloaded;
+                }
+
+                const currentLeaderId = LeaderElectionService.getLeaderId();
+                if (
+                    currentLeaderId &&
+                    currentLeaderId !== LeaderElectionService.getInstanceId() &&
+                    LeaderElectionService.isLeaderHeartbeatFresh()
+                ) {
+                    // Leader 仍存活：refresh_token 单次轮换，本地不能并行刷新，
+                    // 轮询等待 Leader 完成刷新落盘；宽限期内 Leader 失联则转本地兜底。
+                    const graceCredentials = await this.waitForLeaderRefreshedCredentials(cliType, instance);
+                    if (graceCredentials) {
+                        return graceCredentials;
+                    }
+                    if (!LeaderElectionService.isLeaderHeartbeatFresh()) {
+                        Logger.warn(
+                            `[CliAuthFactory] Leader went offline during grace period for ${cliType}, falling back to local refresh`
+                        );
+                        return await instance.ensureAuthenticated(true);
+                    }
+                    Logger.warn(
+                        `[CliAuthFactory] Leader refresh timed out for ${cliType} and no refreshed credentials after grace period, giving up`
+                    );
+                    return null;
+                }
+
+                Logger.warn(
+                    `[CliAuthFactory] Leader refresh timed out for ${cliType} and leader appears offline, falling back to local refresh`
+                );
                 return await instance.ensureAuthenticated(true);
             }
 
@@ -232,6 +272,32 @@ export class CliAuthFactory {
 
             this.pendingRefreshRequests.set(requestId, { resolve, timer });
         });
+    }
+
+    /**
+     * Leader 仍存活但委托刷新已超时：轮询凭证文件，等待 Leader 完成刷新落盘。
+     * refresh_token 单次轮换，本地不能并行刷新，只能等待 Leader 的刷新结果；
+     * 宽限期内拿到未过期凭证即视为成功，Leader 失联或宽限超时则返回 null 由调用方处理。
+     */
+    private static async waitForLeaderRefreshedCredentials(
+        cliType: string,
+        instance: BaseCliAuth
+    ): Promise<OAuthCredentials | null> {
+        const deadline = Date.now() + this.LEADER_REFRESH_GRACE_PERIOD_MS;
+        while (Date.now() < deadline) {
+            await new Promise(resolve => setTimeout(resolve, this.LEADER_REFRESH_GRACE_POLL_INTERVAL_MS));
+            // Leader 可能在等待期间下线：及时退出，让调用方走本地兜底刷新
+            if (!LeaderElectionService.isLeaderHeartbeatFresh()) {
+                return null;
+            }
+            instance.invalidateCredentialCache();
+            const credentials = await instance.loadCredentials();
+            if (credentials?.access_token && !instance.isExpired(credentials)) {
+                Logger.info(`[CliAuthFactory] Credentials refreshed by leader during grace period for ${cliType}`);
+                return credentials;
+            }
+        }
+        return null;
     }
 
     private static async handleRefreshRequested(event: CliAuthRefreshRequestedEvent): Promise<void> {
@@ -271,14 +337,19 @@ export class CliAuthFactory {
         success: boolean,
         error?: string
     ): void {
-        InterInstanceBus.publish({
-            type: 'cliAuthRefreshCompleted',
-            payload: {
-                requestId,
-                providerKey,
-                success,
-                ...(error ? { error } : {})
-            }
-        });
+        // alsoFallback：Leader 的 IPC 广播到不了已降级到文件通道的 Follower，
+        // 双写保证降级 Follower 也能收到回执；IPC 直连 Follower 重复接收时按 requestId 幂等处理
+        InterInstanceBus.publish(
+            {
+                type: 'cliAuthRefreshCompleted',
+                payload: {
+                    requestId,
+                    providerKey,
+                    success,
+                    ...(error ? { error } : {})
+                }
+            },
+            { alsoFallback: true }
+        );
     }
 }

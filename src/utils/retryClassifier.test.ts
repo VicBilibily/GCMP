@@ -67,3 +67,49 @@ test('treats nested quota exceeded error as retryable', () => {
         true
     );
 });
+
+test('does not treat daily quota exhaustion as retryable', () => {
+    assert.equal(
+        isRateLimitLikeError({
+            message: "Quota exceeded for quota metric 'generate-requests' and limit 'Requests per day'"
+        }),
+        false
+    );
+});
+
+test('does not treat billing limit message as retryable', () => {
+    assert.equal(
+        isRateLimitLikeError({
+            message: 'Usage limit exceeded, please check your billing details or upgrade your plan'
+        }),
+        false
+    );
+});
+
+test('does not treat context length limit as retryable', () => {
+    assert.equal(
+        isRateLimitLikeError({ message: 'Request exceeds the maximum context length limit of this model' }),
+        false
+    );
+});
+
+test('permanent quota message overrides HTTP 429 status', () => {
+    assert.equal(
+        isRateLimitLikeError({
+            status: 429,
+            code: 'quota_exceeded',
+            message: "Quota exceeded for quota metric 'generate-requests' and limit 'Requests per day'"
+        }),
+        false
+    );
+});
+
+test('nested permanent error overrides outer retryable status', () => {
+    assert.equal(
+        isRateLimitLikeError({
+            statusCode: 429,
+            cause: { message: 'Request exceeds the maximum context length limit of this model' }
+        }),
+        false
+    );
+});

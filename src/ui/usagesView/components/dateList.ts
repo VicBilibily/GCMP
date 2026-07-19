@@ -163,12 +163,12 @@ export function updateDateList(dateList: DateSummary[]): void {
         return;
     }
 
-    const existingItems = dateListEl.children;
-    const firstItem = existingItems[0] as HTMLElement;
-    const firstItemDate = firstItem?.dataset.date;
+    const existingItems = Array.from(dateListEl.children) as HTMLElement[];
 
     // 检查是否需要全量重新渲染
-    const needsFullRender = existingItems.length !== dateList.length || firstItemDate !== dateList[0]?.date;
+    const needsFullRender =
+        existingItems.length !== dateList.length ||
+        existingItems.some((item, index) => item.dataset.date !== dateList[index]?.date);
 
     if (needsFullRender) {
         // 全量重新渲染
@@ -177,33 +177,32 @@ export function updateDateList(dateList: DateSummary[]): void {
             dateListEl.appendChild(createDateListItem(summary));
         });
     } else {
-        // 差分更新：更新第一个元素的内容
-        if (existingItems.length > 0 && dateList.length > 0) {
-            const todaySummary = dateList[0];
-            firstItem.dataset.date = todaySummary.date;
-            firstItem.classList.toggle('selected', window.usagesState?.selectedDate === todaySummary.date);
+        // 日期集合未变化时逐项更新内容，保留当前滚动位置和点击事件。
+        dateList.forEach((summary, index) => {
+            const item = existingItems[index];
+            item.classList.toggle('selected', window.usagesState?.selectedDate === summary.date);
 
-            const title = firstItem.querySelector('.date-item-title') as HTMLElement;
-            const stats = firstItem.querySelector('.date-item-stats') as HTMLElement;
-            const costRow = firstItem.querySelector('.date-item-cost') as HTMLElement | null;
-            const totalTokens = todaySummary.total_input + todaySummary.total_output;
+            const title = item.querySelector('.date-item-title') as HTMLElement;
+            const stats = item.querySelector('.date-item-stats') as HTMLElement;
+            const costRow = item.querySelector('.date-item-cost') as HTMLElement | null;
+            const totalTokens = summary.total_input + summary.total_output;
 
             if (title) {
-                const isToday = todaySummary.date === window.usagesState?.today;
-                title.textContent = isToday ? t('Today ({0})', '今日 ({0})', todaySummary.date) : todaySummary.date;
+                const isToday = summary.date === window.usagesState?.today;
+                title.textContent = isToday ? t('Today ({0})', '今日 ({0})', summary.date) : summary.date;
                 title.className = isToday ? 'date-item-title today' : 'date-item-title';
             }
             if (stats) {
                 stats.textContent = t(
                     'Requests: {0} | Tokens: {1}',
                     '请求: {0} | Tokens: {1}',
-                    todaySummary.total_requests,
+                    summary.total_requests,
                     formatTokens(totalTokens)
                 );
             }
 
             // 成本行增量更新：无成本时移除旧行，有成本时重建 span
-            const newCostSpan = createDateCostSpan(todaySummary);
+            const newCostSpan = createDateCostSpan(summary);
             if (newCostSpan) {
                 if (costRow) {
                     costRow.textContent = t('Est. Cost: ', '预估成本: ');
@@ -212,19 +211,12 @@ export function updateDateList(dateList: DateSummary[]): void {
                     const row = createElement('div', 'date-item-cost');
                     row.textContent = t('Est. Cost: ', '预估成本: ');
                     row.appendChild(newCostSpan);
-                    const inner = firstItem.querySelector('.date-item-inner');
+                    const inner = item.querySelector('.date-item-inner');
                     inner?.appendChild(row);
                 }
             } else if (costRow) {
                 costRow.remove();
             }
-        }
-
-        // 更新所有项的选中状态高亮
-        Array.from(existingItems).forEach(item => {
-            const el = item as HTMLElement;
-            const date = el.dataset.date;
-            el.classList.toggle('selected', date === window.usagesState?.selectedDate);
         });
     }
 }

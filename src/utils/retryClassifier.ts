@@ -28,12 +28,57 @@ const RATE_LIMIT_MESSAGE_PATTERNS = [
 ];
 const RATE_LIMIT_MESSAGE_PATTERNS_ZH = ['请求过于频繁', '访问量过大', '限流'];
 
+/**
+ * 永久性错误指示词：消息虽命中限流模式（如 "limit exceeded" / "quota exceeded"），
+ * 但包含这些词时属于重试无意义的永久错误，不判为可重试。
+ * 覆盖场景：日/月硬配额耗尽、账单/套餐问题、请求超模型上下文限制。
+ */
+const PERMANENT_ERROR_MESSAGE_PATTERNS = [
+    'per day',
+    'daily quota',
+    'per month',
+    'monthly quota',
+    'billing',
+    'upgrade your plan',
+    'context length',
+    'maximum context',
+    'prompt too long'
+];
+const PERMANENT_ERROR_MESSAGE_PATTERNS_ZH = ['每日配额', '月度配额', '账单', '升级套餐', '上下文长度', '提示词过长'];
+
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
 }
 
+function hasPermanentErrorSignal(error: RetryableErrorLike, deep = 0): boolean {
+    if (!isRecord(error) || deep > MAX_RETRY_ERROR_DEPTH) {
+        return false;
+    }
+
+    const message = typeof error.message === 'string' ? error.message : '';
+    if (message) {
+        const normalizedMessage = message.toLowerCase();
+        if (
+            PERMANENT_ERROR_MESSAGE_PATTERNS.some(pattern => normalizedMessage.includes(pattern)) ||
+            PERMANENT_ERROR_MESSAGE_PATTERNS_ZH.some(pattern => message.includes(pattern))
+        ) {
+            return true;
+        }
+    }
+
+    return (
+        (isRecord(error.error) && hasPermanentErrorSignal(error.error, deep + 1)) ||
+        (isRecord(error.cause) && hasPermanentErrorSignal(error.cause, deep + 1))
+    );
+}
+
 export function isRateLimitLikeError(error: RetryableErrorLike, deep = 0): boolean {
     if (!isRecord(error) || deep > MAX_RETRY_ERROR_DEPTH) {
+        return false;
+    }
+
+    // 永久错误优先级最高：即使 SDK 同时附带 429/status/code/type，也不应进入重试。
+    if (hasPermanentErrorSignal(error, deep)) {
         return false;
     }
 

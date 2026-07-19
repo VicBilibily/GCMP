@@ -20,16 +20,6 @@
                 "pricing": { "USD": [0.3, 1.2, 0.06], "RMB": [2.1, 8.4, 0.42] },
                 "tiers": [
                     {
-                        "serviceTier": "priority",
-                        "contextSizeMin": 512001,
-                        "pricing": { "USD": [0.9, 3.6, 0.18], "RMB": [6.3, 25.2, 1.26] }
-                    },
-                    {
-                        "serviceTier": "priority",
-                        "pricing": { "USD": [0.45, 1.8, 0.09], "RMB": [3.15, 12.6, 0.63] }
-                    },
-                    {
-                        "serviceTier": "default",
                         "contextSizeMin": 512001,
                         "pricing": { "USD": [0.6, 2.4, 0.12], "RMB": [4.2, 16.8, 0.84] }
                     }

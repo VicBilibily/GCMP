@@ -330,13 +330,16 @@ export async function activate(context: vscode.ExtensionContext) {
                             // 等待重建完成，再广播完成回执 + tokenUsageUpdated，让等待中的 Follower 和所有 UI 都更新。
                             // 即使失败也要发送空回执，避免 Follower 一直等到超时。
                             const results = await fileLogger.regenerateOutdatedStats();
-                            InterInstanceBus.publish({
-                                type: 'statsRefreshCompleted',
-                                payload: {
-                                    requestId: payload.requestId,
-                                    regeneratedDates: Object.keys(results)
-                                }
-                            });
+                            InterInstanceBus.publish(
+                                {
+                                    type: 'statsRefreshCompleted',
+                                    payload: {
+                                        requestId: payload.requestId,
+                                        regeneratedDates: Object.keys(results)
+                                    }
+                                },
+                                { alsoFallback: true }
+                            );
                             TokenUsagesManager.instance.notifyStatsUpdate();
                             return;
                         }
@@ -344,37 +347,46 @@ export async function activate(context: vscode.ExtensionContext) {
                         // 刷新指定日期（默认今日）：先 flush，再按需重算，避免无变化时强制全量重算。
                         const dateStr = payload.date ?? DateUtils.getTodayDateString();
                         await fileLogger.getDateStats(dateStr);
-                        InterInstanceBus.publish({
-                            type: 'statsRefreshCompleted',
-                            payload: {
-                                requestId: payload.requestId,
-                                regeneratedDates: [dateStr]
-                            }
-                        });
+                        InterInstanceBus.publish(
+                            {
+                                type: 'statsRefreshCompleted',
+                                payload: {
+                                    requestId: payload.requestId,
+                                    regeneratedDates: [dateStr]
+                                }
+                            },
+                            { alsoFallback: true }
+                        );
                         // 刷新完成后通过 notifyUpdate 广播 tokenUsageUpdated，非主实例 UI 自然更新
                         TokenUsagesManager.instance.notifyStatsUpdate();
                     } catch (error) {
                         if (payload.regenerateAll) {
                             Logger.warn(`[InterInstanceBus] Failed to regenerate outdated stats: ${error}`);
-                            InterInstanceBus.publish({
-                                type: 'statsRefreshCompleted',
-                                payload: {
-                                    requestId: payload.requestId,
-                                    regeneratedDates: []
-                                }
-                            });
+                            InterInstanceBus.publish(
+                                {
+                                    type: 'statsRefreshCompleted',
+                                    payload: {
+                                        requestId: payload.requestId,
+                                        regeneratedDates: []
+                                    }
+                                },
+                                { alsoFallback: true }
+                            );
                             return;
                         }
 
                         const dateStr = payload.date ?? DateUtils.getTodayDateString();
                         Logger.warn(`[InterInstanceBus] Failed to refresh stats for ${dateStr}: ${error}`);
-                        InterInstanceBus.publish({
-                            type: 'statsRefreshCompleted',
-                            payload: {
-                                requestId: payload.requestId,
-                                regeneratedDates: []
-                            }
-                        });
+                        InterInstanceBus.publish(
+                            {
+                                type: 'statsRefreshCompleted',
+                                payload: {
+                                    requestId: payload.requestId,
+                                    regeneratedDates: []
+                                }
+                            },
+                            { alsoFallback: true }
+                        );
                     }
                 })();
             })
@@ -552,17 +564,20 @@ export async function deactivate() {
         CompatibleModelManager.dispose();
         Logger.trace('Compatible model manager disposed');
 
-        ConfigManager.dispose(); // 清理配置管理器
+        await ConfigManager.dispose(); // 清理配置管理器，并等待 HAR 尾部记录完成落盘
 
         // 关闭所有 ProxyAgent 连接池和 fetch 缓存
         await closeProxyAgents();
         Logger.trace('Proxy agents disposed');
 
-        // 清理 Token 用量管理器
-        TokenUsagesManager.instance.dispose().catch(error => {
+        // 清理 Token 用量管理器：必须 await，确保写队列中最后一批统计落盘，
+        // 否则窗口关闭/扩展升级时会丢失尾部请求统计
+        try {
+            await TokenUsagesManager.instance.dispose();
+            Logger.trace('Token usage manager disposed');
+        } catch (error) {
             Logger.warn('Failed to dispose token usage manager:', error);
-        });
-        Logger.trace('Token usage manager dispose requested');
+        }
 
         Logger.info('GCMP extension deactivated successfully');
         StatusLogger.dispose(); // 清理状态日志管理器

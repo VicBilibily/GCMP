@@ -23,6 +23,8 @@ export class IpcClient {
     private currentPath: string | undefined;
     private options: IpcClientOptions;
     private disposed = false;
+    /** 接收缓冲区上限，防止异常对端持续发送无换行数据导致内存无限增长 */
+    private static readonly MAX_BUFFER_BYTES = 1024 * 1024; // 1MB
 
     constructor(options: IpcClientOptions) {
         this.options = options;
@@ -49,6 +51,13 @@ export class IpcClient {
 
             socket.on('data', data => {
                 this.buffer += data.toString('utf8');
+                if (Buffer.byteLength(this.buffer, 'utf8') > IpcClient.MAX_BUFFER_BYTES) {
+                    // 对端持续发送无法解析的数据，判定为异常连接，断开并触发重连
+                    StatusLogger.warn('[IpcClient] Buffer exceeded limit, destroying connection');
+                    this.buffer = '';
+                    socket.destroy();
+                    return;
+                }
                 const { events, remaining } = parseEventsFromBuffer(this.buffer);
                 this.buffer = remaining;
                 for (const event of events) {

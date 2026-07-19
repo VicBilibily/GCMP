@@ -754,11 +754,12 @@ export class LogStatsManager {
             }
 
             // 新 snapshot 数据源：requests.jsonl
+            // mtime 用 >= 比较：同毫秒写入时（低精度文件系统/写入突发）严格大于会漏判过期
             const snapshotPath = path.join(dateFolder, 'requests.jsonl');
             const snapshotSourcePath = fsSync.existsSync(snapshotPath) ? snapshotPath : null;
             if (snapshotSourcePath) {
                 const snapshotStats = fsSync.statSync(snapshotSourcePath);
-                if (snapshotStats.mtimeMs > statsMtime) {
+                if (snapshotStats.mtimeMs >= statsMtime) {
                     StatusLogger.debug(`[LogStatsManager] stats.json for ${dateStr} is outdated (snapshot changed)`);
                     return true;
                 }
@@ -770,7 +771,7 @@ export class LogStatsManager {
             for (const logFile of logFiles) {
                 const logFilePath = path.join(dateFolder, logFile);
                 const logStats = fsSync.statSync(logFilePath);
-                if (logStats.mtimeMs > statsMtime) {
+                if (logStats.mtimeMs >= statsMtime) {
                     StatusLogger.debug(
                         `[LogStatsManager] stats.json for ${dateStr} is outdated (log file ${logFile} changed)`
                     );
