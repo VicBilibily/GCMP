@@ -88,99 +88,69 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 
 ### [**ZhipuAI**](https://bigmodel.cn/)
 
-- [**Coding Plan**](https://bigmodel.cn/glm-coding): **GLM-5.2**, **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-4.7**, **GLM-4.6**, **GLM-4.6V**
+- **Model list**: See [config/zhipu.json](src/providers/config/zhipu.json) (Coding Plan / PayGo / Free models).
+- **Plans**: [Coding Plan](https://bigmodel.cn/glm-coding).
     - **Usage tracking**: Status bar displays remaining cycle quota for GLM Coding Plan.
-- **PayGo**: **GLM-5.2**, **GLM-5.1**, **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-5**, **GLM-4.7**, **GLM-4.7-FlashX**, **GLM-4.6**, **GLM-4.6V**
-- **Free models**: **GLM-4.6V-Flash**
-- [**International site**](https://z.ai/model-api): Supports switching to the international site (z.ai).
+- **International site**: Supports switching to the [international site (z.ai)](https://z.ai/model-api).
 - **Search**: Integrated `Web Search MCP` and `Web Search API`, supports `#zhipuWebSearch` for web searches.
     - `Web Search MCP` mode is enabled by default. Coding Plan includes: Lite (100/month), Pro (1,000/month), Max (4,000/month).
     - Disable MCP mode in settings to use the `Web Search API` pay-per-request billing.
 
 ### [**MiniMax**](https://platform.minimaxi.com/login)
 
-- [**Token Plan**](https://platform.minimaxi.com/subscribe/token-plan): **MiniMax-M3**, **MiniMax-M2.7** (HighSpeed), **MiniMax-M2.5** (HighSpeed), **MiniMax-M2.1**, **MiniMax-M2**
+- **Model list**: See [config/minimax.json](src/providers/config/minimax.json) (Token Plan / PayGo).
+- **Plans**: [Token Plan](https://platform.minimaxi.com/subscribe/token-plan).
     - **Search**: Integrated Token Plan web search tool, supports `#minimaxWebSearch`.
     - **Usage tracking**: Status bar displays remaining Token Plan quota.
-    - [**International site**](https://platform.minimax.io/subscribe/token-plan): Supports international site Token Plan.
-- **PayGo**: **MiniMax-M3**, **MiniMax-M2.7** (HighSpeed), **MiniMax-M2.5** (HighSpeed), **MiniMax-M2.1** (HighSpeed), **MiniMax-M2**
+    - **International site**: Supports [international Token Plan](https://platform.minimax.io/subscribe/token-plan).
 
 ### [**MoonshotAI**](https://platform.kimi.com/)
 
-- [**Membership**](https://www.kimi.com/coding): Kimi membership plan includes `Kimi For Coding` (HighSpeed), **Kimi K3 (Kimi Code)**.
+- **Model list**: See [config/moonshot.json](src/providers/config/moonshot.json) (Membership / PayGo).
+- **Plans**: [Membership](https://www.kimi.com/coding) — Kimi membership plan includes the `Kimi For Coding` coding-model benefit.
     - **Search**: Integrated Kimi Search web search tool, supports `#kimiWebSearch`.
     - **Usage tracking**: Status bar displays remaining quota, top-up wallet balance and expiration, and rate-limit reset time.
-- Preset models (PayGo): **Kimi K3**, **Kimi K2.5**, **Kimi K2.6**, **Kimi K2.7 Code** (HighSpeed)
-    - **Balance query**: Status bar displays current account balance.
+- **Balance query**: Status bar displays current account balance.
 
 ### [**DeepSeek**](https://platform.deepseek.com/)
 
-- Preset models: **DeepSeek-V4-Flash** (fast mode), **DeepSeek-V4-Pro** (expert mode)
-    - **Balance query**: Status bar displays current account balance.
+- **Model list**: See [config/deepseek.json](src/providers/config/deepseek.json).
+- **Balance query**: Status bar displays current account balance.
 
 ### [**Alibaba Cloud DashScope**](https://bailian.console.aliyun.com/) - AliDashScope
 
-- [**Coding Plan**](https://www.aliyun.com/benefit/scene/codingplan)
-    - Recommended: **Qwen3.6-Plus**, **Kimi-K2.5**, **GLM-5**, **MiniMax-M2.5**
-    - More: **Qwen3.5-Plus**, **Qwen3-Max**, **Qwen3-Coder-Next**, **Qwen3-Coder-Plus**, **GLM-4.7**
-- [**Token Plan (Team)**](https://www.aliyun.com/benefit/scene/tokenplan): **Qwen3.8-Max-Preview** (limited-time preview), **Qwen3.7-Max**, **Qwen3.6-Plus**, **Qwen3.6-Flash**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.5**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **DeepSeek-V3.2**
-- [**Token Plan (Personal)**](https://bailian.console.aliyun.com/cn-beijing?tab=plan#/efm/subscription/overview): **Qwen3.8-Max-Preview** (limited-time preview), **Qwen3.7-Max**, **Qwen3.7-Plus**, **Qwen3.6-Flash**, **GLM-5.2**, **DeepSeek-V4-Pro**
-- **Qwen series**: **Qwen3.7-Plus**, **Qwen3.7-Max**, **Qwen3.6-Plus**, **Qwen3.6-Flash**, **Qwen3.5-Plus**, **Qwen3.5-Flash**
-- **DeepSeek-V4**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**
-- **Other PayGo models**: **GLM-5.2**, **Kimi-K2.7-Code**
+- **Model list**: See [config/dashscope.json](src/providers/config/dashscope.json) ([Coding Plan](https://www.aliyun.com/benefit/scene/codingplan) / [Token Plan (Team)](https://www.aliyun.com/benefit/scene/tokenplan) / [Token Plan (Personal)](https://bailian.console.aliyun.com/cn-beijing?tab=plan#/efm/subscription/overview) / PayGo).
 - **Search**: Integrated [Web Search MCP](https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=3023217) tool (2,000/month), supports `#bailianWebSearch`. (Uses [DashScope API Key](https://bailian.console.aliyun.com/cn-beijing/?tab=model#/api-key), not the Coding Plan API Key)
 
 ### [**StreamLake**](https://streamlake.com/product/kat-coder) - Kwai WanQing
 
-- [**KwaiKAT Coding Plan**](https://streamlake.com/marketing/coding-plan): **KAT-Coder-Pro-V2.5**, **KAT-Coder-Pro-V2**
-- **KAT-Coder series**: **KAT-Coder-Pro-V2.5** (PayGo), **KAT-Coder-Air-V2.5** (PayGo), **KAT-Coder-Pro-V2** (PayGo)
+- **Model list**: See [config/streamlake.json](src/providers/config/streamlake.json) ([KwaiKAT Coding Plan](https://streamlake.com/marketing/coding-plan) / KAT-Coder series).
 
 ### [**Volcengine**](https://www.volcengine.com/product/ark)
 
-- [**Coding Plan**](https://www.volcengine.com/activity/codingplan):
-    - Doubao models: **Ark-Code-Latest**(Auto), **Doubao-Seed-2.0-Code**, **Doubao-Seed-Code**, **Doubao-Seed-2.0-lite**, **Doubao-Seed-2.0-pro**
-    - Open-source models: **GLM-5.2**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **MiniMax-M3**, **MiniMax-M2.7**
-- [**Agent Plan**](https://www.volcengine.com/activity/agentplan):
-    - Doubao models: **Ark-Code-Latest**(Auto), **Doubao-Seed-Evolving**, **Doubao-Seed-2.0** (Code/pro/lite/mini)
-    - Open-source models: **GLM-5.2**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **Kimi-K3**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **MiniMax-M3**, **MiniMax-M2.7**
-- **Doubao series**: **Doubao-Seed-Evolving**, **Doubao-Seed-2.1** (turbo/pro), **Doubao-Seed-2.0** (lite/mini/pro/Code), **Doubao-Seed-1.8**
-- **Collaboration rewards**: **GLM-5.2**, **GLM-4.7**, **DeepSeek-V3.2**
-- **PayGo**: **DeepSeek-V4-Flash-260425**, **DeepSeek-V4-Pro-260425**
+- **Model list**: See [config/volcengine.json](src/providers/config/volcengine.json) ([Coding Plan](https://www.volcengine.com/activity/codingplan) / [Agent Plan](https://www.volcengine.com/activity/agentplan) / Doubao series / PayGo).
 - **Key configuration**: Supports separate [Coding Plan API Key](https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey) and [Agent Plan API Key](https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=agentPlan). Setup wizard guides you through plan type selection.
 
 ### [**Tencent Cloud**](https://cloud.tencent.com/product/hunyuan)
 
-- [**Coding Plan**](https://console.cloud.tencent.com/tokenhub/codingplan)
-    - Open-source models: **GLM-5**, **Kimi-K2.5**, **MiniMax-M2.5**
-- [**Token Plan**](https://console.cloud.tencent.com/tokenhub/tokenplan): **Hy3**, **Hy3 preview**, **GLM-5.1**, **GLM-5**, **Kimi-K2.5**, **MiniMax-M2.7**, **MiniMax-M2.5**, **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**
-- [**Token Plan Enterprise**](https://console.cloud.tencent.com/tokenhub/tokenplan-e): **DeepSeek-V4-Flash**, **DeepSeek-V4-Flash-202605**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Pro-202606**, **GLM-5**, **GLM-5-Turbo**, **GLM-5.1**, **GLM-5.2**, **Kimi-K2.5**, **Kimi-K2.6**, **Kimi-K2.7-Code**, **Kimi-K2.7-Code HighSpeed**, **MiniMax-M2.5**, **MiniMax-M2.7**, **MiniMax-M3**
-- [**TokenHub**](https://console.cloud.tencent.com/tokenhub/models):
-    - **GLM series**: **GLM-5.2**, **GLM-5.1**, **GLM-5V-Turbo**, **GLM-5-Turbo**, **GLM-5**
-    - **DeepSeek series**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **DeepSeek-V3.2**
-    - **Kimi series**: **Kimi-K3**, **Kimi-K2.7-Code**, **Kimi-K2.7-Code HighSpeed**, **Kimi-K2.6**, **Kimi-K2.5**
-    - **MiniMax series**: **MiniMax-M3**, **MiniMax-M2.7**, **MiniMax-M2.5**
-    - **Hunyuan series**: **Hy3**, **Hy3 preview**
+- **Model list**: See [config/tencent.json](src/providers/config/tencent.json) ([Coding Plan](https://console.cloud.tencent.com/tokenhub/codingplan) / [Token Plan](https://console.cloud.tencent.com/tokenhub/tokenplan) / [Token Plan Enterprise](https://console.cloud.tencent.com/tokenhub/tokenplan-e) / [TokenHub](https://console.cloud.tencent.com/tokenhub/models)).
 - **Key configuration**: Tencent Cloud API keys are categorized into [Coding Plan API Key](https://console.cloud.tencent.com/tokenhub/codingplan), [Token Plan API Key](https://console.cloud.tencent.com/tokenhub/tokenplan), [Token Plan Enterprise API Key](https://console.cloud.tencent.com/tokenhub/tokenplan-e), and [TokenHub API Key](https://console.cloud.tencent.com/tokenhub/apikey). Each must be generated from the correct key management page.
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)
 
-- **PayGo**: **MiMo-V2.5-Pro** (UltraSpeed), **MiMo-V2.5**
-- [**Token Plan**](https://platform.xiaomimimo.com/#/token-plan): **MiMo-V2.5-Pro**, **MiMo-V2.5**
+- **Model list**: See [config/xiaomimimo.json](src/providers/config/xiaomimimo.json) (PayGo / Token Plan).
+- **Plans**: [Token Plan](https://platform.xiaomimimo.com/#/token-plan).
     - [Regional clusters](https://platform.xiaomimimo.com/#/docs/tokenplan/subscription?target=快速指南): Switch between `China (cn)`, `Singapore (sgp)`, and `Europe (ams)` clusters. Refer to the [subscription management](https://platform.xiaomimimo.com/#/console/plan-manage) page for details.
 - **Key configuration**: Supports separate [Xiaomi MiMo API Key](https://platform.xiaomimimo.com/#/console/api-keys) and [Token Plan API Key](https://platform.xiaomimimo.com/#/console/plan-manage).
 
 ### [**Baidu Qianfan**](https://cloud.baidu.com/product-s/qianfan_home)
 
-- **PayGo**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **DeepSeek-V3.2**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **Kimi-K2.6**, **Kimi-K2.5**, **ERNIE-5.1**, **ERNIE-5.0**
-- [**Coding Plan**](https://cloud.baidu.com/product/codingplan): **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **GLM-5.1**, **DeepSeek-V3.2**, **GLM-5**, **Kimi-K2.5**
-- [**Token Plan**](https://cloud.baidu.com/doc/qianfan/s/Dmrabu8b6): **GLM-5.2**, **GLM-5.1**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **Kimi-K2.6**, **ERNIE-5.1**
-- [**Token Plan Enterprise**](https://cloud.baidu.com/doc/qianfan/s/ymq8wwch2): **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **DeepSeek-V3.2**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **Kimi-K2.6**
+- **Model list**: See [config/baidu.json](src/providers/config/baidu.json) (PayGo / [Coding Plan](https://cloud.baidu.com/product/codingplan) / [Token Plan](https://cloud.baidu.com/doc/qianfan/s/Dmrabu8b6) / [Token Plan Enterprise](https://cloud.baidu.com/doc/qianfan/s/ymq8wwch2)).
 - **Key configuration**: Supports separate [Baidu Qianfan API Key](https://console.bce.baidu.com/qianfan/ais/console/apiKey), [Coding Plan API Key](https://console.bce.baidu.com/qianfan/resource/subscribe), [Token Plan API Key](https://console.bce.baidu.com/qianfan/resource/token-plan), and [Token Plan Enterprise API Key](https://console.bce.baidu.com/qianfan/resource/token-plan-enterprise/my-subscription).
 
 ### [**StepFun**](https://platform.stepfun.com/)
 
-- [**Step Plan**](https://platform.stepfun.com/step-plan): **Step-3.7-Flash**, **Step-3.5-Flash**, **Step-3.5-Flash-2603**, **Step-Router-V1**
-- **PayGo**: **Step-3.7-Flash**, **Step-3.5-Flash**, **Step-3.5-Flash-2603**
+- **Model list**: See [config/stepfun.json](src/providers/config/stepfun.json) ([Step Plan](https://platform.stepfun.com/step-plan) / PayGo).
 - **Search**: Integrated `#stepfunWebSearch` MCP web search tool with category filtering.
     - Step Plan subscriptions use MCP; non-subscription users use standard pay-per-request billing.
 
@@ -188,20 +158,21 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 
 Ant Group's open-source MoE-architecture LLM family, accessed via Anthropic mode.
 
-- **PayGo**: **Ling-2.6-1T** (flagship), **Ling-2.6-flash** (cost-effective), **Ring-2.6-1T** (deep reasoning)
-- [**Free quota**](https://developer.ant-ling.com/zh-CN/docs/models/price/): 500,000 free tokens per day (input + output shared).
+- **Model list**: See [config/antling.json](src/providers/config/antling.json).
+- **Free quota**: [500,000 free tokens per day](https://developer.ant-ling.com/zh-CN/docs/models/price/) (input + output shared).
 
 ### [**XunFei Astron**](https://maas.xfyun.cn/)
 
 LLM service platform under iFLYTEK, accessed via Anthropic SDK mode with dual-plan key management.
 
-- [**Coding Plan**](https://maas.xfyun.cn/packageSubscription): **Spark X2 Agent**, **Spark X2**, **Spark-X2-Flash**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **DeepSeek-V3.2**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **GLM-4.7-Flash**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.5**, **Qwen3.6-35B-A3B**, **Qwen3.5-35B-A3B**, **Qwen3.5-397B-A17B**, **Qwen3-Coder-Next-FP8**
-- [**Token Plan**](https://maas.xfyun.cn/tokenPlan): 16 models (excluding **Spark X2 Agent**) served via a dedicated Token Plan endpoint.
+- **Model list**: See [config/xfyun.json](src/providers/config/xfyun.json) ([Coding Plan](https://maas.xfyun.cn/packageSubscription) / [Token Plan](https://maas.xfyun.cn/tokenPlan)).
 - **Key configuration**: Supports separate [Coding Plan API Key](https://maas.xfyun.cn/packageSubscription) and [Token Plan API Key](https://maas.xfyun.cn/tokenPlan). Setup wizard guides you through plan type selection.
 
 ### [**LongCat**](https://longcat.chat/platform/) - LongCat
 
-- **Built-in model**: **LongCat-2.0** Agentic model from the LongCat API platform, accessed via Anthropic SDK mode.
+Agentic models from the LongCat API platform, accessed via Anthropic SDK mode.
+
+- **Model list**: See [config/longcat.json](src/providers/config/longcat.json).
 
 ### CLI Coding Tool API Providers
 
@@ -209,18 +180,16 @@ LLM service platform under iFLYTEK, accessed via Anthropic SDK mode with dual-pl
 
 ### [**OpenCode**](https://opencode.ai/)
 
-- [**Go**](https://opencode.ai/go?ref=2TEVV934MY): **GLM-5.2**, **GLM-5.1**, **Kimi-K3**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **Kimi-K2.5**, **MiMo-V2.5**, **MiMo-V2.5-Pro**, **MiniMax-M3**, **MiniMax-M2.7**, **Qwen3.7-Max**, **Qwen3.7-Plus**, **Qwen3.6-Plus**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**
-- **Zen**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **GLM-5**, **GLM-5.1**, **GLM-5.2**, **Kimi-K2.5**, **Kimi-K2.6**, **Qwen3.5-Plus**, **Qwen3.6-Plus**, **Grok-Build-0.1**, **MiniMax-M2.5**, **MiniMax-M2.7**
+- **Model list**: See [config/opencode.json](src/providers/config/opencode.json) ([Go](https://opencode.ai/go?ref=2TEVV934MY) / Zen).
 
 ### [**Hyper**](https://hyper.charm.land/) - Charm Hyper
 
-- **Preset models**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **Qwen3.7-Max**, **Qwen3.7-Plus**, **Qwen3.6-Plus**, **Qwen3.6-Max**, **Qwen3.6-Flash**, **Qwen3-Coder-480B-A35B-Instruct-INT4-Mixed-AR**, **Qwen3-Next-80B-A3B-Instruct**, **GLM-5.2**, **GLM-5.1**, **GLM-5**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **Kimi-K2.5**, **MiniMax-M2.7**, **Llama-4-Maverick-17B-128E-Instruct-FP8**, **Llama-3.3-70B-Instruct**, **Gemma-4-26B-A4B**, **GPT-OSS-120B**
+- **Model list**: See [config/hyper.json](src/providers/config/hyper.json).
 
 ### [**ClinePass**](https://docs.cline.bot/getting-started/clinepass) - Cline's official model subscription service
 
-- **Preset models**: **GLM-5.2**, **Kimi-K3**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **MiMo-V2.5**, **MiMo-V2.5-Pro**, **MiniMax-M3**, **Qwen3.7-Max**, **Qwen3.7-Plus**
+- **Model list**: See [config/clinepass.json](src/providers/config/clinepass.json).
 - **Usage tracking**: Status bar displays plan cycle remaining usage, reset time, and total utilization.
-- **API Key**: Create and copy your API key from [Cline App → API Keys](https://app.cline.bot/dashboard/account?tab=api-keys), then use the `GCMP: Set ClinePass API Key` command to configure it.
 
 ### OAuth Coding Assistant Providers
 
@@ -234,7 +203,7 @@ OpenAI's official coding assistant Codex CLI tool. Supports authentication via t
 npm install -g @openai/codex@latest
 ```
 
-- **Supported models**: **GPT-5.6** (Sol/Terra/Luna), **GPT-5.5**, **GPT-5.4-mini**, **GPT-5.4**
+- **Supported models**: See [config/codex.json](src/providers/config/codex.json).
 - **Usage tracking**: Status bar displays remaining ChatGPT subscription cycle quota.- **Independent proxy settings**: Codex CLI uses its own proxy configuration (independent of the extension-wide `gcmp.proxy`). You can specify a dedicated proxy for Codex requests via `gcmp.providerOverrides.codex.proxy`.
 
 ```json
@@ -259,7 +228,7 @@ curl -fsSL https://x.ai/cli/install.sh | bash
 irm https://x.ai/cli/install.ps1 | iex
 ```
 
-- **Supported models**: **Grok 4.5**, **Grok Build 0.1**, **Grok Composer 2.5 (fast)**
+- **Supported models**: See [config/grok.json](src/providers/config/grok.json).
 
 ## ⚙️ Advanced Configuration
 
