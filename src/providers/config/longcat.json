@@ -8,7 +8,7 @@
             "name": "LongCat-2.0",
             "tooltip": "LongCat-2.0 是 LongCat API 开放平台的高性能 Agentic 模型，擅长代码编写与智能体任务。",
             "sdkMode": "anthropic",
-            "contextSize": [1000000, 640000, 400000, 320000, 256000],
+            "contextSize": [1000000, 512000, 400000, 256000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
