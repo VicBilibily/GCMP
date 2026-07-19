@@ -476,6 +476,8 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
                 // "top_p": null, // Some providers don't support temperature + top_p simultaneously
                 "thinking": { "type": "disabled" }
             }
+            // "webSearchTool": true, // Optional: enable web search (only effective when sdkMode=anthropic or openai-responses)
+            // "nativeTools": [{ "type": "web_search" }] // Optional: inject native tools (only effective when sdkMode=openai-responses)
         }
     ]
 }
@@ -782,7 +784,9 @@ GCMP includes comprehensive token usage tracking to help you monitor and manage 
 - **Real-time Output Token Estimation**: Streaming-phase output tokens and output speed (tokens/s) are estimated in real time via tokenizer; the output column shows the "last received estimation delta" (`+xx tks`), replaced by actual usage once completed
 - **Cache hit rate visualization**: The input column combines cache hit count and total input, showing the cache hit rate to help judge cache strategy effectiveness
 - **Client cost estimation**: Supports peak/off-peak tiered pricing, service-tier billing, and context-size conditional tiers. Estimated costs are displayed inline below token counts, integrated in the status bar, detail view, and multi-day trend view
+- **Dual-currency cost display**: Pricing configs support listing both USD and RMB, marked by each model's native settlement currency; costs are displayed in dual currencies across the status bar (in Chinese locale), detail view, sidebar date list and session records, and multi-day trend view, with a new USD/RMB currency switch view
 - **Multi-day cost view**: Cost trend line chart and cost card summary in the multi-day trend view
+- **Error classification and retry safeguard**: Permanent errors — daily/monthly hard quota exhaustion, billing or plan limits, requests exceeding model context limits — are no longer misclassified as rate limits and retried repeatedly; unlimited retry mode (`maxAttempts=-1`) now has a 30-minute total elapsed time safeguard
 
 ### How to Use
 

@@ -4,109 +4,127 @@
 
 ## [0.26.0] - 2026-07-19
 
-### 新增
+### Token 定价与成本估算
 
-- **Token 定价与客户端成本估算**：支持通过内置模型配置和 `gcmp.providerOverrides.pricing` 为模型配置输入、输出、缓存读取、缓存写入等 Token 定价，并按峰谷时段、服务等级（`serviceTier`）和上下文大小（`contextSizeMin`）应用不同价格。预估成本会内联显示在 Token 数量下方，状态栏、详情页和多日趋势页均可查看；新增 `formatCostBreakdownLog` 日志输出，便于个人参考与核对。
-- **双币种成本展示**：定价配置支持 USD/RMB 双币种并列，按模型原生结算币种标记展示；状态栏（中文环境）、详情页、侧边栏日期列表与会话记录、多日趋势页均支持成本双币显示，并新增 USD/RMB 货币切换视图。
-- **跨实例状态同步**：新增 Leader/Follower 跨实例通信模块，基于本地 IPC 广播事件在多 VS Code 窗口间同步状态栏、实时指标、配置变更和 API Key 变更，IPC 不可用时自动降级到文件系统轮询；支持 Leader 卸任通知和推荐下一任 Leader，无缝切换主实例。Leader 实例串行化 stats 写盘并响应 Follower 的 `statsRefreshRequested` 委托，避免多实例并发覆盖，并辅以每分钟周期兜底刷新今日 stats；过期数据清理统一由 Leader 执行，状态栏可显示主/子实例角色标识。
-- **CLI 凭证跨实例单点刷新**：多窗口下由 Leader 实例统一执行 CLI OAuth 令牌刷新并以原子写入更新凭证文件，Follower 通过跨实例委托等待刷新回执；委托超时后先重读凭证文件并检测 Leader 心跳，仅在 Leader 失联时才本地兜底刷新，避免 refresh_token 单次轮换被并发刷新作废。ChatGPT 状态栏用量查询同步接入该通道。
-- **Kimi 加油包钱包查询**：月之暗面 Kimi 会员套餐的加油包（Top-up Wallet）余额查询与状态栏展示，支持查看加油包额度与到期时间。
-- **ClinePass 用量查询状态栏**：新增 ClinePass 套餐周期剩余用量、重置时间和总利用率的状态栏展示。
-- **输出速度鲁棒统计与重置倒计时**：输出速度等实时指标改用基于 MAD 加权均值的鲁棒统计量剔除离群值，状态栏用量表新增套餐重置倒计时列。
-- **增量 Token 预估**：基于上一轮 API 实际用量做增量预估，消除长上下文中累积估算误差。
-- **多日视图成本展示**：多日趋势页新增成本趋势折线图与成本卡片汇总，优化 Token 与成本格式化工具函数。
-- **HAR 请求录制**：新增 `gcmp.debug.captureHar` 与 `gcmp.debug.harRetentionCount` 调试设置，可在 `globalStorage/har/` 中记录 HTTP 请求与响应（HAR 1.2 格式），便于排查兼容性与网关问题。默认关闭，FIM/NES 补全、Gist 同步、CLI OAuth 刷新等敏感或高频请求默认跳过录制；敏感请求头、URL 查询参数及重定向 URL 中的凭据会自动脱敏。支持按时间间隔自动轮换并强制删除 2 小时前的旧文件，避免单个 HAR 文件无限增长。
-- **原生工具配置**：新增 `nativeTools` 配置项，支持向 OpenAI Responses API 注入内置工具（如 `web_search`、`web_extractor`）；与 `webSearchTool` 叠加注入，重复配置时以 `nativeTools` 为准；仅 `sdkMode=openai-responses` 生效，`anthropic` 模式仅取其中的 `web_search` 项。模型编辑器新增对应 JSON 配置字段与实时验证。
-- **联网搜索工具**：`webSearchTool` 从布尔值扩展为对象配置（`maxUses`/`allowedDomains`/`blockedDomains`/`userLocation`）；新增 `openai-responses` 模式下原生 `web_search` 工具注入与 `url_citation`/`web_search_call` 事件处理；模型编辑器新增 `webSearchToolConfig` JSON 配置字段与实时验证。为 Codex、火山引擎 GLM 系列模型默认启用联网搜索。
-- **错误重试分类器**：新增 `Codex` 和 `Responses API` 的 `rate_limits` / `snapshot_bootstrap` 等重试条件判定，覆盖限流和快照引导失败场景。
+- **[新增] Token 定价与客户端成本估算**：支持通过内置模型配置和 `gcmp.providerOverrides.<provider>.models[].tokenPricing` / `gcmp.compatibleModels[].tokenPricing` 为模型配置输入、输出、缓存读取、缓存写入等 Token 定价，并按峰谷时段、服务等级（`serviceTier`）和上下文大小（`contextSizeMin`）应用不同价格。预估成本会内联显示在 Token 数量下方，状态栏、详情页和多日趋势页均可查看；新增 `formatCostBreakdownLog` 日志输出，便于个人参考与核对。
+- **[新增] 双币种成本展示**：定价配置支持 USD/RMB 双币种并列，按模型原生结算币种标记展示；状态栏（中文环境）、详情页、侧边栏日期列表与会话记录、多日趋势页均支持成本双币显示，并新增 USD/RMB 货币切换视图。
+- **[新增] 多日视图成本展示**：多日趋势页新增成本趋势折线图与成本卡片汇总，优化 Token 与成本格式化工具函数。
+- **[新增] 增量 Token 预估**：基于上一轮 API 实际用量做增量预估，消除长上下文中累积估算误差。
+- **[变更] 定价配置结构优化**：`pricing` 字段统一支持对象形式与数组简写，可直接表达输入、输出、缓存读取、缓存写入价格，并兼容现有对象配置。
+- **[变更] 上下文阈值分档统一**：上下文定价阈值统一按 API 实际输入 Token（含缓存）判定，移除 `contextSizeInputOnly` 配置项；多模型移除 640K/320K 上下文定价档位；MiniMax-M3 移除服务等级（priority）分档定价，统一为按上下文大小阶梯定价。
 
-### 变更
+### 多窗口跨实例协同
 
-- **上下文窗口状态栏简化**：饼图图标直观反映当前会话上下文窗口占用比例（0/8 ~ 8/8），悬停即可查看模型名称、占用百分比、Token 用量和请求来源类型，移除了细分类别拆解与状态缓存。
-- **Token 成本内联展示**：状态栏表格、详情页提供商统计表和最近请求记录中的 Token 数量下方内联显示预估成本，移除独立成本列，节省横向空间。
-- **状态栏表格列结构调整**：状态栏每日统计弹窗合并消耗 Tokens 列与成本列，简化表头为「输入(+缓存)+输出=消耗Tokens」，缓存命中与输入 Token 成本拆分展示；同步调整 Token 输入输出格式化并清理冗余的格式化工具函数。
-- **通用请求完成后统一触发状态栏延迟刷新**：所有提供商的模型请求完成后，统一通过 `TokenUsageStatusBar.triggerDelayedUpdate` 延迟刷新 Token 消耗展示，避免高频请求导致的频繁 I/O。
-- **定价配置结构优化**：`pricing` 字段统一支持对象形式与数组简写，可直接表达输入、输出、缓存读取、缓存写入价格，并兼容现有对象配置。
-- **上下文阈值分档统一**：上下文定价阈值统一按 API 实际输入 Token（含缓存）判定，移除 `contextSizeInputOnly` 配置项；多模型移除 640K/320K 上下文定价档位；MiniMax-M3 移除服务等级（priority）分档定价，统一为按上下文大小阶梯定价。
-- **thinking 配置支持 effort 格式**：Anthropic 请求的 thinking 配置新增 `effort-none` 等 effort 形式支持，同步优化多模型定价与上下文阈值配置。
-- **Codex 模型列表仅使用 OAuth 凭证**：Codex 远端模型列表拉取移除手动 API Key 回退，统一使用 Codex CLI OAuth 凭证；无有效凭证时回退为内置预置模型列表。
-- **腾讯云付费模型与 DeepSeek 专用密钥配置移除**：腾讯云 TokenHub 渠道的付费模型和 DeepSeek 专用密钥配置已废弃，统一使用 TokenHub / Token Plan 密钥接入。
-- **移除 Gemini SSE 实验性支持**：移除 `geminiHandler`/`geminiConverter`/`geminiType` 等实验性模块（约 2300 行）。
-- **上下文窗口与 Token 限配置优化**：内置提供商模型配置的 `maxInputTokens`/`maxOutputTokens` 上限调优，提升长上下文场景兼容性（[#269](https://github.com/VicBilibily/GCMP/issues/269)）。
+- **[新增] 跨实例状态同步**：新增 Leader/Follower 跨实例通信模块，基于本地 IPC 广播事件在多 VS Code 窗口间同步状态栏、实时指标、配置变更和 API Key 变更，IPC 不可用时自动降级到文件系统轮询；支持 Leader 卸任通知和推荐下一任 Leader，无缝切换主实例。Leader 实例串行化 stats 写盘并响应 Follower 的 `statsRefreshRequested` 委托，避免多实例并发覆盖，并辅以每分钟周期兜底刷新今日 stats；过期数据清理统一由 Leader 执行，状态栏可显示主/子实例角色标识。
+- **[新增] CLI 凭证跨实例单点刷新**：多窗口下由 Leader 实例统一执行 CLI OAuth 令牌刷新并以原子写入更新凭证文件，Follower 通过跨实例委托等待刷新回执；委托超时后先重读凭证文件并检测 Leader 心跳，仅在 Leader 失联时才本地兜底刷新，避免 refresh_token 单次轮换被并发刷新作废。ChatGPT 状态栏用量查询同步接入该通道。
 
-### 修复
+### 状态栏与用量展示
 
-- **永久性错误不再误入重试**：修复日/月硬配额耗尽、账单或套餐超限、请求超出模型上下文限制等永久性错误被误判为限流而反复重试的问题；无限重试模式（`maxAttempts=-1`）新增 30 分钟总时长兜底上限。
-- **CLI 凭证委托刷新超时误判失败**：修复 Follower 委托 Leader 刷新 CLI OAuth 凭证超时、但 Leader 仍存活时直接判定失败，导致 Codex 等 CLI 模型与 ChatGPT 状态栏短时不可用的问题；现在宽限期内轮询等待 Leader 完成刷新落盘，期间 Leader 失联才本地兜底刷新。
-- **多日趋势页统计数据滞后**：修复 Leader 重建统计耗时超过委托超时窗口时，多日趋势页持续展示旧数据的问题；跨实例统计更新广播到达后，页面按当前日期范围自动静默重拉。
-- **Windows 统计文件写入偶发 EPERM**：修复 Windows 上统计与索引文件原子写入时 rename 偶发 `EPERM` 导致统计落盘失败的问题，文件读写纳入同一串行锁并对 rename 增加退避重试。
-- **用量页日期列表统计不刷新**：修复侧边栏日期列表仅更新首个日期项、其余日期的请求数、Token 与成本不随统计刷新而更新的问题。
-- **扩展停用时尾部统计丢失**：修复窗口关闭或扩展升级时写队列中最后一批请求统计未能落盘而丢失的问题，停用流程现在等待写队列完成。
-- **OpenAI 流式 keepalive 心跳过滤**：修复网关 keepalive 心跳事件在 `response.created` 之前进入 Responses SDK 流导致崩溃的问题。
+- **[新增] Kimi 加油包钱包查询**：月之暗面 Kimi 会员套餐的加油包（Top-up Wallet）余额查询与状态栏展示，支持查看加油包额度与到期时间。
+- **[新增] ClinePass 用量查询状态栏**：新增 ClinePass 套餐周期剩余用量、重置时间和总利用率的状态栏展示。
+- **[新增] 输出速度鲁棒统计与重置倒计时**：输出速度等实时指标改用基于 MAD 加权均值的鲁棒统计量剔除离群值，状态栏用量表新增套餐重置倒计时列。
+- **[变更] 上下文窗口状态栏简化**：饼图图标直观反映当前会话上下文窗口占用比例（0/8 ~ 8/8），悬停即可查看模型名称、占用百分比、Token 用量和请求来源类型，移除了细分类别拆解与状态缓存。
+- **[变更] Token 成本内联展示**：状态栏表格、详情页提供商统计表和最近请求记录中的 Token 数量下方内联显示预估成本，移除独立成本列，节省横向空间。
+- **[变更] 状态栏表格列结构调整**：状态栏每日统计弹窗合并消耗 Tokens 列与成本列，简化表头为「输入(+缓存)+输出=消耗Tokens」，缓存命中与输入 Token 成本拆分展示；同步调整 Token 输入输出格式化并清理冗余的格式化工具函数。
+- **[变更] 通用请求完成后统一触发状态栏延迟刷新**：所有提供商的模型请求完成后，统一通过 `TokenUsageStatusBar.triggerDelayedUpdate` 延迟刷新 Token 消耗展示，避免高频请求导致的频繁 I/O。
+
+### 联网搜索与原生工具
+
+- **[新增] 原生工具配置**：新增 `nativeTools` 配置项，支持向 OpenAI Responses API 注入内置工具（如 `web_search`、`web_extractor`）；与 `webSearchTool` 叠加注入，重复配置时以 `nativeTools` 为准；仅 `sdkMode=openai-responses` 生效，`anthropic` 模式仅取其中的 `web_search` 项。模型编辑器新增对应 JSON 配置字段与实时验证。
+- **[新增] 联网搜索工具**：`webSearchTool` 从布尔值扩展为对象配置（`maxUses`/`allowedDomains`/`blockedDomains`/`userLocation`）；新增 `openai-responses` 模式下原生 `web_search` 工具注入与 `url_citation`/`web_search_call` 事件处理；模型编辑器新增 `webSearchToolConfig` JSON 配置字段与实时验证。为 Codex、火山引擎 GLM 系列模型默认启用联网搜索。
+
+### 重试与错误处理
+
+- **[新增] 错误重试分类器**：新增 `Codex` 和 `Responses API` 的 `rate_limits` / `snapshot_bootstrap` 等重试条件判定，覆盖限流和快照引导失败场景。
+- **[修复] 永久性错误不再误入重试**：修复日/月硬配额耗尽、账单或套餐超限、请求超出模型上下文限制等永久性错误被误判为限流而反复重试的问题；无限重试模式（`maxAttempts=-1`）新增 30 分钟总时长兜底上限。
+- **[修复] OpenAI 流式 keepalive 心跳过滤**：修复网关 keepalive 心跳事件在 `response.created` 之前进入 Responses SDK 流导致崩溃的问题。
+
+### 调试可观测
+
+- **[新增] HAR 请求录制**：新增 `gcmp.debug.captureHar` 与 `gcmp.debug.harRetentionCount` 调试设置，可在 `globalStorage/har/` 中记录 HTTP 请求与响应（HAR 1.2 格式），便于排查兼容性与网关问题。默认关闭，FIM/NES 补全、Gist 同步、CLI OAuth 刷新等敏感或高频请求默认跳过录制；敏感请求头、URL 查询参数及重定向 URL 中的凭据会自动脱敏。支持按时间间隔自动轮换并强制删除 2 小时前的旧文件，避免单个 HAR 文件无限增长。
+
+### 模型与提供商配置
+
+- **[变更] thinking 配置支持 effort 格式**：Anthropic 请求的 thinking 配置新增 `effort-none` 等 effort 形式支持，同步优化多模型定价与上下文阈值配置。
+- **[变更] 上下文窗口与 Token 限配置优化**：内置提供商模型配置的 `maxInputTokens`/`maxOutputTokens` 上限调优，提升长上下文场景兼容性（[#269](https://github.com/VicBilibily/GCMP/issues/269)）。
+- **[变更] Codex 模型列表仅使用 OAuth 凭证**：Codex 远端模型列表拉取移除手动 API Key 回退，统一使用 Codex CLI OAuth 凭证；无有效凭证时回退为内置预置模型列表。
+- **[变更] 腾讯云付费模型与 DeepSeek 专用密钥配置移除**：腾讯云 TokenHub 渠道的付费模型和 DeepSeek 专用密钥配置已废弃，统一使用 TokenHub / Token Plan 密钥接入。
+
+### 架构清理
+
+- **[变更] 移除 Gemini SSE 实验性支持**：移除 `geminiHandler`/`geminiConverter`/`geminiType` 等实验性模块（约 2300 行）。
 
 ---
 
-### Added
+### Token Pricing & Cost Estimation
 
-- **Token pricing & client cost estimation**: Supports configuring model pricing for input, output, cache-read, and cache-write tokens through built-in model configs and `gcmp.providerOverrides.pricing`, with different prices applied by peak/off-peak tiers, `serviceTier`, and `contextSizeMin`. Estimated costs are shown inline below token counts across the status bar, details view, and multi-day trend view. Added `formatCostBreakdownLog` output for personal reference and verification.
-- **Dual-currency cost display**: Pricing configs now support listing both USD and RMB, marked by each model's native settlement currency; costs are displayed in dual currencies across the status bar (in Chinese locale), details view, sidebar date list and session records, and multi-day trend view, with a new USD/RMB currency switch view.
-- **Cross-instance state sync**: New Leader/Follower inter-instance communication module that broadcasts events via local IPC across VS Code windows for status bar, live metrics, config changes, and API key changes, with automatic fallback to file-system polling when IPC is unavailable; supports leader resignation notification with next-leader nomination for seamless primary instance switching. The Leader instance serializes stats writes and handles Follower `statsRefreshRequested` delegations to prevent concurrent overwrites, with a per-minute periodic fallback refresh for today's stats; expired data cleanup is performed solely by the Leader, and the status bar can display leader/follower role badges.
-- **Cross-instance single-point CLI credential refresh**: With multiple windows, the Leader instance uniformly performs CLI OAuth token refreshes and atomically writes credential files; Followers delegate refreshes via the inter-instance bus and wait for receipts. After a delegation timeout, credentials are re-read and the leader heartbeat is checked, falling back to local refresh only when the leader is unreachable — preventing concurrent refreshes from invalidating single-rotation refresh tokens. The ChatGPT status bar usage query now uses this channel.
-- **Kimi Top-up wallet query**: Balance query and status bar display for Kimi membership plan top-up wallets, showing credit balance and expiration time.
-- **ClinePass usage status bar**: Displays ClinePass plan cycle remaining usage, reset time, and total utilization in the status bar.
-- **Robust output-speed statistics & reset countdown**: Real-time metrics such as output speed now use robust statistics (MAD-weighted mean) to exclude outliers; the status bar usage table adds a plan reset countdown column.
-- **Incremental token estimation**: Based on the previous request's actual API usage, eliminating cumulative estimation errors in long contexts.
-- **Multi-day cost view**: Added cost trend line chart and cost card summary to the multi-day trend page; optimized token and cost formatting utilities.
-- **HAR request capture**: Added `gcmp.debug.captureHar` and `gcmp.debug.harRetentionCount` debug settings to record HTTP requests and responses (HAR 1.2 format) under `globalStorage/har/`, making it easier to diagnose compatibility and gateway issues. Disabled by default; FIM/NES completions, Gist sync, and CLI OAuth refresh requests skip capture by default; credentials in sensitive headers, URL query parameters, and redirect URLs are automatically redacted. Supports time-interval-based auto-rotation with forced deletion of files older than 2 hours, preventing unbounded HAR file growth.
-- **Native tools config**: Added `nativeTools` config to inject built-in tools (e.g. `web_search`, `web_extractor`) into the OpenAI Responses API; stacked with `webSearchTool` and takes precedence on conflict; only effective when `sdkMode=openai-responses`, while `anthropic` mode only picks the `web_search` entry. Model editor adds the corresponding JSON config field with live validation.
-- **Web search tool**: `webSearchTool` extended from boolean to object config (`maxUses`/`allowedDomains`/`blockedDomains`/`userLocation`); added native `web_search` tool injection and `url_citation`/`web_search_call` event handling under `openai-responses` mode; model editor adds `webSearchToolConfig` JSON field with live validation. Enabled web search by default for Codex and Volcengine GLM models.
-- **Retry classifier**: Added retry conditions for Codex `rate_limits` and Responses API `snapshot_bootstrap` scenarios, covering rate-limit and snapshot bootstrap failure cases.
+- **[Added] Token pricing & client cost estimation**: Supports configuring model pricing for input, output, cache-read, and cache-write tokens through built-in model configs and `gcmp.providerOverrides.<provider>.models[].tokenPricing` / `gcmp.compatibleModels[].tokenPricing`, with different prices applied by peak/off-peak tiers, `serviceTier`, and `contextSizeMin`. Estimated costs are shown inline below token counts across the status bar, details view, and multi-day trend view. Added `formatCostBreakdownLog` output for personal reference and verification.
+- **[Added] Dual-currency cost display**: Pricing configs now support listing both USD and RMB, marked by each model's native settlement currency; costs are displayed in dual currencies across the status bar (in Chinese locale), details view, sidebar date list and session records, and multi-day trend view, with a new USD/RMB currency switch view.
+- **[Added] Multi-day cost view**: Added cost trend line chart and cost card summary to the multi-day trend page; optimized token and cost formatting utilities.
+- **[Added] Incremental token estimation**: Based on the previous request's actual API usage, eliminating cumulative estimation errors in long contexts.
+- **[Changed] Pricing configuration structure optimized**: `pricing` now supports both object form and array shorthand, allowing direct expression of input, output, cache-read, and cache-write prices while remaining compatible with existing object configs.
+- **[Changed] Unified context threshold tiers**: Context pricing thresholds are now uniformly determined by actual API input tokens (including cache); removed the `contextSizeInputOnly` config; removed 640K/320K context pricing tiers across models; MiniMax-M3 removed service-tier (priority) pricing in favor of unified context-size ladder pricing.
 
-### Changed
+### Multi-Window Cross-Instance Coordination
 
-- **Simplified context status bar**: A pie-chart icon intuitively reflects the current session's context window usage ratio (0/8 ~ 8/8); hover to view model name, usage percentage, token count, and request source type; removed detailed category breakdown and status caching.
-- **Inline cost display in token cells**: Estimated costs are displayed inline below token counts in the status bar, provider stats table, and recent request records; removed standalone cost column to save horizontal space.
-- **Status bar table column restructure**: Merged the tokens and cost columns in the daily statistics popup into a simplified "Input(+Cache)+Output=Consumed" header; cache hit and input token costs are shown separately; also adjusted token input/output formatting and removed redundant formatting utilities.
-- **Unified delayed status bar refresh**: All provider model requests now trigger a delayed `TokenUsageStatusBar.triggerDelayedUpdate` refresh after completion, reducing frequent I/O from high-frequency requests.
-- **Pricing configuration structure optimized**: `pricing` now supports both object form and array shorthand, allowing direct expression of input, output, cache-read, and cache-write prices while remaining compatible with existing object configs.
-- **Unified context threshold tiers**: Context pricing thresholds are now uniformly determined by actual API input tokens (including cache); removed the `contextSizeInputOnly` config; removed 640K/320K context pricing tiers across models; MiniMax-M3 removed service-tier (priority) pricing in favor of unified context-size ladder pricing.
-- **Thinking config supports effort format**: Anthropic request thinking config now supports effort forms such as `effort-none`; also optimized pricing and context threshold configs for multiple models.
-- **Codex model list uses OAuth credentials only**: Removed the manual API key fallback when fetching the remote Codex model list, unified to Codex CLI OAuth credentials; falls back to bundled preset models when no valid credential exists.
-- **Removed Tencent paid models & DeepSeek dedicated key config**: Deprecated Tencent Cloud TokenHub paid models and DeepSeek dedicated API key config; unified to TokenHub / Token Plan key access.
-- **Removed Gemini SSE experimental support**: Removed `geminiHandler`/`geminiConverter`/`geminiType` and other experimental modules (~2300 lines).
-- **Context window & token limit config optimized**: Bumped `maxInputTokens`/`maxOutputTokens` limits for built-in provider model configs to improve long-context compatibility ([#269](https://github.com/VicBilibily/GCMP/issues/269)).
+- **[Added] Cross-instance state sync**: New Leader/Follower inter-instance communication module that broadcasts events via local IPC across VS Code windows for status bar, live metrics, config changes, and API key changes, with automatic fallback to file-system polling when IPC is unavailable; supports leader resignation notification with next-leader nomination for seamless primary instance switching. The Leader instance serializes stats writes and handles Follower `statsRefreshRequested` delegations to prevent concurrent overwrites, with a per-minute periodic fallback refresh for today's stats; expired data cleanup is performed solely by the Leader, and the status bar can display leader/follower role badges.
+- **[Added] Cross-instance single-point CLI credential refresh**: With multiple windows, the Leader instance uniformly performs CLI OAuth token refreshes and atomically writes credential files; Followers delegate refreshes via the inter-instance bus and wait for receipts. After a delegation timeout, credentials are re-read and the leader heartbeat is checked, falling back to local refresh only when the leader is unreachable — preventing concurrent refreshes from invalidating single-rotation refresh tokens. The ChatGPT status bar usage query now uses this channel.
 
-### Fixed
+### Status Bar & Usage Display
 
-- **Permanent errors no longer misclassified as retryable**: Fixed permanent errors — daily/monthly hard quota exhaustion, billing or plan limits, requests exceeding model context limits — being misclassified as rate limits and retried repeatedly; unlimited retry mode (`maxAttempts=-1`) now has a 30-minute total elapsed time safeguard.
-- **CLI credential delegation timeout misjudged as failure**: Fixed Followers failing outright when a delegated CLI OAuth refresh timed out while the Leader was still alive, making CLI models like Codex and the ChatGPT status bar temporarily unavailable; Followers now poll for the Leader's refreshed credentials to land during a grace period, falling back to local refresh only if the Leader goes offline.
-- **Stale data on multi-day trend view**: Fixed the multi-day trend view showing outdated data when Leader-side stats rebuilds exceeded the delegation timeout; the view now silently re-fetches the current date range when cross-instance stats update broadcasts arrive.
-- **Occasional EPERM writing stats files on Windows**: Fixed occasional `EPERM` errors during atomic rename of stats/index files on Windows that caused stats persistence failures; file reads and writes now share the same serial lock, and rename retries with backoff.
-- **Usage view date list stats not refreshing**: Fixed the sidebar date list only updating its first item, leaving request counts, tokens, and costs of other dates stale after stats refreshes.
-- **Tail stats lost on extension deactivation**: Fixed the last batch of request stats in the write queue being lost without flushing when windows close or the extension upgrades; deactivation now waits for the write queue to drain.
-- **OpenAI streaming keepalive heartbeat filtering**: Fixed gateway keepalive heartbeat events arriving before `response.created` and crashing the Responses SDK stream.
+- **[Added] Kimi Top-up wallet query**: Balance query and status bar display for Kimi membership plan top-up wallets, showing credit balance and expiration time.
+- **[Added] ClinePass usage status bar**: Displays ClinePass plan cycle remaining usage, reset time, and total utilization in the status bar.
+- **[Added] Robust output-speed statistics & reset countdown**: Real-time metrics such as output speed now use robust statistics (MAD-weighted mean) to exclude outliers; the status bar usage table adds a plan reset countdown column.
+- **[Changed] Simplified context status bar**: A pie-chart icon intuitively reflects the current session's context window usage ratio (0/8 ~ 8/8); hover to view model name, usage percentage, token count, and request source type; removed detailed category breakdown and status caching.
+- **[Changed] Inline cost display in token cells**: Estimated costs are displayed inline below token counts in the status bar, provider stats table, and recent request records; removed standalone cost column to save horizontal space.
+- **[Changed] Status bar table column restructure**: Merged the tokens and cost columns in the daily statistics popup into a simplified "Input(+Cache)+Output=Consumed" header; cache hit and input token costs are shown separately; also adjusted token input/output formatting and removed redundant formatting utilities.
+- **[Changed] Unified delayed status bar refresh**: All provider model requests now trigger a delayed `TokenUsageStatusBar.triggerDelayedUpdate` refresh after completion, reducing frequent I/O from high-frequency requests.
 
+### Web Search & Native Tools
 
+- **[Added] Native tools config**: Added `nativeTools` config to inject built-in tools (e.g. `web_search`, `web_extractor`) into the OpenAI Responses API; stacked with `webSearchTool` and takes precedence on conflict; only effective when `sdkMode=openai-responses`, while `anthropic` mode only picks the `web_search` entry. Model editor adds the corresponding JSON config field with live validation.
+- **[Added] Web search tool**: `webSearchTool` extended from boolean to object config (`maxUses`/`allowedDomains`/`blockedDomains`/`userLocation`); added native `web_search` tool injection and `url_citation`/`web_search_call` event handling under `openai-responses` mode; model editor adds `webSearchToolConfig` JSON field with live validation. Enabled web search by default for Codex and Volcengine GLM models.
+
+### Retry & Error Handling
+
+- **[Added] Retry classifier**: Added retry conditions for Codex `rate_limits` and Responses API `snapshot_bootstrap` scenarios, covering rate-limit and snapshot bootstrap failure cases.
+- **[Fixed] Permanent errors no longer misclassified as retryable**: Fixed permanent errors — daily/monthly hard quota exhaustion, billing or plan limits, requests exceeding model context limits — being misclassified as rate limits and retried repeatedly; unlimited retry mode (`maxAttempts=-1`) now has a 30-minute total elapsed time safeguard.
+- **[Fixed] OpenAI streaming keepalive heartbeat filtering**: Fixed gateway keepalive heartbeat events arriving before `response.created` and crashing the Responses SDK stream.
+
+### Debugging Observability
+
+- **[Added] HAR request capture**: Added `gcmp.debug.captureHar` and `gcmp.debug.harRetentionCount` debug settings to record HTTP requests and responses (HAR 1.2 format) under `globalStorage/har/`, making it easier to diagnose compatibility and gateway issues. Disabled by default; FIM/NES completions, Gist sync, and CLI OAuth refresh requests skip capture by default; credentials in sensitive headers, URL query parameters, and redirect URLs are automatically redacted. Supports time-interval-based auto-rotation with forced deletion of files older than 2 hours, preventing unbounded HAR file growth.
+
+### Model & Provider Configuration
+
+- **[Changed] Thinking config supports effort format**: Anthropic request thinking config now supports effort forms such as `effort-none`; also optimized pricing and context threshold configs for multiple models.
+- **[Changed] Context window & token limit config optimized**: Bumped `maxInputTokens`/`maxOutputTokens` limits for built-in provider model configs to improve long-context compatibility ([#269](https://github.com/VicBilibily/GCMP/issues/269)).
+- **[Changed] Codex model list uses OAuth credentials only**: Removed the manual API key fallback when fetching the remote Codex model list, unified to Codex CLI OAuth credentials; falls back to bundled preset models when no valid credential exists.
+- **[Changed] Removed Tencent paid models & DeepSeek dedicated key config**: Deprecated Tencent Cloud TokenHub paid models and DeepSeek dedicated API key config; unified to TokenHub / Token Plan key access.
+
+### Architecture Cleanup
+
+- **[Changed] Removed Gemini SSE experimental support**: Removed `geminiHandler`/`geminiConverter`/`geminiType` and other experimental modules (~2300 lines).
 
 ## [0.25.44] - 2026-07-17
 
 ### 修复
 
 - **修复 VS Code 1.129.0 上提交消息生成和 Vision 工具调用失败的问题**：VS Code 1.129.0 修复了 `isProposedApiEnabled` 的 bug，导致 stable 构建中 `enabledApiProposals` 被清空后，发送包含 `System` 角色消息的聊天请求时触发 `checkProposedApiEnabled('languageModelSystem')` 抛错。受影响的场景包括：
-  - 提交消息生成（`gcmp.commit.generateMessage`）
-  - Vision 图像分析工具（`gcmpVisionTool` 系列）
+    - 提交消息生成（`gcmp.commit.generateMessage`）
+    - Vision 图像分析工具（`gcmpVisionTool` 系列）
 
-  现在在这两个场景中，当检测到 VS Code 1.129.0+ 时，将 `System` 消息降级为 `User` 消息发送，确保功能正常。同时从 `enabledApiProposals` 中移除了 `languageModelSystem` 声明（该 proposal 在 stable 构建中不可用）。
+    现在在这两个场景中，当检测到 VS Code 1.129.0+ 时，将 `System` 消息降级为 `User` 消息发送，确保功能正常。同时从 `enabledApiProposals` 中移除了 `languageModelSystem` 声明（该 proposal 在 stable 构建中不可用）。
 
 ---
 
 ### Fixed
 
 - **Fixed commit message generation and Vision tool failure on VS Code 1.129.0**: VS Code 1.129.0 fixed the `isProposedApiEnabled` bug, causing `checkProposedApiEnabled('languageModelSystem')` to throw when sending chat requests with `System` role messages in stable builds. Affected scenarios:
-  - Commit message generation (`gcmp.commit.generateMessage`)
-  - Vision image analysis tools (`gcmpVisionTool` series)
+    - Commit message generation (`gcmp.commit.generateMessage`)
+    - Vision image analysis tools (`gcmpVisionTool` series)
 
-  In these scenarios, `System` messages are now downgraded to `User` messages when VS Code 1.129.0+ is detected, ensuring functionality works correctly. Also removed `languageModelSystem` from `enabledApiProposals` (this proposal is unavailable in stable builds).
+    In these scenarios, `System` messages are now downgraded to `User` messages when VS Code 1.129.0+ is detected, ensuring functionality works correctly. Also removed `languageModelSystem` from `enabledApiProposals` (this proposal is unavailable in stable builds).
 
 ## [0.25.43] - 2026-07-17
 
