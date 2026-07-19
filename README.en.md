@@ -209,7 +209,7 @@ LLM service platform under iFLYTEK, accessed via Anthropic SDK mode with dual-pl
 
 ### [**OpenCode**](https://opencode.ai/)
 
-- [**Go**](https://opencode.ai/go?ref=2TEVV934MY): **GLM-5.2**, **GLM-5.1**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **Kimi-K2.5**, **MiMo-V2.5**, **MiMo-V2.5-Pro**, **MiniMax-M3**, **MiniMax-M2.7**, **Qwen3.7-Max**, **Qwen3.7-Plus**, **Qwen3.6-Plus**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**
+- [**Go**](https://opencode.ai/go?ref=2TEVV934MY): **GLM-5.2**, **GLM-5.1**, **Kimi-K3**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **Kimi-K2.5**, **MiMo-V2.5**, **MiMo-V2.5-Pro**, **MiniMax-M3**, **MiniMax-M2.7**, **Qwen3.7-Max**, **Qwen3.7-Plus**, **Qwen3.6-Plus**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**
 - **Zen**: **DeepSeek-V4-Flash**, **DeepSeek-V4-Pro**, **GLM-5**, **GLM-5.1**, **GLM-5.2**, **Kimi-K2.5**, **Kimi-K2.6**, **Qwen3.5-Plus**, **Qwen3.6-Plus**, **Grok-Build-0.1**, **MiniMax-M2.5**, **MiniMax-M2.7**
 
 ### [**Hyper**](https://hyper.charm.land/) - Charm Hyper
@@ -218,7 +218,7 @@ LLM service platform under iFLYTEK, accessed via Anthropic SDK mode with dual-pl
 
 ### [**ClinePass**](https://docs.cline.bot/getting-started/clinepass) - Cline's official model subscription service
 
-- **Preset models**: **GLM-5.2**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **MiMo-V2.5**, **MiMo-V2.5-Pro**, **MiniMax-M3**, **Qwen3.7-Max**, **Qwen3.7-Plus**
+- **Preset models**: **GLM-5.2**, **Kimi-K3**, **Kimi-K2.7-Code**, **Kimi-K2.6**, **DeepSeek-V4-Pro**, **DeepSeek-V4-Flash**, **MiMo-V2.5**, **MiMo-V2.5-Pro**, **MiniMax-M3**, **Qwen3.7-Max**, **Qwen3.7-Plus**
 - **Usage tracking**: Status bar displays plan cycle remaining usage, reset time, and total utilization.
 - **API Key**: Create and copy your API key from [Cline App → API Keys](https://app.cline.bot/dashboard/account?tab=api-keys), then use the `GCMP: Set ClinePass API Key` command to configure it.
 

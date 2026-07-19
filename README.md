@@ -209,7 +209,7 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 
 ### [**OpenCode**](https://opencode.ai/)
 
-- [**Go**](https://opencode.ai/go?ref=2TEVV934MY)：**GLM-5.2**、**GLM-5.1**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**Kimi-K2.5**、**MiMo-V2.5**、**MiMo-V2.5-Pro**、**MiniMax-M3**、**MiniMax-M2.7**、**Qwen3.7-Max**、**Qwen3.7-Plus**、**Qwen3.6-Plus**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**
+- [**Go**](https://opencode.ai/go?ref=2TEVV934MY)：**GLM-5.2**、**GLM-5.1**、**Kimi-K3**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**Kimi-K2.5**、**MiMo-V2.5**、**MiMo-V2.5-Pro**、**MiniMax-M3**、**MiniMax-M2.7**、**Qwen3.7-Max**、**Qwen3.7-Plus**、**Qwen3.6-Plus**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**
 - **Zen**：**DeepSeek-V4-Flash**、**DeepSeek-V4-Pro**、**GLM-5**、**GLM-5.1**、**GLM-5.2**、**Kimi-K2.5**、**Kimi-K2.6**、**Qwen3.5-Plus**、**Qwen3.6-Plus**、**Grok-Build-0.1**、**MiniMax-M2.5**、**MiniMax-M2.7**
 
 ### [**Hyper**](https://hyper.charm.land/) - Charm Hyper
@@ -218,7 +218,7 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 
 ### [**ClinePass**](https://docs.cline.bot/getting-started/clinepass) - Cline 官方推出的模型订阅服务
 
-- **预置模型**：**GLM-5.2**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**、**MiMo-V2.5**、**MiMo-V2.5-Pro**、**MiniMax-M3**、**Qwen3.7-Max**、**Qwen3.7-Plus**
+- **预置模型**：**GLM-5.2**、**Kimi-K3**、**Kimi-K2.7-Code**、**Kimi-K2.6**、**DeepSeek-V4-Pro**、**DeepSeek-V4-Flash**、**MiMo-V2.5**、**MiMo-V2.5-Pro**、**MiniMax-M3**、**Qwen3.7-Max**、**Qwen3.7-Plus**
 - **用量查询**：已支持状态栏显示周期剩余用量、重置时间及总利用率。
 - **API Key**：在 [Cline App → API Keys](https://app.cline.bot/dashboard/account?tab=api-keys) 页面创建并复制 API Key，使用 `GCMP: 设置 ClinePass API 密钥` 命令配置。
 

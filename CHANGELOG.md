@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.2] - 2026-07-19
+
+### 新增
+
+- **ClinePass 新增 Kimi-K3 模型**：新增 `cline-pass/kimi-k3`，支持 1M 上下文、视觉理解与工具调用。
+- **OpenCode Go 新增 Kimi-K3 模型**：新增 `kimi-k3-go`，支持 1M 上下文、视觉理解与工具调用。
+
+---
+
+### Added
+
+- **ClinePass adds Kimi-K3 model**: Added `cline-pass/kimi-k3` with 1M context, vision input, and tool calling.
+- **OpenCode Go adds Kimi-K3 model**: Added `kimi-k3-go` with 1M context, vision input, and tool calling.
+
 ## [0.26.1] - 2026-07-19
 
 ### 新增

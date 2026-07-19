@@ -17,6 +17,19 @@
             "tokenPricing": [1.4, 4.4, 0.26]
         },
         {
+            "id": "cline-pass/kimi-k3",
+            "name": "Kimi-K3 (ClinePass)",
+            "tooltip": "ClinePass — Kimi K3。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "none"],
+            "reasoningFormat": "nested",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [3.0, 15.0, 0.3]
+        },
+        {
             "id": "cline-pass/kimi-k2.7-code",
             "name": "Kimi-K2.7-Code (ClinePass)",
             "tooltip": "ClinePass — Kimi K2.7 Code。",

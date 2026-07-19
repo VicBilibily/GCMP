@@ -5,7 +5,7 @@
     "models": [
         {
             "id": "grok-4.5-go",
-            "name": "Grok 4.5 (Go)",
+            "name": "Grok-4.5 (Go)",
             "model": "grok-4.5",
             "sdkMode": "openai-sse",
             "baseUrl": "https://opencode.ai/zen/go/v1",
@@ -44,7 +44,7 @@
         },
         {
             "id": "kimi-k3-go",
-            "name": "Kimi K3 (Go)",
+            "name": "Kimi-K3 (Go)",
             "model": "kimi-k3",
             "sdkMode": "openai-sse",
             "baseUrl": "https://opencode.ai/zen/go/v1",
@@ -53,7 +53,7 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinkingFormat": "object-none",
-            "reasoningEffort": ["max", "high", "low", "none"],
+            "reasoningEffort": ["max", "none"],
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
             "tokenPricing": [3, 15, 0.3]
         },
@@ -368,7 +368,7 @@
         },
         {
             "id": "grok-4.5-zen",
-            "name": "Grok 4.5 (Zen)",
+            "name": "Grok-4.5 (Zen)",
             "model": "grok-4.5",
             "sdkMode": "openai-sse",
             "baseUrl": "https://opencode.ai/zen/v1",
