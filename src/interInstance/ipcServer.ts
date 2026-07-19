@@ -7,7 +7,7 @@ import * as net from 'node:net';
 import * as fs from 'node:fs/promises';
 import { InterInstanceEvent, parseEventsFromBuffer, serializeEvent } from './eventProtocol';
 import { isNamedPipePath } from './pathResolver';
-import { StatusLogger } from '../utils/statusLogger';
+import { StatusLogger } from '../utils/runtime/statusLogger';
 
 export interface IpcServerOptions {
     /** 收到 Follower 消息时的回调 */

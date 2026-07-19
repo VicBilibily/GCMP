@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
-import { StatusLogger } from '../utils/statusLogger';
+import { StatusLogger } from '../utils/runtime/statusLogger';
 import { UserActivityService } from './userActivityService';
 import { InterInstanceBus, type LeaderResigningEvent } from '../interInstance';
 

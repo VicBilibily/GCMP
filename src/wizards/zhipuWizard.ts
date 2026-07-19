@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Logger } from '../utils/logger';
-import { ApiKeyManager } from '../utils/apiKeyManager';
-import { ConfigManager } from '../utils/configManager';
-import { t } from '../utils/l10n';
+import { Logger } from '../utils/runtime/logger';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { ConfigManager } from '../utils/config/configManager';
+import { t } from '../utils/runtime/l10n';
 
 export class ZhipuWizard {
     private static readonly PROVIDER_KEY = 'zhipu';

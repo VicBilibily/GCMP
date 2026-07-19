@@ -15,7 +15,9 @@ import {
 } from 'vscode';
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { Logger, ApiKeyManager, isCancellationError } from '../utils';
+import { Logger } from '../utils/runtime/logger';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { isCancellationError } from '../utils/text/cancellationError';
 import { MiniMaxWizard } from '../wizards/minimaxWizard';
 import { StatusBarManager } from '../status';
 import { TokenUsagesManager } from '../usages/usagesManager';

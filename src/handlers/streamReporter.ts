@@ -5,15 +5,15 @@
 
 import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
-import { buildCopilotUsageData } from '../utils/copilotUsage';
-import { Logger } from '../utils';
+import { buildCopilotUsageData } from '../utils/model/copilotUsage';
+import { Logger } from '../utils/runtime/logger';
 import { encodeStatefulMarker, MarkerUsage, StatefulMarkerContainer } from './statefulMarker';
 import { toOptionalStatefulMarkerField } from './statefulMarkerCodec';
 import { CustomDataPartMimeTypes } from './types';
 import { TextBuffer, ThinkingBuffer, SignatureBuffer, ToolCallAccumulator } from './buffers';
 import { LiveMetricsTracker } from './liveMetricsTracker';
 import type { LiveStreamMetricEvent } from './liveMetrics';
-import { TokenCounter } from '../utils/tokenCounter';
+import { TokenCounter } from '../utils/model/tokenCounter';
 import type { TikTokenizer } from '@microsoft/tiktokenizer';
 
 const USAGE_DATA_ENCODER = new TextEncoder();

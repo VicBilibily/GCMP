@@ -7,8 +7,8 @@
 import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
 import { LanguageModelChatInformation } from 'vscode';
-import { Logger } from './logger';
-import { configProviders } from '../providers/config';
+import { Logger } from '../runtime/logger';
+import { configProviders } from '../../providers/config';
 
 /**
  * 已保存的模型选择信息

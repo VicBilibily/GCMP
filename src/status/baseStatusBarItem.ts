@@ -6,10 +6,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { StatusLogger } from '../utils/statusLogger';
+import { StatusLogger } from '../utils/runtime/statusLogger';
 import { LeaderElectionService } from './leaderElectionService';
 import { InterInstanceBus, StatusUpdatedEvent } from '../interInstance';
-import { t } from '../utils/l10n';
+import { t } from '../utils/runtime/l10n';
 
 /**
  * 缓存数据结构

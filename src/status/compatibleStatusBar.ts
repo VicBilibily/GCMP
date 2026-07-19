@@ -6,14 +6,14 @@
 
 import * as vscode from 'vscode';
 import { BaseStatusBarItem, BaseStatusBarItemConfig } from './baseStatusBarItem';
-import { StatusLogger } from '../utils/statusLogger';
-import { CompatibleModelManager } from '../utils/compatibleModelManager';
+import { StatusLogger } from '../utils/runtime/statusLogger';
+import { CompatibleModelManager } from '../utils/config/compatibleModelManager';
 import { BalanceQueryManager } from './compatible/balanceQueryManager';
-import { ApiKeyManager } from '../utils/apiKeyManager';
-import { KnownProviders } from '../utils/knownProviders';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { KnownProviders } from '../utils/config/knownProviders';
 import { LeaderElectionService } from './leaderElectionService';
 import { InterInstanceBus } from '../interInstance';
-import { t } from '../utils/l10n';
+import { t } from '../utils/runtime/l10n';
 
 /**
  * Compatible 提供商余额信息

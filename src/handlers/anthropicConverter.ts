@@ -11,7 +11,7 @@
 
 import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
-import { sanitizeToolSchema } from '../utils';
+import { sanitizeToolSchema } from '../utils/text/schemaSanitizer';
 import { getReasoningReplayPolicy, shouldInjectReasoningPlaceholder } from './reasoningReplayPolicy';
 import { decodeStatefulMarker } from './statefulMarker';
 import type {

@@ -18,7 +18,7 @@ let _t: ((en: string, zh: string, ...args: unknown[]) => string) | undefined;
 function getT(): (en: string, zh: string, ...args: unknown[]) => string {
     if (!_t) {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        _t = require('../utils/l10n').t;
+        _t = require('../utils/runtime/l10n').t;
     }
     return _t!;
 }

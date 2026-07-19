@@ -5,7 +5,7 @@
 import { TokenFileLogger } from '../fileLogger';
 import { createEmptyNativeCostSplit, mergeNativeCostSplit } from '../fileLogger/nativeCostSplit';
 import type { NativeCostSplit, TokenUsageStatsFromFile } from '../fileLogger/types';
-import { StatusLogger } from '../../utils/statusLogger';
+import { StatusLogger } from '../../utils/runtime/statusLogger';
 import type {
     MultiDayAnalysisResult,
     MultiDayDateStats,

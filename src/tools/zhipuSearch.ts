@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Logger } from '../utils';
-import { t } from '../utils/l10n';
-import { ApiKeyManager } from '../utils/apiKeyManager';
-import { ConfigManager } from '../utils/configManager';
-import { VersionManager } from '../utils/versionManager';
+import { Logger } from '../utils/runtime/logger';
+import { t } from '../utils/runtime/l10n';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { ConfigManager } from '../utils/config/configManager';
+import { VersionManager } from '../utils/runtime/versionManager';
 import { ZhipuMCPWebSearchClient, type ZhipuWebSearchRequest } from './mcp/zhipuMCPClient';
 import { StatusBarManager } from '../status/statusBarManager';
 

@@ -15,11 +15,11 @@ import {
     NoRepositorySelectedError,
     GitExtensionNotFoundError
 } from './types';
-import { ConfigManager } from '../utils/configManager';
+import { ConfigManager } from '../utils/config/configManager';
 import { DiffSnippetService } from './diffSnippetService';
 import { filterDiffSnippets, isNoisyGeneratedDiff, isSensitiveFile } from './diffFilter';
-import { Logger } from '../utils';
-import { t } from '../utils/l10n';
+import { Logger } from '../utils/runtime/logger';
+import { t } from '../utils/runtime/l10n';
 
 function throwIfCancelled(token?: vscode.CancellationToken): void {
     if (token?.isCancellationRequested) {

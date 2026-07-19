@@ -8,7 +8,7 @@ import {
     hasNativeCostSplit,
     mergeNativeCostSplit
 } from '../../usages/fileLogger/nativeCostSplit';
-import { convertUsdToRmb, sumCosts, USD_TO_RMB_RATE } from '../../utils/pricingCurrency';
+import { convertUsdToRmb, sumCosts, USD_TO_RMB_RATE } from '../../utils/pricing/pricingCurrency';
 import type { BaseStats, HourlyStats, NativeCostSplit } from '../../usages/fileLogger/types';
 import type {
     ExtendedTokenRequestLog,

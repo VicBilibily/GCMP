@@ -6,8 +6,8 @@
 
 import * as vscode from 'vscode';
 import * as fs from 'node:fs';
-import { Logger } from '../../../utils';
-import { t } from '../../../utils/l10n';
+import { Logger } from '../../../utils/runtime/logger';
+import { t } from '../../../utils/runtime/l10n';
 import { analyzeImagesWithSystem } from '../provider';
 
 export abstract class BaseVisionTool implements vscode.LanguageModelTool<Record<string, unknown>> {

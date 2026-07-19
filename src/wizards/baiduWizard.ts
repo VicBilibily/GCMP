@@ -3,8 +3,8 @@
  * 提供交互式向导来配置普通密钥和 Coding Plan 专用密钥
  *--------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
-import { Logger } from '../utils/logger';
-import { t } from '../utils/l10n';
+import { Logger } from '../utils/runtime/logger';
+import { t } from '../utils/runtime/l10n';
 import { StatusBarManager } from '../status';
 import { BaseWizard } from './baseWizard';
 export class BaiduWizard extends BaseWizard {

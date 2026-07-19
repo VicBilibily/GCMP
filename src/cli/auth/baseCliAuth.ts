@@ -7,9 +7,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { execSync } from 'child_process';
-import { Logger } from '../../utils/logger';
-import { ConfigManager } from '../../utils/configManager';
-import { isNoProxyValue } from '../../utils/proxyAgent';
+import { Logger } from '../../utils/runtime/logger';
+import { ConfigManager } from '../../utils/config/configManager';
+import { isNoProxyValue } from '../../utils/net/proxyAgent';
 import { CliAuthConfig, OAuthCredentials } from '../type';
 
 const proxyEnvKeys = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy'] as const;

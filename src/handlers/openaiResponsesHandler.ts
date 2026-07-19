@@ -6,9 +6,11 @@
 import * as vscode from 'vscode';
 import OpenAI, { ClientOptions } from 'openai';
 import { TokenUsagesManager } from '../usages/usagesManager';
-import { Logger, sanitizeToolSchema, isCancellationError } from '../utils';
-import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu, toCostBreakdownLog } from '../utils';
-import { t } from '../utils/l10n';
+import { Logger } from '../utils/runtime/logger';
+import { sanitizeToolSchema } from '../utils/text/schemaSanitizer';
+import { isCancellationError } from '../utils/text/cancellationError';
+import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu, toCostBreakdownLog } from '../utils/pricing/costCalculator';
+import { t } from '../utils/runtime/l10n';
 import { ModelChatResponseOptions, ModelConfig, ModelTokenPricing, NativeToolConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { getStatefulMarkerAndIndex } from './statefulMarker';

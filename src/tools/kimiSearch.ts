@@ -3,9 +3,10 @@
  * 使用 Kimi Code search API 进行 HTTP 请求
  *--------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
-import { ConfigManager, Logger } from '../utils';
-import { t } from '../utils/l10n';
-import { ApiKeyManager } from '../utils/apiKeyManager';
+import { ConfigManager } from '../utils/config/configManager';
+import { Logger } from '../utils/runtime/logger';
+import { t } from '../utils/runtime/l10n';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { StatusBarManager } from '../status';
 
 /**

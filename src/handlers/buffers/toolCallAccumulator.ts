@@ -20,7 +20,7 @@
  */
 
 import * as crypto from 'node:crypto';
-import { Logger } from '../../utils';
+import { Logger } from '../../utils/runtime/logger';
 
 interface ToolCallBuffer {
     id?: string;

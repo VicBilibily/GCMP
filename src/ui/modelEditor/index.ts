@@ -6,15 +6,15 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import OpenAI from 'openai';
-import { CompatibleModelConfig } from '../../utils/compatibleModelManager';
+import { CompatibleModelConfig } from '../../utils/config/compatibleModelManager';
 import { configProviders } from '../../providers/config';
-import { KnownProviders } from '../../utils/knownProviders';
-import { ApiKeyManager } from '../../utils/apiKeyManager';
-import { VersionManager } from '../../utils/versionManager';
-import { ConfigManager } from '../../utils/configManager';
-import { normalizeTokenPricing, serializeTokenPricingInput } from '../../utils/pricingTierResolver';
+import { KnownProviders } from '../../utils/config/knownProviders';
+import { ApiKeyManager } from '../../utils/config/apiKeyManager';
+import { VersionManager } from '../../utils/runtime/versionManager';
+import { ConfigManager } from '../../utils/config/configManager';
+import { normalizeTokenPricing, serializeTokenPricingInput } from '../../utils/pricing/pricingTierResolver';
 import type { ModelTokenPricingInput } from '../../types/sharedTypes';
-import { t } from '../../utils/l10n';
+import { t } from '../../utils/runtime/l10n';
 import type { ModelFormData, ProviderOption, WebViewMessage } from './types';
 // 样式以 raw 字符串形式内联到 HTML（由 esbuild 的 inlineLessPlugin 处理）
 import modelEditorCss from './style.less?raw';

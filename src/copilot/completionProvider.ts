@@ -20,7 +20,7 @@ import {
 } from '@vscode/chat-lib';
 import { CancellationToken } from '@vscode/chat-lib/dist/src/_internal/util/vs/base/common/cancellation';
 
-import { VersionManager } from '../utils';
+import { VersionManager } from '../utils/runtime/versionManager';
 import { WorkspaceAdapter } from './workspaceAdapter';
 import { Fetcher } from './fetcher';
 import { AuthenticationService, EndpointProvider, TelemetrySender } from './mockImpl';
@@ -31,7 +31,7 @@ import { CopilotTextDocument } from '@vscode/chat-lib/dist/src/_internal/extensi
 import { NullTerminalService } from '@vscode/chat-lib/dist/src/_internal/platform/terminal/common/terminalService';
 import { getCompletionLogger, getConfigManager } from './singletons';
 import { CompletionCircuitBreaker } from './completionCircuitBreaker';
-import { isCancellationError } from '../utils/cancellationError';
+import { isCancellationError } from '../utils/text/cancellationError';
 
 // ========================================================================
 // 类型定义

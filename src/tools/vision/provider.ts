@@ -6,8 +6,10 @@
 import * as vscode from 'vscode';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { Logger, ConfigManager, CompatibleModelManager } from '../../utils';
-import { isVSCode129OrLater } from '../../utils/languageModelInfo';
+import { Logger } from '../../utils/runtime/logger';
+import { ConfigManager } from '../../utils/config/configManager';
+import { CompatibleModelManager } from '../../utils/config/compatibleModelManager';
+import { isVSCode129OrLater } from '../../utils/model/languageModelInfo';
 
 /**
  * Vision 分析结果

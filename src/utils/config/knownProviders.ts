@@ -1,4 +1,4 @@
-﻿import { ModelOverride, ProviderConfig, ProviderOverride } from '../types/sharedTypes';
+﻿import { ModelOverride, ProviderConfig, ProviderOverride } from '../../types/sharedTypes';
 
 export interface KnownProviderConfig extends Partial<ProviderConfig & ProviderOverride> {
     /** 针对 OpenAI SDK 的兼容策略 */

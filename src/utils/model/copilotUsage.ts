@@ -1,5 +1,5 @@
-﻿import type { GenericUsageData } from '../usages/fileLogger/types';
-import { UsageParser } from '../usages/fileLogger/usageParser';
+﻿import type { GenericUsageData } from '../../usages/fileLogger/types';
+import { UsageParser } from '../../usages/fileLogger/usageParser';
 
 export interface CopilotUsageData {
     prompt_tokens: number;

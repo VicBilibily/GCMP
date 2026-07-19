@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Logger } from '../utils/logger';
-import { t } from '../utils/l10n';
+import { Logger } from '../utils/runtime/logger';
+import { t } from '../utils/runtime/l10n';
 
 /**
  * 启动后引导：VS Code 1.128+ 且 utility 模型未配置时，提示用户快速完成设置。

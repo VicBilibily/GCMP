@@ -6,7 +6,7 @@
 
 import * as vscode from 'vscode';
 import { BaseStatusBarItem, StatusBarItemConfig } from './baseStatusBarItem';
-import { ApiKeyManager } from '../utils/apiKeyManager';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { InterInstanceBus, ApiKeyChangedEvent } from '../interInstance';
 
 // 重新导出 StatusBarItemConfig 以便子类使用

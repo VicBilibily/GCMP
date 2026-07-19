@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import * as tls from 'node:tls';
 import { EnvHttpProxyAgent, fetch as undiciFetch, ProxyAgent } from 'undici';
 import type { RequestInit as UndiciRequestInit } from 'undici';
-import { Logger } from './logger';
+import { Logger } from '../runtime/logger';
 
 export type ProxiedFetch = typeof globalThis.fetch;
 export const NO_PROXY_SENTINEL = 'noproxy';

@@ -4,10 +4,10 @@
  *  作为全局静态实例提供，无需实例化
  *--------------------------------------------------------------------------------------------*/
 
-import { StatusLogger } from '../../utils/statusLogger';
-import { ConfigManager } from '../../utils/configManager';
-import { CompatibleModelManager } from '../../utils/compatibleModelManager';
-import { KnownProviders } from '../../utils/knownProviders';
+import { StatusLogger } from '../../utils/runtime/statusLogger';
+import { ConfigManager } from '../../utils/config/configManager';
+import { CompatibleModelManager } from '../../utils/config/compatibleModelManager';
+import { KnownProviders } from '../../utils/config/knownProviders';
 import { IBalanceQuery, BalanceQueryResult } from './balanceQuery';
 import { AiHubMixBalanceQuery } from './providers/aihubmixBalanceQuery';
 import { CustomUsageQuery } from './customUsageQuery';

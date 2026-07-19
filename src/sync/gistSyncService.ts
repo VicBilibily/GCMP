@@ -6,11 +6,11 @@
  */
 
 import * as vscode from 'vscode';
-import { CompatibleModelManager } from '../utils/compatibleModelManager';
-import { Logger } from '../utils/logger';
-import { registeredProviders } from '../utils/providerRegistry';
-import { KnownProviders } from '../utils/knownProviders';
-import { ConfigManager } from '../utils/configManager';
+import { CompatibleModelManager } from '../utils/config/compatibleModelManager';
+import { Logger } from '../utils/runtime/logger';
+import { registeredProviders } from '../utils/config/providerRegistry';
+import { KnownProviders } from '../utils/config/knownProviders';
+import { ConfigManager } from '../utils/config/configManager';
 import {
     decrypt as cryptoDecrypt,
     decryptWithPassphrase as cryptoDecryptWithPassphrase,

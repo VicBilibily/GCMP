@@ -6,11 +6,11 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Logger } from '../../utils/logger';
-import { t } from '../../utils/l10n';
-import { ConfigManager } from '../../utils/configManager';
+import { Logger } from '../../utils/runtime/logger';
+import { t } from '../../utils/runtime/l10n';
+import { ConfigManager } from '../../utils/config/configManager';
 import { configProviders } from '../../providers/config';
-import { CompatibleModelManager } from '../../utils/compatibleModelManager';
+import { CompatibleModelManager } from '../../utils/config/compatibleModelManager';
 import type { ModelConfig } from '../../types/sharedTypes';
 import type { AuxiliaryModelOption, AuxiliaryProviderData, FormValues, InitialValues, WebViewMessage } from './types';
 

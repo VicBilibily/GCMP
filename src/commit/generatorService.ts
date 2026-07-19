@@ -13,10 +13,12 @@ import {
 } from './types';
 import { PromptService } from './promptService';
 import type { GitDiffParts, GitDiffSection } from './gitService';
-import { CompatibleModelManager, ConfigManager, Logger } from '../utils';
-import { t } from '../utils/l10n';
-import { getRegisteredProvider } from '../utils/providerRegistry';
-import { isVSCode129OrLater } from '../utils/languageModelInfo';
+import { CompatibleModelManager } from '../utils/config/compatibleModelManager';
+import { ConfigManager } from '../utils/config/configManager';
+import { Logger } from '../utils/runtime/logger';
+import { t } from '../utils/runtime/l10n';
+import { getRegisteredProvider } from '../utils/config/providerRegistry';
+import { isVSCode129OrLater } from '../utils/model/languageModelInfo';
 
 function throwIfCancelled(token: vscode.CancellationToken): void {
     if (token.isCancellationRequested) {

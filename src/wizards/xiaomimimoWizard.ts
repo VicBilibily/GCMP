@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Logger } from '../utils/logger';
-import { ConfigManager, XiaomimimoConfig } from '../utils/configManager';
-import { t } from '../utils/l10n';
+import { Logger } from '../utils/runtime/logger';
+import { ConfigManager, XiaomimimoConfig } from '../utils/config/configManager';
+import { t } from '../utils/runtime/l10n';
 import { BaseWizard } from './baseWizard';
 
 export class XiaomimimoWizard extends BaseWizard {

@@ -5,21 +5,16 @@
 
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
-import {
-    Logger,
-    VersionManager,
-    sanitizeToolSchema,
-    createOpenCodeHeaders,
-    redactHeaders,
-    isCancellationError,
-    calculateCostWithBreakdown,
-    formatCostBreakdownLog,
-    toNanoAiu,
-    toCostBreakdownLog
-} from '../utils';
-import { ConfigManager } from '../utils/configManager';
-import { ApiKeyManager } from '../utils/apiKeyManager';
-import { t } from '../utils/l10n';
+import { Logger } from '../utils/runtime/logger';
+import { VersionManager } from '../utils/runtime/versionManager';
+import { sanitizeToolSchema } from '../utils/text/schemaSanitizer';
+import { createOpenCodeHeaders } from '../utils/text/formatUtils';
+import { redactHeaders } from '../utils/net/proxyAgent';
+import { isCancellationError } from '../utils/text/cancellationError';
+import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu, toCostBreakdownLog } from '../utils/pricing/costCalculator';
+import { ConfigManager } from '../utils/config/configManager';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { t } from '../utils/runtime/l10n';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';

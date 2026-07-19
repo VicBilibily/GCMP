@@ -8,7 +8,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { t } from '../utils/l10n';
+import { t } from '../utils/runtime/l10n';
 import { getCompletionLogger } from './singletons';
 
 // ========================================================================

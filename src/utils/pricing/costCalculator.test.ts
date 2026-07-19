@@ -13,7 +13,7 @@ import {
 } from './costCalculator';
 import { normalizeTokenPricing } from './pricingTierResolver';
 import { sumCosts, truncateCost } from './pricingCurrency';
-import type { ModelTokenPricing } from '../types/sharedTypes';
+import type { ModelTokenPricing } from '../../types/sharedTypes';
 
 function assertClose(actual: number, expected: number, message?: string): void {
     const normalizedExpected = truncateCost(expected) ?? expected;

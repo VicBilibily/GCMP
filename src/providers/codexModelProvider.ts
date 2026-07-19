@@ -9,8 +9,10 @@ import { CancellationToken, LanguageModelChatInformation, PrepareLanguageModelCh
 import { CliModelProvider } from '../cli/cliModelProvider';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { ModelConfig, ProviderConfig } from '../types/sharedTypes';
-import { ApiKeyManager, ConfigManager, Logger } from '../utils';
-import { parseCodexModelsResponse } from '../utils/codexModels';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { ConfigManager } from '../utils/config/configManager';
+import { Logger } from '../utils/runtime/logger';
+import { parseCodexModelsResponse } from '../utils/model/codexModels';
 
 /** Codex 后端模型列表 API 地址 */
 const CODEX_MODELS_URL = 'https://chatgpt.com/backend-api/codex/models';

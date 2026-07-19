@@ -5,11 +5,11 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { Logger } from '../../utils/logger';
-import { ConfigManager } from '../../utils/configManager';
-import { ApiKeyManager } from '../../utils/apiKeyManager';
-import { t } from '../../utils/l10n';
-import { VersionManager } from '../../utils/versionManager';
+import { Logger } from '../../utils/runtime/logger';
+import { ConfigManager } from '../../utils/config/configManager';
+import { ApiKeyManager } from '../../utils/config/apiKeyManager';
+import { t } from '../../utils/runtime/l10n';
+import { VersionManager } from '../../utils/runtime/versionManager';
 import { clearMCPClientCache, getMCPClientCacheStats, clearStaleMCPInstances } from './mcpCacheHelpers';
 
 /**

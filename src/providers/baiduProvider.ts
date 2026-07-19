@@ -14,7 +14,9 @@ import {
 } from 'vscode';
 import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import { Logger, ApiKeyManager, isCancellationError } from '../utils';
+import { Logger } from '../utils/runtime/logger';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { isCancellationError } from '../utils/text/cancellationError';
 import { BaiduWizard } from '../wizards/baiduWizard';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { classifyRequest } from '../handlers/requestClassifier';

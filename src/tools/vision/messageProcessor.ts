@@ -12,7 +12,7 @@
 import * as vscode from 'vscode';
 import { ModelConfig } from '../../types/sharedTypes';
 import { VisionCache } from './cache';
-import { Logger } from '../../utils';
+import { Logger } from '../../utils/runtime/logger';
 
 /**
  * 视觉工具指引的唯一标记，用于检测是否已注入过完整指引。

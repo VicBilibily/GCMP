@@ -1,4 +1,4 @@
-﻿import { GenericModelProvider } from '../providers/genericModelProvider';
+﻿import { GenericModelProvider } from '../../providers/genericModelProvider';
 
 export const registeredProviders: Record<string, GenericModelProvider> = {};
 

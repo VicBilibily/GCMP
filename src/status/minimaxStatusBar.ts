@@ -8,10 +8,12 @@
 
 import * as vscode from 'vscode';
 import { ProviderStatusBarItem, StatusBarItemConfig } from './providerStatusBarItem';
-import { StatusLogger } from '../utils/statusLogger';
-import { Logger } from '../utils/logger';
-import { ConfigManager, ApiKeyManager, VersionManager } from '../utils';
-import { t } from '../utils/l10n';
+import { StatusLogger } from '../utils/runtime/statusLogger';
+import { Logger } from '../utils/runtime/logger';
+import { ConfigManager } from '../utils/config/configManager';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { VersionManager } from '../utils/runtime/versionManager';
+import { t } from '../utils/runtime/l10n';
 
 /**
  * 单条限频项（扁平列表，参照智谱模式）

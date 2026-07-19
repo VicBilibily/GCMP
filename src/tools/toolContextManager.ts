@@ -5,8 +5,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Logger } from '../utils/logger';
-import { ApiKeyManager } from '../utils/apiKeyManager';
+import { Logger } from '../utils/runtime/logger';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
 
 /**
  * 工具上下文键名定义

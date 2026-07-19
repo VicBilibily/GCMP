@@ -5,9 +5,9 @@
 
 import * as vscode from 'vscode';
 import { JSONSchema7 } from 'json-schema';
-import { ModelChatResponseOptions, ModelConfig } from '../types/sharedTypes';
-import { Logger } from './logger';
-import { t } from './l10n';
+import { ModelChatResponseOptions, ModelConfig } from '../../types/sharedTypes';
+import { Logger } from '../runtime/logger';
+import { t } from '../runtime/l10n';
 
 /** editTools: true 时的默认工具集 */
 const DEFAULT_EDIT_TOOLS: string[] = ['multi-find-replace', 'find-replace', 'code-rewrite'];

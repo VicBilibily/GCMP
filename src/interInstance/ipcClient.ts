@@ -5,7 +5,7 @@
 
 import * as net from 'node:net';
 import { InterInstanceEvent, parseEventsFromBuffer, serializeEvent } from './eventProtocol';
-import { StatusLogger } from '../utils/statusLogger';
+import { StatusLogger } from '../utils/runtime/statusLogger';
 
 export interface IpcClientOptions {
     /** 收到 Leader 广播消息时的回调 */

@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { BaseCliAuth } from './baseCliAuth';
 import { CodexCliAuth } from './codexCliAuth';
 import { GrokCliAuth } from './grokCliAuth';
-import { Logger } from '../../utils/logger';
+import { Logger } from '../../utils/runtime/logger';
 import { OAuthCredentials } from '../type';
 import { CliAuthRefreshCompletedEvent, CliAuthRefreshRequestedEvent, InterInstanceBus } from '../../interInstance';
 import { LeaderElectionService } from '../../status';

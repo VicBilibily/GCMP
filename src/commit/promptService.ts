@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CommitFormat, CommitLanguage } from './types';
-import { ConfigManager } from '../utils';
+import { ConfigManager } from '../utils/config/configManager';
 import { getTemplate } from './templates';
 
 /**

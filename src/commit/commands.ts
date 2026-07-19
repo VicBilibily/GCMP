@@ -6,8 +6,8 @@
 import * as vscode from 'vscode';
 import { GeneratorService } from './generatorService';
 import { CommitMessage } from './commitMessage';
-import { Logger } from '../utils';
-import { t } from '../utils/l10n';
+import { Logger } from '../utils/runtime/logger';
+import { t } from '../utils/runtime/l10n';
 import { Repository } from '../types/git';
 
 /**

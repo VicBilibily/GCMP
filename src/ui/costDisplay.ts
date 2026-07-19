@@ -1,4 +1,4 @@
-﻿import { convertUsdToRmb } from '../utils/pricingCurrency';
+﻿import { convertUsdToRmb } from '../utils/pricing/pricingCurrency';
 import { formatCost } from './utils';
 
 export type DisplayCurrency = 'MIXED' | 'USD' | 'RMB';

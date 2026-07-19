@@ -14,9 +14,10 @@ import {
     GitExtensionNotFoundError,
     ModelNotFoundError
 } from './types';
-import { ConfigManager, Logger } from '../utils';
+import { ConfigManager } from '../utils/config/configManager';
+import { Logger } from '../utils/runtime/logger';
 import { Repository } from '../types/git';
-import { t } from '../utils/l10n';
+import { t } from '../utils/runtime/l10n';
 
 /**
  * CommitMessage - 提交消息生成的 UI 协调器。

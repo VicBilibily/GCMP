@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Logger } from '../utils';
+import { Logger } from '../utils/runtime/logger';
 import { ZhipuSearchTool } from './zhipuSearch';
 import { MiniMaxSearchTool } from './minimaxSearch';
 import { KimiSearchTool } from './kimiSearch';

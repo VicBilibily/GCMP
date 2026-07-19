@@ -4,7 +4,7 @@
 
 import * as vscode from 'vscode';
 import { CliAuthFactory } from './auth/cliAuthFactory';
-import { t } from '../utils/l10n';
+import { t } from '../utils/runtime/l10n';
 
 /**
  * 注册 CLI 认证命令

@@ -5,9 +5,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Logger } from '../utils/logger';
-import { ApiKeyManager } from '../utils/apiKeyManager';
-import { t } from '../utils/l10n';
+import { Logger } from '../utils/runtime/logger';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { t } from '../utils/runtime/l10n';
 
 /**
  * API Key 输入提示的选项

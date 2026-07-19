@@ -6,12 +6,12 @@
 import * as vscode from 'vscode';
 import { BaseStatusBarItem, StatusBarItemConfig } from './baseStatusBarItem';
 import { configProviders } from '../providers/config';
-import { StatusLogger } from '../utils/statusLogger';
-import { Logger } from '../utils/logger';
+import { StatusLogger } from '../utils/runtime/statusLogger';
+import { Logger } from '../utils/runtime/logger';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
-import { t } from '../utils/l10n';
-import { ConfigManager } from '../utils/configManager';
+import { t } from '../utils/runtime/l10n';
+import { ConfigManager } from '../utils/config/configManager';
 
 /**
  * 速率限制窗口结构

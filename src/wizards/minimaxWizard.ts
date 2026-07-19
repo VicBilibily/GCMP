@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Logger } from '../utils/logger';
-import { ConfigManager } from '../utils/configManager';
+import { Logger } from '../utils/runtime/logger';
+import { ConfigManager } from '../utils/config/configManager';
 import { StatusBarManager } from '../status';
-import { MiniMaxConfig } from '../utils/configManager';
-import { t } from '../utils/l10n';
+import { MiniMaxConfig } from '../utils/config/configManager';
+import { t } from '../utils/runtime/l10n';
 import { BaseWizard } from './baseWizard';
 
 export class MiniMaxWizard extends BaseWizard {

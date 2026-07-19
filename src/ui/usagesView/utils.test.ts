@@ -2,7 +2,7 @@
 import test from 'node:test';
 
 import type { BaseStats, NativeCostSplit } from '../../usages/fileLogger/types';
-import { calculateCostWithBreakdown, toCostBreakdownLog } from '../../utils/costCalculator';
+import { calculateCostWithBreakdown, toCostBreakdownLog } from '../../utils/pricing/costCalculator';
 import {
     buildCostBreakdownTitle,
     getCurrencyToggleTitle,

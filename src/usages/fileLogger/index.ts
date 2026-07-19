@@ -13,7 +13,7 @@ const USAGES_CACHE_VERSION_TIMESTAMP = new Date('2026-07-16T10:00:00+08:00').get
 
 import * as vscode from 'vscode';
 import * as fsSync from 'fs';
-import { StatusLogger } from '../../utils/statusLogger';
+import { StatusLogger } from '../../utils/runtime/statusLogger';
 import { LogPathManager } from './logPathManager';
 import { LogWriteManager } from './logWriteManager';
 import { LogReadManager } from './logReadManager';

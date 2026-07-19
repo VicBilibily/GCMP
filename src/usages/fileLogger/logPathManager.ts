@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as fsSync from 'fs';
 import * as fs from 'fs/promises';
-import { StatusLogger } from '../../utils/statusLogger';
+import { StatusLogger } from '../../utils/runtime/statusLogger';
 import { DateUtils } from './dateUtils';
 import type { LogFilePath } from './types';
 

@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ConfigManager, Logger } from '../utils';
-import { t } from '../utils/l10n';
-import { ApiKeyManager } from '../utils/apiKeyManager';
-import { VersionManager } from '../utils/versionManager';
+import { ConfigManager } from '../utils/config/configManager';
+import { Logger } from '../utils/runtime/logger';
+import { t } from '../utils/runtime/l10n';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { VersionManager } from '../utils/runtime/versionManager';
 import { StatusBarManager } from '../status';
 
 /**

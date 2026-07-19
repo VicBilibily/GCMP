@@ -1,4 +1,4 @@
-import { sumCosts } from '../../utils/pricingCurrency';
+import { sumCosts } from '../../utils/pricing/pricingCurrency';
 
 function addCost(current: number, delta: number | undefined): number {
     return sumCosts([current, delta]);
@@ -16,7 +16,7 @@ function addCost(current: number, delta: number | undefined): number {
 import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import * as path from 'path';
-import { StatusLogger } from '../../utils/statusLogger';
+import { StatusLogger } from '../../utils/runtime/statusLogger';
 import { LogReadManager } from './logReadManager';
 import { LogIndexManager } from './logIndexManager';
 import { createEmptyNativeCostSplit, mergeNativeCostSplit } from './nativeCostSplit';

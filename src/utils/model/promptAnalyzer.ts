@@ -9,12 +9,12 @@ import {
     LanguageModelChatMessage,
     ProvideLanguageModelChatResponseOptions
 } from 'vscode';
-import { ModelConfig } from '../types/sharedTypes';
-import { Logger } from './logger';
-import { sanitizeToolSchema } from './schemaSanitizer';
+import { ModelConfig } from '../../types/sharedTypes';
+import { Logger } from '../runtime/logger';
+import { sanitizeToolSchema } from '../text/schemaSanitizer';
 import { TokenCounter } from './tokenCounter';
-import { decodeStatefulMarker } from '../handlers/statefulMarker';
-import { CustomDataPartMimeTypes } from '../handlers/types';
+import { decodeStatefulMarker } from '../../handlers/statefulMarker';
+import { CustomDataPartMimeTypes } from '../../handlers/types';
 
 /** analyzePromptParts 返回值 */
 export interface PromptAnalysis {

@@ -5,10 +5,10 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { Logger } from '../utils/logger';
-import { ApiKeyManager } from '../utils/apiKeyManager';
+import { Logger } from '../utils/runtime/logger';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
-import { t } from '../utils/l10n';
+import { t } from '../utils/runtime/l10n';
 
 interface CliCredentialStatus {
     hasCredentials: boolean;

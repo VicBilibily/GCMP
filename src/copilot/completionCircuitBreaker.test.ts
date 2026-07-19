@@ -104,7 +104,7 @@ function withMockedWorkspaceConfig(
             };
         }
 
-        if (id === '../utils/l10n') {
+        if (id === '../utils/runtime/l10n') {
             return {
                 t: (en: string) => en
             };

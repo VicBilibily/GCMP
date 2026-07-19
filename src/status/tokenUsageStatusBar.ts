@@ -5,15 +5,15 @@
 
 import * as vscode from 'vscode';
 import { TokenUsagesManager } from '../usages/usagesManager';
-import { StatusLogger } from '../utils/statusLogger';
+import { StatusLogger } from '../utils/runtime/statusLogger';
 import { DateUtils } from '../usages/fileLogger/dateUtils';
 import { UserActivityService } from './userActivityService';
 import { InterInstanceBus } from '../interInstance';
 import { LeaderElectionService } from './leaderElectionService';
 import type { TokenUsageStatsFromFile } from '../usages/fileLogger/types';
 import type { ExtendedTokenRequestLog } from '../usages/fileLogger/usageParser';
-import { t } from '../utils/l10n';
-import { convertUsdToRmb } from '../utils/pricingCurrency';
+import { t } from '../utils/runtime/l10n';
+import { convertUsdToRmb } from '../utils/pricing/pricingCurrency';
 import { formatCost } from '../ui/utils';
 
 /**

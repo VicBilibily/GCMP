@@ -3,8 +3,8 @@
  *  提供累加延迟重试机制，专门处理可重试的限流错误
  *--------------------------------------------------------------------------------------------*/
 
-import { Logger } from './logger';
-import { t } from './l10n';
+import { Logger } from '../runtime/logger';
+import { t } from '../runtime/l10n';
 import { isRateLimitLikeError } from './retryClassifier';
 
 /**

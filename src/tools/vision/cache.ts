@@ -11,7 +11,7 @@ import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { Logger } from '../../utils';
+import { Logger } from '../../utils/runtime/logger';
 
 export class VisionCache {
     constructor(private storageUri: vscode.Uri) {}

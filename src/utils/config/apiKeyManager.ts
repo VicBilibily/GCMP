@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ApiKeyValidation } from '../types/sharedTypes';
-import { Logger } from './logger';
-import { StatusBarManager } from '../status';
-import { InterInstanceBus } from '../interInstance';
-import { configProviders } from '../providers/config';
-import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
-import { t } from './l10n';
+import { ApiKeyValidation } from '../../types/sharedTypes';
+import { Logger } from '../runtime/logger';
+import { StatusBarManager } from '../../status';
+import { InterInstanceBus } from '../../interInstance';
+import { configProviders } from '../../providers/config';
+import { CliAuthFactory } from '../../cli/auth/cliAuthFactory';
+import { t } from '../runtime/l10n';
 
 /**
  * API密钥安全存储管理器

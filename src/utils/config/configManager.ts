@@ -6,7 +6,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { Logger } from './logger';
+import { Logger } from '../runtime/logger';
 import {
     ConfigProvider,
     ModelTokenPricingInput,
@@ -15,12 +15,12 @@ import {
     ProviderRetryOverride,
     ModelConfig,
     ModelOverride
-} from '../types/sharedTypes';
-import { collectInvalidTierCrons, normalizeTokenPricing } from './pricingTierResolver';
-import { configProviders } from '../providers/config';
-import { CommitFormat, CommitLanguage, ModelSelection } from '../commit/types';
-import { InterInstanceBus } from '../interInstance';
-import { t } from './l10n';
+} from '../../types/sharedTypes';
+import { collectInvalidTierCrons, normalizeTokenPricing } from '../pricing/pricingTierResolver';
+import { configProviders } from '../../providers/config';
+import { CommitFormat, CommitLanguage, ModelSelection } from '../../commit/types';
+import { InterInstanceBus } from '../../interInstance';
+import { t } from '../runtime/l10n';
 import {
     createProxiedFetch,
     NO_PROXY_SENTINEL,
@@ -28,8 +28,8 @@ import {
     redactProxyUrl,
     redactHeaders,
     sanitizeConfigForLogging
-} from './proxyAgent';
-import { HarRecorder } from './harRecorder';
+} from '../net/proxyAgent';
+import { HarRecorder } from '../net/harRecorder';
 
 /**
  * 智谱AI搜索配置

@@ -10,7 +10,7 @@ import { IpcClient } from './ipcClient';
 import { FallbackTransport } from './fallbackTransport';
 import { resolveIpcPath } from './pathResolver';
 import { LeaderElectionService } from '../status/leaderElectionService';
-import { StatusLogger } from '../utils/statusLogger';
+import { StatusLogger } from '../utils/runtime/statusLogger';
 
 /**
  * 跨实例总线配置选项

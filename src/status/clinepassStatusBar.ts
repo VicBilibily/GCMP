@@ -6,12 +6,12 @@
 
 import * as vscode from 'vscode';
 import { ProviderStatusBarItem, StatusBarItemConfig } from './providerStatusBarItem';
-import { StatusLogger } from '../utils/statusLogger';
-import { Logger } from '../utils/logger';
-import { ApiKeyManager } from '../utils/apiKeyManager';
-import { VersionManager } from '../utils/versionManager';
-import { t } from '../utils/l10n';
-import { ConfigManager } from '../utils/configManager';
+import { StatusLogger } from '../utils/runtime/statusLogger';
+import { Logger } from '../utils/runtime/logger';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { VersionManager } from '../utils/runtime/versionManager';
+import { t } from '../utils/runtime/l10n';
+import { ConfigManager } from '../utils/config/configManager';
 
 /**
  * ClinePass 单条用量限制

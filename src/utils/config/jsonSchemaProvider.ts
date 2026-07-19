@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ProviderConfig } from '../types/sharedTypes';
+import { ProviderConfig } from '../../types/sharedTypes';
 import { ConfigManager } from './configManager';
-import { Logger } from './logger';
-import { t } from './l10n';
+import { Logger } from '../runtime/logger';
+import { t } from '../runtime/l10n';
 import type { JSONSchema7 } from 'json-schema';
 import { KnownProviders } from './knownProviders';
 import { CompatibleModelManager } from './compatibleModelManager';

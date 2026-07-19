@@ -12,10 +12,10 @@ import {
     ProvideLanguageModelChatResponseOptions
 } from 'vscode';
 import { createTokenizer, getRegexByEncoder, getSpecialTokensByEncoder, TikTokenizer } from '@microsoft/tiktokenizer';
-import { Logger } from './logger';
-import { t } from './l10n';
-import { sanitizeToolSchema } from './schemaSanitizer';
-import { CustomDataPartMimeTypes } from '../handlers/types';
+import { Logger } from '../runtime/logger';
+import { t } from '../runtime/l10n';
+import { sanitizeToolSchema } from '../text/schemaSanitizer';
+import { CustomDataPartMimeTypes } from '../../handlers/types';
 
 /* ---------------------------------------------------------------------------------------------
  *  Token Counter 主类

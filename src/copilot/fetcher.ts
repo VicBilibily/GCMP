@@ -3,8 +3,8 @@
  *  实现 IFetcher 接口，处理 API 请求
  *--------------------------------------------------------------------------------------------*/
 
-import { VersionManager } from '../utils/versionManager';
-import type { NESCompletionConfig } from '../utils/configManager';
+import { VersionManager } from '../utils/runtime/versionManager';
+import type { NESCompletionConfig } from '../utils/config/configManager';
 import {
     FetchOptions,
     PaginationOptions,
@@ -17,7 +17,7 @@ import { IFetcher } from '@vscode/chat-lib/dist/src/_internal/platform/networkin
 import { StatusBarManager } from '../status';
 import { configProviders } from '../providers/config';
 import { getCompletionLogger, getApiKeyManager, getConfigManager } from './singletons';
-import { closeProxyAgents } from '../utils/proxyAgent';
+import { closeProxyAgents } from '../utils/net/proxyAgent';
 
 // ============================================================================
 // Fetcher - 实现 IFetcher 接口

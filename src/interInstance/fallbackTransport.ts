@@ -8,7 +8,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { InterInstanceEvent, parseIncrementalEvents, INTER_INSTANCE_EVENT_TYPES } from './eventProtocol';
-import { StatusLogger } from '../utils/statusLogger';
+import { StatusLogger } from '../utils/runtime/statusLogger';
 
 export interface FallbackTransportOptions {
     /** 当前实例 ID */

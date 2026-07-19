@@ -4,7 +4,7 @@
  *  提供 clearCache / getCacheStats / clearStaleInstances 的通用实现，消除三处样板重复
  *--------------------------------------------------------------------------------------------*/
 
-import { Logger } from '../../utils/logger';
+import { Logger } from '../../utils/runtime/logger';
 
 /**
  * MCP 客户端实例的最小契约：支持 cleanup 与连接状态查询

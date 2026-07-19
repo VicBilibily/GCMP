@@ -12,7 +12,7 @@ import {
     mergeNativeCostSplit
 } from './nativeCostSplit';
 import type { BaseStats, TokenRequestLog, TokenUsageStatsFromFile } from './types';
-import { convertUsdToRmb, sumCosts } from '../../utils/pricingCurrency';
+import { convertUsdToRmb, sumCosts } from '../../utils/pricing/pricingCurrency';
 
 function addCost(current: number, delta: number | undefined): number {
     return sumCosts([current, delta]);

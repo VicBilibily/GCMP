@@ -14,12 +14,13 @@ import {
     PrepareLanguageModelChatModelOptions
 } from 'vscode';
 import { ProviderConfig } from '../types/sharedTypes';
-import { ApiKeyManager, Logger } from '../utils';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { Logger } from '../utils/runtime/logger';
 import { GenericModelProvider } from '../providers/genericModelProvider';
 import { CliWizard } from '../wizards/cliWizard';
 import { CliAuthFactory } from './auth/cliAuthFactory';
 import { StatusBarManager } from '../status';
-import { t } from '../utils/l10n';
+import { t } from '../utils/runtime/l10n';
 
 /**
  * CLI 认证专用模型提供商类

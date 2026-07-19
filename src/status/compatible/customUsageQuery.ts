@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IBalanceQuery, BalanceQueryResult } from './balanceQuery';
-import { StatusLogger } from '../../utils/statusLogger';
-import { ApiKeyManager } from '../../utils/apiKeyManager';
-import { ConfigManager } from '../../utils/configManager';
-import { getNumberByPath, getValueByPath } from '../../utils/pathExtractor';
-import { KnownProviders } from '../../utils/knownProviders';
-import { Logger } from '../../utils/logger';
+import { StatusLogger } from '../../utils/runtime/statusLogger';
+import { ApiKeyManager } from '../../utils/config/apiKeyManager';
+import { ConfigManager } from '../../utils/config/configManager';
+import { getNumberByPath, getValueByPath } from '../../utils/text/pathExtractor';
+import { KnownProviders } from '../../utils/config/knownProviders';
+import { Logger } from '../../utils/runtime/logger';
 import type { ProviderUsageConfig, UsageFieldValueSource } from '../../types/sharedTypes';
 import {
     mergeProviderUsageOverride,

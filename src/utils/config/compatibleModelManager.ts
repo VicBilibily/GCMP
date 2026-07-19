@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Logger } from './logger';
+import { Logger } from '../runtime/logger';
 import { ApiKeyManager } from './apiKeyManager';
-import { StatusBarManager } from '../status';
+import { StatusBarManager } from '../../status';
 import { KnownProviders } from './knownProviders';
-import { configProviders } from '../providers/config';
-import { t } from './l10n';
-import { sanitizeConfigForLogging } from './proxyAgent';
-import { ModelEditor } from '../ui/modelEditor';
-import type { ModelTokenPricingInput, NativeToolConfig, WebSearchToolConfig } from '../types/sharedTypes';
+import { configProviders } from '../../providers/config';
+import { t } from '../runtime/l10n';
+import { sanitizeConfigForLogging } from '../net/proxyAgent';
+import { ModelEditor } from '../../ui/modelEditor';
+import type { ModelTokenPricingInput, NativeToolConfig, WebSearchToolConfig } from '../../types/sharedTypes';
 
 /**
  * 后退按钮点击事件

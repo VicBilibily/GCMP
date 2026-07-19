@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseVisionTool } from './baseVisionTool';
-import { t } from '../../../utils/l10n';
+import { t } from '../../../utils/runtime/l10n';
 
 export class UiDiffCheckTool extends BaseVisionTool {
     protected readonly toolName = 'gcmp_uiDiffCheck';

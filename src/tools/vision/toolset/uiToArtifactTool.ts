@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseVisionTool } from './baseVisionTool';
-import { t } from '../../../utils/l10n';
+import { t } from '../../../utils/runtime/l10n';
 
 type OutputType = 'code' | 'prompt' | 'spec' | 'description';
 const VALID_OUTPUT_TYPES: OutputType[] = ['code', 'prompt', 'spec', 'description'];

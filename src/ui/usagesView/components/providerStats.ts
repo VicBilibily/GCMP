@@ -8,7 +8,7 @@ import { createElement } from '../../utils';
 import { TokenStats } from '../../../usages/fileLogger/types';
 import { createEmptyNativeCostSplit, mergeNativeCostSplit } from '../../../usages/fileLogger/nativeCostSplit';
 import { getDisplayCostPresentation } from '../../costDisplay';
-import { sumCosts } from '../../../utils/pricingCurrency';
+import { sumCosts } from '../../../utils/pricing/pricingCurrency';
 import {
     calculateTotalTokens,
     formatTokens,

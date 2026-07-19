@@ -12,8 +12,8 @@ import {
     CancellationToken
 } from 'vscode';
 import { ProviderConfig } from '../types/sharedTypes';
-import { Logger } from '../utils/logger';
-import { ApiKeyManager } from '../utils/apiKeyManager';
+import { Logger } from '../utils/runtime/logger';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { StepFunWizard } from '../wizards/stepfunWizard';
 import { GenericModelProvider } from './genericModelProvider';
 

@@ -8,11 +8,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Logger } from '../utils/logger';
-import { ConfigManager } from '../utils/configManager';
-import { t } from '../utils/l10n';
+import { Logger } from '../utils/runtime/logger';
+import { ConfigManager } from '../utils/config/configManager';
+import { t } from '../utils/runtime/l10n';
 import { configProviders } from '../providers/config';
-import { CompatibleModelManager } from '../utils/compatibleModelManager';
+import { CompatibleModelManager } from '../utils/config/compatibleModelManager';
 
 /** 从内置 ProviderConfig 判断模型是否支持图像输入 */
 function hasImageCapability(m: { capabilities?: { imageInput?: boolean } }): boolean {

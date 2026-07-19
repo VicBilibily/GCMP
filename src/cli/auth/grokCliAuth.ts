@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { BaseCliAuth } from './baseCliAuth';
-import { Logger } from '../../utils/logger';
+import { Logger } from '../../utils/runtime/logger';
 import type { CliAuthConfig, OAuthCredentials } from '../type';
 
 interface GrokAuthRecord {

@@ -14,19 +14,17 @@ import {
     Progress
 } from 'vscode';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
-import {
-    ApiKeyManager,
-    ConfigManager,
-    createLanguageModelChatInformation,
-    isCancellationError,
-    Logger,
-    ModelInfoCache,
-    PromptAnalyzer,
-    RetryManager,
-    TokenCounter
-} from '../utils';
-import { getEffectiveMaxInputTokens, getEffectiveContextWindow } from '../utils/languageModelInfo';
-import type { RetryableError } from '../utils';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { ConfigManager } from '../utils/config/configManager';
+import { createLanguageModelChatInformation } from '../utils/model/languageModelInfo';
+import { isCancellationError } from '../utils/text/cancellationError';
+import { Logger } from '../utils/runtime/logger';
+import { ModelInfoCache } from '../utils/model/modelInfoCache';
+import { PromptAnalyzer } from '../utils/model/promptAnalyzer';
+import { RetryManager } from '../utils/retry/retryManager';
+import { TokenCounter } from '../utils/model/tokenCounter';
+import { getEffectiveMaxInputTokens, getEffectiveContextWindow } from '../utils/model/languageModelInfo';
+import type { RetryableError } from '../utils/retry/retryManager';
 import * as liveMetrics from '../handlers/liveMetrics';
 import { OpenAIHandler } from '../handlers/openaiHandler';
 import { OpenAICustomHandler } from '../handlers/openaiCustomHandler';

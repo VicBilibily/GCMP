@@ -1,4 +1,4 @@
-import { ModelConfig } from '../types/sharedTypes';
+import { ModelConfig } from '../../types/sharedTypes';
 
 /** 认可的 reasoningEffort 可选值集合，用于校验远端数据合法性 */
 const reasoningEfforts = new Set<NonNullable<ModelConfig['reasoningEffort']>[number]>([

@@ -5,8 +5,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs/promises';
-import { t } from '../../utils/l10n';
-import { StatusLogger } from '../../utils/statusLogger';
+import { t } from '../../utils/runtime/l10n';
+import { StatusLogger } from '../../utils/runtime/statusLogger';
 import { LogPathManager } from './logPathManager';
 import type { TokenRequestLog } from './types';
 

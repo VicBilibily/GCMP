@@ -11,20 +11,18 @@ import {
     Progress
 } from 'vscode';
 import { ProviderConfig, ModelConfig, ModelOverride } from '../types/sharedTypes';
-import {
-    Logger,
-    ApiKeyManager,
-    CompatibleModelManager,
-    ConfigManager,
-    isCancellationError,
-    KnownProviders
-} from '../utils';
+import { Logger } from '../utils/runtime/logger';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { CompatibleModelManager } from '../utils/config/compatibleModelManager';
+import { ConfigManager } from '../utils/config/configManager';
+import { isCancellationError } from '../utils/text/cancellationError';
+import { KnownProviders } from '../utils/config/knownProviders';
 import { classifyRequest } from '../handlers/requestClassifier';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status';
 import { configProviders } from './config';
-import { collectInvalidTierCrons, normalizeTokenPricing } from '../utils/pricingTierResolver';
+import { collectInvalidTierCrons, normalizeTokenPricing } from '../utils/pricing/pricingTierResolver';
 
 /**
  * 独立兼容模型提供商类

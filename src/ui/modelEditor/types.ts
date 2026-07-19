@@ -5,7 +5,7 @@
  * 后端（VS Code 侧）→ HostMessage；前端（webview 侧）→ WebViewMessage。
  */
 
-import type { CompatibleModelConfig } from '../../utils/compatibleModelManager';
+import type { CompatibleModelConfig } from '../../utils/config/compatibleModelManager';
 
 /**
  * SDK 兼容模式（与 CompatibleModelConfig.sdkMode 保持一致）

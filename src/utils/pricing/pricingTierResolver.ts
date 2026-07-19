@@ -19,7 +19,7 @@ import type {
     PricingInput,
     PricingTier,
     PricingTierInput
-} from '../types/sharedTypes';
+} from '../../types/sharedTypes';
 import { convertRmbToUsd } from './pricingCurrency';
 
 /**

@@ -7,8 +7,8 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { TokenUsagesManager } from '../../usages/usagesManager';
-import { StatusLogger } from '../../utils/statusLogger';
-import { t } from '../../utils/l10n';
+import { StatusLogger } from '../../utils/runtime/statusLogger';
+import { t } from '../../utils/runtime/l10n';
 import { InterInstanceBus } from '../../interInstance';
 
 /**

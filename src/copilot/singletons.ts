@@ -5,10 +5,10 @@
  * 此模块提供统一的接口来访问存储在 globalThis 中的共享单例，确保两个 bundle 使用同一实例
  */
 
-import { CompletionLogger } from '../utils/completionLogger';
-import { ApiKeyManager } from '../utils/apiKeyManager';
+import { CompletionLogger } from '../utils/runtime/completionLogger';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { StatusBarManager } from '../status/statusBarManager';
-import { ConfigManager } from '../utils/configManager';
+import { ConfigManager } from '../utils/config/configManager';
 
 /** 单例容器的类型定义 */
 interface GCMPSingletons {

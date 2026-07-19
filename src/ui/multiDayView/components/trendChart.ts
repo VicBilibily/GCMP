@@ -1,7 +1,7 @@
 import Chart from 'chart.js/auto';
 import type { MultiDayAnalysisResult } from '../../../usages/multiDay/types';
 import type { MultiDayChartCurrency, MultiDayRenderOptions } from '../types';
-import { convertUsdToRmb } from '../../../utils/pricingCurrency';
+import { convertUsdToRmb } from '../../../utils/pricing/pricingCurrency';
 import { t } from '../../usagesView/utils';
 import { createElement, formatCost, formatTokens } from '../../utils';
 

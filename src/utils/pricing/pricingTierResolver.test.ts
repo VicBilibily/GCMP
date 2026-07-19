@@ -10,7 +10,7 @@ import {
     resolveActiveTier,
     serializeTokenPricingInput
 } from './pricingTierResolver';
-import type { ModelTokenPricing, ModelTokenPricingInput } from '../types/sharedTypes';
+import type { ModelTokenPricing, ModelTokenPricingInput } from '../../types/sharedTypes';
 
 // ============= parseCron =============
 

@@ -6,9 +6,9 @@
 
 import * as vscode from 'vscode';
 import { GistSyncService, getKeyDisplayName } from './gistSyncService';
-import { Logger } from '../utils/logger';
-import { t } from '../utils/l10n';
-import { ApiKeyManager } from '../utils/apiKeyManager';
+import { Logger } from '../utils/runtime/logger';
+import { t } from '../utils/runtime/l10n';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { InterInstanceBus } from '../interInstance';
 
 /**

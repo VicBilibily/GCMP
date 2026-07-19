@@ -5,23 +5,18 @@
 
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
-import {
-    Logger,
-    createOpenCodeHeaders,
-    isCancellationError,
-    calculateCostWithBreakdown,
-    formatCostBreakdownLog,
-    toNanoAiu,
-    toCostBreakdownLog,
-    RetryableError
-} from '../utils';
-import { ConfigManager } from '../utils/configManager';
-import { ApiKeyManager } from '../utils/apiKeyManager';
+import { Logger } from '../utils/runtime/logger';
+import { createOpenCodeHeaders } from '../utils/text/formatUtils';
+import { isCancellationError } from '../utils/text/cancellationError';
+import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu, toCostBreakdownLog } from '../utils/pricing/costCalculator';
+import { RetryableError } from '../utils/retry/retryManager';
+import { ConfigManager } from '../utils/config/configManager';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelConfig, ModelChatResponseOptions, ModelTokenPricing, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';
 import * as liveMetrics from './liveMetrics';
-import { t } from '../utils/l10n';
+import { t } from '../utils/runtime/l10n';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 
 /**

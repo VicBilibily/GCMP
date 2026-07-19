@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Logger } from '../utils';
-import { t } from '../utils/l10n';
+import { Logger } from '../utils/runtime/logger';
+import { t } from '../utils/runtime/l10n';
 import {
     DashscopeMCPWebSearchClient,
     type DashscopeWebSearchRequest,

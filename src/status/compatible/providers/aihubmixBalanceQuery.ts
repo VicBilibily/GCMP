@@ -3,10 +3,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IBalanceQuery, BalanceQueryResult } from '../balanceQuery';
-import { StatusLogger } from '../../../utils/statusLogger';
-import { ApiKeyManager } from '../../../utils/apiKeyManager';
-import { Logger, KnownProviders } from '../../../utils';
-import { ConfigManager } from '../../../utils/configManager';
+import { StatusLogger } from '../../../utils/runtime/statusLogger';
+import { ApiKeyManager } from '../../../utils/config/apiKeyManager';
+import { Logger } from '../../../utils/runtime/logger';
+import { KnownProviders } from '../../../utils/config/knownProviders';
+import { ConfigManager } from '../../../utils/config/configManager';
 
 /**
  * AIHubMix API 响应类型
