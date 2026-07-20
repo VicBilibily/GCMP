@@ -168,14 +168,13 @@
         },
         "nativeToolConfig": {
             "type": "object",
-            "additionalProperties": false,
-            "description": "原生工具配置项。type 为工具类型，其余字段仅对 web_search 生效，其他工具忽略。",
+            "description": "原生工具配置项。仅 type 为必填，允许传入 provider 特有的额外选项（如 x_search、remote_mcp 等）。",
             "required": ["type"],
             "properties": {
                 "type": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "原生工具类型（如 web_search、web_extractor）。不限定枚举，允许任意字符串以兼容未来新增的内置工具。"
+                    "description": "原生工具类型（如 web_search、web_extractor、x_search、remote_mcp）。不限定枚举，允许任意字符串以兼容 provider 特有工具。"
                 },
                 "maxUses": {
                     "type": "integer",
@@ -196,7 +195,6 @@
                 },
                 "userLocation": {
                     "type": "object",
-                    "additionalProperties": false,
                     "properties": {
                         "city": { "type": "string", "minLength": 1, "description": "用户所在城市" },
                         "region": { "type": "string", "minLength": 1, "description": "用户所在地区" },

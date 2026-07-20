@@ -395,7 +395,7 @@ export interface WebSearchToolConfig {
 export type NativeToolType = string;
 
 /**
- * 原生工具配置项。type 为工具类型，其余字段仅对 web_search 生效，其他工具忽略。
+ * 原生工具配置项。type 为必填，其余字段为已知常用选项，允许传入 provider 特有的额外属性。
  */
 export interface NativeToolConfig {
     type: NativeToolType;
@@ -412,6 +412,8 @@ export interface NativeToolConfig {
         country?: string;
         timezone?: string;
     };
+    /** 允许 provider 特有的额外选项透传 */
+    [key: string]: unknown;
 }
 
 /**

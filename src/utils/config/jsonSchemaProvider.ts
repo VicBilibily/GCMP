@@ -95,11 +95,10 @@ export class JsonSchemaProvider {
     private static getNativeToolConfigSchema(): Record<string, unknown> {
         return {
             type: 'object',
-            additionalProperties: false,
             required: ['type'],
             description: t(
-                'Native tool configuration item. Only web_search supports extra fields; web_extractor ignores them.',
-                '原生工具配置项。仅 web_search 支持额外字段，web_extractor 忽略。'
+                'Native tool configuration item. Only type is required; additional provider-specific options are allowed.',
+                '原生工具配置项。仅 type 为必填，允许传入 provider 特有的额外选项。'
             ),
             properties: {
                 type: {
@@ -132,7 +131,6 @@ export class JsonSchemaProvider {
                 },
                 userLocation: {
                     type: 'object',
-                    additionalProperties: false,
                     properties: {
                         city: { type: 'string', minLength: 1 },
                         region: { type: 'string', minLength: 1 },

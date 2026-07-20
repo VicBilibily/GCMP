@@ -9,7 +9,12 @@ import { TokenUsagesManager } from '../usages/usagesManager';
 import { Logger } from '../utils/runtime/logger';
 import { sanitizeToolSchema } from '../utils/text/schemaSanitizer';
 import { isCancellationError } from '../utils/text/cancellationError';
-import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu, toCostBreakdownLog } from '../utils/pricing/costCalculator';
+import {
+    calculateCostWithBreakdown,
+    formatCostBreakdownLog,
+    toNanoAiu,
+    toCostBreakdownLog
+} from '../utils/pricing/costCalculator';
 import { t } from '../utils/runtime/l10n';
 import { ModelChatResponseOptions, ModelConfig, ModelTokenPricing, NativeToolConfig } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
@@ -617,9 +622,14 @@ export class OpenAIResponsesHandler {
                 {
                     // 将 NativeToolConfig 转换为 Responses API tools 数组项
                     const buildToolEntry = (cfg: NativeToolConfig): Record<string, unknown> => {
-                        const entry: Record<string, unknown> = { type: cfg.type };
-                        // 仅 web_search 支持额外配置；其他工具（如 web_extractor）无额外字段
+                        // 展开所有属性（含 provider 特有选项），透传到请求体
+                        const entry: Record<string, unknown> = { ...cfg };
                         if (cfg.type === 'web_search') {
+                            // web_search 的 GCMP 内部字段需转换为 API 格式，剥离原始字段
+                            delete entry.maxUses;
+                            delete entry.allowedDomains;
+                            delete entry.blockedDomains;
+                            delete entry.userLocation;
                             const filters: Record<string, unknown> = {};
                             if (cfg.allowedDomains?.length) {
                                 filters.allowed_domains = cfg.allowedDomains;
