@@ -8,7 +8,12 @@ import OpenAI from 'openai';
 import { Logger } from '../utils/runtime/logger';
 import { createOpenCodeHeaders } from '../utils/text/formatUtils';
 import { isCancellationError } from '../utils/text/cancellationError';
-import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu, toCostBreakdownLog } from '../utils/pricing/costCalculator';
+import {
+    calculateCostWithBreakdown,
+    formatCostBreakdownLog,
+    toNanoAiu,
+    toCostBreakdownLog
+} from '../utils/pricing/costCalculator';
 import { RetryableError } from '../utils/retry/retryManager';
 import { ConfigManager } from '../utils/config/configManager';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';

@@ -28,6 +28,13 @@ export class LeaderElectionService {
     private static taskTimer: NodeJS.Timeout | undefined;
     private static _isLeader = false;
     private static initialized = false;
+    /**
+     * 当前是否运行在 Agents 窗体中。
+     * Agents 窗体与普通编辑器窗口的 globalState 互相隔离，基于 globalState 的选举
+     * 在其间不可见，会导致双方各自宣布自己是 Leader。因此 Agents 窗体不参与选举，
+     * 仅作为 IPC 客户端连接普通窗口选出的 Leader（见 InterInstanceBus）。
+     */
+    private static agentsWindow = false;
 
     private static periodicTasks: Array<() => Promise<void>> = [];
 
@@ -58,12 +65,26 @@ export class LeaderElectionService {
 
         this.instanceId = crypto.randomUUID();
         this.context = context;
+        // Agents 窗体检测（复刻 VS Code 内部判定，不依赖提案 API）：
+        // Agents 窗口打开的是主进程约定的合成工作区文件
+        // <appSettingsHome>/agent-sessions.code-workspace（见 windowsMainService.ensureAgentsWindow），
+        // 普通窗口不会打开该文件。仅比对文件名，容忍不同 profile 下父目录差异。
+        const workspaceFileName = vscode.workspace.workspaceFile?.fsPath.split(/[\\/]/).pop();
+        this.agentsWindow = workspaceFileName === 'agent-sessions.code-workspace';
         StatusLogger.info(
             `[LeaderElectionService] Initializing leader election service, current instance ID: ${this.instanceId}`
         );
 
         // 初始化用户活跃检测服务
         UserActivityService.initialize(context, this.instanceId);
+
+        if (this.agentsWindow) {
+            // Agents 窗体不参与选举：不启动竞选定时器，_isLeader 恒为 false，
+            // InterInstanceBus 会通过 Leader 发现文件以纯客户端身份连接主窗口的 IPC Server。
+            StatusLogger.info('[LeaderElectionService] Running in Agents window, leader election disabled');
+            this.initialized = true;
+            return;
+        }
 
         // 添加随机延迟 (0-1000ms)，避免多个实例同时启动时的竞态条件
         const startDelay = Math.random() * 1000;
@@ -179,6 +200,13 @@ export class LeaderElectionService {
     }
 
     /**
+     * 当前是否运行在 Agents 窗体中（该环境下选举被禁用）
+     */
+    public static isAgentsWindow(): boolean {
+        return this.agentsWindow;
+    }
+
+    /**
      * 获取当前实例ID
      */
     public static getInstanceId(): string {
@@ -190,6 +218,10 @@ export class LeaderElectionService {
      */
     public static getLeaderId(): string | undefined {
         if (!this.context) {
+            return undefined;
+        }
+        // Agents 窗体的 globalState 与普通窗口隔离，读到的是本窗体独立副本，不可作为选举依据
+        if (this.agentsWindow) {
             return undefined;
         }
         const leaderInfo = this.context.globalState.get<LeaderInfo>(this.LEADER_KEY);
@@ -218,6 +250,10 @@ export class LeaderElectionService {
      */
     public static subscribeToLeaderResigning(): void {
         if (!this.context) {
+            return;
+        }
+        // Agents 窗体不参与选举，收到卸任通知后也不应触发本地竞选/接管
+        if (this.agentsWindow) {
             return;
         }
         this.context.subscriptions.push(

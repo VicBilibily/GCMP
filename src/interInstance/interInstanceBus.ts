@@ -9,6 +9,7 @@ import { IpcServer } from './ipcServer';
 import { IpcClient } from './ipcClient';
 import { FallbackTransport } from './fallbackTransport';
 import { resolveIpcPath } from './pathResolver';
+import { LeaderFilePublisher, readLeaderFile } from './leaderFile';
 import { LeaderElectionService } from '../status/leaderElectionService';
 import { StatusLogger } from '../utils/runtime/statusLogger';
 
@@ -40,6 +41,7 @@ export class InterInstanceBus {
 
     private static server: IpcServer | undefined;
     private static client: IpcClient | undefined;
+    private static leaderFilePublisher: LeaderFilePublisher | undefined;
     private static fallbackTransport: FallbackTransport | undefined;
     /** IPC 完全失败时启用文件 fallback；保留此标记用于调试 fallback 触发场景 */
     private static fallbackActive = false;
@@ -120,6 +122,7 @@ export class InterInstanceBus {
         await this.client?.disconnect();
         this.client = undefined;
 
+        await this.stopLeaderFilePublisher();
         await this.server?.stop();
         this.server = undefined;
 
@@ -282,6 +285,8 @@ export class InterInstanceBus {
             return;
         }
 
+        await this.stopLeaderFilePublisher();
+
         // 先断开之前的 client（如果之前是 follower）
         await this.client?.disconnect();
         this.client = undefined;
@@ -301,9 +306,21 @@ export class InterInstanceBus {
                 return;
             }
             this.server = server;
+            // Agents 窗体通过发现文件连接普通窗口 Leader；周期刷新可修正交接时迟到的旧写入。
+            const publisher = new LeaderFilePublisher(LeaderElectionService.getInstanceId(), ipcPath);
+            this.leaderFilePublisher = publisher;
+            await publisher.start();
+            if (!this.initialized || !this.context || !LeaderElectionService.isLeader()) {
+                await this.stopLeaderFilePublisher();
+                await server.stop();
+                this.server = undefined;
+                StatusLogger.debug('[InterInstanceBus] No longer leader after discovery publish, stopped');
+                return;
+            }
             StatusLogger.info(`[InterInstanceBus] IPC server started at ${ipcPath}`);
         } catch (error) {
             StatusLogger.error('[InterInstanceBus] Failed to start IPC server', error);
+            await this.stopLeaderFilePublisher();
             this.server = undefined;
             // Leader IPC 启动失败，启用文件 fallback
             this.fallbackActive = true;
@@ -315,6 +332,8 @@ export class InterInstanceBus {
         if (!this.options.enabled || !this.context) {
             return;
         }
+
+        await this.stopLeaderFilePublisher();
 
         // 先停止 server（如果之前是 leader）
         await this.server?.stop();
@@ -328,25 +347,47 @@ export class InterInstanceBus {
         await this.connectToLeader();
     }
 
+    private static async stopLeaderFilePublisher(): Promise<void> {
+        const publisher = this.leaderFilePublisher;
+        this.leaderFilePublisher = undefined;
+        await publisher?.stop();
+    }
+
     private static async connectToLeader(): Promise<void> {
         if (!this.initialized || !this.context) {
             return;
         }
 
         const generation = this.lifecycleGeneration;
-        const leaderId = LeaderElectionService.getLeaderId();
-        if (!leaderId) {
-            StatusLogger.debug('[InterInstanceBus] No leader available, will retry');
-            this.scheduleReconnect();
-            return;
-        }
+        let ipcPath: string;
+        if (LeaderElectionService.isAgentsWindow()) {
+            // Agents 窗体不参与选举：从 Leader 发现文件读取普通窗口 Leader 的 IPC 地址。
+            // 文件缺失或连接失败均由 scheduleReconnect 退避重试，新 Leader 写文件后自愈。
+            const leaderInfo = readLeaderFile();
+            if (!leaderInfo) {
+                StatusLogger.debug('[InterInstanceBus] No leader file available, will retry');
+                this.scheduleReconnect();
+                return;
+            }
+            if (leaderInfo.instanceId === this.instanceId) {
+                return;
+            }
+            ipcPath = leaderInfo.ipcPath;
+        } else {
+            const leaderId = LeaderElectionService.getLeaderId();
+            if (!leaderId) {
+                StatusLogger.debug('[InterInstanceBus] No leader available, will retry');
+                this.scheduleReconnect();
+                return;
+            }
 
-        // 避免自己连接自己
-        if (leaderId === this.instanceId) {
-            return;
-        }
+            // 避免自己连接自己
+            if (leaderId === this.instanceId) {
+                return;
+            }
 
-        const ipcPath = resolveIpcPath(leaderId);
+            ipcPath = resolveIpcPath(leaderId);
+        }
 
         // 先断开可能残留的旧连接，避免断线事件与重连竞态导致旧 socket 被遗弃后继续派发事件
         await this.client?.disconnect();
@@ -371,7 +412,7 @@ export class InterInstanceBus {
                 return;
             }
             this.reconnectAttempts = 0;
-            StatusLogger.info(`[InterInstanceBus] Connected to leader ${leaderId}`);
+            StatusLogger.info(`[InterInstanceBus] Connected to leader at ${ipcPath}`);
         } catch (error) {
             StatusLogger.warn('[InterInstanceBus] Failed to connect to leader IPC', error);
             this.client = undefined;

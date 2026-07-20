@@ -25,8 +25,12 @@ export class AtomicJsonFile {
         }
     }
 
-    static async writeJsonAtomically(filePath: string, value: unknown): Promise<void> {
-        const serialized = JSON.stringify(value, null, 2);
+    static async writeJsonAtomically(
+        filePath: string,
+        value: unknown,
+        serializer: (value: unknown) => string = value => JSON.stringify(value, null, 2)
+    ): Promise<void> {
+        const serialized = serializer(value);
         const dirPath = path.dirname(filePath);
         const tempPath = `${filePath}.${process.pid}.${Date.now().toString(36)}.${Math.random().toString(36).slice(2)}.tmp`;
 

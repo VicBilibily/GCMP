@@ -11,7 +11,12 @@ import { sanitizeToolSchema } from '../utils/text/schemaSanitizer';
 import { createOpenCodeHeaders } from '../utils/text/formatUtils';
 import { redactHeaders } from '../utils/net/proxyAgent';
 import { isCancellationError } from '../utils/text/cancellationError';
-import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu, toCostBreakdownLog } from '../utils/pricing/costCalculator';
+import {
+    calculateCostWithBreakdown,
+    formatCostBreakdownLog,
+    toNanoAiu,
+    toCostBreakdownLog
+} from '../utils/pricing/costCalculator';
 import { ConfigManager } from '../utils/config/configManager';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { t } from '../utils/runtime/l10n';

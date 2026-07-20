@@ -12,7 +12,12 @@ import { Logger } from '../utils/runtime/logger';
 import { ConfigManager } from '../utils/config/configManager';
 import { redactHeaders } from '../utils/net/proxyAgent';
 import { isCancellationError } from '../utils/text/cancellationError';
-import { calculateCostWithBreakdown, formatCostBreakdownLog, toNanoAiu, toCostBreakdownLog } from '../utils/pricing/costCalculator';
+import {
+    calculateCostWithBreakdown,
+    formatCostBreakdownLog,
+    toNanoAiu,
+    toCostBreakdownLog
+} from '../utils/pricing/costCalculator';
 import { VersionManager } from '../utils/runtime/versionManager';
 import { createOpenCodeHeaders } from '../utils/text/formatUtils';
 import { TokenUsagesManager } from '../usages/usagesManager';
