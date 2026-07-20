@@ -13,6 +13,7 @@
             "maxOutputTokens": 64000,
             "reasoningDefault": "high",
             "reasoningEffort": ["low", "medium", "high"],
+            "webSearchTool": true,
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [2, 6, 0.5],

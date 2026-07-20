@@ -2,6 +2,28 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.3] - 2026-07-20
+
+### 新增
+
+- **原生工具配置支持透传 provider 特有选项**：`nativeToolConfig` 除 `type` 外不再限制固定字段，允许传入 provider 特有的额外选项（如 `x_search`、`remote_mcp`）并按原样透传至 Responses API 请求体；`web_search` 的 GCMP 内部字段仍转换为标准 API 格式（[#311](https://github.com/VicBilibily/GCMP/issues/311)）。
+- **Grok 4.5 启用 web_search 原生工具**：Grok 4.5 模型开启原生联网搜索能力。
+
+### 修复
+
+- **Agents 窗体与普通窗口双主实例冲突**：Agents 窗体的 `globalState` 与普通窗口隔离，导致双方各自当选 Leader（[#310](https://github.com/VicBilibily/GCMP/issues/310)）。现改为 Agents 窗体不参与选举，通过临时目录下的 Leader 发现文件以纯客户端连接普通窗口的 IPC Server。
+
+---
+
+### Added
+
+- **Native tool configs support provider-specific options**: `nativeToolConfig` no longer restricts fields beyond `type`; provider-specific extra options (e.g. `x_search`, `remote_mcp`) are passed through to the Responses API request body as-is, while GCMP's internal `web_search` fields are still converted to the standard API format ([#311](https://github.com/VicBilibily/GCMP/issues/311)).
+- **Grok 4.5 enables the web_search native tool**: The Grok 4.5 model now has native web search enabled.
+
+### Fixed
+
+- **Duplicate leader instances across Agents window and editor windows**: The Agents window's `globalState` is isolated from regular windows, causing both sides to elect themselves as Leader ([#310](https://github.com/VicBilibily/GCMP/issues/310)). The Agents window no longer participates in the election and instead connects to the regular window's IPC server as a pure client via a leader discovery file in the temp directory.
+
 ## [0.26.2] - 2026-07-19
 
 ### 新增
