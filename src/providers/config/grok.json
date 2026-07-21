@@ -8,7 +8,7 @@
             "name": "Grok 4.5",
             "tooltip": "xAI 的 Grok 4.5 编程模型，通过 Grok Build OAuth 登录态访问。",
             "sdkMode": "openai-responses",
-            "contextSize": [500000, 200000],
+            "contextSize": [500000, 256000, 192000],
             "maxInputTokens": 436000,
             "maxOutputTokens": 64000,
             "reasoningDefault": "high",

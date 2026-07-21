@@ -2,6 +2,28 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.4] - 2026-07-21
+
+### 新增
+
+- **1M 上下文模型新增 192K 窗口档位**：覆盖全部内置 provider 的 1M 模型；火山方舟按量版 `Doubao-Seed-Evolving` 同步补齐窗口选择。
+- **128K 阶梯定价模型新增窗口选择**：dashscope `Qwen3-Max` / `Qwen3-Coder-Next` 与火山方舟 Doubao-Seed 系列（CodingPlan / AgentPlan / 按量）新增 128K 档，可锁定在 128K 以内避免触达高阶梯价。
+
+### 变更
+
+- **Grok 4.5 窗口档位调整**：原 200K 档调整为 256K / 192K 档（含 OpenCode Zen）。
+
+---
+
+### Added
+
+- **192K window tier for 1M-context models**: Applied to all 1M models across built-in providers; Volcengine pay-as-you-go `Doubao-Seed-Evolving` also gains window selection.
+- **Window selection for 128K-tiered pricing models**: DashScope `Qwen3-Max` / `Qwen3-Coder-Next` and Volcengine Doubao-Seed series (CodingPlan / AgentPlan / pay-as-you-go) now offer a 128K tier, locking usage below the 128K pricing threshold.
+
+### Changed
+
+- **Grok 4.5 window tiers adjusted**: The former 200K tier is replaced by 256K / 192K tiers (including OpenCode Zen).
+
 ## [0.26.3] - 2026-07-20
 
 ### 新增
