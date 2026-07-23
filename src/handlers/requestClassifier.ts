@@ -41,6 +41,11 @@ export type RequestKind =
     | 'test-gen' // 测试生成
     | 'goal-summary' // 目标摘要
     | 'risk-assessment' // 命令风险评估
+    | 'patch-healer' // apply_patch/edit_file 失败后的补丁修复
+    | 'notebook-gen' // Notebook 大纲/单元格生成
+    | 'mcp-setup' // MCP 服务器配置生成
+    | 'tool-clustering' // 虚拟工具聚类摘要
+    | 'ai-evaluator' // AI 响应达标评估
     | 'background' // 后台/工具请求（有内容但无法识别具体类型）
     | 'unknown'; // 无法识别（空请求）
 
@@ -73,7 +78,12 @@ const SUB_REQUEST_TYPES = new Set<RequestKind>([
     'workspace-gen',
     'test-gen',
     'goal-summary',
-    'risk-assessment'
+    'risk-assessment',
+    'patch-healer',
+    'notebook-gen',
+    'mcp-setup',
+    'tool-clustering',
+    'ai-evaluator'
 ]);
 
 /** 系统提示词前缀 → RequestKind 映射
@@ -152,6 +162,8 @@ const SYSTEM_PROMPT_PREFIXES: [string, RequestKind][] = [
         'You are an AI programming assistant that is specialized in applying code changes to an existing document',
         'code-mapper'
     ],
+    // codeMapperPrompt.tsx（新文档变体）→ code-mapper
+    ['You are an AI programming assistant that is specialized in generating code for a new document', 'code-mapper'],
     // setupTestsInvocation.tsx / setupTestsFrameworkQueryInvocation.tsx → test-gen
     ['You are a software engineer with expert knowledge around software testing frameworks', 'test-gen'],
     // startDebugging.tsx → debug-config
@@ -171,6 +183,30 @@ const SYSTEM_PROMPT_PREFIXES: [string, RequestKind][] = [
     ['You summarize a user', 'goal-summary'],
     // chatToolRiskAssessmentService.ts → risk-assessment
     ['You assess what one terminal command does', 'risk-assessment'],
+    // applyPatchTool.tsx (Heal Patch 修复) → patch-healer
+    ['You are an expert in file editing. The user has provided a patch that failed to apply', 'patch-healer'],
+    // editFileHealing.tsx (edit_file 失败修复) → patch-healer
+    ['You are an expert at analyzing files and patterns', 'patch-healer'],
+    // codebaseAgentPrompt.tsx → code-search (@workspace 语义搜索代理，须在 main-agent 兜底之前)
+    ['You are a code search expert', 'code-search'],
+    // mcpToolCallingLoopPrompt.tsx → mcp-setup
+    ['You are an expert in reading documentation and extracting relevant results', 'mcp-setup'],
+    // virtualToolSummarizer.tsx → tool-clustering
+    ['Context: You are given multiple groups of tools', 'tool-clustering'],
+    // newNotebook.tsx → notebook-gen (大纲)
+    ['You are an AI that creates a detailed content outline for a Jupyter notebook', 'notebook-gen'],
+    // newNotebook.tsx → notebook-gen (单元格代码)
+    ['You are an AI that writes Python code for a single section of a Jupyter notebook', 'notebook-gen'],
+    // devContainerConfigPrompt.tsx → workspace-gen (首行带句号，须在兜底之前)
+    [
+        'You are an AI programming assistant.\nYou are helping a software developer to configure a Dev Container',
+        'workspace-gen'
+    ],
+    // userQueryParser.tsx → test-gen (测试意图解析，copilot-utility-small)
+    ['You are a helpful assistant that parses user queries', 'test-gen'],
+    // aiEvaluationService.tsx → ai-evaluator
+    ['You are a world class examiner and must decide whether a response fulfills a given criteria', 'ai-evaluator'],
+    // ---- 以下为 main-agent 兜底，必须保持在数组末尾 ----
     // gpt5Prompt.tsx / gpt51Prompt.tsx / gpt52Prompt.tsx → main-agent (GPT-5 系列)
     ['You are a coding agent running in VS Code', 'main-agent'],
     // gpt5CodexPrompt.tsx / gpt51CodexPrompt.tsx → main-agent (Codex 系列)
@@ -179,6 +215,8 @@ const SYSTEM_PROMPT_PREFIXES: [string, RequestKind][] = [
     ['You have a vivid inner life as coding agent', 'main-agent'],
     // zaiPrompts.tsx → main-agent (GLM/ZAI 系列)
     ['You are a senior software architect and expert coding agent', 'main-agent'],
+    // defaultAgentInstructions.tsx / gemini / anthropic / xAI / editCodePrompt2 → main-agent
+    ['You are a highly sophisticated automated coding agent', 'main-agent'],
     // panelChatBasePrompt.tsx / editCodePrompt.tsx / inlineChat*.tsx → main-agent (面板/内联兜底)
     ['You are an AI programming assistant', 'main-agent'],
     // agentPrompt.tsx / minimaxPrompts.tsx / familyHPrompts.tsx → main-agent
