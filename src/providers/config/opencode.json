@@ -52,8 +52,7 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "thinkingFormat": "object-none",
-            "reasoningEffort": ["max", "none"],
+            "reasoningEffort": ["max", "high", "low"],
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
             "tokenPricing": [3, 15, 0.3]
         },

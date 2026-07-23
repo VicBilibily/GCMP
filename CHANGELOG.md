@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.5] - 2026-07-23
+
+### 新增
+
+- **请求分类器识别更多 Copilot 轻量辅助请求**：新增 `patch-healer`（apply_patch / edit_file 失败后的补丁修复）、`notebook-gen`（Notebook 大纲与单元格生成）、`mcp-setup`（MCP 服务器配置生成）、`tool-clustering`（虚拟工具聚类摘要）、`ai-evaluator`（AI 响应达标评估）五种请求类型，并补充 @workspace 代码搜索代理、Dev Container 配置、测试意图解析、code mapper 新文档生成等场景的前缀映射，这些子请求可正确关闭思考模式、避免被误判为主 Agent 对话。
+
+### 变更
+
+- **Kimi-K3 思考档位调整**：Moonshot、ClinePass、OpenCode Go、腾讯云、火山方舟渠道的 Kimi-K3 模型推理档位统一改为 `max / high / low`（移除 `none`，补齐 `high`），与官方最新支持的档位保持一致。
+
+---
+
+### Added
+
+- **Request classifier recognizes more lightweight Copilot auxiliary requests**: Added five new request types — `patch-healer` (patch repair after failed apply_patch / edit_file), `notebook-gen` (Notebook outline and cell generation), `mcp-setup` (MCP server configuration), `tool-clustering` (virtual tool clustering summaries), and `ai-evaluator` (AI response criteria evaluation) — plus prefix mappings for the @workspace code search agent, Dev Container configuration, test intent parsing, and code mapper new-document generation. These sub-requests now correctly disable thinking mode instead of being misclassified as main agent conversations.
+
+### Changed
+
+- **Kimi-K3 reasoning effort tiers adjusted**: Kimi-K3 across Moonshot, ClinePass, OpenCode Go, Tencent Cloud, and Volcengine now uses unified `max / high / low` reasoning tiers (removed `none`, added `high`), matching the officially supported tiers.
+
 ## [0.26.4] - 2026-07-21
 
 ### 新增

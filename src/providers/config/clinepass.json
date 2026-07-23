@@ -24,7 +24,7 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "reasoningEffort": ["max", "none"],
+            "reasoningEffort": ["max", "high", "low"],
             "reasoningFormat": "nested",
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [3.0, 15.0, 0.3]
