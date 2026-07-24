@@ -11,51 +11,16 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
             "tooltip": "Coding Plan Code模型。豆包编程模型，面向Agentic编程任务进行了深度优化，具备精准的代码生成、任务调度与逻辑协同能力。",
-            "contextSize": [
-                256000,
-                128000
-            ],
+            "contextSize": [256000, 128000],
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "reasoningEffort": [
-                "minimal",
-                "low",
-                "medium",
-                "high"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": {
-                    "RMB": [
-                        1.2,
-                        8,
-                        0.24
-                    ]
-                },
+                "pricing": { "RMB": [1.2, 8, 0.24] },
                 "tiers": [
-                    {
-                        "contextSizeMin": 128001,
-                        "pricing": {
-                            "RMB": [
-                                2.8,
-                                16,
-                                0.24
-                            ]
-                        }
-                    },
-                    {
-                        "contextSizeMin": 32001,
-                        "pricing": {
-                            "RMB": [
-                                1.4,
-                                12,
-                                0.24
-                            ]
-                        }
-                    }
+                    { "contextSizeMin": 128001, "pricing": { "RMB": [2.8, 16, 0.24] } },
+                    { "contextSizeMin": 32001, "pricing": { "RMB": [1.4, 12, 0.24] } }
                 ]
             }
         },
@@ -66,30 +31,13 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
             "tooltip": "效果与成本均衡，全面升级 Coding、Agent 与多模态能力，以更强的自主规划、长链路执行和动态修复能力，胜任企业真实复杂任务。",
-            "contextSize": [
-                256000,
-                128000
-            ],
+            "contextSize": [256000, 128000],
             "maxInputTokens": 256000,
             "maxOutputTokens": 256000,
-            "reasoningEffort": [
-                "minimal",
-                "low",
-                "medium",
-                "high"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": {
-                    "RMB": [
-                        3,
-                        15,
-                        0.6
-                    ]
-                }
+                "pricing": { "RMB": [3, 15, 0.6] }
             }
         },
         {
@@ -99,51 +47,16 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
             "tooltip": "Coding Plan Code模型。面向真实编程环境优化的 Coding 模型，能稳定调用 Claude Code 等常见 IDE 中的工具。模型特别优化了前端能力，在使用常见的前端框架时能有良好表现。模型支持使用 Skills，可以配合多种自定义技能使用。",
-            "contextSize": [
-                256000,
-                128000
-            ],
+            "contextSize": [256000, 128000],
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "reasoningEffort": [
-                "minimal",
-                "low",
-                "medium",
-                "high"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": {
-                    "RMB": [
-                        3.2,
-                        16,
-                        0.64
-                    ]
-                },
+                "pricing": { "RMB": [3.2, 16, 0.64] },
                 "tiers": [
-                    {
-                        "contextSizeMin": 128001,
-                        "pricing": {
-                            "RMB": [
-                                9.6,
-                                48,
-                                1.92
-                            ]
-                        }
-                    },
-                    {
-                        "contextSizeMin": 32001,
-                        "pricing": {
-                            "RMB": [
-                                4.8,
-                                24,
-                                0.96
-                            ]
-                        }
-                    }
+                    { "contextSizeMin": 128001, "pricing": { "RMB": [9.6, 48, 1.92] } },
+                    { "contextSizeMin": 32001, "pricing": { "RMB": [4.8, 24, 0.96] } }
                 ]
             }
         },
@@ -154,51 +67,16 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
             "tooltip": "Coding Plan Code模型。兼顾生成质量与响应速度，适合作为通用生产级模型，胜任非结构化信息处理、内容创作、搜索推荐、数据分析等生产型工作。",
-            "contextSize": [
-                256000,
-                128000
-            ],
+            "contextSize": [256000, 128000],
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "reasoningEffort": [
-                "minimal",
-                "low",
-                "medium",
-                "high"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": {
-                    "RMB": [
-                        0.6,
-                        3.6,
-                        0.12
-                    ]
-                },
+                "pricing": { "RMB": [0.6, 3.6, 0.12] },
                 "tiers": [
-                    {
-                        "contextSizeMin": 128001,
-                        "pricing": {
-                            "RMB": [
-                                1.8,
-                                10.8,
-                                0.36
-                            ]
-                        }
-                    },
-                    {
-                        "contextSizeMin": 32001,
-                        "pricing": {
-                            "RMB": [
-                                0.9,
-                                5.4,
-                                0.18
-                            ]
-                        }
-                    }
+                    { "contextSizeMin": 128001, "pricing": { "RMB": [1.8, 10.8, 0.36] } },
+                    { "contextSizeMin": 32001, "pricing": { "RMB": [0.9, 5.4, 0.18] } }
                 ]
             }
         },
@@ -209,51 +87,16 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
             "tooltip": "Coding Plan Code模型。旗舰级全能通用模型，适合复杂推理与长链路任务执行场景，强调多模态理解、长上下文推理、结构化生成与工具增强执行。",
-            "contextSize": [
-                256000,
-                128000
-            ],
+            "contextSize": [256000, 128000],
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "reasoningEffort": [
-                "minimal",
-                "low",
-                "medium",
-                "high"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": {
-                    "RMB": [
-                        3.2,
-                        16,
-                        0.64
-                    ]
-                },
+                "pricing": { "RMB": [3.2, 16, 0.64] },
                 "tiers": [
-                    {
-                        "contextSizeMin": 128001,
-                        "pricing": {
-                            "RMB": [
-                                9.6,
-                                48,
-                                1.92
-                            ]
-                        }
-                    },
-                    {
-                        "contextSizeMin": 32001,
-                        "pricing": {
-                            "RMB": [
-                                4.8,
-                                24,
-                                0.96
-                            ]
-                        }
-                    }
+                    { "contextSizeMin": 128001, "pricing": { "RMB": [9.6, 48, 1.92] } },
+                    { "contextSizeMin": 32001, "pricing": { "RMB": [4.8, 24, 0.96] } }
                 ]
             }
         },
@@ -266,17 +109,9 @@
             "tooltip": "Coding Plan Code模型。默认使用 Auto 模式，通过「效果 + 速度」双维度智能算法自动选择模型；通过开通管理页面选择或切换目标模型，切换模型后 3-5 分钟即可生效。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "reasoningEffort": [
-                "minimal",
-                "low",
-                "medium",
-                "high"
-            ],
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
             "reasoningDefault": "high",
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-code-kimi-k2.7-code",
@@ -287,22 +122,9 @@
             "tooltip": "Coding Plan Code模型。Kimi 最新 Coding 模型，在长上下文中更可靠地遵循指令，能以更高的成功率完成编程任务，同时支持文本、图片与视频输入，思考模式，对话与 Agent 任务。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "extraBody": {
-                "thinking": {
-                    "type": "enabled"
-                }
-            },
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
-            "tokenPricing": {
-                "RMB": [
-                    6.5,
-                    27.0,
-                    1.3
-                ]
-            }
+            "extraBody": { "thinking": { "type": "enabled" } },
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [6.5, 27.0, 1.3] }
         },
         {
             "id": "ark-code-kimi-k2.6",
@@ -313,21 +135,9 @@
             "tooltip": "Coding Plan Code模型。具备强思考能力，支持多步工具调用和推理，擅长解决复杂问题，如复杂的逻辑推理、数学问题、代码编写等。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
-            "tokenPricing": {
-                "RMB": [
-                    6.5,
-                    27.0,
-                    1.1
-                ]
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [6.5, 27.0, 1.1] }
         },
         {
             "id": "ark-code-glm-5.2",
@@ -336,31 +146,12 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
             "tooltip": "Coding Plan Code模型。智谱最新旗舰模型，支持 1M 上下文窗口，长程任务效果表现突出，多项权威评测榜单成绩稳居前列。",
-            "contextSize": [
-                1000000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
-            "tokenPricing": {
-                "RMB": [
-                    8,
-                    28,
-                    2
-                ]
-            }
+            "reasoningEffort": ["high", "max", "none"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "RMB": [8, 28, 2] }
         },
         {
             "id": "ark-code-MiniMax-M3",
@@ -369,24 +160,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
             "tooltip": "Coding Plan Code模型。新一代 M 系列语言模型，在编码与智能体评测中达到行业顶尖水平，适用于 Agent 推理、工具调用、代码和长上下文任务。",
-            "contextSize": [
-                512000,
-                256000,
-                192000
-            ],
+            "contextSize": [512000, 256000, 192000],
             "maxInputTokens": 448000,
             "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
-            "tokenPricing": {
-                "RMB": [
-                    2.1,
-                    8.4,
-                    0.42
-                ]
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [2.1, 8.4, 0.42] }
         },
         {
             "id": "ark-code-MiniMax-M2.7",
@@ -397,17 +175,8 @@
             "tooltip": "Coding Plan Code模型。M2.7 能够自行构建复杂 Agent Harness，并基于 Agent Teams、复杂 Skills、Tool 等能力，完成高度复杂的生产力任务。",
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
-            "tokenPricing": {
-                "RMB": [
-                    2.1,
-                    8.4,
-                    0.42
-                ]
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "RMB": [2.1, 8.4, 0.42] }
         },
         {
             "id": "ark-code-deepseek-v4-flash",
@@ -416,31 +185,12 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
             "tooltip": "Coding Plan Code模型。DeepSeek-V4-Flash，能够提供更加快捷、经济的 API 服务。默认开启深度思考(thinking)，支持手动关闭。",
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "contextSize": [
-                1000000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
-            "tokenPricing": {
-                "RMB": [
-                    1,
-                    2,
-                    0.2
-                ]
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "RMB": [1, 2, 0.2] }
         },
         {
             "id": "ark-code-deepseek-v4-pro",
@@ -449,31 +199,12 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
             "tooltip": "Coding Plan Code模型。DeepSeek-V4-Pro，Agent 能力显著增强，具备丰富的世界知识。默认开启深度思考(thinking)，支持手动关闭。",
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "contextSize": [
-                1000000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
-            "tokenPricing": {
-                "RMB": [
-                    12,
-                    24,
-                    1
-                ]
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "RMB": [12, 24, 1] }
         },
         {
             "id": "ark-plan-doubao-seed-2.0-code",
@@ -483,49 +214,16 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
             "tooltip": "Agent Plan 模型。依托 Seed 2.0 Agent 与 VLM 能力，强化代码能力：前端出众，多语言适配，适合接入各类 AI 编程工具。默认 non-thinking，支持开启深度思考。",
-            "contextSize": [
-                256000,
-                128000
-            ],
+            "contextSize": [256000, 128000],
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "thinking": [
-                "disabled",
-                "enabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
+            "thinking": ["disabled", "enabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": {
-                    "RMB": [
-                        3.2,
-                        16,
-                        0.64
-                    ]
-                },
+                "pricing": { "RMB": [3.2, 16, 0.64] },
                 "tiers": [
-                    {
-                        "contextSizeMin": 128001,
-                        "pricing": {
-                            "RMB": [
-                                9.6,
-                                48,
-                                1.92
-                            ]
-                        }
-                    },
-                    {
-                        "contextSizeMin": 32001,
-                        "pricing": {
-                            "RMB": [
-                                4.8,
-                                24,
-                                0.96
-                            ]
-                        }
-                    }
+                    { "contextSizeMin": 128001, "pricing": { "RMB": [9.6, 48, 1.92] } },
+                    { "contextSizeMin": 32001, "pricing": { "RMB": [4.8, 24, 0.96] } }
                 ]
             }
         },
@@ -537,49 +235,16 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
             "tooltip": "Agent Plan 模型。旗舰级全能通用模型，适合复杂推理与长链路任务执行场景，强调多模态理解、长上下文推理、结构化生成与工具增强执行。默认 thinking，支持关闭深度思考。",
-            "contextSize": [
-                256000,
-                128000
-            ],
+            "contextSize": [256000, 128000],
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": {
-                    "RMB": [
-                        3.2,
-                        16,
-                        0.64
-                    ]
-                },
+                "pricing": { "RMB": [3.2, 16, 0.64] },
                 "tiers": [
-                    {
-                        "contextSizeMin": 128001,
-                        "pricing": {
-                            "RMB": [
-                                9.6,
-                                48,
-                                1.92
-                            ]
-                        }
-                    },
-                    {
-                        "contextSizeMin": 32001,
-                        "pricing": {
-                            "RMB": [
-                                4.8,
-                                24,
-                                0.96
-                            ]
-                        }
-                    }
+                    { "contextSizeMin": 128001, "pricing": { "RMB": [9.6, 48, 1.92] } },
+                    { "contextSizeMin": 32001, "pricing": { "RMB": [4.8, 24, 0.96] } }
                 ]
             }
         },
@@ -591,49 +256,16 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
             "tooltip": "Agent Plan 模型。兼顾生成质量与响应速度，适合作为通用生产级模型，胜任非结构化信息处理、内容创作、搜索推荐、数据分析等生产型工作。默认 thinking，支持关闭深度思考。",
-            "contextSize": [
-                256000,
-                128000
-            ],
+            "contextSize": [256000, 128000],
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": {
-                    "RMB": [
-                        0.6,
-                        3.6,
-                        0.12
-                    ]
-                },
+                "pricing": { "RMB": [0.6, 3.6, 0.12] },
                 "tiers": [
-                    {
-                        "contextSizeMin": 128001,
-                        "pricing": {
-                            "RMB": [
-                                1.8,
-                                10.8,
-                                0.36
-                            ]
-                        }
-                    },
-                    {
-                        "contextSizeMin": 32001,
-                        "pricing": {
-                            "RMB": [
-                                0.9,
-                                5.4,
-                                0.18
-                            ]
-                        }
-                    }
+                    { "contextSizeMin": 128001, "pricing": { "RMB": [1.8, 10.8, 0.36] } },
+                    { "contextSizeMin": 32001, "pricing": { "RMB": [0.9, 5.4, 0.18] } }
                 ]
             }
         },
@@ -645,49 +277,16 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
             "tooltip": "Agent Plan 模型。面向低时延、高并发与成本敏感场景，提供极致的模型推理速度，适合成本和速度优先的轻量级任务。默认 thinking，支持关闭深度思考。",
-            "contextSize": [
-                256000,
-                128000
-            ],
+            "contextSize": [256000, 128000],
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": {
-                    "RMB": [
-                        0.2,
-                        2,
-                        0.04
-                    ]
-                },
+                "pricing": { "RMB": [0.2, 2, 0.04] },
                 "tiers": [
-                    {
-                        "contextSizeMin": 128001,
-                        "pricing": {
-                            "RMB": [
-                                0.8,
-                                8,
-                                0.16
-                            ]
-                        }
-                    },
-                    {
-                        "contextSizeMin": 32001,
-                        "pricing": {
-                            "RMB": [
-                                0.4,
-                                4,
-                                0.08
-                            ]
-                        }
-                    }
+                    { "contextSizeMin": 128001, "pricing": { "RMB": [0.8, 8, 0.16] } },
+                    { "contextSizeMin": 32001, "pricing": { "RMB": [0.4, 4, 0.08] } }
                 ]
             }
         },
@@ -699,33 +298,13 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
             "tooltip": "Agent Plan 模型。面向 Coding 与 Agent 场景，持续周级升级，以统一模型 ID 提供最新能力。支持 1M 超长上下文，具备复杂任务编排、长程规划、代码生成与工具调用能力。",
-            "contextSize": [
-                1000000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "reasoningEffort": [
-                "minimal",
-                "low",
-                "medium",
-                "high"
-            ],
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
             "reasoningDefault": "high",
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
-            "tokenPricing": {
-                "RMB": [
-                    6,
-                    30,
-                    1.2
-                ]
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [6, 30, 1.2] }
         },
         {
             "id": "ark-plan-code-latest",
@@ -737,17 +316,9 @@
             "tooltip": "Agent Plan 模型。默认使用 Auto 模式，通过「效果 + 速度」双维度智能算法自动选择模型；通过开通管理页面选择或切换目标模型，切换模型后 3-5 分钟即可生效。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "reasoningEffort": [
-                "minimal",
-                "low",
-                "medium",
-                "high"
-            ],
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
             "reasoningDefault": "high",
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-plan-glm-5.2",
@@ -757,31 +328,12 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
             "tooltip": "Agent Plan 模型。智谱最新旗舰模型，支持 1M 上下文窗口，长程任务效果表现突出，多项权威评测榜单成绩稳居前列。",
-            "contextSize": [
-                1000000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
-            "tokenPricing": {
-                "RMB": [
-                    8,
-                    28,
-                    2
-                ]
-            }
+            "reasoningEffort": ["high", "max", "none"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "RMB": [8, 28, 2] }
         },
         {
             "id": "ark-plan-minimax-m3",
@@ -791,24 +343,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
             "tooltip": "Agent Plan 模型。新一代 M 系列语言模型，在编码与智能体评测中达到行业顶尖水平，适用于 Agent 推理、工具调用、代码和长上下文任务。",
-            "contextSize": [
-                512000,
-                256000,
-                192000
-            ],
+            "contextSize": [512000, 256000, 192000],
             "maxInputTokens": 448000,
             "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
-            "tokenPricing": {
-                "RMB": [
-                    2.1,
-                    8.4,
-                    0.42
-                ]
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [2.1, 8.4, 0.42] }
         },
         {
             "id": "ark-plan-minimax-m2.7",
@@ -820,17 +359,8 @@
             "tooltip": "Agent Plan 模型。M2.7 能够自行构建复杂 Agent Harness，并基于 Agent Teams、复杂 Skills、Tool 等能力，完成高度复杂的生产力任务。默认 thinking，支持关闭深度思考。",
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
-            "tokenPricing": {
-                "RMB": [
-                    2.1,
-                    8.4,
-                    0.42
-                ]
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "RMB": [2.1, 8.4, 0.42] }
         },
         {
             "id": "ark-plan-kimi-k3",
@@ -840,32 +370,12 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
             "tooltip": "Agent Plan 模型。Kimi 最新旗舰模型，原生支持视觉理解，并拥有 100 万 token 上下文窗口，面向软件工程、知识工作和深度推理等前沿智能场景而设计。",
-            "contextSize": [
-                1000000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "reasoningEffort": [
-                "max",
-                "high",
-                "low"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true,
-                "editTools": true
-            },
-            "tokenPricing": {
-                "RMB": [
-                    20.0,
-                    100.0,
-                    2.0
-                ]
-            }
+            "reasoningEffort": ["max", "high", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": { "RMB": [20.0, 100.0, 2.0] }
         },
         {
             "id": "ark-plan-kimi-k2.7-code",
@@ -877,23 +387,9 @@
             "tooltip": "Kimi 最新 Coding 模型，在长上下文中更可靠地遵循指令，能以更高的成功率完成编程任务，同时支持文本、图片与视频输入，思考模式，对话与 Agent 任务。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "extraBody": {
-                "thinking": {
-                    "type": "enabled"
-                }
-            },
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true,
-                "editTools": true
-            },
-            "tokenPricing": {
-                "RMB": [
-                    6.5,
-                    27.0,
-                    1.3
-                ]
-            }
+            "extraBody": { "thinking": { "type": "enabled" } },
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": { "RMB": [6.5, 27.0, 1.3] }
         },
         {
             "id": "ark-plan-kimi-k2.6",
@@ -905,22 +401,9 @@
             "tooltip": "Agent Plan 模型。月之暗面新一代智能模型，默认 thinking，支持关闭深度思考。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true,
-                "editTools": true
-            },
-            "tokenPricing": {
-                "RMB": [
-                    6.5,
-                    27.0,
-                    1.1
-                ]
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": { "RMB": [6.5, 27.0, 1.1] }
         },
         {
             "id": "ark-plan-deepseek-v4-flash",
@@ -930,31 +413,12 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
             "tooltip": "Agent Plan 模型。DeepSeek-V4-Flash，能够提供更加快捷、经济的 API 服务。默认开启深度思考(thinking)，支持手动关闭。",
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "contextSize": [
-                1000000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
-            "tokenPricing": {
-                "RMB": [
-                    1,
-                    2,
-                    0.2
-                ]
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "RMB": [1, 2, 0.2] }
         },
         {
             "id": "ark-plan-deepseek-v4-pro",
@@ -964,31 +428,12 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
             "tooltip": "Agent Plan 模型。DeepSeek-V4-Pro，Agent 能力显著增强，具备丰富的世界知识。默认开启深度思考(thinking)，支持手动关闭。",
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "contextSize": [
-                1000000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
-            "tokenPricing": {
-                "RMB": [
-                    12,
-                    24,
-                    1
-                ]
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "RMB": [12, 24, 1] }
         },
         {
             "id": "doubao-seed-evolving",
@@ -996,33 +441,13 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/compatible",
             "tooltip": "Seed-Evolving 是面向 Agent 与 Coding 场景打造的 Seed 系列模型，具备复杂任务编排、长程规划、代码生成与工具调用能力。",
-            "contextSize": [
-                1000000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "reasoningEffort": [
-                "minimal",
-                "low",
-                "medium",
-                "high"
-            ],
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
             "reasoningDefault": "high",
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
-            "tokenPricing": {
-                "RMB": [
-                    6,
-                    30,
-                    1.2
-                ]
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [6, 30, 1.2] }
         },
         {
             "id": "doubao-seed-2-1-turbo",
@@ -1033,24 +458,10 @@
             "tooltip": "Doubao-Seed-2.1 是面向 Coding 和 Agent 时代打造的新一代大模型，提供 Pro 和 Turbo 两个版本，分别面向高复杂度任务探索和规模化生产场景。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "reasoningEffort": [
-                "minimal",
-                "low",
-                "medium",
-                "high"
-            ],
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
             "reasoningDefault": "high",
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
-            "tokenPricing": {
-                "RMB": [
-                    3,
-                    15,
-                    0.6
-                ]
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [3, 15, 0.6] }
         },
         {
             "id": "doubao-seed-2-1-pro",
@@ -1061,24 +472,10 @@
             "tooltip": "Doubao-Seed-2.1 是面向 Coding 和 Agent 时代打造的新一代大模型，提供 Pro 和 Turbo 两个版本，分别面向高复杂度任务探索和规模化生产场景。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "reasoningEffort": [
-                "minimal",
-                "low",
-                "medium",
-                "high"
-            ],
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
             "reasoningDefault": "high",
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
-            "tokenPricing": {
-                "RMB": [
-                    6,
-                    30,
-                    1.2
-                ]
-            }
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [6, 30, 1.2] }
         },
         {
             "id": "doubao-seed-2-0-code",
@@ -1087,51 +484,16 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/compatible",
             "tooltip": "Doubao-Seed-2.0-Code 面向企业级编程需求优化，在 Seed 2.0 优秀的 Agent、VLM 能力基础上，特别增强了代码能力，不仅前端能力表现出众，也对企业常见的多语言编码需求做了特别优化，适合接入各种 AI 编程工具使用。",
-            "contextSize": [
-                256000,
-                128000
-            ],
+            "contextSize": [256000, 128000],
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "reasoningEffort": [
-                "minimal",
-                "low",
-                "medium",
-                "high"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": {
-                    "RMB": [
-                        3.2,
-                        16,
-                        0.64
-                    ]
-                },
+                "pricing": { "RMB": [3.2, 16, 0.64] },
                 "tiers": [
-                    {
-                        "contextSizeMin": 128001,
-                        "pricing": {
-                            "RMB": [
-                                9.6,
-                                48,
-                                1.92
-                            ]
-                        }
-                    },
-                    {
-                        "contextSizeMin": 32001,
-                        "pricing": {
-                            "RMB": [
-                                4.8,
-                                24,
-                                0.96
-                            ]
-                        }
-                    }
+                    { "contextSizeMin": 128001, "pricing": { "RMB": [9.6, 48, 1.92] } },
+                    { "contextSizeMin": 32001, "pricing": { "RMB": [4.8, 24, 0.96] } }
                 ]
             }
         },
@@ -1142,51 +504,16 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/compatible",
             "tooltip": "Doubao-Seed-2.0-mini-260428 新版本，能够同时输入并理解视频、图片、语音和文本四种模态，并进行跨模态的联合推理，能直接处理必须音画结合才能做出判断业务需求。",
-            "contextSize": [
-                256000,
-                128000
-            ],
+            "contextSize": [256000, 128000],
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "reasoningEffort": [
-                "minimal",
-                "low",
-                "medium",
-                "high"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": {
-                    "RMB": [
-                        0.2,
-                        2,
-                        0.04
-                    ]
-                },
+                "pricing": { "RMB": [0.2, 2, 0.04] },
                 "tiers": [
-                    {
-                        "contextSizeMin": 128001,
-                        "pricing": {
-                            "RMB": [
-                                0.8,
-                                8,
-                                0.16
-                            ]
-                        }
-                    },
-                    {
-                        "contextSizeMin": 32001,
-                        "pricing": {
-                            "RMB": [
-                                0.4,
-                                4,
-                                0.08
-                            ]
-                        }
-                    }
+                    { "contextSizeMin": 128001, "pricing": { "RMB": [0.8, 8, 0.16] } },
+                    { "contextSizeMin": 32001, "pricing": { "RMB": [0.4, 4, 0.08] } }
                 ]
             }
         },
@@ -1197,51 +524,16 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/compatible",
             "tooltip": "Doubao-Seed-2.0-lite-260428 新版本，支持视频、图像、音频、文本原生统一理解，是豆包大模型家族首款全模态理解模型，同时升级Agent、Coding与GUI能力。在同等算力成本下，是企业大规模、批量化部署全模态推理任务的更优性价比选择。",
-            "contextSize": [
-                256000,
-                128000
-            ],
+            "contextSize": [256000, 128000],
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "reasoningEffort": [
-                "minimal",
-                "low",
-                "medium",
-                "high"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": {
-                    "RMB": [
-                        0.6,
-                        3.6,
-                        0.12
-                    ]
-                },
+                "pricing": { "RMB": [0.6, 3.6, 0.12] },
                 "tiers": [
-                    {
-                        "contextSizeMin": 128001,
-                        "pricing": {
-                            "RMB": [
-                                1.8,
-                                10.8,
-                                0.36
-                            ]
-                        }
-                    },
-                    {
-                        "contextSizeMin": 32001,
-                        "pricing": {
-                            "RMB": [
-                                0.9,
-                                5.4,
-                                0.18
-                            ]
-                        }
-                    }
+                    { "contextSizeMin": 128001, "pricing": { "RMB": [1.8, 10.8, 0.36] } },
+                    { "contextSizeMin": 32001, "pricing": { "RMB": [0.9, 5.4, 0.18] } }
                 ]
             }
         },
@@ -1252,51 +544,16 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/compatible",
             "tooltip": "Doubao-Seed-2.0-pro是旗舰级全能通用模型，面向 Agent 时代的复杂推理与长链路任务执行场景。强调多模态理解、长上下文推理、结构化生成与工具增强执行。复杂指令与多约束执行能力突出，可稳定应对多步复杂规划、复杂图文推理、视频内容理解与高难度分析等场景。",
-            "contextSize": [
-                256000,
-                128000
-            ],
+            "contextSize": [256000, 128000],
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "reasoningEffort": [
-                "minimal",
-                "low",
-                "medium",
-                "high"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": true
-            },
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": {
-                    "RMB": [
-                        3.2,
-                        16,
-                        0.64
-                    ]
-                },
+                "pricing": { "RMB": [3.2, 16, 0.64] },
                 "tiers": [
-                    {
-                        "contextSizeMin": 128001,
-                        "pricing": {
-                            "RMB": [
-                                9.6,
-                                48,
-                                1.92
-                            ]
-                        }
-                    },
-                    {
-                        "contextSizeMin": 32001,
-                        "pricing": {
-                            "RMB": [
-                                4.8,
-                                24,
-                                0.96
-                            ]
-                        }
-                    }
+                    { "contextSizeMin": 128001, "pricing": { "RMB": [9.6, 48, 1.92] } },
+                    { "contextSizeMin": 32001, "pricing": { "RMB": [4.8, 24, 0.96] } }
                 ]
             }
         },
@@ -1305,64 +562,26 @@
             "name": "DeepSeek-V4-Flash-260425",
             "model": "deepseek-v4-flash-260425",
             "tooltip": "DeepSeek-V4-Flash 是高效经济版大模型，同享百万上下文与先进架构，推理速度更快、成本更低，平衡性能与效率，适合日常问答、轻量 Agent 及高并发场景。",
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "contextSize": [
-                1000000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinkingFormat": "object",
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
-            "tokenPricing": {
-                "RMB": [
-                    1,
-                    2,
-                    0.2
-                ]
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "RMB": [1, 2, 0.2] }
         },
         {
             "id": "deepseek-v4-pro",
             "name": "DeepSeek-V4-Pro-260425",
             "model": "deepseek-v4-pro-260425",
             "tooltip": "DeepSeek-V4-Pro 是 DeepSeek 新一代旗舰大模型，采用 MoE 架构，原生支持百万级超长上下文，具备顶尖推理、代码与复杂 Agent 能力，适合高强度复杂任务与专业场景。",
-            "reasoningEffort": [
-                "high",
-                "max",
-                "none"
-            ],
-            "contextSize": [
-                1000000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinkingFormat": "object",
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
-            "tokenPricing": {
-                "RMB": [
-                    12,
-                    24,
-                    1
-                ]
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "RMB": [12, 24, 1] }
         },
         {
             "id": "deepseek-v3.2",
@@ -1371,34 +590,11 @@
             "tooltip": "模型的 EOS 时间： 2026-07-30 14:00 （UTC+8）。DeepSeek-V3.2正式版，平衡推理能力与输出长度，适合日常使用，例如问答场景和通用 Agent 任务场景",
             "maxInputTokens": 112000,
             "maxOutputTokens": 16000,
-            "thinking": [
-                "disabled",
-                "enabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
+            "thinking": ["disabled", "enabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
-                "pricing": {
-                    "RMB": [
-                        2,
-                        3,
-                        0.4
-                    ]
-                },
-                "tiers": [
-                    {
-                        "contextSizeMin": 32001,
-                        "pricing": {
-                            "RMB": [
-                                4,
-                                6,
-                                0.4
-                            ]
-                        }
-                    }
-                ]
+                "pricing": { "RMB": [2, 3, 0.4] },
+                "tiers": [{ "contextSizeMin": 32001, "pricing": { "RMB": [4, 6, 0.4] } }]
             }
         },
         {
@@ -1410,34 +606,11 @@
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
             "webSearchTool": true,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
-                "pricing": {
-                    "RMB": [
-                        3,
-                        14,
-                        0.6
-                    ]
-                },
-                "tiers": [
-                    {
-                        "contextSizeMin": 32001,
-                        "pricing": {
-                            "RMB": [
-                                4,
-                                16,
-                                0.8
-                            ]
-                        }
-                    }
-                ]
+                "pricing": { "RMB": [3, 14, 0.6] },
+                "tiers": [{ "contextSizeMin": 32001, "pricing": { "RMB": [4, 16, 0.8] } }]
             }
         },
         {
@@ -1446,36 +619,14 @@
             "model": "glm-5-2-260617",
             "tooltip": "GLM-5.2 是智谱面向长程自主编码场景的旗舰开源模型，全面强化了大型代码库工程、长程任务规划与工具协同能力，在多个榜单上斩获开源第一，整体表现对齐海外闭源 SOTA 模型，开发场景的成功率进一步提升。它支持真正可用的 1M 上下文，可一次性承载项目级工程，且在执行复杂智能体任务时，指令遵循与工具调用更加稳定，一次任务即可贯通需求到多端可部署产物的完整开发链路。",
             "sdkMode": "openai-responses",
-            "contextSize": [
-                1000000,
-                512000,
-                400000,
-                256000,
-                192000
-            ],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "webSearchTool": true,
-            "thinking": [
-                "enabled",
-                "disabled"
-            ],
-            "capabilities": {
-                "toolCalling": true,
-                "imageInput": false
-            },
-            "extraBody": {
-                "caching": {
-                    "type": "enabled"
-                }
-            },
-            "tokenPricing": {
-                "RMB": [
-                    8,
-                    28,
-                    2
-                ]
-            }
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "extraBody": { "caching": { "type": "enabled" } },
+            "tokenPricing": { "RMB": [8, 28, 2] }
         }
     ]
 }
