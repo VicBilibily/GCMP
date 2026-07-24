@@ -6,6 +6,7 @@
 import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
+import { addCacheControlBreakpoints } from './anthropicCacheControl';
 import { apiMessageToAnthropicMessage, convertToAnthropicTools } from './anthropicConverter';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { Logger } from '../utils/runtime/logger';
@@ -291,6 +292,13 @@ export class AnthropicHandler {
             if (tools.length > 0) {
                 createParams.tools = tools;
             }
+
+            // 注入缓存断点：VS Code 1.130 起上游不再对第三方 vendor 模型下发
+            // cache_control DataPart，需自行给 tools/system 稳定前缀打断点（#314）
+            addCacheControlBreakpoints(tools, {
+                messages: anthropicMessages,
+                system: system.text ? system : undefined
+            });
 
             Logger.debug(
                 `[${model.name}] Sending Anthropic API request with ${anthropicMessages.length} messages, model: ${modelId}`
