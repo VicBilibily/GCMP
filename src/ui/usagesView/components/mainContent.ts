@@ -77,6 +77,8 @@ export function updateMainContent(options?: { currencyOnly?: boolean }): void {
             }
 
             if (existingStatsSection) {
+                // 返回值被有意丢弃：数据容器会被就地复用更新（引用仍有效）；
+                // 空容器场景下新旧均为空态，无需替换插回。
                 createHourlyStats(dateDetails.providers, dateDetails.hourlyStats, existingStatsSection);
             }
             return;

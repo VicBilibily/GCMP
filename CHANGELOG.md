@@ -2,6 +2,28 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.7] - 2026-07-24
+
+### 新增
+
+- **Anthropic 缓存断点自动注入**：VS Code 1.130 起上游不再对第三方 vendor 模型下发 `cache_control`，导致 Anthropic 模型（尤其 Opus 4.x）缓存命中率骤降（[#314](https://github.com/VicBilibily/GCMP/issues/314)）。现按官方策略自动为请求注入缓存断点：优先给最后一个非延迟加载工具与 system 稳定前缀打断点，再按消息级规则补充，且单请求断点数不超过 4 个、不驱逐已有消息级断点。
+
+### 修复
+
+- **用量统计切换日期后视图数据错乱**：切换日期后再切换"小时/提供商/模型"视图会错误显示当日数据。
+- **请求记录状态颜色不可区分**：进行中（ACTIVE）状态改为蓝色，与已取消（CANCEL）的灰色区分开。
+
+---
+
+### Added
+
+- **Automatic Anthropic cache breakpoint injection**: Since VS Code 1.130, the upstream no longer sends `cache_control` for third-party vendor models, causing Anthropic models (especially Opus 4.x) cache hit rates to drop sharply ([#314](https://github.com/VicBilibily/GCMP/issues/314)). Cache breakpoints are now automatically injected per the official strategy: the last non-deferred tool and the stable system prefix are marked first, then message-level breakpoints are added, capped at 4 per request without evicting existing message-level breakpoints.
+
+### Fixed
+
+- **Usage stats view data mismatch after switching dates**: Switching the "Hours / Providers / Models" view after changing dates incorrectly showed today's data.
+- **Indistinguishable request status colors**: The in-progress (ACTIVE) status is now blue, distinct from the gray CANCEL status.
+
 ## [0.26.6] - 2026-07-24
 
 ### 新增

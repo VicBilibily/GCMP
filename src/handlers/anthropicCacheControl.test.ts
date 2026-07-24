@@ -3,7 +3,11 @@ import test from 'node:test';
 
 import { addCacheControlBreakpoints, AnthropicCacheableMessage, AnthropicCacheableTool } from './anthropicCacheControl';
 
-type TestSystem = { type: string; text: string; cache_control?: { type: string } | null };
+interface TestSystem {
+    type: string;
+    text: string;
+    cache_control?: { type: string } | null;
+}
 
 function makeSystem(text: string): TestSystem {
     return { type: 'text', text };

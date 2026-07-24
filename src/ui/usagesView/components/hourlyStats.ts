@@ -24,6 +24,11 @@ type ViewMode = 'hour' | 'provider' | 'model';
 // 保存当前选择的视图模式
 let currentViewMode: ViewMode = 'hour';
 
+// 保存最近一次渲染的数据，供视图切换时使用
+// （切换日期后容器复用，按钮事件闭包不能捕获旧数据）
+let lastProviders: ProviderData[] = [];
+let lastHourlyStats: Record<string, HourlyStats> = {};
+
 // ============= 辅助函数 =============
 
 /**
@@ -415,6 +420,10 @@ export function createHourlyStats(
     hourlyStats: Record<string, HourlyStats>,
     existingContainer?: HTMLElement
 ): HTMLElement {
+    // 记录最新数据，确保视图切换按钮始终使用当前日期的数据
+    lastProviders = providers;
+    lastHourlyStats = hourlyStats;
+
     // 如果传入了已存在的容器，只更新数据
     if (existingContainer) {
         const tableContainer = existingContainer.querySelector('.table-container') as HTMLElement;
@@ -441,13 +450,22 @@ export function createHourlyStats(
         return section;
     }
 
-    // 创建切换按钮
+    // 创建切换按钮（active 状态与当前视图模式保持一致）
     const toggleContainer = createElement('div', 'stats-toggle-container');
-    const hourButton = createElement('button', 'stats-toggle-button active');
+    const hourButton = createElement(
+        'button',
+        currentViewMode === 'hour' ? 'stats-toggle-button active' : 'stats-toggle-button'
+    );
     hourButton.textContent = `📊 ${t('Hours', '小时')}`;
-    const providerButton = createElement('button', 'stats-toggle-button');
+    const providerButton = createElement(
+        'button',
+        currentViewMode === 'provider' ? 'stats-toggle-button active' : 'stats-toggle-button'
+    );
     providerButton.textContent = `📦 ${t('Providers', '提供商')}`;
-    const modelButton = createElement('button', 'stats-toggle-button');
+    const modelButton = createElement(
+        'button',
+        currentViewMode === 'model' ? 'stats-toggle-button active' : 'stats-toggle-button'
+    );
     modelButton.textContent = `🔧 ${t('Models', '模型')}`;
     toggleContainer.appendChild(hourButton);
     toggleContainer.appendChild(providerButton);
@@ -462,14 +480,14 @@ export function createHourlyStats(
 
     section.appendChild(tableContainer);
 
-    // 添加切换事件
+    // 添加切换事件（使用最新数据，避免日期切换后闭包捕获旧数据）
     setTimeout(() => {
         hourButton.onclick = () => {
             currentViewMode = 'hour';
             hourButton.classList.add('active');
             providerButton.classList.remove('active');
             modelButton.classList.remove('active');
-            renderTable(tableContainer, providers, hourlyStats, 'hour');
+            renderTable(tableContainer, lastProviders, lastHourlyStats, 'hour');
         };
 
         providerButton.onclick = () => {
@@ -477,7 +495,7 @@ export function createHourlyStats(
             providerButton.classList.add('active');
             hourButton.classList.remove('active');
             modelButton.classList.remove('active');
-            renderTable(tableContainer, providers, hourlyStats, 'provider');
+            renderTable(tableContainer, lastProviders, lastHourlyStats, 'provider');
         };
 
         modelButton.onclick = () => {
@@ -485,7 +503,7 @@ export function createHourlyStats(
             modelButton.classList.add('active');
             hourButton.classList.remove('active');
             providerButton.classList.remove('active');
-            renderTable(tableContainer, providers, hourlyStats, 'model');
+            renderTable(tableContainer, lastProviders, lastHourlyStats, 'model');
         };
     }, 100);
 
