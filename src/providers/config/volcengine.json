@@ -25,6 +25,22 @@
             }
         },
         {
+            "id": "doubao-seed-2.1-turbo",
+            "name": "doubao-seed-2.1-turbo(CodingPlan)",
+            "model": "doubao-seed-2.1-turbo",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "效果与成本均衡，全面升级 Coding、Agent 与多模态能力，以更强的自主规划、长链路执行和动态修复能力，胜任企业真实复杂任务。",
+            "contextSize": [256000, 128000],
+            "maxInputTokens": 256000,
+            "maxOutputTokens": 256000,
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": { "RMB": [3, 15, 0.6] }
+            }
+        },
+        {
             "id": "ark-code-doubao-seed-2.0-code",
             "name": "Doubao-Seed-2.0-Code (CodingPlan)",
             "model": "doubao-seed-2.0-code",
