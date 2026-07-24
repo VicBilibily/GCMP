@@ -266,12 +266,19 @@ function buildModelConfigurationProperties(model: ModelConfig): Record<string, P
 
     const contextSizeOptions = getContextSizeOptions(model);
     if (contextSizeOptions) {
-        // Schema 中存储 (totalWindow - maxOutput) 的值，使 VS Code 上下文指示器显示正确
-        // VS Code 公式：显示总量 = schema值 + maxOutputTokens = totalWindow
-        // 逻辑结果：
-        // - schema 持久化值不再直接等于 totalWindow
-        // - UI 选项标签仍显示真实总窗口（如 400K / 1M）
-        // - 运行时需要在 resolveConfiguredContextSize() 中把 outputTokens 加回去
+        // 平台语义：contextSize 持久化值 = 输入 token 预算（总窗口 - maxOutputTokens），
+        // 与 VS Code 核心 / Copilot 扩展的约定保持一致：
+        // - VS Code 上下文用量 gauge：显示总量 = contextSize + maxOutputTokens
+        //   （chatContextUsageWidget.resolveContextWindowInputTokens）
+        // - Copilot 请求路径：contextSize 直接覆盖 modelMaxPromptTokens
+        //   （agentIntent.applyContextSizeOverride）
+        // 因此此处 enum/default 必须存输入预算，否则 gauge 会虚高一个 maxOutputTokens。
+        //
+        // 副作用与对策：
+        // - chatLanguageModels.json 中的持久化值不等于 UI 标签（如选 256K 存 192000），
+        //   属预期行为，不要"修正"为总窗口。
+        // - UI 选项标签仍展示真实总窗口（enumItemLabels 用 option.value 格式化）。
+        // - GCMP 运行时消费时在 resolveConfiguredContextSize() 中把 outputTokens 加回。
         const outputTokens = model.maxOutputTokens || 0;
         properties.contextSize = {
             type: 'number',
@@ -336,12 +343,12 @@ function resolveConfiguredContextSize(
         return undefined;
     }
 
-    // Schema 中存储的是 (totalWindow - maxOutput)，还原为总窗口
+    // 平台持久化值为输入预算 (totalWindow - maxOutputTokens)，还原为总窗口
     const outputTokens = modelConfig.maxOutputTokens || 0;
     const totalWindow = configuredContextSize + outputTokens;
 
     const supportedContextSizes = getContextSizeOptions(modelConfig)?.map(option => option.value) || [];
-    // 新版 schema：持久化值为 (totalWindow - maxOutputTokens)
+    // 持久化值为 (totalWindow - maxOutputTokens)
     // 逻辑结果：命中后返回真实总窗口，供状态栏展示与输入上限换算复用。
     if (supportedContextSizes.includes(totalWindow)) {
         return totalWindow;
@@ -352,7 +359,7 @@ function resolveConfiguredContextSize(
         return configuredContextSize;
     }
 
-    // 新旧两条链路都未命中时，视为无效配置。
+    // 两条链路都未命中时视为无效配置。
     // 逻辑结果：调用方会回退到模型默认窗口，并保留 warning 便于排查异常持久化值。
     if (providerKey) {
         Logger.warn(`[${providerKey}] Ignoring undeclared contextSize configuration: ${configuredContextSize}`);

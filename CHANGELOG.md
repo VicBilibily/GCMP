@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.8] - 2026-07-24
+
+### 新增
+
+- **蚂蚁百灵 Ling-3.0-flash 接入**：AntLing 新增高性价比模型 `Ling-3.0-flash`（124B/5.1B 激活，原生 256K 上下文）。
+
+---
+
+### Added
+
+- **AntLing Ling-3.0-flash access**: Added the cost-effective `Ling-3.0-flash` model (124B/5.1B activated, native 256K context).
+
 ## [0.26.7] - 2026-07-24
 
 ### 新增

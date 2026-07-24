@@ -4,6 +4,17 @@
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "Ling-3.0-flash",
+            "name": "Ling-3.0-flash",
+            "tooltip": "蚂蚁百灵 Ling 3.0 系列高性价比模型，124B 参数 5.1B 激活，原生 256K 上下文，支持思考/非思考无缝切换，工具调用与 Agent 长程工作流稳定性显著增强，适合高并发与低延迟场景。",
+            "sdkMode": "anthropic",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "USD": [0.06, 0.18, 0.012], "RMB": [0.4, 1.2, 0.04] }
+        },
+        {
             "id": "Ling-2.6-1T",
             "name": "Ling-2.6-1T",
             "tooltip": "蚂蚁百灵 MoE 架构旗舰通用模型，1T 参数 63B 激活，支持 1M 超长上下文（API 开放 256K），强化编码与 Agent 能力，兼容主流 Agent 框架。",
