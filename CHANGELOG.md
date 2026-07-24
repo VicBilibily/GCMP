@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.6] - 2026-07-24
+
+### 新增
+
+- **火山方舟 Doubao-Seed-2.1-turbo 套餐接入**：CodingPlan / AgentPlan 双套餐新增 `Doubao-Seed-2.1-turbo`。
+
+### 变更
+
+- **火山方舟模型阵容更新**：CodingPlan / AgentPlan 移除 `Doubao-Seed-2.0-Code`、`Doubao-Seed-2.0-pro`、`Ark-Code-Latest`；CodingPlan 额外移除 `Doubao-Seed-Code`。
+
+---
+
+### Added
+
+- **Volcengine Doubao-Seed-2.1-turbo plan access**: Added `Doubao-Seed-2.1-turbo` to both CodingPlan and AgentPlan.
+
+### Changed
+
+- **Volcengine model lineup updated**: CodingPlan / AgentPlan removed `Doubao-Seed-2.0-Code`, `Doubao-Seed-2.0-pro`, `Ark-Code-Latest`; CodingPlan additionally removed `Doubao-Seed-Code`.
+
 ## [0.26.5] - 2026-07-23
 
 ### 新增

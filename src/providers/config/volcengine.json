@@ -5,60 +5,18 @@
     "tokenKeyTemplate": "ark-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx-xxxxx",
     "models": [
         {
-            "id": "ark-code-doubao-seed-code",
-            "name": "Doubao-Seed-Code (CodingPlan)",
-            "model": "doubao-seed-code",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。豆包编程模型，面向Agentic编程任务进行了深度优化，具备精准的代码生成、任务调度与逻辑协同能力。",
-            "contextSize": [256000, 128000],
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": {
-                "pricing": { "RMB": [1.2, 8, 0.24] },
-                "tiers": [
-                    { "contextSizeMin": 128001, "pricing": { "RMB": [2.8, 16, 0.24] } },
-                    { "contextSizeMin": 32001, "pricing": { "RMB": [1.4, 12, 0.24] } }
-                ]
-            }
-        },
-        {
-            "id": "doubao-seed-2.1-turbo",
-            "name": "doubao-seed-2.1-turbo(CodingPlan)",
+            "id": "ark-code-doubao-seed-2.1-turbo",
+            "name": "Doubao-Seed-2.1-turbo (CodingPlan)",
             "model": "doubao-seed-2.1-turbo",
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "效果与成本均衡，全面升级 Coding、Agent 与多模态能力，以更强的自主规划、长链路执行和动态修复能力，胜任企业真实复杂任务。",
-            "contextSize": [256000, 128000],
-            "maxInputTokens": 256000,
-            "maxOutputTokens": 256000,
-            "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": {
-                "pricing": { "RMB": [3, 15, 0.6] }
-            }
-        },
-        {
-            "id": "ark-code-doubao-seed-2.0-code",
-            "name": "Doubao-Seed-2.0-Code (CodingPlan)",
-            "model": "doubao-seed-2.0-code",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。面向真实编程环境优化的 Coding 模型，能稳定调用 Claude Code 等常见 IDE 中的工具。模型特别优化了前端能力，在使用常见的前端框架时能有良好表现。模型支持使用 Skills，可以配合多种自定义技能使用。",
+            "tooltip": "Coding Plan Code模型。效果与成本均衡，全面升级 Coding、Agent 与多模态能力，以更强的自主规划、长链路执行和动态修复能力，胜任企业真实复杂任务。",
             "contextSize": [256000, 128000],
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "reasoningEffort": ["minimal", "low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": {
-                "pricing": { "RMB": [3.2, 16, 0.64] },
-                "tiers": [
-                    { "contextSizeMin": 128001, "pricing": { "RMB": [9.6, 48, 1.92] } },
-                    { "contextSizeMin": 32001, "pricing": { "RMB": [4.8, 24, 0.96] } }
-                ]
-            }
+            "tokenPricing": { "RMB": [3, 15, 0.6] }
         },
         {
             "id": "ark-code-doubao-seed-2.0-lite",
@@ -79,39 +37,6 @@
                     { "contextSizeMin": 32001, "pricing": { "RMB": [0.9, 5.4, 0.18] } }
                 ]
             }
-        },
-        {
-            "id": "ark-code-doubao-seed-2.0-pro",
-            "name": "Doubao-Seed-2.0-pro (CodingPlan)",
-            "model": "doubao-seed-2.0-pro",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。旗舰级全能通用模型，适合复杂推理与长链路任务执行场景，强调多模态理解、长上下文推理、结构化生成与工具增强执行。",
-            "contextSize": [256000, 128000],
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": {
-                "pricing": { "RMB": [3.2, 16, 0.64] },
-                "tiers": [
-                    { "contextSizeMin": 128001, "pricing": { "RMB": [9.6, 48, 1.92] } },
-                    { "contextSizeMin": 32001, "pricing": { "RMB": [4.8, 24, 0.96] } }
-                ]
-            }
-        },
-        {
-            "id": "ark-code-latest",
-            "name": "Ark-Code-Latest (CodingPlan)",
-            "model": "ark-code-latest",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。默认使用 Auto 模式，通过「效果 + 速度」双维度智能算法自动选择模型；通过开通管理页面选择或切换目标模型，切换模型后 3-5 分钟即可生效。",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "reasoningDefault": "high",
-            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-code-kimi-k2.7-code",
@@ -207,46 +132,35 @@
             "tokenPricing": { "RMB": [12, 24, 1] }
         },
         {
-            "id": "ark-plan-doubao-seed-2.0-code",
-            "name": "Doubao-Seed-2.0-Code (AgentPlan)",
-            "model": "doubao-seed-2.0-code",
+            "id": "ark-plan-doubao-seed-evolving",
+            "name": "Doubao-Seed-Evolving (AgentPlan)",
+            "model": "doubao-seed-evolving",
             "provider": "volcengine-agent",
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
-            "tooltip": "Agent Plan 模型。依托 Seed 2.0 Agent 与 VLM 能力，强化代码能力：前端出众，多语言适配，适合接入各类 AI 编程工具。默认 non-thinking，支持开启深度思考。",
-            "contextSize": [256000, 128000],
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "thinking": ["disabled", "enabled"],
+            "tooltip": "Agent Plan 模型。面向 Coding 与 Agent 场景，持续周级升级，以统一模型 ID 提供最新能力。支持 1M 超长上下文，具备复杂任务编排、长程规划、代码生成与工具调用能力。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "reasoningDefault": "high",
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": {
-                "pricing": { "RMB": [3.2, 16, 0.64] },
-                "tiers": [
-                    { "contextSizeMin": 128001, "pricing": { "RMB": [9.6, 48, 1.92] } },
-                    { "contextSizeMin": 32001, "pricing": { "RMB": [4.8, 24, 0.96] } }
-                ]
-            }
+            "tokenPricing": { "RMB": [6, 30, 1.2] }
         },
         {
-            "id": "ark-plan-doubao-seed-2.0-pro",
-            "name": "Doubao-Seed-2.0-pro (AgentPlan)",
-            "model": "doubao-seed-2.0-pro",
+            "id": "ark-plan-doubao-seed-2.1-turbo",
+            "name": "Doubao-Seed-2.1-turbo (AgentPlan)",
+            "model": "doubao-seed-2.1-turbo",
             "provider": "volcengine-agent",
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
-            "tooltip": "Agent Plan 模型。旗舰级全能通用模型，适合复杂推理与长链路任务执行场景，强调多模态理解、长上下文推理、结构化生成与工具增强执行。默认 thinking，支持关闭深度思考。",
+            "tooltip": "Agent Plan模型。效果与成本均衡，全面升级 Coding、Agent 与多模态能力，以更强的自主规划、长链路执行和动态修复能力，胜任企业真实复杂任务。",
             "contextSize": [256000, 128000],
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": {
-                "pricing": { "RMB": [3.2, 16, 0.64] },
-                "tiers": [
-                    { "contextSizeMin": 128001, "pricing": { "RMB": [9.6, 48, 1.92] } },
-                    { "contextSizeMin": 32001, "pricing": { "RMB": [4.8, 24, 0.96] } }
-                ]
-            }
+            "tokenPricing": { "RMB": [3, 15, 0.6] }
         },
         {
             "id": "ark-plan-doubao-seed-2.0-lite",
@@ -289,36 +203,6 @@
                     { "contextSizeMin": 32001, "pricing": { "RMB": [0.4, 4, 0.08] } }
                 ]
             }
-        },
-        {
-            "id": "ark-plan-doubao-seed-evolving",
-            "name": "Doubao-Seed-Evolving (AgentPlan)",
-            "model": "doubao-seed-evolving",
-            "provider": "volcengine-agent",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
-            "tooltip": "Agent Plan 模型。面向 Coding 与 Agent 场景，持续周级升级，以统一模型 ID 提供最新能力。支持 1M 超长上下文，具备复杂任务编排、长程规划、代码生成与工具调用能力。",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "reasoningDefault": "high",
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "RMB": [6, 30, 1.2] }
-        },
-        {
-            "id": "ark-plan-code-latest",
-            "name": "Ark-Code-Latest (AgentPlan)",
-            "model": "ark-code-latest",
-            "provider": "volcengine-agent",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
-            "tooltip": "Agent Plan 模型。默认使用 Auto 模式，通过「效果 + 速度」双维度智能算法自动选择模型；通过开通管理页面选择或切换目标模型，切换模型后 3-5 分钟即可生效。",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "reasoningDefault": "high",
-            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "ark-plan-glm-5.2",
