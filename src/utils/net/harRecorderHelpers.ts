@@ -68,6 +68,19 @@ export function formatLocalDate(date: Date): string {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+/**
+ * 返回当前时刻的微秒级 epoch 时间戳（16 位整数）。
+ *
+ * 用于 HAR 的 `_startTimestamp` / `_endTimestamp` 自定义字段（下划线前缀符合 HAR 1.2 custom fields 规范），
+ * 与 Reqable 等工具采用的微秒级时间戳格式对齐，便于跨工具对齐事件时序。
+ *
+ * 实现说明：`performance.timeOrigin`（进程启动时刻的毫秒级 epoch）+ `performance.now()`（高精度相对毫秒），
+ * 再乘以 1000 取整即得微秒级绝对时间戳，避免 `Date.now()` 毫秒精度不足的问题。
+ */
+export function nowMicros(): number {
+    return Math.floor((performance.timeOrigin + performance.now()) * 1000);
+}
+
 export function shouldRotateHarFileForDayChange(fileDayKey: string, now: Date, accepting: boolean): boolean {
     return accepting && fileDayKey !== formatLocalDate(now);
 }
@@ -93,6 +106,24 @@ export function calculateHarCompression(contentSize: number, transferSize: numbe
 export function parseHarPidFromFileName(name: string, fallbackPid: number): number {
     const pidMatch = name.match(/_(\d+)_(\d+)\.har$/) || name.match(/_(\d+)\.har$/);
     return pidMatch ? Number.parseInt(pidMatch[1], 10) : fallbackPid;
+}
+
+/**
+ * 从 HAR 文件记录列表中选择当前 PID 最近修改的一个文件。
+ * 仅返回属于 `currentPid` 的文件；当前 PID 无任何文件时返回 undefined（由调用方决定下一步兜底），
+ * 避免跨进程串味、错误定位到其他实例的记录。
+ */
+export function pickLatestHarFile(files: readonly HarFileRecord[], currentPid: number): HarFileRecord | undefined {
+    let latest: HarFileRecord | undefined;
+    for (const file of files) {
+        if (file.pid !== currentPid) {
+            continue;
+        }
+        if (!latest || file.mtime > latest.mtime) {
+            latest = file;
+        }
+    }
+    return latest;
 }
 
 export function planHarCleanup(

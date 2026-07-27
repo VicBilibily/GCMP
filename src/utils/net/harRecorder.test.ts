@@ -6,7 +6,9 @@ import {
     buildHarFileName,
     calculateHarCompression,
     formatLocalDate,
+    nowMicros,
     parseHarPidFromFileName,
+    pickLatestHarFile,
     planHarCleanup,
     readBodyData,
     readResponseBodyData,
@@ -106,6 +108,51 @@ test('parseHarPidFromFileName supports legacy and new file name formats', () => 
     assert.equal(parseHarPidFromFileName('gcmp_2026-07-12T10-00-00-000_5678_9.har', 1), 5678);
     assert.equal(buildHarFileName(new Date('2026-07-12T10:00:00.123'), 4321, 7).includes('_4321_7.har'), true);
     assert.equal(formatLocalDate(new Date('2026-07-12T10:00:00.123')), '2026-07-12');
+});
+
+test('nowMicros returns microsecond epoch consistent with Date.now and monotonic non-decreasing', () => {
+    const beforeMs = Date.now();
+    const ts = nowMicros();
+    const afterMs = Date.now();
+
+    // 应为 16 位微秒级整数（13 位毫秒级 × 1000），对齐 Reqable 的 _endTimestamp 精度
+    assert.equal(ts > 1_000_000_000_000_000, true);
+    assert.equal(ts < 100_000_000_000_000_000, true);
+    assert.equal(Number.isInteger(ts), true);
+
+    // 与 Date.now() 应在 ±2ms 内一致（允许 event loop 调度抖动）
+    const tsMs = ts / 1000;
+    assert.equal(tsMs >= beforeMs - 2 && tsMs <= afterMs + 2, true);
+
+    // 单调非递减（连续调用）
+    const ts2 = nowMicros();
+    assert.equal(ts2 >= ts, true);
+});
+
+test('pickLatestHarFile prefers current pid files even when other pid files are newer', () => {
+    const currentPid = 4321;
+    const files: HarFileRecord[] = [
+        { name: 'a.har', path: '/dir/a.har', mtime: 1_000, pid: 1111 },
+        { name: 'b.har', path: '/dir/b.har', mtime: 3_000, pid: 1111 }, // 其他 PID 最新
+        { name: 'c.har', path: '/dir/c.har', mtime: 2_000, pid: 4321 } // 当前 PID 较旧
+    ];
+
+    const result = pickLatestHarFile(files, currentPid);
+    assert.equal(result?.path, '/dir/c.har');
+});
+
+test('pickLatestHarFile returns undefined when current pid has no files', () => {
+    const files: HarFileRecord[] = [
+        { name: 'a.har', path: '/dir/a.har', mtime: 1_000, pid: 1111 },
+        { name: 'b.har', path: '/dir/b.har', mtime: 3_000, pid: 2222 }
+    ];
+
+    // 当前 PID 无文件时返回 undefined，避免跨进程串味、错误定位到其他实例的记录
+    assert.equal(pickLatestHarFile(files, 4321), undefined);
+});
+
+test('pickLatestHarFile returns undefined for empty list', () => {
+    assert.equal(pickLatestHarFile([], 4321), undefined);
 });
 
 test('calculateHarCompression returns bytes saved for compressed responses only', () => {

@@ -22,6 +22,7 @@ import { ApiKeyManager } from './utils/config/apiKeyManager';
 import { ConfigManager } from './utils/config/configManager';
 import { JsonSchemaProvider } from './utils/config/jsonSchemaProvider';
 import { closeProxyAgents } from './utils/net/proxyAgent';
+import { HarRecorder } from './utils/net/harRecorder';
 import { registerCliAuthCommands } from './cli/cliAuthCommands';
 import { SyncManager } from './sync/syncManager';
 import { TokenUsagesManager } from './usages/usagesManager';
@@ -467,6 +468,23 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.commands.registerCommand('gcmp.sync.configure', () => SyncManager.configure())
         );
         Logger.trace(`GitHub Gist sync commands registered (${Date.now() - stepStartTime}ms)`);
+
+        // 步骤8.1: 注册 HAR 记录文件定位命令（仅供 tooltip 内部快捷入口调用，不作为命令面板入口）
+        // 在系统文件管理器中显示最新 HAR 文件；当当前 HAR 文件尚未落盘时，回退到目录中最近的 .har 文件；都没有则打开 HAR 目录
+        context.subscriptions.push(
+            vscode.commands.registerCommand('gcmp.har.revealCurrent', () => {
+                const target = HarRecorder.getInstance().getRevealTarget();
+                if (!target) {
+                    return;
+                }
+                const uri = vscode.Uri.file(target.path);
+                if (target.kind === 'file') {
+                    void vscode.commands.executeCommand('revealFileInOS', uri);
+                } else {
+                    void vscode.env.openExternal(uri);
+                }
+            })
+        );
 
         // 步骤9: 注册模型设置向导命令
         stepStartTime = Date.now();

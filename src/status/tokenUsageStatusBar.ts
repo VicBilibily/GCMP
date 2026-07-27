@@ -12,6 +12,7 @@ import { InterInstanceBus } from '../interInstance';
 import { LeaderElectionService } from './leaderElectionService';
 import type { TokenUsageStatsFromFile } from '../usages/fileLogger/types';
 import type { ExtendedTokenRequestLog } from '../usages/fileLogger/usageParser';
+import { HarRecorder } from '../utils/net/harRecorder';
 import { t } from '../utils/runtime/l10n';
 import { convertUsdToRmb } from '../utils/pricing/pricingCurrency';
 import { formatCost } from '../ui/utils';
@@ -167,6 +168,15 @@ export class TokenUsageStatusBar {
             })
         );
 
+        // 监听 HAR 记录开关变更（gcmp.debug.captureHar），实时刷新 tooltip 中的 PID/链接显示
+        this.context.subscriptions.push(
+            vscode.workspace.onDidChangeConfiguration(event => {
+                if (event.affectsConfiguration('gcmp.debug.captureHar')) {
+                    void this.updateDisplay();
+                }
+            })
+        );
+
         // 启动定时更新
         this.startPeriodicUpdate();
 
@@ -281,8 +291,9 @@ export class TokenUsageStatusBar {
 
         const roleLabel =
             LeaderElectionService.isLeader() ? t('Primary Instance', '主实例') : t('Sub Instance', '从实例');
+        const harSuffix = this.buildHarRecorderSuffix();
         md.appendMarkdown(
-            `**${t("GCMP: Today's Token Usage", 'GCMP: 今日 Token 消耗统计')}** <small>${roleLabel}</small>\n\n`
+            `**${t("GCMP: Today's Token Usage", 'GCMP: 今日 Token 消耗统计')}** <small>${roleLabel}${harSuffix}</small>\n\n`
         );
         md.appendMarkdown('\n---\n');
 
@@ -423,6 +434,20 @@ export class TokenUsageStatusBar {
         md.appendMarkdown(`\n---\n\n${this.buildActionLinks(true)}`);
 
         return md;
+    }
+
+    /**
+     * 构建 HAR 记录器的 tooltip 后缀。
+     * 仅在 HAR 记录启用时返回 " · PID <链接>"；否则返回空串。
+     */
+    private buildHarRecorderSuffix(): string {
+        const recorder = HarRecorder.getInstance();
+        if (!recorder.isEnabled()) {
+            return '';
+        }
+        const pidLabel = t('PID', 'PID');
+        const revealLabel = t('Open HAR file', '打开 HAR 文件');
+        return ` · ${pidLabel} ${process.pid} · [${revealLabel}](command:gcmp.har.revealCurrent)`;
     }
 
     /**

@@ -5,7 +5,9 @@ import {
     buildHarFileName,
     calculateHarCompression,
     formatLocalDate,
+    nowMicros,
     parseHarPidFromFileName,
+    pickLatestHarFile,
     planHarCleanup,
     readBodyData,
     readResponseBodyData,
@@ -46,6 +48,9 @@ interface HarPostData {
     text: string;
 }
 
+/** HAR entry 自定义状态 */
+type HarCaptureStatus = 'completed' | 'error' | 'aborted';
+
 interface HarRequest {
     method: string;
     url: string;
@@ -56,6 +61,12 @@ interface HarRequest {
     postData?: HarPostData;
     headersSize: number;
     bodySize: number;
+    /** 请求侧状态（自定义字段） */
+    _status?: HarCaptureStatus;
+    /** 请求开始的微秒级 epoch 时间戳（自定义字段） */
+    _startTimestamp?: number;
+    /** 请求结束（请求体发送完毕）的微秒级 epoch 时间戳（自定义字段） */
+    _endTimestamp?: number;
 }
 
 interface HarResponse {
@@ -73,11 +84,21 @@ interface HarResponse {
     redirectURL: string;
     headersSize: number;
     bodySize: number;
+    /** 响应侧状态（自定义字段） */
+    _status?: HarCaptureStatus;
+    /** 响应开始的微秒级 epoch 时间戳（自定义字段，fetch 返回时刻） */
+    _startTimestamp?: number;
+    /** 响应结束（响应体读完）的微秒级 epoch 时间戳（自定义字段） */
+    _endTimestamp?: number;
 }
 
 interface HarEntry {
     startedDateTime: string;
     time: number;
+    /** 请求序号（在 enqueueEntry 时分配，从 1 开始单调递增） */
+    _id?: number;
+    /** 请求开始的毫秒级 epoch 时间戳（自定义字段，与 startedDateTime 同源） */
+    _stime?: number;
     request: HarRequest;
     response: HarResponse;
     cache: Record<string, unknown>;
@@ -202,6 +223,71 @@ export class HarRecorder {
     }
 
     /**
+     * 返回当前正在写入的 HAR 文件绝对路径；未启用或已关闭时返回 undefined。
+     */
+    getCurrentFilePath(): string | undefined {
+        const state = this.currentState;
+        if (!state || !state.options.enabled) {
+            return undefined;
+        }
+        return state.filePath;
+    }
+
+    /**
+     * 返回用于在系统文件管理器中"定位"的目标。
+     * 优先级：
+     *   1. 当前正在写入且实际已存在的 HAR 文件（设置刚切换、尚无请求时文件可能还未落盘）
+     *   2. HAR 目录中最近修改的 .har 文件（沿用历史记录）
+     *   3. HAR 目录本身（首次启用且无任何历史记录时的兜底）
+     * 若 HAR 目录都不存在则返回 undefined。
+     */
+    getRevealTarget(): { kind: 'file' | 'directory'; path: string } | undefined {
+        const dir = this.currentState?.storageDir;
+        const currentFilePath = this.currentState?.filePath;
+
+        if (currentFilePath && fs.existsSync(currentFilePath)) {
+            return { kind: 'file', path: currentFilePath };
+        }
+
+        if (dir && fs.existsSync(dir)) {
+            const latest = this.findLatestHarFile(dir);
+            if (latest) {
+                return { kind: 'file', path: latest };
+            }
+            return { kind: 'directory', path: dir };
+        }
+
+        return undefined;
+    }
+
+    private findLatestHarFile(dir: string): string | undefined {
+        const currentPid = process.pid;
+        const files: HarFileRecord[] = [];
+        try {
+            for (const name of fs.readdirSync(dir)) {
+                if (!name.endsWith('.har')) {
+                    continue;
+                }
+                const filePath = path.join(dir, name);
+                try {
+                    const stat = fs.statSync(filePath);
+                    files.push({
+                        name,
+                        path: filePath,
+                        mtime: stat.mtimeMs,
+                        pid: parseHarPidFromFileName(name, currentPid)
+                    });
+                } catch {
+                    // 文件可能被并发删除，跳过
+                }
+            }
+        } catch {
+            // 目录读取失败，返回 undefined
+        }
+        return pickLatestHarFile(files, currentPid)?.path;
+    }
+
+    /**
      * 包装 fetch 实现，在请求完成后追加 HAR entry。
      * 响应体通过独立的后台读取路径采集，不影响原始 response 返回给调用方。
      */
@@ -212,7 +298,12 @@ export class HarRecorder {
                 return fetchImpl(input, init);
             }
 
-            const startedDateTime = new Date().toISOString();
+            // HAR 主流工具（Reqable / Chrome DevTools）的隐式契约是 UTC（Z 后缀），
+            // 直接用 toISOString() 输出 `2026-07-27T15:30:00.000Z` 格式，保证跨工具互操作一致。
+            const startTimestampMicros = nowMicros();
+            const startedDateTime = new Date(startTimestampMicros / 1000).toISOString();
+            // _stime：毫秒级开始时间戳（与 startedDateTime 同源）
+            const startTimestampMs = Math.floor(startTimestampMicros / 1000);
             const startTime = performance.now();
 
             const fetchInput = input;
@@ -293,8 +384,11 @@ export class HarRecorder {
             }
 
             let response: Response;
+            let fetchReturnedMicros: number | undefined;
             try {
                 response = await fetchImpl(fetchInput, fetchInit);
+                // fetch 返回意味着请求已发送完毕且响应头已到达，近似作为 request._endTimestamp 和 response._startTimestamp
+                fetchReturnedMicros = nowMicros();
             } catch (error) {
                 if (!state.accepting) {
                     throw error;
@@ -309,6 +403,8 @@ export class HarRecorder {
                         requestBodyPromise,
                         error,
                         startedDateTime,
+                        startTimestampMs,
+                        startTimestampMicros,
                         startTime,
                         endTime
                     )
@@ -329,12 +425,17 @@ export class HarRecorder {
                         captureInit,
                         response,
                         startedDateTime,
+                        startTimestampMs,
+                        startTimestampMicros,
                         startTime,
+                        fetchReturnedMicros,
                         requestBodyPromise,
                         {
                             text: '',
                             byteLength: 0
-                        }
+                        },
+                        undefined,
+                        init?.signal ?? undefined
                     )
                 );
                 return response;
@@ -349,10 +450,14 @@ export class HarRecorder {
                     captureInit,
                     response.clone(),
                     startedDateTime,
+                    startTimestampMs,
+                    startTimestampMicros,
                     startTime,
+                    fetchReturnedMicros,
                     requestBodyPromise,
                     undefined,
-                    captureController.signal
+                    captureController.signal,
+                    init?.signal ?? undefined
                 ),
                 captureController
             );
@@ -367,6 +472,8 @@ export class HarRecorder {
         requestBodyPromise: Promise<HarBodyData> | undefined,
         error: unknown,
         startedDateTime: string,
+        startTimestampMs: number,
+        startTimestampMicros: number,
         startTime: number,
         endTime: number
     ): Promise<void> {
@@ -383,10 +490,16 @@ export class HarRecorder {
             const requestBody = await (requestBodyPromise ?? Promise.resolve<HarBodyData>({ byteLength: 0 }));
 
             const errorMessage = error instanceof Error ? error.message : String(error);
+            // fetch 抛错时请求/响应均未完成，两侧结束时刻统一用错误发生时刻
+            const errorMicros = nowMicros();
+            // 区分 abort 与一般错误（fetch 被取消时 error 通常是 AbortError）
+            const isErrorAbort =
+                error instanceof Error && (error.name === 'AbortError' || /abort/i.test(error.message));
 
             const entry: HarEntry = {
                 startedDateTime,
                 time: Math.round(endTime - startTime),
+                _stime: startTimestampMs,
                 request: {
                     method,
                     url: this.sanitizeUrl(url),
@@ -402,7 +515,10 @@ export class HarRecorder {
                             }
                         :   undefined,
                     headersSize: this.estimateHeadersSize(method, url, requestHeaders),
-                    bodySize: requestBody.byteLength
+                    bodySize: requestBody.byteLength,
+                    _status: isErrorAbort ? 'aborted' : 'error',
+                    _startTimestamp: startTimestampMicros,
+                    _endTimestamp: errorMicros
                 },
                 response: {
                     status: 0,
@@ -417,7 +533,9 @@ export class HarRecorder {
                     },
                     redirectURL: '',
                     headersSize: 0,
-                    bodySize: -1
+                    bodySize: -1,
+                    _status: isErrorAbort ? 'aborted' : 'error',
+                    _endTimestamp: errorMicros
                 },
                 cache: {},
                 timings: {
@@ -442,10 +560,14 @@ export class HarRecorder {
         init: RequestInit | undefined,
         response: Response,
         startedDateTime: string,
+        startTimestampMs: number,
+        startTimestampMicros: number,
         startTime: number,
+        fetchReturnedMicros: number | undefined,
         requestBodyPromise: Promise<HarBodyData> | undefined,
         responseBody?: HarBodyData,
-        signal?: AbortSignal
+        signal?: AbortSignal,
+        requestSignal?: AbortSignal
     ): Promise<void> {
         try {
             const responseBodyPromise =
@@ -455,15 +577,24 @@ export class HarRecorder {
                 responseBodyPromise
             ]);
             const endTime = performance.now();
+            const endTimestampMicros = nowMicros();
+            // 同时检查内部 captureSignal（dispose 时打断）和用户原始 requestSignal（Ctrl+C 取消），
+            // 任一处于 aborted 都标记为 aborted，避免响应体被截断却仍标记为 completed
+            const isAborted = signal?.aborted === true || requestSignal?.aborted === true;
             const entry = await this.buildEntry(
                 input,
                 init,
                 response,
                 startedDateTime,
+                startTimestampMs,
+                startTimestampMicros,
+                fetchReturnedMicros,
+                endTimestampMicros,
                 startTime,
                 endTime,
                 resolvedResponseBody,
-                requestBody
+                requestBody,
+                isAborted
             );
             this.enqueueEntry(state, entry);
         } catch (error) {
@@ -490,8 +621,10 @@ export class HarRecorder {
 
     private enqueueEntry(state: HarRecorderState, entry: HarEntry): void {
         if (!state.accepting) {
-            state.entries.push(entry);
+            // 关闭阶段不再轮换文件，但仍保持 _id 在当前文件内单调递增
             state.requestCount++;
+            entry._id = state.requestCount;
+            state.entries.push(entry);
             this.flush(state);
             this.finalizeStateIfIdle(state);
             return;
@@ -500,8 +633,11 @@ export class HarRecorder {
         this.rotateFileIfDayChanged(state);
         this.rotateFileIfExpired(state);
 
-        state.entries.push(entry);
+        // 先处理可能重置 requestCount 的轮换，再为当前 entry 分配文件内序号
         state.requestCount++;
+        entry._id = state.requestCount;
+
+        state.entries.push(entry);
 
         // 达到单文件请求上限时，轮换到新文件
         if (state.requestCount >= this.MAX_REQUESTS_PER_FILE) {
@@ -718,10 +854,15 @@ export class HarRecorder {
         init: RequestInit | undefined,
         response: Response,
         startedDateTime: string,
+        startTimestampMs: number,
+        startTimestampMicros: number,
+        fetchReturnedMicros: number | undefined,
+        endTimestampMicros: number,
         startTime: number,
         endTime: number,
         responseBody: HarBodyData,
-        requestBody: HarBodyData
+        requestBody: HarBodyData,
+        isAborted: boolean
     ): Promise<HarEntry> {
         const url =
             typeof input === 'string' ? input
@@ -747,9 +888,12 @@ export class HarRecorder {
             responseContent.compression = compression;
         }
 
+        const responseStatus = isAborted ? 'aborted' : 'completed';
+
         return {
             startedDateTime,
             time: Math.round(endTime - startTime),
+            _stime: startTimestampMs,
             request: {
                 method,
                 url: this.sanitizeUrl(url),
@@ -765,7 +909,12 @@ export class HarRecorder {
                         }
                     :   undefined,
                 headersSize: this.estimateHeadersSize(method, url, requestHeaders),
-                bodySize: requestBody.byteLength
+                bodySize: requestBody.byteLength,
+                _status: 'completed',
+                _startTimestamp: startTimestampMicros,
+                // fetch API 层面无法精确区分"请求体发送完毕"和"响应头到达"，
+                // 统一用 fetch 返回时刻作为 request._endTimestamp
+                _endTimestamp: fetchReturnedMicros ?? endTimestampMicros
             },
             response: {
                 status: response.status,
@@ -776,7 +925,10 @@ export class HarRecorder {
                 content: responseContent,
                 redirectURL: redirectUrl ? this.sanitizeUrl(redirectUrl) : '',
                 headersSize: this.estimateHeadersSize('', '', responseHeaders),
-                bodySize: responseBodySize
+                bodySize: responseBodySize,
+                _status: responseStatus,
+                _startTimestamp: fetchReturnedMicros,
+                _endTimestamp: endTimestampMicros
             },
             cache: {},
             timings: {
