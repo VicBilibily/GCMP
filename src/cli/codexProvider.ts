@@ -6,8 +6,8 @@
 
 import * as vscode from 'vscode';
 import { CancellationToken, LanguageModelChatInformation, PrepareLanguageModelChatModelOptions } from 'vscode';
-import { CliModelProvider } from '../cli/cliModelProvider';
-import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
+import { CliBaseProvider } from './cliBaseProvider';
+import { CliAuthFactory } from './auth/cliAuthFactory';
 import { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { ConfigManager } from '../utils/config/configManager';
@@ -20,6 +20,8 @@ const CODEX_MODELS_URL = 'https://chatgpt.com/backend-api/codex/models';
 const CACHE_KEY = 'gcmp_codex_models_v1';
 /** 缓存有效期（24 小时） */
 const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000;
+/** 内存缓存有效期（3 分钟）：同一账号短时间内复用上次成功拉取结果，避免高频重复请求 */
+const MEMORY_CACHE_TTL_MS = 3 * 60 * 1000;
 
 /** 缓存在 globalState 中的远端模型数据快照 */
 interface CachedCodexModels {
@@ -36,13 +38,13 @@ interface CachedCodexModels {
 /**
  * Codex 模型提供商
  *
- * 继承 CliModelProvider，通过 Codex CLI OAuth 认证访问 ChatGPT 后端，
+ * 继承 CliBaseProvider，通过 Codex CLI OAuth 认证访问 ChatGPT 后端，
  * 动态拉取可用模型列表，并支持本地预置模型与远端模型的整合策略：
  * - 本地预置模型保持完整配置，远端仅控制显示/隐藏
  * - 远端独有的模型自动创建默认配置
  * - 远端拉取失败时回退到本地预置模型
  */
-export class CodexModelProvider extends CliModelProvider {
+export class CodexProvider extends CliBaseProvider {
     /** 扩展上下文，用于访问 globalState 缓存 */
     private readonly context: vscode.ExtensionContext;
     /** 本地预置的静态模型配置（codex.json），远端失败时回退到此配置 */
@@ -55,6 +57,8 @@ export class CodexModelProvider extends CliModelProvider {
     private dynamicModelWaiterCount = 0;
     /** 当前飞行中 HTTP 请求的 AbortController，用于取消时终止网络请求 */
     private currentAbortController?: AbortController;
+    /** 最近一次成功拉取的内存缓存，3 分钟内的后续请求直接复用，跳过 HTTP */
+    private lastSuccessfulFetch?: { models: ModelConfig[]; timestamp: number; apiKeyHash: string };
 
     /**
      * @param context 扩展上下文
@@ -68,6 +72,7 @@ export class CodexModelProvider extends CliModelProvider {
         // 迫使下次请求重新拉取远端模型列表，确保覆盖配置立即生效
         this.codexConfigListener = vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('gcmp.providerOverrides')) {
+                this.lastSuccessfulFetch = undefined;
                 void this.context.globalState.update(CACHE_KEY, undefined);
             }
         });
@@ -82,11 +87,11 @@ export class CodexModelProvider extends CliModelProvider {
         context: vscode.ExtensionContext,
         _providerKey: string,
         providerConfig: ProviderConfig
-    ): { provider: CodexModelProvider; disposables: vscode.Disposable[] } {
-        const provider = new CodexModelProvider(context, providerConfig);
+    ): { provider: CodexProvider; disposables: vscode.Disposable[] } {
+        const provider = new CodexProvider(context, providerConfig);
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider('gcmp.codex', provider);
         const configWizardCommand = vscode.commands.registerCommand('gcmp.codex.configWizard', async () => {
-            await CodexModelProvider.startConfigWizard('codex', providerConfig.displayName);
+            await CodexProvider.startConfigWizard('codex', providerConfig.displayName);
             await provider.invalidateModelCaches();
             provider._onDidChangeLanguageModelChatInformation.fire();
         });
@@ -198,13 +203,37 @@ export class CodexModelProvider extends CliModelProvider {
 
     /**
      * 获取或等待模型列表拉取结果
-     * 通过 refreshPromise 保证同一时间只有一个拉取请求在进行
+     *
+     * 三层节流：
+     * 1. 内存缓存（3 分钟）：最近成功拉取过且 token 哈希一致则直接复用，不发 HTTP
+     * 2. refreshPromise：并发去重，同一时刻只有一个拉取请求
+     * 3. globalState 持久缓存（24 小时）：跨会话复用
+     *
+     * 内存缓存绑定 apiKeyHash：token/账户变化（OAuth refresh、重新登录）时立即失效，
+     * 与 globalState 缓存的校验逻辑保持一致。
      */
-    private getDynamicModels(): Promise<ModelConfig[]> {
+    private async getDynamicModels(): Promise<ModelConfig[]> {
+        if (this.lastSuccessfulFetch && Date.now() - this.lastSuccessfulFetch.timestamp < MEMORY_CACHE_TTL_MS) {
+            const currentApiKeyHash = await this.getApiKeyHash();
+            if (currentApiKeyHash === this.lastSuccessfulFetch.apiKeyHash) {
+                return this.lastSuccessfulFetch.models;
+            }
+            // token 已变化（OAuth refresh 或账户切换），内存缓存失效
+            this.lastSuccessfulFetch = undefined;
+        }
         if (!this.refreshPromise) {
-            this.refreshPromise = this.refreshModels().finally(() => {
-                this.refreshPromise = undefined;
-            });
+            this.refreshPromise = this.refreshModels()
+                .then(async models => {
+                    this.lastSuccessfulFetch = {
+                        models,
+                        timestamp: Date.now(),
+                        apiKeyHash: await this.getApiKeyHash()
+                    };
+                    return models;
+                })
+                .finally(() => {
+                    this.refreshPromise = undefined;
+                });
         }
         return this.refreshPromise;
     }
@@ -328,6 +357,7 @@ export class CodexModelProvider extends CliModelProvider {
      * 回退到静态预置模型，通常在 API Key 变更后调用
      */
     private async invalidateModelCaches(): Promise<void> {
+        this.lastSuccessfulFetch = undefined;
         await Promise.all([
             this.modelInfoCache?.invalidateCache(this.providerKey),
             this.context.globalState.update(CACHE_KEY, undefined)

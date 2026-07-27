@@ -2,8 +2,8 @@ import * as vscode from 'vscode';
 import { GenericModelProvider } from './providers/genericModelProvider';
 import { ZhipuProvider } from './providers/zhipuProvider';
 import { MoonshotProvider } from './providers/moonshotProvider';
-import { CliModelProvider } from './cli/cliModelProvider';
-import { CodexModelProvider } from './providers/codexModelProvider';
+import { CliBaseProvider } from './cli/cliBaseProvider';
+import { CodexProvider } from './cli/codexProvider';
 import { MiniMaxProvider } from './providers/minimaxProvider';
 import { DashscopeProvider } from './providers/dashscopeProvider';
 import { TencentProvider } from './providers/tencentProvider';
@@ -79,8 +79,8 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
                 | GenericModelProvider
                 | ZhipuProvider
                 | MoonshotProvider
-                | CliModelProvider
-                | CodexModelProvider
+                | CliBaseProvider
+                | CodexProvider
                 | MiniMaxProvider
                 | DashscopeProvider
                 | TencentProvider
@@ -141,12 +141,12 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
                 provider = result.provider;
                 disposables = result.disposables;
             } else if (providerKey === 'codex') {
-                const result = CodexModelProvider.createAndActivate(context, providerKey, providerConfig);
+                const result = CodexProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
             } else if (cliAuthProviders.includes(providerKey)) {
                 // 对 CLI 认证提供商使用通用的 CLI provider
-                const result = CliModelProvider.createAndActivate(context, providerKey, providerConfig);
+                const result = CliBaseProvider.createAndActivate(context, providerKey, providerConfig);
                 provider = result.provider;
                 disposables = result.disposables;
             } else {

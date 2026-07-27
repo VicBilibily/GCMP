@@ -27,7 +27,7 @@ import { t } from '../utils/runtime/l10n';
  * 继承 GenericModelProvider，支持 CLI 认证模式
  * 适用于所有使用 CLI 认证的提供商（codex、grok 等）
  */
-export class CliModelProvider extends GenericModelProvider {
+export class CliBaseProvider extends GenericModelProvider {
     constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
         super(context, providerKey, providerConfig);
     }
@@ -58,7 +58,7 @@ export class CliModelProvider extends GenericModelProvider {
                     await ApiKeyManager.setApiKey(this.providerKey, credentials.access_token);
                     return super.provideLanguageModelChatInformation(options, token);
                 }
-                Logger.trace(`[CliModelProvider] ${this.providerKey} token expired, trying refresh`);
+                Logger.trace(`[${this.providerKey}] token expired, trying refresh`);
             }
 
             hasApiKey = await ApiKeyManager.ensureApiKey(this.providerKey, this.providerConfig.displayName, false);
@@ -77,15 +77,15 @@ export class CliModelProvider extends GenericModelProvider {
                 const credentials = await CliAuthFactory.ensureAuthenticated(this.providerKey);
                 if (credentials) {
                     await ApiKeyManager.setApiKey(this.providerKey, credentials.access_token);
-                    Logger.info(`[CliModelProvider] Loaded credentials from ${this.providerKey} CLI`);
+                    Logger.info(`[${this.providerKey}] Loaded credentials from CLI`);
                 } else {
                     await vscode.commands.executeCommand(`gcmp.${this.providerKey}.configWizard`);
                     // 无法获取凭证，返回空列表
-                    Logger.warn(`[CliModelProvider] Unable to load credentials from ${this.providerKey} CLI`);
+                    Logger.warn(`[${this.providerKey}] Unable to load credentials from CLI`);
                     return [];
                 }
             } catch (error) {
-                Logger.warn(`[CliModelProvider] Failed to load credentials from ${this.providerKey} CLI:`, error);
+                Logger.warn(`[${this.providerKey}] Failed to load credentials from CLI:`, error);
                 return [];
             }
         }
@@ -100,10 +100,10 @@ export class CliModelProvider extends GenericModelProvider {
         context: vscode.ExtensionContext,
         providerKey: string,
         providerConfig: ProviderConfig
-    ): { provider: CliModelProvider; disposables: vscode.Disposable[] } {
+    ): { provider: CliBaseProvider; disposables: vscode.Disposable[] } {
         Logger.trace(`${providerConfig.displayName} CLI-authenticated model provider activated`);
         // 创建提供商实例
-        const provider = new CliModelProvider(context, providerKey, providerConfig);
+        const provider = new CliBaseProvider(context, providerKey, providerConfig);
         // 注册语言模型聊天提供商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
 
@@ -122,7 +122,7 @@ export class CliModelProvider extends GenericModelProvider {
 
         // 注册配置向导命令
         const configWizardCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.configWizard`, async () => {
-            await CliModelProvider.startConfigWizard(providerKey, providerConfig.displayName);
+            await CliBaseProvider.startConfigWizard(providerKey, providerConfig.displayName);
             // 配置变更后清除缓存
             await provider.modelInfoCache?.invalidateCache(providerKey);
             // 触发模型信息变更事件
