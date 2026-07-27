@@ -29,6 +29,7 @@ import { decodeStatefulMarker } from './statefulMarker';
 import { CustomDataPartMimeTypes } from './types';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import { isSubRequest, type RequestKind } from './requestClassifier';
+import { preprocessOpenAIChatRequest } from './openaiChatRequestPreprocessor';
 
 /**
  * 扩展Delta类型以支持reasoning_content和reasoning字段
@@ -946,6 +947,11 @@ export class OpenAIHandler {
                 }
             }
         }
+
+        preprocessOpenAIChatRequest(
+            createParams.messages as unknown as { tool_calls?: { function?: { arguments?: unknown } }[] }[],
+            createParams.tools as unknown as { function?: { parameters?: unknown } }[] | undefined
+        );
 
         return createParams;
     }

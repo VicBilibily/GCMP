@@ -1,7 +1,12 @@
 ﻿import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { addCacheControlBreakpoints, AnthropicCacheableMessage, AnthropicCacheableTool } from './anthropicCacheControl';
+import {
+    addCacheControlBreakpoints,
+    AnthropicCacheableMessage,
+    AnthropicCacheableTool,
+    preprocessAnthropicCacheBreakpoints
+} from './anthropicCacheControl';
 
 interface TestSystem {
     type: string;
@@ -158,6 +163,140 @@ test('thinking 块上的已有断点不计入（不支持缓存控制）', () =>
 
     // thinking 块断点不计入 → 占用 1/4，工具仍可打断点
     assert.deepEqual(tools[0].cache_control, { type: 'ephemeral' });
+});
+
+test('预处理：清空旧断点后重新按确定位置注入', () => {
+    const tools = [makeTool('read_file'), makeTool('edit_file')];
+    tools[0].cache_control = { type: 'ephemeral' };
+
+    const system = makeSystem('sys');
+    system.cache_control = { type: 'ephemeral' };
+
+    const messages = [msg('user', { text: 'current user', cached: true })];
+
+    preprocessAnthropicCacheBreakpoints(tools, { messages, system });
+
+    assert.equal(tools[0].cache_control, undefined);
+    assert.deepEqual(tools[1].cache_control, { type: 'ephemeral' });
+    assert.deepEqual(system.cache_control, { type: 'ephemeral' });
+    assert.equal(cachedOf(messages[0]).length, 1);
+    assert.equal(countCacheControl(tools, system, messages), 3);
+});
+
+test('预处理：移除首部仅用于承载 cache_control 的空白块', () => {
+    const messages = [
+        {
+            role: 'user',
+            content: [
+                { type: 'text', text: ' ', cache_control: { type: 'ephemeral' } },
+                { type: 'text', text: 'real question' }
+            ]
+        } as AnthropicCacheableMessage
+    ];
+
+    preprocessAnthropicCacheBreakpoints([], { messages, system: undefined });
+
+    const content = messages[0].content as { type: string; text?: string; cache_control?: unknown }[];
+    assert.equal(content.length, 1);
+    assert.equal(content[0].text, 'real question');
+    assert.deepEqual(content[0].cache_control, { type: 'ephemeral' });
+});
+
+test('预处理：移除多个首部空白占位块，只保留真实内容块', () => {
+    const messages = [
+        {
+            role: 'user',
+            content: [
+                { type: 'text', text: ' ' },
+                { type: 'text', text: ' ', cache_control: { type: 'ephemeral' } },
+                { type: 'text', text: 'real question' }
+            ]
+        } as AnthropicCacheableMessage
+    ];
+
+    preprocessAnthropicCacheBreakpoints([], { messages, system: undefined });
+
+    const content = messages[0].content as { type: string; text?: string; cache_control?: unknown }[];
+    assert.deepEqual(content, [{ type: 'text', text: 'real question', cache_control: { type: 'ephemeral' } }]);
+});
+
+test('预处理：若消息仅剩占位空白块，则保留该块承载断点', () => {
+    const messages = [
+        {
+            role: 'user',
+            content: [{ type: 'text', text: ' ', cache_control: { type: 'ephemeral' } }]
+        } as AnthropicCacheableMessage
+    ];
+
+    preprocessAnthropicCacheBreakpoints([], { messages, system: undefined });
+
+    const content = messages[0].content as { type: string; text?: string; cache_control?: unknown }[];
+    assert.deepEqual(content, [{ type: 'text', text: ' ', cache_control: { type: 'ephemeral' } }]);
+});
+
+test('预处理：移除 tool_result 内因 cache_control 留下的空白占位', () => {
+    const messages = [
+        {
+            role: 'user',
+            content: [
+                {
+                    type: 'tool_result',
+                    tool_use_id: 'call_1',
+                    cache_control: { type: 'ephemeral' },
+                    content: [
+                        { type: 'text', text: ' ' },
+                        { type: 'text', text: 'tool output' }
+                    ]
+                }
+            ]
+        } as AnthropicCacheableMessage
+    ];
+
+    preprocessAnthropicCacheBreakpoints([], { messages, system: undefined });
+
+    const block = (
+        messages[0].content as {
+            type: string;
+            cache_control?: unknown;
+            content?: { type: string; text?: string }[];
+        }[]
+    )[0];
+
+    assert.deepEqual(block.cache_control, { type: 'ephemeral' });
+    assert.deepEqual(block.content, [{ type: 'text', text: 'tool output' }]);
+});
+
+test('预处理：移除 tool_result 内多个前导空白占位块', () => {
+    const messages = [
+        {
+            role: 'user',
+            content: [
+                {
+                    type: 'tool_result',
+                    tool_use_id: 'call_1',
+                    cache_control: { type: 'ephemeral' },
+                    content: [
+                        { type: 'text', text: ' ' },
+                        { type: 'text', text: ' ' },
+                        { type: 'text', text: 'tool output' }
+                    ]
+                }
+            ]
+        } as AnthropicCacheableMessage
+    ];
+
+    preprocessAnthropicCacheBreakpoints([], { messages, system: undefined });
+
+    const block = (
+        messages[0].content as {
+            type: string;
+            cache_control?: unknown;
+            content?: { type: string; text?: string }[];
+        }[]
+    )[0];
+
+    assert.deepEqual(block.cache_control, { type: 'ephemeral' });
+    assert.deepEqual(block.content, [{ type: 'text', text: 'tool output' }]);
 });
 
 // ---- 消息级断点（对齐 VS Code 1.129 规则） ----

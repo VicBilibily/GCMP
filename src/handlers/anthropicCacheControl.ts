@@ -43,8 +43,104 @@ interface AnthropicContentBlock {
     cache_control?: { type: string } | null;
 }
 
+interface AnthropicTextBlock extends AnthropicContentBlock {
+    text?: string;
+}
+
+interface AnthropicNestedContentBlock extends AnthropicContentBlock {
+    text?: string;
+}
+
+interface AnthropicToolResultLikeBlock extends AnthropicContentBlock {
+    content?: AnthropicNestedContentBlock[];
+}
+
 function getBlocks(msg: AnthropicCacheableMessage): AnthropicContentBlock[] {
     return Array.isArray(msg.content) ? (msg.content as AnthropicContentBlock[]) : [];
+}
+
+function removeCacheControl(block: CacheableBlock): boolean {
+    if (!block.cache_control) {
+        return false;
+    }
+    delete block.cache_control;
+    return true;
+}
+
+function isBlankTextBlock(block: AnthropicContentBlock | undefined): block is AnthropicTextBlock {
+    return (
+        block?.type === 'text' &&
+        typeof (block as AnthropicTextBlock).text === 'string' &&
+        !(block as AnthropicTextBlock).text?.trim()
+    );
+}
+
+function leadingBlankPrefixContainsCacheControl(blocks: AnthropicContentBlock[]): boolean {
+    for (const block of blocks) {
+        if (!isBlankTextBlock(block)) {
+            return false;
+        }
+        if (block.cache_control) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function stripLeadingBlankTextPlaceholders(blocks: AnthropicContentBlock[]): void {
+    while (isBlankTextBlock(blocks[0]) && blocks.some((block, index) => index > 0 && !isBlankTextBlock(block))) {
+        blocks.shift();
+    }
+}
+
+function preprocessMessageBlocks(messages: AnthropicCacheableMessage[]): void {
+    for (const msg of messages) {
+        const blocks = getBlocks(msg);
+        if (blocks.length === 0) {
+            continue;
+        }
+
+        const shouldStripLeadingBlocks = leadingBlankPrefixContainsCacheControl(blocks);
+
+        for (const block of blocks) {
+            const hadCacheControl = removeCacheControl(block);
+
+            if ('content' in block && Array.isArray((block as AnthropicToolResultLikeBlock).content)) {
+                const nestedBlocks = (block as AnthropicToolResultLikeBlock).content as AnthropicContentBlock[];
+                const shouldStripLeadingNestedBlocks =
+                    hadCacheControl || leadingBlankPrefixContainsCacheControl(nestedBlocks);
+
+                for (const nestedBlock of nestedBlocks) {
+                    removeCacheControl(nestedBlock);
+                }
+
+                if (shouldStripLeadingNestedBlocks) {
+                    stripLeadingBlankTextPlaceholders(nestedBlocks);
+                }
+            }
+        }
+
+        if (shouldStripLeadingBlocks) {
+            stripLeadingBlankTextPlaceholders(blocks);
+        }
+    }
+}
+
+export function preprocessAnthropicCacheBreakpoints(
+    tools: AnthropicCacheableTool[],
+    messagesResult: { messages: AnthropicCacheableMessage[]; system?: CacheableBlock & { text?: string } }
+): void {
+    for (const tool of tools) {
+        removeCacheControl(tool);
+    }
+
+    if (messagesResult.system) {
+        removeCacheControl(messagesResult.system);
+    }
+
+    preprocessMessageBlocks(messagesResult.messages);
+    addCacheControlBreakpoints(tools, messagesResult);
 }
 
 /** 是否含 tool_result 块（一轮工具调用的结果） */

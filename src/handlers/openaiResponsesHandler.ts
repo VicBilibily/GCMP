@@ -26,6 +26,8 @@ import * as liveMetrics from './liveMetrics';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
+import { OpenAIResponsesCallIdResolver } from './openaiResponsesCallIdResolver';
+import { preprocessOpenAIResponsesInputItems } from './openaiResponsesInputPreprocessor';
 
 // 使用 OpenAI SDK 的 Responses API 类型
 type ResponseInputItem = OpenAI.Responses.ResponseInputItem;
@@ -100,8 +102,9 @@ export class OpenAIResponsesHandler {
     ): { systemMessage: string; messages: ResponseInputItem[] } {
         const out: ResponseInputItem[] = [];
         let systemMessage = '';
+        const callIdResolver = new OpenAIResponsesCallIdResolver();
 
-        for (const message of messages) {
+        for (const [messageIndex, message] of messages.entries()) {
             const role = this.mapRole(message.role);
             const textParts: string[] = [];
             const imageParts: vscode.LanguageModelDataPart[] = [];
@@ -111,7 +114,7 @@ export class OpenAIResponsesHandler {
             const encryptedReasonings: Array<{ encryptedContent: string; reasoningId?: string }> = []; // 收集加密的思考内容
 
             // 提取各类内容
-            for (const part of message.content) {
+            for (const [partIndex, part] of message.content.entries()) {
                 if (part instanceof vscode.LanguageModelTextPart) {
                     textParts.push(part.value);
                 } else if (
@@ -125,18 +128,26 @@ export class OpenAIResponsesHandler {
                         textParts.push('[Image]');
                     }
                 } else if (part instanceof vscode.LanguageModelToolCallPart) {
-                    const id = part.callId || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
                     let args = '{}';
                     try {
                         args = JSON.stringify(part.input ?? {});
                     } catch {
                         args = '{}';
                     }
+                    const id = callIdResolver.resolveToolCallId({
+                        callId: part.callId,
+                        messageIndex,
+                        partIndex,
+                        name: part.name,
+                        argumentsJson: args
+                    });
                     toolCalls.push({ id, name: part.name, args });
                 } else if (part instanceof vscode.LanguageModelToolResultPart) {
-                    const callId = part.callId ?? '';
+                    const callId = callIdResolver.resolveToolResultCallId({ callId: part.callId });
                     const content = this.collectToolResultText(part);
-                    toolResults.push({ callId, content });
+                    if (callId) {
+                        toolResults.push({ callId, content });
+                    }
                 } else if (part instanceof vscode.LanguageModelThinkingPart) {
                     // 检查是否包含加密思考内容 (由 include=["reasoning.encrypted_content"] 时返回)
                     const metadata = (part as unknown as { metadata?: OpenAIResponsesThinkingMetadata }).metadata;
@@ -160,14 +171,17 @@ export class OpenAIResponsesHandler {
                 // 先推送加密思考内容项（reasoning items with encrypted_content）
                 // 这些需要在 assistant text 消息之前
                 for (const { encryptedContent, reasoningId } of encryptedReasonings) {
-                    out.push({
+                    const reasoningItem: Record<string, unknown> = {
                         type: 'reasoning' as const,
-                        // 使用保存的原始 id（官方实现使用 thinkingData.id）
-                        id: reasoningId || `rsn_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                         summary: [],
                         encrypted_content: encryptedContent
                         // 注意：reasoning 输入项不接受 status 字段，API 会报 Unknown parameter 错误
-                    } as unknown as ResponseReasoningItem);
+                    };
+                    // 使用服务端返回的原始 reasoning id，避免每轮重放时引入新的随机偏移
+                    if (reasoningId) {
+                        reasoningItem.id = reasoningId;
+                    }
+                    out.push(reasoningItem as unknown as ResponseReasoningItem);
                 }
 
                 const assistantText = joinedText || joinedThinking;
@@ -176,7 +190,6 @@ export class OpenAIResponsesHandler {
                     // 注意：在 input 数组中，assistant 消息的 content 必须使用 output_text
                     out.push({
                         type: 'message' as const,
-                        id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                         role: 'assistant' as const,
                         status: 'completed' as const,
                         content: [{ type: 'output_text' as const, text: assistantText }]
@@ -192,7 +205,6 @@ export class OpenAIResponsesHandler {
                     }
                     out.push({
                         type: 'function_call' as const,
-                        id: `fc_${tc.id}`,
                         call_id: tc.id,
                         name: tc.name,
                         arguments: tc.args,
@@ -208,7 +220,6 @@ export class OpenAIResponsesHandler {
                 }
                 out.push({
                     type: 'function_call_output' as const,
-                    id: `fco_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                     call_id: tr.callId,
                     output: tr.content || '',
                     status: 'completed' as const
@@ -232,7 +243,6 @@ export class OpenAIResponsesHandler {
                 if (contentArray.length > 0) {
                     out.push({
                         type: 'message' as const,
-                        id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                         role: 'user' as const,
                         status: 'completed' as const,
                         content: contentArray
@@ -489,6 +499,29 @@ export class OpenAIResponsesHandler {
                 return toolCallIdToIndex.get(callId)!;
             };
 
+            // 获取稳定的工具调用索引：优先使用服务端 call_id，item_id 仅作兼容兜底。
+            const getStableToolCallIndex = (itemId?: string, callId?: string): number | undefined => {
+                const primaryId = callId || itemId;
+                if (!primaryId) {
+                    return undefined;
+                }
+
+                const idx = getToolCallIndex(primaryId);
+                if (itemId && itemId !== primaryId) {
+                    toolCallIdToIndex.set(itemId, idx);
+                }
+                if (callId && callId !== primaryId) {
+                    toolCallIdToIndex.set(callId, idx);
+                }
+                return idx;
+            };
+
+            // 兼容 SDK 类型未声明 call_id 的情况，从事件对象中安全提取该字段。
+            const getEventCallId = (event: unknown): string | undefined => {
+                const value = (event as { call_id?: unknown }).call_id;
+                return typeof value === 'string' ? value : undefined;
+            };
+
             try {
                 // 准备请求体
                 // 将消息转换为 Responses API 格式
@@ -736,6 +769,13 @@ export class OpenAIResponsesHandler {
                     }
                 }
 
+                if (Array.isArray(requestBody.input)) {
+                    preprocessOpenAIResponsesInputItems(
+                        requestBody.input as Record<string, unknown>[],
+                        Array.isArray(requestBody.tools) ? (requestBody.tools as Record<string, unknown>[]) : undefined
+                    );
+                }
+
                 // 调用 Responses API 的流式方法
                 const stream = client.responses.stream(requestBody, { signal: abortController.signal });
 
@@ -903,17 +943,16 @@ export class OpenAIResponsesHandler {
                         }
                     })
                     .on('response.function_call_arguments.delta', event => {
-                        // Tool arguments delta only counts toward live chars/s when it can be mapped
-                        // to a stable output item (item_id). If a compatibility gateway omits item_id
-                        // and no stable index can be resolved, skip delta counting and let the
-                        // done/fallback path count the complete arguments once.
-                        // Prefer under-counting to double-counting.
+                        // 仅当 arguments 增量能映射到稳定的工具调用身份时，才计入实时 chars/s。
+                        // 优先使用服务端返回的 call_id；只有兼容网关缺失时才退回 item_id。
+                        // 这里宁可少记，也不要重复计数。
                         if (token.isCancellationRequested) {
                             return;
                         }
 
-                        const itemId = event.item_id;
-                        const idx = itemId ? getToolCallIndex(itemId) : undefined;
+                        const itemId = typeof event.item_id === 'string' ? event.item_id : undefined;
+                        const callId = getEventCallId(event);
+                        const idx = getStableToolCallIndex(itemId, callId);
                         if (idx === undefined) {
                             return;
                         }
@@ -935,24 +974,29 @@ export class OpenAIResponsesHandler {
                             return;
                         }
 
-                        const itemId = event.item_id;
+                        const itemId = typeof event.item_id === 'string' ? event.item_id : undefined;
+                        const eventCallId = getEventCallId(event);
                         const args = event.arguments || '';
 
-                        if (!itemId) {
+                        const idx = getStableToolCallIndex(itemId, eventCallId);
+                        if (idx === undefined) {
                             return;
                         }
 
-                        const idx = getToolCallIndex(itemId);
                         if (completedToolCallIndices.has(idx)) {
                             return;
                         }
 
-                        // 优先复用 added 事件中的 call_id；如果网关没发 added，则退回 item_id 并使用 done 事件中的 name
+                        // 优先复用 added 事件中的 call_id；若其缺失，则使用 done 事件自带的服务端 call_id，
+                        // 只有兼容网关两者都不给时才退回 item_id。
                         const buf = toolCallBuffers.get(idx);
                         const name = buf?.name || event.name;
-                        const callId = buf?.id || itemId;
+                        const callId = buf?.id || eventCallId || itemId;
+                        if (!callId) {
+                            return;
+                        }
                         if (!name) {
-                            Logger.warn(`Tool call ${itemId} has no name`);
+                            Logger.warn(`Tool call ${callId || itemId || 'unknown'} has no name`);
                             return;
                         }
 
