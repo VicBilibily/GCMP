@@ -6,7 +6,7 @@
  * 1. accumulate(index, id, name, argsFragment) 接收单个工具调用的增量分片
  *    - 若 id/name/argsFragment 全为空则忽略，返回 { isNew: false, completed: null }
  *    - 首次为某 index 创建 buffer 时返回 isNew = true，StreamReporter 据此执行
- *      flushThinking + flushText + endThinkingChain 清理逻辑
+ *      endThinkingChain 清理逻辑
  *    - 将 id/name 更新到 buffer，argsFragment 经 mergeArguments 合并到 buffer.arguments
  *      （合并策略：优先保留追加形式，遇到快照形式则替换，避免服务端重发导致重复）
  * 2. 当 buffer 中同时存在 name 和 arguments 时尝试 JSON.parse：

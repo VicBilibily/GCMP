@@ -10,7 +10,7 @@ import { Logger } from '../utils/runtime/logger';
 import { encodeStatefulMarker, MarkerUsage, StatefulMarkerContainer } from './statefulMarker';
 import { toOptionalStatefulMarkerField } from './statefulMarkerCodec';
 import { CustomDataPartMimeTypes } from './types';
-import { TextBuffer, ThinkingBuffer, SignatureBuffer, ToolCallAccumulator } from './buffers';
+import { ThinkingBuffer, SignatureBuffer, ToolCallAccumulator } from './buffers';
 import { LiveMetricsTracker } from './liveMetricsTracker';
 import type { LiveStreamMetricEvent } from './liveMetrics';
 import { TokenCounter } from '../utils/model/tokenCounter';
@@ -66,23 +66,21 @@ export interface StreamReporterOptions {
  * 架构说明：
  * StreamReporter 自身只负责"协调调度"和"最终输出"，具体的内容累积逻辑委托给
  * src/handlers/buffers/ 下的四个专用 Buffer 类：
- * - TextBuffer: 文本内容缓冲，达到阈值后输出 LanguageModelTextPart
  * - ThinkingBuffer: 思考链缓冲，管理 thinking id 生命周期，输出 LanguageModelThinkingPart
  * - SignatureBuffer: 签名缓冲，累积 signature 供 StatefulMarker 持久化
  * - ToolCallAccumulator: 工具调用分片累积，检测完整 JSON 后输出 CompletedToolCall
  *
  * 核心流程：
  * 1. Handler 持续调用 bufferThinking / reportText / accumulateToolCall / bufferSignature 等方法
- * 2. 各 Buffer 内部累积内容，达到阈值或条件时由 StreamReporter 调用 progress.report 输出
- * 3. 遇到工具调用开始时，先 flush 剩余 thinking/text 并结束当前思维链
- * 4. 流结束时调用 flushAll，依次输出剩余 thinking、signature、结束思维链、剩余 text、DONE 占位符、未完成 tool call 和 StatefulMarker
+ * 2. Thinking/Signature/ToolCall 由各自缓冲器管理；文本收到后立即透传
+ * 3. 遇到工具调用开始时，直接结束当前思维链
+ * 4. 流结束时调用 flushAll，依次输出剩余 signature、结束思维链、DONE 占位符、未完成 tool call 和 StatefulMarker
  *
  * 关键实现约定：
- * - 文本/思考缓冲阈值均为 20 字符
- * - accumulateToolCall 首次创建某 index 的 buffer 时立即 flushThinking + endThinkingChain + flushText
- * - 工具调用完成时只 flushThinking + flushSignature，不主动 endThinkingChain
+ * - accumulateToolCall 首次创建某 index 的 buffer 时立即 endThinkingChain
+ * - 工具调用完成时只 flushSignature，不主动 endThinkingChain
  * - flushSignature 输出"空文本 + signature"的 ThinkingPart，不消费 thinking buffer 内容
- * - flushAll 中 signature 紧跟 thinking 输出，在 endThinkingChain 之前
+ * - flushAll 中 signature 在 endThinkingChain 之前输出
  * - 仅有 thinking 没有 text 时输出 DONE 占位符
  */
 export class StreamReporter {
@@ -93,7 +91,6 @@ export class StreamReporter {
     private readonly progress: vscode.Progress<vscode.LanguageModelResponsePart2>;
     private readonly tracker: LiveMetricsTracker;
 
-    private readonly textBuffer = new TextBuffer();
     private readonly thinkingBuffer = new ThinkingBuffer();
     private readonly signatureBuffer = new SignatureBuffer();
     private readonly toolCallAccumulator = new ToolCallAccumulator();
@@ -173,25 +170,17 @@ export class StreamReporter {
     }
 
     /**
-     * 报告文本内容（累积到阈值后输出，用于 delta 事件）
+     * 报告文本内容（收到后立即输出，用于 delta 事件）
      */
     reportText(content: string): void {
-        // 输出 content 前，先 flush 剩余 thinking 并结束思维链
-        this.flushThinking('输出 content 前');
+        // 输出 content 前，先结束当前思维链
         this.endThinkingChain();
 
-        this.textBuffer.append(content);
         this.hasReceivedContent = true;
 
         // 实时指标：传原始文本给 tracker，由其按阈值批量 encode（避免每个 chunk 都触发计算）
         this.tracker.reportOutput(content);
-
-        if (this.textBuffer.shouldFlush()) {
-            const part = this.textBuffer.flush();
-            if (part) {
-                this.progress.report(part);
-            }
-        }
+        this.progress.report(new vscode.LanguageModelTextPart(content));
     }
 
     /**
@@ -205,7 +194,7 @@ export class StreamReporter {
         args: Record<string, unknown> | object,
         options: { countArgs?: boolean } = {}
     ): void {
-        this.prepareForToolCall();
+        this.endThinkingChain();
 
         // 完整 tool arguments 也是 provider 实际回传的一部分；
         // 用于不提供 argument delta、只提供完整 tool call 的 provider/SDK 路径。
@@ -230,9 +219,7 @@ export class StreamReporter {
      * 直接报告完整的工具结果（用于原生 server tool 等场景）
      */
     reportToolResult(callId: string, content: string | vscode.LanguageModelTextPart[]): void {
-        this.flushThinking('Before reporting tool result');
         this.endThinkingChain();
-        this.flushText('Before reporting tool result');
 
         const parts = typeof content === 'string' ? [new vscode.LanguageModelTextPart(content)] : content;
         this.progress.report(new vscode.LanguageModelToolResultPart(callId, parts));
@@ -269,7 +256,7 @@ export class StreamReporter {
     }
 
     /**
-     * 缓冲思考内容（累积到阈值后输出，用于 delta 事件）
+     * 缓冲思考内容（收到后立即输出，用于 delta 事件）
      */
     bufferThinking(content: string): void {
         // 实时指标：传原始文本给 tracker，由其按阈值批量 encode
@@ -278,27 +265,9 @@ export class StreamReporter {
         this.thinkingBuffer.append(content);
         this.hasThinkingContent = true;
 
-        if (this.thinkingBuffer.shouldFlush()) {
-            const part = this.thinkingBuffer.flush();
-            if (part) {
-                this.progress.report(part);
-            }
-        }
-    }
-
-    /**
-     * 缓冲完整思考内容（用于 done 事件）
-     * 仅当未接收过 delta 事件时才输出（避免重复）
-     */
-    bufferThinkingIfNotDelta(content: string): void {
-        this.thinkingBuffer.appendIfNotDelta(content);
-        this.hasThinkingContent = true;
-
-        if (this.thinkingBuffer.shouldFlush()) {
-            const part = this.thinkingBuffer.flush();
-            if (part) {
-                this.progress.report(part);
-            }
+        const part = this.thinkingBuffer.flush();
+        if (part) {
+            this.progress.report(part);
         }
     }
 
@@ -307,8 +276,8 @@ export class StreamReporter {
      * 当检测到工具调用完成时，立即报告
      *
      * 关键实现约定：
-     * - 首次为某 index 创建工具调用 buffer 时：flushThinking + endThinkingChain + flushText
-     * - 工具完成时：flushText + flushThinking + flushSignature
+     * - 首次为某 index 创建工具调用 buffer 时：endThinkingChain
+     * - 工具完成时：flushSignature
      *   （不调用 endThinkingChain，思维链的结束留给后续 reportText / flushAll 处理）
      */
     accumulateToolCall(
@@ -319,13 +288,9 @@ export class StreamReporter {
     ): void {
         const { isNew, completed } = this.toolCallAccumulator.accumulate(index, id, name, argsFragment);
 
-        // 首次为该 index 创建工具调用 buffer 时，flush 剩余 thinking，结束思维链，再输出文本
-        // 必须在 endThinkingChain 之后再 flushText，否则 TextPart 会在 thinking chain 仍 active 时被报告，
-        // 导致 VS Code 将文本归入 thinking fold 内部（表现为内容被折叠、下方出现空框）
+        // 首次为该 index 创建工具调用 buffer 时，直接结束思维链。
         if (isNew) {
-            this.flushThinking('Before tool call start');
             this.endThinkingChain();
-            this.flushText('Before tool call start');
         }
 
         // tool argument delta 是 provider 实际回传的一部分，计入 token 估算
@@ -337,9 +302,7 @@ export class StreamReporter {
             return;
         }
 
-        // 工具调用完成，确保之前的思考和签名已输出（此时思维链应已结束，但为安全起见再 flush 一次）
-        this.flushText('Before tool call completion');
-        this.flushThinking('Before tool call completion');
+        // 工具调用完成，输出已缓冲的签名。
         this.flushSignature();
 
         // 补回 name + id + type + JSON 结构开销：args 已通过 argsFragment 分片累计，
@@ -386,26 +349,6 @@ export class StreamReporter {
     }
 
     /**
-     * 输出剩余思考内容（公开方法）
-     */
-    flushThinking(_context: string): void {
-        const part = this.thinkingBuffer.flush();
-        if (part) {
-            this.progress.report(part);
-        }
-    }
-
-    /**
-     * 输出剩余文本内容（公开方法）
-     */
-    flushText(_context: string): void {
-        const part = this.textBuffer.flush();
-        if (part) {
-            this.progress.report(part);
-        }
-    }
-
-    /**
      * 结束当前思维链（输出空的 ThinkingPart）
      * 公开方法，允许在 Responses API 等场景中手动结束思维链
      */
@@ -430,7 +373,6 @@ export class StreamReporter {
             return;
         }
         // 确保先结束之前的思维链
-        this.flushThinking('encrypted thinking');
         this.endThinkingChain();
         // 占位符文本 + redactedData + reasoningId metadata 合并输出一个 ThinkingPart
         // id 使用 undefined（不加入 streaming chain），reasoningId 仅存于 metadata 用于重建
@@ -456,30 +398,22 @@ export class StreamReporter {
             Logger.debug(`[${this.modelName}] Stream finished, reason: ${finishReason}`);
         }
 
-        // 1. 输出剩余思考内容（length 除外）
-        if (finishReason !== 'length') {
-            this.flushThinking('Before stream end');
-        }
-
-        // 2. 输出剩余签名（Anthropic 特殊，紧跟在思考内容之后）
+        // 1. 输出剩余签名（Anthropic 特殊，紧跟在思维链结束之前）
         if (this.signatureBuffer.hasPending) {
             this.flushSignature();
         }
 
-        // 3. 结束思维链（在工具调用之前）
+        // 2. 结束思维链（在工具调用之前）
         this.endThinkingChain();
 
-        // 4. 输出剩余文本内容
-        this.flushText('Before stream end');
-
-        // 5. 仅有 thinking 没有 text 时输出 DONE 占位符，避免聊天界面大段空白
+        // 3. 仅有 thinking 没有 text 时输出 DONE 占位符
         if (this.hasThinkingContent && !this.hasReceivedContent && !this.hasToolCalls) {
             this.progress.report(new vscode.LanguageModelTextPart('DONE'));
             this.hasReceivedContent = true;
             Logger.trace(`[${this.modelName}] Only thinking content, output DONE placeholder`);
         }
 
-        // 6. 处理未完成的工具调用（如果有）
+        // 4. 处理未完成的工具调用（如果有）
         if (this.toolCallAccumulator.hasPending) {
             Logger.warn(
                 `[${this.modelName}] Stream ended with ${this.toolCallAccumulator.pendingCount} unfinished tool calls`
@@ -495,10 +429,10 @@ export class StreamReporter {
             }
         }
 
-        // 7. 报告 StatefulMarker
+        // 5. 报告 StatefulMarker
         this.reportStatefulMarker(customStatefulData, finalUsage);
 
-        // 8. 结束实时指标上报
+        // 6. 结束实时指标上报
         this.finishMetrics();
 
         return this.hasReceivedContent;
@@ -530,14 +464,6 @@ export class StreamReporter {
      */
     getModelName(): string {
         return this.modelName;
-    }
-
-    // ---- 私有辅助方法 ----
-
-    private prepareForToolCall(): void {
-        this.flushThinking('Before tool call');
-        this.flushText('Before tool call');
-        this.endThinkingChain();
     }
 
     /**

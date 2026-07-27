@@ -329,7 +329,6 @@ export class OpenAIResponsesStreamProcessor {
                 if (!this.state.hasReasoningTextDelta(event.item_id, event.content_index) && event.text) {
                     this.streamReporter.bufferThinking(event.text);
                 }
-                this.streamReporter.flushThinking('reasoning_text 完成');
                 this.streamReporter.endThinkingChain();
             })
             .on('response.reasoning_summary_text.delta', event => {
@@ -354,7 +353,6 @@ export class OpenAIResponsesStreamProcessor {
                 if (!this.state.hasReasoningSummaryDelta(event.item_id, event.summary_index) && event.text) {
                     this.streamReporter.bufferThinking(event.text);
                 }
-                this.streamReporter.flushThinking('reasoning_summary 完成');
                 this.streamReporter.endThinkingChain();
             })
             .on('response.reasoning_summary_part.done', event => {

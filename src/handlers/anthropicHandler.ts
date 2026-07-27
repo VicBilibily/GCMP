@@ -611,8 +611,7 @@ export class AnthropicHandler {
                             }
                             pendingServerToolCall = undefined;
                         } else {
-                            // 思考块结束时输出剩余思考内容和签名
-                            reporter.flushThinking('Thinking block completed');
+                            // 思考块结束时输出签名
                             reporter.flushSignature();
                         }
                         break;
