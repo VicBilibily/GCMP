@@ -216,17 +216,20 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
 
             for (const m of generalModels) {
                 // 每 5 小时限额
-                limits.push(
-                    this.buildLimitItem(
-                        t('Every 5 Hours', '每 5 小时'),
-                        '5h',
-                        m.current_interval_remaining_percent,
-                        m.remains_time,
-                        m.end_time
-                    )
-                );
-                // 每周限额（有周总配额且不为0时才展示）
-                if (m.current_weekly_total_count) {
+                if (this.isActiveQuotaStatus(m.current_interval_status)) {
+                    limits.push(
+                        this.buildLimitItem(
+                            t('Every 5 Hours', '每 5 小时'),
+                            '5h',
+                            m.current_interval_remaining_percent,
+                            m.remains_time,
+                            m.end_time
+                        )
+                    );
+                }
+
+                // 每周限额：count 字段对 Coding Plan 长期为 0，应按 status 判断窗口是否属于当前订阅
+                if (this.isActiveQuotaStatus(m.current_weekly_status)) {
                     limits.push(
                         this.buildLimitItem(
                             t('Weekly quota', '每周限额'),
@@ -269,6 +272,10 @@ export class MiniMaxStatusBar extends ProviderStatusBarItem<MiniMaxStatusData> {
             remainMs: remainsTime,
             resetTime: endTime
         };
+    }
+
+    private isActiveQuotaStatus(status: number | null | undefined): boolean {
+        return status === 1 || status === 2;
     }
 
     /**
