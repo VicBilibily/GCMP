@@ -265,13 +265,16 @@ function addMessageLevelBreakpoints(messages: AnthropicCacheableMessage[], slots
             }
         }
 
-        // 仅当 user 包含非 tool_result 块时才视为已越过“当前 user”边界
+        // 仅当 user 包含非 tool_result 块时才视为已越过“当前 user”边界。
+        // 纯 tool_result user 仍属于 agentic 工具轮次，需要继续向前给更早轮次的
+        // tool_result / 当前 user 预留断点，否则后续请求的 20-block lookback
+        // 很容易跨不过去，造成第二跳之后缓存命中骤降。
         if (msg.role === 'user' && getBlocks(msg).some(b => b.type !== 'tool_result')) {
             hasPassedCurrentUserMessage = true;
         }
     }
 
-    // 前缀回填：若仍有空位，则按 1.129 规则给最早的用户前缀补齐断点
+    // 前缀回填：若仍有空位，则按 1.129 规则给最早的用户前缀补齐断点。
     for (let i = 0; i < messages.length && slotsAvailable > 0; i++) {
         const msg = messages[i];
         if (msg.role !== 'user') {

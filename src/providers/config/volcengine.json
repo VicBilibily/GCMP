@@ -468,36 +468,6 @@
             "tokenPricing": { "RMB": [12, 24, 1] }
         },
         {
-            "id": "deepseek-v3.2",
-            "name": "DeepSeek-V3.2-251201",
-            "model": "deepseek-v3-2-251201",
-            "tooltip": "模型的 EOS 时间： 2026-07-30 14:00 （UTC+8）。DeepSeek-V3.2正式版，平衡推理能力与输出长度，适合日常使用，例如问答场景和通用 Agent 任务场景",
-            "maxInputTokens": 112000,
-            "maxOutputTokens": 16000,
-            "thinking": ["disabled", "enabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": { "RMB": [2, 3, 0.4] },
-                "tiers": [{ "contextSizeMin": 32001, "pricing": { "RMB": [4, 6, 0.4] } }]
-            }
-        },
-        {
-            "id": "glm-4.7",
-            "name": "GLM-4.7-251222",
-            "model": "glm-4-7-251222",
-            "tooltip": "模型的 EOS 时间： 2026-07-30 14:00 （UTC+8）。GLM-4.7 是智谱最新旗舰模型，更强的编程能力与更稳定的多步骤推理/执行能力。在执行复杂智能体任务提升明显，同时对话更自然，前端审美更好。",
-            "sdkMode": "openai-responses",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "webSearchTool": true,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": { "RMB": [3, 14, 0.6] },
-                "tiers": [{ "contextSizeMin": 32001, "pricing": { "RMB": [4, 16, 0.8] } }]
-            }
-        },
-        {
             "id": "glm-5.2",
             "name": "GLM-5.2-260617",
             "model": "glm-5-2-260617",
@@ -509,7 +479,6 @@
             "webSearchTool": true,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "extraBody": { "caching": { "type": "enabled" } },
             "tokenPricing": { "RMB": [8, 28, 2] }
         }
     ]

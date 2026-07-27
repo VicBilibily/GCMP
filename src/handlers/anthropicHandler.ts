@@ -6,7 +6,7 @@
 import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
-import { preprocessAnthropicCacheBreakpoints } from './anthropicCacheControl';
+import { preprocessAnthropicCacheBreakpoints } from './anthropic/anthropicCacheControl';
 import { apiMessageToAnthropicMessage, convertToAnthropicTools } from './anthropicConverter';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { Logger } from '../utils/runtime/logger';
@@ -30,7 +30,7 @@ import { mergeNativeToolConfigs } from './nativeToolUtils';
 import * as liveMetrics from './liveMetrics';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import { isSubRequest, type RequestKind } from './requestClassifier';
-import { applyAnthropicThinkingConfiguration } from './anthropicThinkingConfig';
+import { applyAnthropicThinkingConfiguration } from './anthropic/anthropicThinkingConfig';
 
 /**
  * Anthropic 兼容处理器类

@@ -237,7 +237,7 @@ function buildModelConfigurationProperties(model: ModelConfig): Record<string, P
                         low: 'Low',
                         medium: 'Medium',
                         high: 'High',
-                        xhigh: 'XHigh',
+                        xhigh: 'Extra High',
                         max: 'Max'
                     })[level] || level
             ),

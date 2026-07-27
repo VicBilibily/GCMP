@@ -25,8 +25,6 @@ export interface StatefulMarkerContainer {
     sessionId: string;
     /** 响应ID，模型返回响应标识 */
     responseId: string;
-    /** 记录过期时间，单位毫秒(豆包专用) */
-    expireAt?: number;
     /** 需要跨轮次稳定回传的完整思考内容 */
     completeThinking?: string;
     /** 需要跨轮次稳定回传的完整签名内容（signature_delta 累积） */
@@ -78,22 +76,6 @@ export function* getAllStatefulMarkersAndIndicies(messages: readonly vscode.Lang
                         yield { statefulMarker: statefulMarker, index: idx };
                     }
                 }
-            }
-        }
-    }
-    return undefined;
-}
-
-export function getStatefulMarkerAndIndex(
-    modelId: string,
-    sdkType: StatefulMarkerContainer['sdkMode'],
-    messages: readonly vscode.LanguageModelChatMessage[]
-): { statefulMarker: StatefulMarkerContainer; index: number } | undefined {
-    for (const statefulMarker of getAllStatefulMarkersAndIndicies(messages)) {
-        const marker = statefulMarker.statefulMarker?.marker;
-        if (marker?.extension === StatefulMarkerExtension && marker?.sessionId) {
-            if (marker?.sdkMode === sdkType && marker?.modelId === modelId) {
-                return { statefulMarker: marker, index: statefulMarker.index };
             }
         }
     }

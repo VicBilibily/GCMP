@@ -1,7 +1,7 @@
 ﻿/** 统一处理 Anthropic 的 thinking / output_config，兼容 auto 透传、enabled 最小预算和 effort 保留。 */
 
 import Anthropic from '@anthropic-ai/sdk';
-import type { ModelChatResponseOptions, ModelConfig } from '../types/sharedTypes';
+import type { ModelChatResponseOptions, ModelConfig } from '../../types/sharedTypes';
 
 type AnthropicThinking = Anthropic.MessageCreateParamsStreaming['thinking'];
 type AnthropicOutputConfig = Anthropic.MessageCreateParamsStreaming['output_config'];

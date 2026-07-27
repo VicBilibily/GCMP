@@ -335,6 +335,16 @@ test('消息级：agentic 一轮给最后一个 tool_result 打断点', () => {
     addCacheControlBreakpoints([], { messages, system: undefined });
 
     assert.equal(cachedOf(messages[2]).length, 1, '最后一个 tool_result 应被打断点');
+    assert.equal(cachedOf(messages[0]).length, 1, '仍应保留当前 user 前缀断点，供后续请求 lookback 命中');
+});
+
+test('消息级：连续 agentic 轮次保留更早 tool_result 断点', () => {
+    const messages = [userMsg(), toolUseAssistant(), toolResultMsg(), toolUseAssistant(), toolResultMsg()];
+
+    addCacheControlBreakpoints([], { messages, system: undefined });
+
+    assert.equal(cachedOf(messages[4]).length, 1, '最新 tool_result 应被打断点');
+    assert.equal(cachedOf(messages[2]).length, 1, '更早轮次的 tool_result 也应保留断点，避免第二跳后丢 cache');
 });
 
 test('消息级：无工具调用的 assistant 终止回复打断点', () => {
@@ -383,25 +393,24 @@ test('消息级：总断点数不超过 4', () => {
 
     addCacheControlBreakpoints([], { messages, system: undefined });
 
-    const total = messages.reduce((n, m) => n + cachedOf(m).length, 0);
-    assert.ok(total <= 4, `总断点 ${total} 应 ≤ 4`);
+    const total = messages.reduce((sum, msg) => sum + cachedOf(msg).length, 0);
+    assert.ok(total <= 4, `消息级断点数应 ≤ 4，实际 ${total}`);
 });
 
 test('消息级：已有断点的消息不重复打', () => {
-    const tr = toolResultMsg();
-    (tr.content as { cache_control?: unknown }[])[0].cache_control = { type: 'ephemeral' };
-    const messages = [userMsg(), toolUseAssistant(), tr];
+    const messages = [msg('assistant', { text: 'reply', cached: true }), userMsg()];
 
     addCacheControlBreakpoints([], { messages, system: undefined });
 
-    assert.equal(cachedOf(messages[2]).length, 1, '已有断点不叠加');
+    assert.equal(cachedOf(messages[0]).length, 1);
+    assert.equal(cachedOf(messages[1]).length, 1);
 });
 
 test('消息级：剩余空位回填最早 user 前缀', () => {
-    const messages = [userMsg(), textAssistant(), userMsg()];
+    const messages = [userMsg(), userMsg(), textAssistant()];
 
     addCacheControlBreakpoints([], { messages, system: undefined });
 
-    assert.equal(cachedOf(messages[0]).length, 1, '空位应回填最早 user 前缀');
-    assert.equal(cachedOf(messages[2]).length, 1, '当前 user 仍应被打断点');
+    assert.equal(cachedOf(messages[0]).length, 1, '应回填最早 user 前缀');
+    assert.equal(cachedOf(messages[1]).length, 1, '当前 user 应被打断点');
 });

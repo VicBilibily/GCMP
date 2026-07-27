@@ -29,7 +29,7 @@ import { decodeStatefulMarker } from './statefulMarker';
 import { CustomDataPartMimeTypes } from './types';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import { isSubRequest, type RequestKind } from './requestClassifier';
-import { preprocessOpenAIChatRequest } from './openaiChatRequestPreprocessor';
+import { preprocessOpenAIChatRequest } from './openai/openaiChatRequestPreprocessor';
 
 /**
  * 扩展Delta类型以支持reasoning_content和reasoning字段

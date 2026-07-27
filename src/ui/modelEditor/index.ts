@@ -203,8 +203,10 @@ export class ModelEditor {
         // 仅当 sdkMode 为 openai-responses 时才更新 useInstructions
         if (data.sdkMode === 'openai-responses') {
             model.useInstructions = data.useInstructions ?? false;
-        } else if (!model.useInstructions) {
-            model.useInstructions = undefined;
+        } else {
+            if (!model.useInstructions) {
+                model.useInstructions = undefined;
+            }
         }
 
         // 仅当 sdkMode 为 anthropic 或 openai-responses 时才更新 webSearchTool

@@ -1,8 +1,8 @@
 ﻿import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type Anthropic from '@anthropic-ai/sdk';
-import type { ModelChatResponseOptions, ModelConfig } from '../types/sharedTypes';
-import { configProviders } from '../providers/config';
+import type { ModelChatResponseOptions, ModelConfig } from '../../types/sharedTypes';
+import { configProviders } from '../../providers/config';
 import { applyAnthropicThinkingConfiguration } from './anthropicThinkingConfig';
 
 type ThinkingParams = Pick<Anthropic.MessageCreateParamsStreaming, 'thinking' | 'output_config'>;
