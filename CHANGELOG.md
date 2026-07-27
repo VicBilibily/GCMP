@@ -2,6 +2,42 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.9] - 2026-07-27
+
+### 新增
+
+- **OpenAI Responses API 请求稳定化**：规范化工具调用参数的 JSON 键序并为历史消息生成稳定的调用 ID，减少多轮对话中的请求漂移，提升服务端缓存命中与工具调用稳定性。
+- **Anthropic 缓存断点优化**：重新打断点前清理请求中的空白文本占位符与旧缓存标记，避免无效内容干扰缓存命中。
+
+### 变更
+
+- **OpenAI Responses API 处理流程重构**：原 `openaiResponsesHandler.ts`（约 1500 行）拆分为消息转换、请求构造、流式处理、流状态机等独立模块，Anthropic / OpenAI 相关预处理归类到各自子目录。
+- **流式响应改为实时推送**：移除文本与思考缓冲层，降低首字延迟。
+- **火山方舟模型阵容更新**：移除即将下线的 `DeepSeek-V3.2-251201`（EOS 2026-07-30）与 `GLM-4.7-251222`（EOS 2026-07-30）。
+- **Codex CLI 优化**：相关文件归类到 `cli/` 目录，新增 3 分钟内存缓存避免短时重复拉取远端模型列表。
+
+### 修复
+
+- **MiniMax 状态栏每周限额不显示（[#257](https://github.com/VicBilibily/GCMP/issues/257)）**：Coding Plan 套餐下每周限额条始终不出现，已修复。
+
+---
+
+### Added
+
+- **OpenAI Responses API request stabilization**: Canonicalizes JSON key order of tool-call arguments and generates stable IDs for historical messages, reducing request drift across multi-turn conversations to improve server-side cache hits and tool-call stability.
+- **Anthropic cache breakpoint optimization**: Strips blank-text placeholders and stale cache markers before re-injecting breakpoints, preventing invalid content from interfering with cache hits.
+
+### Changed
+
+- **OpenAI Responses API pipeline refactor**: The original `openaiResponsesHandler.ts` (~1500 lines) is split into dedicated modules for message conversion, request building, stream processing, and stream state machine; Anthropic / OpenAI preprocessors are organized under their own subdirectories.
+- **Streaming responses now push in real time**: Removed text and thinking buffer layers to reduce time-to-first-token.
+- **Volcengine model lineup update**: Removed the soon-to-be-retired `DeepSeek-V3.2-251201` (EOS 2026-07-30) and `GLM-4.7-251222` (EOS 2026-07-30).
+- **Codex CLI optimizations**: Related files reorganized under `cli/`; a 3-minute in-memory cache prevents repeatedly fetching the remote model list within a short window.
+
+### Fixed
+
+- **MiniMax status bar weekly quota not shown ([#257](https://github.com/VicBilibily/GCMP/issues/257))**: The weekly quota item never appeared under Coding Plan; fixed.
+
 ## [0.26.8] - 2026-07-24
 
 ### 新增
