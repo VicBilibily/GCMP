@@ -40,6 +40,7 @@ const state: State = {
     selectedDate: '',
     today: '',
     selectedSessionId: null,
+    selectedSessionIds: [],
     displayCurrency: 'MIXED',
     dateList: [],
     dateDetails: null,
@@ -178,7 +179,7 @@ function handleVSCodeMessage(event: MessageEvent): void {
             const allTotals = buildRequestTotals(allRecords);
             const nativeSplitIndex = buildNativeCostSplitIndex(message.records);
             const dateChanged = state.dateDetails?.date !== message.date;
-            const nextSelectedSessionId =
+            let nextSelectedSessionId =
                 (
                     !dateChanged &&
                     state.selectedSessionId &&
@@ -186,6 +187,16 @@ function handleVSCodeMessage(event: MessageEvent): void {
                 ) ?
                     state.selectedSessionId
                 :   null;
+            // 多选跟踪：同日实时刷新时保留仍存在的会话，切换日期时清空；
+            // 不足 2 个时回落为单选，保持筛选栏高亮与详情视图一致
+            let nextSelectedSessionIds =
+                dateChanged ?
+                    []
+                :   state.selectedSessionIds.filter(id => sessionGroups.some(group => group.sessionId === id));
+            if (nextSelectedSessionIds.length === 1) {
+                nextSelectedSessionId = nextSelectedSessionIds[0];
+                nextSelectedSessionIds = [];
+            }
 
             if (dateChanged) {
                 resetRequestRecordsState();
@@ -194,6 +205,7 @@ function handleVSCodeMessage(event: MessageEvent): void {
             setState({
                 selectedDate: message.date,
                 selectedSessionId: nextSelectedSessionId,
+                selectedSessionIds: nextSelectedSessionIds,
                 displayCurrency: normalizeDisplayCurrency(state.displayCurrency, allTotals),
                 dateDetails: {
                     date: message.date,

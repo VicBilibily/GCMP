@@ -431,6 +431,11 @@ body {
         border-radius: 6px;
         overflow: hidden;
         height: 628px;
+
+        /* 多会话跟踪：会话过多无法适配固定高度时，布局随内容增长，由页面级滚动接管 */
+        &.records-layout-grow {
+            height: auto;
+        }
     }
 
     .session-filter {
@@ -517,6 +522,15 @@ body {
         &-item.selected > div .session-filter-item-cost,
         &-item.selected > div .session-filter-item-title-time {
             color: var(--vscode-list-activeSelectionForeground);
+        }
+
+        &-hint {
+            flex-shrink: 0;
+            padding: 6px 12px;
+            border-top: 1px solid var(--vscode-panel-border);
+            color: var(--vscode-descriptionForeground);
+            font-size: 11px;
+            line-height: 1.4;
         }
     }
 
@@ -609,6 +623,38 @@ body {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+    }
+
+    /* 多会话跟踪模式：紧凑会话块纵向堆叠，内容超出时允许纵向滚动 */
+    .records-detail-multi {
+        .records-detail-content {
+            overflow-y: auto;
+        }
+    }
+
+    .session-track-block {
+        & + .session-track-block {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--vscode-panel-border);
+        }
+    }
+
+    /* 跟踪达上限时的短暂提示（浮于记录区域顶部居中） */
+    .track-limit-hint {
+        position: absolute;
+        top: 6px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 25;
+        padding: 4px 12px;
+        border: 1px solid var(--vscode-editorWidget-border);
+        border-radius: 4px;
+        background-color: var(--vscode-editorWidget-background);
+        color: var(--vscode-editorWidget-foreground);
+        font-size: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        pointer-events: none;
     }
 
     /* 列宽分配 */

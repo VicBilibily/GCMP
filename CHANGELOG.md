@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.11] - 2026-07-28
+
+### 新增
+
+- **活跃日期多会话实时跟踪**：用量视图在今日支持 Ctrl/Cmd 多选 2-3 个会话进行实时跟踪，紧凑块展示，不分页，按高度自动裁减。
+
+### 变更
+
+- **会话与底部统计只算成功完成的请求**：token、成本、速度、延迟、耗时不再计入取消和失败的请求；请求总数、状态计数与时间范围仍覆盖全部记录。
+
+---
+
+### Added
+
+- **Multi-session live tracking on the active date**: On today's view, hold Ctrl/Cmd to multi-select 2-3 sessions for live tracking; rendered as compact blocks without pagination and auto-trimmed by height.
+
+### Changed
+
+- **Session & bottom stats now count only completed requests**: Token / cost / speed / latency / duration no longer include cancelled or failed requests; request count, status counts, and time range still cover all records.
+
 ## [0.26.10] - 2026-07-28
 
 ### 模型与提供商配置

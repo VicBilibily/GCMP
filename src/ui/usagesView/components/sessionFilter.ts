@@ -3,6 +3,9 @@ import { createElement } from '../../utils';
 import { getDisplayCostPresentation } from '../../costDisplay';
 import { formatTokens, getCurrencyToggleTitle, getDisplayCurrency, t, UNKNOWN_SESSION_ID } from '../utils';
 
+/** 活跃日期多选跟踪：最多同时跟踪的会话数 */
+export const MAX_TRACKED_SESSIONS = 3;
+
 /**
  * 判断会话是否应该显示在会话列表中
  */
@@ -101,7 +104,8 @@ function createSessionItem(options: {
     /** 预留插槽：附加在会话条目底部的可选详情文本 */
     detail?: string;
     selected: boolean;
-    onClick: () => void;
+    /** multiSelectKey 为 true 表示按住 Ctrl/Cmd 点击（用于多选跟踪） */
+    onClick: (multiSelectKey: boolean) => void;
 }): HTMLElement {
     const item = createElement('div', 'session-filter-item');
     if (options.selected) {
@@ -109,7 +113,7 @@ function createSessionItem(options: {
     }
 
     const inner = createElement('div');
-    inner.onclick = options.onClick;
+    inner.onclick = (event: MouseEvent) => options.onClick(event.ctrlKey || event.metaKey);
 
     const title = createElement('div', 'session-filter-item-title');
     const titleLabel = createElement('span', 'session-filter-item-title-label');
@@ -152,11 +156,13 @@ function createSessionItem(options: {
 
 /**
  * 创建左侧会话筛选栏，顶部固定“全部会话”，下方滚动展示各会话
+ * selectedSessionIds 为活跃日期下的多选跟踪集合，命中即高亮
  */
 export function createSessionFilter(
     sessionGroups: SessionGroup[],
     selectedSessionId: string | null,
-    onChange: (sessionId: string | null) => void
+    onChange: (sessionId: string | null, multiSelectKey?: boolean) => void,
+    selectedSessionIds: string[] = []
 ): HTMLElement {
     const container = createElement('div', 'session-filter');
     const visibleSessionGroups = sessionGroups.filter(shouldShowSessionGroupInFilter);
@@ -177,7 +183,7 @@ export function createSessionFilter(
                 formatTokens(totalTokens)
             ),
             totals: allTotals,
-            selected: selectedSessionId === null,
+            selected: selectedSessionId === null && selectedSessionIds.length === 0,
             onClick: () => onChange(null)
         })
     );
@@ -194,14 +200,25 @@ export function createSessionFilter(
                     formatTokens(group.summary.totalTokens)
                 ),
                 totals: group.totals,
-                selected: selectedSessionId === group.sessionId,
-                onClick: () => onChange(group.sessionId)
+                selected: selectedSessionId === group.sessionId || selectedSessionIds.includes(group.sessionId),
+                onClick: multiSelectKey => onChange(group.sessionId, multiSelectKey)
             })
         );
     });
 
     container.appendChild(pinned);
     container.appendChild(list);
+
+    // 活跃日期且有足够会话组成多选时，在底部展示多选跟踪入口提示
+    if (visibleSessionGroups.length >= 2 && globalThis.window?.usagesState?.dateDetails?.isToday === true) {
+        const hint = createElement('div', 'session-filter-hint');
+        hint.textContent = t(
+            'Ctrl+Click to track multiple sessions (2-{0})',
+            'Ctrl+点击可多选跟踪 (2-{0})',
+            MAX_TRACKED_SESSIONS
+        );
+        container.appendChild(hint);
+    }
 
     return container;
 }

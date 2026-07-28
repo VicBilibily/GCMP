@@ -382,24 +382,47 @@ export function meanWithoutOutliers(values: number[]): number | undefined {
  * 注意：token 与速度等"统计字段"仅基于 status === 'completed' 的记录聚合；
  * 未完成（estimated）、取消（cancelled）、失败（failed）的请求不参与统计。
  * requestCount、各状态计数、时间范围等元信息字段仍覆盖全部记录。
+ *
+ * 单次遍历完成全部聚合，避免每次刷新时对记录做多次 filter/reduce 扫描。
  */
 export function summarizeSessionRecords(records: ExtendedTokenRequestLog[]): SessionSummary {
-    const timestamps = records
-        .map(record => record.timestamp)
-        .filter((timestamp): timestamp is number => Number.isFinite(timestamp));
+    let completedCount = 0;
+    let failedCount = 0;
+    let cancelledCount = 0;
     // 底部统计口径：仅 completed 请求参与 token/速度聚合
-    const statsRecords = records.filter(record => record.status === 'completed');
-    const speedRecords = statsRecords.filter(record => (record.outputSpeed || 0) > 0);
+    let totalTokens = 0;
+    let startTime: number | undefined;
+    let endTime: number | undefined;
+    const speeds: number[] = [];
+
+    for (const record of records) {
+        if (Number.isFinite(record.timestamp)) {
+            startTime = startTime === undefined ? record.timestamp : Math.min(startTime, record.timestamp);
+            endTime = endTime === undefined ? record.timestamp : Math.max(endTime, record.timestamp);
+        }
+
+        if (record.status === 'completed') {
+            completedCount += 1;
+            totalTokens += getRecordTotalTokens(record);
+            if ((record.outputSpeed || 0) > 0) {
+                speeds.push(record.outputSpeed!);
+            }
+        } else if (record.status === 'failed') {
+            failedCount += 1;
+        } else if (record.status === 'cancelled') {
+            cancelledCount += 1;
+        }
+    }
 
     return {
         requestCount: records.length,
-        totalTokens: statsRecords.reduce((sum, record) => sum + getRecordTotalTokens(record), 0),
-        startTime: timestamps.length > 0 ? Math.min(...timestamps) : undefined,
-        endTime: timestamps.length > 0 ? Math.max(...timestamps) : undefined,
-        completedCount: records.filter(record => record.status === 'completed').length,
-        failedCount: records.filter(record => record.status === 'failed').length,
-        cancelledCount: records.filter(record => record.status === 'cancelled').length,
-        avgSpeed: speedRecords.length > 0 ? meanWithoutOutliers(speedRecords.map(r => r.outputSpeed!)) : undefined
+        totalTokens,
+        startTime,
+        endTime,
+        completedCount,
+        failedCount,
+        cancelledCount,
+        avgSpeed: speeds.length > 0 ? meanWithoutOutliers(speeds) : undefined
     };
 }
 

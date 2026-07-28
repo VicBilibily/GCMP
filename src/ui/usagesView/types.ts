@@ -127,6 +127,8 @@ export interface State {
     selectedDate: string;
     today: string;
     selectedSessionId: string | null;
+    /** 活跃日期下多选跟踪的会话 ID 列表（最多 3 个），非活跃日期保持为空 */
+    selectedSessionIds: string[];
     displayCurrency: 'MIXED' | 'USD' | 'RMB';
     dateList: DateSummary[];
     dateDetails: DateDetails | null;

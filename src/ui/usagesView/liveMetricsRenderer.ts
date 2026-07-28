@@ -284,22 +284,25 @@ export class LiveMetricsRenderer {
      *
      * 这样 render() 不必每次都 querySelectorAll 全表扫描。
      * 表格被 updateDateDetails 重建后，旧引用会因 isConnected=false 失效。
+     * 多会话跟踪模式下存在多个 tbody，需逐个查找。
      */
-    private resolveTargetRow(tbody: HTMLElement, requestId: string): HTMLTableRowElement | undefined {
+    private resolveTargetRow(tbodys: HTMLElement[], requestId: string): HTMLTableRowElement | undefined {
         const cached = this.rowCache.get(requestId);
         if (cached && cached.isConnected && cached.dataset.requestId === requestId) {
             return cached;
         }
         // 缓存失效或未命中，回退到 DOM 查询
-        const found = Array.from(tbody.querySelectorAll<HTMLTableRowElement>('tr')).find(
-            row => row.getAttribute('data-request-id') === requestId
-        );
-        if (found) {
-            this.rowCache.set(requestId, found);
-        } else {
-            this.rowCache.delete(requestId);
+        for (const tbody of tbodys) {
+            const found = Array.from(tbody.querySelectorAll<HTMLTableRowElement>('tr')).find(
+                row => row.getAttribute('data-request-id') === requestId
+            );
+            if (found) {
+                this.rowCache.set(requestId, found);
+                return found;
+            }
         }
-        return found;
+        this.rowCache.delete(requestId);
+        return undefined;
     }
 
     // ============= 内部：表格行渲染 =============
@@ -321,8 +324,9 @@ export class LiveMetricsRenderer {
             return;
         }
 
-        const tbody = recordsContainer.querySelector('tbody');
-        if (!tbody) {
+        // 多会话跟踪模式下存在多个 tbody，全部收集后按 requestId 精确匹配
+        const tbodys = Array.from(recordsContainer.querySelectorAll('tbody'));
+        if (tbodys.length === 0) {
             return;
         }
 
@@ -330,7 +334,7 @@ export class LiveMetricsRenderer {
 
         this.liveMetricsMap.forEach((metricState, requestId) => {
             // 只更新已存在的真实记录行；找不到就跳过（不创建占位行）
-            const targetRow = this.resolveTargetRow(tbody, requestId);
+            const targetRow = this.resolveTargetRow(tbodys, requestId);
             if (!targetRow) {
                 return;
             }

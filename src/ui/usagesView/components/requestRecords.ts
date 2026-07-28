@@ -6,7 +6,7 @@
 import type { ExtendedTokenRequestLog, RequestTotals, SessionGroup, SessionSummary } from '../types';
 import { createElement } from '../../utils';
 import { getDisplayCostPresentation } from '../../costDisplay';
-import { createSessionFilter, shouldShowSessionGroupInFilter } from './sessionFilter';
+import { createSessionFilter, MAX_TRACKED_SESSIONS, shouldShowSessionGroupInFilter } from './sessionFilter';
 import {
     buildCostBreakdownTitle,
     buildRequestTotals,
@@ -67,8 +67,44 @@ function getRequestKindCssClass(kind: string | undefined): string {
 const PAGE_SIZE = 20;
 const REQUEST_COST_SPAN_SELECTOR = '[data-request-cost="true"]';
 
+/** 活跃日期多选跟踪：所有会话共享的记录行数预算（按会话数均分，有下限） */
+const MULTI_TRACK_ROW_BUDGET = 20;
+const MULTI_TRACK_MIN_ROWS = 4;
+
 let currentPage = 1;
 let isSessionPopoverOpen = false;
+let trackLimitHintTimer: number | undefined;
+
+/**
+ * 判断当前是否在查看活跃日期（今天）的请求记录
+ * 仅活跃日期支持多选会话进行活跃跟踪
+ */
+function isActiveDateView(): boolean {
+    return window.usagesState?.dateDetails?.isToday === true;
+}
+
+/**
+ * 获取当前生效的多选跟踪会话 ID 列表（仅保留仍在可见分组中的会话）
+ * 非活跃日期直接返回空列表，保证筛选栏高亮与详情视图一致
+ */
+function getTrackedSessionIds(visibleSessionIds: Set<string>): string[] {
+    if (!isActiveDateView()) {
+        return [];
+    }
+    const tracked = window.usagesState?.selectedSessionIds ?? [];
+    return tracked.filter(id => visibleSessionIds.has(id));
+}
+
+/**
+ * 计算多选跟踪模式下每个会话展示的记录条数上限
+ * 按会话数均分总预算，保证下限，避免会话过多时展示过少
+ */
+function getTrackedRecordsLimit(sessionCount: number): number {
+    if (sessionCount <= 0) {
+        return MULTI_TRACK_ROW_BUDGET;
+    }
+    return Math.max(MULTI_TRACK_MIN_ROWS, Math.floor(MULTI_TRACK_ROW_BUDGET / sessionCount));
+}
 
 interface RequestCostPresentationData {
     usd?: number;
@@ -114,15 +150,70 @@ function toggleSessionPopover(show?: boolean): void {
 }
 
 /**
- * 切换当前选中的会话，并回到该会话的第一页
+ * 在记录区域顶部短暂展示“已达跟踪上限”提示（2 秒后自动消失）
  */
-function changeSelectedSession(sessionId: string | null): void {
+function showTrackLimitHint(): void {
+    const layout = document.querySelector('#records-container .records-layout');
+    if (!(layout instanceof HTMLElement)) {
+        return;
+    }
+
+    layout.querySelector('.track-limit-hint')?.remove();
+    const hint = createElement('div', 'track-limit-hint');
+    hint.textContent = t('Track up to {0} sessions at a time', '最多同时跟踪 {0} 个会话', MAX_TRACKED_SESSIONS);
+    layout.appendChild(hint);
+
+    if (trackLimitHintTimer !== undefined) {
+        window.clearTimeout(trackLimitHintTimer);
+    }
+    trackLimitHintTimer = window.setTimeout(() => {
+        hint.remove();
+        trackLimitHintTimer = undefined;
+    }, 2000);
+}
+
+/**
+ * 切换当前选中的会话，并回到该会话的第一页
+ * 普通点击为单选（分页详情）；活跃日期下按住 Ctrl/Cmd 点击才会话加入/移出多选跟踪，
+ * 选中 2-3 个时进入紧凑跟踪视图（不分页），减到 1 个时自动回落为单选分页视图
+ */
+function changeSelectedSession(sessionId: string | null, multiSelectKey = false): void {
     if (!window.usagesState) {
         return;
     }
 
-    window.usagesState.selectedSessionId = sessionId;
-    isSessionPopoverOpen = false;
+    if (sessionId !== null && multiSelectKey && isActiveDateView()) {
+        const tracked = window.usagesState.selectedSessionIds ?? [];
+        const single = window.usagesState.selectedSessionId;
+        const current =
+            tracked.length > 0 ? tracked
+            : single ? [single]
+            : [];
+        let next: string[];
+        if (current.includes(sessionId)) {
+            next = current.filter(id => id !== sessionId);
+        } else if (current.length < MAX_TRACKED_SESSIONS) {
+            next = [...current, sessionId];
+        } else {
+            // 已达跟踪上限：提示后忽略本次选择
+            showTrackLimitHint();
+            return;
+        }
+        // 多选仅剩 1 个时回落为单选（恢复分页视图）
+        if (next.length <= 1) {
+            window.usagesState.selectedSessionIds = [];
+            window.usagesState.selectedSessionId = next[0] ?? null;
+        } else {
+            window.usagesState.selectedSessionIds = next;
+            window.usagesState.selectedSessionId = null;
+        }
+        // Ctrl 多选时保持浮窗打开，便于连续勾选
+    } else {
+        window.usagesState.selectedSessionIds = [];
+        window.usagesState.selectedSessionId = sessionId;
+        isSessionPopoverOpen = false;
+    }
+
     currentPage = 1;
     rerenderRequestRecords();
 }
@@ -317,12 +408,14 @@ export function refreshRequestRecordCosts(container?: ParentNode): void {
 
 /**
  * 在表格底部追加合计行
+ * showRequestCount 为 true 时（多会话跟踪视图），右下角状态单元格显示「当前展示数量/总请求量」
  */
 function appendTotalsRow(
     tbody: HTMLElement,
     summary: SessionSummary,
     totals: RequestTotals,
-    currency: ReturnType<typeof getDisplayCurrency>
+    currency: ReturnType<typeof getDisplayCurrency>,
+    showRequestCount = false
 ): void {
     const row = createElement('tr', 'records-total-row');
 
@@ -389,6 +482,13 @@ function appendTotalsRow(
     }
 
     const statusCell = createElement('td', 'records-total-empty');
+    if (showRequestCount) {
+        // 合计行尚未追加，tbody 现有行即当前展示的数据行数
+        statusCell.classList.add('records-total-count');
+        statusCell.dataset.totalRequests = String(summary.requestCount);
+        statusCell.textContent = `${tbody.querySelectorAll('tr').length}/${summary.requestCount}`;
+        statusCell.title = t('Visible requests / total requests', '当前展示数量 / 总请求量');
+    }
 
     row.append(labelCell, emptyCell, inputCell, outputCell, totalCell, statusCell);
     tbody.appendChild(row);
@@ -402,7 +502,8 @@ export function createRequestRecordsTable(
     records: ExtendedTokenRequestLog[],
     summary: SessionSummary,
     totals: RequestTotals,
-    visibleSessionIds: Set<string>
+    visibleSessionIds: Set<string>,
+    showRequestCount = false
 ): HTMLElement {
     const table = createElement('table', 'records-table');
     const thead = createElement('thead');
@@ -609,7 +710,10 @@ export function createRequestRecordsTable(
         }
 
         const status = createElement('td');
-        const isAllSessions = window.usagesState?.selectedSessionId === null;
+        // 仅“全部会话”视图（单选为空且未进入多选跟踪）在状态列展示会话链接
+        const isAllSessions =
+            window.usagesState?.selectedSessionId === null &&
+            (window.usagesState?.selectedSessionIds?.length ?? 0) === 0;
         const statusLabel =
             record.status === 'completed' ? 'DONE'
             : record.status === 'failed' ? 'ERROR'
@@ -639,7 +743,7 @@ export function createRequestRecordsTable(
         tbody.appendChild(row);
     });
 
-    appendTotalsRow(tbody, summary, totals, currency);
+    appendTotalsRow(tbody, summary, totals, currency, showRequestCount);
 
     table.appendChild(tbody);
     return table;
@@ -679,7 +783,8 @@ function createDetailHeader(titleText: string, summary: SessionSummary): HTMLEle
 function createSessionPopover(
     sessionGroups: SessionGroup[],
     selectedSessionId: string | null,
-    onChange: (sessionId: string | null) => void
+    onChange: (sessionId: string | null, multiSelectKey?: boolean) => void,
+    selectedSessionIds: string[] = []
 ): HTMLElement {
     const popover = createElement('div', 'session-filter-popover');
     if (isSessionPopoverOpen) {
@@ -692,7 +797,7 @@ function createSessionPopover(
     backdrop.onclick = () => toggleSessionPopover(false);
 
     const panel = createElement('div', 'session-filter-popover-panel');
-    panel.appendChild(createSessionFilter(sessionGroups, selectedSessionId, onChange));
+    panel.appendChild(createSessionFilter(sessionGroups, selectedSessionId, onChange, selectedSessionIds));
 
     popover.appendChild(backdrop);
     popover.appendChild(panel);
@@ -736,6 +841,103 @@ function createDetailView(
 }
 
 /**
+ * 创建活跃日期的多会话跟踪视图：
+ * 每个选中会话渲染一个紧凑块（标题 + 限量最新记录 + 底部合计行），不启用分页
+ * 每个会话的记录条数上限按会话数均分总预算自动计算
+ */
+function createSessionTrackView(trackedGroups: SessionGroup[], visibleSessionIds: Set<string>): HTMLElement {
+    const detail = createElement('div', 'records-detail records-detail-multi');
+    const content = createElement('div', 'records-detail-content');
+    const limit = getTrackedRecordsLimit(trackedGroups.length);
+
+    trackedGroups.forEach(group => {
+        const block = createElement('section', 'session-track-block');
+        block.appendChild(createDetailHeader(`#${group.displayId}`, group.summary));
+        block.appendChild(
+            createRequestRecordsTable(
+                group.records.slice(0, limit),
+                group.summary,
+                group.totals,
+                visibleSessionIds,
+                true
+            )
+        );
+        content.appendChild(block);
+    });
+
+    detail.appendChild(content);
+    return detail;
+}
+
+/**
+ * 按容器实际可用高度裁减多会话跟踪视图的记录行：
+ * 每次从行数最多的会话块末尾移除一行（每块至少保留 1 行），直到内容不再溢出。
+ * 返回是否已适配容器高度；false 表示裁到最少仍溢出（跟踪会话过多），
+ * 调用方应改用随内容增长的布局，避免详情区出现内部滚动条。
+ *
+ * 性能：一次性收集各块数据行；先按行高估算并批量裁减（不做测量），
+ * 再由精确循环收尾，将强制同步重排从逐行一次降至约 2-3 次。
+ */
+function trimSessionTrackViewToFit(detail: HTMLElement): boolean {
+    const content = detail.querySelector('.records-detail-content');
+    if (!(content instanceof HTMLElement) || content.clientHeight === 0) {
+        return true;
+    }
+
+    // 一次性收集各块数据行，避免裁减循环中重复查询 DOM
+    const blockRows = Array.from(detail.querySelectorAll('.session-track-block')).map(block =>
+        Array.from(block.querySelectorAll<HTMLTableRowElement>('tbody tr:not(.records-total-row)'))
+    );
+    // 从行数最多的块末尾移除一行（每块至少保留 1 行）；返回是否确有行被移除
+    const removeRowFromFullestBlock = (): boolean => {
+        let fullestRows: HTMLTableRowElement[] = [];
+        for (const rows of blockRows) {
+            if (rows.length > fullestRows.length) {
+                fullestRows = rows;
+            }
+        }
+        if (fullestRows.length <= 1) {
+            return false;
+        }
+        fullestRows.pop()?.remove();
+        return true;
+    };
+
+    const overflow = content.scrollHeight - content.clientHeight;
+    if (overflow > 1) {
+        // 按首行高度估算需裁减的行数并批量移除；有意低估（floor + 1px 余量），
+        // 裁不够由下方精确循环兜底，不会裁过头
+        const sampleRow = blockRows.find(rows => rows.length > 0)?.[0];
+        const rowHeight = sampleRow?.getBoundingClientRect().height ?? 0;
+        if (rowHeight > 1) {
+            let estimated = Math.floor((overflow - 1) / rowHeight);
+            while (estimated-- > 0 && removeRowFromFullestBlock()) {
+                // 批量阶段不做测量
+            }
+        }
+    }
+
+    // 精确收尾：通常 0-2 次迭代即可适配
+    let guard = 50;
+    while (content.scrollHeight > content.clientHeight + 1 && guard-- > 0 && removeRowFromFullestBlock()) {
+        // 逐行移除并重新测量
+    }
+
+    // 裁减后刷新各块合计行的「当前展示数量/总请求量」
+    detail.querySelectorAll('.session-track-block').forEach(block => {
+        const cell = block.querySelector<HTMLElement>('.records-total-count');
+        if (!cell) {
+            return;
+        }
+        const total = cell.dataset.totalRequests ?? '0';
+        const visible = block.querySelectorAll('tbody tr:not(.records-total-row)').length;
+        cell.textContent = `${visible}/${total}`;
+    });
+
+    return content.scrollHeight <= content.clientHeight + 1;
+}
+
+/**
  * 重置请求记录区域的内部分页状态
  */
 export function resetRequestRecordsState(): void {
@@ -765,6 +967,8 @@ export function createRequestRecordsSection(
     const visibleSessionGroups = sessionGroups.filter(shouldShowSessionGroupInFilter);
     const hasVisibleSessionGroups = visibleSessionGroups.length > 0;
     const allSessionIds = new Set(visibleSessionGroups.map(group => group.sessionId));
+    const trackedSessionIds = getTrackedSessionIds(allSessionIds);
+    const isTrackMode = isActiveDateView() && trackedSessionIds.length >= 2;
     const dateDetails = getCurrentDateDetails();
     const allRecords = dateDetails?.allRecords || [];
     const allSummary = dateDetails?.allSummary || summarizeSessionRecords(allRecords);
@@ -773,14 +977,32 @@ export function createRequestRecordsSection(
         selectedSessionId ? visibleSessionGroups.find(group => group.sessionId === selectedSessionId) : undefined;
 
     if (hasVisibleSessionGroups) {
-        layout.appendChild(createSessionFilter(sessionGroups, selectedGroup?.sessionId || null, changeSelectedSession));
+        layout.appendChild(
+            createSessionFilter(
+                sessionGroups,
+                selectedGroup?.sessionId || null,
+                changeSelectedSession,
+                trackedSessionIds
+            )
+        );
         layout.appendChild(createSessionToggleButton());
         layout.appendChild(
-            createSessionPopover(sessionGroups, selectedGroup?.sessionId || null, changeSelectedSession)
+            createSessionPopover(
+                sessionGroups,
+                selectedGroup?.sessionId || null,
+                changeSelectedSession,
+                trackedSessionIds
+            )
         );
     }
 
-    if (selectedGroup) {
+    const trackedGroups =
+        isTrackMode ? visibleSessionGroups.filter(group => trackedSessionIds.includes(group.sessionId)) : [];
+    let trackDetail: HTMLElement | undefined;
+    if (isTrackMode) {
+        trackDetail = createSessionTrackView(trackedGroups, allSessionIds);
+        layout.appendChild(trackDetail);
+    } else if (selectedGroup) {
         layout.appendChild(
             createDetailView(
                 `#${selectedGroup.displayId}`,
@@ -803,5 +1025,13 @@ export function createRequestRecordsSection(
     }
 
     container.appendChild(layout);
+
+    // 多会话跟踪：按容器实际高度裁减记录行，避免详情区出现内部滚动条；
+    // 会话过多、每块仅剩 1 行仍放不下时，放开固定高度让布局随内容增长（由页面级滚动接管）
+    if (trackDetail && container.isConnected && !trimSessionTrackViewToFit(trackDetail)) {
+        layout.classList.add('records-layout-grow');
+        trackDetail.replaceWith(createSessionTrackView(trackedGroups, allSessionIds));
+    }
+
     return container;
 }
