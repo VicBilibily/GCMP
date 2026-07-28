@@ -5,10 +5,13 @@ node_modules/**
 models/
 scripts/
 discuss/
+integration/**
+docs/**
 out/**
 src/**
 .gitignore
 .eslintignore
+.vscode-test.mjs
 esbuild.mjs
 **/tsconfig*
 **/*.ts

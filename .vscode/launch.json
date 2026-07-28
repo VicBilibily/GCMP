@@ -29,12 +29,10 @@
             "name": "Extension Tests",
             "type": "extensionHost",
             "request": "launch",
-            "args": [
-                "--extensionDevelopmentPath=${workspaceFolder}",
-                "--extensionTestsPath=${workspaceFolder}/test/suite/index"
-            ],
-            "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-            "preLaunchTask": "npm: compile:dev",
+            "testConfiguration": "${workspaceFolder}/.vscode-test.mjs",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}", "--enable-proposed-api=vicanent.gcmp"],
+            "outFiles": ["${workspaceFolder}/dist/**/*.js", "${workspaceFolder}/out/integration/**/*.js"],
+            "preLaunchTask": "npm: compile:vscode-test",
             "sourceMaps": true
         }
     ]

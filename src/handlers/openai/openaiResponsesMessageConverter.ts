@@ -45,7 +45,20 @@ export class OpenAIResponsesMessageConverter {
             const encryptedReasonings: Array<{ encryptedContent: string; reasoningId?: string }> = [];
 
             for (const [partIndex, part] of message.content.entries()) {
-                if (part instanceof vscode.LanguageModelTextPart) {
+                if (part instanceof vscode.LanguageModelThinkingPart) {
+                    const metadata = (part as { metadata?: OpenAIResponsesThinkingMetadata }).metadata;
+                    if (metadata?.redactedData) {
+                        encryptedReasonings.push({
+                            encryptedContent: metadata.redactedData,
+                            reasoningId: metadata.reasoningId
+                        });
+                    } else {
+                        const content = Array.isArray(part.value) ? part.value.join('') : part.value;
+                        if (content.trim()) {
+                            thinkingParts.push(content);
+                        }
+                    }
+                } else if (part instanceof vscode.LanguageModelTextPart) {
                     textParts.push(part.value);
                 } else if (
                     part instanceof vscode.LanguageModelDataPart &&
@@ -76,17 +89,6 @@ export class OpenAIResponsesMessageConverter {
                     const content = this.collectToolResultText(part);
                     if (callId) {
                         toolResults.push({ callId, content });
-                    }
-                } else if (part instanceof vscode.LanguageModelThinkingPart) {
-                    const metadata = (part as unknown as { metadata?: OpenAIResponsesThinkingMetadata }).metadata;
-                    if (metadata?.redactedData) {
-                        encryptedReasonings.push({
-                            encryptedContent: metadata.redactedData,
-                            reasoningId: metadata.reasoningId
-                        });
-                    } else {
-                        const content = Array.isArray(part.value) ? part.value.join('') : part.value;
-                        thinkingParts.push(content);
                     }
                 }
             }

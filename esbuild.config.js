@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const isWatch = process.argv.includes('--watch');
 const isDev = process.argv.includes('--dev');
+const buildIntegrationTests = process.argv.includes('--integration-tests');
 
 
 //#region 复制 chat-lib 相关的资源文件
@@ -295,20 +296,58 @@ function buildUiConfigs() {
     return configs;
 }
 
+function buildIntegrationTestConfigs() {
+    const integrationDir = path.join(REPO_ROOT, 'integration');
+    if (!fs.existsSync(integrationDir)) {
+        return [];
+    }
+
+    const configs = [];
+
+    function scan(dir) {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                scan(fullPath);
+                continue;
+            }
+
+            if (!entry.isFile() || !entry.name.endsWith('.test.ts')) {
+                continue;
+            }
+
+            const relativePath = path.relative(integrationDir, fullPath).replace(/\.ts$/, '.js');
+            configs.push({
+                ...commonOptions,
+                entryPoints: [fullPath],
+                outfile: path.join('out', 'integration', relativePath),
+                minify: false,
+                tsconfig: './tsconfig.vscode-test.json'
+            });
+        }
+    }
+
+    scan(integrationDir);
+    return configs;
+}
+
 
 // ========================================================================
 // 构建函数
 // ========================================================================
 async function build() {
     try {
-        // 基础构建配置
-        const baseConfigs = [
-            extensionBuildOptions,
-            copilotBuildOptions
-        ];
+        const buildConfigs = buildIntegrationTests
+            ? buildIntegrationTestConfigs()
+            : [extensionBuildOptions, copilotBuildOptions, ...buildUiConfigs()];
 
-        // 构建 UI WebView 的编译配置
-        const uiConfigs = buildUiConfigs();
+        if (buildConfigs.length === 0) {
+            console.log(buildIntegrationTests ? 'No integration test bundles to build.' : 'No bundles to build.');
+            return;
+        }
+
+        const cleanTarget = buildIntegrationTests ? path.join('out', 'integration') : 'dist';
 
         if (isWatch) {
             // Watch 模式
@@ -316,15 +355,7 @@ async function build() {
 
             const contexts = [];
 
-            // 添加基础配置
-            for (const config of baseConfigs) {
-                const ctx = await esbuild.context(config);
-                contexts.push(ctx);
-                await ctx.watch();
-            }
-
-            // 添加 UI 配置
-            for (const config of uiConfigs) {
+            for (const config of buildConfigs) {
                 const ctx = await esbuild.context(config);
                 contexts.push(ctx);
                 await ctx.watch();
@@ -334,42 +365,36 @@ async function build() {
             console.log(`Watching for changes in ${contexts.length} bundles...`);
             await Promise.all(contexts.map(ctx => ctx.watch()));
         } else {
-            // 构建前清理 dist 目录
-            console.log('Cleaning dist directory...');
-            if (fs.existsSync('dist')) {
-                await fs.promises.rm('dist', { recursive: true, force: true });
-                console.log('Dist directory cleaned.');
+            console.log(`Cleaning ${cleanTarget} directory...`);
+            if (fs.existsSync(cleanTarget)) {
+                await fs.promises.rm(cleanTarget, { recursive: true, force: true });
+                console.log(`${cleanTarget} directory cleaned.`);
             } else {
-                console.log('No dist directory to clean.');
+                console.log(`No ${cleanTarget} directory to clean.`);
             }
 
-            // 并行构建所有配置
-            console.log(`Building ${baseConfigs.length + uiConfigs.length} bundles...`);
+            console.log(`Building ${buildConfigs.length} bundles...`);
             const startTime = Date.now();
 
-            const allConfigs = [
-                esbuild.build(extensionBuildOptions),
-                esbuild.build(copilotBuildOptions),
-                ...uiConfigs.map(c => esbuild.build(c))
-            ];
+            const allConfigs = buildConfigs.map(config => esbuild.build(config));
 
             await Promise.all(allConfigs);
 
             const buildTime = Date.now() - startTime;
             console.log(`Build completed successfully in ${buildTime}ms.`);
 
-            // 输出构建产物列表
             console.log('Built bundles:');
-            console.log('  - dist/extension.js');
-            console.log('  - dist/copilot.bundle.js');
-            uiConfigs.forEach(c => {
-                console.log(`  - ${c.outfile}`);
+            buildConfigs.forEach(config => {
+                if (config.outfile) {
+                    console.log(`  - ${config.outfile}`);
+                }
             });
 
-            // 构建完成后复制资源文件
-            await copyBuildAssets();
+            if (!buildIntegrationTests) {
+                await copyBuildAssets();
 
-            console.log('Asset copying completed.');
+                console.log('Asset copying completed.');
+            }
         }
     } catch (error) {
         console.error('Build failed:', error);

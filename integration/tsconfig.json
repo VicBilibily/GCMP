@@ -1,0 +1,3 @@
+﻿{
+    "extends": "../tsconfig.vscode-test.json"
+}

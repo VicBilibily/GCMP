@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.26.9",
+    "version": "0.26.10",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -1572,7 +1572,9 @@
         "vscode:prepublish": "npm run clean && npm run compile",
         "compile": "node esbuild.config.js",
         "compile:dev": "node esbuild.config.js --dev",
+        "compile:vscode-test": "node esbuild.config.js --integration-tests --dev",
         "typecheck": "tsc --noEmit -p tsconfig.json",
+        "typecheck:vscode-test": "tsc --noEmit -p tsconfig.vscode-test.json",
         "clean": "rimraf dist",
         "lint": "eslint",
         "lint:fix": "eslint --fix",
@@ -1582,7 +1584,9 @@
         "package": "vsce package",
         "publish": "vsce publish --allow-proposed-apis chatProvider",
         "pretest": "npm run compile:dev",
-        "test": "node --import=tsx --test src/**/*.test.ts"
+        "test": "node --import=tsx --test src/**/*.test.ts",
+        "pretest:vscode": "npm run typecheck:vscode-test && npm run compile:vscode-test",
+        "test:vscode": "vscode-test"
     },
     "dependencies": {
         "@anthropic-ai/sdk": "^0.80.0",
@@ -1597,8 +1601,11 @@
         "@eslint/js": "^9.13.0",
         "@stylistic/eslint-plugin": "^5.4.0",
         "@types/json-schema": "^7.0.15",
+        "@types/mocha": "^10.0.10",
         "@types/node": "^20.0.0",
         "@types/vscode": "^1.125.0",
+        "@vscode/test-cli": "^0.0.12",
+        "@vscode/test-electron": "^2.5.2",
         "@vscode/vsce": "^3.9.2",
         "esbuild": "^0.25.10",
         "eslint": "^9.13.0",
