@@ -19,12 +19,9 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": { "USD": [0.276, 1.101, 0.028, 0.345], "RMB": [2, 8, 0.2, 2.5] },
+                "pricing": { "USD": [0.276, 1.101, 0.056], "RMB": [2, 8, 0.4] },
                 "tiers": [
-                    {
-                        "contextSizeMin": 256001,
-                        "pricing": { "USD": [0.826, 3.301, 0.083, 1.033], "RMB": [6, 24, 0.6, 7.5] }
-                    }
+                    { "contextSizeMin": 256001, "pricing": { "USD": [0.826, 3.301, 0.166], "RMB": [6, 24, 1.2] } }
                 ]
             }
         },
@@ -42,131 +39,23 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": { "USD": [0.276, 1.651, 0.028, 0.345], "RMB": [2, 12, 0.2, 2.5] },
-                "tiers": [
-                    {
-                        "contextSizeMin": 256001,
-                        "pricing": { "USD": [1.101, 6.602, 0.11, 1.376], "RMB": [8, 48, 0.8, 10] }
-                    }
-                ]
+                "pricing": { "USD": [0.276, 1.651, 0.055], "RMB": [2, 12, 0.4] },
+                "tiers": [{ "contextSizeMin": 256001, "pricing": { "USD": [1.101, 6.602, 0.22], "RMB": [8, 48, 1.6] } }]
             }
         },
         {
-            "id": "qwen3.5-plus-coding-plan",
-            "name": "Qwen3.5-Plus (CodingPlan)",
+            "id": "kimi-k2.5-coding-plan",
+            "name": "Kimi-K2.5 (CodingPlan)",
             "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
             "provider": "dashscope-coding",
             "sdkMode": "anthropic",
             "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
-            "model": "qwen3.5-plus",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": {
-                "pricing": { "USD": [0.115, 0.688, 0.012, 0.144], "RMB": [0.8, 4.8, 0.08, 1] },
-                "tiers": [
-                    {
-                        "contextSizeMin": 256001,
-                        "pricing": { "USD": [0.573, 3.44, 0.057, 0.716], "RMB": [4, 24, 0.4, 5] }
-                    },
-                    {
-                        "contextSizeMin": 128001,
-                        "pricing": { "USD": [0.287, 1.72, 0.029, 0.359], "RMB": [2, 12, 0.2, 2.5] }
-                    }
-                ]
-            }
-        },
-        {
-            "id": "qwen3-max-coding-plan",
-            "name": "Qwen3-Max (CodingPlan)",
-            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
-            "provider": "dashscope-coding",
-            "model": "qwen3-max-2026-01-23",
-            "contextSize": [256000, 128000],
+            "model": "kimi-k2.5",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": { "USD": [0.359, 1.434, 0.036, 0.449], "RMB": [2.5, 10, 0.25, 3.125] },
-                "tiers": [
-                    {
-                        "contextSizeMin": 128001,
-                        "pricing": { "USD": [1.004, 4.014, 0.1, 1.255], "RMB": [7, 28, 0.7, 8.75] }
-                    },
-                    {
-                        "contextSizeMin": 32001,
-                        "pricing": { "USD": [0.574, 2.294, 0.057, 0.718], "RMB": [4, 16, 0.4, 5] }
-                    }
-                ]
-            }
-        },
-        {
-            "id": "qwen3-coder-next-coding-plan",
-            "name": "Qwen3-Coder-Next (CodingPlan)",
-            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
-            "provider": "dashscope-coding",
-            "model": "qwen3-coder-next",
-            "contextSize": [200000, 128000],
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": { "USD": [0.144, 0.574], "RMB": [1, 4] },
-                "tiers": [
-                    { "contextSizeMin": 128001, "pricing": { "USD": [0.359, 1.434], "RMB": [2.5, 10] } },
-                    { "contextSizeMin": 32001, "pricing": { "USD": [0.216, 0.861], "RMB": [1.5, 6] } }
-                ]
-            }
-        },
-        {
-            "id": "qwen3-coder-plus-coding-plan",
-            "name": "Qwen3-Coder-Plus (CodingPlan)",
-            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
-            "provider": "dashscope-coding",
-            "model": "qwen3-coder-plus",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": { "USD": [0.574, 2.294, 0.057, 0.718], "RMB": [4, 16, 0.4, 5] },
-                "tiers": [
-                    {
-                        "contextSizeMin": 256001,
-                        "pricing": { "USD": [2.868, 28.671, 0.287, 3.585], "RMB": [20, 200, 2, 25] }
-                    },
-                    {
-                        "contextSizeMin": 128001,
-                        "pricing": { "USD": [1.434, 5.735, 0.143, 1.793], "RMB": [10, 40, 1, 12.5] }
-                    },
-                    {
-                        "contextSizeMin": 32001,
-                        "pricing": { "USD": [0.861, 3.441, 0.086, 1.076], "RMB": [6, 24, 0.6, 7.5] }
-                    }
-                ]
-            }
-        },
-        {
-            "id": "minimax-m2.5-coding-plan",
-            "name": "MiniMax-M2.5 (CodingPlan)",
-            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
-            "model": "MiniMax-M2.5",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.304, 1.213, 0.061], "RMB": [2.1, 8.4, 0.42] }
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": { "USD": [0.574, 3.011, 0.115], "RMB": [4, 21, 0.8] }
         },
         {
             "id": "glm-5-coding-plan",
@@ -182,45 +71,23 @@
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
             "tokenPricing": {
                 "pricing": { "USD": [0.573, 2.58, 0.115], "RMB": [4, 18, 0.8] },
-                "tiers": [
-                    {
-                        "contextSizeMin": 32001,
-                        "pricing": { "USD": [0.86, 3.154, 0.172], "RMB": [6, 22, 1.2] }
-                    }
-                ]
+                "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [0.86, 3.154, 0.172], "RMB": [6, 22, 1.2] } }]
             }
         },
         {
-            "id": "glm-4.7-coding-plan",
-            "name": "GLM-4.7 (CodingPlan)",
+            "id": "minimax-m2.5-coding-plan",
+            "name": "MiniMax-M2.5 (CodingPlan)",
             "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
             "provider": "dashscope-coding",
             "sdkMode": "anthropic",
             "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
-            "model": "glm-4.7",
+            "model": "MiniMax-M2.5",
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": {
-                "pricing": { "USD": [0.431, 2.007, 0.086], "RMB": [3, 14, 0.6] },
-                "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [0.574, 2.294, 0.115], "RMB": [4, 16, 0.8] } }]
-            }
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "USD": [0.304, 1.213, 0.061], "RMB": [2.1, 8.4, 0.42] }
         },
-        {
-            "id": "kimi-k2.5-coding-plan",
-            "name": "Kimi-K2.5 (CodingPlan)",
-            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
-            "model": "kimi-k2.5",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
-            "tokenPricing": { "USD": [0.574, 3.011, 0.057, 0.718], "RMB": [4, 21, 0.4, 5] }
-        },
+
         {
             "id": "qwen3.8-max-preview-token-plan",
             "name": "Qwen3.8-Max-Preview (TokenPlan)",
@@ -236,6 +103,21 @@
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }]
         },
         {
+            "id": "qwen3.7-max-token-plan",
+            "name": "Qwen3.7-Max (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+            "model": "qwen3.7-max",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
+            "tokenPricing": { "USD": [1.65, 4.951, 0.33], "RMB": [12, 36, 2.4] }
+        },
+        {
             "id": "qwen3.7-plus-token-plan",
             "name": "Qwen3.7-Plus (TokenPlan)",
             "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
@@ -249,29 +131,11 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
-                "pricing": { "USD": [0.276, 1.101, 0.028, 0.276], "RMB": [2, 8, 0.2, 2] },
+                "pricing": { "USD": [0.276, 1.101, 0.056], "RMB": [2, 8, 0.4] },
                 "tiers": [
-                    {
-                        "contextSizeMin": 256000,
-                        "pricing": { "USD": [0.826, 3.301, 0.083, 0.826], "RMB": [6, 24, 0.6, 6] }
-                    }
+                    { "contextSizeMin": 256001, "pricing": { "USD": [0.826, 3.301, 0.166], "RMB": [6, 24, 1.2] } }
                 ]
             }
-        },
-        {
-            "id": "qwen3.7-max-token-plan",
-            "name": "Qwen3.7-Max (TokenPlan)",
-            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-token",
-            "sdkMode": "openai-responses",
-            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
-            "model": "qwen3.7-max",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
-            "tokenPricing": { "USD": [1.65, 4.951, 0.165, 1.65], "RMB": [12, 36, 1.2, 12] }
         },
         {
             "id": "qwen3.6-plus-token-plan",
@@ -287,13 +151,8 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
-                "pricing": { "USD": [0.276, 1.651, 0.028, 0.276], "RMB": [2, 12, 0.2, 2] },
-                "tiers": [
-                    {
-                        "contextSizeMin": 256000,
-                        "pricing": { "USD": [1.101, 6.602, 0.11, 1.101], "RMB": [8, 48, 0.8, 8] }
-                    }
-                ]
+                "pricing": { "USD": [0.276, 1.651, 0.055], "RMB": [2, 12, 0.4] },
+                "tiers": [{ "contextSizeMin": 256001, "pricing": { "USD": [1.101, 6.602, 0.22], "RMB": [8, 48, 1.6] } }]
             }
         },
         {
@@ -310,14 +169,96 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
-                "pricing": { "USD": [0.165, 0.99, 0.017, 0.165], "RMB": [1.2, 7.2, 0.12, 1.2] },
+                "pricing": { "USD": [0.165, 0.99, 0.33], "RMB": [1.2, 7.2, 0.6] },
                 "tiers": [
-                    {
-                        "contextSizeMin": 256000,
-                        "pricing": { "USD": [0.66, 3.961, 0.066, 0.66], "RMB": [4.8, 28.8, 0.48, 4.8] }
-                    }
+                    { "contextSizeMin": 256001, "pricing": { "USD": [0.66, 3.961, 1.32], "RMB": [4.8, 28.8, 2.4] } }
                 ]
             }
+        },
+        {
+            "id": "deepseek-v4-pro-token-plan",
+            "name": "DeepSeek-V4-Pro (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "deepseek-v4-pro",
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": { "USD": [1.65, 3.301, 0.138], "RMB": [12, 24, 1] }
+        },
+        {
+            "id": "deepseek-v4-flash-token-plan",
+            "name": "DeepSeek-V4-Flash (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "deepseek-v4-flash",
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "tokenPricing": { "USD": [0.138, 0.275, 0.028], "RMB": [1, 2, 0.2] }
+        },
+        {
+            "id": "deepseek-v3.2-token-plan",
+            "name": "DeepSeek-V3.2 (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "deepseek-v3.2",
+            "maxInputTokens": 112000,
+            "maxOutputTokens": 16000,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "USD": [0.287, 0.431, 0.0574], "RMB": [2, 3, 0.4] }
+        },
+        {
+            "id": "kimi-k2.7-code-token-plan",
+            "name": "Kimi-K2.7-Code (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "kimi-k2.7-code",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": { "USD": [0.8939, 3.7131, 0.1788], "RMB": [6.5, 27, 1.3] }
+        },
+        {
+            "id": "kimi-k2.6-token-plan",
+            "name": "Kimi-K2.6 (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "kimi-k2.6",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": { "USD": [0.8939, 3.7131, 0.1788], "RMB": [6.5, 27, 1.3] }
+        },
+        {
+            "id": "kimi-k2.5-token-plan",
+            "name": "Kimi-K2.5 (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "kimi-k2.5",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "tokenPricing": { "USD": [0.574, 3.011, 0.115], "RMB": [4, 21, 0.8] }
         },
         {
             "id": "glm-5.2-token-plan",
@@ -332,7 +273,7 @@
             "maxOutputTokens": 64000,
             "reasoningEffort": ["high", "max", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": { "USD": [1.1, 3.851, 0.11, 1.1], "RMB": [8, 28, 0.8, 8] }
+            "tokenPricing": { "USD": [1.1, 3.851, 0.275], "RMB": [8, 28, 2] }
         },
         {
             "id": "glm-5.1-token-plan",
@@ -347,10 +288,8 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
             "tokenPricing": {
-                "pricing": { "USD": [0.825, 3.301, 0.083, 0.825], "RMB": [6, 24, 0.6, 6] },
-                "tiers": [
-                    { "contextSizeMin": 32001, "pricing": { "USD": [1.1, 3.851, 0.11, 1.1], "RMB": [8, 28, 0.8, 8] } }
-                ]
+                "pricing": { "USD": [0.825, 3.301, 0.165], "RMB": [6, 24, 1.2] },
+                "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [1.1, 3.851, 0.22], "RMB": [8, 28, 1.6] } }]
             }
         },
         {
@@ -366,56 +305,9 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
             "tokenPricing": {
-                "pricing": { "USD": [0.573, 2.58, 0.057, 0.573], "RMB": [4, 18, 0.4, 4] },
-                "tiers": [
-                    {
-                        "contextSizeMin": 32000,
-                        "pricing": { "USD": [0.86, 3.154, 0.086, 0.86], "RMB": [6, 22, 0.6, 6] }
-                    }
-                ]
+                "pricing": { "USD": [0.573, 2.58, 0.115], "RMB": [4, 18, 0.8] },
+                "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [0.86, 3.154, 0.172], "RMB": [6, 22, 1.2] } }]
             }
-        },
-        {
-            "id": "kimi-k2.7-code-token-plan",
-            "name": "Kimi-K2.7-Code (TokenPlan)",
-            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
-            "model": "kimi-k2.7-code",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
-            "tokenPricing": { "USD": [0.894, 3.713, 0.089, 0.894], "RMB": [6.5, 27, 0.65, 6.5] }
-        },
-        {
-            "id": "kimi-k2.6-token-plan",
-            "name": "Kimi-K2.6 (TokenPlan)",
-            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
-            "model": "kimi-k2.6",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
-            "tokenPricing": { "USD": [0.8939, 3.7131, 0.089, 0.8939], "RMB": [6.5, 27, 0.65, 6.5] }
-        },
-        {
-            "id": "kimi-k2.5-token-plan",
-            "name": "Kimi-K2.5 (TokenPlan)",
-            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
-            "model": "kimi-k2.5",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
-            "tokenPricing": { "USD": [0.574, 3.011, 0.057, 0.574], "RMB": [4, 21, 0.4, 4] }
         },
         {
             "id": "minimax-m2.5-token-plan",
@@ -428,51 +320,9 @@
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.304, 1.213, 0.03, 0.304], "RMB": [2.1, 8.4, 0.21, 2.1] }
+            "tokenPricing": { "USD": [0.304, 1.213, 0.061], "RMB": [2.1, 8.4, 0.42] }
         },
-        {
-            "id": "deepseek-v4-pro-token-plan",
-            "name": "DeepSeek-V4-Pro (TokenPlan)",
-            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
-            "model": "deepseek-v4-pro",
-            "reasoningEffort": ["high", "max", "none"],
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": { "USD": [1.65, 3.301, 0.165, 1.65], "RMB": [12, 24, 1.2, 12] }
-        },
-        {
-            "id": "deepseek-v4-flash-token-plan",
-            "name": "DeepSeek-V4-Flash (TokenPlan)",
-            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
-            "model": "deepseek-v4-flash",
-            "reasoningEffort": ["high", "max", "none"],
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": { "USD": [0.138, 0.275, 0.014, 0.138], "RMB": [1, 2, 0.1, 1] }
-        },
-        {
-            "id": "deepseek-v3.2-token-plan",
-            "name": "DeepSeek-V3.2 (TokenPlan)",
-            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
-            "model": "deepseek-v3.2",
-            "maxInputTokens": 112000,
-            "maxOutputTokens": 16000,
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.287, 0.431, 0.029, 0.287], "RMB": [2, 3, 0.2, 2] }
-        },
+
         {
             "id": "qwen3.8-max-preview-token-plan-personal",
             "name": "Qwen3.8-Max-Preview (TokenPlan)",
@@ -500,7 +350,7 @@
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
-            "tokenPricing": { "USD": [1.65, 4.951, 0.165, 1.65], "RMB": [12, 36, 1.2, 12] }
+            "tokenPricing": { "USD": [1.65, 4.951, 0.33], "RMB": [12, 36, 2.4] }
         },
         {
             "id": "qwen3.7-plus-token-plan-personal",
@@ -516,12 +366,9 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
-                "pricing": { "USD": [0.276, 1.101, 0.028, 0.276], "RMB": [2, 8, 0.2, 2] },
+                "pricing": { "USD": [0.276, 1.101, 0.056], "RMB": [2, 8, 0.4] },
                 "tiers": [
-                    {
-                        "contextSizeMin": 256000,
-                        "pricing": { "USD": [0.826, 3.301, 0.083, 0.826], "RMB": [6, 24, 0.6, 6] }
-                    }
+                    { "contextSizeMin": 256001, "pricing": { "USD": [0.826, 3.301, 0.166], "RMB": [6, 24, 1.2] } }
                 ]
             }
         },
@@ -539,12 +386,9 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
-                "pricing": { "USD": [0.165, 0.99, 0.017, 0.165], "RMB": [1.2, 7.2, 0.12, 1.2] },
+                "pricing": { "USD": [0.165, 0.99, 0.33], "RMB": [1.2, 7.2, 0.6] },
                 "tiers": [
-                    {
-                        "contextSizeMin": 256000,
-                        "pricing": { "USD": [0.66, 3.961, 0.066, 0.66], "RMB": [4.8, 28.8, 0.48, 4.8] }
-                    }
+                    { "contextSizeMin": 256001, "pricing": { "USD": [0.66, 3.961, 1.32], "RMB": [4.8, 28.8, 2.4] } }
                 ]
             }
         },
@@ -561,7 +405,7 @@
             "maxOutputTokens": 64000,
             "reasoningEffort": ["high", "max", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": { "USD": [1.1, 3.851, 0.11, 1.1], "RMB": [8, 28, 0.8, 8] }
+            "tokenPricing": { "USD": [1.1, 3.851, 0.275], "RMB": [8, 28, 2] }
         },
         {
             "id": "deepseek-v4-pro-token-plan-personal",
@@ -576,8 +420,9 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": { "USD": [1.65, 3.301, 0.165, 1.65], "RMB": [12, 24, 1.2, 12] }
+            "tokenPricing": { "USD": [1.65, 3.301, 0.138], "RMB": [12, 24, 1] }
         },
+
         {
             "id": "qwen3.7-plus",
             "name": "Qwen3.7-Plus",
@@ -589,12 +434,9 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
-                "pricing": { "USD": [0.276, 1.101, 0.028, 0.276], "RMB": [2, 8, 0.2, 2] },
+                "pricing": { "USD": [0.276, 1.101, 0.056], "RMB": [2, 8, 0.4] },
                 "tiers": [
-                    {
-                        "contextSizeMin": 256000,
-                        "pricing": { "USD": [0.826, 3.301, 0.083, 0.826], "RMB": [6, 24, 0.6, 6] }
-                    }
+                    { "contextSizeMin": 256001, "pricing": { "USD": [0.826, 3.301, 0.166], "RMB": [6, 24, 1.2] } }
                 ]
             }
         },
@@ -608,7 +450,25 @@
             "sdkMode": "openai-responses",
             "capabilities": { "toolCalling": true, "imageInput": false },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
-            "tokenPricing": { "USD": [1.65, 4.951, 0.165, 1.65], "RMB": [12, 36, 1.2, 12] }
+            "tokenPricing": { "USD": [1.65, 4.951, 0.33], "RMB": [12, 36, 2.4] }
+        },
+        {
+            "id": "qwen3.7-flash",
+            "name": "Qwen3.7-Flash",
+            "tooltip": "Qwen3.7原生视觉语言系列Flash模型，相较3.6-Flash全面提升多模态理解与Agent执行能力。重点强化多模态基础能力、万物识别能力更强，真实世界感知与空间智能进一步提升，Search Agent、CI Agent等多模态Agent场景能力显著升级、端到端任务执行更稳定，多模态Coding能力优化、vibe coding 体验更加流畅。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "sdkMode": "openai-responses",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
+            "tokenPricing": {
+                "pricing": { "USD": [0.028, 0.11, 0.006], "RMB": [0.2, 0.8, 0.04] },
+                "tiers": [
+                    { "contextSizeMin": 32001, "pricing": { "USD": [0.083, 0.33, 0.017], "RMB": [0.6, 2.4, 0.12] } },
+                    { "contextSizeMin": 256001, "pricing": { "USD": [0.165, 0.66, 0.033], "RMB": [1.2, 4.8, 0.24] } }
+                ]
+            }
         },
         {
             "id": "qwen3.6-plus",
@@ -621,13 +481,8 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
-                "pricing": { "USD": [0.276, 1.651, 0.028, 0.276], "RMB": [2, 12, 0.2, 2] },
-                "tiers": [
-                    {
-                        "contextSizeMin": 256000,
-                        "pricing": { "USD": [1.101, 6.602, 0.11, 1.101], "RMB": [8, 48, 0.8, 8] }
-                    }
-                ]
+                "pricing": { "USD": [0.276, 1.651, 0.055], "RMB": [2, 12, 0.4] },
+                "tiers": [{ "contextSizeMin": 256001, "pricing": { "USD": [1.101, 6.602, 0.22], "RMB": [8, 48, 1.6] } }]
             }
         },
         {
@@ -641,12 +496,9 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "nativeTools": [{ "type": "web_search" }, { "type": "web_extractor" }],
             "tokenPricing": {
-                "pricing": { "USD": [0.165, 0.99, 0.017, 0.165], "RMB": [1.2, 7.2, 0.12, 1.2] },
+                "pricing": { "USD": [0.165, 0.99, 0.33], "RMB": [1.2, 7.2, 0.6] },
                 "tiers": [
-                    {
-                        "contextSizeMin": 256000,
-                        "pricing": { "USD": [0.66, 3.961, 0.066, 0.66], "RMB": [4.8, 28.8, 0.48, 4.8] }
-                    }
+                    { "contextSizeMin": 256001, "pricing": { "USD": [0.66, 3.961, 1.32], "RMB": [4.8, 28.8, 2.4] } }
                 ]
             }
         },
@@ -690,6 +542,7 @@
                 ]
             }
         },
+
         {
             "id": "deepseek-v4-flash",
             "name": "DeepSeek-V4-Flash",
@@ -701,7 +554,7 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": { "USD": [0.138, 0.275, 0.014, 0.138], "RMB": [1, 2, 0.1, 1] }
+            "tokenPricing": { "USD": [0.138, 0.275, 0.028], "RMB": [1, 2, 0.2] }
         },
         {
             "id": "deepseek-v4-pro",
@@ -714,7 +567,7 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": { "USD": [1.65, 3.301, 0.165, 1.65], "RMB": [12, 24, 1.2, 12] }
+            "tokenPricing": { "USD": [1.65, 3.301, 0.138], "RMB": [12, 24, 1] }
         },
         {
             "id": "glm-5.2",
@@ -727,7 +580,7 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
-            "tokenPricing": { "USD": [1.1, 3.851, 0.11, 1.1], "RMB": [8, 28, 0.8, 8] }
+            "tokenPricing": { "USD": [1.1, 3.851, 0.275], "RMB": [8, 28, 2] }
         },
         {
             "id": "kimi-k2.7-code",
@@ -739,33 +592,29 @@
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
-            "tokenPricing": { "USD": [0.894, 3.713, 0.089, 0.894], "RMB": [6.5, 27, 0.65, 6.5] }
+            "tokenPricing": { "USD": [0.8939, 3.7131, 0.1788], "RMB": [6.5, 27, 1.3] }
         },
+
         {
-            "id": "kimi-k3",
-            "name": "Kimi-K3",
+            "id": "kimi/kimi-k3",
+            "name": "Kimi/Kimi-K3",
             "tooltip": "Kimi 迄今能力最强的旗舰模型，拥有 2.8 万亿参数，原生支持视觉理解，100 万 token 上下文窗口，面向长程编程、知识工作和推理等前沿智能场景而设计。",
-            "sdkMode": "openai-responses",
-            "model": "kimi/kimi-k3",
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["high", "max", "low"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "USD": [2.76, 13.8, 0.276, 2.76], "RMB": [20, 100, 2, 20] }
+            "tokenPricing": { "USD": [3.0, 15.0, 0.3], "RMB": [20.0, 100.0, 2.0] }
         },
         {
-            "id": "minimax-m3",
-            "name": "MiniMax-M3",
+            "id": "MiniMax/MiniMax-M3",
+            "name": "MiniMax/MiniMax-M3",
             "tooltip": "MiniMax M3 凭借业界领先的 Coding 与 Agentic 能力、1M 超长上下文窗口以及原生多模态特性，可出色胜任企业级长文档理解、高质量内容生成、代码编写、Bug 修复及原生应用构建等任务。",
-            "sdkMode": "openai-responses",
-            "model": "MiniMax/MiniMax-M3",
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "USD": [0.58, 2.317, 0.116], "RMB": [4.2, 16.8, 0.84] }
+            "tokenPricing": { "USD": [0.6, 2.4, 0.12], "RMB": [4.2, 16.8, 0.84] }
         }
     ]
 }
