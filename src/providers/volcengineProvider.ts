@@ -237,7 +237,7 @@ export class VolcengineProvider extends GenericModelProvider implements Language
             );
         } catch (error) {
             if (isCancellationError(error)) {
-                await this.reportRequestCancelled(requestId, sessionId);
+                this.reportRequestCancelled(requestId, sessionId);
                 throw error;
             }
             this.reportRequestFailure(requestId, sessionId);

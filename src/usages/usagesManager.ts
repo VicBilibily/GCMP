@@ -23,6 +23,22 @@ import type { MultiDayAnalysisResult } from './multiDay/types';
 import { MultiDayAggregator } from './multiDay/multiDayAggregator';
 import { TrendCalculator } from './multiDay/trendCalculator';
 
+/** updateActualTokens 参数（请求完成后调用） */
+export interface UpdateActualTokensParams {
+    requestId: string;
+    sessionId?: string;
+    rawUsage?: RawUsageData;
+    status: 'completed' | 'failed' | 'cancelled';
+    /** 流开始时间 (毫秒时间戳) */
+    streamStartTime?: number;
+    /** 流结束时间 (毫秒时间戳) */
+    streamEndTime?: number;
+    /** 客户端预估成本，由 Handler 通过 calculateCostWithBreakdown 计算，单位 USD */
+    estimatedCost?: number;
+    /** 成本计算明细（命中单价、成本组成等） */
+    costBreakdown?: CostBreakdownLog;
+}
+
 /**
  * Token 用量管理器
  * 全局静态对象，管理 Token 消耗统计
@@ -177,22 +193,11 @@ export class TokenUsagesManager {
     }
 
     /**
-     * 更新实际 token 使用情况（请求完成后调用）
+     * 更新实际 token 使用情况（请求完成后调用）。
+     * 同步方法：文件写盘在内部 fire-and-forget，调用方无需也不应 await，
+     * 以免阻塞响应完成/取消/失败链路的 Promise 结束。
      */
-    async updateActualTokens(params: {
-        requestId: string;
-        sessionId?: string;
-        rawUsage?: RawUsageData;
-        status: 'completed' | 'failed' | 'cancelled';
-        /** 流开始时间 (毫秒时间戳) */
-        streamStartTime?: number;
-        /** 流结束时间 (毫秒时间戳) */
-        streamEndTime?: number;
-        /** 客户端预估成本，由 Handler 通过 calculateCostWithBreakdown 计算，单位 USD */
-        estimatedCost?: number;
-        /** 成本计算明细（命中单价、成本组成等） */
-        costBreakdown?: CostBreakdownLog;
-    }): Promise<void> {
+    updateActualTokens(params: UpdateActualTokensParams): void {
         if (!this.initialized) {
             StatusLogger.warn('TokenUsagesManager is not initialized, skipping token usage update');
             return;

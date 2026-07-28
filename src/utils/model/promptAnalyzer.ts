@@ -43,49 +43,9 @@ export class PromptAnalyzer {
             const tokenCounter = TokenCounter.getInstance();
             Logger.debug(`[${providerKey}] analyzePromptParts started, message count: ${messages.length}`);
 
-            // ===== 1. 计算系统提示词 =====
-            let systemTokens = 0;
-            for (const message of messages) {
-                if (message.role === vscode.LanguageModelChatMessageRole.System) {
-                    let text = '';
-                    if (typeof message.content === 'string') {
-                        text = message.content;
-                    } else if (Array.isArray(message.content)) {
-                        for (const part of message.content) {
-                            text += this.extractPartText(part as unknown);
-                        }
-                    }
-                    if (text) {
-                        systemTokens += await tokenCounter.countTokens(model, text);
-                    }
-                }
-            }
-            // 官方标准：系统提示词包装开销 28 tokens
-            if (systemTokens > 0) {
-                systemTokens += 28;
-            }
-
-            // ===== 2. 计算可用工具描述 =====
-            let toolsTokens = 0;
-            if (options?.tools && Array.isArray(options.tools)) {
-                toolsTokens = 16; // 基础开销
-                for (const tool of options.tools) {
-                    toolsTokens += 8; // 每个工具的基础开销
-                    if ('name' in tool && typeof tool.name === 'string') {
-                        toolsTokens += await tokenCounter.countTokens(model, tool.name);
-                    }
-                    if ('description' in tool && typeof tool.description === 'string') {
-                        toolsTokens += await tokenCounter.countTokens(model, tool.description);
-                    }
-                    if ('inputSchema' in tool && tool.inputSchema) {
-                        const schemaJson = JSON.stringify(sanitizeToolSchema(tool.inputSchema));
-                        toolsTokens += await tokenCounter.countTokens(model, schemaJson);
-                    }
-                }
-                toolsTokens = Math.floor(toolsTokens * 1.1); // 官方安全系数
-            }
-
-            // ===== 3. 检测 stateful marker 中的 usage（增量基线） =====
+            // ===== 1. 检测 stateful marker 中的 usage（增量基线） =====
+            // 提前检测：增量模式下 system/tools 计数结果不参与 context 计算（见第 5 步），
+            // 跳过可避免每轮请求对稳定的 system prompt 与工具 schema 做无效 encode
             let usageBaseline: number | undefined;
             let usageMarkerIndex = -1;
             let deltaTokens = 0;
@@ -126,7 +86,51 @@ export class PromptAnalyzer {
                 );
             }
 
-            // ===== 5. 遍历消息计算 delta（增量）/ 全量消息 token =====
+            // ===== 2. 计算系统提示词（仅全量模式需要；增量模式下结果会被丢弃） =====
+            let systemTokens = 0;
+            if (usageBaseline === undefined) {
+                for (const message of messages) {
+                    if (message.role === vscode.LanguageModelChatMessageRole.System) {
+                        let text = '';
+                        if (typeof message.content === 'string') {
+                            text = message.content;
+                        } else if (Array.isArray(message.content)) {
+                            for (const part of message.content) {
+                                text += this.extractPartText(part as unknown);
+                            }
+                        }
+                        if (text) {
+                            systemTokens += await tokenCounter.countTokens(model, text);
+                        }
+                    }
+                }
+                // 官方标准：系统提示词包装开销 28 tokens
+                if (systemTokens > 0) {
+                    systemTokens += 28;
+                }
+            }
+
+            // ===== 3. 计算可用工具描述（仅全量模式需要；增量模式下结果会被丢弃） =====
+            let toolsTokens = 0;
+            if (usageBaseline === undefined && options?.tools && Array.isArray(options.tools)) {
+                toolsTokens = 16; // 基础开销
+                for (const tool of options.tools) {
+                    toolsTokens += 8; // 每个工具的基础开销
+                    if ('name' in tool && typeof tool.name === 'string') {
+                        toolsTokens += await tokenCounter.countTokens(model, tool.name);
+                    }
+                    if ('description' in tool && typeof tool.description === 'string') {
+                        toolsTokens += await tokenCounter.countTokens(model, tool.description);
+                    }
+                    if ('inputSchema' in tool && tool.inputSchema) {
+                        const schemaJson = JSON.stringify(sanitizeToolSchema(tool.inputSchema));
+                        toolsTokens += await tokenCounter.countTokens(model, schemaJson);
+                    }
+                }
+                toolsTokens = Math.floor(toolsTokens * 1.1); // 官方安全系数
+            }
+
+            // ===== 4. 遍历消息计算 delta（增量）/ 全量消息 token =====
             let totalMessageTokens = 0;
             const loopStart = usageBaseline !== undefined ? usageMarkerIndex : 0;
 
@@ -152,7 +156,7 @@ export class PromptAnalyzer {
                 }
             }
 
-            // ===== 6. 计算上下文总占用 =====
+            // ===== 5. 计算上下文总占用 =====
             if (usageBaseline !== undefined) {
                 // 设计取舍：增量模式直接复用上一轮 API 返回的 prompt_tokens 作为 baseline，
                 // 不额外重算并叠加当前轮 system/tools 的变化量。

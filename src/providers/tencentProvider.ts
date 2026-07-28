@@ -227,7 +227,7 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             );
         } catch (error) {
             if (isCancellationError(error)) {
-                await this.reportRequestCancelled(requestId, sessionId);
+                this.reportRequestCancelled(requestId, sessionId);
                 throw error;
             }
             this.reportRequestFailure(requestId, sessionId);

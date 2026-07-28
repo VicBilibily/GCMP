@@ -420,7 +420,7 @@ export class CompatibleProvider extends GenericModelProvider {
                 );
             } catch (error) {
                 if (isCancellationError(error)) {
-                    await this.reportRequestCancelled(requestId, sessionId);
+                    this.reportRequestCancelled(requestId, sessionId);
                     throw error;
                 }
                 const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;

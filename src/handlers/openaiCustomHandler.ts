@@ -272,16 +272,12 @@ export class OpenAICustomHandler {
         } catch (error) {
             if (isCancellationError(error)) {
                 Logger.warn(`[${model.name}] Request was cancelled by the user`);
-                // 记录为中止状态，而非错误或完成
-                try {
-                    await TokenUsagesManager.instance.updateActualTokens({
-                        requestId: requestId || '',
-                        sessionId: reporter?.getSessionId(),
-                        status: 'cancelled'
-                    });
-                } catch (err) {
-                    Logger.warn('Failed to update token stats for cancelled request:', err);
-                }
+                // 记录为中止状态（同步调用，内部写盘 fire-and-forget，不阻塞取消链路），而非错误或完成
+                TokenUsagesManager.instance.updateActualTokens({
+                    requestId: requestId || '',
+                    sessionId: reporter?.getSessionId(),
+                    status: 'cancelled'
+                });
                 throw new vscode.CancellationError();
             }
             throw error;
@@ -450,21 +446,16 @@ export class OpenAICustomHandler {
             );
         }
 
-        // === Token 统计: 更新实际 token ===
-        try {
-            const usagesManager = TokenUsagesManager.instance;
-            await usagesManager.updateActualTokens({
-                requestId,
-                sessionId: reporter.getSessionId(),
-                rawUsage: finalUsage,
-                status: token.isCancellationRequested ? 'cancelled' : 'completed',
-                streamStartTime,
-                streamEndTime,
-                estimatedCost: breakdown?.total,
-                costBreakdown: breakdown ? toCostBreakdownLog(breakdown) : undefined
-            });
-        } catch (err) {
-            Logger.warn('Failed to update token stats:', err);
-        }
+        // === Token 统计: 更新实际 token（同步调用，内部写盘 fire-and-forget，不阻塞响应完成链路）===
+        TokenUsagesManager.instance.updateActualTokens({
+            requestId,
+            sessionId: reporter.getSessionId(),
+            rawUsage: finalUsage,
+            status: token.isCancellationRequested ? 'cancelled' : 'completed',
+            streamStartTime,
+            streamEndTime,
+            estimatedCost: breakdown?.total,
+            costBreakdown: breakdown ? toCostBreakdownLog(breakdown) : undefined
+        });
     }
 }

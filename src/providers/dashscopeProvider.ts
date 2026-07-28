@@ -302,7 +302,7 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
             );
         } catch (error) {
             if (isCancellationError(error)) {
-                await this.reportRequestCancelled(requestId, sessionId);
+                this.reportRequestCancelled(requestId, sessionId);
                 throw error;
             }
             this.reportRequestFailure(requestId, sessionId);

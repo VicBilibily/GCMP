@@ -51,6 +51,9 @@ export class TokenFileLogger {
     // 内存中的待更新日志(requestId -> log)
     private pendingLogs = new Map<string, TokenRequestLog>();
 
+    // 正在写入终态日志的请求，避免 fire-and-forget 场景下并发重复写入 completed/cancelled/failed
+    private finalizingRequestIds = new Set<string>();
+
     // pendingLogs 清理任务
     private pendingLogsCleanupTimer: ReturnType<typeof setInterval> | null = null;
     private readonly pendingLogsTTL: number = 5 * 60 * 1000; // 5分钟 TTL
@@ -330,6 +333,13 @@ export class TokenFileLogger {
         /** 成本计算明细（命中单价、成本组成等），用于最终日志记录完整成本分解 */
         costBreakdown?: TokenRequestLog['costBreakdown'];
     }): Promise<void> {
+        if (this.finalizingRequestIds.has(params.requestId)) {
+            StatusLogger.debug(
+                `[TokenFileLogger] Skip duplicate final status update while finalizing: ${params.requestId}, status=${params.status}`
+            );
+            return;
+        }
+
         const pendingLog = this.pendingLogs.get(params.requestId);
 
         if (!pendingLog) {
@@ -337,67 +347,73 @@ export class TokenFileLogger {
             return;
         }
 
-        // 更新时间戳逻辑:
-        // - 如果当前时间与原始记录时间相同（毫秒级），则在原始时间戳基础上+1毫秒
-        // - 否则使用当前时间戳
-        // 这样可以确保相同毫秒内的多次更新能保持顺序，不同时刻的更新使用准确的当前时间
-        const now = Date.now();
-        const originalTimestamp = pendingLog.timestamp;
-        const isSameTime = now === originalTimestamp;
-        if (isSameTime) {
-            // 同一毫秒内，+1ms保持顺序
-            pendingLog.timestamp = originalTimestamp + 1;
-        } else {
-            // 不同时刻，使用当前时间
-            pendingLog.timestamp = now;
+        this.finalizingRequestIds.add(params.requestId);
+
+        try {
+            // 更新时间戳逻辑:
+            // - 如果当前时间与原始记录时间相同（毫秒级），则在原始时间戳基础上+1毫秒
+            // - 否则使用当前时间戳
+            // 这样可以确保相同毫秒内的多次更新能保持顺序，不同时刻的更新使用准确的当前时间
+            const now = Date.now();
+            const originalTimestamp = pendingLog.timestamp;
+            const isSameTime = now === originalTimestamp;
+            if (isSameTime) {
+                // 同一毫秒内，+1ms保持顺序
+                pendingLog.timestamp = originalTimestamp + 1;
+            } else {
+                // 不同时刻，使用当前时间
+                pendingLog.timestamp = now;
+            }
+
+            pendingLog.isoTime = new Date(pendingLog.timestamp).toISOString();
+
+            // 更新日志对象
+            pendingLog.rawUsage = params.rawUsage ?? null;
+            pendingLog.status = params.status;
+            // 补充 sessionId（新会话首条消息时 estimated 记录无 sessionId，由 Handler 生成后补充）
+            if (params.sessionId && !pendingLog.sessionId) {
+                pendingLog.sessionId = params.sessionId;
+            }
+
+            // 更新预估成本（如果提供）
+            if (params.estimatedCost !== undefined) {
+                pendingLog.estimatedCost = params.estimatedCost;
+            }
+
+            // 更新成本明细（如果提供）
+            if (params.costBreakdown !== undefined) {
+                pendingLog.costBreakdown = {
+                    ...params.costBreakdown,
+                    contextWindow: params.costBreakdown?.contextWindow ?? pendingLog.maxInputTokens
+                };
+            }
+
+            // 更新流时间信息（如果提供）
+            if (params.streamStartTime !== undefined) {
+                pendingLog.streamStartTime = params.streamStartTime;
+            }
+            if (params.streamEndTime !== undefined) {
+                pendingLog.streamEndTime = params.streamEndTime;
+            }
+
+            // 写入文件(追加新行,形成流水记录)
+            await this.writeManager.appendLog(pendingLog);
+
+            // 从内存移除
+            this.pendingLogs.delete(params.requestId);
+
+            // 触发统计刷新（防抖，1s 内多次完成合并为一次重算）
+            this.refreshCurrentStats();
+
+            // 通知本实例的监听者
+            this.notifyUpdate();
+
+            StatusLogger.info(
+                `[TokenFileLogger] Updated actual tokens: ${params.requestId}, status=${params.status}, rawUsage=${params.rawUsage ? 'recorded' : 'not recorded'}`
+            );
+        } finally {
+            this.finalizingRequestIds.delete(params.requestId);
         }
-
-        pendingLog.isoTime = new Date(pendingLog.timestamp).toISOString();
-
-        // 更新日志对象
-        pendingLog.rawUsage = params.rawUsage ?? null;
-        pendingLog.status = params.status;
-        // 补充 sessionId（新会话首条消息时 estimated 记录无 sessionId，由 Handler 生成后补充）
-        if (params.sessionId && !pendingLog.sessionId) {
-            pendingLog.sessionId = params.sessionId;
-        }
-
-        // 更新预估成本（如果提供）
-        if (params.estimatedCost !== undefined) {
-            pendingLog.estimatedCost = params.estimatedCost;
-        }
-
-        // 更新成本明细（如果提供）
-        if (params.costBreakdown !== undefined) {
-            pendingLog.costBreakdown = {
-                ...params.costBreakdown,
-                contextWindow: params.costBreakdown?.contextWindow ?? pendingLog.maxInputTokens
-            };
-        }
-
-        // 更新流时间信息（如果提供）
-        if (params.streamStartTime !== undefined) {
-            pendingLog.streamStartTime = params.streamStartTime;
-        }
-        if (params.streamEndTime !== undefined) {
-            pendingLog.streamEndTime = params.streamEndTime;
-        }
-
-        // 写入文件(追加新行,形成流水记录)
-        await this.writeManager.appendLog(pendingLog);
-
-        // 从内存移除
-        this.pendingLogs.delete(params.requestId);
-
-        // 触发统计刷新（防抖，1s 内多次完成合并为一次重算）
-        this.refreshCurrentStats();
-
-        // 通知本实例的监听者
-        this.notifyUpdate();
-
-        StatusLogger.info(
-            `[TokenFileLogger] Updated actual tokens: ${params.requestId}, status=${params.status}, rawUsage=${params.rawUsage ? 'recorded' : 'not recorded'}`
-        );
     }
 
     // ==================== 读取和统计操作 ====================
@@ -681,6 +697,7 @@ export class TokenFileLogger {
                 // 清理待处理日志
                 this.pendingLogs.clear();
             }
+            this.finalizingRequestIds.clear();
 
             // 取消 live metrics 订阅
             this.liveMetricsDisposable.dispose();

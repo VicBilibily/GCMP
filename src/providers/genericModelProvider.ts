@@ -736,7 +736,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         } catch (error) {
             // 取消请求不应记为失败：handler 已记录 cancelled，或在此兜底记录
             if (isCancellationError(error)) {
-                await this.reportRequestCancelled(requestId, sessionId);
+                this.reportRequestCancelled(requestId, sessionId);
                 throw new vscode.CancellationError();
             }
 
@@ -796,40 +796,29 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         if (!requestId) {
             return;
         }
-        try {
-            const usagesManager = TokenUsagesManager.instance;
-            usagesManager
-                .updateActualTokens({
-                    requestId,
-                    sessionId,
-                    status: 'failed'
-                })
-                .catch(err => {
-                    Logger.warn('Failed to update token usage failure status:', err);
-                });
-        } catch (err) {
-            Logger.warn('Failed to report request failure:', err);
-        }
+        // 同步调用，内部写盘 fire-and-forget，不阻塞错误抛出链路
+        TokenUsagesManager.instance.updateActualTokens({
+            requestId,
+            sessionId,
+            status: 'failed'
+        });
     }
 
     /**
      * 上报请求取消状态到 Token 统计系统
      * handler 通常已记录 cancelled；这里作为 Provider 层兜底，避免取消发生在 handler 之外时遗漏状态迁移
      */
-    protected async reportRequestCancelled(requestId: string, sessionId: string): Promise<void> {
+    protected reportRequestCancelled(requestId: string, sessionId: string): void {
         if (!requestId) {
             return;
         }
-
-        try {
-            await TokenUsagesManager.instance.updateActualTokens({
-                requestId,
-                sessionId,
-                status: 'cancelled'
-            });
-        } catch {
-            // handler 可能已记录 cancelled，二次调用会因 pendingLog 已删除而失败，忽略
-        }
+        // 同步调用，内部写盘 fire-and-forget；
+        // handler 已记录 cancelled 时，日志层会对并发重复终态更新做去重保护，不影响取消链路
+        TokenUsagesManager.instance.updateActualTokens({
+            requestId,
+            sessionId,
+            status: 'cancelled'
+        });
     }
 
     /**

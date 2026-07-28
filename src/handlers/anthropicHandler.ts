@@ -359,39 +359,30 @@ export class AnthropicHandler {
 
             Logger.info(`[${model.name}] Anthropic request completed`, result?.usage);
 
-            // === Token 统计: 更新实际 token ===
+            // === Token 统计: 更新实际 token（同步调用，内部写盘 fire-and-forget，不阻塞响应完成链路）===
             if (requestId) {
-                try {
-                    const usagesManager = TokenUsagesManager.instance;
-                    // 直接传递 SDK 的 Usage 对象，包含流时间信息
-                    await usagesManager.updateActualTokens({
-                        requestId,
-                        sessionId,
-                        rawUsage: result?.usage,
-                        status: token.isCancellationRequested ? 'cancelled' : 'completed',
-                        streamStartTime: result?.streamStartTime,
-                        streamEndTime: result?.streamEndTime,
-                        estimatedCost: breakdown?.total,
-                        costBreakdown: breakdown ? toCostBreakdownLog(breakdown) : undefined
-                    });
-                } catch (err) {
-                    Logger.warn('Failed to update token stats:', err);
-                }
+                // 直接传递 SDK 的 Usage 对象，包含流时间信息
+                TokenUsagesManager.instance.updateActualTokens({
+                    requestId,
+                    sessionId,
+                    rawUsage: result?.usage,
+                    status: token.isCancellationRequested ? 'cancelled' : 'completed',
+                    streamStartTime: result?.streamStartTime,
+                    streamEndTime: result?.streamEndTime,
+                    estimatedCost: breakdown?.total,
+                    costBreakdown: breakdown ? toCostBreakdownLog(breakdown) : undefined
+                });
             }
         } catch (error) {
             if (token.isCancellationRequested || isCancellationError(error)) {
                 Logger.info(`[${model.name}] Request was cancelled by the user`);
-                // 记录为中止状态，而非错误或完成
+                // 记录为中止状态（同步调用，内部写盘 fire-and-forget，不阻塞取消链路），而非错误或完成
                 if (requestId) {
-                    try {
-                        await TokenUsagesManager.instance.updateActualTokens({
-                            requestId,
-                            sessionId,
-                            status: 'cancelled'
-                        });
-                    } catch (err) {
-                        Logger.warn('Failed to update token stats for cancelled request:', err);
-                    }
+                    TokenUsagesManager.instance.updateActualTokens({
+                        requestId,
+                        sessionId,
+                        status: 'cancelled'
+                    });
                 }
                 throw new vscode.CancellationError();
             }

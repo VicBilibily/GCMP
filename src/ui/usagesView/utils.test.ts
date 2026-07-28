@@ -2,14 +2,17 @@
 import test from 'node:test';
 
 import type { BaseStats, NativeCostSplit } from '../../usages/fileLogger/types';
+import type { ExtendedTokenRequestLog } from '../../usages/fileLogger/usageParser';
 import { calculateCostWithBreakdown, toCostBreakdownLog } from '../../utils/pricing/costCalculator';
 import {
     buildCostBreakdownTitle,
+    buildRequestTotals,
     getCurrencyToggleTitle,
     getNextDisplayCurrency,
     getStatsNativeCostSplit,
     meanWithoutOutliers,
-    normalizeDisplayCurrency
+    normalizeDisplayCurrency,
+    summarizeSessionRecords
 } from './utils';
 
 function withLocaleAndState<T>(options: { lang: string; rmbExactRequests?: number }, fn: () => T): T {
@@ -443,4 +446,106 @@ test('RMB-only production chain keeps native RMB process in USD tooltip', () => 
         assert.match(title, /output 500 × ¥14\/1M = ¥0\.007000/);
         assert.match(title, /Total: ¥0\.014000 ÷ 7 = \$0\.002000/);
     });
+});
+
+function createExtendedRecord(overrides: Partial<ExtendedTokenRequestLog> = {}): ExtendedTokenRequestLog {
+    return {
+        requestId: 'req-1',
+        timestamp: 1000,
+        isoTime: new Date(1000).toISOString(),
+        providerKey: 'test',
+        providerName: 'Test',
+        modelId: 'model-1',
+        modelName: 'Model 1',
+        estimatedInput: 0,
+        rawUsage: null,
+        status: 'completed',
+        actualInput: 0,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        ...overrides
+    };
+}
+
+test('summarizeSessionRecords aggregates tokens and speed from completed records only', () => {
+    const records = [
+        createExtendedRecord({ requestId: 'done', timestamp: 1000, totalTokens: 1000, outputSpeed: 50 }),
+        createExtendedRecord({
+            requestId: 'cancelled',
+            timestamp: 2000,
+            status: 'cancelled',
+            rawUsage: { prompt_tokens: 4000, completion_tokens: 1000, total_tokens: 5000 },
+            actualInput: 4000,
+            outputTokens: 1000,
+            totalTokens: 5000,
+            outputSpeed: 100
+        }),
+        createExtendedRecord({ requestId: 'failed', timestamp: 3000, status: 'failed', estimatedInput: 300 }),
+        createExtendedRecord({ requestId: 'pending', timestamp: 4000, status: 'estimated', estimatedInput: 200 })
+    ];
+
+    const summary = summarizeSessionRecords(records);
+
+    // 元信息覆盖全部记录
+    assert.equal(summary.requestCount, 4);
+    assert.equal(summary.completedCount, 1);
+    assert.equal(summary.cancelledCount, 1);
+    assert.equal(summary.failedCount, 1);
+    assert.equal(summary.startTime, 1000);
+    assert.equal(summary.endTime, 4000);
+    // token/速度仅聚合 completed（cancelled 的 5000、estimated/failed 的预估回退值均不计入）
+    assert.equal(summary.totalTokens, 1000);
+    assert.equal(summary.avgSpeed, 50);
+});
+
+test('buildRequestTotals aggregates tokens, cost, latency and duration from completed records only', () => {
+    const records = [
+        createExtendedRecord({
+            requestId: 'done-actual',
+            timestamp: 1000,
+            rawUsage: { prompt_tokens: 800, completion_tokens: 200, total_tokens: 1000 },
+            actualInput: 800,
+            cacheReadTokens: 100,
+            outputTokens: 200,
+            totalTokens: 1000,
+            estimatedCost: 0.01,
+            streamStartTime: 1100,
+            streamDuration: 2000
+        }),
+        createExtendedRecord({
+            requestId: 'done-estimated',
+            timestamp: 5000,
+            estimatedInput: 400,
+            outputTokens: 50
+        }),
+        createExtendedRecord({
+            requestId: 'cancelled',
+            timestamp: 9000,
+            status: 'cancelled',
+            rawUsage: { prompt_tokens: 5000, completion_tokens: 1000, total_tokens: 6000 },
+            actualInput: 5000,
+            cacheReadTokens: 500,
+            outputTokens: 1000,
+            totalTokens: 6000,
+            estimatedCost: 0.5,
+            streamStartTime: 9500,
+            streamDuration: 5000
+        })
+    ];
+
+    const totals = buildRequestTotals(records);
+
+    // completed 有 rawUsage 时按 actualInput，无 rawUsage 时回退 estimatedInput
+    assert.equal(totals.inputTokens, 800 + 400);
+    assert.equal(totals.cacheTokens, 100);
+    assert.equal(totals.outputTokens, 200 + 50);
+    // cancelled 的成本/延迟/耗时不计入
+    assert.equal(totals.costedRequests, 1);
+    assert.ok(Math.abs(totals.totalCost - 0.01) < 1e-9);
+    assert.ok(totals.totalCostRmb > 0);
+    assert.equal(totals.rmbExactRequests, 0);
+    assert.equal(totals.avgLatency, 100);
+    assert.equal(totals.avgDuration, 2000);
 });

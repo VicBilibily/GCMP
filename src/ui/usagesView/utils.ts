@@ -378,16 +378,22 @@ export function meanWithoutOutliers(values: number[]): number | undefined {
 
 /**
  * 汇总一组会话记录，生成展示所需的统计信息
+ *
+ * 注意：token 与速度等"统计字段"仅基于 status === 'completed' 的记录聚合；
+ * 未完成（estimated）、取消（cancelled）、失败（failed）的请求不参与统计。
+ * requestCount、各状态计数、时间范围等元信息字段仍覆盖全部记录。
  */
 export function summarizeSessionRecords(records: ExtendedTokenRequestLog[]): SessionSummary {
     const timestamps = records
         .map(record => record.timestamp)
         .filter((timestamp): timestamp is number => Number.isFinite(timestamp));
-    const speedRecords = records.filter(record => (record.outputSpeed || 0) > 0);
+    // 底部统计口径：仅 completed 请求参与 token/速度聚合
+    const statsRecords = records.filter(record => record.status === 'completed');
+    const speedRecords = statsRecords.filter(record => (record.outputSpeed || 0) > 0);
 
     return {
         requestCount: records.length,
-        totalTokens: records.reduce((sum, record) => sum + getRecordTotalTokens(record), 0),
+        totalTokens: statsRecords.reduce((sum, record) => sum + getRecordTotalTokens(record), 0),
         startTime: timestamps.length > 0 ? Math.min(...timestamps) : undefined,
         endTime: timestamps.length > 0 ? Math.max(...timestamps) : undefined,
         completedCount: records.filter(record => record.status === 'completed').length,
@@ -397,6 +403,10 @@ export function summarizeSessionRecords(records: ExtendedTokenRequestLog[]): Ses
     };
 }
 
+/**
+ * 底部统计口径：仅 status === 'completed' 的请求参与 token/成本/延迟/耗时聚合；
+ * 未完成（estimated）、取消（cancelled）、失败（failed）的请求不参与统计。
+ */
 export function buildRequestTotals(records: ExtendedTokenRequestLog[]): RequestTotals {
     let inputTokens = 0;
     let cacheTokens = 0;
@@ -409,42 +419,42 @@ export function buildRequestTotals(records: ExtendedTokenRequestLog[]): RequestT
     const latencies: number[] = [];
     const durations: number[] = [];
 
-    records.forEach(record => {
-        const hasActualUsage =
-            (record.status === 'completed' || record.status === 'cancelled') &&
-            !!record.rawUsage &&
-            record.totalTokens > 0;
-        inputTokens += hasActualUsage ? Math.max(record.actualInput || 0, 0) : Math.max(record.estimatedInput || 0, 0);
-        cacheTokens += Math.max(record.cacheReadTokens || 0, 0);
-        outputTokens += Math.max(record.outputTokens || 0, 0);
+    records
+        .filter(record => record.status === 'completed')
+        .forEach(record => {
+            const hasActualUsage = !!record.rawUsage && record.totalTokens > 0;
+            inputTokens +=
+                hasActualUsage ? Math.max(record.actualInput || 0, 0) : Math.max(record.estimatedInput || 0, 0);
+            cacheTokens += Math.max(record.cacheReadTokens || 0, 0);
+            outputTokens += Math.max(record.outputTokens || 0, 0);
 
-        if (record.estimatedCost !== undefined && record.estimatedCost > 0) {
-            const split = getRecordNativeCostSplit(record);
-            totalCost = sumCosts([totalCost, record.estimatedCost]);
-            totalCostRmb = sumCosts([
-                totalCostRmb,
-                record.costBreakdown?.currencies?.RMB?.total ?? convertUsdToRmb(record.estimatedCost)
-            ]);
-            if (split) {
-                mergeNativeCostSplit(nativeCosts, split);
+            if (record.estimatedCost !== undefined && record.estimatedCost > 0) {
+                const split = getRecordNativeCostSplit(record);
+                totalCost = sumCosts([totalCost, record.estimatedCost]);
+                totalCostRmb = sumCosts([
+                    totalCostRmb,
+                    record.costBreakdown?.currencies?.RMB?.total ?? convertUsdToRmb(record.estimatedCost)
+                ]);
+                if (split) {
+                    mergeNativeCostSplit(nativeCosts, split);
+                }
+                costedRequests += 1;
+                if (record.costBreakdown?.currencies?.RMB?.total !== undefined) {
+                    rmbExactRequests += 1;
+                }
             }
-            costedRequests += 1;
-            if (record.costBreakdown?.currencies?.RMB?.total !== undefined) {
-                rmbExactRequests += 1;
-            }
-        }
 
-        if (record.streamDuration !== undefined && record.streamDuration > 0) {
-            durations.push(record.streamDuration);
-        }
-
-        if (record.streamStartTime !== undefined && record.timestamp !== undefined) {
-            const latency = record.streamStartTime - record.timestamp;
-            if (Number.isFinite(latency) && latency >= 0) {
-                latencies.push(latency);
+            if (record.streamDuration !== undefined && record.streamDuration > 0) {
+                durations.push(record.streamDuration);
             }
-        }
-    });
+
+            if (record.streamStartTime !== undefined && record.timestamp !== undefined) {
+                const latency = record.streamStartTime - record.timestamp;
+                if (Number.isFinite(latency) && latency >= 0) {
+                    latencies.push(latency);
+                }
+            }
+        });
 
     return {
         inputTokens,

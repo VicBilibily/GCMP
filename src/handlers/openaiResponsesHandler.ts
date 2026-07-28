@@ -140,7 +140,7 @@ export class OpenAIResponsesHandler {
                 streamStartTime = streamProcessor.getStreamStartTime();
                 streamEndTime = streamProcessor.getStreamEndTime();
 
-                const completionResult = await this.reportCompletion({
+                const completionResult = this.reportCompletion({
                     modelName: model.name,
                     tokenPricing: modelConfig.tokenPricing,
                     options,
@@ -156,7 +156,7 @@ export class OpenAIResponsesHandler {
                 streamStartTime = completionResult.streamStartTime;
             } catch (error) {
                 if (token.isCancellationRequested || isCancellationError(error)) {
-                    await this.reportCancellation({
+                    this.reportCancellation({
                         modelName: model.name,
                         requestId,
                         sessionId,
@@ -196,7 +196,7 @@ export class OpenAIResponsesHandler {
         }
     }
 
-    private async reportCompletion(params: {
+    private reportCompletion(params: {
         modelName: string;
         tokenPricing?: ModelTokenPricing;
         options: vscode.ProvideLanguageModelChatResponseOptions;
@@ -208,7 +208,7 @@ export class OpenAIResponsesHandler {
         streamStartTime?: number;
         streamEndTime?: number;
         requestStartTime?: number;
-    }): Promise<{ streamStartTime?: number }> {
+    }): { streamStartTime?: number } {
         const {
             modelName,
             tokenPricing,
@@ -244,46 +244,40 @@ export class OpenAIResponsesHandler {
         streamStartTime ??= streamReporter.getMetricStreamStartTime();
 
         if (requestId) {
-            try {
-                await TokenUsagesManager.instance.updateActualTokens({
-                    requestId,
-                    sessionId,
-                    rawUsage: finalUsage,
-                    status: token.isCancellationRequested ? 'cancelled' : 'completed',
-                    streamStartTime,
-                    streamEndTime,
-                    estimatedCost: breakdown?.total,
-                    costBreakdown: breakdown ? toCostBreakdownLog(breakdown) : undefined
-                });
-            } catch (error) {
-                Logger.warn('Failed to update token stats:', error);
-            }
+            // 更新实际 token（同步调用，内部写盘 fire-and-forget，不阻塞响应完成链路）
+            TokenUsagesManager.instance.updateActualTokens({
+                requestId,
+                sessionId,
+                rawUsage: finalUsage,
+                status: token.isCancellationRequested ? 'cancelled' : 'completed',
+                streamStartTime,
+                streamEndTime,
+                estimatedCost: breakdown?.total,
+                costBreakdown: breakdown ? toCostBreakdownLog(breakdown) : undefined
+            });
         }
 
         Logger.debug(`${modelName} ${this.displayName} Responses API stream completed`);
         return { streamStartTime };
     }
 
-    private async reportCancellation(params: {
+    private reportCancellation(params: {
         modelName: string;
         requestId: string;
         sessionId: string;
         streamStartTime?: number;
         streamEndTime?: number;
-    }): Promise<void> {
+    }): void {
         const { modelName, requestId, sessionId, streamStartTime, streamEndTime } = params;
         Logger.info(`${modelName} Responses API request was cancelled by the user`);
-        try {
-            await TokenUsagesManager.instance.updateActualTokens({
-                requestId,
-                sessionId,
-                status: 'cancelled',
-                streamStartTime,
-                streamEndTime: streamEndTime ?? Date.now()
-            });
-        } catch (error) {
-            Logger.warn('Failed to update token stats for cancelled request:', error);
-        }
+        // 记录取消状态（同步调用，内部写盘 fire-and-forget，不阻塞取消链路）
+        TokenUsagesManager.instance.updateActualTokens({
+            requestId,
+            sessionId,
+            status: 'cancelled',
+            streamStartTime,
+            streamEndTime: streamEndTime ?? Date.now()
+        });
     }
 
     private rethrowResponsesError(error: unknown, modelName: string): never {
