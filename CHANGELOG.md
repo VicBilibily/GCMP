@@ -2,6 +2,50 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.10] - 2026-07-28
+
+### 模型与提供商配置
+
+- **[新增] 阿里云百炼 Kimi-K3 / MiniMax-M3 / Qwen3.7-Flash**：均支持 1M 上下文 + 视觉理解；Qwen3.7-Flash 走 Responses API，自带 `web_search` / `web_extractor` 原生工具。
+- **[新增] Charm Hyper Kimi-K3 与 Qwen3.7-Flash（[#322](https://github.com/VicBilibily/GCMP/pull/322)）**：Hyper 渠道新增两款模型。
+- **[新增] Moonshot Kimi K3 256K**：256K 窗口版，`max / high / low` 三档思考，Moderato 及以上会员可用。
+- **[新增] OpenCode Kimi-K3 (Zen) 与 Hy3 (Go)**：Zen 渠道新增 Kimi-K3（1M、视觉输入），Go 渠道新增 Hy3。
+- **[变更] 阿里云百炼 Coding Plan 精简与按量模型 ID 规范化**：移除 `Qwen3.5-Plus` / `Qwen3-Max` / `Qwen3-Coder-Next` / `Qwen3-Coder-Plus` / `GLM-4.7`；`kimi-k3` → `kimi/kimi-k3`。
+- **[变更] 腾讯云移除 Hy3 preview**（TokenHub / TokenPlan 双渠道）。
+
+### 加密思维链持久化与恢复
+
+- **[新增] StatefulMarker 加密思维链持久化**：`encrypted reasoning` / `redacted_thinking` 跨轮次持久化，ThinkingPart 被剥离时可自动恢复。
+- **[变更] Responses 历史消息转换调整**：优先保留 `redactedData`，空 ThinkingPart 不再生成空 assistant message。
+- **[修复] 历史消息加密思维链丢失**：VS Code 1.130+ 下 ThinkingPart 剥离导致无法回传加密 reasoning；同时修正 `StreamReporter` 的 metadata 字段名（`data` → `redactedData`）。
+
+### 调试与测试
+
+- **[新增] HAR 调试定位增强**：新增微秒时间戳、请求序号与状态时间戳，可从状态栏 tooltip 直接打开 HAR 文件。
+- **[新增] VS Code 集成测试链路**：新增 `compile/typecheck/test:vscode` 脚本，覆盖 Responses / Anthropic 思维链恢复场景。
+
+---
+
+### Model & Provider Configuration
+
+- **[Added] AliDashScope Kimi-K3 / MiniMax-M3 / Qwen3.7-Flash**: All support 1M context + vision input; Qwen3.7-Flash uses the Responses API with native `web_search` / `web_extractor` tools.
+- **[Added] Charm Hyper Kimi-K3 & Qwen3.7-Flash ([#322](https://github.com/VicBilibily/GCMP/pull/322))**: Two new models in the Hyper channel.
+- **[Added] Moonshot Kimi K3 256K**: 256K-window tier with `max / high / low` reasoning; available to Moderato and above members.
+- **[Added] OpenCode Kimi-K3 (Zen) & Hy3 (Go)**: Zen channel adds Kimi-K3 (1M, vision); Go channel adds Hy3.
+- **[Changed] AliDashScope Coding Plan streamlined & pay-as-you-go ID normalization**: Removed `Qwen3.5-Plus`, `Qwen3-Max`, `Qwen3-Coder-Next`, `Qwen3-Coder-Plus`, and `GLM-4.7`; `kimi-k3` → `kimi/kimi-k3`.
+- **[Changed] Tencent Cloud removes Hy3 preview** (both TokenHub and TokenPlan).
+
+### Encrypted Reasoning Persistence & Recovery
+
+- **[Added] StatefulMarker persistence for encrypted reasoning**: `encrypted reasoning` / `redacted_thinking` persisted across turns; auto-restored when ThinkingPart is stripped.
+- **[Changed] Responses historical message conversion refined**: `redactedData` preserved with priority; empty ThinkingPart no longer emits empty assistant messages.
+- **[Fixed] Encrypted reasoning loss in historical messages**: VS Code 1.130+ ThinkingPart stripping broke reasoning replay; also fixed the `StreamReporter` metadata field name (`data` → `redactedData`).
+
+### Debugging & Testing
+
+- **[Added] HAR debugging navigation enhancements**: Added microsecond timestamps, sequence IDs, and status timestamps; HAR files can be opened directly from the status bar tooltip.
+- **[Added] VS Code integration test pipeline**: Added `compile/typecheck/test:vscode` scripts, covering Responses / Anthropic reasoning restoration scenarios.
+
 ## [0.26.9] - 2026-07-27
 
 ### 新增

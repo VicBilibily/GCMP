@@ -394,7 +394,7 @@ export class StreamReporter {
 
     /**
      * Anthropic 专用：输出 redacted_thinking 加密思考内容
-     * 同时作为占位符显示给用户（metadata.data），并累积供 StatefulMarker 持久化，
+     * 同时作为占位符显示给用户（metadata.redactedData），并累积供 StatefulMarker 持久化，
      * 供历史 ThinkingPart 被剥离时按 anthropic 格式恢复 redacted_thinking 块
      * @param redactedData redacted_thinking 的加密 data
      */
@@ -406,7 +406,7 @@ export class StreamReporter {
         this.encryptedThinkingData.push(redactedData);
         this.progress.report(
             new vscode.LanguageModelThinkingPart('', undefined, {
-                data: redactedData
+                redactedData
             })
         );
         this.hasThinkingContent = true;
