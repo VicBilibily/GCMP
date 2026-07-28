@@ -483,6 +483,9 @@ export class AnthropicHandler {
                                 name: chunk.content_block.name,
                                 jsonInput: ''
                             };
+                        } else if (chunk.content_block.type === 'redacted_thinking') {
+                            // redacted_thinking 加密思考块：原样输出并累积供 marker 持久化
+                            reporter.reportRedactedThinking(chunk.content_block.data);
                         } else if (chunk.content_block.type === 'server_tool_use') {
                             pendingServerToolCall = {
                                 toolId: chunk.content_block.id,

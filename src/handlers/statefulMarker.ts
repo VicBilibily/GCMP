@@ -29,6 +29,14 @@ export interface StatefulMarkerContainer {
     completeThinking?: string;
     /** 需要跨轮次稳定回传的完整签名内容（signature_delta 累积） */
     completeSignature?: string;
+    /**
+     * 当前 assistant 轮次的加密推理内容（按模型格式原样持久化，供历史 ThinkingPart 被剥离时恢复）
+     * - openai-responses：encryptedReasoning[].encryptedContent + 原始 reasoningId
+     * - anthropic：encryptedThinkingData[]（redacted_thinking 的 data，按原顺序保留多个块）
+     */
+    encryptedReasoning?: Array<{ encryptedContent: string; reasoningId?: string }>;
+    /** anthropic redacted_thinking 的加密 data 列表（按原顺序） */
+    encryptedThinkingData?: string[];
     /** 当前 assistant 轮次是否发生过工具调用 */
     hasToolCalls?: boolean;
     /** 跨轮次持久化的 API 实际 usage（归一化格式），供下轮增量 token 预估 */

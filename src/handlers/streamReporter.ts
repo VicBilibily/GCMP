@@ -100,6 +100,10 @@ export class StreamReporter {
     private hasToolCalls = false;
     private hasReceivedContent = false;
     private hasThinkingContent = false;
+    /** 累积当前轮次的加密推理项（openai-responses encrypted_content），供 StatefulMarker 持久化 */
+    private readonly encryptedReasonings: Array<{ encryptedContent: string; reasoningId?: string }> = [];
+    /** 累积当前轮次的 anthropic redacted_thinking 加密 data 列表，供 StatefulMarker 持久化 */
+    private readonly encryptedThinkingData: string[] = [];
 
     /**
      * 安全获取共享 tokenizer 实例。未初始化或加载失败时返回 undefined，
@@ -374,6 +378,8 @@ export class StreamReporter {
         }
         // 确保先结束之前的思维链
         this.endThinkingChain();
+        // 累积到 marker，供历史 ThinkingPart 被剥离时按 openai-responses 格式恢复加密 reasoning
+        this.encryptedReasonings.push({ encryptedContent, reasoningId });
         // 占位符文本 + redactedData + reasoningId metadata 合并输出一个 ThinkingPart
         // id 使用 undefined（不加入 streaming chain），reasoningId 仅存于 metadata 用于重建
         const text = summaryText?.join('\n') || '';
@@ -381,6 +387,26 @@ export class StreamReporter {
             new vscode.LanguageModelThinkingPart(text, undefined, {
                 redactedData: encryptedContent,
                 reasoningId: reasoningId
+            })
+        );
+        this.hasThinkingContent = true;
+    }
+
+    /**
+     * Anthropic 专用：输出 redacted_thinking 加密思考内容
+     * 同时作为占位符显示给用户（metadata.data），并累积供 StatefulMarker 持久化，
+     * 供历史 ThinkingPart 被剥离时按 anthropic 格式恢复 redacted_thinking 块
+     * @param redactedData redacted_thinking 的加密 data
+     */
+    reportRedactedThinking(redactedData: string): void {
+        if (!redactedData) {
+            return;
+        }
+        this.endThinkingChain();
+        this.encryptedThinkingData.push(redactedData);
+        this.progress.report(
+            new vscode.LanguageModelThinkingPart('', undefined, {
+                data: redactedData
             })
         );
         this.hasThinkingContent = true;
@@ -500,6 +526,8 @@ export class StreamReporter {
             ),
             completeThinking,
             completeSignature,
+            encryptedReasoning: this.encryptedReasonings.length > 0 ? [...this.encryptedReasonings] : undefined,
+            encryptedThinkingData: this.encryptedThinkingData.length > 0 ? [...this.encryptedThinkingData] : undefined,
             hasToolCalls: this.hasToolCalls,
             usage: innerUsage,
             provider: this.provider,

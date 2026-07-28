@@ -24,8 +24,8 @@ import { TokenUsagesManager } from '../usages/usagesManager';
 import { ModelChatResponseOptions, ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { StreamReporter } from './streamReporter';
 import * as liveMetrics from './liveMetrics';
-import { getReasoningReplayPolicy, shouldInjectReasoningPlaceholder } from './reasoningReplayPolicy';
 import { decodeStatefulMarker } from './statefulMarker';
+import { shouldInjectReasoningPlaceholder } from './reasoningPlaceholder';
 import { CustomDataPartMimeTypes } from './types';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import { isSubRequest, type RequestKind } from './requestClassifier';
@@ -1473,10 +1473,6 @@ export class OpenAIHandler {
         const textContent = this.extractTextContent(message.content);
         const toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = [];
         let thinkingContent: string | null = null;
-        const reasoningReplayPolicy = getReasoningReplayPolicy({
-            providerKey: this.provider,
-            modelConfig: modelConfig
-        });
 
         // 处理工具调用和思考内容（去重：同一 callId 只保留第一个）
         const seenCallIds = new Set<string>();
@@ -1512,19 +1508,14 @@ export class OpenAIHandler {
             }
         }
 
-        // 如果 ThinkingPart 被 VS Code 剥离，则从 StatefulMarker 恢复兼容模型所需的 reasoning_content
-        if (!thinkingContent && reasoningReplayPolicy.restoreFromStatefulMarker) {
+        // 如果 ThinkingPart 被 VS Code 剥离，则从 StatefulMarker 恢复 reasoning_content（对所有模型生效，
+        // 服务端对与自身无关的 reasoning 会智能忽略）
+        if (!thinkingContent) {
             const markerReasoning = getMarkerReasoningState(message.content);
             if (markerReasoning.completeThinking) {
                 thinkingContent = markerReasoning.completeThinking;
                 Logger.trace(`Restored reasoning_content from StatefulMarker: ${thinkingContent.length} chars`);
-            } else if (
-                shouldInjectReasoningPlaceholder(
-                    reasoningReplayPolicy,
-                    toolCalls.length > 0,
-                    markerReasoning.hasToolCalls
-                )
-            ) {
+            } else if (shouldInjectReasoningPlaceholder({ providerKey: this.provider, modelConfig })) {
                 thinkingContent = ' '; // 保底占位，避免兼容接口因为字段缺失直接报错
                 Logger.trace('StatefulMarker thinking not found, using placeholder to fill reasoning_content');
             }

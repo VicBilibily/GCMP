@@ -102,3 +102,36 @@ test('toOptionalStatefulMarkerField preserves surrounding whitespace and only om
     assert.equal(toOptionalStatefulMarkerField('   '), '   ');
     assert.equal(toOptionalStatefulMarkerField('  keep trailing\\n'), '  keep trailing\\n');
 });
+
+test('encrypted reasoning fields roundtrip without loss for both sdk modes', () => {
+    // openai-responses：encryptedReasoning 数组（含特殊字符）
+    const responsesMarker = {
+        sessionId: 's-1',
+        responseId: 'r-1',
+        provider: 'codex',
+        modelId: 'gpt-5.4',
+        sdkMode: 'openai-responses' as const,
+        encryptedReasoning: [
+            { encryptedContent: 'gAAAAABcipher+/=with\\n special\t"chars"', reasoningId: 'rsn_123' },
+            { encryptedContent: 'second-blob' }
+        ]
+    };
+    const decodedResponses = decodeStatefulMarkerPayload<typeof responsesMarker>(
+        encodeStatefulMarkerPayload('gpt-5.4', responsesMarker)
+    );
+    assert.deepEqual(decodedResponses?.marker.encryptedReasoning, responsesMarker.encryptedReasoning);
+
+    // anthropic：encryptedThinkingData 多个加密 data（按原顺序保留）
+    const anthropicMarker = {
+        sessionId: 's-2',
+        responseId: 'r-2',
+        provider: 'anthropic',
+        modelId: 'claude-sonnet-4-5',
+        sdkMode: 'anthropic' as const,
+        encryptedThinkingData: ['redacted\\n cipher\\t data"with"quotes', 'second-redacted-data']
+    };
+    const decodedAnthropic = decodeStatefulMarkerPayload<typeof anthropicMarker>(
+        encodeStatefulMarkerPayload('claude-sonnet-4-5', anthropicMarker)
+    );
+    assert.deepEqual(decodedAnthropic?.marker.encryptedThinkingData, anthropicMarker.encryptedThinkingData);
+});

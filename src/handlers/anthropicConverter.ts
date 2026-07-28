@@ -12,8 +12,8 @@
 import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
 import { sanitizeToolSchema } from '../utils/text/schemaSanitizer';
-import { getReasoningReplayPolicy, shouldInjectReasoningPlaceholder } from './reasoningReplayPolicy';
 import { decodeStatefulMarker } from './statefulMarker';
+import { shouldInjectReasoningPlaceholder } from './reasoningPlaceholder';
 import type {
     ContentBlockParam,
     ThinkingBlockParam,
@@ -57,7 +57,7 @@ function getStatefulMarkerThinking(content: vscode.LanguageModelChatMessage['con
             part.data instanceof Uint8Array
         ) {
             const marker = decodeStatefulMarker(part.data)?.marker;
-            if (marker?.completeThinking) {
+            if (marker?.completeThinking || marker?.encryptedThinkingData) {
                 return marker;
             }
         }
@@ -68,7 +68,7 @@ function getStatefulMarkerThinking(content: vscode.LanguageModelChatMessage['con
 
 function getCompleteThinkingFromStatefulMarker(
     content: vscode.LanguageModelChatMessage['content']
-): { thinking?: string; signature: string; hasToolCalls?: boolean } | undefined {
+): { thinking?: string; signature: string; redactedData?: string[]; hasToolCalls?: boolean } | undefined {
     const marker = getStatefulMarkerThinking(content);
     if (!marker) {
         return undefined;
@@ -76,6 +76,7 @@ function getCompleteThinkingFromStatefulMarker(
     return {
         thinking: marker.completeThinking,
         signature: marker.completeSignature || '',
+        redactedData: marker.sdkMode === 'anthropic' ? marker.encryptedThinkingData : undefined,
         hasToolCalls: marker.hasToolCalls
     };
 }
@@ -268,18 +269,19 @@ function apiMessageToAnthropicContent(
     }
 
     if (message.role === vscode.LanguageModelChatMessageRole.Assistant) {
-        const reasoningReplayPolicy = getReasoningReplayPolicy({
-            providerKey: modelConfig.provider,
-            modelConfig
-        });
-        // 如果 VS Code 剥离了 ThinkingPart，则对需要回放思考内容的兼容模型从 StatefulMarker 恢复。
-        if (thinkingBlocks.length === 0 && reasoningReplayPolicy.restoreFromStatefulMarker) {
+        // 如果 VS Code 剥离了 ThinkingPart，则从 StatefulMarker 恢复思考内容（对所有模型生效，
+        // 服务端对与自身无关的 thinking 块会智能忽略）
+        if (thinkingBlocks.length === 0) {
             const markerThinking = getCompleteThinkingFromStatefulMarker(content);
-            const hasToolCalls = otherBlocks.some(block => block.type === 'tool_use');
-            if (
-                markerThinking?.thinking ||
-                shouldInjectReasoningPlaceholder(reasoningReplayPolicy, hasToolCalls, markerThinking?.hasToolCalls)
-            ) {
+            // 优先恢复 redacted_thinking 加密块（anthropic 模式），保持加密思维链连续性
+            if (markerThinking?.redactedData?.length) {
+                for (const redactedData of markerThinking.redactedData) {
+                    thinkingBlocks.push({
+                        type: 'redacted_thinking',
+                        data: redactedData
+                    } as RedactedThinkingBlockParam);
+                }
+            } else if (markerThinking?.thinking || shouldInjectReasoningPlaceholder({ modelConfig })) {
                 thinkingBlocks.push({
                     type: 'thinking',
                     thinking: markerThinking?.thinking || ' ',

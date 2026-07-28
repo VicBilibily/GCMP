@@ -4,6 +4,8 @@ import OpenAI from 'openai';
 import type { ModelConfig } from '../../types/sharedTypes';
 import { Logger } from '../../utils/runtime/logger';
 import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
+import { decodeStatefulMarker } from '../statefulMarker';
+import { CustomDataPartMimeTypes } from '../types';
 import type { OpenAIHandler } from '../openaiHandler';
 import { OpenAIResponsesCallIdResolver } from './openaiResponsesCallIdResolver';
 
@@ -18,6 +20,11 @@ type FunctionTool = OpenAI.Responses.FunctionTool;
 
 interface OpenAIResponsesThinkingMetadata {
     redactedData?: string;
+    reasoningId?: string;
+}
+
+interface EncryptedReasoningItem {
+    encryptedContent: string;
     reasoningId?: string;
 }
 
@@ -42,7 +49,7 @@ export class OpenAIResponsesMessageConverter {
             const toolCalls: Array<{ id: string; name: string; args: string }> = [];
             const toolResults: Array<{ callId: string; content: string }> = [];
             const thinkingParts: string[] = [];
-            const encryptedReasonings: Array<{ encryptedContent: string; reasoningId?: string }> = [];
+            const encryptedReasonings: EncryptedReasoningItem[] = [];
 
             for (const [partIndex, part] of message.content.entries()) {
                 if (part instanceof vscode.LanguageModelThinkingPart) {
@@ -97,7 +104,12 @@ export class OpenAIResponsesMessageConverter {
             const joinedThinking = thinkingParts.join('').trim();
 
             if (role === 'assistant') {
-                for (const { encryptedContent, reasoningId } of encryptedReasonings) {
+                // ThinkingPart 可能被 VS Code 部分或全部剥离：与 StatefulMarker 合并并去重恢复
+                const mergedEncryptedReasonings = this.mergeEncryptedReasonings(
+                    encryptedReasonings,
+                    this.getEncryptedReasoningFromMarker(message.content)
+                );
+                for (const { encryptedContent, reasoningId } of mergedEncryptedReasonings) {
                     const reasoningItem: Record<string, unknown> = {
                         type: 'reasoning' as const,
                         summary: [],
@@ -183,6 +195,93 @@ export class OpenAIResponsesMessageConverter {
         }
 
         return { systemMessage, messages: out };
+    }
+
+    /**
+     * 从消息内容的 StatefulMarker 中提取加密推理项（openai-responses 格式）。
+     * 仅当 marker 由 openai-responses 模式产生时才返回，避免跨模式误用。
+     */
+    private getEncryptedReasoningFromMarker(
+        content: vscode.LanguageModelChatMessage['content']
+    ): EncryptedReasoningItem[] {
+        for (const part of content) {
+            if (
+                part instanceof vscode.LanguageModelDataPart &&
+                part.mimeType === CustomDataPartMimeTypes.StatefulMarker &&
+                part.data instanceof Uint8Array
+            ) {
+                const marker = decodeStatefulMarker(part.data)?.marker;
+                if (marker?.sdkMode === 'openai-responses' && marker.encryptedReasoning?.length) {
+                    return marker.encryptedReasoning;
+                }
+            }
+        }
+        return [];
+    }
+
+    /**
+     * 合并 ThinkingPart 与 StatefulMarker 中的加密推理项，处理 VS Code 历史序列化导致的“部分剥离”场景。
+     *
+     * 去重规则：
+     * - 优先按 reasoningId 去重（若存在）
+     * - 同时按 encryptedContent 去重，避免同一 item 在 ThinkingPart / marker 间重复
+     */
+    private mergeEncryptedReasonings(
+        extracted: EncryptedReasoningItem[],
+        restored: EncryptedReasoningItem[]
+    ): EncryptedReasoningItem[] {
+        if (restored.length === 0) {
+            return extracted;
+        }
+
+        const merged: EncryptedReasoningItem[] = [];
+        const extractedIndicesById = new Map<string, number>();
+        const extractedIndicesByContent = new Map<string, number>();
+        const usedExtractedIndices = new Set<number>();
+        const seenIds = new Set<string>();
+        const seenContents = new Set<string>();
+
+        for (const [index, item] of extracted.entries()) {
+            if (item.reasoningId) {
+                extractedIndicesById.set(item.reasoningId, index);
+            }
+            extractedIndicesByContent.set(item.encryptedContent, index);
+        }
+
+        const pushMergedItem = (item: EncryptedReasoningItem) => {
+            if ((item.reasoningId && seenIds.has(item.reasoningId)) || seenContents.has(item.encryptedContent)) {
+                return;
+            }
+
+            merged.push(item);
+            if (item.reasoningId) {
+                seenIds.add(item.reasoningId);
+            }
+            seenContents.add(item.encryptedContent);
+        };
+
+        for (const item of restored) {
+            const matchedExtractedIndex =
+                (item.reasoningId ? extractedIndicesById.get(item.reasoningId) : undefined) ??
+                extractedIndicesByContent.get(item.encryptedContent);
+
+            if (matchedExtractedIndex !== undefined) {
+                usedExtractedIndices.add(matchedExtractedIndex);
+                pushMergedItem(extracted[matchedExtractedIndex]);
+                continue;
+            }
+
+            pushMergedItem(item);
+        }
+
+        for (const [index, item] of extracted.entries()) {
+            if (usedExtractedIndices.has(index)) {
+                continue;
+            }
+            pushMergedItem(item);
+        }
+
+        return merged;
     }
 
     convertToolsToResponses(tools: readonly vscode.LanguageModelChatTool[]): FunctionTool[] {

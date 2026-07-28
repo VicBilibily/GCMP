@@ -1,4 +1,4 @@
-﻿export interface DecodedStatefulMarkerPayload<TMarker> {
+export interface DecodedStatefulMarkerPayload<TMarker> {
     modelId: string;
     marker: TMarker;
 }
