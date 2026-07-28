@@ -56,31 +56,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
             "model": "hy3",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
+            "maxInputTokens": 192000,
+            "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": { "RMB": [1, 4, 0.25] }
-        },
-        {
-            "id": "hy3-preview-token-plan",
-            "name": "Hy3 preview (TokenPlan)",
-            "tooltip": "腾讯云 Token Plan 专属接入点中的 Hy3 preview。",
-            "provider": "tencent-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
-            "model": "hy3-preview",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": { "RMB": [1.2, 4, 0.4] },
-                "tiers": [
-                    { "contextSizeMin": 32001, "pricing": { "RMB": [2, 8, 0.8] } },
-                    { "contextSizeMin": 16001, "pricing": { "RMB": [1.6, 6.4, 0.6] } }
-                ]
-            }
         },
         {
             "id": "deepseek-v4-flash-202605-token-plan",
@@ -194,31 +174,11 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://tokenhub.tencentmaas.com",
             "model": "hy3",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
+            "maxInputTokens": 192000,
+            "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": { "RMB": [1, 4, 0.25] }
-        },
-        {
-            "id": "hy3-preview-tokenhub",
-            "name": "Hy3 preview (TokenHub)",
-            "tooltip": "腾讯云 TokenHub 按量付费中的 Hy3 preview。",
-            "provider": "tencent-tokenhub",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://tokenhub.tencentmaas.com",
-            "model": "hy3-preview",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": { "RMB": [1.2, 4, 0.4] },
-                "tiers": [
-                    { "contextSizeMin": 32001, "pricing": { "RMB": [2, 8, 0.8] } },
-                    { "contextSizeMin": 16001, "pricing": { "RMB": [1.6, 6.4, 0.6] } }
-                ]
-            }
         },
         {
             "id": "glm-5.2-tokenhub",
