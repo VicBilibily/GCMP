@@ -740,6 +740,32 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
             "tokenPricing": { "USD": [0.894, 3.713, 0.089, 0.894], "RMB": [6.5, 27, 0.65, 6.5] }
+        },
+        {
+            "id": "kimi-k3",
+            "name": "Kimi-K3",
+            "tooltip": "Kimi 迄今能力最强的旗舰模型，拥有 2.8 万亿参数，原生支持视觉理解，100 万 token 上下文窗口，面向长程编程、知识工作和推理等前沿智能场景而设计。",
+            "sdkMode": "openai-responses",
+            "model": "kimi/kimi-k3",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "USD": [2.76, 13.8, 0.276, 2.76], "RMB": [20, 100, 2, 20] }
+        },
+        {
+            "id": "minimax-m3",
+            "name": "MiniMax-M3",
+            "tooltip": "MiniMax M3 凭借业界领先的 Coding 与 Agentic 能力、1M 超长上下文窗口以及原生多模态特性，可出色胜任企业级长文档理解、高质量内容生成、代码编写、Bug 修复及原生应用构建等任务。",
+            "sdkMode": "openai-responses",
+            "model": "MiniMax/MiniMax-M3",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "USD": [0.58, 2.317, 0.116], "RMB": [4.2, 16.8, 0.84] }
         }
     ]
 }
