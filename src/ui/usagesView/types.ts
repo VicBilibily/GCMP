@@ -68,6 +68,8 @@ export interface RequestTotals {
 export interface SessionGroup {
     sessionId: string;
     displayId: string;
+    /** 会话标题（仅 VS Code 正式标题 generated），无则回退 displayId 展示 */
+    title?: string;
     records: ExtendedTokenRequestLog[];
     summary: SessionSummary;
     totals: RequestTotals;
@@ -103,6 +105,7 @@ export interface UpdateDateDetailsMessage {
     command: 'updateDateDetails';
     date: string;
     isToday: boolean;
+    isExtensionHostDebugMode: boolean;
     providers: ProviderData[];
     hourlyStats: Record<string, HourlyStats>;
     records: ExtendedTokenRequestLog[];
@@ -143,6 +146,7 @@ export interface State {
 export interface DateDetails {
     date: string;
     isToday: boolean;
+    isExtensionHostDebugMode: boolean;
     providers: ProviderData[];
     hourlyStats: Record<string, HourlyStats>;
     records: ExtendedTokenRequestLog[];

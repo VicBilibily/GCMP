@@ -20,8 +20,6 @@ import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { isCancellationError } from '../utils/text/cancellationError';
 import { MiniMaxWizard } from '../wizards/minimaxWizard';
 import { StatusBarManager } from '../status';
-import { TokenUsagesManager } from '../usages/usagesManager';
-import { classifyRequest } from '../handlers/requestClassifier';
 
 /**
  * MiniMax 专用模型提供商类
@@ -278,47 +276,33 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
             `${this.providerConfig.displayName}: about to handle request using ${providerKey === 'minimax-token' ? 'Token Plan' : 'standard'} key - model: ${modelConfig.name}`
         );
 
-        // 请求分类 + 注入到 options.modelOptions（上层已设置 requestKind 时直接使用）
-        const rtOpts = options as { modelOptions?: { requestKind?: string } };
-        if (!rtOpts.modelOptions) {
-            rtOpts.modelOptions = {};
-        }
-        const kind = rtOpts.modelOptions.requestKind ?? classifyRequest(messages, options.tools);
-        rtOpts.modelOptions.requestKind = kind;
+        const {
+            requestKind,
+            totalInputTokens,
+            maxInputTokens,
+            estimatedIncrement,
+            sessionId,
+            sessionRecoverySource,
+            sdkMode
+        } = await this.prepareTrackedRequestContext(model, modelConfig, messages, options);
 
-        // 计算输入 token 数量并更新状态栏
-        const { totalInputTokens, maxInputTokens, estimatedIncrement } = await this.updateContextUsageStatusBar(
-            model,
-            messages,
-            modelConfig,
-            options
-        );
-
-        // === Token 统计: 记录预估输入 token ===
-        const usagesManager = TokenUsagesManager.instance;
         let requestId = '';
         // 根据模型的 sdkMode 选择使用的 handler
         // 注：此处不调用 super.provideLanguageModelChatResponse，而是直接处理
         // 避免双重密钥检查，因为我们已经在 ensureApiKeyForModel 中检查过了
-        const sdkMode = modelConfig.sdkMode || 'openai';
-        // 从原始消息提取 sessionId
-        const sessionId = this.getSessionIdFromMessages(messages, sdkMode);
-        try {
-            requestId = await usagesManager.recordEstimatedTokens({
-                providerKey: providerKey,
-                displayName: this.providerConfig.displayName,
-                modelId: model.id,
-                modelName: model.name || modelConfig.name,
-                estimatedInputTokens: totalInputTokens,
-                estimatedIncrement,
-                maxInputTokens,
-                requestKind: kind,
-                sessionId,
-                ...this.getEstimatedRequestMetadata(options)
-            });
-        } catch (err) {
-            Logger.warn('Failed to record estimated tokens, continuing request:', err);
-        }
+        requestId = await this.recordEstimatedRequestTokens({
+            providerKey: providerKey,
+            displayName: this.providerConfig.displayName,
+            model,
+            modelConfig,
+            estimatedInputTokens: totalInputTokens,
+            estimatedIncrement,
+            maxInputTokens,
+            requestKind,
+            sessionId,
+            sessionRecoverySource,
+            options
+        });
 
         const sdkName = this.getSdkDisplayName(sdkMode);
         Logger.info(

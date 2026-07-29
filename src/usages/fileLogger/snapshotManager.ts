@@ -92,6 +92,13 @@ export class SnapshotManager {
         }
     }
 
+    /** 向 requests 快照补写/覆盖单条请求记录（保留其他 requestId 不变）。 */
+    async upsertRecord(dateStr: string, log: TokenRequestLog): Promise<void> {
+        await this.writeSnapshotFile(dateStr, {
+            [log.requestId]: this.toSnapshotRecord(log)
+        });
+    }
+
     /**
      * 将超过指定天数的历史日期从 JSONL 整理为 requests.jsonl
      * 之后删除原始 .jsonl，释放磁盘空间
@@ -321,12 +328,15 @@ export class SnapshotManager {
             maxInputTokens: log.maxInputTokens,
             requestKind: log.requestKind,
             sessionId: log.sessionId,
+            sessionRecoverySource: log.sessionRecoverySource,
+            sessionTitle: log.sessionTitle,
             requestInitiator: log.requestInitiator,
             capturingTokenCorrelationId: log.capturingTokenCorrelationId,
             otelTraceContext:
                 log.otelTraceContext ?
                     { traceId: log.otelTraceContext.traceId, spanId: log.otelTraceContext.spanId }
                 :   undefined,
+            telemetryTurn: log.telemetryTurn,
             streamStartTime: log.streamStartTime,
             streamEndTime: log.streamEndTime,
             actualInput: parsed?.actualInput,
@@ -379,9 +389,12 @@ export class SnapshotManager {
             maxInputTokens: c.maxInputTokens,
             requestKind: c.requestKind,
             sessionId: c.sessionId,
+            sessionRecoverySource: c.sessionRecoverySource,
+            sessionTitle: c.sessionTitle,
             requestInitiator: c.requestInitiator,
             capturingTokenCorrelationId: c.capturingTokenCorrelationId,
             otelTraceContext: c.otelTraceContext,
+            telemetryTurn: c.telemetryTurn,
             streamStartTime: c.streamStartTime,
             streamEndTime: c.streamEndTime,
             actualInput,

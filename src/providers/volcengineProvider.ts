@@ -19,8 +19,6 @@ import { Logger } from '../utils/runtime/logger';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { isCancellationError } from '../utils/text/cancellationError';
 import { VolcengineWizard } from '../wizards/volcengineWizard';
-import { TokenUsagesManager } from '../usages/usagesManager';
-import { classifyRequest } from '../handlers/requestClassifier';
 
 export class VolcengineProvider extends GenericModelProvider implements LanguageModelChatProvider {
     private static readonly AGENT_PLAN_KEY = 'volcengine-agent';
@@ -182,41 +180,30 @@ export class VolcengineProvider extends GenericModelProvider implements Language
             `${this.providerConfig.displayName}: about to handle request using ${keyLabel} key - model: ${modelConfig.name}`
         );
 
-        // 请求分类 + 注入到 options.modelOptions（上层已设置 requestKind 时直接使用）
-        const rtOpts = options as { modelOptions?: { requestKind?: string } };
-        if (!rtOpts.modelOptions) {
-            rtOpts.modelOptions = {};
-        }
-        const kind = rtOpts.modelOptions.requestKind ?? classifyRequest(messages, options.tools);
-        rtOpts.modelOptions.requestKind = kind;
+        const {
+            requestKind,
+            totalInputTokens,
+            maxInputTokens,
+            estimatedIncrement,
+            sessionId,
+            sessionRecoverySource,
+            sdkMode
+        } = await this.prepareTrackedRequestContext(model, modelConfig, messages, options);
 
-        const { totalInputTokens, maxInputTokens, estimatedIncrement } = await this.updateContextUsageStatusBar(
-            model,
-            messages,
-            modelConfig,
-            options
-        );
-
-        const usagesManager = TokenUsagesManager.instance;
         let requestId = '';
-        const sdkMode = modelConfig.sdkMode || 'openai';
-        const sessionId = this.getSessionIdFromMessages(messages, sdkMode);
-        try {
-            requestId = await usagesManager.recordEstimatedTokens({
-                providerKey: providerKey,
-                displayName: this.providerConfig.displayName,
-                modelId: model.id,
-                modelName: model.name || modelConfig.name,
-                estimatedInputTokens: totalInputTokens,
-                estimatedIncrement,
-                maxInputTokens,
-                requestKind: kind,
-                sessionId,
-                ...this.getEstimatedRequestMetadata(options)
-            });
-        } catch (err) {
-            Logger.warn('Failed to record estimated tokens, continuing request:', err);
-        }
+        requestId = await this.recordEstimatedRequestTokens({
+            providerKey: providerKey,
+            displayName: this.providerConfig.displayName,
+            model,
+            modelConfig,
+            estimatedInputTokens: totalInputTokens,
+            estimatedIncrement,
+            maxInputTokens,
+            requestKind,
+            sessionId,
+            sessionRecoverySource,
+            options
+        });
 
         const sdkName = this.getSdkDisplayName(sdkMode);
         Logger.info(

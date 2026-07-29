@@ -32,6 +32,11 @@ export function getRecordNativeCostSplit(record: ExtendedTokenRequestLog): Nativ
     return getLogNativeCostSplit(record);
 }
 
+export interface SessionRecoveryDebugSummary {
+    bridgeCount: number;
+    newUuidCount: number;
+}
+
 export function buildNativeCostSplitIndex(records: ExtendedTokenRequestLog[]): NativeCostSplitIndex {
     const index: NativeCostSplitIndex = {
         total: createEmptyNativeCostSplit(),
@@ -426,6 +431,30 @@ export function summarizeSessionRecords(records: ExtendedTokenRequestLog[]): Ses
     };
 }
 
+export function summarizeSessionRecoveryDebugInfo(
+    records: Array<Pick<ExtendedTokenRequestLog, 'sessionRecoverySource'>>
+): SessionRecoveryDebugSummary {
+    let bridgeCount = 0;
+    let newUuidCount = 0;
+
+    for (const record of records) {
+        if (
+            record.sessionRecoverySource === 'trace-bridge' ||
+            record.sessionRecoverySource === 'turn-bridge' ||
+            record.sessionRecoverySource?.startsWith('summary-bridge-')
+        ) {
+            bridgeCount += 1;
+        } else if (record.sessionRecoverySource === 'new-uuid') {
+            newUuidCount += 1;
+        }
+    }
+
+    return {
+        bridgeCount,
+        newUuidCount
+    };
+}
+
 /**
  * 底部统计口径：仅 status === 'completed' 的请求参与 token/成本/延迟/耗时聚合；
  * 未完成（estimated）、取消（cancelled）、失败（failed）的请求不参与统计。
@@ -514,17 +543,10 @@ function hasConversationTraceContext(record: Pick<ExtendedTokenRequestLog, 'otel
     return Boolean(record.otelTraceContext?.traceId && record.otelTraceContext?.spanId);
 }
 
-/**
- * 仅当记录包含 otelTraceContext 时，才将原始 sessionId 归一化为统一可分组的值
- */
-export function normalizeSessionId(record: Pick<ExtendedTokenRequestLog, 'sessionId' | 'otelTraceContext'>): string {
-    if (!hasConversationTraceContext(record)) {
-        return UNKNOWN_SESSION_ID;
-    }
-
-    const value = record.sessionId?.trim();
+function extractNormalizedSessionId(sessionId: string): string | undefined {
+    const value = sessionId.trim();
     if (!value) {
-        return UNKNOWN_SESSION_ID;
+        return undefined;
     }
 
     if (isUuid(value)) {
@@ -537,6 +559,35 @@ export function normalizeSessionId(record: Pick<ExtendedTokenRequestLog, 'sessio
         if (isUuid(extracted)) {
             return extracted.toLowerCase();
         }
+    }
+
+    return undefined;
+}
+
+/**
+ * 仅当记录包含 otelTraceContext 时，才将原始 sessionId 归一化为统一可分组的值；
+ * 例外：已显式回填到主会话的 `chat-title` 记录也应跟随主会话参与筛选，
+ * 否则点击会话项时标题请求仍会掉回“未知会话”。
+ */
+export function normalizeSessionId(
+    record: Pick<ExtendedTokenRequestLog, 'sessionId' | 'otelTraceContext' | 'requestKind' | 'sessionTitle'>
+): string {
+    const value = record.sessionId?.trim();
+    if (!value) {
+        return UNKNOWN_SESSION_ID;
+    }
+
+    const normalizedSessionId = extractNormalizedSessionId(value);
+    if (!normalizedSessionId) {
+        return UNKNOWN_SESSION_ID;
+    }
+
+    if (hasConversationTraceContext(record)) {
+        return normalizedSessionId;
+    }
+
+    if (record.requestKind === 'chat-title' && record.sessionTitle) {
+        return normalizedSessionId;
     }
 
     return UNKNOWN_SESSION_ID;
@@ -589,6 +640,8 @@ export function groupRecordsBySession(records: ExtendedTokenRequestLog[]): Sessi
             return {
                 sessionId,
                 displayId: getSessionDisplayId(sessionId),
+                // 记录已按时间倒序排列，取最新一条带标题快照的记录作为会话标题
+                title: sortedRecords.find(record => record.sessionTitle)?.sessionTitle,
                 records: sortedRecords,
                 summary: summarizeSessionRecords(sortedRecords),
                 totals: buildRequestTotals(sortedRecords)

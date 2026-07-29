@@ -31,28 +31,66 @@ const RATE_LIMIT_MESSAGE_PATTERNS_ZH = ['请求过于频繁', '访问量过大',
 /**
  * 永久性错误指示词：消息虽命中限流模式（如 "limit exceeded" / "quota exceeded"），
  * 但包含这些词时属于重试无意义的永久错误，不判为可重试。
- * 覆盖场景：日/月硬配额耗尽、账单/套餐问题、请求超模型上下文限制。
+ * 覆盖场景：日/周/月硬配额耗尽、账单/套餐问题、请求超模型上下文限制。
  */
 const PERMANENT_ERROR_MESSAGE_PATTERNS = [
     'per day',
-    'daily quota',
+    'per week',
     'per month',
-    'monthly quota',
     'billing',
     'upgrade your plan',
     'context length',
     'maximum context',
     'prompt too long'
 ];
-const PERMANENT_ERROR_MESSAGE_PATTERNS_ZH = ['每日配额', '月度配额', '账单', '升级套餐', '上下文长度', '提示词过长'];
+const PERMANENT_ERROR_MESSAGE_PATTERNS_ZH = ['账单', '升级套餐', '上下文长度', '提示词过长'];
+
+/**
+ * 周期配额正则（结构化 code 在传递链丢失、只剩消息文案时的兜底）：
+ * 容忍周期词与配额词之间夹带品牌/修饰词（如 "weekly Clinepass limit"），
+ * 同时覆盖 "daily limit" / "monthly quota" 等无需专有模式的通用措辞。
+ */
+const PERMANENT_ERROR_MESSAGE_REGEXES = [
+    /\b(daily|weekly|monthly)\b[^.。]{0,40}?\b(limit|quota|cap)\b/i,
+    /(每日|每周|每月|月度).{0,8}(配额|限额|上限)/
+];
+
+/**
+ * 永久性错误码：与消息文案无关的结构化标识，命中即判不可重试。
+ * 对照 cline/cline ClineErrorType（仅 RateLimit 可重试）：
+ * - inference_cap_error：ClinePass 推理限额（周/月配额耗尽，重置周期以小时/天计）
+ * - spend_limit_exceeded：Cline 组织强制预算上限（429）
+ * - insufficient_credits：Cline 按量计费余额不足
+ * Cline 的 403 类错误（未订阅/组织限制）不命中任何可重试路径，无需专有消息模式兜底。
+ */
+const PERMANENT_ERROR_CODES = new Set(['inference_cap_error', 'spend_limit_exceeded', 'insufficient_credits']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
 }
 
-function hasPermanentErrorSignal(error: RetryableErrorLike, deep = 0): boolean {
+function hasBalanceDepletedSignal(error: RetryableErrorLike): boolean {
+    const currentBalance = error.current_balance;
+    return typeof currentBalance === 'number' && Number.isFinite(currentBalance) && currentBalance <= 0;
+}
+
+/**
+ * 永久错误信号检测（重试无意义：周期配额耗尽/余额不足/账单问题/超上下文等）。
+ * 导出给 RetryManager 的 isServerError/isNetworkError 共用：
+ * 永久错误即使文案命中过载提示（如 "please try again later"）也不得重试。
+ */
+export function hasPermanentErrorSignal(error: RetryableErrorLike, deep = 0): boolean {
     if (!isRecord(error) || deep > MAX_RETRY_ERROR_DEPTH) {
         return false;
+    }
+
+    const code = typeof error.code === 'string' ? error.code.toLowerCase() : '';
+    if (code && PERMANENT_ERROR_CODES.has(code)) {
+        return true;
+    }
+
+    if (hasBalanceDepletedSignal(error)) {
+        return true;
     }
 
     const message = typeof error.message === 'string' ? error.message : '';
@@ -60,7 +98,8 @@ function hasPermanentErrorSignal(error: RetryableErrorLike, deep = 0): boolean {
         const normalizedMessage = message.toLowerCase();
         if (
             PERMANENT_ERROR_MESSAGE_PATTERNS.some(pattern => normalizedMessage.includes(pattern)) ||
-            PERMANENT_ERROR_MESSAGE_PATTERNS_ZH.some(pattern => message.includes(pattern))
+            PERMANENT_ERROR_MESSAGE_PATTERNS_ZH.some(pattern => message.includes(pattern)) ||
+            PERMANENT_ERROR_MESSAGE_REGEXES.some(pattern => pattern.test(message))
         ) {
             return true;
         }
@@ -68,7 +107,8 @@ function hasPermanentErrorSignal(error: RetryableErrorLike, deep = 0): boolean {
 
     return (
         (isRecord(error.error) && hasPermanentErrorSignal(error.error, deep + 1)) ||
-        (isRecord(error.cause) && hasPermanentErrorSignal(error.cause, deep + 1))
+        (isRecord(error.cause) && hasPermanentErrorSignal(error.cause, deep + 1)) ||
+        (isRecord(error.details) && hasPermanentErrorSignal(error.details, deep + 1))
     );
 }
 

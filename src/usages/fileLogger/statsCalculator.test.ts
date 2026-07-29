@@ -19,9 +19,12 @@ function createLog(overrides: Partial<TokenRequestLog> = {}): TokenRequestLog {
         maxInputTokens: overrides.maxInputTokens,
         requestKind: overrides.requestKind,
         sessionId: overrides.sessionId,
+        sessionRecoverySource: overrides.sessionRecoverySource,
+        sessionTitle: overrides.sessionTitle,
         requestInitiator: overrides.requestInitiator,
         capturingTokenCorrelationId: overrides.capturingTokenCorrelationId,
         otelTraceContext: overrides.otelTraceContext,
+        telemetryTurn: overrides.telemetryTurn,
         streamStartTime: overrides.streamStartTime,
         streamEndTime: overrides.streamEndTime,
         outputSpeed: overrides.outputSpeed,
@@ -285,4 +288,94 @@ test('aggregateLogs falls back to estimated input when completed request has emp
     assert.equal(provider.completedRequests, 1);
     assert.equal(provider.actualInput, 90);
     assert.deepEqual(provider.models, {});
+});
+
+test('mergeLogsByRequestId keeps late session title backfill metadata', () => {
+    const merged = StatsCalculator.mergeLogsByRequestId([
+        createLog({
+            requestId: 'req-session-title',
+            timestamp: 1000,
+            isoTime: '1970-01-01T00:00:01.000Z',
+            requestKind: 'main-agent',
+            sessionId: 'session-1',
+            sessionRecoverySource: 'summary-bridge-exact',
+            telemetryTurn: 3
+        }),
+        createLog({
+            requestId: 'req-session-title',
+            timestamp: 1500,
+            isoTime: '1970-01-01T00:00:01.500Z',
+            status: 'completed',
+            rawUsage: {
+                prompt_tokens: 80,
+                completion_tokens: 20,
+                total_tokens: 100
+            }
+        }),
+        createLog({
+            requestId: 'req-session-title',
+            timestamp: 2000,
+            isoTime: '1970-01-01T00:00:02.000Z',
+            status: 'completed',
+            sessionId: 'session-1',
+            sessionTitle: '新的会话标题',
+            outputSpeed: 12.5,
+            outputTokens: 20
+        })
+    ]);
+
+    const record = merged.get('req-session-title');
+    assert.ok(record);
+    assert.equal(record.sessionId, 'session-1');
+    assert.equal(record.sessionRecoverySource, 'summary-bridge-exact');
+    assert.equal(record.sessionTitle, '新的会话标题');
+    assert.equal(record.requestKind, 'main-agent');
+    assert.equal(record.telemetryTurn, 3);
+    assert.equal(record.outputSpeed, 12.5);
+    assert.equal(record.outputTokens, 20);
+});
+
+test('mergeLogsByRequestId keeps late chat-title session reassignment', () => {
+    const merged = StatsCalculator.mergeLogsByRequestId([
+        createLog({
+            requestId: 'req-chat-title',
+            timestamp: 1000,
+            isoTime: '1970-01-01T00:00:01.000Z',
+            requestKind: 'chat-title',
+            sessionId: 'temp-session',
+            sessionRecoverySource: 'new-uuid'
+        }),
+        createLog({
+            requestId: 'req-chat-title',
+            timestamp: 1500,
+            isoTime: '1970-01-01T00:00:01.500Z',
+            status: 'completed',
+            rawUsage: {
+                prompt_tokens: 120,
+                completion_tokens: 8,
+                total_tokens: 128
+            }
+        }),
+        createLog({
+            requestId: 'req-chat-title',
+            timestamp: 2000,
+            isoTime: '1970-01-01T00:00:02.000Z',
+            status: 'completed',
+            rawUsage: {
+                prompt_tokens: 120,
+                completion_tokens: 8,
+                total_tokens: 128
+            },
+            sessionId: 'main-session',
+            sessionTitle: '查询 Vue 3.6 最新动态'
+        })
+    ]);
+
+    const record = merged.get('req-chat-title');
+    assert.ok(record);
+    assert.equal(record.requestKind, 'chat-title');
+    assert.equal(record.sessionId, 'main-session');
+    assert.equal(record.sessionRecoverySource, 'new-uuid');
+    assert.equal(record.sessionTitle, '查询 Vue 3.6 最新动态');
+    assert.equal(record.rawUsage?.total_tokens, 128);
 });

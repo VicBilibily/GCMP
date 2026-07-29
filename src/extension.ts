@@ -307,7 +307,6 @@ export async function activate(context: vscode.ExtensionContext) {
         stepStartTime = Date.now();
         await TokenUsagesManager.instance.initialize(context);
         Logger.trace(`Token usage manager initialized (${Date.now() - stepStartTime}ms)`);
-
         // 订阅 statsRefreshRequested：非主实例通过跨实例总线委托主实例刷新 stats.json。
         // 只有主实例会响应此请求并执行写盘，非主实例收到时忽略（避免循环）。
         // 直连 IPC 不可用时可退化到 fallback 通道；若 leader 尚未选出，主实例周期任务仍会兜底刷新今日 stats。

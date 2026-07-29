@@ -6,6 +6,7 @@
 
 import * as vscode from 'vscode';
 import { REQUEST_KIND_DISPLAY_NAMES } from './requestKindDisplayNames';
+import { isConversationCompactionPromptText } from './conversationCompactionPrompt';
 
 /**
  * Copilot Chat 请求类型
@@ -283,19 +284,26 @@ export function classifyRequest(
         return 'prompt-categorizer';
     }
 
-    // 3. 系统提示前缀匹配
+    // 3. 对话压缩摘要：真实 compaction 提示当前出现在 latest user message 中，
+    //    且带有固定的 summary wrapper / 禁用工具指令。
+    //    仅凭两段宽泛 marker 会把用户粘贴的内部 prompt 片段误判成 summarization。
+    if (isConversationCompactionPromptText(latestUserText)) {
+        return 'summarization';
+    }
+
+    // 4. 系统提示前缀匹配
     for (const [prefix, kind] of SYSTEM_PROMPT_PREFIXES) {
         if (firstText.startsWith(prefix)) {
             return kind;
         }
     }
 
-    // 4. 主 Agent 标记兜底
+    // 5. 主 Agent 标记兜底
     if (firstText.includes('<skills>') || firstText.includes('<agents>')) {
         return 'main-agent';
     }
 
-    // 5. 兜底
+    // 6. 兜底
     if (toolNames.length > 0 || firstText.length > 0) {
         return 'background';
     }

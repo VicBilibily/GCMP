@@ -181,6 +181,42 @@ export abstract class StatsCalculator {
                 // 无论时间戳如何，都更新为最新状态（completed/failed/cancelled 和 rawUsage）
                 existing.status = log.status;
                 existing.rawUsage = log.rawUsage;
+                if (log.estimatedIncrement !== undefined) {
+                    existing.estimatedIncrement = log.estimatedIncrement;
+                }
+                if (log.maxInputTokens !== undefined) {
+                    existing.maxInputTokens = log.maxInputTokens;
+                }
+                if (log.requestKind !== undefined) {
+                    existing.requestKind = log.requestKind;
+                }
+                if (log.sessionId !== undefined) {
+                    existing.sessionId = log.sessionId;
+                }
+                if (log.sessionRecoverySource !== undefined) {
+                    existing.sessionRecoverySource = log.sessionRecoverySource;
+                }
+                if (log.sessionTitle !== undefined) {
+                    existing.sessionTitle = log.sessionTitle;
+                }
+                if (log.requestInitiator !== undefined) {
+                    existing.requestInitiator = log.requestInitiator;
+                }
+                if (log.capturingTokenCorrelationId !== undefined) {
+                    existing.capturingTokenCorrelationId = log.capturingTokenCorrelationId;
+                }
+                if (log.otelTraceContext !== undefined) {
+                    existing.otelTraceContext = log.otelTraceContext;
+                }
+                if (log.telemetryTurn !== undefined) {
+                    existing.telemetryTurn = log.telemetryTurn;
+                }
+                if (log.outputSpeed !== undefined) {
+                    existing.outputSpeed = log.outputSpeed;
+                }
+                if (log.outputTokens !== undefined) {
+                    existing.outputTokens = log.outputTokens;
+                }
                 // 传播预估成本（如果有）
                 if (log.estimatedCost !== undefined) {
                     existing.estimatedCost = log.estimatedCost;

@@ -1,4 +1,4 @@
-﻿import type { CostBreakdownLog } from './types';
+﻿import type { CostBreakdownLog, SessionRecoverySource } from './types';
 
 export interface SnapshotRequestRecord {
     requestId: string;
@@ -14,9 +14,12 @@ export interface SnapshotRequestRecord {
     maxInputTokens?: number;
     requestKind?: string;
     sessionId?: string;
+    sessionRecoverySource?: SessionRecoverySource;
+    sessionTitle?: string;
     requestInitiator?: string;
     capturingTokenCorrelationId?: string;
     otelTraceContext?: { traceId: string; spanId: string };
+    telemetryTurn?: number;
     streamStartTime?: number;
     streamEndTime?: number;
     actualInput?: number;
@@ -89,6 +92,8 @@ export function mergeSnapshotRecord(
         isoTime: overlayRecord.timestamp < baseRecord.timestamp ? overlayRecord.isoTime : baseRecord.isoTime,
         status: preferredRecord.status,
         rawUsage: preferredRecord.rawUsage ?? fallbackRecord.rawUsage ?? null,
+        sessionRecoverySource: preferredRecord.sessionRecoverySource ?? fallbackRecord.sessionRecoverySource,
+        telemetryTurn: preferredRecord.telemetryTurn ?? fallbackRecord.telemetryTurn,
         streamStartTime: preferredRecord.streamStartTime ?? fallbackRecord.streamStartTime,
         streamEndTime: preferredRecord.streamEndTime ?? fallbackRecord.streamEndTime,
         actualInput: preferredRecord.actualInput ?? fallbackRecord.actualInput,

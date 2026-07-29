@@ -120,6 +120,16 @@ export interface OTelTraceContextLog {
 /** 请求来源类型 */
 export type RequestKind = string;
 
+/** 会话恢复来源 */
+export type SessionRecoverySource =
+    | 'stateful-marker'
+    | 'trace-bridge'
+    | 'turn-bridge'
+    | 'summary-bridge-exact'
+    | 'summary-bridge-embedded'
+    | 'summary-bridge-truncated'
+    | 'new-uuid';
+
 export interface TokenRequestLog {
     /** 请求ID */
     requestId: string;
@@ -149,12 +159,21 @@ export interface TokenRequestLog {
     requestKind?: RequestKind;
     /** 会话ID */
     sessionId?: string;
+    /** 会话ID 的恢复来源，用于观测 stateful/summary-bridge/new uuid 命中情况 */
+    sessionRecoverySource?: SessionRecoverySource;
+    /**
+     * 会话标题快照（记录时的当前值）：仅 VS Code 正式标题（generated），缺省表示无标题。
+     * UI 展示以 SessionTitleService 的权威映射为准（见 usagesManager.getDateRecords enrich）。
+     */
+    sessionTitle?: string;
     /** 请求发起方（扩展 key 或 core） */
     requestInitiator?: string;
     /** CapturingToken 关联 ID */
     capturingTokenCorrelationId?: string;
     /** OpenTelemetry trace 上下文 */
     otelTraceContext?: OTelTraceContextLog;
+    /** Copilot 侧 telemetry turn 序号 */
+    telemetryTurn?: number;
     /** 流开始时间 (毫秒时间戳) */
     streamStartTime?: number;
     /** 流结束时间 (毫秒时间戳) */

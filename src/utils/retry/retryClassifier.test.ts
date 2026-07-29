@@ -1,7 +1,7 @@
 ﻿import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { isRateLimitLikeError } from './retryClassifier';
+import { hasPermanentErrorSignal, isRateLimitLikeError } from './retryClassifier';
 
 test('treats codex.rate_limits responses event as retryable', () => {
     assert.equal(
@@ -112,4 +112,104 @@ test('nested permanent error overrides outer retryable status', () => {
         }),
         false
     );
+});
+
+test('ClinePass weekly cap error is not retryable (nested code + 429 message)', () => {
+    assert.equal(
+        isRateLimitLikeError({
+            error: {
+                code: 'INFERENCE_CAP_ERROR',
+                message:
+                    'Error 429: You have reached your weekly Clinepass limit. The limit resets in 15h 26m, please try again later.'
+            }
+        }),
+        false
+    );
+});
+
+test('weekly limit message without error code is not retryable', () => {
+    assert.equal(
+        isRateLimitLikeError({
+            message: 'Error 429: You have reached your weekly limit. The limit resets in 2h 10m.'
+        }),
+        false
+    );
+});
+
+// 以下用例对照 cline/cline ClineError.getErrorType 的真实错误样例：带结构化错误码的不可重试错误
+
+test('Cline spend limit exceeded (org budget cap) is not retryable', () => {
+    assert.equal(
+        isRateLimitLikeError({
+            message: 'Spend limit reached.',
+            status: 429,
+            code: 'SPEND_LIMIT_EXCEEDED',
+            details: { code: 'SPEND_LIMIT_EXCEEDED', message: 'Spend limit reached.' }
+        }),
+        false
+    );
+});
+
+test('details.code alone still marks spend cap as permanent', () => {
+    const error = {
+        status: 429,
+        message: 'Request rejected by upstream gateway',
+        details: { code: 'SPEND_LIMIT_EXCEEDED' }
+    };
+    assert.equal(hasPermanentErrorSignal(error), true);
+    assert.equal(isRateLimitLikeError(error), false);
+});
+
+test('Cline insufficient credits (balance) is not retryable', () => {
+    assert.equal(
+        isRateLimitLikeError({
+            code: 'insufficient_credits',
+            message: 'You have run out of credits.',
+            details: { current_balance: 0 }
+        }),
+        false
+    );
+});
+
+test('details.current_balance=0 alone still marks balance exhaustion as permanent', () => {
+    const error = {
+        status: 429,
+        message: 'Request rejected by upstream gateway',
+        details: { current_balance: 0 }
+    };
+    assert.equal(hasPermanentErrorSignal(error), true);
+    assert.equal(isRateLimitLikeError(error), false);
+});
+
+test('positive current_balance does not trigger permanent error by itself', () => {
+    const error = {
+        status: 429,
+        message: 'Too many requests',
+        details: { current_balance: 12.5 }
+    };
+    assert.equal(hasPermanentErrorSignal(error), false);
+    assert.equal(isRateLimitLikeError(error), true);
+});
+
+// code 在传递链中丢失、只剩消息文案时的兜底：周期词与配额词之间夹带品牌词也要命中
+
+test('ClinePass weekly cap message-only (code lost in transit) is permanent', () => {
+    const error = {
+        message:
+            'Error 429: You have reached your weekly Clinepass limit. The limit resets in 5h 7m, please try again later.'
+    };
+    assert.equal(hasPermanentErrorSignal(error), true);
+    assert.equal(isRateLimitLikeError(error), false);
+});
+
+test('daily/monthly limit message-only variants are permanent', () => {
+    assert.equal(isRateLimitLikeError({ message: 'Error 429: daily limit reached, try again tomorrow' }), false);
+    assert.equal(isRateLimitLikeError({ message: 'You have exceeded your monthly quota for this model' }), false);
+    assert.equal(isRateLimitLikeError({ message: '已达到本周每周限额，请下周再试' }), false);
+});
+
+test('transient rate limit with try-again-later wording stays retryable', () => {
+    // 无周期词的普通过载提示仍属可重试（守卫不得扩大误伤）
+    assert.equal(isRateLimitLikeError({ message: 'Rate limit exceeded, please try again later.' }), true);
+    assert.equal(hasPermanentErrorSignal({ message: 'Rate limit exceeded, please try again later.' }), false);
 });

@@ -210,6 +210,7 @@ function handleVSCodeMessage(event: MessageEvent): void {
                 dateDetails: {
                     date: message.date,
                     isToday: message.isToday,
+                    isExtensionHostDebugMode: message.isExtensionHostDebugMode,
                     providers: message.providers,
                     hourlyStats: message.hourlyStats,
                     records: message.records,

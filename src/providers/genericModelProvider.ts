@@ -34,10 +34,13 @@ import { TokenUsagesManager } from '../usages/usagesManager';
 import { OpenAIResponsesHandler } from '../handlers/openaiResponsesHandler';
 import { getAllStatefulMarkersAndIndicies } from '../handlers/statefulMarker';
 import { classifyRequest } from '../handlers/requestClassifier';
+import { SessionTitleService } from '../usages/sessionTitleService';
+import { SessionRecoveryService } from '../usages/sessionRecoveryService';
 import { VisionCache } from '../tools/vision/cache';
 import { processVisionMessages } from '../tools/vision/messageProcessor';
 import { StatusBarManager } from '../status/statusBarManager';
 import * as crypto from 'node:crypto';
+import type { SessionRecoverySource } from '../usages/fileLogger/types';
 
 interface ContextUsageSummary {
     totalInputTokens: number;
@@ -52,6 +55,7 @@ interface RuntimeModelOptionsTelemetry {
         traceId?: string;
         spanId?: string;
     };
+    _telemetryTurn?: number;
     /** 运行时注入的请求来源类型，供 handler 消费 */
     requestKind?: string;
 }
@@ -59,6 +63,33 @@ interface RuntimeModelOptionsTelemetry {
 type RuntimeProvideLanguageModelChatResponseOptions = ProvideLanguageModelChatResponseOptions & {
     modelOptions?: RuntimeModelOptionsTelemetry;
 };
+
+interface EstimatedRequestTrackingParams {
+    providerKey: string;
+    displayName: string;
+    model: LanguageModelChatInformation;
+    modelConfig: ModelConfig;
+    estimatedInputTokens: number;
+    estimatedIncrement?: number;
+    maxInputTokens?: number;
+    requestKind?: string;
+    sessionId: string;
+    sessionRecoverySource?: SessionRecoverySource;
+    options: ProvideLanguageModelChatResponseOptions;
+    timestamp?: number;
+}
+
+interface PreparedTrackedRequestContext extends ContextUsageSummary {
+    requestKind: string;
+    sessionId: string;
+    sessionRecoverySource: SessionRecoverySource;
+    sdkMode: NonNullable<ModelConfig['sdkMode']> | 'openai';
+}
+
+interface SessionIdResolution {
+    sessionId: string;
+    sessionRecoverySource: SessionRecoverySource;
+}
 
 /**
  * 通用模型提供商类
@@ -240,6 +271,60 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             providerDisplayName: this.providerConfig.displayName,
             family: this.resolveFamily(model)
         });
+    }
+
+    /**
+     * 确保请求分类已注入到 runtime modelOptions。
+     * 上层已设置 requestKind 时直接复用，避免重复分类或被后续消息改写。
+     */
+    protected ensureRequestKind(
+        messages: readonly LanguageModelChatMessage[],
+        options: ProvideLanguageModelChatResponseOptions
+    ): string {
+        const rtOpts = options as RuntimeProvideLanguageModelChatResponseOptions;
+        if (!rtOpts.modelOptions) {
+            rtOpts.modelOptions = {};
+        }
+        if (!rtOpts.modelOptions.requestKind) {
+            rtOpts.modelOptions.requestKind = classifyRequest(messages, options.tools);
+        }
+        return rtOpts.modelOptions.requestKind;
+    }
+
+    /**
+     * 统一准备请求分类、上下文估算和 session 跟踪上下文，避免各 provider 重复拼装。
+     */
+    protected async prepareTrackedRequestContext(
+        model: LanguageModelChatInformation,
+        modelConfig: ModelConfig,
+        messages: Array<LanguageModelChatMessage>,
+        options: ProvideLanguageModelChatResponseOptions
+    ): Promise<PreparedTrackedRequestContext> {
+        const requestKind = this.ensureRequestKind(messages, options);
+        const { totalInputTokens, maxInputTokens, estimatedIncrement } = await this.updateContextUsageStatusBar(
+            model,
+            messages,
+            modelConfig,
+            options
+        );
+        const sdkMode = modelConfig.sdkMode || 'openai';
+        const { sessionId, sessionRecoverySource } = this.getSessionIdFromMessages(
+            messages,
+            sdkMode,
+            requestKind,
+            options,
+            this.getProviderKeyForModel(modelConfig)
+        );
+        await this.prepareRequestSession(sessionId, messages);
+        return {
+            requestKind,
+            sessionId,
+            sessionRecoverySource,
+            sdkMode,
+            totalInputTokens,
+            maxInputTokens,
+            estimatedIncrement
+        };
     }
 
     /**
@@ -476,14 +561,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
         const retryManager = new RetryManager(this.getRequestRetryConfig(effectiveProviderKey));
 
-        // 请求分类（仅当上层未设置时写入，避免覆盖 provideLanguageModelChatResponse 的值）
-        const rtOpts = options as RuntimeProvideLanguageModelChatResponseOptions;
-        if (!rtOpts.modelOptions) {
-            rtOpts.modelOptions = {};
-        }
-        if (!rtOpts.modelOptions.requestKind) {
-            rtOpts.modelOptions.requestKind = classifyRequest(messages, options.tools);
-        }
+        const requestKind = this.ensureRequestKind(messages, options);
 
         // 处理消息中的图片 DataPart（仅对 imageInput: false 的模型生效）
         if (this.visionCache && !modelConfig.capabilities?.imageInput) {
@@ -500,12 +578,25 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 重试消息的 disposable，模型开始返回数据时立即清除；流程结束时兜底释放
         let retryMessageDisposable: vscode.Disposable | undefined;
 
+        // chat-title 请求：额外累积响应文本，请求成功后回填会话标题
+        const isTitleRequest = requestKind === 'chat-title';
+        const isSummarizationRequest = requestKind === 'summarization';
+        let titleResponseBuffer = '';
+        let summaryResponseBuffer = '';
+        const requestMetadata = this.getEstimatedRequestMetadata(options);
+
         try {
             // 包装 progress：首次 report 时清除重试消息
             const wrappedProgress: Progress<vscode.LanguageModelResponsePart> = {
                 report: (value: vscode.LanguageModelResponsePart) => {
                     retryMessageDisposable?.dispose();
                     retryMessageDisposable = undefined;
+                    if (isTitleRequest && value instanceof vscode.LanguageModelTextPart) {
+                        titleResponseBuffer += value.value;
+                    }
+                    if (isSummarizationRequest && value instanceof vscode.LanguageModelTextPart) {
+                        summaryResponseBuffer += value.value;
+                    }
                     progress.report(value);
                 }
             };
@@ -515,6 +606,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     // 每次 attempt（含首次和 retry）使用独立时间基准，
                     // 确保 live TTFT 只反映当前 attempt 的耗时，不包含重试等待。
                     const liveAttemptStartTime = Date.now();
+
+                    // 标题响应按 attempt 独立累积，避免重试时拼接上一轮的半截文本
+                    titleResponseBuffer = '';
+                    summaryResponseBuffer = '';
 
                     if (requestId) {
                         liveMetrics.emitLiveMetrics({
@@ -599,6 +694,45 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     }
                 }
             );
+
+            if (isSummarizationRequest && summaryResponseBuffer.trim()) {
+                SessionRecoveryService.instance.rememberSummarization(sessionId, summaryResponseBuffer, {
+                    providerKey: effectiveProviderKey,
+                    telemetryTurn: requestMetadata.telemetryTurn,
+                    traceId: requestMetadata.otelTraceContext?.traceId
+                });
+            }
+
+            // chat-title 请求成功：以原始请求文本为匹配键，把会话标题升级为 VS Code 面板正式标题
+            if (isTitleRequest && titleResponseBuffer.trim()) {
+                try {
+                    const rawRequestText = SessionTitleService.extractTitleGenerationRequestText(messages);
+                    if (rawRequestText) {
+                        const resolved = SessionTitleService.instance.resolveGeneratedTitleDetails(
+                            rawRequestText,
+                            titleResponseBuffer,
+                            requestId
+                        );
+                        if (resolved) {
+                            await TokenUsagesManager.instance.backfillResolvedSessionTitle(
+                                resolved.sessionId,
+                                resolved.title,
+                                resolved.requestId
+                            );
+                            if (requestId) {
+                                await TokenUsagesManager.instance.backfillRequestSession(
+                                    requestId,
+                                    resolved.sessionId,
+                                    resolved.title
+                                );
+                            }
+                            TokenUsagesManager.instance.notifyStatsUpdate();
+                        }
+                    }
+                } catch (err) {
+                    Logger.debug('Failed to resolve generated session title:', err);
+                }
+            }
         } finally {
             retryMessageDisposable?.dispose();
             retryMessageDisposable = undefined;
@@ -623,6 +757,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             traceId: string;
             spanId: string;
         };
+        telemetryTurn?: number;
     } {
         const runtimeOptions = options as RuntimeProvideLanguageModelChatResponseOptions;
         const otelTraceContext = runtimeOptions.modelOptions?._otelTraceContext;
@@ -630,6 +765,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         return {
             requestInitiator: options.requestInitiator,
             capturingTokenCorrelationId: runtimeOptions.modelOptions?._capturingTokenCorrelationId,
+            telemetryTurn: runtimeOptions.modelOptions?._telemetryTurn,
             otelTraceContext:
                 otelTraceContext?.traceId && otelTraceContext?.spanId ?
                     {
@@ -658,28 +794,15 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 根据模型配置中的 provider 字段确定实际使用的提供商
         // 这样可以正确处理同一提供商下不同模型使用不同密钥的情况
         const effectiveProviderKey = modelConfig.provider || this.providerKey;
-        const sdkMode = modelConfig.sdkMode || 'openai';
-
-        // 请求分类 + 注入到 options.modelOptions（确保 statusBar 能读取到 requestKind；上层已设置时直接使用）
-        const rtOpts = options as RuntimeProvideLanguageModelChatResponseOptions;
-        if (!rtOpts.modelOptions) {
-            rtOpts.modelOptions = {};
-        }
-        if (!rtOpts.modelOptions.requestKind) {
-            rtOpts.modelOptions.requestKind = classifyRequest(messages, options.tools);
-        }
-        const kind = rtOpts.modelOptions.requestKind;
-
-        // 计算输入 token 数量并更新状态栏
-        const { totalInputTokens, maxInputTokens, estimatedIncrement } = await this.updateContextUsageStatusBar(
-            model,
-            messages,
-            modelConfig,
-            options
-        );
-
-        // 提取或生成 sessionId（根据 sdkMode，新会话时生成 UUID）
-        const sessionId = this.getSessionIdFromMessages(messages, sdkMode);
+        const {
+            requestKind,
+            totalInputTokens,
+            maxInputTokens,
+            estimatedIncrement,
+            sessionId,
+            sessionRecoverySource,
+            sdkMode
+        } = await this.prepareTrackedRequestContext(model, modelConfig, messages, options);
 
         // 根据模型的 sdkMode 选择使用的 handler
         const sdkName = this.getSdkDisplayName(sdkMode);
@@ -687,8 +810,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             `${this.providerConfig.displayName} Provider started handling request (${sdkName}): ${modelConfig.name}`
         );
 
-        // === Token 统计: 记录预估输入 token ===
-        const usagesManager = TokenUsagesManager.instance;
         let requestId = '';
         let requestStartTime: number;
 
@@ -703,23 +824,20 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             // 不应在 UI 或日志中描述为"网络请求发出后首流延迟"。
             requestStartTime = Date.now();
 
-            try {
-                requestId = await usagesManager.recordEstimatedTokens({
-                    providerKey: effectiveProviderKey,
-                    displayName: this.providerConfig.displayName,
-                    modelId: model.id,
-                    modelName: model.name || modelConfig.name,
-                    estimatedInputTokens: totalInputTokens,
-                    estimatedIncrement,
-                    maxInputTokens,
-                    requestKind: rtOpts.modelOptions.requestKind ?? kind,
-                    sessionId,
-                    timestamp: requestStartTime,
-                    ...this.getEstimatedRequestMetadata(options)
-                });
-            } catch (err) {
-                Logger.warn('Failed to record estimated tokens, continuing request:', err);
-            }
+            requestId = await this.recordEstimatedRequestTokens({
+                providerKey: effectiveProviderKey,
+                displayName: this.providerConfig.displayName,
+                model,
+                modelConfig,
+                estimatedInputTokens: totalInputTokens,
+                estimatedIncrement,
+                maxInputTokens,
+                requestKind,
+                sessionId,
+                sessionRecoverySource,
+                options,
+                timestamp: requestStartTime
+            });
 
             await this.executeModelRequest(
                 model,
@@ -768,8 +886,18 @@ export class GenericModelProvider implements LanguageModelChatProvider {
      */
     protected getSessionIdFromMessages(
         messages: readonly LanguageModelChatMessage[],
-        _sdkMode: string = 'openai'
-    ): string {
+        _sdkMode: string = 'openai',
+        requestKind?: string,
+        options?: ProvideLanguageModelChatResponseOptions,
+        providerKey = this.providerKey
+    ): SessionIdResolution {
+        const metadata = options ? this.getEstimatedRequestMetadata(options) : undefined;
+        const recoveryMetadata = {
+            providerKey,
+            telemetryTurn: metadata?.telemetryTurn,
+            traceId: metadata?.otelTraceContext?.traceId
+        };
+
         for (const result of getAllStatefulMarkersAndIndicies(messages)) {
             let sessionId = result.statefulMarker?.marker?.sessionId;
             if (sessionId) {
@@ -779,11 +907,124 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     sessionId = sessionId.slice(sessionIdx + '_session_'.length);
                     Logger.debug(`Backward compat: extracted UUID from old sessionId format: ${sessionId}`);
                 }
-                return sessionId;
+                SessionRecoveryService.instance.rememberSessionHint(sessionId, recoveryMetadata);
+                return {
+                    sessionId,
+                    sessionRecoverySource: 'stateful-marker'
+                };
             }
         }
-        // 统一生成短格式 sessionId（UUID），各 handler 按需在 metadata 处拼接扩展格式
-        return crypto.randomUUID();
+
+        if (requestKind === 'main-agent' && options) {
+            const recovered = SessionRecoveryService.instance.resolveSessionId(messages, {
+                providerKey: recoveryMetadata.providerKey,
+                telemetryTurn: recoveryMetadata.telemetryTurn,
+                traceId: recoveryMetadata.traceId
+            });
+            if (recovered) {
+                Logger.info(`Recovered sessionId via summary bridge (${recovered.matchType}): ${recovered.sessionId}`);
+                SessionRecoveryService.instance.rememberSessionHint(recovered.sessionId, recoveryMetadata);
+                return {
+                    sessionId: recovered.sessionId,
+                    sessionRecoverySource: `summary-bridge-${recovered.matchType}`
+                };
+            }
+
+            const turnRecoveredSessionId = SessionRecoveryService.instance.resolveSessionIdFromTurn(recoveryMetadata);
+            if (turnRecoveredSessionId) {
+                Logger.info(`Recovered sessionId via turn bridge: ${turnRecoveredSessionId}`);
+                SessionRecoveryService.instance.rememberSessionHint(turnRecoveredSessionId, recoveryMetadata);
+                return {
+                    sessionId: turnRecoveredSessionId,
+                    sessionRecoverySource: 'turn-bridge'
+                };
+            }
+        }
+
+        if (requestKind === 'summarization' && recoveryMetadata.traceId) {
+            const tracedSessionId = SessionRecoveryService.instance.resolveSessionIdFromTrace(recoveryMetadata);
+            if (tracedSessionId) {
+                Logger.info(`Recovered sessionId via trace bridge: ${tracedSessionId}`);
+                SessionRecoveryService.instance.rememberSessionHint(tracedSessionId, recoveryMetadata);
+                return {
+                    sessionId: tracedSessionId,
+                    sessionRecoverySource: 'trace-bridge'
+                };
+            }
+        }
+
+        // 统一生成短格式 sessionId（UUID），各 handler 按需在 metadata 处拼接扩展格式。
+        // 这里也要立刻登记 trace hint：Copilot 可能在新会话首轮回答后立即触发 summarization，
+        // 若不先把“新建 session ↔ 当前 trace”记住，紧随其后的压缩请求会再次掉回 new-uuid。
+        const sessionId = crypto.randomUUID();
+        SessionRecoveryService.instance.rememberSessionHint(sessionId, recoveryMetadata);
+        return {
+            sessionId,
+            sessionRecoverySource: 'new-uuid'
+        };
+    }
+
+    /**
+     * 请求开始前统一准备会话标题上下文：
+     * - 从当前 turn 提取原始用户输入并更新 matchKey；
+     * - 按 sessionId 懒恢复历史标题快照。
+     */
+    protected async prepareRequestSession(
+        sessionId: string,
+        messages: readonly LanguageModelChatMessage[]
+    ): Promise<void> {
+        try {
+            const rawUserText = SessionTitleService.extractUserRequestText(messages);
+            if (rawUserText) {
+                const registeredPendingTitle = SessionTitleService.instance.registerSession(sessionId, rawUserText);
+                if (registeredPendingTitle?.titleRequestId) {
+                    await TokenUsagesManager.instance.backfillRequestSession(
+                        registeredPendingTitle.titleRequestId,
+                        sessionId,
+                        registeredPendingTitle.title
+                    );
+                }
+            }
+        } catch (err) {
+            Logger.debug('Failed to register session title for current turn:', err);
+        }
+
+        try {
+            await TokenUsagesManager.instance.hydrateSessionTitle(sessionId);
+        } catch (err) {
+            Logger.debug('Failed to hydrate historical session title:', err);
+        }
+    }
+
+    /**
+     * 统一记录请求开始时的预估 token，并自动附带当前会话标题快照。
+     * Provider 子类通过该入口即可避免直接依赖 SessionTitleService / TokenUsagesManager 的拼装细节。
+     */
+    protected async recordEstimatedRequestTokens(params: EstimatedRequestTrackingParams): Promise<string> {
+        try {
+            const requestId = await TokenUsagesManager.instance.recordEstimatedTokens({
+                providerKey: params.providerKey,
+                displayName: params.displayName,
+                modelId: params.model.id,
+                modelName: params.model.name || params.modelConfig.name,
+                estimatedInputTokens: params.estimatedInputTokens,
+                estimatedIncrement: params.estimatedIncrement,
+                maxInputTokens: params.maxInputTokens,
+                requestKind: params.requestKind,
+                sessionId: params.sessionId,
+                sessionRecoverySource: params.sessionRecoverySource ?? 'new-uuid',
+                sessionTitle: SessionTitleService.instance.getTitle(params.sessionId),
+                timestamp: params.timestamp,
+                ...this.getEstimatedRequestMetadata(params.options)
+            });
+            if (requestId && params.sessionId && params.requestKind !== 'chat-title') {
+                SessionTitleService.instance.rememberRequest(params.sessionId, requestId);
+            }
+            return requestId;
+        } catch (err) {
+            Logger.warn('Failed to record estimated tokens, continuing request:', err);
+            return '';
+        }
     }
 
     /**

@@ -6,7 +6,13 @@
 import type { ExtendedTokenRequestLog, RequestTotals, SessionGroup, SessionSummary } from '../types';
 import { createElement } from '../../utils';
 import { getDisplayCostPresentation } from '../../costDisplay';
-import { createSessionFilter, MAX_TRACKED_SESSIONS, shouldShowSessionGroupInFilter } from './sessionFilter';
+import {
+    createSessionFilter,
+    buildSessionDetailMeta,
+    buildSessionDetailTitle,
+    MAX_TRACKED_SESSIONS,
+    shouldShowSessionGroupInFilter
+} from './sessionFilter';
 import {
     buildCostBreakdownTitle,
     buildRequestTotals,
@@ -17,6 +23,7 @@ import {
     getDisplayCurrency,
     getProviderDisplayName,
     getRequestKindDisplayName,
+    summarizeSessionRecoveryDebugInfo,
     getSessionDisplayId,
     summarizeSessionRecords,
     t,
@@ -306,19 +313,97 @@ function createSummaryChip(label: string, value: string, title?: string): HTMLEl
     return chip;
 }
 
+function shouldShowSessionRecoveryDebugInfo(): boolean {
+    return window.usagesState?.dateDetails?.isExtensionHostDebugMode === true;
+}
+
+function createSessionRecoverySummaryChip(records: ExtendedTokenRequestLog[]): HTMLElement | undefined {
+    if (!shouldShowSessionRecoveryDebugInfo()) {
+        return undefined;
+    }
+
+    const { bridgeCount, newUuidCount } = summarizeSessionRecoveryDebugInfo(records);
+    if (bridgeCount <= 0 && newUuidCount <= 0) {
+        return undefined;
+    }
+
+    const parts: string[] = [];
+    if (bridgeCount > 0) {
+        parts.push(t('bridge {0}', '桥接 {0}', bridgeCount));
+    }
+    if (newUuidCount > 0) {
+        parts.push(t('new {0}', '新建 {0}', newUuidCount));
+    }
+
+    return createSummaryChip(
+        t('Recovery', '恢复'),
+        parts.join(' · '),
+        t(
+            'Debug-only signal showing requests that used summary bridge or new UUID fallback.',
+            '仅在调试模式显示：统计使用摘要桥接或新 UUID 回退的请求。'
+        )
+    );
+}
+
 /**
  * 创建右侧详情头部的会话摘要区域
+ * 仅保留时间范围：Tokens 与平均速度在底部合计行（appendTotalsRow）已有展示
  */
-function createSummarySection(summary: SessionSummary): HTMLElement {
+function createSummarySection(summary: SessionSummary, records: ExtendedTokenRequestLog[]): HTMLElement {
     const summaryEl = createElement('div', 'session-detail-summary');
-    const avgSpeedText = summary.avgSpeed ? `${summary.avgSpeed.toFixed(1)} t/s` : '-';
     const timeRange = formatSessionTimeRange(summary.startTime, summary.endTime);
 
-    summaryEl.appendChild(createSummaryChip(t('Tokens', 'Tokens'), formatTokens(summary.totalTokens)));
     summaryEl.appendChild(createSummaryChip(t('Time', '时间'), timeRange, timeRange));
-    summaryEl.appendChild(createSummaryChip(t('Avg Speed', '平均速度'), avgSpeedText));
+
+    const recoveryChip = createSessionRecoverySummaryChip(records);
+    if (recoveryChip) {
+        summaryEl.appendChild(recoveryChip);
+    }
 
     return summaryEl;
+}
+
+function getSessionRecoveryDebugHint(
+    source: ExtendedTokenRequestLog['sessionRecoverySource']
+): { label: string; title: string } | undefined {
+    if (!shouldShowSessionRecoveryDebugInfo()) {
+        return undefined;
+    }
+
+    switch (source) {
+        case 'trace-bridge':
+            return {
+                label: 'bridge',
+                title: t('trace bridge (same trace continuity)', 'Trace 桥接（同一 trace 延续）')
+            };
+        case 'turn-bridge':
+            return {
+                label: 'bridge',
+                title: t('turn bridge (resume after compaction on next turn)', 'Turn 桥接（压缩后下一轮继续沿用会话）')
+            };
+        case 'summary-bridge-exact':
+            return {
+                label: 'bridge',
+                title: t('summary bridge (exact match)', '摘要桥接（精确匹配）')
+            };
+        case 'summary-bridge-embedded':
+            return {
+                label: 'bridge',
+                title: t('summary bridge (embedded match)', '摘要桥接（嵌入匹配）')
+            };
+        case 'summary-bridge-truncated':
+            return {
+                label: 'bridge',
+                title: t('summary bridge (truncated match)', '摘要桥接（截断匹配）')
+            };
+        case 'new-uuid':
+            return {
+                label: 'new',
+                title: t('new UUID fallback', '新 UUID 回退')
+            };
+        default:
+            return undefined;
+    }
 }
 
 /**
@@ -714,6 +799,7 @@ export function createRequestRecordsTable(
         const isAllSessions =
             window.usagesState?.selectedSessionId === null &&
             (window.usagesState?.selectedSessionIds?.length ?? 0) === 0;
+        const recoveryHint = getSessionRecoveryDebugHint(record.sessionRecoverySource);
         const statusLabel =
             record.status === 'completed' ? 'DONE'
             : record.status === 'failed' ? 'ERROR'
@@ -724,19 +810,28 @@ export function createRequestRecordsTable(
             : record.status === 'failed' ? 'status-failed'
             : record.status === 'cancelled' ? 'status-cancelled'
             : 'status-estimated';
-        let statusHtml = `<span class="status-label">${statusLabel}</span>`;
-        // session 链接放在状态文字下方
+        const detailParts: string[] = [];
+        if (recoveryHint) {
+            detailParts.push(
+                `<span class="tokens-session-recovery" title="${recoveryHint.title}">${recoveryHint.label}</span>`
+            );
+        }
         if (isAllSessions && record.sessionId && visibleSessionIds.has(record.sessionId)) {
             const displayId = getSessionDisplayId(record.sessionId);
-            const linkHtml = `<a class="tokens-session-link" href="javascript:void(0)" title="SESSION: #${displayId}">#${displayId}</a>`;
-            statusHtml += `<div class="tokens-detail">${linkHtml}</div>`;
-            status.innerHTML = statusHtml;
+            detailParts.push(
+                `<a class="tokens-session-link" href="javascript:void(0)" title="SESSION: #${displayId}">#${displayId}</a>`
+            );
+        }
+        if (detailParts.length > 0) {
+            const separator = '<span class="tokens-detail-separator">·</span>';
+            status.innerHTML =
+                `<span class="status-label">${statusLabel}</span>` +
+                `<div class="tokens-detail">${detailParts.join(separator)}</div>`;
             status
                 .querySelector('.tokens-session-link')
                 ?.addEventListener('click', () => changeSelectedSession(record.sessionId!));
         } else {
-            statusHtml = `<span class="status-label status-full-row">${statusLabel}</span>`;
-            status.innerHTML = statusHtml;
+            status.innerHTML = `<span class="status-label status-full-row">${statusLabel}</span>`;
         }
 
         row.append(time, providerModel, input, output, total, status);
@@ -765,13 +860,23 @@ function createSessionToggleButton(): HTMLElement {
 /**
  * 创建右侧详情头部，包括标题、副标题和摘要信息
  */
-function createDetailHeader(titleText: string, summary: SessionSummary): HTMLElement {
+function createDetailHeader(
+    titleText: string,
+    summary: SessionSummary,
+    records: ExtendedTokenRequestLog[],
+    metaText?: string
+): HTMLElement {
     const header = createElement('div', 'session-detail-header');
     const titleRow = createElement('div', 'session-detail-title-row');
     const title = createElement('h3', 'session-detail-title');
     title.textContent = titleText;
     titleRow.appendChild(title);
-    titleRow.appendChild(createSummarySection(summary));
+    if (metaText) {
+        const meta = createElement('span', 'session-detail-title-meta');
+        meta.textContent = metaText;
+        titleRow.appendChild(meta);
+    }
+    titleRow.appendChild(createSummarySection(summary, records));
 
     header.appendChild(titleRow);
     return header;
@@ -809,13 +914,14 @@ function createSessionPopover(
  */
 function createDetailView(
     titleText: string,
+    metaText: string | undefined,
     summary: SessionSummary,
     totals: RequestTotals,
     records: ExtendedTokenRequestLog[],
     visibleSessionIds: Set<string>
 ): HTMLElement {
     const detail = createElement('div', 'records-detail');
-    detail.appendChild(createDetailHeader(titleText, summary));
+    detail.appendChild(createDetailHeader(titleText, summary, records, metaText));
 
     const content = createElement('div', 'records-detail-content');
 
@@ -852,7 +958,14 @@ function createSessionTrackView(trackedGroups: SessionGroup[], visibleSessionIds
 
     trackedGroups.forEach(group => {
         const block = createElement('section', 'session-track-block');
-        block.appendChild(createDetailHeader(`#${group.displayId}`, group.summary));
+        block.appendChild(
+            createDetailHeader(
+                buildSessionDetailTitle(group),
+                group.summary,
+                group.records,
+                buildSessionDetailMeta(group)
+            )
+        );
         block.appendChild(
             createRequestRecordsTable(
                 group.records.slice(0, limit),
@@ -1005,7 +1118,8 @@ export function createRequestRecordsSection(
     } else if (selectedGroup) {
         layout.appendChild(
             createDetailView(
-                `#${selectedGroup.displayId}`,
+                buildSessionDetailTitle(selectedGroup),
+                buildSessionDetailMeta(selectedGroup),
                 selectedGroup.summary,
                 selectedGroup.totals,
                 selectedGroup.records,
@@ -1014,7 +1128,7 @@ export function createRequestRecordsSection(
         );
     } else if (allRecords.length > 0) {
         layout.appendChild(
-            createDetailView(t('All Sessions', '全部会话'), allSummary, allTotals, allRecords, allSessionIds)
+            createDetailView(t('All Sessions', '全部会话'), undefined, allSummary, allTotals, allRecords, allSessionIds)
         );
     } else {
         const detail = createElement('div', 'records-detail');

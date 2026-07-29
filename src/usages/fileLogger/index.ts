@@ -271,9 +271,12 @@ export class TokenFileLogger {
         maxInputTokens?: number;
         requestKind?: string; // 请求来源类型
         sessionId?: string;
+        sessionRecoverySource?: TokenRequestLog['sessionRecoverySource'];
+        sessionTitle?: string;
         requestInitiator?: string;
         capturingTokenCorrelationId?: string;
         otelTraceContext?: TokenRequestLog['otelTraceContext'];
+        telemetryTurn?: number;
         timestamp?: number; // 可选: 自定义时间戳(用于测试数据生成)
     }): Promise<void> {
         const now = params.timestamp ?? Date.now();
@@ -296,9 +299,12 @@ export class TokenFileLogger {
             maxInputTokens: params.maxInputTokens,
             requestKind: params.requestKind,
             sessionId: params.sessionId,
+            sessionRecoverySource: params.sessionRecoverySource,
+            sessionTitle: params.sessionTitle,
             requestInitiator: params.requestInitiator,
             capturingTokenCorrelationId: params.capturingTokenCorrelationId,
-            otelTraceContext: params.otelTraceContext
+            otelTraceContext: params.otelTraceContext,
+            telemetryTurn: params.telemetryTurn
         };
 
         // 暂存到内存
@@ -322,6 +328,7 @@ export class TokenFileLogger {
     async updateActualTokens(params: {
         requestId: string;
         sessionId?: string;
+        sessionTitle?: string;
         rawUsage?: TokenRequestLog['rawUsage'];
         status: 'completed' | 'failed' | 'cancelled';
         /** 流开始时间 (毫秒时间戳) */
@@ -374,6 +381,9 @@ export class TokenFileLogger {
             if (params.sessionId && !pendingLog.sessionId) {
                 pendingLog.sessionId = params.sessionId;
             }
+            if (params.sessionTitle) {
+                pendingLog.sessionTitle = params.sessionTitle;
+            }
 
             // 更新预估成本（如果提供）
             if (params.estimatedCost !== undefined) {
@@ -414,6 +424,100 @@ export class TokenFileLogger {
         } finally {
             this.finalizingRequestIds.delete(params.requestId);
         }
+    }
+
+    async backfillSessionTitle(params: {
+        requestId: string;
+        sessionId: string;
+        sessionTitle: string;
+    }): Promise<boolean> {
+        const pendingLog = this.pendingLogs.get(params.requestId);
+        if (pendingLog) {
+            if (!pendingLog.sessionId) {
+                pendingLog.sessionId = params.sessionId;
+            }
+            pendingLog.sessionTitle = params.sessionTitle;
+            this.notifyUpdate();
+            return true;
+        }
+
+        const dateStr = this.getDateStrFromRequestId(params.requestId);
+        if (!dateStr) {
+            return false;
+        }
+
+        const existingLog = (await this.getRequestDetails(dateStr)).find(log => log.requestId === params.requestId);
+        if (!existingLog) {
+            return false;
+        }
+        if (existingLog.sessionId === params.sessionId && existingLog.sessionTitle === params.sessionTitle) {
+            return true;
+        }
+
+        const timestamp = Math.max(Date.now(), existingLog.timestamp + 1);
+        const updatedLog: TokenRequestLog = {
+            ...existingLog,
+            timestamp,
+            isoTime: new Date(timestamp).toISOString(),
+            sessionId: params.sessionId || existingLog.sessionId,
+            sessionTitle: params.sessionTitle
+        };
+
+        if (this.hasRawJsonlFiles(dateStr)) {
+            await this.writeManager.appendLog(updatedLog);
+        } else {
+            await this.snapshotManager.upsertRecord(dateStr, updatedLog);
+        }
+
+        this.notifyUpdate();
+        return true;
+    }
+
+    async backfillRequestSession(params: {
+        requestId: string;
+        sessionId: string;
+        sessionTitle?: string;
+    }): Promise<boolean> {
+        const pendingLog = this.pendingLogs.get(params.requestId);
+        if (pendingLog) {
+            pendingLog.sessionId = params.sessionId;
+            if (params.sessionTitle) {
+                pendingLog.sessionTitle = params.sessionTitle;
+            }
+            this.notifyUpdate();
+            return true;
+        }
+
+        const dateStr = this.getDateStrFromRequestId(params.requestId);
+        if (!dateStr) {
+            return false;
+        }
+
+        const existingLog = (await this.getRequestDetails(dateStr)).find(log => log.requestId === params.requestId);
+        if (!existingLog) {
+            return false;
+        }
+        if (existingLog.sessionId === params.sessionId && existingLog.sessionTitle === params.sessionTitle) {
+            return true;
+        }
+
+        const timestamp = Math.max(Date.now(), existingLog.timestamp + 1);
+        const updatedLog: TokenRequestLog = {
+            ...existingLog,
+            timestamp,
+            isoTime: new Date(timestamp).toISOString(),
+            sessionId: params.sessionId,
+            sessionTitle: params.sessionTitle ?? existingLog.sessionTitle
+        };
+
+        if (this.hasRawJsonlFiles(dateStr)) {
+            await this.writeManager.appendLog(updatedLog);
+        } else {
+            await this.snapshotManager.upsertRecord(dateStr, updatedLog);
+        }
+
+        this.notifyUpdate();
+        return true;
     }
 
     // ==================== 读取和统计操作 ====================
@@ -576,6 +680,15 @@ export class TokenFileLogger {
         } catch {
             return false;
         }
+    }
+
+    private getDateStrFromRequestId(requestId: string): string | undefined {
+        const timestampPart = requestId.split('_', 1)[0];
+        const timestamp = Number(timestampPart);
+        if (!Number.isFinite(timestamp) || timestamp <= 0) {
+            return undefined;
+        }
+        return DateUtils.formatDate(new Date(timestamp));
     }
 
     /**

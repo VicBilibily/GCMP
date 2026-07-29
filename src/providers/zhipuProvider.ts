@@ -20,7 +20,6 @@ import { ZhipuWizard } from '../wizards/zhipuWizard';
 import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status/statusBarManager';
 import { RetryableError } from '../utils/retry/retryManager';
-import { classifyRequest } from '../handlers/requestClassifier';
 
 /**
  * 智谱AI 专用模型提供商类
@@ -108,16 +107,8 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
             const modelConfig = this.findModelConfigById(model);
             if (modelConfig?.sdkMode === 'anthropic') {
                 // 先分类（在修改提示词之前，确保分类正确；上层已设置 requestKind 时直接使用）
-                const rtOpts = options as { modelOptions?: Record<string, unknown> };
-                const existingKind = rtOpts.modelOptions?.requestKind as string | undefined;
-                const kind = existingKind ?? classifyRequest(messages, options.tools);
-
-                // 确保 modelOptions 存在并持久化 requestKind
                 // 否则父类会在已被 Claude Code 前缀污染的提示词上重分类，导致子请求退化为 background
-                if (!rtOpts.modelOptions) {
-                    rtOpts.modelOptions = {};
-                }
-                rtOpts.modelOptions.requestKind = kind;
+                this.ensureRequestKind(messages, options);
 
                 // 再注入 Claude Code 前缀（智谱服务端据此做路由）
                 const systemMessage = messages.find(msg => msg.role === vscode.LanguageModelChatMessageRole.System);

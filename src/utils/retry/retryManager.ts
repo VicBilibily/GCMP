@@ -5,7 +5,7 @@
 
 import { Logger } from '../runtime/logger';
 import { t } from '../runtime/l10n';
-import { isRateLimitLikeError } from './retryClassifier';
+import { hasPermanentErrorSignal, isRateLimitLikeError } from './retryClassifier';
 
 /**
  * 重试配置接口
@@ -203,6 +203,10 @@ export class RetryManager {
      * @returns 是否是网络连接错误
      */
     static isNetworkError(error: RetryableError): boolean {
+        // 与 isServerError 同理：永久错误不进入任何可重试分支
+        if (hasPermanentErrorSignal(error as unknown as Record<string, unknown>)) {
+            return false;
+        }
         if (!error.message || typeof error.message !== 'string') {
             return false;
         }
@@ -247,6 +251,12 @@ export class RetryManager {
      * @returns 是否是可重试的服务端错误
      */
     static isServerError(error: RetryableError): boolean {
+        // 永久错误（周期配额/余额/账单等）即使文案命中过载提示也不得重试：
+        // ClinePass INFERENCE_CAP_ERROR 的消息以 "please try again later" 结尾，
+        // 曾被本方法的消息模式误判为可重试的服务端过载
+        if (hasPermanentErrorSignal(error as unknown as Record<string, unknown>)) {
+            return false;
+        }
         const isRetriableStatus = (code?: number): boolean => code === 502 || code === 503 || code === 504;
         if (isRetriableStatus(error.status as number) || isRetriableStatus(error.statusCode as number)) {
             return true;

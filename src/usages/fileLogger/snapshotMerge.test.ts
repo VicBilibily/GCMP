@@ -26,9 +26,12 @@ function createRecord(overrides: Partial<SnapshotRequestRecord> = {}): SnapshotR
         maxInputTokens: overrides.maxInputTokens,
         requestKind: overrides.requestKind,
         sessionId: overrides.sessionId,
+        sessionRecoverySource: overrides.sessionRecoverySource,
+        sessionTitle: overrides.sessionTitle,
         requestInitiator: overrides.requestInitiator,
         capturingTokenCorrelationId: overrides.capturingTokenCorrelationId,
         otelTraceContext: overrides.otelTraceContext,
+        telemetryTurn: overrides.telemetryTurn,
         streamStartTime: overrides.streamStartTime,
         streamEndTime: overrides.streamEndTime,
         actualInput: overrides.actualInput,
@@ -46,6 +49,8 @@ test('mergeSnapshotRecord keeps completed status and usage when overlay falls ba
         status: 'completed',
         timestamp: 1000,
         isoTime: '1970-01-01T00:00:01.000Z',
+        sessionRecoverySource: 'summary-bridge-truncated',
+        telemetryTurn: 7,
         rawUsage: { prompt_tokens: 120, completion_tokens: 30, total_tokens: 150 },
         actualInput: 120,
         outputTokens: 30,
@@ -76,6 +81,8 @@ test('mergeSnapshotRecord keeps completed status and usage when overlay falls ba
     assert.equal(merged.totalTokens, 150);
     assert.equal(merged.streamEndTime, 1500);
     assert.equal(merged.outputSpeed, 75);
+    assert.equal(merged.sessionRecoverySource, 'summary-bridge-truncated');
+    assert.equal(merged.telemetryTurn, 7);
 });
 
 test('mergeSnapshotFiles keeps records unique to both stores and upgrades shared request to completed', () => {
@@ -169,6 +176,35 @@ test('mergeSnapshotRecord prefers newer terminal overlay fields while preserving
     assert.equal(merged.streamStartTime, 1100, 'overlay 缺失时保留 base 的首流时间');
     assert.equal(merged.streamEndTime, 1600);
     assert.equal(merged.outputSpeed, 83);
+});
+
+test('mergeSnapshotRecord keeps late chat-title session reassignment metadata', () => {
+    const completedTitleRequest = createRecord({
+        requestId: 'req-chat-title',
+        status: 'completed',
+        timestamp: 1000,
+        isoTime: '1970-01-01T00:00:01.000Z',
+        requestKind: 'chat-title',
+        sessionId: 'temp-session',
+        sessionRecoverySource: 'new-uuid'
+    });
+    const lateMerge = createRecord({
+        requestId: 'req-chat-title',
+        status: 'completed',
+        timestamp: 2000,
+        isoTime: '1970-01-01T00:00:02.000Z',
+        requestKind: 'chat-title',
+        sessionId: 'main-session',
+        sessionTitle: '查询 Vue 3.6 最新动态'
+    });
+
+    const merged = mergeSnapshotRecord(completedTitleRequest, lateMerge);
+
+    assert.equal(merged.requestKind, 'chat-title');
+    assert.equal(merged.sessionId, 'main-session');
+    assert.equal(merged.sessionRecoverySource, 'new-uuid');
+    assert.equal(merged.sessionTitle, '查询 Vue 3.6 最新动态');
+    assert.equal(merged.timestamp, 1000);
 });
 
 test('three-stage merge keeps all unique records and lets latest overlay upgrade stale incoming snapshot', () => {

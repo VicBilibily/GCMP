@@ -43,10 +43,30 @@ function formatSessionListTime(startTime?: number, endTime?: number): string {
 }
 
 /**
- * 构建左侧会话列表展示标题文本
+ * 构建左侧会话列表的主标题文本（短 ID）
  */
-function buildSessionTitle(group: SessionGroup): string {
+export function buildSessionTitle(group: SessionGroup): string {
     return group.sessionId === UNKNOWN_SESSION_ID ? t('Unknown Session', '未知会话') : `#${group.displayId}`;
+}
+
+/**
+ * 构建详情头部的主标题文本：有正式标题时优先展示标题本身，弱化短 ID 的视觉权重
+ */
+export function buildSessionDetailTitle(group: SessionGroup): string {
+    if (group.sessionId === UNKNOWN_SESSION_ID) {
+        return t('Unknown Session', '未知会话');
+    }
+    return group.title || `#${group.displayId}`;
+}
+
+/**
+ * 构建详情头部的次级会话标识：仅在已有正式标题时展示短 ID，避免与标题争抢视觉主次
+ */
+export function buildSessionDetailMeta(group: SessionGroup): string | undefined {
+    if (group.sessionId === UNKNOWN_SESSION_ID || !group.title) {
+        return undefined;
+    }
+    return `#${group.displayId}`;
 }
 
 /**
@@ -97,6 +117,8 @@ function createSessionCostSpan(totals: RequestTotals): HTMLElement | undefined {
  */
 function createSessionItem(options: {
     title: string;
+    /** 会话标题（仅 VS Code 正式标题 generated），有值时独立一行显示并作为主要识别信息 */
+    sessionTitle?: string;
     titleMeta?: string;
     stats: string;
     /** 会话预估成本 */
@@ -115,7 +137,17 @@ function createSessionItem(options: {
     const inner = createElement('div');
     inner.onclick = (event: MouseEvent) => options.onClick(event.ctrlKey || event.metaKey);
 
+    // 会话标题独立成行，置于主标题（短 ID）上方
+    if (options.sessionTitle) {
+        const sessionTitleEl = createElement('div', 'session-filter-item-session-title');
+        sessionTitleEl.textContent = options.sessionTitle;
+        inner.appendChild(sessionTitleEl);
+    }
+
     const title = createElement('div', 'session-filter-item-title');
+    if (options.sessionTitle) {
+        title.classList.add('session-filter-item-title-secondary');
+    }
     const titleLabel = createElement('span', 'session-filter-item-title-label');
     titleLabel.textContent = options.title;
     title.appendChild(titleLabel);
@@ -192,6 +224,7 @@ export function createSessionFilter(
         list.appendChild(
             createSessionItem({
                 title: buildSessionTitle(group),
+                sessionTitle: group.title,
                 titleMeta: buildSessionTimeText(group),
                 stats: t(
                     'Requests: {0} | Tokens: {1}',

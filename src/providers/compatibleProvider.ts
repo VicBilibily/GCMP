@@ -17,8 +17,6 @@ import { CompatibleModelManager } from '../utils/config/compatibleModelManager';
 import { ConfigManager } from '../utils/config/configManager';
 import { isCancellationError } from '../utils/text/cancellationError';
 import { KnownProviders } from '../utils/config/knownProviders';
-import { classifyRequest } from '../handlers/requestClassifier';
-import { TokenUsagesManager } from '../usages/usagesManager';
 import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status';
 import { configProviders } from './config';
@@ -361,50 +359,36 @@ export class CompatibleProvider extends GenericModelProvider {
             const sdkName = this.getSdkDisplayName(sdkMode);
             Logger.info(`Compatible Provider started handling request (${sdkName}): ${modelConfig.name}`);
 
-            // 请求分类 + 注入到 options.modelOptions（上层已设置 requestKind 时直接使用）
-            const rtOpts = options as { modelOptions?: { requestKind?: string } };
-            if (!rtOpts.modelOptions) {
-                rtOpts.modelOptions = {};
-            }
-            const kind = rtOpts.modelOptions.requestKind ?? classifyRequest(messages, options.tools);
-            rtOpts.modelOptions.requestKind = kind;
-
-            // 计算输入 token 数量
-            const { totalInputTokens, maxInputTokens, estimatedIncrement } = await this.updateContextUsageStatusBar(
-                model,
-                messages,
-                modelConfig,
-                options
-            );
+            const {
+                requestKind,
+                totalInputTokens,
+                maxInputTokens,
+                estimatedIncrement,
+                sessionId,
+                sessionRecoverySource
+            } = await this.prepareTrackedRequestContext(model, modelConfig, messages, options);
 
             // === Token 统计: 记录预估 token ===
             let requestId = '';
-            const sessionId = this.getSessionIdFromMessages(messages, sdkMode);
-            try {
-                const usagesManager = TokenUsagesManager.instance;
 
-                // 获取实际提供商的 key 和显示名称
-                const actualProviderKey = modelConfig.provider || this.providerKey;
-                const actualDisplayName =
-                    modelConfig.provider ?
-                        this.getProviderDisplayName(modelConfig.provider)
-                    :   currentConfig.displayName;
+            // 获取实际提供商的 key 和显示名称
+            const actualProviderKey = modelConfig.provider || this.providerKey;
+            const actualDisplayName =
+                modelConfig.provider ? this.getProviderDisplayName(modelConfig.provider) : currentConfig.displayName;
 
-                requestId = await usagesManager.recordEstimatedTokens({
-                    providerKey: actualProviderKey,
-                    displayName: actualDisplayName,
-                    modelId: model.id,
-                    modelName: model.name,
-                    estimatedInputTokens: totalInputTokens,
-                    estimatedIncrement,
-                    maxInputTokens,
-                    requestKind: kind,
-                    sessionId,
-                    ...this.getEstimatedRequestMetadata(options)
-                });
-            } catch (err) {
-                Logger.warn('Failed to record estimated tokens:', err);
-            }
+            requestId = await this.recordEstimatedRequestTokens({
+                providerKey: actualProviderKey,
+                displayName: actualDisplayName,
+                model,
+                modelConfig,
+                estimatedInputTokens: totalInputTokens,
+                estimatedIncrement,
+                maxInputTokens,
+                requestKind,
+                sessionId,
+                sessionRecoverySource,
+                options
+            });
 
             try {
                 await this.executeModelRequest(

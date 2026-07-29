@@ -498,6 +498,24 @@ body {
             }
         }
 
+        &-item-title-secondary {
+            font-size: 11px;
+            font-weight: 400;
+            color: var(--vscode-descriptionForeground);
+        }
+
+        // 会话标题行：独立一行置于短 ID 标题上方，保持普通字号，不额外放大
+        &-item-session-title {
+            display: block;
+            min-width: 0;
+            font-size: 10px;
+            font-weight: 500;
+            line-height: 1.4;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         &-item-stats,
         &-item-detail,
         &-item-cost {
@@ -520,6 +538,7 @@ body {
         &-item.selected > div .session-filter-item-stats,
         &-item.selected > div .session-filter-item-detail,
         &-item.selected > div .session-filter-item-cost,
+        &-item.selected > div .session-filter-item-title-secondary,
         &-item.selected > div .session-filter-item-title-time {
             color: var(--vscode-list-activeSelectionForeground);
         }
@@ -570,6 +589,12 @@ body {
         &-title {
             margin: 0;
             font-size: 14px;
+        }
+
+        &-title-meta {
+            color: var(--vscode-descriptionForeground);
+            font-size: 11px;
+            font-weight: 400;
         }
 
         &-summary {
@@ -985,6 +1010,12 @@ body {
                 padding: 0;
                 margin-top: -3px;
                 margin-bottom: -0.6em;
+
+                .tokens-session-recovery,
+                .tokens-detail-separator {
+                    font-size: 0.75em;
+                    color: var(--vscode-descriptionForeground);
+                }
 
                 .tokens-session-link {
                     font-size: 0.75em;

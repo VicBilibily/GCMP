@@ -293,6 +293,7 @@ export class TokenUsagesView {
                 command: 'updateDateDetails',
                 date: displayDate,
                 isToday: displayDate === today,
+                isExtensionHostDebugMode: this.context.extensionMode === vscode.ExtensionMode.Development,
                 providers: providers,
                 hourlyStats: dateStats.hourly || {},
                 records: dateRecords // getDateRecords 已经返回扩展后的记录
@@ -436,6 +437,7 @@ export class TokenUsagesView {
                     command: 'updateDateDetails',
                     date,
                     isToday: date === today,
+                    isExtensionHostDebugMode: this.context.extensionMode === vscode.ExtensionMode.Development,
                     providers,
                     hourlyStats: dateStats.hourly || {},
                     records: dateRecords

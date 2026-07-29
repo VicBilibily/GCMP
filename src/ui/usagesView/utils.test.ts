@@ -9,9 +9,12 @@ import {
     buildRequestTotals,
     getCurrencyToggleTitle,
     getNextDisplayCurrency,
+    groupRecordsBySession,
     getStatsNativeCostSplit,
     meanWithoutOutliers,
+    normalizeSessionId,
     normalizeDisplayCurrency,
+    summarizeSessionRecoveryDebugInfo,
     summarizeSessionRecords
 } from './utils';
 
@@ -91,6 +94,23 @@ test('meanWithoutOutliers still downweights outliers when MAD is non-zero', () =
     assert.notEqual(result, undefined);
     assert.ok(result! > 100);
     assert.ok(result! < 103);
+});
+
+test('summarizeSessionRecoveryDebugInfo counts only bridge and new uuid fallbacks', () => {
+    const summary = summarizeSessionRecoveryDebugInfo([
+        { sessionRecoverySource: 'stateful-marker' } as Pick<ExtendedTokenRequestLog, 'sessionRecoverySource'>,
+        { sessionRecoverySource: 'trace-bridge' } as Pick<ExtendedTokenRequestLog, 'sessionRecoverySource'>,
+        { sessionRecoverySource: 'turn-bridge' } as Pick<ExtendedTokenRequestLog, 'sessionRecoverySource'>,
+        { sessionRecoverySource: 'summary-bridge-exact' } as Pick<ExtendedTokenRequestLog, 'sessionRecoverySource'>,
+        { sessionRecoverySource: 'summary-bridge-truncated' } as Pick<ExtendedTokenRequestLog, 'sessionRecoverySource'>,
+        { sessionRecoverySource: 'new-uuid' } as Pick<ExtendedTokenRequestLog, 'sessionRecoverySource'>,
+        {} as Pick<ExtendedTokenRequestLog, 'sessionRecoverySource'>
+    ]);
+
+    assert.deepEqual(summary, {
+        bridgeCount: 4,
+        newUuidCount: 1
+    });
 });
 
 test('getStatsNativeCostSplit prefers record-derived fallback over stale cached split', () => {
@@ -498,6 +518,75 @@ test('summarizeSessionRecords aggregates tokens and speed from completed records
     // token/速度仅聚合 completed（cancelled 的 5000、estimated/failed 的预估回退值均不计入）
     assert.equal(summary.totalTokens, 1000);
     assert.equal(summary.avgSpeed, 50);
+});
+
+test('normalizeSessionId keeps backfilled chat-title inside the target session filter', () => {
+    const sessionId = '973708cc-b913-4678-89f0-e99943f80f5a';
+
+    assert.equal(
+        normalizeSessionId(
+            createExtendedRecord({
+                sessionId,
+                requestKind: 'chat-title',
+                sessionTitle: '搜索Vue 3.6'
+            })
+        ),
+        sessionId
+    );
+
+    assert.equal(
+        normalizeSessionId(
+            createExtendedRecord({
+                sessionId,
+                requestKind: 'inline-progress-message'
+            })
+        ),
+        'unknown'
+    );
+});
+
+test('groupRecordsBySession merges backfilled chat-title into the main session only', () => {
+    const sessionId = '973708cc-b913-4678-89f0-e99943f80f5a';
+    const groups = groupRecordsBySession([
+        createExtendedRecord({
+            requestId: 'main',
+            sessionId,
+            requestKind: 'main-agent',
+            timestamp: 1000,
+            totalTokens: 120,
+            otelTraceContext: {
+                traceId: '00000000000000000000000000000002',
+                spanId: '0000000000000001'
+            }
+        }),
+        createExtendedRecord({
+            requestId: 'title',
+            sessionId,
+            requestKind: 'chat-title',
+            sessionTitle: '搜索Vue 3.6',
+            timestamp: 2000,
+            totalTokens: 20
+        }),
+        createExtendedRecord({
+            requestId: 'progress',
+            sessionId,
+            requestKind: 'inline-progress-message',
+            timestamp: 3000,
+            totalTokens: 10
+        })
+    ]);
+
+    assert.equal(groups.length, 2);
+
+    const mainGroup = groups.find(group => group.sessionId === sessionId);
+    assert.ok(mainGroup);
+    assert.equal(mainGroup.summary.requestCount, 2);
+    assert.equal(mainGroup.title, '搜索Vue 3.6');
+
+    const unknownGroup = groups.find(group => group.sessionId === 'unknown');
+    assert.ok(unknownGroup);
+    assert.equal(unknownGroup.summary.requestCount, 1);
+    assert.equal(unknownGroup.records[0].requestKind, 'inline-progress-message');
 });
 
 test('buildRequestTotals aggregates tokens, cost, latency and duration from completed records only', () => {

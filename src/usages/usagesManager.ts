@@ -8,6 +8,7 @@ import { StatusLogger } from '../utils/runtime/statusLogger';
 import { TokenFileLogger, TokenUsageStatsFromFile } from './fileLogger';
 import { UsageParser, ExtendedTokenRequestLog } from './fileLogger/usageParser';
 import { DateUtils } from './fileLogger/dateUtils';
+import { SessionTitleService } from './sessionTitleService';
 import { InterInstanceBus } from '../interInstance';
 import { LeaderElectionService } from '../status/leaderElectionService';
 import { EventEmitter } from 'events';
@@ -17,16 +18,26 @@ import type {
     DateIndexEntry,
     GenericUsageData,
     OTelTraceContextLog,
-    RawUsageData
+    RawUsageData,
+    SessionRecoverySource
 } from './fileLogger/types';
 import type { MultiDayAnalysisResult } from './multiDay/types';
 import { MultiDayAggregator } from './multiDay/multiDayAggregator';
 import { TrendCalculator } from './multiDay/trendCalculator';
 
+const MAX_SESSION_TITLE_LOOKBACK_DAYS = 7;
+const SESSION_TITLE_MISS_CACHE_TTL_MS = 30 * 60 * 1000;
+
+interface HistoricalSessionTitleCacheEntry {
+    title: string | null;
+    checkedAt: number;
+}
+
 /** updateActualTokens 参数（请求完成后调用） */
 export interface UpdateActualTokensParams {
     requestId: string;
     sessionId?: string;
+    sessionTitle?: string;
     rawUsage?: RawUsageData;
     status: 'completed' | 'failed' | 'cancelled';
     /** 流开始时间 (毫秒时间戳) */
@@ -47,6 +58,7 @@ export class TokenUsagesManager {
     private fileLogger!: TokenFileLogger;
     private eventEmitter: EventEmitter;
     private initialized: boolean = false;
+    private readonly historicalSessionTitleCache = new Map<string, HistoricalSessionTitleCacheEntry>();
 
     private constructor() {
         this.eventEmitter = new EventEmitter();
@@ -144,9 +156,12 @@ export class TokenUsagesManager {
         maxInputTokens?: number;
         requestKind?: string;
         sessionId?: string;
+        sessionRecoverySource?: SessionRecoverySource;
+        sessionTitle?: string;
         requestInitiator?: string;
         capturingTokenCorrelationId?: string;
         otelTraceContext?: OTelTraceContextLog;
+        telemetryTurn?: number;
         timestamp?: number; // 可选: 自定义时间戳(用于测试数据生成)
     }): Promise<string> {
         if (!this.initialized) {
@@ -171,9 +186,12 @@ export class TokenUsagesManager {
                     maxInputTokens: params.maxInputTokens,
                     requestKind: params.requestKind,
                     sessionId: params.sessionId,
+                    sessionRecoverySource: params.sessionRecoverySource,
+                    sessionTitle: params.sessionTitle,
                     requestInitiator: params.requestInitiator,
                     capturingTokenCorrelationId: params.capturingTokenCorrelationId,
                     otelTraceContext: params.otelTraceContext,
+                    telemetryTurn: params.telemetryTurn,
                     timestamp: params.timestamp
                 })
                 .finally(() => {
@@ -210,11 +228,19 @@ export class TokenUsagesManager {
                 normalizedUsage = this.normalizeUsageData(params.rawUsage);
             }
 
+            const currentSessionTitle =
+                params.sessionTitle ??
+                (params.sessionId ? SessionTitleService.instance.getTitle(params.sessionId) : undefined);
+            if (params.sessionId) {
+                SessionTitleService.instance.markSessionCompleted(params.sessionId);
+            }
+
             // 更新文件日志系统（不等待结果）
             this.fileLogger
                 .updateActualTokens({
                     requestId: params.requestId,
                     sessionId: params.sessionId,
+                    sessionTitle: currentSessionTitle,
                     rawUsage: normalizedUsage,
                     status: params.status,
                     streamStartTime: params.streamStartTime,
@@ -334,9 +360,11 @@ export class TokenUsagesManager {
         const allLogs = [...completedRequests, ...pendingLogs];
         // 按时间戳倒序排序（最新的在前）
         allLogs.sort((a, b) => b.timestamp - a.timestamp);
+        this.seedSessionTitlesFromLogs(allLogs);
+        await this.hydrateSessionTitles(this.collectSessionIds(allLogs));
 
         // 扩展记录，添加便捷访问方法
-        const extended = UsageParser.extendLogs(allLogs);
+        const extended = this.enrichSessionTitles(UsageParser.extendLogs(allLogs));
         // 返回最近的 N 条记录
         return extended.slice(0, limit);
     }
@@ -346,7 +374,167 @@ export class TokenUsagesManager {
      */
     async getDateRecords(date: string): Promise<ExtendedTokenRequestLog[]> {
         const details = await this.fileLogger.getRequestDetails(date);
-        return UsageParser.extendLogs(details);
+        this.seedSessionTitlesFromLogs(details);
+        await this.hydrateSessionTitles(this.collectSessionIds(details));
+        return this.enrichSessionTitles(UsageParser.extendLogs(details));
+    }
+
+    async hydrateSessionTitle(sessionId: string): Promise<string | undefined> {
+        await this.hydrateSessionTitles([sessionId]);
+        return SessionTitleService.instance.getTitle(sessionId);
+    }
+
+    async backfillResolvedSessionTitle(sessionId: string, title: string, requestId?: string): Promise<void> {
+        if (!sessionId || !title || !this.initialized) {
+            return;
+        }
+
+        this.setHistoricalSessionTitleCache(sessionId, title);
+
+        if (!requestId) {
+            return;
+        }
+
+        try {
+            const persisted = await this.fileLogger.backfillSessionTitle({
+                requestId,
+                sessionId,
+                sessionTitle: title
+            });
+            if (!persisted) {
+                StatusLogger.debug(
+                    `[UsagesManager] Skip late session title backfill because request log was not found: ${requestId}`
+                );
+            }
+        } catch (error) {
+            StatusLogger.warn(
+                `[UsagesManager] Failed to backfill late session title for request ${requestId}: ${error}`
+            );
+        }
+    }
+
+    async backfillRequestSession(requestId: string, sessionId: string, sessionTitle?: string): Promise<void> {
+        if (!requestId || !sessionId || !this.initialized) {
+            return;
+        }
+
+        if (sessionTitle) {
+            SessionTitleService.instance.rememberResolvedTitle(sessionId, sessionTitle);
+            this.setHistoricalSessionTitleCache(sessionId, sessionTitle);
+        }
+
+        try {
+            const persisted = await this.fileLogger.backfillRequestSession({
+                requestId,
+                sessionId,
+                sessionTitle
+            });
+            if (!persisted) {
+                StatusLogger.debug(
+                    `[UsagesManager] Skip request session backfill because request log was not found: ${requestId}`
+                );
+            }
+        } catch (error) {
+            StatusLogger.warn(`[UsagesManager] Failed to backfill request session for ${requestId}: ${error}`);
+        }
+    }
+
+    private seedSessionTitlesFromLogs(
+        logs: ReadonlyArray<Pick<ExtendedTokenRequestLog, 'sessionId' | 'sessionTitle' | 'timestamp'>>
+    ): void {
+        for (const log of logs) {
+            if (!log.sessionId || !log.sessionTitle) {
+                continue;
+            }
+            SessionTitleService.instance.rememberResolvedTitle(log.sessionId, log.sessionTitle, log.timestamp);
+            this.setHistoricalSessionTitleCache(log.sessionId, log.sessionTitle);
+        }
+    }
+
+    private collectSessionIds(logs: ReadonlyArray<Pick<ExtendedTokenRequestLog, 'sessionId'>>): ReadonlyArray<string> {
+        const sessionIds = new Set<string>();
+        for (const log of logs) {
+            if (log.sessionId) {
+                sessionIds.add(log.sessionId);
+            }
+        }
+        return [...sessionIds];
+    }
+
+    private async hydrateSessionTitles(sessionIds: Iterable<string>): Promise<void> {
+        const unresolved = new Set<string>();
+        const now = Date.now();
+
+        for (const sessionId of sessionIds) {
+            if (!sessionId) {
+                continue;
+            }
+            const currentTitle = SessionTitleService.instance.getTitle(sessionId);
+            if (currentTitle) {
+                this.setHistoricalSessionTitleCache(sessionId, currentTitle);
+                continue;
+            }
+            const cachedEntry = this.historicalSessionTitleCache.get(sessionId);
+            if (cachedEntry) {
+                if (cachedEntry.title) {
+                    SessionTitleService.instance.rememberResolvedTitle(sessionId, cachedEntry.title);
+                    continue;
+                }
+                if (now - cachedEntry.checkedAt < SESSION_TITLE_MISS_CACHE_TTL_MS) {
+                    continue;
+                }
+            }
+            unresolved.add(sessionId);
+        }
+
+        if (unresolved.size === 0) {
+            return;
+        }
+
+        const summaries = await this.getAllDateSummaries();
+        const oldestAllowedDate = DateUtils.getDateStringDaysAgo(MAX_SESSION_TITLE_LOOKBACK_DAYS);
+        for (const summary of summaries) {
+            if (unresolved.size === 0) {
+                break;
+            }
+            if (summary.date < oldestAllowedDate) {
+                break;
+            }
+            const details = await this.fileLogger.getRequestDetails(summary.date);
+            this.seedSessionTitlesFromLogs(details);
+            for (const record of details) {
+                if (!record.sessionId || !unresolved.has(record.sessionId) || !record.sessionTitle) {
+                    continue;
+                }
+                unresolved.delete(record.sessionId);
+            }
+        }
+
+        for (const sessionId of unresolved) {
+            this.setHistoricalSessionTitleCache(sessionId, null);
+        }
+    }
+
+    private setHistoricalSessionTitleCache(sessionId: string, title: string | null): void {
+        this.historicalSessionTitleCache.set(sessionId, {
+            title,
+            checkedAt: Date.now()
+        });
+    }
+
+    private enrichSessionTitles(records: ExtendedTokenRequestLog[]): ExtendedTokenRequestLog[] {
+        // 以当前进程内 SessionTitleService 的权威映射覆盖日志快照：
+        // 标题请求晚到时，已完成请求在本窗口内仍可立即显示正式标题。
+        for (const record of records) {
+            if (!record.sessionId) {
+                continue;
+            }
+            const title = SessionTitleService.instance.getTitle(record.sessionId);
+            if (title) {
+                record.sessionTitle = title;
+            }
+        }
+        return records;
     }
 
     /**
