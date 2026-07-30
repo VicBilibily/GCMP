@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.13] - 2026-07-30
+
+### 变更
+
+- **移除 `editTools` 模型配置**：stable 构建禁用 proposed API 后该字段会触发注册失败，相关配置项一并清理，并新增运行时兜底过滤。
+- **系统提示词改用内部标记**：GCMP 自构造的系统提示词改用 `User` role + `name="gcmp-system"` 标记，handler 转换层再转为 provider 的 system / instructions 字段。
+
+---
+
+### Changed
+
+- **Drop `editTools` model config**: The field is removed because stable builds reject the underlying proposal; a runtime guard covers any leftover entries.
+- **System prompts use an internal marker**: GCMP-constructed system prompts now use `User` role + `name="gcmp-system"`; handler converters re-emit them as the provider's system / instructions field.
+
 ## [0.26.12] - 2026-07-30
 
 ### 新增
