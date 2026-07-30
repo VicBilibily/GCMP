@@ -331,7 +331,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             options,
             this.getProviderKeyForModel(modelConfig)
         );
-        await this.prepareRequestSession(sessionId, messages);
+        await this.prepareRequestSession(sessionId, messages, {
+            skipHistoricalHydrate: sessionRecoverySource === 'new-uuid'
+        });
         return {
             requestKind,
             sessionId,
@@ -1021,7 +1023,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
      */
     protected async prepareRequestSession(
         sessionId: string,
-        messages: readonly LanguageModelChatMessage[]
+        messages: readonly LanguageModelChatMessage[],
+        options?: { skipHistoricalHydrate?: boolean }
     ): Promise<void> {
         try {
             const rawUserText = SessionTitleService.extractUserRequestText(messages);
@@ -1032,6 +1035,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             Logger.debug('Failed to register session title for current turn:', err);
         }
 
+        // 全新 UUID 在历史日志中必然无标题快照，跳过日志扫描避免阻塞首个请求
+        if (options?.skipHistoricalHydrate) {
+            return;
+        }
         try {
             await TokenUsagesManager.instance.hydrateSessionTitle(sessionId);
         } catch (err) {

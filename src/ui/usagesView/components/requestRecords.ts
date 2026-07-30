@@ -1110,7 +1110,12 @@ export function createRequestRecordsSection(
     }
 
     const trackedGroups =
-        isTrackMode ? visibleSessionGroups.filter(group => trackedSessionIds.includes(group.sessionId)) : [];
+        isTrackMode ?
+            // 跟踪块按开始时间倒序：startTime 稳定，不随新请求推进的 endTime 重排导致顺序跳动
+            visibleSessionGroups
+                .filter(group => trackedSessionIds.includes(group.sessionId))
+                .sort((a, b) => (b.summary.startTime || 0) - (a.summary.startTime || 0))
+        :   [];
     let trackDetail: HTMLElement | undefined;
     if (isTrackMode) {
         trackDetail = createSessionTrackView(trackedGroups, allSessionIds);

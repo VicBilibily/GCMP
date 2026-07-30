@@ -413,32 +413,6 @@ export class TokenUsagesManager {
         }
     }
 
-    async backfillRequestSession(requestId: string, sessionId: string, sessionTitle?: string): Promise<void> {
-        if (!requestId || !sessionId || !this.initialized) {
-            return;
-        }
-
-        if (sessionTitle) {
-            SessionTitleService.instance.rememberResolvedTitle(sessionId, sessionTitle);
-            this.setHistoricalSessionTitleCache(sessionId, sessionTitle);
-        }
-
-        try {
-            const persisted = await this.fileLogger.backfillRequestSession({
-                requestId,
-                sessionId,
-                sessionTitle
-            });
-            if (!persisted) {
-                StatusLogger.debug(
-                    `[UsagesManager] Skip request session backfill because request log was not found: ${requestId}`
-                );
-            }
-        } catch (error) {
-            StatusLogger.warn(`[UsagesManager] Failed to backfill request session for ${requestId}: ${error}`);
-        }
-    }
-
     private seedSessionTitlesFromLogs(
         logs: ReadonlyArray<Pick<ExtendedTokenRequestLog, 'sessionId' | 'sessionTitle' | 'timestamp'>>
     ): void {

@@ -473,53 +473,6 @@ export class TokenFileLogger {
         return true;
     }
 
-    async backfillRequestSession(params: {
-        requestId: string;
-        sessionId: string;
-        sessionTitle?: string;
-    }): Promise<boolean> {
-        const pendingLog = this.pendingLogs.get(params.requestId);
-        if (pendingLog) {
-            pendingLog.sessionId = params.sessionId;
-            if (params.sessionTitle) {
-                pendingLog.sessionTitle = params.sessionTitle;
-            }
-            this.notifyUpdate();
-            return true;
-        }
-
-        const dateStr = this.getDateStrFromRequestId(params.requestId);
-        if (!dateStr) {
-            return false;
-        }
-
-        const existingLog = (await this.getRequestDetails(dateStr)).find(log => log.requestId === params.requestId);
-        if (!existingLog) {
-            return false;
-        }
-        if (existingLog.sessionId === params.sessionId && existingLog.sessionTitle === params.sessionTitle) {
-            return true;
-        }
-
-        const timestamp = Math.max(Date.now(), existingLog.timestamp + 1);
-        const updatedLog: TokenRequestLog = {
-            ...existingLog,
-            timestamp,
-            isoTime: new Date(timestamp).toISOString(),
-            sessionId: params.sessionId,
-            sessionTitle: params.sessionTitle ?? existingLog.sessionTitle
-        };
-
-        if (this.hasRawJsonlFiles(dateStr)) {
-            await this.writeManager.appendLog(updatedLog);
-        } else {
-            await this.snapshotManager.upsertRecord(dateStr, updatedLog);
-        }
-
-        this.notifyUpdate();
-        return true;
-    }
-
     // ==================== 读取和统计操作 ====================
 
     /**
