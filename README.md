@@ -440,7 +440,6 @@ GCMP 提供 **Compatible Provider**，用于支持任何 OpenAI 或 Anthropic �
             "capabilities": {
                 "toolCalling": true, // Agent模式下模型必须支持工具调用
                 "imageInput": false
-                // "editTools": ["multi-find-replace", "find-replace", "code-rewrite"] // 可选：模型偏好的编辑工具，对应 VS Code LanguageModelChatCapabilities.editTools
             },
             // customHeader 和 extraBody 可按需设置
             "customHeader": {

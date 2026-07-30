@@ -24,7 +24,7 @@ import type {
     ToolResultBlockParam
 } from '@anthropic-ai/sdk/resources';
 import { ModelConfig } from '../types/sharedTypes';
-import { CacheType, CustomDataPartMimeTypes } from './types';
+import { CacheType, CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from './types';
 
 /**
  * 思考部分的元数据接口
@@ -317,6 +317,19 @@ export function apiMessageToAnthropicMessage(
                 role: 'assistant',
                 content: apiMessageToAnthropicContent(message, model)
             });
+        } else if (
+            message.role === vscode.LanguageModelChatMessageRole.User &&
+            message.name === GCMP_SYSTEM_MESSAGE_NAME
+        ) {
+            // GCMP 构造的系统提示词用 name=GCMP_SYSTEM_MESSAGE_NAME 标记，转为 Anthropic system 参数
+            systemMessage.text += message.content
+                .map(p => {
+                    if (p instanceof vscode.LanguageModelTextPart) {
+                        return p.value;
+                    }
+                    return '';
+                })
+                .join('');
         } else if (message.role === vscode.LanguageModelChatMessageRole.User) {
             unmergedMessages.push({
                 role: 'user',

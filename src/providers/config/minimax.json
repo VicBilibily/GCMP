@@ -15,7 +15,7 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": { "USD": [0.3, 1.2, 0.06], "RMB": [2.1, 8.4, 0.42] },
                 "tiers": [
@@ -114,7 +114,7 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "serviceTier": ["default", "priority"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": { "USD": [0.3, 1.2, 0.06], "RMB": [2.1, 8.4, 0.42] },
                 "tiers": [

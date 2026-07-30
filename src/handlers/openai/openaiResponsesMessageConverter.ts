@@ -5,7 +5,7 @@ import type { ModelConfig } from '../../types/sharedTypes';
 import { Logger } from '../../utils/runtime/logger';
 import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
 import { decodeStatefulMarker } from '../statefulMarker';
-import { CustomDataPartMimeTypes } from '../types';
+import { CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from '../types';
 import type { OpenAIHandler } from '../openaiHandler';
 import { OpenAIResponsesCallIdResolver } from './openaiResponsesCallIdResolver';
 
@@ -43,7 +43,11 @@ export class OpenAIResponsesMessageConverter {
         const callIdResolver = new OpenAIResponsesCallIdResolver();
 
         for (const [messageIndex, message] of messages.entries()) {
-            const role = this.mapRole(message.role);
+            let role = this.mapRole(message.role);
+            // GCMP 构造的系统提示词用 name=GCMP_SYSTEM_MESSAGE_NAME 标记，转为 Responses instructions
+            if (role === 'user' && message.name === GCMP_SYSTEM_MESSAGE_NAME) {
+                role = 'system';
+            }
             const textParts: string[] = [];
             const imageParts: vscode.LanguageModelDataPart[] = [];
             const toolCalls: Array<{ id: string; name: string; args: string }> = [];

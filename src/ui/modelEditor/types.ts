@@ -42,8 +42,6 @@ export interface ModelFormData {
     maxOutputTokens: number;
     toolCalling: boolean;
     imageInput: boolean;
-    /** 模型偏好的编辑工具列表，true 时使用默认集 */
-    editTools?: boolean | string[];
     useInstructions: boolean | undefined;
     webSearchTool: boolean | undefined;
     /** webSearchTool 对象配置（JSON 字符串），anthropic / openai-responses 模式支持 */

@@ -26,7 +26,7 @@ import { StreamReporter } from './streamReporter';
 import * as liveMetrics from './liveMetrics';
 import { decodeStatefulMarker } from './statefulMarker';
 import { shouldInjectReasoningPlaceholder } from './reasoningPlaceholder';
-import { CustomDataPartMimeTypes } from './types';
+import { CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from './types';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import { isSubRequest, type RequestKind } from './requestClassifier';
 import { preprocessOpenAIChatRequest } from './openai/openaiChatRequestPreprocessor';
@@ -1307,6 +1307,10 @@ export class OpenAIHandler {
             case vscode.LanguageModelChatMessageRole.System:
                 return this.convertSystemMessage(message);
             case vscode.LanguageModelChatMessageRole.User:
+                // GCMP 构造的系统提示词用 name=GCMP_SYSTEM_MESSAGE_NAME 标记，转为 OpenAI system 消息
+                if (message.name === GCMP_SYSTEM_MESSAGE_NAME) {
+                    return this.convertSystemMessage(message);
+                }
                 return this.convertUserMessage(message, modelConfig);
             case vscode.LanguageModelChatMessageRole.Assistant:
                 return this.convertAssistantMessage(message, modelConfig);

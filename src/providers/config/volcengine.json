@@ -258,7 +258,7 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["max", "high", "low"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": { "RMB": [20.0, 100.0, 2.0] }
         },
         {
@@ -272,7 +272,7 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "extraBody": { "thinking": { "type": "enabled" } },
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": { "RMB": [6.5, 27.0, 1.3] }
         },
         {
@@ -286,7 +286,7 @@
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true, "editTools": true },
+            "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": { "RMB": [6.5, 27.0, 1.1] }
         },
         {

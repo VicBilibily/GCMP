@@ -16,7 +16,7 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false, "editTools": true },
+            "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": { "USD": [0.435, 0.87, 0.0036], "RMB": [3, 6, 0.025] }
         },
         {

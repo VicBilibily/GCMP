@@ -18,7 +18,7 @@ import { ConfigManager } from '../utils/config/configManager';
 import { Logger } from '../utils/runtime/logger';
 import { t } from '../utils/runtime/l10n';
 import { getRegisteredProvider } from '../utils/config/providerRegistry';
-import { isVSCode129OrLater } from '../utils/model/languageModelInfo';
+import { GCMP_SYSTEM_MESSAGE_NAME } from '../handlers/types';
 
 function throwIfCancelled(token: vscode.CancellationToken): void {
     if (token.isCancellationRequested) {
@@ -124,13 +124,14 @@ export class GeneratorService {
         const messages: vscode.LanguageModelChatMessage[] = [];
 
         // System Role 消息：部分模型要求首条消息为 system role
-        // VS Code 1.129.0+ 的 stable 构建会清空 enabledApiProposals，导致 languageModelSystem 检查失败
-        // 因此 1.129.0+ 降级为 User 消息
-        const systemRole =
-            isVSCode129OrLater() ?
-                vscode.LanguageModelChatMessageRole.User
-            :   vscode.LanguageModelChatMessageRole.System;
-        messages.push(new vscode.LanguageModelChatMessage(systemRole, PromptService.generateCommitSystemMessage()));
+        // 使用 User role + name=GCMP_SYSTEM_MESSAGE_NAME 标记，handler 转换层识别后转为 system
+        messages.push(
+            new vscode.LanguageModelChatMessage(
+                vscode.LanguageModelChatMessageRole.User,
+                PromptService.generateCommitSystemMessage(),
+                GCMP_SYSTEM_MESSAGE_NAME
+            )
+        );
 
         messages.push(...this.buildPerFileAttachmentMessages(diffParts.staged, 'staged'));
         messages.push(...this.buildPerFileAttachmentMessages(diffParts.tracked, 'tracked'));

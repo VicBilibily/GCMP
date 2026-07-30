@@ -433,7 +433,6 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
             "capabilities": {
                 "toolCalling": true, // Model must support tool calling in Agent mode
                 "imageInput": false
-                // "editTools": ["multi-find-replace", "find-replace", "code-rewrite"] // Optional: model-preferred editing tools, corresponds to VS Code LanguageModelChatCapabilities.editTools
             },
             // customHeader and extraBody are optional
             "customHeader": {

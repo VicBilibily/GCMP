@@ -180,12 +180,10 @@ export class ModelEditor {
         // 还原 capabilities 嵌套结构
         model.capabilities = {
             toolCalling: data.toolCalling,
-            imageInput: data.imageInput,
-            editTools: data.editTools
+            imageInput: data.imageInput
         };
         delete (model as { toolCalling?: boolean }).toolCalling;
         delete (model as { imageInput?: boolean }).imageInput;
-        delete (model as { editTools?: boolean | string[] }).editTools;
         // 删除仅用于表单内部传输的辅助字段，避免泄露到 settings.json
         delete (model as { webSearchToolConfig?: string }).webSearchToolConfig;
         delete (model as { nativeTools?: string }).nativeTools;
@@ -382,7 +380,6 @@ export class ModelEditor {
             maxOutputTokens: model?.maxOutputTokens || 4096,
             toolCalling: model?.capabilities?.toolCalling || false,
             imageInput: model?.capabilities?.imageInput || false,
-            editTools: model?.capabilities?.editTools,
             useInstructions: model?.useInstructions,
             webSearchTool: model?.webSearchTool ? true : undefined,
             webSearchToolConfig:

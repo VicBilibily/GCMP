@@ -9,7 +9,7 @@ import * as path from 'node:path';
 import { Logger } from '../../utils/runtime/logger';
 import { ConfigManager } from '../../utils/config/configManager';
 import { CompatibleModelManager } from '../../utils/config/compatibleModelManager';
-import { isVSCode129OrLater } from '../../utils/model/languageModelInfo';
+import { GCMP_SYSTEM_MESSAGE_NAME } from '../../handlers/types';
 
 /**
  * Vision 分析结果
@@ -140,11 +140,12 @@ export async function analyzeImagesWithSystem(
         return new vscode.LanguageModelDataPart(Buffer.from(base64, 'base64'), `image/${ext}`);
     });
 
-    // VS Code 1.129.0+ 的 stable 构建会清空 enabledApiProposals，导致 languageModelSystem 检查失败
-    // 因此 1.129.0+ 降级为 User 消息
-    const systemRole =
-        isVSCode129OrLater() ? vscode.LanguageModelChatMessageRole.User : vscode.LanguageModelChatMessageRole.System;
-    const systemMessage = new vscode.LanguageModelChatMessage(systemRole, systemPrompt);
+    // System 提示词用 User role + name=GCMP_SYSTEM_MESSAGE_NAME 标记，handler 转换层识别后转为 system
+    const systemMessage = new vscode.LanguageModelChatMessage(
+        vscode.LanguageModelChatMessageRole.User,
+        systemPrompt,
+        GCMP_SYSTEM_MESSAGE_NAME
+    );
     const userMessage = vscode.LanguageModelChatMessage.User([new vscode.LanguageModelTextPart(prompt), ...imageParts]);
 
     const cts = token ? undefined : new vscode.CancellationTokenSource();

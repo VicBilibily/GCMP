@@ -236,8 +236,6 @@ export function collectFormData(state: EditorState): ModelFormData | null {
     const maxOutputTokens = parseInt((document.getElementById('maxOutputTokens') as HTMLInputElement).value) || 8192;
     const toolCalling = (document.getElementById('toolCalling') as HTMLInputElement).checked;
     const imageInput = (document.getElementById('imageInput') as HTMLInputElement).checked;
-    // editTools 不提供 UI 控件，从原始状态透传保留
-    const editTools = state.model.editTools;
     const useInstructionsEl = document.getElementById('useInstructions') as HTMLInputElement | null;
     const webSearchToolEl = document.getElementById('webSearchTool') as HTMLInputElement | null;
     const webSearchToolConfigEl = document.getElementById('webSearchToolConfig') as HTMLTextAreaElement | null;
@@ -290,7 +288,6 @@ export function collectFormData(state: EditorState): ModelFormData | null {
         maxOutputTokens,
         toolCalling,
         imageInput,
-        editTools,
         useInstructions,
         webSearchTool,
         webSearchToolConfig,
