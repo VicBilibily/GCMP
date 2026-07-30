@@ -64,6 +64,22 @@ type RuntimeProvideLanguageModelChatResponseOptions = ProvideLanguageModelChatRe
     modelOptions?: RuntimeModelOptionsTelemetry;
 };
 
+function isSubagentRequestKind(requestKind?: string): boolean {
+    return requestKind === 'search-subagent' || requestKind === 'execution-subagent';
+}
+
+function shouldPublishResolvedCrossProviderTraceHint(requestKind?: string): boolean {
+    return requestKind === 'main-agent' || requestKind === 'summarization' || isSubagentRequestKind(requestKind);
+}
+
+function shouldPublishNewSessionCrossProviderTraceHint(requestKind?: string): boolean {
+    return requestKind === 'main-agent' || requestKind === 'summarization';
+}
+
+function shouldPublishNewSessionProviderTraceHint(requestKind?: string): boolean {
+    return requestKind === 'main-agent' || requestKind === 'summarization';
+}
+
 interface EstimatedRequestTrackingParams {
     providerKey: string;
     displayName: string;
@@ -907,7 +923,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     sessionId = sessionId.slice(sessionIdx + '_session_'.length);
                     Logger.debug(`Backward compat: extracted UUID from old sessionId format: ${sessionId}`);
                 }
-                SessionRecoveryService.instance.rememberSessionHint(sessionId, recoveryMetadata);
+                SessionRecoveryService.instance.rememberSessionHint(sessionId, recoveryMetadata, undefined, {
+                    publishProviderAgnosticTraceHint: shouldPublishResolvedCrossProviderTraceHint(requestKind)
+                });
                 return {
                     sessionId,
                     sessionRecoverySource: 'stateful-marker'
@@ -923,7 +941,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             });
             if (recovered) {
                 Logger.info(`Recovered sessionId via summary bridge (${recovered.matchType}): ${recovered.sessionId}`);
-                SessionRecoveryService.instance.rememberSessionHint(recovered.sessionId, recoveryMetadata);
+                SessionRecoveryService.instance.rememberSessionHint(recovered.sessionId, recoveryMetadata, undefined, {
+                    publishProviderAgnosticTraceHint: shouldPublishResolvedCrossProviderTraceHint(requestKind)
+                });
                 return {
                     sessionId: recovered.sessionId,
                     sessionRecoverySource: `summary-bridge-${recovered.matchType}`
@@ -933,7 +953,14 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             const turnRecoveredSessionId = SessionRecoveryService.instance.resolveSessionIdFromTurn(recoveryMetadata);
             if (turnRecoveredSessionId) {
                 Logger.info(`Recovered sessionId via turn bridge: ${turnRecoveredSessionId}`);
-                SessionRecoveryService.instance.rememberSessionHint(turnRecoveredSessionId, recoveryMetadata);
+                SessionRecoveryService.instance.rememberSessionHint(
+                    turnRecoveredSessionId,
+                    recoveryMetadata,
+                    undefined,
+                    {
+                        publishProviderAgnosticTraceHint: shouldPublishResolvedCrossProviderTraceHint(requestKind)
+                    }
+                );
                 return {
                     sessionId: turnRecoveredSessionId,
                     sessionRecoverySource: 'turn-bridge'
@@ -945,9 +972,26 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             const tracedSessionId = SessionRecoveryService.instance.resolveSessionIdFromTrace(recoveryMetadata);
             if (tracedSessionId) {
                 Logger.info(`Recovered sessionId via trace bridge: ${tracedSessionId}`);
-                SessionRecoveryService.instance.rememberSessionHint(tracedSessionId, recoveryMetadata);
+                SessionRecoveryService.instance.rememberSessionHint(tracedSessionId, recoveryMetadata, undefined, {
+                    publishProviderAgnosticTraceHint: shouldPublishResolvedCrossProviderTraceHint(requestKind)
+                });
                 return {
                     sessionId: tracedSessionId,
+                    sessionRecoverySource: 'trace-bridge'
+                };
+            }
+        }
+
+        if (isSubagentRequestKind(requestKind) && recoveryMetadata.traceId) {
+            const parentSessionId =
+                SessionRecoveryService.instance.resolveSessionIdFromTraceAcrossProviders(recoveryMetadata);
+            if (parentSessionId) {
+                Logger.info(`Recovered sessionId via subagent trace bridge: ${parentSessionId}`);
+                SessionRecoveryService.instance.rememberSessionHint(parentSessionId, recoveryMetadata, undefined, {
+                    publishProviderAgnosticTraceHint: shouldPublishResolvedCrossProviderTraceHint(requestKind)
+                });
+                return {
+                    sessionId: parentSessionId,
                     sessionRecoverySource: 'trace-bridge'
                 };
             }
@@ -957,7 +1001,20 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 这里也要立刻登记 trace hint：Copilot 可能在新会话首轮回答后立即触发 summarization，
         // 若不先把“新建 session ↔ 当前 trace”记住，紧随其后的压缩请求会再次掉回 new-uuid。
         const sessionId = crypto.randomUUID();
-        SessionRecoveryService.instance.rememberSessionHint(sessionId, recoveryMetadata);
+        const publishNewSessionProviderTraceHint = shouldPublishNewSessionProviderTraceHint(requestKind);
+        SessionRecoveryService.instance.rememberSessionHint(
+            sessionId,
+            recoveryMetadata,
+            undefined,
+            publishNewSessionProviderTraceHint ?
+                {
+                    publishProviderAgnosticTraceHint: shouldPublishNewSessionCrossProviderTraceHint(requestKind)
+                }
+            :   {
+                    publishProviderTraceHint: false,
+                    publishProviderAgnosticTraceHint: false
+                }
+        );
         return {
             sessionId,
             sessionRecoverySource: 'new-uuid'

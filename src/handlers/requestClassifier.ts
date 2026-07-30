@@ -7,6 +7,7 @@
 import * as vscode from 'vscode';
 import { REQUEST_KIND_DISPLAY_NAMES } from './requestKindDisplayNames';
 import { isConversationCompactionPromptText } from './conversationCompactionPrompt';
+import { classifyModeOverlaySubagent } from './subagentModeClassifier';
 
 /**
  * Copilot Chat 请求类型
@@ -291,19 +292,26 @@ export function classifyRequest(
         return 'summarization';
     }
 
-    // 4. 系统提示前缀匹配
+    // 4. Explore / Execution mode 叠加提示：某些子代理会复用 main-agent 首行，
+    //    真实身份藏在后续的 <modeInstructions> 中，必须在 main-agent 前缀兜底前识别。
+    const modeOverlayKind = classifyModeOverlaySubagent(firstText, toolNames);
+    if (modeOverlayKind) {
+        return modeOverlayKind;
+    }
+
+    // 5. 系统提示前缀匹配
     for (const [prefix, kind] of SYSTEM_PROMPT_PREFIXES) {
         if (firstText.startsWith(prefix)) {
             return kind;
         }
     }
 
-    // 5. 主 Agent 标记兜底
+    // 6. 主 Agent 标记兜底
     if (firstText.includes('<skills>') || firstText.includes('<agents>')) {
         return 'main-agent';
     }
 
-    // 6. 兜底
+    // 7. 兜底
     if (toolNames.length > 0 || firstText.length > 0) {
         return 'background';
     }

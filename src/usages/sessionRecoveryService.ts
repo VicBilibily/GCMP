@@ -41,9 +41,18 @@ interface SessionRecoveryMatchScore {
     score: number;
 }
 
+interface RememberSessionHintOptions {
+    publishProviderTraceHint?: boolean;
+    publishProviderAgnosticTraceHint?: boolean;
+}
+
 const MAX_SUMMARY_KEY_LENGTH = 6_000;
 const MIN_SUMMARY_KEY_LENGTH = 80;
 const MAX_ENTRIES = 1_000;
+const MAX_PROVIDER_AGNOSTIC_TRACE_HINTS_PER_TRACE = 16;
+// 某些直接拉起的子代理不会继承主请求的 telemetryTurn，
+// 而是从 1 重新开始；此时只能在“同一 trace 的活跃 hint 仅指向一个 session”时放宽匹配。
+const SUBAGENT_TRACE_TURN_RESET_VALUE = 1;
 const ENTRY_TTL_MS = 7 * 24 * 60 * 60 * 1_000;
 // 压缩摘要请求在网络拥塞/大上下文场景下可能持续数分钟；
 // trace/turn bridge 的窗口若只有 2 分钟，会让合法续会话在 compaction 完成后退化为 new-uuid。
@@ -77,8 +86,27 @@ function getTraceHintKey(metadata?: SessionRecoveryMetadata): string | undefined
     return `${metadata.providerKey}:${metadata.traceId}`;
 }
 
+function getProviderAgnosticTraceHintKey(metadata?: SessionRecoveryMetadata): string | undefined {
+    return metadata?.traceId;
+}
+
 function isTelemetryTurnClose(left?: number, right?: number): boolean {
     return left !== undefined && right !== undefined && Math.abs(left - right) <= 1;
+}
+
+function getTraceHintScore(hint: SessionTraceHint, metadata?: SessionRecoveryMetadata): number | undefined {
+    if (metadata?.telemetryTurn === undefined || hint.telemetryTurn === undefined) {
+        return 0;
+    }
+
+    const diff = Math.abs(hint.telemetryTurn - metadata.telemetryTurn);
+    if (diff > 1) {
+        return undefined;
+    }
+    if (diff === 0) {
+        return 20;
+    }
+    return 10;
 }
 
 function getTurnBonus(entry: SessionRecoveryEntry, metadata?: SessionRecoveryMetadata): number {
@@ -147,6 +175,7 @@ export class SessionRecoveryService {
     private readonly entries = new Map<string, SessionRecoveryEntry>();
     private readonly entrySessionIdsByProvider = new Map<string, Set<string>>();
     private readonly traceHints = new Map<string, SessionTraceHint>();
+    private readonly providerAgnosticTraceHints = new Map<string, SessionTraceHint[]>();
     private readonly latestSessionHints = new Map<string, SessionTraceHint>();
     private readonly turnHints = new Map<string, SessionTurnHint[]>();
 
@@ -204,28 +233,39 @@ export class SessionRecoveryService {
         this.pruneEntries();
     }
 
-    rememberSessionHint(sessionId: string, metadata?: SessionRecoveryMetadata, updatedAt = this.now()): void {
+    rememberSessionHint(
+        sessionId: string,
+        metadata?: SessionRecoveryMetadata,
+        updatedAt = this.now(),
+        options: RememberSessionHintOptions = {}
+    ): void {
         const traceHintKey = getTraceHintKey(metadata);
-        if (!sessionId || !traceHintKey) {
+        const providerAgnosticTraceHintKey = getProviderAgnosticTraceHintKey(metadata);
+        if (!sessionId || !providerAgnosticTraceHintKey) {
             return;
         }
 
-        const { providerKey, traceId, telemetryTurn } = metadata!;
+        const { publishProviderTraceHint = true, publishProviderAgnosticTraceHint = true } = options;
 
-        this.traceHints.set(traceHintKey, {
+        const previousHint = this.latestSessionHints.get(sessionId);
+        const { providerKey, traceId } = metadata!;
+        const telemetryTurn = metadata?.telemetryTurn ?? previousHint?.telemetryTurn;
+
+        const nextHint: SessionTraceHint = {
             sessionId,
             providerKey,
             traceId,
             telemetryTurn,
             updatedAt
-        });
-        this.latestSessionHints.set(sessionId, {
-            sessionId,
-            providerKey,
-            traceId,
-            telemetryTurn,
-            updatedAt
-        });
+        };
+
+        if (traceHintKey && publishProviderTraceHint) {
+            this.traceHints.set(traceHintKey, nextHint);
+        }
+        if (publishProviderAgnosticTraceHint) {
+            this.rememberProviderAgnosticTraceHint(providerAgnosticTraceHintKey, nextHint);
+        }
+        this.latestSessionHints.set(sessionId, nextHint);
         this.pruneTraceHints();
     }
 
@@ -236,20 +276,76 @@ export class SessionRecoveryService {
             return undefined;
         }
 
-        const hint = this.traceHints.get(traceHintKey);
+        return this.resolveSessionIdFromHint(this.traceHints.get(traceHintKey), metadata);
+    }
+
+    resolveSessionIdFromTraceAcrossProviders(metadata?: SessionRecoveryMetadata): string | undefined {
+        this.pruneTraceHints();
+        const traceHintKey = getProviderAgnosticTraceHintKey(metadata);
+        if (!traceHintKey) {
+            return undefined;
+        }
+
+        return this.resolveSessionIdFromHints(this.providerAgnosticTraceHints.get(traceHintKey), metadata);
+    }
+
+    private resolveSessionIdFromHint(
+        hint: SessionTraceHint | undefined,
+        metadata?: SessionRecoveryMetadata
+    ): string | undefined {
         if (!hint) {
             return undefined;
         }
 
-        if (
-            metadata?.telemetryTurn !== undefined &&
-            hint.telemetryTurn !== undefined &&
-            Math.abs(hint.telemetryTurn - metadata.telemetryTurn) > 1
-        ) {
+        if (getTraceHintScore(hint, metadata) === undefined) {
             return undefined;
         }
 
         return hint.sessionId;
+    }
+
+    private resolveSessionIdFromHints(
+        hints: readonly SessionTraceHint[] | undefined,
+        metadata?: SessionRecoveryMetadata
+    ): string | undefined {
+        if (!hints || hints.length === 0) {
+            return undefined;
+        }
+
+        let bestHint: SessionTraceHint | undefined;
+        let bestScore = -1;
+        for (const hint of hints) {
+            const score = getTraceHintScore(hint, metadata);
+            if (score === undefined) {
+                continue;
+            }
+            if (!bestHint || score > bestScore || (score === bestScore && hint.updatedAt > bestHint.updatedAt)) {
+                bestHint = hint;
+                bestScore = score;
+            }
+        }
+
+        if (bestHint) {
+            return bestHint.sessionId;
+        }
+
+        return this.resolveSessionIdFromSubagentTurnResetHints(hints, metadata);
+    }
+
+    private resolveSessionIdFromSubagentTurnResetHints(
+        hints: readonly SessionTraceHint[],
+        metadata?: SessionRecoveryMetadata
+    ): string | undefined {
+        if (metadata?.telemetryTurn !== SUBAGENT_TRACE_TURN_RESET_VALUE) {
+            return undefined;
+        }
+
+        const uniqueSessionIds = new Set(hints.map(hint => hint.sessionId));
+        if (uniqueSessionIds.size !== 1) {
+            return undefined;
+        }
+
+        return hints[0]?.sessionId;
     }
 
     resolveSessionIdFromTurn(metadata?: SessionRecoveryMetadata): string | undefined {
@@ -421,12 +517,38 @@ export class SessionRecoveryService {
         }
     }
 
+    private rememberProviderAgnosticTraceHint(traceId: string, nextHint: SessionTraceHint): void {
+        const existingHints = this.providerAgnosticTraceHints.get(traceId) ?? [];
+        const dedupedHints = existingHints.filter(
+            hint =>
+                !(
+                    hint.sessionId === nextHint.sessionId &&
+                    hint.providerKey === nextHint.providerKey &&
+                    hint.telemetryTurn === nextHint.telemetryTurn
+                )
+        );
+        const nextHints = dedupedHints
+            .concat(nextHint)
+            .sort((left, right) => right.updatedAt - left.updatedAt)
+            .slice(0, MAX_PROVIDER_AGNOSTIC_TRACE_HINTS_PER_TRACE);
+        this.providerAgnosticTraceHints.set(traceId, nextHints);
+    }
+
     private pruneTraceHints(): void {
         const cutoff = this.now() - TRACE_HINT_TTL_MS;
         for (const [traceId, hint] of this.traceHints) {
             if (hint.updatedAt < cutoff) {
                 this.traceHints.delete(traceId);
             }
+        }
+
+        for (const [traceId, hints] of this.providerAgnosticTraceHints) {
+            const aliveHints = hints.filter(hint => hint.updatedAt >= cutoff);
+            if (aliveHints.length === 0) {
+                this.providerAgnosticTraceHints.delete(traceId);
+                continue;
+            }
+            this.providerAgnosticTraceHints.set(traceId, aliveHints);
         }
 
         for (const [sessionId, hint] of this.latestSessionHints) {

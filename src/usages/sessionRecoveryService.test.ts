@@ -227,6 +227,229 @@ test('resolveSessionIdFromTrace keeps hints isolated by provider', () => {
         }),
         'sess-trace'
     );
+
+    assert.equal(
+        service.resolveSessionIdFromTraceAcrossProviders({
+            providerKey: 'kimi',
+            telemetryTurn: 2,
+            traceId: 'trace-shared'
+        }),
+        'sess-trace'
+    );
+});
+
+test('resolveSessionIdFromTraceAcrossProviders rejects stale telemetry turn jumps on same trace', () => {
+    const service = new SessionRecoveryService();
+
+    service.rememberSessionHint('sess-trace', {
+        providerKey: 'longcat',
+        telemetryTurn: 2,
+        traceId: 'trace-cross-provider'
+    });
+
+    assert.equal(
+        service.resolveSessionIdFromTraceAcrossProviders({
+            providerKey: 'kimi',
+            telemetryTurn: 5,
+            traceId: 'trace-cross-provider'
+        }),
+        undefined
+    );
+});
+
+test('resolveSessionIdFromTraceAcrossProviders falls back to older same-trace hint when latest hint is another turn', () => {
+    const service = new SessionRecoveryService();
+
+    service.rememberSessionHint('sess-parent', {
+        providerKey: 'longcat',
+        telemetryTurn: 1,
+        traceId: 'trace-reused-across-providers'
+    });
+    service.rememberSessionHint('sess-unrelated', {
+        providerKey: 'kimi',
+        telemetryTurn: 6,
+        traceId: 'trace-reused-across-providers'
+    });
+
+    assert.equal(
+        service.resolveSessionIdFromTraceAcrossProviders({
+            providerKey: 'minimax',
+            telemetryTurn: 1,
+            traceId: 'trace-reused-across-providers'
+        }),
+        'sess-parent'
+    );
+});
+
+test('resolveSessionIdFromTraceAcrossProviders bridges direct subagent when parent turn is not 1', () => {
+    const service = new SessionRecoveryService();
+
+    service.rememberSessionHint('sess-parent', {
+        providerKey: 'longcat',
+        telemetryTurn: 3,
+        traceId: 'trace-subagent-turn-reset'
+    });
+
+    assert.equal(
+        service.resolveSessionIdFromTraceAcrossProviders({
+            providerKey: 'minimax',
+            telemetryTurn: 1,
+            traceId: 'trace-subagent-turn-reset'
+        }),
+        'sess-parent'
+    );
+});
+
+test('resolveSessionIdFromTraceAcrossProviders keeps turn-reset fallback disabled for ambiguous traces', () => {
+    const service = new SessionRecoveryService();
+
+    service.rememberSessionHint('sess-a', {
+        providerKey: 'longcat',
+        telemetryTurn: 3,
+        traceId: 'trace-subagent-turn-reset-ambiguous'
+    });
+    service.rememberSessionHint('sess-b', {
+        providerKey: 'kimi',
+        telemetryTurn: 5,
+        traceId: 'trace-subagent-turn-reset-ambiguous'
+    });
+
+    assert.equal(
+        service.resolveSessionIdFromTraceAcrossProviders({
+            providerKey: 'minimax',
+            telemetryTurn: 1,
+            traceId: 'trace-subagent-turn-reset-ambiguous'
+        }),
+        undefined
+    );
+});
+
+test('rememberSessionHint can skip publishing provider-agnostic trace hints', () => {
+    const service = new SessionRecoveryService();
+
+    service.rememberSessionHint(
+        'sess-main',
+        {
+            providerKey: 'longcat',
+            telemetryTurn: 2,
+            traceId: 'trace-provider-specific-only'
+        },
+        undefined,
+        {
+            publishProviderAgnosticTraceHint: false
+        }
+    );
+
+    assert.equal(
+        service.resolveSessionIdFromTrace({
+            providerKey: 'longcat',
+            telemetryTurn: 2,
+            traceId: 'trace-provider-specific-only'
+        }),
+        'sess-main'
+    );
+
+    assert.equal(
+        service.resolveSessionIdFromTraceAcrossProviders({
+            providerKey: 'minimax',
+            telemetryTurn: 2,
+            traceId: 'trace-provider-specific-only'
+        }),
+        undefined
+    );
+});
+
+test('rememberSessionHint can suppress all trace hint publication without losing latest session metadata', () => {
+    const service = new SessionRecoveryService();
+    const summary = buildSummary('subagent child session');
+
+    service.rememberSessionHint(
+        'sess-child',
+        {
+            providerKey: 'minimax',
+            telemetryTurn: 2,
+            traceId: 'trace-hidden-child'
+        },
+        undefined,
+        {
+            publishProviderTraceHint: false,
+            publishProviderAgnosticTraceHint: false
+        }
+    );
+
+    assert.equal(
+        service.resolveSessionIdFromTrace({
+            providerKey: 'minimax',
+            telemetryTurn: 2,
+            traceId: 'trace-hidden-child'
+        }),
+        undefined
+    );
+
+    assert.equal(
+        service.resolveSessionIdFromTraceAcrossProviders({
+            providerKey: 'longcat',
+            telemetryTurn: 2,
+            traceId: 'trace-hidden-child'
+        }),
+        undefined
+    );
+
+    service.rememberSummarization('sess-child', summary, {
+        providerKey: 'minimax',
+        traceId: 'trace-hidden-child'
+    });
+
+    assert.equal(
+        service.resolveSessionIdFromTurn({
+            providerKey: 'minimax',
+            telemetryTurn: 3,
+            traceId: 'trace-hidden-child-next'
+        }),
+        'sess-child'
+    );
+});
+
+test('suppressed helper session hint does not overwrite parent trace recovery mapping', () => {
+    const service = new SessionRecoveryService();
+
+    service.rememberSessionHint('sess-parent', {
+        providerKey: 'longcat',
+        telemetryTurn: 4,
+        traceId: 'trace-shared-between-parent-and-helper'
+    });
+
+    service.rememberSessionHint(
+        'sess-helper',
+        {
+            providerKey: 'longcat',
+            telemetryTurn: 4,
+            traceId: 'trace-shared-between-parent-and-helper'
+        },
+        undefined,
+        {
+            publishProviderTraceHint: false,
+            publishProviderAgnosticTraceHint: false
+        }
+    );
+
+    assert.equal(
+        service.resolveSessionIdFromTrace({
+            providerKey: 'longcat',
+            telemetryTurn: 4,
+            traceId: 'trace-shared-between-parent-and-helper'
+        }),
+        'sess-parent'
+    );
+
+    assert.equal(
+        service.resolveSessionIdFromTraceAcrossProviders({
+            providerKey: 'minimax',
+            telemetryTurn: 4,
+            traceId: 'trace-shared-between-parent-and-helper'
+        }),
+        'sess-parent'
+    );
 });
 
 test('resolveSessionIdFromTrace prefers the latest hint when the same provider trace is reused', () => {
@@ -272,6 +495,36 @@ test('resolveSessionIdFromTurn resumes the same provider session on the next tur
         service.resolveSessionIdFromTurn({
             providerKey: 'longcat',
             telemetryTurn: 5,
+            traceId: 'trace-after-compaction'
+        }),
+        'sess-turn'
+    );
+});
+
+test('resolveSessionIdFromTurn keeps the previous telemetryTurn when trace-bridged summarization omits it', () => {
+    const service = new SessionRecoveryService();
+    const summary = buildSummary('compaction after final reply');
+
+    service.rememberSessionHint('sess-turn', {
+        providerKey: 'longcat',
+        telemetryTurn: 6,
+        traceId: 'trace-before-compaction'
+    });
+
+    service.rememberSessionHint('sess-turn', {
+        providerKey: 'longcat',
+        traceId: 'trace-before-compaction'
+    });
+
+    service.rememberSummarization('sess-turn', summary, {
+        providerKey: 'longcat',
+        traceId: 'trace-before-compaction'
+    });
+
+    assert.equal(
+        service.resolveSessionIdFromTurn({
+            providerKey: 'longcat',
+            telemetryTurn: 7,
             traceId: 'trace-after-compaction'
         }),
         'sess-turn'
