@@ -597,6 +597,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // chat-title 请求：额外累积响应文本，请求成功后回填会话标题
         const isTitleRequest = requestKind === 'chat-title';
         const isSummarizationRequest = requestKind === 'summarization';
+        const titleRequestRawText =
+            isTitleRequest ? SessionTitleService.extractTitleGenerationRequestText(messages) : undefined;
         let titleResponseBuffer = '';
         let summaryResponseBuffer = '';
         const requestMetadata = this.getEstimatedRequestMetadata(options);
@@ -722,12 +724,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             // chat-title 请求成功：以原始请求文本为匹配键，把会话标题升级为 VS Code 面板正式标题
             if (isTitleRequest && titleResponseBuffer.trim()) {
                 try {
-                    const rawRequestText = SessionTitleService.extractTitleGenerationRequestText(messages);
-                    if (rawRequestText) {
+                    if (titleRequestRawText) {
                         const resolved = SessionTitleService.instance.resolveGeneratedTitleDetails(
-                            rawRequestText,
-                            titleResponseBuffer,
-                            requestId
+                            titleRequestRawText,
+                            titleResponseBuffer
                         );
                         if (resolved) {
                             await TokenUsagesManager.instance.backfillResolvedSessionTitle(
@@ -735,13 +735,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 resolved.title,
                                 resolved.requestId
                             );
-                            if (requestId) {
-                                await TokenUsagesManager.instance.backfillRequestSession(
-                                    requestId,
-                                    resolved.sessionId,
-                                    resolved.title
-                                );
-                            }
                             TokenUsagesManager.instance.notifyStatsUpdate();
                         }
                     }
@@ -1033,14 +1026,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         try {
             const rawUserText = SessionTitleService.extractUserRequestText(messages);
             if (rawUserText) {
-                const registeredPendingTitle = SessionTitleService.instance.registerSession(sessionId, rawUserText);
-                if (registeredPendingTitle?.titleRequestId) {
-                    await TokenUsagesManager.instance.backfillRequestSession(
-                        registeredPendingTitle.titleRequestId,
-                        sessionId,
-                        registeredPendingTitle.title
-                    );
-                }
+                SessionTitleService.instance.registerSession(sessionId, rawUserText);
             }
         } catch (err) {
             Logger.debug('Failed to register session title for current turn:', err);

@@ -565,9 +565,7 @@ function extractNormalizedSessionId(sessionId: string): string | undefined {
 }
 
 /**
- * 仅当记录包含 otelTraceContext 时，才将原始 sessionId 归一化为统一可分组的值；
- * 例外：已显式回填到主会话的 `chat-title` 记录也应跟随主会话参与筛选，
- * 否则点击会话项时标题请求仍会掉回“未知会话”。
+ * 仅当记录包含 otelTraceContext 时，才将原始 sessionId 归一化为统一可分组的值。
  */
 export function normalizeSessionId(
     record: Pick<ExtendedTokenRequestLog, 'sessionId' | 'otelTraceContext' | 'requestKind' | 'sessionTitle'>
@@ -583,10 +581,6 @@ export function normalizeSessionId(
     }
 
     if (hasConversationTraceContext(record)) {
-        return normalizedSessionId;
-    }
-
-    if (record.requestKind === 'chat-title' && record.sessionTitle) {
         return normalizedSessionId;
     }
 

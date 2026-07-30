@@ -52,7 +52,9 @@ const PERMANENT_ERROR_MESSAGE_PATTERNS_ZH = ['账单', '升级套餐', '上下�
  */
 const PERMANENT_ERROR_MESSAGE_REGEXES = [
     /\b(daily|weekly|monthly)\b[^.。]{0,40}?\b(limit|quota|cap)\b/i,
-    /(每日|每周|每月|月度).{0,8}(配额|限额|上限)/
+    /(每日|每周|每月|月度).{0,8}(配额|限额|上限)/,
+    // ChatGPT Codex 用量限额文案（结构化 type 丢失、只剩 message 时的兜底）
+    /\busage\s+limit\s+(has\s+been\s+)?reached\b/i
 ];
 
 /**
@@ -61,9 +63,21 @@ const PERMANENT_ERROR_MESSAGE_REGEXES = [
  * - inference_cap_error：ClinePass 推理限额（周/月配额耗尽，重置周期以小时/天计）
  * - spend_limit_exceeded：Cline 组织强制预算上限（429）
  * - insufficient_credits：Cline 按量计费余额不足
+ * - usage_limit_reached：ChatGPT Codex 套餐用量限额（附 resets_in_seconds，重置以天计）
  * Cline 的 403 类错误（未订阅/组织限制）不命中任何可重试路径，无需专有消息模式兜底。
  */
-const PERMANENT_ERROR_CODES = new Set(['inference_cap_error', 'spend_limit_exceeded', 'insufficient_credits']);
+const PERMANENT_ERROR_CODES = new Set([
+    'inference_cap_error',
+    'spend_limit_exceeded',
+    'insufficient_credits',
+    'usage_limit_reached'
+]);
+
+/**
+ * 永久性错误类型：上游 body 的 error.type（如 ChatGPT Codex 的 usage_limit_reached），
+ * SDK 传递链上 code 可能被丢弃而 type 保留在 error.error.type，需单独检查。
+ */
+const PERMANENT_ERROR_TYPES = new Set(['usage_limit_reached']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
@@ -86,6 +100,11 @@ export function hasPermanentErrorSignal(error: RetryableErrorLike, deep = 0): bo
 
     const code = typeof error.code === 'string' ? error.code.toLowerCase() : '';
     if (code && PERMANENT_ERROR_CODES.has(code)) {
+        return true;
+    }
+
+    const type = typeof error.type === 'string' ? error.type.toLowerCase() : '';
+    if (type && PERMANENT_ERROR_TYPES.has(type)) {
         return true;
     }
 

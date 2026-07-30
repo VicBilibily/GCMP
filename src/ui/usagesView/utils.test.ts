@@ -520,18 +520,17 @@ test('summarizeSessionRecords aggregates tokens and speed from completed records
     assert.equal(summary.avgSpeed, 50);
 });
 
-test('normalizeSessionId keeps backfilled chat-title inside the target session filter', () => {
+test('normalizeSessionId leaves chat-title ungrouped without trace context', () => {
     const sessionId = '973708cc-b913-4678-89f0-e99943f80f5a';
 
     assert.equal(
         normalizeSessionId(
             createExtendedRecord({
                 sessionId,
-                requestKind: 'chat-title',
-                sessionTitle: '搜索Vue 3.6'
+                requestKind: 'chat-title'
             })
         ),
-        sessionId
+        'unknown'
     );
 
     assert.equal(
@@ -545,7 +544,7 @@ test('normalizeSessionId keeps backfilled chat-title inside the target session f
     );
 });
 
-test('groupRecordsBySession merges backfilled chat-title into the main session only', () => {
+test('groupRecordsBySession keeps chat-title in the unknown session without trace context', () => {
     const sessionId = '973708cc-b913-4678-89f0-e99943f80f5a';
     const groups = groupRecordsBySession([
         createExtendedRecord({
@@ -580,13 +579,16 @@ test('groupRecordsBySession merges backfilled chat-title into the main session o
 
     const mainGroup = groups.find(group => group.sessionId === sessionId);
     assert.ok(mainGroup);
-    assert.equal(mainGroup.summary.requestCount, 2);
-    assert.equal(mainGroup.title, '搜索Vue 3.6');
+    assert.equal(mainGroup.summary.requestCount, 1);
+    assert.equal(mainGroup.title, undefined);
 
     const unknownGroup = groups.find(group => group.sessionId === 'unknown');
     assert.ok(unknownGroup);
-    assert.equal(unknownGroup.summary.requestCount, 1);
-    assert.equal(unknownGroup.records[0].requestKind, 'inline-progress-message');
+    assert.equal(unknownGroup.summary.requestCount, 2);
+    assert.deepEqual(unknownGroup.records.map(record => record.requestKind).sort(), [
+        'chat-title',
+        'inline-progress-message'
+    ]);
 });
 
 test('buildRequestTotals aggregates tokens, cost, latency and duration from completed records only', () => {

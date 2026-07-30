@@ -37,15 +37,9 @@ export interface ResolvedSessionTitle {
     title: string;
 }
 
-export interface RegisteredPendingTitle {
-    title: string;
-    titleRequestId?: string;
-}
-
 interface PendingGeneratedTitle {
     title: string;
     updatedAt: number;
-    requestId?: string;
 }
 
 /** vscode.LanguageModelChatMessageRole.User 的枚举值（本地常量避免依赖 vscode） */
@@ -230,13 +224,13 @@ export class SessionTitleService {
      * 不以首条输入截断作为展示标题（原文截断语义不可靠，且不写入日志更保护隐私）。
      * 若已有暂存的生成标题（标题请求先到达），直接采用。
      */
-    registerSession(sessionId: string, rawUserText: string): RegisteredPendingTitle | undefined {
+    registerSession(sessionId: string, rawUserText: string): void {
         if (!sessionId) {
-            return undefined;
+            return;
         }
         const matchKey = toMatchKey(rawUserText);
         if (!matchKey) {
-            return undefined;
+            return;
         }
         const now = Date.now();
         // 已有 generated 标题的会话不回退
@@ -250,7 +244,7 @@ export class SessionTitleService {
                     completedAt: undefined
                 });
             }
-            return undefined;
+            return;
         }
 
         this.prunePendingGenerated();
@@ -266,11 +260,10 @@ export class SessionTitleService {
                 requestId: undefined
             });
             this.pruneEntriesIfNeeded();
-            return {
-                title: pending.title,
-                titleRequestId: pending.requestId
-            };
-        } else if (!existing) {
+            return;
+        }
+
+        if (!existing) {
             this.entries.set(sessionId, {
                 title: '',
                 matchKey,
@@ -296,7 +289,6 @@ export class SessionTitleService {
             });
         }
         this.pruneEntriesIfNeeded();
-        return undefined;
     }
 
     rememberRequest(sessionId: string, requestId: string): void {
@@ -341,15 +333,11 @@ export class SessionTitleService {
      * 无合适候选（无匹配，或同键会话均已有标题）时暂存，待同文新会话注册时采用。
      * @returns 是否立即匹配到会话
      */
-    resolveGeneratedTitle(rawRequestText: string, generatedTitle: string, titleRequestId?: string): boolean {
-        return !!this.resolveGeneratedTitleDetails(rawRequestText, generatedTitle, titleRequestId);
+    resolveGeneratedTitle(rawRequestText: string, generatedTitle: string): boolean {
+        return !!this.resolveGeneratedTitleDetails(rawRequestText, generatedTitle);
     }
 
-    resolveGeneratedTitleDetails(
-        rawRequestText: string,
-        generatedTitle: string,
-        titleRequestId?: string
-    ): ResolvedSessionTitle | undefined {
+    resolveGeneratedTitleDetails(rawRequestText: string, generatedTitle: string): ResolvedSessionTitle | undefined {
         const matchKey = toMatchKey(rawRequestText);
         const title = toDisplayTitle(generatedTitle);
         if (!matchKey || !title) {
@@ -379,7 +367,7 @@ export class SessionTitleService {
                 title
             };
         }
-        this.pushPendingGenerated(matchKey, { title, updatedAt: Date.now(), requestId: titleRequestId });
+        this.pushPendingGenerated(matchKey, { title, updatedAt: Date.now() });
         return undefined;
     }
 

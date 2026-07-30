@@ -174,18 +174,6 @@ test('resolveGeneratedTitleDetails returns matched sessionId and remembered requ
     });
 });
 
-test('registerSession returns pending title request info when title arrives before main session', () => {
-    const service = new SessionTitleService();
-
-    assert.equal(service.resolveGeneratedTitle('搜索vue3.6', 'Vue 3.6 搜索', 'title-req-1'), false);
-
-    assert.deepEqual(service.registerSession('sess-1', '搜索vue3.6'), {
-        title: 'Vue 3.6 搜索',
-        titleRequestId: 'title-req-1'
-    });
-    assert.equal(service.getTitle('sess-1'), 'Vue 3.6 搜索');
-});
-
 test('active untitled session wins over completed untitled session for the same matchKey', () => {
     const service = new SessionTitleService();
     service.registerSession('sess-old', '同文请求');

@@ -213,3 +213,30 @@ test('transient rate limit with try-again-later wording stays retryable', () => 
     assert.equal(isRateLimitLikeError({ message: 'Rate limit exceeded, please try again later.' }), true);
     assert.equal(hasPermanentErrorSignal({ message: 'Rate limit exceeded, please try again later.' }), false);
 });
+
+// 以下用例对照 ChatGPT Codex 套餐用量限额的真实错误样例（resets_in_seconds 以天计，重试无意义）
+
+test('ChatGPT Codex usage_limit_reached (nested error.type + 429) is not retryable', () => {
+    const error = {
+        status: 429,
+        message: 'Connection error.',
+        error: {
+            type: 'usage_limit_reached',
+            message: 'The usage limit has been reached',
+            plan_type: 'plus',
+            resets_in_seconds: 512095
+        }
+    };
+    assert.equal(hasPermanentErrorSignal(error), true);
+    assert.equal(isRateLimitLikeError(error), false);
+});
+
+test('usage limit message-only (structured fields lost) is permanent', () => {
+    const error = { message: 'The usage limit has been reached' };
+    assert.equal(hasPermanentErrorSignal(error), true);
+    assert.equal(isRateLimitLikeError(error), false);
+});
+
+test('usage_limit_reached as top-level code is permanent', () => {
+    assert.equal(isRateLimitLikeError({ status: 429, code: 'usage_limit_reached', message: 'rejected' }), false);
+});
