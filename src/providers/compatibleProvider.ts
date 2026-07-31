@@ -129,6 +129,7 @@ export class CompatibleProvider extends GenericModelProvider {
                     ...(model.reasoningEffort && { reasoningEffort: model.reasoningEffort }),
                     ...(model.reasoningDefault && { reasoningDefault: model.reasoningDefault }),
                     ...(model.contextSize && { contextSize: model.contextSize }),
+                    ...(model.sdkMode !== 'anthropic' && model.serviceTier && { serviceTier: model.serviceTier }),
                     ...(normalizedTokenPricing && { tokenPricing: normalizedTokenPricing })
                 };
 
