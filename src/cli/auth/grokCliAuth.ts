@@ -8,6 +8,7 @@ import * as path from 'path';
 import { BaseCliAuth } from './baseCliAuth';
 import { Logger } from '../../utils/runtime/logger';
 import type { CliAuthConfig, OAuthCredentials } from '../type';
+import { buildRefreshedGrokCredentials, type GrokOAuthCredentials } from './grokAuthCredentials';
 
 interface GrokAuthRecord {
     key?: string;
@@ -15,10 +16,6 @@ interface GrokAuthRecord {
     expires_at?: string;
     oidc_client_id?: string;
     [key: string]: unknown;
-}
-
-interface GrokOAuthCredentials extends OAuthCredentials {
-    oidc_client_id?: string;
 }
 
 const GROK_CLIENT_ID = 'b1a00492-073a-47ea-816f-4c329264a828';
@@ -149,12 +146,13 @@ export class GrokCliAuth extends BaseCliAuth {
                 Date.now() + (expiresIn as number) * 1000
             :   this.extractExpFromJwt(accessToken) || credentials.expiry_date || Date.now() + 55 * 60 * 1000;
 
-        const newCredentials: GrokOAuthCredentials = {
-            access_token: accessToken,
-            refresh_token: refreshToken,
-            expiry_date: expiryDate,
-            oidc_client_id: clientId
-        };
+        const newCredentials = buildRefreshedGrokCredentials({
+            previous: extendedCredentials,
+            accessToken,
+            refreshToken,
+            expiryDate,
+            clientId
+        });
 
         this.saveCredentials(newCredentials);
         Logger.info('[Grok Build] Token refresh succeeded');
@@ -178,6 +176,9 @@ export class GrokCliAuth extends BaseCliAuth {
             access_token: accessToken,
             refresh_token: typeof record.refresh_token === 'string' ? record.refresh_token : '',
             expiry_date: expiryFromToken || expiryFromFile || 0,
+            ...(typeof record.user_id === 'string' && record.user_id ? { user_id: record.user_id } : {}),
+            ...(typeof record.email === 'string' && record.email ? { email: record.email } : {}),
+            ...(typeof record.team_id === 'string' && record.team_id ? { team_id: record.team_id } : {}),
             ...(typeof record.oidc_client_id === 'string' && record.oidc_client_id ?
                 { oidc_client_id: record.oidc_client_id }
             :   {})
