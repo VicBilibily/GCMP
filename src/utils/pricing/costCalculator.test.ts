@@ -106,6 +106,114 @@ test('calculateCostWithBreakdown: Responses API usage does not double-charge cac
     assertClose(breakdown.cacheWriteCost, 0);
 });
 
+test('calculateCostWithBreakdown: Responses API cache_write_tokens charged at cacheWritePrice (additive model)', () => {
+    const pricing: ModelTokenPricing = {
+        inputPrice: 0.2,
+        outputPrice: 1.2,
+        cacheReadPrice: 0.02,
+        cacheWritePrice: 0.25
+    };
+
+    const breakdown = calculateCostWithBreakdown(
+        {
+            input_tokens: 335712,
+            output_tokens: 1307,
+            total_tokens: 337019,
+            input_tokens_details: {
+                cached_tokens: 332974,
+                cache_write_tokens: 841
+            }
+        },
+        pricing
+    );
+
+    assert.ok(breakdown);
+    // 包含模式：input_tokens 已含 cache_write，走 inputPrice 基础计价 + cacheWritePrice 额外计费（双重）
+    // uncached = 335712 - 332974 = 2738（已含 cache_write 841）
+    assert.equal(breakdown.inputTokens, 2738);
+    assert.equal(breakdown.outputTokens, 1307);
+    assert.equal(breakdown.cacheReadTokens, 332974);
+    assert.equal(breakdown.cacheCreationTokens, 841);
+    assertClose(breakdown.inputCost, (2738 / 1_000_000) * 0.2);
+    assertClose(breakdown.outputCost, (1307 / 1_000_000) * 1.2);
+    assertClose(breakdown.cacheReadCost, (332974 / 1_000_000) * 0.02);
+    assertClose(breakdown.cacheWriteCost, (841 / 1_000_000) * 0.25);
+    assertClose(
+        breakdown.total,
+        expectedTotalCost(
+            (2738 / 1_000_000) * 0.2,
+            (1307 / 1_000_000) * 1.2,
+            (332974 / 1_000_000) * 0.02,
+            (841 / 1_000_000) * 0.25
+        )
+    );
+});
+
+test('calculateCostWithBreakdown: Responses API cache_write_tokens without cached_tokens still follows additive billing', () => {
+    const pricing: ModelTokenPricing = {
+        inputPrice: 0.2,
+        outputPrice: 1.2,
+        cacheReadPrice: 0.02,
+        cacheWritePrice: 0.25
+    };
+
+    const breakdown = calculateCostWithBreakdown(
+        {
+            input_tokens: 1000,
+            output_tokens: 20,
+            total_tokens: 1020,
+            input_tokens_details: {
+                cache_write_tokens: 50
+            }
+        },
+        pricing
+    );
+
+    assert.ok(breakdown);
+    assert.equal(breakdown.inputTokens, 1000);
+    assert.equal(breakdown.outputTokens, 20);
+    assert.equal(breakdown.cacheReadTokens, 0);
+    assert.equal(breakdown.cacheCreationTokens, 50);
+    assertClose(breakdown.inputCost, (1000 / 1_000_000) * 0.2);
+    assertClose(breakdown.outputCost, (20 / 1_000_000) * 1.2);
+    assertClose(breakdown.cacheReadCost, 0);
+    assertClose(breakdown.cacheWriteCost, (50 / 1_000_000) * 0.25);
+});
+
+test('calculateCostWithBreakdown: Chat Completions prompt_tokens_details.cache_write_tokens charged at cacheWritePrice', () => {
+    const pricing: ModelTokenPricing = {
+        inputPrice: 0.3,
+        outputPrice: 1.2,
+        cacheReadPrice: 0.06,
+        cacheWritePrice: 0.375
+    };
+
+    const breakdown = calculateCostWithBreakdown(
+        {
+            prompt_tokens: 5000,
+            completion_tokens: 200,
+            total_tokens: 5200,
+            prompt_tokens_details: {
+                cached_tokens: 3000,
+                cache_write_tokens: 500
+            }
+        },
+        pricing
+    );
+
+    assert.ok(breakdown);
+    // 包含模式：prompt_tokens 已含 cache_write，走 inputPrice + cacheWritePrice 双重计费
+    // uncached = 5000 - 3000 = 2000（已含 cache_write 500）
+    assert.equal(breakdown.inputTokens, 2000);
+    assert.equal(breakdown.outputTokens, 200);
+    assert.equal(breakdown.cacheReadTokens, 3000);
+    assert.equal(breakdown.cacheCreationTokens, 500);
+    assertClose(breakdown.inputCost, (2000 / 1_000_000) * 0.3);
+    assertClose(breakdown.outputCost, (200 / 1_000_000) * 1.2);
+    assertClose(breakdown.cacheReadCost, (3000 / 1_000_000) * 0.06);
+    assertClose(breakdown.cacheWriteCost, (500 / 1_000_000) * 0.375);
+});
+
 test('calculateCostWithBreakdown: Anthropic usage separately charges cache write tokens when explicitly provided', () => {
     const pricing: ModelTokenPricing = {
         inputPrice: 3,
@@ -125,11 +233,12 @@ test('calculateCostWithBreakdown: Anthropic usage separately charges cache write
     );
 
     assert.ok(breakdown);
-    assert.equal(breakdown.inputTokens, 100);
+    // cache_write 叠加计入 input + 额外计费
+    assert.equal(breakdown.inputTokens, 110);
     assert.equal(breakdown.outputTokens, 50);
     assert.equal(breakdown.cacheReadTokens, 20);
     assert.equal(breakdown.cacheCreationTokens, 10);
-    assertClose(breakdown.inputCost, (100 / 1_000_000) * 3);
+    assertClose(breakdown.inputCost, (110 / 1_000_000) * 3);
     assertClose(breakdown.outputCost, (50 / 1_000_000) * 15);
     assertClose(breakdown.cacheReadCost, (20 / 1_000_000) * 0.3);
     assertClose(breakdown.cacheWriteCost, (10 / 1_000_000) * 3.75);
@@ -155,9 +264,11 @@ test('calculateCostWithBreakdown: nested anthropic cache_creation details are tr
     );
 
     assert.ok(breakdown);
-    assert.equal(breakdown.inputTokens, 6);
+    // cache_write 叠加计入 input + 额外计费
+    assert.equal(breakdown.inputTokens, 27226);
     assert.equal(breakdown.cacheCreationTokens, 27220);
     assertClose(breakdown.cacheWriteCost, (27220 / 1_000_000) * 0.4);
+    assertClose(breakdown.inputCost, (27226 / 1_000_000) * 0.1);
 });
 
 test('calculateCost helpers handle missing inputs and formatting thresholds', () => {

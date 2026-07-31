@@ -156,6 +156,44 @@ test('Responses API 格式保持不变', () => {
     assert.equal(result.totalTokens, 180);
 });
 
+test('Responses API cached_tokens 为 0 仍按 Responses 口径解析', () => {
+    const result = UsageParser.parseRawUsage({
+        input_tokens: 100,
+        output_tokens: 20,
+        total_tokens: 120,
+        input_tokens_details: {
+            cached_tokens: 0,
+            cache_write_tokens: 12
+        }
+    });
+
+    assert.equal(result.actualInput, 100);
+    assert.equal(result.cacheReadTokens, 0);
+    assert.equal(result.cacheCreationTokens, 0);
+    assert.equal(result.outputTokens, 20);
+    assert.equal(result.totalTokens, 120);
+});
+
+test('Responses API 含 cache_write_tokens', () => {
+    // cache_write_tokens 由 costCalculator 的 getExplicitCacheWriteTokens 单独提取，
+    // UsageParser 不将其计入 cacheCreationTokens（避免叠加/包含模式歧义）。
+    const result = UsageParser.parseRawUsage({
+        input_tokens: 335712,
+        output_tokens: 1307,
+        total_tokens: 337019,
+        input_tokens_details: {
+            cached_tokens: 332974,
+            cache_write_tokens: 841
+        }
+    });
+
+    assert.equal(result.actualInput, 335712);
+    assert.equal(result.cacheReadTokens, 332974);
+    assert.equal(result.cacheCreationTokens, 0);
+    assert.equal(result.outputTokens, 1307);
+    assert.equal(result.totalTokens, 337019);
+});
+
 test('空 rawUsage 返回默认值', () => {
     const result = UsageParser.parseRawUsage(null);
 

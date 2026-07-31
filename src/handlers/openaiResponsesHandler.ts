@@ -18,6 +18,7 @@ import {
 import { t } from '../utils/runtime/l10n';
 import { Logger } from '../utils/runtime/logger';
 import { isCancellationError } from '../utils/text/cancellationError';
+import { createOpenCodeHeaders } from '../utils/text/formatUtils';
 import { ModelChatResponseOptions, ModelConfig, ModelTokenPricing } from '../types/sharedTypes';
 import { OpenAIHandler } from './openaiHandler';
 import { StreamReporter } from './streamReporter';
@@ -119,7 +120,7 @@ export class OpenAIResponsesHandler {
                     sessionId
                 });
 
-                await this.configureClientHeaders(client, sessionId);
+                await this.configureClientHeaders(client, requestId, sessionId);
 
                 Logger.info(`🎯 ${model.name} Using session_id: ${sessionId}`);
 
@@ -180,10 +181,14 @@ export class OpenAIResponsesHandler {
         }
     }
 
-    private async configureClientHeaders(client: unknown, sessionId: string): Promise<void> {
+    private async configureClientHeaders(client: unknown, requestId: string, sessionId: string): Promise<void> {
         const { _options: clientOptions } = client as { _options: ClientOptions };
         const { defaultHeaders: optHeaders } = clientOptions as { defaultHeaders: Record<string, string> };
         optHeaders['conversation_id'] = optHeaders['session_id'] = sessionId;
+
+        if (this.providerKey === 'opencode') {
+            Object.assign(optHeaders, createOpenCodeHeaders(requestId, sessionId));
+        }
 
         if (this.providerKey !== 'codex') {
             return;
