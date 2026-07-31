@@ -42,6 +42,7 @@ export interface ModelFormData {
     maxOutputTokens: number;
     toolCalling: boolean;
     imageInput: boolean;
+    supportsServiceTier: boolean;
     useInstructions: boolean | undefined;
     webSearchTool: boolean | undefined;
     /** webSearchTool 对象配置（JSON 字符串），anthropic / openai-responses 模式支持 */

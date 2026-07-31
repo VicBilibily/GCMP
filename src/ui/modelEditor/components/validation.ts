@@ -236,6 +236,9 @@ export function collectFormData(state: EditorState): ModelFormData | null {
     const maxOutputTokens = parseInt((document.getElementById('maxOutputTokens') as HTMLInputElement).value) || 8192;
     const toolCalling = (document.getElementById('toolCalling') as HTMLInputElement).checked;
     const imageInput = (document.getElementById('imageInput') as HTMLInputElement).checked;
+    const supportsServiceTier =
+        sdkMode !== 'anthropic' &&
+        (document.getElementById('supportsServiceTier') as HTMLInputElement | null)?.checked === true;
     const useInstructionsEl = document.getElementById('useInstructions') as HTMLInputElement | null;
     const webSearchToolEl = document.getElementById('webSearchTool') as HTMLInputElement | null;
     const webSearchToolConfigEl = document.getElementById('webSearchToolConfig') as HTMLTextAreaElement | null;
@@ -288,6 +291,7 @@ export function collectFormData(state: EditorState): ModelFormData | null {
         maxOutputTokens,
         toolCalling,
         imageInput,
+        supportsServiceTier,
         useInstructions,
         webSearchTool,
         webSearchToolConfig,

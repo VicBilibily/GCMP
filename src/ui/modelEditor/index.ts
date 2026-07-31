@@ -187,6 +187,10 @@ export class ModelEditor {
         // 删除仅用于表单内部传输的辅助字段，避免泄露到 settings.json
         delete (model as { webSearchToolConfig?: string }).webSearchToolConfig;
         delete (model as { nativeTools?: string }).nativeTools;
+        delete (model as { supportsServiceTier?: boolean }).supportsServiceTier;
+
+        model.serviceTier =
+            data.sdkMode !== 'anthropic' && data.supportsServiceTier ? ['default', 'priority'] : undefined;
 
         // tooltip: 空字符串 → undefined 表示清空（CompatibleModelConfig 字段为可选，不用 null）
         model.tooltip = data.tooltip || undefined;
@@ -380,6 +384,9 @@ export class ModelEditor {
             maxOutputTokens: model?.maxOutputTokens || 4096,
             toolCalling: model?.capabilities?.toolCalling || false,
             imageInput: model?.capabilities?.imageInput || false,
+            supportsServiceTier:
+                model?.sdkMode !== 'anthropic' &&
+                model?.serviceTier?.some(tier => tier === 'default' || tier === 'priority') === true,
             useInstructions: model?.useInstructions,
             webSearchTool: model?.webSearchTool ? true : undefined,
             webSearchToolConfig:

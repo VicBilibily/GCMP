@@ -144,3 +144,60 @@ test('子请求关闭思考时不注入 nativeTools，但保留显式声明 tool
 
     assert.deepEqual(requestBody.tools, [declaredTool]);
 });
+
+test('Responses Fast 服务等级发送 priority', async () => {
+    const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
+    const builder = new OpenAIResponsesRequestBuilder('Test Provider', {
+        convertMessagesToOpenAIResponses: () => ({ systemMessage: '', messages: [] }),
+        convertToolsToResponses: () => [],
+        filterExtraBodyParams: (extraBody: Record<string, unknown>) => extraBody
+    } as never);
+
+    const { requestBody } = builder.build({
+        model: { id: 'gpt-5', name: 'GPT-5' } as never,
+        modelConfig: {
+            id: 'gpt-5',
+            name: 'GPT-5',
+            tooltip: 'GPT-5',
+            maxInputTokens: 1000,
+            maxOutputTokens: 1000,
+            capabilities: { toolCalling: true, imageInput: false },
+            sdkMode: 'openai-responses',
+            serviceTier: ['default', 'priority']
+        } as never,
+        messages: [],
+        options: { modelConfiguration: { serviceTier: 'priority' } } as never,
+        sessionId: 'session-123'
+    });
+
+    assert.equal(requestBody.service_tier, 'priority');
+});
+
+test('Responses Standard 服务等级清除 extraBody 中的 service_tier', async () => {
+    const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
+    const builder = new OpenAIResponsesRequestBuilder('Test Provider', {
+        convertMessagesToOpenAIResponses: () => ({ systemMessage: '', messages: [] }),
+        convertToolsToResponses: () => [],
+        filterExtraBodyParams: (extraBody: Record<string, unknown>) => extraBody
+    } as never);
+
+    const { requestBody } = builder.build({
+        model: { id: 'gpt-5', name: 'GPT-5' } as never,
+        modelConfig: {
+            id: 'gpt-5',
+            name: 'GPT-5',
+            tooltip: 'GPT-5',
+            maxInputTokens: 1000,
+            maxOutputTokens: 1000,
+            capabilities: { toolCalling: true, imageInput: false },
+            sdkMode: 'openai-responses',
+            serviceTier: ['default', 'priority'],
+            extraBody: { service_tier: 'priority' }
+        } as never,
+        messages: [],
+        options: { modelConfiguration: { serviceTier: 'default' } } as never,
+        sessionId: 'session-123'
+    });
+
+    assert.equal('service_tier' in requestBody, false);
+});
