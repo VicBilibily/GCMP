@@ -205,6 +205,16 @@ export function createDOM(state: CreateDomState, rootEl?: HTMLElement): void {
             t('Supports Image Input', '支持图像输入'),
             'capabilities.imageInput',
             model.imageInput
+        ),
+        createCheckboxFormGroup(
+            'supportsServiceTier',
+            t('Supports Service Tier Selection', '支持服务等级调节'),
+            'serviceTier',
+            model.supportsServiceTier,
+            t(
+                'Expose Standard and Fast in the model picker. Fast sends service_tier as "priority"; the endpoint must support this parameter.',
+                '在模型选择器中提供 Standard 和 Fast。Fast 会发送 service_tier: "priority"，接口必须支持该参数。'
+            )
         )
     ]);
 

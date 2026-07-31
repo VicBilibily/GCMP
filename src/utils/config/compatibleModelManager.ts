@@ -145,10 +145,9 @@ export interface CompatibleModelConfig {
     contextSize?: number[];
     /**
      * 服务等级选项列表（可选）
-     * 用于 Codex 等订阅选择不同的响应速度等级。
-     * 第一个值作为默认值。
+        * 用于 OpenAI 兼容接口选择 Standard 或 Fast 响应速度。
      */
-    serviceTier?: string[];
+        serviceTier?: ('default' | 'priority')[];
     /**
      * Token 定价（USD / 每百万 token），用于客户端成本估算和模型选择器展示。
      */
