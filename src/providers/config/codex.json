@@ -117,8 +117,8 @@
             "serviceTier": ["default", "priority"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": [2.5, 15, 0.25],
-                "tiers": [{ "serviceTier": "priority", "pricing": [5, 30, 0.5] }]
+                "pricing": [2, 12, 0.2],
+                "tiers": [{ "serviceTier": "priority", "pricing": [4, 24, 0.4] }]
             },
             "extraBody": {
                 "store": false,
@@ -142,8 +142,8 @@
             "serviceTier": ["default", "priority"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
-                "pricing": [1, 6, 0.1],
-                "tiers": [{ "serviceTier": "priority", "pricing": [2, 12, 0.2] }]
+                "pricing": [0.2, 1.2, 0.02],
+                "tiers": [{ "serviceTier": "priority", "pricing": [0.4, 2.4, 0.04] }]
             },
             "extraBody": {
                 "store": false,

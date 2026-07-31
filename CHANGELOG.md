@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.14] - 2026-07-31
+
+### 变更
+
+- **Codex GPT-5.6 Terra / Luna 降价**：跟进 OpenAI 7 月 30 日官宣，Terra 标准价下调 20%、Luna 标准价下调 80%，priority 档（Fast mode）按 2× 标准价同步下调。[#327](https://github.com/VicBilibily/GCMP/issues/327)
+
+---
+
+### Changed
+
+- **Codex GPT-5.6 Terra / Luna price cut**: Following OpenAI's July 30 announcement, Terra Standard drops 20% and Luna Standard drops 80%; priority tier (Fast mode) drops to 2× the new Standard price on both. [#327](https://github.com/VicBilibily/GCMP/issues/327)
+
 ## [0.26.13] - 2026-07-30
 
 ### 变更
