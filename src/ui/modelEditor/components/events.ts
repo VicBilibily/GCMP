@@ -205,6 +205,9 @@ export function bindEvents(state: EditorState, actions: Actions): void {
         .getElementById('webSearchToolConfig')
         ?.closest('.form-group') as HTMLElement | null;
     const nativeToolsContainer = document.getElementById('nativeTools')?.closest('.form-group') as HTMLElement | null;
+    const serviceTierContainer = document
+        .getElementById('supportsServiceTier')
+        ?.closest('.form-group') as HTMLElement | null;
     if (sdkModeSelect && useInstructionsContainer && webSearchToolContainer) {
         const updateSdkSpecificOptionsVisibility = function () {
             const sdkMode = sdkModeSelect.value;
@@ -218,6 +221,9 @@ export function bindEvents(state: EditorState, actions: Actions): void {
             }
             if (nativeToolsContainer) {
                 nativeToolsContainer.style.display = nativeToolsEffective ? '' : 'none';
+            }
+            if (serviceTierContainer) {
+                serviceTierContainer.style.display = sdkMode === 'anthropic' ? 'none' : '';
             }
 
             if (provider?.value) {
