@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.16] - 2026-08-01
+
+### 新增
+
+- **Grok 订阅额度状态栏**：展示 Grok/SuperGrok 订阅剩余额度与重置时间，优先每周额度，统一账单账户回退月度额度。
+- **Grok 独立代理设置**：支持 `gcmp.providerOverrides.grok.proxy` 独立代理与 `GROK_CLI_CHAT_PROXY_BASE_URL` 环境变量覆盖 billing 服务地址。
+
+---
+
+### Added
+
+- **Grok subscription quota status bar**: Displays remaining Grok/SuperGrok subscription quota and reset time, preferring weekly quota with monthly fallback for unified-billing accounts.
+- **Independent Grok proxy settings**: Supports `gcmp.providerOverrides.grok.proxy` proxy and `GROK_CLI_CHAT_PROXY_BASE_URL` env override for the billing service URL.
+
 ## [0.26.15] - 2026-08-01
 
 ### 新增
