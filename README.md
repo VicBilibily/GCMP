@@ -230,6 +230,8 @@ irm https://x.ai/cli/install.ps1 | iex
 ```
 
 - **支持模型**：详见 [config/grok.json](src/providers/config/grok.json)。
+- **用量查询**：已支持状态栏显示 Grok/SuperGrok 订阅剩余额度与重置时间。优先展示每周额度；统一账单账户会展示月度额度。
+- **独立代理设置**：可通过 `gcmp.providerOverrides.grok.proxy` 指定 Grok 请求代理。自定义 Grok CLI billing 服务地址时，可设置环境变量 `GROK_CLI_CHAT_PROXY_BASE_URL`。
 
 ## ⚙️ 高级配置
 
