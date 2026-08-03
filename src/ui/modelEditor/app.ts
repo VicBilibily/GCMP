@@ -64,7 +64,7 @@ const state: EditorState = {
         maxOutputTokens: 4096,
         toolCalling: false,
         imageInput: false,
-        supportsServiceTier: false,
+        serviceTier: [],
         useInstructions: undefined,
         webSearchTool: undefined,
         webSearchToolConfig: '',

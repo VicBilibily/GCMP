@@ -15,6 +15,7 @@ import {
     validateNativeTools,
     validateWebSearchToolConfig
 } from '../utils';
+import { normalizeCompatibleServiceTiers } from '../../../utils/model/compatibleServiceTier';
 
 /**
  * 显示全局错误提示
@@ -236,9 +237,14 @@ export function collectFormData(state: EditorState): ModelFormData | null {
     const maxOutputTokens = parseInt((document.getElementById('maxOutputTokens') as HTMLInputElement).value) || 8192;
     const toolCalling = (document.getElementById('toolCalling') as HTMLInputElement).checked;
     const imageInput = (document.getElementById('imageInput') as HTMLInputElement).checked;
-    const supportsServiceTier =
-        sdkMode !== 'anthropic' &&
-        (document.getElementById('supportsServiceTier') as HTMLInputElement | null)?.checked === true;
+    const serviceTierContainer = document.getElementById('serviceTierOptions');
+    const serviceTierValues =
+        serviceTierContainer ?
+            Array.from(serviceTierContainer.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'))
+                .filter(input => input.checked)
+                .map(input => input.value)
+        :   [];
+    const serviceTier = normalizeCompatibleServiceTiers(serviceTierValues, sdkMode) || [];
     const useInstructionsEl = document.getElementById('useInstructions') as HTMLInputElement | null;
     const webSearchToolEl = document.getElementById('webSearchTool') as HTMLInputElement | null;
     const webSearchToolConfigEl = document.getElementById('webSearchToolConfig') as HTMLTextAreaElement | null;
@@ -291,7 +297,7 @@ export function collectFormData(state: EditorState): ModelFormData | null {
         maxOutputTokens,
         toolCalling,
         imageInput,
-        supportsServiceTier,
+        serviceTier,
         useInstructions,
         webSearchTool,
         webSearchToolConfig,

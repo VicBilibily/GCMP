@@ -21,6 +21,7 @@ import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status';
 import { configProviders } from './config';
 import { collectInvalidTierCrons, normalizeTokenPricing } from '../utils/pricing/pricingTierResolver';
+import { normalizeCompatibleServiceTiers } from '../utils/model/compatibleServiceTier';
 
 /**
  * 独立兼容模型提供商类
@@ -93,6 +94,7 @@ export class CompatibleProvider extends GenericModelProvider {
 
                 const normalizedTokenPricing =
                     model.tokenPricing ? normalizeTokenPricing(model.tokenPricing) : undefined;
+                const serviceTier = normalizeCompatibleServiceTiers(model.serviceTier, model.sdkMode);
                 if (normalizedTokenPricing) {
                     const invalidCrons = collectInvalidTierCrons(normalizedTokenPricing);
                     if (invalidCrons.length > 0) {
@@ -129,7 +131,7 @@ export class CompatibleProvider extends GenericModelProvider {
                     ...(model.reasoningEffort && { reasoningEffort: model.reasoningEffort }),
                     ...(model.reasoningDefault && { reasoningDefault: model.reasoningDefault }),
                     ...(model.contextSize && { contextSize: model.contextSize }),
-                    ...(model.sdkMode !== 'anthropic' && model.serviceTier && { serviceTier: model.serviceTier }),
+                    ...(serviceTier && { serviceTier }),
                     ...(normalizedTokenPricing && { tokenPricing: normalizedTokenPricing })
                 };
 

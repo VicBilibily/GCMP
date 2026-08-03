@@ -54,7 +54,11 @@ export class OpenAIResponsesHandler {
     ) {
         this.handler = handler;
         this.messageConverter = new OpenAIResponsesMessageConverter(handler, this.displayName);
-        this.requestBuilder = new OpenAIResponsesRequestBuilder(this.displayName, this.messageConverter);
+        this.requestBuilder = new OpenAIResponsesRequestBuilder(
+            this.displayName,
+            this.messageConverter,
+            this.providerKey
+        );
     }
 
     private get providerKey(): string {

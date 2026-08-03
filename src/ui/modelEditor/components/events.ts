@@ -5,11 +5,12 @@
 
 import type { EditorState } from '../app';
 import { t } from '../l10n';
-import { CLI_RESERVED_PROVIDERS, type ProviderOption } from '../types';
+import { CLI_RESERVED_PROVIDERS, type ProviderOption, type SdkMode, type ServiceTier } from '../types';
 import { addNumberValidation, addSimpleValidation, normalizeProxyInput, isValidProxyInput } from '../utils';
 import { formatJSON, clearJSON, validateJSON_UI, autofillBaseUrl } from '../app';
 import { validateForm, showGlobalError, hideGlobalError } from './validation';
-import { applyInitialValues } from './form';
+import { applyInitialValues, renderServiceTierOptions } from './form';
+import { getCompatibleServiceTierOptions } from '../../../utils/model/compatibleServiceTier';
 
 interface Actions {
     saveModel: () => void;
@@ -205,9 +206,7 @@ export function bindEvents(state: EditorState, actions: Actions): void {
         .getElementById('webSearchToolConfig')
         ?.closest('.form-group') as HTMLElement | null;
     const nativeToolsContainer = document.getElementById('nativeTools')?.closest('.form-group') as HTMLElement | null;
-    const serviceTierContainer = document
-        .getElementById('supportsServiceTier')
-        ?.closest('.form-group') as HTMLElement | null;
+    const serviceTierOptionsContainer = document.getElementById('serviceTierOptions');
     if (sdkModeSelect && useInstructionsContainer && webSearchToolContainer) {
         const updateSdkSpecificOptionsVisibility = function () {
             const sdkMode = sdkModeSelect.value;
@@ -222,8 +221,14 @@ export function bindEvents(state: EditorState, actions: Actions): void {
             if (nativeToolsContainer) {
                 nativeToolsContainer.style.display = nativeToolsEffective ? '' : 'none';
             }
-            if (serviceTierContainer) {
-                serviceTierContainer.style.display = sdkMode === 'anthropic' ? 'none' : '';
+            if (serviceTierOptionsContainer) {
+                const allowedValues = new Set(getCompatibleServiceTierOptions(sdkMode as SdkMode));
+                const selectedValues = Array.from(
+                    serviceTierOptionsContainer.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:checked')
+                )
+                    .map(input => input.value)
+                    .filter((value): value is ServiceTier => allowedValues.has(value as ServiceTier));
+                renderServiceTierOptions(serviceTierOptionsContainer, sdkMode as SdkMode, selectedValues);
             }
 
             if (provider?.value) {

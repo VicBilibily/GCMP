@@ -11,6 +11,10 @@ import { t } from '../runtime/l10n';
 import type { JSONSchema7 } from 'json-schema';
 import { KnownProviders } from './knownProviders';
 import { CompatibleModelManager } from './compatibleModelManager';
+import {
+    ANTHROPIC_COMPATIBLE_SERVICE_TIERS,
+    OPENAI_COMPATIBLE_SERVICE_TIERS
+} from '../model/compatibleServiceTier';
 
 /**
  * 扩展的 JSON Schema 接口，支持 VS Code 特有的 enumDescriptions 属性
@@ -195,6 +199,35 @@ export class JsonSchemaProvider {
             'Adjusts chain-of-thought depth to balance quality, latency, and cost across scenarios',
             '调节思维链长度，平衡不同场景对效果、时延、成本的需求'
         );
+    }
+
+    private static getCompatibleServiceTierSchema(protocol: 'all' | 'openai' | 'anthropic'): JSONSchema7 {
+        const values =
+            protocol === 'openai' ? [...OPENAI_COMPATIBLE_SERVICE_TIERS]
+            : protocol === 'anthropic' ? [...ANTHROPIC_COMPATIBLE_SERVICE_TIERS]
+            : [...new Set([...OPENAI_COMPATIBLE_SERVICE_TIERS, ...ANTHROPIC_COMPATIBLE_SERVICE_TIERS])];
+        const descriptions: Record<string, string> = {
+            default: t('OpenAI default service tier.', 'OpenAI 默认服务等级'),
+            auto: t('Let the API select the service tier automatically.', '由 API 自动选择服务等级'),
+            flex: t('OpenAI Flex processing tier.', 'OpenAI Flex 处理等级'),
+            priority: t('OpenAI priority processing tier.', 'OpenAI 优先处理等级'),
+            standard_only: t('Use only the Anthropic standard service tier.', '仅使用 Anthropic 标准服务等级')
+        };
+
+        return {
+            type: 'array',
+            minItems: 1,
+            uniqueItems: true,
+            items: {
+                type: 'string',
+                enum: values,
+                enumDescriptions: values.map(value => descriptions[value])
+            },
+            description: t(
+                'Selectable native service tiers. The first item is the default in the model picker; omit this field to disable service tier selection.',
+                '可选的协议原生服务等级。数组首项是模型选择器默认值；省略该字段可禁用服务等级选择。'
+            )
+        };
     }
 
     private static getToolCallingDescription(): string {
@@ -1015,6 +1048,7 @@ export class JsonSchemaProvider {
                                     '上下文窗口调节选项列表，按顺序决定模型 picker 的可选值和默认值，常用于 200K / 400K / 满窗口切换'
                                 )
                             },
+                            serviceTier: this.getCompatibleServiceTierSchema('all'),
                             capabilities: {
                                 type: 'object',
                                 properties: {
@@ -1074,6 +1108,22 @@ export class JsonSchemaProvider {
                         },
                         required: ['id', 'name', 'provider', 'maxInputTokens', 'maxOutputTokens', 'capabilities'],
                         allOf: [
+                            {
+                                if: {
+                                    properties: { sdkMode: { const: 'anthropic' } },
+                                    required: ['sdkMode']
+                                },
+                                then: {
+                                    properties: {
+                                        serviceTier: this.getCompatibleServiceTierSchema('anthropic')
+                                    }
+                                },
+                                else: {
+                                    properties: {
+                                        serviceTier: this.getCompatibleServiceTierSchema('openai')
+                                    }
+                                }
+                            },
                             {
                                 // endpoint 仅对 openai / openai-sse / openai-responses 生效
                                 // anthropic 不提示，且已配置时标红警告

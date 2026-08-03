@@ -16,6 +16,7 @@ import { normalizeTokenPricing, serializeTokenPricingInput } from '../../utils/p
 import type { ModelTokenPricingInput } from '../../types/sharedTypes';
 import { t } from '../../utils/runtime/l10n';
 import type { ModelFormData, ProviderOption, WebViewMessage } from './types';
+import { normalizeCompatibleServiceTiers } from '../../utils/model/compatibleServiceTier';
 // 样式以 raw 字符串形式内联到 HTML（由 esbuild 的 inlineLessPlugin 处理）
 import modelEditorCss from './style.less?raw';
 
@@ -188,9 +189,7 @@ export class ModelEditor {
         delete (model as { webSearchToolConfig?: string }).webSearchToolConfig;
         delete (model as { nativeTools?: string }).nativeTools;
         delete (model as { supportsServiceTier?: boolean }).supportsServiceTier;
-
-        model.serviceTier =
-            data.sdkMode !== 'anthropic' && data.supportsServiceTier ? ['default', 'priority'] : undefined;
+        model.serviceTier = normalizeCompatibleServiceTiers(data.serviceTier, data.sdkMode);
 
         // tooltip: 空字符串 → undefined 表示清空（CompatibleModelConfig 字段为可选，不用 null）
         model.tooltip = data.tooltip || undefined;
@@ -368,6 +367,7 @@ export class ModelEditor {
      * 将 CompatibleModelConfig 转换为前端表单数据（拍平 capabilities + 序列化 JSON 字段）
      */
     private static modelConfigToFormData(model: CompatibleModelConfig): ModelFormData {
+        const sdkMode = model?.sdkMode || 'openai';
         return {
             id: model?.id || '',
             name: model?.name || '',
@@ -379,14 +379,12 @@ export class ModelEditor {
             proxy: model?.proxy || '',
             apiKey: '',
             model: model?.model || '',
-            sdkMode: model?.sdkMode || 'openai',
+            sdkMode,
             maxInputTokens: model?.maxInputTokens || 128000,
             maxOutputTokens: model?.maxOutputTokens || 4096,
             toolCalling: model?.capabilities?.toolCalling || false,
             imageInput: model?.capabilities?.imageInput || false,
-            supportsServiceTier:
-                model?.sdkMode !== 'anthropic' &&
-                model?.serviceTier?.some(tier => tier === 'default' || tier === 'priority') === true,
+            serviceTier: normalizeCompatibleServiceTiers(model?.serviceTier, sdkMode) || [],
             useInstructions: model?.useInstructions,
             webSearchTool: model?.webSearchTool ? true : undefined,
             webSearchToolConfig:

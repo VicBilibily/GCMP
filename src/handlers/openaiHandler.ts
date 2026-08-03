@@ -835,7 +835,12 @@ export class OpenAIHandler {
         // 注意：extraBody 中可能已注入 thinking/reasoning 等参数，以下逻辑会覆盖它们，
         // 确保 Chat UI 的选择或模型默认值始终生效。
         const settings = options.modelConfiguration as ModelChatResponseOptions;
-        applyOpenAIServiceTier(createParams as unknown as Record<string, unknown>, modelConfig, settings);
+        applyOpenAIServiceTier(
+            createParams as unknown as Record<string, unknown>,
+            modelConfig,
+            settings,
+            this.provider
+        );
         const customParams = createParams as unknown as {
             enable_thinking?: boolean;
             thinking?: { type: 'enabled' | 'disabled' };

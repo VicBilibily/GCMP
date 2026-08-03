@@ -44,3 +44,30 @@ test('模型未声明的服务等级不会发送', () => {
 
     assert.equal('service_tier' in requestBody, false);
 });
+
+for (const serviceTier of ['default', 'auto', 'flex', 'priority']) {
+    test(`Compatible OpenAI 原样发送 ${serviceTier}`, () => {
+        const requestBody: Record<string, unknown> = {};
+        const model = { serviceTier: ['default', 'auto', 'flex', 'priority'] };
+
+        applyOpenAIServiceTier(requestBody, model, { serviceTier }, 'compatible');
+
+        assert.equal(requestBody.service_tier, serviceTier);
+    });
+}
+
+test('Compatible OpenAI 删除非法服务等级', () => {
+    const requestBody: Record<string, unknown> = { service_tier: 'priority' };
+
+    applyOpenAIServiceTier(requestBody, { serviceTier: ['default', 'priority'] }, { serviceTier: 'custom' }, 'compatible');
+
+    assert.equal('service_tier' in requestBody, false);
+});
+
+test('非 Compatible OpenAI 的 default 仍不发送', () => {
+    const requestBody: Record<string, unknown> = { service_tier: 'priority' };
+
+    applyOpenAIServiceTier(requestBody, supportedModel, { serviceTier: 'default' }, 'codex');
+
+    assert.equal('service_tier' in requestBody, false);
+});

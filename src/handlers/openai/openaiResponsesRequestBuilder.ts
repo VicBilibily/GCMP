@@ -71,7 +71,8 @@ export function applyResponsesSystemMessage(params: {
 export class OpenAIResponsesRequestBuilder {
     constructor(
         private readonly displayName: string,
-        private readonly messageConverter: OpenAIResponsesMessageConverter
+        private readonly messageConverter: OpenAIResponsesMessageConverter,
+        private readonly providerKey?: string
     ) {}
 
     build(params: OpenAIResponsesRequestBuilderParams): OpenAIResponsesRequestBuilderResult {
@@ -206,7 +207,7 @@ export class OpenAIResponsesRequestBuilder {
             reasoning?: { effort: string };
         };
 
-        applyOpenAIServiceTier(requestBody, modelConfig, settings);
+        applyOpenAIServiceTier(requestBody, modelConfig, settings, this.providerKey);
 
         if (settings) {
             if (settings.thinking) {

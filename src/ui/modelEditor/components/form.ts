@@ -9,9 +9,12 @@ import {
     MODELS_ENDPOINT_PRESETS,
     REASONING_EFFORT_OPTIONS,
     SDK_MODE_OPTIONS,
-    type ModelFormData
+    type ModelFormData,
+    type SdkMode,
+    type ServiceTier
 } from '../types';
 import { t } from '../l10n';
+import { getCompatibleServiceTierOptions } from '../../../utils/model/compatibleServiceTier';
 
 interface CreateDomState {
     model: ModelFormData;
@@ -281,6 +284,17 @@ export function createDOM(state: CreateDomState, rootEl?: HTMLElement): void {
                 '模型 picker 的可选推理强度列表。默认值规则：\n- 如果包含 "Medium"，始终以 Medium 为默认值\n- 否则以列表首项为默认值\n使用拖拽手柄 (⠿) 调整顺序。全部不选则保持未配置状态。'
             )
         ),
+        createMultiSelectCheckboxFormGroup(
+            'serviceTierOptions',
+            t('Service Tier Options', '服务等级选项'),
+            'serviceTier',
+            getServiceTierFormOptions(model.sdkMode),
+            model.serviceTier,
+            t(
+                'Native service tiers exposed in the model picker. The first selected item is the default. Drag to reorder; leave all unchecked to disable this setting.',
+                '在模型选择器中提供协议原生服务等级。首个选中项是默认值；可拖拽排序，全部不选则禁用。'
+            )
+        ),
         createFormGroup(
             'reasoningDefault',
             t('Default Reasoning Effort', '默认推理强度'),
@@ -497,23 +511,7 @@ function createMultiSelectCheckboxFormGroup(
     optionsContainer.className = 'multi-checkbox-options';
     optionsContainer.id = id;
 
-    const selectedSet = new Set(selectedValues || []);
-    const renderedSet = new Set<string>();
-
-    // 先按 selectedValues 的顺序渲染已选项
-    (selectedValues || []).forEach(value => {
-        const opt = options.find(o => o.value === value);
-        if (opt) {
-            appendCheckbox(optionsContainer, opt, true);
-            renderedSet.add(value);
-        }
-    });
-    // 再按 options 顺序渲染未选项
-    options.forEach(opt => {
-        if (!renderedSet.has(opt.value)) {
-            appendCheckbox(optionsContainer, opt, selectedSet.has(opt.value));
-        }
-    });
+    renderMultiSelectCheckboxOptions(optionsContainer, options, selectedValues);
 
     enableDragSort(optionsContainer);
     group.appendChild(optionsContainer);
@@ -525,6 +523,48 @@ function createMultiSelectCheckboxFormGroup(
         group.appendChild(help);
     }
     return group;
+}
+
+function renderMultiSelectCheckboxOptions(
+    container: HTMLElement,
+    options: { value: string; label: string }[],
+    selectedValues: string[] | undefined
+): void {
+    container.replaceChildren();
+    const selectedSet = new Set(selectedValues || []);
+    const renderedSet = new Set<string>();
+
+    for (const value of selectedValues || []) {
+        const option = options.find(item => item.value === value);
+        if (option) {
+            appendCheckbox(container, option, true);
+            renderedSet.add(value);
+        }
+    }
+    for (const option of options) {
+        if (!renderedSet.has(option.value)) {
+            appendCheckbox(container, option, selectedSet.has(option.value));
+        }
+    }
+}
+
+function getServiceTierFormOptions(sdkMode: SdkMode): { value: ServiceTier; label: string }[] {
+    const labels: Record<ServiceTier, string> = {
+        default: 'Default',
+        auto: 'Auto',
+        flex: 'Flex',
+        priority: 'Priority',
+        standard_only: 'Standard Only'
+    };
+    return getCompatibleServiceTierOptions(sdkMode).map(value => ({ value, label: labels[value] }));
+}
+
+export function renderServiceTierOptions(
+    container: HTMLElement,
+    sdkMode: SdkMode,
+    selectedValues: ServiceTier[]
+): void {
+    renderMultiSelectCheckboxOptions(container, getServiceTierFormOptions(sdkMode), selectedValues);
 }
 
 function appendCheckbox(container: HTMLElement, opt: { value: string; label: string }, checked: boolean): void {

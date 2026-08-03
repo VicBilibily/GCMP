@@ -6,6 +6,7 @@
  */
 
 import type { CompatibleModelConfig } from '../../utils/config/compatibleModelManager';
+import type { CompatibleServiceTier } from '../../utils/model/compatibleServiceTier';
 
 /**
  * SDK 兼容模式（与 CompatibleModelConfig.sdkMode 保持一致）
@@ -18,6 +19,8 @@ export type ProviderBaseUrls = Partial<Record<SdkMode, string>>;
  * 推理强度选项（与 CompatibleModelConfig.reasoningEffort 元素一致）
  */
 export type ReasoningEffort = NonNullable<CompatibleModelConfig['reasoningEffort']>[number];
+
+export type ServiceTier = CompatibleServiceTier;
 
 /**
  * 前端使用的扁平化模型数据
@@ -42,7 +45,7 @@ export interface ModelFormData {
     maxOutputTokens: number;
     toolCalling: boolean;
     imageInput: boolean;
-    supportsServiceTier: boolean;
+    serviceTier: ServiceTier[];
     useInstructions: boolean | undefined;
     webSearchTool: boolean | undefined;
     /** webSearchTool 对象配置（JSON 字符串），anthropic / openai-responses 模式支持 */
