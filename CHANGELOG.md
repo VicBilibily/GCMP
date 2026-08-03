@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.17] - 2026-08-03
+
+### 新增
+
+- **新增 Qwen3.8-Max 正式版**：普通接入点与 Token Plan 团队版/个人版同步接入。[#334](https://github.com/VicBilibily/GCMP/issues/334)
+- **新增 DeepSeek-V4-Flash-0731**：普通接入点与 Token Plan 团队版/个人版同步接入。
+
+---
+
+### Added
+
+- **Qwen3.8-Max GA**: Added across standard, Token Plan Team/Personal. [#334](https://github.com/VicBilibily/GCMP/issues/334)
+- **DeepSeek-V4-Flash-0731**: Added across standard, Token Plan Team/Personal.
+
 ## [0.26.16] - 2026-08-01
 
 ### 新增
