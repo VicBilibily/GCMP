@@ -31,6 +31,7 @@ import * as liveMetrics from './liveMetrics';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import { isSubRequest, type RequestKind } from './requestClassifier';
 import { applyAnthropicThinkingConfiguration } from './anthropic/anthropicThinkingConfig';
+import { applyAnthropicServiceTier } from './anthropic/serviceTier';
 
 /**
  * Anthropic 兼容处理器类
@@ -275,14 +276,12 @@ export class AnthropicHandler {
                 applyAnthropicThinkingConfiguration(createParams, undefined, modelConfig, { disableThinking: true });
             }
 
-            // 仅在 flex / priority 时传递 service_tier，auto / default 时不传递
-            if (settings?.serviceTier) {
-                if (settings.serviceTier === 'flex' || settings.serviceTier === 'priority') {
-                    createParams.service_tier = settings.serviceTier as 'auto' | 'standard_only';
-                } else {
-                    delete createParams.service_tier;
-                }
-            }
+            applyAnthropicServiceTier(
+                createParams as unknown as Record<string, unknown>,
+                modelConfig,
+                settings,
+                this.provider
+            );
 
             // 添加系统消息（如果有）
             if (system.text) {

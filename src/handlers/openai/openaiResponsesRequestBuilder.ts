@@ -7,6 +7,7 @@ import { isSubRequest, type RequestKind } from '../requestClassifier';
 import { mergeNativeToolConfigs } from '../nativeToolUtils';
 import { OpenAIResponsesMessageConverter } from './openaiResponsesMessageConverter';
 import { preprocessOpenAIResponsesInputItems } from './openaiResponsesInputPreprocessor';
+import { applyOpenAIServiceTier } from './serviceTier';
 
 interface OpenAIResponsesRequestBuilderParams {
     model: vscode.LanguageModelChatInformation;
@@ -70,7 +71,8 @@ export function applyResponsesSystemMessage(params: {
 export class OpenAIResponsesRequestBuilder {
     constructor(
         private readonly displayName: string,
-        private readonly messageConverter: OpenAIResponsesMessageConverter
+        private readonly messageConverter: OpenAIResponsesMessageConverter,
+        private readonly providerKey?: string
     ) {}
 
     build(params: OpenAIResponsesRequestBuilderParams): OpenAIResponsesRequestBuilderResult {
@@ -205,6 +207,8 @@ export class OpenAIResponsesRequestBuilder {
             reasoning?: { effort: string };
         };
 
+        applyOpenAIServiceTier(requestBody, modelConfig, settings, this.providerKey);
+
         if (settings) {
             if (settings.thinking) {
                 const thinking: { type: string } = customParams.thinking || { type: 'disabled' };
@@ -223,13 +227,6 @@ export class OpenAIResponsesRequestBuilder {
                 customParams.reasoning = reasoning;
                 if (model.id.toLowerCase().includes('gpt')) {
                     customParams.thinking = undefined;
-                }
-            }
-            if (settings.serviceTier) {
-                if (settings.serviceTier === 'flex' || settings.serviceTier === 'priority') {
-                    requestBody.service_tier = settings.serviceTier;
-                } else {
-                    delete requestBody.service_tier;
                 }
             }
         }

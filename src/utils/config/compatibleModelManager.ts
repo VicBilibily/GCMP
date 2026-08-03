@@ -13,6 +13,7 @@ import { t } from '../runtime/l10n';
 import { sanitizeConfigForLogging } from '../net/proxyAgent';
 import { ModelEditor } from '../../ui/modelEditor';
 import type { ModelTokenPricingInput, NativeToolConfig, WebSearchToolConfig } from '../../types/sharedTypes';
+import type { CompatibleServiceTier } from '../model/compatibleServiceTier';
 
 /**
  * 后退按钮点击事件
@@ -145,10 +146,9 @@ export interface CompatibleModelConfig {
     contextSize?: number[];
     /**
      * 服务等级选项列表（可选）
-     * 用于 Codex 等订阅选择不同的响应速度等级。
-     * 第一个值作为默认值。
+     * 数组首项作为模型选择器中的默认值。
      */
-    serviceTier?: string[];
+     serviceTier?: CompatibleServiceTier[];
     /**
      * Token 定价（USD / 每百万 token），用于客户端成本估算和模型选择器展示。
      */
