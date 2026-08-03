@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.19] - 2026-08-03
+
+### 修复
+
+- **修复 Qwen3.8 调用 file_search 直接中断对话**：DashScope 普通接入点与 Token Plan 团队版/个人版的 Qwen 系列模型由 Responses API 端点回退至 Anthropic 兼容端点，规避百炼 Responses 端点将 Copilot 的 `file_search` 函数工具误判为内置知识检索工具的服务端缺陷；同步移除内置工具（web_search/web_extractor）注入，百炼 Anthropic 端点不支持内置工具能力。[#336](https://github.com/VicBilibily/GCMP/issues/336)
+
+---
+
+### Fixed
+
+- **Fix Qwen3.8 conversation interruption on file_search calls**: Qwen models on the standard DashScope endpoint and Token Plan Team/Personal revert from the Responses API endpoint to the Anthropic-compatible endpoint, working around a DashScope server-side bug that misidentifies Copilot's `file_search` function tool as its built-in knowledge-retrieval tool. Built-in tool injection (web_search/web_extractor) is removed accordingly, as DashScope's Anthropic endpoint does not support built-in tools. [#336](https://github.com/VicBilibily/GCMP/issues/336)
+
 ## [0.26.18] - 2026-08-03
 
 ### 新增
