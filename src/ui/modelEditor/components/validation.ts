@@ -244,7 +244,7 @@ export function collectFormData(state: EditorState): ModelFormData | null {
                 .filter(input => input.checked)
                 .map(input => input.value)
         :   [];
-    const serviceTier = normalizeCompatibleServiceTiers(serviceTierValues, sdkMode) || [];
+    const serviceTier = normalizeCompatibleServiceTiers(serviceTierValues) || [];
     const useInstructionsEl = document.getElementById('useInstructions') as HTMLInputElement | null;
     const webSearchToolEl = document.getElementById('webSearchTool') as HTMLInputElement | null;
     const webSearchToolConfigEl = document.getElementById('webSearchToolConfig') as HTMLTextAreaElement | null;

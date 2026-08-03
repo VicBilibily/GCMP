@@ -94,7 +94,7 @@ export class CompatibleProvider extends GenericModelProvider {
 
                 const normalizedTokenPricing =
                     model.tokenPricing ? normalizeTokenPricing(model.tokenPricing) : undefined;
-                const serviceTier = normalizeCompatibleServiceTiers(model.serviceTier, model.sdkMode);
+                const serviceTier = normalizeCompatibleServiceTiers(model.serviceTier);
                 if (normalizedTokenPricing) {
                     const invalidCrons = collectInvalidTierCrons(normalizedTokenPricing);
                     if (invalidCrons.length > 0) {

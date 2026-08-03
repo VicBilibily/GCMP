@@ -208,16 +208,6 @@ export function createDOM(state: CreateDomState, rootEl?: HTMLElement): void {
             t('Supports Image Input', '支持图像输入'),
             'capabilities.imageInput',
             model.imageInput
-        ),
-        createCheckboxFormGroup(
-            'supportsServiceTier',
-            t('Supports Service Tier Selection', '支持服务等级调节'),
-            'serviceTier',
-            model.supportsServiceTier,
-            t(
-                'Expose Standard and Fast in the model picker. Fast sends service_tier as "priority"; the endpoint must support this parameter.',
-                '在模型选择器中提供 Standard 和 Fast。Fast 会发送 service_tier: "priority"，接口必须支持该参数。'
-            )
         )
     ]);
 
@@ -284,17 +274,6 @@ export function createDOM(state: CreateDomState, rootEl?: HTMLElement): void {
                 '模型 picker 的可选推理强度列表。默认值规则：\n- 如果包含 "Medium"，始终以 Medium 为默认值\n- 否则以列表首项为默认值\n使用拖拽手柄 (⠿) 调整顺序。全部不选则保持未配置状态。'
             )
         ),
-        createMultiSelectCheckboxFormGroup(
-            'serviceTierOptions',
-            t('Service Tier Options', '服务等级选项'),
-            'serviceTier',
-            getServiceTierFormOptions(model.sdkMode),
-            model.serviceTier,
-            t(
-                'Native service tiers exposed in the model picker. The first selected item is the default. Drag to reorder; leave all unchecked to disable this setting.',
-                '在模型选择器中提供协议原生服务等级。首个选中项是默认值；可拖拽排序，全部不选则禁用。'
-            )
-        ),
         createFormGroup(
             'reasoningDefault',
             t('Default Reasoning Effort', '默认推理强度'),
@@ -317,6 +296,17 @@ export function createDOM(state: CreateDomState, rootEl?: HTMLElement): void {
             t(
                 'Override the default reasoning effort. When specified, it takes precedence over the "Medium-first / first-item" rule. The value must be included in the Reasoning Effort Options above.',
                 '覆盖默认推理强度。指定时优先级高于“Medium 优先 / 数组首项”规则。该值必须包含在上方的推理强度选项中。'
+            )
+        ),
+        createMultiSelectCheckboxFormGroup(
+            'serviceTierOptions',
+            t('Service Tier Options', '服务等级选项'),
+            'serviceTier',
+            getServiceTierFormOptions(model.sdkMode),
+            model.serviceTier,
+            t(
+                'Native service tiers exposed in the model picker. The first selected item is the default. Drag to reorder; leave all unchecked to disable this setting. At present, service tiers can only be configured in the model manager, and extra options may not be selectable in the chat dialog.',
+                '在模型选择器中提供协议原生服务等级。首个选中项是默认值；可拖拽排序，全部不选则禁用。当前服务等级仅可在模型管理器中配置，对话框中的额外选项可能暂时无法选择。'
             )
         ),
         createJSONFormGroup(
@@ -535,11 +525,10 @@ function renderMultiSelectCheckboxOptions(
     const renderedSet = new Set<string>();
 
     for (const value of selectedValues || []) {
-        const option = options.find(item => item.value === value);
-        if (option) {
-            appendCheckbox(container, option, true);
-            renderedSet.add(value);
-        }
+        // 已选值不在建议列表时（端点私有值）也要渲染出来，避免编辑保存后被静默丢弃
+        const option = options.find(item => item.value === value) ?? { value, label: value };
+        appendCheckbox(container, option, true);
+        renderedSet.add(value);
     }
     for (const option of options) {
         if (!renderedSet.has(option.value)) {
@@ -549,14 +538,14 @@ function renderMultiSelectCheckboxOptions(
 }
 
 function getServiceTierFormOptions(sdkMode: SdkMode): { value: ServiceTier; label: string }[] {
-    const labels: Record<ServiceTier, string> = {
+    const labels: Record<string, string> = {
         default: 'Default',
         auto: 'Auto',
         flex: 'Flex',
         priority: 'Priority',
         standard_only: 'Standard Only'
     };
-    return getCompatibleServiceTierOptions(sdkMode).map(value => ({ value, label: labels[value] }));
+    return getCompatibleServiceTierOptions(sdkMode).map(value => ({ value, label: labels[value] || value }));
 }
 
 export function renderServiceTierOptions(

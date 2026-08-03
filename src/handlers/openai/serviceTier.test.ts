@@ -56,10 +56,23 @@ for (const serviceTier of ['default', 'auto', 'flex', 'priority']) {
     });
 }
 
-test('Compatible OpenAI 删除非法服务等级', () => {
+test('Compatible OpenAI 透传端点私有等级', () => {
+    const requestBody: Record<string, unknown> = {};
+
+    applyOpenAIServiceTier(requestBody, { serviceTier: ['default', 'scale'] }, { serviceTier: 'scale' }, 'compatible');
+
+    assert.equal(requestBody.service_tier, 'scale');
+});
+
+test('Compatible OpenAI 删除模型未声明的等级', () => {
     const requestBody: Record<string, unknown> = { service_tier: 'priority' };
 
-    applyOpenAIServiceTier(requestBody, { serviceTier: ['default', 'priority'] }, { serviceTier: 'custom' }, 'compatible');
+    applyOpenAIServiceTier(
+        requestBody,
+        { serviceTier: ['default', 'priority'] },
+        { serviceTier: 'scale' },
+        'compatible'
+    );
 
     assert.equal('service_tier' in requestBody, false);
 });

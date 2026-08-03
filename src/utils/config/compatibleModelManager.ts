@@ -13,7 +13,7 @@ import { t } from '../runtime/l10n';
 import { sanitizeConfigForLogging } from '../net/proxyAgent';
 import { ModelEditor } from '../../ui/modelEditor';
 import type { ModelTokenPricingInput, NativeToolConfig, WebSearchToolConfig } from '../../types/sharedTypes';
-import type { CompatibleServiceTier } from '../model/compatibleServiceTier';
+import { normalizeCompatibleServiceTiers } from '../model/compatibleServiceTier';
 
 /**
  * 后退按钮点击事件
@@ -146,9 +146,10 @@ export interface CompatibleModelConfig {
     contextSize?: number[];
     /**
      * 服务等级选项列表（可选）
-     * 数组首项作为模型选择器中的默认值。
+     * 数组首项作为模型选择器中的默认值；选中值按原样透传给接口，
+     * 支持三方端点的私有枚举（如 MiniMax anthropic 端点的 default/priority）。
      */
-     serviceTier?: CompatibleServiceTier[];
+    serviceTier?: string[];
     /**
      * Token 定价（USD / 每百万 token），用于客户端成本估算和模型选择器展示。
      */
@@ -230,9 +231,12 @@ export class CompatibleModelManager {
         try {
             const config = vscode.workspace.getConfiguration('gcmp');
             const modelsData = config.get<CompatibleModelConfig[]>('compatibleModels', []);
-            this.models = (modelsData || []).filter(
-                model => model != null && typeof model === 'object' && model.id && model.name && model.provider
-            ); // 过滤掉无效模型
+            this.models = (modelsData || [])
+                .filter(model => model != null && typeof model === 'object' && model.id && model.name && model.provider)
+                .map(model => ({
+                    ...model,
+                    serviceTier: normalizeCompatibleServiceTiers(model.serviceTier)
+                })); // 过滤掉无效模型，并归一化 serviceTier 配置（透传，不做值映射）
             Logger.debug(`Loaded ${this.models.length} custom models`);
         } catch (error) {
             Logger.error('Failed to load custom models:', error);

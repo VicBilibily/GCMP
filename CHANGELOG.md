@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.18] - 2026-08-03
+
+### 新增
+
+- **Compatible 自定义模型服务等级选择**：模型声明的服务等级按原值透传给接口，兼容各家端点的私有枚举（如 OpenAI 的 `default`/`auto`/`flex`/`priority`、官方 Anthropic 的 `standard_only`/`auto`、MiniMax Anthropic 端点的 `default`/`priority`）；模型编辑器按 sdkMode 提供常见值勾选并支持拖拽排序，首项作为模型选择器默认值，settings.json 中也可填写端点自定义值。
+
+---
+
+### Added
+
+- **Service tier selection for Compatible custom models**: Declared service tiers are sent to the endpoint as-is, covering vendor-specific enums (e.g. OpenAI `default`/`auto`/`flex`/`priority`, official Anthropic `standard_only`/`auto`, and `default`/`priority` on MiniMax's Anthropic endpoint). The model editor offers sdkMode-aware suggestions with drag ordering; the first item is the model picker default, and custom endpoint values can be set directly in settings.json.
+
 ## [0.26.17] - 2026-08-03
 
 ### 新增

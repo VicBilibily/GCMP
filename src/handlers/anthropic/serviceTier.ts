@@ -1,5 +1,4 @@
 import type { ModelChatResponseOptions, ModelConfig } from '../../types/sharedTypes';
-import { ANTHROPIC_COMPATIBLE_SERVICE_TIERS } from '../../utils/model/compatibleServiceTier';
 
 export function applyAnthropicServiceTier(
     requestBody: Record<string, unknown>,
@@ -16,12 +15,9 @@ export function applyAnthropicServiceTier(
         if (!modelConfig.serviceTier?.length) {
             return;
         }
-        if (
-            ANTHROPIC_COMPATIBLE_SERVICE_TIERS.includes(
-                serviceTier as (typeof ANTHROPIC_COMPATIBLE_SERVICE_TIERS)[number]
-            ) &&
-            modelConfig.serviceTier.includes(serviceTier)
-        ) {
+        // compatible 通道透传：三方 anthropic 端点未必遵循官方枚举（如 MiniMax 使用
+        // default/priority），模型声明了什么就原样发送什么；未声明的陈旧值删除。
+        if (modelConfig.serviceTier.includes(serviceTier)) {
             requestBody.service_tier = serviceTier;
         } else {
             delete requestBody.service_tier;

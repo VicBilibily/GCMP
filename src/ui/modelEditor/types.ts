@@ -6,7 +6,6 @@
  */
 
 import type { CompatibleModelConfig } from '../../utils/config/compatibleModelManager';
-import type { CompatibleServiceTier } from '../../utils/model/compatibleServiceTier';
 
 /**
  * SDK 兼容模式（与 CompatibleModelConfig.sdkMode 保持一致）
@@ -20,7 +19,10 @@ export type ProviderBaseUrls = Partial<Record<SdkMode, string>>;
  */
 export type ReasoningEffort = NonNullable<CompatibleModelConfig['reasoningEffort']>[number];
 
-export type ServiceTier = CompatibleServiceTier;
+/**
+ * 服务等级：compatible 通道透传，允许三方端点的任意私有枚举值
+ */
+export type ServiceTier = string;
 
 /**
  * 前端使用的扁平化模型数据

@@ -21,6 +21,16 @@ test('Compatible Anthropic 原样发送 auto', () => {
     assert.equal(requestBody.service_tier, 'auto');
 });
 
+test('Compatible Anthropic 透传三方端点私有等级', () => {
+    // MiniMax 等三方 anthropic 端点使用 default/priority 而非官方枚举，声明后应原样发送
+    const requestBody: Record<string, unknown> = {};
+    const thirdPartyModel = { serviceTier: ['default', 'priority'] };
+
+    applyAnthropicServiceTier(requestBody, thirdPartyModel, { serviceTier: 'priority' }, 'compatible');
+
+    assert.equal(requestBody.service_tier, 'priority');
+});
+
 test('Compatible Anthropic 删除模型未声明的等级', () => {
     const requestBody: Record<string, unknown> = { service_tier: 'auto' };
 

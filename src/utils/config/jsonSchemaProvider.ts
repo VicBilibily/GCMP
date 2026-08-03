@@ -11,10 +11,7 @@ import { t } from '../runtime/l10n';
 import type { JSONSchema7 } from 'json-schema';
 import { KnownProviders } from './knownProviders';
 import { CompatibleModelManager } from './compatibleModelManager';
-import {
-    ANTHROPIC_COMPATIBLE_SERVICE_TIERS,
-    OPENAI_COMPATIBLE_SERVICE_TIERS
-} from '../model/compatibleServiceTier';
+import { ANTHROPIC_COMPATIBLE_SERVICE_TIERS, OPENAI_COMPATIBLE_SERVICE_TIERS } from '../model/compatibleServiceTier';
 
 /**
  * 扩展的 JSON Schema 接口，支持 VS Code 特有的 enumDescriptions 属性
@@ -202,15 +199,24 @@ export class JsonSchemaProvider {
     }
 
     private static getCompatibleServiceTierSchema(protocol: 'all' | 'openai' | 'anthropic'): JSONSchema7 {
-        const values =
+        // compatible 通道对服务等级采取透传策略：常见值仅作自动补全建议，
+        // 三方端点的私有枚举值（如 MiniMax 的 default/priority、网关自定义值）允许自由填写。
+        const anthropicSuggestions = [...ANTHROPIC_COMPATIBLE_SERVICE_TIERS, 'default', 'priority'];
+        const suggestions =
             protocol === 'openai' ? [...OPENAI_COMPATIBLE_SERVICE_TIERS]
-            : protocol === 'anthropic' ? [...ANTHROPIC_COMPATIBLE_SERVICE_TIERS]
-            : [...new Set([...OPENAI_COMPATIBLE_SERVICE_TIERS, ...ANTHROPIC_COMPATIBLE_SERVICE_TIERS])];
+            : protocol === 'anthropic' ? anthropicSuggestions
+            : [...new Set([...OPENAI_COMPATIBLE_SERVICE_TIERS, ...anthropicSuggestions])];
         const descriptions: Record<string, string> = {
-            default: t('OpenAI default service tier.', 'OpenAI 默认服务等级'),
+            default: t(
+                'Default service tier (OpenAI and some third-party Anthropic endpoints such as MiniMax).',
+                '默认服务等级（OpenAI 及 MiniMax 等部分三方 Anthropic 端点）'
+            ),
             auto: t('Let the API select the service tier automatically.', '由 API 自动选择服务等级'),
             flex: t('OpenAI Flex processing tier.', 'OpenAI Flex 处理等级'),
-            priority: t('OpenAI priority processing tier.', 'OpenAI 优先处理等级'),
+            priority: t(
+                'Priority processing tier (OpenAI and some third-party Anthropic endpoints such as MiniMax).',
+                '优先处理等级（OpenAI 及 MiniMax 等部分三方 Anthropic 端点）'
+            ),
             standard_only: t('Use only the Anthropic standard service tier.', '仅使用 Anthropic 标准服务等级')
         };
 
@@ -219,13 +225,18 @@ export class JsonSchemaProvider {
             minItems: 1,
             uniqueItems: true,
             items: {
-                type: 'string',
-                enum: values,
-                enumDescriptions: values.map(value => descriptions[value])
+                anyOf: [
+                    {
+                        type: 'string',
+                        enum: suggestions,
+                        enumDescriptions: suggestions.map(value => descriptions[value])
+                    },
+                    { type: 'string' }
+                ]
             },
             description: t(
-                'Selectable native service tiers. The first item is the default in the model picker; omit this field to disable service tier selection.',
-                '可选的协议原生服务等级。数组首项是模型选择器默认值；省略该字段可禁用服务等级选择。'
+                'Service tiers sent to the endpoint as-is. Common values are suggested; custom values supported by the endpoint are also allowed. The first item is the default in the model picker; omit this field to disable service tier selection.',
+                '按声明原样透传给接口的服务等级。常见值已列出供选择，也可填写端点支持的自定义值。数组首项是模型选择器默认值；省略该字段可禁用服务等级选择。'
             )
         };
     }
