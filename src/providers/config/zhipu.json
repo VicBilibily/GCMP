@@ -103,7 +103,7 @@
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
                 "pricing": { "USD": [1.4, 4.4, 0.26], "RMB": [6, 24, 1.3] },
-                "tiers": [{ "contextSizeMin": 32000, "pricing": { "USD": [1.4, 4.4, 0.26], "RMB": [8, 28, 2] } }]
+                "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [1.4, 4.4, 0.26], "RMB": [8, 28, 2] } }]
             }
         },
         {
@@ -117,7 +117,7 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": { "USD": [1.2, 4, 0.24], "RMB": [5, 22, 1.2] },
-                "tiers": [{ "contextSizeMin": 32000, "pricing": { "USD": [1.2, 4, 0.24], "RMB": [7, 26, 1.8] } }]
+                "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [1.2, 4, 0.24], "RMB": [7, 26, 1.8] } }]
             }
         },
         {
@@ -131,7 +131,7 @@
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
                 "pricing": { "USD": [1.2, 4, 0.24], "RMB": [5, 22, 1.2] },
-                "tiers": [{ "contextSizeMin": 32000, "pricing": { "USD": [1.2, 4, 0.24], "RMB": [7, 26, 1.8] } }]
+                "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [1.2, 4, 0.24], "RMB": [7, 26, 1.8] } }]
             }
         },
         {
@@ -145,7 +145,7 @@
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
                 "pricing": { "USD": [1, 3.2, 0.2], "RMB": [4, 18, 1] },
-                "tiers": [{ "contextSizeMin": 32000, "pricing": { "USD": [1, 3.2, 0.2], "RMB": [6, 22, 1.5] } }]
+                "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [1, 3.2, 0.2], "RMB": [6, 22, 1.5] } }]
             }
         },
         {
@@ -159,7 +159,7 @@
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
                 "pricing": { "USD": [0.6, 2.2, 0.11], "RMB": [2, 8, 0.4] },
-                "tiers": [{ "contextSizeMin": 32000, "pricing": { "USD": [0.6, 2.2, 0.11], "RMB": [4, 16, 0.8] } }]
+                "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [0.6, 2.2, 0.11], "RMB": [4, 16, 0.8] } }]
             }
         },
         {
@@ -173,7 +173,7 @@
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
                 "pricing": { "USD": [0.6, 2.2, 0.11], "RMB": [2, 8, 0.4] },
-                "tiers": [{ "contextSizeMin": 32000, "pricing": { "USD": [0.6, 2.2, 0.11], "RMB": [4, 16, 0.8] } }]
+                "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [0.6, 2.2, 0.11], "RMB": [4, 16, 0.8] } }]
             }
         },
         {

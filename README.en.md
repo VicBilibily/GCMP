@@ -229,6 +229,8 @@ irm https://x.ai/cli/install.ps1 | iex
 ```
 
 - **Supported models**: See [config/grok.json](src/providers/config/grok.json).
+- **Usage tracking**: The status bar displays remaining Grok/SuperGrok subscription quota and reset time. Weekly quota is preferred; unified-billing accounts show monthly quota.
+- **Independent proxy settings**: Use `gcmp.providerOverrides.grok.proxy` for Grok requests. Set `GROK_CLI_CHAT_PROXY_BASE_URL` to override the Grok CLI billing service base URL.
 
 ## ⚙️ Advanced Configuration
 

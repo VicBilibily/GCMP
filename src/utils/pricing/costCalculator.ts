@@ -34,10 +34,12 @@ export interface RawTokenUsage {
     prompt_tokens_details?: {
         cached_tokens?: number;
         cache_creation_input_tokens?: number;
+        cache_write_tokens?: number;
     };
     /** 兼容 Responses API 风格 */
     input_tokens_details?: {
         cached_tokens?: number;
+        cache_write_tokens?: number;
     };
     /** 兼容 usageMetadata */
     promptTokenCount?: number;
@@ -323,7 +325,11 @@ export function calculateCostWithBreakdown(
     const { activeTier, effectivePricing, effectivePricingRmb, effectiveNativeCurrency } = resolvedPricing;
 
     const cacheCreationTokens = getExplicitCacheWriteTokens(usage);
-    const inputTokens = getUncachedInputTokens(usage, parsed.actualInput, cacheReadTokens, cacheCreationTokens);
+    const uncachedInputTokens = getUncachedInputTokens(usage, parsed.actualInput, cacheReadTokens, cacheCreationTokens);
+    // Anthropic 的 input_tokens 不含 cache_write，需加上走 inputPrice 基础计价；
+    // Responses/Chat Completions 的 input_tokens 已含 cache_write，不重复加。
+    const isAnthropicStyle = typeof usage.input_tokens === 'number' && usage.input_tokens_details === undefined;
+    const inputTokens = isAnthropicStyle ? uncachedInputTokens + cacheCreationTokens : uncachedInputTokens;
 
     const inputCost = truncateCost((inputTokens / TOKENS_PER_MILLION) * effectivePricing.inputPrice) ?? 0;
     const outputCost = truncateCost((outputTokens / TOKENS_PER_MILLION) * effectivePricing.outputPrice) ?? 0;
@@ -388,23 +394,31 @@ function getExplicitCacheWriteTokens(usage: RawTokenUsage): number {
     const topLevel = typeof usage.cache_creation_input_tokens === 'number' ? usage.cache_creation_input_tokens : 0;
     const nested5m = usage.cache_creation?.ephemeral_5m_input_tokens ?? 0;
     const nested1h = usage.cache_creation?.ephemeral_1h_input_tokens ?? 0;
-    return Math.max(0, topLevel, nested5m + nested1h);
+    // Responses API: cache_write_tokens 在 input_tokens_details 中
+    const responsesCacheWrite = usage.input_tokens_details?.cache_write_tokens ?? 0;
+    // Chat Completions: cache_write_tokens / cache_creation_input_tokens 在 prompt_tokens_details 中
+    const chatCacheWrite = usage.prompt_tokens_details?.cache_write_tokens ?? 0;
+    const chatCacheCreation = usage.prompt_tokens_details?.cache_creation_input_tokens ?? 0;
+    return Math.max(0, topLevel, nested5m + nested1h, responsesCacheWrite, chatCacheWrite, chatCacheCreation);
 }
 
 function getUncachedInputTokens(
     usage: RawTokenUsage,
     actualInputTokens: number,
     cacheReadTokens: number,
-    cacheCreationTokens: number
+    _cacheCreationTokens: number
 ): number {
     // Anthropic/Claude 风格：input_tokens 不含缓存 token，可直接信任。
     // 注意：此判断依赖 input_tokens_details?.cached_tokens 为 undefined 作为 Anthropic 信号，
     // 若未来有 provider 设置 input_tokens（含缓存）但未填充 input_tokens_details，会产生过计费。
-    if (typeof usage.input_tokens === 'number' && usage.input_tokens_details?.cached_tokens === undefined) {
+    if (typeof usage.input_tokens === 'number' && usage.input_tokens_details === undefined) {
         return Math.max(0, usage.input_tokens);
     }
 
-    return Math.max(0, actualInputTokens - cacheReadTokens - cacheCreationTokens);
+    // 非 Anthropic 路径：input_tokens 已包含 cached_tokens，扣除后得到 uncached input。
+    // cache_write 保留在 input 中走基础 inputPrice 计价（叠加模式），
+    // 同时由 getExplicitCacheWriteTokens 单独按 cacheWritePrice 额外计费。
+    return Math.max(0, actualInputTokens - cacheReadTokens);
 }
 
 /**

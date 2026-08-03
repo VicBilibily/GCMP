@@ -134,7 +134,7 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [0.4, 1.6, 0.04, 0.5],
-                "tiers": [{ "contextSizeMin": 256000, "pricing": [1.2, 4.8, 0.12, 1.5] }]
+                "tiers": [{ "contextSizeMin": 256001, "pricing": [1.2, 4.8, 0.12, 1.5] }]
             }
         }
     ]
