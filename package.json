@@ -907,7 +907,10 @@
         },
         "jsonValidation": [
             {
-                "fileMatch": "settings.json",
+                "fileMatch": [
+                    "settings.json",
+                    "!vscode://defaultsettings/*.json"
+                ],
                 "url": "gcmp-settings://root/schema.json"
             }
         ],
