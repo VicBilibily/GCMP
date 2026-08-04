@@ -206,8 +206,8 @@ function createForm(): HTMLElement {
             ),
             () => true,
             t(
-                'Recommendation: use a fast and cost-efficient model (e.g. DeepSeek-V4-Flash, GLM-4.7-Flash, MiniMax-M2.5, Qwen3.6-Flash).',
-                '建议：选择响应快、成本低的轻量模型（如 DeepSeek-V4-Flash、GLM-4.7-Flash、MiniMax-M2.5、Qwen3.6-Flash）。'
+                'Recommendation: use a fast and cost-efficient model (e.g. DeepSeek-V4-Flash, GLM-4.7-Flash, Qwen3.6-Flash).',
+                '建议：选择响应快、成本低的轻量模型（如 DeepSeek-V4-Flash、GLM-4.7-Flash、Qwen3.6-Flash）。'
             )
         )
     );

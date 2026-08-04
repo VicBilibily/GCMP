@@ -33,14 +33,14 @@ export class MiniMaxWizard extends BaseWizard {
                     {
                         label: t('$(key) Set standard API key', '$(key) 设置普通 API 密钥'),
                         detail: t(
-                            'Used for standard pay-as-you-go models such as MiniMax-M2',
-                            '用于 MiniMax-M2 等标准按量计费模型'
+                            'Used for standard pay-as-you-go models such as MiniMax-M3',
+                            '用于 MiniMax-M3 等标准按量计费模型'
                         ),
                         value: 'normal'
                     },
                     {
                         label: t('$(key) Set Token Plan API key', '$(key) 设置 Token Plan 专用密钥'),
-                        detail: t('Used for MiniMax-M2 (Token Plan) models', '用于 MiniMax-M2 (Token Plan) 模型'),
+                        detail: t('Used for MiniMax-M3 (Token Plan) models', '用于 MiniMax-M3 (Token Plan) 模型'),
                         value: 'coding'
                     },
                     {

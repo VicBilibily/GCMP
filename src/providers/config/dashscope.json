@@ -74,19 +74,6 @@
                 "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [0.86, 3.154, 0.172], "RMB": [6, 22, 1.2] } }]
             }
         },
-        {
-            "id": "minimax-m2.5-coding-plan",
-            "name": "MiniMax-M2.5 (CodingPlan)",
-            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
-            "model": "MiniMax-M2.5",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.304, 1.213, 0.061], "RMB": [2.1, 8.4, 0.42] }
-        },
 
         {
             "id": "qwen3.8-max-token-plan",
@@ -324,19 +311,6 @@
                 "pricing": { "USD": [0.573, 2.58, 0.115], "RMB": [4, 18, 0.8] },
                 "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [0.86, 3.154, 0.172], "RMB": [6, 22, 1.2] } }]
             }
-        },
-        {
-            "id": "minimax-m2.5-token-plan",
-            "name": "MiniMax-M2.5 (TokenPlan)",
-            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
-            "model": "MiniMax-M2.5",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.304, 1.213, 0.061], "RMB": [2.1, 8.4, 0.42] }
         },
 
         {

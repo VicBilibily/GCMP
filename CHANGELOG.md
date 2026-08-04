@@ -2,6 +2,30 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.21] - 2026-08-04
+
+### 变更
+
+- **火山方舟 MiniMax-M2.7 与 Kimi-K2.6 标识即将下线（[#340](https://github.com/VicBilibily/GCMP/issues/340)）**：两款模型（CodingPlan / AgentPlan）将于 2026-08-18 14:00（UTC+8）停止服务，已在模型描述中标注 EOS 时间，到期后将移除。
+- **MiniMax M2 系列精简**：MiniMax 官方、腾讯云渠道移除 M2.5 及以下旧型号，保留 M2.7；阿里云百炼渠道的 M2 系列全部移除。
+- **腾讯云 Kimi-K2.5 移除**：模型已下线，CodingPlan / TokenPlan / TokenHub / Token Plan 企业版接入点同步移除。
+
+### 修复
+
+- **修复 settings.json 配置 schema 误挂载（[#341](https://github.com/VicBilibily/GCMP/pull/341)）**：schema 匹配改为精确的用户 / 机器 / Profile / 工作区设置文件路径，不再挂载到默认设置编辑器；根节点放宽对象类型校验，兼容个性化配置内容。
+
+---
+
+### Changed
+
+- **Volcengine MiniMax-M2.7 & Kimi-K2.6 marked as end-of-service ([#340](https://github.com/VicBilibily/GCMP/issues/340))**: Both models (CodingPlan / AgentPlan) will be retired at 2026-08-18 14:00 (UTC+8); the EOS time is noted in the model descriptions and they will be removed afterwards.
+- **MiniMax M2 series trimmed**: M2.5 and older removed from MiniMax official and Tencent Cloud, with M2.7 retained; the M2 series fully removed from AliDashScope.
+- **Tencent Cloud Kimi-K2.5 removed**: The model has been retired; removed from CodingPlan / TokenPlan / TokenHub / Token Plan Enterprise endpoints.
+
+### Fixed
+
+- **Fix settings.json schema misattachment ([#341](https://github.com/VicBilibily/GCMP/pull/341))**: The schema now matches only the exact User / Machine / Profile / Workspace settings file paths, no longer attaching to the default settings editor; the root object type check is relaxed to tolerate personalized config content.
+
 ## [0.26.20] - 2026-08-04
 
 ### 新增
