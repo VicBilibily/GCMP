@@ -809,7 +809,7 @@ export class JsonSchemaProvider {
                 'Schema for GCMP configuration with dynamic model ID suggestions',
                 '带动态模型 ID 提示的 GCMP 配置 Schema'
             ),
-            type: 'object',
+            // type: 'object', // 不声明预期对象，部分用户使用个性化配置存储其他结构内容
             properties: {
                 'gcmp.providerOverrides': {
                     type: 'object',

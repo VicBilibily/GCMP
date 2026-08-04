@@ -908,8 +908,10 @@
         "jsonValidation": [
             {
                 "fileMatch": [
-                    "settings.json",
-                    "!vscode://defaultsettings/*.json"
+                    "%APP_SETTINGS_HOME%/settings.json",
+                    "%MACHINE_SETTINGS_HOME%/settings.json",
+                    "%APP_SETTINGS_HOME%/profiles/*/settings.json",
+                    "/.vscode/settings.json"
                 ],
                 "url": "gcmp-settings://root/schema.json"
             }
