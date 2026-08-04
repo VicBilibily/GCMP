@@ -240,7 +240,7 @@
             "sdkMode": "openai-sse",
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
-            "maxOutputTokens": 65536,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [2.0, 6.0, 0.25]
         },

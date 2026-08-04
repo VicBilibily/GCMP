@@ -242,13 +242,10 @@ describe('applyAnthropicThinkingConfiguration', () => {
         assert.equal(params.output_config, undefined);
     });
 
-    it('显式 enabled 在无预设预算时会补齐最小 budget_tokens', () => {
+    it('显式 enabled 不再注入默认 budget_tokens，仅透传显式配置', () => {
         const params = applyConfig({}, { thinking: 'enabled' }, enabledOnlyModel);
 
-        assert.deepEqual(params.thinking, {
-            type: 'enabled',
-            budget_tokens: 1024
-        });
+        assert.deepEqual(params.thinking, { type: 'enabled' });
         assert.equal(params.output_config, undefined);
     });
 
@@ -353,9 +350,10 @@ describe('applyAnthropicThinkingConfiguration', () => {
                         getInitialParamsFromModel(model).thinking as { type?: string } | undefined
                     )?.type;
                     if (initialThinkingType !== 'enabled') {
-                        assert.ok(
-                            ((params.thinking as { budget_tokens?: number } | undefined)?.budget_tokens ?? 0) >= 1024,
-                            `${label}: helper-enabled thinking should inject minimum budget_tokens for strict endpoints`
+                        assert.equal(
+                            (params.thinking as { budget_tokens?: number } | undefined)?.budget_tokens,
+                            undefined,
+                            `${label}: helper-enabled thinking should not inject default budget_tokens`
                         );
                     }
                 }

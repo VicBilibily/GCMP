@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.22] - 2026-08-04
+
+### 变更
+
+- **Anthropic 思考预算不再默认注入**：`thinking` 开启时不再主动补 `budget_tokens`（原固定 1024 最小值会压缩模型思考强度），仅在 extraBody 显式配置时透传；内置模型均为国内 Anthropic 兼容端点，不要求该参数。
+
+---
+
+### Changed
+
+- **Anthropic thinking budget no longer injected by default**: `budget_tokens` is no longer auto-filled when thinking is enabled (the previous fixed 1024 minimum capped model thinking depth); explicit extraBody values are still passed through. All built-in models target Anthropic-compatible endpoints that do not require this parameter.
+
 ## [0.26.21] - 2026-08-04
 
 ### 变更

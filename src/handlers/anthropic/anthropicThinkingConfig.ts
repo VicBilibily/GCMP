@@ -1,4 +1,4 @@
-﻿/** 统一处理 Anthropic 的 thinking / output_config，兼容 auto 透传、enabled 最小预算和 effort 保留。 */
+/** 统一处理 Anthropic 的 thinking / output_config，兼容 auto 透传与 effort 保留；budget_tokens 仅透传显式配置，不做默认注入。 */
 
 import Anthropic from '@anthropic-ai/sdk';
 import type { ModelChatResponseOptions, ModelConfig } from '../../types/sharedTypes';
@@ -16,8 +16,6 @@ type ExistingThinking = {
     budget_tokens?: number | null;
 } & Record<string, unknown>;
 type ExistingOutputConfig = (Anthropic.Messages.OutputConfig & Record<string, unknown>) | undefined;
-
-const ANTHROPIC_MIN_ENABLED_BUDGET_TOKENS = 1024;
 
 interface ApplyAnthropicThinkingConfigurationOptions {
     disableThinking?: boolean;
@@ -79,18 +77,10 @@ function buildThinkingConfig(
         return { type: 'disabled' };
     }
 
-    const currentType = normalizeThinkingType(currentThinking);
     const nextThinking: ExistingThinking = currentThinking ? { ...(currentThinking as ExistingThinking) } : {};
     nextThinking.type = targetType;
 
-    if (targetType === 'enabled') {
-        const budgetTokens = typeof nextThinking.budget_tokens === 'number' ? nextThinking.budget_tokens : undefined;
-        if (budgetTokens !== undefined && budgetTokens < ANTHROPIC_MIN_ENABLED_BUDGET_TOKENS) {
-            nextThinking.budget_tokens = ANTHROPIC_MIN_ENABLED_BUDGET_TOKENS;
-        } else if (budgetTokens === undefined && currentType !== 'enabled') {
-            nextThinking.budget_tokens = ANTHROPIC_MIN_ENABLED_BUDGET_TOKENS;
-        }
-    } else {
+    if (targetType !== 'enabled') {
         delete nextThinking.budget_tokens;
     }
 
