@@ -74,14 +74,13 @@ export interface StreamReporterOptions {
  * 1. Handler 持续调用 bufferThinking / reportText / accumulateToolCall / bufferSignature 等方法
  * 2. Thinking/Signature/ToolCall 由各自缓冲器管理；文本收到后立即透传
  * 3. 遇到工具调用开始时，直接结束当前思维链
- * 4. 流结束时调用 flushAll，依次输出剩余 signature、结束思维链、DONE 占位符、未完成 tool call 和 StatefulMarker
+ * 4. 流结束时调用 flushAll，依次输出剩余 signature、结束思维链、未完成 tool call 和 StatefulMarker
  *
  * 关键实现约定：
  * - accumulateToolCall 首次创建某 index 的 buffer 时立即 endThinkingChain
  * - 工具调用完成时只 flushSignature，不主动 endThinkingChain
  * - flushSignature 输出"空文本 + signature"的 ThinkingPart，不消费 thinking buffer 内容
  * - flushAll 中 signature 在 endThinkingChain 之前输出
- * - 仅有 thinking 没有 text 时输出 DONE 占位符
  */
 export class StreamReporter {
     private readonly modelName: string;
@@ -432,14 +431,7 @@ export class StreamReporter {
         // 2. 结束思维链（在工具调用之前）
         this.endThinkingChain();
 
-        // 3. 仅有 thinking 没有 text 时输出 DONE 占位符
-        if (this.hasThinkingContent && !this.hasReceivedContent && !this.hasToolCalls) {
-            this.progress.report(new vscode.LanguageModelTextPart('DONE'));
-            this.hasReceivedContent = true;
-            Logger.trace(`[${this.modelName}] Only thinking content, output DONE placeholder`);
-        }
-
-        // 4. 处理未完成的工具调用（如果有）
+        // 3. 处理未完成的工具调用（如果有）
         if (this.toolCallAccumulator.hasPending) {
             Logger.warn(
                 `[${this.modelName}] Stream ended with ${this.toolCallAccumulator.pendingCount} unfinished tool calls`
@@ -455,10 +447,10 @@ export class StreamReporter {
             }
         }
 
-        // 5. 报告 StatefulMarker
+        // 4. 报告 StatefulMarker
         this.reportStatefulMarker(customStatefulData, finalUsage);
 
-        // 6. 结束实时指标上报
+        // 5. 结束实时指标上报
         this.finishMetrics();
 
         return this.hasReceivedContent;

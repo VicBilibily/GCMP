@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.20] - 2026-08-04
+
+### 新增
+
+- **新增 Charm Hyper Qwen3.8-Max 与 DeepSeek-V4-Flash-0731（[#337](https://github.com/VicBilibily/GCMP/issues/337)）**：Hyper 渠道新增两款模型。
+
+### 变更
+
+- **移除 only-thinking 响应的 DONE 占位符适配**：模型仅输出思维链无正文时，不再输出 `DONE` 占位符（fixes [#260](https://github.com/VicBilibily/GCMP/issues/260)）。
+
+---
+
+### Added
+
+- **Charm Hyper Qwen3.8-Max & DeepSeek-V4-Flash-0731 ([#337](https://github.com/VicBilibily/GCMP/issues/337))**: Two new models in the Hyper channel.
+
+### Changed
+
+- **Removed DONE placeholder for thinking-only responses**: The `DONE` placeholder is no longer emitted when a model returns only reasoning without text (fixes [#260](https://github.com/VicBilibily/GCMP/issues/260)).
+
 ## [0.26.19] - 2026-08-03
 
 ### 修复

@@ -99,21 +99,9 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": { "USD": [1.65, 4.951, 0.206], "RMB": [12, 36, 1.5] }
-        },
-        {
-            "id": "qwen3.8-max-preview-token-plan",
-            "name": "Qwen3.8-Max-Preview (TokenPlan)",
-            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
-            "model": "qwen3.8-max-preview",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "qwen3.7-max-token-plan",
@@ -126,6 +114,7 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": { "USD": [1.65, 4.951, 0.33], "RMB": [12, 36, 2.4] }
         },
@@ -140,6 +129,7 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": { "USD": [0.276, 1.101, 0.056], "RMB": [2, 8, 0.4] },
@@ -159,6 +149,7 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": { "USD": [0.276, 1.651, 0.055], "RMB": [2, 12, 0.4] },
@@ -176,6 +167,7 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": { "USD": [0.165, 0.99, 0.33], "RMB": [1.2, 7.2, 0.6] },
@@ -358,21 +350,9 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": { "USD": [1.65, 4.951, 0.206], "RMB": [12, 36, 1.5] }
-        },
-        {
-            "id": "qwen3.8-max-preview-token-plan-personal",
-            "name": "Qwen3.8-Max-Preview (TokenPlan)",
-            "tooltip": "Dashscope Token Plan 个人版专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-token-personal",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
-            "model": "qwen3.8-max-preview",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": true }
         },
         {
             "id": "qwen3.7-max-token-plan-personal",
@@ -385,6 +365,7 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": { "USD": [1.65, 4.951, 0.33], "RMB": [12, 36, 2.4] }
         },
@@ -399,6 +380,7 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": { "USD": [0.276, 1.101, 0.056], "RMB": [2, 8, 0.4] },
@@ -418,6 +400,7 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": { "USD": [0.165, 0.99, 0.33], "RMB": [1.2, 7.2, 0.6] },
@@ -481,6 +464,7 @@
             "maxOutputTokens": 64000,
             "sdkMode": "anthropic",
             "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": { "USD": [1.65, 4.951, 0.206], "RMB": [12, 36, 1.5] }
         },
@@ -493,6 +477,7 @@
             "maxOutputTokens": 64000,
             "sdkMode": "anthropic",
             "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": { "USD": [0.276, 1.101, 0.056], "RMB": [2, 8, 0.4] },
@@ -510,6 +495,7 @@
             "maxOutputTokens": 64000,
             "sdkMode": "anthropic",
             "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": { "USD": [1.65, 4.951, 0.33], "RMB": [12, 36, 2.4] }
         },
@@ -522,6 +508,7 @@
             "maxOutputTokens": 64000,
             "sdkMode": "anthropic",
             "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": { "USD": [0.028, 0.11, 0.006], "RMB": [0.2, 0.8, 0.04] },
@@ -540,6 +527,7 @@
             "maxOutputTokens": 64000,
             "sdkMode": "anthropic",
             "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": { "USD": [0.276, 1.651, 0.055], "RMB": [2, 12, 0.4] },
@@ -555,6 +543,7 @@
             "maxOutputTokens": 64000,
             "sdkMode": "anthropic",
             "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": { "USD": [0.165, 0.99, 0.33], "RMB": [1.2, 7.2, 0.6] },
@@ -572,6 +561,7 @@
             "maxOutputTokens": 64000,
             "sdkMode": "anthropic",
             "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": { "USD": [0.115, 0.688, 0.012, 0.115], "RMB": [0.8, 4.8, 0.08, 0.8] },
@@ -592,6 +582,7 @@
             "maxOutputTokens": 64000,
             "sdkMode": "anthropic",
             "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": { "USD": [0.029, 0.287, 0.003, 0.029], "RMB": [0.2, 2, 0.02, 0.2] },
