@@ -714,3 +714,131 @@ test('resolveSessionIdFromTrace prunes stale trace hints after the recovery wind
         undefined
     );
 });
+
+// 以下为“切换模型 + 上下文压缩”场景的回归测试：
+// 压缩请求/压缩后请求到达新提供商时，原会话 hint 记录在旧提供商名下，
+// 同提供商隔离的桥接全部 miss，只能靠跨提供商 trace 回退恢复原 sessionId。
+
+test('model switch then compaction: summarization recovers session via cross-provider trace hint', () => {
+    const service = new SessionRecoveryService();
+    const summary = buildSummary('model switch compaction');
+
+    // 旧提供商（codex）时代的正式请求建立 trace hint
+    service.rememberSessionHint('sess-switch', {
+        providerKey: 'codex',
+        telemetryTurn: 12,
+        traceId: 'trace-model-switch'
+    });
+
+    // 切换模型后新提供商（kimi）收到的首个请求即压缩请求：同提供商 miss
+    assert.equal(
+        service.resolveSessionIdFromTrace({
+            providerKey: 'kimi',
+            telemetryTurn: 13,
+            traceId: 'trace-model-switch'
+        }),
+        undefined
+    );
+    // 跨提供商回退命中原会话
+    assert.equal(
+        service.resolveSessionIdFromTraceAcrossProviders({
+            providerKey: 'kimi',
+            telemetryTurn: 13,
+            traceId: 'trace-model-switch'
+        }),
+        'sess-switch'
+    );
+
+    // 压缩成功：摘要记到原 sessionId + 新提供商名下
+    service.rememberSummarization('sess-switch', summary, {
+        providerKey: 'kimi',
+        telemetryTurn: 13,
+        traceId: 'trace-model-switch'
+    });
+
+    // 压缩后下一轮正式请求（仍为新提供商）：turn bridge 正常衔接
+    assert.equal(
+        service.resolveSessionIdFromTurn({
+            providerKey: 'kimi',
+            telemetryTurn: 14,
+            traceId: 'trace-model-switch'
+        }),
+        'sess-switch'
+    );
+});
+
+test('compaction then model switch: follow-up request recovers session via cross-provider trace hint', () => {
+    const service = new SessionRecoveryService();
+    const summary = buildSummary('compaction before switch');
+
+    // 旧提供商时代：正式请求建立 hint，随后压缩在同一 trace 下完成
+    service.rememberSessionHint('sess-pre-switch', {
+        providerKey: 'codex',
+        telemetryTurn: 8,
+        traceId: 'trace-switch-after-compaction'
+    });
+    service.rememberSummarization('sess-pre-switch', summary, {
+        providerKey: 'codex',
+        telemetryTurn: 8,
+        traceId: 'trace-switch-after-compaction'
+    });
+
+    // 压缩完成后用户切换模型：压缩后首轮请求到达新提供商（kimi）
+    // summary bridge 因提供商隔离 miss
+    assert.equal(
+        service.resolveSessionId([message(ROLE_ASSISTANT, summary)], {
+            providerKey: 'kimi',
+            telemetryTurn: 9,
+            traceId: 'trace-switch-after-compaction'
+        }),
+        undefined
+    );
+    // turn bridge 新提供商分桶为空，miss
+    assert.equal(
+        service.resolveSessionIdFromTurn({
+            providerKey: 'kimi',
+            telemetryTurn: 9,
+            traceId: 'trace-switch-after-compaction'
+        }),
+        undefined
+    );
+    // 跨提供商 trace 兜底命中原会话
+    assert.equal(
+        service.resolveSessionIdFromTraceAcrossProviders({
+            providerKey: 'kimi',
+            telemetryTurn: 9,
+            traceId: 'trace-switch-after-compaction'
+        }),
+        'sess-pre-switch'
+    );
+});
+
+test('model switch with telemetry turn reset: cross-provider fallback bridges unique session on same trace', () => {
+    const service = new SessionRecoveryService();
+
+    // 旧提供商时代 turn 已推进到 12；切换模型后 Copilot 将 telemetryTurn 重置为 1
+    service.rememberSessionHint('sess-turn-reset', {
+        providerKey: 'codex',
+        telemetryTurn: 12,
+        traceId: 'trace-turn-reset-switch'
+    });
+
+    // 同提供商 miss
+    assert.equal(
+        service.resolveSessionIdFromTrace({
+            providerKey: 'kimi',
+            telemetryTurn: 1,
+            traceId: 'trace-turn-reset-switch'
+        }),
+        undefined
+    );
+    // 跨提供商回退：turn 差 11 超窗，但同 trace 仅一个候选会话，走 turn-reset 唯一候选兜底
+    assert.equal(
+        service.resolveSessionIdFromTraceAcrossProviders({
+            providerKey: 'kimi',
+            telemetryTurn: 1,
+            traceId: 'trace-turn-reset-switch'
+        }),
+        'sess-turn-reset'
+    );
+});

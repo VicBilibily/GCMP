@@ -961,10 +961,35 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     sessionRecoverySource: 'turn-bridge'
                 };
             }
+
+            // 这里会复用 SessionRecoveryService 内部 turn=1 的唯一候选放宽。
+            if (recoveryMetadata.traceId) {
+                const crossProviderSessionId =
+                    SessionRecoveryService.instance.resolveSessionIdFromTraceAcrossProviders(recoveryMetadata);
+                if (crossProviderSessionId) {
+                    Logger.info(`Recovered sessionId via cross-provider trace bridge: ${crossProviderSessionId}`);
+                    SessionRecoveryService.instance.rememberSessionHint(
+                        crossProviderSessionId,
+                        recoveryMetadata,
+                        undefined,
+                        {
+                            publishProviderAgnosticTraceHint: shouldPublishResolvedCrossProviderTraceHint(requestKind)
+                        }
+                    );
+                    return {
+                        sessionId: crossProviderSessionId,
+                        sessionRecoverySource: 'trace-bridge'
+                    };
+                }
+            }
         }
 
         if (requestKind === 'summarization' && recoveryMetadata.traceId) {
-            const tracedSessionId = SessionRecoveryService.instance.resolveSessionIdFromTrace(recoveryMetadata);
+            // 同提供商优先；切换模型后压缩请求可能是新提供商在该 trace 下的首个请求，
+            // 其提供商维度尚无 hint，需跨提供商回退才能桥接到原会话，避免压缩边界会话分裂。
+            const tracedSessionId =
+                SessionRecoveryService.instance.resolveSessionIdFromTrace(recoveryMetadata) ??
+                SessionRecoveryService.instance.resolveSessionIdFromTraceAcrossProviders(recoveryMetadata);
             if (tracedSessionId) {
                 Logger.info(`Recovered sessionId via trace bridge: ${tracedSessionId}`);
                 SessionRecoveryService.instance.rememberSessionHint(tracedSessionId, recoveryMetadata, undefined, {
