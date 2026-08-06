@@ -10,9 +10,15 @@ import type { HostMessage, MultiDayDisplayCurrency, MultiDayRenderOptions, Multi
 import {
     createDateRangePicker,
     createSummaryCards,
+    updateSummaryCards,
     createTrendChart,
+    updateTrendChart,
     createCostTrendChart,
+    updateCostTrendChart,
     createProviderModelRank,
+    updateProviderModelRank,
+    disposeTrendCharts,
+    disposeRankCharts,
     initDefaultRange,
     requestCurrentRangeAnalysis
 } from './components/index';
@@ -27,6 +33,9 @@ const state: MultiDayState = {
     error: null,
     displayCurrency: getDefaultDisplayCurrency(null)
 };
+
+/** 内容区（卡片+图表）是否已渲染：为 true 时数据更新走增量刷新，避免图表销毁重建导致频闪 */
+let hasRenderedContent = false;
 
 function isChineseLocale(): boolean {
     const lang = (globalThis.document?.documentElement?.lang || globalThis.navigator?.language || '').toLowerCase();
@@ -165,6 +174,17 @@ function render(): void {
     if (!root) {
         return;
     }
+
+    // 已有渲染内容且持有数据：增量更新复用 DOM（图表实例保留），避免全量重建造成频闪
+    if (hasRenderedContent && state.data && !state.loading && !state.error) {
+        updateContent(state.data, root);
+        return;
+    }
+
+    // 全量重建：销毁旧图表实例并重置标记，否则旧实例会复用到新 canvas（空白）或误走增量更新
+    disposeTrendCharts();
+    disposeRankCharts();
+    hasRenderedContent = false;
     root.innerHTML = '';
 
     // 标题 + 日期选择器
@@ -206,21 +226,56 @@ function render(): void {
 
     // 渲染内容
     const data = state.data;
-    const renderOptions: MultiDayRenderOptions = {
-        displayCurrency: normalizeDisplayCurrency(state.displayCurrency, data),
-        costChartCurrency: getCostChartCurrency(state.displayCurrency, data),
-        toggleTitle: getCurrencyToggleTitle(state.displayCurrency)
-    };
-    if (data.missingDates.length > 0) {
-        const warning = createElement('div', 'empty-message');
-        warning.style.color = 'var(--vscode-editorWarning-foreground)';
-        warning.textContent = `⚠ ${t('Partial data: {0}/{1} days loaded', '部分数据：已加载 {0}/{1} 天', data.dates.length, data.dates.length + data.missingDates.length)}`;
+    const renderOptions = getRenderOptions(data);
+    const warning = createMissingDatesWarning(data);
+    if (warning) {
         root.appendChild(warning);
     }
     root.appendChild(createSummaryCards(data, renderOptions));
     root.appendChild(createTrendChart(data));
     root.appendChild(createCostTrendChart(data, renderOptions));
     root.appendChild(createProviderModelRank(data, renderOptions));
+    hasRenderedContent = true;
+}
+
+function getRenderOptions(data: MultiDayAnalysisResult): MultiDayRenderOptions {
+    return {
+        displayCurrency: normalizeDisplayCurrency(state.displayCurrency, data),
+        costChartCurrency: getCostChartCurrency(state.displayCurrency, data),
+        toggleTitle: getCurrencyToggleTitle(state.displayCurrency)
+    };
+}
+
+function createMissingDatesWarning(data: MultiDayAnalysisResult): HTMLElement | null {
+    if (data.missingDates.length === 0) {
+        return null;
+    }
+    const warning = createElement('div', 'empty-message missing-dates-warning');
+    warning.style.color = 'var(--vscode-editorWarning-foreground)';
+    warning.textContent = `⚠ ${t('Partial data: {0}/{1} days loaded', '部分数据：已加载 {0}/{1} 天', data.dates.length, data.dates.length + data.missingDates.length)}`;
+    return warning;
+}
+
+/** 增量刷新：仅替换数据内容，图表复用实例（chart.update 无动画），不重建 DOM */
+function updateContent(data: MultiDayAnalysisResult, root: HTMLElement): void {
+    const renderOptions = getRenderOptions(data);
+
+    const warning = createMissingDatesWarning(data);
+    const existingWarning = root.querySelector('.missing-dates-warning');
+    if (warning) {
+        if (existingWarning) {
+            existingWarning.replaceWith(warning);
+        } else {
+            root.querySelector('.summary-cards')?.before(warning);
+        }
+    } else {
+        existingWarning?.remove();
+    }
+
+    updateSummaryCards(data, renderOptions);
+    updateTrendChart(data);
+    updateCostTrendChart(data, renderOptions);
+    updateProviderModelRank(data, renderOptions);
 }
 
 // ============= 启动 =============

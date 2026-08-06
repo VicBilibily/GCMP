@@ -1,4 +1,14 @@
 ﻿export { createDateRangePicker, initDefaultRange, requestCurrentRangeAnalysis } from './dateRangePicker';
-export { createSummaryCards } from './summaryCards';
-export { createTrendChart, createCostTrendChart } from './trendChart';
-export { createProviderModelRank } from './providerModelRank';
+export { createSummaryCards, updateSummaryCards } from './summaryCards';
+export {
+    createTrendChart,
+    updateTrendChart,
+    createCostTrendChart,
+    updateCostTrendChart,
+    disposeCharts as disposeTrendCharts
+} from './trendChart';
+export {
+    createProviderModelRank,
+    updateProviderModelRank,
+    disposeCharts as disposeRankCharts
+} from './providerModelRank';

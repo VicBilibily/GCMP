@@ -97,6 +97,11 @@ export function createSummaryCards(data: MultiDayAnalysisResult, options: MultiD
     return container;
 }
 
+/** 数据刷新：纯文本卡片直接重建替换，无 canvas 不会闪烁 */
+export function updateSummaryCards(data: MultiDayAnalysisResult, options: MultiDayRenderOptions): void {
+    document.querySelector('.summary-cards')?.replaceWith(createSummaryCards(data, options));
+}
+
 function makeCard(label: string, value: string, sub: string, cls: string, toggleTitle?: string): HTMLElement {
     const card = createElement('div', `summary-card type-${cls}`);
     if (toggleTitle) {

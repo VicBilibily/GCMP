@@ -9,6 +9,18 @@ import { createElement, formatTokens } from '../../utils';
 
 const COLORS = ['#4a90d9', '#50c878', '#ff8c42', '#9b59b6', '#e74c3c', '#1abc9c', '#f39c12', '#3498db'];
 
+/** 已创建的环形图实例：自动刷新时复用更新数据，避免销毁重建造成频闪 */
+let providerDonut: Chart | undefined;
+let modelDonut: Chart | undefined;
+
+/** 全量重建前销毁图表实例：旧实例绑定已移除的 canvas，复用会导致新 canvas 空白 */
+export function disposeCharts(): void {
+    providerDonut?.destroy();
+    providerDonut = undefined;
+    modelDonut?.destroy();
+    modelDonut = undefined;
+}
+
 export function createProviderModelRank(data: MultiDayAnalysisResult, options: MultiDayRenderOptions): HTMLElement {
     const container = createElement('div', 'provider-model-rank');
 
@@ -39,11 +51,28 @@ export function createProviderModelRank(data: MultiDayAnalysisResult, options: M
     container.appendChild(right);
 
     setTimeout(() => {
-        renderDonut(canvas.id, data.providerRanking, 'name');
-        renderDonut(modelCanvas.id, data.modelRanking, 'name');
+        providerDonut = renderDonut(canvas.id, data.providerRanking, 'name', providerDonut);
+        modelDonut = renderDonut(modelCanvas.id, data.modelRanking, 'name', modelDonut);
     }, 0);
 
     return container;
+}
+
+/** 数据刷新：复用已创建的环形图实例，仅重建表格，避免全量重建导致的频闪 */
+export function updateProviderModelRank(data: MultiDayAnalysisResult, options: MultiDayRenderOptions): void {
+    const container = document.querySelector('.provider-model-rank');
+    if (!container) {
+        return;
+    }
+    providerDonut = renderDonut('chart-provider-donut', data.providerRanking, 'name', providerDonut);
+    modelDonut = renderDonut('chart-model-donut', data.modelRanking, 'name', modelDonut);
+
+    container
+        .querySelector('.rank-left .donut-table')
+        ?.replaceWith(createDonutTable(data.providerRanking, 'name', options));
+    container
+        .querySelector('.rank-right .donut-table')
+        ?.replaceWith(createDonutTable(data.modelRanking, 'name', options, true));
 }
 
 function createDonutTable(
@@ -238,25 +267,49 @@ function buildTokensCell(
     return `<td>${tokenStr}</td>`;
 }
 
-function renderDonut(canvasId: string, items: Array<Record<string, unknown>>, nameKey: string): void {
-    const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
+function renderDonut(
+    canvasId: string,
+    items: Array<Record<string, unknown>>,
+    nameKey: string,
+    existing?: Chart
+): Chart | undefined {
+    const canvas = document.getElementById(canvasId) as HTMLCanvasElement | null;
     if (!canvas) {
-        return;
+        return existing;
     }
     const ctx = canvas.getContext('2d');
     if (!ctx) {
-        return;
+        return existing;
     }
-    new Chart(ctx, {
+
+    const labels = items.map((item: Record<string, unknown>) => {
+        return (item.modelName as string) || (item[nameKey] as string) || '';
+    });
+    const values = items.map((item: Record<string, unknown>) => (item.totalTokens as number) || 0);
+    const colors = items.map((_: unknown, i: number) => COLORS[i % COLORS.length]);
+
+    if (existing) {
+        existing.data.labels = labels;
+        existing.data.datasets = [
+            {
+                data: values,
+                backgroundColor: colors,
+                borderWidth: 2,
+                borderColor: '#1e1e1e'
+            }
+        ];
+        existing.update('none');
+        return existing;
+    }
+
+    return new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: items.map((item: Record<string, unknown>) => {
-                return (item.modelName as string) || (item[nameKey] as string) || '';
-            }),
+            labels,
             datasets: [
                 {
-                    data: items.map((item: Record<string, unknown>) => (item.totalTokens as number) || 0),
-                    backgroundColor: items.map((_: unknown, i: number) => COLORS[i % COLORS.length]),
+                    data: values,
+                    backgroundColor: colors,
                     borderWidth: 2,
                     borderColor: '#1e1e1e'
                 }
