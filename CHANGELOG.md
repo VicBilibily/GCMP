@@ -2,6 +2,34 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.23] - 2026-08-06
+
+### 新增
+
+- **视觉工具支持在提示中引用**：7 个视觉工具（UI 转 Artifact、截图文本提取、错误截图诊断、技术图表理解、数据可视化分析、UI 差异检查、通用图像分析）现可在 Chat 输入 `#` 手动引用，并出现在附件菜单中可单独启用/禁用。
+
+### 变更
+
+- **多日用量视图刷新优化**：自动刷新时复用图表实例增量更新数据，不再销毁重建整个视图，消除刷新频闪。
+
+### 修复
+
+- **修复切换模型后压缩导致的会话分裂**：切换提供商并触发上下文压缩时，会话无法跨提供商桥接（此前仅子代理分支支持），用量统计会按新会话继续。
+
+---
+
+### Added
+
+- **Vision tools can now be referenced in prompts**: The 7 vision tools (UI-to-Artifact, screenshot text extraction, error screenshot diagnosis, technical diagram understanding, data visualization analysis, UI diff check, general image analysis) can now be manually referenced with `#` in Chat and appear in the attachments menu where each can be toggled individually.
+
+### Changed
+
+- **Multi-day usage view refresh optimization**: Auto-refresh now reuses chart instances and updates data incrementally instead of destroying and rebuilding the whole view, eliminating flicker.
+
+### Fixed
+
+- **Fix session split after model switch with compaction**: Switching providers and triggering context compaction previously could not bridge the session across providers (only the subagent branch supported it), so usage stats continued under a new session.
+
 ## [0.26.22] - 2026-08-04
 
 ### 变更

@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.26.22",
+    "version": "0.26.23",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -1217,6 +1217,7 @@
                 "toolReferenceName": "gcmpUiToArtifact",
                 "modelDescription": "%tool.uiToArtifact.modelDescription%",
                 "userDescription": "%tool.uiToArtifact.userDescription%",
+                "canBeReferencedInPrompt": true,
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -1252,6 +1253,7 @@
                 "toolReferenceName": "gcmpExtractTextFromScreenshot",
                 "modelDescription": "%tool.extractTextFromScreenshot.modelDescription%",
                 "userDescription": "%tool.extractTextFromScreenshot.userDescription%",
+                "canBeReferencedInPrompt": true,
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -1280,6 +1282,7 @@
                 "toolReferenceName": "gcmpDiagnoseErrorScreenshot",
                 "modelDescription": "%tool.diagnoseErrorScreenshot.modelDescription%",
                 "userDescription": "%tool.diagnoseErrorScreenshot.userDescription%",
+                "canBeReferencedInPrompt": true,
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -1308,6 +1311,7 @@
                 "toolReferenceName": "gcmpUnderstandTechnicalDiagram",
                 "modelDescription": "%tool.understandTechnicalDiagram.modelDescription%",
                 "userDescription": "%tool.understandTechnicalDiagram.userDescription%",
+                "canBeReferencedInPrompt": true,
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -1336,6 +1340,7 @@
                 "toolReferenceName": "gcmpAnalyzeDataVisualization",
                 "modelDescription": "%tool.analyzeDataVisualization.modelDescription%",
                 "userDescription": "%tool.analyzeDataVisualization.userDescription%",
+                "canBeReferencedInPrompt": true,
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -1364,6 +1369,7 @@
                 "toolReferenceName": "gcmpUiDiffCheck",
                 "modelDescription": "%tool.uiDiffCheck.modelDescription%",
                 "userDescription": "%tool.uiDiffCheck.userDescription%",
+                "canBeReferencedInPrompt": true,
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -1393,6 +1399,7 @@
                 "toolReferenceName": "gcmpAnalyzeImage",
                 "modelDescription": "%tool.analyzeImage.modelDescription%",
                 "userDescription": "%tool.analyzeImage.userDescription%",
+                "canBeReferencedInPrompt": true,
                 "inputSchema": {
                     "type": "object",
                     "properties": {
