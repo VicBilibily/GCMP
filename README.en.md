@@ -454,6 +454,8 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
 }
 ```
 
+> Tip: if you use OpenAI Responses / compatible proxies and do not want encrypted reasoning (`reasoning.encrypted_content`) replayed, explicitly set `extraBody.include` to `null` or `[]`; in that case the historical chain is replayed via plain `reasoning_text`, and stripped ThinkingPart entries are restored from StatefulMarker. Include `reasoning.encrypted_content` when you want ciphertext replayed.
+
 - `gcmp.compatibleModels[*].proxy` applies only to the current custom model. When you click "Fetch Models" after entering `baseUrl`, the same proxy setting is also used for the discovery request.
 
 ### `sdkMode`

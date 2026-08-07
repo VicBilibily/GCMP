@@ -7,6 +7,7 @@ import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
 import { decodeStatefulMarker } from '../statefulMarker';
 import { CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from '../types';
 import type { OpenAIHandler } from '../openaiHandler';
+import { isEncryptedReasoningEnabled } from './encryptedReasoning';
 import { OpenAIResponsesCallIdResolver } from './openaiResponsesCallIdResolver';
 
 type ResponseInputItem = OpenAI.Responses.ResponseInputItem;
@@ -41,6 +42,16 @@ export class OpenAIResponsesMessageConverter {
         const out: ResponseInputItem[] = [];
         let systemMessage = '';
         const callIdResolver = new OpenAIResponsesCallIdResolver();
+        // 是否把历史加密思考项回传入 input：与请求侧 include 注入共用同一判定。
+        // 用户通过 extraBody.include 接管（如 { include: null }）时不再回传，
+        // 可避免多资源中转场景下历史残留密文跨资源校验失败且无法自愈。
+        // 未传 modelConfig 时保持既有回放行为（内部调用/测试缺省路径）。
+        const replayEncryptedReasoning =
+            modelConfig === undefined ||
+            isEncryptedReasoningEnabled({
+                requestModel: modelConfig.model || modelConfig.id,
+                extraBody: modelConfig.extraBody
+            });
 
         for (const [messageIndex, message] of messages.entries()) {
             let role = this.mapRole(message.role);
@@ -58,7 +69,9 @@ export class OpenAIResponsesMessageConverter {
             for (const [partIndex, part] of message.content.entries()) {
                 if (part instanceof vscode.LanguageModelThinkingPart) {
                     const metadata = (part as { metadata?: OpenAIResponsesThinkingMetadata }).metadata;
-                    if (metadata?.redactedData) {
+                    // 密文仅在回放启用时收集；回放关闭（如 include 被接管为 null）时
+                    // 密文丢弃，但可见摘要正文仍按普通思考文本保留——正文为空则整个 reasoning 块不再传递
+                    if (metadata?.redactedData && replayEncryptedReasoning) {
                         encryptedReasonings.push({
                             encryptedContent: metadata.redactedData,
                             reasoningId: metadata.reasoningId
@@ -108,30 +121,45 @@ export class OpenAIResponsesMessageConverter {
             const joinedThinking = thinkingParts.join('').trim();
 
             if (role === 'assistant') {
-                // ThinkingPart 可能被 VS Code 部分或全部剥离：与 StatefulMarker 合并并去重恢复
-                const mergedEncryptedReasonings = this.mergeEncryptedReasonings(
-                    encryptedReasonings,
-                    this.getEncryptedReasoningFromMarker(message.content)
-                );
-                for (const { encryptedContent, reasoningId } of mergedEncryptedReasonings) {
-                    const reasoningItem: Record<string, unknown> = {
-                        type: 'reasoning' as const,
-                        summary: [],
-                        encrypted_content: encryptedContent
-                    };
-                    if (reasoningId) {
-                        reasoningItem.id = reasoningId;
+                if (replayEncryptedReasoning) {
+                    // 密文通道（gpt 等）：回传密文 reasoning 项；可见 ThinkingPart 为展示用摘要，模型不消费，不回传
+                    // ThinkingPart 可能被 VS Code 部分或全部剥离：与 StatefulMarker 合并并去重恢复
+                    const mergedEncryptedReasonings = this.mergeEncryptedReasonings(
+                        encryptedReasonings,
+                        this.getEncryptedReasoningFromMarker(message.content)
+                    );
+                    for (const { encryptedContent, reasoningId } of mergedEncryptedReasonings) {
+                        const reasoningItem: Record<string, unknown> = {
+                            type: 'reasoning' as const,
+                            summary: [],
+                            encrypted_content: encryptedContent
+                        };
+                        if (reasoningId) {
+                            reasoningItem.id = reasoningId;
+                        }
+                        out.push(reasoningItem as unknown as ResponseReasoningItem);
                     }
-                    out.push(reasoningItem as unknown as ResponseReasoningItem);
+                } else {
+                    // 明文通道（DeepSeek 等无密文端点）：思维链文本以明文 reasoning 项回传，
+                    // 端点将明文 content 归并到相邻 assistant 消息
+                    const markerThinking = (this.getCompleteThinkingFromMarker(message.content) ?? '').trim();
+                    // 可见 ThinkingPart 内容优先；被完全剥离时回退 marker 持久化文本
+                    const plainThinking = joinedThinking || markerThinking;
+                    if (plainThinking) {
+                        out.push({
+                            type: 'reasoning' as const,
+                            summary: [],
+                            content: [{ type: 'reasoning_text' as const, text: plainThinking }]
+                        } as unknown as ResponseReasoningItem);
+                    }
                 }
 
-                const assistantText = joinedText || joinedThinking;
-                if (assistantText) {
+                if (joinedText) {
                     out.push({
                         type: 'message' as const,
                         role: 'assistant' as const,
                         status: 'completed' as const,
-                        content: [{ type: 'output_text' as const, text: assistantText }]
+                        content: [{ type: 'output_text' as const, text: joinedText }]
                     } as unknown as ResponseInputMessageItem);
                 }
 
@@ -221,6 +249,27 @@ export class OpenAIResponsesMessageConverter {
             }
         }
         return [];
+    }
+
+    /**
+     * 从 StatefulMarker 读取完整思考摘要文本（completeThinking）。
+     * 用于加密回放关闭场景：密文不再回传时，可见 ThinkingPart 若已被 VS Code 剥离，
+     * 回退到 marker 中持久化的摘要文本，避免思考上下文整体丢失。
+     */
+    private getCompleteThinkingFromMarker(content: vscode.LanguageModelChatMessage['content']): string | undefined {
+        for (const part of content) {
+            if (
+                part instanceof vscode.LanguageModelDataPart &&
+                part.mimeType === CustomDataPartMimeTypes.StatefulMarker &&
+                part.data instanceof Uint8Array
+            ) {
+                const marker = decodeStatefulMarker(part.data)?.marker;
+                if (marker?.sdkMode === 'openai-responses' && marker.completeThinking?.trim()) {
+                    return marker.completeThinking;
+                }
+            }
+        }
+        return undefined;
     }
 
     /**

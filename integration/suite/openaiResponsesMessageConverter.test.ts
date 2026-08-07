@@ -52,6 +52,209 @@ suite('OpenAIResponsesMessageConverter', () => {
         ]);
     });
 
+    test('extraBody 接管 include 为 null 时不再回传加密 reasoning', () => {
+        const converter = createConverter();
+
+        const result = converter.convertMessagesToOpenAIResponses(
+            [
+                {
+                    role: vscode.LanguageModelChatMessageRole.Assistant,
+                    content: [
+                        new LanguageModelThinkingPart('', undefined, {
+                            redactedData: 'cipher',
+                            reasoningId: 'rsn_123'
+                        }),
+                        new vscode.LanguageModelTextPart('可见回答')
+                    ]
+                }
+            ] as never,
+            {
+                id: 'gpt-5.6-sol',
+                extraBody: { reasoning: { effort: 'medium' }, include: null }
+            } as never
+        );
+
+        assert.deepEqual(result.messages, [
+            {
+                type: 'message',
+                role: 'assistant',
+                status: 'completed',
+                content: [{ type: 'output_text', text: '可见回答' }]
+            }
+        ]);
+    });
+
+    test('extraBody 接管 include 且显式含 encrypted_content 时仍回传加密 reasoning', () => {
+        const converter = createConverter();
+
+        const result = converter.convertMessagesToOpenAIResponses(
+            [
+                {
+                    role: vscode.LanguageModelChatMessageRole.Assistant,
+                    content: [
+                        new LanguageModelThinkingPart('', undefined, {
+                            redactedData: 'cipher',
+                            reasoningId: 'rsn_123'
+                        })
+                    ]
+                }
+            ] as never,
+            {
+                id: 'gpt-5.6-sol',
+                extraBody: { include: ['reasoning.encrypted_content'] }
+            } as never
+        );
+
+        assert.deepEqual(result.messages, [
+            {
+                type: 'reasoning',
+                summary: [],
+                encrypted_content: 'cipher',
+                id: 'rsn_123'
+            }
+        ]);
+    });
+
+    test('回放关闭时丢弃密文、可见思考文本转为明文 reasoning 项回传', () => {
+        const converter = createConverter();
+
+        const result = converter.convertMessagesToOpenAIResponses(
+            [
+                {
+                    role: vscode.LanguageModelChatMessageRole.Assistant,
+                    content: [
+                        new LanguageModelThinkingPart('可见摘要', undefined, {
+                            redactedData: 'cipher',
+                            reasoningId: 'rsn_123'
+                        })
+                    ]
+                }
+            ] as never,
+            {
+                id: 'gpt-5.6-sol',
+                extraBody: { reasoning: { effort: 'medium' }, include: null }
+            } as never
+        );
+
+        assert.deepEqual(result.messages, [
+            {
+                type: 'reasoning',
+                summary: [],
+                content: [{ type: 'reasoning_text', text: '可见摘要' }]
+            }
+        ]);
+    });
+
+    test('回放关闭且 ThinkingPart 被剥离时从 StatefulMarker 恢复思维链文本', () => {
+        const converter = createConverter();
+
+        const markerData = encodeStatefulMarker('gpt-5.6-sol', {
+            provider: 'compatible',
+            modelId: 'gpt-5.6-sol',
+            sdkMode: 'openai-responses',
+            sessionId: 's-1',
+            responseId: 'r-1',
+            completeThinking: '完整思考摘要',
+            encryptedReasoning: [{ encryptedContent: 'cipher-1', reasoningId: 'rsn_a' }]
+        });
+        const markerPart = new vscode.LanguageModelDataPart(markerData, CustomDataPartMimeTypes.StatefulMarker);
+
+        const result = converter.convertMessagesToOpenAIResponses(
+            [
+                {
+                    role: vscode.LanguageModelChatMessageRole.Assistant,
+                    content: [markerPart]
+                }
+            ] as never,
+            {
+                id: 'gpt-5.6-sol',
+                extraBody: { reasoning: { effort: 'medium' }, include: null }
+            } as never
+        );
+
+        assert.deepEqual(result.messages, [
+            {
+                type: 'reasoning',
+                summary: [],
+                content: [{ type: 'reasoning_text', text: '完整思考摘要' }]
+            }
+        ]);
+    });
+
+    test('回放关闭且 ThinkingPart 部分剥离时优先使用可见 ThinkingPart 文本', () => {
+        const converter = createConverter();
+
+        const markerData = encodeStatefulMarker('gpt-5.6-sol', {
+            provider: 'compatible',
+            modelId: 'gpt-5.6-sol',
+            sdkMode: 'openai-responses',
+            sessionId: 's-1',
+            responseId: 'r-1',
+            completeThinking: '第一段摘要\n第二段摘要'
+        });
+        const markerPart = new vscode.LanguageModelDataPart(markerData, CustomDataPartMimeTypes.StatefulMarker);
+
+        const result = converter.convertMessagesToOpenAIResponses(
+            [
+                {
+                    role: vscode.LanguageModelChatMessageRole.Assistant,
+                    content: [new LanguageModelThinkingPart('第二段摘要'), markerPart]
+                }
+            ] as never,
+            {
+                id: 'gpt-5.6-sol',
+                extraBody: { reasoning: { effort: 'medium' }, include: null }
+            } as never
+        );
+
+        assert.deepEqual(result.messages, [
+            {
+                type: 'reasoning',
+                summary: [],
+                content: [{ type: 'reasoning_text', text: '第二段摘要' }]
+            }
+        ]);
+    });
+
+    test('回放关闭时多个思考摘要段直接拼接（对齐 Copilot 默认行为）', () => {
+        const converter = createConverter();
+
+        const result = converter.convertMessagesToOpenAIResponses(
+            [
+                {
+                    role: vscode.LanguageModelChatMessageRole.Assistant,
+                    content: [
+                        new LanguageModelThinkingPart('**Planning provider module analysis**', undefined, {
+                            redactedData: 'cipher-1',
+                            reasoningId: 'rsn_a'
+                        }),
+                        new LanguageModelThinkingPart('**Gathering precise line numbers with grep**', undefined, {
+                            redactedData: 'cipher-2',
+                            reasoningId: 'rsn_b'
+                        })
+                    ]
+                }
+            ] as never,
+            {
+                id: 'gpt-5.6-sol',
+                extraBody: { reasoning: { effort: 'medium' }, include: null }
+            } as never
+        );
+
+        assert.deepEqual(result.messages, [
+            {
+                type: 'reasoning',
+                summary: [],
+                content: [
+                    {
+                        type: 'reasoning_text',
+                        text: '**Planning provider module analysis****Gathering precise line numbers with grep**'
+                    }
+                ]
+            }
+        ]);
+    });
+
     test('忽略没有可见内容的普通 thinking part，避免生成空 assistant message', () => {
         const converter = createConverter();
 
@@ -68,10 +271,32 @@ suite('OpenAIResponsesMessageConverter', () => {
     test('支持数组形式的 thinking 内容', () => {
         const converter = createConverter();
 
+        const result = converter.convertMessagesToOpenAIResponses(
+            [
+                {
+                    role: vscode.LanguageModelChatMessageRole.Assistant,
+                    content: [new LanguageModelThinkingPart(['思考', '内容'])]
+                }
+            ] as never,
+            { id: 'deepseek-v4-flash' } as never
+        );
+
+        assert.deepEqual(result.messages, [
+            {
+                type: 'reasoning',
+                summary: [],
+                content: [{ type: 'reasoning_text', text: '思考内容' }]
+            }
+        ]);
+    });
+
+    test('密文回放通道下可见思考文本（摘要）不回传为文本', () => {
+        const converter = createConverter();
+
         const result = converter.convertMessagesToOpenAIResponses([
             {
                 role: vscode.LanguageModelChatMessageRole.Assistant,
-                content: [new LanguageModelThinkingPart(['思考', '内容'])]
+                content: [new LanguageModelThinkingPart('展示用摘要'), new vscode.LanguageModelTextPart('正式回答')]
             }
         ] as never);
 
@@ -80,7 +305,7 @@ suite('OpenAIResponsesMessageConverter', () => {
                 type: 'message',
                 role: 'assistant',
                 status: 'completed',
-                content: [{ type: 'output_text', text: '思考内容' }]
+                content: [{ type: 'output_text', text: '正式回答' }]
             }
         ]);
     });

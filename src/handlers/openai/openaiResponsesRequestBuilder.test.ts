@@ -65,6 +65,30 @@ test('GPT + extraBody.reasoning 时注入 encrypted reasoning include', async ()
     assert.deepEqual(requestBody.include, ['reasoning.encrypted_content']);
 });
 
+test('extraBody 显式定义 include 时不再自动注入（null）', async () => {
+    const { initializeResponsesRequestBody } = await getBuilderModule();
+    const requestBody = initializeResponsesRequestBody({
+        requestModel: 'gpt-5.4',
+        input: [] as never,
+        sessionId: 'session-123',
+        extraBody: { reasoning: { effort: 'medium' }, include: null }
+    });
+
+    assert.equal('include' in requestBody, false);
+});
+
+test('extraBody 显式定义 include 时不再自动注入（空数组）', async () => {
+    const { initializeResponsesRequestBody } = await getBuilderModule();
+    const requestBody = initializeResponsesRequestBody({
+        requestModel: 'gpt-5.4',
+        input: [] as never,
+        sessionId: 'session-123',
+        extraBody: { reasoning: { effort: 'medium' }, include: [] }
+    });
+
+    assert.equal('include' in requestBody, false);
+});
+
 test('useInstructions=true 时通过 instructions 传递 system message', async () => {
     const { applyResponsesSystemMessage } = await getBuilderModule();
     const requestBody: Record<string, unknown> = {};

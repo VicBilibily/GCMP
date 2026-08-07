@@ -461,6 +461,8 @@ GCMP 提供 **Compatible Provider**，用于支持任何 OpenAI 或 Anthropic �
 }
 ```
 
+> 提示：如果你使用 OpenAI Responses / 兼容转发，并且不想回传加密思考（`reasoning.encrypted_content`），可显式设置 `extraBody.include` 为 `null` 或 `[]`；此时历史思维链会以明文 `reasoning_text` 通道回传，且 ThinkingPart 被剥离时会从 StatefulMarker 恢复。需要回传密文时请包含 `reasoning.encrypted_content`。
+
 - `gcmp.compatibleModels[*].proxy` 仅作用于当前自定义模型；在填写 `baseUrl` 后点击“获取模型”时，也会使用同一代理设置进行探测。
 
 ### `sdkMode`

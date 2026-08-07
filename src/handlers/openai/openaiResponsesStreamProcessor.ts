@@ -1,13 +1,42 @@
 ﻿import * as vscode from 'vscode';
-import OpenAI from 'openai';
+import OpenAI, { APIUserAbortError } from 'openai';
 
 import type { GenericUsageData } from '../../usages/fileLogger/types';
 import { Logger } from '../../utils/runtime/logger';
 import { t } from '../../utils/runtime/l10n';
 import { StreamReporter } from '../streamReporter';
+import type { Stream } from 'openai/streaming';
+import type { ResponseStreamEvent } from 'openai/resources/responses/responses';
 
-type OpenAIResponsesStream = ReturnType<OpenAI['responses']['stream']>;
+type SDKResponsesStream = ReturnType<OpenAI['responses']['stream']>;
 type ResponseReasoningItem = OpenAI.Responses.ResponseReasoningItem;
+
+/**
+ * 本地 Responses 事件分发器：仅复用 SDK ResponseStream 的事件注册签名。
+ * SDK ResponseStream 的快照累积器在 response.failed 先于 response.created 到达时
+ * 会先于事件分发抛内部状态错误，吞掉服务端真实错误消息；
+ * 改为消费原始事件流（client.responses.create）并自行分发可规避该问题。
+ */
+export class OpenAIResponsesEventStream {
+    private readonly listeners = new Map<string, Array<(event: never) => void>>();
+
+    readonly on: SDKResponsesStream['on'] = ((type: string, handler: (event: never) => void) => {
+        const list = this.listeners.get(type) ?? [];
+        list.push(handler);
+        this.listeners.set(type, list);
+        return this;
+    }) as unknown as SDKResponsesStream['on'];
+
+    /** 与 SDK 事件分发顺序一致：先通用 event，再具体事件类型 */
+    dispatch(event: ResponseStreamEvent): void {
+        for (const handler of this.listeners.get('event') ?? []) {
+            handler(event as never);
+        }
+        for (const handler of this.listeners.get(event.type) ?? []) {
+            handler(event as never);
+        }
+    }
+}
 
 export interface OpenAIResponsesToolCallBuffer {
     id: string;
@@ -213,6 +242,7 @@ export class OpenAIResponsesStreamProcessor {
     private streamStartTime: number | undefined;
     private streamEndTime: number | undefined = undefined;
     private readonly state = new OpenAIResponsesStreamState();
+    private readonly events = new OpenAIResponsesEventStream();
 
     constructor(options: OpenAIResponsesStreamProcessorOptions) {
         this.modelName = options.modelName;
@@ -223,8 +253,8 @@ export class OpenAIResponsesStreamProcessor {
         this.sessionId = options.sessionId;
     }
 
-    attach(stream: OpenAIResponsesStream): void {
-        stream
+    attach(): void {
+        this.events
             .on('event', () => {
                 // 心跳：每个 SSE 事件触发一次实时指标更新，确保首流前 latency 平滑增长
                 this.streamReporter.heartbeat();
@@ -591,14 +621,24 @@ export class OpenAIResponsesStreamProcessor {
             });
     }
 
-    async waitForCompletion(stream: OpenAIResponsesStream): Promise<void> {
+    async consume(stream: Stream<ResponseStreamEvent>): Promise<void> {
         try {
-            await stream.done();
-        } catch (doneError) {
-            // SDK 内部处理器可能在 response.failed 先于 response.created 到达时抛出异常，
-            // 导致我们的 response.failed 处理器未运行、streamError 未被设置
+            for await (const event of stream) {
+                this.events.dispatch(event);
+                // response.failed / error 处理器已记录错误：提前结束消费，
+                // 避免对端在失败后继续保持连接造成的无效等待
+                if (this.streamError) {
+                    break;
+                }
+            }
+            // 原始流在 abort 时静默结束迭代（SDK 内部 isAbortError 直接 return），
+            // 补偿 SDK ResponseStream 的取消语义：用户取消时抛取消错误，避免被误报为成功完成
+            if (!this.streamError && this.token.isCancellationRequested) {
+                this.streamError = new APIUserAbortError();
+            }
+        } catch (error) {
             if (!this.streamError) {
-                this.streamError = doneError instanceof Error ? doneError : new Error(String(doneError));
+                this.streamError = error instanceof Error ? error : new Error(String(error));
             }
         }
 

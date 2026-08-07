@@ -29,6 +29,17 @@ export class ThinkingBuffer {
         return this.currentId;
     }
 
+    /**
+     * 只累积到 completeBuffer，不产生流式输出、不影响当前链。
+     * 用于未经流式传输、直接以占位 ThinkingPart 展示的摘要文本（如 Responses output_item.done 才出现的摘要）。
+     */
+    appendComplete(content: string): void {
+        if (!content) {
+            return;
+        }
+        this.completeBuffer += content;
+    }
+
     flush(signature?: string): vscode.LanguageModelThinkingPart | null {
         if (this.buffer.length === 0 || !this.currentId) {
             return null;

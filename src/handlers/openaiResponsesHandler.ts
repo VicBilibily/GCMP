@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { ClientOptions } from 'openai';
+import type { ResponseCreateParamsStreaming } from 'openai/resources/responses/responses';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
 import type { GenericUsageData } from '../usages/fileLogger/types';
@@ -128,8 +129,12 @@ export class OpenAIResponsesHandler {
 
                 Logger.info(`🎯 ${model.name} Using session_id: ${sessionId}`);
 
-                // 调用 Responses API 的流式方法
-                const stream = client.responses.stream(requestBody, { signal: abortController.signal });
+                // 使用原始事件流而非 SDK ResponseStream：后者的快照累积器在 response.failed
+                // 先于 response.created 到达时会先于事件分发抛内部状态错误，吞掉服务端真实错误消息
+                const stream = await client.responses.create(
+                    { ...requestBody, stream: true } as unknown as ResponseCreateParamsStreaming,
+                    { signal: abortController.signal }
+                );
                 const streamProcessor = new OpenAIResponsesStreamProcessor({
                     modelName: model.name,
                     displayName: this.displayName,
@@ -138,8 +143,8 @@ export class OpenAIResponsesHandler {
                     streamReporter,
                     sessionId
                 });
-                streamProcessor.attach(stream);
-                await streamProcessor.waitForCompletion(stream);
+                streamProcessor.attach();
+                await streamProcessor.consume(stream);
 
                 finalUsage = streamProcessor.getFinalUsage();
                 streamStartTime = streamProcessor.getStreamStartTime();

@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.24] - 2026-08-07
+
+### 修复
+
+- **OpenAI Responses 加密思考回放兼容 Azure 多资源中转**：[#345](https://github.com/VicBilibily/GCMP/issues/345) 当 `extraBody.include` 显式设置为 `null` / `[]` 时，不再自动注入 `reasoning.encrypted_content`，回放侧也同步关闭密文回传，避免跨资源校验失败。
+- **OpenAI Responses 明文模式通道支持**：[#345](https://github.com/VicBilibily/GCMP/issues/345) 当 `extraBody.include` 被接管为 `null` / `[]` 时，历史思维链会以明文 `reasoning_text` 回传，并在 ThinkingPart 被剥离时从 StatefulMarker 恢复，适配无密文端点。
+
+---
+
+### Fixed
+
+- **OpenAI Responses encrypted reasoning replay now respects Azure multi-resource proxies**: [#345](https://github.com/VicBilibily/GCMP/issues/345) when `extraBody.include` is explicitly set to `null` / `[]`, `reasoning.encrypted_content` is no longer auto-injected, and replay also stops sending historical ciphertext to avoid cross-resource validation failures.
+- **OpenAI Responses plaintext channel support**: [#345](https://github.com/VicBilibily/GCMP/issues/345) when `extraBody.include` is taken over as `null` / `[]`, historical reasoning is replayed as plain `reasoning_text`, and stripped ThinkingPart entries are restored from StatefulMarker for plaintext endpoints.
+
 ## [0.26.23] - 2026-08-06
 
 ### 新增

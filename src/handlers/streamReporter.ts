@@ -381,7 +381,10 @@ export class StreamReporter {
         this.encryptedReasonings.push({ encryptedContent, reasoningId });
         // 占位符文本 + redactedData + reasoningId metadata 合并输出一个 ThinkingPart
         // id 使用 undefined（不加入 streaming chain），reasoningId 仅存于 metadata 用于重建
-        const text = summaryText?.join('\n') || '';
+        const text = summaryText?.join('') || '';
+        // 摘要未经流式传输（未进 thinkingBuffer 流），静默补入完整缓冲供 StatefulMarker 持久化，
+        // 否则历史 ThinkingPart 被剥离后明文回放通道无法从 marker 恢复该摘要
+        this.thinkingBuffer.appendComplete(text);
         this.progress.report(
             new vscode.LanguageModelThinkingPart(text, undefined, {
                 redactedData: encryptedContent,
