@@ -7,7 +7,7 @@ import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
 import { decodeStatefulMarker } from '../statefulMarker';
 import { CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from '../types';
 import type { OpenAIHandler } from '../openaiHandler';
-import { isEncryptedReasoningEnabled } from './encryptedReasoning';
+import { isEncryptedReasoningEnabled, isIncludeOverridden } from './encryptedReasoning';
 import { OpenAIResponsesCallIdResolver } from './openaiResponsesCallIdResolver';
 
 type ResponseInputItem = OpenAI.Responses.ResponseInputItem;
@@ -52,6 +52,13 @@ export class OpenAIResponsesMessageConverter {
                 requestModel: modelConfig.model || modelConfig.id,
                 extraBody: modelConfig.extraBody
             });
+        // include 被显式接管（如 { include: null }）且密文回放关闭时，明文思考文本同样不回传：
+        // GPT/Azure 端点要求输入端 reasoning 项 content 为空，回传 reasoning_text 会 400
+        // （"Invalid 'input[N].content': array too long"），且摘要入档后该会话每轮必失败。
+        // 未接管时保持既有行为：DeepSeek 等无密文端点继续以明文回传思维链。
+        const replayPlainThinking =
+            !replayEncryptedReasoning &&
+            !(modelConfig !== undefined && isIncludeOverridden(modelConfig.extraBody));
 
         for (const [messageIndex, message] of messages.entries()) {
             let role = this.mapRole(message.role);
@@ -139,7 +146,7 @@ export class OpenAIResponsesMessageConverter {
                         }
                         out.push(reasoningItem as unknown as ResponseReasoningItem);
                     }
-                } else {
+                } else if (replayPlainThinking) {
                     // 明文通道（DeepSeek 等无密文端点）：思维链文本以明文 reasoning 项回传，
                     // 端点将明文 content 归并到相邻 assistant 消息
                     const markerThinking = (this.getCompleteThinkingFromMarker(message.content) ?? '').trim();
