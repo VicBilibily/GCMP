@@ -240,3 +240,28 @@ test('usage limit message-only (structured fields lost) is permanent', () => {
 test('usage_limit_reached as top-level code is permanent', () => {
     assert.equal(isRateLimitLikeError({ status: 429, code: 'usage_limit_reached', message: 'rejected' }), false);
 });
+
+// skipPermanentCheck：Compatible 网关透传的单账号套餐限额可经重试切换路由恢复
+
+test('skipPermanentCheck makes nested usage_limit_reached + 429 retryable', () => {
+    const error = {
+        status: 429,
+        message: 'Connection error.',
+        error: {
+            type: 'usage_limit_reached',
+            message: 'The usage limit has been reached',
+            plan_type: 'plus',
+            resets_in_seconds: 512095
+        }
+    };
+    assert.equal(isRateLimitLikeError(error, 0, { skipPermanentCheck: true }), true);
+});
+
+test('skipPermanentCheck makes top-level usage_limit_reached code retryable', () => {
+    assert.equal(
+        isRateLimitLikeError({ status: 429, code: 'usage_limit_reached', message: 'rejected' }, 0, {
+            skipPermanentCheck: true
+        }),
+        true
+    );
+});

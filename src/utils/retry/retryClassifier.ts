@@ -131,13 +131,18 @@ export function hasPermanentErrorSignal(error: RetryableErrorLike, deep = 0): bo
     );
 }
 
-export function isRateLimitLikeError(error: RetryableErrorLike, deep = 0): boolean {
+export interface RateLimitClassifyOptions {
+    /** 跳过永久错误信号否决：Compatible 网关透传的单账号套餐限额可经重试切换上游路由恢复 */
+    skipPermanentCheck?: boolean;
+}
+
+export function isRateLimitLikeError(error: RetryableErrorLike, deep = 0, options?: RateLimitClassifyOptions): boolean {
     if (!isRecord(error) || deep > MAX_RETRY_ERROR_DEPTH) {
         return false;
     }
 
     // 永久错误优先级最高：即使 SDK 同时附带 429/status/code/type，也不应进入重试。
-    if (hasPermanentErrorSignal(error, deep)) {
+    if (!options?.skipPermanentCheck && hasPermanentErrorSignal(error, deep)) {
         return false;
     }
 
@@ -189,11 +194,11 @@ export function isRateLimitLikeError(error: RetryableErrorLike, deep = 0): boole
         }
     }
 
-    if (isRecord(error.error) && isRateLimitLikeError(error.error, deep + 1)) {
+    if (isRecord(error.error) && isRateLimitLikeError(error.error, deep + 1, options)) {
         return true;
     }
 
-    if (isRecord(error.cause) && isRateLimitLikeError(error.cause, deep + 1)) {
+    if (isRecord(error.cause) && isRateLimitLikeError(error.cause, deep + 1, options)) {
         return true;
     }
 

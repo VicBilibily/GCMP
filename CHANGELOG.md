@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.26] - 2026-08-08
+
+### 修复
+
+- **Compatible 接入的套餐限额 429 支持重试恢复**：[#347](https://github.com/VicBilibily/GCMP/issues/347) Compatible 自定义接入的上游网关透传 Codex 账号套餐限额错误（`usage_limit_reached`）时，不再按永久错误直接失败，而是视作可重试的限流错误，通过重试让网关切换上游账号路由恢复；内置 Codex 的永久限额判定保持不变。
+
+---
+
+### Fixed
+
+- **Compatible providers now retry plan-limit 429 errors**: [#347](https://github.com/VicBilibily/GCMP/issues/347) when a custom Compatible provider's gateway passes through a Codex account plan-limit error (`usage_limit_reached`), it is treated as a retryable rate-limit error instead of a permanent failure, letting retries switch the gateway's upstream account route to recover. The built-in Codex provider's permanent-limit classification is unchanged.
+
 ## [0.26.25] - 2026-08-08
 
 ### 修复

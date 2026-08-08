@@ -5,7 +5,7 @@
 
 import { Logger } from '../runtime/logger';
 import { t } from '../runtime/l10n';
-import { hasPermanentErrorSignal, isRateLimitLikeError } from './retryClassifier';
+import { hasPermanentErrorSignal, isRateLimitLikeError, type RateLimitClassifyOptions } from './retryClassifier';
 
 /**
  * 重试配置接口
@@ -190,10 +190,11 @@ export class RetryManager {
     /**
      * 判断是否是 429 错误
      * @param error 错误对象
+     * @param options 分类选项（skipPermanentCheck：跳过永久错误否决，供 Compatible 网关接入使用）
      * @returns 是否是 429 错误
      */
-    static isRateLimitError(error: RetryableError, _deep = 0): boolean {
-        return isRateLimitLikeError(error as unknown as Record<string, unknown>);
+    static isRateLimitError(error: RetryableError, options?: RateLimitClassifyOptions): boolean {
+        return isRateLimitLikeError(error as unknown as Record<string, unknown>, 0, options);
     }
 
     /**
