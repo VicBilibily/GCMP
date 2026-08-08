@@ -1,7 +1,7 @@
 ﻿import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { isEncryptedReasoningEnabled } from './encryptedReasoning';
+import { isEncryptedReasoningEnabled, isIncludeOverridden } from './encryptedReasoning';
 
 test('未接管 include：gpt 模型且配置 extraBody.reasoning 时启用', () => {
     assert.equal(
@@ -63,4 +63,16 @@ test('接管 include：include 不含目标条目时不启用', () => {
         }),
         false
     );
+});
+
+test('isIncludeOverridden：定义 include 键（含 null/[]）即视为接管', () => {
+    assert.equal(isIncludeOverridden({ include: null }), true);
+    assert.equal(isIncludeOverridden({ include: [] }), true);
+    assert.equal(isIncludeOverridden({ include: ['reasoning.encrypted_content'] }), true);
+});
+
+test('isIncludeOverridden：未定义 include 键时不视为接管', () => {
+    assert.equal(isIncludeOverridden({ reasoning: { effort: 'medium' } }), false);
+    assert.equal(isIncludeOverridden({}), false);
+    assert.equal(isIncludeOverridden(undefined), false);
 });
