@@ -115,7 +115,7 @@ suite('OpenAIResponsesMessageConverter', () => {
         ]);
     });
 
-    test('回放关闭时丢弃密文、可见思考文本转为明文 reasoning 项回传', () => {
+    test('include 接管为 null 时既不回传密文也不回传明文思考文本', () => {
         const converter = createConverter();
 
         const result = converter.convertMessagesToOpenAIResponses(
@@ -136,16 +136,12 @@ suite('OpenAIResponsesMessageConverter', () => {
             } as never
         );
 
-        assert.deepEqual(result.messages, [
-            {
-                type: 'reasoning',
-                summary: [],
-                content: [{ type: 'reasoning_text', text: '可见摘要' }]
-            }
-        ]);
+        // include 被显式接管（null）时密文丢弃，明文思考文本同样不回传，
+        // 否则 GPT/Azure 端点会因输入端 reasoning 项 content 非空而 400
+        assert.deepEqual(result.messages, []);
     });
 
-    test('回放关闭且 ThinkingPart 被剥离时从 StatefulMarker 恢复思维链文本', () => {
+    test('明文通道下 ThinkingPart 被剥离时从 StatefulMarker 恢复思维链文本', () => {
         const converter = createConverter();
 
         const markerData = encodeStatefulMarker('gpt-5.6-sol', {
@@ -166,10 +162,7 @@ suite('OpenAIResponsesMessageConverter', () => {
                     content: [markerPart]
                 }
             ] as never,
-            {
-                id: 'gpt-5.6-sol',
-                extraBody: { reasoning: { effort: 'medium' }, include: null }
-            } as never
+            { id: 'deepseek-v4-flash' } as never
         );
 
         assert.deepEqual(result.messages, [
@@ -181,7 +174,7 @@ suite('OpenAIResponsesMessageConverter', () => {
         ]);
     });
 
-    test('回放关闭且 ThinkingPart 部分剥离时优先使用可见 ThinkingPart 文本', () => {
+    test('明文通道下 ThinkingPart 部分剥离时优先使用可见 ThinkingPart 文本', () => {
         const converter = createConverter();
 
         const markerData = encodeStatefulMarker('gpt-5.6-sol', {
@@ -201,10 +194,7 @@ suite('OpenAIResponsesMessageConverter', () => {
                     content: [new LanguageModelThinkingPart('第二段摘要'), markerPart]
                 }
             ] as never,
-            {
-                id: 'gpt-5.6-sol',
-                extraBody: { reasoning: { effort: 'medium' }, include: null }
-            } as never
+            { id: 'deepseek-v4-flash' } as never
         );
 
         assert.deepEqual(result.messages, [
@@ -216,7 +206,7 @@ suite('OpenAIResponsesMessageConverter', () => {
         ]);
     });
 
-    test('回放关闭时多个思考摘要段直接拼接（对齐 Copilot 默认行为）', () => {
+    test('明文通道下多个思考摘要段直接拼接（对齐 Copilot 默认行为）', () => {
         const converter = createConverter();
 
         const result = converter.convertMessagesToOpenAIResponses(
@@ -235,10 +225,7 @@ suite('OpenAIResponsesMessageConverter', () => {
                     ]
                 }
             ] as never,
-            {
-                id: 'gpt-5.6-sol',
-                extraBody: { reasoning: { effort: 'medium' }, include: null }
-            } as never
+            { id: 'deepseek-v4-flash' } as never
         );
 
         assert.deepEqual(result.messages, [

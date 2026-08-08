@@ -56,9 +56,7 @@ export class OpenAIResponsesMessageConverter {
         // GPT/Azure 端点要求输入端 reasoning 项 content 为空，回传 reasoning_text 会 400
         // （"Invalid 'input[N].content': array too long"），且摘要入档后该会话每轮必失败。
         // 未接管时保持既有行为：DeepSeek 等无密文端点继续以明文回传思维链。
-        const replayPlainThinking =
-            !replayEncryptedReasoning &&
-            !(modelConfig !== undefined && isIncludeOverridden(modelConfig.extraBody));
+        const replayPlainThinking = !replayEncryptedReasoning && !isIncludeOverridden(modelConfig?.extraBody);
 
         for (const [messageIndex, message] of messages.entries()) {
             let role = this.mapRole(message.role);

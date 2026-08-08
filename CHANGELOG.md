@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.25] - 2026-08-08
+
+### 修复
+
+- **OpenAI Responses include 接管时不再回传明文思维链**：[#345](https://github.com/VicBilibily/GCMP/issues/345) 当 `extraBody.include` 被显式接管为 `null` / `[]` 时，历史思维链不再以明文 `reasoning_text` 回传，避免 GPT/Azure 端点因输入端 reasoning content 非空而报 400。
+
+---
+
+### Fixed
+
+- **OpenAI Responses plaintext reasoning is no longer replayed when `include` is overridden**: [#345](https://github.com/VicBilibily/GCMP/issues/345) when `extraBody.include` is explicitly overridden to `null` / `[]`, historical reasoning is no longer replayed as plain `reasoning_text`, avoiding 400s on GPT/Azure endpoints that require empty input-side reasoning content.
+
 ## [0.26.24] - 2026-08-07
 
 ### 修复
