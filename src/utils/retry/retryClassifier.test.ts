@@ -10,6 +10,16 @@ test('treats codex.rate_limits responses event as retryable', () => {
     );
 });
 
+test('codex.rate_limits explicit limit signal is permanent', () => {
+    const error = {
+        status: 429,
+        code: 'usage_limit_reached',
+        message: 'Codex usage limit reached'
+    };
+    assert.equal(hasPermanentErrorSignal(error), true);
+    assert.equal(isRateLimitLikeError(error), false);
+});
+
 test('detects retryable codex.rate_limits event through nested cause chain', () => {
     assert.equal(
         isRateLimitLikeError({

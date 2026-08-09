@@ -540,8 +540,13 @@ export class OpenAIHandler {
 
             const normalizedLine = line.replace(/^data:([^\s])/g, 'data: $1');
             if (!normalizedLine.startsWith('data:')) {
-                // 过滤网关 keepalive 心跳事件的 event 行
-                if (normalizedLine.trimStart().startsWith('event: keepalive')) {
+                // 过滤 keepalive 心跳与 codex.rate_limits 的 event 行：后者 data 行会被清空，
+                // 残留 event 行会让 SDK 组合出空 data 事件并在 JSON.parse('') 时抛错
+                const trimmedEventLine = normalizedLine.trimStart();
+                if (
+                    trimmedEventLine.startsWith('event: keepalive') ||
+                    trimmedEventLine.startsWith('event: codex.rate_limits')
+                ) {
                     return '';
                 }
                 return normalizedLine;
@@ -580,13 +585,18 @@ export class OpenAIHandler {
                             rate_limits?: { allowed?: boolean; limit_reached?: boolean };
                         }
                     ).rate_limits;
-                    const rateLimitError = new Error(
-                        rateLimits?.allowed === false || rateLimits?.limit_reached === true ?
-                            '429 Rate limit exceeded'
-                        :   'Unexpected codex.rate_limits event returned instead of chat content'
-                    );
-                    rateLimitError.name = 'SSEFatalError';
-                    throw rateLimitError;
+                    // Codex 明确限流时标记为永久错误；Compatible 可在上层 skipPermanentCheck 下继续重试
+                    if (rateLimits?.allowed === false || rateLimits?.limit_reached === true) {
+                        const rateLimitError = new Error('Codex usage limit reached') as Error & {
+                            code?: string;
+                            status?: number;
+                        };
+                        rateLimitError.code = 'usage_limit_reached';
+                        rateLimitError.status = 429;
+                        rateLimitError.name = 'SSEFatalError';
+                        throw rateLimitError;
+                    }
+                    return '';
                 }
 
                 // 过滤网关 keepalive 心跳事件，避免 SDK ResponseStream 的 _accumulateResponse 在
