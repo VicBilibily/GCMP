@@ -2,6 +2,11 @@
 
 const MAX_RETRY_ERROR_DEPTH = 3;
 const RATE_LIMIT_STATUS_CODES = new Set([429, 529]);
+
+// 瞬时超时错误：上游处理超时（如 HuggingFace inference 冷启动/排队超时透传 408），
+// 重试通常能成功。语义上不属于限流，单列清单以便未来独立调整退避策略。
+// 504 由 isServerError() 的 5xx 路径覆盖，此处不重复。
+const TRANSIENT_TIMEOUT_STATUS_CODES = new Set([408]);
 const RATE_LIMIT_ERROR_CODES = new Set([
     '429',
     '529',
@@ -154,6 +159,14 @@ export function isRateLimitLikeError(error: RetryableErrorLike, deep = 0, option
         return true;
     }
 
+    if (TRANSIENT_TIMEOUT_STATUS_CODES.has(error.status as number)) {
+        return true;
+    }
+
+    if (TRANSIENT_TIMEOUT_STATUS_CODES.has(error.statusCode as number)) {
+        return true;
+    }
+
     const code =
         typeof error.code === 'string' || typeof error.code === 'number' ? String(error.code).toLowerCase() : '';
     if (code && RATE_LIMIT_ERROR_CODES.has(code)) {
@@ -169,7 +182,13 @@ export function isRateLimitLikeError(error: RetryableErrorLike, deep = 0, option
     if (message) {
         const normalizedMessage = message.toLowerCase();
 
-        if (normalizedMessage.includes('429') || normalizedMessage.includes('529')) {
+        // 状态码兜底：handler 丢失 status 字段时（如 Sub2API 透传 "Upstream error: 408"），
+        // 从消息文案匹配 HTTP 状态码数字。408 为瞬时超时，429/529 为限流。
+        if (
+            normalizedMessage.includes('408') ||
+            normalizedMessage.includes('429') ||
+            normalizedMessage.includes('529')
+        ) {
             return true;
         }
 
