@@ -265,3 +265,61 @@ test('skipPermanentCheck makes top-level usage_limit_reached code retryable', ()
         true
     );
 });
+
+// 408 Request Timeout：上游处理超时（如 HuggingFace inference 冷启动），属瞬时错误应重试
+
+test('treats HTTP 408 status as retryable transient timeout', () => {
+    assert.equal(isRateLimitLikeError({ status: 408, message: 'Request Timeout' }), true);
+});
+
+test('treats HTTP 408 statusCode as retryable transient timeout', () => {
+    assert.equal(isRateLimitLikeError({ statusCode: 408, message: 'Request Timeout' }), true);
+});
+
+test('treats nested 408 status through cause chain as retryable', () => {
+    assert.equal(
+        isRateLimitLikeError({
+            message: 'Compatible Provider request processing failed',
+            cause: { status: 408, message: 'Upstream error: 408' }
+        }),
+        true
+    );
+});
+
+test('permanent error overrides HTTP 408 status', () => {
+    assert.equal(
+        isRateLimitLikeError({
+            status: 408,
+            message: 'Request exceeds the maximum context length limit of this model'
+        }),
+        false
+    );
+});
+
+// message 兜底：status 字段丢失时（如网关透传 "Upstream error: 408"），从消息文案识别 408
+
+test('treats message-only "Upstream error: 408" as retryable (status lost in transit)', () => {
+    assert.equal(isRateLimitLikeError({ message: 'Upstream error: 408' }), true);
+});
+
+test('treats message-only "Request Timeout" without 408 digit as not retryable by status', () => {
+    // 纯文案 "Request Timeout" 不含状态码数字，不命中 status / message-digit 兜底
+    assert.equal(isRateLimitLikeError({ message: 'Request Timeout' }), false);
+});
+
+test('treats nested message-only 408 through cause chain as retryable', () => {
+    assert.equal(
+        isRateLimitLikeError({
+            message: 'Compatible Provider request processing failed',
+            cause: { message: 'Upstream error: 408' }
+        }),
+        true
+    );
+});
+
+test('skipPermanentCheck does not affect 408 (not a permanent error)', () => {
+    assert.equal(
+        isRateLimitLikeError({ status: 408, message: 'Request Timeout' }, 0, { skipPermanentCheck: true }),
+        true
+    );
+});
