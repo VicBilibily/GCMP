@@ -455,6 +455,19 @@
             "tokenPricing": { "RMB": [1, 2, 0.2] }
         },
         {
+            "id": "deepseek-v4-flash-ga",
+            "name": "DeepSeek-V4-Flash-260731",
+            "model": "deepseek-v4-flash-ga-260731",
+            "tooltip": "DeepSeek-V4-Flash正式版 是深度求索推出的高效通用模型，Agent能力大幅增强，在代码修改、工具调用、多步骤任务执行等场景表现更优，支持思考与非思考双模式及百万Token上下文。",
+            "reasoningEffort": ["high", "max", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinkingFormat": "object",
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "RMB": [1, 2, 0.2] }
+        },
+        {
             "id": "deepseek-v4-pro",
             "name": "DeepSeek-V4-Pro-260425",
             "model": "deepseek-v4-pro-260425",
