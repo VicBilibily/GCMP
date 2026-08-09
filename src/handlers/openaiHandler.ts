@@ -580,21 +580,19 @@ export class OpenAIHandler {
                 }
 
                 if (obj.type === 'codex.rate_limits') {
+                    // rate_limits 是 Codex 的配额状态告知事件，并非"本次请求被拒绝"的信号：
+                    // 即使 limit_reached=true / allowed=false，后端仍可能接受并完成当前请求
+                    // （紧随其后出现 response.created 即为接受）。仅记录状态后透传，
+                    // 真正的拒绝由后续 response.failed 或 HTTP 429 + usage_limit_reached 表达。
                     const rateLimits = (
                         obj as ParsedSSEChunk & {
-                            rate_limits?: { allowed?: boolean; limit_reached?: boolean };
+                            rate_limits?: { allowed?: boolean; limit_reached?: boolean; used_percent?: number };
                         }
                     ).rate_limits;
-                    // Codex 明确限流时标记为永久错误；Compatible 可在上层 skipPermanentCheck 下继续重试
                     if (rateLimits?.allowed === false || rateLimits?.limit_reached === true) {
-                        const rateLimitError = new Error('Codex usage limit reached') as Error & {
-                            code?: string;
-                            status?: number;
-                        };
-                        rateLimitError.code = 'usage_limit_reached';
-                        rateLimitError.status = 429;
-                        rateLimitError.name = 'SSEFatalError';
-                        throw rateLimitError;
+                        Logger.warn(
+                            `${displayName} received codex.rate_limits (limit_reached=${rateLimits?.limit_reached}, allowed=${rateLimits?.allowed}, used_percent=${rateLimits?.used_percent ?? 'n/a'}); continuing current response`
+                        );
                     }
                     return '';
                 }

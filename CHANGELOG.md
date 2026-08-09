@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.28] - 2026-08-10
+
+### 修复
+
+- **Codex 配额状态事件不再误拦截正常请求**：[#349](https://github.com/VicBilibily/GCMP/issues/349) 0.26.27 将流中 `codex.rate_limits` 的 `allowed: false` / `limit_reached: true` 标记为永久错误直接失败，但经对照官方 Codex CLI 源码确认：该事件只是配额状态告知（用于刷新状态栏），并非"本次请求被拒绝"的信号——即使限额已满，后端仍会接受并完成当前请求（紧随其后出现 `response.created`）。现改为仅记录状态日志、不再中断流；真正的拒绝仍由 HTTP 429 + `usage_limit_reached` 或 SSE `response.failed` 表达，重试分类逻辑不变。
+
+---
+
+### Fixed
+
+- **Codex quota status events no longer block valid requests**: [#349](https://github.com/VicBilibily/GCMP/issues/349) 0.26.27 classified explicit limit signals (`allowed: false` / `limit_reached: true`) in `codex.rate_limits` as permanent errors and failed fast. Cross-checking the official Codex CLI source confirmed this event is a quota-status notification (used to refresh the status bar), not a rejection signal — even with limits reached, the backend still accepts and completes the current request (`response.created` follows immediately). It now only logs the status and no longer breaks the stream; real rejections still surface via HTTP 429 + `usage_limit_reached` or SSE `response.failed`, and retry classification is unchanged.
+
 ## [0.26.27] - 2026-08-10
 
 ### 修复

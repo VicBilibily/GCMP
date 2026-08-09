@@ -10,11 +10,12 @@ test('treats codex.rate_limits responses event as retryable', () => {
     );
 });
 
-test('codex.rate_limits explicit limit signal is permanent', () => {
+// 套餐用量限额：HTTP 429 + usage_limit_reached（真实拒绝路径，非 rate_limits 状态事件）
+test('HTTP 429 + top-level usage_limit_reached code (Codex plan cap) is permanent', () => {
     const error = {
         status: 429,
         code: 'usage_limit_reached',
-        message: 'Codex usage limit reached'
+        message: 'The usage limit has been reached'
     };
     assert.equal(hasPermanentErrorSignal(error), true);
     assert.equal(isRateLimitLikeError(error), false);
