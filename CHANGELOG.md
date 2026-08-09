@@ -2,6 +2,32 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.27] - 2026-08-10
+
+### 修复
+
+- **Codex 配额事件不再导致 Responses 流崩溃**：[#349](https://github.com/VicBilibily/GCMP/issues/349) Codex 后端在 Responses 流开头推送的 `codex.rate_limits` 配额事件（`allowed: true`）此前因过滤不完整残留 `event:` 行，导致 SDK 对空 data 做 `JSON.parse` 抛 `Unexpected end of JSON input`；现在 event 行与 data 行一并过滤，配额状态推送不再中断正常请求。
+- **Codex 明确限流不再无意义重试**：[#349](https://github.com/VicBilibily/GCMP/issues/349) Codex 流中 `codex.rate_limits` 的 `allowed: false` / `limit_reached: true` 明确限额信号，此前被当作可重试的 429 反复重试，现在标记为永久错误直接失败；Compatible 自定义接入仍可通过重试切换上游路由恢复，行为不变。
+- **HTTP 408 超时支持自动重试**：[#351](https://github.com/VicBilibily/GCMP/issues/351) 上游返回 408 Request Timeout（如 HuggingFace 推理冷启动/排队超时）此前直接抛给用户，现在视为瞬时超时进入重试；永久错误否决仍优先，不会误重试额度耗尽等。
+- **状态码消息兜底不再误报**：含 408/429/529 数字的文案（如模型名、token 计数）此前会被当作可重试状态码误判，现改用精确正则匹配 `HTTP/Status/Upstream error` 上下文，消除误重试。
+
+### 新增
+
+- **火山方舟 DeepSeek-V4-Flash 正式版**：新增 `deepseek-v4-flash-ga-260731` 模型，Agent 能力大幅增强，支持思考/非思考双模式与百万 Token 上下文。
+
+---
+
+### Fixed
+
+- **Codex quota events no longer crash Responses streams**: [#349](https://github.com/VicBilibily/GCMP/issues/349) the `codex.rate_limits` quota event (`allowed: true`) Codex pushes at the start of Responses streams previously left a dangling `event:` line after filtering, causing the SDK to `JSON.parse` an empty data field and throw `Unexpected end of JSON input`; the event and data lines are now filtered together, so quota-status push no longer breaks normal requests.
+- **Codex explicit rate limit is no longer retried pointlessly**: [#349](https://github.com/VicBilibily/GCMP/issues/349) explicit limit signals (`allowed: false` / `limit_reached: true`) in `codex.rate_limits` were previously retried as a transient 429; they are now classified as permanent errors and fail fast. Compatible custom providers still recover via retry-driven upstream route switching, unchanged.
+- **HTTP 408 timeout is now retried**: [#351](https://github.com/VicBilibily/GCMP/issues/351) upstream 408 Request Timeout responses (e.g. HuggingFace inference cold-start/queue timeouts) previously surfaced directly to the user; they are now treated as transient timeouts and retried. Permanent-error veto still takes precedence, so quota exhaustion is never retried.
+- **Status-code message fallback no longer false-positives**: messages containing 408/429/529 as substrings (e.g. model names, token counts) were previously misclassified as retryable status codes; the fallback now uses precise regex matching against `HTTP/Status/Upstream error` context, eliminating spurious retries.
+
+### Added
+
+- **Volcengine DeepSeek-V4-Flash GA**: added the `deepseek-v4-flash-ga-260731` model with stronger agentic capabilities, dual thinking/non-thinking modes, and 1M-token context.
+
 ## [0.26.26] - 2026-08-08
 
 ### 修复
