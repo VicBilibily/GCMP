@@ -7,6 +7,15 @@ const RATE_LIMIT_STATUS_CODES = new Set([429, 529]);
 // 重试通常能成功。语义上不属于限流，单列清单以便未来独立调整退避策略。
 // 504 由 isServerError() 的 5xx 路径覆盖，此处不重复。
 const TRANSIENT_TIMEOUT_STATUS_CODES = new Set([408]);
+const TRANSIENT_TIMEOUT_MESSAGE_REGEXES = [
+    /\b(?:http|status(?:\s*code)?|upstream error)\D{0,12}408\b/i,
+    /\b408\b\D{0,20}\brequest timeout\b/i,
+    /\brequest timeout\b\D{0,20}\b408\b/i
+];
+const RATE_LIMIT_STATUS_MESSAGE_REGEXES = [
+    /\b(?:http|status(?:\s*code)?|upstream error)\D{0,12}(?:429|529)\b/i,
+    /^\s*error\D{0,12}(?:429|529)\b/i
+];
 const RATE_LIMIT_ERROR_CODES = new Set([
     '429',
     '529',
@@ -184,11 +193,11 @@ export function isRateLimitLikeError(error: RetryableErrorLike, deep = 0, option
 
         // 状态码兜底：handler 丢失 status 字段时（如 Sub2API 透传 "Upstream error: 408"），
         // 从消息文案匹配 HTTP 状态码数字。408 为瞬时超时，429/529 为限流。
-        if (
-            normalizedMessage.includes('408') ||
-            normalizedMessage.includes('429') ||
-            normalizedMessage.includes('529')
-        ) {
+        if (TRANSIENT_TIMEOUT_MESSAGE_REGEXES.some(pattern => pattern.test(message))) {
+            return true;
+        }
+
+        if (RATE_LIMIT_STATUS_MESSAGE_REGEXES.some(pattern => pattern.test(message))) {
             return true;
         }
 

@@ -50,6 +50,30 @@ test('treats too many requests message as retryable', () => {
     assert.equal(isRateLimitLikeError({ message: 'Too many requests, please try again later.' }), true);
 });
 
+test('treats message-only "Upstream error: 429" as retryable (status lost in transit)', () => {
+    assert.equal(isRateLimitLikeError({ message: 'Upstream error: 429' }), true);
+});
+
+test('treats explicit HTTP 529 overload message as retryable', () => {
+    assert.equal(isRateLimitLikeError({ message: 'HTTP 529 Site is overloaded' }), true);
+});
+
+test('treats explicit Error 429 message as retryable', () => {
+    assert.equal(isRateLimitLikeError({ message: 'Error 429: upstream unavailable' }), true);
+});
+
+test('treats explicit Error 529 message as retryable', () => {
+    assert.equal(isRateLimitLikeError({ message: 'Error 529: site overloaded' }), true);
+});
+
+test('does not treat unrelated message containing 429 as retryable', () => {
+    assert.equal(isRateLimitLikeError({ message: 'Validation failed for record 429' }), false);
+});
+
+test('does not treat 5290 as HTTP 529 overload', () => {
+    assert.equal(isRateLimitLikeError({ message: 'Upstream error: 5290' }), false);
+});
+
 test('treats resource exhausted error code as retryable', () => {
     assert.equal(isRateLimitLikeError({ code: 'resource_exhausted', message: 'RESOURCE_EXHAUSTED' }), true);
 });
@@ -302,9 +326,21 @@ test('treats message-only "Upstream error: 408" as retryable (status lost in tra
     assert.equal(isRateLimitLikeError({ message: 'Upstream error: 408' }), true);
 });
 
+test('treats explicit HTTP 408 timeout message as retryable', () => {
+    assert.equal(isRateLimitLikeError({ message: 'HTTP 408 Request Timeout' }), true);
+});
+
 test('treats message-only "Request Timeout" without 408 digit as not retryable by status', () => {
     // 纯文案 "Request Timeout" 不含状态码数字，不命中 status / message-digit 兜底
     assert.equal(isRateLimitLikeError({ message: 'Request Timeout' }), false);
+});
+
+test('does not treat unrelated message containing 408 as retryable', () => {
+    assert.equal(isRateLimitLikeError({ message: 'Validation failed for record 408' }), false);
+});
+
+test('does not treat 4080 as HTTP 408 timeout', () => {
+    assert.equal(isRateLimitLikeError({ message: 'Upstream error: 4080' }), false);
 });
 
 test('treats nested message-only 408 through cause chain as retryable', () => {
