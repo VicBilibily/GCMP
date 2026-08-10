@@ -32,15 +32,23 @@ export function isEncryptedReasoningEnabled(params: {
     return requestModel.toLowerCase().includes('gpt') && !!extraBody?.reasoning;
 }
 
-/**
- * 判定 include 是否已被用户在 extraBody 中显式接管（定义了 include 键，含 null/[]）。
- *
- * 接管即用户已明确表达对思考项回传的意图：此时若密文回放未启用
- * （isEncryptedReasoningEnabled 为 false），历史思维链的明文文本同样不应回传——
- * GPT/Azure 端点要求输入端 reasoning 项 content 必须为空，回传 reasoning_text 会得到 400：
- * "Invalid 'input[N].content': array too long. Expected an array with maximum length 0"。
- * 未接管时保持既有行为：无密文端点（DeepSeek 等）继续以明文回传思维链。
- */
+/** include 一旦显式接管，未启用密文回放时也应禁用明文回放。 */
+/** include 被显式接管时，历史思维链的明文/密文回放策略也一并由用户接管。 */
 export function isIncludeOverridden(extraBody?: Record<string, unknown>): boolean {
     return extraBody != null && 'include' in extraBody;
+}
+
+/** GPT 端点会在服务端拒绝带明文 reasoning 历史回放的输入。 */
+export function shouldReplayPlainThinking(params: {
+    requestModel: string;
+    extraBody?: Record<string, unknown>;
+}): boolean {
+    const { requestModel, extraBody } = params;
+    if (requestModel.toLowerCase().includes('gpt')) {
+        return false;
+    }
+    if (isIncludeOverridden(extraBody)) {
+        return false;
+    }
+    return true;
 }

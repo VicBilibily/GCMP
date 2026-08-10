@@ -1,7 +1,7 @@
 ﻿import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { isEncryptedReasoningEnabled, isIncludeOverridden } from './encryptedReasoning';
+import { isEncryptedReasoningEnabled, isIncludeOverridden, shouldReplayPlainThinking } from './encryptedReasoning';
 
 test('未接管 include：gpt 模型且配置 extraBody.reasoning 时启用', () => {
     assert.equal(
@@ -75,4 +75,27 @@ test('isIncludeOverridden：未定义 include 键时不视为接管', () => {
     assert.equal(isIncludeOverridden({ reasoning: { effort: 'medium' } }), false);
     assert.equal(isIncludeOverridden({}), false);
     assert.equal(isIncludeOverridden(undefined), false);
+});
+
+test('shouldReplayPlainThinking：GPT 端点永远不回传明文（即使缺少 extraBody.reasoning）', () => {
+    // issue #352：GPT 历史 reasoning 不能以明文摘要回放。
+    assert.equal(shouldReplayPlainThinking({ requestModel: 'gpt-5.4', extraBody: {} }), false);
+    assert.equal(shouldReplayPlainThinking({ requestModel: 'gpt-5.6-sol' }), false);
+    assert.equal(
+        shouldReplayPlainThinking({ requestModel: 'GPT-5.4', extraBody: { reasoning: { effort: 'medium' } } }),
+        false
+    );
+});
+
+test('shouldReplayPlainThinking：非 GPT 端点且 include 未接管时回传明文', () => {
+    assert.equal(shouldReplayPlainThinking({ requestModel: 'deepseek-v4-flash' }), true);
+    assert.equal(
+        shouldReplayPlainThinking({ requestModel: 'glm-5-2', extraBody: { reasoning: { effort: 'medium' } } }),
+        true
+    );
+});
+
+test('shouldReplayPlainThinking：include 被显式接管时不回传明文', () => {
+    assert.equal(shouldReplayPlainThinking({ requestModel: 'deepseek-v4-flash', extraBody: { include: null } }), false);
+    assert.equal(shouldReplayPlainThinking({ requestModel: 'deepseek-v4-flash', extraBody: { include: [] } }), false);
 });

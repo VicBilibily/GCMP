@@ -297,6 +297,33 @@ suite('OpenAIResponsesMessageConverter', () => {
         ]);
     });
 
+    test('GPT 端点未配置 extraBody.reasoning 时不以明文回传历史 thinking 摘要', () => {
+        const converter = createConverter();
+
+        // issue #352：GPT 历史 reasoning 不能以明文摘要回放。
+        const result = converter.convertMessagesToOpenAIResponses(
+            [
+                {
+                    role: vscode.LanguageModelChatMessageRole.Assistant,
+                    content: [
+                        new LanguageModelThinkingPart('历史思考摘要'),
+                        new vscode.LanguageModelTextPart('正式回答')
+                    ]
+                }
+            ] as never,
+            { id: 'gpt-5.6' } as never
+        );
+
+        assert.deepEqual(result.messages, [
+            {
+                type: 'message',
+                role: 'assistant',
+                status: 'completed',
+                content: [{ type: 'output_text', text: '正式回答' }]
+            }
+        ]);
+    });
+
     test('ThinkingPart 被剥离时从 StatefulMarker 恢复加密 reasoning', () => {
         const converter = createConverter();
 

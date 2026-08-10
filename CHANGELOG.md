@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.29] - 2026-08-10
+
+### 修复
+
+- **GPT 模型缺少 reasoning 配置时不再回传明文思维链**：[#352](https://github.com/VicBilibily/GCMP/issues/352) 0.26.24 仅处理 `include` 被显式接管的场景，但 GPT 端点在未配置 `extraBody.reasoning` 时，历史 reasoning 摘要仍会被当作明文 `reasoning_text` 回传，服务端因此拒绝请求并返回 `array_above_max_length`。现统一收敛为：GPT 端点永远不回传明文历史 reasoning，仅 DeepSeek 等非 GPT 端点继续兼容明文回放。
+
+---
+
+### Fixed
+
+- **GPT models without `extraBody.reasoning` no longer replay plaintext reasoning**: [#352](https://github.com/VicBilibily/GCMP/issues/352) 0.26.24 only covered the case where `include` was explicitly overridden. When a GPT model lacked `extraBody.reasoning`, historical reasoning summaries could still be replayed as plain `reasoning_text`, causing the server to reject the request with `array_above_max_length`. The rule is now unified: GPT endpoints never replay historical reasoning in plaintext, while non-GPT endpoints such as DeepSeek keep plaintext replay compatibility.
+
 ## [0.26.28] - 2026-08-10
 
 ### 修复
