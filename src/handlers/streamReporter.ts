@@ -17,6 +17,8 @@ import { TokenCounter } from '../utils/model/tokenCounter';
 import type { TikTokenizer } from '@microsoft/tiktokenizer';
 
 const USAGE_DATA_ENCODER = new TextEncoder();
+const THINKING_OPEN_TAG = '<thinking>';
+const THINKING_CLOSE_TAG = '</thinking>';
 
 /**
  * 将字符串序列化为工具参数 JSON（用于完整 tool call 路径的字符与 token 统计）
@@ -99,6 +101,8 @@ export class StreamReporter {
     private hasToolCalls = false;
     private hasReceivedContent = false;
     private hasThinkingContent = false;
+    private taggedThinkingState: 'detecting' | 'thinking' | 'passthrough' = 'detecting';
+    private taggedThinkingPending = '';
     /** 累积当前轮次的加密推理项（openai-responses encrypted_content），供 StatefulMarker 持久化 */
     private readonly encryptedReasonings: Array<{ encryptedContent: string; reasoningId?: string }> = [];
     /** 累积当前轮次的 anthropic redacted_thinking 加密 data 列表，供 StatefulMarker 持久化 */
@@ -176,14 +180,107 @@ export class StreamReporter {
      * 报告文本内容（收到后立即输出，用于 delta 事件）
      */
     reportText(content: string): void {
-        // 输出 content 前，先结束当前思维链
-        this.endThinkingChain();
-
         this.hasReceivedContent = true;
-
-        // 实时指标：传原始文本给 tracker，由其按阈值批量 encode（避免每个 chunk 都触发计算）
         this.tracker.reportOutput(content);
+        this.processTaggedText(content);
+    }
+
+    private processTaggedText(content: string): void {
+        if (this.taggedThinkingState === 'passthrough') {
+            this.emitText(content);
+            return;
+        }
+
+        this.taggedThinkingPending += content;
+
+        if (this.taggedThinkingState === 'detecting') {
+            const firstContentIndex = this.taggedThinkingPending.search(/\S/);
+            if (firstContentIndex < 0) {
+                return;
+            }
+            const candidate = this.taggedThinkingPending.slice(firstContentIndex);
+
+            if (candidate.length < THINKING_OPEN_TAG.length && THINKING_OPEN_TAG.startsWith(candidate)) {
+                return;
+            }
+
+            if (!candidate.startsWith(THINKING_OPEN_TAG)) {
+                const text = this.taggedThinkingPending;
+                this.taggedThinkingPending = '';
+                this.taggedThinkingState = 'passthrough';
+                this.emitText(text);
+                return;
+            }
+
+            this.taggedThinkingPending = candidate.slice(THINKING_OPEN_TAG.length);
+            this.taggedThinkingState = 'thinking';
+        }
+
+        const closeIndex = this.taggedThinkingPending.indexOf(THINKING_CLOSE_TAG);
+        if (closeIndex >= 0) {
+            const thinking = this.taggedThinkingPending.slice(0, closeIndex);
+            const text = this.taggedThinkingPending.slice(closeIndex + THINKING_CLOSE_TAG.length);
+            this.taggedThinkingPending = '';
+            this.taggedThinkingState = 'passthrough';
+            if (thinking) {
+                this.emitThinking(thinking);
+            }
+            if (text) {
+                this.emitText(text);
+            } else {
+                this.endThinkingChainNow();
+            }
+            return;
+        }
+
+        let pendingLength = Math.min(this.taggedThinkingPending.length, THINKING_CLOSE_TAG.length - 1);
+        while (pendingLength > 0 && !THINKING_CLOSE_TAG.startsWith(this.taggedThinkingPending.slice(-pendingLength))) {
+            pendingLength--;
+        }
+
+        const readyLength = this.taggedThinkingPending.length - pendingLength;
+        if (readyLength > 0) {
+            const thinking = this.taggedThinkingPending.slice(0, readyLength);
+            this.taggedThinkingPending = this.taggedThinkingPending.slice(readyLength);
+            this.emitThinking(thinking);
+        }
+    }
+
+    private finishTaggedThinking(): void {
+        if (this.taggedThinkingState === 'detecting') {
+            const text = this.taggedThinkingPending;
+            this.taggedThinkingPending = '';
+            this.taggedThinkingState = 'passthrough';
+            this.emitText(text);
+            return;
+        }
+
+        if (this.taggedThinkingState === 'thinking') {
+            const thinking = this.taggedThinkingPending;
+            this.taggedThinkingPending = '';
+            this.taggedThinkingState = 'passthrough';
+            if (thinking) {
+                this.emitThinking(thinking);
+            }
+        }
+    }
+
+    private emitText(content: string): void {
+        if (!content) {
+            return;
+        }
+        this.endThinkingChainNow();
         this.progress.report(new vscode.LanguageModelTextPart(content));
+    }
+
+    private emitThinking(content: string): void {
+        this.thinkingBuffer.append(content);
+        this.hasThinkingContent = true;
+
+        const part = this.thinkingBuffer.flush();
+        if (part) {
+            this.progress.report(part);
+        }
     }
 
     /**
@@ -264,14 +361,7 @@ export class StreamReporter {
     bufferThinking(content: string): void {
         // 实时指标：传原始文本给 tracker，由其按阈值批量 encode
         this.tracker.reportOutput(content);
-
-        this.thinkingBuffer.append(content);
-        this.hasThinkingContent = true;
-
-        const part = this.thinkingBuffer.flush();
-        if (part) {
-            this.progress.report(part);
-        }
+        this.emitThinking(content);
     }
 
     /**
@@ -356,6 +446,10 @@ export class StreamReporter {
      * 公开方法，允许在 Responses API 等场景中手动结束思维链
      */
     endThinkingChain(): void {
+        this.endThinkingChainNow();
+    }
+
+    private endThinkingChainNow(): void {
         const chainId = this.thinkingBuffer.activeId;
         const part = this.thinkingBuffer.endChain();
         if (part) {
@@ -425,6 +519,8 @@ export class StreamReporter {
         if (finishReason) {
             Logger.debug(`[${this.modelName}] Stream finished, reason: ${finishReason}`);
         }
+
+        this.finishTaggedThinking();
 
         // 1. 输出剩余签名（Anthropic 特殊，紧跟在思维链结束之前）
         if (this.signatureBuffer.hasPending) {
