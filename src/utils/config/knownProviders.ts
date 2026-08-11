@@ -33,6 +33,24 @@ export const KnownProviders: Record<string, KnownProviderConfig> = {
             }
         }
     },
+    // micuapi: {
+    //     displayName: '米醋API',
+    //     usage: {
+    //         url: 'https://www.micuapi.ai/api/user/self', // NewApi 个人信息查询接口
+    //         authType: 'none', // 设置为 none，表示不使用任何内置的认证方式，而是使用自定义的请求验证信息
+    //         headers: {
+    //             'New-Api-User': '1234', // 个人设置中显示的ID
+    //             Authorization: 'Bearer xxxx' // xxxx 为个人设置中的安全设置选项卡中生成的系统访问令牌
+    //         },
+    //         unit: 'RMB',
+    //         fields: {
+    //             balance: {
+    //                 operation: 'divide',
+    //                 paths: ['data.quota', 500000]
+    //             }
+    //         }
+    //     }
+    // },
     aiping: {
         displayName: 'AIPing',
         usage: {

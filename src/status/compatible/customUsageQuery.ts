@@ -269,17 +269,24 @@ export class CustomUsageQuery implements IBalanceQuery {
         }
 
         if (
-            (fieldSource.operation !== 'sum' && fieldSource.operation !== 'subtract') ||
+            !['sum', 'subtract', 'multiply', 'divide'].includes(fieldSource.operation) ||
             (fieldSource.treatMissingAsZero !== undefined && typeof fieldSource.treatMissingAsZero !== 'boolean') ||
             !Array.isArray(fieldSource.paths) ||
             fieldSource.paths.length === 0 ||
-            fieldSource.paths.some(path => typeof path !== 'string' || path.trim().length === 0)
+            fieldSource.paths.some(
+                path =>
+                    (typeof path !== 'string' && typeof path !== 'number') ||
+                    (typeof path === 'string' && path.trim().length === 0)
+            )
         ) {
             throw new Error(`Invalid usage.fields.${fieldName} computed field configuration`);
         }
 
-        const values = fieldSource.paths.map(path => {
-            const value = getNumberByPath(data, path);
+        const values = fieldSource.paths.map(pathEntry => {
+            if (typeof pathEntry === 'number') {
+                return Number.isFinite(pathEntry) ? pathEntry : undefined;
+            }
+            const value = getNumberByPath(data, pathEntry);
             return value === undefined && fieldSource.treatMissingAsZero ? 0 : value;
         });
         if (values.some(value => value === undefined)) {
@@ -287,10 +294,28 @@ export class CustomUsageQuery implements IBalanceQuery {
         }
 
         const resolvedValues = values as number[];
-        if (fieldSource.operation === 'sum') {
-            return resolvedValues.reduce((total, value) => total + value, 0);
+        let result: number;
+        switch (fieldSource.operation) {
+            case 'sum':
+                result = resolvedValues.reduce((total, value) => total + value, 0);
+                break;
+            case 'multiply':
+                result = resolvedValues.reduce((total, value) => total * value, 1);
+                break;
+            case 'subtract':
+                result = resolvedValues.slice(1).reduce((total, value) => total - value, resolvedValues[0]);
+                break;
+            case 'divide':
+                result = resolvedValues.slice(1).reduce((total, value) => total / value, resolvedValues[0]);
+                break;
+            default:
+                throw new Error(`Invalid usage.fields.${fieldName} computed field configuration`);
         }
 
-        return resolvedValues.slice(1).reduce((total, value) => total - value, resolvedValues[0]);
+        if (!Number.isFinite(result)) {
+            throw new Error(`Invalid usage.fields.${fieldName} computed field result`);
+        }
+
+        return result;
     }
 }
