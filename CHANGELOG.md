@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.30] - 2026-08-11
+
+### 新增
+
+- **Compatible 自定义余额/用量查询支持乘除与常量换算**：`gcmp.providerOverrides.{provider}.usage` / `usages` 的计算字段新增 `multiply` / `divide`，`paths` 现在也可直接写常量数值，支持 `quota / 500000` 这类 Ticket 到真实货币余额的换算场景。
+
+---
+
+### Added
+
+- **Compatible custom balance/usage queries now support multiplication, division, and constant-value conversions**: computed fields in `gcmp.providerOverrides.{provider}.usage` / `usages` now support `multiply` and `divide`, and `paths` can include constant numbers directly, enabling conversions such as `quota / 500000` from Ticket units to real currency balance.
+
 ## [0.26.29] - 2026-08-10
 
 ### 修复
