@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.31] - 2026-08-12
+
+### 新增
+
+- **新增 OpenCode 用量状态栏**：支持通过 OpenCode 官方已上线的用量接口查询 Go 套餐的滚动 / 每周 / 每月额度，并在状态栏与 Tooltip 中显示剩余百分比、倒计时和重置时间。
+
+---
+
+### Added
+
+- **Added OpenCode usage status bar**: GCMP can now query the officially deployed OpenCode usage endpoint and display Go plan rolling / weekly / monthly quota windows in the status bar and tooltip, including remaining percentage, countdown, and reset time.
+
 ## [0.26.30] - 2026-08-11
 
 ### 新增

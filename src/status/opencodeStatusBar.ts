@@ -5,7 +5,13 @@ import { Logger } from '../utils/runtime/logger';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { ConfigManager } from '../utils/config/configManager';
 import { t } from '../utils/runtime/l10n';
-import { OpenCodeUsageData, OpenCodeUsageWindow, parseOpenCodeUsage, resolveOpenCodeUsageUrl } from './opencodeUsage';
+import {
+    formatOpenCodeStatusBarText,
+    OpenCodeUsageData,
+    OpenCodeUsageWindow,
+    parseOpenCodeUsage,
+    resolveOpenCodeUsageUrl
+} from './opencodeUsage';
 
 interface OpenCodeStatusData extends OpenCodeUsageData {
     lastUpdated: string;
@@ -28,17 +34,7 @@ export class OpenCodeStatusBar extends ProviderStatusBarItem<OpenCodeStatusData>
     }
 
     protected getDisplayText(data: OpenCodeStatusData): string {
-        const monthly = this.getWindow(data, 'monthly');
-        const weekly = this.getWindow(data, 'weekly');
-        const rolling = this.getWindow(data, 'rolling');
-        const primaryRemaining = Math.min(monthly.remainingPercent, weekly.remainingPercent);
-        const rollingRemaining = rolling.remainingPercent;
-
-        if (rolling.usedPercent > 0) {
-            return `${this.config.icon} ${primaryRemaining.toFixed(0)}% (${rollingRemaining.toFixed(0)}%)`;
-        }
-
-        return `${this.config.icon} ${primaryRemaining.toFixed(0)}%`;
+        return formatOpenCodeStatusBarText(this.config.icon, data);
     }
 
     protected generateTooltip(data: OpenCodeStatusData): vscode.MarkdownString {
@@ -158,10 +154,6 @@ export class OpenCodeStatusBar extends ProviderStatusBarItem<OpenCodeStatusData>
                 error: t('Query failed: {0}', '查询失败: {0}', errorMessage)
             };
         }
-    }
-
-    private getWindow(data: OpenCodeUsageData, type: OpenCodeUsageWindow['type']): OpenCodeUsageWindow {
-        return data.windows.find(window => window.type === type) ?? data.windows[0];
     }
 
     private getWindowLabel(type: OpenCodeUsageWindow['type']): string {
