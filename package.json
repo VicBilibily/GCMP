@@ -1469,6 +1469,13 @@
                     "fontCharacter": "\\e6fc"
                 }
             },
+            "gcmp-opencode": {
+                "description": "OpenCode",
+                "default": {
+                    "fontPath": "./fonts/opencode.ttf",
+                    "fontCharacter": "\\e776"
+                }
+            },
             "gcmp-compatible": {
                 "description": "Compatible",
                 "default": {
