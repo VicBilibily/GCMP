@@ -7,7 +7,7 @@
 import { StatusLogger } from '../../utils/runtime/statusLogger';
 import { ConfigManager } from '../../utils/config/configManager';
 import { CompatibleModelManager } from '../../utils/config/compatibleModelManager';
-import { KnownProviders } from '../../utils/config/knownProviders';
+import { InnerProviders, resolveBuiltinProviderConfig } from '../../utils/config/knownProviders';
 import { IBalanceQuery, BalanceQueryResult } from './balanceQuery';
 import { AiHubMixBalanceQuery } from './providers/aihubmixBalanceQuery';
 import { CustomUsageQuery } from './customUsageQuery';
@@ -233,17 +233,21 @@ export class BalanceQueryManager {
     private static getCustomUsageEntries(baseProviderId?: string) {
         const overrides = ConfigManager.getProviderOverrides();
         const configuredProviderIds = Array.from(
-            new Set(
-                CompatibleModelManager.getModels()
+            new Set([
+                ...CompatibleModelManager.getModels()
                     .map(model => model.provider)
-                    .filter(Boolean)
-            )
+                    .filter(Boolean),
+                ...Object.keys(InnerProviders)
+            ])
         );
         const providerIds =
             baseProviderId ? configuredProviderIds.filter(id => id === baseProviderId) : configuredProviderIds;
 
         return providerIds.flatMap(providerId => {
-            const override = mergeProviderUsageOverride(KnownProviders[providerId], overrides[providerId]);
+            const override = mergeProviderUsageOverride(
+                resolveBuiltinProviderConfig(providerId),
+                overrides[providerId]
+            );
             return resolveCustomUsageEntries(providerId, override);
         });
     }

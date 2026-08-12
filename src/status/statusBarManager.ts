@@ -31,6 +31,7 @@ interface ICompatibleStatusBar extends IStatusBar {
     /** @deprecated Use delayedUpdate with providerId instead */
     delayedUpdate(delayMs?: number): void;
     delayedUpdate(providerId: string, delayMs?: number): void;
+    refreshAfterApiKeyChange(providerId: string): Promise<void>;
 }
 
 /**

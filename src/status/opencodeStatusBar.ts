@@ -23,7 +23,7 @@ export class OpenCodeStatusBar extends ProviderStatusBarItem<OpenCodeStatusData>
             id: 'gcmp.statusBar.opencode',
             name: 'GCMP: OpenCode Usage',
             alignment: vscode.StatusBarAlignment.Right,
-            priority: 18,
+            priority: 28,
             refreshCommand: 'gcmp.opencode.refreshUsage',
             apiKeyProvider: 'opencode',
             cacheKeyPrefix: 'opencode',
@@ -40,7 +40,7 @@ export class OpenCodeStatusBar extends ProviderStatusBarItem<OpenCodeStatusData>
     protected generateTooltip(data: OpenCodeStatusData): vscode.MarkdownString {
         const md = new vscode.MarkdownString();
         md.supportHtml = true;
-        md.appendMarkdown('#### OpenCode Usage\n\n');
+        md.appendMarkdown(`#### ${t('OpenCode Usage', 'OpenCode 使用情况')}\n\n`);
         md.appendMarkdown(
             `| ${t('Window', '限频类型')} | ${t('Remaining', '剩余量')} | ${t('Countdown', '倒计时')} | ${t('Reset Time', '重置时间')} |\n`
         );
@@ -159,7 +159,7 @@ export class OpenCodeStatusBar extends ProviderStatusBarItem<OpenCodeStatusData>
     private getWindowLabel(type: OpenCodeUsageWindow['type']): string {
         switch (type) {
             case 'rolling':
-                return t('Rolling quota', '滚动额度');
+                return t('5 Hours', '300 分钟');
             case 'weekly':
                 return t('Weekly quota', '每周额度');
             case 'monthly':

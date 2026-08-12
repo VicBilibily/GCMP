@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.32] - 2026-08-12
+
+### 新增
+
+- **Charm Hyper 余额接入 Compatible 状态栏**：Hyper 现在作为内置余额查询并入 Compatible 状态栏；预置查询会优先加入查询队列并与自定义接入一起展示。
+
+---
+
+### Added
+
+- **Charm Hyper balance is now surfaced in the Compatible status bar**: Hyper is now bundled as a built-in balance query in the Compatible status bar; built-in queries are added to the queue ahead of custom entries.
+
 ## [0.26.31] - 2026-08-12
 
 ### 新增

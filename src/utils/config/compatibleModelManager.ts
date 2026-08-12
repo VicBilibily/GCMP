@@ -646,10 +646,6 @@ export class CompatibleModelManager {
             await ApiKeyManager.setApiKey(provider, apiKey.trim());
             Logger.info(`Set API key for provider "${provider}"`);
         }
-
-        // 修改 API Key 后检查 Compatible 状态栏是否需要显示/隐藏
-        await StatusBarManager.compatible?.checkAndShowStatus();
-        await StatusBarManager.compatible?.delayedUpdate(provider, 0);
     } /**
      * 配置模型 - 主要配置流程
      */

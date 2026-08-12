@@ -10,9 +10,9 @@ import { StatusLogger } from '../utils/runtime/statusLogger';
 import { CompatibleModelManager } from '../utils/config/compatibleModelManager';
 import { BalanceQueryManager } from './compatible/balanceQueryManager';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
-import { KnownProviders } from '../utils/config/knownProviders';
+import { InnerProviders, resolveBuiltinProviderConfig } from '../utils/config/knownProviders';
 import { LeaderElectionService } from './leaderElectionService';
-import { InterInstanceBus } from '../interInstance';
+import { InterInstanceBus, ApiKeyChangedEvent } from '../interInstance';
 import { t } from '../utils/runtime/l10n';
 
 /**
@@ -82,6 +82,12 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
     /** 各提供商独立缓存 */
     private providerCaches = new Map<string, ProviderCacheData>();
 
+    /** API Key 变更事件订阅 */
+    private apiKeySubscription: vscode.Disposable | undefined;
+
+    /** API Key 变更后待补刷标记 */
+    private pendingApiKeyRefresh = false;
+
     /** 各提供商的最后延时更新时间戳 */
     private providerLastDelayedUpdateTimes = new Map<string, number>();
 
@@ -105,11 +111,19 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
     // ==================== 实现基类抽象方法 ====================
 
     /**
-     * 获取当前已配置模型对应的所有可查询 provider 条目。
+     * 获取查询队列：已配置模型对应 provider 与预置 InnerProviders 的并集。
+     * InnerProviders 中的预置 provider 无需配置模型也会被查询，且优先于模型 provider 排序。
      */
     private getConfiguredProviderEntries(): string[] {
         const models = CompatibleModelManager.getModels();
         const providerEntries = new Set<string>();
+
+        for (const providerId of Object.keys(InnerProviders)) {
+            const registeredProviders = BalanceQueryManager.getRegisteredProvidersForBaseProvider(providerId);
+            for (const entry of registeredProviders) {
+                providerEntries.add(entry);
+            }
+        }
 
         for (const model of models) {
             if (!model.provider) {
@@ -130,9 +144,31 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
      */
     private getProviderDisplayName(providerId: string): string {
         const baseProviderId = BalanceQueryManager.getBaseProviderId(providerId);
-        const baseDisplayName = KnownProviders[baseProviderId]?.displayName || baseProviderId;
+        const baseDisplayName = resolveBuiltinProviderConfig(baseProviderId)?.displayName || baseProviderId;
         const usageDisplayName = BalanceQueryManager.getCustomUsageDisplayName(providerId);
         return usageDisplayName ? `${baseDisplayName} / ${usageDisplayName}` : baseDisplayName;
+    }
+
+    /**
+     * 按预置 provider 优先、再按 key 升序排列显示顺序。
+     */
+    private getProvidersInDisplayOrder(providers: CompatibleProviderBalance[]): CompatibleProviderBalance[] {
+        return [...providers].sort((left, right) => {
+            const leftIsInner = Object.prototype.hasOwnProperty.call(
+                InnerProviders,
+                BalanceQueryManager.getBaseProviderId(left.providerId)
+            );
+            const rightIsInner = Object.prototype.hasOwnProperty.call(
+                InnerProviders,
+                BalanceQueryManager.getBaseProviderId(right.providerId)
+            );
+
+            if (leftIsInner !== rightIsInner) {
+                return leftIsInner ? -1 : 1;
+            }
+
+            return left.providerId.localeCompare(right.providerId);
+        });
     }
 
     /**
@@ -217,12 +253,11 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             return `${this.config.icon} Compatible`;
         }
 
-        // 只显示成功的提供商的金额
+        // 只显示成功的提供商的金额，按预置分组后再按 key 排序
         const balanceTexts: string[] = [];
-        const successfulProviders = providers.filter(p => p.success);
-        const sortedProviders = successfulProviders.sort((a, b) => a.providerId.localeCompare(b.providerId));
+        const successfulProviders = this.getProvidersInDisplayOrder(providers.filter(p => p.success));
 
-        for (const provider of sortedProviders) {
+        for (const provider of successfulProviders) {
             balanceTexts.push(this.formatBalance(provider.balance, provider.currency));
         }
 
@@ -248,8 +283,8 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             return md;
         }
 
-        const sortedProviders = [...data.providers].sort((a, b) => a.providerId.localeCompare(b.providerId));
-        const hasDetailedBalances = sortedProviders.some(
+        const providersInOrder = this.getProvidersInDisplayOrder(data.providers);
+        const hasDetailedBalances = providersInOrder.some(
             provider => provider.success && (provider.paid !== undefined || provider.granted !== undefined)
         );
 
@@ -263,7 +298,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             md.appendMarkdown('| :--- | ---: |\n');
         }
 
-        for (const provider of sortedProviders) {
+        for (const provider of providersInOrder) {
             if (provider.success) {
                 const availableBalance = this.formatBalance(provider.balance, provider.currency);
 
@@ -452,6 +487,11 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
                 this.delayedUpdate(1000); // 延迟1秒更新，避免频繁调用
             });
             this.context.subscriptions.push(disposable);
+
+            this.apiKeySubscription = InterInstanceBus.subscribe('apiKeyChanged', event => {
+                this.handleApiKeyChangedEvent(event as ApiKeyChangedEvent);
+            });
+            this.context.subscriptions.push(this.apiKeySubscription);
         }
     }
 
@@ -460,8 +500,63 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
      * 清理提供商缓存
      */
     protected override async onDispose(): Promise<void> {
+        this.apiKeySubscription?.dispose();
+        this.apiKeySubscription = undefined;
+        this.pendingApiKeyRefresh = false;
         this.providerCaches.clear();
         this.providerLastDelayedUpdateTimes.clear();
+    }
+
+    /**
+     * 处理 compatible provider 的 API Key 变更事件。
+     */
+    private handleApiKeyChangedEvent(event: ApiKeyChangedEvent): void {
+        this.refreshAfterApiKeyChange(event.payload.provider).catch(error =>
+            StatusLogger.error(`[${this.config.logPrefix}] Failed to refresh after API key change`, error)
+        );
+    }
+
+    /**
+     * API Key 变更后立即刷新受影响的 Compatible provider。
+     */
+    async refreshAfterApiKeyChange(providerId: string): Promise<void> {
+        const affectedProviderIds = this.getConfiguredProviderEntries().filter(
+            entryId => BalanceQueryManager.getBaseProviderId(entryId) === providerId
+        );
+
+        if (affectedProviderIds.length === 0) {
+            return;
+        }
+
+        for (const affectedProviderId of affectedProviderIds) {
+            this.providerCaches.delete(affectedProviderId);
+        }
+        this.lastStatusData = null;
+
+        if (this.isLoading) {
+            this.pendingApiKeyRefresh = true;
+            return;
+        }
+
+        await this.performApiKeyRefresh();
+    }
+
+    /**
+     * 立即执行 API Key 变更后的状态栏刷新。
+     */
+    private async performApiKeyRefresh(): Promise<void> {
+        if (!this.statusBarItem) {
+            return;
+        }
+
+        const shouldShow = await this.shouldShowStatusBar();
+        if (!shouldShow) {
+            this.statusBarItem.hide();
+            return;
+        }
+
+        this.statusBarItem.show();
+        await this.executeApiQuery(true);
     }
 
     // ==================== 重写基类方法 ====================
@@ -645,6 +740,13 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
         } finally {
             // 一定要在最后重置加载状态
             this.isLoading = false;
+
+            if (this.pendingApiKeyRefresh) {
+                this.pendingApiKeyRefresh = false;
+                void this.performApiKeyRefresh().catch(error =>
+                    StatusLogger.error(`[${this.config.logPrefix}] Failed to process pending API key refresh`, error)
+                );
+            }
         }
     }
 
@@ -847,6 +949,13 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
         } finally {
             // 一定要在最后重置加载状态
             this.isLoading = false;
+
+            if (this.pendingApiKeyRefresh) {
+                this.pendingApiKeyRefresh = false;
+                void this.performApiKeyRefresh().catch(error =>
+                    StatusLogger.error(`[${this.config.logPrefix}] Failed to process pending API key refresh`, error)
+                );
+            }
         }
     }
 }

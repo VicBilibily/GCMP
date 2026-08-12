@@ -8,7 +8,7 @@ import { StatusLogger } from '../../utils/runtime/statusLogger';
 import { ApiKeyManager } from '../../utils/config/apiKeyManager';
 import { ConfigManager } from '../../utils/config/configManager';
 import { getNumberByPath, getValueByPath } from '../../utils/text/pathExtractor';
-import { KnownProviders } from '../../utils/config/knownProviders';
+import { resolveBuiltinProviderConfig } from '../../utils/config/knownProviders';
 import { Logger } from '../../utils/runtime/logger';
 import type { ProviderUsageConfig, UsageFieldValueSource } from '../../types/sharedTypes';
 import {
@@ -115,7 +115,10 @@ export class CustomUsageQuery implements IBalanceQuery {
     private getUsageConfig(providerId: string): ProviderUsageConfig | undefined {
         const overrides = ConfigManager.getProviderOverrides();
         const { baseProviderId, usageKey } = parseCustomUsageTarget(providerId);
-        const override = mergeProviderUsageOverride(KnownProviders[baseProviderId], overrides[baseProviderId]);
+        const override = mergeProviderUsageOverride(
+            resolveBuiltinProviderConfig(baseProviderId),
+            overrides[baseProviderId]
+        );
         if (!override) {
             return undefined;
         }
@@ -152,7 +155,7 @@ export class CustomUsageQuery implements IBalanceQuery {
         const mergedCustomHeader = this.filterProviderCustomHeaders(
             {
                 ...(allOverrides['compatible']?.customHeader || {}),
-                ...(KnownProviders[providerId]?.customHeader || {}),
+                ...(resolveBuiltinProviderConfig(providerId)?.customHeader || {}),
                 ...(allOverrides[providerId]?.customHeader || {})
             },
             authType
