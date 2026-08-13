@@ -48,7 +48,7 @@ export class LiveMetricsRenderer {
     private readonly liveMetricsMap = new Map<string, LiveMetricsState>();
     /**
      * requestId → 表格行的缓存，避免每次 render 都 querySelectorAll 全表扫描。
-     * 行被 updateDateDetails 重建后，缓存会自动失效（dataset.requestId 不匹配）。
+     * 行被明细页刷新重建后，缓存会自动失效（dataset.requestId 不匹配）。
      * streamEnd / dispose 时清理对应条目。
      */
     private readonly rowCache = new Map<string, HTMLTableRowElement>();
@@ -170,7 +170,7 @@ export class LiveMetricsRenderer {
     }
 
     /**
-     * 通知日期详情切换：在 updateDateDetails 处理后由 app.ts 调用。
+     * 通知日期详情切换：在聚合摘要处理（updateDateDetails）后由 app.ts 调用。
      * - 切到非今天时停止渲染时钟，但保留 liveMetricsMap 中的活动状态；
      *   切回今天时由 startRenderClock() 内部的 isViewingToday() 守卫自动恢复
      * - 总是立即刷新一次表格（包括仍在运行的请求）
@@ -283,7 +283,7 @@ export class LiveMetricsRenderer {
      * 3. 仍未找到返回 undefined
      *
      * 这样 render() 不必每次都 querySelectorAll 全表扫描。
-     * 表格被 updateDateDetails 重建后，旧引用会因 isConnected=false 失效。
+     * 表格被明细页刷新重建后，旧引用会因 isConnected=false 失效。
      * 多会话跟踪模式下存在多个 tbody，需逐个查找。
      */
     private resolveTargetRow(tbodys: HTMLElement[], requestId: string): HTMLTableRowElement | undefined {
@@ -311,7 +311,7 @@ export class LiveMetricsRenderer {
      * 更新请求记录区域，显示实时指标
      * 策略：遍历所有正在流式的请求，通过 requestId 精确匹配已存在的真实记录行并更新。
      * 不创建任何占位行——如果当前页/筛选下没有该请求的真实行，实时指标就不展示，
-     * 等 updateDateDetails 后续把记录写入正确位置时（用户切到对应页/取消筛选）再显示。
+     * 等明细页刷新把记录写入正确位置时（用户切到对应页/取消筛选）再显示。
      */
     private render(): void {
         // 仅在今天页面渲染实时指标，不污染历史日期

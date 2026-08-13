@@ -1,4 +1,4 @@
-﻿import type { RequestTotals, SessionGroup } from '../types';
+import type { RequestTotals, SessionGroupSummary } from '../types';
 import { createElement } from '../../utils';
 import { getDisplayCostPresentation } from '../../costDisplay';
 import { formatTokens, getCurrencyToggleTitle, getDisplayCurrency, t, UNKNOWN_SESSION_ID } from '../utils';
@@ -9,7 +9,7 @@ export const MAX_TRACKED_SESSIONS = 3;
 /**
  * 判断会话是否应该显示在会话列表中
  */
-export function shouldShowSessionGroupInFilter(group: SessionGroup): boolean {
+export function shouldShowSessionGroupInFilter(group: SessionGroupSummary): boolean {
     return group.sessionId !== UNKNOWN_SESSION_ID && group.summary.requestCount > 1;
 }
 
@@ -45,14 +45,14 @@ function formatSessionListTime(startTime?: number, endTime?: number): string {
 /**
  * 构建左侧会话列表的主标题文本（短 ID）
  */
-export function buildSessionTitle(group: SessionGroup): string {
+export function buildSessionTitle(group: SessionGroupSummary): string {
     return group.sessionId === UNKNOWN_SESSION_ID ? t('Unknown Session', '未知会话') : `#${group.displayId}`;
 }
 
 /**
  * 构建详情头部的主标题文本：有正式标题时优先展示标题本身，弱化短 ID 的视觉权重
  */
-export function buildSessionDetailTitle(group: SessionGroup): string {
+export function buildSessionDetailTitle(group: SessionGroupSummary): string {
     if (group.sessionId === UNKNOWN_SESSION_ID) {
         return t('Unknown Session', '未知会话');
     }
@@ -62,7 +62,7 @@ export function buildSessionDetailTitle(group: SessionGroup): string {
 /**
  * 构建详情头部的次级会话标识：仅在已有正式标题时展示短 ID，避免与标题争抢视觉主次
  */
-export function buildSessionDetailMeta(group: SessionGroup): string | undefined {
+export function buildSessionDetailMeta(group: SessionGroupSummary): string | undefined {
     if (group.sessionId === UNKNOWN_SESSION_ID || !group.title) {
         return undefined;
     }
@@ -72,7 +72,7 @@ export function buildSessionDetailMeta(group: SessionGroup): string | undefined 
 /**
  * 构建左侧会话列表的时间状态文本
  */
-function buildSessionTimeText(group: SessionGroup): string | undefined {
+function buildSessionTimeText(group: SessionGroupSummary): string | undefined {
     const timeText = formatSessionListTime(group.summary.startTime, group.summary.endTime);
     return timeText || undefined;
 }
@@ -191,7 +191,7 @@ function createSessionItem(options: {
  * selectedSessionIds 为活跃日期下的多选跟踪集合，命中即高亮
  */
 export function createSessionFilter(
-    sessionGroups: SessionGroup[],
+    sessionGroups: SessionGroupSummary[],
     selectedSessionId: string | null,
     onChange: (sessionId: string | null, multiSelectKey?: boolean) => void,
     selectedSessionIds: string[] = []

@@ -9,13 +9,32 @@ import * as path from 'path';
 import { TokenUsagesManager } from '../../usages/usagesManager';
 import { StatusLogger } from '../../utils/runtime/statusLogger';
 import { t } from '../../utils/runtime/l10n';
-import { UpdateDateDetailsMessage, UpdateDateListMessage, UpdateLiveMetricsMessage } from './types';
-import type { WebViewMessage } from './types';
+import {
+    RecordsPageMessage,
+    TrackRecordsMessage,
+    UpdateDateDetailsMessage,
+    UpdateDateListMessage,
+    UpdateLiveMetricsMessage
+} from './types';
+import type { ExtendedTokenRequestLog, WebViewMessage } from './types';
 import { getTodayDateString } from './utils';
+import {
+    buildNativeCostSplitIndex,
+    buildRequestTotals,
+    buildSessionGroupSummaries,
+    filterRecordsBySession,
+    sliceRecordsPage,
+    sortRecordsByTimestampDesc,
+    summarizeSessionRecords,
+    summarizeSessionRecoveryDebugInfo
+} from './aggregation';
 import { MultiDayView } from '../multiDayView';
 import { onLiveMetrics, getActiveMetricsSnapshot, type LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 import { InterInstanceBus } from '../../interInstance';
 import type { LiveMetricsUpdatedEvent } from '../../interInstance';
+
+/** 明细分页大小（与前端 requestRecords PAGE_SIZE 保持一致） */
+const PAGE_SIZE = 20;
 
 /**
  * Token 用量 WebView 视图
@@ -33,6 +52,10 @@ export class TokenUsagesView {
     private smartRefreshTimer: ReturnType<typeof setTimeout> | null = null;
     private smartRefreshInFlight: Promise<void> | null = null;
     private smartRefreshPending: boolean = false; // 执行期间又有新请求，需再刷一次
+    // 单槽明细缓存：聚合与页拉取共用，避免翻页/重拉反复读盘
+    private detailsCache: { date: string; records: ExtendedTokenRequestLog[]; seq: number } | null = null;
+    // 摘要单调递增序列号，随每次摘要推送递增，页响应携带用于前端防竞态
+    private detailSeq: number = 0;
 
     constructor(private context: vscode.ExtensionContext) {
         this.usagesManager = TokenUsagesManager.instance;
@@ -253,6 +276,7 @@ export class TokenUsagesView {
 
     /**
      * 发送初始数据给 WebView
+     * 先推送详情摘要（stats 更新先行），再推日期列表，保证两侧口径一致。
      */
     private async sendInitialData(): Promise<void> {
         if (!this.panel) {
@@ -260,49 +284,33 @@ export class TokenUsagesView {
         }
 
         try {
-            const today = getTodayDateString();
-            const displayDate = today;
-
-            // 先获取选中日期的详细数据：getDateStatsFromFile 可能触发 stats.json / index.json 更新。
-            // 完成后再读取日期摘要，确保初始左侧日期列表和右侧详情口径一致。
-            const dateStats = await this.usagesManager.getDateStatsFromFile(displayDate);
-            const [dateSummaries, dateRecords] = await Promise.all([
-                this.usagesManager.getAllDateSummaries(),
-                this.usagesManager.getDateRecords(displayDate)
-            ]);
-
-            // 转换 providers 为数组，同时添加 providerKey 字段（因为 Object.values 会丢失 key）
-            const providers = Object.entries(dateStats.providers).map(([key, value]) => ({
-                ...value,
-                providerKey: key
-            }));
-
-            // 更新当前状态
+            const displayDate = getTodayDateString();
             this.currentSelectedDate = displayDate;
-
-            // 发送日期列表（直接发送原始数据，全量）
-            await this.panel.webview.postMessage({
-                command: 'updateDateList',
-                dateList: dateSummaries,
-                selectedDate: displayDate,
-                today
-            } as UpdateDateListMessage);
-
-            // 发送日期详情（直接发送原始数据）
-            await this.panel.webview.postMessage({
-                command: 'updateDateDetails',
-                date: displayDate,
-                isToday: displayDate === today,
-                isExtensionHostDebugMode: this.context.extensionMode === vscode.ExtensionMode.Development,
-                providers: providers,
-                hourlyStats: dateStats.hourly || {},
-                records: dateRecords // getDateRecords 已经返回扩展后的记录
-            } as UpdateDateDetailsMessage);
-
+            await this.updateDateDetails(displayDate);
+            await this.updateDateListOnly();
             StatusLogger.debug('[TokenUsagesView] Initial data sent');
         } catch (err) {
             StatusLogger.error('[TokenUsagesView] Failed to send initial data:', err);
         }
+    }
+
+    /**
+     * 读取当日最新记录并刷新单槽明细缓存（摘要聚合时调用，保证读到最新落盘数据）
+     */
+    private async readDateRecordsFresh(date: string): Promise<ExtendedTokenRequestLog[]> {
+        const records = await this.usagesManager.getDateRecords(date);
+        this.detailsCache = { date, records, seq: this.detailSeq };
+        return records;
+    }
+
+    /**
+     * 读取当日记录（页拉取用，命中缓存避免翻页/重拉反复读盘）
+     */
+    private async readDateRecordsCached(date: string): Promise<ExtendedTokenRequestLog[]> {
+        if (this.detailsCache?.date === date) {
+            return this.detailsCache.records;
+        }
+        return this.readDateRecordsFresh(date);
     }
 
     /**
@@ -318,6 +326,14 @@ export class TokenUsagesView {
             case 'selectDate':
                 await this.updateDateDetails(message.date);
                 this.pushActiveLiveMetricsSnapshot();
+                break;
+
+            case 'getRecordsPage':
+                await this.handleGetRecordsPage(message);
+                break;
+
+            case 'getTrackRecords':
+                await this.handleGetTrackRecords(message);
                 break;
 
             case 'openStorageDir':
@@ -406,16 +422,25 @@ export class TokenUsagesView {
 
     /**
      * 更新日期详情（动态更新）
+     * 聚合在扩展侧执行，WebView 只接收轻量摘要；明细由 WebView 按需拉取。
      */
     private async updateDateDetails(date: string): Promise<void> {
         try {
             const today = getTodayDateString();
 
-            // 并行读取 stats 和 records（两者无依赖），一次性发送避免闪屏
+            // 并行读取 stats 和 records（两者无依赖）；聚合必须读到最新记录，不走缓存
             const [dateStats, dateRecords] = await Promise.all([
                 this.usagesManager.getDateStatsFromFile(date),
-                this.usagesManager.getDateRecords(date)
+                this.readDateRecordsFresh(date)
             ]);
+
+            // 聚合计算（与旧前端逻辑一致的口径）
+            this.detailSeq += 1;
+            this.detailsCache = { date, records: dateRecords, seq: this.detailSeq };
+            const sessionGroups = buildSessionGroupSummaries(dateRecords);
+            const allSummary = summarizeSessionRecords(dateRecords);
+            const allTotals = buildRequestTotals(dateRecords);
+            const nativeSplitIndex = buildNativeCostSplitIndex(dateRecords);
 
             // 转换 providers 为数组，同时添加 providerKey 字段（因为 Object.values 会丢失 key）
             const providers = Object.entries(dateStats.providers).map(([key, value]) => ({
@@ -431,7 +456,7 @@ export class TokenUsagesView {
                 this.panel.title = `${t('GCMP Token Usage', 'GCMP Token 消耗统计')} - ${date}`;
             }
 
-            // 发送消息给 WebView，让它更新详情区域
+            // 推送聚合摘要给 WebView
             if (this.panel) {
                 await this.panel.webview.postMessage({
                     command: 'updateDateDetails',
@@ -440,13 +465,85 @@ export class TokenUsagesView {
                     isExtensionHostDebugMode: this.context.extensionMode === vscode.ExtensionMode.Development,
                     providers,
                     hourlyStats: dateStats.hourly || {},
-                    records: dateRecords
+                    allSummary,
+                    allTotals,
+                    nativeSplitIndex,
+                    sessionGroups,
+                    updateSeq: this.detailSeq
                 } as UpdateDateDetailsMessage);
             }
 
             StatusLogger.debug(`[TokenUsagesView] Updated date details: ${date}, recordCount=${dateRecords.length}`);
         } catch (err) {
             StatusLogger.error('[TokenUsagesView] Failed to update date details:', err);
+        }
+    }
+
+    /**
+     * 处理明细分页拉取请求：从缓存切片并返回当前页（附 updateSeq 供前端防竞态）
+     */
+    private async handleGetRecordsPage(message: Extract<WebViewMessage, { command: 'getRecordsPage' }>): Promise<void> {
+        const panel = this.panel;
+        if (!panel) {
+            return;
+        }
+
+        try {
+            const records = await this.readDateRecordsCached(message.date);
+            const pageSize = message.pageSize ?? PAGE_SIZE;
+            // session 模式必须携带 sessionId，缺失时退化为 all，避免响应语义错位
+            const effectiveMode = message.mode === 'session' && !message.sessionId ? 'all' : message.mode;
+            const source = effectiveMode === 'session' ? filterRecordsBySession(records, message.sessionId!) : records;
+            const { records: pageRecords, totalItems } = sliceRecordsPage(source, message.page, pageSize);
+
+            await panel.webview.postMessage({
+                command: 'recordsPage',
+                date: message.date,
+                mode: effectiveMode,
+                sessionId: effectiveMode === 'session' ? message.sessionId : undefined,
+                page: message.page,
+                pageSize,
+                totalItems,
+                records: pageRecords,
+                summary: summarizeSessionRecords(source),
+                totals: buildRequestTotals(source),
+                recoveryDebug: summarizeSessionRecoveryDebugInfo(source),
+                updateSeq: this.detailSeq
+            } as RecordsPageMessage);
+        } catch (err) {
+            StatusLogger.error('[TokenUsagesView] Failed to get records page:', err);
+        }
+    }
+
+    /**
+     * 处理多选跟踪明细请求：返回每个会话最新的 limitPerSession 条记录
+     */
+    private async handleGetTrackRecords(
+        message: Extract<WebViewMessage, { command: 'getTrackRecords' }>
+    ): Promise<void> {
+        const panel = this.panel;
+        if (!panel) {
+            return;
+        }
+
+        try {
+            const records = await this.readDateRecordsCached(message.date);
+            const groups = message.sessionIds.map(sessionId => ({
+                sessionId,
+                records: sortRecordsByTimestampDesc(filterRecordsBySession(records, sessionId)).slice(
+                    0,
+                    message.limitPerSession
+                )
+            }));
+
+            await panel.webview.postMessage({
+                command: 'trackRecords',
+                date: message.date,
+                updateSeq: this.detailSeq,
+                groups
+            } as TrackRecordsMessage);
+        } catch (err) {
+            StatusLogger.error('[TokenUsagesView] Failed to get track records:', err);
         }
     }
 
@@ -517,5 +614,8 @@ export class TokenUsagesView {
         this.panel?.dispose();
         this.multiDayView?.dispose();
         this.multiDayView = undefined;
+        // 释放明细缓存与序列号，避免面板重开后读到旧日期残留数据
+        this.detailsCache = null;
+        this.detailSeq = 0;
     }
 }

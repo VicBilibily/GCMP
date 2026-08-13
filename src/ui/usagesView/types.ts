@@ -75,6 +75,50 @@ export interface SessionGroup {
     totals: RequestTotals;
 }
 
+/**
+ * 会话级恢复调试统计（扩展侧全量计算，随摘要推送）
+ */
+export interface SessionRecoveryDebugSummary {
+    bridgeCount: number;
+    newUuidCount: number;
+}
+
+/**
+ * 会话分组摘要（不含明细记录，供摘要消息与 UI 展示）
+ */
+export interface SessionGroupSummary {
+    sessionId: string;
+    displayId: string;
+    /** 会话标题（仅 VS Code 正式标题 generated），无则回退 displayId 展示 */
+    title?: string;
+    summary: SessionSummary;
+    totals: RequestTotals;
+    /** 组内记录总数（分页 totalItems 用） */
+    recordCount: number;
+    recoveryDebug?: SessionRecoveryDebugSummary;
+}
+
+/**
+ * 明细分页视图状态（WebView 持有，按需从扩展侧拉取）
+ */
+export interface RecordsViewState {
+    mode: 'all' | 'session';
+    sessionId?: string;
+    page: number;
+    totalItems: number;
+    records: ExtendedTokenRequestLog[];
+    summary: SessionSummary;
+    totals: RequestTotals;
+    recoveryDebug?: SessionRecoveryDebugSummary;
+}
+
+/**
+ * 多选跟踪视图状态（每会话最新 N 条）
+ */
+export interface TrackRecordsState {
+    groups: Array<{ sessionId: string; records: ExtendedTokenRequestLog[] }>;
+}
+
 // ============= 重新导出类型供外部使用 =============
 
 export type { DateSummary, ModelData, HourlyStats };
@@ -89,7 +133,21 @@ export type WebViewMessage =
     | { command: 'getInitialData' }
     | { command: 'selectDate'; date: string }
     | { command: 'openStorageDir' }
-    | { command: 'openMultiDayTrend' };
+    | { command: 'openMultiDayTrend' }
+    | {
+          command: 'getRecordsPage';
+          date: string;
+          mode: 'all' | 'session';
+          sessionId?: string;
+          page: number;
+          pageSize?: number;
+      }
+    | {
+          command: 'getTrackRecords';
+          date: string;
+          sessionIds: string[];
+          limitPerSession: number;
+      };
 
 /**
  * VSCode 发送到 WebView 的消息类型
@@ -108,7 +166,41 @@ export interface UpdateDateDetailsMessage {
     isExtensionHostDebugMode: boolean;
     providers: ProviderData[];
     hourlyStats: Record<string, HourlyStats>;
+    /** 扩展侧聚合结果（明细不再随摘要推送，由 WebView 按页拉取） */
+    allSummary: SessionSummary;
+    allTotals: RequestTotals;
+    nativeSplitIndex: NativeCostSplitIndex;
+    sessionGroups: SessionGroupSummary[];
+    /** 单调递增序列号，页拉取防竞态 */
+    updateSeq: number;
+}
+
+/**
+ * 明细分页响应消息
+ */
+export interface RecordsPageMessage {
+    command: 'recordsPage';
+    date: string;
+    mode: 'all' | 'session';
+    sessionId?: string;
+    page: number;
+    pageSize: number;
+    totalItems: number;
     records: ExtendedTokenRequestLog[];
+    summary: SessionSummary;
+    totals: RequestTotals;
+    recoveryDebug?: SessionRecoveryDebugSummary;
+    updateSeq: number;
+}
+
+/**
+ * 多选跟踪明细响应消息（每会话最新 N 条）
+ */
+export interface TrackRecordsMessage {
+    command: 'trackRecords';
+    date: string;
+    updateSeq: number;
+    groups: Array<{ sessionId: string; records: ExtendedTokenRequestLog[] }>;
 }
 
 /**
@@ -119,7 +211,12 @@ export interface UpdateLiveMetricsMessage {
     event: LiveStreamMetricEvent;
 }
 
-export type HostMessage = UpdateDateListMessage | UpdateDateDetailsMessage | UpdateLiveMetricsMessage;
+export type HostMessage =
+    | UpdateDateListMessage
+    | UpdateDateDetailsMessage
+    | RecordsPageMessage
+    | TrackRecordsMessage
+    | UpdateLiveMetricsMessage;
 
 // ============= 应用状态类型 =============
 
@@ -142,6 +239,7 @@ export interface State {
 
 /**
  * 日期详情（用于内部状态管理）
+ * 明细记录不再整体驻留：仅保留扩展侧推送的聚合摘要与当前拉取的页数据。
  */
 export interface DateDetails {
     date: string;
@@ -149,12 +247,15 @@ export interface DateDetails {
     isExtensionHostDebugMode: boolean;
     providers: ProviderData[];
     hourlyStats: Record<string, HourlyStats>;
-    records: ExtendedTokenRequestLog[];
-    allRecords: ExtendedTokenRequestLog[];
     allSummary: SessionSummary;
     allTotals: RequestTotals;
     nativeSplitIndex: NativeCostSplitIndex;
-    sessionGroups: SessionGroup[];
+    sessionGroups: SessionGroupSummary[];
+    updateSeq: number;
+    /** 当前明细分页视图（全部会话或单个会话），null 表示尚未拉取 */
+    recordsView: RecordsViewState | null;
+    /** 多选跟踪视图（每会话最新 N 条），null 表示未处于跟踪模式 */
+    trackRecords: TrackRecordsState | null;
 }
 
 /**

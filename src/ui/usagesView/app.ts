@@ -7,16 +7,11 @@ import 'chart.js/auto'; // 导入 Chart.js
 
 import type { HostMessage, State } from './types';
 import {
-    buildNativeCostSplitIndex,
-    buildRequestTotals,
     getDefaultDisplayCurrency,
     getNextDisplayCurrency,
     getTodayDateString,
-    groupRecordsBySession,
     normalizeDisplayCurrency,
     postToVSCode,
-    sortRecordsByTimestampDesc,
-    summarizeSessionRecords,
     t
 } from './utils';
 import { createElement } from '../utils';
@@ -27,9 +22,15 @@ import { createSidebar, updateDateList } from './components/dateList';
 import { createMainContent, updateMainContent } from './components/mainContent';
 import {
     createRequestRecordsSection,
+    fetchDetailByCurrentView,
+    getTrackedRecordsLimit,
+    getTrackedSessionIds,
+    isStaleDetailResponse,
+    isTrackModeActive,
     refreshRequestRecordCosts,
     resetRequestRecordsState
 } from './components/requestRecords';
+import { shouldShowSessionGroupInFilter } from './components/sessionFilter';
 
 // ============= 全局状态管理 =============
 
@@ -48,9 +49,6 @@ const state: State = {
         dateDetails: false
     }
 };
-
-// 跟踪上一次的日期，用于检测日期变化
-let lastDateDetailsDate: string | null = null;
 
 /**
  * 判断当前可视宽度是否需要折叠日期列表
@@ -173,11 +171,7 @@ function handleVSCodeMessage(event: MessageEvent): void {
             break;
 
         case 'updateDateDetails': {
-            const sessionGroups = groupRecordsBySession(message.records);
-            const allRecords = sortRecordsByTimestampDesc(message.records);
-            const allSummary = summarizeSessionRecords(allRecords);
-            const allTotals = buildRequestTotals(allRecords);
-            const nativeSplitIndex = buildNativeCostSplitIndex(message.records);
+            const sessionGroups = message.sessionGroups;
             const dateChanged = state.dateDetails?.date !== message.date;
             let nextSelectedSessionId =
                 (
@@ -202,27 +196,46 @@ function handleVSCodeMessage(event: MessageEvent): void {
                 resetRequestRecordsState();
             }
 
+            const prevDetails = state.dateDetails;
+            const nextTrackMode = message.isToday && nextSelectedSessionIds.length >= 2;
+            const nextRecordsView =
+                dateChanged ? null
+                : nextTrackMode ? null
+                : nextSelectedSessionId ?
+                    (
+                        prevDetails?.recordsView?.mode === 'session' &&
+                        prevDetails.recordsView.sessionId === nextSelectedSessionId
+                    ) ?
+                        prevDetails.recordsView
+                    :   null
+                : prevDetails?.recordsView?.mode === 'all' ? prevDetails.recordsView
+                : null;
+            const nextTrackRecords = dateChanged || !nextTrackMode ? null : (prevDetails?.trackRecords ?? null);
+
             setState({
                 selectedDate: message.date,
                 selectedSessionId: nextSelectedSessionId,
                 selectedSessionIds: nextSelectedSessionIds,
-                displayCurrency: normalizeDisplayCurrency(state.displayCurrency, allTotals),
+                displayCurrency: normalizeDisplayCurrency(state.displayCurrency, message.allTotals),
                 dateDetails: {
                     date: message.date,
                     isToday: message.isToday,
                     isExtensionHostDebugMode: message.isExtensionHostDebugMode,
                     providers: message.providers,
                     hourlyStats: message.hourlyStats,
-                    records: message.records,
-                    allRecords,
-                    allSummary,
-                    allTotals,
-                    nativeSplitIndex,
-                    sessionGroups
+                    allSummary: message.allSummary,
+                    allTotals: message.allTotals,
+                    nativeSplitIndex: message.nativeSplitIndex,
+                    sessionGroups,
+                    updateSeq: message.updateSeq,
+                    // 同日刷新仅在视图模式仍与当前选中状态一致时复用旧明细
+                    recordsView: nextRecordsView,
+                    trackRecords: nextTrackRecords
                 },
                 loading: {
                     ...state.loading,
-                    dateDetails: false
+                    // 切日期时等首个明细响应到达后再关闭遮罩，避免先看到占位态再闪回真实内容
+                    dateDetails: dateChanged ? state.loading.dateDetails : false
                 }
             });
 
@@ -234,6 +247,81 @@ function handleVSCodeMessage(event: MessageEvent): void {
             if (dateChanged && shouldCollapseSidebar()) {
                 toggleSidebar(false);
             }
+
+            // 摘要到达后按当前视图状态拉取明细
+            fetchDetailByCurrentView();
+            break;
+        }
+
+        case 'recordsPage': {
+            const details = state.dateDetails;
+            // 过期响应：切日期 / 已进入跟踪模式 / 参数与最近请求不一致
+            if (!details || details.date !== message.date || isTrackModeActive() || isStaleDetailResponse(message)) {
+                break;
+            }
+            if (message.updateSeq < details.updateSeq) {
+                // 响应落后于最新摘要：补偿重拉一次（扩展侧缓存已是最新，一次即收敛）
+                postToVSCode({
+                    command: 'getRecordsPage',
+                    date: message.date,
+                    mode: message.mode,
+                    sessionId: message.sessionId,
+                    page: message.page
+                });
+                break;
+            }
+            setState({
+                dateDetails: {
+                    ...details,
+                    recordsView: {
+                        mode: message.mode,
+                        sessionId: message.sessionId,
+                        page: message.page,
+                        totalItems: message.totalItems,
+                        records: message.records,
+                        summary: message.summary,
+                        totals: message.totals,
+                        recoveryDebug: message.recoveryDebug
+                    },
+                    trackRecords: null
+                },
+                loading: {
+                    ...state.loading,
+                    dateDetails: false
+                }
+            });
+            break;
+        }
+
+        case 'trackRecords': {
+            const details = state.dateDetails;
+            // 过期响应：切日期 / 已退出跟踪模式 / 参数与最近请求不一致
+            if (!details || details.date !== message.date || !isTrackModeActive() || isStaleDetailResponse(message)) {
+                break;
+            }
+            if (message.updateSeq < details.updateSeq) {
+                // 响应落后于最新摘要：按当前跟踪会话补偿重拉一次
+                const visibleGroups = details.sessionGroups.filter(shouldShowSessionGroupInFilter);
+                const trackedIds = getTrackedSessionIds(new Set(visibleGroups.map(group => group.sessionId)));
+                postToVSCode({
+                    command: 'getTrackRecords',
+                    date: message.date,
+                    sessionIds: trackedIds,
+                    limitPerSession: getTrackedRecordsLimit(trackedIds.length)
+                });
+                break;
+            }
+            setState({
+                dateDetails: {
+                    ...details,
+                    trackRecords: { groups: message.groups },
+                    recordsView: null
+                },
+                loading: {
+                    ...state.loading,
+                    dateDetails: false
+                }
+            });
             break;
         }
 
@@ -265,15 +353,8 @@ function updateRequestRecords(): void {
     if (recordsSection) {
         const existingContainer = recordsSection.querySelector('#records-container') as HTMLElement;
         if (existingContainer && state.dateDetails) {
-            // 检测日期是否变化
-            const dateChanged = lastDateDetailsDate !== state.dateDetails.date;
-            lastDateDetailsDate = state.dateDetails.date;
-
-            // 仅在切换日期时重置页码；同日实时刷新保持当前页
-            const page = dateChanged ? 1 : undefined;
-
-            // 使用容器复用
-            createRequestRecordsSection(state.dateDetails.sessionGroups, page, existingContainer);
+            // 使用容器复用（页码与视图模式由 dateDetails.recordsView / trackRecords 维护）
+            createRequestRecordsSection(state.dateDetails.sessionGroups, existingContainer);
         }
     }
 }
@@ -287,8 +368,14 @@ function refreshViews(prevState: State, patch: Partial<State>): void {
     }
 
     if (patch.dateDetails) {
-        updateMainContent();
-        updateRequestRecords();
+        // 摘要未变（仅明细页刷新：翻页/跟踪响应）时跳过主内容区重建，避免图表闪烁；
+        // 摘要刷新（updateSeq 变化）才重建 provider/hourly 统计与图表
+        if (prevState.dateDetails?.updateSeq === state.dateDetails?.updateSeq) {
+            updateRequestRecords();
+        } else {
+            updateMainContent();
+            updateRequestRecords();
+        }
         return;
     }
 

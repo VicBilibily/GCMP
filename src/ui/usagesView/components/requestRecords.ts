@@ -3,7 +3,15 @@
  * 负责渲染请求记录会话分栏与详情表格
  */
 
-import type { ExtendedTokenRequestLog, RequestTotals, SessionGroup, SessionSummary } from '../types';
+import type {
+    ExtendedTokenRequestLog,
+    RecordsPageMessage,
+    RequestTotals,
+    SessionGroupSummary,
+    SessionRecoveryDebugSummary,
+    SessionSummary,
+    TrackRecordsMessage
+} from '../types';
 import { createElement } from '../../utils';
 import { getDisplayCostPresentation } from '../../costDisplay';
 import {
@@ -15,7 +23,6 @@ import {
 } from './sessionFilter';
 import {
     buildCostBreakdownTitle,
-    buildRequestTotals,
     formatSessionTimeRange,
     formatTokens,
     getRecordNativeCostSplit,
@@ -23,9 +30,8 @@ import {
     getDisplayCurrency,
     getProviderDisplayName,
     getRequestKindDisplayName,
-    summarizeSessionRecoveryDebugInfo,
     getSessionDisplayId,
-    summarizeSessionRecords,
+    postToVSCode,
     t,
     UNKNOWN_SESSION_ID
 } from '../utils';
@@ -78,7 +84,6 @@ const REQUEST_COST_SPAN_SELECTOR = '[data-request-cost="true"]';
 const MULTI_TRACK_ROW_BUDGET = 20;
 const MULTI_TRACK_MIN_ROWS = 4;
 
-let currentPage = 1;
 let isSessionPopoverOpen = false;
 let trackLimitHintTimer: number | undefined;
 
@@ -86,7 +91,7 @@ let trackLimitHintTimer: number | undefined;
  * 判断当前是否在查看活跃日期（今天）的请求记录
  * 仅活跃日期支持多选会话进行活跃跟踪
  */
-function isActiveDateView(): boolean {
+export function isActiveDateView(): boolean {
     return window.usagesState?.dateDetails?.isToday === true;
 }
 
@@ -94,7 +99,7 @@ function isActiveDateView(): boolean {
  * 获取当前生效的多选跟踪会话 ID 列表（仅保留仍在可见分组中的会话）
  * 非活跃日期直接返回空列表，保证筛选栏高亮与详情视图一致
  */
-function getTrackedSessionIds(visibleSessionIds: Set<string>): string[] {
+export function getTrackedSessionIds(visibleSessionIds: Set<string>): string[] {
     if (!isActiveDateView()) {
         return [];
     }
@@ -106,7 +111,7 @@ function getTrackedSessionIds(visibleSessionIds: Set<string>): string[] {
  * 计算多选跟踪模式下每个会话展示的记录条数上限
  * 按会话数均分总预算，保证下限，避免会话过多时展示过少
  */
-function getTrackedRecordsLimit(sessionCount: number): number {
+export function getTrackedRecordsLimit(sessionCount: number): number {
     if (sessionCount <= 0) {
         return MULTI_TRACK_ROW_BUDGET;
     }
@@ -123,9 +128,9 @@ interface RequestCostPresentationData {
 }
 
 /**
- * 获取当前日期详情中的会话分组列表
+ * 获取当前日期详情中的会话分组摘要列表
  */
-function getCurrentSessionGroups(): SessionGroup[] {
+function getCurrentSessionGroups(): SessionGroupSummary[] {
     return window.usagesState?.dateDetails?.sessionGroups || [];
 }
 
@@ -137,6 +142,108 @@ function getCurrentDateDetails(): typeof window.usagesState.dateDetails | null {
 }
 
 /**
+ * 判断当前是否处于多选跟踪模式（活跃日期 + 至少 2 个可见跟踪会话）
+ */
+export function isTrackModeActive(): boolean {
+    const details = getCurrentDateDetails();
+    if (!details?.isToday) {
+        return false;
+    }
+    const visibleGroups = details.sessionGroups.filter(shouldShowSessionGroupInFilter);
+    return getTrackedSessionIds(new Set(visibleGroups.map(group => group.sessionId))).length >= 2;
+}
+
+/** 最近一次发出的明细拉取请求参数（响应过期校验用） */
+interface DetailRequestParams {
+    command: 'getRecordsPage' | 'getTrackRecords';
+    date: string;
+    mode?: 'all' | 'session';
+    sessionId?: string;
+    page?: number;
+    sessionIds?: string[];
+}
+
+let lastDetailRequest: DetailRequestParams | null = null;
+
+function recordDetailRequest(params: DetailRequestParams): void {
+    lastDetailRequest = params;
+}
+
+/**
+ * 判断明细响应是否已过期：日期不匹配，或参数与最近一次请求不一致
+ * （快速翻页/切会话/切视图模式时，旧响应不得覆盖新请求的结果）
+ */
+export function isStaleDetailResponse(message: RecordsPageMessage | TrackRecordsMessage): boolean {
+    const last = lastDetailRequest;
+    if (!last || last.date !== message.date) {
+        return true;
+    }
+    if (message.command === 'recordsPage') {
+        return (
+            last.command !== 'getRecordsPage' ||
+            last.mode !== message.mode ||
+            last.sessionId !== message.sessionId ||
+            last.page !== message.page
+        );
+    }
+    return (
+        last.command !== 'getTrackRecords' ||
+        !last.sessionIds ||
+        last.sessionIds.length !== message.groups.length ||
+        last.sessionIds.some(id => !message.groups.some(group => group.sessionId === id))
+    );
+}
+
+/**
+ * 按当前视图状态向扩展侧拉取明细：
+ * 跟踪模式拉每会话最新 N 条；分页模式拉当前页（无视图数据时按选中会话或全部会话第 1 页）
+ */
+export function fetchDetailByCurrentView(preferCurrentSelection = false): void {
+    const details = getCurrentDateDetails();
+    if (!details) {
+        return;
+    }
+
+    if (isTrackModeActive()) {
+        const visibleGroups = details.sessionGroups.filter(shouldShowSessionGroupInFilter);
+        const trackedSessionIds = getTrackedSessionIds(new Set(visibleGroups.map(group => group.sessionId)));
+        const limitPerSession = getTrackedRecordsLimit(trackedSessionIds.length);
+        recordDetailRequest({
+            command: 'getTrackRecords',
+            date: details.date,
+            sessionIds: trackedSessionIds
+        });
+        postToVSCode({
+            command: 'getTrackRecords',
+            date: details.date,
+            sessionIds: trackedSessionIds,
+            limitPerSession
+        });
+        return;
+    }
+
+    const rawSelectedSessionId = window.usagesState?.selectedSessionId || null;
+    const selectedSessionId = rawSelectedSessionId === UNKNOWN_SESSION_ID ? null : rawSelectedSessionId;
+    const view = details.recordsView;
+    const params = {
+        command: 'getRecordsPage' as const,
+        date: details.date,
+        mode:
+            preferCurrentSelection ?
+                selectedSessionId ? 'session'
+                :   'all'
+            :   (view?.mode ?? (selectedSessionId ? 'session' : 'all')),
+        sessionId:
+            preferCurrentSelection ?
+                (selectedSessionId ?? undefined)
+            :   (view?.sessionId ?? selectedSessionId ?? undefined),
+        page: preferCurrentSelection ? 1 : (view?.page ?? 1)
+    };
+    recordDetailRequest(params);
+    postToVSCode(params);
+}
+
+/**
  * 基于当前状态重新渲染请求记录区域
  */
 function rerenderRequestRecords(): void {
@@ -145,7 +252,7 @@ function rerenderRequestRecords(): void {
         return;
     }
 
-    createRequestRecordsSection(getCurrentSessionGroups(), currentPage, recordsContainer);
+    createRequestRecordsSection(getCurrentSessionGroups(), recordsContainer);
 }
 
 /**
@@ -221,15 +328,32 @@ function changeSelectedSession(sessionId: string | null, multiSelectKey = false)
         isSessionPopoverOpen = false;
     }
 
-    currentPage = 1;
+    window.usagesSetLoading?.('dateDetails', true);
+    fetchDetailByCurrentView(true);
     rerenderRequestRecords();
 }
 
 /**
- * 更新当前分页并重新渲染
+ * 更新当前分页并重新拉取该页
  */
 function changePage(page: number): void {
-    currentPage = page;
+    const details = getCurrentDateDetails();
+    const view = details?.recordsView;
+    if (!details || !view) {
+        return;
+    }
+
+    // 乐观更新页码，响应到达后刷新数据
+    details.recordsView = { ...view, page };
+    const params = {
+        command: 'getRecordsPage' as const,
+        date: details.date,
+        mode: view.mode,
+        sessionId: view.sessionId,
+        page
+    };
+    recordDetailRequest(params);
+    postToVSCode(params);
     rerenderRequestRecords();
 }
 
@@ -317,12 +441,14 @@ function shouldShowSessionRecoveryDebugInfo(): boolean {
     return window.usagesState?.dateDetails?.isExtensionHostDebugMode === true;
 }
 
-function createSessionRecoverySummaryChip(records: ExtendedTokenRequestLog[]): HTMLElement | undefined {
-    if (!shouldShowSessionRecoveryDebugInfo()) {
+function createSessionRecoverySummaryChip(
+    recoveryDebug: SessionRecoveryDebugSummary | undefined
+): HTMLElement | undefined {
+    if (!shouldShowSessionRecoveryDebugInfo() || !recoveryDebug) {
         return undefined;
     }
 
-    const { bridgeCount, newUuidCount } = summarizeSessionRecoveryDebugInfo(records);
+    const { bridgeCount, newUuidCount } = recoveryDebug;
     if (bridgeCount <= 0 && newUuidCount <= 0) {
         return undefined;
     }
@@ -349,13 +475,16 @@ function createSessionRecoverySummaryChip(records: ExtendedTokenRequestLog[]): H
  * 创建右侧详情头部的会话摘要区域
  * 仅保留时间范围：Tokens 与平均速度在底部合计行（appendTotalsRow）已有展示
  */
-function createSummarySection(summary: SessionSummary, records: ExtendedTokenRequestLog[]): HTMLElement {
+function createSummarySection(
+    summary: SessionSummary,
+    recoveryDebug: SessionRecoveryDebugSummary | undefined
+): HTMLElement {
     const summaryEl = createElement('div', 'session-detail-summary');
     const timeRange = formatSessionTimeRange(summary.startTime, summary.endTime);
 
     summaryEl.appendChild(createSummaryChip(t('Time', '时间'), timeRange, timeRange));
 
-    const recoveryChip = createSessionRecoverySummaryChip(records);
+    const recoveryChip = createSessionRecoverySummaryChip(recoveryDebug);
     if (recoveryChip) {
         summaryEl.appendChild(recoveryChip);
     }
@@ -863,7 +992,7 @@ function createSessionToggleButton(): HTMLElement {
 function createDetailHeader(
     titleText: string,
     summary: SessionSummary,
-    records: ExtendedTokenRequestLog[],
+    recoveryDebug: SessionRecoveryDebugSummary | undefined,
     metaText?: string
 ): HTMLElement {
     const header = createElement('div', 'session-detail-header');
@@ -876,7 +1005,7 @@ function createDetailHeader(
         meta.textContent = metaText;
         titleRow.appendChild(meta);
     }
-    titleRow.appendChild(createSummarySection(summary, records));
+    titleRow.appendChild(createSummarySection(summary, recoveryDebug));
 
     header.appendChild(titleRow);
     return header;
@@ -886,7 +1015,7 @@ function createDetailHeader(
  * 创建窄屏会话选择浮窗
  */
 function createSessionPopover(
-    sessionGroups: SessionGroup[],
+    sessionGroups: SessionGroupSummary[],
     selectedSessionId: string | null,
     onChange: (sessionId: string | null, multiSelectKey?: boolean) => void,
     selectedSessionIds: string[] = []
@@ -910,35 +1039,34 @@ function createSessionPopover(
 }
 
 /**
- * 创建右侧详情区，包含摘要、分页和请求表格
+ * 创建右侧详情区，包含摘要、分页和请求表格（records 为已按页拉取的当前页）
  */
 function createDetailView(
     titleText: string,
     metaText: string | undefined,
     summary: SessionSummary,
     totals: RequestTotals,
+    recoveryDebug: SessionRecoveryDebugSummary | undefined,
     records: ExtendedTokenRequestLog[],
+    totalItems: number,
+    page: number,
     visibleSessionIds: Set<string>
 ): HTMLElement {
     const detail = createElement('div', 'records-detail');
-    detail.appendChild(createDetailHeader(titleText, summary, records, metaText));
+    detail.appendChild(createDetailHeader(titleText, summary, recoveryDebug, metaText));
 
     const content = createElement('div', 'records-detail-content');
 
-    const totalPages = Math.ceil(records.length / PAGE_SIZE) || 1;
-    currentPage = Math.min(currentPage, totalPages);
+    const totalPages = Math.ceil(totalItems / PAGE_SIZE) || 1;
 
-    if (records.length > PAGE_SIZE) {
-        content.appendChild(createPagination(currentPage, totalPages, records.length));
+    if (totalItems > PAGE_SIZE) {
+        content.appendChild(createPagination(page, totalPages, totalItems));
     }
 
-    const startIndex = (currentPage - 1) * PAGE_SIZE;
-    content.appendChild(
-        createRequestRecordsTable(records.slice(startIndex, startIndex + PAGE_SIZE), summary, totals, visibleSessionIds)
-    );
+    content.appendChild(createRequestRecordsTable(records, summary, totals, visibleSessionIds));
 
-    if (records.length > PAGE_SIZE) {
-        content.appendChild(createPagination(currentPage, totalPages, records.length));
+    if (totalItems > PAGE_SIZE) {
+        content.appendChild(createPagination(page, totalPages, totalItems));
     }
 
     detail.appendChild(content);
@@ -951,29 +1079,28 @@ function createDetailView(
  * 每个选中会话渲染一个紧凑块（标题 + 限量最新记录 + 底部合计行），不启用分页
  * 每个会话的记录条数上限按会话数均分总预算自动计算
  */
-function createSessionTrackView(trackedGroups: SessionGroup[], visibleSessionIds: Set<string>): HTMLElement {
+function createSessionTrackView(
+    trackedGroups: SessionGroupSummary[],
+    trackGroups: Array<{ sessionId: string; records: ExtendedTokenRequestLog[] }>,
+    visibleSessionIds: Set<string>
+): HTMLElement {
     const detail = createElement('div', 'records-detail records-detail-multi');
     const content = createElement('div', 'records-detail-content');
     const limit = getTrackedRecordsLimit(trackedGroups.length);
 
     trackedGroups.forEach(group => {
+        const records = trackGroups.find(item => item.sessionId === group.sessionId)?.records ?? [];
         const block = createElement('section', 'session-track-block');
         block.appendChild(
             createDetailHeader(
                 buildSessionDetailTitle(group),
                 group.summary,
-                group.records,
+                group.recoveryDebug,
                 buildSessionDetailMeta(group)
             )
         );
         block.appendChild(
-            createRequestRecordsTable(
-                group.records.slice(0, limit),
-                group.summary,
-                group.totals,
-                visibleSessionIds,
-                true
-            )
+            createRequestRecordsTable(records.slice(0, limit), group.summary, group.totals, visibleSessionIds, true)
         );
         content.appendChild(block);
     });
@@ -1051,25 +1178,31 @@ function trimSessionTrackViewToFit(detail: HTMLElement): boolean {
 }
 
 /**
- * 重置请求记录区域的内部分页状态
+ * 创建明细加载占位详情区（响应尚未到达）
+ */
+function createLoadingDetail(): HTMLElement {
+    const detail = createElement('div', 'records-detail');
+    const loading = createElement('div', 'empty-message');
+    loading.textContent = t('Loading...', '加载中...');
+    detail.appendChild(loading);
+    return detail;
+}
+
+/**
+ * 重置请求记录区域的内部状态（浮窗等）
  */
 export function resetRequestRecordsState(): void {
-    currentPage = 1;
     isSessionPopoverOpen = false;
 }
 
 /**
  * 创建请求记录主区域：左侧会话列表，右侧会话详情
+ * 明细数据来自 dateDetails.recordsView（分页）或 dateDetails.trackRecords（多选跟踪）
  */
 export function createRequestRecordsSection(
-    sessionGroups: SessionGroup[],
-    page?: number,
+    sessionGroups: SessionGroupSummary[],
     existingContainer?: HTMLElement
 ): HTMLElement {
-    if (page !== undefined) {
-        currentPage = page;
-    }
-
     const container = existingContainer || createElement('div', '', { id: 'records-container' });
     container.id = 'records-container';
     container.innerHTML = '';
@@ -1083,9 +1216,6 @@ export function createRequestRecordsSection(
     const trackedSessionIds = getTrackedSessionIds(allSessionIds);
     const isTrackMode = isActiveDateView() && trackedSessionIds.length >= 2;
     const dateDetails = getCurrentDateDetails();
-    const allRecords = dateDetails?.allRecords || [];
-    const allSummary = dateDetails?.allSummary || summarizeSessionRecords(allRecords);
-    const allTotals = dateDetails?.allTotals || buildRequestTotals(allRecords);
     const selectedGroup =
         selectedSessionId ? visibleSessionGroups.find(group => group.sessionId === selectedSessionId) : undefined;
 
@@ -1116,25 +1246,41 @@ export function createRequestRecordsSection(
                 .filter(group => trackedSessionIds.includes(group.sessionId))
                 .sort((a, b) => (b.summary.startTime || 0) - (a.summary.startTime || 0))
         :   [];
+    const view = dateDetails?.recordsView;
+    const displayGroup =
+        view?.mode === 'session' && view.sessionId ?
+            visibleSessionGroups.find(group => group.sessionId === view.sessionId)
+        :   undefined;
     let trackDetail: HTMLElement | undefined;
     if (isTrackMode) {
-        trackDetail = createSessionTrackView(trackedGroups, allSessionIds);
+        if (dateDetails?.trackRecords) {
+            trackDetail = createSessionTrackView(trackedGroups, dateDetails.trackRecords.groups, allSessionIds);
+        } else {
+            trackDetail = createLoadingDetail();
+        }
         layout.appendChild(trackDetail);
-    } else if (selectedGroup) {
-        layout.appendChild(
-            createDetailView(
-                buildSessionDetailTitle(selectedGroup),
-                buildSessionDetailMeta(selectedGroup),
-                selectedGroup.summary,
-                selectedGroup.totals,
-                selectedGroup.records,
-                allSessionIds
-            )
-        );
-    } else if (allRecords.length > 0) {
-        layout.appendChild(
-            createDetailView(t('All Sessions', '全部会话'), undefined, allSummary, allTotals, allRecords, allSessionIds)
-        );
+    } else if (selectedGroup || view) {
+        // 会话模式下选中组必然存在（摘要与视图同源）；all 模式下直接展示
+        if (view && (displayGroup || view.mode === 'all')) {
+            layout.appendChild(
+                createDetailView(
+                    displayGroup ? buildSessionDetailTitle(displayGroup) : t('All Sessions', '全部会话'),
+                    displayGroup ? buildSessionDetailMeta(displayGroup) : undefined,
+                    view.summary,
+                    view.totals,
+                    view.recoveryDebug,
+                    view.records,
+                    view.totalItems,
+                    view.page,
+                    allSessionIds
+                )
+            );
+        } else {
+            layout.appendChild(createLoadingDetail());
+        }
+    } else if ((dateDetails?.allSummary.requestCount ?? 0) > 0) {
+        // 有记录但明细未拉取到（初次加载/切换视图）
+        layout.appendChild(createLoadingDetail());
     } else {
         const detail = createElement('div', 'records-detail');
         const empty = createElement('div', 'empty-message');
@@ -1149,7 +1295,9 @@ export function createRequestRecordsSection(
     // 会话过多、每块仅剩 1 行仍放不下时，放开固定高度让布局随内容增长（由页面级滚动接管）
     if (trackDetail && container.isConnected && !trimSessionTrackViewToFit(trackDetail)) {
         layout.classList.add('records-layout-grow');
-        trackDetail.replaceWith(createSessionTrackView(trackedGroups, allSessionIds));
+        trackDetail.replaceWith(
+            createSessionTrackView(trackedGroups, dateDetails?.trackRecords?.groups ?? [], allSessionIds)
+        );
     }
 
     return container;
