@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.26.29",
+    "version": "0.26.33",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -1460,6 +1460,13 @@
                 "default": {
                     "fontPath": "./fonts/openai.ttf",
                     "fontCharacter": "\\eac8"
+                }
+            },
+            "gcmp-opencode": {
+                "description": "OpenCode",
+                "default": {
+                    "fontPath": "./fonts/opencode.ttf",
+                    "fontCharacter": "\\e776"
                 }
             },
             "gcmp-cline": {

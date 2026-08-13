@@ -100,6 +100,9 @@ export class ApiKeyManager {
             type: 'apiKeyChanged',
             payload: { provider, action: apiKey ? 'set' : 'delete' }
         });
+
+        await StatusBarManager.getStatusBar(provider)?.checkAndShowStatus();
+        await StatusBarManager.compatible?.refreshAfterApiKeyChange(provider);
     }
 
     /**
@@ -114,6 +117,9 @@ export class ApiKeyManager {
             type: 'apiKeyChanged',
             payload: { provider, action: 'delete' }
         });
+
+        await StatusBarManager.getStatusBar(provider)?.checkAndShowStatus();
+        await StatusBarManager.compatible?.refreshAfterApiKeyChange(provider);
     }
 
     /**
@@ -259,17 +265,8 @@ export class ApiKeyManager {
                 await this.setApiKey(provider, apiKey.trim());
                 vscode.window.showInformationMessage(t('Saved the {0} API key.', '已设置 {0} API密钥。', displayName));
             }
-            // API密钥更改后，相关组件会通过ConfigManager的配置监听器自动更新
+            // API密钥更改后，相关组件会自动更新
             Logger.debug(`API key updated: ${provider}`);
-
-            // API密钥 设置后，更新状态栏
-            if (provider === 'deepseek' || provider === 'moonshot') {
-                try {
-                    StatusBarManager.checkAndShowStatus(provider);
-                } catch (error) {
-                    Logger.warn('Failed to update status bar:', provider, error);
-                }
-            }
         }
     }
 }

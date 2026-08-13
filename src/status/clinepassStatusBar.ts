@@ -56,7 +56,7 @@ export class ClinePassStatusBar extends ProviderStatusBarItem<ClinePassStatusDat
             id: 'gcmp.statusBar.clinepass',
             name: 'GCMP: ClinePass Usage',
             alignment: vscode.StatusBarAlignment.Right,
-            priority: 16,
+            priority: 26,
             refreshCommand: 'gcmp.clinepass.refreshUsage',
             apiKeyProvider: 'clinepass',
             cacheKeyPrefix: 'clinepass',

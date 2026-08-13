@@ -480,9 +480,9 @@ export interface ModelOverride {
  */
 export interface UsageComputedField {
     /** 简单数值计算方式 */
-    operation: 'sum' | 'subtract';
-    /** 参与计算的字段路径 */
-    paths: string[];
+    operation: 'sum' | 'subtract' | 'multiply' | 'divide';
+    /** 参与计算的字段路径，number 表示常量值 */
+    paths: (string | number)[];
     /** 缺失路径是否按 0 处理（可选） */
     treatMissingAsZero?: boolean;
 }

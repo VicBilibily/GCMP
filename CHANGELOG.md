@@ -2,6 +2,66 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.33] - 2026-08-13
+
+### 新增
+
+- **新增 Grok 4.6 模型**：xAI 最新旗舰，500K Token 上下文，支持推理档位（low/medium/high）与联网搜索，可按官方定价分层计费。
+- **ClinePass 新增 Qwen3.8-Max 模型**：`cline-pass/qwen3.8-max` 支持工具调用与图片输入，百万 Token 上下文，按 ClinePass 规格计费。
+- **DeepSeek-V4-Pro 改用 OpenAI Responses 接口**：`deepseek-v4-pro` 由 Anthropic 接口切换为 `openai-responses`，并新增联网搜索工具支持。
+
+### 变更
+
+- **OpenCode 的 DeepSeek-V4 系列新增 `low` 推理档位**：补齐 reasoning effort 的 `low` 选项，覆盖 flash/pro 的 GO 与 ZEN 接入。
+
+---
+
+### Added
+
+- **Added Grok 4.6**: xAI's newest flagship with a 500K-token context window, reasoning tiers (low/medium/high), and web-search support, billed at the official tiered pricing.
+- **Added Qwen3.8-Max to ClinePass**: `cline-pass/qwen3.8-max` supports tool calling and image input with a 1M-token context window, billed per ClinePass pricing.
+- **DeepSeek-V4-Pro now uses the OpenAI Responses API**: `deepseek-v4-pro` switched from the Anthropic API to `openai-responses` and gained web-search tool support.
+
+### Changed
+
+- **OpenCode's DeepSeek-V4 family now offers a `low` reasoning effort tier**: the `low` option was added across the GO and ZEN entries of flash/pro.
+
+## [0.26.32] - 2026-08-12
+
+### 新增
+
+- **Charm Hyper 余额接入 Compatible 状态栏**：Hyper 现在作为内置余额查询并入 Compatible 状态栏；预置查询会优先加入查询队列并与自定义接入一起展示。
+
+---
+
+### Added
+
+- **Charm Hyper balance is now surfaced in the Compatible status bar**: Hyper is now bundled as a built-in balance query in the Compatible status bar; built-in queries are added to the queue ahead of custom entries.
+
+## [0.26.31] - 2026-08-12
+
+### 新增
+
+- **新增 OpenCode 用量状态栏**：支持通过 OpenCode 官方已上线的用量接口查询 Go 套餐的滚动 / 每周 / 每月额度，并在状态栏与 Tooltip 中显示剩余百分比、倒计时和重置时间。
+
+---
+
+### Added
+
+- **Added OpenCode usage status bar**: GCMP can now query the officially deployed OpenCode usage endpoint and display Go plan rolling / weekly / monthly quota windows in the status bar and tooltip, including remaining percentage, countdown, and reset time.
+
+## [0.26.30] - 2026-08-11
+
+### 新增
+
+- **Compatible 自定义余额/用量查询支持乘除与常量换算**：`gcmp.providerOverrides.{provider}.usage` / `usages` 的计算字段新增 `multiply` / `divide`，`paths` 现在也可直接写常量数值，支持 `quota / 500000` 这类 Ticket 到真实货币余额的换算场景。
+
+---
+
+### Added
+
+- **Compatible custom balance/usage queries now support multiplication, division, and constant-value conversions**: computed fields in `gcmp.providerOverrides.{provider}.usage` / `usages` now support `multiply` and `divide`, and `paths` can include constant numbers directly, enabling conversions such as `quota / 500000` from Ticket units to real currency balance.
+
 ## [0.26.29] - 2026-08-10
 
 ### 修复

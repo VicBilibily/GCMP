@@ -1,11 +1,53 @@
 ﻿import { ModelOverride, ProviderConfig, ProviderOverride } from '../../types/sharedTypes';
 
+/**
+ * 已知提供商配置
+ * 包含 ProviderConfig 与 ProviderOverride 的可选字段，及针对 SDK 的兼容策略
+ */
 export interface KnownProviderConfig extends Partial<ProviderConfig & ProviderOverride> {
     /** 针对 OpenAI SDK 的兼容策略 */
     openai?: Omit<ModelOverride, 'id'>;
     /** 针对 Anthropic SDK 的兼容策略 */
     anthropic?: Omit<ModelOverride, 'id'>;
 }
+
+/**
+ * 解析内置 provider 配置：InnerProviders 优先合并 KnownProviders。
+ * KnownProviders 中有同名条目时，InnerProviders 的 usage/displayName 覆盖之。
+ */
+export function resolveBuiltinProviderConfig(providerId: string): KnownProviderConfig | undefined {
+    const inner = InnerProviders[providerId];
+    const known = KnownProviders[providerId];
+    if (!inner && !known) {
+        return undefined;
+    }
+
+    return {
+        ...known,
+        ...inner
+    };
+}
+
+/**
+ * 预置余额查询配置
+ * 无需配置对应模型即会被 Compatible 状态栏加入查询队列（见 CompatibleStatusBar.getConfiguredProviderEntries）
+ */
+export const InnerProviders: Record<string, Pick<KnownProviderConfig, 'displayName' | 'usage'>> = {
+    hyper: {
+        displayName: 'Charm Hyper',
+        usage: {
+            url: 'https://hyper.charm.land/v1/credits',
+            errorMessagePath: 'error.message',
+            unit: 'USD',
+            fields: {
+                balance: {
+                    operation: 'divide',
+                    paths: ['balance', 20] // Charm Hyper 的 Credits 价值为 $5/100Credits
+                }
+            }
+        }
+    }
+};
 
 /**
  * 内置已知的提供商及部分适配信息
@@ -33,6 +75,24 @@ export const KnownProviders: Record<string, KnownProviderConfig> = {
             }
         }
     },
+    // micuapi: {
+    //     displayName: '米醋API',
+    //     usage: {
+    //         url: 'https://www.micuapi.ai/api/user/self', // NewApi 个人信息查询接口
+    //         authType: 'none', // 设置为 none，表示不使用任何内置的认证方式，而是使用自定义的请求验证信息
+    //         headers: {
+    //             'New-Api-User': '1234', // 个人设置中显示的ID
+    //             Authorization: 'Bearer xxxx' // xxxx 为个人设置中的安全设置选项卡中生成的系统访问令牌
+    //         },
+    //         unit: 'RMB',
+    //         fields: {
+    //             balance: {
+    //                 operation: 'divide',
+    //                 paths: ['data.quota', 500000]
+    //             }
+    //         }
+    //     }
+    // },
     aiping: {
         displayName: 'AIPing',
         usage: {

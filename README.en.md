@@ -469,6 +469,8 @@ For a `Compatible` custom provider, you can configure the following under `gcmp.
 - `usage`: optional; for a single balance query, configuring only this is enough, and it can also serve as the shared defaults for `usages`
 - `usages`: optional; use this only when you need multiple named balance/amount query modes, and each item can incrementally override fields from `usage`
 
+`fields.balance` computed fields now support `sum` / `subtract` / `multiply` / `divide`, and `paths` can contain JSON field paths or constant numbers (for example, `500000`), which is useful for conversions like `Ticket / 500000`.
+
 In other words:
 
 - configure only `usage`: a single balance query

@@ -2321,22 +2321,34 @@ export class JsonSchemaProvider {
                     type: 'object',
                     required: ['operation', 'paths'],
                     description: t(
-                        'Simple numeric calculation based on multiple JSON paths.',
-                        '基于多个 JSON 路径的简单数值计算。'
+                        'Simple numeric calculation based on JSON field paths or constant values.',
+                        '基于 JSON 字段路径或常量值的简单数值计算。'
                     ),
                     properties: {
                         operation: {
                             type: 'string',
-                            enum: ['sum', 'subtract'],
+                            enum: ['sum', 'subtract', 'multiply', 'divide'],
                             description: t('Calculation operation', '计算方式')
                         },
                         paths: {
                             type: 'array',
                             minItems: 1,
                             items: {
-                                type: 'string'
+                                oneOf: [
+                                    {
+                                        type: 'string',
+                                        description: t('JSON field path', 'JSON 字段路径')
+                                    },
+                                    {
+                                        type: 'number',
+                                        description: t('Constant value', '常量值')
+                                    }
+                                ]
                             },
-                            description: t('JSON paths used by the calculation', '参与计算的 JSON 路径')
+                            description: t(
+                                'JSON field paths or constant values used by the calculation',
+                                '参与计算的 JSON 字段路径或常量值'
+                            )
                         },
                         treatMissingAsZero: {
                             type: 'boolean',

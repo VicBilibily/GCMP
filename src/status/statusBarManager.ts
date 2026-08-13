@@ -12,6 +12,7 @@ import { MoonshotStatusBar } from './moonshotStatusBar';
 import { ZhipuStatusBar } from './zhipuStatusBar';
 import { ChatGPTStatusBar } from './chatgptStatusBar';
 import { GrokStatusBar } from './grokStatusBar';
+import { OpenCodeStatusBar } from './opencodeStatusBar';
 import { CompatibleStatusBar } from './compatibleStatusBar';
 import { ContextUsageStatusBar } from './contextUsageStatusBar';
 import { TokenUsageStatusBar } from './tokenUsageStatusBar';
@@ -30,6 +31,7 @@ interface ICompatibleStatusBar extends IStatusBar {
     /** @deprecated Use delayedUpdate with providerId instead */
     delayedUpdate(delayMs?: number): void;
     delayedUpdate(providerId: string, delayMs?: number): void;
+    refreshAfterApiKeyChange(providerId: string): Promise<void>;
 }
 
 /**
@@ -53,6 +55,8 @@ export class StatusBarManager {
     static codex: IStatusBar | undefined;
     /** Grok 用量查询状态栏 */
     static grok: IStatusBar | undefined;
+    /** OpenCode 用量查询状态栏 */
+    static opencode: IStatusBar | undefined;
     /** ClinePass 用量查询状态栏 */
     static clinepass: IStatusBar | undefined;
     /** Compatible 提供商状态栏 */
@@ -98,6 +102,10 @@ export class StatusBarManager {
         // 创建并注册 Grok 状态栏
         const grokStatusBar = new GrokStatusBar();
         this.registerStatusBar('grok', grokStatusBar);
+
+        // 创建并注册 OpenCode 状态栏
+        const opencodeStatusBar = new OpenCodeStatusBar();
+        this.registerStatusBar('opencode', opencodeStatusBar);
 
         // 创建并注册 ClinePass 状态栏
         const clinepassStatusBar = new ClinePassStatusBar();
@@ -150,6 +158,9 @@ export class StatusBarManager {
                 break;
             case 'grok':
                 this.grok = statusBar;
+                break;
+            case 'opencode':
+                this.opencode = statusBar;
                 break;
             case 'clinepass':
                 this.clinepass = statusBar;
@@ -274,6 +285,7 @@ export class StatusBarManager {
         this.moonshot = undefined;
         this.codex = undefined;
         this.grok = undefined;
+        this.opencode = undefined;
         this.clinepass = undefined;
         this.compatible = undefined;
         this.contextUsage = undefined;
