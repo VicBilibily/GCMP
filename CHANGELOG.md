@@ -2,6 +2,30 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.33] - 2026-08-13
+
+### 新增
+
+- **新增 Grok 4.6 模型**：xAI 最新旗舰，500K Token 上下文，支持推理档位（low/medium/high）与联网搜索，可按官方定价分层计费。
+- **ClinePass 新增 Qwen3.8-Max 模型**：`cline-pass/qwen3.8-max` 支持工具调用与图片输入，百万 Token 上下文，按 ClinePass 规格计费。
+- **DeepSeek-V4-Pro 改用 OpenAI Responses 接口**：`deepseek-v4-pro` 由 Anthropic 接口切换为 `openai-responses`，并新增联网搜索工具支持。
+
+### 变更
+
+- **OpenCode 的 DeepSeek-V4 系列新增 `low` 推理档位**：补齐 reasoning effort 的 `low` 选项，覆盖 flash/pro 的 GO 与 ZEN 接入。
+
+---
+
+### Added
+
+- **Added Grok 4.6**: xAI's newest flagship with a 500K-token context window, reasoning tiers (low/medium/high), and web-search support, billed at the official tiered pricing.
+- **Added Qwen3.8-Max to ClinePass**: `cline-pass/qwen3.8-max` supports tool calling and image input with a 1M-token context window, billed per ClinePass pricing.
+- **DeepSeek-V4-Pro now uses the OpenAI Responses API**: `deepseek-v4-pro` switched from the Anthropic API to `openai-responses` and gained web-search tool support.
+
+### Changed
+
+- **OpenCode's DeepSeek-V4 family now offers a `low` reasoning effort tier**: the `low` option was added across the GO and ZEN entries of flash/pro.
+
 ## [0.26.32] - 2026-08-12
 
 ### 新增

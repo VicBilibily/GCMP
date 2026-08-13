@@ -106,9 +106,19 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [0.3, 1.2, 0.06]
+        },
+        {
+            "id": "cline-pass/qwen3.8-max",
+            "name": "Qwen3.8-Max (ClinePass)",
+            "tooltip": "ClinePass — Qwen3.8 Max。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [2, 6, 0.25, 2.5]
         },
         {
             "id": "cline-pass/qwen3.7-max",
@@ -118,7 +128,6 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [2.5, 7.5, 0.5, 3.125]
         },
@@ -130,7 +139,6 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [0.4, 1.6, 0.04, 0.5],

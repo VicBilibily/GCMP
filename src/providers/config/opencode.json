@@ -239,7 +239,7 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinkingFormat": "object-none",
-            "reasoningEffort": ["high", "max", "none"],
+            "reasoningEffort": ["high", "max", "low", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [0.435, 0.87, 0.003625]
         },
@@ -254,7 +254,7 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinkingFormat": "object-none",
-            "reasoningEffort": ["high", "max", "none"],
+            "reasoningEffort": ["high", "max", "low", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [0.14, 0.28, 0.0028]
         },
@@ -281,7 +281,7 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinkingFormat": "object-none",
-            "reasoningEffort": ["high", "max", "none"],
+            "reasoningEffort": ["high", "max", "low", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [0.14, 0.28, 0.028]
         },
@@ -296,7 +296,7 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinkingFormat": "object-none",
-            "reasoningEffort": ["high", "max", "none"],
+            "reasoningEffort": ["high", "max", "low", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [1.74, 3.48, 0.145]
         },

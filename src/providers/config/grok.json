@@ -4,6 +4,23 @@
     "apiKeyTemplate": "Bearer xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
+            "id": "grok-4.6",
+            "name": "Grok 4.6",
+            "tooltip": "xAI 的 Grok 4.6 旗舰编程模型，通过 Grok Build OAuth 登录态访问。",
+            "sdkMode": "openai-responses",
+            "contextSize": [500000, 256000, 192000],
+            "maxInputTokens": 436000,
+            "maxOutputTokens": 64000,
+            "reasoningDefault": "high",
+            "reasoningEffort": ["low", "medium", "high"],
+            "webSearchTool": true,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": [2, 6, 0.5],
+                "tiers": [{ "contextSizeMin": 200001, "pricing": [4, 12, 1] }]
+            }
+        },
+        {
             "id": "grok-4.5",
             "name": "Grok 4.5",
             "tooltip": "xAI 的 Grok 4.5 编程模型，通过 Grok Build OAuth 登录态访问。",
