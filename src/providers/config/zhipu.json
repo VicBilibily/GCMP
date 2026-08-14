@@ -4,15 +4,15 @@
     "apiKeyTemplate": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxx",
     "models": [
         {
-            "id": "glm-5.2",
-            "name": "GLM-5.2 (CodingPlan)",
+            "id": "glm-5.3",
+            "name": "GLM-5.3 (CodingPlan)",
             "sdkMode": "anthropic",
             "baseUrl": "https://open.bigmodel.cn/api/anthropic",
-            "tooltip": "GLM-5.2 是面向长任务时代的旗舰模型。支持真正可用的 1M 上下文，实测可承载项目级工程上下文，长程任务执行更稳定、工程规范遵循更可靠，开发场景成功率进一步提升。一次任务即可完成“从需求到多端可部署产物”的完整开发链路。",
+            "tooltip": "智谱最新旗舰模型，以极致后训练 Scaling 实现能力跃迁。在与 GLM-5.2 完全相同的基座上，依托数十倍规模的长程任务环境、更丰富多样的环境类型与超长周期的后训练，编程体感较前代提升 50%，并在 Terminal Bench 3.0 等公开基准中位列开源模型第一；同时涌现出强大的网络安全能力，在白盒代码审查、漏洞发现等任务中的表现接近 Mythos 5。",
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "reasoningEffort": ["high", "max", "none"],
+            "reasoningEffort": ["high", "max", "low"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": { "USD": [1.4, 4.4, 0.26], "RMB": [8, 28, 2] }
         },

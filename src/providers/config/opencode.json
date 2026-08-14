@@ -17,6 +17,21 @@
             "tokenPricing": [2, 6, 0.5]
         },
         {
+            "id": "glm-5.3-go",
+            "name": "GLM-5.3 (Go)",
+            "model": "glm-5.3",
+            "sdkMode": "openai-sse",
+            "baseUrl": "https://opencode.ai/zen/go/v1",
+            "tooltip": "OpenCode Go 套餐 - 智谱 GLM-5.3 最新旗舰模型。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low"],
+            "thinkingFormat": "object-none",
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [1.4, 4.4, 0.26]
+        },
+        {
             "id": "glm-5.2-go",
             "name": "GLM-5.2 (Go)",
             "model": "glm-5.2",
