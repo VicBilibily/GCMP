@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.34] - 2026-08-14
+
+### 变更
+
+- **Token 用量视图性能优化**：扩展侧先推送轻量聚合摘要，明细记录改为按需分页/按跟踪会话拉取，视图刷新不再全量传输当日请求记录；摘要未变化时跳过图表与统计区重建（仅刷新明细表），消除同日实时刷新时的图表闪烁；翻页/切会话/切日期响应均带序列号防竞态，切换日期后等待首个明细响应到达再展示内容。
+
+---
+
+### Changed
+
+- **Token usage view performance improvements**: the extension now pushes lightweight aggregate summaries first, with detail records fetched on demand per page or tracked session, so refreshes no longer transfer the full day's request records; when the summary is unchanged, chart and stats sections are no longer rebuilt (only the detail table refreshes), eliminating chart flicker during same-day live refreshes; page/session/date-switch responses are guarded with sequence numbers, and after switching dates the UI waits for the first detail response before rendering.
+
 ## [0.26.33] - 2026-08-13
 
 ### 新增

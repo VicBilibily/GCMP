@@ -203,6 +203,16 @@ export interface TrackRecordsMessage {
     groups: Array<{ sessionId: string; records: ExtendedTokenRequestLog[] }>;
 }
 
+export interface DetailLoadErrorMessage {
+    command: 'detailLoadError';
+    date: string;
+    mode: 'all' | 'session' | 'track';
+    sessionId?: string;
+    sessionIds?: string[];
+    page?: number;
+    updateSeq: number;
+}
+
 /**
  * 实时流式指标更新消息
  */
@@ -216,6 +226,7 @@ export type HostMessage =
     | UpdateDateDetailsMessage
     | RecordsPageMessage
     | TrackRecordsMessage
+    | DetailLoadErrorMessage
     | UpdateLiveMetricsMessage;
 
 // ============= 应用状态类型 =============
@@ -252,10 +263,14 @@ export interface DateDetails {
     nativeSplitIndex: NativeCostSplitIndex;
     sessionGroups: SessionGroupSummary[];
     updateSeq: number;
+    /** 明细请求进行中时为 true；保留旧表格，避免切换时闪屏 */
+    detailLoading: boolean;
     /** 当前明细分页视图（全部会话或单个会话），null 表示尚未拉取 */
     recordsView: RecordsViewState | null;
     /** 多选跟踪视图（每会话最新 N 条），null 表示未处于跟踪模式 */
     trackRecords: TrackRecordsState | null;
+    /** 最近一次明细加载失败信息，null 表示当前无错误 */
+    detailError: DetailLoadErrorMessage | null;
 }
 
 /**

@@ -25,6 +25,7 @@ import {
     fetchDetailByCurrentView,
     getTrackedRecordsLimit,
     getTrackedSessionIds,
+    isStaleDetailError,
     isStaleDetailResponse,
     isTrackModeActive,
     refreshRequestRecordCosts,
@@ -211,6 +212,7 @@ function handleVSCodeMessage(event: MessageEvent): void {
                 : prevDetails?.recordsView?.mode === 'all' ? prevDetails.recordsView
                 : null;
             const nextTrackRecords = dateChanged || !nextTrackMode ? null : (prevDetails?.trackRecords ?? null);
+            const nextDetailLoading = dateChanged ? true : (prevDetails?.detailLoading ?? false);
 
             setState({
                 selectedDate: message.date,
@@ -228,9 +230,11 @@ function handleVSCodeMessage(event: MessageEvent): void {
                     nativeSplitIndex: message.nativeSplitIndex,
                     sessionGroups,
                     updateSeq: message.updateSeq,
+                    detailLoading: nextDetailLoading,
                     // 同日刷新仅在视图模式仍与当前选中状态一致时复用旧明细
                     recordsView: nextRecordsView,
-                    trackRecords: nextTrackRecords
+                    trackRecords: nextTrackRecords,
+                    detailError: null
                 },
                 loading: {
                     ...state.loading,
@@ -283,7 +287,9 @@ function handleVSCodeMessage(event: MessageEvent): void {
                         totals: message.totals,
                         recoveryDebug: message.recoveryDebug
                     },
-                    trackRecords: null
+                    detailLoading: false,
+                    trackRecords: null,
+                    detailError: null
                 },
                 loading: {
                     ...state.loading,
@@ -315,7 +321,36 @@ function handleVSCodeMessage(event: MessageEvent): void {
                 dateDetails: {
                     ...details,
                     trackRecords: { groups: message.groups },
-                    recordsView: null
+                    detailLoading: false,
+                    recordsView: null,
+                    detailError: null
+                },
+                loading: {
+                    ...state.loading,
+                    dateDetails: false
+                }
+            });
+            break;
+        }
+
+        case 'detailLoadError': {
+            const details = state.dateDetails;
+            if (!details || details.date !== message.date) {
+                break;
+            }
+            if (isStaleDetailError(message)) {
+                break;
+            }
+            if (message.updateSeq < details.updateSeq) {
+                break;
+            }
+            setState({
+                dateDetails: {
+                    ...details,
+                    detailLoading: false,
+                    detailError: message,
+                    recordsView: message.mode === 'track' ? null : details.recordsView,
+                    trackRecords: message.mode === 'track' ? null : details.trackRecords
                 },
                 loading: {
                     ...state.loading,

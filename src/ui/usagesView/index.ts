@@ -10,6 +10,7 @@ import { TokenUsagesManager } from '../../usages/usagesManager';
 import { StatusLogger } from '../../utils/runtime/statusLogger';
 import { t } from '../../utils/runtime/l10n';
 import {
+    DetailLoadErrorMessage,
     RecordsPageMessage,
     TrackRecordsMessage,
     UpdateDateDetailsMessage,
@@ -512,6 +513,14 @@ export class TokenUsagesView {
             } as RecordsPageMessage);
         } catch (err) {
             StatusLogger.error('[TokenUsagesView] Failed to get records page:', err);
+            await panel.webview.postMessage({
+                command: 'detailLoadError',
+                date: message.date,
+                mode: message.mode === 'session' && message.sessionId ? 'session' : 'all',
+                sessionId: message.sessionId,
+                page: message.page,
+                updateSeq: this.detailSeq
+            } as DetailLoadErrorMessage);
         }
     }
 
@@ -544,6 +553,13 @@ export class TokenUsagesView {
             } as TrackRecordsMessage);
         } catch (err) {
             StatusLogger.error('[TokenUsagesView] Failed to get track records:', err);
+            await panel.webview.postMessage({
+                command: 'detailLoadError',
+                date: message.date,
+                mode: 'track',
+                sessionIds: message.sessionIds,
+                updateSeq: this.detailSeq
+            } as DetailLoadErrorMessage);
         }
     }
 

@@ -4,6 +4,7 @@
  */
 
 import type {
+    DetailLoadErrorMessage,
     ExtendedTokenRequestLog,
     RecordsPageMessage,
     RequestTotals,
@@ -194,6 +195,29 @@ export function isStaleDetailResponse(message: RecordsPageMessage | TrackRecords
     );
 }
 
+export function isStaleDetailError(message: DetailLoadErrorMessage): boolean {
+    const last = lastDetailRequest;
+    if (!last || last.date !== message.date) {
+        return true;
+    }
+    if (message.mode === 'track') {
+        const messageSessionIds = message.sessionIds;
+        return (
+            last.command !== 'getTrackRecords' ||
+            !last.sessionIds ||
+            !messageSessionIds ||
+            last.sessionIds.length !== messageSessionIds.length ||
+            last.sessionIds.some(id => !messageSessionIds.includes(id))
+        );
+    }
+    return (
+        last.command !== 'getRecordsPage' ||
+        last.mode !== message.mode ||
+        last.sessionId !== message.sessionId ||
+        last.page !== message.page
+    );
+}
+
 /**
  * 按当前视图状态向扩展侧拉取明细：
  * 跟踪模式拉每会话最新 N 条；分页模式拉当前页（无视图数据时按选中会话或全部会话第 1 页）
@@ -328,7 +352,11 @@ function changeSelectedSession(sessionId: string | null, multiSelectKey = false)
         isSessionPopoverOpen = false;
     }
 
-    window.usagesSetLoading?.('dateDetails', true);
+    const details = getCurrentDateDetails();
+    if (details) {
+        details.detailLoading = true;
+        details.detailError = null;
+    }
     fetchDetailByCurrentView(true);
     rerenderRequestRecords();
 }
@@ -344,7 +372,8 @@ function changePage(page: number): void {
     }
 
     // 乐观更新页码，响应到达后刷新数据
-    details.recordsView = { ...view, page };
+    details.detailLoading = true;
+    details.detailError = null;
     const params = {
         command: 'getRecordsPage' as const,
         date: details.date,
@@ -1050,12 +1079,22 @@ function createDetailView(
     records: ExtendedTokenRequestLog[],
     totalItems: number,
     page: number,
-    visibleSessionIds: Set<string>
+    visibleSessionIds: Set<string>,
+    isRefreshing = false
 ): HTMLElement {
     const detail = createElement('div', 'records-detail');
     detail.appendChild(createDetailHeader(titleText, summary, recoveryDebug, metaText));
+    if (isRefreshing) {
+        detail.classList.add('records-detail-refreshing');
+    }
 
     const content = createElement('div', 'records-detail-content');
+
+    if (isRefreshing) {
+        const hint = createElement('div', 'empty-message');
+        hint.textContent = t('Refreshing...', '刷新中...');
+        content.appendChild(hint);
+    }
 
     const totalPages = Math.ceil(totalItems / PAGE_SIZE) || 1;
 
@@ -1082,11 +1121,21 @@ function createDetailView(
 function createSessionTrackView(
     trackedGroups: SessionGroupSummary[],
     trackGroups: Array<{ sessionId: string; records: ExtendedTokenRequestLog[] }>,
-    visibleSessionIds: Set<string>
+    visibleSessionIds: Set<string>,
+    isRefreshing = false
 ): HTMLElement {
     const detail = createElement('div', 'records-detail records-detail-multi');
+    if (isRefreshing) {
+        detail.classList.add('records-detail-refreshing');
+    }
     const content = createElement('div', 'records-detail-content');
     const limit = getTrackedRecordsLimit(trackedGroups.length);
+
+    if (isRefreshing) {
+        const hint = createElement('div', 'empty-message');
+        hint.textContent = t('Refreshing...', '刷新中...');
+        content.appendChild(hint);
+    }
 
     trackedGroups.forEach(group => {
         const records = trackGroups.find(item => item.sessionId === group.sessionId)?.records ?? [];
@@ -1188,6 +1237,14 @@ function createLoadingDetail(): HTMLElement {
     return detail;
 }
 
+function createErrorDetail(): HTMLElement {
+    const detail = createElement('div', 'records-detail');
+    const error = createElement('div', 'empty-message');
+    error.textContent = t('Failed to load request records', '加载请求记录失败');
+    detail.appendChild(error);
+    return detail;
+}
+
 /**
  * 重置请求记录区域的内部状态（浮窗等）
  */
@@ -1247,32 +1304,44 @@ export function createRequestRecordsSection(
                 .sort((a, b) => (b.summary.startTime || 0) - (a.summary.startTime || 0))
         :   [];
     const view = dateDetails?.recordsView;
-    const displayGroup =
+    const viewGroup =
         view?.mode === 'session' && view.sessionId ?
             visibleSessionGroups.find(group => group.sessionId === view.sessionId)
         :   undefined;
+    const detailError = dateDetails?.detailError;
+    const detailLoading = dateDetails?.detailLoading === true;
     let trackDetail: HTMLElement | undefined;
     if (isTrackMode) {
-        if (dateDetails?.trackRecords) {
-            trackDetail = createSessionTrackView(trackedGroups, dateDetails.trackRecords.groups, allSessionIds);
+        if (detailError?.mode === 'track') {
+            trackDetail = createErrorDetail();
+        } else if (dateDetails?.trackRecords) {
+            trackDetail = createSessionTrackView(
+                trackedGroups,
+                dateDetails.trackRecords.groups,
+                allSessionIds,
+                detailLoading
+            );
         } else {
             trackDetail = createLoadingDetail();
         }
         layout.appendChild(trackDetail);
     } else if (selectedGroup || view) {
         // 会话模式下选中组必然存在（摘要与视图同源）；all 模式下直接展示
-        if (view && (displayGroup || view.mode === 'all')) {
+        if (detailError && detailError.mode !== 'track') {
+            layout.appendChild(createErrorDetail());
+        } else if (view && (viewGroup || view.mode === 'all')) {
             layout.appendChild(
                 createDetailView(
-                    displayGroup ? buildSessionDetailTitle(displayGroup) : t('All Sessions', '全部会话'),
-                    displayGroup ? buildSessionDetailMeta(displayGroup) : undefined,
+                    viewGroup ? buildSessionDetailTitle(viewGroup) : t('All Sessions', '全部会话'),
+                    viewGroup ? buildSessionDetailMeta(viewGroup) : undefined,
                     view.summary,
                     view.totals,
                     view.recoveryDebug,
                     view.records,
                     view.totalItems,
                     view.page,
-                    allSessionIds
+                    allSessionIds,
+                    detailLoading
                 )
             );
         } else {
@@ -1280,7 +1349,7 @@ export function createRequestRecordsSection(
         }
     } else if ((dateDetails?.allSummary.requestCount ?? 0) > 0) {
         // 有记录但明细未拉取到（初次加载/切换视图）
-        layout.appendChild(createLoadingDetail());
+        layout.appendChild(detailError ? createErrorDetail() : createLoadingDetail());
     } else {
         const detail = createElement('div', 'records-detail');
         const empty = createElement('div', 'empty-message');
@@ -1296,7 +1365,7 @@ export function createRequestRecordsSection(
     if (trackDetail && container.isConnected && !trimSessionTrackViewToFit(trackDetail)) {
         layout.classList.add('records-layout-grow');
         trackDetail.replaceWith(
-            createSessionTrackView(trackedGroups, dateDetails?.trackRecords?.groups ?? [], allSessionIds)
+            createSessionTrackView(trackedGroups, dateDetails?.trackRecords?.groups ?? [], allSessionIds, detailLoading)
         );
     }
 
