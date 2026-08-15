@@ -23,6 +23,7 @@ export interface RetryConfig {
 
 export interface RetryExecutionOptions {
     shouldCancel?: () => boolean;
+    getRetryDelayMs?: (error: RetryableError, defaultDelayMs: number) => number | undefined;
     /** 重试已调度回调，在延迟等待开始时调用（用于显示倒计时等） */
     onRetryScheduled?: (attempt: number, maxAttempts: number, delayMs: number) => void;
     /** 重试进度回调，每次重试尝试前调用（attempt 从 1 开始） */
@@ -37,6 +38,7 @@ export type RetryableError = Error & {
     statusCode?: number;
     code?: string | number;
     message?: string;
+    headers?: { get(name: string): string | null };
 };
 
 /**
@@ -121,7 +123,12 @@ export class RetryManager {
             attempt++;
 
             // 计算延迟时间
-            const actualDelayMs = this.calculateDelayMs(attempt);
+            const defaultDelayMs = this.calculateDelayMs(attempt);
+            const requestedDelayMs = lastError ? options?.getRetryDelayMs?.(lastError, defaultDelayMs) : undefined;
+            const actualDelayMs =
+                typeof requestedDelayMs === 'number' && Number.isFinite(requestedDelayMs) && requestedDelayMs >= 0 ?
+                    Math.min(requestedDelayMs, this.config.maxDelayMs)
+                :   defaultDelayMs;
             Logger.info(`[${providerName}] Retrying in ${actualDelayMs / 1000}s...`);
 
             // 通知外部：重试已调度，即将等待 delayMs

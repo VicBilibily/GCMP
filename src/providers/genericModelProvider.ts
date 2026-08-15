@@ -29,6 +29,7 @@ import * as liveMetrics from '../handlers/liveMetrics';
 import { OpenAIHandler } from '../handlers/openaiHandler';
 import { OpenAICustomHandler } from '../handlers/openaiCustomHandler';
 import { AnthropicHandler } from '../handlers/anthropicHandler';
+import { getAnthropicRetryDelayMs, shouldRetryAnthropicRequest } from '../handlers/anthropic/anthropicRetry';
 import { ContextUsageStatusBar } from '../status/contextUsageStatusBar';
 import { TokenUsagesManager } from '../usages/usagesManager';
 import { OpenAIResponsesHandler } from '../handlers/openaiResponsesHandler';
@@ -693,10 +694,14 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         );
                     }
                 },
-                error => this.shouldRetryRequest(error),
+                error => {
+                    const fallback = this.shouldRetryRequest(error);
+                    return sdkMode === 'anthropic' ? shouldRetryAnthropicRequest(error, fallback) : fallback;
+                },
                 this.providerConfig.displayName,
                 {
                     shouldCancel: () => token.isCancellationRequested,
+                    getRetryDelayMs: sdkMode === 'anthropic' ? getAnthropicRetryDelayMs : undefined,
                     onRetryScheduled: (attempt, maxAttempts, delayMs) => {
                         retryMessageDisposable?.dispose();
                         const maxLabel = maxAttempts === -1 ? '∞' : `${maxAttempts}`;

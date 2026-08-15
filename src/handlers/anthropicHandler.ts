@@ -196,6 +196,7 @@ export class AnthropicHandler {
         const proxyUrl = ConfigManager.resolveProxyForModel(modelConfig, this.provider);
         const client = new Anthropic({
             apiKey: currentApiKey,
+            maxRetries: 0,
             baseURL: baseUrl,
             authToken: currentApiKey, // 解决 Minimax 报错： Please carry the API secret key in the 'Authorization' field of the request header
             defaultHeaders: defaultHeaders,
