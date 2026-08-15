@@ -6,7 +6,7 @@
 import { createEmptyNativeCostSplit } from '../../usages/fileLogger/nativeCostSplit';
 import { USD_TO_RMB_RATE } from '../../utils/pricing/pricingCurrency';
 import type { BaseStats, HourlyStats, NativeCostSplit } from '../../usages/fileLogger/types';
-import type { ExtendedTokenRequestLog, RequestTotals, WebViewMessage } from './types';
+import type { ExtendedTokenRequestLog, LiveRequestUiState, RequestTotals, WebViewMessage } from './types';
 import { REQUEST_KIND_DISPLAY_NAMES } from '../../handlers/requestKindDisplayNames';
 import type { DisplayCurrency } from '../costDisplay';
 
@@ -49,6 +49,32 @@ export function getDefaultDisplayCurrency(): DisplayCurrency {
 
 export function getDisplayCurrency(): DisplayCurrency {
     return window.usagesState?.displayCurrency ?? getDefaultDisplayCurrency();
+}
+
+export function getLiveWaitingPresentation(liveState: LiveRequestUiState | undefined): {
+    isWaiting: boolean;
+    waitTitle: string;
+    statusTitle: string;
+    queuePositionText: string;
+    queuePositionTitle: string;
+} {
+    const isWaiting = liveState?.isRateLimitWaiting === true;
+    const hasQueuePosition = (liveState?.queuePosition ?? 0) > 0;
+
+    return {
+        isWaiting,
+        waitTitle: isWaiting ? t('Waiting for rate limit grant', '等待限流放行中') : '',
+        statusTitle:
+            !isWaiting ? ''
+            : liveState.waitScope === 'leader' ? t('Waiting for leader rate limit', '等待 Leader 限流放行')
+            : liveState.waitScope === 'local' ? t('Waiting for local rate limit', '等待本地限流放行')
+            : t('Waiting for remote rate limit', '等待远端限流放行'),
+        queuePositionText: isWaiting && hasQueuePosition ? `#${liveState.queuePosition}` : '-',
+        queuePositionTitle:
+            !isWaiting ? ''
+            : hasQueuePosition ? t('Current FIFO queue position', '当前 FIFO 排队顺位')
+            : t('Waiting for rate limit grant', '等待限流放行中')
+    };
 }
 
 function hasExactRmbPricing(totals?: Pick<RequestTotals, 'rmbExactRequests'> | null): boolean {

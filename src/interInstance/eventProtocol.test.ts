@@ -43,7 +43,7 @@ test('rate limit event types are registered in the event type set', () => {
 test('parseEventsFromBuffer accepts rate limit events', () => {
     const lines = [
         '{"type":"rateLimitAcquireRequested","payload":{"requestId":"r1","bucketKey":"k","costs":{"requests":1,"tokens":10},"dims":{"rpm":60}},"timestamp":1,"senderInstanceId":"a"}',
-        '{"type":"rateLimitAcquireGranted","payload":{"requestId":"r1","granted":true,"waitMs":0,"grantId":"g1"},"timestamp":2,"senderInstanceId":"b"}',
+        '{"type":"rateLimitAcquireGranted","payload":{"requestId":"r1","waitMs":0,"grantId":"g1"},"timestamp":2,"senderInstanceId":"b"}',
         '{"type":"rateLimitQueueUpdated","payload":{"requestId":"r1","queuePosition":2},"timestamp":3,"senderInstanceId":"b"}',
         '{"type":"rateLimitAcquireCancelled","payload":{"requestId":"r1","bucketKey":"k"},"timestamp":4,"senderInstanceId":"a"}',
         '{"type":"rateLimitReleased","payload":{"grantId":"g1","refund":{"tokens":10}},"timestamp":5,"senderInstanceId":"a"}',

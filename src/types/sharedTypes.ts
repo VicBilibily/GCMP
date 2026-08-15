@@ -3,6 +3,8 @@
  *  支持多提供商的通用类型定义
  *--------------------------------------------------------------------------------------------*/
 
+export type RateLimitWaitScope = 'leader' | 'local' | 'ipc';
+
 export interface ModelChatResponseOptions {
     /**
      * 深度思考模式

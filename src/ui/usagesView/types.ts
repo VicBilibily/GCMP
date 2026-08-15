@@ -14,10 +14,11 @@ import type {
 } from '../../usages/fileLogger/types';
 import type { ExtendedTokenRequestLog } from '../../usages/fileLogger/usageParser';
 import type { LiveStreamMetricEvent } from '../../handlers/liveMetrics';
+import type { RateLimitWaitScope } from '../../types/sharedTypes';
 
 export interface LiveRequestUiState {
     isRateLimitWaiting: boolean;
-    waitScope?: 'leader' | 'local' | 'ipc';
+    waitScope?: RateLimitWaitScope;
     queuePosition?: number;
 }
 

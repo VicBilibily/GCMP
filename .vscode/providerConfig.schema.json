@@ -41,7 +41,7 @@
             }
         },
         "limit": {
-            "$ref": "#/$defs/rateLimitConfig",
+            "allOf": [{ "$ref": "#/$defs/rateLimitConfig" }],
             "description": "内置预置限流配置（可选）。优先级与 retry 一致：providerOverrides 的 limit 覆盖此预置。"
         },
         "models": {
@@ -80,7 +80,7 @@
     },
     "patternProperties": {
         "^limit\\..+": {
-            "$ref": "#/$defs/rateLimitConfig",
+            "allOf": [{ "$ref": "#/$defs/rateLimitConfig" }],
             "description": "子 provider 级别的限流配置覆盖（可选）。为指定子 provider（如 \"limit.xfyun-coding\"）配置独立的限流策略。字段语义与顶层 limit 一致。"
         },
         "^retry\\..+": {
@@ -563,7 +563,7 @@
                     "$ref": "#/$defs/tokenPricing"
                 },
                 "limit": {
-                    "$ref": "#/$defs/rateLimitConfig",
+                    "allOf": [{ "$ref": "#/$defs/rateLimitConfig" }],
                     "description": "模型级别的限流配置（可选）。设置后该模型使用独立的限流桶，字段级覆盖 provider 级 limit 的同名维度。"
                 }
             },

@@ -8,17 +8,15 @@
 
 import type { LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 import type { LiveRequestUiState, State } from './types';
-import { getTodayDateString, t } from './utils';
+import { getLiveWaitingPresentation, getTodayDateString, t } from './utils';
 
 /**
  * 单个请求的实时流式指标状态
  *
- * 注意：后端事件里的 requestStartTime 已经是当前 attempt 的开始时间
- *（GenericModelProvider 每次 retry 都会用 liveAttemptStartTime 重建 handler 与 StreamReporter），
- * 因此 attemptStartTime 用于 live TTFT 计算，displayStartTime 仅用于时间列展示。
+ * 注意：后端事件里的 requestStartTime 已经是当前 attempt 的开始时间，
+ * WebView 端直接用它计算 live TTFT。
  */
-interface LiveMetricsState {
-    displayStartTime: number; // 首次观测到的请求开始时间（时间列展示）
+interface LiveMetricsState extends LiveRequestUiState {
     attemptStartTime: number; // 当前 attempt 开始时间（live TTFT 计算）
     streamStartTime?: number; // 当前 attempt 首流事件时间
     firstChunkLatencyMs: number; // 当前 attempt 固定的首流延迟
@@ -27,12 +25,7 @@ interface LiveMetricsState {
     lastFlushSeq: number; // flush 序号（单调递增），用于过时检测判断"是否真的有新 flush"
     tokensPerSecond: number; // 实时估算的输出 token 速度（暂停期间冻结）
     lastOutputChangeAt: number; // 最后一次 flush 接收到非零 token 增量的时间
-    providerName?: string;
-    modelName?: string;
     hasFirstChunk: boolean; // 首流延迟/流开始时间已固定（retry 幂等）
-    isRateLimitWaiting: boolean;
-    waitScope?: 'leader' | 'local' | 'ipc';
-    queuePosition?: number;
 }
 
 /**
@@ -67,121 +60,64 @@ export class LiveMetricsRenderer {
     /**
      * 处理实时流式指标更新
      *
-     * 注意：后端事件里的 requestStartTime 已经是当前 attempt 的开始时间
-     *（GenericModelProvider 每次 retry 都会用 liveAttemptStartTime 重新创建 handler 与 StreamReporter），
-     * 因此 WebView 端应将 event.requestStartTime 作为 attemptStartTime 计算 live TTFT，
-     * 而不应保留“首次” requestStartTime。展示用的时间列使用单独保存的 displayStartTime。
+     * 注意：后端事件里的 requestStartTime 已经是当前 attempt 的开始时间，
+     * WebView 端应直接将其作为 attemptStartTime 计算 live TTFT。
      */
     handleEvent(event: LiveStreamMetricEvent): void {
         const { requestId } = event;
 
         switch (event.type) {
             case 'requestStarted': {
-                const existing = this.liveMetricsMap.get(requestId);
-                const state = existing ?? this.createEmptyLiveMetricsState(event);
-                // 保留首次观测到的开始时间用于展示；每次 retry 更新当前 attempt 时间
-                state.displayStartTime = existing?.displayStartTime ?? event.requestStartTime;
-                state.attemptStartTime = event.requestStartTime;
+                const state = this.getOrCreateState(requestId, event);
+                this.syncAttemptState(state, event);
                 state.streamStartTime = undefined;
                 state.firstChunkLatencyMs = 0;
                 state.hasFirstChunk = false;
                 this.resetAttemptOutput(state);
-                state.providerName = existing?.providerName || event.providerName;
-                state.modelName = existing?.modelName || event.modelName;
-                state.isRateLimitWaiting = false;
-                state.waitScope = undefined;
-                state.queuePosition = undefined;
-                this.liveMetricsMap.set(requestId, state);
-                this.syncWindowLiveMetricState(requestId, state);
-                this.startRenderClock();
+                this.commitState(requestId, state);
                 break;
             }
 
             case 'rateLimitWaiting': {
-                const existing = this.liveMetricsMap.get(requestId);
-                const state = existing ?? this.createEmptyLiveMetricsState(event);
-                state.displayStartTime = existing?.displayStartTime ?? event.requestStartTime;
-                state.attemptStartTime = event.requestStartTime;
-                state.providerName = existing?.providerName || event.providerName;
-                state.modelName = existing?.modelName || event.modelName;
-                state.isRateLimitWaiting = true;
-                state.waitScope = event.waitScope;
-                state.queuePosition = event.queuePosition;
-                this.liveMetricsMap.set(requestId, state);
-                this.syncWindowLiveMetricState(requestId, state);
-                this.startRenderClock();
+                const state = this.getOrCreateState(requestId, event);
+                this.syncAttemptState(state, event, event);
+                this.commitState(requestId, state);
                 break;
             }
 
             case 'firstChunk': {
                 // upsert：requestStarted 可能因面板未打开/日期切换而丢失
-                const state = this.liveMetricsMap.get(requestId) ?? this.createEmptyLiveMetricsState(event);
-                state.attemptStartTime = event.requestStartTime;
-                state.streamStartTime = event.streamStartTime;
-                state.firstChunkLatencyMs = this.computeFirstChunkLatency(
-                    event.streamStartTime,
-                    event.requestStartTime,
-                    event.firstChunkLatencyMs
-                );
-                state.hasFirstChunk = true;
-                this.resetAttemptOutput(state);
-                state.providerName = state.providerName || event.providerName;
-                state.modelName = state.modelName || event.modelName;
-                state.isRateLimitWaiting = false;
-                state.waitScope = undefined;
-                state.queuePosition = undefined;
-                this.liveMetricsMap.set(requestId, state);
-                this.syncWindowLiveMetricState(requestId, state);
-                this.startRenderClock();
+                const state = this.getOrCreateState(requestId, event);
+                this.syncAttemptState(state, event);
+                this.syncFirstChunkState(state, event, true);
+                this.commitState(requestId, state);
                 break;
             }
 
             case 'streamingUpdate': {
-                let state = this.liveMetricsMap.get(requestId);
-                if (!state) {
-                    state = this.createEmptyLiveMetricsState(event);
-                    this.liveMetricsMap.set(requestId, state);
-                    this.startRenderClock();
-                }
-                state.attemptStartTime = event.requestStartTime;
-                state.isRateLimitWaiting = false;
-                state.waitScope = undefined;
-                state.queuePosition = undefined;
+                const state = this.getOrCreateState(requestId, event);
+                this.syncAttemptState(state, event);
 
                 // 检测 attempt 切换（firstChunk 丢失时的兜底）：通过 streamStartTime 变化判断
                 const isNewAttempt =
                     event.streamStartTime !== undefined && event.streamStartTime !== state.streamStartTime;
 
                 if (isNewAttempt || !state.hasFirstChunk) {
-                    state.streamStartTime = event.streamStartTime;
-                    state.firstChunkLatencyMs = this.computeFirstChunkLatency(
-                        event.streamStartTime,
-                        event.requestStartTime,
-                        event.firstChunkLatencyMs
-                    );
-                    if (isNewAttempt) {
-                        this.resetAttemptOutput(state);
-                    }
-                    state.hasFirstChunk = true;
+                    this.syncFirstChunkState(state, event, isNewAttempt);
                 }
 
-                // 用 flushSeq 判断"是否真的有新 flush 到达"，避免稳定速度下 delta 值相同被误判为无变化
                 const previousSeq = state.lastFlushSeq;
                 const newSeq = Math.max(previousSeq, event.lastFlushSeq ?? previousSeq);
                 if (newSeq > previousSeq) {
                     state.lastOutputChangeAt = Date.now();
                 }
-                // 同步最新的 token 预估（增量 encode 累加值，由 StreamReporter 上报）
                 if (event.estimatedOutputTokens !== undefined) {
                     state.estimatedOutputTokens = event.estimatedOutputTokens;
                 }
                 state.lastOutputTokenDelta = event.lastOutputTokenDelta ?? state.lastOutputTokenDelta;
                 state.lastFlushSeq = newSeq;
                 state.tokensPerSecond = event.tokensPerSecond ?? state.tokensPerSecond;
-                // 补齐 provider/model（requestStarted 可能未被 WebView 接收到）
-                state.providerName = state.providerName || event.providerName;
-                state.modelName = state.modelName || event.modelName;
-                this.syncWindowLiveMetricState(requestId, state);
+                this.commitState(requestId, state);
                 break;
             }
 
@@ -192,8 +128,7 @@ export class LiveMetricsRenderer {
                 if (this.liveMetricsMap.size === 0) {
                     this.stopRenderClock();
                 }
-                this.render();
-                return;
+                break;
             }
         }
 
@@ -268,7 +203,6 @@ export class LiveMetricsRenderer {
 
     private createEmptyLiveMetricsState(event: LiveStreamMetricEvent): LiveMetricsState {
         return {
-            displayStartTime: event.requestStartTime,
             attemptStartTime: event.requestStartTime,
             firstChunkLatencyMs: 0,
             estimatedOutputTokens: 0,
@@ -276,13 +210,21 @@ export class LiveMetricsRenderer {
             lastFlushSeq: 0,
             tokensPerSecond: 0,
             lastOutputChangeAt: 0,
-            providerName: event.providerName,
-            modelName: event.modelName,
             hasFirstChunk: false,
             isRateLimitWaiting: false,
             waitScope: undefined,
             queuePosition: undefined
         };
+    }
+
+    private getOrCreateState(requestId: string, event: LiveStreamMetricEvent): LiveMetricsState {
+        return this.liveMetricsMap.get(requestId) ?? this.createEmptyLiveMetricsState(event);
+    }
+
+    private commitState(requestId: string, state: LiveMetricsState): void {
+        this.liveMetricsMap.set(requestId, state);
+        this.syncWindowLiveMetricState(requestId, state);
+        this.startRenderClock();
     }
 
     private syncWindowLiveMetricState(requestId: string, state?: LiveMetricsState): void {
@@ -299,28 +241,44 @@ export class LiveMetricsRenderer {
         });
     }
 
+    private syncAttemptState(
+        state: LiveMetricsState,
+        event: LiveStreamMetricEvent,
+        waitingEvent?: Pick<LiveStreamMetricEvent, 'waitScope' | 'queuePosition'>
+    ): void {
+        state.attemptStartTime = event.requestStartTime;
+        state.isRateLimitWaiting = waitingEvent !== undefined;
+        state.waitScope = waitingEvent?.waitScope;
+        state.queuePosition = waitingEvent?.queuePosition;
+    }
+
+    private syncFirstChunkState(
+        state: LiveMetricsState,
+        event: Pick<LiveStreamMetricEvent, 'streamStartTime' | 'requestStartTime' | 'firstChunkLatencyMs'>,
+        resetOutput: boolean
+    ): void {
+        state.streamStartTime = event.streamStartTime;
+        state.firstChunkLatencyMs =
+            (
+                event.streamStartTime !== undefined &&
+                Number.isFinite(event.streamStartTime) &&
+                Number.isFinite(event.requestStartTime) &&
+                event.requestStartTime > 0
+            ) ?
+                Math.max(0, event.streamStartTime - event.requestStartTime)
+            :   (event.firstChunkLatencyMs ?? 0);
+        if (resetOutput) {
+            this.resetAttemptOutput(state);
+        }
+        state.hasFirstChunk = true;
+    }
+
     private resetAttemptOutput(state: LiveMetricsState): void {
         state.estimatedOutputTokens = 0;
         state.lastOutputTokenDelta = 0;
         state.lastFlushSeq = 0;
         state.tokensPerSecond = 0;
         state.lastOutputChangeAt = 0;
-    }
-
-    private computeFirstChunkLatency(
-        streamStartTime: number | undefined,
-        attemptStartTime: number,
-        fallbackLatency?: number
-    ): number {
-        if (
-            streamStartTime !== undefined &&
-            Number.isFinite(streamStartTime) &&
-            Number.isFinite(attemptStartTime) &&
-            attemptStartTime > 0
-        ) {
-            return Math.max(0, streamStartTime - attemptStartTime);
-        }
-        return fallbackLatency ?? 0;
     }
 
     // ============= 内部：占位行 DOM 管理 =============
@@ -394,8 +352,8 @@ export class LiveMetricsRenderer {
                 return;
             }
 
-            const hasQueuePosition = (metricState.queuePosition ?? 0) > 0;
-            const isWaiting = metricState.isRateLimitWaiting && hasQueuePosition;
+            const waitingPresentation = getLiveWaitingPresentation(metricState);
+            const isWaiting = waitingPresentation.isWaiting;
 
             const statusCell = targetRow.lastElementChild as HTMLElement | null;
             const statusLabel = statusCell?.querySelector('.status-label') as HTMLElement | null;
@@ -409,10 +367,7 @@ export class LiveMetricsRenderer {
                     );
                     statusCell.classList.add('status-waiting');
                     statusLabel.textContent = 'WAIT';
-                    statusLabel.title =
-                        metricState.waitScope === 'leader' ? t('Waiting for leader rate limit', '等待 Leader 限流放行')
-                        : metricState.waitScope === 'local' ? t('Waiting for local rate limit', '等待本地限流放行')
-                        : t('Waiting for remote rate limit', '等待远端限流放行');
+                    statusLabel.title = waitingPresentation.statusTitle;
                 } else {
                     statusCell.classList.remove(
                         'status-completed',
@@ -464,11 +419,8 @@ export class LiveMetricsRenderer {
                 const tpotSpan = outputCell.querySelector('.output-tpot') as HTMLElement;
                 if (tpotSpan) {
                     if (isWaiting) {
-                        tpotSpan.textContent = hasQueuePosition ? `#${metricState.queuePosition}` : '-';
-                        tpotSpan.title =
-                            hasQueuePosition ?
-                                t('Current FIFO queue position', '当前 FIFO 排队顺位')
-                            :   t('Waiting for rate limit grant', '等待限流放行中');
+                        tpotSpan.textContent = waitingPresentation.queuePositionText;
+                        tpotSpan.title = waitingPresentation.queuePositionTitle;
                     } else {
                         tpotSpan.textContent =
                             durationMs > 0 ?

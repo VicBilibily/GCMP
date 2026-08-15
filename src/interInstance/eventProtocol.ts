@@ -3,6 +3,9 @@
  *  定义 VS Code 多窗口之间通过 IPC 传输的事件类型与序列化格式
  *--------------------------------------------------------------------------------------------*/
 
+import type { LiveStreamMetricEvent } from '../handlers/liveMetrics';
+import type { RateLimitCosts, RateLimitDimensions, RateLimitRefund } from '../rateLimit/rateLimitStore';
+
 /**
  * 跨实例事件基类
  */
@@ -119,27 +122,12 @@ export interface LeaderResigningEvent extends InterInstanceEventBase {
 /**
  * 实时流式指标已更新
  * 高频事件，仅通过 IPC 传输，不降级到文件系统。
- * payload.event 的字段语义与 LiveStreamMetricEvent 保持一致，修改时请同步更新。
  */
 export interface LiveMetricsUpdatedEvent extends InterInstanceEventBase {
     type: 'liveMetricsUpdated';
     payload: {
         /** 实时流式指标事件 */
-        event: {
-            type: 'requestStarted' | 'firstChunk' | 'streamingUpdate' | 'streamEnd' | 'rateLimitWaiting';
-            requestId: string;
-            requestStartTime: number;
-            providerName: string;
-            modelName: string;
-            waitScope?: 'leader' | 'local' | 'ipc';
-            queuePosition?: number;
-            streamStartTime?: number;
-            firstChunkLatencyMs?: number;
-            estimatedOutputTokens?: number;
-            lastOutputTokenDelta?: number;
-            lastFlushSeq?: number;
-            tokensPerSecond?: number;
-        };
+        event: LiveStreamMetricEvent;
     };
 }
 
@@ -233,18 +221,9 @@ export interface RateLimitAcquireRequestedEvent extends InterInstanceEventBase {
         /** 限流桶键（providerKey 或 providerKey::modelId） */
         bucketKey: string;
         /** 本次申请的成本 */
-        costs: {
-            requests: number;
-            tokens: number;
-        };
+        costs: RateLimitCosts;
         /** 限流维度配置（随请求携带，Leader 侧桶懒创建/更新） */
-        dims: {
-            rpm?: number;
-            rps?: number;
-            tpm?: number;
-            parallel?: number;
-            lease?: number;
-        };
+        dims: RateLimitDimensions;
     };
 }
 
@@ -257,12 +236,10 @@ export interface RateLimitAcquireGrantedEvent extends InterInstanceEventBase {
     payload: {
         /** 对应的请求 ID */
         requestId: string;
-        /** 是否授予（false = Leader 未授予，Follower 转本地降级桶） */
-        granted: boolean;
         /** 授予后仍需等待的毫秒数 */
         waitMs: number;
-        /** grant ID（granted=true 时存在），release 时回传 */
-        grantId?: string;
+        /** grant ID，release 时回传 */
+        grantId: string;
     };
 }
 
@@ -302,10 +279,7 @@ export interface RateLimitReleasedEvent extends InterInstanceEventBase {
         /** 要释放的 grant ID */
         grantId: string;
         /** 退款（未提供的字段不退） */
-        refund?: {
-            requests?: number;
-            tokens?: number;
-        };
+        refund?: RateLimitRefund;
     };
 }
 

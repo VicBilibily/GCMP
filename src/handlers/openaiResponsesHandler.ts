@@ -83,30 +83,16 @@ export class OpenAIResponsesHandler {
         requestId: string,
         sessionId: string,
         token: vscode.CancellationToken,
-        requestStartTime?: number
+        requestStartTime?: number,
+        onRequestDispatched?: (requestMetricStartTime: number) => void
     ): Promise<void> {
         Logger.debug(`${model.name} starting ${this.displayName} Responses API request handling`);
         let reporter: StreamReporter | undefined;
+        let requestMetricStartTime = requestStartTime;
 
         try {
             const client = await this.handler.createOpenAIClient(modelConfig);
             Logger.info(`🚀 ${model.name} Sending ${this.displayName} Responses API request`);
-
-            // 创建统一的流报告器
-            reporter = new StreamReporter({
-                modelName: model.name,
-                modelId: model.id,
-                provider: this.providerKey,
-                sdkMode: 'openai-responses',
-                progress,
-                sessionId,
-                requestId,
-                requestStartTime,
-                onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
-            });
-            // 局部收窄：try 块内用 const 引用确保 TypeScript 知道非 undefined，
-            // 外层 let reporter 供 finally 兜底使用
-            const streamReporter = reporter;
 
             // 将 vscode.CancellationToken 转换为 AbortSignal
             const abortController = new AbortController();
@@ -128,6 +114,22 @@ export class OpenAIResponsesHandler {
                 await this.configureClientHeaders(client, requestId, sessionId);
 
                 Logger.info(`🎯 ${model.name} Using session_id: ${sessionId}`);
+
+                requestMetricStartTime = Date.now();
+                onRequestDispatched?.(requestMetricStartTime);
+
+                reporter = new StreamReporter({
+                    modelName: model.name,
+                    modelId: model.id,
+                    provider: this.providerKey,
+                    sdkMode: 'openai-responses',
+                    progress,
+                    sessionId,
+                    requestId,
+                    requestStartTime: requestMetricStartTime,
+                    onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
+                });
+                const streamReporter = reporter;
 
                 // 使用原始事件流而非 SDK ResponseStream：后者的快照累积器在 response.failed
                 // 先于 response.created 到达时会先于事件分发抛内部状态错误，吞掉服务端真实错误消息
@@ -161,7 +163,7 @@ export class OpenAIResponsesHandler {
                     finalUsage,
                     streamStartTime,
                     streamEndTime,
-                    requestStartTime
+                    requestMetricStartTime
                 });
                 streamStartTime = completionResult.streamStartTime;
             } catch (error) {
@@ -170,7 +172,7 @@ export class OpenAIResponsesHandler {
                         modelName: model.name,
                         requestId,
                         sessionId,
-                        requestMetricStartTime: requestStartTime,
+                        requestMetricStartTime,
                         streamStartTime,
                         streamEndTime
                     });

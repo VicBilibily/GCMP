@@ -213,7 +213,7 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
                 token,
                 providerKey,
                 undefined,
-                0,
+                totalInputTokens,
                 attemptStartedAt => {
                     requestMetricStartTime = attemptStartedAt;
                 }

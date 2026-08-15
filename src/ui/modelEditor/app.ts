@@ -73,7 +73,6 @@ const state: EditorState = {
         reasoningDefault: '',
         limit: '',
         limitRpm: '',
-        limitTpm: '',
         limitParallel: '',
         tokenPricing: '',
         customHeader: '',

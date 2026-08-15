@@ -116,7 +116,7 @@ export function bindEvents(state: EditorState, actions: Actions): void {
                 return;
             }
             const parsed = Number(value);
-            if (Number.isFinite(parsed) && parsed >= 0) {
+            if (Number.isFinite(parsed) && parsed >= 0 && Number.isInteger(parsed)) {
                 this.classList.remove('invalid');
             } else {
                 this.classList.add('invalid');

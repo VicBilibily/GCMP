@@ -4,6 +4,8 @@
  *  不依赖 status 层，仅作为轻量 typed event bus。
  *---------------------------------------------------------------------------------------------*/
 
+import type { RateLimitWaitScope } from '../types/sharedTypes';
+
 export interface LiveStreamMetricEvent {
     type: 'requestStarted' | 'firstChunk' | 'streamingUpdate' | 'streamEnd' | 'rateLimitWaiting';
     requestId: string;
@@ -11,7 +13,7 @@ export interface LiveStreamMetricEvent {
     providerName: string;
     modelName: string;
     /** 限流等待范围：leader=本实例权威桶，local=本地降级桶，ipc=远端权威桶回执后的本地等待 */
-    waitScope?: 'leader' | 'local' | 'ipc';
+    waitScope?: RateLimitWaitScope;
     queuePosition?: number;
     streamStartTime?: number;
     firstChunkLatencyMs?: number;

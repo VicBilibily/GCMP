@@ -58,7 +58,6 @@ export interface ModelFormData {
     reasoningDefault: ReasoningEffort | '';
     limit: string; // 内部保留的 JSON 字符串
     limitRpm: string;
-    limitTpm: string;
     limitParallel: string;
     tokenPricing: string; // JSON 字符串
     customHeader: string; // JSON 字符串

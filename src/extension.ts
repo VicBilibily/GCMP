@@ -31,8 +31,13 @@ import { TokenUsagesView } from './ui/usagesView';
 import { CompatibleModelManager } from './utils/config/compatibleModelManager';
 import { LeaderElectionService, StatusBarManager } from './status';
 import { InterInstanceBus } from './interInstance';
+import type {
+    RateLimitAcquireCancelledEvent,
+    RateLimitAcquireRequestedEvent,
+    RateLimitLeaseRenewedEvent,
+    RateLimitReleasedEvent
+} from './interInstance';
 import { RateLimiter } from './rateLimit/rateLimiter';
-import type { RateLimitDimensions } from './rateLimit/rateLimitStore';
 import { setCrossInstanceBroadcaster } from './handlers/liveMetrics';
 import { registerAllTools } from './tools';
 import { CliAuthFactory } from './cli/auth/cliAuthFactory';
@@ -289,25 +294,16 @@ export async function activate(context: vscode.ExtensionContext) {
         // 订阅限流请求/取消/释放：仅 Leader 响应（内部已判断）
         context.subscriptions.push(
             InterInstanceBus.subscribe('rateLimitAcquireRequested', event => {
-                RateLimiter.handleAcquireRequest(
-                    event.payload as {
-                        requestId: string;
-                        bucketKey: string;
-                        costs: { requests: number; tokens: number };
-                        dims: RateLimitDimensions;
-                    }
-                );
+                RateLimiter.handleAcquireRequest(event.payload as RateLimitAcquireRequestedEvent['payload']);
             }),
             InterInstanceBus.subscribe('rateLimitReleased', event => {
-                RateLimiter.handleRemoteRelease(
-                    event.payload as { grantId: string; refund?: { requests?: number; tokens?: number } }
-                );
+                RateLimiter.handleRemoteRelease(event.payload as RateLimitReleasedEvent['payload']);
             }),
             InterInstanceBus.subscribe('rateLimitAcquireCancelled', event => {
-                RateLimiter.handleRemoteAcquireCancelled(event.payload as { requestId: string; bucketKey: string });
+                RateLimiter.handleRemoteAcquireCancelled(event.payload as RateLimitAcquireCancelledEvent['payload']);
             }),
             InterInstanceBus.subscribe('rateLimitLeaseRenewed', event => {
-                RateLimiter.handleRemoteLeaseRenewal(event.payload as { grantId: string });
+                RateLimiter.handleRemoteLeaseRenewal(event.payload as RateLimitLeaseRenewedEvent['payload']);
             })
         );
 

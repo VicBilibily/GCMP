@@ -189,7 +189,6 @@ export class ModelEditor {
         delete (model as { webSearchToolConfig?: string }).webSearchToolConfig;
         delete (model as { nativeTools?: string }).nativeTools;
         delete (model as { limitRpm?: string }).limitRpm;
-        delete (model as { limitTpm?: string }).limitTpm;
         delete (model as { limitParallel?: string }).limitParallel;
         model.serviceTier = normalizeCompatibleServiceTiers(data.serviceTier);
 
@@ -408,7 +407,6 @@ export class ModelEditor {
             reasoningDefault: model?.reasoningDefault || '',
             limit: model?.limit ? JSON.stringify(model.limit, null, 2) : '',
             limitRpm: model?.limit?.rpm !== undefined ? String(model.limit.rpm) : '',
-            limitTpm: model?.limit?.tpm !== undefined ? String(model.limit.tpm) : '',
             limitParallel: model?.limit?.parallel !== undefined ? String(model.limit.parallel) : '',
             tokenPricing:
                 model?.tokenPricing ?

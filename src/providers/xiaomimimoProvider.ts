@@ -230,7 +230,7 @@ export class XiaomimimoProvider extends GenericModelProvider implements Language
                 token,
                 providerKey,
                 undefined,
-                0,
+                totalInputTokens,
                 attemptStartedAt => {
                     requestMetricStartTime = attemptStartedAt;
                 }

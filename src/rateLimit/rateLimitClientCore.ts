@@ -4,32 +4,23 @@
  *  职责：发起 acquire → 等待 granted 回执（幂等匹配）→ 超时降级 → sleep waitMs（可取消）
  *--------------------------------------------------------------------------------------------*/
 
+import type {
+    RateLimitAcquireCancelledEvent,
+    RateLimitAcquireGrantedEvent,
+    RateLimitAcquireRequestedEvent,
+    RateLimitQueueUpdatedEvent
+} from '../interInstance';
 import type { RateLimitCosts, RateLimitDimensions } from './rateLimitStore';
 
-/** 回执事件负载（与 InterInstance 事件协议对应） */
-export interface RateLimitGrantMessage {
-    requestId: string;
-    granted: boolean;
-    waitMs: number;
-    grantId?: string;
-}
+export type RateLimitGrantMessage = RateLimitAcquireGrantedEvent['payload'];
 
-export interface RateLimitQueueUpdateMessage {
-    requestId: string;
-    queuePosition: number;
-}
+export type RateLimitQueueUpdateMessage = RateLimitQueueUpdatedEvent['payload'];
 
-/** acquire 请求负载（发送给 Leader） */
-export interface RateLimitAcquireRequestMessage {
-    requestId: string;
-    bucketKey: string;
-    dims: RateLimitDimensions;
-    costs: RateLimitCosts;
-}
+export type RateLimitAcquireRequestMessage = RateLimitAcquireRequestedEvent['payload'];
 
 export type AcquireOutcome =
     | { status: 'granted'; grantId: string; waitMs: number }
-    | { status: 'degraded'; reason: 'timeout' | 'rejected' }
+    | { status: 'degraded'; reason: 'timeout' }
     | { status: 'cancelled' };
 
 export interface RateLimitClientCoreOptions {
@@ -40,7 +31,7 @@ export interface RateLimitClientCoreOptions {
     /** 发送 acquire 请求（完整负载） */
     send: (msg: RateLimitAcquireRequestMessage) => void;
     /** 发送 acquire cancel 请求 */
-    sendCancel?: (msg: { requestId: string; bucketKey: string }) => void;
+    sendCancel?: (msg: RateLimitAcquireCancelledEvent['payload']) => void;
     /** 订阅 granted 回执；返回取消订阅函数 */
     onGrantEvent: (handler: (msg: RateLimitGrantMessage) => void) => () => void;
     /** 订阅排队顺位更新；返回取消订阅函数 */
@@ -57,8 +48,6 @@ export interface RateLimitAcquireOptions {
 }
 
 const DEFAULT_ACQUIRE_TIMEOUT_MS = 3_000;
-
-export type PendingAcquireSettleReason = 'timeout' | 'rejected';
 
 interface PendingWaiter {
     bucketKey: string;
@@ -89,7 +78,7 @@ export class RateLimitClientCore {
     /**
      * 发起一次限流申请
      * - granted：携带 waitMs，调用方需自行 sleep 后发请求
-     * - degraded：超时/被拒，调用方走本地降级桶
+     * - degraded：超时，调用方走本地降级桶
      * - cancelled：等待期间被取消
      */
     async acquire(
@@ -163,7 +152,7 @@ export class RateLimitClientCore {
      */
     private handleGrant(msg: RateLimitGrantMessage): void {
         const waiter = this.pending.get(msg.requestId);
-        if (!waiter || waiter.settled) {
+        if (!waiter || waiter.settled || !msg.grantId) {
             return;
         }
         waiter.settled = true;
@@ -174,11 +163,7 @@ export class RateLimitClientCore {
             clearInterval(waiter.cancelCheck);
         }
         this.pending.delete(msg.requestId);
-        if (msg.granted && msg.grantId) {
-            waiter.resolve({ status: 'granted', grantId: msg.grantId, waitMs: msg.waitMs });
-        } else {
-            waiter.resolve({ status: 'degraded', reason: 'rejected' });
-        }
+        waiter.resolve({ status: 'granted', grantId: msg.grantId, waitMs: msg.waitMs });
     }
 
     private handleQueueUpdate(msg: RateLimitQueueUpdateMessage): void {
@@ -201,7 +186,7 @@ export class RateLimitClientCore {
         return this.pending.size;
     }
 
-    settlePendingAsDegraded(reason: PendingAcquireSettleReason = 'timeout'): void {
+    settlePendingAsDegraded(): void {
         for (const [requestId, waiter] of this.pending) {
             if (waiter.settled) {
                 continue;
@@ -214,7 +199,7 @@ export class RateLimitClientCore {
                 clearInterval(waiter.cancelCheck);
             }
             this.pending.delete(requestId);
-            waiter.resolve({ status: 'degraded', reason });
+            waiter.resolve({ status: 'degraded', reason: 'timeout' });
         }
     }
 
@@ -222,7 +207,7 @@ export class RateLimitClientCore {
         this.unsubscribeGrant();
         this.unsubscribeQueueUpdate?.();
         const pending = Array.from(this.pending.entries());
-        this.settlePendingAsDegraded('timeout');
+        this.settlePendingAsDegraded();
         for (const [requestId, waiter] of pending) {
             this.options.sendCancel?.({ requestId, bucketKey: waiter.bucketKey });
         }
