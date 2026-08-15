@@ -7,7 +7,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { LiveStreamMetricEvent } from '../../handlers/liveMetrics';
-import type { State } from './types';
+import type { LiveRequestUiState, State } from './types';
 import { getTodayDateString, t } from './utils';
 
 /**
@@ -30,6 +30,9 @@ interface LiveMetricsState {
     providerName?: string;
     modelName?: string;
     hasFirstChunk: boolean; // 首流延迟/流开始时间已固定（retry 幂等）
+    isRateLimitWaiting: boolean;
+    waitScope?: 'leader' | 'local' | 'ipc';
+    queuePosition?: number;
 }
 
 /**
@@ -85,7 +88,27 @@ export class LiveMetricsRenderer {
                 this.resetAttemptOutput(state);
                 state.providerName = existing?.providerName || event.providerName;
                 state.modelName = existing?.modelName || event.modelName;
+                state.isRateLimitWaiting = false;
+                state.waitScope = undefined;
+                state.queuePosition = undefined;
                 this.liveMetricsMap.set(requestId, state);
+                this.syncWindowLiveMetricState(requestId, state);
+                this.startRenderClock();
+                break;
+            }
+
+            case 'rateLimitWaiting': {
+                const existing = this.liveMetricsMap.get(requestId);
+                const state = existing ?? this.createEmptyLiveMetricsState(event);
+                state.displayStartTime = existing?.displayStartTime ?? event.requestStartTime;
+                state.attemptStartTime = event.requestStartTime;
+                state.providerName = existing?.providerName || event.providerName;
+                state.modelName = existing?.modelName || event.modelName;
+                state.isRateLimitWaiting = true;
+                state.waitScope = event.waitScope;
+                state.queuePosition = event.queuePosition;
+                this.liveMetricsMap.set(requestId, state);
+                this.syncWindowLiveMetricState(requestId, state);
                 this.startRenderClock();
                 break;
             }
@@ -104,7 +127,11 @@ export class LiveMetricsRenderer {
                 this.resetAttemptOutput(state);
                 state.providerName = state.providerName || event.providerName;
                 state.modelName = state.modelName || event.modelName;
+                state.isRateLimitWaiting = false;
+                state.waitScope = undefined;
+                state.queuePosition = undefined;
                 this.liveMetricsMap.set(requestId, state);
+                this.syncWindowLiveMetricState(requestId, state);
                 this.startRenderClock();
                 break;
             }
@@ -117,6 +144,9 @@ export class LiveMetricsRenderer {
                     this.startRenderClock();
                 }
                 state.attemptStartTime = event.requestStartTime;
+                state.isRateLimitWaiting = false;
+                state.waitScope = undefined;
+                state.queuePosition = undefined;
 
                 // 检测 attempt 切换（firstChunk 丢失时的兜底）：通过 streamStartTime 变化判断
                 const isNewAttempt =
@@ -151,12 +181,14 @@ export class LiveMetricsRenderer {
                 // 补齐 provider/model（requestStarted 可能未被 WebView 接收到）
                 state.providerName = state.providerName || event.providerName;
                 state.modelName = state.modelName || event.modelName;
+                this.syncWindowLiveMetricState(requestId, state);
                 break;
             }
 
             case 'streamEnd': {
                 this.liveMetricsMap.delete(requestId);
                 this.rowCache.delete(requestId);
+                this.syncWindowLiveMetricState(requestId);
                 if (this.liveMetricsMap.size === 0) {
                     this.stopRenderClock();
                 }
@@ -246,8 +278,25 @@ export class LiveMetricsRenderer {
             lastOutputChangeAt: 0,
             providerName: event.providerName,
             modelName: event.modelName,
-            hasFirstChunk: false
+            hasFirstChunk: false,
+            isRateLimitWaiting: false,
+            waitScope: undefined,
+            queuePosition: undefined
         };
+    }
+
+    private syncWindowLiveMetricState(requestId: string, state?: LiveMetricsState): void {
+        const liveMetrics =
+            window.usagesLiveMetrics ?? (window.usagesLiveMetrics = new Map<string, LiveRequestUiState>());
+        if (!state) {
+            liveMetrics.delete(requestId);
+            return;
+        }
+        liveMetrics.set(requestId, {
+            isRateLimitWaiting: state.isRateLimitWaiting,
+            waitScope: state.waitScope,
+            queuePosition: state.queuePosition
+        });
     }
 
     private resetAttemptOutput(state: LiveMetricsState): void {
@@ -345,6 +394,38 @@ export class LiveMetricsRenderer {
                 return;
             }
 
+            const hasQueuePosition = (metricState.queuePosition ?? 0) > 0;
+            const isWaiting = metricState.isRateLimitWaiting && hasQueuePosition;
+
+            const statusCell = targetRow.lastElementChild as HTMLElement | null;
+            const statusLabel = statusCell?.querySelector('.status-label') as HTMLElement | null;
+            if (statusCell && statusLabel) {
+                if (isWaiting) {
+                    statusCell.classList.remove(
+                        'status-completed',
+                        'status-failed',
+                        'status-cancelled',
+                        'status-estimated'
+                    );
+                    statusCell.classList.add('status-waiting');
+                    statusLabel.textContent = 'WAIT';
+                    statusLabel.title =
+                        metricState.waitScope === 'leader' ? t('Waiting for leader rate limit', '等待 Leader 限流放行')
+                        : metricState.waitScope === 'local' ? t('Waiting for local rate limit', '等待本地限流放行')
+                        : t('Waiting for remote rate limit', '等待远端限流放行');
+                } else {
+                    statusCell.classList.remove(
+                        'status-completed',
+                        'status-failed',
+                        'status-cancelled',
+                        'status-waiting'
+                    );
+                    statusCell.classList.add('status-estimated');
+                    statusLabel.textContent = 'ACTIVE';
+                    statusLabel.title = '';
+                }
+            }
+
             // 实时计算首流延迟：首流事件前持续增长，首流事件后固定
             const hasStreamStarted = metricState.streamStartTime !== undefined;
             const latencyMs =
@@ -367,18 +448,36 @@ export class LiveMetricsRenderer {
                 }
                 const ttftSpan = outputCell.querySelector('.output-ttft') as HTMLElement;
                 if (ttftSpan) {
-                    ttftSpan.title = '首流延迟：从 provider 开始处理请求到首个流事件的近似耗时，不一定是首个可见文字';
-                    ttftSpan.textContent =
-                        latencyMs >= 1000 ? `${(latencyMs / 1000).toFixed(1)}s` : `${Math.round(latencyMs)}ms`;
+                    if (isWaiting) {
+                        ttftSpan.title = t(
+                            'Still waiting for rate limit grant; TTFT starts after the upstream request is sent.',
+                            '仍在等待限流放行；真正发起上游请求后才开始计算 TTFT。'
+                        );
+                        ttftSpan.textContent = '-';
+                    } else {
+                        ttftSpan.title =
+                            '首流延迟：从 provider 开始处理请求到首个流事件的近似耗时，不一定是首个可见文字';
+                        ttftSpan.textContent =
+                            latencyMs >= 1000 ? `${(latencyMs / 1000).toFixed(1)}s` : `${Math.round(latencyMs)}ms`;
+                    }
                 }
                 const tpotSpan = outputCell.querySelector('.output-tpot') as HTMLElement;
                 if (tpotSpan) {
-                    tpotSpan.textContent =
-                        durationMs > 0 ?
-                            durationMs >= 1000 ?
-                                `${(durationMs / 1000).toFixed(1)}s`
-                            :   `${Math.round(durationMs)}ms`
-                        :   '-';
+                    if (isWaiting) {
+                        tpotSpan.textContent = hasQueuePosition ? `#${metricState.queuePosition}` : '-';
+                        tpotSpan.title =
+                            hasQueuePosition ?
+                                t('Current FIFO queue position', '当前 FIFO 排队顺位')
+                            :   t('Waiting for rate limit grant', '等待限流放行中');
+                    } else {
+                        tpotSpan.textContent =
+                            durationMs > 0 ?
+                                durationMs >= 1000 ?
+                                    `${(durationMs / 1000).toFixed(1)}s`
+                                :   `${Math.round(durationMs)}ms`
+                            :   '-';
+                        tpotSpan.title = '';
+                    }
                 }
                 // .output-tokens 在 streaming 阶段显示"最近一次接收的预估增量"（+xx），
                 // 不显示累计预估值（估算误差大易引起误解），等完成后由真实 usage 记录覆盖

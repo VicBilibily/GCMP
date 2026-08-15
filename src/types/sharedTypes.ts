@@ -201,6 +201,12 @@ export interface ModelConfig {
      * - cacheWritePrice → cacheWriteCost（缓存写入定价，各 provider 计费规则不同）
      */
     tokenPricing?: ModelTokenPricing;
+    /**
+     * 模型级别的限流配置（可选）。
+     * 设置后该模型使用独立的限流桶（桶键 `${providerKey}::${modelId}`），
+     * 字段级覆盖 provider 级 limit 的同名维度。
+     */
+    limit?: RateLimitConfig;
 }
 
 /**
@@ -485,6 +491,8 @@ export interface ModelOverride {
      * 若提供，将完全替换对应模型的内置定价。
      */
     tokenPricing?: ModelTokenPricingInput;
+    /** 模型级别的限流配置覆盖（可选），字段级覆盖 provider 级 limit 的同名维度 */
+    limit?: RateLimitConfig;
 }
 
 /**
@@ -594,6 +602,24 @@ export interface ProviderRetryOverride {
 }
 
 /**
+ * 限流配置（跨实例权威桶 + 本地降级桶共用）。
+ * 所有维度可选，0 或缺省表示该维度不限；任一维度触顶即自主延迟。
+ *
+ * 速率维度（rpm/rps/tpm）为匀速 pacing；并发维度（parallel）为硬上限，
+ * 超限请求进入 pending 队列按 FIFO 等待槽位释放（等待最久的依次放行）。
+ */
+export interface RateLimitConfig {
+    /** 每分钟请求数上限 */
+    rpm?: number;
+    /** 每秒请求数上限 */
+    rps?: number;
+    /** 每分钟 token 数上限（输入估算） */
+    tpm?: number;
+    /** 最大并发在途请求数 */
+    parallel?: number;
+}
+
+/**
  * 提供商覆盖配置接口 - 用于用户配置覆盖
  */
 export interface ProviderOverride {
@@ -618,6 +644,13 @@ export interface ProviderOverride {
     retry?: ProviderRetryOverride;
     /** 子 provider 级别的重试配置覆盖（可选），键名格式：`retry.${subProvider}` */
     [key: `retry.${string}`]: ProviderRetryOverride | undefined;
+    /**
+     * 提供商级别的限流配置覆盖（可选）。
+     * 优先级与 retry 相同：providerOverrides 的 `limit.${subProvider}` / `limit` 覆盖 configProviders 预置。
+     */
+    limit?: RateLimitConfig;
+    /** 子 provider 级别的限流配置覆盖（可选），键名格式：`limit.${subProvider}` */
+    [key: `limit.${string}`]: RateLimitConfig | undefined;
 }
 
 /**
@@ -657,11 +690,14 @@ export interface ProviderConfig {
     retry?: ProviderRetryOverride;
     /** 内置子 provider 级别的预置重试配置（可选），键名格式：`retry.${subProvider}` */
     [key: `retry.${string}`]: ProviderRetryOverride | undefined;
+    /**
+     * 内置预置限流配置（可选）。
+     * 优先级与 retry 一致：providerOverrides 的 limit 覆盖此预置。
+     */
+    limit?: RateLimitConfig;
+    /** 内置子 provider 级别的预置限流配置（可选），键名格式：`limit.${subProvider}` */
+    [key: `limit.${string}`]: RateLimitConfig | undefined;
 }
-
-/**
- * 完整的配置提供者结构
- */
 export type ConfigProvider = Record<string, ProviderConfig>;
 
 /**

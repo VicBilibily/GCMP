@@ -17,6 +17,16 @@
     margin-bottom: 15px;
 }
 
+.limit-inline-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.limit-inline-row .form-group {
+    margin-bottom: 0;
+}
+
 .form-group.no-bottom {
     margin-bottom: 0;
 }
@@ -193,6 +203,21 @@ button {
 
 .delete-button:hover {
     opacity: 0.8;
+}
+
+@media (max-width: 720px) {
+    .limit-inline-row {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+
+    .limit-inline-row .form-group {
+        margin-bottom: 15px;
+    }
+
+    .limit-inline-row .form-group:last-child {
+        margin-bottom: 0;
+    }
 }
 
 .section {

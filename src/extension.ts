@@ -31,6 +31,8 @@ import { TokenUsagesView } from './ui/usagesView';
 import { CompatibleModelManager } from './utils/config/compatibleModelManager';
 import { LeaderElectionService, StatusBarManager } from './status';
 import { InterInstanceBus } from './interInstance';
+import { RateLimiter } from './rateLimit/rateLimiter';
+import type { RateLimitDimensions } from './rateLimit/rateLimitStore';
 import { setCrossInstanceBroadcaster } from './handlers/liveMetrics';
 import { registerAllTools } from './tools';
 import { CliAuthFactory } from './cli/auth/cliAuthFactory';
@@ -278,6 +280,36 @@ export async function activate(context: vscode.ExtensionContext) {
             ConfigManager.handleExternalConfigChange();
             Logger.trace('[InterInstanceBus] Config cache and HAR recorder refreshed due to remote change');
         });
+
+        // 初始化跨实例限流器（Leader 权威桶 + Follower IPC 回执 + 本地降级）
+        stepStartTime = Date.now();
+        RateLimiter.initialize(context);
+        Logger.trace(`Rate limiter initialized (${Date.now() - stepStartTime}ms)`);
+
+        // 订阅限流请求/取消/释放：仅 Leader 响应（内部已判断）
+        context.subscriptions.push(
+            InterInstanceBus.subscribe('rateLimitAcquireRequested', event => {
+                RateLimiter.handleAcquireRequest(
+                    event.payload as {
+                        requestId: string;
+                        bucketKey: string;
+                        costs: { requests: number; tokens: number };
+                        dims: RateLimitDimensions;
+                    }
+                );
+            }),
+            InterInstanceBus.subscribe('rateLimitReleased', event => {
+                RateLimiter.handleRemoteRelease(
+                    event.payload as { grantId: string; refund?: { requests?: number; tokens?: number } }
+                );
+            }),
+            InterInstanceBus.subscribe('rateLimitAcquireCancelled', event => {
+                RateLimiter.handleRemoteAcquireCancelled(event.payload as { requestId: string; bucketKey: string });
+            }),
+            InterInstanceBus.subscribe('rateLimitLeaseRenewed', event => {
+                RateLimiter.handleRemoteLeaseRenewal(event.payload as { grantId: string });
+            })
+        );
 
         // 步骤0.2: 初始化 CLI 认证跨实例刷新协调
         stepStartTime = Date.now();

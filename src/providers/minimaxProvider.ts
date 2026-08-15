@@ -290,6 +290,7 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
         // 根据模型的 sdkMode 选择使用的 handler
         // 注：此处不调用 super.provideLanguageModelChatResponse，而是直接处理
         // 避免双重密钥检查，因为我们已经在 ensureApiKeyForModel 中检查过了
+        let requestMetricStartTime: number | undefined;
         requestId = await this.recordEstimatedRequestTokens({
             providerKey: providerKey,
             displayName: this.providerConfig.displayName,
@@ -319,16 +320,21 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
                 requestId,
                 sessionId,
                 token,
-                providerKey
+                providerKey,
+                undefined,
+                0,
+                attemptStartedAt => {
+                    requestMetricStartTime = attemptStartedAt;
+                }
             );
         } catch (error) {
             if (isCancellationError(error)) {
-                this.reportRequestCancelled(requestId, sessionId);
+                this.reportRequestCancelled(requestId, sessionId, requestMetricStartTime);
                 throw error;
             }
             const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
             Logger.error(errorMessage);
-            this.reportRequestFailure(requestId, sessionId);
+            this.reportRequestFailure(requestId, sessionId, requestMetricStartTime);
             throw error;
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);

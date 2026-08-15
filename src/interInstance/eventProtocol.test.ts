@@ -1,7 +1,7 @@
 ﻿import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { parseEventsFromBuffer, parseIncrementalEvents } from './eventProtocol';
+import { INTER_INSTANCE_EVENT_TYPES, parseEventsFromBuffer, parseIncrementalEvents } from './eventProtocol';
 
 test('parseEventsFromBuffer returns trailing partial line as remaining', () => {
     const firstChunk =
@@ -25,4 +25,39 @@ test('parseIncrementalEvents reconstructs a split NDJSON event across chunks', (
     assert.equal(second.events.length, 1);
     assert.equal(second.events[0]?.type, 'statusUpdated');
     assert.equal(second.remaining, '');
+});
+
+test('rate limit event types are registered in the event type set', () => {
+    for (const type of [
+        'rateLimitAcquireRequested',
+        'rateLimitAcquireGranted',
+        'rateLimitQueueUpdated',
+        'rateLimitAcquireCancelled',
+        'rateLimitReleased',
+        'rateLimitLeaseRenewed'
+    ]) {
+        assert.ok(INTER_INSTANCE_EVENT_TYPES.includes(type as (typeof INTER_INSTANCE_EVENT_TYPES)[number]));
+    }
+});
+
+test('parseEventsFromBuffer accepts rate limit events', () => {
+    const lines = [
+        '{"type":"rateLimitAcquireRequested","payload":{"requestId":"r1","bucketKey":"k","costs":{"requests":1,"tokens":10},"dims":{"rpm":60}},"timestamp":1,"senderInstanceId":"a"}',
+        '{"type":"rateLimitAcquireGranted","payload":{"requestId":"r1","granted":true,"waitMs":0,"grantId":"g1"},"timestamp":2,"senderInstanceId":"b"}',
+        '{"type":"rateLimitQueueUpdated","payload":{"requestId":"r1","queuePosition":2},"timestamp":3,"senderInstanceId":"b"}',
+        '{"type":"rateLimitAcquireCancelled","payload":{"requestId":"r1","bucketKey":"k"},"timestamp":4,"senderInstanceId":"a"}',
+        '{"type":"rateLimitReleased","payload":{"grantId":"g1","refund":{"tokens":10}},"timestamp":5,"senderInstanceId":"a"}',
+        '{"type":"rateLimitLeaseRenewed","payload":{"grantId":"g1"},"timestamp":6,"senderInstanceId":"a"}'
+    ].join('\n');
+
+    const { events, remaining } = parseEventsFromBuffer(lines + '\n');
+
+    assert.equal(events.length, 6);
+    assert.equal(events[0]?.type, 'rateLimitAcquireRequested');
+    assert.equal(events[1]?.type, 'rateLimitAcquireGranted');
+    assert.equal(events[2]?.type, 'rateLimitQueueUpdated');
+    assert.equal(events[3]?.type, 'rateLimitAcquireCancelled');
+    assert.equal(events[4]?.type, 'rateLimitReleased');
+    assert.equal(events[5]?.type, 'rateLimitLeaseRenewed');
+    assert.equal(remaining, '');
 });

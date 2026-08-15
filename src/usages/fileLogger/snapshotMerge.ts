@@ -20,6 +20,7 @@ export interface SnapshotRequestRecord {
     capturingTokenCorrelationId?: string;
     otelTraceContext?: { traceId: string; spanId: string };
     telemetryTurn?: number;
+    requestMetricStartTime?: number;
     streamStartTime?: number;
     streamEndTime?: number;
     actualInput?: number;
@@ -94,6 +95,7 @@ export function mergeSnapshotRecord(
         rawUsage: preferredRecord.rawUsage ?? fallbackRecord.rawUsage ?? null,
         sessionRecoverySource: preferredRecord.sessionRecoverySource ?? fallbackRecord.sessionRecoverySource,
         telemetryTurn: preferredRecord.telemetryTurn ?? fallbackRecord.telemetryTurn,
+        requestMetricStartTime: preferredRecord.requestMetricStartTime ?? fallbackRecord.requestMetricStartTime,
         streamStartTime: preferredRecord.streamStartTime ?? fallbackRecord.streamStartTime,
         streamEndTime: preferredRecord.streamEndTime ?? fallbackRecord.streamEndTime,
         actualInput: preferredRecord.actualInput ?? fallbackRecord.actualInput,

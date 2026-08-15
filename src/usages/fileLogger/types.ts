@@ -174,6 +174,8 @@ export interface TokenRequestLog {
     otelTraceContext?: OTelTraceContextLog;
     /** Copilot 侧 telemetry turn 序号 */
     telemetryTurn?: number;
+    /** 实际发起上游请求的时间戳（用于 TTFT/最终统计，不含限流排队） */
+    requestMetricStartTime?: number;
     /** 流开始时间 (毫秒时间戳) */
     streamStartTime?: number;
     /** 流结束时间 (毫秒时间戳) */

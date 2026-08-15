@@ -14,6 +14,7 @@ import {
     Progress
 } from 'vscode';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
+import { RateLimiter, type RateLimitHandle } from '../rateLimit/rateLimiter';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { ConfigManager } from '../utils/config/configManager';
 import { createLanguageModelChatInformation } from '../utils/model/languageModelInfo';
@@ -530,6 +531,51 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     }
 
     /**
+     * 限流闸门：解析 provider + model 级 limit 配置，向跨实例限流器申请配额。
+     * 返回 undefined 表示当前请求未启用限流。
+     * 等待期间取消会全额退款并抛 CancellationError（由 RateLimiter 内部处理）。
+     */
+    protected async acquireRateLimit(
+        effectiveProviderKey: string,
+        modelConfig: ModelConfig,
+        totalInputTokens: number,
+        token: CancellationToken,
+        requestId: string
+    ): Promise<RateLimitHandle | undefined> {
+        const providerLimit = ConfigManager.getProviderRateLimitConfig(effectiveProviderKey);
+        const modelLimit = modelConfig.limit;
+        if (!providerLimit && !modelLimit) {
+            return undefined;
+        }
+        // 字段级合并：model 级覆盖 provider 级同名维度
+        const mergedLimit = { ...providerLimit, ...modelLimit };
+        const dims = {
+            rpm: mergedLimit.rpm,
+            rps: mergedLimit.rps,
+            tpm: mergedLimit.tpm,
+            parallel: mergedLimit.parallel
+        };
+        // model 级配置存在时使用独立桶
+        const bucketKey = modelLimit ? `${effectiveProviderKey}::${modelConfig.id}` : effectiveProviderKey;
+        const outputReserve = Math.min(modelConfig.maxOutputTokens, 4096);
+        const costs = { requests: 1, tokens: totalInputTokens + outputReserve };
+        return RateLimiter.acquire(bucketKey, dims, costs, {
+            token,
+            onWaiting: event => {
+                liveMetrics.emitLiveMetrics({
+                    type: 'rateLimitWaiting',
+                    requestId,
+                    requestStartTime: event.waitStartTime,
+                    providerName: this.providerConfig.displayName,
+                    modelName: modelConfig.name,
+                    waitScope: event.scope,
+                    queuePosition: event.queuePosition
+                });
+            }
+        });
+    }
+
+    /**
      * 获取 SDK 显示名称
      */
     protected getSdkDisplayName(sdkMode: NonNullable<ModelConfig['sdkMode']> | 'openai'): string {
@@ -572,7 +618,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         sessionId: string,
         token: CancellationToken,
         effectiveProviderKey = modelConfig.provider || this.providerKey,
-        requestStartTime = Date.now()
+        requestStartTime = Date.now(),
+        totalInputTokens = 0,
+        onAttemptStarted?: (requestMetricStartTime: number) => void
     ): Promise<void> {
         const sdkMode = modelConfig.sdkMode || 'openai';
 
@@ -626,72 +674,106 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
             await retryManager.executeWithRetry(
                 async () => {
-                    // 每次 attempt（含首次和 retry）使用独立时间基准，
-                    // 确保 live TTFT 只反映当前 attempt 的耗时，不包含重试等待。
-                    const liveAttemptStartTime = Date.now();
-
                     // 标题响应按 attempt 独立累积，避免重试时拼接上一轮的半截文本
                     titleResponseBuffer = '';
                     summaryResponseBuffer = '';
 
-                    if (requestId) {
-                        liveMetrics.emitLiveMetrics({
-                            type: 'requestStarted',
-                            requestId,
-                            requestStartTime: liveAttemptStartTime,
-                            providerName: this.providerConfig.displayName,
-                            modelName: model.name || modelConfig.name
-                        });
+                    // 限流闸门：任一维度触顶即自主延迟；重试也会重新取令牌（文档铁律）
+                    let limitHandle: RateLimitHandle | undefined;
+                    try {
+                        limitHandle = await this.acquireRateLimit(
+                            effectiveProviderKey,
+                            modelConfig,
+                            totalInputTokens,
+                            token,
+                            requestId
+                        );
+                    } catch (error) {
+                        if (requestId && (token.isCancellationRequested || isCancellationError(error))) {
+                            liveMetrics.emitLiveMetrics({
+                                type: 'streamEnd',
+                                requestId,
+                                requestStartTime: Date.now(),
+                                providerName: this.providerConfig.displayName,
+                                modelName: model.name || modelConfig.name
+                            });
+                        }
+                        throw error;
                     }
 
-                    if (sdkMode === 'anthropic') {
-                        await this.anthropicHandler.handleRequest(
-                            model,
-                            modelConfig,
-                            messages,
-                            options,
-                            wrappedProgress,
-                            requestId,
-                            sessionId,
-                            token,
-                            liveAttemptStartTime
-                        );
-                    } else if (sdkMode === 'openai-sse') {
-                        await this.openaiCustomHandler.handleRequest(
-                            model,
-                            modelConfig,
-                            messages,
-                            options,
-                            wrappedProgress,
-                            requestId,
-                            sessionId,
-                            token,
-                            liveAttemptStartTime
-                        );
-                    } else if (sdkMode === 'openai-responses') {
-                        await this.openaiResponsesHandler.handleResponsesRequest(
-                            model,
-                            { ...modelConfig, provider: effectiveProviderKey },
-                            messages,
-                            options,
-                            wrappedProgress,
-                            requestId,
-                            sessionId,
-                            token,
-                            liveAttemptStartTime
-                        );
-                    } else {
-                        await this.openaiHandler.handleRequest(
-                            model,
-                            modelConfig,
-                            messages,
-                            options,
-                            wrappedProgress,
-                            requestId,
-                            sessionId,
-                            token,
-                            liveAttemptStartTime
-                        );
+                    try {
+                        // live TTFT 只统计真正发起上游请求后的耗时，不含限流排队/等待。
+                        const liveAttemptStartTime = Date.now();
+                        onAttemptStarted?.(liveAttemptStartTime);
+                        if (requestId) {
+                            liveMetrics.emitLiveMetrics({
+                                type: 'requestStarted',
+                                requestId,
+                                requestStartTime: liveAttemptStartTime,
+                                providerName: this.providerConfig.displayName,
+                                modelName: model.name || modelConfig.name
+                            });
+                        }
+
+                        if (sdkMode === 'anthropic') {
+                            await this.anthropicHandler.handleRequest(
+                                model,
+                                modelConfig,
+                                messages,
+                                options,
+                                wrappedProgress,
+                                requestId,
+                                sessionId,
+                                token,
+                                liveAttemptStartTime
+                            );
+                        } else if (sdkMode === 'openai-sse') {
+                            await this.openaiCustomHandler.handleRequest(
+                                model,
+                                modelConfig,
+                                messages,
+                                options,
+                                wrappedProgress,
+                                requestId,
+                                sessionId,
+                                token,
+                                liveAttemptStartTime
+                            );
+                        } else if (sdkMode === 'openai-responses') {
+                            await this.openaiResponsesHandler.handleResponsesRequest(
+                                model,
+                                { ...modelConfig, provider: effectiveProviderKey },
+                                messages,
+                                options,
+                                wrappedProgress,
+                                requestId,
+                                sessionId,
+                                token,
+                                liveAttemptStartTime
+                            );
+                        } else {
+                            await this.openaiHandler.handleRequest(
+                                model,
+                                modelConfig,
+                                messages,
+                                options,
+                                wrappedProgress,
+                                requestId,
+                                sessionId,
+                                token,
+                                liveAttemptStartTime
+                            );
+                        }
+                        // 成功：释放并发槽位但不退款（v1 不做结算）
+                        if (limitHandle) {
+                            RateLimiter.release(limitHandle);
+                        }
+                    } catch (error) {
+                        // 已发出后失败/取消：tokens 全退、requests 不退（上游已消耗调度成本）
+                        if (limitHandle) {
+                            RateLimiter.release(limitHandle, { tokens: limitHandle.costs.tokens });
+                        }
+                        throw error;
                     }
                 },
                 error => {
@@ -830,6 +912,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
         let requestId = '';
         let requestStartTime: number;
+        let requestMetricStartTime: number | undefined;
 
         try {
             // 确保对应提供商的 API 密钥存在
@@ -867,19 +950,23 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 sessionId,
                 token,
                 effectiveProviderKey,
-                requestStartTime
+                requestStartTime,
+                totalInputTokens,
+                attemptStartedAt => {
+                    requestMetricStartTime = attemptStartedAt;
+                }
             );
         } catch (error) {
             // 取消请求不应记为失败：handler 已记录 cancelled，或在此兜底记录
             if (isCancellationError(error)) {
-                this.reportRequestCancelled(requestId, sessionId);
+                this.reportRequestCancelled(requestId, sessionId, requestMetricStartTime);
                 throw new vscode.CancellationError();
             }
 
             const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
             Logger.error(errorMessage);
             // === Token 统计: 更新失败状态（仅在最终失败时上报）===
-            this.reportRequestFailure(requestId, sessionId);
+            this.reportRequestFailure(requestId, sessionId, requestMetricStartTime);
             // 直接抛出错误，让VS Code处理重试
             throw error;
         } finally {
@@ -1115,7 +1202,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
      * @param requestId 请求ID
      * @param sessionId 会话ID
      */
-    protected reportRequestFailure(requestId: string, sessionId: string): void {
+    protected reportRequestFailure(requestId: string, sessionId: string, requestMetricStartTime?: number): void {
         if (!requestId) {
             return;
         }
@@ -1123,7 +1210,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         TokenUsagesManager.instance.updateActualTokens({
             requestId,
             sessionId,
-            status: 'failed'
+            status: 'failed',
+            requestMetricStartTime
         });
     }
 
@@ -1131,7 +1219,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
      * 上报请求取消状态到 Token 统计系统
      * handler 通常已记录 cancelled；这里作为 Provider 层兜底，避免取消发生在 handler 之外时遗漏状态迁移
      */
-    protected reportRequestCancelled(requestId: string, sessionId: string): void {
+    protected reportRequestCancelled(requestId: string, sessionId: string, requestMetricStartTime?: number): void {
         if (!requestId) {
             return;
         }
@@ -1140,7 +1228,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         TokenUsagesManager.instance.updateActualTokens({
             requestId,
             sessionId,
-            status: 'cancelled'
+            status: 'cancelled',
+            requestMetricStartTime
         });
     }
 

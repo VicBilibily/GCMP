@@ -394,8 +394,9 @@ export class TokenUsageStatusBar {
                     // 格式化延迟与耗时
                     let latencyStr = '-';
                     let durationStr = '-';
-                    if (req.streamStartTime !== undefined && req.timestamp !== undefined) {
-                        const latency = req.streamStartTime - req.timestamp;
+                    const metricStartTime = req.requestMetricStartTime ?? req.timestamp;
+                    if (req.streamStartTime !== undefined && metricStartTime !== undefined) {
+                        const latency = req.streamStartTime - metricStartTime;
                         if (Number.isFinite(latency) && latency >= 0) {
                             latencyStr =
                                 latency > 100 ? `${(latency / 1000).toFixed(1)} s` : `${Math.round(latency)} ms`;

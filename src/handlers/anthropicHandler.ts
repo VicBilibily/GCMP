@@ -382,6 +382,7 @@ export class AnthropicHandler {
                     sessionId,
                     rawUsage: result?.usage,
                     status: token.isCancellationRequested ? 'cancelled' : 'completed',
+                    requestMetricStartTime: requestStartTime,
                     streamStartTime: result?.streamStartTime,
                     streamEndTime: result?.streamEndTime,
                     estimatedCost: breakdown?.total,
@@ -396,7 +397,8 @@ export class AnthropicHandler {
                     TokenUsagesManager.instance.updateActualTokens({
                         requestId,
                         sessionId,
-                        status: 'cancelled'
+                        status: 'cancelled',
+                        requestMetricStartTime: requestStartTime
                     });
                 }
                 throw new vscode.CancellationError();

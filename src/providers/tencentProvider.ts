@@ -181,6 +181,7 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
         } = await this.prepareTrackedRequestContext(model, modelConfig, messages, options);
 
         let requestId = '';
+        let requestMetricStartTime: number | undefined;
         requestId = await this.recordEstimatedRequestTokens({
             providerKey,
             displayName: this.providerConfig.displayName,
@@ -210,14 +211,19 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
                 requestId,
                 sessionId,
                 token,
-                providerKey
+                providerKey,
+                undefined,
+                0,
+                attemptStartedAt => {
+                    requestMetricStartTime = attemptStartedAt;
+                }
             );
         } catch (error) {
             if (isCancellationError(error)) {
-                this.reportRequestCancelled(requestId, sessionId);
+                this.reportRequestCancelled(requestId, sessionId, requestMetricStartTime);
                 throw error;
             }
-            this.reportRequestFailure(requestId, sessionId);
+            this.reportRequestFailure(requestId, sessionId, requestMetricStartTime);
             throw error;
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);

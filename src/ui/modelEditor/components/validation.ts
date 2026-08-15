@@ -17,6 +17,75 @@ import {
 } from '../utils';
 import { normalizeCompatibleServiceTiers } from '../../../utils/model/compatibleServiceTier';
 
+export function validateLimitConfig(text: string): string | null {
+    if (!text) {
+        return null;
+    }
+
+    const parsed = parseJSON(text);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return t('Rate limit config must be a JSON object.', '限流配置必须是 JSON 对象');
+    }
+
+    const allowedKeys = new Set(['rpm', 'rps', 'tpm', 'parallel']);
+    for (const [key, value] of Object.entries(parsed)) {
+        if (!allowedKeys.has(key)) {
+            return t(
+                'Rate limit config only supports rpm, rps, tpm, and parallel.',
+                '限流配置仅支持 rpm、rps、tpm、parallel。'
+            );
+        }
+        if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || !Number.isInteger(value)) {
+            return t(
+                'Rate limit config values must be integers greater than or equal to 0.',
+                '限流配置的值必须是大于等于 0 的整数。'
+            );
+        }
+    }
+
+    return null;
+}
+
+function validateOptionalLimitField(value: string): string | null {
+    if (!value) {
+        return null;
+    }
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) {
+        return t(
+            'Rate limit values must be integers greater than or equal to 0.',
+            '限流配置的值必须是大于等于 0 的整数。'
+        );
+    }
+    return null;
+}
+
+function buildLimitConfigText(state: EditorState): string {
+    const baseLimit = parseJSON(state.model.limit);
+    const limitConfig =
+        baseLimit && typeof baseLimit === 'object' && !Array.isArray(baseLimit) ?
+            { ...(baseLimit as Record<string, unknown>) }
+        :   {};
+
+    const applyField = (fieldId: string, key: 'rpm' | 'parallel') => {
+        const element = document.getElementById(fieldId) as HTMLInputElement | null;
+        if (!element) {
+            return;
+        }
+        const value = element.value.trim();
+        if (!value) {
+            delete limitConfig[key];
+            return;
+        }
+        limitConfig[key] = Number(value);
+    };
+
+    applyField('limitRpm', 'rpm');
+    applyField('limitParallel', 'parallel');
+
+    return Object.keys(limitConfig).length > 0 ? JSON.stringify(limitConfig) : '';
+}
+
 /**
  * 显示全局错误提示
  */
@@ -187,6 +256,18 @@ export function validateForm(): boolean {
         return false;
     }
 
+    const limitFields: Array<'limitRpm' | 'limitParallel'> = ['limitRpm', 'limitParallel'];
+    for (const fieldId of limitFields) {
+        const value = (document.getElementById(fieldId) as HTMLInputElement).value.trim();
+        const limitError = validateOptionalLimitField(value);
+        if (!limitError) {
+            continue;
+        }
+        showGlobalError(limitError);
+        document.getElementById(fieldId)?.focus();
+        return false;
+    }
+
     const webSearchToolConfigJson = (
         document.getElementById('webSearchToolConfig') as HTMLTextAreaElement
     ).value.trim();
@@ -280,6 +361,7 @@ export function collectFormData(state: EditorState): ModelFormData | null {
 
     const customHeaderText = (document.getElementById('customHeader') as HTMLTextAreaElement).value.trim();
     const extraBodyText = (document.getElementById('extraBody') as HTMLTextAreaElement).value.trim();
+    const limitText = buildLimitConfigText(state);
 
     return {
         id: modelId,
@@ -305,6 +387,10 @@ export function collectFormData(state: EditorState): ModelFormData | null {
         nativeTools,
         reasoningEffort: reasoningEffortValues as ModelFormData['reasoningEffort'],
         reasoningDefault: reasoningDefault as ModelFormData['reasoningDefault'],
+        limit: parseJSON(limitText) ? limitText : '',
+        limitRpm: (document.getElementById('limitRpm') as HTMLInputElement).value.trim(),
+        limitTpm: state.model.limitTpm || '',
+        limitParallel: (document.getElementById('limitParallel') as HTMLInputElement).value.trim(),
         // 当前可视化编辑器尚未提供 tokenPricing 单独输入控件；保存时保留已有值，
         // 避免用户编辑其他字段时把 settings.json 中的 tokenPricing 清空。
         tokenPricing: state.model.tokenPricing || '',

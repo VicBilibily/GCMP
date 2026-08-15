@@ -153,8 +153,12 @@ function buildModelConfigurationProperties(model: ModelConfig): Record<string, P
             enum: thinkingOptions,
             enumItemLabels: thinkingOptions.map(
                 value =>
-                    ({ disabled: 'Non-Thinking', enabled: 'Thinking', auto: 'Auto', adaptive: 'Adaptive' })[value] ||
-                    value
+                    ({
+                        disabled: 'Non-Thinking',
+                        enabled: 'Thinking',
+                        auto: 'Auto',
+                        adaptive: 'Adaptive'
+                    })[value] || value
             ),
             enumDescriptions: thinkingOptions.map(
                 value =>
@@ -252,9 +256,13 @@ function buildModelConfigurationProperties(model: ModelConfig): Record<string, P
             enumItemLabels: model.serviceTier.map(value => {
                 if (isAnthropic) {
                     return (
-                        { auto: 'Auto', default: 'Std.', flex: 'Flex', priority: 'Pri.', standard_only: 'Standard' }[
-                            value
-                        ] || value
+                        {
+                            auto: 'Auto',
+                            default: 'Std.',
+                            flex: 'Flex',
+                            priority: 'Pri.',
+                            standard_only: 'Standard'
+                        }[value] || value
                     );
                 }
                 return { auto: 'Auto', default: 'Std.', flex: 'Flex', priority: 'Fast' }[value] || value;

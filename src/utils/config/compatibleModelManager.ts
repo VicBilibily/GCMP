@@ -16,6 +16,7 @@ import type {
     AnthropicPromptCacheTtl,
     ModelTokenPricingInput,
     NativeToolConfig,
+    RateLimitConfig,
     WebSearchToolConfig
 } from '../../types/sharedTypes';
 import { normalizeCompatibleServiceTiers } from '../model/compatibleServiceTier';
@@ -166,6 +167,8 @@ export interface CompatibleModelConfig {
      * Token 定价（USD / 每百万 token），用于客户端成本估算和模型选择器展示。
      */
     tokenPricing?: ModelTokenPricingInput;
+    /** 模型级别的限流配置（可选），设置后该模型使用独立限流桶 */
+    limit?: RateLimitConfig;
     /** 是否由向导创建（内部标记，不持久化） */
     _isFromWizard?: boolean;
 }

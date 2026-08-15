@@ -609,7 +609,9 @@ test('buildRequestTotals aggregates tokens, cost, latency and duration from comp
             requestId: 'done-estimated',
             timestamp: 5000,
             estimatedInput: 400,
-            outputTokens: 50
+            outputTokens: 50,
+            requestMetricStartTime: 4800,
+            streamStartTime: 5200
         }),
         createExtendedRecord({
             requestId: 'cancelled',
@@ -637,6 +639,6 @@ test('buildRequestTotals aggregates tokens, cost, latency and duration from comp
     assert.ok(Math.abs(totals.totalCost - 0.01) < 1e-9);
     assert.ok(totals.totalCostRmb > 0);
     assert.equal(totals.rmbExactRequests, 0);
-    assert.equal(totals.avgLatency, 100);
+    assert.equal(totals.avgLatency, 250);
     assert.equal(totals.avgDuration, 2000);
 });

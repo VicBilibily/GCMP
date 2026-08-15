@@ -40,6 +40,8 @@ export interface UpdateActualTokensParams {
     sessionTitle?: string;
     rawUsage?: RawUsageData;
     status: 'completed' | 'failed' | 'cancelled';
+    /** 实际发起上游请求的时间戳（不含限流排队） */
+    requestMetricStartTime?: number;
     /** 流开始时间 (毫秒时间戳) */
     streamStartTime?: number;
     /** 流结束时间 (毫秒时间戳) */
@@ -243,6 +245,7 @@ export class TokenUsagesManager {
                     sessionTitle: currentSessionTitle,
                     rawUsage: normalizedUsage,
                     status: params.status,
+                    requestMetricStartTime: params.requestMetricStartTime,
                     streamStartTime: params.streamStartTime,
                     streamEndTime: params.streamEndTime,
                     estimatedCost: params.estimatedCost,

@@ -1169,6 +1169,7 @@ export class OpenAIHandler {
                         sessionId,
                         rawUsage: finalUsage,
                         status: token.isCancellationRequested ? 'cancelled' : 'completed',
+                        requestMetricStartTime: requestStartTime,
                         streamStartTime,
                         streamEndTime,
                         estimatedCost: breakdown?.total,
@@ -1185,6 +1186,7 @@ export class OpenAIHandler {
                         requestId,
                         sessionId,
                         status: 'cancelled',
+                        requestMetricStartTime: requestStartTime,
                         streamStartTime,
                         streamEndTime: streamEndTime ?? Date.now()
                     });

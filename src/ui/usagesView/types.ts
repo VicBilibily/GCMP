@@ -15,6 +15,12 @@ import type {
 import type { ExtendedTokenRequestLog } from '../../usages/fileLogger/usageParser';
 import type { LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 
+export interface LiveRequestUiState {
+    isRateLimitWaiting: boolean;
+    waitScope?: 'leader' | 'local' | 'ipc';
+    queuePosition?: number;
+}
+
 // ============= UI 层数据类型 =============
 
 /**
@@ -280,5 +286,6 @@ declare global {
     interface Window {
         usagesState: State;
         usagesSetLoading: (type: 'dateDetails', isLoading: boolean) => void;
+        usagesLiveMetrics: Map<string, LiveRequestUiState>;
     }
 }

@@ -348,14 +348,14 @@ export class TokenUsagesView {
     }
 
     /**
-     * 统一处理实时流式指标事件：转发给 WebView，并在请求开始/结束时立即刷新请求记录
+     * 统一处理实时流式指标事件：转发给 WebView，并在关键状态切换时立即刷新请求记录
      */
     private handleLiveMetricsEvent(event: LiveStreamMetricEvent): void {
         if (!this.shouldForwardLiveMetrics()) {
             return;
         }
         this.postLiveMetricEvent(event);
-        if (event.type === 'requestStarted' || event.type === 'streamEnd') {
+        if (event.type === 'requestStarted' || event.type === 'streamEnd' || event.type === 'rateLimitWaiting') {
             this.smartRefresh();
         }
     }

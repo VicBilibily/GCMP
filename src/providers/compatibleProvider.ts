@@ -133,7 +133,8 @@ export class CompatibleProvider extends GenericModelProvider {
                     ...(model.reasoningDefault && { reasoningDefault: model.reasoningDefault }),
                     ...(model.contextSize && { contextSize: model.contextSize }),
                     ...(serviceTier && { serviceTier }),
-                    ...(normalizedTokenPricing && { tokenPricing: normalizedTokenPricing })
+                    ...(normalizedTokenPricing && { tokenPricing: normalizedTokenPricing }),
+                    ...(model.limit && { limit: model.limit })
                 };
 
                 // 应用 gcmp.providerOverrides 覆盖
@@ -374,6 +375,7 @@ export class CompatibleProvider extends GenericModelProvider {
 
             // === Token 统计: 记录预估 token ===
             let requestId = '';
+            let requestMetricStartTime: number | undefined;
 
             // 获取实际提供商的 key 和显示名称
             const actualProviderKey = modelConfig.provider || this.providerKey;
@@ -404,16 +406,21 @@ export class CompatibleProvider extends GenericModelProvider {
                     requestId,
                     sessionId,
                     token,
-                    modelConfig.provider || this.providerKey
+                    modelConfig.provider || this.providerKey,
+                    undefined,
+                    0,
+                    attemptStartedAt => {
+                        requestMetricStartTime = attemptStartedAt;
+                    }
                 );
             } catch (error) {
                 if (isCancellationError(error)) {
-                    this.reportRequestCancelled(requestId, sessionId);
+                    this.reportRequestCancelled(requestId, sessionId, requestMetricStartTime);
                     throw error;
                 }
                 const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
                 Logger.error(errorMessage);
-                this.reportRequestFailure(requestId, sessionId);
+                this.reportRequestFailure(requestId, sessionId, requestMetricStartTime);
                 throw error;
             } finally {
                 Logger.info(`✅ Compatible Provider: ${model.name} request completed`);
