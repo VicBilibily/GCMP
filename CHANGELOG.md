@@ -2,6 +2,22 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.35] - 2026-08-15
+
+### 新增
+
+- **新增智谱 GLM-5.3 模型**：智谱最新旗舰，以极致后训练 Scaling 实现能力跃迁，编程体感较前代提升 50%，并涌现出强大的网络安全能力；1M 上下文窗口，支持 high/max/low 推理档位。智谱官方 CodingPlan 接入点上架即用，OpenCode Go、腾讯云 TokenHub、火山引擎 CodingPlan / AgentPlan 同步新增接入。
+- **新增 DeepSeek-V4-Pro-0813 模型**：DeepSeek-V4-Pro 2026-08-13 快照版本，支持忙时/闲时分时段计费，标准 Dashscope 与 TokenPlan 团队版、个人版接入点均已支持。
+
+---
+
+### Added
+
+- **Added GLM-5.3**: Zhipu's newest flagship built on extreme post-training scaling, with ~50% better coding experience over the previous generation and newly emerging cybersecurity capabilities; features a 1M-token context window and high/max/low reasoning tiers. Now available on Zhipu's CodingPlan endpoint, with new OpenCode Go, Tencent TokenHub, and Volcengine CodingPlan/AgentPlan endpoints.
+- **Added DeepSeek-V4-Pro-0813**: the 2026-08-13 snapshot of DeepSeek-V4-Pro with peak/off-peak tiered pricing, available on the standard Dashscope, TokenPlan Team, and TokenPlan Personal endpoints.
+
+---
+
 ## [0.26.34] - 2026-08-14
 
 ### 变更
