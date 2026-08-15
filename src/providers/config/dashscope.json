@@ -180,6 +180,24 @@
             "tokenPricing": { "USD": [1.65, 3.301, 0.138], "RMB": [12, 24, 1] }
         },
         {
+            "id": "deepseek-v4-pro-0813-token-plan",
+            "name": "DeepSeek-V4-Pro-0813 (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。2026-08-13 快照版本，支持忙时/闲时分时段计费。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "deepseek-v4-pro-0813",
+            "reasoningEffort": ["high", "max", "low", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": {
+                "pricing": { "USD": [0.636, 1.908, 0.021], "RMB": [4.5, 13.5, 0.15] },
+                "tiers": [{ "cron": "* 8-21 * * *", "pricing": { "USD": [1.272, 3.816, 0.042], "RMB": [9, 27, 0.3] } }]
+            }
+        },
+        {
             "id": "deepseek-v4-flash-token-plan",
             "name": "DeepSeek-V4-Flash (TokenPlan)",
             "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
@@ -202,7 +220,7 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
             "model": "deepseek-v4-flash-0731",
-            "reasoningEffort": ["high", "max", "none"],
+            "reasoningEffort": ["high", "max", "low", "none"],
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
@@ -416,6 +434,24 @@
             "tokenPricing": { "USD": [1.65, 3.301, 0.138], "RMB": [12, 24, 1] }
         },
         {
+            "id": "deepseek-v4-pro-0813-token-plan-personal",
+            "name": "DeepSeek-V4-Pro-0813 (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 个人版专属接入点（Anthropic API 兼容协议）。2026-08-13 快照版本，支持忙时/闲时分时段计费。",
+            "provider": "dashscope-token-personal",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "deepseek-v4-pro-0813",
+            "reasoningEffort": ["high", "max", "low", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": {
+                "pricing": { "USD": [0.636, 1.908, 0.021], "RMB": [4.5, 13.5, 0.15] },
+                "tiers": [{ "cron": "* 8-21 * * *", "pricing": { "USD": [1.272, 3.816, 0.042], "RMB": [9, 27, 0.3] } }]
+            }
+        },
+        {
             "id": "deepseek-v4-flash-0731-token-plan-personal",
             "name": "DeepSeek-V4-Flash-0731 (TokenPlan)",
             "tooltip": "Dashscope Token Plan 个人版专属接入点（Anthropic API 兼容协议）。2026-07-31 快照版本，暂不支持 Responses API。",
@@ -423,7 +459,7 @@
             "sdkMode": "anthropic",
             "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
             "model": "deepseek-v4-flash-0731",
-            "reasoningEffort": ["high", "max", "none"],
+            "reasoningEffort": ["high", "max", "low", "none"],
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
@@ -591,7 +627,7 @@
             "tooltip": "DeepSeek-V4-Flash 2026-07-31 快照版本。高效轻量化MoE模型，总参284B，激活13B，原生支持百万超长上下文能力。推理速度快、延迟低、调用成本低廉，综合能力均衡，主打高并发、轻量化任务，适合日常对话、内容创作、基础 RAG、批量文案处理等普惠刚需场景。",
             "sdkMode": "anthropic",
             "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
-            "reasoningEffort": ["high", "max", "none"],
+            "reasoningEffort": ["high", "max", "low", "none"],
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
@@ -610,6 +646,22 @@
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": { "USD": [1.65, 3.301, 0.138], "RMB": [12, 24, 1] }
+        },
+        {
+            "id": "deepseek-v4-pro-0813",
+            "name": "DeepSeek-V4-Pro-0813",
+            "tooltip": "DeepSeek-V4-Pro 2026-08-13 快照版本。旗舰级 MoE 大模型，总参1.6T、激活 49B，原生支持百万级超长上下文。支持忙时/闲时分时段计费。",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "reasoningEffort": ["high", "max", "low", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": {
+                "pricing": { "USD": [0.636, 1.908, 0.021], "RMB": [4.5, 13.5, 0.15] },
+                "tiers": [{ "cron": "* 8-21 * * *", "pricing": { "USD": [1.272, 3.816, 0.042], "RMB": [9, 27, 0.3] } }]
+            }
         },
         {
             "id": "glm-5.2",
