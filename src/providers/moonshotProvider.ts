@@ -270,7 +270,7 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
                 token,
                 providerKey,
                 undefined,
-                0,
+                totalInputTokens,
                 attemptStartedAt => {
                     requestMetricStartTime = attemptStartedAt;
                 }

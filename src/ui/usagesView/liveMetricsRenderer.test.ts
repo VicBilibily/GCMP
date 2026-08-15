@@ -246,7 +246,7 @@ test('LiveMetricsRenderer switches status label between WAIT and ACTIVE', () => 
     assert.equal(statusCell.classList.contains('status-estimated'), true);
 });
 
-test('LiveMetricsRenderer clears queue badge after leaving queue', () => {
+test('LiveMetricsRenderer keeps WAIT when pacing wait has no queue position', () => {
     const { statusCell, statusLabel, outputCell } = createRendererDom('req-2');
     const renderer = new LiveMetricsRenderer(createRendererDeps());
 
@@ -269,7 +269,7 @@ test('LiveMetricsRenderer clears queue badge after leaving queue', () => {
         waitScope: 'local'
     });
 
-    assert.equal(statusLabel.textContent, 'ACTIVE');
-    assert.equal(statusCell.classList.contains('status-estimated'), true);
+    assert.equal(statusLabel.textContent, 'WAIT');
+    assert.equal(statusCell.classList.contains('status-waiting'), true);
     assert.equal(outputCell.tpot.textContent, '-');
 });

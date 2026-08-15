@@ -1,7 +1,7 @@
 ﻿import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { EditorState } from '../app';
-import { collectFormData, validateForm, validateLimitConfig } from './validation';
+import { collectFormData, validateForm } from './validation';
 
 interface MockCheckbox {
     value: string;
@@ -78,7 +78,6 @@ function createEditorState(limit: string, extras?: Partial<EditorState['model']>
             reasoningDefault: '',
             limit,
             limitRpm: '',
-            limitTpm: '',
             limitParallel: '',
             tokenPricing: '',
             customHeader: '',
@@ -91,35 +90,6 @@ function createEditorState(limit: string, extras?: Partial<EditorState['model']>
         isLoadingModels: false
     };
 }
-
-test('validateLimitConfig accepts empty config', () => {
-    assert.equal(validateLimitConfig(''), null);
-});
-
-test('validateLimitConfig accepts supported positive dimensions', () => {
-    assert.equal(validateLimitConfig('{"rpm":60,"rps":2,"tpm":120000,"parallel":3}'), null);
-});
-
-test('validateLimitConfig accepts zero as unlimited', () => {
-    assert.equal(validateLimitConfig('{"rpm":0,"parallel":0}'), null);
-});
-
-test('validateLimitConfig rejects unknown fields', () => {
-    assert.equal(validateLimitConfig('{"rpm":60,"timeout":1000}'), '限流配置仅支持 rpm、rps、tpm、parallel。');
-});
-
-test('validateLimitConfig rejects negative or invalid numbers', () => {
-    assert.equal(validateLimitConfig('{"parallel":-1}'), '限流配置的值必须是大于等于 0 的整数。');
-    assert.equal(validateLimitConfig('{"rpm":"60"}'), '限流配置的值必须是大于等于 0 的整数。');
-});
-
-test('validateLimitConfig rejects decimal values', () => {
-    assert.equal(validateLimitConfig('{"parallel":1.5}'), '限流配置的值必须是大于等于 0 的整数。');
-});
-
-test('validateLimitConfig rejects non-object json', () => {
-    assert.equal(validateLimitConfig('[1,2,3]'), '限流配置必须是 JSON 对象');
-});
 
 test('collectFormData preserves limit when editing other fields', () => {
     installMockDocument({
@@ -198,13 +168,11 @@ test('collectFormData preserves hidden limit fields while updating visible limit
 
     const formData = collectFormData(
         createEditorState('{"rps":2,"tpm":120000,"parallel":4}', {
-            limitTpm: '120000',
             limitParallel: '4'
         })
     );
 
     assert.equal(formData?.limit, '{"rps":2,"tpm":120000,"parallel":2,"rpm":60}');
-    assert.equal(formData?.limitTpm, '120000');
 });
 
 test('collectFormData preserves explicit zero as unlimited for visible limit fields', () => {

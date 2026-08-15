@@ -60,7 +60,7 @@ test('acquire 发起请求并在回执到达后授予', async () => {
     assert.equal(sent[0]!.bucketKey, 'bucket');
     assert.deepEqual(sent[0]!.costs, COSTS);
 
-    grant({ requestId, granted: true, waitMs: 120, grantId: 'g1' });
+    grant({ requestId, waitMs: 120, grantId: 'g1' });
     const outcome = await promise;
     assert.deepEqual(outcome, { status: 'granted', grantId: 'g1', waitMs: 120 });
     core.dispose();
@@ -82,21 +82,12 @@ test('单次 acquire 可覆盖默认回执超时', async () => {
     core.dispose();
 });
 
-test('granted=false 回执降级', async () => {
-    const { core, sent, grant } = makeCore();
-    const promise = core.acquire('bucket', DIMS, { requests: 1, tokens: 0 });
-    grant({ requestId: sent[0]!.requestId, granted: false, waitMs: 0 });
-    const outcome = await promise;
-    assert.deepEqual(outcome, { status: 'degraded', reason: 'rejected' });
-    core.dispose();
-});
-
 test('重复回执幂等：首次匹配后忽略', async () => {
     const { core, sent, grant } = makeCore();
     const promise = core.acquire('bucket', DIMS, { requests: 1, tokens: 0 });
     const requestId = sent[0]!.requestId;
-    grant({ requestId, granted: true, waitMs: 0, grantId: 'g1' });
-    grant({ requestId, granted: true, waitMs: 999, grantId: 'g2' }); // 重复
+    grant({ requestId, waitMs: 0, grantId: 'g1' });
+    grant({ requestId, waitMs: 999, grantId: 'g2' }); // 重复
     const outcome = await promise;
     assert.deepEqual(outcome, { status: 'granted', grantId: 'g1', waitMs: 0 });
     assert.equal(core.pendingCount, 0);
@@ -106,9 +97,18 @@ test('重复回执幂等：首次匹配后忽略', async () => {
 test('未知 requestId 的回执被忽略', async () => {
     const { core, grant } = makeCore();
     const promise = core.acquire('bucket', DIMS, { requests: 1, tokens: 0 });
-    grant({ requestId: 'unknown', granted: true, waitMs: 0, grantId: 'gx' });
+    grant({ requestId: 'unknown', waitMs: 0, grantId: 'gx' });
     const outcome = await promise; // 会超时
     assert.equal(outcome.status, 'degraded');
+    core.dispose();
+});
+
+test('缺少有效 grantId 的回执被忽略', async () => {
+    const { core, sent, grant } = makeCore({ timeout: 30 });
+    const promise = core.acquire('bucket', DIMS, { requests: 1, tokens: 0 });
+    grant({ requestId: sent[0]!.requestId, waitMs: 0, grantId: '' });
+    const outcome = await promise;
+    assert.deepEqual(outcome, { status: 'degraded', reason: 'timeout' });
     core.dispose();
 });
 
@@ -118,8 +118,8 @@ test('并发 acquire 各自独立匹配', async () => {
     const p2 = core.acquire('bucket', DIMS, { requests: 1, tokens: 0 });
     assert.equal(core.pendingCount, 2);
     // 乱序回执
-    grant({ requestId: sent[1]!.requestId, granted: true, waitMs: 5, grantId: 'g-b' });
-    grant({ requestId: sent[0]!.requestId, granted: true, waitMs: 3, grantId: 'g-a' });
+    grant({ requestId: sent[1]!.requestId, waitMs: 5, grantId: 'g-b' });
+    grant({ requestId: sent[0]!.requestId, waitMs: 3, grantId: 'g-a' });
     const [o1, o2] = await Promise.all([p1, p2]);
     assert.deepEqual(o1, { status: 'granted', grantId: 'g-a', waitMs: 3 });
     assert.deepEqual(o2, { status: 'granted', grantId: 'g-b', waitMs: 5 });
@@ -144,7 +144,7 @@ test('排队顺位更新会透传给当前 acquire', async () => {
 
     queueUpdate({ requestId, queuePosition: 3 });
     queueUpdate({ requestId, queuePosition: 2 });
-    grant({ requestId, granted: true, waitMs: 0, grantId: 'g1' });
+    grant({ requestId, waitMs: 0, grantId: 'g1' });
 
     const outcome = await promise;
     assert.deepEqual(positions, [3, 2]);
@@ -159,7 +159,7 @@ test('收到排队顺位更新后不会因默认超时降级', async () => {
 
     queueUpdate({ requestId, queuePosition: 2 });
     await new Promise(resolve => setTimeout(resolve, 60));
-    grant({ requestId, granted: true, waitMs: 0, grantId: 'g1' });
+    grant({ requestId, waitMs: 0, grantId: 'g1' });
 
     const outcome = await promise;
     assert.deepEqual(outcome, { status: 'granted', grantId: 'g1', waitMs: 0 });
@@ -188,7 +188,7 @@ test('settlePendingAsDegraded 会结算当前所有等待中的请求', async ()
     const promise = core.acquire('bucket', DIMS, COSTS);
     queueUpdate({ requestId: sent[0]!.requestId, queuePosition: 1 });
 
-    core.settlePendingAsDegraded('timeout');
+    core.settlePendingAsDegraded();
 
     const outcome = await promise;
     assert.deepEqual(outcome, { status: 'degraded', reason: 'timeout' });
@@ -206,12 +206,12 @@ test('parallel=2 时第三个跨实例请求可在排队超时窗口后继续等
     const r2 = sent[1]!.requestId;
     const r3 = sent[2]!.requestId;
 
-    grant({ requestId: r1, granted: true, waitMs: 0, grantId: 'g1' });
-    grant({ requestId: r2, granted: true, waitMs: 0, grantId: 'g2' });
+    grant({ requestId: r1, waitMs: 0, grantId: 'g1' });
+    grant({ requestId: r2, waitMs: 0, grantId: 'g2' });
     queueUpdate({ requestId: r3, queuePosition: 1 });
 
     await new Promise(resolve => setTimeout(resolve, 60));
-    grant({ requestId: r3, granted: true, waitMs: 0, grantId: 'g3' });
+    grant({ requestId: r3, waitMs: 0, grantId: 'g3' });
 
     assert.deepEqual(await p1, { status: 'granted', grantId: 'g1', waitMs: 0 });
     assert.deepEqual(await p2, { status: 'granted', grantId: 'g2', waitMs: 0 });

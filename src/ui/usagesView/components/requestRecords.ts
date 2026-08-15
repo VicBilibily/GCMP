@@ -29,6 +29,7 @@ import {
     getRecordNativeCostSplit,
     getCurrencyToggleTitle,
     getDisplayCurrency,
+    getLiveWaitingPresentation,
     getProviderDisplayName,
     getRequestKindDisplayName,
     getSessionDisplayId,
@@ -891,8 +892,8 @@ export function createRequestRecordsTable(
         const output = createElement('td', 'records-output-merged');
         output.setAttribute('data-metric', 'output');
         const liveState = getLiveRequestUiState(record.requestId);
-        const hasQueuePosition = (liveState?.queuePosition ?? 0) > 0;
-        const isWaiting = liveState?.isRateLimitWaiting === true && hasQueuePosition;
+        const waitingPresentation = getLiveWaitingPresentation(liveState);
+        const isWaiting = waitingPresentation.isWaiting;
         const outputVal = hasActualUsage && record.outputTokens > 0 ? record.outputTokens : 0;
         const metricStartTime = record.requestMetricStartTime ?? record.timestamp;
         const ttft =
@@ -916,9 +917,7 @@ export function createRequestRecordsTable(
                 :   `${Math.round(ttft)}ms`
             :   '-';
         const tpotText =
-            isWaiting ?
-                hasQueuePosition ? `#${liveState.queuePosition}`
-                :   '-'
+            isWaiting ? waitingPresentation.queuePositionText
             : tpot !== undefined ?
                 tpot >= 1000 ?
                     `${(tpot / 1000).toFixed(1)}s`
@@ -928,13 +927,12 @@ export function createRequestRecordsTable(
         const outputTokensText = outputVal > 0 ? formatTokens(outputVal) : '-';
         const ttftTitle =
             isWaiting ?
-                t('Waiting for rate limit grant', '等待限流放行中')
+                waitingPresentation.waitTitle
             :   `TTFT: ${ttft !== undefined ? ttft.toLocaleString('en-US') + 'ms' : '-'}`;
         const outputTokensTitle = `Output tokens: ${outputVal > 0 ? outputVal.toLocaleString('en-US') : '-'}`;
         const tpotTitle =
             isWaiting ?
-                hasQueuePosition ? t('Current FIFO queue position', '当前 FIFO 排队顺位')
-                :   t('Waiting for rate limit grant', '等待限流放行中')
+                waitingPresentation.queuePositionTitle
             :   `TPOT: ${tpot !== undefined ? tpot.toLocaleString('en-US') + 'ms' : '-'}`;
         const speedTitle = `Speed: ${speedText}`;
         const outputRowHtml =

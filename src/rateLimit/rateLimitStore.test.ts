@@ -3,8 +3,8 @@ import test from 'node:test';
 
 import { RateLimitStore } from './rateLimitStore';
 
-function store(): RateLimitStore {
-    return new RateLimitStore('test');
+function store(defaultLeaseMs?: number): RateLimitStore {
+    return new RateLimitStore('test', defaultLeaseMs);
 }
 
 test('无配置维度时立即授予', () => {
@@ -277,7 +277,7 @@ test('pending 永不超时：sweep 不移除，等待槽位释放后 FIFO 依次
     s.acquire('r3', 'k', dims, { requests: 1, tokens: 0 }, 0); // queued
     // 长耗时请求 r1 未 release，sweep 任意久（lease 兜底期之外除外）都不应超时放行
     const swept = s.sweep(60_000);
-    assert.equal(swept.granted.length, 0);
+    assert.equal(swept.length, 0);
     assert.equal(s.stats('k', 0)?.pending, 2);
     // r1 完成后，依次放行 r2、r3
     let granted = s.release(r1.grantId, undefined, 0);
@@ -293,8 +293,8 @@ test('pending 永不超时：sweep 不移除，等待槽位释放后 FIFO 依次
 });
 
 test('lease 过期回收槽位（Follower 崩溃兜底）', () => {
-    const s = store();
-    const dims = { parallel: 1, lease: 1000 };
+    const s = store(1000);
+    const dims = { parallel: 1 };
     const r1 = s.acquire('r1', 'k', dims, { requests: 1, tokens: 0 }, 0);
     if (r1.kind !== 'granted') {
         assert.fail('r1 should be granted');
@@ -305,8 +305,8 @@ test('lease 过期回收槽位（Follower 崩溃兜底）', () => {
 });
 
 test('renew 会延长 lease，避免长请求被提前回收', () => {
-    const s = store();
-    const dims = { parallel: 1, lease: 1000 };
+    const s = store(1000);
+    const dims = { parallel: 1 };
     const r1 = s.acquire('r1', 'k', dims, { requests: 1, tokens: 0 }, 0);
     if (r1.kind !== 'granted') {
         assert.fail('r1 should be granted');
@@ -317,13 +317,13 @@ test('renew 会延长 lease，避免长请求被提前回收', () => {
     assert.deepEqual(r2, { kind: 'queued', queuePosition: 1 });
 
     const swept = s.sweep(1900);
-    assert.equal(swept.granted.length, 1);
-    assert.equal(swept.granted[0]?.requestId, 'r2');
+    assert.equal(swept.length, 1);
+    assert.equal(swept[0]?.requestId, 'r2');
 });
 
 test('lease 从 pacing 等待结束后起算，等待期间取消仍可退款', () => {
-    const s = store();
-    const dims = { tpm: 6000, lease: 1000 };
+    const s = store(1000);
+    const dims = { tpm: 6000 };
     const costs = { requests: 0, tokens: 200 };
     s.acquire('r1', 'k', dims, costs, 0);
     const r2 = s.acquire('r2', 'k', dims, costs, 0);
@@ -343,8 +343,8 @@ test('lease 从 pacing 等待结束后起算，等待期间取消仍可退款', 
 });
 
 test('lease 回收释放容量时新请求不得插队已有 pending', () => {
-    const s = store();
-    const dims = { parallel: 1, lease: 1000 };
+    const s = store(1000);
+    const dims = { parallel: 1 };
     const costs = { requests: 1, tokens: 0 };
     const r1 = s.acquire('r1', 'k', dims, costs, 0);
     if (r1.kind !== 'granted') {
@@ -356,7 +356,7 @@ test('lease 回收释放容量时新请求不得插队已有 pending', () => {
     assert.deepEqual(r3, { kind: 'queued', queuePosition: 2 });
 
     const swept = s.sweep(2000);
-    assert.equal(swept.granted[0]?.requestId, 'r2');
+    assert.equal(swept[0]?.requestId, 'r2');
     assert.deepEqual(s.getPendingPositions('k'), [{ requestId: 'r3', queuePosition: 1 }]);
 });
 
@@ -373,7 +373,7 @@ test('parallel 扩容时新请求不得插队已有 pending', () => {
     assert.deepEqual(r3, { kind: 'queued', queuePosition: 2 });
 
     const swept = s.sweep(0);
-    assert.equal(swept.granted[0]?.requestId, 'r2');
+    assert.equal(swept[0]?.requestId, 'r2');
     assert.deepEqual(s.getPendingPositions('k'), [{ requestId: 'r3', queuePosition: 1 }]);
 });
 

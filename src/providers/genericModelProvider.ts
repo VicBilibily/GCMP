@@ -548,13 +548,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             return undefined;
         }
         // 字段级合并：model 级覆盖 provider 级同名维度
-        const mergedLimit = { ...providerLimit, ...modelLimit };
-        const dims = {
-            rpm: mergedLimit.rpm,
-            rps: mergedLimit.rps,
-            tpm: mergedLimit.tpm,
-            parallel: mergedLimit.parallel
-        };
+        const dims = { ...providerLimit, ...modelLimit };
+        if (Object.values(dims).every(value => value === undefined || value <= 0)) {
+            return undefined;
+        }
         // model 级配置存在时使用独立桶
         const bucketKey = modelLimit ? `${effectiveProviderKey}::${modelConfig.id}` : effectiveProviderKey;
         const outputReserve = Math.min(modelConfig.maxOutputTokens, 4096);
@@ -565,11 +562,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 liveMetrics.emitLiveMetrics({
                     type: 'rateLimitWaiting',
                     requestId,
-                    requestStartTime: event.waitStartTime,
                     providerName: this.providerConfig.displayName,
                     modelName: modelConfig.name,
-                    waitScope: event.scope,
-                    queuePosition: event.queuePosition
+                    ...event
                 });
             }
         });
@@ -702,19 +697,6 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     }
 
                     try {
-                        // live TTFT 只统计真正发起上游请求后的耗时，不含限流排队/等待。
-                        const liveAttemptStartTime = Date.now();
-                        onAttemptStarted?.(liveAttemptStartTime);
-                        if (requestId) {
-                            liveMetrics.emitLiveMetrics({
-                                type: 'requestStarted',
-                                requestId,
-                                requestStartTime: liveAttemptStartTime,
-                                providerName: this.providerConfig.displayName,
-                                modelName: model.name || modelConfig.name
-                            });
-                        }
-
                         if (sdkMode === 'anthropic') {
                             await this.anthropicHandler.handleRequest(
                                 model,
@@ -725,7 +707,19 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 requestId,
                                 sessionId,
                                 token,
-                                liveAttemptStartTime
+                                requestStartTime,
+                                attemptStartedAt => {
+                                    onAttemptStarted?.(attemptStartedAt);
+                                    if (requestId) {
+                                        liveMetrics.emitLiveMetrics({
+                                            type: 'requestStarted',
+                                            requestId,
+                                            requestStartTime: attemptStartedAt,
+                                            providerName: this.providerConfig.displayName,
+                                            modelName: model.name || modelConfig.name
+                                        });
+                                    }
+                                }
                             );
                         } else if (sdkMode === 'openai-sse') {
                             await this.openaiCustomHandler.handleRequest(
@@ -737,7 +731,19 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 requestId,
                                 sessionId,
                                 token,
-                                liveAttemptStartTime
+                                requestStartTime,
+                                attemptStartedAt => {
+                                    onAttemptStarted?.(attemptStartedAt);
+                                    if (requestId) {
+                                        liveMetrics.emitLiveMetrics({
+                                            type: 'requestStarted',
+                                            requestId,
+                                            requestStartTime: attemptStartedAt,
+                                            providerName: this.providerConfig.displayName,
+                                            modelName: model.name || modelConfig.name
+                                        });
+                                    }
+                                }
                             );
                         } else if (sdkMode === 'openai-responses') {
                             await this.openaiResponsesHandler.handleResponsesRequest(
@@ -749,7 +755,19 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 requestId,
                                 sessionId,
                                 token,
-                                liveAttemptStartTime
+                                requestStartTime,
+                                attemptStartedAt => {
+                                    onAttemptStarted?.(attemptStartedAt);
+                                    if (requestId) {
+                                        liveMetrics.emitLiveMetrics({
+                                            type: 'requestStarted',
+                                            requestId,
+                                            requestStartTime: attemptStartedAt,
+                                            providerName: this.providerConfig.displayName,
+                                            modelName: model.name || modelConfig.name
+                                        });
+                                    }
+                                }
                             );
                         } else {
                             await this.openaiHandler.handleRequest(
@@ -761,7 +779,19 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 requestId,
                                 sessionId,
                                 token,
-                                liveAttemptStartTime
+                                requestStartTime,
+                                attemptStartedAt => {
+                                    onAttemptStarted?.(attemptStartedAt);
+                                    if (requestId) {
+                                        liveMetrics.emitLiveMetrics({
+                                            type: 'requestStarted',
+                                            requestId,
+                                            requestStartTime: attemptStartedAt,
+                                            providerName: this.providerConfig.displayName,
+                                            modelName: model.name || modelConfig.name
+                                        });
+                                    }
+                                }
                             );
                         }
                         // 成功：释放并发槽位但不退款（v1 不做结算）

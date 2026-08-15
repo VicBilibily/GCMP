@@ -408,7 +408,7 @@ export class CompatibleProvider extends GenericModelProvider {
                     token,
                     modelConfig.provider || this.providerKey,
                     undefined,
-                    0,
+                    totalInputTokens,
                     attemptStartedAt => {
                         requestMetricStartTime = attemptStartedAt;
                     }

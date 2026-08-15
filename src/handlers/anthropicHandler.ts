@@ -219,13 +219,15 @@ export class AnthropicHandler {
         requestId: string,
         sessionId: string,
         token: vscode.CancellationToken,
-        requestStartTime?: number
+        requestStartTime?: number,
+        onRequestDispatched?: (requestMetricStartTime: number) => void
     ): Promise<void> {
         // 将 vscode.CancellationToken 转换为 AbortSignal
         const abortController = new AbortController();
         const cancellationListener = token.onCancellationRequested(() => abortController.abort());
 
         let reporter: StreamReporter | undefined;
+        let requestMetricStartTime = requestStartTime;
 
         try {
             const client = await this.createAnthropicClient(modelConfig);
@@ -328,8 +330,9 @@ export class AnthropicHandler {
                 anthropicStreamOptions.headers = createOpenCodeHeaders(requestId, sessionId);
             }
 
-            // 提前创建 reporter，使实时 TTFT 从 provider 请求处理起点开始滚动；
-            // 该起点不等同于严格的网络请求发出时刻。
+            requestMetricStartTime = Date.now();
+            onRequestDispatched?.(requestMetricStartTime);
+
             reporter = new StreamReporter({
                 modelName: model.name,
                 modelId: model.id,
@@ -338,7 +341,7 @@ export class AnthropicHandler {
                 progress,
                 sessionId,
                 requestId,
-                requestStartTime,
+                requestStartTime: requestMetricStartTime,
                 onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
             });
             // 局部收窄：try 块内用 const 引用确保 TypeScript 知道非 undefined，
@@ -356,7 +359,7 @@ export class AnthropicHandler {
             let costNanoAiu: number | undefined;
             let breakdown: ReturnType<typeof calculateCostWithBreakdown> | undefined;
             if (modelConfig.tokenPricing) {
-                const costAt = requestStartTime ? new Date(requestStartTime) : new Date();
+                const costAt = requestMetricStartTime ? new Date(requestMetricStartTime) : new Date();
                 breakdown = calculateCostWithBreakdown(
                     result?.usage,
                     modelConfig.tokenPricing,
@@ -382,7 +385,7 @@ export class AnthropicHandler {
                     sessionId,
                     rawUsage: result?.usage,
                     status: token.isCancellationRequested ? 'cancelled' : 'completed',
-                    requestMetricStartTime: requestStartTime,
+                    requestMetricStartTime,
                     streamStartTime: result?.streamStartTime,
                     streamEndTime: result?.streamEndTime,
                     estimatedCost: breakdown?.total,
@@ -398,7 +401,7 @@ export class AnthropicHandler {
                         requestId,
                         sessionId,
                         status: 'cancelled',
-                        requestMetricStartTime: requestStartTime
+                        requestMetricStartTime
                     });
                 }
                 throw new vscode.CancellationError();

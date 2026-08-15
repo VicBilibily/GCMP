@@ -288,7 +288,7 @@ export class DashscopeProvider extends GenericModelProvider implements LanguageM
                 token,
                 providerKey,
                 undefined,
-                0,
+                totalInputTokens,
                 attemptStartedAt => {
                     requestMetricStartTime = attemptStartedAt;
                 }

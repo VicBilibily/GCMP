@@ -17,35 +17,6 @@ import {
 } from '../utils';
 import { normalizeCompatibleServiceTiers } from '../../../utils/model/compatibleServiceTier';
 
-export function validateLimitConfig(text: string): string | null {
-    if (!text) {
-        return null;
-    }
-
-    const parsed = parseJSON(text);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        return t('Rate limit config must be a JSON object.', '限流配置必须是 JSON 对象');
-    }
-
-    const allowedKeys = new Set(['rpm', 'rps', 'tpm', 'parallel']);
-    for (const [key, value] of Object.entries(parsed)) {
-        if (!allowedKeys.has(key)) {
-            return t(
-                'Rate limit config only supports rpm, rps, tpm, and parallel.',
-                '限流配置仅支持 rpm、rps、tpm、parallel。'
-            );
-        }
-        if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || !Number.isInteger(value)) {
-            return t(
-                'Rate limit config values must be integers greater than or equal to 0.',
-                '限流配置的值必须是大于等于 0 的整数。'
-            );
-        }
-    }
-
-    return null;
-}
-
 function validateOptionalLimitField(value: string): string | null {
     if (!value) {
         return null;
@@ -389,7 +360,6 @@ export function collectFormData(state: EditorState): ModelFormData | null {
         reasoningDefault: reasoningDefault as ModelFormData['reasoningDefault'],
         limit: parseJSON(limitText) ? limitText : '',
         limitRpm: (document.getElementById('limitRpm') as HTMLInputElement).value.trim(),
-        limitTpm: state.model.limitTpm || '',
         limitParallel: (document.getElementById('limitParallel') as HTMLInputElement).value.trim(),
         // 当前可视化编辑器尚未提供 tokenPricing 单独输入控件；保存时保留已有值，
         // 避免用户编辑其他字段时把 settings.json 中的 tokenPricing 清空。

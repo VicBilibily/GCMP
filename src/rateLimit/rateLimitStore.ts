@@ -4,17 +4,10 @@
  *  纯逻辑模块：全部方法同步、由调用方注入 now，不依赖 vscode / 定时器
  *--------------------------------------------------------------------------------------------*/
 
+import type { RateLimitConfig } from '../types/sharedTypes';
 import { intervalFromPerMinute, intervalFromPerSecond } from './gcra';
 
-/** 限流维度配置（未配置或 0 表示该维度不限） */
-export interface RateLimitDimensions {
-    rpm?: number;
-    rps?: number;
-    tpm?: number;
-    parallel?: number;
-    /** grant 租约（毫秒），默认 600000，防 Follower 崩溃后槽位泄漏 */
-    lease?: number;
-}
+export type RateLimitDimensions = RateLimitConfig;
 
 export const DEFAULT_RATE_LIMIT_LEASE_MS = 600_000;
 
@@ -42,23 +35,17 @@ export interface PendingGrant {
     waitMs: number;
 }
 
-export interface SweepResult {
-    granted: PendingGrant[];
-}
-
 export interface PendingPosition {
     requestId: string;
     queuePosition: number;
 }
 
 interface GrantRecord {
-    grantId: string;
     requestId: string;
     bucketKey: string;
     costs: RateLimitCosts;
     expiresAt: number;
     leaseMs: number;
-    released: boolean;
 }
 
 interface PendingEntry {
@@ -107,9 +94,11 @@ export class RateLimitStore {
     private grantSeq = 0;
     /** 实例级随机后缀：Leader 切换后旧 grantId 不会误命中新 grant */
     private readonly instanceTag: string;
+    private readonly defaultLeaseMs: number;
 
-    constructor(instanceTag?: string) {
+    constructor(instanceTag?: string, defaultLeaseMs = DEFAULT_RATE_LIMIT_LEASE_MS) {
         this.instanceTag = instanceTag ?? Math.random().toString(36).slice(2, 10);
+        this.defaultLeaseMs = defaultLeaseMs;
     }
 
     /**
@@ -144,10 +133,9 @@ export class RateLimitStore {
      */
     release(grantId: string, refund: RateLimitRefund | undefined, now: number): PendingGrant[] {
         const grant = this.grants.get(grantId);
-        if (!grant || grant.released) {
+        if (!grant) {
             return [];
         }
-        grant.released = true;
         this.grants.delete(grantId);
         const bucket = this.buckets.get(grant.bucketKey);
         if (!bucket) {
@@ -160,7 +148,7 @@ export class RateLimitStore {
 
     renew(grantId: string, now: number): boolean {
         const grant = this.grants.get(grantId);
-        if (!grant || grant.released) {
+        if (!grant) {
             return false;
         }
         grant.expiresAt = Math.max(grant.expiresAt, now + grant.leaseMs);
@@ -170,13 +158,13 @@ export class RateLimitStore {
     /**
      * 周期清扫：回收过期 lease，并授予 pending（FIFO 依次放行）
      */
-    sweep(now: number): SweepResult {
-        const result: SweepResult = { granted: [] };
+    sweep(now: number): PendingGrant[] {
+        const granted: PendingGrant[] = [];
         this.reclaimExpiredLeases(now);
         for (const [bucketKey, bucket] of this.buckets) {
-            result.granted.push(...this.flushPending(bucketKey, bucket, now));
+            granted.push(...this.flushPending(bucketKey, bucket, now));
         }
-        return result;
+        return granted;
     }
 
     /** 观测用：桶当前状态快照 */
@@ -223,7 +211,7 @@ export class RateLimitStore {
             return [];
         }
         for (const [grantId, grant] of this.grants) {
-            if (grant.bucketKey === bucketKey && grant.requestId === requestId && !grant.released) {
+            if (grant.bucketKey === bucketKey && grant.requestId === requestId) {
                 return this.release(grantId, grant.costs, now);
             }
         }
@@ -282,15 +270,13 @@ export class RateLimitStore {
             this.reservePacing(bucket.paceTpm, grantId, costs.tokens, now)
         );
         bucket.inflight += 1;
-        const leaseMs = bucket.dims.lease ?? DEFAULT_RATE_LIMIT_LEASE_MS;
+        const leaseMs = this.defaultLeaseMs;
         this.grants.set(grantId, {
-            grantId,
             requestId,
             bucketKey,
             costs: { ...costs },
             expiresAt: now + waitMs + leaseMs,
-            leaseMs,
-            released: false
+            leaseMs
         });
         return { kind: 'granted', grantId, waitMs };
     }
@@ -324,8 +310,7 @@ export class RateLimitStore {
     /** 惰性回收过期租约（Follower 崩溃后槽位兜底） */
     private reclaimExpiredLeases(now: number): void {
         for (const [grantId, grant] of this.grants) {
-            if (!grant.released && grant.expiresAt <= now) {
-                grant.released = true;
+            if (grant.expiresAt <= now) {
                 const bucket = this.buckets.get(grant.bucketKey);
                 if (bucket) {
                     bucket.inflight = Math.max(0, bucket.inflight - 1);

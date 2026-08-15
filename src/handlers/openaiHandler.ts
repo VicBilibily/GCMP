@@ -983,13 +983,15 @@ export class OpenAIHandler {
         requestId: string,
         sessionId: string,
         token: vscode.CancellationToken,
-        requestStartTime?: number
+        requestStartTime?: number,
+        onRequestDispatched?: (requestMetricStartTime: number) => void
     ): Promise<void> {
         Logger.debug(`${model.name} starting ${this.displayName} request handling`);
         // 清理当前请求的事件去重跟踪器
         this.currentRequestProcessedEvents.clear();
 
         let reporter: StreamReporter | undefined;
+        let requestMetricStartTime = requestStartTime;
 
         try {
             const client = await this.createOpenAIClient(modelConfig);
@@ -998,22 +1000,6 @@ export class OpenAIHandler {
             const createParams = this.buildChatCompletionParams(model, modelConfig, messages, options);
 
             Logger.info(`🚀 ${model.name} Sending ${this.displayName} request`);
-
-            // 创建统一的流报告器
-            reporter = new StreamReporter({
-                modelName: model.name,
-                modelId: model.id,
-                provider: this.provider,
-                sdkMode: 'openai',
-                progress,
-                sessionId,
-                requestId,
-                requestStartTime,
-                onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
-            });
-            // 局部收窄：try 块内用 const 引用确保 TypeScript 知道非 undefined，
-            // 外层 let reporter 供 finally 兜底使用
-            const streamReporter = reporter;
 
             // 使用 OpenAI SDK 的事件驱动流式方法，利用内置工具调用处理
             // 将 vscode.CancellationToken 转换为 AbortSignal
@@ -1032,6 +1018,22 @@ export class OpenAIHandler {
                 if (this.provider === 'opencode') {
                     streamOptions.headers = createOpenCodeHeaders(requestId, sessionId);
                 }
+
+                requestMetricStartTime = Date.now();
+                onRequestDispatched?.(requestMetricStartTime);
+
+                reporter = new StreamReporter({
+                    modelName: model.name,
+                    modelId: model.id,
+                    provider: this.provider,
+                    sdkMode: 'openai',
+                    progress,
+                    sessionId,
+                    requestId,
+                    requestStartTime: requestMetricStartTime,
+                    onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
+                });
+                const streamReporter = reporter;
 
                 const stream = client.chat.completions.stream(createParams, streamOptions);
                 // 利用 SDK 内置的事件系统处理工具调用和内容
@@ -1130,7 +1132,7 @@ export class OpenAIHandler {
                 let costNanoAiu: number | undefined;
                 let breakdown: ReturnType<typeof calculateCostWithBreakdown> | undefined;
                 if (modelConfig.tokenPricing) {
-                    const costAt = requestStartTime ? new Date(requestStartTime) : new Date();
+                    const costAt = requestMetricStartTime ? new Date(requestMetricStartTime) : new Date();
                     const requestServiceTier = (options.modelConfiguration as ModelChatResponseOptions)?.serviceTier;
                     breakdown = calculateCostWithBreakdown(
                         finalUsage,
@@ -1169,7 +1171,7 @@ export class OpenAIHandler {
                         sessionId,
                         rawUsage: finalUsage,
                         status: token.isCancellationRequested ? 'cancelled' : 'completed',
-                        requestMetricStartTime: requestStartTime,
+                        requestMetricStartTime,
                         streamStartTime,
                         streamEndTime,
                         estimatedCost: breakdown?.total,
@@ -1186,7 +1188,7 @@ export class OpenAIHandler {
                         requestId,
                         sessionId,
                         status: 'cancelled',
-                        requestMetricStartTime: requestStartTime,
+                        requestMetricStartTime,
                         streamStartTime,
                         streamEndTime: streamEndTime ?? Date.now()
                     });

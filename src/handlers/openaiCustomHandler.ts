@@ -133,7 +133,8 @@ export class OpenAICustomHandler {
         requestId: string,
         sessionId: string,
         token: vscode.CancellationToken,
-        requestStartTime?: number
+        requestStartTime?: number,
+        onRequestDispatched?: (requestMetricStartTime: number) => void
     ): Promise<void> {
         const provider = modelConfig.provider || this.provider;
         const apiKey = await ApiKeyManager.getApiKey(provider);
@@ -166,24 +167,10 @@ export class OpenAICustomHandler {
 
         const abortController = new AbortController();
         const cancellationListener = token.onCancellationRequested(() => abortController.abort());
-
-        // 提前创建 reporter，使实时 TTFT 从 provider 请求处理起点开始滚动；
-        // 该起点不等同于严格的网络请求发出时刻。
         let reporter: StreamReporter | undefined;
+        let requestMetricStartTime = requestStartTime;
 
         try {
-            reporter = new StreamReporter({
-                modelName: model.name,
-                modelId: model.id,
-                provider: this.provider,
-                sdkMode: 'openai',
-                progress,
-                sessionId,
-                requestId,
-                requestStartTime,
-                onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
-            });
-
             // 合并提供商级别和模型级别的 customHeader
             // 模型级别的 customHeader 会覆盖提供商级别的同名头部
             const mergedCustomHeader = {
@@ -198,6 +185,21 @@ export class OpenAICustomHandler {
             if (this.provider === 'opencode') {
                 Object.assign(processedCustomHeader, createOpenCodeHeaders(requestId, sessionId));
             }
+
+            requestMetricStartTime = Date.now();
+            onRequestDispatched?.(requestMetricStartTime);
+
+            reporter = new StreamReporter({
+                modelName: model.name,
+                modelId: model.id,
+                provider: this.provider,
+                sdkMode: 'openai',
+                progress,
+                sessionId,
+                requestId,
+                requestStartTime: requestMetricStartTime,
+                onLiveMetrics: event => liveMetrics.emitLiveMetrics(event)
+            });
 
             const response = await ConfigManager.fetchWithProxy(
                 url,
@@ -264,7 +266,7 @@ export class OpenAICustomHandler {
                 requestId || '',
                 token,
                 modelConfig.tokenPricing,
-                requestStartTime,
+                requestMetricStartTime,
                 (options.modelConfiguration as ModelChatResponseOptions | undefined)?.serviceTier
             );
 
@@ -277,7 +279,7 @@ export class OpenAICustomHandler {
                     requestId: requestId || '',
                     sessionId: reporter?.getSessionId(),
                     status: 'cancelled',
-                    requestMetricStartTime: requestStartTime
+                    requestMetricStartTime
                 });
                 throw new vscode.CancellationError();
             }

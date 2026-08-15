@@ -299,7 +299,7 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
                 token,
                 providerKey,
                 undefined,
-                0,
+                totalInputTokens,
                 attemptStartedAt => {
                     requestMetricStartTime = attemptStartedAt;
                 }
