@@ -5,11 +5,14 @@
  *---------------------------------------------------------------------------------------------*/
 
 export interface LiveStreamMetricEvent {
-    type: 'requestStarted' | 'firstChunk' | 'streamingUpdate' | 'streamEnd';
+    type: 'requestStarted' | 'firstChunk' | 'streamingUpdate' | 'streamEnd' | 'rateLimitWaiting';
     requestId: string;
     requestStartTime: number;
     providerName: string;
     modelName: string;
+    /** 限流等待范围：leader=本实例权威桶，local=本地降级桶，ipc=远端权威桶回执后的本地等待 */
+    waitScope?: 'leader' | 'local' | 'ipc';
+    queuePosition?: number;
     streamStartTime?: number;
     firstChunkLatencyMs?: number;
     /**

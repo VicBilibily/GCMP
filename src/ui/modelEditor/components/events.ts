@@ -107,6 +107,23 @@ export function bindEvents(state: EditorState, actions: Actions): void {
         textarea?.addEventListener('change', () => validateJSON_UI(fieldId));
     });
 
+    ['limitRpm', 'limitParallel'].forEach(fieldId => {
+        const input = document.getElementById(fieldId) as HTMLInputElement | null;
+        input?.addEventListener('input', function (this: HTMLInputElement) {
+            const value = this.value.trim();
+            if (!value) {
+                this.classList.remove('invalid');
+                return;
+            }
+            const parsed = Number(value);
+            if (Number.isFinite(parsed) && parsed >= 0) {
+                this.classList.remove('invalid');
+            } else {
+                this.classList.add('invalid');
+            }
+        });
+    });
+
     document.querySelectorAll<HTMLButtonElement>('.json-format-btn').forEach(btn => {
         btn.addEventListener('click', e => {
             e.preventDefault();

@@ -225,6 +225,9 @@ export abstract class StatsCalculator {
                 if (log.costBreakdown) {
                     existing.costBreakdown = log.costBreakdown;
                 }
+                if (log.requestMetricStartTime !== undefined) {
+                    existing.requestMetricStartTime = log.requestMetricStartTime;
+                }
                 // 更新流时间信息
                 if (log.streamStartTime !== undefined) {
                     existing.streamStartTime = log.streamStartTime;
@@ -429,8 +432,9 @@ export abstract class StatsCalculator {
 
             // 首 Token 延迟样本同样仅收集到“模型”维度（不做置信处理）。
             // 过滤 10ms 以内的异常极值（响应过快的数据通常是缓存命中或系统内部请求，不代表真实首流延迟）。
-            if (log.streamStartTime !== undefined && log.timestamp !== undefined) {
-                const firstTokenLatency = log.streamStartTime - log.timestamp;
+            const metricStartTime = log.requestMetricStartTime ?? log.timestamp;
+            if (log.streamStartTime !== undefined && metricStartTime !== undefined) {
+                const firstTokenLatency = log.streamStartTime - metricStartTime;
                 if (Number.isFinite(firstTokenLatency) && firstTokenLatency >= 10) {
                     if (!modelFirstTokenLatencyAcc[log.providerKey]) {
                         modelFirstTokenLatencyAcc[log.providerKey] = {};

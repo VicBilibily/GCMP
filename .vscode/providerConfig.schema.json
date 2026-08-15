@@ -40,6 +40,10 @@
                 "minLength": 1
             }
         },
+        "limit": {
+            "$ref": "#/$defs/rateLimitConfig",
+            "description": "内置预置限流配置（可选）。优先级与 retry 一致：providerOverrides 的 limit 覆盖此预置。"
+        },
         "models": {
             "type": "array",
             "minItems": 1,
@@ -75,6 +79,10 @@
         }
     },
     "patternProperties": {
+        "^limit\\..+": {
+            "$ref": "#/$defs/rateLimitConfig",
+            "description": "子 provider 级别的限流配置覆盖（可选）。为指定子 provider（如 \"limit.xfyun-coding\"）配置独立的限流策略。字段语义与顶层 limit 一致。"
+        },
         "^retry\\..+": {
             "type": "object",
             "description": "子 provider 级别的重试配置覆盖（可选）。为指定子 provider（如 \"retry.xfyun-coding\"）配置独立的重试策略。字段语义与顶层 retry 一致：-1 无限重试、0 禁止重试、正整数不限上限。",
@@ -102,6 +110,33 @@
         }
     },
     "$defs": {
+        "rateLimitConfig": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "限流配置。所有维度可选，0 或缺省表示该维度不限；任一维度先触顶即自主延迟（匀速 pacing）。",
+            "properties": {
+                "rpm": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "每分钟请求数上限。"
+                },
+                "rps": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "每秒请求数上限。"
+                },
+                "tpm": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "每分钟 token 数上限（按输入估算）。"
+                },
+                "parallel": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "最大并发在途请求数。超限请求按 FIFO 排队等待槽位释放。"
+                }
+            }
+        },
         "capabilities": {
             "type": "object",
             "additionalProperties": false,
@@ -526,6 +561,10 @@
                 },
                 "tokenPricing": {
                     "$ref": "#/$defs/tokenPricing"
+                },
+                "limit": {
+                    "$ref": "#/$defs/rateLimitConfig",
+                    "description": "模型级别的限流配置（可选）。设置后该模型使用独立的限流桶，字段级覆盖 provider 级 limit 的同名维度。"
                 }
             },
             "allOf": [

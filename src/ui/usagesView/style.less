@@ -832,6 +832,11 @@ body {
                 margin-top: 1px;
                 margin-bottom: -0.6em;
             }
+
+            .request-time-metric-mismatch {
+                color: var(--vscode-editorInfo-foreground);
+                font-weight: 600;
+            }
         }
 
         /* 第2列（提供商/模型）左对齐 */
@@ -1089,6 +1094,15 @@ button {
     .status-label {
         color: var(--vscode-charts-blue, var(--vscode-textLink-foreground));
         font-weight: 500;
+    }
+}
+
+.status-waiting {
+    color: var(--vscode-charts-orange, var(--vscode-terminal-ansiYellow));
+
+    .status-label {
+        color: var(--vscode-charts-orange, var(--vscode-terminal-ansiYellow));
+        font-weight: 600;
     }
 }
 

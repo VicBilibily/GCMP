@@ -170,6 +170,7 @@ export class OpenAIResponsesHandler {
                         modelName: model.name,
                         requestId,
                         sessionId,
+                        requestMetricStartTime: requestStartTime,
                         streamStartTime,
                         streamEndTime
                     });
@@ -264,6 +265,7 @@ export class OpenAIResponsesHandler {
                 sessionId,
                 rawUsage: finalUsage,
                 status: token.isCancellationRequested ? 'cancelled' : 'completed',
+                requestMetricStartTime: requestStartTime,
                 streamStartTime,
                 streamEndTime,
                 estimatedCost: breakdown?.total,
@@ -279,16 +281,18 @@ export class OpenAIResponsesHandler {
         modelName: string;
         requestId: string;
         sessionId: string;
+        requestMetricStartTime?: number;
         streamStartTime?: number;
         streamEndTime?: number;
     }): void {
-        const { modelName, requestId, sessionId, streamStartTime, streamEndTime } = params;
+        const { modelName, requestId, sessionId, requestMetricStartTime, streamStartTime, streamEndTime } = params;
         Logger.info(`${modelName} Responses API request was cancelled by the user`);
         // 记录取消状态（同步调用，内部写盘 fire-and-forget，不阻塞取消链路）
         TokenUsagesManager.instance.updateActualTokens({
             requestId,
             sessionId,
             status: 'cancelled',
+            requestMetricStartTime,
             streamStartTime,
             streamEndTime: streamEndTime ?? Date.now()
         });

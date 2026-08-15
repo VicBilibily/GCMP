@@ -276,7 +276,8 @@ export class OpenAICustomHandler {
                 TokenUsagesManager.instance.updateActualTokens({
                     requestId: requestId || '',
                     sessionId: reporter?.getSessionId(),
-                    status: 'cancelled'
+                    status: 'cancelled',
+                    requestMetricStartTime: requestStartTime
                 });
                 throw new vscode.CancellationError();
             }
@@ -452,6 +453,7 @@ export class OpenAICustomHandler {
             sessionId: reporter.getSessionId(),
             rawUsage: finalUsage,
             status: token.isCancellationRequested ? 'cancelled' : 'completed',
+            requestMetricStartTime: requestStartTime,
             streamStartTime,
             streamEndTime,
             estimatedCost: breakdown?.total,

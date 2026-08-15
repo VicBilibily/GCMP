@@ -126,11 +126,13 @@ export interface LiveMetricsUpdatedEvent extends InterInstanceEventBase {
     payload: {
         /** 实时流式指标事件 */
         event: {
-            type: 'requestStarted' | 'firstChunk' | 'streamingUpdate' | 'streamEnd';
+            type: 'requestStarted' | 'firstChunk' | 'streamingUpdate' | 'streamEnd' | 'rateLimitWaiting';
             requestId: string;
             requestStartTime: number;
             providerName: string;
             modelName: string;
+            waitScope?: 'leader' | 'local' | 'ipc';
+            queuePosition?: number;
             streamStartTime?: number;
             firstChunkLatencyMs?: number;
             estimatedOutputTokens?: number;
@@ -219,6 +221,106 @@ export interface StatsRefreshCompletedEvent extends InterInstanceEventBase {
 }
 
 /**
+ * 限流配额申请
+ * 由非主实例（Follower）发出，请求 Leader 在权威限流桶中扣减配额。
+ * 回执为 rateLimitAcquireGranted；超时未回执时 Follower 降级为本地桶。
+ */
+export interface RateLimitAcquireRequestedEvent extends InterInstanceEventBase {
+    type: 'rateLimitAcquireRequested';
+    payload: {
+        /** 请求 ID，用于匹配 granted 回执 */
+        requestId: string;
+        /** 限流桶键（providerKey 或 providerKey::modelId） */
+        bucketKey: string;
+        /** 本次申请的成本 */
+        costs: {
+            requests: number;
+            tokens: number;
+        };
+        /** 限流维度配置（随请求携带，Leader 侧桶懒创建/更新） */
+        dims: {
+            rpm?: number;
+            rps?: number;
+            tpm?: number;
+            parallel?: number;
+            lease?: number;
+        };
+    };
+}
+
+/**
+ * 限流配额授予回执
+ * Leader 完成扣减后广播；Follower 按 requestId 幂等匹配。
+ */
+export interface RateLimitAcquireGrantedEvent extends InterInstanceEventBase {
+    type: 'rateLimitAcquireGranted';
+    payload: {
+        /** 对应的请求 ID */
+        requestId: string;
+        /** 是否授予（false = Leader 未授予，Follower 转本地降级桶） */
+        granted: boolean;
+        /** 授予后仍需等待的毫秒数 */
+        waitMs: number;
+        /** grant ID（granted=true 时存在），release 时回传 */
+        grantId?: string;
+    };
+}
+
+/**
+ * 限流排队顺位更新
+ * Leader 在并发队列变动后广播；Follower 按 requestId 匹配并刷新 WAIT 顺位。
+ */
+export interface RateLimitQueueUpdatedEvent extends InterInstanceEventBase {
+    type: 'rateLimitQueueUpdated';
+    payload: {
+        /** 对应的请求 ID */
+        requestId: string;
+        /** 当前 FIFO 排队顺位（1-based） */
+        queuePosition: number;
+    };
+}
+
+/**
+ * 限流排队取消
+ * Follower 在超时/取消/销毁时通知 Leader 清理对应 pending 或已授予未释放的 request。
+ */
+export interface RateLimitAcquireCancelledEvent extends InterInstanceEventBase {
+    type: 'rateLimitAcquireCancelled';
+    payload: {
+        requestId: string;
+        bucketKey: string;
+    };
+}
+
+/**
+ * 限流配额释放
+ * 请求完成/取消后归还并发槽位并按需退款；幂等，重复释放为 no-op。
+ */
+export interface RateLimitReleasedEvent extends InterInstanceEventBase {
+    type: 'rateLimitReleased';
+    payload: {
+        /** 要释放的 grant ID */
+        grantId: string;
+        /** 退款（未提供的字段不退） */
+        refund?: {
+            requests?: number;
+            tokens?: number;
+        };
+    };
+}
+
+/**
+ * 限流租约续期
+ * 活跃请求定期发送，避免长流式响应被误判为崩溃实例而回收并发槽位。
+ */
+export interface RateLimitLeaseRenewedEvent extends InterInstanceEventBase {
+    type: 'rateLimitLeaseRenewed';
+    payload: {
+        grantId: string;
+    };
+}
+
+/**
  * 跨实例事件联合类型
  */
 export type InterInstanceEvent =
@@ -233,7 +335,13 @@ export type InterInstanceEvent =
     | CliAuthRefreshRequestedEvent
     | CliAuthRefreshCompletedEvent
     | StatsRefreshRequestedEvent
-    | StatsRefreshCompletedEvent;
+    | StatsRefreshCompletedEvent
+    | RateLimitAcquireRequestedEvent
+    | RateLimitAcquireGrantedEvent
+    | RateLimitQueueUpdatedEvent
+    | RateLimitAcquireCancelledEvent
+    | RateLimitReleasedEvent
+    | RateLimitLeaseRenewedEvent;
 
 /**
  * 事件类型名称集合（用于运行时校验）
@@ -250,7 +358,13 @@ export const INTER_INSTANCE_EVENT_TYPES = [
     'cliAuthRefreshRequested',
     'cliAuthRefreshCompleted',
     'statsRefreshRequested',
-    'statsRefreshCompleted'
+    'statsRefreshCompleted',
+    'rateLimitAcquireRequested',
+    'rateLimitAcquireGranted',
+    'rateLimitQueueUpdated',
+    'rateLimitAcquireCancelled',
+    'rateLimitReleased',
+    'rateLimitLeaseRenewed'
 ] as const;
 
 /**

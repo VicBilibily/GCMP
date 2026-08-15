@@ -337,6 +337,7 @@ export class SnapshotManager {
                     { traceId: log.otelTraceContext.traceId, spanId: log.otelTraceContext.spanId }
                 :   undefined,
             telemetryTurn: log.telemetryTurn,
+            requestMetricStartTime: log.requestMetricStartTime,
             streamStartTime: log.streamStartTime,
             streamEndTime: log.streamEndTime,
             actualInput: parsed?.actualInput,
@@ -395,6 +396,7 @@ export class SnapshotManager {
             capturingTokenCorrelationId: c.capturingTokenCorrelationId,
             otelTraceContext: c.otelTraceContext,
             telemetryTurn: c.telemetryTurn,
+            requestMetricStartTime: c.requestMetricStartTime,
             streamStartTime: c.streamStartTime,
             streamEndTime: c.streamEndTime,
             actualInput,

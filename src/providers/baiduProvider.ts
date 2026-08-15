@@ -266,6 +266,7 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
         } = await this.prepareTrackedRequestContext(model, modelConfig, messages, options);
 
         let requestId = '';
+        let requestMetricStartTime: number | undefined;
         requestId = await this.recordEstimatedRequestTokens({
             providerKey: providerKey,
             displayName: this.providerConfig.displayName,
@@ -296,16 +297,21 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
                 requestId,
                 sessionId,
                 token,
-                providerKey
+                providerKey,
+                undefined,
+                0,
+                attemptStartedAt => {
+                    requestMetricStartTime = attemptStartedAt;
+                }
             );
         } catch (error) {
             if (isCancellationError(error)) {
-                this.reportRequestCancelled(requestId, sessionId);
+                this.reportRequestCancelled(requestId, sessionId, requestMetricStartTime);
                 throw error;
             }
             const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
             Logger.error(errorMessage);
-            this.reportRequestFailure(requestId, sessionId);
+            this.reportRequestFailure(requestId, sessionId, requestMetricStartTime);
             throw error;
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);

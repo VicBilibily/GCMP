@@ -32,6 +32,7 @@ function createRecord(overrides: Partial<SnapshotRequestRecord> = {}): SnapshotR
         capturingTokenCorrelationId: overrides.capturingTokenCorrelationId,
         otelTraceContext: overrides.otelTraceContext,
         telemetryTurn: overrides.telemetryTurn,
+        requestMetricStartTime: overrides.requestMetricStartTime,
         streamStartTime: overrides.streamStartTime,
         streamEndTime: overrides.streamEndTime,
         actualInput: overrides.actualInput,
@@ -143,6 +144,7 @@ test('mergeSnapshotRecord prefers newer terminal overlay fields while preserving
         status: 'completed',
         timestamp: 1000,
         isoTime: '1970-01-01T00:00:01.000Z',
+        requestMetricStartTime: 1050,
         rawUsage: { prompt_tokens: 80, completion_tokens: 20, total_tokens: 100 },
         actualInput: 80,
         outputTokens: 20,
@@ -155,6 +157,7 @@ test('mergeSnapshotRecord prefers newer terminal overlay fields while preserving
         status: 'completed',
         timestamp: 1300,
         isoTime: '1970-01-01T00:00:01.300Z',
+        requestMetricStartTime: 1350,
         rawUsage: { prompt_tokens: 90, completion_tokens: 25, total_tokens: 115 },
         actualInput: 90,
         outputTokens: 25,
@@ -173,9 +176,35 @@ test('mergeSnapshotRecord prefers newer terminal overlay fields while preserving
     assert.equal(merged.actualInput, 90);
     assert.equal(merged.outputTokens, 25);
     assert.equal(merged.totalTokens, 115);
+    assert.equal(merged.requestMetricStartTime, 1350);
     assert.equal(merged.streamStartTime, 1100, 'overlay 缺失时保留 base 的首流时间');
     assert.equal(merged.streamEndTime, 1600);
     assert.equal(merged.outputSpeed, 83);
+});
+
+test('mergeSnapshotRecord keeps base requestMetricStartTime when overlay is sparse', () => {
+    const baseCompleted = createRecord({
+        status: 'completed',
+        requestMetricStartTime: 1050,
+        rawUsage: { prompt_tokens: 60, completion_tokens: 12, total_tokens: 72 },
+        actualInput: 60,
+        outputTokens: 12,
+        totalTokens: 72
+    });
+    const sparseCompleted = createRecord({
+        status: 'completed',
+        timestamp: 1300,
+        requestMetricStartTime: undefined,
+        rawUsage: null,
+        actualInput: undefined,
+        outputTokens: undefined,
+        totalTokens: undefined
+    });
+
+    const merged = mergeSnapshotRecord(baseCompleted, sparseCompleted);
+
+    assert.equal(merged.requestMetricStartTime, 1050);
+    assert.deepEqual(merged.rawUsage, baseCompleted.rawUsage);
 });
 
 test('mergeSnapshotRecord keeps late chat-title session reassignment metadata', () => {

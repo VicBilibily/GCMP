@@ -219,8 +219,9 @@ export function buildRequestTotals(records: ExtendedTokenRequestLog[]): RequestT
                 durations.push(record.streamDuration);
             }
 
-            if (record.streamStartTime !== undefined && record.timestamp !== undefined) {
-                const latency = record.streamStartTime - record.timestamp;
+            const metricStartTime = record.requestMetricStartTime ?? record.timestamp;
+            if (record.streamStartTime !== undefined && metricStartTime !== undefined) {
+                const latency = record.streamStartTime - metricStartTime;
                 if (Number.isFinite(latency) && latency >= 0) {
                     latencies.push(latency);
                 }

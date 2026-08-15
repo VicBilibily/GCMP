@@ -71,6 +71,10 @@ const state: EditorState = {
         nativeTools: '',
         reasoningEffort: [],
         reasoningDefault: '',
+        limit: '',
+        limitRpm: '',
+        limitTpm: '',
+        limitParallel: '',
         tokenPricing: '',
         customHeader: '',
         extraBody: ''

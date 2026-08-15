@@ -87,6 +87,40 @@ test('snapshot is updated to latest event for the same requestId', () => {
     cleanupAllSnapshots();
 });
 
+test('rateLimitWaiting is kept in snapshot until request starts', () => {
+    cleanupAllSnapshots();
+
+    emitLiveMetrics(
+        makeEvent({
+            requestId: 'req-wait',
+            type: 'rateLimitWaiting',
+            waitScope: 'local',
+            queuePosition: 2
+        })
+    );
+
+    let snapshot = getActiveMetricsSnapshot();
+    let found = snapshot.find(e => e.requestId === 'req-wait');
+    assert.ok(found);
+    assert.equal(found.type, 'rateLimitWaiting');
+    assert.equal(found.waitScope, 'local');
+    assert.equal(found.queuePosition, 2);
+
+    emitLiveMetrics(
+        makeEvent({
+            requestId: 'req-wait',
+            type: 'requestStarted'
+        })
+    );
+
+    snapshot = getActiveMetricsSnapshot();
+    found = snapshot.find(e => e.requestId === 'req-wait');
+    assert.ok(found);
+    assert.equal(found.type, 'requestStarted');
+
+    cleanupAllSnapshots();
+});
+
 test('multiple concurrent requests have independent snapshots', () => {
     cleanupAllSnapshots();
     emitLiveMetrics(makeEvent({ requestId: 'req-a', type: 'requestStarted' }));

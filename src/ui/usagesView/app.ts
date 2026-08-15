@@ -503,6 +503,7 @@ function initApp(): void {
     // 将状态和工具函数挂载到 window 对象，供所有组件访问
     window.usagesState = state;
     window.usagesSetLoading = setLoading;
+    window.usagesLiveMetrics = new Map();
 
     // 创建主容器
     const container = createElement('div', 'container');

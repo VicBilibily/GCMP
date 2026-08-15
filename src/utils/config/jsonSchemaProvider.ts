@@ -1106,6 +1106,7 @@ export class JsonSchemaProvider {
                                 }
                             },
                             tokenPricing: this.getTokenPricingSchema(),
+                            limit: this.getRateLimitSchema(),
                             includeThinking: {
                                 type: 'boolean',
                                 description: this.getIncludeThinkingDescription(),
@@ -1483,6 +1484,8 @@ export class JsonSchemaProvider {
                 },
                 retry: this.getProviderRetryOverrideSchema(),
                 ...this.getKnownSubProviderRetryOverrideProperties(providerKey),
+                limit: this.getRateLimitSchema(),
+                ...this.getKnownSubProviderRateLimitProperties(providerKey),
                 models: {
                     type: 'array',
                     description: t('Model override configuration list', '模型覆盖配置列表'),
@@ -1595,6 +1598,7 @@ export class JsonSchemaProvider {
                                 }
                             },
                             tokenPricing: this.getTokenPricingSchema(),
+                            limit: this.getRateLimitSchema(),
                             useInstructions: {
                                 type: 'boolean',
                                 description: this.getUseInstructionsDescription(),
@@ -1935,7 +1939,10 @@ export class JsonSchemaProvider {
                     }
                 }
             },
-            patternProperties: this.getSubProviderRetryPatternProperties(),
+            patternProperties: {
+                ...this.getSubProviderRetryPatternProperties(),
+                ...this.getSubProviderRateLimitPatternProperties()
+            },
             additionalProperties: false
         };
     }
@@ -2081,6 +2088,75 @@ export class JsonSchemaProvider {
     }
 
     /**
+     * 构造限流配置的 JSON Schema（provider / 子 provider / model 级共用）。
+     * 所有维度可选，0 或缺省表示该维度不限；任一维度触顶即自主延迟。
+     */
+    private static getRateLimitSchema(): JSONSchema7 {
+        const rateProp = (enDesc: string, zhDesc: string): JSONSchema7 => ({
+            type: 'integer',
+            minimum: 0,
+            description: t(enDesc, zhDesc)
+        });
+        return {
+            type: 'object',
+            description: t(
+                'Rate limit configuration. All dimensions optional; 0 or omitted means unlimited for that dimension. Any dimension reached first causes self-throttling (pacing).',
+                '限流配置。所有维度可选，0 或缺省表示该维度不限；任一维度先触顶即自主延迟（匀速 pacing）。'
+            ),
+            properties: {
+                rpm: rateProp('Requests per minute cap.', '每分钟请求数上限。'),
+                rps: rateProp('Requests per second cap.', '每秒请求数上限。'),
+                tpm: rateProp('Tokens per minute cap (estimated input).', '每分钟 token 数上限（按输入估算）。'),
+                parallel: rateProp(
+                    'Max in-flight requests. Excess requests queue in FIFO order until a slot frees.',
+                    '最大并发在途请求数。超限请求按 FIFO 排队等待槽位释放（等待最久的依次放行，不超时放行）。'
+                )
+            },
+            additionalProperties: false
+        };
+    }
+
+    private static getSubProviderRateLimitPatternProperties(): Record<string, JSONSchema7> {
+        return {
+            '^limit\\..+': {
+                ...this.getRateLimitSchema(),
+                description: t(
+                    'Rate limit override for a sub-provider (e.g. "limit.xfyun-coding"). Fields follow the same semantics as the top-level limit config.',
+                    '子 provider 级别的限流覆盖（如 "limit.xfyun-coding"），字段语义与顶层 limit 配置一致。'
+                )
+            }
+        };
+    }
+
+    private static getKnownSubProviderRateLimitProperties(providerKey?: string): Record<string, JSONSchema7> {
+        if (!providerKey) {
+            return {};
+        }
+        const providerConfig = ConfigManager.getConfigProvider()[providerKey];
+        if (!providerConfig) {
+            return {};
+        }
+        const subProviders = new Set<string>();
+        for (const model of providerConfig.models) {
+            if (model.provider && model.provider !== providerKey) {
+                subProviders.add(model.provider);
+            }
+        }
+        const properties: Record<string, JSONSchema7> = {};
+        for (const subProvider of Array.from(subProviders).sort()) {
+            properties[`limit.${subProvider}`] = {
+                ...this.getRateLimitSchema(),
+                description: t(
+                    'Rate limit override for sub-provider "{0}". Fields follow the same semantics as the top-level limit config.',
+                    '子 provider "{0}" 的限流覆盖，字段语义与顶层 limit 配置一致。',
+                    subProvider
+                )
+            };
+        }
+        return properties;
+    }
+
+    /**
      * 为已知/自定义/compatible 提供商生成简化的 JSON Schema
      * 仅包含 customHeader、proxy 字段，不含 models 列表定义及 baseUrl 覆盖
      */
@@ -2117,9 +2193,13 @@ export class JsonSchemaProvider {
                         }
                     ]
                 },
-                retry: this.getProviderRetryOverrideSchema()
+                retry: this.getProviderRetryOverrideSchema(),
+                limit: this.getRateLimitSchema()
             },
-            patternProperties: this.getSubProviderRetryPatternProperties(),
+            patternProperties: {
+                ...this.getSubProviderRetryPatternProperties(),
+                ...this.getSubProviderRateLimitPatternProperties()
+            },
             additionalProperties: false
         };
     }

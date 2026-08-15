@@ -153,8 +153,12 @@ function buildModelConfigurationProperties(model: ModelConfig): Record<string, P
             enum: thinkingOptions,
             enumItemLabels: thinkingOptions.map(
                 value =>
-                    ({ disabled: 'Non-Thinking', enabled: 'Thinking', auto: 'Auto', adaptive: 'Adaptive' })[value] ||
-                    value
+                    ({
+                        disabled: 'Non-Thinking',
+                        enabled: 'Thinking',
+                        auto: 'Auto',
+                        adaptive: 'Adaptive'
+                    })[value] || value
             ),
             enumDescriptions: thinkingOptions.map(
                 value =>
@@ -252,9 +256,13 @@ function buildModelConfigurationProperties(model: ModelConfig): Record<string, P
             enumItemLabels: model.serviceTier.map(value => {
                 if (isAnthropic) {
                     return (
-                        { auto: 'Auto', default: 'Std.', flex: 'Flex', priority: 'Pri.', standard_only: 'Standard' }[
-                            value
-                        ] || value
+                        {
+                            auto: 'Auto',
+                            default: 'Std.',
+                            flex: 'Flex',
+                            priority: 'Pri.',
+                            standard_only: 'Standard'
+                        }[value] || value
                     );
                 }
                 return { auto: 'Auto', default: 'Std.', flex: 'Flex', priority: 'Fast' }[value] || value;
@@ -267,10 +275,7 @@ function buildModelConfigurationProperties(model: ModelConfig): Record<string, P
                             default: t('Standard processing speed.', '标准处理速度'),
                             flex: t('Flexible processing.', '灵活处理'),
                             priority: t('Priority processing for faster responses.', '优先处理，响应更快'),
-                            standard_only: t(
-                                'Use only the standard service tier.',
-                                '仅使用标准服务等级'
-                            )
+                            standard_only: t('Use only the standard service tier.', '仅使用标准服务等级')
                         }[value] || value
                     );
                 }

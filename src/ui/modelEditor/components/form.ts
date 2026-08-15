@@ -193,7 +193,33 @@ export function createDOM(state: CreateDomState, rootEl?: HTMLElement): void {
                 value: String(model.maxOutputTokens)
             },
             t('Maximum output tokens supported by the model.', '模型支持的最大输出Token限制')
-        )
+        ),
+        createInlineFormRow('limit-inline-row', [
+            createFormGroup(
+                'limitRpm',
+                t('Rate Limit RPM', '限流 RPM'),
+                'limit.rpm',
+                'input',
+                {
+                    type: 'number',
+                    min: '0',
+                    value: model.limitRpm
+                },
+                t('Optional per-model requests-per-minute override.', '可选的模型级每分钟请求数覆盖。')
+            ),
+            createFormGroup(
+                'limitParallel',
+                t('Rate Limit Parallel', '限流并行度'),
+                'limit.parallel',
+                'input',
+                {
+                    type: 'number',
+                    min: '0',
+                    value: model.limitParallel
+                },
+                t('Optional per-model concurrent in-flight request limit.', '可选的模型级并发在途请求数限制。')
+            )
+        ])
     ]);
 
     const capSection = createSection(t('Capabilities', '模型能力'), [
@@ -355,6 +381,13 @@ function createSection(title: string, formGroups: HTMLElement[]): HTMLElement {
     section.appendChild(h3);
     formGroups.forEach(group => section.appendChild(group));
     return section;
+}
+
+function createInlineFormRow(className: string, formGroups: HTMLElement[]): HTMLElement {
+    const row = document.createElement('div');
+    row.className = className;
+    formGroups.forEach(group => row.appendChild(group));
+    return row;
 }
 
 interface SelectOption {

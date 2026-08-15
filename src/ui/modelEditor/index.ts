@@ -13,7 +13,7 @@ import { ApiKeyManager } from '../../utils/config/apiKeyManager';
 import { VersionManager } from '../../utils/runtime/versionManager';
 import { ConfigManager } from '../../utils/config/configManager';
 import { normalizeTokenPricing, serializeTokenPricingInput } from '../../utils/pricing/pricingTierResolver';
-import type { ModelTokenPricingInput } from '../../types/sharedTypes';
+import type { ModelTokenPricingInput, RateLimitConfig } from '../../types/sharedTypes';
 import { t } from '../../utils/runtime/l10n';
 import type { ModelFormData, ProviderOption, WebViewMessage } from './types';
 import { normalizeCompatibleServiceTiers } from '../../utils/model/compatibleServiceTier';
@@ -188,6 +188,9 @@ export class ModelEditor {
         // 删除仅用于表单内部传输的辅助字段，避免泄露到 settings.json
         delete (model as { webSearchToolConfig?: string }).webSearchToolConfig;
         delete (model as { nativeTools?: string }).nativeTools;
+        delete (model as { limitRpm?: string }).limitRpm;
+        delete (model as { limitTpm?: string }).limitTpm;
+        delete (model as { limitParallel?: string }).limitParallel;
         model.serviceTier = normalizeCompatibleServiceTiers(data.serviceTier);
 
         // tooltip: 空字符串 → undefined 表示清空（CompatibleModelConfig 字段为可选，不用 null）
@@ -264,6 +267,13 @@ export class ModelEditor {
         const tokenPricingParsed = this.parseJsonValue(data.tokenPricing);
         const normalizedTokenPricing = normalizeTokenPricing(tokenPricingParsed as ModelTokenPricingInput);
         model.tokenPricing = serializeTokenPricingInput(normalizedTokenPricing);
+
+        // limit 仅支持对象形式；空值表示清空字段
+        const limitParsed = this.parseJsonValue(data.limit);
+        model.limit =
+            limitParsed && typeof limitParsed === 'object' && !Array.isArray(limitParsed) ?
+                (limitParsed as RateLimitConfig)
+            :   undefined;
 
         // apiKey 单独保留在 EditedModelConfig 上
         model.apiKey = data.apiKey || undefined;
@@ -396,6 +406,10 @@ export class ModelEditor {
                 :   '',
             reasoningEffort: model?.reasoningEffort || [],
             reasoningDefault: model?.reasoningDefault || '',
+            limit: model?.limit ? JSON.stringify(model.limit, null, 2) : '',
+            limitRpm: model?.limit?.rpm !== undefined ? String(model.limit.rpm) : '',
+            limitTpm: model?.limit?.tpm !== undefined ? String(model.limit.tpm) : '',
+            limitParallel: model?.limit?.parallel !== undefined ? String(model.limit.parallel) : '',
             tokenPricing:
                 model?.tokenPricing ?
                     JSON.stringify(serializeTokenPricingInput(normalizeTokenPricing(model.tokenPricing)), null, 2)

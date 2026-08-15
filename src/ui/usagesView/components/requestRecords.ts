@@ -36,6 +36,7 @@ import {
     t,
     UNKNOWN_SESSION_ID
 } from '../utils';
+import type { LiveRequestUiState } from '../types';
 
 /**
  * 请求类型 → CSS class 映射
@@ -140,6 +141,10 @@ function getCurrentSessionGroups(): SessionGroupSummary[] {
  */
 function getCurrentDateDetails(): typeof window.usagesState.dateDetails | null {
     return window.usagesState?.dateDetails || null;
+}
+
+function getLiveRequestUiState(requestId: string | undefined): LiveRequestUiState | undefined {
+    return requestId ? window.usagesLiveMetrics?.get(requestId) : undefined;
 }
 
 /**
@@ -792,13 +797,27 @@ export function createRequestRecordsTable(
 
         const time = createElement('td');
         const timeStr = record.timestamp ? new Date(record.timestamp).toLocaleTimeString('zh-CN') : '-';
+        const metricTime = record.requestMetricStartTime;
+        const hasMetricTime = metricTime !== undefined;
+        const displayTimeStr = hasMetricTime ? new Date(metricTime).toLocaleTimeString('zh-CN') : timeStr;
+        const shouldHighlightMetricTime =
+            hasMetricTime &&
+            record.timestamp !== undefined &&
+            record.requestMetricStartTime !== record.timestamp &&
+            (record.status === 'completed' || record.status === 'failed' || record.status === 'cancelled');
+        const timeClass = shouldHighlightMetricTime ? 'request-time request-time-metric-mismatch' : 'request-time';
+        const mismatchTitle =
+            shouldHighlightMetricTime ? `请求接受时间: ${timeStr}\n实际请求时间: ${displayTimeStr}` : undefined;
         const kindName = getRequestKindDisplayName(record.requestKind);
         if (record.requestKind) {
-            time.title = kindName;
+            time.title = mismatchTitle ? `${kindName}\n${mismatchTitle}` : kindName;
             const kindClass = getRequestKindCssClass(record.requestKind);
-            time.innerHTML = `<div class="request-kind ${kindClass}">${kindName}</div><div class="request-time">${timeStr}</div>`;
+            time.innerHTML =
+                `<div class="request-kind ${kindClass}">${kindName}</div>` +
+                `<div class="${timeClass}">${displayTimeStr}</div>`;
         } else {
-            time.textContent = timeStr;
+            time.title = mismatchTitle ?? '';
+            time.innerHTML = `<div class="${timeClass}">${displayTimeStr}</div>`;
         }
 
         const providerModel = createElement('td');
@@ -871,37 +890,52 @@ export function createRequestRecordsTable(
         // 合并输出列：上行 TTFT | 输出令牌，下行 TPOT | 输出速度
         const output = createElement('td', 'records-output-merged');
         output.setAttribute('data-metric', 'output');
+        const liveState = getLiveRequestUiState(record.requestId);
+        const hasQueuePosition = (liveState?.queuePosition ?? 0) > 0;
+        const isWaiting = liveState?.isRateLimitWaiting === true && hasQueuePosition;
         const outputVal = hasActualUsage && record.outputTokens > 0 ? record.outputTokens : 0;
+        const metricStartTime = record.requestMetricStartTime ?? record.timestamp;
         const ttft =
             (
                 record.streamStartTime !== undefined &&
-                record.timestamp !== undefined &&
-                Number.isFinite(record.streamStartTime - record.timestamp) &&
-                record.streamStartTime - record.timestamp >= 0
+                metricStartTime !== undefined &&
+                Number.isFinite(record.streamStartTime - metricStartTime) &&
+                record.streamStartTime - metricStartTime >= 0
             ) ?
-                record.streamStartTime - record.timestamp
+                record.streamStartTime - metricStartTime
             :   undefined;
         const speedVal = record.outputSpeed && record.outputSpeed > 0 ? record.outputSpeed : undefined;
         const tpot =
             record.streamDuration !== undefined && record.streamDuration > 0 ? record.streamDuration : undefined;
 
         const ttftText =
-            ttft !== undefined ?
+            isWaiting ? '-'
+            : ttft !== undefined ?
                 ttft >= 1000 ?
                     `${(ttft / 1000).toFixed(1)}s`
                 :   `${Math.round(ttft)}ms`
             :   '-';
         const tpotText =
-            tpot !== undefined ?
+            isWaiting ?
+                hasQueuePosition ? `#${liveState.queuePosition}`
+                :   '-'
+            : tpot !== undefined ?
                 tpot >= 1000 ?
                     `${(tpot / 1000).toFixed(1)}s`
                 :   `${Math.round(tpot)}ms`
             :   '-';
         const speedText = speedVal !== undefined ? `${speedVal.toFixed(1)} t/s` : '-';
         const outputTokensText = outputVal > 0 ? formatTokens(outputVal) : '-';
-        const ttftTitle = `TTFT: ${ttft !== undefined ? ttft.toLocaleString('en-US') + 'ms' : '-'}`;
+        const ttftTitle =
+            isWaiting ?
+                t('Waiting for rate limit grant', '等待限流放行中')
+            :   `TTFT: ${ttft !== undefined ? ttft.toLocaleString('en-US') + 'ms' : '-'}`;
         const outputTokensTitle = `Output tokens: ${outputVal > 0 ? outputVal.toLocaleString('en-US') : '-'}`;
-        const tpotTitle = `TPOT: ${tpot !== undefined ? tpot.toLocaleString('en-US') + 'ms' : '-'}`;
+        const tpotTitle =
+            isWaiting ?
+                hasQueuePosition ? t('Current FIFO queue position', '当前 FIFO 排队顺位')
+                :   t('Waiting for rate limit grant', '等待限流放行中')
+            :   `TPOT: ${tpot !== undefined ? tpot.toLocaleString('en-US') + 'ms' : '-'}`;
         const speedTitle = `Speed: ${speedText}`;
         const outputRowHtml =
             '<div class="output-row">' +
@@ -959,12 +993,14 @@ export function createRequestRecordsTable(
             (window.usagesState?.selectedSessionIds?.length ?? 0) === 0;
         const recoveryHint = getSessionRecoveryDebugHint(record.sessionRecoverySource);
         const statusLabel =
-            record.status === 'completed' ? 'DONE'
+            isWaiting ? 'WAIT'
+            : record.status === 'completed' ? 'DONE'
             : record.status === 'failed' ? 'ERROR'
             : record.status === 'cancelled' ? 'CANCEL'
             : 'ACTIVE';
         status.className =
-            record.status === 'completed' ? 'status-completed'
+            isWaiting ? 'status-waiting'
+            : record.status === 'completed' ? 'status-completed'
             : record.status === 'failed' ? 'status-failed'
             : record.status === 'cancelled' ? 'status-cancelled'
             : 'status-estimated';
@@ -1090,12 +1126,6 @@ function createDetailView(
 
     const content = createElement('div', 'records-detail-content');
 
-    if (isRefreshing) {
-        const hint = createElement('div', 'empty-message');
-        hint.textContent = t('Refreshing...', '刷新中...');
-        content.appendChild(hint);
-    }
-
     const totalPages = Math.ceil(totalItems / PAGE_SIZE) || 1;
 
     if (totalItems > PAGE_SIZE) {
@@ -1130,12 +1160,6 @@ function createSessionTrackView(
     }
     const content = createElement('div', 'records-detail-content');
     const limit = getTrackedRecordsLimit(trackedGroups.length);
-
-    if (isRefreshing) {
-        const hint = createElement('div', 'empty-message');
-        hint.textContent = t('Refreshing...', '刷新中...');
-        content.appendChild(hint);
-    }
 
     trackedGroups.forEach(group => {
         const records = trackGroups.find(item => item.sessionId === group.sessionId)?.records ?? [];

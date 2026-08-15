@@ -13,6 +13,7 @@ import {
     UserConfigOverrides,
     ProviderConfig,
     ProviderRetryOverride,
+    RateLimitConfig,
     ModelConfig,
     ModelOverride
 } from '../../types/sharedTypes';
@@ -594,6 +595,56 @@ export class ConfigManager {
     }
 
     /**
+     * 解析 provider 级别的限流配置（字段级合并）。
+     *
+     * 查找顺序（与 getProviderRetryConfig 相同，沿 lookupKeys 子 provider → 根 provider 回退）：
+     *   1. providerOverrides[key]["limit.{providerKey}"] → providerOverrides[key].limit
+     *   2. configProviders[key]["limit.{providerKey}"] → configProviders[key].limit
+     *
+     * 合并规则：override 的字段覆盖 preset 的同名字段（字段级合并，非整体替换）。
+     * 任何来源都没有 limit 配置时返回 undefined（表示该 provider 完全不限流）。
+     */
+    static getProviderRateLimitConfig(providerKey: string): RateLimitConfig | undefined {
+        const lookupKeys = this.getProxyLookupKeys(providerKey);
+
+        let preset: RateLimitConfig | undefined;
+        for (const key of lookupKeys) {
+            const config = configProviders[key as keyof typeof configProviders];
+            if (!config) {
+                continue;
+            }
+            const flatKey: `limit.${string}` = `limit.${providerKey}`;
+            preset = config[flatKey] ?? config.limit;
+            if (preset) {
+                break;
+            }
+        }
+
+        let override: RateLimitConfig | undefined;
+        const overrides = this.getProviderOverrides();
+        for (const key of lookupKeys) {
+            const providerOverride = overrides[key];
+            if (!providerOverride) {
+                continue;
+            }
+            const flatKey: `limit.${string}` = `limit.${providerKey}`;
+            override = providerOverride[flatKey] ?? providerOverride.limit;
+            if (override) {
+                break;
+            }
+        }
+
+        if (!preset && !override) {
+            return undefined;
+        }
+        const resolved: RateLimitConfig = { ...preset, ...override };
+        Logger.debug(
+            `[Config/RateLimit] getProviderRateLimitConfig("${providerKey}"): resolved=${JSON.stringify(resolved)}`
+        );
+        return resolved;
+    }
+
+    /**
      * 解析 provider 级别的 retry 配置（字段级合并）。
      *
      * enabled 合并规则：override → explicit global → preset → global default
@@ -1087,6 +1138,10 @@ export class ConfigManager {
                         `  Model ${modelOverride.id}: invalid tokenPricing override ignored: ${JSON.stringify(modelOverride.tokenPricing)}`
                     );
                 }
+            }
+            if (modelOverride.limit !== undefined) {
+                target.limit = modelOverride.limit;
+                Logger.debug(`  Model ${modelOverride.id}: override limit = ${JSON.stringify(modelOverride.limit)}`);
             }
         };
 

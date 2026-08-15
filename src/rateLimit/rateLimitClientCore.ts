@@ -1,0 +1,230 @@
+﻿/*---------------------------------------------------------------------------------------------
+ *  Follower 端限流请求-回执状态机
+ *  纯逻辑模块：注入 send/onEvent/now/sleep 接口，不依赖 vscode，node:test 可测
+ *  职责：发起 acquire → 等待 granted 回执（幂等匹配）→ 超时降级 → sleep waitMs（可取消）
+ *--------------------------------------------------------------------------------------------*/
+
+import type { RateLimitCosts, RateLimitDimensions } from './rateLimitStore';
+
+/** 回执事件负载（与 InterInstance 事件协议对应） */
+export interface RateLimitGrantMessage {
+    requestId: string;
+    granted: boolean;
+    waitMs: number;
+    grantId?: string;
+}
+
+export interface RateLimitQueueUpdateMessage {
+    requestId: string;
+    queuePosition: number;
+}
+
+/** acquire 请求负载（发送给 Leader） */
+export interface RateLimitAcquireRequestMessage {
+    requestId: string;
+    bucketKey: string;
+    dims: RateLimitDimensions;
+    costs: RateLimitCosts;
+}
+
+export type AcquireOutcome =
+    | { status: 'granted'; grantId: string; waitMs: number }
+    | { status: 'degraded'; reason: 'timeout' | 'rejected' }
+    | { status: 'cancelled' };
+
+export interface RateLimitClientCoreOptions {
+    /** 回执等待超时（毫秒），默认 3000 */
+    timeout?: number;
+    /** 当前 IPC 传输是否仍健康可用 */
+    isTransportHealthy?: () => boolean;
+    /** 发送 acquire 请求（完整负载） */
+    send: (msg: RateLimitAcquireRequestMessage) => void;
+    /** 发送 acquire cancel 请求 */
+    sendCancel?: (msg: { requestId: string; bucketKey: string }) => void;
+    /** 订阅 granted 回执；返回取消订阅函数 */
+    onGrantEvent: (handler: (msg: RateLimitGrantMessage) => void) => () => void;
+    /** 订阅排队顺位更新；返回取消订阅函数 */
+    onQueueUpdateEvent?: (handler: (msg: RateLimitQueueUpdateMessage) => void) => () => void;
+    /** 当前时间（毫秒） */
+    now: () => number;
+    /** 生成请求 ID */
+    nextRequestId?: () => string;
+}
+
+export interface RateLimitAcquireOptions {
+    timeout?: number;
+    onQueueUpdate?: (msg: RateLimitQueueUpdateMessage) => void;
+}
+
+const DEFAULT_ACQUIRE_TIMEOUT_MS = 3_000;
+
+export type PendingAcquireSettleReason = 'timeout' | 'rejected';
+
+interface PendingWaiter {
+    bucketKey: string;
+    resolve: (outcome: AcquireOutcome) => void;
+    settled: boolean;
+    timeout?: NodeJS.Timeout;
+    cancelCheck?: NodeJS.Timeout;
+    onQueueUpdate?: (msg: RateLimitQueueUpdateMessage) => void;
+}
+
+/**
+ * Follower 端限流客户端核心
+ * 并发安全：每个 acquire 用独立 requestId 匹配回执，首次匹配即 settle，重复回执为 no-op
+ */
+export class RateLimitClientCore {
+    private readonly pending = new Map<string, PendingWaiter>();
+    private readonly unsubscribeGrant: () => void;
+    private readonly unsubscribeQueueUpdate?: () => void;
+    private requestSeq = 0;
+    private readonly timeout: number;
+
+    constructor(private readonly options: RateLimitClientCoreOptions) {
+        this.timeout = options.timeout ?? DEFAULT_ACQUIRE_TIMEOUT_MS;
+        this.unsubscribeGrant = options.onGrantEvent(msg => this.handleGrant(msg));
+        this.unsubscribeQueueUpdate = options.onQueueUpdateEvent?.(msg => this.handleQueueUpdate(msg));
+    }
+
+    /**
+     * 发起一次限流申请
+     * - granted：携带 waitMs，调用方需自行 sleep 后发请求
+     * - degraded：超时/被拒，调用方走本地降级桶
+     * - cancelled：等待期间被取消
+     */
+    async acquire(
+        bucketKey: string,
+        dims: RateLimitDimensions,
+        costs: RateLimitCosts,
+        signal?: { isCancelled: () => boolean },
+        options?: RateLimitAcquireOptions
+    ): Promise<AcquireOutcome> {
+        if (signal?.isCancelled()) {
+            return { status: 'cancelled' };
+        }
+        const requestId = this.options.nextRequestId?.() ?? `rl-${++this.requestSeq}-${this.options.now()}`;
+        const timeout = options?.timeout ?? this.timeout;
+        const outcome = await new Promise<AcquireOutcome>(resolve => {
+            const waiter: PendingWaiter = {
+                bucketKey,
+                resolve,
+                settled: false,
+                onQueueUpdate: options?.onQueueUpdate,
+                timeout: setTimeout(() => {
+                    if (!waiter.settled) {
+                        waiter.settled = true;
+                        this.pending.delete(requestId);
+                        if (waiter.cancelCheck) {
+                            clearInterval(waiter.cancelCheck);
+                        }
+                        this.options.sendCancel?.({ requestId, bucketKey: waiter.bucketKey });
+                        resolve({ status: 'degraded', reason: 'timeout' });
+                    }
+                }, timeout)
+            };
+            this.pending.set(requestId, waiter);
+            this.options.send({ requestId, bucketKey, dims, costs });
+            // 轻量轮询同时覆盖取消与 IPC 健康检查。
+            if (signal || this.options.isTransportHealthy) {
+                waiter.cancelCheck = setInterval(() => {
+                    if (signal?.isCancelled() && !waiter.settled) {
+                        waiter.settled = true;
+                        if (waiter.timeout) {
+                            clearTimeout(waiter.timeout);
+                        }
+                        clearInterval(waiter.cancelCheck);
+                        this.pending.delete(requestId);
+                        this.options.sendCancel?.({ requestId, bucketKey: waiter.bucketKey });
+                        resolve({ status: 'cancelled' });
+                        return;
+                    }
+                    if (this.options.isTransportHealthy && !this.options.isTransportHealthy() && !waiter.settled) {
+                        waiter.settled = true;
+                        if (waiter.timeout) {
+                            clearTimeout(waiter.timeout);
+                        }
+                        clearInterval(waiter.cancelCheck);
+                        this.pending.delete(requestId);
+                        this.options.sendCancel?.({ requestId, bucketKey: waiter.bucketKey });
+                        resolve({ status: 'degraded', reason: 'timeout' });
+                        return;
+                    }
+                    if (waiter.settled) {
+                        clearInterval(waiter.cancelCheck);
+                    }
+                }, 100);
+            }
+        });
+        return outcome;
+    }
+
+    /**
+     * 回执处理：首次匹配即 settle，后续重复回执忽略
+     */
+    private handleGrant(msg: RateLimitGrantMessage): void {
+        const waiter = this.pending.get(msg.requestId);
+        if (!waiter || waiter.settled) {
+            return;
+        }
+        waiter.settled = true;
+        if (waiter.timeout) {
+            clearTimeout(waiter.timeout);
+        }
+        if (waiter.cancelCheck) {
+            clearInterval(waiter.cancelCheck);
+        }
+        this.pending.delete(msg.requestId);
+        if (msg.granted && msg.grantId) {
+            waiter.resolve({ status: 'granted', grantId: msg.grantId, waitMs: msg.waitMs });
+        } else {
+            waiter.resolve({ status: 'degraded', reason: 'rejected' });
+        }
+    }
+
+    private handleQueueUpdate(msg: RateLimitQueueUpdateMessage): void {
+        const waiter = this.pending.get(msg.requestId);
+        if (!waiter || waiter.settled) {
+            return;
+        }
+        if (waiter.timeout) {
+            clearTimeout(waiter.timeout);
+            waiter.timeout = undefined;
+        }
+        if (!waiter.onQueueUpdate) {
+            return;
+        }
+        waiter.onQueueUpdate(msg);
+    }
+
+    /** 待处理的等待数（观测用） */
+    get pendingCount(): number {
+        return this.pending.size;
+    }
+
+    settlePendingAsDegraded(reason: PendingAcquireSettleReason = 'timeout'): void {
+        for (const [requestId, waiter] of this.pending) {
+            if (waiter.settled) {
+                continue;
+            }
+            waiter.settled = true;
+            if (waiter.timeout) {
+                clearTimeout(waiter.timeout);
+            }
+            if (waiter.cancelCheck) {
+                clearInterval(waiter.cancelCheck);
+            }
+            this.pending.delete(requestId);
+            waiter.resolve({ status: 'degraded', reason });
+        }
+    }
+
+    dispose(): void {
+        this.unsubscribeGrant();
+        this.unsubscribeQueueUpdate?.();
+        const pending = Array.from(this.pending.entries());
+        this.settlePendingAsDegraded('timeout');
+        for (const [requestId, waiter] of pending) {
+            this.options.sendCancel?.({ requestId, bucketKey: waiter.bucketKey });
+        }
+    }
+}
