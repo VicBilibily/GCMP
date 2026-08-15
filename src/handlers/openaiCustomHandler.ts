@@ -134,7 +134,8 @@ export class OpenAICustomHandler {
         sessionId: string,
         token: vscode.CancellationToken,
         requestStartTime?: number,
-        onRequestDispatched?: (requestMetricStartTime: number) => void
+        onRequestDispatched?: (requestMetricStartTime: number) => void,
+        wasThrottled = false
     ): Promise<void> {
         const provider = modelConfig.provider || this.provider;
         const apiKey = await ApiKeyManager.getApiKey(provider);
@@ -169,6 +170,7 @@ export class OpenAICustomHandler {
         const cancellationListener = token.onCancellationRequested(() => abortController.abort());
         let reporter: StreamReporter | undefined;
         let requestMetricStartTime = requestStartTime;
+        let partialStreamStartTime: number | undefined;
 
         try {
             // 合并提供商级别和模型级别的 customHeader
@@ -267,8 +269,10 @@ export class OpenAICustomHandler {
                 token,
                 modelConfig.tokenPricing,
                 requestMetricStartTime,
-                (options.modelConfiguration as ModelChatResponseOptions | undefined)?.serviceTier
+                (options.modelConfiguration as ModelChatResponseOptions | undefined)?.serviceTier,
+                wasThrottled
             );
+            partialStreamStartTime = reporter.getMetricStreamStartTime();
 
             Logger.debug(`[${model.name}] API request completed`);
         } catch (error) {
@@ -279,7 +283,9 @@ export class OpenAICustomHandler {
                     requestId: requestId || '',
                     sessionId: reporter?.getSessionId(),
                     status: 'cancelled',
-                    requestMetricStartTime
+                    requestMetricStartTime: wasThrottled ? requestMetricStartTime : undefined,
+                    streamStartTime: partialStreamStartTime ?? reporter?.getMetricStreamStartTime(),
+                    streamEndTime: Date.now()
                 });
                 throw new vscode.CancellationError();
             }
@@ -301,7 +307,8 @@ export class OpenAICustomHandler {
         token: vscode.CancellationToken,
         tokenPricing: ModelTokenPricing | undefined,
         requestStartTime?: number,
-        requestServiceTier?: string
+        requestServiceTier?: string,
+        wasThrottled = false
     ): Promise<void> {
         const reader = body.getReader();
         const decoder = new TextDecoder();
@@ -450,12 +457,13 @@ export class OpenAICustomHandler {
         }
 
         // === Token 统计: 更新实际 token（同步调用，内部写盘 fire-and-forget，不阻塞响应完成链路）===
+        // requestMetricStartTime 仅在请求被节流时持久化，未节流时与接受时间相同，无需单独记录
         TokenUsagesManager.instance.updateActualTokens({
             requestId,
             sessionId: reporter.getSessionId(),
             rawUsage: finalUsage,
             status: token.isCancellationRequested ? 'cancelled' : 'completed',
-            requestMetricStartTime: requestStartTime,
+            requestMetricStartTime: wasThrottled ? requestStartTime : undefined,
             streamStartTime,
             streamEndTime,
             estimatedCost: breakdown?.total,

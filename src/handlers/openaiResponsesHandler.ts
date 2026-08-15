@@ -84,7 +84,8 @@ export class OpenAIResponsesHandler {
         sessionId: string,
         token: vscode.CancellationToken,
         requestStartTime?: number,
-        onRequestDispatched?: (requestMetricStartTime: number) => void
+        onRequestDispatched?: (requestMetricStartTime: number) => void,
+        wasThrottled = false
     ): Promise<void> {
         Logger.debug(`${model.name} starting ${this.displayName} Responses API request handling`);
         let reporter: StreamReporter | undefined;
@@ -102,6 +103,7 @@ export class OpenAIResponsesHandler {
             // 记录流处理的开始和结束时间（response.created 到达前为 undefined，避免使用进入函数的旧时间）
             let streamStartTime: number | undefined;
             let streamEndTime: number | undefined = undefined;
+            let streamProcessor: OpenAIResponsesStreamProcessor | undefined;
 
             try {
                 const { requestBody } = this.requestBuilder.build({
@@ -138,7 +140,7 @@ export class OpenAIResponsesHandler {
                     { ...requestBody, stream: true } as unknown as ResponseCreateParamsStreaming,
                     { signal: abortController.signal }
                 );
-                const streamProcessor = new OpenAIResponsesStreamProcessor({
+                streamProcessor = new OpenAIResponsesStreamProcessor({
                     modelName: model.name,
                     displayName: this.displayName,
                     token,
@@ -166,16 +168,19 @@ export class OpenAIResponsesHandler {
                     finalUsage,
                     streamStartTime,
                     streamEndTime,
-                    requestMetricStartTime
+                    requestStartTime: requestMetricStartTime,
+                    wasThrottled
                 });
                 streamStartTime = completionResult.streamStartTime;
             } catch (error) {
                 if (token.isCancellationRequested || isCancellationError(error)) {
+                    streamStartTime ??= streamProcessor?.getStreamStartTime() ?? reporter?.getMetricStreamStartTime();
+                    streamEndTime ??= streamProcessor?.getStreamEndTime() ?? Date.now();
                     this.reportCancellation({
                         modelName: model.name,
                         requestId,
                         sessionId,
-                        requestMetricStartTime,
+                        requestMetricStartTime: wasThrottled ? requestMetricStartTime : undefined,
                         streamStartTime,
                         streamEndTime
                     });
@@ -229,6 +234,7 @@ export class OpenAIResponsesHandler {
         streamStartTime?: number;
         streamEndTime?: number;
         requestStartTime?: number;
+        wasThrottled?: boolean;
     }): { streamStartTime?: number } {
         const {
             finishReason,
@@ -241,7 +247,8 @@ export class OpenAIResponsesHandler {
             streamReporter,
             finalUsage,
             streamEndTime,
-            requestStartTime
+            requestStartTime,
+            wasThrottled
         } = params;
 
         let streamStartTime = params.streamStartTime;
@@ -274,12 +281,13 @@ export class OpenAIResponsesHandler {
 
         if (requestId) {
             // 更新实际 token（同步调用，内部写盘 fire-and-forget，不阻塞响应完成链路）
+            // requestMetricStartTime 仅在请求被节流时持久化，未节流时与接受时间相同，无需单独记录
             TokenUsagesManager.instance.updateActualTokens({
                 requestId,
                 sessionId,
                 rawUsage: finalUsage,
                 status: token.isCancellationRequested ? 'cancelled' : 'completed',
-                requestMetricStartTime: requestStartTime,
+                requestMetricStartTime: wasThrottled ? requestStartTime : undefined,
                 streamStartTime,
                 streamEndTime,
                 estimatedCost: breakdown?.total,

@@ -10,6 +10,12 @@ interface LeaderInfo {
     electedAt: number; // 竞选成功的时间戳，用于解决竞态条件
 }
 
+export interface LeaderIdentity {
+    instanceId: string;
+    electedAt: number;
+    authorityTerm: string;
+}
+
 /**
  * 主实例竞选服务（纯静态类）
  * 确保在多 VS Code 实例中只有一个主实例负责执行周期性任务
@@ -41,6 +47,9 @@ export class LeaderElectionService {
     // Leader 状态变更事件
     private static leaderChangedEmitter = new vscode.EventEmitter<boolean>();
     static readonly onLeaderChanged = LeaderElectionService.leaderChangedEmitter.event;
+    private static leaderIdentityChangedEmitter = new vscode.EventEmitter<LeaderIdentity | undefined>();
+    static readonly onLeaderIdentityChanged = LeaderElectionService.leaderIdentityChangedEmitter.event;
+    private static lastLeaderIdentityKey: string | undefined;
 
     /**
      * 私有构造函数 - 防止实例化
@@ -192,6 +201,16 @@ export class LeaderElectionService {
         this.leaderChangedEmitter.fire(value);
     }
 
+    private static emitLeaderIdentityChanged(): void {
+        const identity = this.getLeaderIdentity();
+        const key = identity ? `${identity.instanceId}:${identity.electedAt}` : undefined;
+        if (key === this.lastLeaderIdentityKey) {
+            return;
+        }
+        this.lastLeaderIdentityKey = key;
+        this.leaderIdentityChangedEmitter.fire(identity);
+    }
+
     /**
      * 获取当前实例是否为主实例
      */
@@ -217,6 +236,10 @@ export class LeaderElectionService {
      * 获取主实例的ID（如果存在）
      */
     public static getLeaderId(): string | undefined {
+        return this.getLeaderIdentity()?.instanceId;
+    }
+
+    public static getLeaderIdentity(): LeaderIdentity | undefined {
         if (!this.context) {
             return undefined;
         }
@@ -225,7 +248,11 @@ export class LeaderElectionService {
             return undefined;
         }
         const leaderInfo = this.context.globalState.get<LeaderInfo>(this.LEADER_KEY);
-        return leaderInfo?.instanceId;
+        return leaderInfo ? this.toLeaderIdentity(leaderInfo) : undefined;
+    }
+
+    public static getAuthorityTerm(): string | undefined {
+        return this.getLeaderIdentity()?.authorityTerm;
     }
 
     /**
@@ -296,6 +323,7 @@ export class LeaderElectionService {
 
         const now = Date.now();
         const leaderInfo = this.context.globalState.get<LeaderInfo>(this.LEADER_KEY);
+        this.emitLeaderIdentityChanged();
         StatusLogger.trace(
             `[LeaderElectionService] Heartbeat check: leaderInfo=${leaderInfo ? `instanceId=${leaderInfo.instanceId}, lastHeartbeat=${leaderInfo.lastHeartbeat}` : 'null'}`
         );
@@ -538,5 +566,13 @@ export class LeaderElectionService {
             }
         }
         StatusLogger.trace('[LeaderElectionService] Periodic task completed');
+    }
+
+    private static toLeaderIdentity(info: LeaderInfo): LeaderIdentity {
+        return {
+            instanceId: info.instanceId,
+            electedAt: info.electedAt,
+            authorityTerm: `${info.instanceId}:${info.electedAt}`
+        };
     }
 }

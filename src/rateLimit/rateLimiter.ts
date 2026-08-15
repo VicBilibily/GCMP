@@ -35,6 +35,7 @@ export interface RateLimitHandle {
     grantId: string;
     costs: RateLimitCosts;
     leaseMs: number;
+    authorityTerm?: string;
     /** true = 授权来自权威桶（Leader 直调或远端回执），false = 本地降级桶 */
     authoritative: boolean;
 }
@@ -66,6 +67,7 @@ const PROBE_INTERVAL_MS = 60_000;
 const SWEEP_INTERVAL_MS = 1_000;
 const MAX_SLEEP_CHUNK_MS = 2_147_483_647;
 const MIN_LEASE_RENEW_INTERVAL_MS = 250;
+const AUTHORITY_TRANSITION_TIMEOUT_MS = 30_000;
 
 /**
  * 跨实例限流器（静态门面）
@@ -106,10 +108,13 @@ export class RateLimiter {
                 });
             },
             sendCancel: msg => {
-                InterInstanceBus.publish({
-                    type: 'rateLimitAcquireCancelled',
-                    payload: msg
-                });
+                InterInstanceBus.publish(
+                    {
+                        type: 'rateLimitAcquireCancelled',
+                        payload: msg
+                    },
+                    { alsoFallback: true }
+                );
             },
             onGrantEvent: handler => {
                 const disposable = InterInstanceBus.subscribe('rateLimitAcquireGranted', event => {
@@ -124,6 +129,7 @@ export class RateLimiter {
                 return () => disposable.dispose();
             },
             isTransportHealthy: () => InterInstanceBus.isConnected(),
+            getAuthorityTerm: () => InterInstanceBus.getAuthorityTerm(),
             now: () => Date.now(),
             nextRequestId: () => crypto.randomUUID()
         });
@@ -186,7 +192,8 @@ export class RateLimiter {
         bucketKey: string,
         dims: RateLimitDimensions,
         costs: RateLimitCosts,
-        options?: RateLimitAcquireOptions
+        options?: RateLimitAcquireOptions,
+        requeueAfterAuthorityChange: boolean = false
     ): Promise<RateLimitHandle | undefined> {
         if (options?.token?.isCancellationRequested) {
             throw new vscode.CancellationError();
@@ -194,7 +201,15 @@ export class RateLimiter {
         if (LeaderElectionService.isLeader()) {
             return this.acquireViaLeaderStore(bucketKey, dims, costs, options);
         }
-        if (this.shouldUseIpc()) {
+        if (requeueAfterAuthorityChange && !this.hasUsableAuthorityTransport()) {
+            const recovered = await this.waitForAuthorityRecovery(options?.token);
+            if (recovered) {
+                return this.acquireForCurrentRole(bucketKey, dims, costs, options, true);
+            }
+            this.enterDegraded('authority transition timeout');
+            return this.acquireViaLocalStore(bucketKey, dims, costs, options);
+        }
+        if (this.shouldUseIpc() || (requeueAfterAuthorityChange && this.hasUsableAuthorityTransport())) {
             const handle = await this.acquireViaIpc(bucketKey, dims, costs, options);
             if (handle) {
                 return handle;
@@ -219,10 +234,17 @@ export class RateLimiter {
             const granted = this.leaderStore.release(handle.grantId, refund, Date.now());
             this.distributeLeaderGrants(granted);
         } else if (handle.authoritative) {
-            InterInstanceBus.publish({
-                type: 'rateLimitReleased',
-                payload: { grantId: handle.grantId, refund }
-            });
+            const authorityTerm = handle.authorityTerm;
+            if (!authorityTerm) {
+                return;
+            }
+            InterInstanceBus.publish(
+                {
+                    type: 'rateLimitReleased',
+                    payload: { authorityTerm, grantId: handle.grantId, refund }
+                },
+                { alsoFallback: true }
+            );
         } else {
             const granted = this.localStore.release(handle.grantId, refund, Date.now());
             this.distributeLocalGrants(granted);
@@ -235,7 +257,7 @@ export class RateLimiter {
      * Leader 处理远端 acquire 请求（extension.ts 订阅挂接）
      */
     static handleAcquireRequest(payload: RateLimitAcquireRequestedEvent['payload']): void {
-        if (!LeaderElectionService.isLeader()) {
+        if (!LeaderElectionService.isLeader() || payload.authorityTerm !== LeaderElectionService.getAuthorityTerm()) {
             return;
         }
         const result = this.leaderStore.acquire(
@@ -246,9 +268,9 @@ export class RateLimiter {
             Date.now()
         );
         if (result.kind === 'granted') {
-            this.publishGranted(payload.requestId, result.waitMs, result.grantId);
+            this.publishGranted(payload.authorityTerm, payload.requestId, result.waitMs, result.grantId);
         } else {
-            this.publishQueueUpdated(payload.requestId, result.queuePosition);
+            this.publishQueueUpdated(payload.authorityTerm, payload.requestId, result.queuePosition);
         }
         // queued：等待 release/sweep 触发授予后统一回执
     }
@@ -257,7 +279,7 @@ export class RateLimiter {
      * Leader 处理远端 release（extension.ts 订阅挂接）
      */
     static handleRemoteRelease(payload: RateLimitReleasedEvent['payload']): void {
-        if (!LeaderElectionService.isLeader()) {
+        if (!LeaderElectionService.isLeader() || payload.authorityTerm !== LeaderElectionService.getAuthorityTerm()) {
             return;
         }
         const granted = this.leaderStore.release(payload.grantId, payload.refund, Date.now());
@@ -265,7 +287,7 @@ export class RateLimiter {
     }
 
     static handleRemoteAcquireCancelled(payload: RateLimitAcquireCancelledEvent['payload']): void {
-        if (!LeaderElectionService.isLeader()) {
+        if (!LeaderElectionService.isLeader() || payload.authorityTerm !== LeaderElectionService.getAuthorityTerm()) {
             return;
         }
         const granted = this.leaderStore.abortRequest(payload.bucketKey, payload.requestId, Date.now());
@@ -274,7 +296,7 @@ export class RateLimiter {
     }
 
     static handleRemoteLeaseRenewal(payload: RateLimitLeaseRenewedEvent['payload']): void {
-        if (!LeaderElectionService.isLeader()) {
+        if (!LeaderElectionService.isLeader() || payload.authorityTerm !== LeaderElectionService.getAuthorityTerm()) {
             return;
         }
         this.leaderStore.renew(payload.grantId, Date.now());
@@ -296,11 +318,18 @@ export class RateLimiter {
             Logger.debug(
                 `[RateLimit] leader acquire granted: bucket=${bucketKey}, waitMs=${result.waitMs}, costs=${JSON.stringify(costs)}`
             );
-            options?.onWaiting?.({ waitScope: 'leader', requestStartTime: Date.now() });
-            const handle: RateLimitHandle = { grantId: result.grantId, costs, leaseMs, authoritative: true };
+            if (result.waitMs > 0) {
+                options?.onWaiting?.({ waitScope: 'leader', requestStartTime: Date.now() });
+            }
+            const handle: RateLimitHandle = {
+                grantId: result.grantId,
+                costs,
+                leaseMs,
+                authorityTerm: LeaderElectionService.getAuthorityTerm(),
+                authoritative: true
+            };
             this.startLeaseHeartbeat(handle);
-            await this.sleepOrRefund(result.waitMs, handle, options?.token);
-            return handle;
+            return this.sleepOrRefund(result.waitMs, handle, options?.token, bucketKey, dims, options);
         }
 
         // queued：挂起直到 release/sweep 授予，按 FIFO 等待放行
@@ -314,16 +343,23 @@ export class RateLimiter {
             throw new vscode.CancellationError();
         }
         if (grant === 'role-changed') {
-            return this.acquireForCurrentRole(bucketKey, dims, costs, options);
+            return this.acquireForCurrentRole(bucketKey, dims, costs, options, true);
         }
         Logger.debug(
             `[RateLimit] leader acquire granted: bucket=${bucketKey}, waitMs=${grant.waitMs}, costs=${JSON.stringify(costs)}`
         );
-        options?.onWaiting?.({ waitScope: 'leader', requestStartTime: Date.now() });
-        const handle: RateLimitHandle = { grantId: grant.grantId, costs, leaseMs, authoritative: true };
+        if (grant.waitMs > 0) {
+            options?.onWaiting?.({ waitScope: 'leader', requestStartTime: Date.now() });
+        }
+        const handle: RateLimitHandle = {
+            grantId: grant.grantId,
+            costs,
+            leaseMs,
+            authorityTerm: LeaderElectionService.getAuthorityTerm(),
+            authoritative: true
+        };
         this.startLeaseHeartbeat(handle);
-        await this.sleepOrRefund(grant.waitMs, handle, options?.token);
-        return handle;
+        return this.sleepOrRefund(grant.waitMs, handle, options?.token, bucketKey, dims, options);
     }
 
     /** Follower：IPC 请求-回执；失败返回 undefined 并进入降级 */
@@ -357,9 +393,18 @@ export class RateLimiter {
         if (outcome.status === 'cancelled') {
             throw new vscode.CancellationError();
         }
+        if (outcome.status === 'authority-changed') {
+            return this.acquireForCurrentRole(bucketKey, dims, costs, options, true);
+        }
         if (outcome.status === 'degraded') {
             if (LeaderElectionService.isLeader()) {
                 return undefined;
+            }
+            if (outcome.reason === 'authority-unavailable') {
+                const recovered = await this.waitForAuthorityRecovery(options?.token);
+                if (recovered) {
+                    return this.acquireForCurrentRole(bucketKey, dims, costs, options, true);
+                }
             }
             this.enterDegraded(outcome.reason);
             return undefined;
@@ -369,16 +414,26 @@ export class RateLimiter {
             grantId: outcome.grantId,
             costs,
             leaseMs: DEFAULT_RATE_LIMIT_LEASE_MS,
+            authorityTerm: outcome.authorityTerm,
             authoritative: true
         };
         Logger.debug(
             `[RateLimit] ipc acquire granted: bucket=${bucketKey}, waitMs=${outcome.waitMs}, costs=${JSON.stringify(costs)}`
         );
-        options?.onWaiting?.({ waitScope: 'ipc', requestStartTime: Date.now() });
+        if (outcome.waitMs > 0) {
+            options?.onWaiting?.({ waitScope: 'ipc', requestStartTime: Date.now() });
+        }
         this.startLeaseHeartbeat(handle);
-        await this.sleepOrRefund(outcome.waitMs, handle, options?.token);
+        const settledHandle = await this.sleepOrRefund(
+            outcome.waitMs,
+            handle,
+            options?.token,
+            bucketKey,
+            dims,
+            options
+        );
         this.exitDegraded('ipc acquire succeeded');
-        return handle;
+        return settledHandle;
     }
 
     /** 本地降级桶：queued 时真实挂起等待授予（FIFO，不轮询抢槽位） */
@@ -399,7 +454,9 @@ export class RateLimiter {
             Logger.debug(
                 `[RateLimit] local acquire granted: bucket=${bucketKey}, waitMs=${result.waitMs}, costs=${JSON.stringify(costs)}`
             );
-            options?.onWaiting?.({ waitScope: 'local', requestStartTime: Date.now() });
+            if (result.waitMs > 0) {
+                options?.onWaiting?.({ waitScope: 'local', requestStartTime: Date.now() });
+            }
             const handle: RateLimitHandle = {
                 grantId: result.grantId,
                 costs,
@@ -407,8 +464,7 @@ export class RateLimiter {
                 authoritative: false
             };
             this.startLeaseHeartbeat(handle);
-            await this.sleepOrRefund(result.waitMs, handle, options?.token);
-            return handle;
+            return this.sleepOrRefund(result.waitMs, handle, options?.token, bucketKey, dims, options);
         }
 
         Logger.debug(`[RateLimit] local acquire queued: bucket=${bucketKey}, costs=${JSON.stringify(costs)}`);
@@ -422,11 +478,12 @@ export class RateLimiter {
         Logger.debug(
             `[RateLimit] local acquire granted: bucket=${bucketKey}, waitMs=${grant.waitMs}, costs=${JSON.stringify(costs)}`
         );
-        options?.onWaiting?.({ waitScope: 'local', requestStartTime: Date.now() });
+        if (grant.waitMs > 0) {
+            options?.onWaiting?.({ waitScope: 'local', requestStartTime: Date.now() });
+        }
         const handle: RateLimitHandle = { grantId: grant.grantId, costs, leaseMs, authoritative: false };
         this.startLeaseHeartbeat(handle);
-        await this.sleepOrRefund(grant.waitMs, handle, options?.token);
-        return handle;
+        return this.sleepOrRefund(grant.waitMs, handle, options?.token, bucketKey, dims, options);
     }
 
     /** Leader 自身请求 queued 时的挂起等待（仅取消可打断，不超时） */
@@ -512,30 +569,40 @@ export class RateLimiter {
     private static async sleepOrRefund(
         waitMs: number,
         handle: RateLimitHandle,
-        token?: vscode.CancellationToken
-    ): Promise<void> {
+        token?: vscode.CancellationToken,
+        bucketKey?: string,
+        dims?: RateLimitDimensions,
+        options?: RateLimitAcquireOptions
+    ): Promise<RateLimitHandle | undefined> {
         if (waitMs <= 0) {
-            return;
+            return handle;
         }
         try {
-            await this.sleep(waitMs, token);
+            await this.sleep(waitMs, token, handle.authorityTerm);
+            return handle;
         } catch (error) {
+            if (error instanceof AuthorityChangedError && bucketKey && dims) {
+                this.release(handle, { requests: handle.costs.requests, tokens: handle.costs.tokens });
+                return this.acquireForCurrentRole(bucketKey, dims, handle.costs, options, true);
+            }
             this.release(handle, { requests: handle.costs.requests, tokens: handle.costs.tokens });
             throw error;
         }
     }
 
-    private static sleep(ms: number, token?: vscode.CancellationToken): Promise<void> {
+    private static sleep(ms: number, token?: vscode.CancellationToken, authorityTerm?: string): Promise<void> {
         return new Promise((resolve, reject) => {
             let remainingMs = ms;
             let timer: NodeJS.Timeout | undefined;
             let settled = false;
+            let authoritySub: vscode.Disposable | undefined;
             const cleanup = () => {
                 if (timer) {
                     clearTimeout(timer);
                     timer = undefined;
                 }
                 cancelSub?.dispose();
+                authoritySub?.dispose();
             };
             const finish = (error?: Error) => {
                 if (settled) {
@@ -566,6 +633,13 @@ export class RateLimiter {
                 }, delayMs);
             };
             const cancelSub = token?.onCancellationRequested(() => finish(new vscode.CancellationError()));
+            if (authorityTerm) {
+                authoritySub = InterInstanceBus.onAuthorityChanged(nextAuthorityTerm => {
+                    if (nextAuthorityTerm !== authorityTerm) {
+                        finish(new AuthorityChangedError());
+                    }
+                });
+            }
             schedule();
         });
     }
@@ -604,18 +678,32 @@ export class RateLimiter {
             return this.leaderStore.renew(handle.grantId, now);
         }
         if (handle.authoritative) {
-            InterInstanceBus.publish({
-                type: 'rateLimitLeaseRenewed',
-                payload: { grantId: handle.grantId }
-            });
+            const authorityTerm = handle.authorityTerm;
+            if (!authorityTerm) {
+                return false;
+            }
+            InterInstanceBus.publish(
+                {
+                    type: 'rateLimitLeaseRenewed',
+                    payload: { authorityTerm, grantId: handle.grantId }
+                },
+                { alsoFallback: true }
+            );
             return true;
         }
         return this.localStore.renew(handle.grantId, now);
     }
 
+    private static hasUsableAuthorityTransport(): boolean {
+        return !!InterInstanceBus.getAuthorityTerm() && InterInstanceBus.isConnected();
+    }
+
     // ==================== 降级管理 ====================
 
     private static shouldUseIpc(): boolean {
+        if (!InterInstanceBus.getAuthorityTerm()) {
+            return false;
+        }
         if (this.degraded) {
             // 恢复探测：每 60s 允许一次 IPC 尝试
             if (Date.now() - this.lastProbeAt >= PROBE_INTERVAL_MS && InterInstanceBus.isConnected()) {
@@ -665,6 +753,7 @@ export class RateLimiter {
 
     /** pending 授予分发：Leader 本地等待者优先，其余广播回执 */
     private static distributeLeaderGrants(granted: PendingGrant[]): void {
+        const authorityTerm = LeaderElectionService.getAuthorityTerm();
         const affectedBuckets = new Set<string>();
         for (const grant of granted) {
             const waiter = this.leaderWaiters.get(grant.requestId);
@@ -672,7 +761,9 @@ export class RateLimiter {
                 this.leaderWaiters.delete(grant.requestId);
                 waiter.resolve(grant);
             } else {
-                this.publishGranted(grant.requestId, grant.waitMs, grant.grantId);
+                if (authorityTerm) {
+                    this.publishGranted(authorityTerm, grant.requestId, grant.waitMs, grant.grantId);
+                }
             }
             affectedBuckets.add(grant.bucketKey);
         }
@@ -704,26 +795,65 @@ export class RateLimiter {
         }
     }
 
-    private static publishGranted(requestId: string, waitMs: number, grantId: string): void {
+    private static publishGranted(authorityTerm: string, requestId: string, waitMs: number, grantId: string): void {
         InterInstanceBus.publish(
             {
                 type: 'rateLimitAcquireGranted',
-                payload: { requestId, waitMs, grantId }
+                payload: { authorityTerm, requestId, waitMs, grantId }
             },
             { alsoFallback: true }
         );
     }
 
-    private static publishQueueUpdated(requestId: string, queuePosition: number): void {
+    private static publishQueueUpdated(authorityTerm: string, requestId: string, queuePosition: number): void {
         InterInstanceBus.publish({
             type: 'rateLimitQueueUpdated',
-            payload: { requestId, queuePosition }
+            payload: { authorityTerm, requestId, queuePosition }
         });
     }
 
     private static publishQueuePositionUpdates(pending: PendingPosition[]): void {
+        const authorityTerm = LeaderElectionService.getAuthorityTerm();
+        if (!authorityTerm) {
+            return;
+        }
         for (const entry of pending) {
-            this.publishQueueUpdated(entry.requestId, entry.queuePosition);
+            this.publishQueueUpdated(authorityTerm, entry.requestId, entry.queuePosition);
         }
     }
+
+    private static waitForAuthorityRecovery(token?: vscode.CancellationToken): Promise<boolean> {
+        if (LeaderElectionService.isLeader() || this.hasUsableAuthorityTransport()) {
+            return Promise.resolve(true);
+        }
+        return new Promise<boolean>(resolve => {
+            const timerRef: { current?: NodeJS.Timeout } = {};
+            let settled = false;
+            const authoritySub = InterInstanceBus.onAuthorityChanged(authorityTerm => {
+                if (authorityTerm && this.hasUsableAuthorityTransport()) {
+                    finish(true);
+                    return;
+                }
+                if (LeaderElectionService.isLeader()) {
+                    finish(true);
+                }
+            });
+            const cancelSub = token?.onCancellationRequested(() => finish(false));
+            const finish = (value: boolean) => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                if (timerRef.current) {
+                    clearTimeout(timerRef.current);
+                }
+                authoritySub.dispose();
+                cancelSub?.dispose();
+                resolve(value);
+            };
+            timerRef.current = setTimeout(() => finish(false), AUTHORITY_TRANSITION_TIMEOUT_MS);
+        });
+    }
 }
+
+class AuthorityChangedError extends Error {}

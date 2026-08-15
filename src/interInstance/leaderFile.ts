@@ -16,6 +16,8 @@ import { AtomicJsonFile } from '../usages/atomicJsonFile';
 export interface LeaderFileInfo {
     /** Leader 实例 ID */
     instanceId: string;
+    /** Leader 任期（instanceId:electedAt） */
+    authorityTerm?: string;
     /** Leader IPC Server 的监听路径 */
     ipcPath: string;
     /** 文件写入时间戳 */
@@ -42,6 +44,7 @@ export function readLeaderFile(filePath: string = resolveLeaderFilePath()): Lead
         }
         return {
             instanceId: parsed.instanceId,
+            authorityTerm: typeof parsed.authorityTerm === 'string' ? parsed.authorityTerm : undefined,
             ipcPath: parsed.ipcPath,
             updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0
         };
@@ -74,6 +77,7 @@ export class LeaderFilePublisher {
 
     constructor(
         private readonly instanceId: string,
+        private readonly authorityTerm: string,
         private readonly ipcPath: string,
         private readonly filePath: string = resolveLeaderFilePath(),
         private readonly refreshIntervalMs: number = LEADER_FILE_REFRESH_INTERVAL_MS
@@ -104,6 +108,7 @@ export class LeaderFilePublisher {
         this.refreshPromise = writeLeaderFile(
             {
                 instanceId: this.instanceId,
+                authorityTerm: this.authorityTerm,
                 ipcPath: this.ipcPath,
                 updatedAt: Date.now()
             },

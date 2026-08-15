@@ -984,7 +984,8 @@ export class OpenAIHandler {
         sessionId: string,
         token: vscode.CancellationToken,
         requestStartTime?: number,
-        onRequestDispatched?: (requestMetricStartTime: number) => void
+        onRequestDispatched?: (requestMetricStartTime: number) => void,
+        wasThrottled = false
     ): Promise<void> {
         Logger.debug(`${model.name} starting ${this.displayName} request handling`);
         // 清理当前请求的事件去重跟踪器
@@ -1166,12 +1167,13 @@ export class OpenAIHandler {
                 if (requestId) {
                     // === Token 统计: 更新实际 token（同步调用，内部写盘 fire-and-forget，不阻塞响应完成链路）===
                     // 直接传递原始 usage 对象，包含流时间信息
+                    // requestMetricStartTime 仅在请求被节流时持久化，未节流时与接受时间相同，无需单独记录
                     TokenUsagesManager.instance.updateActualTokens({
                         requestId,
                         sessionId,
                         rawUsage: finalUsage,
                         status: token.isCancellationRequested ? 'cancelled' : 'completed',
-                        requestMetricStartTime,
+                        requestMetricStartTime: wasThrottled ? requestMetricStartTime : undefined,
                         streamStartTime,
                         streamEndTime,
                         estimatedCost: breakdown?.total,
@@ -1188,7 +1190,7 @@ export class OpenAIHandler {
                         requestId,
                         sessionId,
                         status: 'cancelled',
-                        requestMetricStartTime,
+                        requestMetricStartTime: wasThrottled ? requestMetricStartTime : undefined,
                         streamStartTime,
                         streamEndTime: streamEndTime ?? Date.now()
                     });

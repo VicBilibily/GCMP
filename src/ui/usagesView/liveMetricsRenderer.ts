@@ -366,7 +366,7 @@ export class LiveMetricsRenderer {
                         'status-estimated'
                     );
                     statusCell.classList.add('status-waiting');
-                    statusLabel.textContent = 'WAIT';
+                    statusLabel.textContent = waitingPresentation.statusText;
                     statusLabel.title = waitingPresentation.statusTitle;
                 } else {
                     statusCell.classList.remove(

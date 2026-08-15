@@ -32,7 +32,6 @@ import {
 import { MultiDayView } from '../multiDayView';
 import { onLiveMetrics, getActiveMetricsSnapshot, type LiveStreamMetricEvent } from '../../handlers/liveMetrics';
 import { InterInstanceBus } from '../../interInstance';
-import type { LiveMetricsUpdatedEvent } from '../../interInstance';
 
 /** 明细分页大小（与前端 requestRecords PAGE_SIZE 保持一致） */
 const PAGE_SIZE = 20;
@@ -46,7 +45,6 @@ export class TokenUsagesView {
     private updateDisposable: vscode.Disposable | undefined;
     private crossInstanceUsageUpdateDisposable: vscode.Disposable | undefined;
     private liveMetricsDisposable: vscode.Disposable | undefined;
-    private crossInstanceLiveMetricsDisposable: vscode.Disposable | undefined;
     private currentSelectedDate: string | undefined; // 当前查看的日期
     private hasCheckedOutdatedStats: boolean = false; // 是否已检查过过期统计
     // smartRefresh 防抖：合并短时间内的多次刷新请求，避免并发读到不一致中间状态
@@ -117,11 +115,6 @@ export class TokenUsagesView {
             this.handleLiveMetricsEvent(event);
         });
 
-        // 监听来自其他实例的实时流式指标事件（IPC-only，高频事件不走 fallback）
-        this.crossInstanceLiveMetricsDisposable = InterInstanceBus.subscribe('liveMetricsUpdated', event => {
-            this.handleLiveMetricsEvent((event as LiveMetricsUpdatedEvent).payload.event);
-        });
-
         // 监听关闭
         this.panel.onDidDispose(() => {
             this.panel = undefined;
@@ -131,8 +124,6 @@ export class TokenUsagesView {
             this.crossInstanceUsageUpdateDisposable = undefined;
             this.liveMetricsDisposable?.dispose();
             this.liveMetricsDisposable = undefined;
-            this.crossInstanceLiveMetricsDisposable?.dispose();
-            this.crossInstanceLiveMetricsDisposable = undefined;
         });
     }
 

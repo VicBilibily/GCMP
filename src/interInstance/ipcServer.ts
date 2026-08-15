@@ -12,6 +12,8 @@ import { StatusLogger } from '../utils/runtime/statusLogger';
 export interface IpcServerOptions {
     /** 收到 Follower 消息时的回调 */
     onMessage?: (event: InterInstanceEvent) => void;
+    /** Follower 连接断开时的回调 */
+    onClientDisconnected?: (instanceId: string) => void;
 }
 
 /**
@@ -73,15 +75,22 @@ export class IpcServer {
             const server = net.createServer(socket => {
                 this.sockets.add(socket);
                 let buffer = '';
+                const cleanupSocket = () => {
+                    const instanceId = this.socketInstanceIds.get(socket);
+                    this.sockets.delete(socket);
+                    this.socketInstanceIds.delete(socket);
+                    if (instanceId) {
+                        this.options.onClientDisconnected?.(instanceId);
+                    }
+                };
 
                 socket.on('data', data => {
                     buffer += data.toString('utf8');
                     if (Buffer.byteLength(buffer, 'utf8') > IpcServer.MAX_BUFFER_BYTES) {
                         // 对端持续发送无法解析的数据，判定为异常连接，直接断开
                         StatusLogger.warn('[IpcServer] Socket buffer exceeded limit, destroying connection');
+                        cleanupSocket();
                         socket.destroy();
-                        this.sockets.delete(socket);
-                        this.socketInstanceIds.delete(socket);
                         return;
                     }
                     const { events, remaining } = parseEventsFromBuffer(buffer);
@@ -101,14 +110,12 @@ export class IpcServer {
                 });
 
                 socket.on('close', () => {
-                    this.sockets.delete(socket);
-                    this.socketInstanceIds.delete(socket);
+                    cleanupSocket();
                 });
 
                 socket.on('error', error => {
                     StatusLogger.warn('[IpcServer] Socket error', error);
-                    this.sockets.delete(socket);
-                    this.socketInstanceIds.delete(socket);
+                    cleanupSocket();
                 });
             });
 
@@ -144,8 +151,12 @@ export class IpcServer {
                 socket.write(payload);
             } catch (error) {
                 StatusLogger.warn('[IpcServer] Failed to write to socket', error);
+                const instanceId = this.socketInstanceIds.get(socket);
                 this.sockets.delete(socket);
                 this.socketInstanceIds.delete(socket);
+                if (instanceId) {
+                    this.options.onClientDisconnected?.(instanceId);
+                }
             }
         }
     }

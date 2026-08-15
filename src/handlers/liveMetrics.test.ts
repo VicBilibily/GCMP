@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { emitLiveMetrics, getActiveMetricsSnapshot, onLiveMetrics, type LiveStreamMetricEvent } from './liveMetrics';
+import {
+    clearRemoteLiveMetrics,
+    emitLiveMetrics,
+    getActiveMetricsSnapshot,
+    onLiveMetrics,
+    receiveRemoteLiveMetrics,
+    type LiveStreamMetricEvent
+} from './liveMetrics';
 
 function makeEvent(overrides: Partial<LiveStreamMetricEvent> = {}): LiveStreamMetricEvent {
     return {
@@ -375,6 +382,87 @@ test('snapshot preserves all event fields', () => {
     assert.equal(found.tokensPerSecond, 33.3);
 
     cleanupAllSnapshots();
+});
+
+test('receiveRemoteLiveMetrics updates snapshot and notifies listeners', () => {
+    cleanupAllSnapshots();
+    const received: LiveStreamMetricEvent[] = [];
+    const disposable = onLiveMetrics(event => received.push(event));
+
+    try {
+        receiveRemoteLiveMetrics(
+            makeEvent({
+                requestId: 'req-remote',
+                type: 'rateLimitWaiting',
+                waitScope: 'ipc',
+                queuePosition: 1
+            })
+        );
+
+        const snapshot = getActiveMetricsSnapshot();
+        const found = snapshot.find(event => event.requestId === 'req-remote');
+        assert.ok(found);
+        assert.equal(found.type, 'rateLimitWaiting');
+        assert.equal(received.length, 1);
+        assert.equal(received[0]?.requestId, 'req-remote');
+    } finally {
+        disposable.dispose();
+        cleanupAllSnapshots();
+    }
+});
+
+test('clearRemoteLiveMetrics removes only the matching remote source and emits streamEnd', () => {
+    cleanupAllSnapshots();
+    const received: LiveStreamMetricEvent[] = [];
+    const disposable = onLiveMetrics(event => received.push(event));
+
+    try {
+        receiveRemoteLiveMetrics(
+            makeEvent({
+                requestId: 'req-remote-a',
+                type: 'streamingUpdate'
+            }),
+            'inst-a'
+        );
+        receiveRemoteLiveMetrics(
+            makeEvent({
+                requestId: 'req-remote-b',
+                type: 'streamingUpdate'
+            }),
+            'inst-b'
+        );
+        emitLiveMetrics(makeEvent({ requestId: 'req-local-active', type: 'streamingUpdate' }));
+
+        clearRemoteLiveMetrics('inst-a');
+
+        const snapshot = getActiveMetricsSnapshot();
+        assert.ok(!snapshot.some(event => event.requestId === 'req-remote-a'));
+        assert.ok(snapshot.some(event => event.requestId === 'req-remote-b'));
+        assert.ok(snapshot.some(event => event.requestId === 'req-local-active'));
+        assert.ok(received.some(event => event.requestId === 'req-remote-a' && event.type === 'streamEnd'));
+    } finally {
+        disposable.dispose();
+        cleanupAllSnapshots();
+    }
+});
+
+test('clearRemoteLiveMetrics without source removes all remote snapshots and keeps local ones', () => {
+    cleanupAllSnapshots();
+
+    try {
+        receiveRemoteLiveMetrics(makeEvent({ requestId: 'req-remote-a', type: 'streamingUpdate' }), 'inst-a');
+        receiveRemoteLiveMetrics(makeEvent({ requestId: 'req-remote-b', type: 'rateLimitWaiting' }), 'inst-b');
+        emitLiveMetrics(makeEvent({ requestId: 'req-local-active', type: 'streamingUpdate' }));
+
+        clearRemoteLiveMetrics();
+
+        const snapshot = getActiveMetricsSnapshot();
+        assert.ok(!snapshot.some(event => event.requestId === 'req-remote-a'));
+        assert.ok(!snapshot.some(event => event.requestId === 'req-remote-b'));
+        assert.ok(snapshot.some(event => event.requestId === 'req-local-active'));
+    } finally {
+        cleanupAllSnapshots();
+    }
 });
 
 test('retry (new requestStarted for same requestId) resets snapshot', () => {
