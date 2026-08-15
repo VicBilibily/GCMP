@@ -54,16 +54,29 @@ export function getDisplayCurrency(): DisplayCurrency {
 export function getLiveWaitingPresentation(liveState: LiveRequestUiState | undefined): {
     isWaiting: boolean;
     waitTitle: string;
+    statusText: string;
     statusTitle: string;
     queuePositionText: string;
     queuePositionTitle: string;
 } {
     const isWaiting = liveState?.isRateLimitWaiting === true;
     const hasQueuePosition = (liveState?.queuePosition ?? 0) > 0;
+    // 无队列号的等待：已获并发槽位（或直调放行），正在等 GCRA pacing 令牌到点，状态列与排队阶段区分
+    const pacingTitle = t(
+        'Concurrency slot granted; waiting for the rate limit pacing window',
+        '已获得并发槽位，等待限流令牌到点'
+    );
 
     return {
         isWaiting,
-        waitTitle: isWaiting ? t('Waiting for rate limit grant', '等待限流放行中') : '',
+        waitTitle:
+            !isWaiting ? ''
+            : hasQueuePosition ? t('Waiting for rate limit grant', '等待限流放行中')
+            : pacingTitle,
+        statusText:
+            !isWaiting ? ''
+            : hasQueuePosition ? 'WAIT'
+            : 'PACE',
         statusTitle:
             !isWaiting ? ''
             : liveState.waitScope === 'leader' ? t('Waiting for leader rate limit', '等待 Leader 限流放行')
@@ -73,7 +86,7 @@ export function getLiveWaitingPresentation(liveState: LiveRequestUiState | undef
         queuePositionTitle:
             !isWaiting ? ''
             : hasQueuePosition ? t('Current FIFO queue position', '当前 FIFO 排队顺位')
-            : t('Waiting for rate limit grant', '等待限流放行中')
+            : pacingTitle
     };
 }
 

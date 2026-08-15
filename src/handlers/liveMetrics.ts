@@ -41,6 +41,11 @@ export interface LiveStreamMetricEvent {
 
 type LiveMetricsListener = (event: LiveStreamMetricEvent) => void;
 type CrossInstanceBroadcaster = (event: LiveStreamMetricEvent) => void;
+interface ActiveMetricEntry {
+    event: LiveStreamMetricEvent;
+    remote: boolean;
+    sourceInstanceId?: string;
+}
 
 const listeners = new Set<LiveMetricsListener>();
 let crossInstanceBroadcaster: CrossInstanceBroadcaster | undefined;
@@ -49,7 +54,7 @@ let crossInstanceBroadcaster: CrossInstanceBroadcaster | undefined;
  * 活跃请求的最新事件快照（requestId → 最新事件）。
  * 面板中途打开时用于补发当前流式状态，避免因订阅晚于事件发送而丢失数据。
  */
-const activeMetrics = new Map<string, LiveStreamMetricEvent>();
+const activeMetrics = new Map<string, ActiveMetricEntry>();
 
 export function onLiveMetrics(listener: LiveMetricsListener): { dispose(): void } {
     listeners.add(listener);
@@ -70,12 +75,7 @@ export function setCrossInstanceBroadcaster(broadcaster: CrossInstanceBroadcaste
 }
 
 export function emitLiveMetrics(event: LiveStreamMetricEvent): void {
-    // 快照更新 — 无论是否有 listener 都必须执行，否则面板未打开时无法缓存
-    if (event.type === 'streamEnd') {
-        activeMetrics.delete(event.requestId);
-    } else {
-        activeMetrics.set(event.requestId, event);
-    }
+    applyLiveMetricsEvent(event, false);
 
     // 跨实例广播：高频事件走 IPC-only 通道，失败即丢弃，不阻塞本地 listener
     if (crossInstanceBroadcaster) {
@@ -86,6 +86,45 @@ export function emitLiveMetrics(event: LiveStreamMetricEvent): void {
         }
     }
 
+    notifyListeners(event);
+}
+
+export function receiveRemoteLiveMetrics(event: LiveStreamMetricEvent, sourceInstanceId?: string): void {
+    applyLiveMetricsEvent(event, true, sourceInstanceId);
+    notifyListeners(event);
+}
+
+export function clearRemoteLiveMetrics(sourceInstanceId?: string): void {
+    const clearedEvents: LiveStreamMetricEvent[] = [];
+    for (const [requestId, entry] of activeMetrics) {
+        if (!entry.remote) {
+            continue;
+        }
+        if (sourceInstanceId && entry.sourceInstanceId !== sourceInstanceId) {
+            continue;
+        }
+        activeMetrics.delete(requestId);
+        clearedEvents.push({ ...entry.event, type: 'streamEnd' });
+    }
+    for (const event of clearedEvents) {
+        notifyListeners(event);
+    }
+}
+
+function applyLiveMetricsEvent(event: LiveStreamMetricEvent, remote: boolean, sourceInstanceId?: string): void {
+    // 快照更新 — 无论是否有 listener 都必须执行，否则面板未打开时无法缓存
+    if (event.type === 'streamEnd') {
+        activeMetrics.delete(event.requestId);
+    } else {
+        activeMetrics.set(event.requestId, {
+            event,
+            remote,
+            sourceInstanceId: remote ? sourceInstanceId : undefined
+        });
+    }
+}
+
+function notifyListeners(event: LiveStreamMetricEvent): void {
     if (listeners.size === 0) {
         return;
     }
@@ -106,5 +145,5 @@ export function emitLiveMetrics(event: LiveStreamMetricEvent): void {
  * 供面板打开 / 日期切换时补发当前流式状态。
  */
 export function getActiveMetricsSnapshot(): LiveStreamMetricEvent[] {
-    return Array.from(activeMetrics.values());
+    return Array.from(activeMetrics.values(), entry => entry.event);
 }

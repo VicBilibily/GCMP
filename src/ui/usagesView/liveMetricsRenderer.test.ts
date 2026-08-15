@@ -246,7 +246,7 @@ test('LiveMetricsRenderer switches status label between WAIT and ACTIVE', () => 
     assert.equal(statusCell.classList.contains('status-estimated'), true);
 });
 
-test('LiveMetricsRenderer keeps WAIT when pacing wait has no queue position', () => {
+test('LiveMetricsRenderer switches status to PACE when pacing wait has no queue position', () => {
     const { statusCell, statusLabel, outputCell } = createRendererDom('req-2');
     const renderer = new LiveMetricsRenderer(createRendererDeps());
 
@@ -260,6 +260,8 @@ test('LiveMetricsRenderer keeps WAIT when pacing wait has no queue position', ()
         queuePosition: 1
     });
 
+    assert.equal(statusLabel.textContent, 'WAIT');
+
     renderer.handleEvent({
         type: 'rateLimitWaiting',
         requestId: 'req-2',
@@ -269,7 +271,7 @@ test('LiveMetricsRenderer keeps WAIT when pacing wait has no queue position', ()
         waitScope: 'local'
     });
 
-    assert.equal(statusLabel.textContent, 'WAIT');
+    assert.equal(statusLabel.textContent, 'PACE');
     assert.equal(statusCell.classList.contains('status-waiting'), true);
     assert.equal(outputCell.tpot.textContent, '-');
 });

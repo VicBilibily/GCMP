@@ -29,6 +29,7 @@ test('parseIncrementalEvents reconstructs a split NDJSON event across chunks', (
 
 test('rate limit event types are registered in the event type set', () => {
     for (const type of [
+        'remoteInstanceDisconnected',
         'rateLimitAcquireRequested',
         'rateLimitAcquireGranted',
         'rateLimitQueueUpdated',
@@ -42,22 +43,24 @@ test('rate limit event types are registered in the event type set', () => {
 
 test('parseEventsFromBuffer accepts rate limit events', () => {
     const lines = [
-        '{"type":"rateLimitAcquireRequested","payload":{"requestId":"r1","bucketKey":"k","costs":{"requests":1,"tokens":10},"dims":{"rpm":60}},"timestamp":1,"senderInstanceId":"a"}',
-        '{"type":"rateLimitAcquireGranted","payload":{"requestId":"r1","waitMs":0,"grantId":"g1"},"timestamp":2,"senderInstanceId":"b"}',
-        '{"type":"rateLimitQueueUpdated","payload":{"requestId":"r1","queuePosition":2},"timestamp":3,"senderInstanceId":"b"}',
-        '{"type":"rateLimitAcquireCancelled","payload":{"requestId":"r1","bucketKey":"k"},"timestamp":4,"senderInstanceId":"a"}',
-        '{"type":"rateLimitReleased","payload":{"grantId":"g1","refund":{"tokens":10}},"timestamp":5,"senderInstanceId":"a"}',
-        '{"type":"rateLimitLeaseRenewed","payload":{"grantId":"g1"},"timestamp":6,"senderInstanceId":"a"}'
+        '{"type":"remoteInstanceDisconnected","payload":{"instanceId":"follower-a"},"timestamp":0,"senderInstanceId":"leader"}',
+        '{"type":"rateLimitAcquireRequested","payload":{"authorityTerm":"leader-a:1","requestId":"r1","bucketKey":"k","costs":{"requests":1,"tokens":10},"dims":{"rpm":60}},"timestamp":1,"senderInstanceId":"a"}',
+        '{"type":"rateLimitAcquireGranted","payload":{"authorityTerm":"leader-a:1","requestId":"r1","waitMs":0,"grantId":"g1"},"timestamp":2,"senderInstanceId":"b"}',
+        '{"type":"rateLimitQueueUpdated","payload":{"authorityTerm":"leader-a:1","requestId":"r1","queuePosition":2},"timestamp":3,"senderInstanceId":"b"}',
+        '{"type":"rateLimitAcquireCancelled","payload":{"authorityTerm":"leader-a:1","requestId":"r1","bucketKey":"k"},"timestamp":4,"senderInstanceId":"a"}',
+        '{"type":"rateLimitReleased","payload":{"authorityTerm":"leader-a:1","grantId":"g1","refund":{"tokens":10}},"timestamp":5,"senderInstanceId":"a"}',
+        '{"type":"rateLimitLeaseRenewed","payload":{"authorityTerm":"leader-a:1","grantId":"g1"},"timestamp":6,"senderInstanceId":"a"}'
     ].join('\n');
 
     const { events, remaining } = parseEventsFromBuffer(lines + '\n');
 
-    assert.equal(events.length, 6);
-    assert.equal(events[0]?.type, 'rateLimitAcquireRequested');
-    assert.equal(events[1]?.type, 'rateLimitAcquireGranted');
-    assert.equal(events[2]?.type, 'rateLimitQueueUpdated');
-    assert.equal(events[3]?.type, 'rateLimitAcquireCancelled');
-    assert.equal(events[4]?.type, 'rateLimitReleased');
-    assert.equal(events[5]?.type, 'rateLimitLeaseRenewed');
+    assert.equal(events.length, 7);
+    assert.equal(events[0]?.type, 'remoteInstanceDisconnected');
+    assert.equal(events[1]?.type, 'rateLimitAcquireRequested');
+    assert.equal(events[2]?.type, 'rateLimitAcquireGranted');
+    assert.equal(events[3]?.type, 'rateLimitQueueUpdated');
+    assert.equal(events[4]?.type, 'rateLimitAcquireCancelled');
+    assert.equal(events[5]?.type, 'rateLimitReleased');
+    assert.equal(events[6]?.type, 'rateLimitLeaseRenewed');
     assert.equal(remaining, '');
 });

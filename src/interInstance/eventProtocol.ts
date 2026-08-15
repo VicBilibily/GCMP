@@ -132,6 +132,18 @@ export interface LiveMetricsUpdatedEvent extends InterInstanceEventBase {
 }
 
 /**
+ * 远端实例已断开
+ * 用于清理该实例残留的实时流式状态。
+ */
+export interface RemoteInstanceDisconnectedEvent extends InterInstanceEventBase {
+    type: 'remoteInstanceDisconnected';
+    payload: {
+        /** 已断开的实例 ID */
+        instanceId: string;
+    };
+}
+
+/**
  * CLI 认证刷新请求
  * 由非主实例发出，请求主实例刷新指定 CLI provider 的 OAuth 凭证文件。
  * 仅传递 provider 标识与请求元数据，不在跨实例事件中携带 access_token / refresh_token。
@@ -216,6 +228,8 @@ export interface StatsRefreshCompletedEvent extends InterInstanceEventBase {
 export interface RateLimitAcquireRequestedEvent extends InterInstanceEventBase {
     type: 'rateLimitAcquireRequested';
     payload: {
+        /** 权威限流桶任期（Leader 实例 ID + electedAt） */
+        authorityTerm: string;
         /** 请求 ID，用于匹配 granted 回执 */
         requestId: string;
         /** 限流桶键（providerKey 或 providerKey::modelId） */
@@ -234,6 +248,8 @@ export interface RateLimitAcquireRequestedEvent extends InterInstanceEventBase {
 export interface RateLimitAcquireGrantedEvent extends InterInstanceEventBase {
     type: 'rateLimitAcquireGranted';
     payload: {
+        /** 生成该 grant 的权威限流桶任期 */
+        authorityTerm: string;
         /** 对应的请求 ID */
         requestId: string;
         /** 授予后仍需等待的毫秒数 */
@@ -250,6 +266,8 @@ export interface RateLimitAcquireGrantedEvent extends InterInstanceEventBase {
 export interface RateLimitQueueUpdatedEvent extends InterInstanceEventBase {
     type: 'rateLimitQueueUpdated';
     payload: {
+        /** 生成该顺位的权威限流桶任期 */
+        authorityTerm: string;
         /** 对应的请求 ID */
         requestId: string;
         /** 当前 FIFO 排队顺位（1-based） */
@@ -264,6 +282,7 @@ export interface RateLimitQueueUpdatedEvent extends InterInstanceEventBase {
 export interface RateLimitAcquireCancelledEvent extends InterInstanceEventBase {
     type: 'rateLimitAcquireCancelled';
     payload: {
+        authorityTerm: string;
         requestId: string;
         bucketKey: string;
     };
@@ -276,6 +295,8 @@ export interface RateLimitAcquireCancelledEvent extends InterInstanceEventBase {
 export interface RateLimitReleasedEvent extends InterInstanceEventBase {
     type: 'rateLimitReleased';
     payload: {
+        /** 生成该 grant 的权威限流桶任期 */
+        authorityTerm: string;
         /** 要释放的 grant ID */
         grantId: string;
         /** 退款（未提供的字段不退） */
@@ -290,6 +311,7 @@ export interface RateLimitReleasedEvent extends InterInstanceEventBase {
 export interface RateLimitLeaseRenewedEvent extends InterInstanceEventBase {
     type: 'rateLimitLeaseRenewed';
     payload: {
+        authorityTerm: string;
         grantId: string;
     };
 }
@@ -306,6 +328,7 @@ export type InterInstanceEvent =
     | LeaderChangedEvent
     | LeaderResigningEvent
     | LiveMetricsUpdatedEvent
+    | RemoteInstanceDisconnectedEvent
     | CliAuthRefreshRequestedEvent
     | CliAuthRefreshCompletedEvent
     | StatsRefreshRequestedEvent
@@ -329,6 +352,7 @@ export const INTER_INSTANCE_EVENT_TYPES = [
     'leaderChanged',
     'leaderResigning',
     'liveMetricsUpdated',
+    'remoteInstanceDisconnected',
     'cliAuthRefreshRequested',
     'cliAuthRefreshCompleted',
     'statsRefreshRequested',

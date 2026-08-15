@@ -19,8 +19,9 @@ export type RateLimitQueueUpdateMessage = RateLimitQueueUpdatedEvent['payload'];
 export type RateLimitAcquireRequestMessage = RateLimitAcquireRequestedEvent['payload'];
 
 export type AcquireOutcome =
-    | { status: 'granted'; grantId: string; waitMs: number }
-    | { status: 'degraded'; reason: 'timeout' }
+    | { status: 'granted'; grantId: string; waitMs: number; authorityTerm: string }
+    | { status: 'authority-changed' }
+    | { status: 'degraded'; reason: 'timeout' | 'authority-unavailable' }
     | { status: 'cancelled' };
 
 export interface RateLimitClientCoreOptions {
@@ -28,6 +29,8 @@ export interface RateLimitClientCoreOptions {
     timeout?: number;
     /** 当前 IPC 传输是否仍健康可用 */
     isTransportHealthy?: () => boolean;
+    /** 当前连接到的限流权威任期；缺失时表示当前不可用 */
+    getAuthorityTerm?: () => string | undefined;
     /** 发送 acquire 请求（完整负载） */
     send: (msg: RateLimitAcquireRequestMessage) => void;
     /** 发送 acquire cancel 请求 */
@@ -51,6 +54,7 @@ const DEFAULT_ACQUIRE_TIMEOUT_MS = 3_000;
 
 interface PendingWaiter {
     bucketKey: string;
+    authorityTerm: string;
     resolve: (outcome: AcquireOutcome) => void;
     settled: boolean;
     timeout?: NodeJS.Timeout;
@@ -91,11 +95,16 @@ export class RateLimitClientCore {
         if (signal?.isCancelled()) {
             return { status: 'cancelled' };
         }
+        const authorityTerm = this.options.getAuthorityTerm?.();
+        if (!authorityTerm) {
+            return { status: 'degraded', reason: 'authority-unavailable' };
+        }
         const requestId = this.options.nextRequestId?.() ?? `rl-${++this.requestSeq}-${this.options.now()}`;
         const timeout = options?.timeout ?? this.timeout;
         const outcome = await new Promise<AcquireOutcome>(resolve => {
             const waiter: PendingWaiter = {
                 bucketKey,
+                authorityTerm,
                 resolve,
                 settled: false,
                 onQueueUpdate: options?.onQueueUpdate,
@@ -106,15 +115,19 @@ export class RateLimitClientCore {
                         if (waiter.cancelCheck) {
                             clearInterval(waiter.cancelCheck);
                         }
-                        this.options.sendCancel?.({ requestId, bucketKey: waiter.bucketKey });
+                        this.options.sendCancel?.({
+                            authorityTerm: waiter.authorityTerm,
+                            requestId,
+                            bucketKey: waiter.bucketKey
+                        });
                         resolve({ status: 'degraded', reason: 'timeout' });
                     }
                 }, timeout)
             };
             this.pending.set(requestId, waiter);
-            this.options.send({ requestId, bucketKey, dims, costs });
-            // 轻量轮询同时覆盖取消与 IPC 健康检查。
-            if (signal || this.options.isTransportHealthy) {
+            this.options.send({ authorityTerm, requestId, bucketKey, dims, costs });
+            // 任期切换不会主动推送到此纯逻辑模块，等待中需要本地轮询观察。
+            if (signal || this.options.isTransportHealthy || this.options.getAuthorityTerm) {
                 waiter.cancelCheck = setInterval(() => {
                     if (signal?.isCancelled() && !waiter.settled) {
                         waiter.settled = true;
@@ -123,8 +136,32 @@ export class RateLimitClientCore {
                         }
                         clearInterval(waiter.cancelCheck);
                         this.pending.delete(requestId);
-                        this.options.sendCancel?.({ requestId, bucketKey: waiter.bucketKey });
+                        this.options.sendCancel?.({
+                            authorityTerm: waiter.authorityTerm,
+                            requestId,
+                            bucketKey: waiter.bucketKey
+                        });
                         resolve({ status: 'cancelled' });
+                        return;
+                    }
+                    const currentAuthorityTerm = this.options.getAuthorityTerm?.();
+                    if (
+                        this.options.getAuthorityTerm &&
+                        currentAuthorityTerm !== waiter.authorityTerm &&
+                        !waiter.settled
+                    ) {
+                        waiter.settled = true;
+                        if (waiter.timeout) {
+                            clearTimeout(waiter.timeout);
+                        }
+                        clearInterval(waiter.cancelCheck);
+                        this.pending.delete(requestId);
+                        this.options.sendCancel?.({
+                            authorityTerm: waiter.authorityTerm,
+                            requestId,
+                            bucketKey: waiter.bucketKey
+                        });
+                        resolve({ status: 'authority-changed' });
                         return;
                     }
                     if (this.options.isTransportHealthy && !this.options.isTransportHealthy() && !waiter.settled) {
@@ -134,8 +171,12 @@ export class RateLimitClientCore {
                         }
                         clearInterval(waiter.cancelCheck);
                         this.pending.delete(requestId);
-                        this.options.sendCancel?.({ requestId, bucketKey: waiter.bucketKey });
-                        resolve({ status: 'degraded', reason: 'timeout' });
+                        this.options.sendCancel?.({
+                            authorityTerm: waiter.authorityTerm,
+                            requestId,
+                            bucketKey: waiter.bucketKey
+                        });
+                        resolve({ status: 'degraded', reason: 'authority-unavailable' });
                         return;
                     }
                     if (waiter.settled) {
@@ -152,7 +193,15 @@ export class RateLimitClientCore {
      */
     private handleGrant(msg: RateLimitGrantMessage): void {
         const waiter = this.pending.get(msg.requestId);
-        if (!waiter || waiter.settled || !msg.grantId) {
+        if (!waiter || waiter.settled) {
+            return;
+        }
+        const currentAuthorityTerm = this.options.getAuthorityTerm?.();
+        if (this.options.getAuthorityTerm && currentAuthorityTerm !== waiter.authorityTerm) {
+            this.settleAuthorityChanged(msg.requestId, waiter);
+            return;
+        }
+        if (!msg.grantId || msg.authorityTerm !== waiter.authorityTerm) {
             return;
         }
         waiter.settled = true;
@@ -163,12 +212,25 @@ export class RateLimitClientCore {
             clearInterval(waiter.cancelCheck);
         }
         this.pending.delete(msg.requestId);
-        waiter.resolve({ status: 'granted', grantId: msg.grantId, waitMs: msg.waitMs });
+        waiter.resolve({
+            status: 'granted',
+            grantId: msg.grantId,
+            waitMs: msg.waitMs,
+            authorityTerm: msg.authorityTerm
+        });
     }
 
     private handleQueueUpdate(msg: RateLimitQueueUpdateMessage): void {
         const waiter = this.pending.get(msg.requestId);
         if (!waiter || waiter.settled) {
+            return;
+        }
+        const currentAuthorityTerm = this.options.getAuthorityTerm?.();
+        if (this.options.getAuthorityTerm && currentAuthorityTerm !== waiter.authorityTerm) {
+            this.settleAuthorityChanged(msg.requestId, waiter);
+            return;
+        }
+        if (msg.authorityTerm !== waiter.authorityTerm) {
             return;
         }
         if (waiter.timeout) {
@@ -199,17 +261,38 @@ export class RateLimitClientCore {
                 clearInterval(waiter.cancelCheck);
             }
             this.pending.delete(requestId);
+            this.options.sendCancel?.({
+                authorityTerm: waiter.authorityTerm,
+                requestId,
+                bucketKey: waiter.bucketKey
+            });
             waiter.resolve({ status: 'degraded', reason: 'timeout' });
         }
+    }
+
+    private settleAuthorityChanged(requestId: string, waiter: PendingWaiter): void {
+        if (waiter.settled) {
+            return;
+        }
+        waiter.settled = true;
+        if (waiter.timeout) {
+            clearTimeout(waiter.timeout);
+        }
+        if (waiter.cancelCheck) {
+            clearInterval(waiter.cancelCheck);
+        }
+        this.pending.delete(requestId);
+        this.options.sendCancel?.({
+            authorityTerm: waiter.authorityTerm,
+            requestId,
+            bucketKey: waiter.bucketKey
+        });
+        waiter.resolve({ status: 'authority-changed' });
     }
 
     dispose(): void {
         this.unsubscribeGrant();
         this.unsubscribeQueueUpdate?.();
-        const pending = Array.from(this.pending.entries());
         this.settlePendingAsDegraded();
-        for (const [requestId, waiter] of pending) {
-            this.options.sendCancel?.({ requestId, bucketKey: waiter.bucketKey });
-        }
     }
 }

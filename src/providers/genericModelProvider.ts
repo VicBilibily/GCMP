@@ -540,7 +540,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         modelConfig: ModelConfig,
         totalInputTokens: number,
         token: CancellationToken,
-        requestId: string
+        requestId: string,
+        onThrottled?: () => void
     ): Promise<RateLimitHandle | undefined> {
         const providerLimit = ConfigManager.getProviderRateLimitConfig(effectiveProviderKey);
         const modelLimit = modelConfig.limit;
@@ -559,6 +560,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         return RateLimiter.acquire(bucketKey, dims, costs, {
             token,
             onWaiting: event => {
+                // onWaiting 仅在实际等待（waitMs>0 或排队）时触发，标记本请求受过节流控制
+                onThrottled?.();
                 liveMetrics.emitLiveMetrics({
                     type: 'rateLimitWaiting',
                     requestId,
@@ -625,6 +628,11 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
         const retryManager = new RetryManager(this.getRequestRetryConfig(effectiveProviderKey));
 
+        // 请求是否受过节流控制（限流等待/排队，跨 retry 累积）。
+        // 仅节流请求才把"实际派发时间"作为 requestMetricStartTime 持久化并在用量视图高亮；
+        // 未节流请求的派发时间与接受时间几乎相同，不应单独记录。
+        let wasThrottled = false;
+
         const requestKind = this.ensureRequestKind(messages, options);
 
         // 处理消息中的图片 DataPart（仅对 imageInput: false 的模型生效）
@@ -681,7 +689,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                             modelConfig,
                             totalInputTokens,
                             token,
-                            requestId
+                            requestId,
+                            () => {
+                                wasThrottled = true;
+                            }
                         );
                     } catch (error) {
                         if (requestId && (token.isCancellationRequested || isCancellationError(error))) {
@@ -709,7 +720,11 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 token,
                                 requestStartTime,
                                 attemptStartedAt => {
-                                    onAttemptStarted?.(attemptStartedAt);
+                                    // 仅节流请求才向外传播实际派发时间（用于持久化与高亮）；
+                                    // 实时 requestStarted 事件不受影响，始终按 attempt 时间发射
+                                    if (wasThrottled) {
+                                        onAttemptStarted?.(attemptStartedAt);
+                                    }
                                     if (requestId) {
                                         liveMetrics.emitLiveMetrics({
                                             type: 'requestStarted',
@@ -719,7 +734,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                             modelName: model.name || modelConfig.name
                                         });
                                     }
-                                }
+                                },
+                                wasThrottled
                             );
                         } else if (sdkMode === 'openai-sse') {
                             await this.openaiCustomHandler.handleRequest(
@@ -733,7 +749,11 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 token,
                                 requestStartTime,
                                 attemptStartedAt => {
-                                    onAttemptStarted?.(attemptStartedAt);
+                                    // 仅节流请求才向外传播实际派发时间（用于持久化与高亮）；
+                                    // 实时 requestStarted 事件不受影响，始终按 attempt 时间发射
+                                    if (wasThrottled) {
+                                        onAttemptStarted?.(attemptStartedAt);
+                                    }
                                     if (requestId) {
                                         liveMetrics.emitLiveMetrics({
                                             type: 'requestStarted',
@@ -743,7 +763,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                             modelName: model.name || modelConfig.name
                                         });
                                     }
-                                }
+                                },
+                                wasThrottled
                             );
                         } else if (sdkMode === 'openai-responses') {
                             await this.openaiResponsesHandler.handleResponsesRequest(
@@ -757,7 +778,11 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 token,
                                 requestStartTime,
                                 attemptStartedAt => {
-                                    onAttemptStarted?.(attemptStartedAt);
+                                    // 仅节流请求才向外传播实际派发时间（用于持久化与高亮）；
+                                    // 实时 requestStarted 事件不受影响，始终按 attempt 时间发射
+                                    if (wasThrottled) {
+                                        onAttemptStarted?.(attemptStartedAt);
+                                    }
                                     if (requestId) {
                                         liveMetrics.emitLiveMetrics({
                                             type: 'requestStarted',
@@ -767,7 +792,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                             modelName: model.name || modelConfig.name
                                         });
                                     }
-                                }
+                                },
+                                wasThrottled
                             );
                         } else {
                             await this.openaiHandler.handleRequest(
@@ -781,7 +807,11 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 token,
                                 requestStartTime,
                                 attemptStartedAt => {
-                                    onAttemptStarted?.(attemptStartedAt);
+                                    // 仅节流请求才向外传播实际派发时间（用于持久化与高亮）；
+                                    // 实时 requestStarted 事件不受影响，始终按 attempt 时间发射
+                                    if (wasThrottled) {
+                                        onAttemptStarted?.(attemptStartedAt);
+                                    }
                                     if (requestId) {
                                         liveMetrics.emitLiveMetrics({
                                             type: 'requestStarted',
@@ -791,7 +821,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                             modelName: model.name || modelConfig.name
                                         });
                                     }
-                                }
+                                },
+                                wasThrottled
                             );
                         }
                         // 成功：释放并发槽位但不退款（v1 不做结算）

@@ -38,7 +38,7 @@ import type {
     RateLimitReleasedEvent
 } from './interInstance';
 import { RateLimiter } from './rateLimit/rateLimiter';
-import { setCrossInstanceBroadcaster } from './handlers/liveMetrics';
+import { clearRemoteLiveMetrics, receiveRemoteLiveMetrics, setCrossInstanceBroadcaster } from './handlers/liveMetrics';
 import { registerAllTools } from './tools';
 import { CliAuthFactory } from './cli/auth/cliAuthFactory';
 import { registerCommitCommands, checkGitAvailability } from './commit';
@@ -279,6 +279,22 @@ export async function activate(context: vscode.ExtensionContext) {
         setCrossInstanceBroadcaster(event => {
             InterInstanceBus.publishIpcOnly({ type: 'liveMetricsUpdated', payload: { event } });
         });
+        context.subscriptions.push(
+            InterInstanceBus.onAuthorityChanged(authorityTerm => {
+                if (!authorityTerm) {
+                    clearRemoteLiveMetrics();
+                }
+            }),
+            InterInstanceBus.subscribe('liveMetricsUpdated', event => {
+                receiveRemoteLiveMetrics(
+                    (event.payload as { event: import('./handlers/liveMetrics').LiveStreamMetricEvent }).event,
+                    event.senderInstanceId
+                );
+            }),
+            InterInstanceBus.subscribe('remoteInstanceDisconnected', event => {
+                clearRemoteLiveMetrics((event.payload as { instanceId: string }).instanceId);
+            })
+        );
 
         // 订阅远程配置变更，强制刷新本地配置缓存
         InterInstanceBus.subscribe('configChanged', () => {

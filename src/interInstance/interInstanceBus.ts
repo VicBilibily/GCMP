@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { InterInstanceEvent, InterInstanceEventHandler } from './eventProtocol';
+import { InterInstanceEvent, InterInstanceEventHandler, type RemoteInstanceDisconnectedEvent } from './eventProtocol';
 import { IpcServer } from './ipcServer';
 import { IpcClient } from './ipcClient';
 import { FallbackTransport } from './fallbackTransport';
@@ -51,6 +51,8 @@ export class InterInstanceBus {
     private static reconnectTimer: NodeJS.Timeout | undefined;
     private static reconnectAttempts = 0;
     private static readonly MAX_RECONNECT_DELAY_MS = 60_000;
+    private static authorityTerm: string | undefined;
+    private static authorityChangedEmitter = new vscode.EventEmitter<string | undefined>();
     /** 角色切换串行化：避免 becomeLeader/becomeFollower 并发交错导致 server+client 双活 */
     private static roleSwitchChain: Promise<void> = Promise.resolve();
     /** 生命周期代次：dispose/重新 initialize 后作废旧的异步角色切换与重连任务 */
@@ -86,6 +88,20 @@ export class InterInstanceBus {
             StatusLogger.info(`[InterInstanceBus] Leader changed: isLeader=${isLeader}`);
             this.enqueueRoleSwitch(isLeader);
         });
+        context.subscriptions.push(
+            LeaderElectionService.onLeaderIdentityChanged(identity => {
+                if (LeaderElectionService.isLeader()) {
+                    this.setAuthorityTerm(identity?.authorityTerm);
+                    return;
+                }
+                if (identity?.authorityTerm !== this.authorityTerm) {
+                    this.setAuthorityTerm(undefined);
+                }
+                if (this.options.enabled) {
+                    this.enqueueRoleSwitch(false);
+                }
+            })
+        );
 
         // 根据当前角色初始化 IPC 端点
         this.initialized = true;
@@ -250,6 +266,14 @@ export class InterInstanceBus {
         return this.server?.getConnectedFollowerIds() ?? [];
     }
 
+    static getAuthorityTerm(): string | undefined {
+        return this.authorityTerm;
+    }
+
+    static onAuthorityChanged(listener: (authorityTerm: string | undefined) => void): vscode.Disposable {
+        return this.authorityChangedEmitter.event(listener);
+    }
+
     /**
      * 角色切换串行化入口。
      * onLeaderChanged 可能在短时间内连续触发（选举结算期），若异步 become* 并发执行，
@@ -294,7 +318,8 @@ export class InterInstanceBus {
         // 启动 IPC 服务器
         const ipcPath = resolveIpcPath(LeaderElectionService.getInstanceId());
         const server = new IpcServer({
-            onMessage: event => this.dispatchEvent(event)
+            onMessage: event => this.dispatchEvent(event),
+            onClientDisconnected: instanceId => this.handleRemoteInstanceDisconnected(instanceId)
         });
 
         try {
@@ -306,8 +331,13 @@ export class InterInstanceBus {
                 return;
             }
             this.server = server;
+            this.setAuthorityTerm(LeaderElectionService.getAuthorityTerm());
             // Agents 窗体通过发现文件连接普通窗口 Leader；周期刷新可修正交接时迟到的旧写入。
-            const publisher = new LeaderFilePublisher(LeaderElectionService.getInstanceId(), ipcPath);
+            const publisher = new LeaderFilePublisher(
+                LeaderElectionService.getInstanceId(),
+                LeaderElectionService.getAuthorityTerm() ?? `${LeaderElectionService.getInstanceId()}:unknown`,
+                ipcPath
+            );
             this.leaderFilePublisher = publisher;
             await publisher.start();
             if (!this.initialized || !this.context || !LeaderElectionService.isLeader()) {
@@ -322,6 +352,7 @@ export class InterInstanceBus {
             StatusLogger.error('[InterInstanceBus] Failed to start IPC server', error);
             await this.stopLeaderFilePublisher();
             this.server = undefined;
+            this.setAuthorityTerm(undefined);
             // Leader IPC 启动失败，启用文件 fallback
             this.fallbackActive = true;
             this.startFallbackTransport();
@@ -338,6 +369,7 @@ export class InterInstanceBus {
         // 先停止 server（如果之前是 leader）
         await this.server?.stop();
         this.server = undefined;
+        this.setAuthorityTerm(undefined);
 
         if (!this.initialized || !this.context) {
             return;
@@ -398,6 +430,7 @@ export class InterInstanceBus {
                 this.dispatchEvent(event);
             },
             onDisconnect: () => {
+                this.setAuthorityTerm(undefined);
                 // 基础事件为非关键通知；断线后无需补历史，仅尽快重连。
                 // 但 publish() 会基于真实连接状态选择 fallback，从而减少重连窗口内的静默丢失。
                 this.scheduleReconnect();
@@ -411,11 +444,17 @@ export class InterInstanceBus {
                 this.client = undefined;
                 return;
             }
+            if (LeaderElectionService.isAgentsWindow()) {
+                this.setAuthorityTerm(readLeaderFile()?.authorityTerm);
+            } else {
+                this.setAuthorityTerm(LeaderElectionService.getAuthorityTerm());
+            }
             this.reconnectAttempts = 0;
             StatusLogger.info(`[InterInstanceBus] Connected to leader at ${ipcPath}`);
         } catch (error) {
             StatusLogger.warn('[InterInstanceBus] Failed to connect to leader IPC', error);
             this.client = undefined;
+            this.setAuthorityTerm(undefined);
             // IPC 连接失败，启用文件 fallback
             this.fallbackActive = true;
             this.startFallbackTransport();
@@ -469,6 +508,10 @@ export class InterInstanceBus {
             return;
         }
 
+        this.invokeHandlers(event);
+    }
+
+    private static invokeHandlers(event: InterInstanceEvent): void {
         // 触发具体类型订阅
         const typeHandlers = this.handlers.get(event.type);
         if (typeHandlers) {
@@ -492,5 +535,27 @@ export class InterInstanceBus {
                 }
             }
         }
+    }
+
+    private static handleRemoteInstanceDisconnected(instanceId: string): void {
+        if (!instanceId || !this.initialized || !this.context) {
+            return;
+        }
+        const event: RemoteInstanceDisconnectedEvent = {
+            type: 'remoteInstanceDisconnected',
+            payload: { instanceId },
+            timestamp: Date.now(),
+            senderInstanceId: this.instanceId ?? 'unknown'
+        };
+        this.invokeHandlers(event);
+        this.server?.broadcast(event);
+    }
+
+    private static setAuthorityTerm(authorityTerm: string | undefined): void {
+        if (this.authorityTerm === authorityTerm) {
+            return;
+        }
+        this.authorityTerm = authorityTerm;
+        this.authorityChangedEmitter.fire(authorityTerm);
     }
 }

@@ -991,7 +991,7 @@ export function createRequestRecordsTable(
             (window.usagesState?.selectedSessionIds?.length ?? 0) === 0;
         const recoveryHint = getSessionRecoveryDebugHint(record.sessionRecoverySource);
         const statusLabel =
-            isWaiting ? 'WAIT'
+            isWaiting ? waitingPresentation.statusText
             : record.status === 'completed' ? 'DONE'
             : record.status === 'failed' ? 'ERROR'
             : record.status === 'cancelled' ? 'CANCEL'
