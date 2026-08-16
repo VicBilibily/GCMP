@@ -21,6 +21,12 @@ export interface InterInstanceBusOptions {
     enabled?: boolean;
 }
 
+interface LeaderConnectionTarget {
+    instanceId: string;
+    ipcPath: string;
+    authorityTerm?: string;
+}
+
 /**
  * 跨实例消息总线
  * 负责：
@@ -391,34 +397,15 @@ export class InterInstanceBus {
         }
 
         const generation = this.lifecycleGeneration;
-        let ipcPath: string;
-        if (LeaderElectionService.isAgentsWindow()) {
-            // Agents 窗体不参与选举：从 Leader 发现文件读取普通窗口 Leader 的 IPC 地址。
-            // 文件缺失或连接失败均由 scheduleReconnect 退避重试，新 Leader 写文件后自愈。
-            const leaderInfo = readLeaderFile();
-            if (!leaderInfo) {
-                StatusLogger.debug('[InterInstanceBus] No leader file available, will retry');
-                this.scheduleReconnect();
-                return;
-            }
-            if (leaderInfo.instanceId === this.instanceId) {
-                return;
-            }
-            ipcPath = leaderInfo.ipcPath;
-        } else {
-            const leaderId = LeaderElectionService.getLeaderId();
-            if (!leaderId) {
-                StatusLogger.debug('[InterInstanceBus] No leader available, will retry');
-                this.scheduleReconnect();
-                return;
-            }
+        const target = this.getLeaderConnectionTarget();
+        if (!target) {
+            this.scheduleReconnect();
+            return;
+        }
 
-            // 避免自己连接自己
-            if (leaderId === this.instanceId) {
-                return;
-            }
-
-            ipcPath = resolveIpcPath(leaderId);
+        // 避免自己连接自己
+        if (target.instanceId === this.instanceId) {
+            return;
         }
 
         // 先断开可能残留的旧连接，避免断线事件与重连竞态导致旧 socket 被遗弃后继续派发事件
@@ -438,19 +425,31 @@ export class InterInstanceBus {
         });
 
         try {
-            await this.client.connect(ipcPath);
+            await this.client.connect(target.ipcPath);
             if (!this.initialized || generation !== this.lifecycleGeneration) {
                 await this.client.disconnect();
                 this.client = undefined;
                 return;
             }
-            if (LeaderElectionService.isAgentsWindow()) {
-                this.setAuthorityTerm(readLeaderFile()?.authorityTerm);
-            } else {
-                this.setAuthorityTerm(LeaderElectionService.getAuthorityTerm());
+            const currentTarget = this.getLeaderConnectionTarget();
+            if (
+                !currentTarget ||
+                currentTarget.instanceId !== target.instanceId ||
+                currentTarget.ipcPath !== target.ipcPath
+            ) {
+                StatusLogger.debug(
+                    `[InterInstanceBus] Leader changed during connect (target=${target.instanceId}, current=${currentTarget?.instanceId ?? 'none'}), will retry`
+                );
+                await this.client.disconnect();
+                this.client = undefined;
+                this.setAuthorityTerm(undefined);
+                this.scheduleReconnect();
+                return;
             }
+
+            this.setAuthorityTerm(currentTarget.authorityTerm);
             this.reconnectAttempts = 0;
-            StatusLogger.info(`[InterInstanceBus] Connected to leader at ${ipcPath}`);
+            StatusLogger.info(`[InterInstanceBus] Connected to leader at ${target.ipcPath}`);
         } catch (error) {
             StatusLogger.warn('[InterInstanceBus] Failed to connect to leader IPC', error);
             this.client = undefined;
@@ -460,6 +459,35 @@ export class InterInstanceBus {
             this.startFallbackTransport();
             this.scheduleReconnect();
         }
+    }
+
+    private static getLeaderConnectionTarget(): LeaderConnectionTarget | undefined {
+        if (LeaderElectionService.isAgentsWindow()) {
+            // Agents 窗体不参与选举：从 Leader 发现文件读取普通窗口 Leader 的 IPC 地址。
+            // 文件缺失或连接失败均由 scheduleReconnect 退避重试，新 Leader 写文件后自愈。
+            const leaderInfo = readLeaderFile();
+            if (!leaderInfo) {
+                StatusLogger.debug('[InterInstanceBus] No leader file available, will retry');
+                return undefined;
+            }
+            return {
+                instanceId: leaderInfo.instanceId,
+                ipcPath: leaderInfo.ipcPath,
+                authorityTerm: leaderInfo.authorityTerm
+            };
+        }
+
+        const leaderIdentity = LeaderElectionService.getLeaderIdentity();
+        if (!leaderIdentity) {
+            StatusLogger.debug('[InterInstanceBus] No leader available, will retry');
+            return undefined;
+        }
+
+        return {
+            instanceId: leaderIdentity.instanceId,
+            ipcPath: resolveIpcPath(leaderIdentity.instanceId),
+            authorityTerm: leaderIdentity.authorityTerm
+        };
     }
 
     private static scheduleReconnect(): void {

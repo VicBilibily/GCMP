@@ -2099,6 +2099,7 @@ export class JsonSchemaProvider {
         });
         return {
             type: 'object',
+            minProperties: 1,
             description: t(
                 'Rate limit configuration. All dimensions optional; 0 or omitted means unlimited for that dimension. Any dimension reached first causes self-throttling (pacing).',
                 '限流配置。所有维度可选，0 或缺省表示该维度不限；任一维度先触顶即自主延迟（匀速 pacing）。'

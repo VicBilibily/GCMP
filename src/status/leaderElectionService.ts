@@ -310,8 +310,8 @@ export class LeaderElectionService {
                     return;
                 }
 
-                // 未指定下一任 Leader 时，退回到普通快速检查
-                void this.checkLeader();
+                // 未指定下一任 Leader 时，直接基于卸任信号快速接管，不再受旧心跳 freshness 阻塞
+                void this.recoverAfterLeaderResigning(resigningLeaderId);
             })
         );
     }
@@ -433,7 +433,25 @@ export class LeaderElectionService {
         StatusLogger.info(
             '[LeaderElectionService] Nominated takeover did not happen in time, falling back to election'
         );
-        await this.checkLeader();
+        await this.recoverAfterLeaderResigning(resigningLeaderId);
+    }
+
+    private static async recoverAfterLeaderResigning(resigningLeaderId: string): Promise<void> {
+        const currentInfo = this.context?.globalState.get<LeaderInfo>(this.LEADER_KEY);
+        if (currentInfo && currentInfo.instanceId !== resigningLeaderId) {
+            StatusLogger.info(
+                `[LeaderElectionService] Leader ${currentInfo.instanceId} already took over after ${resigningLeaderId} resigned`
+            );
+            return;
+        }
+
+        StatusLogger.info(
+            `[LeaderElectionService] Attempting fast takeover after leaderResigning from ${resigningLeaderId}`
+        );
+        await this.becomeLeader(true);
+        if (!this._isLeader) {
+            await this.checkLeader();
+        }
     }
 
     private static async becomeLeader(force: boolean = false): Promise<void> {
