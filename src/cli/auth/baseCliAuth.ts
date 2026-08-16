@@ -231,6 +231,13 @@ export abstract class BaseCliAuth {
     }
 
     /**
+     * 获取 CLI 命令名（如 codex / grok），供面板等外部调用打开终端登录
+     */
+    getCliCommand(): string {
+        return this.config.cliCommand;
+    }
+
+    /**
      * 解析路径模式，支持 ~ 展开
      */
     protected resolvePath(pattern: string): string {

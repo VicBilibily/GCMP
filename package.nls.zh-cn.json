@@ -45,6 +45,7 @@
     "command.hyper.setApiKey": "设置 Charm Hyper API 密钥",
     "command.clinepass.setApiKey": "设置 ClinePass API 密钥",
     "command.compatible.manageModels": "Compatible Provider 设置",
+    "command.configSet.manage": "API Key 管理",
     "command.nesCompletion.toggleManual": "切换 NES 手动触发模式",
     "command.tokenUsage.showDetails": "查看今日 Token 消耗统计详情",
     "command.cli.auth": "CLI 认证管理",

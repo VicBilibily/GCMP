@@ -460,12 +460,15 @@ export class TokenUsageStatusBar {
         const detailLabel = t('Click to view details', '点击查看详情');
         const syncCmd = 'command:gcmp.sync.configure';
         const syncLabel = t('Manage / Sync API Keys', '管理/同步 API Key');
+        const configSetCmd = 'command:gcmp.configSet.manage';
+        const configSetLabel = t('Manage API Keys', 'API Key 管理');
         const modelSettingsCmd = 'command:gcmp.modelSettings.wizard';
         const modelSettingsLabel = t('Set auxiliary tool models', '设置辅助工具模型');
 
         const links = [
             `[${detailLabel}](${detailCmd})`,
             `[${syncLabel}](${syncCmd})`,
+            `[${configSetLabel}](${configSetCmd})`,
             `[${modelSettingsLabel}](${modelSettingsCmd})`
         ];
 

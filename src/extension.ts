@@ -24,6 +24,8 @@ import { JsonSchemaProvider } from './utils/config/jsonSchemaProvider';
 import { closeProxyAgents } from './utils/net/proxyAgent';
 import { HarRecorder } from './utils/net/harRecorder';
 import { registerCliAuthCommands } from './cli/cliAuthCommands';
+import { ConfigSetManagerPanel } from './ui/configSetManager';
+import { ConfigSetStore } from './utils/config/configSetStore';
 import { SyncManager } from './sync/syncManager';
 import { TokenUsagesManager } from './usages/usagesManager';
 import { DateUtils } from './usages/fileLogger/dateUtils';
@@ -503,6 +505,13 @@ export async function activate(context: vscode.ExtensionContext) {
         stepStartTime = Date.now();
         registerCliAuthCommands(context);
         Logger.trace(`CLI authentication commands registered (${Date.now() - stepStartTime}ms)`);
+
+        // 步骤7.5: 注册提供商配置集管理面板（WebviewPanel，替代旧 QuickPick 命令）
+        ConfigSetStore.initialize(context);
+        context.subscriptions.push(
+            vscode.commands.registerCommand('gcmp.configSet.manage', () => ConfigSetManagerPanel.createAndShow(context))
+        );
+        Logger.trace('Config set manager registered');
 
         // 步骤8: 初始化与注册 GitHub Gist 同步命令（统一入口）
         stepStartTime = Date.now();

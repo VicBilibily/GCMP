@@ -87,28 +87,76 @@ export function deriveKey(githubId: string, salt: Buffer, passphrase: string | u
  * @returns 加密后的数据包（JSON 序列化后的字符串），加密失败返回 undefined
  */
 export function encrypt(githubId: string, plaintext: string, passphrase: string | undefined): string | undefined {
+    const batchEncryptor = createBatchEncryptor(githubId, passphrase);
+    return batchEncryptor?.(plaintext);
+}
+
+/**
+ * 创建批量加密器：同一批明文共享 salt，密钥仅派生一次
+ * GCM 安全性依赖 key+IV 唯一（IV 仍逐条随机生成），共享 salt 不降低安全性
+ * @param githubId GitHub 用户数字 ID
+ * @param passphrase 可选的自定义口令
+ * @returns 加密函数；密钥派生失败返回 undefined
+ */
+export function createBatchEncryptor(
+    githubId: string,
+    passphrase: string | undefined
+): ((plaintext: string) => string) | undefined {
     const salt = crypto.randomBytes(32);
     const key = deriveKey(githubId, salt, passphrase);
     if (!key) {
         return undefined;
     }
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    return (plaintext: string) => {
+        const iv = crypto.randomBytes(16);
+        const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
 
-    const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
-    const tag = cipher.getAuthTag();
+        const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+        const tag = cipher.getAuthTag();
 
-    const payload: EncryptedPayload = {
-        algorithm: 'aes-256-gcm',
-        kdf: 'scrypt',
-        kdfParams: DEFAULT_SCRYPT_PARAMS,
-        salt: salt.toString('hex'),
-        iv: iv.toString('hex'),
-        tag: tag.toString('hex'),
-        data: encrypted.toString('hex')
+        const payload: EncryptedPayload = {
+            algorithm: 'aes-256-gcm',
+            kdf: 'scrypt',
+            kdfParams: DEFAULT_SCRYPT_PARAMS,
+            salt: salt.toString('hex'),
+            iv: iv.toString('hex'),
+            tag: tag.toString('hex'),
+            data: encrypted.toString('hex')
+        };
+
+        return JSON.stringify(payload);
     };
+}
 
-    return JSON.stringify(payload);
+/** 解析并校验加密数据包结构 */
+function parsePayload(encryptedPayload: string): EncryptedPayload | undefined {
+    let payload: EncryptedPayload;
+    try {
+        payload = JSON.parse(encryptedPayload) as EncryptedPayload;
+    } catch {
+        return undefined;
+    }
+
+    if (payload.algorithm !== 'aes-256-gcm' || payload.kdf !== 'scrypt') {
+        return undefined;
+    }
+    return payload;
+}
+
+/** 用已派生的密钥解密数据包；认证失败返回 undefined */
+function decryptPayload(payload: EncryptedPayload, key: Buffer): string | undefined {
+    const iv = Buffer.from(payload.iv, 'hex');
+    const tag = Buffer.from(payload.tag, 'hex');
+    const encrypted = Buffer.from(payload.data, 'hex');
+
+    try {
+        const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+        decipher.setAuthTag(tag);
+        const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+        return decrypted.toString('utf8');
+    } catch {
+        return undefined;
+    }
 }
 
 /**
@@ -123,34 +171,45 @@ export function decrypt(
     encryptedPayload: string,
     passphrase: string | undefined
 ): string | undefined {
-    let payload: EncryptedPayload;
-    try {
-        payload = JSON.parse(encryptedPayload) as EncryptedPayload;
-    } catch {
+    const payload = parsePayload(encryptedPayload);
+    if (!payload) {
         return undefined;
     }
 
-    if (payload.algorithm !== 'aes-256-gcm' || payload.kdf !== 'scrypt') {
-        return undefined;
-    }
-
-    const salt = Buffer.from(payload.salt, 'hex');
-    const key = deriveKey(githubId, salt, passphrase);
+    const key = deriveKey(githubId, Buffer.from(payload.salt, 'hex'), passphrase);
     if (!key) {
         return undefined;
     }
-    const iv = Buffer.from(payload.iv, 'hex');
-    const tag = Buffer.from(payload.tag, 'hex');
-    const encrypted = Buffer.from(payload.data, 'hex');
+    return decryptPayload(payload, key);
+}
 
-    try {
-        const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
-        decipher.setAuthTag(tag);
-        const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
-        return decrypted.toString('utf8');
-    } catch {
-        return undefined;
-    }
+/**
+ * 创建批量解密器：按 salt 缓存派生密钥，同一 salt 仅派生一次
+ * 兼容逐条独立 salt 的数据（每个不同 salt 各自派生一次）
+ * @param githubId GitHub 用户数字 ID
+ * @param passphrase 可选的自定义口令
+ */
+export function createBatchDecryptor(
+    githubId: string,
+    passphrase: string | undefined
+): (encryptedPayload: string) => string | undefined {
+    const keyCache = new Map<string, Buffer>();
+    return (encryptedPayload: string) => {
+        const payload = parsePayload(encryptedPayload);
+        if (!payload) {
+            return undefined;
+        }
+        let key = keyCache.get(payload.salt);
+        if (!key) {
+            const derived = deriveKey(githubId, Buffer.from(payload.salt, 'hex'), passphrase);
+            if (!derived) {
+                return undefined;
+            }
+            key = derived;
+            keyCache.set(payload.salt, key);
+        }
+        return decryptPayload(payload, key);
+    };
 }
 
 /**

@@ -6,12 +6,13 @@
 
 import * as vscode from 'vscode';
 import { BaseStatusBarItem, BaseStatusBarItemConfig } from './baseStatusBarItem';
+import { CompatibleProviderCacheData, getCompatibleProviderCacheUpdate } from './compatibleStatusBarCache';
 import { StatusLogger } from '../utils/runtime/statusLogger';
 import { CompatibleModelManager } from '../utils/config/compatibleModelManager';
-import { BalanceQueryManager } from './compatible/balanceQueryManager';
+import { BalanceQueryManager } from '../quota/compatible/balanceQueryManager';
+import { getCurrencySymbol } from '../quota/format';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { InnerProviders, resolveBuiltinProviderConfig } from '../utils/config/knownProviders';
-import { LeaderElectionService } from './leaderElectionService';
 import { InterInstanceBus, ApiKeyChangedEvent } from '../interInstance';
 import { t } from '../utils/runtime/l10n';
 
@@ -54,12 +55,7 @@ export interface CompatibleStatusData {
 /**
  * 单个提供商的缓存数据
  */
-interface ProviderCacheData {
-    /** 提供商余额信息 */
-    balance: CompatibleProviderBalance;
-    /** 缓存时间戳 */
-    timestamp: number;
-}
+type ProviderCacheData = CompatibleProviderCacheData;
 
 /**
  * 兼容提供商状态栏项
@@ -90,6 +86,12 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
 
     /** 各提供商的最后延时更新时间戳 */
     private providerLastDelayedUpdateTimes = new Map<string, number>();
+
+    /** 定向刷新按 provider 独立防抖，避免互相取消 */
+    private providerUpdateDebouncers = new Map<string, NodeJS.Timeout>();
+
+    /** 查询进行中积压的定向刷新 */
+    private pendingProviderUpdates = new Set<string>();
 
     /** 内置支持定向延时更新的提供商列表 */
     private static readonly SUPPORTED_DELAYED_UPDATE_PROVIDERS = ['aihubmix', 'openrouter'];
@@ -209,21 +211,6 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
     }
 
     /**
-     * 获取单位前缀/符号
-     */
-    private getUnitPrefix(currency: string): string {
-        switch (currency) {
-            case 'USD':
-                return '$';
-            case 'CNY':
-            case 'RMB':
-                return '¥';
-            default:
-                return '';
-        }
-    }
-
-    /**
      * 格式化余额显示
      */
     private formatBalance(balance: number, currency: string): string {
@@ -234,7 +221,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             return t('Depleted', '耗尽');
         }
 
-        const prefix = this.getUnitPrefix(currency);
+        const prefix = getCurrencySymbol(currency);
         if (prefix) {
             return `${prefix}${balance.toFixed(2)}`;
         }
@@ -505,6 +492,11 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
         this.pendingApiKeyRefresh = false;
         this.providerCaches.clear();
         this.providerLastDelayedUpdateTimes.clear();
+        for (const timer of this.providerUpdateDebouncers.values()) {
+            clearTimeout(timer);
+        }
+        this.providerUpdateDebouncers.clear();
+        this.pendingProviderUpdates.clear();
     }
 
     /**
@@ -530,6 +522,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
 
         for (const affectedProviderId of affectedProviderIds) {
             this.providerCaches.delete(affectedProviderId);
+            await this.context?.globalState.update(this.getProviderCacheKey(affectedProviderId), undefined);
         }
         this.lastStatusData = null;
 
@@ -585,9 +578,9 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             return;
         }
 
-        // 清除之前的防抖定时器
-        if (this.updateDebouncer) {
-            clearTimeout(this.updateDebouncer);
+        const existingDebouncer = this.providerUpdateDebouncers.get(providerId);
+        if (existingDebouncer) {
+            clearTimeout(existingDebouncer);
         }
 
         const now = Date.now();
@@ -605,7 +598,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
         );
 
         // 设置新的防抖定时器
-        this.updateDebouncer = setTimeout(async () => {
+        const timer = setTimeout(async () => {
             try {
                 StatusLogger.debug(`[${this.config.logPrefix}] Executing delayed update for provider ${providerId}`);
                 this.providerLastDelayedUpdateTimes.set(providerId, Date.now());
@@ -616,9 +609,11 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
                     error
                 );
             } finally {
-                this.updateDebouncer = undefined;
+                this.providerUpdateDebouncers.delete(providerId);
             }
         }, finalDelayMs);
+
+        this.providerUpdateDebouncers.set(providerId, timer);
     }
 
     /**
@@ -629,6 +624,9 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
     protected override async executeApiQuery(isManualRefresh = false): Promise<void> {
         // 防止并发执行
         if (this.isLoading) {
+            if (isManualRefresh) {
+                this.manualRefreshPending = true;
+            }
             StatusLogger.debug(`[${this.config.logPrefix}] Query is already in progress, skipping duplicate call`);
             return;
         }
@@ -656,6 +654,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             }
         }
 
+        this.pendingProviderUpdates.clear();
         this.isLoading = true;
 
         try {
@@ -697,17 +696,15 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
                         this.context.globalState.update(this.getCacheKey('statusData'), this.lastStatusData);
                     }
 
-                    // 跨实例广播状态更新（Leader 查询成功后同步到其他窗口）
-                    if (LeaderElectionService.isLeader()) {
-                        InterInstanceBus.publish({
-                            type: 'statusUpdated',
-                            payload: {
-                                providerKey: this.config.cacheKeyPrefix,
-                                data: this.lastStatusData,
-                                source: 'api'
-                            }
-                        });
-                    }
+                    // 任一窗口查询成功后都广播，由 IPC/回退通道负责转发到其他窗口
+                    InterInstanceBus.publish({
+                        type: 'statusUpdated',
+                        payload: {
+                            providerKey: this.config.cacheKeyPrefix,
+                            data: this.lastStatusData,
+                            source: 'api'
+                        }
+                    });
 
                     // 更新状态栏 UI
                     this.updateStatusBarUI(data);
@@ -746,6 +743,8 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
                 void this.performApiKeyRefresh().catch(error =>
                     StatusLogger.error(`[${this.config.logPrefix}] Failed to process pending API key refresh`, error)
                 );
+            } else if (!this.flushPendingManualRefresh()) {
+                this.flushPendingProviderUpdates();
             }
         }
     }
@@ -789,11 +788,16 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
      * 接收到跨实例状态更新事件后同步各提供商缓存
      */
     protected override onStatusUpdatedFromEvent(data: CompatibleStatusData): void {
+        const eventTimestamp = this.lastStatusData?.timestamp ?? Date.now();
         for (const provider of data.providers) {
-            const cacheData: ProviderCacheData = {
-                balance: provider,
-                timestamp: Date.now()
-            };
+            const cacheData = getCompatibleProviderCacheUpdate(
+                this.providerCaches.get(provider.providerId),
+                provider,
+                eventTimestamp
+            );
+            if (!cacheData) {
+                continue;
+            }
             this.providerCaches.set(provider.providerId, cacheData);
             if (this.context) {
                 const cacheKey = this.getProviderCacheKey(provider.providerId);
@@ -848,6 +852,22 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
         return cacheAge > PROVIDER_CACHE_EXPIRY;
     }
 
+    private flushPendingProviderUpdates(): void {
+        if (this.isLoading) {
+            return;
+        }
+
+        if (this.pendingProviderUpdates.size === 0) {
+            return;
+        }
+
+        const pendingProviders = Array.from(this.pendingProviderUpdates);
+        this.pendingProviderUpdates.clear();
+        for (const providerId of pendingProviders) {
+            this.delayedUpdate(providerId, 0);
+        }
+    }
+
     // ==================== 私有方法：单提供商更新 ====================
 
     /**
@@ -858,8 +878,9 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
         // 防止并发执行
         if (this.isLoading) {
             StatusLogger.debug(
-                `[${this.config.logPrefix}] Query is already in progress, skipping update for provider ${providerId}`
+                `[${this.config.logPrefix}] Query is already in progress, queueing update for provider ${providerId}`
             );
+            this.pendingProviderUpdates.add(providerId);
             return;
         }
 
@@ -940,6 +961,15 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
                     this.context.globalState.update(this.getCacheKey('statusData'), this.lastStatusData);
                 }
 
+                InterInstanceBus.publish({
+                    type: 'statusUpdated',
+                    payload: {
+                        providerKey: this.config.cacheKeyPrefix,
+                        data: this.lastStatusData,
+                        source: 'api'
+                    }
+                });
+
                 this.updateStatusBarUI(this.lastStatusData.data);
             } else {
                 await this.checkAndShowStatus();
@@ -955,6 +985,8 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
                 void this.performApiKeyRefresh().catch(error =>
                     StatusLogger.error(`[${this.config.logPrefix}] Failed to process pending API key refresh`, error)
                 );
+            } else if (!this.flushPendingManualRefresh()) {
+                this.flushPendingProviderUpdates();
             }
         }
     }

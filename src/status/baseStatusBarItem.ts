@@ -9,7 +9,9 @@ import * as vscode from 'vscode';
 import { StatusLogger } from '../utils/runtime/statusLogger';
 import { LeaderElectionService } from './leaderElectionService';
 import { InterInstanceBus, StatusUpdatedEvent } from '../interInstance';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { t } from '../utils/runtime/l10n';
+import { formatCompactCountdown } from '../quota/format';
 
 /**
  * 缓存数据结构
@@ -51,6 +53,8 @@ export interface BaseStatusBarItemConfig {
 export interface StatusBarItemConfig extends BaseStatusBarItemConfig {
     /** API Key 提供商标识 */
     apiKeyProvider: string;
+    /** 密钥错误文案中的显示名（缺省用 apiKeyProvider） */
+    keyDisplayName?: string;
 }
 
 /**
@@ -87,10 +91,14 @@ export abstract class BaseStatusBarItem<T> {
 
     // 标志位
     protected isLoading = false;
+    protected manualRefreshPending = false;
     protected initialized = false;
 
     // 跨实例事件订阅
     private interInstanceSubscription: vscode.Disposable | undefined;
+
+    // 本实例 API Key 变更事件订阅
+    private apiKeyChangeSubscription: vscode.Disposable | undefined;
 
     // 常量配置
     // 最小延时更新间隔：节流阈值，避免短时间内多次 delayedUpdate 触发 API 请求
@@ -189,35 +197,13 @@ export abstract class BaseStatusBarItem<T> {
     }
 
     /**
-     * 从 ISO 时间字符串计算倒计时文本
+     * 从 ISO 时间字符串计算倒计时文本（实现在共享层 quota/format.ts）
      * 例如: "2026-07-20T12:00:00Z" -> "3d 23h", "23m", "45s"
      * @param resetsAt 重置时间的 ISO 字符串，为空或已过期时返回 "—" 或 "即将重置"
      * @returns 格式化后的倒计时文本
      */
     protected formatCountdown(resetsAt?: string): string {
-        if (!resetsAt) {
-            return '—';
-        }
-        const diffMs = new Date(resetsAt).getTime() - Date.now();
-        if (diffMs <= 0) {
-            return t('Resets soon', '即将重置');
-        }
-
-        const seconds = Math.floor(diffMs / 1000);
-        const days = Math.floor(seconds / 86400);
-        const hours = Math.floor((seconds % 86400) / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-
-        if (days > 0) {
-            return `${days}d${hours > 0 ? ` ${String(hours).padStart(2, '0')}h` : ''}`;
-        }
-        if (hours > 0) {
-            return `${hours}h${minutes > 0 ? ` ${String(minutes).padStart(2, '0')}m` : ''}`;
-        }
-        if (minutes > 0) {
-            return `${minutes}m`;
-        }
-        return `${seconds}s`;
+        return formatCompactCountdown(resetsAt);
     }
 
     /**
@@ -285,6 +271,7 @@ export abstract class BaseStatusBarItem<T> {
         this.statusBarItem.name = this.config.name;
         this.statusBarItem.text = this.config.icon;
         this.statusBarItem.command = this.config.refreshCommand;
+        this.updateFromCache(5 * 60 * 1000);
 
         // 异步检查是否应该显示状态栏(不阻塞初始化)
         // 先隐藏,等检查完成后再决定是否显示
@@ -304,9 +291,11 @@ export abstract class BaseStatusBarItem<T> {
         // 注册刷新命令
         context.subscriptions.push(
             vscode.commands.registerCommand(this.config.refreshCommand, () => {
-                if (!this.isLoading) {
-                    this.performRefresh();
+                if (this.isLoading) {
+                    this.manualRefreshPending = true;
+                    return;
                 }
+                void this.performRefresh();
             })
         );
 
@@ -330,6 +319,23 @@ export abstract class BaseStatusBarItem<T> {
             this.handleStatusUpdatedEvent(event as StatusUpdatedEvent);
         });
         this.context.subscriptions.push(this.interInstanceSubscription);
+
+        // 订阅本实例 API Key 变更事件（InterInstanceBus.publish 不触发本实例 handler，
+        // 因此 ConfigSetManager 面板等本实例内的 Key 变更必须走 ApiKeyManager 本地事件）
+        const apiKeyProvider = (this.config as StatusBarItemConfig).apiKeyProvider;
+        if (apiKeyProvider) {
+            this.apiKeyChangeSubscription = ApiKeyManager.onDidChangeApiKey(({ provider }) => {
+                if (provider === apiKeyProvider) {
+                    this.checkAndShowStatus().catch(error =>
+                        StatusLogger.error(
+                            `[${this.config.logPrefix}] Failed to refresh after local API key change`,
+                            error
+                        )
+                    );
+                }
+            });
+            this.context.subscriptions.push(this.apiKeyChangeSubscription);
+        }
 
         // 注册主实例定时刷新任务
         this.registerLeaderPeriodicTask();
@@ -412,10 +418,15 @@ export abstract class BaseStatusBarItem<T> {
         this.interInstanceSubscription?.dispose();
         this.interInstanceSubscription = undefined;
 
+        // 清理本实例 API Key 变更订阅
+        this.apiKeyChangeSubscription?.dispose();
+        this.apiKeyChangeSubscription = undefined;
+
         // 清理内存状态
         this.lastStatusData = null;
         this.lastDelayedUpdateTime = 0;
         this.isLoading = false;
+        this.manualRefreshPending = false;
         this.context = undefined;
 
         // 销毁状态栏项
@@ -503,6 +514,9 @@ export abstract class BaseStatusBarItem<T> {
     protected async executeApiQuery(isManualRefresh = false): Promise<void> {
         // 防止并发执行
         if (this.isLoading) {
+            if (isManualRefresh) {
+                this.manualRefreshPending = true;
+            }
             StatusLogger.debug(`[${this.config.logPrefix}] Query already running. Skipping duplicate request.`);
             return;
         }
@@ -589,7 +603,17 @@ export abstract class BaseStatusBarItem<T> {
         } finally {
             // 一定要在最后重置加载状态
             this.isLoading = false;
+            this.flushPendingManualRefresh();
         }
+    }
+
+    protected flushPendingManualRefresh(): boolean {
+        if (!this.manualRefreshPending || this.isLoading) {
+            return false;
+        }
+        this.manualRefreshPending = false;
+        void this.performRefresh();
+        return true;
     }
 
     /**
@@ -618,7 +642,7 @@ export abstract class BaseStatusBarItem<T> {
     /**
      * 从缓存读取并更新状态信息
      */
-    private updateFromCache(): void {
+    private updateFromCache(maxAgeMs = 30 * 1000): void {
         if (!this.context || !this.statusBarItem || this.isLoading) {
             return;
         }
@@ -630,15 +654,12 @@ export abstract class BaseStatusBarItem<T> {
             if (cachedStatusData && cachedStatusData.data) {
                 const dataAge = Date.now() - cachedStatusData.timestamp;
 
-                if (dataAge > 30 * 1000) {
-                    // 30秒以上的数据视为无变更，跳过更新
-                    if (dataAge < 60 * 1000) {
-                        // 30-60秒内的数据视为警告日志
-                        StatusLogger.debug(
-                            `[${this.config.logPrefix}] Cached data has expired (${(dataAge / 1000).toFixed(1)}s ago). Skipping update.`
-                        );
-                    }
-                    // 超过60秒的数据不再记录日志
+                if (
+                    !Number.isFinite(dataAge) ||
+                    dataAge < 0 ||
+                    dataAge > maxAgeMs ||
+                    (this.lastStatusData !== null && cachedStatusData.timestamp <= this.lastStatusData.timestamp)
+                ) {
                     return;
                 }
 
@@ -688,6 +709,10 @@ export abstract class BaseStatusBarItem<T> {
         try {
             const cachedData = event.payload.data as CachedStatusData<T> | undefined;
             if (!cachedData || !cachedData.data) {
+                return;
+            }
+            if (this.lastStatusData && cachedData.timestamp <= this.lastStatusData.timestamp) {
+                StatusLogger.debug(`[${this.config.logPrefix}] Ignored stale inter-instance status update`);
                 return;
             }
 

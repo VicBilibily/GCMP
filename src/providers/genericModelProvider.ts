@@ -190,12 +190,14 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
     /**
      * 清除模型缓存并通知 VS Code 重新加载模型列表
-     * 供外部（如 SyncManager）在 API Key 变更后调用
+     * 供外部（如 SyncManager / ConfigSetManager）在 API Key 变更后调用
+     * @param slot 要失效的缓存槽位（缺省 = 主 providerKey）；变体 slot（如 minimax-token）需显式指定
      */
-    invalidateAndNotify(): void {
+    invalidateAndNotify(slot?: string): void {
+        const targetSlot = slot ?? this.providerKey;
         this.modelInfoCache
-            ?.invalidateCache(this.providerKey)
-            .catch(err => Logger.warn(`[${this.providerKey}] Failed to clear cache:`, err));
+            ?.invalidateCache(targetSlot)
+            .catch(err => Logger.warn(`[${this.providerKey}] Failed to clear cache for ${targetSlot}:`, err));
         this._onDidChangeLanguageModelChatInformation.fire();
     }
 
@@ -682,6 +684,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             isTitleRequest ? SessionTitleService.extractTitleGenerationRequestText(messages) : undefined;
         let titleResponseBuffer = '';
         let summaryResponseBuffer = '';
+        let hasReportedProgress = false;
         const requestMetadata = this.getEstimatedRequestMetadata(options);
 
         try {
@@ -690,6 +693,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 report: (value: vscode.LanguageModelResponsePart) => {
                     retryMessageDisposable?.dispose();
                     retryMessageDisposable = undefined;
+                    hasReportedProgress = true;
                     if (isTitleRequest && value instanceof vscode.LanguageModelTextPart) {
                         titleResponseBuffer += value.value;
                     }
@@ -803,6 +807,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     }
                 },
                 error => {
+                    if (hasReportedProgress) {
+                        return false;
+                    }
                     const fallback = this.shouldRetryRequest(error);
                     return sdkMode === 'anthropic' ? shouldRetryAnthropicRequest(error, fallback) : fallback;
                 },

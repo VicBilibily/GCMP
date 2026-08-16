@@ -1,0 +1,95 @@
+﻿/* 侧栏导航 */
+
+.csm-sidebar {
+    width: 180px;
+    flex: none;
+    overflow-y: auto;
+    border-right: 1px solid var(--vscode-panel-border);
+    padding: 8px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+}
+
+.csm-side-caption {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--vscode-descriptionForeground);
+    padding: 2px 9px 3px;
+}
+
+.csm-side-caption-cli,
+.csm-side-caption-group {
+    margin-top: 8px;
+    border-top: 1px solid var(--vscode-panel-border);
+    padding-top: 8px;
+}
+
+.csm-side-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+    min-height: 30px;
+    padding: 6px 9px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--vscode-foreground);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+
+    &:hover {
+        background: var(--vscode-list-hoverBackground);
+    }
+
+    &:focus-visible {
+        outline: 1px solid var(--vscode-focusBorder);
+        outline-offset: -1px;
+    }
+
+    &.csm-side-item-selected {
+        &,
+        &:hover {
+            background: var(--vscode-list-activeSelectionBackground);
+            color: var(--vscode-list-activeSelectionForeground);
+            border-color: var(--vscode-focusBorder);
+        }
+    }
+}
+
+.csm-side-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.csm-side-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+}
+
+.csm-side-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--vscode-focusBorder);
+}
+
+.csm-side-count {
+    min-width: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    text-align: center;
+    font-size: 10px;
+    line-height: 18px;
+    background: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+}

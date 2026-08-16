@@ -1,6 +1,14 @@
 ﻿import * as assert from 'node:assert';
 import { test } from 'node:test';
-import { decrypt, decryptWithPassphrase, deriveKey, encrypt, isCurrentKdf } from './syncCrypto';
+import {
+    createBatchDecryptor,
+    createBatchEncryptor,
+    decrypt,
+    decryptWithPassphrase,
+    deriveKey,
+    encrypt,
+    isCurrentKdf
+} from './syncCrypto';
 
 const GITHUB_ID = '12345678';
 const PLAINTEXT = 'test-api-key-12345';
@@ -117,4 +125,76 @@ test('isCurrentKdf returns false for non-scrypt kdf format', () => {
         data: '00'
     });
     assert.strictEqual(isCurrentKdf(encrypted), false);
+});
+
+test('batch encryptor shares one salt and keeps unique IVs per payload', () => {
+    const batchEncrypt = createBatchEncryptor(GITHUB_ID, undefined);
+    assert.ok(batchEncrypt);
+    const payloads = ['key-a', 'key-b', 'key-c'].map(p => JSON.parse(batchEncrypt!(p)));
+    const salts = new Set(payloads.map(p => p.salt));
+    const ivs = new Set(payloads.map(p => p.iv));
+    assert.strictEqual(salts.size, 1);
+    assert.strictEqual(ivs.size, 3);
+});
+
+test('batch decryptor roundtrips shared-salt payloads from the same batch', () => {
+    const batchEncrypt = createBatchEncryptor(GITHUB_ID, 'pass-x');
+    assert.ok(batchEncrypt);
+    const encrypted = ['key-a', 'key-b'].map(p => batchEncrypt!(p));
+    const batchDecrypt = createBatchDecryptor(GITHUB_ID, 'pass-x');
+    assert.deepStrictEqual(
+        encrypted.map(e => batchDecrypt(e)),
+        ['key-a', 'key-b']
+    );
+});
+
+test('batch decryptor handles payloads with mixed salts', () => {
+    const encryptA = createBatchEncryptor(GITHUB_ID, undefined);
+    const encryptB = createBatchEncryptor(GITHUB_ID, undefined);
+    assert.ok(encryptA);
+    assert.ok(encryptB);
+    const payloads = [encryptA!('from-a'), encryptB!('from-b'), encryptA!('from-a2')];
+    const batchDecrypt = createBatchDecryptor(GITHUB_ID, undefined);
+    assert.deepStrictEqual(
+        payloads.map(p => batchDecrypt(p)),
+        ['from-a', 'from-b', 'from-a2']
+    );
+});
+
+test('batch decryptor rejects wrong passphrase', () => {
+    const batchEncrypt = createBatchEncryptor(GITHUB_ID, 'correct-passphrase');
+    assert.ok(batchEncrypt);
+    const encrypted = batchEncrypt!(PLAINTEXT);
+    const batchDecrypt = createBatchDecryptor(GITHUB_ID, 'wrong-passphrase');
+    assert.strictEqual(batchDecrypt(encrypted), undefined);
+});
+
+test('batch payloads can rotate to a new passphrase and roll back without losing values', () => {
+    const values = ['key-a', 'key-b'];
+    const oldEncrypt = createBatchEncryptor(GITHUB_ID, 'old-passphrase');
+    assert.ok(oldEncrypt);
+    const oldPayloads = values.map(value => oldEncrypt!(value));
+
+    const oldDecrypt = createBatchDecryptor(GITHUB_ID, 'old-passphrase');
+    const newEncrypt = createBatchEncryptor(GITHUB_ID, 'new-passphrase');
+    assert.ok(newEncrypt);
+    const newPayloads = oldPayloads.map(payload => newEncrypt!(oldDecrypt(payload)!));
+
+    const newDecrypt = createBatchDecryptor(GITHUB_ID, 'new-passphrase');
+    assert.deepStrictEqual(
+        newPayloads.map(payload => newDecrypt(payload)),
+        values
+    );
+    assert.deepStrictEqual(
+        newPayloads.map(payload => oldDecrypt(payload)),
+        [undefined, undefined]
+    );
+
+    const rollbackEncrypt = createBatchEncryptor(GITHUB_ID, 'old-passphrase');
+    assert.ok(rollbackEncrypt);
+    const rolledBackPayloads = newPayloads.map(payload => rollbackEncrypt!(newDecrypt(payload)!));
+    assert.deepStrictEqual(
+        rolledBackPayloads.map(payload => oldDecrypt(payload)),
+        values
+    );
 });

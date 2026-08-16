@@ -6,6 +6,7 @@
 
 import * as vscode from 'vscode';
 import { GistSyncService, getKeyDisplayName } from './gistSyncService';
+import { runClearPassphraseFlow, runSetPassphraseFlow } from './passphraseFlow';
 import { Logger } from '../utils/runtime/logger';
 import { t } from '../utils/runtime/l10n';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
@@ -89,6 +90,21 @@ export class SyncManager {
                 action: () => this.downloadFromGist()
             }
         );
+
+        // 配置集同步入口（独立于 API Key 同步，仅当存在配置集时显示）
+        const { ConfigSetStore } = await import('../utils/config/configSetStore');
+        if (ConfigSetStore.listProviders().length > 0) {
+            items.push({
+                label: `$(sync) ${t('Sync Switchable API Keys', '同步可切换的 API Key')}`,
+                description: t(
+                    'Open the switch panel to upload/download (site + API key)',
+                    '打开切换面板，上传/下载（站点 + Key）'
+                ),
+                action: async () => {
+                    await vscode.commands.executeCommand('gcmp.configSet.manage');
+                }
+            });
+        }
 
         // 第二组：密钥管理
         items.push(
@@ -491,15 +507,9 @@ export class SyncManager {
                     return undefined;
                 }
 
-                // 1e) 逐条解密
+                // 1e) 整体解密；任一条目失败时返回空结果，后续统一走口令补救流程
                 Logger.debug(`[SyncManager] Decrypting ${encryptedKeys.length} remote key(s)...`);
-                const remoteKeys: Record<string, string> = {};
-                for (const [keyName, encryptedValue] of encryptedKeys) {
-                    const plainValue = await GistSyncService.decrypt(encryptedValue);
-                    if (plainValue !== undefined) {
-                        remoteKeys[keyName] = plainValue;
-                    }
-                }
+                const remoteKeys = (await GistSyncService.decryptSyncData(syncData))?.keys ?? {};
 
                 // 1f) 收集本地密钥，用 computeDiff 计算远端与本地差异
                 //     remoteOnly: 仅远端有 → 'new'
@@ -878,128 +888,13 @@ export class SyncManager {
      * 注意：开源项目的加密方式源码可见，自定义口令可提供额外保护
      */
     private static async setEncryptionPassphrase(): Promise<void> {
-        const currentHash = await GistSyncService.hasCustomPassphrase();
-        const status = await GistSyncService.getStatus();
-
-        // 跨设备提示：无论设置还是更改，都需告知需多设备同步时口令必须一致
-        const crossDeviceInfo =
-            currentHash ?
-                t(
-                    "Note: If you sync across multiple devices, all devices must use the same passphrase to decrypt each other's data. After changing, please update the passphrase on all devices.",
-                    '注意：如需多设备同步，所有设备必须使用相同的口令才能互相解密。更改后请在所有设备上同步更新口令。'
-                )
-            :   t(
-                    "Note: If you sync across multiple devices, all devices must use the same passphrase to decrypt each other's data. Remember this passphrase and set it on all devices.",
-                    '注意：如需多设备同步，所有设备必须使用相同的口令才能互相解密。请牢记此口令并在所有设备上设置。'
-                );
-
-        vscode.window.showInformationMessage(crossDeviceInfo);
-
-        const passphrase = await vscode.window.showInputBox({
-            prompt:
-                currentHash ?
-                    t('Enter a new encryption passphrase', '请输入新的加密口令')
-                :   t('Set an encryption passphrase to protect your API keys', '设置加密口令以保护您的 API Key'),
-            password: true,
-            placeHolder: t('Enter a strong passphrase (at least 8 characters)', '请输入强口令（至少 8 个字符）'),
-            validateInput: value => {
-                if (value && value.trim().length < 8) {
-                    return t('Passphrase must be at least 8 characters', '口令至少需要 8 个字符');
-                }
-                return null;
-            },
-            ignoreFocusOut: true
-        });
-
-        if (!passphrase || passphrase.trim().length < 8) {
-            return; // 用户取消或太短
-        }
-
-        const confirm = await vscode.window.showInputBox({
-            prompt: t('Confirm the passphrase', '请再次输入口令确认'),
-            password: true,
-            ignoreFocusOut: true
-        });
-
-        if (!confirm || confirm !== passphrase) {
-            vscode.window.showWarningMessage(t('Passphrases do not match.', '两次输入的口令不一致。'));
-            return;
-        }
-
-        // 如果有旧口令且已有 Gist 数据，提示数据不可解密 + 建议重传
-        let shouldReupload = false;
-        if (currentHash && status.hasGist) {
-            const proceed = await vscode.window.showWarningMessage(
-                t(
-                    'Changing the passphrase will make existing encrypted data on GitHub Gist undecryptable. After changing, you will need to re-upload your API keys. Continue?',
-                    '更改口令将导致已存储在 GitHub Gist 中的加密数据无法解密。更改后需要重新上传 API Key。是否继续？'
-                ),
-                { modal: true },
-                t('Change & Re-upload', '更改并重新上传'),
-                t('Change Only', '仅更改')
-            );
-            if (!proceed) {
-                return;
-            }
-            shouldReupload = proceed === t('Change & Re-upload', '更改并重新上传');
-        } else if (!currentHash && status.hasGist) {
-            const proceed = await vscode.window.showWarningMessage(
-                t(
-                    'After setting a passphrase, existing data on GitHub Gist will become undecryptable because it was encrypted without a passphrase. You will need to re-upload your API keys. Continue?',
-                    '设置口令后，已存储的数据将无法解密（之前未使用口令加密）。需要重新上传 API Key。是否继续？'
-                ),
-                { modal: true },
-                t('Set & Re-upload', '设置并重新上传'),
-                t('Set Only', '仅设置')
-            );
-            if (!proceed) {
-                return;
-            }
-            shouldReupload = proceed === t('Set & Re-upload', '设置并重新上传');
-        }
-
-        const success = await GistSyncService.setCustomPassphrase(passphrase.trim());
-        if (!success) {
-            vscode.window.showErrorMessage(t('Failed to set encryption passphrase.', '设置加密口令失败。'));
-            return;
-        }
-
-        vscode.window.showInformationMessage(t('Encryption passphrase set successfully.', '加密口令设置成功。'));
-
-        // 提示跨设备同步
-        if (!currentHash) {
-            vscode.window.showInformationMessage(
-                t(
-                    'Remember to set the same passphrase on your other devices before downloading.',
-                    '请在其他设备上下载前先设置相同的口令。'
-                )
-            );
-        }
-
-        // 如果用户选择重传，直接进入上传流程
-        if (shouldReupload) {
-            await this.uploadToGist();
-        }
+        await runSetPassphraseFlow();
     }
 
     /**
      * 清除自定义加密口令
      */
     private static async clearEncryptionPassphrase(): Promise<void> {
-        const proceed = await vscode.window.showWarningMessage(
-            t(
-                'Clearing the passphrase will make existing encrypted data on GitHub Gist undecryptable? Continue?',
-                '清除口令将导致已存储在 GitHub Gist 中的加密数据无法解密。是否继续？'
-            ),
-            { modal: true },
-            t('Clear', '清除')
-        );
-
-        if (!proceed) {
-            return;
-        }
-
-        await GistSyncService.clearCustomPassphrase();
-        vscode.window.showInformationMessage(t('Encryption passphrase cleared.', '加密口令已清除。'));
+        await runClearPassphraseFlow();
     }
 }

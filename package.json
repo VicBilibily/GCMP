@@ -384,6 +384,11 @@
                 "title": "%command.sync.configure%",
                 "category": "GCMP",
                 "description": "%command.sync.configure.description%"
+            },
+            {
+                "command": "gcmp.configSet.manage",
+                "title": "%command.configSet.manage%",
+                "category": "GCMP"
             }
         ],
         "configuration": {

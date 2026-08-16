@@ -20,6 +20,10 @@ export class ApiKeyManager {
     private static context: vscode.ExtensionContext;
     private static builtinProviders: Set<string> | null = null;
 
+    /** 本实例内 API Key 变更事件（跨实例事件走 InterInstanceBus.publish） */
+    private static _onDidChangeApiKey = new vscode.EventEmitter<{ provider: string; action: 'set' | 'delete' }>();
+    static readonly onDidChangeApiKey = this._onDidChangeApiKey.event;
+
     /**
      * 初始化API密钥管理器
      */
@@ -95,6 +99,8 @@ export class ApiKeyManager {
         }
         await this.context.secrets.store(secretKey, apiKey);
 
+        // 本实例内通知（StatusBar / Provider 立即刷新）
+        this._onDidChangeApiKey.fire({ provider, action: apiKey ? 'set' : 'delete' });
         // 广播 API Key 变更事件到其他 VS Code 实例
         InterInstanceBus.publish({
             type: 'apiKeyChanged',
@@ -112,6 +118,8 @@ export class ApiKeyManager {
         const secretKey = this.getSecretKey(provider);
         await this.context.secrets.delete(secretKey);
 
+        // 本实例内通知（StatusBar / Provider 立即刷新）
+        this._onDidChangeApiKey.fire({ provider, action: 'delete' });
         // 广播 API Key 变更事件到其他 VS Code 实例
         InterInstanceBus.publish({
             type: 'apiKeyChanged',

@@ -34,7 +34,8 @@ export function t(en: string, zh: string, ...args: unknown[]): string {
     const text = isChineseLocale() ? zh : en;
     let result = text;
     args.forEach((arg, i) => {
-        result = result.replace(`{${i}}`, String(arg));
+        // split/join 替换：避免 replace 把 $&/$' 等当替换模式，且替换全部占位符
+        result = result.split(`{${i}}`).join(String(arg));
     });
     return result;
 }

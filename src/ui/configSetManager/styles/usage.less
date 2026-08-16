@@ -1,0 +1,179 @@
+﻿/* 用量/余额展示 */
+
+.csm-slot-usage {
+    margin-bottom: 8px;
+    padding: 7px 8px;
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px;
+    background: var(--vscode-editor-inactiveSelectionBackground);
+
+    &.csm-config-card-usage {
+        grid-column: 1 / -1;
+        margin-bottom: 0;
+    }
+}
+
+.csm-slot-usage-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.csm-slot-usage-titlewrap {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+}
+
+.csm-slot-usage-title {
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--vscode-descriptionForeground);
+    white-space: nowrap;
+}
+
+.csm-slot-usage-summary {
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.35;
+    white-space: nowrap;
+}
+
+.csm-slot-usage-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.csm-slot-usage-loading {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.csm-slot-usage-tables {
+    margin-top: 5px;
+    display: grid;
+    gap: 6px;
+}
+
+.csm-slot-usage-table-section {
+    overflow-x: auto;
+    border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 78%, transparent);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--vscode-editor-background) 84%, transparent);
+}
+
+.csm-slot-usage-table-title {
+    margin: 0;
+    padding: 5px 6px 0;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--vscode-descriptionForeground);
+}
+
+.csm-slot-usage-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    line-height: 1.35;
+
+    th,
+    td {
+        padding: 4px 6px;
+        border-top: 1px solid var(--vscode-panel-border);
+        text-align: left;
+        white-space: nowrap;
+    }
+
+    th {
+        color: var(--vscode-descriptionForeground);
+        font-weight: 600;
+        border-top: none;
+        padding-top: 5px;
+        padding-bottom: 5px;
+    }
+
+    tbody tr:first-child td {
+        border-top-color: color-mix(in srgb, var(--vscode-panel-border) 70%, transparent);
+    }
+}
+
+.csm-slot-usage-table-cell-label {
+    font-weight: 600;
+}
+
+.csm-slot-usage-table-cell-value {
+    text-align: right !important;
+}
+
+.csm-slot-usage-table-cell-center {
+    text-align: center !important;
+}
+
+.csm-slot-usage-details {
+    margin-top: 5px;
+    display: grid;
+    gap: 3px;
+}
+
+.csm-slot-usage-detail,
+.csm-slot-usage-meta {
+    font-size: 11px;
+    line-height: 1.35;
+    color: var(--vscode-descriptionForeground);
+}
+
+.csm-slot-usage-error {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.35;
+    color: var(--vscode-errorForeground);
+}
+
+.csm-slot-usage-meta {
+    margin-top: 5px;
+}
+
+.csm-slot-usage-entries {
+    margin-top: 5px;
+    display: grid;
+    gap: 6px;
+}
+
+.csm-slot-usage-entry {
+    border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 78%, transparent);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--vscode-editor-background) 84%, transparent);
+    padding: 6px;
+}
+
+.csm-slot-usage-entry-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+}
+
+.csm-slot-usage-entry-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--vscode-descriptionForeground);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.csm-slot-usage-entry-summary {
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.csm-slot-usage-entry .csm-slot-usage-tables {
+    margin-top: 6px;
+}

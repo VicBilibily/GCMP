@@ -1,0 +1,194 @@
+﻿/* 基础布局：reset + 顶栏 + 消息条 + 主体 */
+
+html,
+body,
+#app {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: inherit;
+}
+
+body {
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    color: var(--vscode-foreground);
+    overflow: hidden;
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ============= 顶栏 ============= */
+
+.csm-header {
+    flex: none;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.csm-title {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+
+    h2 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+}
+
+.csm-subtitle {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.csm-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: none;
+}
+
+.csm-spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--vscode-descriptionForeground);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: csm-spin 0.8s linear infinite;
+}
+
+@keyframes csm-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ============= 右上角 Gist 菜单 ============= */
+
+.csm-gistmenu-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+}
+
+.csm-gistmenu-pop {
+    position: fixed;
+    z-index: 100;
+    min-width: 220px;
+    padding: 4px;
+    background: var(--vscode-menu-background, var(--vscode-editor-background));
+    border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border));
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.csm-gistmenu-status {
+    padding: 6px 8px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-panel-border));
+}
+
+.csm-gistmenu-status-line {
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--vscode-descriptionForeground);
+    white-space: nowrap;
+}
+
+.csm-gistmenu-item {
+    display: block;
+    width: 100%;
+    padding: 5px 8px;
+    font-size: 12px;
+    text-align: left;
+    color: var(--vscode-menu-foreground, var(--vscode-foreground));
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &:hover {
+        background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
+        color: var(--vscode-menu-selectionForeground, var(--vscode-foreground));
+    }
+}
+
+.csm-gistmenu-sep {
+    height: 1px;
+    margin: 4px 6px;
+    background: var(--vscode-menu-separatorBackground, var(--vscode-panel-border));
+}
+
+/* ============= 消息条 ============= */
+
+.csm-message-bar {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 30;
+    width: min(420px, calc(100vw - 32px));
+    pointer-events: none;
+}
+
+.csm-message {
+    width: 100%;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 2px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+
+    &.csm-message-info {
+        color: var(--vscode-foreground);
+        background: var(--vscode-editor-inactiveSelectionBackground);
+    }
+
+    &.csm-message-warning {
+        color: var(--vscode-editorWarning-foreground);
+        background: var(--vscode-editor-inactiveSelectionBackground);
+        border-left: 3px solid var(--vscode-editorWarning-foreground);
+    }
+
+    &.csm-message-error {
+        color: var(--vscode-errorForeground);
+        background: var(--vscode-editor-inactiveSelectionBackground);
+        border-left: 3px solid var(--vscode-errorForeground);
+    }
+}
+
+/* ============= 主体：侧栏 + 详情 ============= */
+
+.csm-main {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+}
+
+/* 骨架屏加载提示（index.ts HTML 内使用） */
+
+.csp-loading {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    padding: 20px;
+    text-align: center;
+}

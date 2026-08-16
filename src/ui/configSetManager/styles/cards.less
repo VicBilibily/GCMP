@@ -1,0 +1,221 @@
+﻿/* 配置卡片 + CLI 认证信息区 */
+
+.csm-card-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 320px));
+    justify-content: start;
+    align-items: start;
+    gap: 10px;
+}
+
+.csm-config-card {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 8px;
+    background: var(--vscode-editor-background);
+    overflow: hidden;
+    transition: border-color 0.15s ease;
+
+    &:hover {
+        border-color: var(--vscode-focusBorder, var(--vscode-panel-border));
+    }
+}
+
+.csm-config-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px 6px;
+}
+
+.csm-config-card-titlewrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.csm-config-card-title {
+    min-width: 0;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.csm-config-card-badge {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 6px;
+    min-height: 16px;
+    border-radius: 999px;
+    font-size: 10px;
+    line-height: 1;
+    color: var(--vscode-button-foreground);
+    background: var(--vscode-button-background);
+    white-space: nowrap;
+}
+
+.csm-config-card-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 5px;
+    flex: none;
+}
+
+.csm-config-card-body {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 8px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--vscode-panel-border);
+    background: var(--vscode-editor-inactiveSelectionBackground);
+}
+
+.csm-edit-panel {
+    padding: 10px 12px;
+}
+
+.csm-config-card-note {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 8px;
+
+    .csm-cli-desc {
+        margin: 0;
+    }
+
+    .csm-cli-steps {
+        margin: 0;
+    }
+}
+
+.csm-config-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--vscode-panel-border);
+
+    .csm-btn-primary {
+        margin-left: auto;
+    }
+}
+
+.csm-config-meta-item {
+    min-width: 0;
+}
+
+.csm-config-meta-label {
+    font-size: 10px;
+    color: var(--vscode-descriptionForeground);
+    margin-bottom: 2px;
+}
+
+.csm-config-meta-value {
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--vscode-foreground);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ============= CLI 认证状态徽标 ============= */
+
+.csm-detail-count-ok {
+    color: var(--vscode-testing-iconPassed, #73c991);
+    background: rgba(120, 200, 120, 0.14);
+}
+
+.csm-detail-count-warn {
+    color: var(--vscode-editorWarning-foreground, #cca700);
+    background: rgba(200, 150, 50, 0.14);
+}
+
+.csm-detail-count-loading {
+    color: var(--vscode-descriptionForeground);
+    background: var(--vscode-editor-inactiveSelectionBackground);
+}
+
+.csm-cli-status-ok {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 8px;
+    min-height: 20px;
+    border-radius: 999px;
+    font-size: 11px;
+    color: var(--vscode-testing-iconPassed, rgba(120, 200, 120, 1));
+    background: rgba(120, 200, 120, 0.12);
+}
+
+.csm-cli-status-warn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 8px;
+    min-height: 20px;
+    border-radius: 999px;
+    font-size: 11px;
+    color: var(--vscode-editorWarning-foreground, rgba(200, 150, 50, 1));
+    background: rgba(200, 150, 50, 0.12);
+}
+
+.csm-cli-status-loading {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 8px;
+    min-height: 20px;
+    border-radius: 999px;
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    background: var(--vscode-editor-inactiveSelectionBackground);
+}
+
+.csm-cli-steps {
+    display: grid;
+    gap: 6px;
+    margin: 0 0 10px;
+}
+
+.csm-cli-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.csm-cli-step-index {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    min-height: 18px;
+    border-radius: 999px;
+    font-size: 10px;
+    color: var(--vscode-button-foreground);
+    background: var(--vscode-button-background);
+}
+
+.csm-cli-step-text {
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--vscode-descriptionForeground);
+}
+
+.csm-cli-desc {
+    margin: 0 0 10px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--vscode-descriptionForeground);
+}

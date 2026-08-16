@@ -5,18 +5,20 @@
 
 import * as vscode from 'vscode';
 import { StatusLogger } from '../utils/runtime/statusLogger';
-import { MiniMaxStatusBar } from './minimaxStatusBar';
-import { KimiStatusBar } from './kimiStatusBar';
-import { DeepSeekStatusBar } from './deepseekStatusBar';
-import { MoonshotStatusBar } from './moonshotStatusBar';
-import { ZhipuStatusBar } from './zhipuStatusBar';
 import { ChatGPTStatusBar } from './chatgptStatusBar';
 import { GrokStatusBar } from './grokStatusBar';
-import { OpenCodeStatusBar } from './opencodeStatusBar';
 import { CompatibleStatusBar } from './compatibleStatusBar';
 import { ContextUsageStatusBar } from './contextUsageStatusBar';
 import { TokenUsageStatusBar } from './tokenUsageStatusBar';
-import { ClinePassStatusBar } from './clinepassStatusBar';
+import {
+    createClinePassStatusBar,
+    createDeepSeekStatusBar,
+    createKimiStatusBar,
+    createMiniMaxStatusBar,
+    createMoonshotStatusBar,
+    createOpenCodeStatusBar,
+    createZhipuStatusBar
+} from './quotaStatusBarRegistry';
 
 /**
  * 状态栏项接口
@@ -76,23 +78,23 @@ export class StatusBarManager {
      */
     private static registerBuiltInStatusBars(context: vscode.ExtensionContext): void {
         // 创建并注册 MiniMax 状态栏
-        const miniMaxStatusBar = new MiniMaxStatusBar();
+        const miniMaxStatusBar = createMiniMaxStatusBar();
         this.registerStatusBar('minimax', miniMaxStatusBar);
 
         // 创建并注册 Zhipu 状态栏
-        const zhipuStatusBar = new ZhipuStatusBar();
+        const zhipuStatusBar = createZhipuStatusBar();
         this.registerStatusBar('zhipu', zhipuStatusBar);
 
         // 创建并注册 Kimi 状态栏
-        const kimiStatusBar = new KimiStatusBar();
+        const kimiStatusBar = createKimiStatusBar();
         this.registerStatusBar('kimi', kimiStatusBar);
 
         // 创建并注册 DeepSeek 状态栏
-        const deepseekStatusBar = new DeepSeekStatusBar();
+        const deepseekStatusBar = createDeepSeekStatusBar();
         this.registerStatusBar('deepseek', deepseekStatusBar);
 
         // 创建并注册 Moonshot 状态栏
-        const moonshotStatusBar = new MoonshotStatusBar();
+        const moonshotStatusBar = createMoonshotStatusBar();
         this.registerStatusBar('moonshot', moonshotStatusBar);
 
         // 创建并注册 Codex 状态栏
@@ -104,11 +106,11 @@ export class StatusBarManager {
         this.registerStatusBar('grok', grokStatusBar);
 
         // 创建并注册 OpenCode 状态栏
-        const opencodeStatusBar = new OpenCodeStatusBar();
+        const opencodeStatusBar = createOpenCodeStatusBar();
         this.registerStatusBar('opencode', opencodeStatusBar);
 
         // 创建并注册 ClinePass 状态栏
-        const clinepassStatusBar = new ClinePassStatusBar();
+        const clinepassStatusBar = createClinePassStatusBar();
         this.registerStatusBar('clinepass', clinepassStatusBar);
 
         // 创建并注册 Compatible 提供商状态栏

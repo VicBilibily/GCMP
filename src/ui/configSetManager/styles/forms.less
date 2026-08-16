@@ -1,0 +1,272 @@
+﻿/* 表单 + 输入控件 + 对话框 */
+
+/* ============= 新增配置面板 ============= */
+
+.csm-add-panel {
+    max-width: min(100%, 480px);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px;
+    background: var(--vscode-editor-inactiveSelectionBackground);
+    padding: 8px 10px;
+    margin-bottom: 8px;
+}
+
+.csm-field {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
+
+    label {
+        font-size: 12px;
+        color: var(--vscode-descriptionForeground);
+    }
+}
+
+.csm-field-static {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.csm-add-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 2px;
+}
+
+/* ============= 输入控件 ============= */
+
+.csm-input,
+.csm-select {
+    min-width: 0;
+    min-height: 24px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border, transparent);
+    border-radius: 2px;
+    padding: 2px 7px;
+    font-size: 12px;
+    font-family: inherit;
+
+    &:focus {
+        outline: 1px solid var(--vscode-focusBorder);
+        outline-offset: -1px;
+    }
+
+    &::placeholder {
+        color: var(--vscode-input-placeholderForeground);
+    }
+}
+
+/* ============= 对话框 ============= */
+
+.csm-dialog-copy {
+    margin: 0 0 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--vscode-descriptionForeground);
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
+}
+
+.csm-dialog-copy-main {
+    color: var(--vscode-foreground);
+}
+
+.csm-dialog-copy-sub {
+    margin-top: 6px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.csm-dialog-error {
+    margin: 0 0 10px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--vscode-errorForeground);
+}
+
+.csm-passphrase-input {
+    width: 100%;
+}
+
+/* ============= 按钮 ============= */
+
+.csm-btn {
+    background: transparent;
+    color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+    border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+    padding: 1px 7px;
+    min-height: 22px;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    border-radius: 2px;
+
+    &:hover:not(:disabled) {
+        background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
+    }
+
+    &.csm-btn-primary {
+        background: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+        border-color: var(--vscode-button-background);
+
+        &:hover:not(:disabled) {
+            background: var(--vscode-button-hoverBackground);
+        }
+    }
+
+    &.csm-btn-danger {
+        color: var(--vscode-errorForeground);
+        border-color: transparent;
+
+        &:hover:not(:disabled) {
+            border-color: var(--vscode-errorForeground);
+        }
+    }
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+}
+
+.csm-btn-sm {
+    padding: 0 6px;
+    min-width: 42px;
+    font-size: 11px;
+}
+
+/* ============= 对话框覆盖层 ============= */
+
+.csm-restore-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.4);
+}
+
+.csm-restore-dialog {
+    width: min(480px, calc(100vw - 32px));
+    max-height: calc(100vh - 64px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 16px;
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 8px;
+    background: var(--vscode-editor-background);
+
+    h3 {
+        flex: none;
+        margin: 0 0 12px;
+        font-size: 14px;
+        font-weight: 600;
+    }
+}
+
+/* 仅内容区滚动；负边距让滚动条贴齐对话框边缘 */
+.csm-dialog-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    margin: 0 -16px;
+    padding: 0 16px;
+}
+
+.csm-restore-actions {
+    flex: none;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.csm-confirm-dialog {
+    width: min(420px, calc(100vw - 32px));
+    min-width: min(360px, calc(100vw - 32px));
+    max-width: min(460px, calc(100vw - 32px));
+}
+
+.csm-confirm-copy {
+    max-width: 40ch;
+}
+
+.csm-restore-group {
+    margin-bottom: 12px;
+}
+
+/* 分组标题在 .csm-dialog-body 内滚动时吸顶，背景覆盖下方条目 */
+.csm-restore-group-title {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    /* 兼容内嵌主控复选框（titleCheckbox 模式）与纯文本两种形态 */
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 0;
+    background: var(--vscode-editor-background);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--vscode-descriptionForeground);
+    margin-bottom: 6px;
+}
+
+.csm-restore-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+    font-size: 12px;
+}
+
+/* 槽位下的配置项子列表（逐项勾选恢复） */
+.csm-restore-slot-items {
+    display: grid;
+    gap: 1px;
+    margin: 0 0 6px 20px;
+}
+
+.csm-restore-subitem {
+    padding: 2px 0;
+    color: var(--vscode-descriptionForeground);
+}
+
+.csm-restore-active-tag {
+    flex: none;
+    padding: 0 5px;
+    border-radius: 999px;
+    font-size: 10px;
+    line-height: 14px;
+    color: var(--vscode-button-foreground);
+    background: var(--vscode-button-background);
+}
+
+/* 对话框顶部提示条（如远端不可读时仅允许全量上传），固定在标题下不参与滚动 */
+.csm-restore-notice {
+    flex: none;
+    margin-bottom: 8px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--vscode-editorWarning-foreground);
+}
+
+.csm-restore-localonly {
+    font-size: 11px;
+    color: var(--vscode-editorWarning-foreground);
+    margin-left: 20px;
+    margin-bottom: 4px;
+}
+
+.csm-action-status {
+    display: inline-flex;
+    align-items: center;
+    min-width: 42px;
+}

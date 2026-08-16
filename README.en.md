@@ -1015,7 +1015,7 @@ Each API Key → Random Salt(32B) + Random IV(16B) → AES-256-GCM → Salt+IV+T
 
 ### Custom Encryption Passphrase
 
-> Since this extension is **open source**, the encryption method (pepper, scrypt parameters, etc.) is visible in the source code. If you want extra protection, you can set a custom encryption passphrase.
+> Since this extension is **open source**, the encryption method (pepper, scrypt parameters, etc.) is visible in the source code. If you want to treat synced Gist data as truly confidential across devices, you must set a custom encryption passphrase.
 
 - Select "Set Encryption Passphrase" from the sync actions menu; you'll be asked to enter it twice for confirmation
 - The passphrase is combined with the GitHub user ID and pepper for key derivation — all three are required (minimum 8 characters)
@@ -1046,7 +1046,8 @@ When setting the passphrase, a notice is displayed explaining that all devices m
 
 ### Security Notes
 
-- The Gist is visible in the user's Gist list, but its content is **AES-256-GCM encrypted** and unreadable without decryption
+- The Gist is visible in the user's Gist list; **with a custom passphrase configured**, its content can be treated as confidential backup data against offline attackers
+- Without a custom passphrase, do not treat this scheme as strong confidentiality against a determined offline attacker
 - The encryption key is never transmitted over the network
 - Local API keys are stored via VS Code's built-in `SecretStorage` (OS-level encrypted storage)
 - All network requests use HTTPS

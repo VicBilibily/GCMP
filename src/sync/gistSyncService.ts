@@ -14,7 +14,9 @@ import { ConfigManager } from '../utils/config/configManager';
 import {
     decrypt as cryptoDecrypt,
     decryptWithPassphrase as cryptoDecryptWithPassphrase,
-    encrypt as cryptoEncrypt
+    encrypt as cryptoEncrypt,
+    createBatchEncryptor as cryptoCreateBatchEncryptor,
+    createBatchDecryptor as cryptoCreateBatchDecryptor
 } from './syncCrypto';
 
 /**
@@ -72,6 +74,9 @@ const SYNC_FILENAME = 'gcmp-sync.json';
 /** GlobalState 中存储 Gist ID 的键名 */
 const GIST_ID_KEY = 'gcmp-sync.gistId';
 
+/** GlobalState 中存储配置集同步 Gist ID 的键名 */
+const CONFIGSET_GIST_ID_KEY = 'gcmp-configsets.gistId';
+
 /** GlobalState 中存储 GitHub 用户名的键名 */
 const GITHUB_USER_KEY = 'gcmp-sync.githubUser';
 
@@ -85,7 +90,7 @@ const USER_PASSPHRASE_KEY = 'gcmp-sync.passphrase';
 const CLI_ONLY_PROVIDERS = new Set(['codex', 'grok']);
 
 /** 所有已知密钥的显示名（主 key + 多密钥变体，英文名与 ConfigProvider.displayName 一致） */
-const KNOWN_KEY_LABELS: Record<string, string> = {
+export const KNOWN_KEY_LABELS: Record<string, string> = {
     // ── 主 key ──
     zhipu: 'ZhipuAI',
     moonshot: 'MoonshotAI',
@@ -267,6 +272,11 @@ export class GistSyncService {
         return this.context.globalState.get<string>(GIST_ID_KEY);
     }
 
+    /** 获取配置集同步使用的 Gist ID（独立于旧版 API Key 同步） */
+    static getConfigSetGistId(): string | undefined {
+        return this.context.globalState.get<string>(CONFIGSET_GIST_ID_KEY);
+    }
+
     /**
      * 获取 GitHub 用户名
      */
@@ -282,47 +292,47 @@ export class GistSyncService {
      */
     static async findExistingSyncGist(token: string): Promise<string | undefined> {
         try {
-            const response = await ConfigManager.fetchWithProxy(
-                'https://api.github.com/gists',
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        Accept: 'application/vnd.github.v3+json',
-                        'User-Agent': 'GCMP-VSCode-Extension'
+            for (let page = 1; ; page++) {
+                const response = await ConfigManager.fetchWithProxy(
+                    `https://api.github.com/gists?per_page=100&page=${page}`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            Accept: 'application/vnd.github.v3+json',
+                            'User-Agent': 'GCMP-VSCode-Extension'
+                        }
+                    },
+                    { skipHar: true }
+                );
+
+                if (!response.ok) {
+                    Logger.warn(`[GistSync] List gists failed: ${response.status}`);
+                    return undefined;
+                }
+
+                const gists = (await response.json()) as GistResponse[];
+
+                const candidates = gists.filter(
+                    g => !g.public && g.description?.startsWith('GCMP Sync') && g.files?.[SYNC_FILENAME]
+                );
+
+                for (const gist of candidates) {
+                    try {
+                        // Gist 列表接口不保证返回文件内容，需单独请求详情
+                        const syncData = await this.readSyncData(token, gist.id);
+                        if (syncData?.version === 1 && syncData.keys && typeof syncData.keys === 'object') {
+                            Logger.info(`[GistSync] Found valid sync gist: ${gist.id}`);
+                            return gist.id;
+                        }
+                        Logger.debug(`[GistSync] Skipping gist ${gist.id}: invalid content`);
+                    } catch {
+                        Logger.debug(`[GistSync] Skipping gist ${gist.id}: unreadable content`);
+                        continue;
                     }
-                },
-                { skipHar: true }
-            );
+                }
 
-            if (!response.ok) {
-                Logger.warn(`[GistSync] List gists failed: ${response.status}`);
-                return undefined;
-            }
-
-            const gists = (await response.json()) as GistResponse[];
-
-            // 找出所有候选 Gist（description 匹配 + 包含同步文件）
-            const candidates = gists.filter(
-                g => !g.public && g.description?.startsWith('GCMP Sync') && g.files?.[SYNC_FILENAME]
-            );
-
-            if (candidates.length === 0) {
-                return undefined;
-            }
-
-            // 逐条读取完整内容，校验是否为有效同步数据
-            for (const gist of candidates) {
-                try {
-                    // Gist 列表接口不保证返回文件内容，需单独请求详情
-                    const syncData = await this.readSyncData(token, gist.id);
-                    if (syncData?.version === 1 && syncData.keys && typeof syncData.keys === 'object') {
-                        Logger.info(`[GistSync] Found valid sync gist: ${gist.id}`);
-                        return gist.id;
-                    }
-                    Logger.debug(`[GistSync] Skipping gist ${gist.id}: invalid content`);
-                } catch {
-                    Logger.debug(`[GistSync] Skipping gist ${gist.id}: unreadable content`);
-                    continue;
+                if (gists.length < 100) {
+                    break;
                 }
             }
 
@@ -471,7 +481,7 @@ export class GistSyncService {
     /**
      * 获取用户自定义加密口令（如果没有设置返回 undefined）
      */
-    private static async getPassphrase(): Promise<string | undefined> {
+    static async getCustomPassphrase(): Promise<string | undefined> {
         if (!this.context) {
             return undefined;
         }
@@ -493,7 +503,7 @@ export class GistSyncService {
             Logger.error('[GistSync] GitHub user ID not available for encryption');
             return undefined;
         }
-        const passphrase = await this.getPassphrase();
+        const passphrase = await this.getCustomPassphrase();
         return cryptoEncrypt(githubId, plaintext, passphrase);
     }
 
@@ -531,7 +541,7 @@ export class GistSyncService {
             return undefined;
         }
 
-        const passphrase = await this.getPassphrase();
+        const passphrase = await this.getCustomPassphrase();
         const result = cryptoDecrypt(githubId, encryptedPayload, passphrase);
         if (result === undefined) {
             // AES-256-GCM 认证失败（tag 不匹配）说明密钥/口令已变更，或数据被篡改
@@ -540,6 +550,134 @@ export class GistSyncService {
             );
         }
         return result;
+    }
+
+    /**
+     * 创建批量加密器：同一批明文共享 salt，密钥仅派生一次
+     * 用于配置集同步等单文件多条目场景；GitHub 用户 ID 缺失时返回 undefined
+     */
+    static async createBatchEncryptor(): Promise<((plaintext: string) => string) | undefined> {
+        const githubId = this.getGithubId();
+        if (!githubId) {
+            Logger.error('[GistSync] GitHub user ID not available for encryption');
+            return undefined;
+        }
+        const passphrase = await this.getCustomPassphrase();
+        return cryptoCreateBatchEncryptor(githubId, passphrase);
+    }
+
+    /**
+     * 创建批量解密器（使用已存储口令）：按 salt 缓存派生密钥，同一 salt 仅派生一次
+     */
+    static async createBatchDecryptor(): Promise<((encryptedPayload: string) => string | undefined) | undefined> {
+        const githubId = this.getGithubId();
+        if (!githubId) {
+            Logger.warn('[GistSync] Decryption failed: GitHub user ID not available');
+            return undefined;
+        }
+        const passphrase = await this.getCustomPassphrase();
+        return cryptoCreateBatchDecryptor(githubId, passphrase);
+    }
+
+    /** 使用指定口令创建批量加密器，不修改本地已保存口令。 */
+    static createBatchEncryptorWithPassphrase(
+        passphrase: string | undefined
+    ): ((plaintext: string) => string) | undefined {
+        const githubId = this.getGithubId();
+        if (!githubId) {
+            Logger.error('[GistSync] GitHub user ID not available for encryption');
+            return undefined;
+        }
+        return cryptoCreateBatchEncryptor(githubId, passphrase);
+    }
+
+    /**
+     * 创建批量解密器（指定口令）：不依赖已存储的口令，用于口令变更后的兜底
+     */
+    static createBatchDecryptorWithPassphrase(
+        passphrase: string
+    ): ((encryptedPayload: string) => string | undefined) | undefined {
+        const githubId = this.getGithubId();
+        if (!githubId) {
+            Logger.debug('[GistSync] createBatchDecryptorWithPassphrase: GitHub user ID not available');
+            return undefined;
+        }
+        return cryptoCreateBatchDecryptor(githubId, passphrase);
+    }
+
+    /** 完整解密已读取的旧版同步数据；任一密钥失败时不返回部分结果。 */
+    static async decryptSyncData(syncData: SyncData): Promise<SyncData | undefined> {
+        const keys: Record<string, string> = {};
+        for (const [keyName, encryptedValue] of Object.entries(syncData.keys)) {
+            if (!encryptedValue?.trim()) {
+                continue;
+            }
+            const plainValue = await this.decrypt(encryptedValue);
+            if (plainValue === undefined) {
+                return undefined;
+            }
+            keys[keyName] = plainValue;
+        }
+        return { ...syncData, keys };
+    }
+
+    /** 读取并完整解密旧版同步数据；任一密钥失败时不返回部分结果。 */
+    static async readDecryptedSyncData(token: string, gistId: string): Promise<SyncData | undefined> {
+        const syncData = await this.readSyncData(token, gistId);
+        return syncData ? await this.decryptSyncData(syncData) : undefined;
+    }
+
+    /** 使用指定口令读取并完整解密旧版同步数据；任一密钥失败时不返回部分结果。 */
+    static async readDecryptedSyncDataWithPassphrase(
+        token: string,
+        gistId: string,
+        passphrase: string
+    ): Promise<SyncData | undefined> {
+        const syncData = await this.readSyncData(token, gistId);
+        if (!syncData) {
+            return undefined;
+        }
+
+        const githubId = this.getGithubId();
+        if (!githubId) {
+            return undefined;
+        }
+
+        const keys: Record<string, string> = {};
+        for (const [keyName, encryptedValue] of Object.entries(syncData.keys)) {
+            if (!encryptedValue?.trim()) {
+                continue;
+            }
+            const plainValue = cryptoDecryptWithPassphrase(githubId, encryptedValue, passphrase);
+            if (plainValue === undefined) {
+                return undefined;
+            }
+            keys[keyName] = plainValue;
+        }
+        return { ...syncData, keys };
+    }
+
+    /** 使用指定口令完整覆盖旧版同步文件，不修改本地已保存口令。 */
+    static async writeSyncDataWithPassphrase(
+        token: string,
+        gistId: string,
+        data: SyncData,
+        passphrase: string | undefined
+    ): Promise<boolean> {
+        const encrypt = this.createBatchEncryptorWithPassphrase(passphrase);
+        if (!encrypt) {
+            return false;
+        }
+
+        const keys: Record<string, string> = {};
+        for (const [keyName, plainValue] of Object.entries(data.keys)) {
+            keys[keyName] = encrypt(plainValue);
+        }
+        return await this.updateGist(token, gistId, {
+            ...data,
+            timestamp: new Date().toISOString(),
+            keys
+        });
     }
 
     // ==================== 密钥收集与应用 ====================
@@ -795,9 +933,11 @@ export class GistSyncService {
         let mergedKeys = encryptedKeys;
         if (gistId) {
             const existing = await this.readSyncData(token, gistId);
-            if (existing) {
-                mergedKeys = { ...existing.keys, ...encryptedKeys };
+            if (!existing) {
+                Logger.warn('[GistSync] Existing sync gist is unreadable, aborting upload to avoid data loss');
+                return undefined;
             }
+            mergedKeys = { ...existing.keys, ...encryptedKeys };
         }
 
         // 尝试更新
@@ -820,9 +960,11 @@ export class GistSyncService {
         gistId = await this.findExistingSyncGist(token);
         if (gistId) {
             const existing = await this.readSyncData(token, gistId);
-            if (existing) {
-                mergedKeys = { ...existing.keys, ...encryptedKeys };
+            if (!existing) {
+                Logger.warn('[GistSync] Found sync gist but failed to read it, aborting upload to avoid data loss');
+                return undefined;
             }
+            mergedKeys = { ...existing.keys, ...encryptedKeys };
             const ok = await this.updateGist(token, gistId, {
                 version: 1,
                 timestamp: new Date().toISOString(),
@@ -855,28 +997,8 @@ export class GistSyncService {
         gistId: string,
         passphrase: string
     ): Promise<Record<string, string> | undefined> {
-        const syncData = await this.readSyncData(token, gistId);
-        if (!syncData) {
-            return undefined;
-        }
-
-        const githubId = this.getGithubId();
-        if (!githubId) {
-            return undefined;
-        }
-
-        const remoteKeys: Record<string, string> = {};
-        for (const [keyName, encryptedValue] of Object.entries(syncData.keys)) {
-            if (!encryptedValue || encryptedValue.trim().length === 0) {
-                continue;
-            }
-            const plainValue = cryptoDecryptWithPassphrase(githubId, encryptedValue, passphrase);
-            if (plainValue !== undefined) {
-                remoteKeys[keyName] = plainValue;
-            }
-        }
-
-        return Object.keys(remoteKeys).length > 0 ? remoteKeys : undefined;
+        const syncData = await this.readDecryptedSyncDataWithPassphrase(token, gistId, passphrase);
+        return syncData?.keys;
     }
 
     /**
@@ -941,5 +1063,15 @@ export class GistSyncService {
      */
     static async saveGistId(gistId: string): Promise<void> {
         await this.context.globalState.update(GIST_ID_KEY, gistId);
+    }
+
+    /** 保存配置集同步的 Gist ID（不影响旧版 API Key 同步） */
+    static async saveConfigSetGistId(gistId: string): Promise<void> {
+        await this.context.globalState.update(CONFIGSET_GIST_ID_KEY, gistId);
+    }
+
+    /** 清除已失效的配置集同步 Gist ID（远端 Gist 被删除时自愈） */
+    static async clearConfigSetGistId(): Promise<void> {
+        await this.context.globalState.update(CONFIGSET_GIST_ID_KEY, undefined);
     }
 }
