@@ -486,3 +486,87 @@ test('reclaimInstance 对无该实例状态时为空操作', () => {
     assert.equal(affectedBucketKeys.length, 0);
     assert.equal(s.stats('k', 0)?.inflight, 1);
 });
+
+test('snapshot round-trip 保留 inflight 与 pacing 状态，但不继承 pending', () => {
+    const source = store();
+    const granted = source.acquire('r1', 'k', { parallel: 1, rpm: 60 }, { requests: 1, tokens: 0 }, 0, {
+        ownerInstanceId: 'follower-a'
+    });
+    if (granted.kind !== 'granted') {
+        assert.fail('r1 should be granted');
+    }
+    const queued = source.acquire('r2', 'k', { parallel: 1, rpm: 60 }, { requests: 1, tokens: 0 }, 0, {
+        ownerInstanceId: 'follower-b'
+    });
+    assert.equal(queued.kind, 'queued');
+    const paced = source.acquire('r3', 'pace', { rpm: 60 }, { requests: 1, tokens: 0 }, 0, {
+        ownerInstanceId: 'follower-c'
+    });
+    if (paced.kind !== 'granted') {
+        assert.fail('r3 should be granted');
+    }
+    const snapshot = source.exportSnapshot(0);
+
+    const restored = store();
+    restored.importSnapshot(snapshot, 0);
+
+    assert.equal(restored.stats('k', 0)?.inflight, 1);
+    assert.equal(restored.stats('k', 0)?.pending, 0);
+    assert.equal(restored.stats('pace', 0)?.waitMs, 1000);
+
+    const released = restored.release(granted.grantId, undefined, 100);
+    assert.equal(released.length, 0);
+});
+
+test('snapshot export 仅保留旧 Leader grants，排除全部 pending', () => {
+    const source = store();
+    source.acquire('local-grant', 'local', { parallel: 1, rpm: 60 }, { requests: 1, tokens: 0 }, 0);
+    source.acquire('local-pending', 'local', { parallel: 1, rpm: 60 }, { requests: 1, tokens: 0 }, 0);
+    const remoteGrant = source.acquire(
+        'remote-grant',
+        'remote',
+        { parallel: 1, rpm: 60 },
+        { requests: 1, tokens: 0 },
+        0,
+        {
+            ownerInstanceId: 'follower-a'
+        }
+    );
+    if (remoteGrant.kind !== 'granted') {
+        assert.fail('remote-grant should be granted');
+    }
+    source.acquire('remote-pending', 'remote', { parallel: 1, rpm: 60 }, { requests: 1, tokens: 0 }, 0, {
+        ownerInstanceId: 'follower-b'
+    });
+
+    const snapshot = source.exportSnapshot(0);
+    const restored = store();
+    restored.importSnapshot(snapshot, 0);
+
+    assert.equal(restored.stats('local', 0)?.inflight, 1);
+    assert.equal(restored.stats('local', 0)?.pending, 0);
+    assert.equal(restored.stats('remote', 0)?.inflight, 1);
+    assert.equal(restored.stats('remote', 0)?.pending, 0);
+});
+
+test('snapshot import 可为 ownerless grants 施加短宽限期', () => {
+    const source = store();
+    const localGrant = source.acquire('local-grant', 'k', { parallel: 2 }, { requests: 1, tokens: 0 }, 0);
+    if (localGrant.kind !== 'granted') {
+        assert.fail('local-grant should be granted');
+    }
+    const remoteGrant = source.acquire('remote-grant', 'k', { parallel: 2 }, { requests: 1, tokens: 0 }, 0, {
+        ownerInstanceId: 'follower-a'
+    });
+    if (remoteGrant.kind !== 'granted') {
+        assert.fail('remote-grant should be granted');
+    }
+
+    const snapshot = source.exportSnapshot(0);
+    const restored = store();
+    restored.importSnapshot(snapshot, 0, { ownerlessGrantGraceMs: 5000 });
+
+    assert.equal(restored.stats('k', 0)?.inflight, 2);
+    restored.sweep(5001);
+    assert.equal(restored.stats('k', 5001)?.inflight, 1);
+});

@@ -4,9 +4,11 @@ import test from 'node:test';
 import {
     clearRemoteLiveMetrics,
     emitLiveMetrics,
+    getCrossInstanceLiveMetricsSnapshot,
     getActiveMetricsSnapshot,
     onLiveMetrics,
     receiveRemoteLiveMetrics,
+    syncRemoteLiveMetricsSnapshot,
     type LiveStreamMetricEvent
 } from './liveMetrics';
 
@@ -461,6 +463,103 @@ test('clearRemoteLiveMetrics without source removes all remote snapshots and kee
         assert.ok(!snapshot.some(event => event.requestId === 'req-remote-b'));
         assert.ok(snapshot.some(event => event.requestId === 'req-local-active'));
     } finally {
+        cleanupAllSnapshots();
+    }
+});
+
+test('cross-instance snapshot preserves remote source ids for later cleanup', () => {
+    cleanupAllSnapshots();
+
+    try {
+        receiveRemoteLiveMetrics(makeEvent({ requestId: 'req-follower', type: 'rateLimitWaiting' }), 'follower-a');
+        emitLiveMetrics(makeEvent({ requestId: 'req-leader', type: 'rateLimitWaiting' }));
+
+        const snapshot = getCrossInstanceLiveMetricsSnapshot();
+        cleanupAllSnapshots();
+
+        syncRemoteLiveMetricsSnapshot(snapshot, 'leader-a');
+
+        let hydrated = getActiveMetricsSnapshot();
+        assert.ok(hydrated.some(event => event.requestId === 'req-follower'));
+        assert.ok(hydrated.some(event => event.requestId === 'req-leader'));
+
+        clearRemoteLiveMetrics('follower-a');
+        hydrated = getActiveMetricsSnapshot();
+        assert.ok(!hydrated.some(event => event.requestId === 'req-follower'));
+        assert.ok(hydrated.some(event => event.requestId === 'req-leader'));
+
+        clearRemoteLiveMetrics('leader-a');
+        hydrated = getActiveMetricsSnapshot();
+        assert.ok(!hydrated.some(event => event.requestId === 'req-leader'));
+    } finally {
+        cleanupAllSnapshots();
+    }
+});
+
+test('cross-instance snapshot excludes remote entries from disconnected sources', () => {
+    cleanupAllSnapshots();
+
+    try {
+        receiveRemoteLiveMetrics(makeEvent({ requestId: 'req-keep', type: 'rateLimitWaiting' }), 'follower-a');
+        receiveRemoteLiveMetrics(makeEvent({ requestId: 'req-drop', type: 'rateLimitWaiting' }), 'stale-follower');
+        emitLiveMetrics(makeEvent({ requestId: 'req-local', type: 'rateLimitWaiting' }));
+
+        const snapshot = getCrossInstanceLiveMetricsSnapshot(new Set(['follower-a']));
+
+        assert.ok(snapshot.some(entry => entry.event.requestId === 'req-keep'));
+        assert.ok(!snapshot.some(entry => entry.event.requestId === 'req-drop'));
+        assert.ok(snapshot.some(entry => entry.event.requestId === 'req-local'));
+    } finally {
+        cleanupAllSnapshots();
+    }
+});
+
+test('syncRemoteLiveMetricsSnapshot replaces stale remote snapshot and keeps local metrics', () => {
+    cleanupAllSnapshots();
+
+    try {
+        receiveRemoteLiveMetrics(makeEvent({ requestId: 'req-stale', type: 'rateLimitWaiting' }), 'old-leader');
+        emitLiveMetrics(makeEvent({ requestId: 'req-local', type: 'streamingUpdate' }));
+
+        syncRemoteLiveMetricsSnapshot(
+            [
+                {
+                    event: makeEvent({ requestId: 'req-fresh', type: 'rateLimitWaiting' }),
+                    sourceInstanceId: 'new-follower'
+                }
+            ],
+            'leader-b'
+        );
+
+        const snapshot = getActiveMetricsSnapshot();
+        assert.ok(!snapshot.some(event => event.requestId === 'req-stale'));
+        assert.ok(snapshot.some(event => event.requestId === 'req-fresh'));
+        assert.ok(snapshot.some(event => event.requestId === 'req-local'));
+    } finally {
+        cleanupAllSnapshots();
+    }
+});
+
+test('syncRemoteLiveMetricsSnapshot only emits streamEnd for removed remote entries', () => {
+    cleanupAllSnapshots();
+    const received: LiveStreamMetricEvent[] = [];
+    const disposable = onLiveMetrics(event => received.push(event));
+
+    try {
+        receiveRemoteLiveMetrics(makeEvent({ requestId: 'req-keep', type: 'rateLimitWaiting' }), 'leader-a');
+        receiveRemoteLiveMetrics(makeEvent({ requestId: 'req-drop', type: 'rateLimitWaiting' }), 'leader-a');
+        received.length = 0;
+
+        syncRemoteLiveMetricsSnapshot(
+            [{ event: makeEvent({ requestId: 'req-keep', type: 'rateLimitWaiting', queuePosition: 2 }) }],
+            'leader-a'
+        );
+
+        assert.equal(received.filter(event => event.requestId === 'req-keep' && event.type === 'streamEnd').length, 0);
+        assert.equal(received.filter(event => event.requestId === 'req-drop' && event.type === 'streamEnd').length, 1);
+        assert.ok(received.some(event => event.requestId === 'req-keep' && event.type === 'rateLimitWaiting'));
+    } finally {
+        disposable.dispose();
         cleanupAllSnapshots();
     }
 });

@@ -57,6 +57,7 @@ interface PendingWaiter {
     authorityTerm: string;
     resolve: (outcome: AcquireOutcome) => void;
     settled: boolean;
+    queueAcknowledged: boolean;
     timeoutMs: number;
     timeout?: NodeJS.Timeout;
     cancelCheck?: NodeJS.Timeout;
@@ -109,6 +110,7 @@ export class RateLimitClientCore {
                 authorityTerm,
                 resolve,
                 settled: false,
+                queueAcknowledged: false,
                 timeoutMs: timeout,
                 onQueueUpdate: options?.onQueueUpdate
             };
@@ -177,7 +179,7 @@ export class RateLimitClientCore {
         return outcome;
     }
 
-    /** 等待回执超时：无进展满 timeoutMs 即降级并通知 Leader 取消排队 */
+    /** 初次回执超时：尚未收到任何权威确认时降级并通知 Leader 取消排队 */
     private armTimeout(requestId: string, waiter: PendingWaiter): NodeJS.Timeout {
         return setTimeout(() => {
             if (waiter.settled) {
@@ -242,15 +244,14 @@ export class RateLimitClientCore {
         if (msg.authorityTerm !== waiter.authorityTerm) {
             return;
         }
-        // 仅顺位实际前进才算进展并重置无进展超时；同值事件只透传，避免被持续 churn 保活
-        const progressed = waiter.lastQueuePosition === undefined || msg.queuePosition < waiter.lastQueuePosition;
-        waiter.lastQueuePosition = msg.queuePosition;
-        if (progressed) {
+        if (!waiter.queueAcknowledged) {
+            waiter.queueAcknowledged = true;
             if (waiter.timeout) {
                 clearTimeout(waiter.timeout);
+                waiter.timeout = undefined;
             }
-            waiter.timeout = this.armTimeout(msg.requestId, waiter);
         }
+        waiter.lastQueuePosition = msg.queuePosition;
         if (!waiter.onQueueUpdate) {
             return;
         }

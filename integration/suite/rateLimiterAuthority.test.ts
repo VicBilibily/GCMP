@@ -4,9 +4,18 @@ import * as vscode from 'vscode';
 
 import { InterInstanceBus } from '../../src/interInstance';
 import { RateLimiter, type RateLimitHandle } from '../../src/rateLimit/rateLimiter';
+import { RateLimitStore, type RateLimitStoreSnapshot } from '../../src/rateLimit/rateLimitStore';
 import { LeaderElectionService } from '../../src/status/leaderElectionService';
 
 interface RateLimiterInternals {
+    context:
+        | {
+              globalState: {
+                  get: <T>(key: string) => T | undefined;
+                  update: (key: string, value: unknown) => Thenable<void>;
+              };
+          }
+        | undefined;
     acquireForCurrentRole: (
         bucketKey: string,
         dims: { rpm: number },
@@ -16,6 +25,26 @@ interface RateLimiterInternals {
     ) => Promise<RateLimitHandle | undefined>;
     acquireViaIpc: (...args: unknown[]) => Promise<RateLimitHandle | undefined>;
     acquireViaLocalStore: (...args: unknown[]) => Promise<RateLimitHandle | undefined>;
+    handleRemoteRelease: (payload: {
+        authorityTerm: string;
+        grantId: string;
+        refund?: { requests?: number; tokens?: number };
+    }) => void;
+    handleRemoteAcquireCancelled: (payload: { authorityTerm: string; requestId: string; bucketKey: string }) => void;
+    leaderStore: RateLimitStore;
+    clientCore:
+        | {
+              settlePendingAsDegraded?: () => void;
+              acquire: (
+                  ...args: unknown[]
+              ) => Promise<
+                  | { status: 'granted'; grantId: string; waitMs: number; authorityTerm: string }
+                  | { status: 'authority-changed' }
+                  | { status: 'degraded'; reason: 'timeout' | 'authority-unavailable' }
+                  | { status: 'cancelled' }
+              >;
+          }
+        | undefined;
     release: (handle: RateLimitHandle, refund?: { requests?: number; tokens?: number }) => void;
     renewLease: (handle: RateLimitHandle) => boolean;
     shouldUseIpc: () => boolean;
@@ -29,6 +58,20 @@ interface RateLimiterInternals {
     ) => Promise<RateLimitHandle | undefined>;
     waitForAuthorityRecovery: (token?: vscode.CancellationToken) => Promise<boolean>;
     initialized: boolean;
+    degraded: boolean;
+    degradedNotified: boolean;
+    lastProbeAt: number;
+    pendingLeaderHandoff?: {
+        leaderId: string;
+        snapshot: RateLimitStoreSnapshot;
+        receivedAt: number;
+    };
+    handleLeaderResigning: (payload: {
+        leaderId: string;
+        nextLeaderId?: string;
+        rateLimitSnapshot?: RateLimitStoreSnapshot;
+    }) => void;
+    becomeLeaderWithFreshState: () => void;
 }
 
 interface PatchedInterInstanceBus {
@@ -161,6 +204,401 @@ suite('RateLimiter authority change', () => {
             patchedLeaderElection.isLeader = originalIsLeader;
             patchedBus.getAuthorityTerm = originalGetAuthorityTerm;
             patchedBus.isConnected = originalIsConnected;
+        }
+    });
+
+    test('authority change retry exhaustion falls back only the current acquire', async () => {
+        const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
+        const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
+        const patchedBus = InterInstanceBus as unknown as PatchedInterInstanceBus;
+
+        const originalInitialized = rateLimiter.initialized;
+        const originalAcquireViaLocalStore = rateLimiter.acquireViaLocalStore;
+        const originalIsLeader = patchedLeaderElection.isLeader;
+        const originalGetAuthorityTerm = patchedBus.getAuthorityTerm;
+        const originalIsConnected = patchedBus.isConnected;
+        const originalDegraded = rateLimiter.degraded;
+        const originalDegradedNotified = rateLimiter.degradedNotified;
+        const originalLastProbeAt = rateLimiter.lastProbeAt;
+
+        let localAcquireCalls = 0;
+
+        try {
+            rateLimiter.initialized = true;
+            rateLimiter.degraded = false;
+            rateLimiter.degradedNotified = false;
+            rateLimiter.lastProbeAt = 0;
+            rateLimiter.acquireViaLocalStore = async () => {
+                localAcquireCalls += 1;
+                return undefined;
+            };
+            patchedLeaderElection.isLeader = () => false;
+            patchedBus.getAuthorityTerm = () => 'leader-a:1';
+            patchedBus.isConnected = () => true;
+
+            const result = await rateLimiter.acquireForCurrentRole(
+                'bucket',
+                { rpm: 60 },
+                { requests: 1, tokens: 0 },
+                undefined,
+                3
+            );
+
+            assert.equal(result, undefined);
+            assert.equal(localAcquireCalls, 1);
+            assert.equal(rateLimiter.shouldUseIpc(), true);
+        } finally {
+            rateLimiter.initialized = originalInitialized;
+            rateLimiter.acquireViaLocalStore = originalAcquireViaLocalStore;
+            patchedLeaderElection.isLeader = originalIsLeader;
+            patchedBus.getAuthorityTerm = originalGetAuthorityTerm;
+            patchedBus.isConnected = originalIsConnected;
+            rateLimiter.degraded = originalDegraded;
+            rateLimiter.degradedNotified = originalDegradedNotified;
+            rateLimiter.lastProbeAt = originalLastProbeAt;
+        }
+    });
+
+    test('ipc timeout fallback does not poison future ipc attempts', async () => {
+        const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
+        const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
+        const patchedBus = InterInstanceBus as unknown as PatchedInterInstanceBus;
+
+        const originalClientCore = rateLimiter.clientCore;
+        const originalIsLeader = patchedLeaderElection.isLeader;
+        const originalGetAuthorityTerm = patchedBus.getAuthorityTerm;
+        const originalIsConnected = patchedBus.isConnected;
+        const originalDegraded = rateLimiter.degraded;
+        const originalDegradedNotified = rateLimiter.degradedNotified;
+        const originalLastProbeAt = rateLimiter.lastProbeAt;
+
+        try {
+            rateLimiter.clientCore = {
+                acquire: async () => ({ status: 'degraded', reason: 'timeout' })
+            };
+            rateLimiter.degraded = false;
+            rateLimiter.degradedNotified = false;
+            rateLimiter.lastProbeAt = 0;
+            patchedLeaderElection.isLeader = () => false;
+            patchedBus.getAuthorityTerm = () => 'leader-a:1';
+            patchedBus.isConnected = () => true;
+
+            const result = await rateLimiter.acquireViaIpc('bucket', { rpm: 60 }, { requests: 1, tokens: 0 });
+
+            assert.equal(result, undefined);
+            assert.equal(rateLimiter.shouldUseIpc(), true);
+        } finally {
+            rateLimiter.clientCore = originalClientCore;
+            patchedLeaderElection.isLeader = originalIsLeader;
+            patchedBus.getAuthorityTerm = originalGetAuthorityTerm;
+            patchedBus.isConnected = originalIsConnected;
+            rateLimiter.degraded = originalDegraded;
+            rateLimiter.degradedNotified = originalDegradedNotified;
+            rateLimiter.lastProbeAt = originalLastProbeAt;
+        }
+    });
+
+    test('authority unavailable still enters global degraded mode after recovery timeout', async () => {
+        const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
+        const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
+        const patchedBus = InterInstanceBus as unknown as PatchedInterInstanceBus;
+
+        const originalClientCore = rateLimiter.clientCore;
+        const originalWaitForAuthorityRecovery = rateLimiter.waitForAuthorityRecovery;
+        const originalIsLeader = patchedLeaderElection.isLeader;
+        const originalGetAuthorityTerm = patchedBus.getAuthorityTerm;
+        const originalIsConnected = patchedBus.isConnected;
+        const originalDegraded = rateLimiter.degraded;
+        const originalDegradedNotified = rateLimiter.degradedNotified;
+        const originalLastProbeAt = rateLimiter.lastProbeAt;
+
+        try {
+            rateLimiter.clientCore = {
+                acquire: async () => ({ status: 'degraded', reason: 'authority-unavailable' })
+            };
+            rateLimiter.waitForAuthorityRecovery = async () => false;
+            rateLimiter.degraded = false;
+            rateLimiter.degradedNotified = true;
+            rateLimiter.lastProbeAt = 0;
+            patchedLeaderElection.isLeader = () => false;
+            patchedBus.getAuthorityTerm = () => 'leader-a:1';
+            patchedBus.isConnected = () => true;
+
+            const result = await rateLimiter.acquireViaIpc('bucket', { rpm: 60 }, { requests: 1, tokens: 0 });
+
+            assert.equal(result, undefined);
+            assert.equal(rateLimiter.shouldUseIpc(), false);
+        } finally {
+            rateLimiter.clientCore = originalClientCore;
+            rateLimiter.waitForAuthorityRecovery = originalWaitForAuthorityRecovery;
+            patchedLeaderElection.isLeader = originalIsLeader;
+            patchedBus.getAuthorityTerm = originalGetAuthorityTerm;
+            patchedBus.isConnected = originalIsConnected;
+            rateLimiter.degraded = originalDegraded;
+            rateLimiter.degradedNotified = originalDegradedNotified;
+            rateLimiter.lastProbeAt = originalLastProbeAt;
+        }
+    });
+
+    test('graceful leader handoff restores authoritative bucket instead of empty start', () => {
+        const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
+        const source = new RateLimitStore('leader-a');
+        const now = Date.now();
+        const granted = source.acquire('r1', 'bucket', { parallel: 1 }, { requests: 1, tokens: 0 }, now, {
+            ownerInstanceId: 'follower-a'
+        });
+        if (granted.kind !== 'granted') {
+            assert.fail('r1 should be granted');
+        }
+        source.acquire('r2', 'bucket', { parallel: 1 }, { requests: 1, tokens: 0 }, now, {
+            ownerInstanceId: 'follower-b'
+        });
+        const snapshot = source.exportSnapshot(now);
+
+        const originalLeaderStore = rateLimiter.leaderStore;
+        const originalPendingLeaderHandoff = rateLimiter.pendingLeaderHandoff;
+        const originalClientCore = rateLimiter.clientCore;
+        const originalDegraded = rateLimiter.degraded;
+        const originalDegradedNotified = rateLimiter.degradedNotified;
+
+        let settledPending = 0;
+
+        try {
+            rateLimiter.leaderStore = new RateLimitStore('before');
+            rateLimiter.pendingLeaderHandoff = undefined;
+            rateLimiter.clientCore = {
+                acquire: async () => ({ status: 'cancelled' }),
+                settlePendingAsDegraded: () => {
+                    settledPending += 1;
+                }
+            };
+            rateLimiter.degraded = true;
+            rateLimiter.degradedNotified = true;
+
+            rateLimiter.handleLeaderResigning({
+                leaderId: 'leader-a',
+                nextLeaderId: 'leader-b',
+                rateLimitSnapshot: snapshot
+            });
+            rateLimiter.becomeLeaderWithFreshState();
+
+            assert.equal(settledPending, 1);
+            assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight, 1);
+            assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.pending, 0);
+
+            const released = rateLimiter.leaderStore.release(granted.grantId, undefined, now + 100);
+            assert.equal(released.length, 0);
+        } finally {
+            rateLimiter.leaderStore = originalLeaderStore;
+            rateLimiter.pendingLeaderHandoff = originalPendingLeaderHandoff;
+            rateLimiter.clientCore = originalClientCore;
+            rateLimiter.degraded = originalDegraded;
+            rateLimiter.degradedNotified = originalDegradedNotified;
+        }
+    });
+
+    test('graceful leader handoff accepts previous-term release for imported grant', () => {
+        const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
+        const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
+        const source = new RateLimitStore('leader-a');
+        const now = Date.now();
+        const granted = source.acquire('r1', 'bucket', { parallel: 1 }, { requests: 1, tokens: 0 }, now, {
+            ownerInstanceId: 'follower-a'
+        });
+        if (granted.kind !== 'granted') {
+            assert.fail('r1 should be granted');
+        }
+        const snapshot = source.exportSnapshot(now);
+
+        const originalLeaderStore = rateLimiter.leaderStore;
+        const originalPendingLeaderHandoff = rateLimiter.pendingLeaderHandoff;
+        const originalClientCore = rateLimiter.clientCore;
+        const originalIsLeader = patchedLeaderElection.isLeader;
+
+        try {
+            rateLimiter.leaderStore = new RateLimitStore('before');
+            rateLimiter.pendingLeaderHandoff = undefined;
+            rateLimiter.clientCore = undefined;
+            patchedLeaderElection.isLeader = () => true;
+
+            rateLimiter.handleLeaderResigning({
+                leaderId: 'leader-a',
+                nextLeaderId: 'leader-b',
+                rateLimitSnapshot: snapshot
+            });
+            rateLimiter.becomeLeaderWithFreshState();
+            rateLimiter.handleRemoteRelease({
+                authorityTerm: 'leader-a:1',
+                grantId: granted.grantId
+            });
+
+            assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight ?? 0, 0);
+        } finally {
+            rateLimiter.leaderStore = originalLeaderStore;
+            rateLimiter.pendingLeaderHandoff = originalPendingLeaderHandoff;
+            rateLimiter.clientCore = originalClientCore;
+            patchedLeaderElection.isLeader = originalIsLeader;
+        }
+    });
+
+    test('graceful leader handoff preserves old leader local grants until previous-term release', () => {
+        const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
+        const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
+        const source = new RateLimitStore('leader-a');
+        const now = Date.now();
+        const localGranted = source.acquire(
+            'local-r1',
+            'bucket',
+            { parallel: 1, rpm: 60 },
+            { requests: 1, tokens: 0 },
+            now
+        );
+        if (localGranted.kind !== 'granted') {
+            assert.fail('local-r1 should be granted');
+        }
+        const snapshot = source.exportSnapshot(now);
+
+        const originalLeaderStore = rateLimiter.leaderStore;
+        const originalPendingLeaderHandoff = rateLimiter.pendingLeaderHandoff;
+        const originalClientCore = rateLimiter.clientCore;
+        const originalIsLeader = patchedLeaderElection.isLeader;
+
+        try {
+            rateLimiter.leaderStore = new RateLimitStore('before');
+            rateLimiter.pendingLeaderHandoff = undefined;
+            rateLimiter.clientCore = undefined;
+            patchedLeaderElection.isLeader = () => true;
+
+            rateLimiter.handleLeaderResigning({
+                leaderId: 'leader-a',
+                nextLeaderId: 'leader-b',
+                rateLimitSnapshot: snapshot
+            });
+            rateLimiter.becomeLeaderWithFreshState();
+
+            assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight, 1);
+
+            rateLimiter.handleRemoteRelease({
+                authorityTerm: 'leader-a:1',
+                grantId: localGranted.grantId
+            });
+
+            assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight ?? 0, 0);
+        } finally {
+            rateLimiter.leaderStore = originalLeaderStore;
+            rateLimiter.pendingLeaderHandoff = originalPendingLeaderHandoff;
+            rateLimiter.clientCore = originalClientCore;
+            patchedLeaderElection.isLeader = originalIsLeader;
+        }
+    });
+
+    test('graceful leader handoff eventually drops old leader local grants without release', () => {
+        const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
+        const source = new RateLimitStore('leader-a');
+        const now = Date.now();
+        const localGranted = source.acquire(
+            'local-r1',
+            'bucket',
+            { parallel: 1, rpm: 60 },
+            { requests: 1, tokens: 0 },
+            now
+        );
+        if (localGranted.kind !== 'granted') {
+            assert.fail('local-r1 should be granted');
+        }
+        const snapshot = source.exportSnapshot(now);
+
+        const originalLeaderStore = rateLimiter.leaderStore;
+        const originalPendingLeaderHandoff = rateLimiter.pendingLeaderHandoff;
+        const originalClientCore = rateLimiter.clientCore;
+
+        try {
+            rateLimiter.leaderStore = new RateLimitStore('before');
+            rateLimiter.pendingLeaderHandoff = undefined;
+            rateLimiter.clientCore = undefined;
+
+            rateLimiter.handleLeaderResigning({
+                leaderId: 'leader-a',
+                nextLeaderId: 'leader-b',
+                rateLimitSnapshot: snapshot
+            });
+            rateLimiter.becomeLeaderWithFreshState();
+
+            assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight, 1);
+            rateLimiter.leaderStore.sweep(now + 6_000);
+            assert.equal(rateLimiter.leaderStore.stats('bucket', now + 6_000)?.inflight ?? 0, 0);
+        } finally {
+            rateLimiter.leaderStore = originalLeaderStore;
+            rateLimiter.pendingLeaderHandoff = originalPendingLeaderHandoff;
+            rateLimiter.clientCore = originalClientCore;
+        }
+    });
+
+    test('leader takeover restores persisted handoff after restart-like gap', () => {
+        const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
+        const source = new RateLimitStore('leader-a');
+        const now = Date.now();
+        const granted = source.acquire('r1', 'bucket', { parallel: 1 }, { requests: 1, tokens: 0 }, now, {
+            ownerInstanceId: 'follower-a'
+        });
+        if (granted.kind !== 'granted') {
+            assert.fail('r1 should be granted');
+        }
+        source.acquire('r2', 'bucket', { parallel: 1 }, { requests: 1, tokens: 0 }, now, {
+            ownerInstanceId: 'follower-b'
+        });
+        const snapshot = source.exportSnapshot(now);
+        const state = new Map<string, unknown>();
+        const fakeContext = {
+            globalState: {
+                get: <T>(key: string) => state.get(key) as T | undefined,
+                update: (key: string, value: unknown) => {
+                    if (value === undefined) {
+                        state.delete(key);
+                    } else {
+                        state.set(key, value);
+                    }
+                    return Promise.resolve();
+                }
+            }
+        };
+
+        const originalContext = rateLimiter.context;
+        const originalLeaderStore = rateLimiter.leaderStore;
+        const originalPendingLeaderHandoff = rateLimiter.pendingLeaderHandoff;
+        const originalClientCore = rateLimiter.clientCore;
+
+        let settledPending = 0;
+
+        try {
+            rateLimiter.context = fakeContext;
+            rateLimiter.leaderStore = new RateLimitStore('before');
+            rateLimiter.pendingLeaderHandoff = undefined;
+            rateLimiter.clientCore = {
+                acquire: async () => ({ status: 'cancelled' }),
+                settlePendingAsDegraded: () => {
+                    settledPending += 1;
+                }
+            };
+
+            rateLimiter.handleLeaderResigning({
+                leaderId: 'leader-a',
+                nextLeaderId: 'leader-b',
+                rateLimitSnapshot: snapshot
+            });
+
+            rateLimiter.pendingLeaderHandoff = undefined;
+            rateLimiter.becomeLeaderWithFreshState();
+
+            assert.equal(settledPending, 1);
+            assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight, 1);
+            assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.pending, 0);
+            assert.equal(state.get('gcmp.rateLimit.handoff.v1'), undefined);
+        } finally {
+            rateLimiter.context = originalContext;
+            rateLimiter.leaderStore = originalLeaderStore;
+            rateLimiter.pendingLeaderHandoff = originalPendingLeaderHandoff;
+            rateLimiter.clientCore = originalClientCore;
         }
     });
 

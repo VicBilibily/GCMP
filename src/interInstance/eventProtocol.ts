@@ -3,8 +3,13 @@
  *  定义 VS Code 多窗口之间通过 IPC 传输的事件类型与序列化格式
  *--------------------------------------------------------------------------------------------*/
 
-import type { LiveStreamMetricEvent } from '../handlers/liveMetrics';
-import type { RateLimitCosts, RateLimitDimensions, RateLimitRefund } from '../rateLimit/rateLimitStore';
+import type { LiveMetricsSnapshotEntry, LiveStreamMetricEvent } from '../handlers/liveMetrics';
+import type {
+    RateLimitCosts,
+    RateLimitDimensions,
+    RateLimitRefund,
+    RateLimitStoreSnapshot
+} from '../rateLimit/rateLimitStore';
 
 /**
  * 跨实例事件基类
@@ -116,6 +121,8 @@ export interface LeaderResigningEvent extends InterInstanceEventBase {
         leaderId: string;
         /** 建议的下一任 Leader 实例 ID（可选） */
         nextLeaderId?: string;
+        /** 平滑切主用的限流权威桶快照（可选） */
+        rateLimitSnapshot?: RateLimitStoreSnapshot;
     };
 }
 
@@ -128,6 +135,31 @@ export interface LiveMetricsUpdatedEvent extends InterInstanceEventBase {
     payload: {
         /** 实时流式指标事件 */
         event: LiveStreamMetricEvent;
+    };
+}
+
+/**
+ * 请求当前跨实例实时指标快照
+ * 新连接实例通过该事件向 Leader 补拉当前 WAIT/ACTIVE 状态。
+ */
+export interface LiveMetricsSnapshotRequestedEvent extends InterInstanceEventBase {
+    type: 'liveMetricsSnapshotRequested';
+    payload: Record<string, never>;
+}
+
+/**
+ * 当前跨实例实时指标快照
+ * Leader 回传当前活跃请求的最新事件，用于新连接实例补齐实时状态。
+ */
+export interface LiveMetricsSnapshotSyncEvent extends InterInstanceEventBase {
+    type: 'liveMetricsSnapshotSync';
+    payload: {
+        /** 目标实例 ID，仅目标实例消费 */
+        targetInstanceId: string;
+        /** 生成该快照时的权威任期，避免切主后套用旧快照 */
+        authorityTerm?: string;
+        /** 当前活跃请求快照（包含原始来源实例信息） */
+        entries: LiveMetricsSnapshotEntry[];
     };
 }
 
@@ -328,6 +360,8 @@ export type InterInstanceEvent =
     | LeaderChangedEvent
     | LeaderResigningEvent
     | LiveMetricsUpdatedEvent
+    | LiveMetricsSnapshotRequestedEvent
+    | LiveMetricsSnapshotSyncEvent
     | RemoteInstanceDisconnectedEvent
     | CliAuthRefreshRequestedEvent
     | CliAuthRefreshCompletedEvent
@@ -352,6 +386,8 @@ export const INTER_INSTANCE_EVENT_TYPES = [
     'leaderChanged',
     'leaderResigning',
     'liveMetricsUpdated',
+    'liveMetricsSnapshotRequested',
+    'liveMetricsSnapshotSync',
     'remoteInstanceDisconnected',
     'cliAuthRefreshRequested',
     'cliAuthRefreshCompleted',

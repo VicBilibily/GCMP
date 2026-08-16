@@ -34,13 +34,21 @@ import { CompatibleModelManager } from './utils/config/compatibleModelManager';
 import { LeaderElectionService, StatusBarManager } from './status';
 import { InterInstanceBus } from './interInstance';
 import type {
+    LeaderResigningEvent,
+    LiveMetricsSnapshotSyncEvent,
     RateLimitAcquireCancelledEvent,
     RateLimitAcquireRequestedEvent,
     RateLimitLeaseRenewedEvent,
     RateLimitReleasedEvent
 } from './interInstance';
 import { RateLimiter } from './rateLimit/rateLimiter';
-import { clearRemoteLiveMetrics, receiveRemoteLiveMetrics, setCrossInstanceBroadcaster } from './handlers/liveMetrics';
+import {
+    clearRemoteLiveMetrics,
+    getCrossInstanceLiveMetricsSnapshot,
+    receiveRemoteLiveMetrics,
+    setCrossInstanceBroadcaster,
+    syncRemoteLiveMetricsSnapshot
+} from './handlers/liveMetrics';
 import { registerAllTools } from './tools';
 import { CliAuthFactory } from './cli/auth/cliAuthFactory';
 import { registerCommitCommands, checkGitAvailability } from './commit';
@@ -281,17 +289,49 @@ export async function activate(context: vscode.ExtensionContext) {
         setCrossInstanceBroadcaster(event => {
             InterInstanceBus.publishIpcOnly({ type: 'liveMetricsUpdated', payload: { event } });
         });
+        const requestLiveMetricsSnapshot = (authorityTerm?: string) => {
+            if (authorityTerm && !LeaderElectionService.isLeader()) {
+                InterInstanceBus.publishIpcOnly({ type: 'liveMetricsSnapshotRequested', payload: {} });
+            }
+        };
         context.subscriptions.push(
             InterInstanceBus.onAuthorityChanged(authorityTerm => {
-                if (!authorityTerm) {
-                    clearRemoteLiveMetrics();
-                }
+                requestLiveMetricsSnapshot(authorityTerm);
             }),
+            // authority 空窗期不代表远端请求已结束，等待实例断连事件再清理
             InterInstanceBus.subscribe('liveMetricsUpdated', event => {
                 receiveRemoteLiveMetrics(
                     (event.payload as { event: import('./handlers/liveMetrics').LiveStreamMetricEvent }).event,
                     event.senderInstanceId
                 );
+            }),
+            InterInstanceBus.subscribe('liveMetricsSnapshotRequested', event => {
+                if (!LeaderElectionService.isLeader()) {
+                    return;
+                }
+                const connectedFollowerIds = new Set(InterInstanceBus.getConnectedFollowerIds());
+                InterInstanceBus.publishIpcOnly({
+                    type: 'liveMetricsSnapshotSync',
+                    payload: {
+                        targetInstanceId: event.senderInstanceId,
+                        authorityTerm: LeaderElectionService.getAuthorityTerm(),
+                        entries: getCrossInstanceLiveMetricsSnapshot(connectedFollowerIds)
+                    }
+                });
+            }),
+            InterInstanceBus.subscribe('liveMetricsSnapshotSync', event => {
+                const payload = event.payload as LiveMetricsSnapshotSyncEvent['payload'];
+                if (payload.targetInstanceId !== LeaderElectionService.getInstanceId()) {
+                    return;
+                }
+                if (payload.authorityTerm && payload.authorityTerm !== InterInstanceBus.getAuthorityTerm()) {
+                    return;
+                }
+                syncRemoteLiveMetricsSnapshot(payload.entries, event.senderInstanceId);
+            }),
+            InterInstanceBus.subscribe('leaderResigning', event => {
+                const payload = event.payload as LeaderResigningEvent['payload'];
+                clearRemoteLiveMetrics(payload.leaderId);
             }),
             InterInstanceBus.subscribe('remoteInstanceDisconnected', event => {
                 const instanceId = (event.payload as { instanceId: string }).instanceId;
@@ -299,6 +339,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 RateLimiter.handleInstanceDisconnected(instanceId);
             })
         );
+        requestLiveMetricsSnapshot(InterInstanceBus.getAuthorityTerm());
 
         // 订阅远程配置变更，强制刷新本地配置缓存
         InterInstanceBus.subscribe('configChanged', () => {

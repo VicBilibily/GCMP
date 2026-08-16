@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
 import { InterInstanceBus } from '../interInstance';
 import type {
+    LeaderResigningEvent,
     RateLimitAcquireCancelledEvent,
     RateLimitAcquireGrantedEvent,
     RateLimitAcquireRequestedEvent,
@@ -27,7 +28,8 @@ import {
     type PendingGrant,
     type RateLimitCosts,
     type RateLimitDimensions,
-    type RateLimitRefund
+    type RateLimitRefund,
+    type RateLimitStoreSnapshot
 } from './rateLimitStore';
 import { RateLimitClientCore } from './rateLimitClientCore';
 
@@ -58,6 +60,12 @@ interface QueuedWaiter<TResult> {
     resolve: (result: TResult) => void;
 }
 
+interface PersistedLeaderHandoff {
+    leaderId: string;
+    receivedAt: number;
+    snapshot: RateLimitStoreSnapshot;
+}
+
 type PendingWaiter = QueuedWaiter<PendingGrant | undefined>;
 
 type LeaderPendingWaiter = QueuedWaiter<PendingGrant | 'role-changed' | undefined>;
@@ -69,14 +77,18 @@ const SWEEP_INTERVAL_MS = 1_000;
 const MAX_SLEEP_CHUNK_MS = 2_147_483_647;
 const MIN_LEASE_RENEW_INTERVAL_MS = 250;
 const AUTHORITY_TRANSITION_TIMEOUT_MS = 30_000;
-/** 单次 acquire 链上允许的最大任期变更重试次数，超出后降级本地桶，避免选举抖动时自旋 */
+/** 单次 acquire 链上允许的最大任期变更重试次数，超出后仅当前请求回退本地桶，避免选举抖动时自旋 */
 const MAX_AUTHORITY_CHANGE_RETRIES = 3;
+const LEADER_HANDOFF_TTL_MS = AUTHORITY_TRANSITION_TIMEOUT_MS;
+const LEADER_HANDOFF_OWNERLESS_GRANT_GRACE_MS = 5_000;
+const PERSISTED_LEADER_HANDOFF_KEY = 'gcmp.rateLimit.handoff.v1';
 
 /**
  * 跨实例限流器（静态门面）
  */
 export class RateLimiter {
     private static initialized = false;
+    private static context: vscode.ExtensionContext | undefined;
     /** Leader 权威桶（仅本实例为 Leader 时使用；角色变更时重建） */
     private static leaderStore = new RateLimitStore();
     /** 本地降级桶（Follower 在 IPC 不可用/回执超时时使用） */
@@ -91,6 +103,13 @@ export class RateLimiter {
     private static localWaiters = new Map<string, PendingWaiter>();
     /** 活跃 grant 的 lease 续租心跳 */
     private static leaseHeartbeatTimers = new Map<string, NodeJS.Timeout>();
+    private static pendingLeaderHandoff:
+        | {
+              leaderId: string;
+              snapshot: RateLimitStoreSnapshot;
+              receivedAt: number;
+          }
+        | undefined;
 
     /** 降级状态 */
     private static degraded = false;
@@ -102,6 +121,7 @@ export class RateLimiter {
             return;
         }
         this.initialized = true;
+        this.context = context;
 
         this.clientCore = new RateLimitClientCore({
             send: msg => {
@@ -137,18 +157,18 @@ export class RateLimiter {
             nextRequestId: () => crypto.randomUUID()
         });
 
-        // Leader 变更：成为 Leader 时重建权威桶（旧 Leader 状态不可知，空桶启动）
+        LeaderElectionService.setRateLimitSnapshotProvider(() => this.exportLeaderStateSnapshot());
+
+        // Leader 变更：优先恢复平滑 handoff 快照，拿不到时再空桶启动
         this.leaderChangeSubscription = LeaderElectionService.onLeaderChanged(isLeader => {
             if (isLeader) {
-                this.clientCore?.settlePendingAsDegraded();
-                this.leaderStore = new RateLimitStore();
-                this.exitDegraded('became leader');
-                StatusLogger.info('[RateLimiter] Became leader, authoritative bucket reset (empty start)');
+                this.becomeLeaderWithFreshState();
                 return;
             }
 
             this.recoverLeaderWaitersAfterRoleChange();
             this.leaderStore = new RateLimitStore();
+            this.pendingLeaderHandoff = undefined;
             StatusLogger.info('[RateLimiter] Lost leader role, pending leader waiters will reacquire');
         });
 
@@ -156,6 +176,9 @@ export class RateLimiter {
         this.sweepTimer = setInterval(() => this.sweep(), SWEEP_INTERVAL_MS);
 
         context.subscriptions.push(
+            InterInstanceBus.subscribe('leaderResigning', event => {
+                this.handleLeaderResigning(event.payload as LeaderResigningEvent['payload']);
+            }),
             vscode.Disposable.from({
                 dispose: () => {
                     if (this.sweepTimer) {
@@ -167,6 +190,9 @@ export class RateLimiter {
                     this.leaseHeartbeatTimers.clear();
                     this.leaderChangeSubscription?.dispose();
                     this.clientCore?.dispose();
+                    this.pendingLeaderHandoff = undefined;
+                    this.context = undefined;
+                    LeaderElectionService.setRateLimitSnapshotProvider(undefined);
                     this.initialized = false;
                 }
             })
@@ -205,7 +231,9 @@ export class RateLimiter {
             return this.acquireViaLeaderStore(bucketKey, dims, costs, options, authorityChangeAttempts);
         }
         if (authorityChangeAttempts >= MAX_AUTHORITY_CHANGE_RETRIES) {
-            this.enterDegraded('authority change storm');
+            Logger.warn(
+                `[RateLimit] authority changed too frequently for bucket=${bucketKey}, falling back current acquire to local bucket`
+            );
             return this.acquireViaLocalStore(bucketKey, dims, costs, options, authorityChangeAttempts);
         }
         if (authorityChangeAttempts > 0 && !this.hasUsableAuthorityTransport()) {
@@ -213,7 +241,9 @@ export class RateLimiter {
             if (recovered) {
                 return this.acquireForCurrentRole(bucketKey, dims, costs, options, authorityChangeAttempts);
             }
-            this.enterDegraded('authority transition timeout');
+            Logger.warn(
+                `[RateLimit] authority recovery timed out for bucket=${bucketKey}, falling back current acquire to local bucket`
+            );
             return this.acquireViaLocalStore(bucketKey, dims, costs, options, authorityChangeAttempts);
         }
         if (this.shouldUseIpc() || (authorityChangeAttempts > 0 && this.hasUsableAuthorityTransport())) {
@@ -320,7 +350,11 @@ export class RateLimiter {
      * Leader 处理远端 release（extension.ts 订阅挂接）
      */
     static handleRemoteRelease(payload: RateLimitReleasedEvent['payload']): void {
-        if (!LeaderElectionService.isLeader() || payload.authorityTerm !== LeaderElectionService.getAuthorityTerm()) {
+        if (!LeaderElectionService.isLeader()) {
+            return;
+        }
+        const currentAuthorityTerm = LeaderElectionService.getAuthorityTerm();
+        if (payload.authorityTerm !== currentAuthorityTerm && !this.leaderStore.hasGrant(payload.grantId)) {
             return;
         }
         const granted = this.leaderStore.release(payload.grantId, payload.refund, Date.now());
@@ -328,7 +362,14 @@ export class RateLimiter {
     }
 
     static handleRemoteAcquireCancelled(payload: RateLimitAcquireCancelledEvent['payload']): void {
-        if (!LeaderElectionService.isLeader() || payload.authorityTerm !== LeaderElectionService.getAuthorityTerm()) {
+        if (!LeaderElectionService.isLeader()) {
+            return;
+        }
+        const currentAuthorityTerm = LeaderElectionService.getAuthorityTerm();
+        if (
+            payload.authorityTerm !== currentAuthorityTerm &&
+            !this.leaderStore.hasRequest(payload.bucketKey, payload.requestId)
+        ) {
             return;
         }
         const granted = this.leaderStore.abortRequest(payload.bucketKey, payload.requestId, Date.now());
@@ -337,7 +378,11 @@ export class RateLimiter {
     }
 
     static handleRemoteLeaseRenewal(payload: RateLimitLeaseRenewedEvent['payload']): void {
-        if (!LeaderElectionService.isLeader() || payload.authorityTerm !== LeaderElectionService.getAuthorityTerm()) {
+        if (!LeaderElectionService.isLeader()) {
+            return;
+        }
+        const currentAuthorityTerm = LeaderElectionService.getAuthorityTerm();
+        if (payload.authorityTerm !== currentAuthorityTerm && !this.leaderStore.hasGrant(payload.grantId)) {
             return;
         }
         this.leaderStore.renew(payload.grantId, Date.now());
@@ -420,7 +465,7 @@ export class RateLimiter {
         );
     }
 
-    /** Follower：IPC 请求-回执；失败返回 undefined 并进入降级 */
+    /** Follower：IPC 请求-回执；仅 authority 不可用时进入全局降级，其余失败只回退当前请求 */
     private static async acquireViaIpc(
         bucketKey: string,
         dims: RateLimitDimensions,
@@ -464,8 +509,12 @@ export class RateLimiter {
                 if (recovered) {
                     return this.acquireForCurrentRole(bucketKey, dims, costs, options, authorityChangeAttempts + 1);
                 }
+                this.enterDegraded(outcome.reason);
+                return undefined;
             }
-            this.enterDegraded(outcome.reason);
+            Logger.warn(
+                `[RateLimit] ipc acquire timed out without progress for bucket=${bucketKey}, falling back current acquire to local bucket`
+            );
             return undefined;
         }
 
@@ -774,6 +823,111 @@ export class RateLimiter {
 
     private static hasUsableAuthorityTransport(): boolean {
         return !!InterInstanceBus.getAuthorityTerm() && InterInstanceBus.isConnected();
+    }
+
+    private static handleLeaderResigning(payload: LeaderResigningEvent['payload']): void {
+        if (payload.leaderId === LeaderElectionService.getInstanceId() || !payload.rateLimitSnapshot) {
+            return;
+        }
+        this.pendingLeaderHandoff = {
+            leaderId: payload.leaderId,
+            snapshot: payload.rateLimitSnapshot,
+            receivedAt: Date.now()
+        };
+        void this.persistLeaderHandoffSnapshot(payload.leaderId, payload.rateLimitSnapshot);
+    }
+
+    private static async exportLeaderStateSnapshot(): Promise<RateLimitStoreSnapshot | undefined> {
+        if (!this.initialized || !LeaderElectionService.isLeader()) {
+            return undefined;
+        }
+        const snapshot = this.leaderStore.exportSnapshot(Date.now());
+        await this.persistLeaderHandoffSnapshot(LeaderElectionService.getInstanceId(), snapshot);
+        return snapshot;
+    }
+
+    private static consumePendingLeaderHandoff():
+        | {
+              leaderId: string;
+              snapshot: RateLimitStoreSnapshot;
+          }
+        | undefined {
+        const handoff = this.pendingLeaderHandoff;
+        this.pendingLeaderHandoff = undefined;
+        if (!handoff) {
+            return undefined;
+        }
+        if (Date.now() - handoff.receivedAt > LEADER_HANDOFF_TTL_MS) {
+            return undefined;
+        }
+        return { leaderId: handoff.leaderId, snapshot: handoff.snapshot };
+    }
+
+    private static consumePersistedLeaderHandoff():
+        | {
+              leaderId: string;
+              snapshot: RateLimitStoreSnapshot;
+          }
+        | undefined {
+        const persisted = this.context?.globalState.get<PersistedLeaderHandoff>(PERSISTED_LEADER_HANDOFF_KEY);
+        if (!persisted) {
+            return undefined;
+        }
+        if (Date.now() - persisted.receivedAt > LEADER_HANDOFF_TTL_MS) {
+            this.clearPersistedLeaderHandoff();
+            return undefined;
+        }
+        return { leaderId: persisted.leaderId, snapshot: persisted.snapshot };
+    }
+
+    private static async persistLeaderHandoffSnapshot(
+        leaderId: string,
+        snapshot: RateLimitStoreSnapshot,
+        receivedAt: number = Date.now()
+    ): Promise<void> {
+        if (!this.context) {
+            return;
+        }
+        try {
+            await this.context.globalState.update(PERSISTED_LEADER_HANDOFF_KEY, {
+                leaderId,
+                receivedAt,
+                snapshot
+            } satisfies PersistedLeaderHandoff);
+        } catch (error) {
+            Logger.warn('[RateLimit] Failed to persist leader handoff snapshot', error);
+        }
+    }
+
+    private static clearPersistedLeaderHandoff(): void {
+        if (!this.context) {
+            return;
+        }
+        void this.context.globalState
+            .update(PERSISTED_LEADER_HANDOFF_KEY, undefined)
+            .then(undefined, error =>
+                Logger.warn('[RateLimit] Failed to clear persisted leader handoff snapshot', error)
+            );
+    }
+
+    private static becomeLeaderWithFreshState(): void {
+        this.clientCore?.settlePendingAsDegraded();
+        this.leaderStore = new RateLimitStore();
+        const handoff = this.consumePendingLeaderHandoff() ?? this.consumePersistedLeaderHandoff();
+        if (handoff) {
+            const now = Date.now();
+            this.leaderStore.importSnapshot(handoff.snapshot, now, {
+                ownerlessGrantGraceMs: LEADER_HANDOFF_OWNERLESS_GRANT_GRACE_MS
+            });
+            this.clearPersistedLeaderHandoff();
+            this.exitDegraded('became leader');
+            StatusLogger.info(
+                `[RateLimiter] Became leader, authoritative bucket restored from ${handoff.leaderId} handoff`
+            );
+            return;
+        }
+        this.exitDegraded('became leader');
+        StatusLogger.info('[RateLimiter] Became leader, authoritative bucket reset (empty start)');
     }
 
     // ==================== 降级管理 ====================

@@ -39,6 +39,11 @@ export interface LiveStreamMetricEvent {
     tokensPerSecond?: number;
 }
 
+export interface LiveMetricsSnapshotEntry {
+    event: LiveStreamMetricEvent;
+    sourceInstanceId?: string;
+}
+
 type LiveMetricsListener = (event: LiveStreamMetricEvent) => void;
 type CrossInstanceBroadcaster = (event: LiveStreamMetricEvent) => void;
 interface ActiveMetricEntry {
@@ -108,6 +113,56 @@ export function clearRemoteLiveMetrics(sourceInstanceId?: string): void {
     }
     for (const event of clearedEvents) {
         notifyListeners(event);
+    }
+}
+
+export function getCrossInstanceLiveMetricsSnapshot(
+    allowedRemoteSourceInstanceIds?: ReadonlySet<string>
+): LiveMetricsSnapshotEntry[] {
+    return Array.from(activeMetrics.values()).flatMap(entry => {
+        if (
+            entry.remote &&
+            allowedRemoteSourceInstanceIds &&
+            (!entry.sourceInstanceId || !allowedRemoteSourceInstanceIds.has(entry.sourceInstanceId))
+        ) {
+            return [];
+        }
+        return [
+            {
+                event: entry.event,
+                sourceInstanceId: entry.remote ? entry.sourceInstanceId : undefined
+            }
+        ];
+    });
+}
+
+export function syncRemoteLiveMetricsSnapshot(
+    entries: LiveMetricsSnapshotEntry[],
+    defaultSourceInstanceId: string
+): void {
+    const nextEntries = new Map<string, LiveMetricsSnapshotEntry>();
+    for (const entry of entries) {
+        nextEntries.set(entry.event.requestId, {
+            event: entry.event,
+            sourceInstanceId: entry.sourceInstanceId ?? defaultSourceInstanceId
+        });
+    }
+
+    const clearedEvents: LiveStreamMetricEvent[] = [];
+    for (const [requestId, entry] of activeMetrics) {
+        if (!entry.remote || nextEntries.has(requestId)) {
+            continue;
+        }
+        activeMetrics.delete(requestId);
+        clearedEvents.push({ ...entry.event, type: 'streamEnd' });
+    }
+    for (const event of clearedEvents) {
+        notifyListeners(event);
+    }
+
+    for (const entry of nextEntries.values()) {
+        applyLiveMetricsEvent(entry.event, true, entry.sourceInstanceId);
+        notifyListeners(entry.event);
     }
 }
 

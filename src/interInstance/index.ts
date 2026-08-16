@@ -14,6 +14,8 @@ export {
     type LeaderChangedEvent,
     type LeaderResigningEvent,
     type LiveMetricsUpdatedEvent,
+    type LiveMetricsSnapshotRequestedEvent,
+    type LiveMetricsSnapshotSyncEvent,
     type RemoteInstanceDisconnectedEvent,
     type CliAuthRefreshRequestedEvent,
     type CliAuthRefreshCompletedEvent,

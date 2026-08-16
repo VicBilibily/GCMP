@@ -3,6 +3,7 @@ import * as crypto from 'node:crypto';
 import { StatusLogger } from '../utils/runtime/statusLogger';
 import { UserActivityService } from './userActivityService';
 import { InterInstanceBus, type LeaderResigningEvent } from '../interInstance';
+import type { RateLimitStoreSnapshot } from '../rateLimit/rateLimitStore';
 
 interface LeaderInfo {
     instanceId: string;
@@ -50,6 +51,9 @@ export class LeaderElectionService {
     private static leaderIdentityChangedEmitter = new vscode.EventEmitter<LeaderIdentity | undefined>();
     static readonly onLeaderIdentityChanged = LeaderElectionService.leaderIdentityChangedEmitter.event;
     private static lastLeaderIdentityKey: string | undefined;
+    private static rateLimitSnapshotProvider:
+        | (() => RateLimitStoreSnapshot | undefined | Promise<RateLimitStoreSnapshot | undefined>)
+        | undefined;
 
     /**
      * 私有构造函数 - 防止实例化
@@ -157,9 +161,10 @@ export class LeaderElectionService {
             try {
                 const followers = InterInstanceBus.getConnectedFollowerIds();
                 const nextLeaderId = followers.length > 0 ? followers[0] : undefined;
+                const rateLimitSnapshot = await this.rateLimitSnapshotProvider?.();
                 InterInstanceBus.publishIpcOnly({
                     type: 'leaderResigning',
-                    payload: { leaderId: this.instanceId, nextLeaderId }
+                    payload: { leaderId: this.instanceId, nextLeaderId, rateLimitSnapshot }
                 });
                 StatusLogger.info(
                     `[LeaderElectionService] Broadcast leaderResigning before shutdown${
@@ -314,6 +319,12 @@ export class LeaderElectionService {
                 void this.recoverAfterLeaderResigning(resigningLeaderId);
             })
         );
+    }
+
+    public static setRateLimitSnapshotProvider(
+        provider: (() => RateLimitStoreSnapshot | undefined | Promise<RateLimitStoreSnapshot | undefined>) | undefined
+    ): void {
+        this.rateLimitSnapshotProvider = provider;
     }
 
     private static async checkLeader(): Promise<void> {

@@ -40,6 +40,50 @@ export interface PendingPosition {
     queuePosition: number;
 }
 
+export interface RateLimitReservationSnapshot {
+    grantId: string;
+    endAt: number;
+}
+
+export interface RateLimitPaceStateSnapshot {
+    emissionIntervalMs: number;
+    reservations: RateLimitReservationSnapshot[];
+}
+
+export interface RateLimitPendingSnapshot {
+    requestId: string;
+    costs: RateLimitCosts;
+    ownerInstanceId?: string;
+}
+
+export interface RateLimitGrantSnapshot {
+    grantId: string;
+    requestId: string;
+    bucketKey: string;
+    costs: RateLimitCosts;
+    expiresAt: number;
+    leaseMs: number;
+    ownerInstanceId?: string;
+}
+
+export interface RateLimitBucketSnapshot {
+    bucketKey: string;
+    dims: RateLimitDimensions;
+    paceRpm?: RateLimitPaceStateSnapshot;
+    paceRps?: RateLimitPaceStateSnapshot;
+    paceTpm?: RateLimitPaceStateSnapshot;
+    pending: RateLimitPendingSnapshot[];
+}
+
+export interface RateLimitStoreSnapshot {
+    buckets: RateLimitBucketSnapshot[];
+    grants: RateLimitGrantSnapshot[];
+}
+
+interface ImportSnapshotOptions {
+    ownerlessGrantGraceMs?: number;
+}
+
 interface GrantRecord {
     requestId: string;
     bucketKey: string;
@@ -193,6 +237,102 @@ export class RateLimitStore {
             return [];
         }
         return bucket.pending.map((entry, index) => ({ requestId: entry.requestId, queuePosition: index + 1 }));
+    }
+
+    exportSnapshot(now: number): RateLimitStoreSnapshot {
+        this.reclaimExpiredLeases(now);
+        const grants = Array.from(this.grants.entries()).map(([grantId, grant]) => ({
+            grantId,
+            requestId: grant.requestId,
+            bucketKey: grant.bucketKey,
+            costs: { ...grant.costs },
+            expiresAt: grant.expiresAt,
+            leaseMs: grant.leaseMs,
+            ownerInstanceId: grant.ownerInstanceId
+        }));
+        const grantIds = new Set(grants.map(grant => grant.grantId));
+        const grantBucketKeys = new Set(grants.map(grant => grant.bucketKey));
+        return {
+            buckets: Array.from(this.buckets.entries()).flatMap(([bucketKey, bucket]) => {
+                if (!grantBucketKeys.has(bucketKey)) {
+                    return [];
+                }
+                return [
+                    {
+                        bucketKey,
+                        dims: { ...bucket.dims },
+                        paceRpm: this.exportPaceState(bucket.paceRpm, now, grantIds),
+                        paceRps: this.exportPaceState(bucket.paceRps, now, grantIds),
+                        paceTpm: this.exportPaceState(bucket.paceTpm, now, grantIds),
+                        pending: []
+                    }
+                ];
+            }),
+            grants
+        };
+    }
+
+    hasGrant(grantId: string): boolean {
+        return this.grants.has(grantId);
+    }
+
+    hasRequest(bucketKey: string, requestId: string): boolean {
+        const bucket = this.buckets.get(bucketKey);
+        if (bucket?.pending.some(entry => entry.requestId === requestId)) {
+            return true;
+        }
+        for (const grant of this.grants.values()) {
+            if (grant.bucketKey === bucketKey && grant.requestId === requestId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    importSnapshot(snapshot: RateLimitStoreSnapshot, now: number, options?: ImportSnapshotOptions): void {
+        this.buckets.clear();
+        this.grants.clear();
+
+        for (const bucketSnapshot of snapshot.buckets) {
+            this.buckets.set(bucketSnapshot.bucketKey, {
+                dims: { ...bucketSnapshot.dims },
+                paceRpm: this.importPaceState(bucketSnapshot.paceRpm, now),
+                paceRps: this.importPaceState(bucketSnapshot.paceRps, now),
+                paceTpm: this.importPaceState(bucketSnapshot.paceTpm, now),
+                inflight: 0,
+                pending: bucketSnapshot.pending.map(entry => ({
+                    requestId: entry.requestId,
+                    costs: { ...entry.costs },
+                    ownerInstanceId: entry.ownerInstanceId
+                }))
+            });
+        }
+
+        for (const grantSnapshot of snapshot.grants) {
+            const expiresAt =
+                grantSnapshot.ownerInstanceId === undefined && options?.ownerlessGrantGraceMs !== undefined ?
+                    Math.min(grantSnapshot.expiresAt, now + options.ownerlessGrantGraceMs)
+                :   grantSnapshot.expiresAt;
+            if (expiresAt <= now) {
+                continue;
+            }
+            const bucket = this.buckets.get(grantSnapshot.bucketKey);
+            if (!bucket) {
+                continue;
+            }
+            this.grants.set(grantSnapshot.grantId, {
+                requestId: grantSnapshot.requestId,
+                bucketKey: grantSnapshot.bucketKey,
+                costs: { ...grantSnapshot.costs },
+                expiresAt,
+                leaseMs:
+                    grantSnapshot.ownerInstanceId === undefined && options?.ownerlessGrantGraceMs !== undefined ?
+                        Math.min(grantSnapshot.leaseMs, options.ownerlessGrantGraceMs)
+                    :   grantSnapshot.leaseMs,
+                ownerInstanceId: grantSnapshot.ownerInstanceId
+            });
+            bucket.inflight += 1;
+        }
     }
 
     /**
@@ -396,5 +536,39 @@ export class RateLimitStore {
         while (state.reservations.length > 0 && state.reservations[0]!.endAt <= now) {
             state.reservations.shift();
         }
+    }
+
+    private exportPaceState(
+        state: PaceState | undefined,
+        now: number,
+        allowedGrantIds: ReadonlySet<string>
+    ): RateLimitPaceStateSnapshot | undefined {
+        if (!state) {
+            return undefined;
+        }
+        this.pruneExpiredReservations(state, now);
+        const reservations = state.reservations.filter(reservation => allowedGrantIds.has(reservation.grantId));
+        if (reservations.length === 0) {
+            return undefined;
+        }
+        return {
+            emissionIntervalMs: state.emissionIntervalMs,
+            reservations: reservations.map(reservation => ({
+                grantId: reservation.grantId,
+                endAt: reservation.endAt
+            }))
+        };
+    }
+
+    private importPaceState(snapshot: RateLimitPaceStateSnapshot | undefined, now: number): PaceState | undefined {
+        if (!snapshot) {
+            return undefined;
+        }
+        return {
+            emissionIntervalMs: snapshot.emissionIntervalMs,
+            reservations: snapshot.reservations
+                .filter(reservation => reservation.endAt > now)
+                .map(reservation => ({ grantId: reservation.grantId, endAt: reservation.endAt }))
+        };
     }
 }

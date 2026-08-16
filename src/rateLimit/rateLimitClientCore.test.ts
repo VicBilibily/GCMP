@@ -164,16 +164,13 @@ test('排队顺位更新会透传给当前 acquire', async () => {
     core.dispose();
 });
 
-test('持续顺位进展不会降级，进展停止后按超时降级', async () => {
+test('收到排队顺位确认后可等待超过单次超时窗口直到权威授予', async () => {
     const { core, sent, grant, queueUpdate } = makeCore({ timeout: 30 });
     const promise = core.acquire('bucket', DIMS, COSTS);
     const requestId = sent[0]!.requestId;
 
-    // 每 20ms 一次进展（小于 30ms 超时），不应降级
-    for (let i = 0; i < 4; i++) {
-        queueUpdate({ authorityTerm: 'leader-a:1', requestId, queuePosition: 4 - i });
-        await new Promise(resolve => setTimeout(resolve, 20));
-    }
+    queueUpdate({ authorityTerm: 'leader-a:1', requestId, queuePosition: 4 });
+    await new Promise(resolve => setTimeout(resolve, 60));
     grant({ authorityTerm: 'leader-a:1', requestId, waitMs: 0, grantId: 'g1' });
 
     const outcome = await promise;
@@ -181,29 +178,21 @@ test('持续顺位进展不会降级，进展停止后按超时降级', async ()
     core.dispose();
 });
 
-test('顺位更新后长期无新进展仍会按超时降级', async () => {
-    const { core, sent, queueUpdate } = makeCore({ timeout: 30 });
-    const promise = core.acquire('bucket', DIMS, COSTS);
-    const requestId = sent[0]!.requestId;
-
-    queueUpdate({ authorityTerm: 'leader-a:1', requestId, queuePosition: 2 });
-    // 之后无任何进展：应在更新后约 30ms 降级，而非永久等待
-    const outcome = await promise;
-    assert.deepEqual(outcome, { status: 'degraded', reason: 'timeout' });
-    core.dispose();
-});
-
-test('同值顺位事件不算进展，不重置无进展超时', async () => {
-    const { core, sent, queueUpdate } = makeCore({ timeout: 30 });
+test('同值顺位事件不会导致已确认排队请求误降级', async () => {
+    const { core, sent, grant, queueUpdate } = makeCore({ timeout: 30 });
     const promise = core.acquire('bucket', DIMS, COSTS);
     const requestId = sent[0]!.requestId;
 
     queueUpdate({ authorityTerm: 'leader-a:1', requestId, queuePosition: 2 });
     await new Promise(resolve => setTimeout(resolve, 20));
-    queueUpdate({ authorityTerm: 'leader-a:1', requestId, queuePosition: 2 }); // 同值：不重置
-    // 自首次进展起约 30ms 即降级，不被同值 churn 保活
+    queueUpdate({ authorityTerm: 'leader-a:1', requestId, queuePosition: 2 });
+    await new Promise(resolve => setTimeout(resolve, 20));
+    queueUpdate({ authorityTerm: 'leader-a:1', requestId, queuePosition: 2 });
+    await new Promise(resolve => setTimeout(resolve, 20));
+    grant({ authorityTerm: 'leader-a:1', requestId, waitMs: 0, grantId: 'g1' });
+
     const outcome = await promise;
-    assert.deepEqual(outcome, { status: 'degraded', reason: 'timeout' });
+    assert.deepEqual(outcome, { status: 'granted', grantId: 'g1', waitMs: 0, authorityTerm: 'leader-a:1' });
     core.dispose();
 });
 
@@ -259,12 +248,7 @@ test('parallel=2 时第三个跨实例请求可在排队超时窗口后继续等
     grant({ authorityTerm: 'leader-a:1', requestId: r2, waitMs: 0, grantId: 'g2' });
     queueUpdate({ authorityTerm: 'leader-a:1', requestId: r3, queuePosition: 4 });
 
-    // 排队期间顺位持续前进，等待可超过单次超时窗口
-    await new Promise(resolve => setTimeout(resolve, 20));
-    queueUpdate({ authorityTerm: 'leader-a:1', requestId: r3, queuePosition: 3 });
-    await new Promise(resolve => setTimeout(resolve, 20));
-    queueUpdate({ authorityTerm: 'leader-a:1', requestId: r3, queuePosition: 2 });
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await new Promise(resolve => setTimeout(resolve, 60));
     grant({ authorityTerm: 'leader-a:1', requestId: r3, waitMs: 0, grantId: 'g3' });
 
     assert.deepEqual(await p1, { status: 'granted', grantId: 'g1', waitMs: 0, authorityTerm: 'leader-a:1' });

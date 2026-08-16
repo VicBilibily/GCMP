@@ -29,6 +29,8 @@ test('parseIncrementalEvents reconstructs a split NDJSON event across chunks', (
 
 test('rate limit event types are registered in the event type set', () => {
     for (const type of [
+        'liveMetricsSnapshotRequested',
+        'liveMetricsSnapshotSync',
         'remoteInstanceDisconnected',
         'rateLimitAcquireRequested',
         'rateLimitAcquireGranted',
@@ -43,6 +45,8 @@ test('rate limit event types are registered in the event type set', () => {
 
 test('parseEventsFromBuffer accepts rate limit events', () => {
     const lines = [
+        '{"type":"liveMetricsSnapshotRequested","payload":{},"timestamp":0,"senderInstanceId":"follower-a"}',
+        '{"type":"liveMetricsSnapshotSync","payload":{"targetInstanceId":"follower-a","authorityTerm":"leader-a:1","entries":[{"event":{"type":"rateLimitWaiting","requestId":"req-1","requestStartTime":1000,"providerName":"GCMP","modelName":"test-model","queuePosition":2},"sourceInstanceId":"leader-a"}]},"timestamp":0,"senderInstanceId":"leader-a"}',
         '{"type":"remoteInstanceDisconnected","payload":{"instanceId":"follower-a"},"timestamp":0,"senderInstanceId":"leader"}',
         '{"type":"rateLimitAcquireRequested","payload":{"authorityTerm":"leader-a:1","requestId":"r1","bucketKey":"k","costs":{"requests":1,"tokens":10},"dims":{"rpm":60}},"timestamp":1,"senderInstanceId":"a"}',
         '{"type":"rateLimitAcquireGranted","payload":{"authorityTerm":"leader-a:1","requestId":"r1","waitMs":0,"grantId":"g1"},"timestamp":2,"senderInstanceId":"b"}',
@@ -54,13 +58,15 @@ test('parseEventsFromBuffer accepts rate limit events', () => {
 
     const { events, remaining } = parseEventsFromBuffer(lines + '\n');
 
-    assert.equal(events.length, 7);
-    assert.equal(events[0]?.type, 'remoteInstanceDisconnected');
-    assert.equal(events[1]?.type, 'rateLimitAcquireRequested');
-    assert.equal(events[2]?.type, 'rateLimitAcquireGranted');
-    assert.equal(events[3]?.type, 'rateLimitQueueUpdated');
-    assert.equal(events[4]?.type, 'rateLimitAcquireCancelled');
-    assert.equal(events[5]?.type, 'rateLimitReleased');
-    assert.equal(events[6]?.type, 'rateLimitLeaseRenewed');
+    assert.equal(events.length, 9);
+    assert.equal(events[0]?.type, 'liveMetricsSnapshotRequested');
+    assert.equal(events[1]?.type, 'liveMetricsSnapshotSync');
+    assert.equal(events[2]?.type, 'remoteInstanceDisconnected');
+    assert.equal(events[3]?.type, 'rateLimitAcquireRequested');
+    assert.equal(events[4]?.type, 'rateLimitAcquireGranted');
+    assert.equal(events[5]?.type, 'rateLimitQueueUpdated');
+    assert.equal(events[6]?.type, 'rateLimitAcquireCancelled');
+    assert.equal(events[7]?.type, 'rateLimitReleased');
+    assert.equal(events[8]?.type, 'rateLimitLeaseRenewed');
     assert.equal(remaining, '');
 });
