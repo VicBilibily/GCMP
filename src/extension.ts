@@ -294,7 +294,9 @@ export async function activate(context: vscode.ExtensionContext) {
                 );
             }),
             InterInstanceBus.subscribe('remoteInstanceDisconnected', event => {
-                clearRemoteLiveMetrics((event.payload as { instanceId: string }).instanceId);
+                const instanceId = (event.payload as { instanceId: string }).instanceId;
+                clearRemoteLiveMetrics(instanceId);
+                RateLimiter.handleInstanceDisconnected(instanceId);
             })
         );
 
@@ -312,7 +314,10 @@ export async function activate(context: vscode.ExtensionContext) {
         // 订阅限流请求/取消/释放：仅 Leader 响应（内部已判断）
         context.subscriptions.push(
             InterInstanceBus.subscribe('rateLimitAcquireRequested', event => {
-                RateLimiter.handleAcquireRequest(event.payload as RateLimitAcquireRequestedEvent['payload']);
+                RateLimiter.handleAcquireRequest(
+                    event.payload as RateLimitAcquireRequestedEvent['payload'],
+                    event.senderInstanceId
+                );
             }),
             InterInstanceBus.subscribe('rateLimitReleased', event => {
                 RateLimiter.handleRemoteRelease(event.payload as RateLimitReleasedEvent['payload']);

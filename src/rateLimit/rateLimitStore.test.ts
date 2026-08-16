@@ -443,3 +443,46 @@ test('配置热更新：维度被移除后不再限流', () => {
     }
     assert.equal(r3.waitMs, 0);
 });
+
+test('reclaimInstance 回收断线实例的 grant 并放行 FIFO 队首', () => {
+    const s = store();
+    const dims = { parallel: 1 };
+    const r1 = s.acquire('r1', 'k', dims, { requests: 1, tokens: 0 }, 0, { ownerInstanceId: 'follower-a' });
+    if (r1.kind !== 'granted') {
+        assert.fail('r1 should be granted');
+    }
+    const r2 = s.acquire('r2', 'k', dims, { requests: 1, tokens: 0 }, 0, { ownerInstanceId: 'follower-b' });
+    assert.equal(r2.kind, 'queued');
+
+    const { granted, affectedBucketKeys } = s.reclaimInstance('follower-a', 100);
+    assert.deepEqual(affectedBucketKeys, ['k']);
+    assert.equal(granted.length, 1);
+    assert.equal(granted[0]?.requestId, 'r2'); // 幽灵 grant 回收后队首被放行
+    assert.equal(s.stats('k', 100)?.inflight, 1);
+});
+
+test('reclaimInstance 移除断线实例的排队项', () => {
+    const s = store();
+    const dims = { parallel: 1 };
+    s.acquire('r1', 'k', dims, { requests: 1, tokens: 0 }, 0);
+    s.acquire('r2', 'k', dims, { requests: 1, tokens: 0 }, 0, { ownerInstanceId: 'follower-a' });
+    s.acquire('r3', 'k', dims, { requests: 1, tokens: 0 }, 0);
+    assert.equal(s.stats('k', 0)?.pending, 2);
+
+    const { granted, affectedBucketKeys } = s.reclaimInstance('follower-a', 0);
+    assert.equal(granted.length, 0);
+    assert.deepEqual(affectedBucketKeys, ['k']);
+    assert.deepEqual(
+        s.getPendingPositions('k').map(p => p.requestId),
+        ['r3']
+    );
+});
+
+test('reclaimInstance 对无该实例状态时为空操作', () => {
+    const s = store();
+    s.acquire('r1', 'k', { parallel: 1 }, { requests: 1, tokens: 0 }, 0);
+    const { granted, affectedBucketKeys } = s.reclaimInstance('ghost', 0);
+    assert.equal(granted.length, 0);
+    assert.equal(affectedBucketKeys.length, 0);
+    assert.equal(s.stats('k', 0)?.inflight, 1);
+});

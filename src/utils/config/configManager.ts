@@ -645,6 +645,29 @@ export class ConfigManager {
     }
 
     /**
+     * 解析模型级别的限流配置（不含 provider 级合并，调用方自行字段级合并）。
+     *
+     * 查找顺序沿 lookupKeys（精确 key → 根 provider → compatible）逐层查找模型：
+     * 每层先查该 key 的 overrides.models（可覆盖或新增模型，与 applyProviderOverrides 语义一致），
+     * 再查 configProviders 预置模型；首个命中即返回。
+     */
+    static getModelRateLimitConfig(providerKey: string, modelId: string): RateLimitConfig | undefined {
+        const overrides = this.getProviderOverrides();
+        for (const key of this.getProxyLookupKeys(providerKey)) {
+            const overrideLimit = overrides[key]?.models?.find(model => model.id === modelId)?.limit;
+            if (overrideLimit) {
+                return overrideLimit;
+            }
+            const baseConfig = configProviders[key as keyof typeof configProviders] as ProviderConfig | undefined;
+            const baseLimit = baseConfig?.models.find(model => model.id === modelId)?.limit;
+            if (baseLimit) {
+                return baseLimit;
+            }
+        }
+        return undefined;
+    }
+
+    /**
      * 解析 provider 级别的 retry 配置（字段级合并）。
      *
      * enabled 合并规则：override → explicit global → preset → global default

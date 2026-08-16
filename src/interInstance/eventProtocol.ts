@@ -236,7 +236,7 @@ export interface RateLimitAcquireRequestedEvent extends InterInstanceEventBase {
         bucketKey: string;
         /** 本次申请的成本 */
         costs: RateLimitCosts;
-        /** 限流维度配置（随请求携带，Leader 侧桶懒创建/更新） */
+        /** 限流维度配置（随请求携带供旧版本 Leader 使用；新版本 Leader 以本机配置重算为准） */
         dims: RateLimitDimensions;
     };
 }

@@ -57,8 +57,10 @@ interface PendingWaiter {
     authorityTerm: string;
     resolve: (outcome: AcquireOutcome) => void;
     settled: boolean;
+    timeoutMs: number;
     timeout?: NodeJS.Timeout;
     cancelCheck?: NodeJS.Timeout;
+    lastQueuePosition?: number;
     onQueueUpdate?: (msg: RateLimitQueueUpdateMessage) => void;
 }
 
@@ -107,23 +109,10 @@ export class RateLimitClientCore {
                 authorityTerm,
                 resolve,
                 settled: false,
-                onQueueUpdate: options?.onQueueUpdate,
-                timeout: setTimeout(() => {
-                    if (!waiter.settled) {
-                        waiter.settled = true;
-                        this.pending.delete(requestId);
-                        if (waiter.cancelCheck) {
-                            clearInterval(waiter.cancelCheck);
-                        }
-                        this.options.sendCancel?.({
-                            authorityTerm: waiter.authorityTerm,
-                            requestId,
-                            bucketKey: waiter.bucketKey
-                        });
-                        resolve({ status: 'degraded', reason: 'timeout' });
-                    }
-                }, timeout)
+                timeoutMs: timeout,
+                onQueueUpdate: options?.onQueueUpdate
             };
+            waiter.timeout = this.armTimeout(requestId, waiter);
             this.pending.set(requestId, waiter);
             this.options.send({ authorityTerm, requestId, bucketKey, dims, costs });
             // 任期切换不会主动推送到此纯逻辑模块，等待中需要本地轮询观察。
@@ -188,6 +177,26 @@ export class RateLimitClientCore {
         return outcome;
     }
 
+    /** 等待回执超时：无进展满 timeoutMs 即降级并通知 Leader 取消排队 */
+    private armTimeout(requestId: string, waiter: PendingWaiter): NodeJS.Timeout {
+        return setTimeout(() => {
+            if (waiter.settled) {
+                return;
+            }
+            waiter.settled = true;
+            this.pending.delete(requestId);
+            if (waiter.cancelCheck) {
+                clearInterval(waiter.cancelCheck);
+            }
+            this.options.sendCancel?.({
+                authorityTerm: waiter.authorityTerm,
+                requestId,
+                bucketKey: waiter.bucketKey
+            });
+            waiter.resolve({ status: 'degraded', reason: 'timeout' });
+        }, waiter.timeoutMs);
+    }
+
     /**
      * 回执处理：首次匹配即 settle，后续重复回执忽略
      */
@@ -233,9 +242,14 @@ export class RateLimitClientCore {
         if (msg.authorityTerm !== waiter.authorityTerm) {
             return;
         }
-        if (waiter.timeout) {
-            clearTimeout(waiter.timeout);
-            waiter.timeout = undefined;
+        // 仅顺位实际前进才算进展并重置无进展超时；同值事件只透传，避免被持续 churn 保活
+        const progressed = waiter.lastQueuePosition === undefined || msg.queuePosition < waiter.lastQueuePosition;
+        waiter.lastQueuePosition = msg.queuePosition;
+        if (progressed) {
+            if (waiter.timeout) {
+                clearTimeout(waiter.timeout);
+            }
+            waiter.timeout = this.armTimeout(msg.requestId, waiter);
         }
         if (!waiter.onQueueUpdate) {
             return;

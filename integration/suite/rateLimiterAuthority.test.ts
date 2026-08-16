@@ -12,7 +12,7 @@ interface RateLimiterInternals {
         dims: { rpm: number },
         costs: { requests: number; tokens: number },
         options?: unknown,
-        requeueAfterAuthorityChange?: boolean
+        authorityChangeAttempts?: number
     ) => Promise<RateLimitHandle | undefined>;
     acquireViaIpc: (...args: unknown[]) => Promise<RateLimitHandle | undefined>;
     acquireViaLocalStore: (...args: unknown[]) => Promise<RateLimitHandle | undefined>;
@@ -145,7 +145,7 @@ suite('RateLimiter authority change', () => {
                 { rpm: 60 },
                 { requests: 1, tokens: 0 },
                 undefined,
-                true
+                1
             );
 
             assert.equal(waited, 1);

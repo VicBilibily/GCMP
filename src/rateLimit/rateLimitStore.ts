@@ -46,11 +46,14 @@ interface GrantRecord {
     costs: RateLimitCosts;
     expiresAt: number;
     leaseMs: number;
+    /** 发起方实例 ID（本地请求为空），实例断线时据此回收 */
+    ownerInstanceId?: string;
 }
 
 interface PendingEntry {
     requestId: string;
     costs: RateLimitCosts;
+    ownerInstanceId?: string;
 }
 
 interface PaceReservation {
@@ -103,13 +106,15 @@ export class RateLimitStore {
 
     /**
      * 申请配额（同步；并发满时排队，由 release/sweep 触发后续授予）
+     * @param opts.ownerInstanceId 发起方实例 ID，用于断线回收
      */
     acquire(
         requestId: string,
         bucketKey: string,
         dims: RateLimitDimensions,
         costs: RateLimitCosts,
-        now: number
+        now: number,
+        opts?: { ownerInstanceId?: string }
     ): AcquireResult {
         const bucket = this.getOrCreateBucket(bucketKey, dims);
         bucket.dims = dims;
@@ -120,12 +125,13 @@ export class RateLimitStore {
             // 已有队列必须优先，避免容量变化时新请求插队
             bucket.pending.push({
                 requestId,
-                costs
+                costs,
+                ownerInstanceId: opts?.ownerInstanceId
             });
             return { kind: 'queued', queuePosition: bucket.pending.length };
         }
 
-        return this.grantNow(requestId, bucketKey, bucket, costs, now);
+        return this.grantNow(requestId, bucketKey, bucket, costs, now, opts?.ownerInstanceId);
     }
 
     /**
@@ -218,6 +224,36 @@ export class RateLimitStore {
         return [];
     }
 
+    /**
+     * 回收指定实例的全部排队项与持有 grant（实例断线时调用，避免幽灵占用阻塞 FIFO）
+     */
+    reclaimInstance(ownerInstanceId: string, now: number): { granted: PendingGrant[]; affectedBucketKeys: string[] } {
+        const granted: PendingGrant[] = [];
+        const affected = new Set<string>();
+        for (const [bucketKey, bucket] of this.buckets) {
+            const before = bucket.pending.length;
+            bucket.pending = bucket.pending.filter(entry => entry.ownerInstanceId !== ownerInstanceId);
+            if (bucket.pending.length !== before) {
+                affected.add(bucketKey);
+            }
+        }
+        const grantIds: string[] = [];
+        for (const [grantId, grant] of this.grants) {
+            if (grant.ownerInstanceId === ownerInstanceId) {
+                grantIds.push(grantId);
+            }
+        }
+        for (const grantId of grantIds) {
+            const grant = this.grants.get(grantId);
+            if (!grant) {
+                continue;
+            }
+            affected.add(grant.bucketKey);
+            granted.push(...this.release(grantId, grant.costs, now));
+        }
+        return { granted, affectedBucketKeys: [...affected] };
+    }
+
     private getOrCreateBucket(bucketKey: string, dims: RateLimitDimensions): BucketState {
         let bucket = this.buckets.get(bucketKey);
         if (!bucket) {
@@ -261,7 +297,8 @@ export class RateLimitStore {
         bucketKey: string,
         bucket: BucketState,
         costs: RateLimitCosts,
-        now: number
+        now: number,
+        ownerInstanceId?: string
     ): { kind: 'granted'; grantId: string; waitMs: number } {
         const grantId = `grant-${this.instanceTag}-${++this.grantSeq}`;
         const waitMs = Math.max(
@@ -276,7 +313,8 @@ export class RateLimitStore {
             bucketKey,
             costs: { ...costs },
             expiresAt: now + waitMs + leaseMs,
-            leaseMs
+            leaseMs,
+            ownerInstanceId
         });
         return { kind: 'granted', grantId, waitMs };
     }
@@ -301,7 +339,7 @@ export class RateLimitStore {
         while (bucket.pending.length > 0 && (parallel === undefined || bucket.inflight < parallel)) {
             const entry = bucket.pending[0];
             bucket.pending.shift();
-            const result = this.grantNow(entry.requestId, bucketKey, bucket, entry.costs, now);
+            const result = this.grantNow(entry.requestId, bucketKey, bucket, entry.costs, now, entry.ownerInstanceId);
             granted.push({ requestId: entry.requestId, bucketKey, grantId: result.grantId, waitMs: result.waitMs });
         }
         return granted;

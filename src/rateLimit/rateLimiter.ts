@@ -16,6 +16,7 @@ import type {
 } from '../interInstance';
 import { LeaderElectionService } from '../status/leaderElectionService';
 import type { RateLimitWaitScope } from '../types/sharedTypes';
+import { ConfigManager } from '../utils/config/configManager';
 import { StatusLogger } from '../utils/runtime/statusLogger';
 import { Logger } from '../utils/runtime/logger';
 import { t } from '../utils/runtime/l10n';
@@ -68,6 +69,8 @@ const SWEEP_INTERVAL_MS = 1_000;
 const MAX_SLEEP_CHUNK_MS = 2_147_483_647;
 const MIN_LEASE_RENEW_INTERVAL_MS = 250;
 const AUTHORITY_TRANSITION_TIMEOUT_MS = 30_000;
+/** 单次 acquire 链上允许的最大任期变更重试次数，超出后降级本地桶，避免选举抖动时自旋 */
+const MAX_AUTHORITY_CHANGE_RETRIES = 3;
 
 /**
  * 跨实例限流器（静态门面）
@@ -193,33 +196,37 @@ export class RateLimiter {
         dims: RateLimitDimensions,
         costs: RateLimitCosts,
         options?: RateLimitAcquireOptions,
-        requeueAfterAuthorityChange: boolean = false
+        authorityChangeAttempts: number = 0
     ): Promise<RateLimitHandle | undefined> {
         if (options?.token?.isCancellationRequested) {
             throw new vscode.CancellationError();
         }
         if (LeaderElectionService.isLeader()) {
-            return this.acquireViaLeaderStore(bucketKey, dims, costs, options);
+            return this.acquireViaLeaderStore(bucketKey, dims, costs, options, authorityChangeAttempts);
         }
-        if (requeueAfterAuthorityChange && !this.hasUsableAuthorityTransport()) {
+        if (authorityChangeAttempts >= MAX_AUTHORITY_CHANGE_RETRIES) {
+            this.enterDegraded('authority change storm');
+            return this.acquireViaLocalStore(bucketKey, dims, costs, options, authorityChangeAttempts);
+        }
+        if (authorityChangeAttempts > 0 && !this.hasUsableAuthorityTransport()) {
             const recovered = await this.waitForAuthorityRecovery(options?.token);
             if (recovered) {
-                return this.acquireForCurrentRole(bucketKey, dims, costs, options, true);
+                return this.acquireForCurrentRole(bucketKey, dims, costs, options, authorityChangeAttempts);
             }
             this.enterDegraded('authority transition timeout');
-            return this.acquireViaLocalStore(bucketKey, dims, costs, options);
+            return this.acquireViaLocalStore(bucketKey, dims, costs, options, authorityChangeAttempts);
         }
-        if (this.shouldUseIpc() || (requeueAfterAuthorityChange && this.hasUsableAuthorityTransport())) {
-            const handle = await this.acquireViaIpc(bucketKey, dims, costs, options);
+        if (this.shouldUseIpc() || (authorityChangeAttempts > 0 && this.hasUsableAuthorityTransport())) {
+            const handle = await this.acquireViaIpc(bucketKey, dims, costs, options, authorityChangeAttempts);
             if (handle) {
                 return handle;
             }
             // IPC 失败已在 acquireViaIpc 内进入降级
             if (LeaderElectionService.isLeader()) {
-                return this.acquireViaLeaderStore(bucketKey, dims, costs, options);
+                return this.acquireViaLeaderStore(bucketKey, dims, costs, options, authorityChangeAttempts);
             }
         }
-        return this.acquireViaLocalStore(bucketKey, dims, costs, options);
+        return this.acquireViaLocalStore(bucketKey, dims, costs, options, authorityChangeAttempts);
     }
 
     /**
@@ -255,17 +262,19 @@ export class RateLimiter {
 
     /**
      * Leader 处理远端 acquire 请求（extension.ts 订阅挂接）
+     * dims 以 Leader 本机配置重算为准（保证配置热更新生效），请求侧 dims 仅兼容旧版本协议
      */
-    static handleAcquireRequest(payload: RateLimitAcquireRequestedEvent['payload']): void {
+    static handleAcquireRequest(payload: RateLimitAcquireRequestedEvent['payload'], senderInstanceId?: string): void {
         if (!LeaderElectionService.isLeader() || payload.authorityTerm !== LeaderElectionService.getAuthorityTerm()) {
             return;
         }
         const result = this.leaderStore.acquire(
             payload.requestId,
             payload.bucketKey,
-            payload.dims,
+            this.resolveAuthoritativeDims(payload.bucketKey),
             payload.costs,
-            Date.now()
+            Date.now(),
+            { ownerInstanceId: senderInstanceId }
         );
         if (result.kind === 'granted') {
             this.publishGranted(payload.authorityTerm, payload.requestId, result.waitMs, result.grantId);
@@ -273,6 +282,38 @@ export class RateLimiter {
             this.publishQueueUpdated(payload.authorityTerm, payload.requestId, result.queuePosition);
         }
         // queued：等待 release/sweep 触发授予后统一回执
+    }
+
+    /**
+     * 远端实例断线：Leader 回收其排队项与持有 grant，避免幽灵占用阻塞 FIFO（extension.ts 订阅挂接）
+     */
+    static handleInstanceDisconnected(instanceId: string): void {
+        if (!this.initialized || !LeaderElectionService.isLeader()) {
+            return;
+        }
+        const { granted, affectedBucketKeys } = this.leaderStore.reclaimInstance(instanceId, Date.now());
+        if (affectedBucketKeys.length === 0) {
+            return;
+        }
+        StatusLogger.info(
+            `[RateLimiter] Reclaimed rate-limit state of disconnected instance ${instanceId} (${granted.length} granted)`
+        );
+        this.distributeLeaderGrants(granted);
+        for (const bucketKey of affectedBucketKeys) {
+            const positions = this.leaderStore.getPendingPositions(bucketKey);
+            this.notifyQueuePositionUpdates(positions, this.leaderWaiters, 'leader');
+            this.publishQueuePositionUpdates(positions);
+        }
+    }
+
+    /** 以 Leader 本机配置解析桶的权威维度（provider 级 + 模型级字段覆盖） */
+    private static resolveAuthoritativeDims(bucketKey: string): RateLimitDimensions {
+        const separatorIndex = bucketKey.indexOf('::');
+        const providerKey = separatorIndex >= 0 ? bucketKey.slice(0, separatorIndex) : bucketKey;
+        const modelId = separatorIndex >= 0 ? bucketKey.slice(separatorIndex + 2) : undefined;
+        const providerLimit = ConfigManager.getProviderRateLimitConfig(providerKey);
+        const modelLimit = modelId ? ConfigManager.getModelRateLimitConfig(providerKey, modelId) : undefined;
+        return { ...providerLimit, ...modelLimit };
     }
 
     /**
@@ -309,7 +350,8 @@ export class RateLimiter {
         bucketKey: string,
         dims: RateLimitDimensions,
         costs: RateLimitCosts,
-        options?: RateLimitAcquireOptions
+        options?: RateLimitAcquireOptions,
+        authorityChangeAttempts: number = 0
     ): Promise<RateLimitHandle | undefined> {
         const leaseMs = DEFAULT_RATE_LIMIT_LEASE_MS;
         const requestId = crypto.randomUUID();
@@ -329,7 +371,15 @@ export class RateLimiter {
                 authoritative: true
             };
             this.startLeaseHeartbeat(handle);
-            return this.sleepOrRefund(result.waitMs, handle, options?.token, bucketKey, dims, options);
+            return this.sleepOrRefund(
+                result.waitMs,
+                handle,
+                options?.token,
+                bucketKey,
+                dims,
+                options,
+                authorityChangeAttempts
+            );
         }
 
         // queued：挂起直到 release/sweep 授予，按 FIFO 等待放行
@@ -343,7 +393,7 @@ export class RateLimiter {
             throw new vscode.CancellationError();
         }
         if (grant === 'role-changed') {
-            return this.acquireForCurrentRole(bucketKey, dims, costs, options, true);
+            return this.acquireForCurrentRole(bucketKey, dims, costs, options, authorityChangeAttempts + 1);
         }
         Logger.debug(
             `[RateLimit] leader acquire granted: bucket=${bucketKey}, waitMs=${grant.waitMs}, costs=${JSON.stringify(costs)}`
@@ -359,7 +409,15 @@ export class RateLimiter {
             authoritative: true
         };
         this.startLeaseHeartbeat(handle);
-        return this.sleepOrRefund(grant.waitMs, handle, options?.token, bucketKey, dims, options);
+        return this.sleepOrRefund(
+            grant.waitMs,
+            handle,
+            options?.token,
+            bucketKey,
+            dims,
+            options,
+            authorityChangeAttempts
+        );
     }
 
     /** Follower：IPC 请求-回执；失败返回 undefined 并进入降级 */
@@ -367,7 +425,8 @@ export class RateLimiter {
         bucketKey: string,
         dims: RateLimitDimensions,
         costs: RateLimitCosts,
-        options?: RateLimitAcquireOptions
+        options?: RateLimitAcquireOptions,
+        authorityChangeAttempts: number = 0
     ): Promise<RateLimitHandle | undefined> {
         if (!this.clientCore) {
             return undefined;
@@ -394,7 +453,7 @@ export class RateLimiter {
             throw new vscode.CancellationError();
         }
         if (outcome.status === 'authority-changed') {
-            return this.acquireForCurrentRole(bucketKey, dims, costs, options, true);
+            return this.acquireForCurrentRole(bucketKey, dims, costs, options, authorityChangeAttempts + 1);
         }
         if (outcome.status === 'degraded') {
             if (LeaderElectionService.isLeader()) {
@@ -403,7 +462,7 @@ export class RateLimiter {
             if (outcome.reason === 'authority-unavailable') {
                 const recovered = await this.waitForAuthorityRecovery(options?.token);
                 if (recovered) {
-                    return this.acquireForCurrentRole(bucketKey, dims, costs, options, true);
+                    return this.acquireForCurrentRole(bucketKey, dims, costs, options, authorityChangeAttempts + 1);
                 }
             }
             this.enterDegraded(outcome.reason);
@@ -430,7 +489,8 @@ export class RateLimiter {
             options?.token,
             bucketKey,
             dims,
-            options
+            options,
+            authorityChangeAttempts
         );
         this.exitDegraded('ipc acquire succeeded');
         return settledHandle;
@@ -441,7 +501,8 @@ export class RateLimiter {
         bucketKey: string,
         dims: RateLimitDimensions,
         costs: RateLimitCosts,
-        options?: RateLimitAcquireOptions
+        options?: RateLimitAcquireOptions,
+        authorityChangeAttempts: number = 0
     ): Promise<RateLimitHandle | undefined> {
         const leaseMs = DEFAULT_RATE_LIMIT_LEASE_MS;
         const requestId = crypto.randomUUID();
@@ -464,7 +525,15 @@ export class RateLimiter {
                 authoritative: false
             };
             this.startLeaseHeartbeat(handle);
-            return this.sleepOrRefund(result.waitMs, handle, options?.token, bucketKey, dims, options);
+            return this.sleepOrRefund(
+                result.waitMs,
+                handle,
+                options?.token,
+                bucketKey,
+                dims,
+                options,
+                authorityChangeAttempts
+            );
         }
 
         Logger.debug(`[RateLimit] local acquire queued: bucket=${bucketKey}, costs=${JSON.stringify(costs)}`);
@@ -483,7 +552,15 @@ export class RateLimiter {
         }
         const handle: RateLimitHandle = { grantId: grant.grantId, costs, leaseMs, authoritative: false };
         this.startLeaseHeartbeat(handle);
-        return this.sleepOrRefund(grant.waitMs, handle, options?.token, bucketKey, dims, options);
+        return this.sleepOrRefund(
+            grant.waitMs,
+            handle,
+            options?.token,
+            bucketKey,
+            dims,
+            options,
+            authorityChangeAttempts
+        );
     }
 
     /** Leader 自身请求 queued 时的挂起等待（仅取消可打断，不超时） */
@@ -572,7 +649,8 @@ export class RateLimiter {
         token?: vscode.CancellationToken,
         bucketKey?: string,
         dims?: RateLimitDimensions,
-        options?: RateLimitAcquireOptions
+        options?: RateLimitAcquireOptions,
+        authorityChangeAttempts: number = 0
     ): Promise<RateLimitHandle | undefined> {
         if (waitMs <= 0) {
             return handle;
@@ -583,7 +661,7 @@ export class RateLimiter {
         } catch (error) {
             if (error instanceof AuthorityChangedError && bucketKey && dims) {
                 this.release(handle, { requests: handle.costs.requests, tokens: handle.costs.tokens });
-                return this.acquireForCurrentRole(bucketKey, dims, handle.costs, options, true);
+                return this.acquireForCurrentRole(bucketKey, dims, handle.costs, options, authorityChangeAttempts + 1);
             }
             this.release(handle, { requests: handle.costs.requests, tokens: handle.costs.tokens });
             throw error;
