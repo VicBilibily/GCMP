@@ -296,6 +296,41 @@ providerOverrides["retry.{subProvider}"] → providerOverrides.retry → 内置�
 | `preset.maxAttempts = 0` | 不会压低全局 `maxAttempts`；若需强制禁用应使用 override |
 | `enabled = false`        | 按 enabled 字段合并优先级生效                           |
 
+#### 提供商级别限流配置（limit）
+
+通过 `gcmp.providerOverrides.{provider}.limit` 可为每个提供商独立设置请求限流。支持四个维度，`0` 或缺省表示该维度不限；任一维度触顶即自主延迟（匀速 pacing）或排队等待。
+
+| 字段       | 含义                                             |
+| ---------- | ------------------------------------------------ |
+| `rpm`      | 每分钟请求数上限（匀速 pacing）                  |
+| `rps`      | 每秒请求数上限（匀速 pacing）                    |
+| `tpm`      | 每分钟 token 数上限（按输入估算，匀速 pacing）   |
+| `parallel` | 最大并发在途请求数，超限请求按 FIFO 排队等待槽位 |
+
+```json
+{
+    "gcmp.providerOverrides": {
+        "dashscope": {
+            "limit": { "rpm": 60, "parallel": 3 },
+            // 子 provider 独立限流（优先级更高）
+            "limit.dashscope-coding": { "rpm": 30 },
+            "models": [
+                // 模型级限流：字段级覆盖 provider 级同名维度，并使用独立的 provider::model 限流桶
+                { "id": "deepseek-v4-pro", "limit": { "tpm": 100000 } }
+            ]
+        }
+    }
+}
+```
+
+**合并优先级**（与 retry 一致，字段级合并）：
+
+```
+providerOverrides["limit.{subProvider}"] → providerOverrides.limit → 内置预置
+```
+
+**跨实例行为**：多个 VS Code 窗口共享 Leader 权威限流桶（窗口间自动选举），维度以 Leader 本机配置为准，配置修改即时生效；Leader 不可用时自动降级为单窗口本地桶并每 60 秒探测恢复，恢复后自动回到跨实例严格模式；窗口关闭或断线时，其排队请求与持有的配额会被自动回收，不会阻塞其他窗口。Remote（SSH/WSL 等）场景跨实例通道不可用，各窗口始终使用本地桶。
+
 > 各功能专属设置（如 `gcmp.commit.enabled`、`gcmp.vision.model`、`gcmp.zhipu.search.enableMCP`）分别在其对应的功能章节中说明，不在此处展开。
 
 #### 调试与 HAR 录制
@@ -975,13 +1010,30 @@ GCMP 内置一组专用视觉分析工具，用于把图片/截图转换为可�
 
 </details>
 
+## 🗝️ API Key 管理面板
+
+GCMP 提供统一的 API Key 管理面板，可按提供商/槽位维护多套配置（站点 + Key + 备注），并在多套配置之间随时切换。
+
+### 如何使用
+
+通过 VS Code 命令面板执行 `GCMP: API Key 管理`。
+
+### 主要特性
+
+- **多配置集管理**：每个提供商槽位可保存多套配置（自定义名称 + 站点 + Key + 备注），支持新增、修改、删除、激活与停用；面板内操作后状态栏即时刷新，模型列表缓存按槽位精确失效。
+- **CLI 认证并入**：Codex / Grok 的认证状态与订阅余量直接在面板内展示，支持打开终端登录、导入/刷新凭证；移除认证改为在文件管理器中定位凭证文件，由用户手动删除。
+- **Gist 备份与恢复**：配置集可上传至 GitHub Secret Gist 备份并跨设备恢复，使用独立文件 `gcmp-configsets.json`（与下方同步功能的 `gcmp-sync.json` 分离）；槽位与配置项元数据保持明文可读，仅各配置项的 apiKey 字段单独加密（AES-256-GCM），加密方案与「API Key 跨设备同步」一致，同样支持自定义加密口令。
+- **旧版同步入口**：状态栏 tooltip 的「管理/同步 API Key」入口已并入本面板的「Gist 同步」下拉菜单（`旧版密钥同步` 菜单项），保留一个主版本供迁移，将于 0.28 移除。
+
 ## 🔑 API Key 跨设备同步
 
 GCMP 提供基于 **GitHub Secret Gist** 的 API Key 跨设备同步功能，支持在同一 GitHub 账号的不同设备之间同步 API 密钥，无需手动逐一配置。
 
 ### 如何使用
 
-鼠标悬停状态栏 Token 消耗图标，点击 tooltip 底部的「管理/同步 API Key」快速进入，或通过 VS Code 命令面板执行 `GCMP: 管理/同步 API Key`。
+打开「API Key 管理」面板（命令 `GCMP: API Key 管理`），在「Gist 同步」下拉菜单中选择 `旧版密钥同步`；或通过 VS Code 命令面板直接执行 `GCMP: 管理/同步 API Key`。
+
+> 该旧版同步界面保留一个主版本供迁移，将于 0.28 移除；新数据请使用管理面板的 Gist 备份与恢复。
 
 | 分组         | 操作                                                                                        |
 | ------------ | ------------------------------------------------------------------------------------------- |
@@ -999,6 +1051,7 @@ GCMP 提供基于 **GitHub Secret Gist** 的 API Key 跨设备同步功能，支
 | 层级         | 说明                                                                                    |
 | ------------ | --------------------------------------------------------------------------------------- |
 | **远端存储** | GitHub **Secret Gist**（私有 Gist），文件名为 `gcmp-sync.json`                          |
+| **配置集备份** | API Key 管理面板的配置集备份使用独立 Gist 文件 `gcmp-configsets.json`（描述以 `GCMP ConfigSets` 开头），元数据明文、仅 apiKey 字段单独加密 |
 | **加密算法** | **AES-256-GCM**（认证加密，保证机密性 + 完整性）                                        |
 | **密钥派生** | **scrypt**（N=16384, r=8, p=1），输入为 `GitHub 用户 ID + 固定 pepper + 可选自定义口令` |
 | **认证方式** | VS Code 内置 **GitHub OAuth**，通过 `vscode.authentication` API 获取 token              |

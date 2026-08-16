@@ -218,6 +218,10 @@ export class ConfigSetManagerPanel implements PanelContext {
                 case 'clearPassphrase':
                     await this.syncHost.handleClearPassphrase();
                     return;
+                case 'openLegacySync':
+                    // 旧版 QuickPick 同步界面，保留一个主版本供用户迁移（0.28 移除）
+                    await vscode.commands.executeCommand('gcmp.sync.configure');
+                    return;
                 case 'migrateLegacyGist': {
                     this.post({ command: 'syncStatus', busy: true });
                     try {

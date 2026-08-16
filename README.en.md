@@ -295,6 +295,42 @@ providerOverrides["retry.{subProvider}"] → providerOverrides.retry → built-i
 | `preset.maxAttempts = 0` | Does not reduce global `maxAttempts`; use override to force disable |
 | `enabled = false`        | Takes effect per the `enabled` field merge priority                 |
 
+#### Provider-Level Rate Limiting (`limit`)
+
+Use `gcmp.providerOverrides.{provider}.limit` to set request rate limits per provider. Four optional dimensions; `0` or omitted means unlimited for that dimension. Whichever dimension hits its cap first throttles the request (pacing delay or FIFO queue).
+
+| Field      | Meaning                                                                      |
+| ---------- | ---------------------------------------------------------------------------- |
+| `rpm`      | Max requests per minute (paced)                                              |
+| `rps`      | Max requests per second (paced)                                              |
+| `tpm`      | Max tokens per minute (estimated from input, paced)                          |
+| `parallel` | Max concurrent in-flight requests; excess requests wait FIFO for a free slot |
+
+```json
+{
+    "gcmp.providerOverrides": {
+        "dashscope": {
+            "limit": { "rpm": 60, "parallel": 3 },
+            // Sub-provider specific limit (higher priority)
+            "limit.dashscope-coding": { "rpm": 30 },
+            "models": [
+                // Model-level limit: overrides same-named provider dimensions field-by-field,
+                // and uses an isolated provider::model bucket
+                { "id": "deepseek-v4-pro", "limit": { "tpm": 100000 } }
+            ]
+        }
+    }
+}
+```
+
+**Merge priority** (same as retry, field-level merge):
+
+```
+providerOverrides["limit.{subProvider}"] → providerOverrides.limit → built-in preset
+```
+
+**Cross-instance behavior**: multiple VS Code windows share a Leader-authoritative rate-limit bucket (Leader is elected automatically between windows); dimensions always follow the Leader's local configuration and config edits take effect immediately. When the Leader is unavailable, windows fall back to per-window local buckets and re-probe every 60 seconds, returning to strict cross-instance mode once it recovers. When a window closes or disconnects, its queued requests and held quotas are reclaimed automatically and never block other windows. In Remote scenarios (SSH/WSL) the cross-instance channel is unavailable, so each window always uses its local bucket.
+
 > Feature-specific settings such as `gcmp.commit.enabled`, `gcmp.vision.model`, and `gcmp.zhipu.search.enableMCP` are documented in their respective feature sections, not here.
 
 #### Debugging & HAR Capture
@@ -969,14 +1005,32 @@ Vision tools rely on a multimodal model specified by `gcmp.vision.model`. If uns
 
 </details>
 
+## 🗝️ API Key Management Panel
+
+GCMP provides a unified API Key management panel to maintain multiple configuration sets per provider/slot (site + key + note) and switch between them at any time.
+
+### How to Use
+
+Run `GCMP: Manage API Keys` from the command palette.
+
+### Key Features
+
+- **Multiple config sets**: each provider slot can hold several configurations (custom name + site + key + note) with add/edit/delete/activate/deactivate; the status bar refreshes immediately after panel operations and model list caches are invalidated per slot.
+- **CLI authentication integrated**: Codex / Grok auth status and subscription quota are shown directly in the panel, with terminal sign-in and credential import/refresh; removing authentication now locates the credential file in the file manager for manual deletion.
+- **Gist backup & restore**: config sets can be backed up to a GitHub Secret Gist and restored across devices, using the dedicated file `gcmp-configsets.json` (separate from `gcmp-sync.json` used by the sync feature below); slot and item metadata stay human-readable while each item's apiKey is encrypted individually (AES-256-GCM), using the same encryption scheme as "API Key Sync Across Devices", including the optional custom passphrase.
+- **Legacy sync entry**: the status bar tooltip's "Manage / Sync API Keys" entry has been merged into this panel's "Gist Sync" dropdown (the `Legacy key sync` menu item). It is kept for one major version for migration and will be removed in 0.28.
+
 ## 🔑 API Key Sync Across Devices
 
 GCMP provides an API Key synchronization feature based on **GitHub Secret Gists**, enabling you to sync API keys across devices using the same GitHub account without manual reconfiguration.
 
 ### How to Use
 
-- Hover over the token usage indicator in the status bar, then click **"Manage / Sync API Keys"** at the bottom of the tooltip to enter quickly
-- Or run the command `GCMP: Manage / Sync API Keys` from the command palette
+- Open the API Key management panel (`GCMP: Manage API Keys`) and choose `Legacy key sync` from the **Gist Sync** dropdown
+- Or run the command `GCMP: Manage / Sync API Keys` from the command palette directly
+
+> This legacy sync UI is kept for one major version for migration and will be removed in 0.28; for new data, use the management panel's Gist backup & restore.
+
 - On first use, you'll be prompted to authenticate with GitHub and authorize the `gist` scope
 - After authentication, a grouped sync actions menu appears:
 
@@ -996,6 +1050,7 @@ GCMP provides an API Key synchronization feature based on **GitHub Secret Gists*
 | Layer              | Description                                                                                      |
 | ------------------ | ------------------------------------------------------------------------------------------------ |
 | **Remote Storage** | GitHub **Secret Gist** (private), file named `gcmp-sync.json`                                    |
+| **Config Set Backup** | The management panel's config set backup uses a dedicated Gist file `gcmp-configsets.json` (description starts with `GCMP ConfigSets`); metadata stays plaintext, only apiKey fields are encrypted individually |
 | **Encryption**     | **AES-256-GCM** (authenticated encryption — confidentiality + integrity)                         |
 | **Key Derivation** | **scrypt** (N=16384, r=8, p=1) with `GitHub User ID + fixed pepper + optional custom passphrase` |
 | **Authentication** | VS Code built-in **GitHub OAuth** via `vscode.authentication` API                                |

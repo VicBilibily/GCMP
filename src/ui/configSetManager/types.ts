@@ -285,7 +285,8 @@ export type WebViewMessage =
     | { command: 'applyRemoteConfigs'; remove: SlotItemSelection[] }
     | { command: 'setPassphrase' }
     | { command: 'clearPassphrase' }
-    | { command: 'migrateLegacyGist' };
+    | { command: 'migrateLegacyGist' }
+    | { command: 'openLegacySync' };
 
 /** ============= Panel 提供给各 Host 的门面接口 ============= */
 
