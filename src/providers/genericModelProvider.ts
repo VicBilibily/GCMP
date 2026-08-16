@@ -545,18 +545,27 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     ): Promise<RateLimitHandle | undefined> {
         const providerLimit = ConfigManager.getProviderRateLimitConfig(effectiveProviderKey);
         const modelLimit = modelConfig.limit;
-        if (!providerLimit && !modelLimit) {
+        const hasModelLimitOverride = !!modelLimit && Object.keys(modelLimit).length > 0;
+        if (!providerLimit && !hasModelLimitOverride) {
             return undefined;
         }
         // 字段级合并：model 级覆盖 provider 级同名维度
-        const dims = { ...providerLimit, ...modelLimit };
+        const dims = { ...providerLimit, ...(hasModelLimitOverride ? modelLimit : {}) };
         if (Object.values(dims).every(value => value === undefined || value <= 0)) {
             return undefined;
         }
         // model 级配置存在时使用独立桶
-        const bucketKey = modelLimit ? `${effectiveProviderKey}::${modelConfig.id}` : effectiveProviderKey;
-        const outputReserve = Math.min(modelConfig.maxOutputTokens, 4096);
+        const bucketKey = hasModelLimitOverride ? `${effectiveProviderKey}::${modelConfig.id}` : effectiveProviderKey;
+        // 边界防御：手写配置缺失/非法产生的 NaN 成本会污染 GCRA 预约队列并导致 sleep 忙循环
+        const maxOutputTokens = Number.isFinite(modelConfig.maxOutputTokens) ? modelConfig.maxOutputTokens : 0;
+        const outputReserve = Math.min(maxOutputTokens, 4096);
         const costs = { requests: 1, tokens: totalInputTokens + outputReserve };
+        if (!Number.isFinite(costs.tokens)) {
+            Logger.warn(
+                `[RateLimit] Skip rate limiting for ${bucketKey}: non-finite token cost (totalInputTokens=${totalInputTokens})`
+            );
+            return undefined;
+        }
         return RateLimiter.acquire(bucketKey, dims, costs, {
             token,
             onWaiting: event => {
@@ -632,6 +641,22 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         // 仅节流请求才把"实际派发时间"作为 requestMetricStartTime 持久化并在用量视图高亮；
         // 未节流请求的派发时间与接受时间几乎相同，不应单独记录。
         let wasThrottled = false;
+
+        // 仅节流请求才向外传播实际派发时间（用于持久化与高亮）；实时 requestStarted 始终按 attempt 时间发射
+        const handleAttemptStarted = (attemptStartedAt: number) => {
+            if (wasThrottled) {
+                onAttemptStarted?.(attemptStartedAt);
+            }
+            if (requestId) {
+                liveMetrics.emitLiveMetrics({
+                    type: 'requestStarted',
+                    requestId,
+                    requestStartTime: attemptStartedAt,
+                    providerName: this.providerConfig.displayName,
+                    modelName: model.name || modelConfig.name
+                });
+            }
+        };
 
         const requestKind = this.ensureRequestKind(messages, options);
 
@@ -719,22 +744,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 sessionId,
                                 token,
                                 requestStartTime,
-                                attemptStartedAt => {
-                                    // 仅节流请求才向外传播实际派发时间（用于持久化与高亮）；
-                                    // 实时 requestStarted 事件不受影响，始终按 attempt 时间发射
-                                    if (wasThrottled) {
-                                        onAttemptStarted?.(attemptStartedAt);
-                                    }
-                                    if (requestId) {
-                                        liveMetrics.emitLiveMetrics({
-                                            type: 'requestStarted',
-                                            requestId,
-                                            requestStartTime: attemptStartedAt,
-                                            providerName: this.providerConfig.displayName,
-                                            modelName: model.name || modelConfig.name
-                                        });
-                                    }
-                                },
+                                handleAttemptStarted,
                                 wasThrottled
                             );
                         } else if (sdkMode === 'openai-sse') {
@@ -748,22 +758,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 sessionId,
                                 token,
                                 requestStartTime,
-                                attemptStartedAt => {
-                                    // 仅节流请求才向外传播实际派发时间（用于持久化与高亮）；
-                                    // 实时 requestStarted 事件不受影响，始终按 attempt 时间发射
-                                    if (wasThrottled) {
-                                        onAttemptStarted?.(attemptStartedAt);
-                                    }
-                                    if (requestId) {
-                                        liveMetrics.emitLiveMetrics({
-                                            type: 'requestStarted',
-                                            requestId,
-                                            requestStartTime: attemptStartedAt,
-                                            providerName: this.providerConfig.displayName,
-                                            modelName: model.name || modelConfig.name
-                                        });
-                                    }
-                                },
+                                handleAttemptStarted,
                                 wasThrottled
                             );
                         } else if (sdkMode === 'openai-responses') {
@@ -777,22 +772,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 sessionId,
                                 token,
                                 requestStartTime,
-                                attemptStartedAt => {
-                                    // 仅节流请求才向外传播实际派发时间（用于持久化与高亮）；
-                                    // 实时 requestStarted 事件不受影响，始终按 attempt 时间发射
-                                    if (wasThrottled) {
-                                        onAttemptStarted?.(attemptStartedAt);
-                                    }
-                                    if (requestId) {
-                                        liveMetrics.emitLiveMetrics({
-                                            type: 'requestStarted',
-                                            requestId,
-                                            requestStartTime: attemptStartedAt,
-                                            providerName: this.providerConfig.displayName,
-                                            modelName: model.name || modelConfig.name
-                                        });
-                                    }
-                                },
+                                handleAttemptStarted,
                                 wasThrottled
                             );
                         } else {
@@ -806,22 +786,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                                 sessionId,
                                 token,
                                 requestStartTime,
-                                attemptStartedAt => {
-                                    // 仅节流请求才向外传播实际派发时间（用于持久化与高亮）；
-                                    // 实时 requestStarted 事件不受影响，始终按 attempt 时间发射
-                                    if (wasThrottled) {
-                                        onAttemptStarted?.(attemptStartedAt);
-                                    }
-                                    if (requestId) {
-                                        liveMetrics.emitLiveMetrics({
-                                            type: 'requestStarted',
-                                            requestId,
-                                            requestStartTime: attemptStartedAt,
-                                            providerName: this.providerConfig.displayName,
-                                            modelName: model.name || modelConfig.name
-                                        });
-                                    }
-                                },
+                                handleAttemptStarted,
                                 wasThrottled
                             );
                         }
