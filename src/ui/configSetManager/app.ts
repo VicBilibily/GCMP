@@ -216,6 +216,10 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
             state.restoreSnapshots = msg.snapshots;
             renderRestoreDialog();
             return;
+        case 'clearRestorePrep':
+            state.restoreSnapshots = null;
+            render();
+            return;
         case 'downloadResult':
             state.busy = false;
             state.restoreSnapshots = null;

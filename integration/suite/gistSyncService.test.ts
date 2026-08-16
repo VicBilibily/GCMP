@@ -2,6 +2,7 @@
 
 import { GistSyncService } from '../../src/sync/gistSyncService';
 import { encrypt } from '../../src/sync/syncCrypto';
+import { ApiKeyManager } from '../../src/utils/config/apiKeyManager';
 import { ConfigManager } from '../../src/utils/config/configManager';
 
 interface MockableGistSyncService {
@@ -15,6 +16,7 @@ interface MockableGistSyncService {
     findExistingSyncGist(token: string): Promise<string | undefined>;
     getGistId(): string | undefined;
     getGithubId(): string | undefined;
+    notifyProviders(keyNames: string[]): void;
     readSyncData(
         token: string,
         gistId: string
@@ -215,6 +217,38 @@ suite('gistSyncService', () => {
         } finally {
             ConfigManager.fetchWithProxy = originalFetchWithProxy;
             service.readSyncData = originalReadSyncData;
+        }
+    });
+
+    test('applyKeysAndNotify uses ApiKeyManager pipeline and notifies only applied keys', async () => {
+        const service = GistSyncService as unknown as MockableGistSyncService;
+        const mutableKeys = ApiKeyManager as unknown as {
+            setApiKey: typeof ApiKeyManager.setApiKey;
+        };
+        const originalSetApiKey = mutableKeys.setApiKey;
+        const originalNotifyProviders = service.notifyProviders;
+        const applied: Array<{ provider: string; value: string }> = [];
+        let notified: string[] | undefined;
+
+        mutableKeys.setApiKey = async (provider, value) => {
+            applied.push({ provider, value });
+        };
+        service.notifyProviders = keyNames => {
+            notified = keyNames;
+        };
+
+        try {
+            const count = await GistSyncService.applyKeysAndNotify({
+                'demo.apiKey': ' demo-secret ',
+                'blank.apiKey': '   '
+            });
+
+            assert.equal(count, 1);
+            assert.deepEqual(applied, [{ provider: 'demo', value: 'demo-secret' }]);
+            assert.deepEqual(notified, ['demo.apiKey']);
+        } finally {
+            mutableKeys.setApiKey = originalSetApiKey;
+            service.notifyProviders = originalNotifyProviders;
         }
     });
 });

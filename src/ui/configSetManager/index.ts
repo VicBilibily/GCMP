@@ -73,7 +73,11 @@ export class ConfigSetManagerPanel implements PanelContext {
             () => {
                 if (this.panel?.visible) {
                     void this.refreshCliProviders();
+                    return;
                 }
+
+                this.syncHost.discardPreparedRestore();
+                this.post({ command: 'clearRestorePrep' });
             },
             undefined,
             this.panelDisposables
@@ -121,6 +125,7 @@ export class ConfigSetManagerPanel implements PanelContext {
     // ============= 生命周期 =============
 
     private disposePanelResources(): void {
+        this.syncHost?.dispose();
         this.stateHost?.dispose();
         this.usageHost?.dispose();
     }
@@ -202,6 +207,9 @@ export class ConfigSetManagerPanel implements PanelContext {
                     return;
                 case 'downloadWithPassphrase':
                     await this.syncHost.handleDownloadWithPassphrase(message.passphrase);
+                    return;
+                case 'discardRestorePrep':
+                    this.syncHost.discardPreparedRestore();
                     return;
                 case 'restore':
                     await this.syncHost.handleRestore(message.selections);

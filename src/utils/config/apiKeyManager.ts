@@ -56,6 +56,39 @@ export class ApiKeyManager {
         return `${provider}.apiKey`;
     }
 
+    private static emitApiKeyChanged(provider: string, action: 'set' | 'delete'): void {
+        try {
+            this._onDidChangeApiKey.fire({ provider, action });
+        } catch (error) {
+            Logger.warn(`[ApiKeyManager] Failed to emit local API key change for ${provider}:`, error);
+        }
+    }
+
+    private static publishApiKeyChanged(provider: string, action: 'set' | 'delete'): void {
+        try {
+            InterInstanceBus.publish({
+                type: 'apiKeyChanged',
+                payload: { provider, action }
+            });
+        } catch (error) {
+            Logger.warn(`[ApiKeyManager] Failed to publish API key change for ${provider}:`, error);
+        }
+    }
+
+    private static async refreshApiKeyConsumers(provider: string): Promise<void> {
+        try {
+            await StatusBarManager.getStatusBar(provider)?.checkAndShowStatus();
+        } catch (error) {
+            Logger.warn(`[ApiKeyManager] Failed to refresh status bar for ${provider}:`, error);
+        }
+
+        try {
+            await StatusBarManager.compatible?.refreshAfterApiKeyChange(provider);
+        } catch (error) {
+            Logger.warn(`[ApiKeyManager] Failed to refresh compatible status for ${provider}:`, error);
+        }
+    }
+
     /**
      * 检查是否有API密钥
      */
@@ -99,16 +132,11 @@ export class ApiKeyManager {
         }
         await this.context.secrets.store(secretKey, apiKey);
 
-        // 本实例内通知（StatusBar / Provider 立即刷新）
-        this._onDidChangeApiKey.fire({ provider, action: apiKey ? 'set' : 'delete' });
-        // 广播 API Key 变更事件到其他 VS Code 实例
-        InterInstanceBus.publish({
-            type: 'apiKeyChanged',
-            payload: { provider, action: apiKey ? 'set' : 'delete' }
-        });
-
-        await StatusBarManager.getStatusBar(provider)?.checkAndShowStatus();
-        await StatusBarManager.compatible?.refreshAfterApiKeyChange(provider);
+        // 先完成密钥持久化，再以 best-effort 方式刷新派生状态，避免调用方落入半提交事务。
+        const action: 'set' | 'delete' = apiKey ? 'set' : 'delete';
+        this.emitApiKeyChanged(provider, action);
+        this.publishApiKeyChanged(provider, action);
+        await this.refreshApiKeyConsumers(provider);
     }
 
     /**
@@ -118,16 +146,9 @@ export class ApiKeyManager {
         const secretKey = this.getSecretKey(provider);
         await this.context.secrets.delete(secretKey);
 
-        // 本实例内通知（StatusBar / Provider 立即刷新）
-        this._onDidChangeApiKey.fire({ provider, action: 'delete' });
-        // 广播 API Key 变更事件到其他 VS Code 实例
-        InterInstanceBus.publish({
-            type: 'apiKeyChanged',
-            payload: { provider, action: 'delete' }
-        });
-
-        await StatusBarManager.getStatusBar(provider)?.checkAndShowStatus();
-        await StatusBarManager.compatible?.refreshAfterApiKeyChange(provider);
+        this.emitApiKeyChanged(provider, 'delete');
+        this.publishApiKeyChanged(provider, 'delete');
+        await this.refreshApiKeyConsumers(provider);
     }
 
     /**

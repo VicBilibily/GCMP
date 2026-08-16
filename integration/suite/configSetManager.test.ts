@@ -2,6 +2,7 @@
 
 import * as vscode from 'vscode';
 
+import { StatusBarManager } from '../../src/status';
 import { CrudHost } from '../../src/ui/configSetManager/crudHost';
 import { ConfigSetSyncHost } from '../../src/ui/configSetManager/syncHost';
 import type { PanelContext } from '../../src/ui/configSetManager/types';
@@ -274,5 +275,231 @@ suite('config set label behavior', () => {
         assert.equal(await ConfigSetStore.getApiKey('slot-sync', 'remote-b'), 'remote-key-b');
         assert.ok(posts.some(msg => (msg as { command?: string; ok?: boolean }).command === 'downloadResult'));
         assert.ok(posts.some(msg => (msg as { command?: string; ok?: boolean }).ok === true));
+    });
+
+    test('ConfigSetSyncHost.handleRestore uses prepared snapshot without re-reading remote data', async () => {
+        ConfigSetStore.initialize(createExtensionContext());
+
+        const posts: unknown[] = [];
+        const host = new ConfigSetSyncHost({
+            post(msg) {
+                posts.push(msg);
+            },
+            async sendStates(): Promise<void> {}
+        });
+        const mutableHost = host as unknown as {
+            preparedDownloadSlots?: Record<string, { items: Array<{ id: string; label: string; apiKey: string }> }>;
+            confirmLocalActive: (slot: string) => Promise<void>;
+            ensureGistToken: () => Promise<{ id: number; login: string; token: string } | undefined>;
+            postSyncState: () => Promise<void>;
+        };
+        const originalEnsureGistToken = mutableHost.ensureGistToken;
+        const originalConfirmLocalActive = mutableHost.confirmLocalActive;
+        const originalPostSyncState = mutableHost.postSyncState;
+        let ensureCalls = 0;
+
+        mutableHost.preparedDownloadSlots = {
+            'slot-prepared': {
+                items: [{ id: 'remote-a', label: 'Remote A', apiKey: 'remote-key-a' }]
+            }
+        };
+        mutableHost.ensureGistToken = async () => {
+            ensureCalls += 1;
+            return undefined;
+        };
+        mutableHost.confirmLocalActive = async () => {};
+        mutableHost.postSyncState = async () => {};
+
+        try {
+            await host.handleRestore([{ slot: 'slot-prepared', itemIds: ['remote-a'] }]);
+        } finally {
+            mutableHost.ensureGistToken = originalEnsureGistToken;
+            mutableHost.confirmLocalActive = originalConfirmLocalActive;
+            mutableHost.postSyncState = originalPostSyncState;
+        }
+
+        assert.equal(ensureCalls, 0, 'prepared snapshot should avoid re-reading remote data');
+        assert.deepEqual(
+            ConfigSetStore.list('slot-prepared').map(item => item.id),
+            ['remote-a']
+        );
+        assert.equal(await ConfigSetStore.getApiKey('slot-prepared', 'remote-a'), 'remote-key-a');
+        assert.equal(mutableHost.preparedDownloadSlots, undefined, 'prepared snapshot should be cleared after restore');
+        assert.ok(posts.some(msg => (msg as { command?: string; ok?: boolean }).command === 'downloadResult'));
+        assert.ok(posts.some(msg => (msg as { command?: string; ok?: boolean }).ok === true));
+    });
+
+    test('ApiKeyManager.setApiKey stays successful when status refresh hooks fail', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+
+        const mutableStatusBarManager = StatusBarManager as unknown as {
+            getStatusBar: unknown;
+            compatible: unknown;
+        };
+        const originalGetStatusBar = mutableStatusBarManager.getStatusBar;
+        const originalCompatible = mutableStatusBarManager.compatible;
+        let eventCount = 0;
+        const subscription = ApiKeyManager.onDidChangeApiKey(({ provider, action }) => {
+            if (provider === 'slot-status' && action === 'set') {
+                eventCount += 1;
+            }
+        });
+
+        mutableStatusBarManager.getStatusBar = (() => ({
+            checkAndShowStatus: async () => {
+                throw new Error('status refresh failed');
+            }
+        })) as unknown;
+        mutableStatusBarManager.compatible = {
+            refreshAfterApiKeyChange: async () => {
+                throw new Error('compatible refresh failed');
+            }
+        } as unknown;
+
+        try {
+            await ApiKeyManager.setApiKey('slot-status', 'runtime-key');
+        } finally {
+            subscription.dispose();
+            mutableStatusBarManager.getStatusBar = originalGetStatusBar;
+            mutableStatusBarManager.compatible = originalCompatible;
+        }
+
+        assert.equal(await ApiKeyManager.getApiKey('slot-status'), 'runtime-key');
+        assert.equal(eventCount, 1);
+    });
+
+    test('ConfigSetSyncHost.handleRestore rolls back earlier slots when a later slot fails', async () => {
+        ConfigSetStore.initialize(createExtensionContext());
+        await ConfigSetStore.add('slot-ok', { id: 'local-ok', label: 'Local OK' }, 'local-key-ok');
+        await ConfigSetStore.add('slot-fail', { id: 'local-fail', label: 'Local Fail' }, 'local-key-fail');
+
+        const posts: unknown[] = [];
+        const host = new ConfigSetSyncHost({
+            post(msg) {
+                posts.push(msg);
+            },
+            async sendStates(): Promise<void> {}
+        });
+        const mutableHost = host as unknown as {
+            preparedDownloadSlots?: Record<string, { items: Array<{ id: string; label: string; apiKey: string }> }>;
+            confirmLocalActive: (slot: string) => Promise<void>;
+            postSyncState: () => Promise<void>;
+        };
+        const mutableStore = ConfigSetStore as unknown as {
+            writeAll: typeof ConfigSetStore.writeAll;
+        };
+        const originalWriteAll = mutableStore.writeAll;
+        const originalConfirmLocalActive = mutableHost.confirmLocalActive;
+        const originalPostSyncState = mutableHost.postSyncState;
+        let failed = false;
+
+        mutableHost.preparedDownloadSlots = {
+            'slot-ok': {
+                items: [{ id: 'remote-ok', label: 'Remote OK', apiKey: 'remote-key-ok' }]
+            },
+            'slot-fail': {
+                items: [{ id: 'remote-fail', label: 'Remote Fail', apiKey: 'remote-key-fail' }]
+            }
+        };
+        mutableHost.confirmLocalActive = async () => {};
+        mutableHost.postSyncState = async () => {};
+        mutableStore.writeAll = async (slot, items, keys, activeId) => {
+            if (slot === 'slot-fail' && !failed) {
+                failed = true;
+                throw new Error('restore failed');
+            }
+            return await originalWriteAll.call(ConfigSetStore, slot, items, keys, activeId);
+        };
+
+        try {
+            await host.handleRestore([
+                { slot: 'slot-ok', itemIds: ['remote-ok'] },
+                { slot: 'slot-fail', itemIds: ['remote-fail'] }
+            ]);
+        } finally {
+            mutableStore.writeAll = originalWriteAll;
+            mutableHost.confirmLocalActive = originalConfirmLocalActive;
+            mutableHost.postSyncState = originalPostSyncState;
+        }
+
+        assert.deepEqual(
+            ConfigSetStore.list('slot-ok').map(item => item.id),
+            ['local-ok']
+        );
+        assert.deepEqual(
+            ConfigSetStore.list('slot-fail').map(item => item.id),
+            ['local-fail']
+        );
+        assert.equal(await ConfigSetStore.getApiKey('slot-ok', 'local-ok'), 'local-key-ok');
+        assert.equal(await ConfigSetStore.getApiKey('slot-fail', 'local-fail'), 'local-key-fail');
+        assert.equal(mutableHost.preparedDownloadSlots, undefined, 'prepared snapshot should be cleared after failure');
+        assert.ok(posts.some(msg => (msg as { command?: string; ok?: boolean }).command === 'downloadResult'));
+        assert.ok(posts.some(msg => (msg as { ok?: boolean }).ok === false));
+    });
+
+    test('ConfigSetSyncHost.handleRestore rolls back current slot when confirmLocalActive fails', async () => {
+        ConfigSetStore.initialize(createExtensionContext());
+        await ConfigSetStore.add('slot-confirm', { id: 'local-confirm', label: 'Local Confirm' }, 'local-key-confirm');
+
+        const posts: unknown[] = [];
+        const host = new ConfigSetSyncHost({
+            post(msg) {
+                posts.push(msg);
+            },
+            async sendStates(): Promise<void> {}
+        });
+        const mutableHost = host as unknown as {
+            preparedDownloadSlots?: Record<string, { items: Array<{ id: string; label: string; apiKey: string }> }>;
+            confirmLocalActive: (slot: string) => Promise<void>;
+            postSyncState: () => Promise<void>;
+        };
+        const originalConfirmLocalActive = mutableHost.confirmLocalActive;
+        const originalPostSyncState = mutableHost.postSyncState;
+
+        mutableHost.preparedDownloadSlots = {
+            'slot-confirm': {
+                items: [{ id: 'remote-confirm', label: 'Remote Confirm', apiKey: 'remote-key-confirm' }]
+            }
+        };
+        mutableHost.confirmLocalActive = async () => {
+            throw new Error('confirm failed');
+        };
+        mutableHost.postSyncState = async () => {};
+
+        try {
+            await host.handleRestore([{ slot: 'slot-confirm', itemIds: ['remote-confirm'] }]);
+        } finally {
+            mutableHost.confirmLocalActive = originalConfirmLocalActive;
+            mutableHost.postSyncState = originalPostSyncState;
+        }
+
+        assert.deepEqual(
+            ConfigSetStore.list('slot-confirm').map(item => item.id),
+            ['local-confirm']
+        );
+        assert.equal(await ConfigSetStore.getApiKey('slot-confirm', 'local-confirm'), 'local-key-confirm');
+        assert.equal(await ConfigSetStore.getApiKey('slot-confirm', 'remote-confirm'), undefined);
+        assert.equal(mutableHost.preparedDownloadSlots, undefined, 'prepared snapshot should be cleared after failure');
+        assert.ok(posts.some(msg => (msg as { command?: string; ok?: boolean }).command === 'downloadResult'));
+        assert.ok(posts.some(msg => (msg as { ok?: boolean }).ok === false));
+    });
+
+    test('ConfigSetSyncHost.discardPreparedRestore clears prepared snapshot', () => {
+        const host = new ConfigSetSyncHost({
+            post() {},
+            async sendStates(): Promise<void> {}
+        });
+        const mutableHost = host as unknown as {
+            preparedDownloadSlots?: Record<string, { items: Array<{ id: string; label: string; apiKey: string }> }>;
+        };
+
+        mutableHost.preparedDownloadSlots = {
+            slot: { items: [{ id: 'remote', label: 'Remote', apiKey: 'remote-key' }] }
+        };
+
+        host.discardPreparedRestore();
+
+        assert.equal(mutableHost.preparedDownloadSlots, undefined);
     });
 });

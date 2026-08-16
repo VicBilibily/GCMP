@@ -5,7 +5,7 @@
  *---------------------------------------------------------------------------------------------*/
 
 import { ApiKeyManager } from '../../utils/config/apiKeyManager';
-import { ConfigSetStore } from '../../utils/config/configSetStore';
+import { ConfigSetStore, type ConfigSetItem } from '../../utils/config/configSetStore';
 import { getSiteOwnerProvider, readCurrentSite, siteLabel } from '../../utils/config/configSetCommands';
 import { Logger } from '../../utils/runtime/logger';
 import { t } from '../../utils/runtime/l10n';
@@ -23,6 +23,7 @@ import {
 import { getKeyDisplayName, GistSyncService } from '../../sync/gistSyncService';
 import { runClearPassphraseFlow, runSetPassphraseFlow } from '../../sync/passphraseFlow';
 import { collectManagedSlots } from './stateHost';
+import * as vscode from 'vscode';
 import type {
     GistSyncState,
     HostMessage,
@@ -45,8 +46,61 @@ export interface SyncHostContext {
  */
 export class ConfigSetSyncHost {
     private pendingPassphraseDownload: { token: string; gistId: string } | undefined;
+    /** 当前恢复对话框对应的已解密快照；优先使用它恢复，避免再次依赖网络/口令状态。 */
+    private preparedDownloadSlots: Record<string, SyncedSlotConfigSet> | undefined;
+
+    private clearPreparedDownloadState(clearPendingContext = false): void {
+        this.preparedDownloadSlots = undefined;
+        if (clearPendingContext) {
+            this.pendingPassphraseDownload = undefined;
+        }
+    }
+
+    dispose(): void {
+        this.clearPreparedDownloadState(true);
+    }
+
+    discardPreparedRestore(): void {
+        this.clearPreparedDownloadState();
+    }
 
     constructor(private readonly ctx: SyncHostContext) {}
+
+    private async snapshotSlotState(slot: string): Promise<{
+        items: ConfigSetItem[];
+        keys: Record<string, string | undefined>;
+        activeId?: string;
+    }> {
+        const items = ConfigSetStore.list(slot).map(item => ({ ...item }));
+        const keyEntries = await Promise.all(
+            items.map(async item => [item.id, await ConfigSetStore.getApiKey(slot, item.id)] as const)
+        );
+        return {
+            items,
+            keys: Object.fromEntries(keyEntries),
+            activeId: ConfigSetStore.getActiveId(slot)
+        };
+    }
+
+    private async rollbackRestoreSlots(
+        snapshots: Array<{
+            slot: string;
+            items: ConfigSetItem[];
+            keys: Record<string, string | undefined>;
+            activeId?: string;
+        }>
+    ): Promise<boolean> {
+        let rollbackFailed = false;
+        for (const snapshot of [...snapshots].reverse()) {
+            try {
+                await ConfigSetStore.writeAll(snapshot.slot, snapshot.items, snapshot.keys, snapshot.activeId);
+            } catch (error) {
+                rollbackFailed = true;
+                Logger.error(`[ConfigSetManager] Failed to roll back restored slot ${snapshot.slot}:`, error);
+            }
+        }
+        return !rollbackFailed;
+    }
 
     /** 上传入口：只做预检（收集本地 + 读远端 diff），实际写入由 handleUploadSelected 完成 */
     async handleUpload(): Promise<void> {
@@ -254,6 +308,7 @@ export class ConfigSetSyncHost {
 
     async handleDownload(): Promise<void> {
         this.pendingPassphraseDownload = undefined;
+        this.clearPreparedDownloadState();
         this.ctx.post({ command: 'syncStatus', busy: true });
         try {
             const userInfo = await this.ensureGistToken();
@@ -319,6 +374,7 @@ export class ConfigSetSyncHost {
             }
             const local = await collectLocalConfigSets();
             const remote = result.data.slots;
+            this.preparedDownloadSlots = remote;
             const status = diffConfigSets(local, remote);
             await this.sendDownloadPrep(remote, status);
         } catch (error) {
@@ -333,6 +389,7 @@ export class ConfigSetSyncHost {
     async handleDownloadWithPassphrase(passphrase: string): Promise<void> {
         try {
             const context = this.pendingPassphraseDownload;
+            this.clearPreparedDownloadState();
             if (!context) {
                 this.ctx.post({
                     command: 'downloadResult',
@@ -375,8 +432,21 @@ export class ConfigSetSyncHost {
                 });
                 return;
             }
-            if (!(await GistSyncService.verifyPassphrase(passphrase.trim()))) {
-                await GistSyncService.setCustomPassphrase(passphrase.trim());
+            const normalizedPassphrase = passphrase.trim();
+            this.preparedDownloadSlots = retry.data.slots;
+            if (!(await GistSyncService.verifyPassphrase(normalizedPassphrase))) {
+                const saved = await GistSyncService.setCustomPassphrase(normalizedPassphrase);
+                if (!saved) {
+                    Logger.warn(
+                        '[ConfigSetManager] Failed to persist passphrase, using in-memory restore snapshot only'
+                    );
+                    void vscode.window.showWarningMessage(
+                        t(
+                            'The passphrase could not be saved. This restore will use the decrypted snapshot already loaded in memory only.',
+                            '口令未能保存。本次恢复将仅使用当前已解密到内存中的快照。'
+                        )
+                    );
+                }
             }
             this.pendingPassphraseDownload = undefined;
             await this.sendDownloadPrep(retry.data.slots);
@@ -392,38 +462,59 @@ export class ConfigSetSyncHost {
 
     async handleRestore(selections: SlotItemSelection[]): Promise<void> {
         this.ctx.post({ command: 'syncStatus', busy: true });
+        const appliedSnapshots: Array<{
+            slot: string;
+            items: ConfigSetItem[];
+            keys: Record<string, string | undefined>;
+            activeId?: string;
+        }> = [];
         try {
-            const userInfo = await this.ensureGistToken();
-            if (!userInfo) {
-                this.ctx.post({ command: 'syncStatus', busy: false });
-                this.ctx.post({
-                    command: 'downloadResult',
-                    ok: false,
-                    error: t('GitHub authentication failed.', 'GitHub 认证失败。')
-                });
-                return;
+            let remote = this.preparedDownloadSlots;
+            if (!remote) {
+                const userInfo = await this.ensureGistToken();
+                if (!userInfo) {
+                    this.ctx.post({ command: 'syncStatus', busy: false });
+                    this.ctx.post({
+                        command: 'downloadResult',
+                        ok: false,
+                        error: t('GitHub authentication failed.', 'GitHub 认证失败。')
+                    });
+                    return;
+                }
+                const gistId = await this.resolveGistId(userInfo.token);
+                if (!gistId) {
+                    this.ctx.post({ command: 'syncStatus', busy: false });
+                    this.ctx.post({
+                        command: 'downloadResult',
+                        ok: false,
+                        error: t('No sync Gist found.', '未找到同步 Gist。')
+                    });
+                    return;
+                }
+                const { result } = await this.readConfigSetsWithFallback(userInfo.token, gistId);
+                if (result.status !== 'ok' || !result.data.slots) {
+                    this.ctx.post({ command: 'syncStatus', busy: false });
+                    this.ctx.post({
+                        command: 'downloadResult',
+                        ok: false,
+                        error: t('Remote data unavailable. Retry download.', '远端数据不可用，请重试下载。')
+                    });
+                    return;
+                }
+                remote = result.data.slots;
             }
-            const gistId = await this.resolveGistId(userInfo.token);
-            if (!gistId) {
-                this.ctx.post({ command: 'syncStatus', busy: false });
-                this.ctx.post({
-                    command: 'downloadResult',
-                    ok: false,
-                    error: t('No sync Gist found.', '未找到同步 Gist。')
-                });
-                return;
-            }
-            const { result } = await this.readConfigSetsWithFallback(userInfo.token, gistId);
-            if (result.status !== 'ok' || !result.data.slots) {
-                this.ctx.post({ command: 'syncStatus', busy: false });
-                this.ctx.post({
-                    command: 'downloadResult',
-                    ok: false,
-                    error: t('Remote data unavailable. Retry download.', '远端数据不可用，请重试下载。')
-                });
-                return;
-            }
-            const remote = result.data.slots;
+
+            const restorePlans: Array<{
+                slot: string;
+                items: ConfigSetItem[];
+                keys: Record<string, string | undefined>;
+                selectedCount: number;
+                previous: {
+                    items: ConfigSetItem[];
+                    keys: Record<string, string | undefined>;
+                    activeId?: string;
+                };
+            }> = [];
             let applied = 0;
             for (const { slot, itemIds } of selections) {
                 const set = remote[slot];
@@ -435,24 +526,62 @@ export class ConfigSetSyncHost {
                 if (selectedItems.length === 0) {
                     continue;
                 }
-                const itemsMeta = selectedItems.map(({ apiKey: _apiKey, ...meta }) => meta);
-                const keys = Object.fromEntries(selectedItems.map(item => [item.id, item.apiKey]));
-                await ConfigSetStore.upsert(slot, itemsMeta, keys);
+                const previous = await this.snapshotSlotState(slot);
+                const mergedItems = new Map(previous.items.map(item => [item.id, item] as const));
+                const mergedKeys: Record<string, string | undefined> = { ...previous.keys };
+                for (const item of selectedItems) {
+                    const { apiKey, ...meta } = item;
+                    mergedItems.set(item.id, meta);
+                    mergedKeys[item.id] = apiKey;
+                }
+                restorePlans.push({
+                    slot,
+                    items: Array.from(mergedItems.values()),
+                    keys: mergedKeys,
+                    selectedCount: selectedItems.length,
+                    previous
+                });
+            }
+
+            for (const plan of restorePlans) {
+                await ConfigSetStore.writeAll(plan.slot, plan.items, plan.keys, plan.previous.activeId);
+                appliedSnapshots.push({ slot: plan.slot, ...plan.previous });
                 // 激活状态由本地确认：生效 Key 匹配恢复项时补登激活标记，不改动当前生效 Key
-                await this.confirmLocalActive(slot);
+                await this.confirmLocalActive(plan.slot);
                 applied++;
-                Logger.info(
-                    `[ConfigSetSync] Restored ${selectedItems.length}/${set.items.length} config set(s) for ${slot}`
-                );
+                Logger.info(`[ConfigSetSync] Restored ${plan.selectedCount} config set(s) for ${plan.slot}`);
             }
             await this.ctx.sendStates();
             this.ctx.post({ command: 'syncStatus', busy: false });
             this.ctx.post({ command: 'downloadResult', ok: true, appliedCount: applied });
         } catch (error) {
             Logger.error('[ConfigSetManager] restore failed:', error);
+            let restoreError = error instanceof Error ? error : new Error(String(error));
+            try {
+                if (appliedSnapshots.length > 0) {
+                    const rollbackOk = await this.rollbackRestoreSlots(appliedSnapshots);
+                    if (!rollbackOk) {
+                        restoreError = new Error(
+                            t(
+                                'Restore failed and local rollback was incomplete. Please review the local configurations before retrying.',
+                                '恢复失败，且本地回滚未完整完成。请检查当前本地配置后再重试。'
+                            )
+                        );
+                    }
+                }
+            } catch (rollbackError) {
+                Logger.error('[ConfigSetManager] restore rollback failed:', rollbackError);
+                restoreError = new Error(
+                    t(
+                        'Restore failed and local rollback was incomplete. Please review the local configurations before retrying.',
+                        '恢复失败，且本地回滚未完整完成。请检查当前本地配置后再重试。'
+                    )
+                );
+            }
             this.ctx.post({ command: 'syncStatus', busy: false });
-            this.ctx.post({ command: 'downloadResult', ok: false, error: String(error) });
+            this.ctx.post({ command: 'downloadResult', ok: false, error: restoreError.message });
         } finally {
+            this.clearPreparedDownloadState();
             await this.postSyncState();
         }
     }

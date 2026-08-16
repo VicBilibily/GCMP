@@ -438,6 +438,7 @@ export function renderRestoreDialog(): void {
         fillBody: (body, checked) => buildSlotSelectionBody(body, groups, checked),
         onCancel: () => {
             state.restoreSnapshots = null;
+            postToVSCode({ command: 'discardRestorePrep' });
         },
         onConfirm: selections => {
             if (selections.length === 0) {

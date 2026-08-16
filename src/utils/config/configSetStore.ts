@@ -229,7 +229,7 @@ export class ConfigSetStore {
     static async writeAll(
         slot: string,
         items: ConfigSetItem[],
-        keys: Record<string, string>,
+        keys: Record<string, string | undefined>,
         activeId?: string
     ): Promise<void> {
         await this.enqueue(async () => {
@@ -253,8 +253,9 @@ export class ConfigSetStore {
             try {
                 for (const item of items) {
                     const key = keys[item.id];
-                    if (!key) {
-                        throw new Error(`Missing API key for restored configuration ${slot}:${item.id}`);
+                    if (key === undefined) {
+                        await this.context.secrets.delete(this.secretKey(slot, item.id));
+                        continue;
                     }
                     await this.context.secrets.store(this.secretKey(slot, item.id), key);
                 }
@@ -316,48 +317,6 @@ export class ConfigSetStore {
             } catch (error) {
                 Logger.warn(`[ConfigSetStore] Failed to mark ${slot} as migrated`, error);
             }
-        });
-    }
-
-    /** 合并写入部分配置项（逐项恢复用）：同 id 覆盖元数据与 Key，未选中的本地配置保留 */
-    static async upsert(slot: string, items: ConfigSetItem[], keys: Record<string, string>): Promise<void> {
-        await this.enqueue(async () => {
-            const previousIndex = this.readIndex();
-            const existing = Array.isArray(previousIndex[slot]) ? previousIndex[slot]! : [];
-            const byId = new Map(existing.map(item => [item.id, item] as const));
-            for (const item of items) {
-                byId.set(item.id, item);
-            }
-            const nextIndex = { ...previousIndex, [slot]: Array.from(byId.values()) };
-            const previousKeys = new Map<string, string | undefined>();
-
-            for (const item of items) {
-                previousKeys.set(item.id, await this.context.secrets.get(this.secretKey(slot, item.id)));
-            }
-
-            try {
-                for (const item of items) {
-                    const key = keys[item.id];
-                    if (key) {
-                        await this.context.secrets.store(this.secretKey(slot, item.id), key);
-                    }
-                }
-
-                await this.writeIndex(nextIndex);
-            } catch (error) {
-                for (const item of items) {
-                    const previousKey = previousKeys.get(item.id);
-                    if (previousKey === undefined) {
-                        await this.context.secrets.delete(this.secretKey(slot, item.id));
-                    } else {
-                        await this.context.secrets.store(this.secretKey(slot, item.id), previousKey);
-                    }
-                }
-                await this.writeIndex(previousIndex);
-                throw error;
-            }
-
-            await this.markMigrated(slot);
         });
     }
 

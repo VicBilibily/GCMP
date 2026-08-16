@@ -7,6 +7,7 @@
 
 import * as vscode from 'vscode';
 import { CompatibleModelManager } from '../utils/config/compatibleModelManager';
+import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { Logger } from '../utils/runtime/logger';
 import { registeredProviders } from '../utils/config/providerRegistry';
 import { KnownProviders } from '../utils/config/knownProviders';
@@ -752,18 +753,7 @@ export class GistSyncService {
      * @returns 成功应用的密钥数量
      */
     static async applyRemoteKeys(keys: Record<string, string>): Promise<number> {
-        let appliedCount = 0;
-
-        for (const [keyName, plainValue] of Object.entries(keys)) {
-            if (!plainValue || plainValue.trim().length === 0) {
-                continue;
-            }
-            await this.context.secrets.store(keyName, plainValue.trim());
-            appliedCount++;
-            Logger.debug(`[GistSync] Applied key: ${keyName}`);
-        }
-
-        return appliedCount;
+        return (await this.applyRemoteKeysInternal(keys)).length;
     }
 
     /**
@@ -771,13 +761,31 @@ export class GistSyncService {
      * 合并了 applyRemoteKeys + notifyProvidersKeyChanged
      */
     static async applyKeysAndNotify(keys: Record<string, string>): Promise<number> {
-        const count = await this.applyRemoteKeys(keys);
-        if (count === 0) {
+        const appliedKeyNames = await this.applyRemoteKeysInternal(keys);
+        if (appliedKeyNames.length === 0) {
             return 0;
         }
 
-        this.notifyProviders(Object.keys(keys));
-        return count;
+        this.notifyProviders(appliedKeyNames);
+        return appliedKeyNames.length;
+    }
+
+    private static async applyRemoteKeysInternal(keys: Record<string, string>): Promise<string[]> {
+        const appliedKeyNames: string[] = [];
+
+        for (const [keyName, plainValue] of Object.entries(keys)) {
+            const normalizedValue = plainValue?.trim();
+            if (!normalizedValue) {
+                continue;
+            }
+
+            const provider = keyName.endsWith('.apiKey') ? keyName.slice(0, -'.apiKey'.length) : keyName;
+            await ApiKeyManager.setApiKey(provider, normalizedValue);
+            appliedKeyNames.push(keyName);
+            Logger.debug(`[GistSync] Applied key: ${keyName}`);
+        }
+
+        return appliedKeyNames;
     }
 
     /**

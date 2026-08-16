@@ -251,6 +251,7 @@ export type HostMessage =
     | { command: 'uploadPrep'; snapshots: UploadSlotSnapshot[]; remoteReadable: boolean }
     | { command: 'requestPassphrase'; error?: string }
     | { command: 'downloadPrep'; snapshots: RemoteSlotSnapshot[] }
+    | { command: 'clearRestorePrep' }
     | { command: 'downloadResult'; ok: boolean; error?: string; appliedCount?: number }
     | { command: 'activeKeysPrep'; snapshots: ActiveSlotSnapshot[] }
     | { command: 'activeKeysResult'; ok: boolean; changedCount?: number; error?: string }
@@ -278,6 +279,7 @@ export type WebViewMessage =
     | { command: 'uploadSelected'; selections: SlotItemSelection[] }
     | { command: 'download' }
     | { command: 'downloadWithPassphrase'; passphrase: string }
+    | { command: 'discardRestorePrep' }
     | { command: 'restore'; selections: SlotItemSelection[] }
     | { command: 'manageActiveKeys' }
     | { command: 'applyActiveKeys'; actions: ActiveKeyAction[] }
