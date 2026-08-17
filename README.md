@@ -456,6 +456,7 @@ GCMP 提供 **Compatible Provider**，用于支持任何 OpenAI 或 Anthropic �
             }
             // "webSearchTool": true, // 可选：启用联网搜索（仅 sdkMode=anthropic / openai-responses 生效）
             // "nativeTools": [{ "type": "web_search" }] // 可选：注入原生工具（仅 sdkMode=openai-responses 生效）
+            // "cacheTtl": "1h" // 可选：Anthropic 提示缓存 TTL（仅 sdkMode=anthropic 生效），省略为默认 5m；1h 缓存写入约为基础输入价 2 倍
         }
     ]
 }
@@ -468,6 +469,16 @@ GCMP 提供 **Compatible Provider**，用于支持任何 OpenAI 或 Anthropic �
 ### `sdkMode`
 
 `gcmp.compatibleModels[*].sdkMode` 指定请求/流式解析方式，可选值：`openai`（默认）、`openai-sse`、`openai-responses`、`anthropic`。
+
+### Anthropic 提示缓存 TTL：`cacheTtl`
+
+`sdkMode=anthropic` 的模型可配置 `gcmp.compatibleModels[*].cacheTtl`：
+
+- 省略（默认）：不写 `ttl` 字段，走 Anthropic 默认 5 分钟缓存，行为与历史版本一致
+- `"5m"` / `"1h"`：请求内全部块级 `cache_control` 断点统一携带该 TTL，不会出现混用 TTL 导致的 400
+- `"1h"` 适合会话常出现 5 分钟以上、1 小时以内空档的场景；缓存写入按基础输入价约 2 倍计费，缓存读取仍为 0.1 倍
+
+注意：`extraBody` 中的顶层 `cache_control` 会被剥离并提示告警（它会与自动注入的 4 个块级断点叠加超限或混 TTL 报 400），请改用 `cacheTtl`。
 
 ### 自定义 provider 余额/用量查询示例：`usage` + `usages` 智能合并
 

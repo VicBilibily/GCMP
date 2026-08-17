@@ -24,6 +24,8 @@ export type ReasoningEffort = NonNullable<CompatibleModelConfig['reasoningEffort
  */
 export type ServiceTier = string;
 
+export type CacheTtl = NonNullable<CompatibleModelConfig['cacheTtl']> | '';
+
 /**
  * 前端使用的扁平化模型数据
  *
@@ -49,6 +51,7 @@ export interface ModelFormData {
     imageInput: boolean;
     serviceTier: ServiceTier[];
     useInstructions: boolean | undefined;
+    cacheTtl: CacheTtl;
     webSearchTool: boolean | undefined;
     /** webSearchTool 对象配置（JSON 字符串），anthropic / openai-responses 模式支持 */
     webSearchToolConfig: string;

@@ -5,7 +5,8 @@ import {
     addCacheControlBreakpoints,
     AnthropicCacheableMessage,
     AnthropicCacheableTool,
-    preprocessAnthropicCacheBreakpoints
+    preprocessAnthropicCacheBreakpoints,
+    stripTopLevelCacheControl
 } from './anthropicCacheControl';
 
 interface TestSystem {
@@ -413,4 +414,176 @@ test('消息级：剩余空位回填最早 user 前缀', () => {
 
     assert.equal(cachedOf(messages[0]).length, 1, '应回填最早 user 前缀');
     assert.equal(cachedOf(messages[1]).length, 1, '当前 user 应被打断点');
+});
+
+// ============= TTL（cacheTtl，#370）=============
+
+/** 收集请求内全部 cache_control 断点值（tools + system + messages） */
+function collectBreakpoints(
+    tools: AnthropicCacheableTool[],
+    system: { cache_control?: { type: string; ttl?: string } | null } | undefined,
+    messages: AnthropicCacheableMessage[]
+): { type: string; ttl?: string }[] {
+    const values: { type: string; ttl?: string }[] = [];
+    for (const tool of tools) {
+        if (tool.cache_control) {
+            values.push(tool.cache_control);
+        }
+    }
+    if (system?.cache_control) {
+        values.push(system.cache_control);
+    }
+    for (const m of messages) {
+        if (!Array.isArray(m.content)) {
+            continue;
+        }
+        for (const block of m.content as { cache_control?: { type: string; ttl?: string } }[]) {
+            if (block.cache_control) {
+                values.push(block.cache_control);
+            }
+        }
+    }
+    return values;
+}
+
+test('TTL：未配置时断点不含 ttl 键（字节级兼容）', () => {
+    const tools = [makeTool('read_file')];
+    const system = makeSystem('sys');
+    const messages = [userMsg(), textAssistant(), userMsg()];
+
+    addCacheControlBreakpoints(tools, { messages, system });
+
+    const values = collectBreakpoints(tools, system, messages);
+    assert.ok(values.length > 0);
+    for (const value of values) {
+        assert.equal('ttl' in value, false);
+    }
+    assert.equal(JSON.stringify(values).includes('ttl'), false);
+});
+
+test('TTL：1h 时 tools/system/消息断点全部携带 ttl', () => {
+    const tools = [makeTool('read_file'), makeTool('edit_file')];
+    const system = makeSystem('sys');
+    const messages = [userMsg(), toolUseAssistant(), toolResultMsg(), userMsg()];
+
+    addCacheControlBreakpoints(tools, { messages, system }, '1h');
+
+    const values = collectBreakpoints(tools, system, messages);
+    assert.ok(values.length > 0);
+    for (const value of values) {
+        assert.deepEqual(value, { type: 'ephemeral', ttl: '1h' });
+    }
+});
+
+test('TTL：5m 时全部显式 ttl=5m', () => {
+    const tools = [makeTool('read_file')];
+    const system = makeSystem('sys');
+
+    addCacheControlBreakpoints(tools, { messages: [], system }, '5m');
+
+    assert.deepEqual(tools[0].cache_control, { type: 'ephemeral', ttl: '5m' });
+    assert.deepEqual(system.cache_control, { type: 'ephemeral', ttl: '5m' });
+});
+
+test('TTL：preprocess 删光已有裸 ephemeral 断点后统一重打为 1h', () => {
+    const tools = [makeTool('read_file')];
+    const system = makeSystem('sys');
+    // 模拟上游 DataPart 遗留的裸 ephemeral 断点
+    const messages = [msg('user', { text: 'a', cached: true }), userMsg()];
+
+    preprocessAnthropicCacheBreakpoints(tools, { messages, system }, '1h');
+
+    const values = collectBreakpoints(tools, system, messages);
+    assert.ok(values.length > 0);
+    for (const value of values) {
+        assert.deepEqual(value, { type: 'ephemeral', ttl: '1h' });
+    }
+});
+
+test('TTL：preprocess 将已有显式 ttl=5m 断点统一改写为 1h（不混 TTL）', () => {
+    const tools = [makeTool('read_file')];
+    const system = makeSystem('sys');
+    const messages = [
+        {
+            role: 'user',
+            content: [{ type: 'text', text: 'a', cache_control: { type: 'ephemeral', ttl: '5m' } }]
+        }
+    ] as unknown as AnthropicCacheableMessage[];
+
+    preprocessAnthropicCacheBreakpoints(tools, { messages, system }, '1h');
+
+    const values = collectBreakpoints(tools, system, messages);
+    assert.ok(values.length > 0);
+    for (const value of values) {
+        assert.deepEqual(value, { type: 'ephemeral', ttl: '1h' });
+    }
+});
+
+test('TTL：配置 1h 时断点总数仍不超过 4', () => {
+    const tools = [makeTool('read_file')];
+    const system = makeSystem('sys');
+    const messages = [
+        userMsg(),
+        textAssistant(),
+        userMsg(),
+        toolUseAssistant(),
+        toolResultMsg(),
+        textAssistant(),
+        userMsg()
+    ];
+
+    addCacheControlBreakpoints(tools, { messages, system }, '1h');
+
+    assert.ok(collectBreakpoints(tools, system, messages).length <= 4);
+});
+
+test('TTL：thinking / redacted_thinking 块仍不携带断点', () => {
+    const messages: AnthropicCacheableMessage[] = [
+        userMsg(),
+        {
+            role: 'assistant',
+            content: [
+                { type: 'thinking', thinking: 't', signature: 's' },
+                { type: 'redacted_thinking', data: 'd' },
+                { type: 'text', text: 'reply' }
+            ]
+        } as unknown as AnthropicCacheableMessage,
+        userMsg()
+    ];
+
+    addCacheControlBreakpoints([], { messages, system: undefined }, '1h');
+
+    const assistantBlocks = messages[1].content as { type: string; cache_control?: unknown }[];
+    for (const block of assistantBlocks) {
+        if (block.type === 'thinking' || block.type === 'redacted_thinking') {
+            assert.equal(block.cache_control, undefined);
+        }
+    }
+});
+
+test('TTL：defer_loading 工具仍被跳过', () => {
+    const tools = [makeTool('read_file'), makeDeferredTool('deferred_tool')];
+
+    addCacheControlBreakpoints(tools, { messages: [], system: undefined }, '1h');
+
+    assert.deepEqual(tools[0].cache_control, { type: 'ephemeral', ttl: '1h' });
+    assert.equal(tools[1].cache_control, undefined);
+});
+
+test('extraBody 剥离：顶层 cache_control 被移除，其余键保留', () => {
+    const [rest, stripped] = stripTopLevelCacheControl({
+        cache_control: { type: 'ephemeral', ttl: '1h' },
+        temperature: 0.1
+    });
+
+    assert.equal(stripped, true);
+    assert.deepEqual(rest, { temperature: 0.1 });
+});
+
+test('extraBody 剥离：无顶层 cache_control 时原样返回且不告警', () => {
+    const extraBody = { temperature: 0.1 };
+    const [rest, stripped] = stripTopLevelCacheControl(extraBody);
+
+    assert.equal(stripped, false);
+    assert.equal(rest, extraBody);
 });

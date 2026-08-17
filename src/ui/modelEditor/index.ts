@@ -209,6 +209,8 @@ export class ModelEditor {
             }
         }
 
+        model.cacheTtl = data.sdkMode === 'anthropic' && data.cacheTtl ? data.cacheTtl : undefined;
+
         // 仅当 sdkMode 为 anthropic 或 openai-responses 时才更新 webSearchTool
         // 复选框状态优先：未勾选时明确禁用，忽略 JSON 配置；
         // 勾选时解析 JSON 对象配置，无效或为空时退化为 true（仅启用，不传额外字段）
@@ -385,6 +387,7 @@ export class ModelEditor {
             imageInput: model?.capabilities?.imageInput || false,
             serviceTier: normalizeCompatibleServiceTiers(model?.serviceTier) || [],
             useInstructions: model?.useInstructions,
+            cacheTtl: model?.cacheTtl || '',
             webSearchTool: model?.webSearchTool ? true : undefined,
             webSearchToolConfig:
                 model?.webSearchTool && typeof model.webSearchTool === 'object' ?

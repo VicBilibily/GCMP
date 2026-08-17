@@ -66,6 +66,7 @@ const state: EditorState = {
         imageInput: false,
         serviceTier: [],
         useInstructions: undefined,
+        cacheTtl: '',
         webSearchTool: undefined,
         webSearchToolConfig: '',
         nativeTools: '',

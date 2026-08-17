@@ -17,8 +17,35 @@ const maxCacheBreakpoints = 4;
 /** 缓存控制类型（Anthropic 目前仅支持 ephemeral） */
 export const AnthropicCacheType = 'ephemeral';
 
+/** cache_control 断点值；省略 ttl 时不写键，保持与历史行为字节级一致 */
+export interface CacheControlValue {
+    type: string;
+    ttl?: string;
+}
+
 interface CacheableBlock {
-    cache_control?: { type: string } | null;
+    cache_control?: CacheControlValue | null;
+}
+
+/** 构造断点值（ttl 省略时不写键） */
+function makeBreakpoint(ttl?: string): CacheControlValue {
+    return ttl ? { type: AnthropicCacheType, ttl } : { type: AnthropicCacheType };
+}
+
+/**
+ * 剥离 extraBody 中的顶层 cache_control（官方 automatic caching 字段）。
+ * 它会与注入的 4 个块级断点叠加超限或混 TTL 导致 400（#370）。
+ * @returns [剥离后的 extraBody, 是否发生了剥离]
+ */
+export function stripTopLevelCacheControl(
+    extraBody: Record<string, unknown>
+): [rest: Record<string, unknown>, stripped: boolean] {
+    if (!('cache_control' in extraBody)) {
+        return [extraBody, false];
+    }
+    const rest = { ...extraBody };
+    delete rest.cache_control;
+    return [rest, true];
 }
 
 /** 判断内容块是否支持缓存控制（thinking / redacted_thinking 不支持） */
@@ -28,7 +55,7 @@ function blockSupportsCacheControl(block: { type: string }): boolean {
 
 export interface AnthropicCacheableTool {
     name: string;
-    cache_control?: { type: string } | null;
+    cache_control?: CacheControlValue | null;
     /** 延迟加载工具（defer_loading）不进系统前缀，不可作为缓存断点（对齐官方策略） */
     defer_loading?: boolean;
 }
@@ -40,7 +67,7 @@ export interface AnthropicCacheableMessage {
 
 interface AnthropicContentBlock {
     type: string;
-    cache_control?: { type: string } | null;
+    cache_control?: CacheControlValue | null;
 }
 
 interface AnthropicTextBlock extends AnthropicContentBlock {
@@ -127,9 +154,15 @@ function preprocessMessageBlocks(messages: AnthropicCacheableMessage[]): void {
     }
 }
 
+/**
+ * 预处理并注入缓存断点。
+ * 先移除已有断点再统一重打，因此配置 ttl 后请求内全部断点同 TTL，不会混用。
+ * @param ttl 可选 TTL（'5m'/'1h'），省略时不写 ttl 键（Anthropic 默认 5m）
+ */
 export function preprocessAnthropicCacheBreakpoints(
     tools: AnthropicCacheableTool[],
-    messagesResult: { messages: AnthropicCacheableMessage[]; system?: CacheableBlock & { text?: string } }
+    messagesResult: { messages: AnthropicCacheableMessage[]; system?: CacheableBlock & { text?: string } },
+    ttl?: string
 ): void {
     for (const tool of tools) {
         removeCacheControl(tool);
@@ -140,7 +173,7 @@ export function preprocessAnthropicCacheBreakpoints(
     }
 
     preprocessMessageBlocks(messagesResult.messages);
-    addCacheControlBreakpoints(tools, messagesResult);
+    addCacheControlBreakpoints(tools, messagesResult, ttl);
 }
 
 /** 是否含 tool_result 块（一轮工具调用的结果） */
@@ -154,12 +187,12 @@ function hasToolUse(msg: AnthropicCacheableMessage): boolean {
 }
 
 /** 给消息最后一个可缓存块打断点（消息级断点附着在最后内容块上） */
-function markLastBlock(msg: AnthropicCacheableMessage): boolean {
+function markLastBlock(msg: AnthropicCacheableMessage, ttl?: string): boolean {
     const blocks = getBlocks(msg);
     for (let i = blocks.length - 1; i >= 0; i--) {
         const b = blocks[i];
         if (blockSupportsCacheControl(b) && !b.cache_control) {
-            b.cache_control = { type: AnthropicCacheType };
+            b.cache_control = makeBreakpoint(ttl);
             return true;
         }
     }
@@ -170,10 +203,12 @@ function markLastBlock(msg: AnthropicCacheableMessage): boolean {
  * 为 Anthropic 请求注入缓存断点。
  * @param tools 工具数组（服务端工具类型无 input_schema，不可缓存）
  * @param messagesResult 转换后的消息与 system 块
+ * @param ttl 可选 TTL，写入每个注入断点；已有断点保持原样（preprocess 路径会先删光）
  */
 export function addCacheControlBreakpoints(
     tools: AnthropicCacheableTool[],
-    messagesResult: { messages: AnthropicCacheableMessage[]; system?: CacheableBlock & { text?: string } }
+    messagesResult: { messages: AnthropicCacheableMessage[]; system?: CacheableBlock & { text?: string } },
+    ttl?: string
 ): void {
     // 统计已有断点（tools + system + messages）
     let existingCount = 0;
@@ -209,7 +244,7 @@ export function addCacheControlBreakpoints(
         if (tool.defer_loading || tool.cache_control) {
             continue;
         }
-        tool.cache_control = { type: AnthropicCacheType };
+        tool.cache_control = makeBreakpoint(ttl);
         slotsAvailable--;
         break;
     }
@@ -217,7 +252,7 @@ export function addCacheControlBreakpoints(
     // system 块（缓存稳定系统前缀）
     const systemBlock = messagesResult.system;
     if (systemBlock && !systemBlock.cache_control && slotsAvailable > 0 && systemBlock.text?.trim()) {
-        systemBlock.cache_control = { type: AnthropicCacheType };
+        systemBlock.cache_control = makeBreakpoint(ttl);
         slotsAvailable--;
     }
 
@@ -225,7 +260,7 @@ export function addCacheControlBreakpoints(
     // Anthropic MessageParam 层补充（上游不再对第三方 vendor 下发 cache_control）。
     // 倒序遍历：当前 user 消息之下 → 每轮最后一个 tool_result 与当前 user；
     // 之上 → 无工具调用的 assistant（一轮的终止回复）。
-    addMessageLevelBreakpoints(messagesResult.messages, slotsAvailable);
+    addMessageLevelBreakpoints(messagesResult.messages, slotsAvailable, ttl);
 }
 
 /**
@@ -238,7 +273,11 @@ export function addCacheControlBreakpoints(
  *
  * @returns 实际添加的断点数
  */
-function addMessageLevelBreakpoints(messages: AnthropicCacheableMessage[], slotsAvailable: number): number {
+function addMessageLevelBreakpoints(
+    messages: AnthropicCacheableMessage[],
+    slotsAvailable: number,
+    ttl?: string
+): number {
     let added = 0;
     let hasPassedCurrentUserMessage = false;
 
@@ -259,7 +298,7 @@ function addMessageLevelBreakpoints(messages: AnthropicCacheableMessage[], slots
             (!hasPassedCurrentUserMessage && (isLastToolResultInRound || isCurrentUserMessage)) || isAsstMsgWithNoTools;
 
         if (shouldMark && !getBlocks(msg).some(b => b.cache_control)) {
-            if (markLastBlock(msg)) {
+            if (markLastBlock(msg, ttl)) {
                 slotsAvailable--;
                 added++;
             }
@@ -280,7 +319,7 @@ function addMessageLevelBreakpoints(messages: AnthropicCacheableMessage[], slots
         if (msg.role !== 'user') {
             break;
         }
-        if (!getBlocks(msg).some(b => b.cache_control) && markLastBlock(msg)) {
+        if (!getBlocks(msg).some(b => b.cache_control) && markLastBlock(msg, ttl)) {
             slotsAvailable--;
             added++;
         }

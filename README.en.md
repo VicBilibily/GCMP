@@ -449,6 +449,7 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
             }
             // "webSearchTool": true, // Optional: enable web search (only effective when sdkMode=anthropic or openai-responses)
             // "nativeTools": [{ "type": "web_search" }] // Optional: inject native tools (only effective when sdkMode=openai-responses)
+            // "cacheTtl": "1h" // Optional: Anthropic prompt cache TTL (anthropic SDK mode only); omit for the default 5m. 1h cache writes cost about 2x base input price
         }
     ]
 }
@@ -461,6 +462,16 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
 ### `sdkMode`
 
 `gcmp.compatibleModels[*].sdkMode` specifies the request/streaming parsing mode. Available values: `openai` (default), `openai-sse`, `openai-responses`, `anthropic`.
+
+### Anthropic prompt cache TTL: `cacheTtl`
+
+Models with `sdkMode=anthropic` can configure `gcmp.compatibleModels[*].cacheTtl`:
+
+- Omitted (default): no `ttl` field is written, so Anthropic's default 5-minute cache applies — identical to previous behavior
+- `"5m"` / `"1h"`: every block-level `cache_control` breakpoint in the request carries this TTL uniformly; mixed TTLs (which cause 400s) can never occur
+- `"1h"` suits sessions with idle gaps longer than 5 minutes but under 1 hour; cache writes cost about 2x base input price, while cache reads remain 0.1x
+
+Note: a top-level `cache_control` in `extraBody` is stripped with a warning (it stacks with the 4 auto-injected block-level breakpoints and exceeds the limit, or mixes TTLs into a 400). Use `cacheTtl` instead.
 
 ### Custom provider balance/usage query example: intelligent merge of `usage` + `usages`
 

@@ -990,6 +990,10 @@ export class ConfigManager {
                     `  Model ${modelOverride.id}: override useInstructions = ${modelOverride.useInstructions}`
                 );
             }
+            if (modelOverride.cacheTtl !== undefined) {
+                target.cacheTtl = modelOverride.cacheTtl;
+                Logger.debug(`  Model ${modelOverride.id}: override cacheTtl = ${modelOverride.cacheTtl}`);
+            }
             if (modelOverride.webSearchTool !== undefined) {
                 target.webSearchTool = modelOverride.webSearchTool;
                 Logger.debug(

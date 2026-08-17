@@ -6,7 +6,7 @@
 import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
-import { preprocessAnthropicCacheBreakpoints } from './anthropic/anthropicCacheControl';
+import { preprocessAnthropicCacheBreakpoints, stripTopLevelCacheControl } from './anthropic/anthropicCacheControl';
 import { apiMessageToAnthropicMessage, convertToAnthropicTools } from './anthropicConverter';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { Logger } from '../utils/runtime/logger';
@@ -259,8 +259,19 @@ export class AnthropicHandler {
 
             // 合并 extraBody 参数（如果有）
             if (modelConfig.extraBody) {
+                // 顶层 cache_control 属于官方 automatic caching，会与注入的 4 个块级断点
+                // 叠加超限或混 TTL 导致 400；TTL 请改用模型配置 cacheTtl（#370）
+                const [extraBodyWithoutCacheControl, strippedCacheControl] = stripTopLevelCacheControl(
+                    modelConfig.extraBody
+                );
+                if (strippedCacheControl) {
+                    Logger.warn(
+                        `[${model.name}] extraBody.cache_control is not supported for Anthropic requests ` +
+                            `(breakpoint limit / mixed-TTL 400); use model config "cacheTtl" instead. Dropped.`
+                    );
+                }
                 // 过滤掉不可修改的核心参数
-                const filteredExtraBody = OpenAIHandler.filterExtraBodyParams(modelConfig.extraBody);
+                const filteredExtraBody = OpenAIHandler.filterExtraBodyParams(extraBodyWithoutCacheControl);
                 Object.assign(createParams, filteredExtraBody);
                 if (Object.keys(filteredExtraBody).length > 0) {
                     // 仅记录键名，避免泄露用户自定义参数值（可能含内部系统 ID 或临时凭证）
@@ -295,10 +306,14 @@ export class AnthropicHandler {
 
             // 注入缓存断点：VS Code 1.130 起上游不再对第三方 vendor 模型下发
             // cache_control DataPart，需自行给 tools/system 稳定前缀打断点（#314）
-            preprocessAnthropicCacheBreakpoints(tools, {
-                messages: anthropicMessages,
-                system: system.text ? system : undefined
-            });
+            preprocessAnthropicCacheBreakpoints(
+                tools,
+                {
+                    messages: anthropicMessages,
+                    system: system.text ? system : undefined
+                },
+                modelConfig.cacheTtl
+            );
 
             Logger.debug(
                 `[${model.name}] Sending Anthropic API request with ${anthropicMessages.length} messages, model: ${modelId}`

@@ -12,7 +12,12 @@ import { configProviders } from '../../providers/config';
 import { t } from '../runtime/l10n';
 import { sanitizeConfigForLogging } from '../net/proxyAgent';
 import { ModelEditor } from '../../ui/modelEditor';
-import type { ModelTokenPricingInput, NativeToolConfig, WebSearchToolConfig } from '../../types/sharedTypes';
+import type {
+    AnthropicPromptCacheTtl,
+    ModelTokenPricingInput,
+    NativeToolConfig,
+    WebSearchToolConfig
+} from '../../types/sharedTypes';
 import { normalizeCompatibleServiceTiers } from '../model/compatibleServiceTier';
 
 /**
@@ -94,6 +99,13 @@ export interface CompatibleModelConfig {
      *  - 当设置为 false 时，使用用户消息传递系统消息指令
      */
     useInstructions?: boolean;
+    /**
+     * Anthropic 提示缓存 TTL（可选，仅 sdkMode=anthropic 生效）
+     * - 省略：不写 ttl，走 Anthropic 默认 5 分钟
+     * - '5m' / '1h'：全部块级 cache_control 断点统一携带该 ttl（1h 写入约 2 倍基础输入价）
+     * extraBody 顶层 cache_control 会被剥离，请改用本字段。
+     */
+    cacheTtl?: AnthropicPromptCacheTtl;
     /** 是否启用模型的联网搜索原生工具（anthropic / openai-responses 均支持）。支持布尔值或详细配置对象 */
     webSearchTool?: boolean | WebSearchToolConfig;
     /** 额外原生工具箱（如 web_extractor）。仅 openai-responses 生效；anthropic 仅取 web_search 项 */

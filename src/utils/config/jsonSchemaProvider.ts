@@ -76,6 +76,28 @@ export class JsonSchemaProvider {
         );
     }
 
+    /** cacheTtl 完整定义（仅 sdkMode=anthropic 生效，#370） */
+    private static getCacheTtlSchema(): Record<string, unknown> {
+        return {
+            type: 'string',
+            enum: ['5m', '1h'],
+            enumDescriptions: [
+                t(
+                    '5-minute cache (explicit). Same tier as omitted default',
+                    '5 分钟缓存（显式）。与省略时的默认档位相同'
+                ),
+                t(
+                    '1-hour cache. Cache writes cost about 2x base input price',
+                    '1 小时缓存。缓存写入按基础输入价约 2 倍计费'
+                )
+            ],
+            description: t(
+                'Prompt cache TTL for Anthropic block-level cache_control breakpoints (anthropic SDK mode only). Omit to keep the Anthropic default (5m). extraBody.cache_control is ignored; use this field.',
+                'Anthropic 块级 cache_control 断点的提示缓存 TTL（仅 anthropic SDK 模式生效）。省略则保持 Anthropic 默认（5m）。extraBody.cache_control 会被忽略，请改用本字段。'
+            )
+        };
+    }
+
     private static getAnthropicWebSearchDescription(): string {
         return t(
             'Whether to enable the native web_search tool for the model. Supported in anthropic mode (Anthropic web_search_20250305) and openai-responses mode (Responses API web_search).',
@@ -956,6 +978,7 @@ export class JsonSchemaProvider {
                                 description: this.getUseInstructionsDescription(),
                                 default: false
                             },
+                            cacheTtl: this.getCacheTtlSchema(),
                             webSearchTool: {
                                 oneOf: [
                                     {
@@ -1132,6 +1155,28 @@ export class JsonSchemaProvider {
                                 else: {
                                     properties: {
                                         serviceTier: this.getCompatibleServiceTierSchema('openai')
+                                    }
+                                }
+                            },
+                            {
+                                // cacheTtl 仅对 anthropic 生效，其余模式已配置时标红警告
+                                if: {
+                                    properties: { sdkMode: { const: 'anthropic' } },
+                                    required: ['sdkMode']
+                                },
+                                then: {
+                                    properties: {
+                                        cacheTtl: this.getCacheTtlSchema()
+                                    }
+                                },
+                                else: {
+                                    properties: {
+                                        cacheTtl: {
+                                            deprecationMessage: t(
+                                                'cacheTtl is only effective for anthropic SDK mode',
+                                                'cacheTtl 仅对 anthropic SDK 模式生效'
+                                            )
+                                        }
                                     }
                                 }
                             },
@@ -1405,6 +1450,31 @@ export class JsonSchemaProvider {
      */
     private static createProviderSchema(providerKey: string, config: ProviderConfig): JSONSchema7 {
         const modelIds = config.models?.map(model => model.id) || [];
+        const anthropicModelIds =
+            config.models?.filter(model => model.sdkMode === 'anthropic').map(model => model.id) || [];
+        const anthropicCacheTtlCondition: JSONSchema7 =
+            anthropicModelIds.length > 0 ?
+                {
+                    anyOf: [
+                        {
+                            properties: { sdkMode: { const: 'anthropic' } },
+                            required: ['sdkMode']
+                        },
+                        {
+                            allOf: [
+                                { not: { required: ['sdkMode'] } },
+                                {
+                                    properties: { id: { enum: anthropicModelIds } },
+                                    required: ['id']
+                                }
+                            ]
+                        }
+                    ]
+                }
+            :   {
+                    properties: { sdkMode: { const: 'anthropic' } },
+                    required: ['sdkMode']
+                };
 
         // 创建 id 属性的 schema，支持选择现有模型ID或输入自定义ID
         const idProperty: JSONSchema7 = {
@@ -1600,6 +1670,7 @@ export class JsonSchemaProvider {
                                 description: this.getUseInstructionsDescription(),
                                 default: false
                             },
+                            cacheTtl: this.getCacheTtlSchema(),
                             webSearchTool: {
                                 oneOf: [
                                     {
@@ -1806,6 +1877,25 @@ export class JsonSchemaProvider {
                                             deprecationMessage: t(
                                                 'useInstructions is only effective for openai-responses mode',
                                                 'useInstructions 仅对 openai-responses 模式生效'
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                // cacheTtl 仅对 anthropic 生效，其余模式已配置时标红警告
+                                if: anthropicCacheTtlCondition,
+                                then: {
+                                    properties: {
+                                        cacheTtl: this.getCacheTtlSchema()
+                                    }
+                                },
+                                else: {
+                                    properties: {
+                                        cacheTtl: {
+                                            deprecationMessage: t(
+                                                'cacheTtl is only effective for anthropic SDK mode',
+                                                'cacheTtl 仅对 anthropic SDK 模式生效'
                                             )
                                         }
                                     }

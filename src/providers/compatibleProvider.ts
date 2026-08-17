@@ -123,6 +123,7 @@ export class CompatibleProvider extends GenericModelProvider {
                     ...(model.extraBody && { extraBody: model.extraBody }),
                     ...(model.proxy !== undefined && { proxy: model.proxy }),
                     ...(model.useInstructions !== undefined && { useInstructions: model.useInstructions }),
+                    ...(model.cacheTtl && { cacheTtl: model.cacheTtl }),
                     ...(model.webSearchTool !== undefined && { webSearchTool: model.webSearchTool }),
                     ...(model.family && { family: model.family }),
                     ...(model.thinking && { thinking: model.thinking }),

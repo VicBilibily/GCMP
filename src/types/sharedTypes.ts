@@ -35,6 +35,9 @@ export interface ModelChatResponseOptions {
     readonly serviceTier?: string;
 }
 
+/** Anthropic 块级 cache_control 断点的合法 TTL */
+export type AnthropicPromptCacheTtl = '5m' | '1h';
+
 /**
  * 模型配置接口
  */
@@ -158,6 +161,14 @@ export interface ModelConfig {
      *  - 当设置为 true 时，使用 instructions 参数传递系统指令
      */
     useInstructions?: boolean;
+    /**
+     * Anthropic 提示缓存 TTL（可选，仅 sdkMode=anthropic 生效）
+     * - 省略：不写 ttl 字段，走 Anthropic 默认 5 分钟（与历史行为字节级一致）
+     * - '5m' / '1h'：请求内全部块级 cache_control 断点统一携带该 ttl（含已有断点），
+     *   保证不出现混 TTL 400。1h 缓存写入按基础输入价约 2 倍计费。
+     * extraBody 顶层 cache_control 会被剥离，请改用本字段。
+     */
+    cacheTtl?: AnthropicPromptCacheTtl;
     /**
      * 是否启用模型的联网搜索原生工具（可选）
      * - sdkMode=anthropic: 使用 Anthropic web_search_20250305 工具
@@ -461,6 +472,8 @@ export interface ModelOverride {
     extraBody?: Record<string, unknown>;
     /** 是否在 Responses API 中使用 instructions 参数（仅 sdkMode=openai-responses 生效） */
     useInstructions?: boolean;
+    /** Anthropic 提示缓存 TTL（仅 sdkMode=anthropic 生效）；省略保持默认 5m */
+    cacheTtl?: ModelConfig['cacheTtl'];
     /** 是否启用模型的联网搜索原生工具（anthropic / openai-responses 均支持）。支持布尔值或详细配置对象（两模式均支持对象配置） */
     webSearchTool?: boolean | WebSearchToolConfig;
     /** 额外原生工具箱。覆盖目标模型的 nativeTools 字段；重复配置时以新值为准。仅 openai-responses 生效，anthropic 仅取 web_search 项 */

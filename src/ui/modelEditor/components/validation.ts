@@ -299,6 +299,7 @@ export function collectFormData(state: EditorState): ModelFormData | null {
         imageInput,
         serviceTier,
         useInstructions,
+        cacheTtl: state.model.cacheTtl,
         webSearchTool,
         webSearchToolConfig,
         nativeTools,
