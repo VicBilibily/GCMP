@@ -1462,6 +1462,13 @@
                     "fontCharacter": "\\eac8"
                 }
             },
+            "gcmp-grok": {
+                "description": "xAI/Grok",
+                "default": {
+                    "fontPath": "./fonts/grok.ttf",
+                    "fontCharacter": "\\e631"
+                }
+            },
             "gcmp-opencode": {
                 "description": "OpenCode",
                 "default": {

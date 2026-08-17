@@ -35,7 +35,7 @@ export class GrokStatusBar extends BaseStatusBarItem<GrokStatusData> {
             apiKeyProvider: 'grok',
             cacheKeyPrefix: 'grok',
             logPrefix: 'Grok Status Bar',
-            icon: '𝕏'
+            icon: '$(gcmp-grok)'
         };
         super(config);
     }
