@@ -39,7 +39,7 @@
         {
             "id": "deepseek-v4-flash-202605-token-plan",
             "name": "DeepSeek-V4-Flash (TokenPlan)",
-            "tooltip": "腾讯云 Token Plan 专属接入点中的 DeepSeek-V4-Flash 原厂直供。",
+            "tooltip": "腾讯云 Token Plan 专属接入点中的 DeepSeek-V4-Flash 正式版 原厂直供。",
             "provider": "tencent-token",
             "sdkMode": "anthropic",
             "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
@@ -49,12 +49,15 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.14, 0.28, 0.0028], "RMB": [1, 2, 0.02] }
+            "tokenPricing": {
+                "pricing": { "USD": [0.22, 0.66, 0.007], "RMB": [1.5, 4.5, 0.05] },
+                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
+            }
         },
         {
             "id": "deepseek-v4-pro-202606-token-plan",
             "name": "DeepSeek-V4-Pro (TokenPlan)",
-            "tooltip": "腾讯云 Token Plan 专属接入点中的 DeepSeek-V4-Pro 原厂直供。",
+            "tooltip": "腾讯云 Token Plan 专属接入点中的 DeepSeek-V4-Pro 正式版 原厂直供。",
             "provider": "tencent-token",
             "sdkMode": "anthropic",
             "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
@@ -64,7 +67,10 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.435, 0.87, 0.00363], "RMB": [3, 6, 0.025] }
+            "tokenPricing": {
+                "pricing": { "USD": [0.66, 1.98, 0.022], "RMB": [4.5, 13.5, 0.15] },
+                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
+            }
         },
         {
             "id": "glm-5.1-token-plan",
@@ -384,7 +390,10 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.14, 0.28, 0.0028], "RMB": [1, 2, 0.02] }
+            "tokenPricing": {
+                "pricing": { "USD": [0.22, 0.66, 0.007], "RMB": [1.5, 4.5, 0.05] },
+                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
+            }
         },
         {
             "id": "deepseek-v4-pro-token-enterprise",
@@ -414,7 +423,10 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.435, 0.87, 0.00363], "RMB": [3, 6, 0.025] }
+            "tokenPricing": {
+                "pricing": { "USD": [0.66, 1.98, 0.022], "RMB": [4.5, 13.5, 0.15] },
+                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
+            }
         },
         {
             "id": "glm-5-token-enterprise",
@@ -478,6 +490,21 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["high", "max", "none"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "USD": [1.4, 4.4, 0.26], "RMB": [8, 28, 2] }
+        },
+        {
+            "id": "glm-5.3-token-enterprise",
+            "name": "GLM-5.3 (Token Plan Enterprise)",
+            "tooltip": "腾讯云 Token Plan 企业版中的 GLM-5.3。",
+            "provider": "tencent-token-enterprise",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://tokenhub.tencentmaas.com/plan/anthropic",
+            "model": "glm-5.3",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": { "USD": [1.4, 4.4, 0.26], "RMB": [8, 28, 2] }
         },

@@ -27,7 +27,7 @@
             "reasoningEffort": ["high", "xhigh", "none"],
             "thinkingFormat": "effort-none",
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.152432, 0.304864, 0.032664]
+            "tokenPricing": [0.2, 0.4, 0.04]
         },
         {
             "id": "deepseek-v4-pro",
@@ -42,6 +42,19 @@
             "tokenPricing": [2.4, 4.8, 0.2]
         },
         {
+            "id": "deepseek-v4-pro-0813",
+            "name": "DeepSeek-V4-Pro-0813 (Hyper)",
+            "tooltip": "Charm Hyper — DeepSeek-V4-Pro-0813。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "xhigh", "none"],
+            "thinkingFormat": "effort-none",
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [1.437216, 4.311648, 0.0479072]
+        },
+        {
             "id": "gemma-4-26b-a4b-it",
             "name": "Gemma-4-26B-A4B (Hyper)",
             "tooltip": "Charm Hyper — Gemma-4-26B-A4B。",
@@ -49,7 +62,7 @@
             "maxInputTokens": 236000,
             "maxOutputTokens": 20000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.098, 0.354, 0, 0.049]
+            "tokenPricing": [0.124, 0.42, 0, 0.062]
         },
         {
             "id": "glm-5",
@@ -59,7 +72,7 @@
             "maxInputTokens": 180000,
             "maxOutputTokens": 20000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.86, 2.784, 0, 0.43]
+            "tokenPricing": [0.76, 2.356, 0, 0.38]
         },
         {
             "id": "glm-5.1",
@@ -93,7 +106,7 @@
             "maxInputTokens": 118000,
             "maxOutputTokens": 10000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.178, 0.68, 0, 0.089]
+            "tokenPricing": [0.16332, 0.65328, 0.0152432, 0]
         },
         {
             "id": "kimi-k2.5",
@@ -103,7 +116,7 @@
             "maxInputTokens": 236000,
             "maxOutputTokens": 20000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.51, 2.67, 0, 0.255]
+            "tokenPricing": [0.558, 2.94, 0, 0.279]
         },
         {
             "id": "kimi-k2.6",
@@ -136,7 +149,7 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [3.2664, 16.332, 0.32664]
+            "tokenPricing": [3, 15, 0, 0.3]
         },
         {
             "id": "llama-3.3-70b-instruct",
@@ -146,7 +159,7 @@
             "maxInputTokens": 118000,
             "maxOutputTokens": 10000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.6066, 1.0386, 0, 0.3033]
+            "tokenPricing": [0.608, 0.838, 0, 0.304]
         },
         {
             "id": "llama-4-maverick-17b-128e-instruct-fp8",
@@ -156,7 +169,7 @@
             "maxInputTokens": 387000,
             "maxOutputTokens": 43000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.284, 0.934, 0, 0.142]
+            "tokenPricing": [0.274, 0.8992, 0, 0.137]
         },
         {
             "id": "minimax-m2.7",
@@ -166,7 +179,19 @@
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.35, 1.28, 0, 0.175]
+            "tokenPricing": [0.426, 1.62, 0, 0.213]
+        },
+        {
+            "id": "minimax-m3",
+            "name": "MiniMax-M3 (Hyper)",
+            "tooltip": "Charm Hyper — MiniMax-M3。",
+            "sdkMode": "openai-sse",
+            "contextSize": [512000, 400000, 256000, 192000],
+            "maxInputTokens": 460800,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["low", "medium", "high"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.32664, 1.30656, 0.0642392]
         },
         {
             "id": "qwen3.6-flash",
@@ -252,7 +277,7 @@
             "maxInputTokens": 90000,
             "maxOutputTokens": 10000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.601, 2.085, 0, 0.3005]
+            "tokenPricing": [0.445, 2.145, 0, 0.2225]
         },
         {
             "id": "qwen3-next-80b-a3b-instruct",
@@ -262,7 +287,7 @@
             "maxInputTokens": 236000,
             "maxOutputTokens": 20000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.1175, 1.136, 0, 0.0587]
+            "tokenPricing": [0.1175, 1.136, 0, 0.05875]
         }
     ]
 }

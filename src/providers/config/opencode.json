@@ -256,7 +256,10 @@
             "thinkingFormat": "object-none",
             "reasoningEffort": ["high", "max", "low", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.435, 0.87, 0.003625]
+            "tokenPricing": {
+                "pricing": [0.66, 1.98, 0.022],
+                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
+            }
         },
         {
             "id": "deepseek-v4-flash-go",
@@ -271,7 +274,10 @@
             "thinkingFormat": "object-none",
             "reasoningEffort": ["high", "max", "low", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.14, 0.28, 0.0028]
+            "tokenPricing": {
+                "pricing": [0.22, 0.66, 0.007],
+                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
+            }
         },
         {
             "id": "hy3-go",
@@ -298,7 +304,10 @@
             "thinkingFormat": "object-none",
             "reasoningEffort": ["high", "max", "low", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.14, 0.28, 0.028]
+            "tokenPricing": {
+                "pricing": [0.22, 0.66, 0.007],
+                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
+            }
         },
         {
             "id": "deepseek-v4-pro-zen",
@@ -313,7 +322,10 @@
             "thinkingFormat": "object-none",
             "reasoningEffort": ["high", "max", "low", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [1.74, 3.48, 0.145]
+            "tokenPricing": {
+                "pricing": [0.66, 1.98, 0.022],
+                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
+            }
         },
         {
             "id": "glm-5-zen",

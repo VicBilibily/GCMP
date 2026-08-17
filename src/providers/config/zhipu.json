@@ -6,13 +6,15 @@
         {
             "id": "glm-5.3",
             "name": "GLM-5.3 (CodingPlan)",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://open.bigmodel.cn/api/anthropic",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://open.bigmodel.cn/api/v1",
             "tooltip": "智谱最新旗舰模型，以极致后训练 Scaling 实现能力跃迁。在与 GLM-5.2 完全相同的基座上，依托数十倍规模的长程任务环境、更丰富多样的环境类型与超长周期的后训练，编程体感较前代提升 50%，并在 Terminal Bench 3.0 等公开基准中位列开源模型第一；同时涌现出强大的网络安全能力，在白盒代码审查、漏洞发现等任务中的表现接近 Mythos 5。",
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["high", "max", "low"],
+            "reasoningDefault": "max",
+            "webSearchTool": true,
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": { "USD": [1.4, 4.4, 0.26], "RMB": [8, 28, 2] }
         },

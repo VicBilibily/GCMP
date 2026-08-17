@@ -2,6 +2,28 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.36] - 2026-08-17
+
+### 新增
+
+- **Anthropic 接口新增 Retry-After 头解析**：重试等待时长改为遵循服务端返回的 `retry-after-ms` / `retry-after` 响应头（支持毫秒数、秒数与 HTTP 日期三种格式），不再使用固定退避策略；同时识别 `x-should-retry` 响应头，服务端显式标记 `false` 时不再重试、显式标记 `true` 时强制重试。
+
+### 变更
+
+- **Anthropic 重试策略统一由外层处理**：关闭 Anthropic SDK 内部重试（`maxRetries: 0`），改由 GCMP 外层重试管理器统一调度，超时/连接错误、HTTP 408/409/429 及 5xx 状态码继续触发重试，避免 SDK 内层重试与外层重试叠加。
+
+---
+
+### Added
+
+- **Retry-After header parsing for Anthropic endpoints**: retry delays now follow the `retry-after-ms` / `retry-after` response headers (supporting millisecond, second, and HTTP-date formats) instead of a fixed backoff, and the `x-should-retry` header is honored — explicit `false` skips retry, explicit `true` forces one.
+
+### Changed
+
+- **Unified Anthropic retry handling in the outer retry manager**: the Anthropic SDK's built-in retries are disabled (`maxRetries: 0`) so GCMP's outer retry manager handles them all, still retrying on timeout/connection errors and HTTP 408/409/429/5xx, avoiding stacked inner and outer retries.
+
+---
+
 ## [0.26.35] - 2026-08-15
 
 ### 新增
