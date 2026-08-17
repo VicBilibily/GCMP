@@ -2,6 +2,36 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.37] - 2026-08-18
+
+### 新增
+
+- **Anthropic 提示缓存 TTL 统一配置 `cacheTtl`**：[#370](https://github.com/VicBilibily/GCMP/issues/370) `sdkMode=anthropic` 的模型新增 `cacheTtl` 配置项（`5m` / `1h`），统一管理自动注入的提示缓存断点 TTL；省略时保持默认 5 分钟，设为 `1h` 可延长缓存命中窗口（1h 缓存写入约为基础输入价 2 倍）。`extraBody` 中手工配置的顶层 `cache_control` 会被剥离并提示告警，避免与块级断点叠加超限或混 TTL 导致 400 错误。
+
+### 变更
+
+- **Grok 状态栏图标改用自定义字体**：状态栏的 Grok 用量图标改为内置自定义字体图标。
+
+### 修复
+
+- **OpenAI Responses 接口流式处理多项修复**：回传历史消息时过滤非 `rs` 前缀的外源 reasoning id，避免服务端返回 400 错误；补全 `response.incomplete` 事件处理，正确识别 max_output_tokens 截断与内容过滤拦截，并将 `finishReason` 透传至完成日志与用量统计链路；修复跨 `output_index` 输出切换时正文缺少分段导致的文本粘连。
+
+---
+
+### Added
+
+- **Unified Anthropic prompt cache TTL via `cacheTtl`**: [#370](https://github.com/VicBilibily/GCMP/issues/370) models with `sdkMode=anthropic` now support a `cacheTtl` option (`5m` / `1h`) that centrally manages the TTL of auto-injected prompt cache breakpoints; omitting it keeps the default 5 minutes, while `1h` extends the cache hit window (1h cache writes cost about 2x the base input price). A manually set top-level `cache_control` in `extraBody` is stripped with a warning, avoiding stacked breakpoints or mixed TTLs that would cause a 400 error.
+
+### Changed
+
+- **Grok status bar icon now uses a custom font**: the Grok usage icon in the status bar now uses a bundled custom font icon.
+
+### Fixed
+
+- **Multiple OpenAI Responses streaming fixes**: foreign reasoning item IDs without the `rs` prefix are now filtered out when replaying history, avoiding 400 errors from the server; `response.incomplete` events are now handled, correctly detecting max_output_tokens truncation and content-filter blocks, with `finishReason` propagated to completion logs and the usage tracking pipeline; fixed missing text separation when switching between `output_index` outputs, which caused body text to stick together.
+
+---
+
 ## [0.26.36] - 2026-08-17
 
 ### 新增

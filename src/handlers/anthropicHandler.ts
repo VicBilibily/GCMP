@@ -267,7 +267,7 @@ export class AnthropicHandler {
                 if (strippedCacheControl) {
                     Logger.warn(
                         `[${model.name}] extraBody.cache_control is not supported for Anthropic requests ` +
-                            `(breakpoint limit / mixed-TTL 400); use model config "cacheTtl" instead. Dropped.`
+                            '(breakpoint limit / mixed-TTL 400); use model config "cacheTtl" instead. Dropped.'
                     );
                 }
                 // 过滤掉不可修改的核心参数
