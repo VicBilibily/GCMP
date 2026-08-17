@@ -447,4 +447,28 @@ suite('OpenAIResponsesMessageConverter', () => {
         // anthropic 模式的 marker 不应被当作 openai-responses 加密 reasoning 恢复
         assert.deepEqual(result.messages, []);
     });
+
+    test('外源 reasoning id 不回传，仅保留密文内容', () => {
+        const converter = createConverter();
+
+        const result = converter.convertMessagesToOpenAIResponses([
+            {
+                role: vscode.LanguageModelChatMessageRole.Assistant,
+                content: [
+                    new LanguageModelThinkingPart('', undefined, {
+                        redactedData: 'cipher',
+                        reasoningId: 'thinking_0'
+                    })
+                ]
+            }
+        ] as never);
+
+        assert.deepEqual(result.messages, [
+            {
+                type: 'reasoning',
+                summary: [],
+                encrypted_content: 'cipher'
+            }
+        ]);
+    });
 });

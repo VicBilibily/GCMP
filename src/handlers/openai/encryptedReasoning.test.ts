@@ -1,7 +1,12 @@
 ﻿import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { isEncryptedReasoningEnabled, isIncludeOverridden, shouldReplayPlainThinking } from './encryptedReasoning';
+import {
+    isEncryptedReasoningEnabled,
+    isIncludeOverridden,
+    isResponsesReasoningId,
+    shouldReplayPlainThinking
+} from './encryptedReasoning';
 
 test('未接管 include：gpt 模型且配置 extraBody.reasoning 时启用', () => {
     assert.equal(
@@ -98,4 +103,12 @@ test('shouldReplayPlainThinking：非 GPT 端点且 include 未接管时回传�
 test('shouldReplayPlainThinking：include 被显式接管时不回传明文', () => {
     assert.equal(shouldReplayPlainThinking({ requestModel: 'deepseek-v4-flash', extraBody: { include: null } }), false);
     assert.equal(shouldReplayPlainThinking({ requestModel: 'deepseek-v4-flash', extraBody: { include: [] } }), false);
+});
+
+test('isResponsesReasoningId：仅接受以 rs 开头的 Responses 签发 id', () => {
+    assert.equal(isResponsesReasoningId('rs_abc123'), true);
+    assert.equal(isResponsesReasoningId('rsn_123'), true);
+    assert.equal(isResponsesReasoningId('thinking_0'), false);
+    assert.equal(isResponsesReasoningId('msg_1'), false);
+    assert.equal(isResponsesReasoningId(undefined), false);
 });

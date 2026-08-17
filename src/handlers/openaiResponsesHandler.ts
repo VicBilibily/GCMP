@@ -112,6 +112,7 @@ export class OpenAIResponsesHandler {
             const abortController = new AbortController();
             const cancellationListener = token.onCancellationRequested(() => abortController.abort());
             let finalUsage: GenericUsageData | undefined = undefined;
+            let finishReason: string | null = null;
             // 记录流处理的开始和结束时间（response.created 到达前为 undefined，避免使用进入函数的旧时间）
             let streamStartTime: number | undefined;
             let streamEndTime: number | undefined = undefined;
@@ -147,10 +148,12 @@ export class OpenAIResponsesHandler {
                 await streamProcessor.consume(stream);
 
                 finalUsage = streamProcessor.getFinalUsage();
+                finishReason = streamProcessor.getFinishReason();
                 streamStartTime = streamProcessor.getStreamStartTime();
                 streamEndTime = streamProcessor.getStreamEndTime();
 
                 const completionResult = this.reportCompletion({
+                    finishReason,
                     modelName: model.name,
                     tokenPricing: modelConfig.tokenPricing,
                     options,
@@ -211,6 +214,7 @@ export class OpenAIResponsesHandler {
     }
 
     private reportCompletion(params: {
+        finishReason?: string | null;
         modelName: string;
         tokenPricing?: ModelTokenPricing;
         options: vscode.ProvideLanguageModelChatResponseOptions;
@@ -224,6 +228,7 @@ export class OpenAIResponsesHandler {
         requestStartTime?: number;
     }): { streamStartTime?: number } {
         const {
+            finishReason,
             modelName,
             tokenPricing,
             options,
@@ -253,7 +258,14 @@ export class OpenAIResponsesHandler {
         }
 
         streamReporter.reportUsage(finalUsage, costNanoAiu);
-        Logger.info(`📊 ${modelName} Responses API request completed`, finalUsage);
+        if (finishReason) {
+            Logger.info(
+                `📊 ${modelName} Responses API request completed with finish reason: ${finishReason}`,
+                finalUsage
+            );
+        } else {
+            Logger.info(`📊 ${modelName} Responses API request completed`, finalUsage);
+        }
 
         streamStartTime ??= streamReporter.getMetricStreamStartTime();
 
@@ -271,7 +283,9 @@ export class OpenAIResponsesHandler {
             });
         }
 
-        Logger.debug(`${modelName} ${this.displayName} Responses API stream completed`);
+        Logger.debug(
+            `${modelName} ${this.displayName} Responses API stream completed${finishReason ? ` (${finishReason})` : ''}`
+        );
         return { streamStartTime };
     }
 

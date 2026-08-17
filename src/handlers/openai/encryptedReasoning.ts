@@ -7,6 +7,14 @@
 export const ENCRYPTED_REASONING_INCLUDE = 'reasoning.encrypted_content';
 
 /**
+ * Responses API 只接受自己签发的 reasoning id（以 `rs` 开头）。
+ * 外源 id（如 Anthropic 的 `thinking_0`）原样回传会 400。
+ */
+export function isResponsesReasoningId(id: string | undefined): boolean {
+    return typeof id === 'string' && id.startsWith('rs');
+}
+
+/**
  * 判定是否请求/回放加密思考项（reasoning.encrypted_content）。
  *
  * 规则：

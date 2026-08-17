@@ -41,13 +41,19 @@ function createProcessor(
     options: { token?: unknown; abortController?: AbortController } = {}
 ) {
     const reported: string[] = [];
+    const flushed: Array<{ finishReason?: unknown; responseId?: string; usage?: unknown }> = [];
     const streamReporter = {
         heartbeat() {},
         markStreamStarted() {},
         reportText(text: string) {
             reported.push(text);
         },
-        flushAll() {
+        flushAll(_finishReason: unknown, customStatefulData?: { responseId?: string }, finalUsage?: unknown) {
+            flushed.push({
+                finishReason: _finishReason,
+                responseId: customStatefulData?.responseId,
+                usage: finalUsage
+            });
             return true;
         },
         ...reporterOverrides
@@ -61,7 +67,7 @@ function createProcessor(
         sessionId: 'session-1'
     });
     processor.attach();
-    return { processor, reported };
+    return { processor, reported, flushed };
 }
 
 async function* eventsFrom(events: unknown[]) {
@@ -184,4 +190,147 @@ test('consume：response.failed 已记录错误时取消不覆盖原始错误', 
         assert.equal(error.message, 'upstream failed');
         return true;
     });
+});
+
+test('consume：不同 output_index 的正文之间插入分段', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const { processor, reported } = createProcessor(OpenAIResponsesStreamProcessor);
+
+    const stream = eventsFrom([
+        { type: 'response.created', response: { id: 'resp_1', status: 'in_progress' } },
+        {
+            type: 'response.output_text.delta',
+            item_id: 'msg_1',
+            output_index: 0,
+            content_index: 0,
+            delta: 'commentary'
+        },
+        {
+            type: 'response.output_text.delta',
+            item_id: 'msg_2',
+            output_index: 1,
+            content_index: 0,
+            delta: 'final'
+        },
+        {
+            type: 'response.completed',
+            response: { id: 'resp_1', status: 'completed', output: [] }
+        }
+    ]);
+
+    await processor.consume(stream as never);
+    assert.deepEqual(reported, ['commentary', '\n\n', 'final']);
+});
+
+test('consume：response.incomplete 因 max_output_tokens 视为截断完成并 flush marker', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const { processor, flushed } = createProcessor(OpenAIResponsesStreamProcessor);
+    const usage = { total_tokens: 12 };
+
+    const stream = eventsFrom([
+        { type: 'response.created', response: { id: 'resp_1', status: 'in_progress' } },
+        {
+            type: 'response.output_text.delta',
+            item_id: 'msg_1',
+            output_index: 0,
+            content_index: 0,
+            delta: '截断前'
+        },
+        {
+            type: 'response.incomplete',
+            response: {
+                id: 'resp_1',
+                status: 'incomplete',
+                incomplete_details: { reason: 'max_output_tokens' },
+                output: [],
+                usage
+            }
+        }
+    ]);
+
+    await processor.consume(stream as never);
+    assert.deepEqual(flushed, [{ finishReason: 'length', responseId: 'resp_1', usage }]);
+    assert.deepEqual(processor.getFinalUsage(), usage);
+    assert.equal(processor.getFinishReason(), 'length');
+});
+
+test('consume：response.incomplete 因 content_filter 抛错但仍 flush marker', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const { processor, flushed } = createProcessor(OpenAIResponsesStreamProcessor);
+
+    const stream = eventsFrom([
+        {
+            type: 'response.incomplete',
+            response: {
+                id: 'resp_2',
+                status: 'incomplete',
+                incomplete_details: { reason: 'content_filter' },
+                output: [],
+                usage: { total_tokens: 3 }
+            }
+        }
+    ]);
+
+    await assert.rejects(processor.consume(stream as never), (error: unknown) => {
+        assert.ok(error instanceof Error);
+        assert.ok(error.message.length > 0);
+        return true;
+    });
+    assert.deepEqual(flushed, [{ finishReason: 'content_filter', responseId: 'resp_2', usage: { total_tokens: 3 } }]);
+});
+
+test('consume：response.completed 兜底补发 function_call 与 web_search_call', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const toolCalls: Array<{ callId: string; name: string; input: unknown; countArgs?: boolean }> = [];
+    const toolResults: Array<{ callId: string; content: unknown }> = [];
+    const { processor, flushed } = createProcessor(OpenAIResponsesStreamProcessor, {
+        reportToolCall(callId: string, name: string, input: unknown, options?: { countArgs?: boolean }) {
+            toolCalls.push({ callId, name, input, countArgs: options?.countArgs });
+        },
+        reportToolResult(callId: string, content: string) {
+            toolResults.push({ callId, content: JSON.parse(content) });
+        }
+    });
+
+    const stream = eventsFrom([
+        {
+            type: 'response.completed',
+            response: {
+                id: 'resp_3',
+                status: 'completed',
+                output: [
+                    {
+                        type: 'function_call',
+                        id: 'fc_1',
+                        call_id: 'call_server_1',
+                        name: 'search_docs',
+                        arguments: '{"query":"responses"}'
+                    },
+                    {
+                        type: 'web_search_call',
+                        id: 'ws_1',
+                        action: { type: 'search', query: 'hello', queries: ['hello'] }
+                    }
+                ]
+            }
+        }
+    ]);
+
+    await processor.consume(stream as never);
+
+    assert.deepEqual(toolCalls, [
+        {
+            callId: 'call_server_1',
+            name: 'search_docs',
+            input: { query: 'responses' },
+            countArgs: true
+        }
+    ]);
+    assert.deepEqual(toolResults, [
+        {
+            callId: 'ws_1',
+            content: { type: 'web_search_call', action_type: 'search', query: 'hello', queries: ['hello'] }
+        }
+    ]);
+    assert.deepEqual(flushed, [{ finishReason: null, responseId: 'resp_3', usage: undefined }]);
 });

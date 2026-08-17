@@ -100,3 +100,13 @@ test('web_search_call 内容提取覆盖 search/open_page/find_in_page 并避免
         { type: 'web_search_call', action_type: 'find_in_page', pattern: 'needle' }
     );
 });
+
+test('跨 output_index 的正文需要插入分段，同一 index 不重复分段', async () => {
+    const { OpenAIResponsesStreamState } = await getStreamProcessorModule();
+    const state = new OpenAIResponsesStreamState();
+
+    assert.equal(state.shouldSeparateOutputText(0), false);
+    assert.equal(state.shouldSeparateOutputText(0), false);
+    assert.equal(state.shouldSeparateOutputText(1), true);
+    assert.equal(state.shouldSeparateOutputText(undefined), false);
+});

@@ -36,28 +36,6 @@
                 "pricing": [2, 6, 0.5],
                 "tiers": [{ "contextSizeMin": 200001, "pricing": [4, 12, 1] }]
             }
-        },
-        {
-            "id": "grok-build-0.1",
-            "name": "Grok Build 0.1",
-            "tooltip": "xAI 的 Grok Build 编程模型，通过 Grok Build OAuth 登录态访问。",
-            "sdkMode": "openai-responses",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": {
-                "pricing": [1, 2, 0.2],
-                "tiers": [{ "contextSizeMin": 200001, "pricing": [2, 4, 0.4] }]
-            }
-        },
-        {
-            "id": "grok-composer-2.5-fast",
-            "name": "Grok Composer 2.5 (fast)",
-            "tooltip": "Cursor 的 Composer 2.5 (fast) 编程模型，通过 Grok Build OAuth 登录态访问。",
-            "sdkMode": "openai-responses",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "capabilities": { "toolCalling": true, "imageInput": true }
         }
     ]
 }

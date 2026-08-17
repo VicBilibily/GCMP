@@ -7,7 +7,7 @@ import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
 import { decodeStatefulMarker } from '../statefulMarker';
 import { CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from '../types';
 import type { OpenAIHandler } from '../openaiHandler';
-import { isEncryptedReasoningEnabled, shouldReplayPlainThinking } from './encryptedReasoning';
+import { isEncryptedReasoningEnabled, isResponsesReasoningId, shouldReplayPlainThinking } from './encryptedReasoning';
 import { OpenAIResponsesCallIdResolver } from './openaiResponsesCallIdResolver';
 
 type ResponseInputItem = OpenAI.Responses.ResponseInputItem;
@@ -141,7 +141,7 @@ export class OpenAIResponsesMessageConverter {
                             summary: [],
                             encrypted_content: encryptedContent
                         };
-                        if (reasoningId) {
+                        if (isResponsesReasoningId(reasoningId)) {
                             reasoningItem.id = reasoningId;
                         }
                         out.push(reasoningItem as unknown as ResponseReasoningItem);

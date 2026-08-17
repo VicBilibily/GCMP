@@ -44,6 +44,8 @@ export interface OpenAIResponsesToolCallBuffer {
     args: string;
 }
 
+type OpenAIResponsesFinishReason = string | null;
+
 function getContentEventKey(itemId?: string, contentIndex?: number): string | undefined {
     if (!itemId) {
         return undefined;
@@ -99,6 +101,7 @@ export class OpenAIResponsesStreamState {
     private readonly toolCallIdToIndex = new Map<string, number>();
     private readonly completedWebSearchCallIds = new Set<string>();
     private nextToolCallIndex = 0;
+    private lastTextDeltaOutputIndex: number | undefined;
 
     rememberOutputTextDelta(itemId?: string, contentIndex?: number): void {
         const eventKey = getContentEventKey(itemId, contentIndex);
@@ -218,6 +221,18 @@ export class OpenAIResponsesStreamState {
         this.completedWebSearchCallIds.add(wsId);
         return true;
     }
+
+    /** 跨 output_index 的正文需要分段，避免 commentary 与最终答案粘连。 */
+    shouldSeparateOutputText(outputIndex?: number): boolean {
+        if (typeof outputIndex !== 'number') {
+            return false;
+        }
+
+        const shouldSeparate =
+            this.lastTextDeltaOutputIndex !== undefined && this.lastTextDeltaOutputIndex !== outputIndex;
+        this.lastTextDeltaOutputIndex = outputIndex;
+        return shouldSeparate;
+    }
 }
 
 interface OpenAIResponsesStreamProcessorOptions {
@@ -238,6 +253,8 @@ export class OpenAIResponsesStreamProcessor {
     private readonly sessionId: string;
 
     private streamError: Error | null = null;
+    private hasFinalizedResponse = false;
+    private finishReason: OpenAIResponsesFinishReason = null;
     private finalUsage: GenericUsageData | undefined = undefined;
     private streamStartTime: number | undefined;
     private streamEndTime: number | undefined = undefined;
@@ -273,7 +290,7 @@ export class OpenAIResponsesStreamProcessor {
                 this.state.rememberOutputTextDelta(event.item_id, event.content_index);
                 const delta = event.delta;
                 if (delta && typeof delta === 'string') {
-                    this.streamReporter.reportText(delta);
+                    this.reportOutputText(delta, event.output_index);
                 }
             })
             .on('response.output_text.done', event => {
@@ -283,7 +300,7 @@ export class OpenAIResponsesStreamProcessor {
                 }
                 const text = event.text || '';
                 if (text) {
-                    this.streamReporter.reportText(text);
+                    this.reportOutputText(text, event.output_index);
                 }
             })
             .on('response.output_text.annotation.added', event => {
@@ -557,56 +574,31 @@ export class OpenAIResponsesStreamProcessor {
                 Logger.warn(`${this.modelName} Responses API response.failed: ${errorMessage}`);
                 this.streamError ??= new Error(errorMessage);
             })
+            .on('response.incomplete', event => {
+                const reason =
+                    typeof event.response.incomplete_details?.reason === 'string' ?
+                        event.response.incomplete_details.reason
+                    :   undefined;
+                const finishReason: OpenAIResponsesFinishReason =
+                    reason === 'max_output_tokens' ? 'length'
+                    : typeof reason === 'string' ? reason
+                    : null;
+                this.finalizeResponse(event.response, finishReason);
+                if (finishReason === 'length') {
+                    Logger.warn(`${this.modelName} Responses API response.incomplete: max_output_tokens`);
+                    return;
+                }
+
+                const errorMessage =
+                    event.response.error?.message ||
+                    (reason === 'content_filter' ?
+                        t('Response blocked by content filter', '响应被内容过滤器拦截')
+                    :   t('Response generation incomplete', '响应生成未完成'));
+                Logger.warn(`${this.modelName} Responses API response.incomplete: ${errorMessage}`);
+                this.streamError ??= new Error(errorMessage);
+            })
             .on('response.completed', event => {
-                this.streamEndTime = Date.now();
-
-                // 保存 usage 信息
-                if (event.response.usage) {
-                    this.finalUsage = event.response.usage as unknown as GenericUsageData;
-                }
-
-                // 获取响应对象
-                const response = event.response;
-                const responseId = response?.id;
-
-                // 处理完整的响应中的工具调用（备用，确保所有工具调用都被处理）
-                if (response && response.output) {
-                    const output = response.output;
-                    if (Array.isArray(output)) {
-                        for (const item of output) {
-                            if (item.type === 'function_call' && item.id && item.name) {
-                                const callId = item.call_id || item.id;
-                                const idx = this.state.getToolCallIndex(item.id);
-                                if (this.state.isToolCallCompleted(idx)) {
-                                    continue;
-                                }
-
-                                this.reportToolCallFromArguments(callId, item.name, item.arguments || '{}', idx);
-                            }
-                            // 处理 web_search_call 备用（response.completed 兜底）
-                            if (item.type === 'web_search_call' && item.id) {
-                                this.reportWebSearchCall(item as unknown as Record<string, unknown>, 'completed');
-                            }
-                        }
-                    }
-                }
-
-                if (responseId) {
-                    // 流结束，输出所有剩余内容，并将 usage 写入 StatefulMarker usage
-                    this.streamReporter.flushAll(
-                        null,
-                        {
-                            sessionId: this.sessionId,
-                            responseId
-                        },
-                        this.finalUsage
-                    );
-                    Logger.debug(
-                        `💾 ${this.modelName} Passed StatefulMarker: sessionId=${this.sessionId}, responseId=${responseId}`
-                    );
-                } else {
-                    this.streamReporter.flushAll(null, undefined, this.finalUsage);
-                }
+                this.finalizeResponse(event.response);
             })
             .on('error', error => {
                 // 保存错误，并中止请求
@@ -625,9 +617,8 @@ export class OpenAIResponsesStreamProcessor {
         try {
             for await (const event of stream) {
                 this.events.dispatch(event);
-                // response.failed / error 处理器已记录错误：提前结束消费，
-                // 避免对端在失败后继续保持连接造成的无效等待
-                if (this.streamError) {
+                // 终态或错误后提前结束消费，避免对端继续保持连接造成的无效等待
+                if (this.streamError || this.hasFinalizedResponse) {
                     break;
                 }
             }
@@ -653,6 +644,10 @@ export class OpenAIResponsesStreamProcessor {
         return this.finalUsage;
     }
 
+    getFinishReason(): OpenAIResponsesFinishReason {
+        return this.finishReason;
+    }
+
     getStreamStartTime(): number | undefined {
         return this.streamStartTime;
     }
@@ -665,6 +660,71 @@ export class OpenAIResponsesStreamProcessor {
     private getEventCallId(event: unknown): string | undefined {
         const value = (event as { call_id?: unknown }).call_id;
         return typeof value === 'string' ? value : undefined;
+    }
+
+    private reportOutputText(text: string, outputIndex?: number): void {
+        if (this.state.shouldSeparateOutputText(outputIndex)) {
+            this.streamReporter.reportText('\n\n');
+        }
+        this.streamReporter.reportText(text);
+    }
+
+    private finalizeResponse(
+        response: {
+            id?: string;
+            usage?: unknown;
+            output?: Array<{
+                type?: string;
+                id?: string;
+                name?: string;
+                call_id?: string;
+                arguments?: string;
+            }>;
+        },
+        finishReason: OpenAIResponsesFinishReason = null
+    ): void {
+        this.streamEndTime = Date.now();
+        this.hasFinalizedResponse = true;
+        this.finishReason = finishReason;
+
+        if (response.usage) {
+            this.finalUsage = response.usage as GenericUsageData;
+        }
+
+        const output = response.output;
+        if (Array.isArray(output)) {
+            for (const item of output) {
+                if (item.type === 'function_call' && item.id && item.name) {
+                    const callId = item.call_id || item.id;
+                    const idx = this.state.getToolCallIndex(item.id);
+                    if (this.state.isToolCallCompleted(idx)) {
+                        continue;
+                    }
+
+                    this.reportToolCallFromArguments(callId, item.name, item.arguments || '{}', idx);
+                }
+                if (item.type === 'web_search_call' && item.id) {
+                    this.reportWebSearchCall(item as unknown as Record<string, unknown>, 'completed');
+                }
+            }
+        }
+
+        const responseId = response.id;
+        if (responseId) {
+            this.streamReporter.flushAll(
+                finishReason,
+                {
+                    sessionId: this.sessionId,
+                    responseId
+                },
+                this.finalUsage
+            );
+            Logger.debug(
+                `💾 ${this.modelName} Passed StatefulMarker: sessionId=${this.sessionId}, responseId=${responseId}`
+            );
+        } else {
+            this.streamReporter.flushAll(finishReason, undefined, this.finalUsage);
+        }
     }
 
     private reportToolCallFromArguments(callId: string, name: string, args: string, idx: number): void {
