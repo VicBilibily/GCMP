@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  跨实例消息总线
  *  基于 Leader/Follower 角色分发事件，本地 IPC 为主，globalState 轮询为降级
  *--------------------------------------------------------------------------------------------*/
@@ -337,13 +337,17 @@ export class InterInstanceBus {
                 return;
             }
             this.server = server;
-            this.setAuthorityTerm(LeaderElectionService.getAuthorityTerm());
+            const authorityTerm = LeaderElectionService.getAuthorityTerm();
+            if (!authorityTerm) {
+                await server.stop();
+                this.server = undefined;
+                this.setAuthorityTerm(undefined);
+                StatusLogger.debug('[InterInstanceBus] Missing authority term after server start, stopped');
+                return;
+            }
+            this.setAuthorityTerm(authorityTerm);
             // Agents 窗体通过发现文件连接普通窗口 Leader；周期刷新可修正交接时迟到的旧写入。
-            const publisher = new LeaderFilePublisher(
-                LeaderElectionService.getInstanceId(),
-                LeaderElectionService.getAuthorityTerm() ?? `${LeaderElectionService.getInstanceId()}:unknown`,
-                ipcPath
-            );
+            const publisher = new LeaderFilePublisher(LeaderElectionService.getInstanceId(), authorityTerm, ipcPath);
             this.leaderFilePublisher = publisher;
             await publisher.start();
             if (!this.initialized || !this.context || !LeaderElectionService.isLeader()) {
@@ -435,7 +439,8 @@ export class InterInstanceBus {
             if (
                 !currentTarget ||
                 currentTarget.instanceId !== target.instanceId ||
-                currentTarget.ipcPath !== target.ipcPath
+                currentTarget.ipcPath !== target.ipcPath ||
+                currentTarget.authorityTerm !== target.authorityTerm
             ) {
                 StatusLogger.debug(
                     `[InterInstanceBus] Leader changed during connect (target=${target.instanceId}, current=${currentTarget?.instanceId ?? 'none'}), will retry`
@@ -449,6 +454,12 @@ export class InterInstanceBus {
 
             this.setAuthorityTerm(currentTarget.authorityTerm);
             this.reconnectAttempts = 0;
+            this.client.send({
+                type: 'remoteInstanceHello',
+                payload: {},
+                timestamp: Date.now(),
+                senderInstanceId: this.instanceId ?? 'unknown'
+            });
             StatusLogger.info(`[InterInstanceBus] Connected to leader at ${target.ipcPath}`);
         } catch (error) {
             StatusLogger.warn('[InterInstanceBus] Failed to connect to leader IPC', error);

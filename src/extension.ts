@@ -323,6 +323,9 @@ export async function activate(context: vscode.ExtensionContext) {
                 const payload = event.payload as LeaderResigningEvent['payload'];
                 clearRemoteLiveMetrics(payload.leaderId);
             }),
+            InterInstanceBus.subscribe('remoteInstanceHello', event => {
+                RateLimiter.handleInstanceReconnected(event.senderInstanceId);
+            }),
             InterInstanceBus.subscribe('remoteInstanceDisconnected', event => {
                 const instanceId = (event.payload as { instanceId: string }).instanceId;
                 clearRemoteLiveMetrics(instanceId);

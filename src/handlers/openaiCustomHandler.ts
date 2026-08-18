@@ -283,7 +283,7 @@ export class OpenAICustomHandler {
                     requestId: requestId || '',
                     sessionId: reporter?.getSessionId(),
                     status: 'cancelled',
-                    requestMetricStartTime: wasThrottled ? requestMetricStartTime : undefined,
+                    ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
                     streamStartTime: partialStreamStartTime ?? reporter?.getMetricStreamStartTime(),
                     streamEndTime: Date.now()
                 });
@@ -457,13 +457,12 @@ export class OpenAICustomHandler {
         }
 
         // === Token 统计: 更新实际 token（同步调用，内部写盘 fire-and-forget，不阻塞响应完成链路）===
-        // requestMetricStartTime 仅在请求被节流时持久化，未节流时与接受时间相同，无需单独记录
         TokenUsagesManager.instance.updateActualTokens({
             requestId,
             sessionId: reporter.getSessionId(),
             rawUsage: finalUsage,
             status: token.isCancellationRequested ? 'cancelled' : 'completed',
-            requestMetricStartTime: wasThrottled ? requestStartTime : undefined,
+            ...(requestStartTime !== undefined ? { requestMetricStartTime: requestStartTime } : {}),
             streamStartTime,
             streamEndTime,
             estimatedCost: breakdown?.total,

@@ -12,7 +12,7 @@ import { StatusLogger } from '../utils/runtime/statusLogger';
 export interface IpcServerOptions {
     /** 收到 Follower 消息时的回调 */
     onMessage?: (event: InterInstanceEvent) => void;
-    /** Follower 连接断开时的回调 */
+    /** Follower 连接断开时的回调；仍有同实例其它 socket 时不应回收 */
     onClientDisconnected?: (instanceId: string) => void;
 }
 
@@ -79,7 +79,7 @@ export class IpcServer {
                     const instanceId = this.socketInstanceIds.get(socket);
                     this.sockets.delete(socket);
                     this.socketInstanceIds.delete(socket);
-                    if (instanceId) {
+                    if (instanceId && !this.hasConnectedInstance(instanceId)) {
                         this.options.onClientDisconnected?.(instanceId);
                     }
                 };
@@ -154,7 +154,7 @@ export class IpcServer {
                 const instanceId = this.socketInstanceIds.get(socket);
                 this.sockets.delete(socket);
                 this.socketInstanceIds.delete(socket);
-                if (instanceId) {
+                if (instanceId && !this.hasConnectedInstance(instanceId)) {
                     this.options.onClientDisconnected?.(instanceId);
                 }
             }
@@ -178,6 +178,15 @@ export class IpcServer {
      */
     getConnectionCount(): number {
         return this.sockets.size;
+    }
+
+    private hasConnectedInstance(instanceId: string): boolean {
+        for (const id of this.socketInstanceIds.values()) {
+            if (id === instanceId) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

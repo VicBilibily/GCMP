@@ -95,7 +95,9 @@ export function emitLiveMetrics(event: LiveStreamMetricEvent): void {
 }
 
 export function receiveRemoteLiveMetrics(event: LiveStreamMetricEvent, sourceInstanceId?: string): void {
-    applyLiveMetricsEvent(event, true, sourceInstanceId);
+    if (!applyLiveMetricsEvent(event, true, sourceInstanceId)) {
+        return;
+    }
     notifyListeners(event);
 }
 
@@ -141,16 +143,26 @@ export function syncRemoteLiveMetricsSnapshot(
     defaultSourceInstanceId: string
 ): void {
     const nextEntries = new Map<string, LiveMetricsSnapshotEntry>();
+    const coveredSources = new Set<string>([defaultSourceInstanceId]);
     for (const entry of entries) {
+        const sourceInstanceId = entry.sourceInstanceId ?? defaultSourceInstanceId;
+        coveredSources.add(sourceInstanceId);
         nextEntries.set(entry.event.requestId, {
             event: entry.event,
-            sourceInstanceId: entry.sourceInstanceId ?? defaultSourceInstanceId
+            sourceInstanceId
         });
     }
 
     const clearedEvents: LiveStreamMetricEvent[] = [];
     for (const [requestId, entry] of activeMetrics) {
         if (!entry.remote || nextEntries.has(requestId)) {
+            continue;
+        }
+        // 快照只覆盖其声明过的 source（至少包含发送方）；空/不完整快照不得误杀其他 follower
+        if (entry.sourceInstanceId && !coveredSources.has(entry.sourceInstanceId)) {
+            continue;
+        }
+        if (!entry.sourceInstanceId && !coveredSources.has(defaultSourceInstanceId)) {
             continue;
         }
         activeMetrics.delete(requestId);
@@ -161,13 +173,19 @@ export function syncRemoteLiveMetricsSnapshot(
     }
 
     for (const entry of nextEntries.values()) {
-        applyLiveMetricsEvent(entry.event, true, entry.sourceInstanceId);
+        if (!applyLiveMetricsEvent(entry.event, true, entry.sourceInstanceId)) {
+            continue;
+        }
         notifyListeners(entry.event);
     }
 }
 
-function applyLiveMetricsEvent(event: LiveStreamMetricEvent, remote: boolean, sourceInstanceId?: string): void {
+function applyLiveMetricsEvent(event: LiveStreamMetricEvent, remote: boolean, sourceInstanceId?: string): boolean {
     // 快照更新 — 无论是否有 listener 都必须执行，否则面板未打开时无法缓存
+    const existing = activeMetrics.get(event.requestId);
+    if (remote && existing && !existing.remote) {
+        return false;
+    }
     if (event.type === 'streamEnd') {
         activeMetrics.delete(event.requestId);
     } else {
@@ -177,6 +195,7 @@ function applyLiveMetricsEvent(event: LiveStreamMetricEvent, remote: boolean, so
             sourceInstanceId: remote ? sourceInstanceId : undefined
         });
     }
+    return true;
 }
 
 function notifyListeners(event: LiveStreamMetricEvent): void {

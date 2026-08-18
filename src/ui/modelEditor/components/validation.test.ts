@@ -71,6 +71,7 @@ function createEditorState(limit: string, extras?: Partial<EditorState['model']>
             imageInput: false,
             serviceTier: [],
             useInstructions: undefined,
+            cacheTtl: '',
             webSearchTool: undefined,
             webSearchToolConfig: '',
             nativeTools: '',

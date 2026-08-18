@@ -1,7 +1,7 @@
 ﻿import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { RateLimitStore } from './rateLimitStore';
+import { RateLimitStore, sanitizeAuthoritativeDims } from './rateLimitStore';
 
 function store(defaultLeaseMs?: number): RateLimitStore {
     return new RateLimitStore('test', defaultLeaseMs);
@@ -478,6 +478,23 @@ test('reclaimInstance 移除断线实例的排队项', () => {
     );
 });
 
+test('reclaimInstance 对空 owner 不回收 ownerless grant', () => {
+    const s = store();
+    const dims = { parallel: 1 };
+    const r1 = s.acquire('r1', 'k', dims, { requests: 1, tokens: 0 }, 0);
+    if (r1.kind !== 'granted') {
+        assert.fail('r1 should be granted');
+    }
+    const r2 = s.acquire('r2', 'k', dims, { requests: 1, tokens: 0 }, 0, { ownerInstanceId: 'follower-a' });
+    assert.equal(r2.kind, 'queued');
+
+    const { granted, affectedBucketKeys } = s.reclaimInstance('', 0);
+    assert.equal(granted.length, 0);
+    assert.equal(affectedBucketKeys.length, 0);
+    assert.equal(s.stats('k', 0)?.inflight, 1);
+    assert.equal(s.stats('k', 0)?.pending, 1);
+});
+
 test('reclaimInstance 对无该实例状态时为空操作', () => {
     const s = store();
     s.acquire('r1', 'k', { parallel: 1 }, { requests: 1, tokens: 0 }, 0);
@@ -569,4 +586,138 @@ test('snapshot import 可为 ownerless grants 施加短宽限期', () => {
     assert.equal(restored.stats('k', 0)?.inflight, 2);
     restored.sweep(5001);
     assert.equal(restored.stats('k', 5001)?.inflight, 1);
+});
+
+test('snapshot import 只压 ownerless expiresAt，续租后可恢复完整租期', () => {
+    const source = store();
+    const localGrant = source.acquire('local-grant', 'k', { parallel: 1 }, { requests: 1, tokens: 0 }, 0);
+    if (localGrant.kind !== 'granted') {
+        assert.fail('local-grant should be granted');
+    }
+
+    const snapshot = source.exportSnapshot(0);
+    const restored = store();
+    restored.importSnapshot(snapshot, 0, { ownerlessGrantGraceMs: 5000 });
+
+    assert.equal(restored.renew(localGrant.grantId, 1000), true);
+    restored.sweep(6001);
+    assert.equal(restored.stats('k', 6001)?.inflight, 1);
+});
+
+test('Infinity rpm 不建立 pacing 状态', () => {
+    const s = store();
+    const r1 = s.acquire('r1', 'k', { rpm: Number.POSITIVE_INFINITY }, { requests: 1, tokens: 0 }, 0);
+    const r2 = s.acquire('r2', 'k', { rpm: Number.POSITIVE_INFINITY }, { requests: 1, tokens: 0 }, 0);
+    if (r1.kind !== 'granted' || r2.kind !== 'granted') {
+        assert.fail('requests should be granted');
+    }
+    assert.equal(r1.waitMs, 0);
+    assert.equal(r2.waitMs, 0);
+});
+
+test('NaN/Infinity token cost 不污染 TPM pacing', () => {
+    const s = store();
+    const dims = { tpm: 6000 };
+    const poisoned = s.acquire('poison', 'k', dims, { requests: 0, tokens: Number.NaN }, 0);
+    if (poisoned.kind !== 'granted') {
+        assert.fail('poisoned request should still be granted');
+    }
+    assert.equal(poisoned.waitMs, 0);
+
+    const next = s.acquire('next', 'k', dims, { requests: 0, tokens: 100 }, 0);
+    if (next.kind !== 'granted') {
+        assert.fail('next request should be granted');
+    }
+    assert.equal(next.waitMs, 0);
+});
+
+test('部分 token 退款只缩短本笔预约，不全清 TPM wait', () => {
+    const s = store();
+    const dims = { tpm: 6000 }; // 10ms/token
+    const r1 = s.acquire('r1', 'k', dims, { requests: 0, tokens: 100 }, 0);
+    if (r1.kind !== 'granted') {
+        assert.fail('r1 should be granted');
+    }
+    const r2 = s.acquire('r2', 'k', dims, { requests: 0, tokens: 100 }, 0);
+    if (r2.kind !== 'granted') {
+        assert.fail('r2 should be granted');
+    }
+    assert.equal(r2.waitMs, 1000);
+
+    s.release(r2.grantId, { tokens: 40 }, 0);
+    const r3 = s.acquire('r3', 'k', dims, { requests: 0, tokens: 100 }, 0);
+    if (r3.kind !== 'granted') {
+        assert.fail('r3 should be granted');
+    }
+    assert.equal(r3.waitMs, 1600);
+});
+
+test('全额退还队尾 token 会恢复 TPM 容量', () => {
+    const s = store();
+    const dims = { tpm: 6000 };
+    const r1 = s.acquire('r1', 'k', dims, { requests: 0, tokens: 100 }, 0);
+    const r2 = s.acquire('r2', 'k', dims, { requests: 0, tokens: 100 }, 0);
+    if (r1.kind !== 'granted' || r2.kind !== 'granted') {
+        assert.fail('requests should be granted');
+    }
+
+    s.release(r2.grantId, { tokens: 100 }, 0);
+    const r3 = s.acquire('r3', 'k', dims, { requests: 0, tokens: 100 }, 0);
+    if (r3.kind !== 'granted') {
+        assert.fail('r3 should be granted');
+    }
+    assert.equal(r3.waitMs, 1000);
+});
+
+test('非法 snapshot 导入会抛错且不破坏现有桶', () => {
+    const s = store();
+    const granted = s.acquire('r1', 'k', { rpm: 60 }, { requests: 1, tokens: 0 }, 0);
+    assert.equal(granted.kind, 'granted');
+    assert.throws(() => s.importSnapshot({} as never, 0));
+    assert.equal(s.stats('k', 0)?.inflight, 1);
+});
+
+test('已过期 grant 不可被 renew 复活', () => {
+    const s = store(1000);
+    const r1 = s.acquire('r1', 'k', { parallel: 1 }, { requests: 1, tokens: 0 }, 0);
+    if (r1.kind !== 'granted') {
+        assert.fail('r1 should be granted');
+    }
+    assert.equal(s.renew(r1.grantId, 1000), false);
+    const r2 = s.acquire('r2', 'k', { parallel: 1 }, { requests: 1, tokens: 0 }, 1000);
+    assert.equal(r2.kind, 'granted');
+});
+
+test('getGrantOwnerInstanceId 区分 ownerless 与远端 grant', () => {
+    const s = store();
+    const local = s.acquire('local', 'k', { parallel: 2 }, { requests: 1, tokens: 0 }, 0);
+    const remote = s.acquire('remote', 'k', { parallel: 2 }, { requests: 1, tokens: 0 }, 0, {
+        ownerInstanceId: 'follower-a'
+    });
+    if (local.kind !== 'granted' || remote.kind !== 'granted') {
+        assert.fail('requests should be granted');
+    }
+    assert.equal(s.getGrantOwnerInstanceId(local.grantId), undefined);
+    assert.equal(s.getGrantOwnerInstanceId(remote.grantId), 'follower-a');
+    assert.equal(s.getGrantOwnerInstanceId('missing'), undefined);
+});
+
+test('sanitizeAuthoritativeDims 无配置视为不限流', () => {
+    assert.deepEqual(sanitizeAuthoritativeDims(undefined, undefined), {});
+});
+
+test('sanitizeAuthoritativeDims 将 0 视为该维不限', () => {
+    assert.deepEqual(sanitizeAuthoritativeDims({ rpm: 0 }, undefined), {});
+    assert.deepEqual(sanitizeAuthoritativeDims({ rpm: 0, rps: 10 }, undefined), { rps: 10 });
+});
+
+test('sanitizeAuthoritativeDims 非法且无有效正数维时 fail-closed', () => {
+    assert.equal(sanitizeAuthoritativeDims({ rpm: Number.NaN }, undefined), undefined);
+    assert.equal(sanitizeAuthoritativeDims({ rpm: Number.POSITIVE_INFINITY }, undefined), undefined);
+    assert.equal(sanitizeAuthoritativeDims({ rpm: -1 }, undefined), undefined);
+});
+
+test('sanitizeAuthoritativeDims 保留有效正数维并丢弃非法维', () => {
+    assert.deepEqual(sanitizeAuthoritativeDims({ rpm: Number.NaN, rps: 10 }, undefined), { rps: 10 });
+    assert.deepEqual(sanitizeAuthoritativeDims({ rpm: 60 }, { tpm: 1000, parallel: 0 }), { rpm: 60, tpm: 1000 });
 });

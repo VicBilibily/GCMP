@@ -5,9 +5,11 @@ import * as vscode from 'vscode';
 import { InterInstanceBus } from '../../src/interInstance';
 import { IpcClient } from '../../src/interInstance/ipcClient';
 import { GenericModelProvider } from '../../src/providers/genericModelProvider';
+import { configProviders } from '../../src/providers/config';
 import { RateLimiter, type RateLimitHandle } from '../../src/rateLimit/rateLimiter';
 import { LeaderElectionService, type LeaderIdentity } from '../../src/status/leaderElectionService';
-import type { ModelConfig, RateLimitConfig } from '../../src/types/sharedTypes';
+import type { ModelConfig, ProviderConfig, RateLimitConfig } from '../../src/types/sharedTypes';
+import { CompatibleModelManager } from '../../src/utils/config/compatibleModelManager';
 import { ConfigManager } from '../../src/utils/config/configManager';
 
 interface InterInstanceBusInternals {
@@ -48,6 +50,18 @@ interface GenericModelProviderPrototypeAccess {
         onThrottled?: () => void
     ) => Promise<RateLimitHandle | undefined>;
 }
+
+const testModelConfig: ModelConfig = {
+    id: 'test-model',
+    name: 'Test Model',
+    tooltip: 'Test Model',
+    maxInputTokens: 8192,
+    maxOutputTokens: 2048,
+    capabilities: {
+        toolCalling: false,
+        imageInput: false
+    }
+};
 
 suite('Coordination regressions', () => {
     test('InterInstanceBus reconnects when leader target changes during connect', async () => {
@@ -222,6 +236,113 @@ suite('Coordination regressions', () => {
         } finally {
             ConfigManager.getProviderRateLimitConfig = originalGetProviderRateLimitConfig;
             RateLimiter.acquire = originalRateLimiterAcquire;
+        }
+    });
+
+    test('applyProviderOverrides merges partial model limit with base model limit', () => {
+        const originalGetProviderOverrides = ConfigManager.getProviderOverrides;
+
+        try {
+            ConfigManager.getProviderOverrides = () => ({
+                'test-provider': {
+                    models: [
+                        {
+                            id: 'test-model',
+                            limit: { tpm: 1000 }
+                        }
+                    ]
+                }
+            });
+
+            const resolved = ConfigManager.applyProviderOverrides('test-provider', {
+                displayName: 'Test Provider',
+                baseUrl: 'https://example.com/v1',
+                apiKeyTemplate: 'sk-test',
+                models: [
+                    {
+                        ...testModelConfig,
+                        limit: { rpm: 60, parallel: 2 }
+                    }
+                ]
+            });
+
+            assert.deepEqual(resolved.models[0]?.limit, { rpm: 60, parallel: 2, tpm: 1000 });
+        } finally {
+            ConfigManager.getProviderOverrides = originalGetProviderOverrides;
+        }
+    });
+
+    test('getModelRateLimitConfig merges built-in model limit with partial override', () => {
+        const originalGetProviderOverrides = ConfigManager.getProviderOverrides;
+        const providerRegistry = configProviders as Record<string, ProviderConfig | undefined>;
+        const providerKey = 'test-provider-config-manager';
+        const originalProviderConfig = providerRegistry[providerKey];
+
+        try {
+            providerRegistry[providerKey] = {
+                displayName: 'Test Provider',
+                baseUrl: 'https://example.com/v1',
+                apiKeyTemplate: 'sk-test',
+                models: [
+                    {
+                        ...testModelConfig,
+                        limit: { rpm: 60, parallel: 2 }
+                    }
+                ]
+            };
+            ConfigManager.getProviderOverrides = () => ({
+                [providerKey]: {
+                    models: [
+                        {
+                            id: 'test-model',
+                            limit: { tpm: 1000 }
+                        }
+                    ]
+                }
+            });
+
+            assert.deepEqual(ConfigManager.getModelRateLimitConfig(providerKey, 'test-model'), {
+                rpm: 60,
+                parallel: 2,
+                tpm: 1000
+            });
+        } finally {
+            ConfigManager.getProviderOverrides = originalGetProviderOverrides;
+            if (originalProviderConfig) {
+                providerRegistry[providerKey] = originalProviderConfig;
+            } else {
+                delete providerRegistry[providerKey];
+            }
+        }
+    });
+
+    test('getModelRateLimitConfig falls back to compatible custom model limit for custom provider', () => {
+        const originalGetProviderOverrides = ConfigManager.getProviderOverrides;
+        const originalGetModels = CompatibleModelManager.getModels;
+
+        try {
+            ConfigManager.getProviderOverrides = () => ({});
+            CompatibleModelManager.getModels = () => [
+                {
+                    id: 'compatible-test-model',
+                    name: 'Compatible Test Model',
+                    provider: 'custom-provider',
+                    maxInputTokens: 8192,
+                    maxOutputTokens: 4096,
+                    capabilities: {
+                        toolCalling: false,
+                        imageInput: false
+                    },
+                    limit: { tpm: 2000 }
+                }
+            ];
+
+            assert.deepEqual(ConfigManager.getModelRateLimitConfig('custom-provider', 'compatible-test-model'), {
+                tpm: 2000
+            });
+        } finally {
+            ConfigManager.getProviderOverrides = originalGetProviderOverrides;
+            CompatibleModelManager.getModels = originalGetModels;
         }
     });
 });

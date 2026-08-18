@@ -125,6 +125,53 @@ suite('config set label behavior', () => {
         );
     });
 
+    test('ConfigSetStore.remove rolls back when clearing active marker fails', async () => {
+        const context = createExtensionContext();
+        ConfigSetStore.initialize(context);
+
+        await ConfigSetStore.add('slot-remove', { id: 'remove-a', label: 'Remove A' }, 'remove-key');
+        await ConfigSetStore.setActive('slot-remove', 'remove-a');
+
+        const mutableStore = ConfigSetStore as unknown as {
+            clearActiveUnlocked: (slot: string) => Promise<void>;
+        };
+        const originalClearActiveUnlocked = mutableStore.clearActiveUnlocked;
+        mutableStore.clearActiveUnlocked = async () => {
+            throw new Error('clear active failed');
+        };
+
+        try {
+            await assert.rejects(() => ConfigSetStore.remove('slot-remove', 'remove-a'), /clear active failed/);
+        } finally {
+            mutableStore.clearActiveUnlocked = originalClearActiveUnlocked;
+        }
+
+        assert.deepEqual(
+            ConfigSetStore.list('slot-remove').map(item => item.id),
+            ['remove-a']
+        );
+        assert.equal(await ConfigSetStore.getApiKey('slot-remove', 'remove-a'), 'remove-key');
+        assert.equal(ConfigSetStore.getActiveId('slot-remove'), 'remove-a');
+    });
+
+    test('ConfigSetStore.writeAll clears activeId when the active item has no key', async () => {
+        const context = createExtensionContext();
+        ConfigSetStore.initialize(context);
+
+        await ConfigSetStore.add('slot-writeall', { id: 'write-a', label: 'Write A' }, 'write-key');
+        await ConfigSetStore.setActive('slot-writeall', 'write-a');
+
+        await ConfigSetStore.writeAll(
+            'slot-writeall',
+            [{ id: 'write-a', label: 'Write A' }],
+            { 'write-a': '   ' },
+            'write-a'
+        );
+
+        assert.equal(ConfigSetStore.getActiveId('slot-writeall'), undefined);
+        assert.equal(await ConfigSetStore.getApiKey('slot-writeall', 'write-a'), undefined);
+    });
+
     test('CrudHost.handleAdd does not reject duplicate labels', async () => {
         const posts: unknown[] = [];
         const host = new CrudHost(createPanelContext(posts));

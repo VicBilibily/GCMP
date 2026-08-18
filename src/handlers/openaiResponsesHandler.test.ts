@@ -193,17 +193,24 @@ test('handleResponsesRequest：透传 length finishReason 到完成链路', asyn
     assert.deepEqual(consumedStreams, [fakeStream]);
     assert.equal(client._options.defaultHeaders.conversation_id, 'session-1');
     assert.equal(client._options.defaultHeaders.session_id, 'session-1');
-    assert.deepEqual(updateActualTokensCalls, [
+    assert.equal(updateActualTokensCalls.length, 1);
+    assert.deepEqual(
+        {
+            ...updateActualTokensCalls[0],
+            requestMetricStartTime: undefined
+        },
         {
             requestId: 'request-1',
             sessionId: 'session-1',
             rawUsage: { total_tokens: 12 },
             status: 'completed',
+            requestMetricStartTime: undefined,
             streamStartTime: 100,
             streamEndTime: 200,
             estimatedCost: undefined,
             costBreakdown: undefined
         }
-    ]);
+    );
+    assert.equal(typeof updateActualTokensCalls[0]?.requestMetricStartTime, 'number');
     assert.ok(loggerInfoCalls.includes('📊 test-model Responses API request completed with finish reason: length'));
 });

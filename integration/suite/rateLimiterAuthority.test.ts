@@ -70,10 +70,18 @@ interface RateLimiterInternals {
         snapshot: RateLimitStoreSnapshot;
         receivedAt: number;
     };
-    handleLeaderResigning: (payload: {
-        leaderId: string;
-        nextLeaderId?: string;
-        rateLimitSnapshot?: RateLimitStoreSnapshot;
+    handleInstanceDisconnected: (instanceId: string) => void;
+    handleInstanceReconnected: (instanceId: string) => void;
+    handleRemoteLeaseRenewal: (payload: { authorityTerm: string; grantId: string }) => void;
+    handleLeaderResigning: (event: {
+        type: 'leaderResigning';
+        timestamp: number;
+        senderInstanceId: string;
+        payload: {
+            leaderId: string;
+            nextLeaderId?: string;
+            rateLimitSnapshot?: RateLimitStoreSnapshot;
+        };
     }) => void;
     becomeLeaderWithFreshState: () => void;
 }
@@ -380,9 +388,14 @@ suite('RateLimiter authority change', () => {
             rateLimiter.degradedNotified = true;
 
             rateLimiter.handleLeaderResigning({
-                leaderId: 'leader-a',
-                nextLeaderId: 'leader-b',
-                rateLimitSnapshot: snapshot
+                type: 'leaderResigning',
+                timestamp: Date.now(),
+                senderInstanceId: 'leader-a',
+                payload: {
+                    leaderId: 'leader-a',
+                    nextLeaderId: 'leader-b',
+                    rateLimitSnapshot: snapshot
+                }
             });
             rateLimiter.becomeLeaderWithFreshState();
 
@@ -426,9 +439,14 @@ suite('RateLimiter authority change', () => {
             patchedLeaderElection.isLeader = () => true;
 
             rateLimiter.handleLeaderResigning({
-                leaderId: 'leader-a',
-                nextLeaderId: 'leader-b',
-                rateLimitSnapshot: snapshot
+                type: 'leaderResigning',
+                timestamp: Date.now(),
+                senderInstanceId: 'leader-a',
+                payload: {
+                    leaderId: 'leader-a',
+                    nextLeaderId: 'leader-b',
+                    rateLimitSnapshot: snapshot
+                }
             });
             rateLimiter.becomeLeaderWithFreshState();
             rateLimiter.handleRemoteRelease({
@@ -474,9 +492,14 @@ suite('RateLimiter authority change', () => {
             patchedLeaderElection.isLeader = () => true;
 
             rateLimiter.handleLeaderResigning({
-                leaderId: 'leader-a',
-                nextLeaderId: 'leader-b',
-                rateLimitSnapshot: snapshot
+                type: 'leaderResigning',
+                timestamp: Date.now(),
+                senderInstanceId: 'leader-a',
+                payload: {
+                    leaderId: 'leader-a',
+                    nextLeaderId: 'leader-b',
+                    rateLimitSnapshot: snapshot
+                }
             });
             rateLimiter.becomeLeaderWithFreshState();
 
@@ -522,9 +545,14 @@ suite('RateLimiter authority change', () => {
             rateLimiter.clientCore = undefined;
 
             rateLimiter.handleLeaderResigning({
-                leaderId: 'leader-a',
-                nextLeaderId: 'leader-b',
-                rateLimitSnapshot: snapshot
+                type: 'leaderResigning',
+                timestamp: Date.now(),
+                senderInstanceId: 'leader-a',
+                payload: {
+                    leaderId: 'leader-a',
+                    nextLeaderId: 'leader-b',
+                    rateLimitSnapshot: snapshot
+                }
             });
             rateLimiter.becomeLeaderWithFreshState();
 
@@ -535,6 +563,96 @@ suite('RateLimiter authority change', () => {
             rateLimiter.leaderStore = originalLeaderStore;
             rateLimiter.pendingLeaderHandoff = originalPendingLeaderHandoff;
             rateLimiter.clientCore = originalClientCore;
+        }
+    });
+
+    test('graceful leader handoff renews ownerless grant after previous-term heartbeat', () => {
+        const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
+        const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
+        const source = new RateLimitStore('leader-a');
+        const now = Date.now();
+        const localGranted = source.acquire(
+            'local-r1',
+            'bucket',
+            { parallel: 1, rpm: 60 },
+            { requests: 1, tokens: 0 },
+            now
+        );
+        if (localGranted.kind !== 'granted') {
+            assert.fail('local-r1 should be granted');
+        }
+        const snapshot = source.exportSnapshot(now);
+
+        const originalLeaderStore = rateLimiter.leaderStore;
+        const originalPendingLeaderHandoff = rateLimiter.pendingLeaderHandoff;
+        const originalClientCore = rateLimiter.clientCore;
+        const originalIsLeader = patchedLeaderElection.isLeader;
+
+        try {
+            rateLimiter.leaderStore = new RateLimitStore('before');
+            rateLimiter.pendingLeaderHandoff = undefined;
+            rateLimiter.clientCore = undefined;
+            patchedLeaderElection.isLeader = () => true;
+
+            rateLimiter.handleLeaderResigning({
+                type: 'leaderResigning',
+                timestamp: Date.now(),
+                senderInstanceId: 'leader-a',
+                payload: {
+                    leaderId: 'leader-a',
+                    nextLeaderId: 'leader-b',
+                    rateLimitSnapshot: snapshot
+                }
+            });
+            rateLimiter.becomeLeaderWithFreshState();
+            rateLimiter.handleRemoteLeaseRenewal({
+                authorityTerm: 'leader-a:1',
+                grantId: localGranted.grantId
+            });
+
+            rateLimiter.leaderStore.sweep(now + 6_000);
+            assert.equal(rateLimiter.leaderStore.stats('bucket', now + 6_000)?.inflight, 1);
+        } finally {
+            rateLimiter.leaderStore = originalLeaderStore;
+            rateLimiter.pendingLeaderHandoff = originalPendingLeaderHandoff;
+            rateLimiter.clientCore = originalClientCore;
+            patchedLeaderElection.isLeader = originalIsLeader;
+        }
+    });
+
+    test('instance disconnect reclaim is cancelled after reconnect', async () => {
+        const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
+        const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
+        const now = Date.now();
+        const store = new RateLimitStore('leader-b');
+        const granted = store.acquire('r1', 'bucket', { parallel: 1 }, { requests: 1, tokens: 0 }, now, {
+            ownerInstanceId: 'follower-a'
+        });
+        if (granted.kind !== 'granted') {
+            assert.fail('r1 should be granted');
+        }
+
+        const originalInitialized = rateLimiter.initialized;
+        const originalLeaderStore = rateLimiter.leaderStore;
+        const originalIsLeader = patchedLeaderElection.isLeader;
+        const originalGetConnectedFollowerIds = InterInstanceBus.getConnectedFollowerIds;
+
+        try {
+            rateLimiter.initialized = true;
+            rateLimiter.leaderStore = store;
+            patchedLeaderElection.isLeader = () => true;
+            InterInstanceBus.getConnectedFollowerIds = () => [];
+
+            rateLimiter.handleInstanceDisconnected('follower-a');
+            rateLimiter.handleInstanceReconnected('follower-a');
+            await new Promise(resolve => setTimeout(resolve, 3_200));
+
+            assert.equal(rateLimiter.leaderStore.stats('bucket', Date.now())?.inflight, 1);
+        } finally {
+            rateLimiter.initialized = originalInitialized;
+            rateLimiter.leaderStore = originalLeaderStore;
+            patchedLeaderElection.isLeader = originalIsLeader;
+            InterInstanceBus.getConnectedFollowerIds = originalGetConnectedFollowerIds;
         }
     });
 
@@ -631,9 +749,14 @@ suite('RateLimiter authority change', () => {
             };
 
             rateLimiter.handleLeaderResigning({
-                leaderId: 'leader-a',
-                nextLeaderId: 'leader-b',
-                rateLimitSnapshot: snapshot
+                type: 'leaderResigning',
+                timestamp: Date.now(),
+                senderInstanceId: 'leader-a',
+                payload: {
+                    leaderId: 'leader-a',
+                    nextLeaderId: 'leader-b',
+                    rateLimitSnapshot: snapshot
+                }
             });
 
             rateLimiter.pendingLeaderHandoff = undefined;

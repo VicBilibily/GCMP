@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  限流器宿主层
  *  Leader：本地权威桶直调；Follower：IPC 请求-回执；降级：本地桶
  *--------------------------------------------------------------------------------------------*/
@@ -24,6 +24,8 @@ import { t } from '../utils/runtime/l10n';
 import {
     DEFAULT_RATE_LIMIT_LEASE_MS,
     RateLimitStore,
+    isRateLimitStoreSnapshot,
+    sanitizeAuthoritativeDims,
     type PendingPosition,
     type PendingGrant,
     type RateLimitCosts,
@@ -81,6 +83,8 @@ const AUTHORITY_TRANSITION_TIMEOUT_MS = 30_000;
 const MAX_AUTHORITY_CHANGE_RETRIES = 3;
 const LEADER_HANDOFF_TTL_MS = AUTHORITY_TRANSITION_TIMEOUT_MS;
 const LEADER_HANDOFF_OWNERLESS_GRANT_GRACE_MS = 5_000;
+/** IPC 瞬断宽限：重连成功则取消回收，避免仍活着的 Follower grant 被提前 reclaim */
+const INSTANCE_DISCONNECT_RECLAIM_GRACE_MS = 3_000;
 const PERSISTED_LEADER_HANDOFF_KEY = 'gcmp.rateLimit.handoff.v1';
 
 /**
@@ -117,6 +121,8 @@ export class RateLimiter {
     private static degraded = false;
     private static degradedNotified = false;
     private static lastProbeAt = 0;
+    /** 远端实例断线回收宽限：instanceId → 延迟 reclaim 定时器 */
+    private static pendingDisconnectReclaims = new Map<string, NodeJS.Timeout>();
 
     static initialize(context: vscode.ExtensionContext): void {
         if (this.initialized) {
@@ -170,6 +176,7 @@ export class RateLimiter {
 
             this.recoverLeaderWaitersAfterRoleChange();
             this.retainAuthoritativeGrantsAfterRoleLoss();
+            this.clearPendingDisconnectReclaims();
             this.leaderStore = new RateLimitStore();
             this.pendingLeaderHandoff = undefined;
             StatusLogger.info('[RateLimiter] Lost leader role, pending leader waiters will reacquire');
@@ -180,7 +187,7 @@ export class RateLimiter {
 
         context.subscriptions.push(
             InterInstanceBus.subscribe('leaderResigning', event => {
-                this.handleLeaderResigning(event.payload as LeaderResigningEvent['payload']);
+                this.handleLeaderResigning(event as LeaderResigningEvent);
             }),
             vscode.Disposable.from({
                 dispose: () => {
@@ -192,6 +199,7 @@ export class RateLimiter {
                     }
                     this.leaseHeartbeatTimers.clear();
                     this.activeHandles.clear();
+                    this.clearPendingDisconnectReclaims();
                     this.leaderChangeSubscription?.dispose();
                     this.clientCore?.dispose();
                     this.pendingLeaderHandoff = undefined;
@@ -243,7 +251,7 @@ export class RateLimiter {
         if (authorityChangeAttempts > 0 && !this.hasUsableAuthorityTransport()) {
             const recovered = await this.waitForAuthorityRecovery(options?.token);
             if (recovered) {
-                return this.acquireForCurrentRole(bucketKey, dims, costs, options, authorityChangeAttempts);
+                return this.acquireForCurrentRole(bucketKey, dims, costs, options, authorityChangeAttempts + 1);
             }
             Logger.warn(
                 `[RateLimit] authority recovery timed out for bucket=${bucketKey}, falling back current acquire to local bucket`
@@ -302,14 +310,16 @@ export class RateLimiter {
         if (!LeaderElectionService.isLeader() || payload.authorityTerm !== LeaderElectionService.getAuthorityTerm()) {
             return;
         }
-        const result = this.leaderStore.acquire(
-            payload.requestId,
-            payload.bucketKey,
-            this.resolveAuthoritativeDims(payload.bucketKey),
-            payload.costs,
-            Date.now(),
-            { ownerInstanceId: senderInstanceId }
-        );
+        const dims = this.resolveAuthoritativeDims(payload.bucketKey);
+        if (!dims) {
+            StatusLogger.warn(
+                `[RateLimiter] Rejected acquire ${payload.requestId}: authoritative dims are invalid for ${payload.bucketKey}`
+            );
+            return;
+        }
+        const result = this.leaderStore.acquire(payload.requestId, payload.bucketKey, dims, payload.costs, Date.now(), {
+            ownerInstanceId: senderInstanceId
+        });
         if (result.kind === 'granted') {
             this.publishGranted(payload.authorityTerm, payload.requestId, result.waitMs, result.grantId);
         } else {
@@ -319,35 +329,43 @@ export class RateLimiter {
     }
 
     /**
-     * 远端实例断线：Leader 回收其排队项与持有 grant，避免幽灵占用阻塞 FIFO（extension.ts 订阅挂接）
+     * 远端实例断线：延迟回收其排队项与持有 grant。
+     * 瞬断且很快重连时取消回收，避免仍活着的 Follower 后续 release 变成 no-op。
      */
     static handleInstanceDisconnected(instanceId: string): void {
-        if (!this.initialized || !LeaderElectionService.isLeader()) {
+        if (!this.initialized || !LeaderElectionService.isLeader() || !instanceId) {
             return;
         }
-        const { granted, affectedBucketKeys } = this.leaderStore.reclaimInstance(instanceId, Date.now());
-        if (affectedBucketKeys.length === 0) {
+        if (InterInstanceBus.getConnectedFollowerIds().includes(instanceId)) {
+            this.cancelPendingDisconnectReclaim(instanceId);
             return;
         }
-        StatusLogger.info(
-            `[RateLimiter] Reclaimed rate-limit state of disconnected instance ${instanceId} (${granted.length} granted)`
-        );
-        this.distributeLeaderGrants(granted);
-        for (const bucketKey of affectedBucketKeys) {
-            const positions = this.leaderStore.getPendingPositions(bucketKey);
-            this.notifyQueuePositionUpdates(positions, this.leaderWaiters, 'leader');
-            this.publishQueuePositionUpdates(positions);
+        if (this.pendingDisconnectReclaims.has(instanceId)) {
+            return;
         }
+        const timer = setTimeout(() => {
+            this.pendingDisconnectReclaims.delete(instanceId);
+            this.reclaimDisconnectedInstance(instanceId);
+        }, INSTANCE_DISCONNECT_RECLAIM_GRACE_MS);
+        this.pendingDisconnectReclaims.set(instanceId, timer);
+    }
+
+    /** Follower 重连后取消尚未落地的断线回收 */
+    static handleInstanceReconnected(instanceId: string): void {
+        if (!instanceId) {
+            return;
+        }
+        this.cancelPendingDisconnectReclaim(instanceId);
     }
 
     /** 以 Leader 本机配置解析桶的权威维度（provider 级 + 模型级字段覆盖） */
-    private static resolveAuthoritativeDims(bucketKey: string): RateLimitDimensions {
+    private static resolveAuthoritativeDims(bucketKey: string): RateLimitDimensions | undefined {
         const separatorIndex = bucketKey.indexOf('::');
         const providerKey = separatorIndex >= 0 ? bucketKey.slice(0, separatorIndex) : bucketKey;
         const modelId = separatorIndex >= 0 ? bucketKey.slice(separatorIndex + 2) : undefined;
         const providerLimit = ConfigManager.getProviderRateLimitConfig(providerKey);
         const modelLimit = modelId ? ConfigManager.getModelRateLimitConfig(providerKey, modelId) : undefined;
-        return { ...providerLimit, ...modelLimit };
+        return sanitizeAuthoritativeDims(providerLimit, modelLimit);
     }
 
     /**
@@ -390,6 +408,44 @@ export class RateLimiter {
             return;
         }
         this.leaderStore.renew(payload.grantId, Date.now());
+    }
+
+    private static reclaimDisconnectedInstance(instanceId: string): void {
+        if (!this.initialized || !LeaderElectionService.isLeader() || !instanceId) {
+            return;
+        }
+        if (InterInstanceBus.getConnectedFollowerIds().includes(instanceId)) {
+            return;
+        }
+        const { granted, affectedBucketKeys } = this.leaderStore.reclaimInstance(instanceId, Date.now());
+        if (affectedBucketKeys.length === 0) {
+            return;
+        }
+        StatusLogger.info(
+            `[RateLimiter] Reclaimed rate-limit state of disconnected instance ${instanceId} (${granted.length} granted)`
+        );
+        this.distributeLeaderGrants(granted);
+        for (const bucketKey of affectedBucketKeys) {
+            const positions = this.leaderStore.getPendingPositions(bucketKey);
+            this.notifyQueuePositionUpdates(positions, this.leaderWaiters, 'leader');
+            this.publishQueuePositionUpdates(positions);
+        }
+    }
+
+    private static cancelPendingDisconnectReclaim(instanceId: string): void {
+        const timer = this.pendingDisconnectReclaims.get(instanceId);
+        if (!timer) {
+            return;
+        }
+        clearTimeout(timer);
+        this.pendingDisconnectReclaims.delete(instanceId);
+    }
+
+    private static clearPendingDisconnectReclaims(): void {
+        for (const timer of this.pendingDisconnectReclaims.values()) {
+            clearTimeout(timer);
+        }
+        this.pendingDisconnectReclaims.clear();
     }
 
     // ==================== 内部实现 ====================
@@ -649,14 +705,14 @@ export class RateLimiter {
         requestId: string,
         token: vscode.CancellationToken | undefined,
         onWaiting: ((event: RateLimitWaitingEvent) => void) | undefined,
-        waiters: Map<string, QueuedWaiter<TResult>>,
+        waiters: Map<string, QueuedWaiter<TResult | undefined>>,
         onCancelled: () => void
-    ): Promise<TResult> {
-        return new Promise<TResult>(resolve => {
+    ): Promise<TResult | undefined> {
+        return new Promise<TResult | undefined>(resolve => {
             const cancelSub = token?.onCancellationRequested(() => {
                 waiters.delete(requestId);
                 onCancelled();
-                resolve(undefined as TResult);
+                resolve(undefined);
             });
             waiters.set(requestId, {
                 onWaiting,
@@ -855,16 +911,22 @@ export class RateLimiter {
         return !!InterInstanceBus.getAuthorityTerm() && InterInstanceBus.isConnected();
     }
 
-    private static handleLeaderResigning(payload: LeaderResigningEvent['payload']): void {
+    private static handleLeaderResigning(event: LeaderResigningEvent): void {
+        const payload = event.payload;
         if (payload.leaderId === LeaderElectionService.getInstanceId() || !payload.rateLimitSnapshot) {
+            return;
+        }
+        const receivedAt = Number.isFinite(event.timestamp) ? event.timestamp : Date.now();
+        const existing = this.pendingLeaderHandoff;
+        if (existing && existing.receivedAt > receivedAt) {
             return;
         }
         this.pendingLeaderHandoff = {
             leaderId: payload.leaderId,
             snapshot: payload.rateLimitSnapshot,
-            receivedAt: Date.now()
+            receivedAt
         };
-        void this.persistLeaderHandoffSnapshot(payload.leaderId, payload.rateLimitSnapshot);
+        void this.persistLeaderHandoffSnapshot(payload.leaderId, payload.rateLimitSnapshot, receivedAt);
     }
 
     private static async exportLeaderStateSnapshot(): Promise<RateLimitStoreSnapshot | undefined> {
@@ -918,6 +980,10 @@ export class RateLimiter {
         if (!this.context) {
             return;
         }
+        const existing = this.context.globalState.get<PersistedLeaderHandoff>(PERSISTED_LEADER_HANDOFF_KEY);
+        if (existing && existing.receivedAt > receivedAt) {
+            return;
+        }
         try {
             await this.context.globalState.update(PERSISTED_LEADER_HANDOFF_KEY, {
                 leaderId,
@@ -942,19 +1008,29 @@ export class RateLimiter {
 
     private static becomeLeaderWithFreshState(): void {
         this.clientCore?.settlePendingAsDegraded();
+        this.clearPendingDisconnectReclaims();
         this.leaderStore = new RateLimitStore();
         const handoff = this.consumePendingLeaderHandoff() ?? this.consumePersistedLeaderHandoff();
         if (handoff) {
             const now = Date.now();
-            this.leaderStore.importSnapshot(handoff.snapshot, now, {
-                ownerlessGrantGraceMs: LEADER_HANDOFF_OWNERLESS_GRANT_GRACE_MS
-            });
-            this.clearPersistedLeaderHandoff();
-            this.exitDegraded('became leader');
-            StatusLogger.info(
-                `[RateLimiter] Became leader, authoritative bucket restored from ${handoff.leaderId} handoff`
-            );
-            return;
+            try {
+                if (!isRateLimitStoreSnapshot(handoff.snapshot)) {
+                    throw new Error('invalid handoff snapshot shape');
+                }
+                this.leaderStore.importSnapshot(handoff.snapshot, now, {
+                    ownerlessGrantGraceMs: LEADER_HANDOFF_OWNERLESS_GRANT_GRACE_MS
+                });
+                this.clearPersistedLeaderHandoff();
+                this.exitDegraded('became leader');
+                StatusLogger.info(
+                    `[RateLimiter] Became leader, authoritative bucket restored from ${handoff.leaderId} handoff`
+                );
+                return;
+            } catch (error) {
+                this.leaderStore = new RateLimitStore();
+                this.clearPersistedLeaderHandoff();
+                Logger.warn('[RateLimit] Failed to import leader handoff snapshot, starting empty', error);
+            }
         }
         this.exitDegraded('became leader');
         StatusLogger.info('[RateLimiter] Became leader, authoritative bucket reset (empty start)');

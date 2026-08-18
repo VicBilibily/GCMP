@@ -168,8 +168,7 @@ export class OpenAIResponsesHandler {
                     finalUsage,
                     streamStartTime,
                     streamEndTime,
-                    requestStartTime: requestMetricStartTime,
-                    wasThrottled
+                    requestStartTime: requestMetricStartTime
                 });
                 streamStartTime = completionResult.streamStartTime;
             } catch (error) {
@@ -180,7 +179,7 @@ export class OpenAIResponsesHandler {
                         modelName: model.name,
                         requestId,
                         sessionId,
-                        requestMetricStartTime: wasThrottled ? requestMetricStartTime : undefined,
+                        requestMetricStartTime,
                         streamStartTime,
                         streamEndTime
                     });
@@ -234,7 +233,6 @@ export class OpenAIResponsesHandler {
         streamStartTime?: number;
         streamEndTime?: number;
         requestStartTime?: number;
-        wasThrottled?: boolean;
     }): { streamStartTime?: number } {
         const {
             finishReason,
@@ -247,8 +245,7 @@ export class OpenAIResponsesHandler {
             streamReporter,
             finalUsage,
             streamEndTime,
-            requestStartTime,
-            wasThrottled
+            requestStartTime
         } = params;
 
         let streamStartTime = params.streamStartTime;
@@ -281,13 +278,12 @@ export class OpenAIResponsesHandler {
 
         if (requestId) {
             // 更新实际 token（同步调用，内部写盘 fire-and-forget，不阻塞响应完成链路）
-            // requestMetricStartTime 仅在请求被节流时持久化，未节流时与接受时间相同，无需单独记录
             TokenUsagesManager.instance.updateActualTokens({
                 requestId,
                 sessionId,
                 rawUsage: finalUsage,
                 status: token.isCancellationRequested ? 'cancelled' : 'completed',
-                requestMetricStartTime: wasThrottled ? requestStartTime : undefined,
+                ...(requestStartTime !== undefined ? { requestMetricStartTime: requestStartTime } : {}),
                 streamStartTime,
                 streamEndTime,
                 estimatedCost: breakdown?.total,
@@ -316,7 +312,7 @@ export class OpenAIResponsesHandler {
             requestId,
             sessionId,
             status: 'cancelled',
-            requestMetricStartTime,
+            ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
             streamStartTime,
             streamEndTime: streamEndTime ?? Date.now()
         });

@@ -164,6 +164,15 @@ export interface LiveMetricsSnapshotSyncEvent extends InterInstanceEventBase {
 }
 
 /**
+ * 远端实例已连接
+ * Follower 连上后立刻发送，让 Leader 尽快绑定 instanceId，并取消尚未落地的断线回收。
+ */
+export interface RemoteInstanceHelloEvent extends InterInstanceEventBase {
+    type: 'remoteInstanceHello';
+    payload: Record<string, never>;
+}
+
+/**
  * 远端实例已断开
  * 用于清理该实例残留的实时流式状态。
  */
@@ -362,6 +371,7 @@ export type InterInstanceEvent =
     | LiveMetricsUpdatedEvent
     | LiveMetricsSnapshotRequestedEvent
     | LiveMetricsSnapshotSyncEvent
+    | RemoteInstanceHelloEvent
     | RemoteInstanceDisconnectedEvent
     | CliAuthRefreshRequestedEvent
     | CliAuthRefreshCompletedEvent
@@ -388,6 +398,7 @@ export const INTER_INSTANCE_EVENT_TYPES = [
     'liveMetricsUpdated',
     'liveMetricsSnapshotRequested',
     'liveMetricsSnapshotSync',
+    'remoteInstanceHello',
     'remoteInstanceDisconnected',
     'cliAuthRefreshRequested',
     'cliAuthRefreshCompleted',

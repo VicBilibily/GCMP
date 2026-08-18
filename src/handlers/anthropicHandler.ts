@@ -385,13 +385,12 @@ export class AnthropicHandler {
             // === Token 统计: 更新实际 token（同步调用，内部写盘 fire-and-forget，不阻塞响应完成链路）===
             if (requestId) {
                 // 直接传递 SDK 的 Usage 对象，包含流时间信息
-                // requestMetricStartTime 仅在请求被节流时持久化，未节流时与接受时间相同，无需单独记录
                 TokenUsagesManager.instance.updateActualTokens({
                     requestId,
                     sessionId,
                     rawUsage: result?.usage,
                     status: token.isCancellationRequested ? 'cancelled' : 'completed',
-                    requestMetricStartTime: wasThrottled ? requestMetricStartTime : undefined,
+                    ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
                     streamStartTime: result?.streamStartTime,
                     streamEndTime: result?.streamEndTime,
                     estimatedCost: breakdown?.total,
@@ -407,7 +406,7 @@ export class AnthropicHandler {
                         requestId,
                         sessionId,
                         status: 'cancelled',
-                        requestMetricStartTime: wasThrottled ? requestMetricStartTime : undefined,
+                        ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
                         streamStartTime: partialStreamStartTime ?? reporter?.getMetricStreamStartTime(),
                         streamEndTime: partialStreamEndTime ?? Date.now()
                     });

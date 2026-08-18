@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Follower 端限流请求-回执状态机
  *  纯逻辑模块：注入 send/onEvent/now/sleep 接口，不依赖 vscode，node:test 可测
  *  职责：发起 acquire → 等待 granted 回执（幂等匹配）→ 超时降级 → sleep waitMs（可取消）
@@ -58,6 +58,7 @@ interface PendingWaiter {
     resolve: (outcome: AcquireOutcome) => void;
     settled: boolean;
     queueAcknowledged: boolean;
+    lastQueuePosition?: number;
     timeoutMs: number;
     timeout?: NodeJS.Timeout;
     cancelCheck?: NodeJS.Timeout;
@@ -140,33 +141,15 @@ export class RateLimitClientCore {
                         currentAuthorityTerm !== waiter.authorityTerm &&
                         !waiter.settled
                     ) {
-                        waiter.settled = true;
-                        if (waiter.timeout) {
-                            clearTimeout(waiter.timeout);
+                        if (!currentAuthorityTerm) {
+                            this.settleAuthorityUnavailable(requestId, waiter);
+                        } else {
+                            this.settleAuthorityChanged(requestId, waiter);
                         }
-                        clearInterval(waiter.cancelCheck);
-                        this.pending.delete(requestId);
-                        this.options.sendCancel?.({
-                            authorityTerm: waiter.authorityTerm,
-                            requestId,
-                            bucketKey: waiter.bucketKey
-                        });
-                        resolve({ status: 'authority-changed' });
                         return;
                     }
                     if (this.options.isTransportHealthy && !this.options.isTransportHealthy() && !waiter.settled) {
-                        waiter.settled = true;
-                        if (waiter.timeout) {
-                            clearTimeout(waiter.timeout);
-                        }
-                        clearInterval(waiter.cancelCheck);
-                        this.pending.delete(requestId);
-                        this.options.sendCancel?.({
-                            authorityTerm: waiter.authorityTerm,
-                            requestId,
-                            bucketKey: waiter.bucketKey
-                        });
-                        resolve({ status: 'degraded', reason: 'authority-unavailable' });
+                        this.settleAuthorityUnavailable(requestId, waiter);
                         return;
                     }
                     if (waiter.settled) {
@@ -178,7 +161,7 @@ export class RateLimitClientCore {
         return outcome;
     }
 
-    /** 初次回执超时：尚未收到任何权威确认时降级并通知 Leader 取消排队 */
+    /** 初次回执超时：尚未收到权威确认时降级；入队确认后由授权/取消/断线结算 */
     private armTimeout(requestId: string, waiter: PendingWaiter): NodeJS.Timeout {
         return setTimeout(() => {
             if (waiter.settled) {
@@ -208,10 +191,18 @@ export class RateLimitClientCore {
         }
         const currentAuthorityTerm = this.options.getAuthorityTerm?.();
         if (this.options.getAuthorityTerm && currentAuthorityTerm !== waiter.authorityTerm) {
-            this.settleAuthorityChanged(msg.requestId, waiter);
+            if (!currentAuthorityTerm) {
+                this.settleAuthorityUnavailable(msg.requestId, waiter);
+            } else {
+                this.settleAuthorityChanged(msg.requestId, waiter);
+            }
             return;
         }
-        if (!msg.grantId || msg.authorityTerm !== waiter.authorityTerm) {
+        if (msg.authorityTerm !== waiter.authorityTerm) {
+            return;
+        }
+        if (!msg.grantId) {
+            this.settleInvalidGrant(msg.requestId, waiter);
             return;
         }
         waiter.settled = true;
@@ -237,7 +228,11 @@ export class RateLimitClientCore {
         }
         const currentAuthorityTerm = this.options.getAuthorityTerm?.();
         if (this.options.getAuthorityTerm && currentAuthorityTerm !== waiter.authorityTerm) {
-            this.settleAuthorityChanged(msg.requestId, waiter);
+            if (!currentAuthorityTerm) {
+                this.settleAuthorityUnavailable(msg.requestId, waiter);
+            } else {
+                this.settleAuthorityChanged(msg.requestId, waiter);
+            }
             return;
         }
         if (msg.authorityTerm !== waiter.authorityTerm) {
@@ -245,10 +240,13 @@ export class RateLimitClientCore {
         }
         if (!waiter.queueAcknowledged) {
             waiter.queueAcknowledged = true;
+            waiter.lastQueuePosition = msg.queuePosition;
             if (waiter.timeout) {
                 clearTimeout(waiter.timeout);
                 waiter.timeout = undefined;
             }
+        } else if ((waiter.lastQueuePosition ?? Number.POSITIVE_INFINITY) > msg.queuePosition) {
+            waiter.lastQueuePosition = msg.queuePosition;
         }
         if (!waiter.onQueueUpdate) {
             return;
@@ -301,6 +299,46 @@ export class RateLimitClientCore {
             bucketKey: waiter.bucketKey
         });
         waiter.resolve({ status: 'authority-changed' });
+    }
+
+    private settleAuthorityUnavailable(requestId: string, waiter: PendingWaiter): void {
+        if (waiter.settled) {
+            return;
+        }
+        waiter.settled = true;
+        if (waiter.timeout) {
+            clearTimeout(waiter.timeout);
+        }
+        if (waiter.cancelCheck) {
+            clearInterval(waiter.cancelCheck);
+        }
+        this.pending.delete(requestId);
+        this.options.sendCancel?.({
+            authorityTerm: waiter.authorityTerm,
+            requestId,
+            bucketKey: waiter.bucketKey
+        });
+        waiter.resolve({ status: 'degraded', reason: 'authority-unavailable' });
+    }
+
+    private settleInvalidGrant(requestId: string, waiter: PendingWaiter): void {
+        if (waiter.settled) {
+            return;
+        }
+        waiter.settled = true;
+        if (waiter.timeout) {
+            clearTimeout(waiter.timeout);
+        }
+        if (waiter.cancelCheck) {
+            clearInterval(waiter.cancelCheck);
+        }
+        this.pending.delete(requestId);
+        this.options.sendCancel?.({
+            authorityTerm: waiter.authorityTerm,
+            requestId,
+            bucketKey: waiter.bucketKey
+        });
+        waiter.resolve({ status: 'degraded', reason: 'timeout' });
     }
 
     dispose(): void {

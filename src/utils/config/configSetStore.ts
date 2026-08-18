@@ -83,7 +83,9 @@ export class ConfigSetStore {
             return;
         }
         const items = legacy[slot];
-        if (Array.isArray(items) && items.length > 0) {
+        const existingPerSlot = this.context.globalState.get<ConfigSetItem[]>(this.itemsKey(slot));
+        // per-slot 已存在时只清 legacy，避免陈旧整表快照覆盖较新的分键数据
+        if (existingPerSlot === undefined && Array.isArray(items) && items.length > 0) {
             await this.context.globalState.update(this.itemsKey(slot), items);
         }
         const rest = { ...legacy };
@@ -230,7 +232,11 @@ export class ConfigSetStore {
             await this.context.secrets.delete(this.secretKey(slot, item.id));
             throw error;
         }
-        await this.markMigrated(slot);
+        try {
+            await this.markMigrated(slot);
+        } catch (error) {
+            Logger.warn(`[ConfigSetStore] Failed to mark ${slot} as migrated`, error);
+        }
     }
 
     /** 新增一套配置 */
@@ -242,12 +248,57 @@ export class ConfigSetStore {
     static async remove(slot: string, id: string): Promise<void> {
         await this.enqueue(async () => {
             await this.migrateSlotIndexUnlocked(slot);
-            const items = this.readSlotItems(slot).filter(i => i.id !== id);
+            const previousItems = this.readSlotItems(slot);
+            const items = previousItems.filter(i => i.id !== id);
+            if (items.length === previousItems.length) {
+                return;
+            }
+            const previousActiveId = this.getActiveId(slot);
+            const secretKey = this.secretKey(slot, id);
+            const previousKey = await this.context.secrets.get(secretKey);
             await this.writeSlotItems(slot, items);
-            await this.context.secrets.delete(this.secretKey(slot, id));
-            await this.markMigrated(slot);
-            if (this.getActiveId(slot) === id) {
-                await this.clearActiveUnlocked(slot);
+            try {
+                await this.context.secrets.delete(secretKey);
+                if (previousActiveId === id) {
+                    await this.clearActiveUnlocked(slot);
+                }
+            } catch (error) {
+                let rollbackFailed = false;
+                try {
+                    await this.writeSlotItems(slot, previousItems);
+                } catch (rollbackError) {
+                    rollbackFailed = true;
+                    Logger.error('[ConfigSetStore] Failed to roll back removed items:', rollbackError);
+                }
+                try {
+                    if (previousKey === undefined) {
+                        await this.context.secrets.delete(secretKey);
+                    } else {
+                        await this.context.secrets.store(secretKey, previousKey);
+                    }
+                } catch (restoreError) {
+                    rollbackFailed = true;
+                    Logger.error(`[ConfigSetStore] Failed to restore secret ${slot}:${id}`, restoreError);
+                }
+                try {
+                    if (previousActiveId === undefined) {
+                        await this.clearActiveUnlocked(slot);
+                    } else {
+                        await this.setActiveUnlocked(slot, previousActiveId);
+                    }
+                } catch (rollbackError) {
+                    rollbackFailed = true;
+                    Logger.error('[ConfigSetStore] Failed to roll back active configuration:', rollbackError);
+                }
+                if (rollbackFailed) {
+                    Logger.error('[ConfigSetStore] remove rollback was incomplete');
+                }
+                throw error;
+            }
+            try {
+                await this.markMigrated(slot);
+            } catch (error) {
+                Logger.warn(`[ConfigSetStore] Failed to mark ${slot} as migrated`, error);
             }
         });
     }
@@ -273,14 +324,15 @@ export class ConfigSetStore {
             try {
                 for (const item of items) {
                     const key = keys[item.id];
-                    if (key === undefined) {
+                    if (key === undefined || key.trim().length === 0) {
                         await this.context.secrets.delete(this.secretKey(slot, item.id));
                         continue;
                     }
                     await this.context.secrets.store(this.secretKey(slot, item.id), key);
                 }
                 await this.writeSlotItems(slot, items);
-                if (activeId) {
+                const activeKey = activeId ? keys[activeId]?.trim() : undefined;
+                if (activeId && incomingIds.has(activeId) && activeKey) {
                     await this.setActiveUnlocked(slot, activeId);
                 } else {
                     await this.clearActiveUnlocked(slot);
@@ -361,7 +413,11 @@ export class ConfigSetStore {
                 return;
             }
             if (this.readSlotItems(slot).length > 0) {
-                await this.markMigrated(slot);
+                try {
+                    await this.markMigrated(slot);
+                } catch (error) {
+                    Logger.warn(`[ConfigSetStore] Failed to mark ${slot} as migrated`, error);
+                }
                 return;
             }
             const existingKey = await ApiKeyManager.getApiKey(slot);
@@ -371,7 +427,11 @@ export class ConfigSetStore {
             const item: ConfigSetItem = { id: 'default', label: t('Default', '默认'), site: currentSite };
             await this.addUnlocked(slot, item, existingKey);
             await this.setActiveUnlocked(slot, item.id);
-            await this.markMigrated(slot);
+            try {
+                await this.markMigrated(slot);
+            } catch (error) {
+                Logger.warn(`[ConfigSetStore] Failed to mark ${slot} as migrated`, error);
+            }
         });
     }
 }

@@ -8,6 +8,7 @@ import {
     buildCostBreakdownTitle,
     buildRequestTotals,
     getCurrencyToggleTitle,
+    getLiveWaitingPresentation,
     getNextDisplayCurrency,
     groupRecordsBySession,
     getStatsNativeCostSplit,
@@ -641,4 +642,29 @@ test('buildRequestTotals aggregates tokens, cost, latency and duration from comp
     assert.equal(totals.rmbExactRequests, 0);
     assert.equal(totals.avgLatency, 250);
     assert.equal(totals.avgDuration, 2000);
+});
+
+test('getLiveWaitingPresentation 在 waitScope 缺失时使用通用等待文案', () => {
+    withLocaleAndState({ lang: 'zh-CN' }, () => {
+        const presentation = getLiveWaitingPresentation({
+            isRateLimitWaiting: true
+        });
+
+        assert.equal(presentation.isWaiting, true);
+        assert.equal(presentation.statusText, 'PACE');
+        assert.equal(presentation.statusTitle, '等待限流放行');
+        assert.equal(presentation.queuePositionText, '-');
+    });
+
+    withLocaleAndState({ lang: 'en' }, () => {
+        const presentation = getLiveWaitingPresentation({
+            isRateLimitWaiting: true,
+            waitScope: 'ipc',
+            queuePosition: 2
+        });
+
+        assert.equal(presentation.statusText, 'WAIT');
+        assert.equal(presentation.statusTitle, 'Waiting for remote rate limit');
+        assert.equal(presentation.queuePositionText, '#2');
+    });
 });

@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Config Set Manager - Gist 同步流程
  *  从 index.ts 抽出：上传 / 下载 / 口令解密 / 恢复等同步业务流程。
  *  通过构造注入 post 与 sendStates 回调与 Panel 解耦；口令下载上下文在内部维护。
@@ -349,6 +349,9 @@ export class ConfigSetSyncHost {
                         t('Failed to write config set sync data to Gist.', '配置集同步数据写入 Gist 失败。')
                     )
             });
+            if (ok) {
+                this.clearPreparedDownloadState();
+            }
         } catch (error) {
             Logger.error('[ConfigSetManager] upload failed:', error);
             this.ctx.post({ command: 'syncStatus', busy: false });
@@ -864,6 +867,9 @@ export class ConfigSetSyncHost {
                         t('Failed to write config set sync data to Gist.', '配置集同步数据写入 Gist 失败。')
                     )
             });
+            if (ok) {
+                this.clearPreparedDownloadState();
+            }
         } catch (error) {
             Logger.error('[ConfigSetManager] apply remote configs failed:', error);
             this.ctx.post({ command: 'syncStatus', busy: false });
@@ -887,6 +893,7 @@ export class ConfigSetSyncHost {
         try {
             const hasGist = await this.detectConfigSetGist();
             await runSetPassphraseFlow(hasGist);
+            this.clearPreparedDownloadState();
         } finally {
             // 口令流程异常/取消也要刷新同步状态（口令哈希可能已变化）
             await this.postSyncState();
@@ -897,6 +904,7 @@ export class ConfigSetSyncHost {
     async handleClearPassphrase(): Promise<void> {
         try {
             await runClearPassphraseFlow();
+            this.clearPreparedDownloadState();
         } finally {
             await this.postSyncState();
         }

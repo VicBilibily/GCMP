@@ -251,4 +251,60 @@ suite('gistSyncService', () => {
             service.notifyProviders = originalNotifyProviders;
         }
     });
+
+    test('applyKeysAndNotify rolls back earlier keys when a later key apply fails', async () => {
+        const service = GistSyncService as unknown as MockableGistSyncService;
+        const mutableKeys = ApiKeyManager as unknown as {
+            getApiKey: typeof ApiKeyManager.getApiKey;
+            setApiKey: typeof ApiKeyManager.setApiKey;
+            deleteApiKey: typeof ApiKeyManager.deleteApiKey;
+        };
+        const originalGetApiKey = mutableKeys.getApiKey;
+        const originalSetApiKey = mutableKeys.setApiKey;
+        const originalDeleteApiKey = mutableKeys.deleteApiKey;
+        const originalNotifyProviders = service.notifyProviders;
+        const store = new Map<string, string | undefined>([
+            ['first', 'old-first'],
+            ['second', undefined]
+        ]);
+        const calls: string[] = [];
+        let notified = false;
+
+        mutableKeys.getApiKey = async provider => store.get(provider);
+        mutableKeys.setApiKey = async (provider, value) => {
+            calls.push(`set:${provider}:${value}`);
+            if (provider === 'second') {
+                throw new Error('apply failed');
+            }
+            store.set(provider, value);
+        };
+        mutableKeys.deleteApiKey = async provider => {
+            calls.push(`delete:${provider}`);
+            store.delete(provider);
+        };
+        service.notifyProviders = () => {
+            notified = true;
+        };
+
+        try {
+            await assert.rejects(
+                () =>
+                    GistSyncService.applyKeysAndNotify({
+                        'first.apiKey': 'new-first',
+                        'second.apiKey': 'new-second'
+                    }),
+                /apply failed/
+            );
+        } finally {
+            mutableKeys.getApiKey = originalGetApiKey;
+            mutableKeys.setApiKey = originalSetApiKey;
+            mutableKeys.deleteApiKey = originalDeleteApiKey;
+            service.notifyProviders = originalNotifyProviders;
+        }
+
+        assert.equal(store.get('first'), 'old-first');
+        assert.equal(store.get('second'), undefined);
+        assert.equal(notified, false);
+        assert.deepEqual(calls, ['set:first:new-first', 'set:second:new-second', 'set:first:old-first']);
+    });
 });

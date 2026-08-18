@@ -553,14 +553,14 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         }
         // 字段级合并：model 级覆盖 provider 级同名维度
         const dims = { ...providerLimit, ...(hasModelLimitOverride ? modelLimit : {}) };
-        if (Object.values(dims).every(value => value === undefined || value <= 0)) {
+        if (Object.values(dims).every(value => value === undefined || !Number.isFinite(value) || value <= 0)) {
             return undefined;
         }
         // model 级配置存在时使用独立桶
         const bucketKey = hasModelLimitOverride ? `${effectiveProviderKey}::${modelConfig.id}` : effectiveProviderKey;
         // 边界防御：手写配置缺失/非法产生的 NaN 成本会污染 GCRA 预约队列并导致 sleep 忙循环
         const maxOutputTokens = Number.isFinite(modelConfig.maxOutputTokens) ? modelConfig.maxOutputTokens : 0;
-        const outputReserve = Math.min(maxOutputTokens, 4096);
+        const outputReserve = Math.min(Math.max(maxOutputTokens, 0), 4096);
         const costs = { requests: 1, tokens: totalInputTokens + outputReserve };
         if (!Number.isFinite(costs.tokens)) {
             Logger.warn(
@@ -640,15 +640,11 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const retryManager = new RetryManager(this.getRequestRetryConfig(effectiveProviderKey));
 
         // 请求是否受过节流控制（限流等待/排队，跨 retry 累积）。
-        // 仅节流请求才把"实际派发时间"作为 requestMetricStartTime 持久化并在用量视图高亮；
-        // 未节流请求的派发时间与接受时间几乎相同，不应单独记录。
         let wasThrottled = false;
 
-        // 仅节流请求才向外传播实际派发时间（用于持久化与高亮）；实时 requestStarted 始终按 attempt 时间发射
+        // 失败路径也要依赖真实派发时间补齐延迟统计。
         const handleAttemptStarted = (attemptStartedAt: number) => {
-            if (wasThrottled) {
-                onAttemptStarted?.(attemptStartedAt);
-            }
+            onAttemptStarted?.(attemptStartedAt);
             if (requestId) {
                 liveMetrics.emitLiveMetrics({
                     type: 'requestStarted',

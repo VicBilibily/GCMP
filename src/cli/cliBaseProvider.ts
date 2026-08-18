@@ -89,9 +89,7 @@ export class CliBaseProvider extends GenericModelProvider {
                 return [];
             }
         }
-        options.silent = true;
-        // 调用父类方法返回模型列表
-        return super.provideLanguageModelChatInformation(options, token);
+        return super.provideLanguageModelChatInformation({ ...options, silent: true }, token);
     }
 
     /**

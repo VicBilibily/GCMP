@@ -161,7 +161,15 @@ export class LeaderElectionService {
             try {
                 const followers = InterInstanceBus.getConnectedFollowerIds();
                 const nextLeaderId = followers.length > 0 ? followers[0] : undefined;
-                const rateLimitSnapshot = await this.rateLimitSnapshotProvider?.();
+                let rateLimitSnapshot: RateLimitStoreSnapshot | undefined;
+                try {
+                    rateLimitSnapshot = await this.rateLimitSnapshotProvider?.();
+                } catch (error) {
+                    StatusLogger.warn(
+                        '[LeaderElectionService] Failed to export rate-limit snapshot before resigning',
+                        error
+                    );
+                }
                 InterInstanceBus.publishIpcOnly({
                     type: 'leaderResigning',
                     payload: { leaderId: this.instanceId, nextLeaderId, rateLimitSnapshot }
@@ -204,6 +212,7 @@ export class LeaderElectionService {
         this._isLeader = value;
         StatusLogger.info(`[LeaderElectionService] Leader state changed: isLeader=${value}`);
         this.leaderChangedEmitter.fire(value);
+        this.emitLeaderIdentityChanged();
     }
 
     private static emitLeaderIdentityChanged(): void {
@@ -304,19 +313,25 @@ export class LeaderElectionService {
                 // 如果当前实例被提名为下一任 Leader，立即尝试接管，不等待心跳超时。
                 // 最多重试 3 次，全部失败后退回到常规竞选。
                 if (nextLeaderId === this.instanceId) {
-                    void this.takeoverAsNominated();
+                    void this.takeoverAsNominated().catch(error =>
+                        StatusLogger.warn('[LeaderElectionService] Nominated takeover failed', error)
+                    );
                     return;
                 }
 
                 // 已指定下一任 Leader 时，非提名实例等待几次确认新 Leader 是否已接管，
                 // 若接管成功则无需竞争；若超时未接管再进入竞选。
                 if (nextLeaderId) {
-                    void this.waitForNominatedTakeover(nextLeaderId, resigningLeaderId);
+                    void this.waitForNominatedTakeover(nextLeaderId, resigningLeaderId).catch(error =>
+                        StatusLogger.warn('[LeaderElectionService] Waiting for nominated takeover failed', error)
+                    );
                     return;
                 }
 
                 // 未指定下一任 Leader 时，直接基于卸任信号快速接管，不再受旧心跳 freshness 阻塞
-                void this.recoverAfterLeaderResigning(resigningLeaderId);
+                void this.recoverAfterLeaderResigning(resigningLeaderId).catch(error =>
+                    StatusLogger.warn('[LeaderElectionService] Fast takeover after resigning failed', error)
+                );
             })
         );
     }

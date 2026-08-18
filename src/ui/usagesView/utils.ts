@@ -67,6 +67,19 @@ export function getLiveWaitingPresentation(liveState: LiveRequestUiState | undef
         '已获得并发槽位，等待限流令牌到点'
     );
 
+    let statusTitle = '';
+    if (isWaiting) {
+        if (liveState.waitScope === 'leader') {
+            statusTitle = t('Waiting for leader rate limit', '等待 Leader 限流放行');
+        } else if (liveState.waitScope === 'local') {
+            statusTitle = t('Waiting for local rate limit', '等待本地限流放行');
+        } else if (liveState.waitScope === 'ipc') {
+            statusTitle = t('Waiting for remote rate limit', '等待远端限流放行');
+        } else {
+            statusTitle = t('Waiting for rate limit', '等待限流放行');
+        }
+    }
+
     return {
         isWaiting,
         waitTitle:
@@ -77,11 +90,7 @@ export function getLiveWaitingPresentation(liveState: LiveRequestUiState | undef
             !isWaiting ? ''
             : hasQueuePosition ? 'WAIT'
             : 'PACE',
-        statusTitle:
-            !isWaiting ? ''
-            : liveState.waitScope === 'leader' ? t('Waiting for leader rate limit', '等待 Leader 限流放行')
-            : liveState.waitScope === 'local' ? t('Waiting for local rate limit', '等待本地限流放行')
-            : t('Waiting for remote rate limit', '等待远端限流放行'),
+        statusTitle,
         queuePositionText: isWaiting && hasQueuePosition ? `#${liveState.queuePosition}` : '-',
         queuePositionTitle:
             !isWaiting ? ''

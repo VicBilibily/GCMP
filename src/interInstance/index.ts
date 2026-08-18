@@ -16,6 +16,7 @@ export {
     type LiveMetricsUpdatedEvent,
     type LiveMetricsSnapshotRequestedEvent,
     type LiveMetricsSnapshotSyncEvent,
+    type RemoteInstanceHelloEvent,
     type RemoteInstanceDisconnectedEvent,
     type CliAuthRefreshRequestedEvent,
     type CliAuthRefreshCompletedEvent,

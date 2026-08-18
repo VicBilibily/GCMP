@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  限流桶存储（Leader 权威计数核心）
  *  每桶键：三维 GCRA（rpm/rps/tpm）+ 并发槽位 + pending FIFO 队列
  *  纯逻辑模块：全部方法同步、由调用方注入 now，不依赖 vscode / 定时器
@@ -43,6 +43,7 @@ export interface PendingPosition {
 export interface RateLimitReservationSnapshot {
     grantId: string;
     endAt: number;
+    cost?: number;
 }
 
 export interface RateLimitPaceStateSnapshot {
@@ -103,6 +104,7 @@ interface PendingEntry {
 interface PaceReservation {
     grantId: string;
     endAt: number;
+    cost: number;
 }
 
 interface PaceState {
@@ -123,11 +125,56 @@ function makePaceState(emissionIntervalMs: number): PaceState {
     return { emissionIntervalMs, reservations: [] };
 }
 
+function isPositiveFiniteRate(rate: number | undefined): rate is number {
+    return Number.isFinite(rate) && (rate as number) > 0;
+}
+
+const RATE_LIMIT_DIM_KEYS = ['rpm', 'rps', 'tpm', 'parallel'] as const;
+
+/**
+ * 清洗权威限流维度：只保留有限正数。
+ * - 无配置 → `{}`（不限流）
+ * - `0` 表示该维不限，清洗后省略
+ * - 出现 NaN/Infinity/负数且清洗后无有效正数维 → `undefined`（fail-closed）
+ */
+export function sanitizeAuthoritativeDims(
+    providerLimit?: RateLimitConfig,
+    modelLimit?: RateLimitConfig
+): RateLimitDimensions | undefined {
+    if (!providerLimit && !modelLimit) {
+        return {};
+    }
+    const merged: RateLimitDimensions = { ...providerLimit, ...modelLimit };
+    const sanitized: RateLimitDimensions = {};
+    let hasInvalid = false;
+    for (const key of RATE_LIMIT_DIM_KEYS) {
+        const value = merged[key];
+        if (value === undefined) {
+            continue;
+        }
+        if (isPositiveFiniteRate(value)) {
+            sanitized[key] = value;
+            continue;
+        }
+        if (value === 0) {
+            continue;
+        }
+        hasInvalid = true;
+    }
+    if (hasInvalid && Object.keys(sanitized).length === 0) {
+        return undefined;
+    }
+    return sanitized;
+}
+
 function makePaceStates(dims: RateLimitDimensions): Pick<BucketState, 'paceRpm' | 'paceRps' | 'paceTpm'> {
+    const rpmInterval = isPositiveFiniteRate(dims.rpm) ? intervalFromPerMinute(dims.rpm) : undefined;
+    const rpsInterval = isPositiveFiniteRate(dims.rps) ? intervalFromPerSecond(dims.rps) : undefined;
+    const tpmInterval = isPositiveFiniteRate(dims.tpm) ? intervalFromPerMinute(dims.tpm) : undefined;
     return {
-        paceRpm: dims.rpm && dims.rpm > 0 ? makePaceState(intervalFromPerMinute(dims.rpm)) : undefined,
-        paceRps: dims.rps && dims.rps > 0 ? makePaceState(intervalFromPerSecond(dims.rps)) : undefined,
-        paceTpm: dims.tpm && dims.tpm > 0 ? makePaceState(intervalFromPerMinute(dims.tpm)) : undefined
+        paceRpm: rpmInterval !== undefined ? makePaceState(rpmInterval) : undefined,
+        paceRps: rpsInterval !== undefined ? makePaceState(rpsInterval) : undefined,
+        paceTpm: tpmInterval !== undefined ? makePaceState(tpmInterval) : undefined
     };
 }
 
@@ -198,7 +245,7 @@ export class RateLimitStore {
 
     renew(grantId: string, now: number): boolean {
         const grant = this.grants.get(grantId);
-        if (!grant) {
+        if (!grant || grant.expiresAt <= now) {
             return false;
         }
         grant.expiresAt = Math.max(grant.expiresAt, now + grant.leaseMs);
@@ -276,6 +323,10 @@ export class RateLimitStore {
         return this.grants.has(grantId);
     }
 
+    getGrantOwnerInstanceId(grantId: string): string | undefined {
+        return this.grants.get(grantId)?.ownerInstanceId;
+    }
+
     hasRequest(bucketKey: string, requestId: string): boolean {
         const bucket = this.buckets.get(bucketKey);
         if (bucket?.pending.some(entry => entry.requestId === requestId)) {
@@ -290,48 +341,62 @@ export class RateLimitStore {
     }
 
     importSnapshot(snapshot: RateLimitStoreSnapshot, now: number, options?: ImportSnapshotOptions): void {
+        if (!isRateLimitStoreSnapshot(snapshot)) {
+            throw new Error('Invalid rate-limit store snapshot');
+        }
         this.buckets.clear();
         this.grants.clear();
 
-        for (const bucketSnapshot of snapshot.buckets) {
-            this.buckets.set(bucketSnapshot.bucketKey, {
-                dims: { ...bucketSnapshot.dims },
-                paceRpm: this.importPaceState(bucketSnapshot.paceRpm, now),
-                paceRps: this.importPaceState(bucketSnapshot.paceRps, now),
-                paceTpm: this.importPaceState(bucketSnapshot.paceTpm, now),
-                inflight: 0,
-                pending: bucketSnapshot.pending.map(entry => ({
-                    requestId: entry.requestId,
-                    costs: { ...entry.costs },
-                    ownerInstanceId: entry.ownerInstanceId
-                }))
-            });
-        }
+        try {
+            for (const bucketSnapshot of snapshot.buckets) {
+                this.buckets.set(bucketSnapshot.bucketKey, {
+                    dims: { ...bucketSnapshot.dims },
+                    paceRpm: this.importPaceState(bucketSnapshot.paceRpm, now),
+                    paceRps: this.importPaceState(bucketSnapshot.paceRps, now),
+                    paceTpm: this.importPaceState(bucketSnapshot.paceTpm, now),
+                    inflight: 0,
+                    pending: bucketSnapshot.pending.map(entry => ({
+                        requestId: entry.requestId,
+                        costs: { ...entry.costs },
+                        ownerInstanceId: entry.ownerInstanceId
+                    }))
+                });
+            }
 
-        for (const grantSnapshot of snapshot.grants) {
-            const expiresAt =
-                grantSnapshot.ownerInstanceId === undefined && options?.ownerlessGrantGraceMs !== undefined ?
-                    Math.min(grantSnapshot.expiresAt, now + options.ownerlessGrantGraceMs)
-                :   grantSnapshot.expiresAt;
-            if (expiresAt <= now) {
-                continue;
-            }
-            const bucket = this.buckets.get(grantSnapshot.bucketKey);
-            if (!bucket) {
-                continue;
-            }
-            this.grants.set(grantSnapshot.grantId, {
-                requestId: grantSnapshot.requestId,
-                bucketKey: grantSnapshot.bucketKey,
-                costs: { ...grantSnapshot.costs },
-                expiresAt,
-                leaseMs:
+            const survivingGrantIds = new Set<string>();
+            for (const grantSnapshot of snapshot.grants) {
+                const expiresAt =
                     grantSnapshot.ownerInstanceId === undefined && options?.ownerlessGrantGraceMs !== undefined ?
-                        Math.min(grantSnapshot.leaseMs, options.ownerlessGrantGraceMs)
-                    :   grantSnapshot.leaseMs,
-                ownerInstanceId: grantSnapshot.ownerInstanceId
-            });
-            bucket.inflight += 1;
+                        Math.min(grantSnapshot.expiresAt, now + options.ownerlessGrantGraceMs)
+                    :   grantSnapshot.expiresAt;
+                if (expiresAt <= now) {
+                    continue;
+                }
+                const bucket = this.buckets.get(grantSnapshot.bucketKey);
+                if (!bucket) {
+                    continue;
+                }
+                this.grants.set(grantSnapshot.grantId, {
+                    requestId: grantSnapshot.requestId,
+                    bucketKey: grantSnapshot.bucketKey,
+                    costs: { ...grantSnapshot.costs },
+                    expiresAt,
+                    leaseMs: grantSnapshot.leaseMs,
+                    ownerInstanceId: grantSnapshot.ownerInstanceId
+                });
+                survivingGrantIds.add(grantSnapshot.grantId);
+                bucket.inflight += 1;
+            }
+
+            for (const bucket of this.buckets.values()) {
+                this.retainPaceReservations(bucket.paceRpm, survivingGrantIds);
+                this.retainPaceReservations(bucket.paceRps, survivingGrantIds);
+                this.retainPaceReservations(bucket.paceTpm, survivingGrantIds);
+            }
+        } catch (error) {
+            this.buckets.clear();
+            this.grants.clear();
+            throw error;
         }
     }
 
@@ -368,6 +433,9 @@ export class RateLimitStore {
      * 回收指定实例的全部排队项与持有 grant（实例断线时调用，避免幽灵占用阻塞 FIFO）
      */
     reclaimInstance(ownerInstanceId: string, now: number): { granted: PendingGrant[]; affectedBucketKeys: string[] } {
+        if (!ownerInstanceId) {
+            return { granted: [], affectedBucketKeys: [] };
+        }
         const granted: PendingGrant[] = [];
         const affected = new Set<string>();
         for (const [bucketKey, bucket] of this.buckets) {
@@ -414,12 +482,15 @@ export class RateLimitStore {
     private syncPaceState(
         existing: PaceState | undefined,
         rate: number | undefined,
-        toInterval: (perUnit: number) => number
+        toInterval: (perUnit: number) => number | undefined
     ): PaceState | undefined {
-        if (!rate || rate <= 0) {
+        if (!isPositiveFiniteRate(rate)) {
             return undefined;
         }
         const interval = toInterval(rate);
+        if (interval === undefined) {
+            return undefined;
+        }
         if (existing) {
             existing.emissionIntervalMs = interval;
             return existing;
@@ -463,12 +534,12 @@ export class RateLimitStore {
         if (!refund) {
             return;
         }
-        if (refund.requests && refund.requests > 0) {
-            this.refundPacing(bucket.paceRpm, grantId, now);
-            this.refundPacing(bucket.paceRps, grantId, now);
+        if (Number.isFinite(refund.requests) && (refund.requests as number) > 0) {
+            this.refundPacing(bucket.paceRpm, grantId, refund.requests as number, now);
+            this.refundPacing(bucket.paceRps, grantId, refund.requests as number, now);
         }
-        if (refund.tokens && refund.tokens > 0) {
-            this.refundPacing(bucket.paceTpm, grantId, now);
+        if (Number.isFinite(refund.tokens) && (refund.tokens as number) > 0) {
+            this.refundPacing(bucket.paceTpm, grantId, refund.tokens as number, now);
         }
     }
 
@@ -499,7 +570,7 @@ export class RateLimitStore {
     }
 
     private reservePacing(state: PaceState | undefined, grantId: string, cost: number, now: number): number {
-        if (!state || cost <= 0) {
+        if (!state || !Number.isFinite(cost) || cost <= 0) {
             return 0;
         }
         this.pruneExpiredReservations(state, now);
@@ -507,20 +578,35 @@ export class RateLimitStore {
         const startAt = Math.max(lastReservation?.endAt ?? now, now);
         state.reservations.push({
             grantId,
+            cost,
             endAt: startAt + cost * state.emissionIntervalMs
         });
         return startAt - now;
     }
 
-    private refundPacing(state: PaceState | undefined, grantId: string, now: number): void {
-        if (!state) {
+    /**
+     * 缩短指定 grant 的 pacing 占用。部分退款只缩短本笔 endAt，不前移后续 reservation，
+     * 避免取消中间 grant 时后续请求重叠到同一放行时刻。
+     */
+    private refundPacing(state: PaceState | undefined, grantId: string, refundedCost: number, now: number): void {
+        if (!state || !Number.isFinite(refundedCost) || refundedCost <= 0) {
             return;
         }
         this.pruneExpiredReservations(state, now);
-        const index = state.reservations.findIndex(reservation => reservation.grantId === grantId);
-        if (index >= 0) {
-            state.reservations.splice(index, 1);
+        const index = state.reservations.findIndex(item => item.grantId === grantId);
+        if (index < 0) {
+            return;
         }
+        const reservation = state.reservations[index]!;
+        const remaining = reservation.cost - refundedCost;
+        if (remaining <= 0) {
+            // 全额退款直接移除本笔，不前移后续 reservation
+            state.reservations.splice(index, 1);
+            return;
+        }
+        const refundedMs = refundedCost * state.emissionIntervalMs;
+        reservation.cost = remaining;
+        reservation.endAt = Math.max(now, reservation.endAt - refundedMs);
     }
 
     private peekPacingWait(state: PaceState | undefined, now: number): number {
@@ -555,7 +641,8 @@ export class RateLimitStore {
             emissionIntervalMs: state.emissionIntervalMs,
             reservations: reservations.map(reservation => ({
                 grantId: reservation.grantId,
-                endAt: reservation.endAt
+                endAt: reservation.endAt,
+                cost: reservation.cost
             }))
         };
     }
@@ -564,11 +651,101 @@ export class RateLimitStore {
         if (!snapshot) {
             return undefined;
         }
+        if (!Number.isFinite(snapshot.emissionIntervalMs) || snapshot.emissionIntervalMs <= 0) {
+            return undefined;
+        }
         return {
             emissionIntervalMs: snapshot.emissionIntervalMs,
             reservations: snapshot.reservations
                 .filter(reservation => reservation.endAt > now)
-                .map(reservation => ({ grantId: reservation.grantId, endAt: reservation.endAt }))
+                .map(reservation => ({
+                    grantId: reservation.grantId,
+                    endAt: reservation.endAt,
+                    cost:
+                        Number.isFinite(reservation.cost) && (reservation.cost as number) > 0 ?
+                            (reservation.cost as number)
+                        :   0
+                }))
         };
     }
+
+    private retainPaceReservations(state: PaceState | undefined, allowedGrantIds: ReadonlySet<string>): void {
+        if (!state) {
+            return;
+        }
+        state.reservations = state.reservations.filter(reservation => allowedGrantIds.has(reservation.grantId));
+    }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+    return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isRateLimitCosts(value: unknown): value is RateLimitCosts {
+    return isRecord(value) && isFiniteNumber(value.requests) && isFiniteNumber(value.tokens);
+}
+
+function isRateLimitReservationSnapshot(value: unknown): value is RateLimitReservationSnapshot {
+    if (!isRecord(value) || typeof value.grantId !== 'string' || !isFiniteNumber(value.endAt)) {
+        return false;
+    }
+    return value.cost === undefined || isFiniteNumber(value.cost);
+}
+
+function isRateLimitPaceStateSnapshot(value: unknown): value is RateLimitPaceStateSnapshot {
+    return (
+        isRecord(value) &&
+        isFiniteNumber(value.emissionIntervalMs) &&
+        Array.isArray(value.reservations) &&
+        value.reservations.every(isRateLimitReservationSnapshot)
+    );
+}
+
+function isRateLimitPendingSnapshot(value: unknown): value is RateLimitPendingSnapshot {
+    return (
+        isRecord(value) &&
+        typeof value.requestId === 'string' &&
+        isRateLimitCosts(value.costs) &&
+        (value.ownerInstanceId === undefined || typeof value.ownerInstanceId === 'string')
+    );
+}
+
+function isRateLimitGrantSnapshot(value: unknown): value is RateLimitGrantSnapshot {
+    return (
+        isRecord(value) &&
+        typeof value.grantId === 'string' &&
+        typeof value.requestId === 'string' &&
+        typeof value.bucketKey === 'string' &&
+        isRateLimitCosts(value.costs) &&
+        isFiniteNumber(value.expiresAt) &&
+        isFiniteNumber(value.leaseMs) &&
+        (value.ownerInstanceId === undefined || typeof value.ownerInstanceId === 'string')
+    );
+}
+
+function isRateLimitBucketSnapshot(value: unknown): value is RateLimitBucketSnapshot {
+    return (
+        isRecord(value) &&
+        typeof value.bucketKey === 'string' &&
+        isRecord(value.dims) &&
+        Array.isArray(value.pending) &&
+        value.pending.every(isRateLimitPendingSnapshot) &&
+        (value.paceRpm === undefined || isRateLimitPaceStateSnapshot(value.paceRpm)) &&
+        (value.paceRps === undefined || isRateLimitPaceStateSnapshot(value.paceRps)) &&
+        (value.paceTpm === undefined || isRateLimitPaceStateSnapshot(value.paceTpm))
+    );
+}
+
+export function isRateLimitStoreSnapshot(value: unknown): value is RateLimitStoreSnapshot {
+    return (
+        isRecord(value) &&
+        Array.isArray(value.buckets) &&
+        Array.isArray(value.grants) &&
+        value.buckets.every(isRateLimitBucketSnapshot) &&
+        value.grants.every(isRateLimitGrantSnapshot)
+    );
 }

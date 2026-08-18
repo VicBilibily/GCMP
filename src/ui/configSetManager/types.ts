@@ -388,16 +388,32 @@ export function sanitizeWebViewMessage(raw: unknown): WebViewMessage | undefined
             return isValidString(msg.slot) && isValidString(msg.id) ? (msg as unknown as WebViewMessage) : undefined;
         case 'deactivate':
             return isValidString(msg.slot) ? (msg as unknown as WebViewMessage) : undefined;
-        case 'add':
-            return (
-                    isValidString(msg.slot) &&
-                        isValidString(msg.label) &&
-                        isValidString(msg.apiKey) &&
-                        isOptionalString(msg.note) &&
-                        isOptionalString(msg.site)
-                ) ?
-                    (msg as unknown as WebViewMessage)
-                :   undefined;
+        case 'add': {
+            if (
+                !isValidString(msg.slot) ||
+                !isValidString(msg.label) ||
+                !isValidString(msg.apiKey) ||
+                !isOptionalString(msg.note) ||
+                !isOptionalString(msg.site)
+            ) {
+                return undefined;
+            }
+            const apiKey = msg.apiKey.trim();
+            if (!apiKey) {
+                return undefined;
+            }
+            return {
+                ...(msg as {
+                    command: 'add';
+                    slot: string;
+                    label: string;
+                    note?: string;
+                    site?: string;
+                    apiKey: string;
+                }),
+                apiKey
+            };
+        }
         case 'edit':
             if (
                 !isValidString(msg.slot) ||
@@ -418,9 +434,7 @@ export function sanitizeWebViewMessage(raw: unknown): WebViewMessage | undefined
                     apiKey?: string;
                 }),
                 apiKey:
-                    typeof msg.apiKey === 'string' && msg.apiKey.trim().length === 0 ?
-                        undefined
-                    :   (msg.apiKey as string | undefined)
+                    typeof msg.apiKey === 'string' ? msg.apiKey.trim() || undefined : (msg.apiKey as string | undefined)
             };
         case 'uploadSelected':
         case 'restore':

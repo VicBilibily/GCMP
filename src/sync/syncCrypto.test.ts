@@ -196,6 +196,16 @@ test('batch encryptor throws after dispose', async () => {
     assert.throws(() => batchEncrypt!(PLAINTEXT));
 });
 
+test('batch decryptor ignores in-flight derive after dispose', async () => {
+    const encrypted = await encrypt(GITHUB_ID, PLAINTEXT, undefined);
+    assert.ok(encrypted);
+    const batchDecrypt = createBatchDecryptor(GITHUB_ID, undefined);
+    const pending = batchDecrypt(encrypted!);
+    batchDecrypt.dispose();
+    assert.strictEqual(await pending, undefined);
+    assert.strictEqual(await batchDecrypt(encrypted!), undefined);
+});
+
 test('batch payloads can rotate to a new passphrase and roll back without losing values', async () => {
     const values = ['key-a', 'key-b'];
     const oldEncrypt = await createBatchEncryptor(GITHUB_ID, 'old-passphrase');

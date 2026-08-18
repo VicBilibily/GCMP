@@ -22,6 +22,7 @@ import { configProviders } from '../../providers/config';
 import { CommitFormat, CommitLanguage, ModelSelection } from '../../commit/types';
 import { InterInstanceBus } from '../../interInstance';
 import { t } from '../runtime/l10n';
+import { CompatibleModelManager } from './compatibleModelManager';
 import {
     createProxiedFetch,
     NO_PROXY_SENTINEL,
@@ -655,16 +656,18 @@ export class ConfigManager {
         const overrides = this.getProviderOverrides();
         for (const key of this.getProxyLookupKeys(providerKey)) {
             const overrideLimit = overrides[key]?.models?.find(model => model.id === modelId)?.limit;
-            if (overrideLimit) {
-                return overrideLimit;
-            }
             const baseConfig = configProviders[key as keyof typeof configProviders] as ProviderConfig | undefined;
             const baseLimit = baseConfig?.models.find(model => model.id === modelId)?.limit;
-            if (baseLimit) {
+            if (overrideLimit !== undefined) {
+                return baseLimit ? { ...baseLimit, ...overrideLimit } : overrideLimit;
+            }
+            if (baseLimit !== undefined) {
                 return baseLimit;
             }
         }
-        return undefined;
+
+        return CompatibleModelManager.getModels().find(model => model.provider === providerKey && model.id === modelId)
+            ?.limit;
     }
 
     /**
@@ -1167,8 +1170,8 @@ export class ConfigManager {
                 }
             }
             if (modelOverride.limit !== undefined) {
-                target.limit = modelOverride.limit;
-                Logger.debug(`  Model ${modelOverride.id}: override limit = ${JSON.stringify(modelOverride.limit)}`);
+                target.limit = target.limit ? { ...target.limit, ...modelOverride.limit } : { ...modelOverride.limit };
+                Logger.debug(`  Model ${modelOverride.id}: override limit = ${JSON.stringify(target.limit)}`);
             }
         };
 

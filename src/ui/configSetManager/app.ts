@@ -238,6 +238,7 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
             return;
         case 'clearRestorePrep':
             state.restoreSnapshots = null;
+            document.querySelector('.csm-restore-overlay')?.remove();
             render();
             return;
         case 'downloadResult':

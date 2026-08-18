@@ -532,7 +532,8 @@ test('syncRemoteLiveMetricsSnapshot replaces stale remote snapshot and keeps loc
         );
 
         const snapshot = getActiveMetricsSnapshot();
-        assert.ok(!snapshot.some(event => event.requestId === 'req-stale'));
+        // 不完整快照不得误杀未覆盖 source 的远端流
+        assert.ok(snapshot.some(event => event.requestId === 'req-stale'));
         assert.ok(snapshot.some(event => event.requestId === 'req-fresh'));
         assert.ok(snapshot.some(event => event.requestId === 'req-local'));
     } finally {
@@ -558,6 +559,34 @@ test('syncRemoteLiveMetricsSnapshot only emits streamEnd for removed remote entr
         assert.equal(received.filter(event => event.requestId === 'req-keep' && event.type === 'streamEnd').length, 0);
         assert.equal(received.filter(event => event.requestId === 'req-drop' && event.type === 'streamEnd').length, 1);
         assert.ok(received.some(event => event.requestId === 'req-keep' && event.type === 'rateLimitWaiting'));
+    } finally {
+        disposable.dispose();
+        cleanupAllSnapshots();
+    }
+});
+
+test('syncRemoteLiveMetricsSnapshot empty snapshot only ends covered source remotes', () => {
+    cleanupAllSnapshots();
+    const received: LiveStreamMetricEvent[] = [];
+    const disposable = onLiveMetrics(event => received.push(event));
+
+    try {
+        receiveRemoteLiveMetrics(makeEvent({ requestId: 'req-sender', type: 'rateLimitWaiting' }), 'leader-a');
+        receiveRemoteLiveMetrics(makeEvent({ requestId: 'req-other', type: 'streamingUpdate' }), 'follower-b');
+        emitLiveMetrics(makeEvent({ requestId: 'req-local', type: 'streamingUpdate' }));
+        received.length = 0;
+
+        syncRemoteLiveMetricsSnapshot([], 'leader-a');
+
+        const snapshot = getActiveMetricsSnapshot();
+        assert.ok(!snapshot.some(event => event.requestId === 'req-sender'));
+        assert.ok(snapshot.some(event => event.requestId === 'req-other'));
+        assert.ok(snapshot.some(event => event.requestId === 'req-local'));
+        assert.equal(
+            received.filter(event => event.requestId === 'req-sender' && event.type === 'streamEnd').length,
+            1
+        );
+        assert.equal(received.filter(event => event.requestId === 'req-other' && event.type === 'streamEnd').length, 0);
     } finally {
         disposable.dispose();
         cleanupAllSnapshots();
@@ -598,4 +627,100 @@ test('retry (new requestStarted for same requestId) resets snapshot', () => {
     assert.equal(found.estimatedOutputTokens, undefined, 'old streamingUpdate fields should be gone');
 
     cleanupAllSnapshots();
+});
+
+test('remote update for same requestId does not overwrite local ownership', () => {
+    cleanupAllSnapshots();
+    const received: LiveStreamMetricEvent[] = [];
+    const disposable = onLiveMetrics(event => received.push(event));
+
+    try {
+        emitLiveMetrics(
+            makeEvent({
+                requestId: 'req-owned',
+                type: 'streamingUpdate',
+                estimatedOutputTokens: 40
+            })
+        );
+        received.length = 0;
+
+        receiveRemoteLiveMetrics(
+            makeEvent({
+                requestId: 'req-owned',
+                type: 'streamingUpdate',
+                estimatedOutputTokens: 999
+            }),
+            'inst-remote'
+        );
+
+        const snapshot = getActiveMetricsSnapshot();
+        const found = snapshot.find(event => event.requestId === 'req-owned');
+        assert.ok(found);
+        assert.equal(found.estimatedOutputTokens, 40);
+        assert.equal(received.length, 0);
+    } finally {
+        disposable.dispose();
+        cleanupAllSnapshots();
+    }
+});
+
+test('remote streamEnd for same requestId does not delete local ownership', () => {
+    cleanupAllSnapshots();
+    const received: LiveStreamMetricEvent[] = [];
+    const disposable = onLiveMetrics(event => received.push(event));
+
+    try {
+        emitLiveMetrics(makeEvent({ requestId: 'req-owned', type: 'streamingUpdate' }));
+        received.length = 0;
+
+        receiveRemoteLiveMetrics(makeEvent({ requestId: 'req-owned', type: 'streamEnd' }), 'inst-remote');
+
+        const snapshot = getActiveMetricsSnapshot();
+        assert.ok(snapshot.some(event => event.requestId === 'req-owned' && event.type === 'streamingUpdate'));
+        assert.equal(received.filter(event => event.requestId === 'req-owned' && event.type === 'streamEnd').length, 0);
+    } finally {
+        disposable.dispose();
+        cleanupAllSnapshots();
+    }
+});
+
+test('syncRemoteLiveMetricsSnapshot does not overwrite or delete local ownership', () => {
+    cleanupAllSnapshots();
+    const received: LiveStreamMetricEvent[] = [];
+    const disposable = onLiveMetrics(event => received.push(event));
+
+    try {
+        emitLiveMetrics(
+            makeEvent({
+                requestId: 'req-owned',
+                type: 'streamingUpdate',
+                estimatedOutputTokens: 12
+            })
+        );
+        received.length = 0;
+
+        syncRemoteLiveMetricsSnapshot(
+            [
+                {
+                    event: makeEvent({
+                        requestId: 'req-owned',
+                        type: 'rateLimitWaiting',
+                        estimatedOutputTokens: 888
+                    }),
+                    sourceInstanceId: 'inst-remote'
+                }
+            ],
+            'inst-remote'
+        );
+
+        const snapshot = getActiveMetricsSnapshot();
+        const found = snapshot.find(event => event.requestId === 'req-owned');
+        assert.ok(found);
+        assert.equal(found.type, 'streamingUpdate');
+        assert.equal(found.estimatedOutputTokens, 12);
+        assert.equal(received.filter(event => event.requestId === 'req-owned').length, 0);
+    } finally {
+        disposable.dispose();
+        cleanupAllSnapshots();
+    }
 });

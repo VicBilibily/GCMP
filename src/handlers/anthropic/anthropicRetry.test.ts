@@ -46,6 +46,7 @@ test('parses Anthropic retry-after headers', () => {
         2500
     );
     assert.equal(getAnthropicRetryDelayMs(createError({ headers: new Headers({ 'retry-after': '2' }) })), 2000);
+    assert.equal(getAnthropicRetryDelayMs(createError({ headers: new Headers({ 'retry-after': '1.5' }) })), 1500);
     assert.equal(getAnthropicRetryDelayMs(createError({ headers: new Headers() })), undefined);
 });
 

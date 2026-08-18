@@ -76,17 +76,16 @@ export class ApiKeyManager {
     }
 
     private static async refreshApiKeyConsumers(provider: string): Promise<void> {
-        try {
-            await StatusBarManager.getStatusBar(provider)?.checkAndShowStatus();
-        } catch (error) {
-            Logger.warn(`[ApiKeyManager] Failed to refresh status bar for ${provider}:`, error);
-        }
-
-        try {
-            await StatusBarManager.compatible?.refreshAfterApiKeyChange(provider);
-        } catch (error) {
-            Logger.warn(`[ApiKeyManager] Failed to refresh compatible status for ${provider}:`, error);
-        }
+        await Promise.all([
+            StatusBarManager.getStatusBar(provider)
+                ?.checkAndShowStatus()
+                .catch(error => {
+                    Logger.warn(`[ApiKeyManager] Failed to refresh status bar for ${provider}:`, error);
+                }),
+            StatusBarManager.compatible?.refreshAfterApiKeyChange(provider).catch(error => {
+                Logger.warn(`[ApiKeyManager] Failed to refresh compatible status for ${provider}:`, error);
+            })
+        ]);
     }
 
     /**

@@ -264,7 +264,11 @@ export async function decrypt(
  */
 export function createBatchDecryptor(githubId: string, passphrase: string | undefined): BatchDecryptor {
     const keyCache = new Map<string, Buffer>();
+    let disposed = false;
     const decryptor = (async (encryptedPayload: string) => {
+        if (disposed) {
+            return undefined;
+        }
         const payload = parsePayload(encryptedPayload);
         if (!payload) {
             return undefined;
@@ -275,12 +279,17 @@ export function createBatchDecryptor(githubId: string, passphrase: string | unde
             if (!derived) {
                 return undefined;
             }
+            if (disposed) {
+                derived.fill(0);
+                return undefined;
+            }
             key = derived;
             keyCache.set(payload.salt, key);
         }
         return decryptPayload(payload, key);
     }) as BatchDecryptor;
     decryptor.dispose = () => {
+        disposed = true;
         for (const cachedKey of keyCache.values()) {
             cachedKey.fill(0);
         }

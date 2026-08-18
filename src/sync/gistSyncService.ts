@@ -763,20 +763,43 @@ export class GistSyncService {
 
     private static async applyRemoteKeysInternal(keys: Record<string, string>): Promise<string[]> {
         const appliedKeyNames: string[] = [];
+        const rollbackProviders: string[] = [];
+        const previousValues = new Map<string, string | undefined>();
 
-        for (const [keyName, plainValue] of Object.entries(keys)) {
-            const normalizedValue = plainValue?.trim();
-            if (!normalizedValue) {
-                continue;
+        try {
+            for (const [keyName, plainValue] of Object.entries(keys)) {
+                const normalizedValue = plainValue?.trim();
+                if (!normalizedValue) {
+                    continue;
+                }
+
+                const provider = keyName.endsWith('.apiKey') ? keyName.slice(0, -'.apiKey'.length) : keyName;
+                if (!previousValues.has(provider)) {
+                    previousValues.set(provider, await ApiKeyManager.getApiKey(provider));
+                }
+                await ApiKeyManager.setApiKey(provider, normalizedValue);
+                if (!rollbackProviders.includes(provider)) {
+                    rollbackProviders.push(provider);
+                }
+                appliedKeyNames.push(keyName);
+                Logger.debug(`[GistSync] Applied key: ${keyName}`);
             }
-
-            const provider = keyName.endsWith('.apiKey') ? keyName.slice(0, -'.apiKey'.length) : keyName;
-            await ApiKeyManager.setApiKey(provider, normalizedValue);
-            appliedKeyNames.push(keyName);
-            Logger.debug(`[GistSync] Applied key: ${keyName}`);
+            return appliedKeyNames;
+        } catch (error) {
+            for (const provider of rollbackProviders.reverse()) {
+                try {
+                    const previousValue = previousValues.get(provider);
+                    if (previousValue === undefined) {
+                        await ApiKeyManager.deleteApiKey(provider);
+                    } else {
+                        await ApiKeyManager.setApiKey(provider, previousValue);
+                    }
+                } catch (rollbackError) {
+                    Logger.error(`[GistSync] Failed to roll back restored key ${provider}`, rollbackError);
+                }
+            }
+            throw error;
         }
-
-        return appliedKeyNames;
     }
 
     /**

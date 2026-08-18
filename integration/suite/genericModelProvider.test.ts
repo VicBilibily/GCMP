@@ -15,7 +15,9 @@ interface TestHandler {
         requestId: string,
         sessionId: string,
         token: vscode.CancellationToken,
-        requestStartTime?: number
+        requestStartTime?: number,
+        onRequestDispatched?: (requestMetricStartTime: number) => void,
+        wasThrottled?: boolean
     ) => Promise<void>;
 }
 
@@ -33,7 +35,9 @@ interface TestProvider {
         sessionId: string,
         token: vscode.CancellationToken,
         effectiveProviderKey?: string,
-        requestStartTime?: number
+        requestStartTime?: number,
+        totalInputTokens?: number,
+        onAttemptStarted?: (requestMetricStartTime: number) => void
     ) => Promise<void>;
     getRequestRetryConfig: () => { enabled: boolean; maxAttempts: number; initialDelayMs: number; maxDelayMs: number };
     openaiCustomHandler: TestHandler;
@@ -193,5 +197,53 @@ suite('genericModelProvider retry gating', () => {
 
         assert.equal(attempts, 2);
         assert.deepEqual(outputs, ['final-response']);
+    });
+
+    test('propagates attempt start time even when the request was not throttled', async () => {
+        const provider = createTestProvider({
+            async handleRequest(
+                _model,
+                _config,
+                _messages,
+                _options,
+                _progress,
+                _requestId,
+                _sessionId,
+                _token,
+                _requestStartTime,
+                onRequestDispatched
+            ) {
+                onRequestDispatched?.(Date.now());
+                throw new Error('request failed after dispatch');
+            }
+        });
+        provider.shouldRetryRequest = () => false;
+        const attemptStarts: number[] = [];
+
+        await assert.rejects(
+            () =>
+                provider.executeModelRequest(
+                    model,
+                    modelConfig,
+                    [],
+                    {
+                        modelOptions: { requestKind: 'main-agent' }
+                    } as unknown as vscode.ProvideLanguageModelChatResponseOptions,
+                    createProgress([]),
+                    '',
+                    'session-3',
+                    new vscode.CancellationTokenSource().token,
+                    'test-provider',
+                    Date.now(),
+                    0,
+                    requestMetricStartTime => {
+                        attemptStarts.push(requestMetricStartTime);
+                    }
+                ),
+            /request failed after dispatch/
+        );
+
+        assert.equal(attemptStarts.length, 1);
+        assert.equal(Number.isFinite(attemptStarts[0]), true);
     });
 });

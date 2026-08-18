@@ -53,7 +53,7 @@ export function getAnthropicRetryDelayMs(error: RetryableError): number | undefi
         return undefined;
     }
 
-    const retryAfterSeconds = /^\d+$/.test(retryAfter.trim()) ? Number.parseInt(retryAfter.trim(), 10) : NaN;
+    const retryAfterSeconds = /^\d+(?:\.\d+)?$/.test(retryAfter.trim()) ? Number.parseFloat(retryAfter.trim()) : NaN;
     if (Number.isFinite(retryAfterSeconds)) {
         return Math.max(MIN_SERVER_RETRY_DELAY_MS, retryAfterSeconds * 1000);
     }
