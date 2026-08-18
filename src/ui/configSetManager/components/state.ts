@@ -13,7 +13,9 @@ import type {
     ActiveSlotSnapshot,
     RemoteManageSlotSnapshot,
     ConfigUsageState,
-    WebViewMessage
+    WebViewMessage,
+    AddFormDraftState,
+    EditFormDraftState
 } from '../types';
 
 // ============= DOM 工具 =============
@@ -72,8 +74,14 @@ export interface State {
     selectedProvider: string | null;
     /** 当前展开新增表单的槽位（slot 名），null = 无展开 */
     addFormSlot: string | null;
+    /** 当前新增表单草稿（重渲染时保留） */
+    addFormDraft: AddFormDraftState | null;
     /** 当前展开编辑表单的配置 ID（slot:id），null = 无展开 */
     editFormKey: string | null;
+    /** 当前编辑表单草稿（重渲染时保留） */
+    editFormDraft: EditFormDraftState | null;
+    /** 下一次 states 回写后是否需要重载当前选中 provider 的用量 */
+    reloadUsageOnNextStates: boolean;
 }
 
 export const state: State = {
@@ -91,7 +99,10 @@ export const state: State = {
     remoteSnapshots: null,
     selectedProvider: null,
     addFormSlot: null,
-    editFormKey: null
+    addFormDraft: null,
+    editFormKey: null,
+    editFormDraft: null,
+    reloadUsageOnNextStates: false
 };
 
 // ============= 状态查询工具 =============

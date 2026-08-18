@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { randomUUID } from 'crypto';
 import { GistSyncService } from './gistSyncService';
 import { ConfigSetStore } from '../utils/config/configSetStore';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
@@ -56,7 +57,7 @@ async function hasLegacyGistData(): Promise<boolean> {
 }
 
 function newConfigId(): string {
-    return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    return randomUUID();
 }
 
 function mapLegacyKeyToSlot(keyName: string): string | undefined {
@@ -112,7 +113,7 @@ async function decryptLegacyKeys(
         }
         const plainValue =
             passphrase !== undefined ?
-                GistSyncService.decryptWithPassphrase(encryptedValue, passphrase)
+                await GistSyncService.decryptWithPassphrase(encryptedValue, passphrase)
             :   await GistSyncService.decrypt(encryptedValue);
         if (plainValue !== undefined) {
             remoteKeys[keyName] = plainValue;
@@ -196,12 +197,12 @@ export async function migrateLegacyGistToConfigSets(
             failed = retry.failed;
         }
     }
-    if (failed.length > 0 || Object.keys(decrypted).length === 0) {
+    if (Object.keys(decrypted).length === 0) {
         if (!options?.silentIfNoLegacyData) {
             vscode.window.showWarningMessage(
                 t(
                     'Failed to decrypt all legacy Gist data. Migration was not performed.',
-                    '无法完整解密旧版 Gist 数据，未执行迁移。'
+                    '无法解密旧版 Gist 数据，未执行迁移。'
                 )
             );
         }
@@ -212,7 +213,10 @@ export async function migrateLegacyGistToConfigSets(
         .map(([keyName, plainKey]) => ({ keyName, plainKey }))
         .filter(candidate => mapLegacyKeyToSlot(candidate.keyName) !== undefined);
     if (candidates.length === 0) {
-        await markMigrationDone(context);
+        // 仅全部解密成功时才标记完成；存在失败项时保留标记以便重试
+        if (failed.length === 0) {
+            await markMigrationDone(context);
+        }
         if (!options?.silentIfNoLegacyData) {
             vscode.window.showInformationMessage(
                 t(
@@ -253,7 +257,23 @@ export async function migrateLegacyGistToConfigSets(
         Logger.info(`[LegacyGistMigration] Migrated ${candidate.keyName} -> ${slot}`);
     }
 
-    await markMigrationDone(context);
+    if (failed.length === 0) {
+        await markMigrationDone(context);
+    } else {
+        // 失败项保留在远端 Gist 中，不标记完成，下次提示时可凭口令重试
+        Logger.warn(
+            `[LegacyGistMigration] ${failed.length} legacy key(s) skipped (undecryptable): ${failed.join(', ')}`
+        );
+        if (!options?.silentIfNoLegacyData) {
+            vscode.window.showWarningMessage(
+                t(
+                    '{0} legacy key(s) could not be decrypted and were skipped. The source Gist is unchanged; you can retry the migration later.',
+                    '{0} 个旧版 API Key 无法解密已跳过。源 Gist 数据未改动，可稍后重试迁移。',
+                    failed.length
+                )
+            );
+        }
+    }
     return migrated;
 }
 

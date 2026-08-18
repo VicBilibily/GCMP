@@ -61,7 +61,6 @@ interface PendingWaiter {
     timeoutMs: number;
     timeout?: NodeJS.Timeout;
     cancelCheck?: NodeJS.Timeout;
-    lastQueuePosition?: number;
     onQueueUpdate?: (msg: RateLimitQueueUpdateMessage) => void;
 }
 
@@ -251,7 +250,6 @@ export class RateLimitClientCore {
                 waiter.timeout = undefined;
             }
         }
-        waiter.lastQueuePosition = msg.queuePosition;
         if (!waiter.onQueueUpdate) {
             return;
         }

@@ -50,7 +50,7 @@ interface GistDetail {
  * - 'error'：HTTP 错误、网络异常等
  */
 export type ReadConfigSetResult =
-    | { status: 'ok'; data: ConfigSetSyncData }
+    | { status: 'ok'; data: ConfigSetSyncData; skipped?: number }
     | { status: 'not-found' }
     | { status: 'gist-missing' }
     | { status: 'decrypt-failed' }
@@ -127,25 +127,32 @@ async function fetchRemoteFileContent(
  * 逐个解密 slots 中各配置项的 apiKey 字段
  * @param data 远端读取的同步数据（apiKey 为加密 payload）
  * @param decryptFn 批量解密函数（按 salt 缓存密钥），返回明文或 undefined
- * @returns apiKey 已解密为明文的数据副本；任一项解密失败返回 undefined
+ * @returns 解密结果；全部项失败（口令错误/数据损坏）时返回 undefined，部分失败时跳过失败项并计数
  */
-function decryptSlotKeys(
+async function decryptSlotKeys(
     data: ConfigSetSyncData,
-    decryptFn: (encryptedPayload: string) => string | undefined
-): ConfigSetSyncData | undefined {
+    decryptFn: (encryptedPayload: string) => Promise<string | undefined>
+): Promise<{ data: ConfigSetSyncData; skipped: number } | undefined> {
     const slots: Record<string, SyncedSlotConfigSet> = {};
+    let total = 0;
+    let skipped = 0;
     for (const [slot, set] of Object.entries(data.slots ?? {})) {
         const items: (ConfigSetItem & { apiKey: string })[] = [];
         for (const item of set.items ?? []) {
-            const apiKey = decryptFn(item.apiKey);
+            total += 1;
+            const apiKey = await decryptFn(item.apiKey);
             if (apiKey === undefined) {
-                return undefined;
+                skipped += 1;
+                continue;
             }
             items.push({ ...item, apiKey });
         }
         slots[slot] = { ...set, items };
     }
-    return { ...data, slots };
+    if (total > 0 && skipped === total) {
+        return undefined;
+    }
+    return { data: { ...data, slots }, skipped };
 }
 
 /**
@@ -158,38 +165,46 @@ async function encryptSlotKeys(data: ConfigSetSyncData): Promise<ConfigSetSyncDa
     if (!encrypt) {
         return undefined;
     }
-    const slots: Record<string, SyncedSlotConfigSet> = {};
-    for (const [slot, set] of Object.entries(data.slots)) {
-        const items: (ConfigSetItem & { apiKey: string })[] = [];
-        for (const item of set.items) {
-            const apiKey = encrypt(item.apiKey);
-            if (apiKey === undefined) {
-                return undefined;
+    try {
+        const slots: Record<string, SyncedSlotConfigSet> = {};
+        for (const [slot, set] of Object.entries(data.slots)) {
+            const items: (ConfigSetItem & { apiKey: string })[] = [];
+            for (const item of set.items) {
+                const apiKey = encrypt(item.apiKey);
+                if (apiKey === undefined) {
+                    return undefined;
+                }
+                items.push({ ...item, apiKey });
             }
-            items.push({ ...item, apiKey });
+            slots[slot] = { ...set, items };
         }
-        slots[slot] = { ...set, items };
+        return { ...data, slots };
+    } finally {
+        encrypt.dispose();
     }
-    return { ...data, slots };
 }
 
 /** 使用指定口令加密配置集，不修改本地已保存口令。 */
-function encryptSlotKeysWithPassphrase(
+async function encryptSlotKeysWithPassphrase(
     data: ConfigSetSyncData,
     passphrase: string | undefined
-): ConfigSetSyncData | undefined {
-    const encrypt = GistSyncService.createBatchEncryptorWithPassphrase(passphrase);
+): Promise<ConfigSetSyncData | undefined> {
+    const encrypt = await GistSyncService.createBatchEncryptorWithPassphrase(passphrase);
     if (!encrypt) {
         return undefined;
     }
-    const slots: Record<string, SyncedSlotConfigSet> = {};
-    for (const [slot, set] of Object.entries(data.slots)) {
-        slots[slot] = {
-            ...set,
-            items: set.items.map(item => ({ ...item, apiKey: encrypt(item.apiKey) }))
-        };
+    try {
+        const slots: Record<string, SyncedSlotConfigSet> = {};
+        for (const [slot, set] of Object.entries(data.slots)) {
+            slots[slot] = {
+                ...set,
+                items: set.items.map(item => ({ ...item, apiKey: encrypt(item.apiKey) }))
+            };
+        }
+        return { ...data, slots };
+    } finally {
+        encrypt.dispose();
     }
-    return { ...data, slots };
 }
 
 /**
@@ -201,18 +216,24 @@ export async function readRemoteConfigSets(token: string, gistId: string): Promi
     if (file.status !== 'ok') {
         return file;
     }
+    let decryptor: Awaited<ReturnType<typeof GistSyncService.createBatchDecryptor>>;
     try {
         const parsed = JSON.parse(file.content) as ConfigSetSyncData;
-        const decryptor = await GistSyncService.createBatchDecryptor();
-        const decrypted = decryptor ? decryptSlotKeys(parsed, decryptor) : undefined;
-        if (!decrypted) {
+        decryptor = await GistSyncService.createBatchDecryptor();
+        const result = decryptor ? await decryptSlotKeys(parsed, decryptor) : undefined;
+        if (!result) {
             Logger.warn('[ConfigSetSync] Decryption failed (passphrase/identity may have changed since upload)');
             return { status: 'decrypt-failed' };
         }
-        return { status: 'ok', data: decrypted };
+        if (result.skipped > 0) {
+            Logger.warn(`[ConfigSetSync] Skipped ${result.skipped} undecryptable item(s) during download`);
+        }
+        return { status: 'ok', data: result.data, skipped: result.skipped };
     } catch (error) {
         Logger.error('[ConfigSetSync] Failed to parse config set sync data:', error);
         return { status: 'error' };
+    } finally {
+        decryptor?.dispose();
     }
 }
 
@@ -229,16 +250,21 @@ export async function readRemoteConfigSetsWithPassphrase(
     if (file.status !== 'ok') {
         return file;
     }
+    const decryptor = GistSyncService.createBatchDecryptorWithPassphrase(passphrase);
     try {
         const parsed = JSON.parse(file.content) as ConfigSetSyncData;
-        const decryptor = GistSyncService.createBatchDecryptorWithPassphrase(passphrase);
-        const decrypted = decryptor ? decryptSlotKeys(parsed, decryptor) : undefined;
-        if (!decrypted) {
+        const result = decryptor ? await decryptSlotKeys(parsed, decryptor) : undefined;
+        if (!result) {
             return { status: 'decrypt-failed' };
         }
-        return { status: 'ok', data: decrypted };
+        if (result.skipped > 0) {
+            Logger.warn(`[ConfigSetSync] Skipped ${result.skipped} undecryptable item(s) during download`);
+        }
+        return { status: 'ok', data: result.data, skipped: result.skipped };
     } catch {
         return { status: 'error' };
+    } finally {
+        decryptor?.dispose();
     }
 }
 
@@ -289,7 +315,10 @@ export async function writeRemoteConfigSetsWithPassphrase(
     passphrase: string | undefined
 ): Promise<boolean> {
     try {
-        const encrypted = encryptSlotKeysWithPassphrase({ ...data, timestamp: new Date().toISOString() }, passphrase);
+        const encrypted = await encryptSlotKeysWithPassphrase(
+            { ...data, timestamp: new Date().toISOString() },
+            passphrase
+        );
         if (!encrypted) {
             return false;
         }
@@ -342,9 +371,13 @@ export async function findExistingConfigSetGist(token: string): Promise<string |
             }
 
             const gists = (await response.json()) as GistDetail[];
-            const candidates = gists.filter(
-                g => !g.public && g.description?.startsWith('GCMP ConfigSets') && g.files?.[CONFIGSET_SYNC_FILENAME]
-            );
+            const candidates = gists
+                .filter(g => !g.public && g.files?.[CONFIGSET_SYNC_FILENAME])
+                .sort((a, b) => {
+                    const aDedicated = a.description?.startsWith('GCMP ConfigSets') ? 1 : 0;
+                    const bDedicated = b.description?.startsWith('GCMP ConfigSets') ? 1 : 0;
+                    return bDedicated - aDedicated;
+                });
 
             for (const gist of candidates) {
                 const result = await readRemoteConfigSets(token, gist.id);

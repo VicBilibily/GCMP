@@ -2,6 +2,7 @@
 
 import * as vscode from 'vscode';
 
+import { buildCodexUsageSummary, type ChatGPTStatusData } from '../../src/quota/codexQuota';
 import { getQuotaMetricType, isQuotaSupportedSlot } from '../../src/quota/common';
 import {
     clinepassStatusAdapter,
@@ -9,12 +10,23 @@ import {
     type ClinePassStatusData,
     type MiniMaxStatusData
 } from '../../src/quota/statusAdapters';
+import { ChatGPTStatusBar } from '../../src/status/chatgptStatusBar';
 import { ProviderQuotaStatusBar } from '../../src/status/providerQuotaStatusBar';
 
 /** 暴露 protected 渲染方法的测试壳 */
 class TestStatusBar<T> extends ProviderQuotaStatusBar<T> {
     renderText(data: T): string {
         return this.getDisplayText(data);
+    }
+}
+
+class TestChatGPTStatusBar extends ChatGPTStatusBar {
+    renderTooltip(data: ChatGPTStatusData): vscode.MarkdownString {
+        return this.generateTooltip(data);
+    }
+
+    renderWarning(data: ChatGPTStatusData): boolean {
+        return this.shouldHighlightWarning(data);
     }
 }
 
@@ -80,5 +92,34 @@ suite('quota alignment', () => {
 
         assert.equal(clinepassStatusAdapter.summary(data), '60% (88%)');
         assert.equal(bar.renderText(data), '$(gcmp-cline) 60% (88%)');
+    });
+
+    test('ChatGPT quota rendering tolerates invalid numeric windows', () => {
+        const data: ChatGPTStatusData = {
+            userId: 'user-1',
+            accountId: 'account-1',
+            email: 'user@example.com',
+            planType: 'plus',
+            rateLimit: {
+                allowed: true,
+                limit_reached: false,
+                primary_window: {
+                    used_percent: Number.NaN,
+                    limit_window_seconds: 7 * 24 * 60 * 60,
+                    reset_after_seconds: 0,
+                    reset_at: Number.NaN
+                }
+            },
+            codeReviewUsedPercent: 0,
+            lastUpdated: '2026/08/16 08:00:00'
+        };
+
+        const bar = new TestChatGPTStatusBar();
+        const tooltip = bar.renderTooltip(data).value;
+
+        assert.equal(buildCodexUsageSummary(data), '0%');
+        assert.doesNotMatch(tooltip, /NaN|Invalid Date/);
+        assert.match(tooltip, /\*\*0%\*\*/);
+        assert.equal(bar.renderWarning(data), false);
     });
 });

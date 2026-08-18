@@ -15,6 +15,7 @@ import { formatCompactCountdown, formatQuotaDateForSlot } from './format';
 
 /** ChatGPT 余量查询接口 */
 const USAGE_QUERY_URL = 'https://chatgpt.com/backend-api/wham/usage';
+const CODEX_USAGE_TIMEOUT_MS = 10000;
 
 /** 速率限制窗口结构 */
 export interface RateLimitWindow {
@@ -102,6 +103,22 @@ export function getWindowType(limitWindowSeconds: number): WindowType {
     return { type: 'weekly', label: t('Weekly quota', '每周额度') };
 }
 
+export function hasValidRateLimitWindow(window: RateLimitWindow | undefined): window is RateLimitWindow {
+    return !!window && [window.used_percent, window.limit_window_seconds, window.reset_at].every(Number.isFinite);
+}
+
+export function getRemainingPercent(window: RateLimitWindow | undefined): number {
+    return hasValidRateLimitWindow(window) ? Math.max(0, 100 - window.used_percent) : 0;
+}
+
+export function getResetDate(window: RateLimitWindow | undefined): Date | undefined {
+    if (!hasValidRateLimitWindow(window)) {
+        return undefined;
+    }
+    const resetDate = new Date(window.reset_at * 1000);
+    return Number.isFinite(resetDate.getTime()) ? resetDate : undefined;
+}
+
 /**
  * 查询 Codex (ChatGPT) 余量
  * 走 CliAuthFactory 静态入口，多窗口下由 Leader 单点刷新凭证
@@ -134,19 +151,29 @@ export async function queryCodexUsage(): Promise<{ success: boolean; data?: Chat
 
         StatusLogger.debug('[CodexUsageQuery] Starting ChatGPT usage query...');
 
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => abortController.abort(), CODEX_USAGE_TIMEOUT_MS);
+
         const requestOptions: RequestInit = {
             method: 'GET',
             headers: {
                 Authorization: `Bearer ${credentials.access_token}`,
                 'user-agent': configProviders.codex.customHeader?.['user-agent'] as string,
                 'chatgpt-account-id': accountId
-            }
+            },
+            signal: abortController.signal
         };
 
-        const response = await ConfigManager.fetchWithProxy(USAGE_QUERY_URL, requestOptions, {
-            providerKey: 'codex'
-        });
-        const responseText = await response.text();
+        let response: Response;
+        let responseText: string;
+        try {
+            response = await ConfigManager.fetchWithProxy(USAGE_QUERY_URL, requestOptions, {
+                providerKey: 'codex'
+            });
+            responseText = await response.text();
+        } finally {
+            clearTimeout(timeoutId);
+        }
 
         let parsedResponse: ChatGPTUsageResponse;
         try {
@@ -175,14 +202,23 @@ export async function queryCodexUsage(): Promise<{ success: boolean; data?: Chat
             return { success: false, error: t('Query failed: {0}', '查询失败: {0}', errorMessage) };
         }
 
-        if (!parsedResponse.rate_limit || !parsedResponse.rate_limit.primary_window) {
+        const primaryWindow = parsedResponse.rate_limit?.primary_window;
+        if (!hasValidRateLimitWindow(primaryWindow)) {
             Logger.error('[CodexUsageQuery] No valid usage data retrieved');
             return { success: false, error: t('No valid usage data was returned.', '未获取到有效的用量数据') };
         }
 
-        const rateLimit = parsedResponse.rate_limit;
+        const secondaryWindow =
+            hasValidRateLimitWindow(parsedResponse.rate_limit.secondary_window) ?
+                parsedResponse.rate_limit.secondary_window
+            :   undefined;
+        const rateLimit: RateLimitInfo = {
+            ...parsedResponse.rate_limit,
+            primary_window: primaryWindow,
+            secondary_window: secondaryWindow
+        };
         let codeReviewUsedPercent = 0;
-        if (parsedResponse.code_review_rate_limit?.primary_window) {
+        if (hasValidRateLimitWindow(parsedResponse.code_review_rate_limit?.primary_window)) {
             codeReviewUsedPercent = parsedResponse.code_review_rate_limit.primary_window.used_percent;
         }
 
@@ -203,6 +239,13 @@ export async function queryCodexUsage(): Promise<{ success: boolean; data?: Chat
             }
         };
     } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+            Logger.warn('[CodexUsageQuery] Usage query timed out');
+            return {
+                success: false,
+                error: t('Query timed out. Please retry.', '查询超时，请稍后重试。')
+            };
+        }
         const errorMessage = error instanceof Error ? error.message : t('Unknown error', '未知错误');
         Logger.error(`[CodexUsageQuery] Usage query exception: ${errorMessage}`);
         return { success: false, error: t('Query error: {0}', '查询异常: {0}', errorMessage) };
@@ -215,22 +258,23 @@ export async function queryCodexUsage(): Promise<{ success: boolean; data?: Chat
  */
 export function buildCodexUsageSummary(data: ChatGPTStatusData): string {
     const primaryWindow = data.rateLimit.primary_window;
-    const secondaryWindow = data.rateLimit.secondary_window;
-    const primaryType = getWindowType(primaryWindow.limit_window_seconds);
+    const secondaryWindow =
+        hasValidRateLimitWindow(data.rateLimit.secondary_window) ? data.rateLimit.secondary_window : undefined;
+    const primaryType = getWindowType(hasValidRateLimitWindow(primaryWindow) ? primaryWindow.limit_window_seconds : 0);
     const secondaryType = secondaryWindow ? getWindowType(secondaryWindow.limit_window_seconds) : null;
 
     let weeklyRemaining = 0;
     let hourlyRemaining = 0;
 
     if (primaryType.type === 'weekly') {
-        weeklyRemaining = Math.max(0, 100 - primaryWindow.used_percent);
+        weeklyRemaining = getRemainingPercent(primaryWindow);
         if (secondaryType && secondaryType.type === 'hourly' && secondaryWindow) {
-            hourlyRemaining = Math.max(0, 100 - secondaryWindow.used_percent);
+            hourlyRemaining = getRemainingPercent(secondaryWindow);
         }
     } else if (primaryType.type === 'hourly') {
-        hourlyRemaining = Math.max(0, 100 - primaryWindow.used_percent);
+        hourlyRemaining = getRemainingPercent(primaryWindow);
         if (secondaryType && secondaryType.type === 'weekly' && secondaryWindow) {
-            weeklyRemaining = Math.max(0, 100 - secondaryWindow.used_percent);
+            weeklyRemaining = getRemainingPercent(secondaryWindow);
         }
     }
 
@@ -256,25 +300,26 @@ export function buildCodexUsageTable(data: ChatGPTStatusData): QuotaTable {
     const rows: string[][] = [];
 
     const primaryWindow = data.rateLimit.primary_window;
-    const secondaryWindow = data.rateLimit.secondary_window;
-    const primaryType = getWindowType(primaryWindow.limit_window_seconds);
+    const secondaryWindow =
+        hasValidRateLimitWindow(data.rateLimit.secondary_window) ? data.rateLimit.secondary_window : undefined;
+    const primaryType = getWindowType(hasValidRateLimitWindow(primaryWindow) ? primaryWindow.limit_window_seconds : 0);
     const secondaryType = secondaryWindow ? getWindowType(secondaryWindow.limit_window_seconds) : null;
+    const primaryResetDate = getResetDate(primaryWindow);
 
-    const primaryRemaining = Math.max(0, 100 - primaryWindow.used_percent);
     rows.push([
         primaryType.label,
-        `${primaryRemaining.toFixed(0)}%`,
-        formatCompactCountdown(new Date(primaryWindow.reset_at * 1000).toISOString()),
-        formatQuotaDateForSlot('codex', new Date(primaryWindow.reset_at * 1000))
+        `${getRemainingPercent(primaryWindow).toFixed(0)}%`,
+        formatCompactCountdown(primaryResetDate?.toISOString()),
+        primaryResetDate ? formatQuotaDateForSlot('codex', primaryResetDate) : '—'
     ]);
 
     if (secondaryWindow && secondaryType) {
-        const secondaryRemaining = Math.max(0, 100 - secondaryWindow.used_percent);
+        const secondaryResetDate = getResetDate(secondaryWindow);
         rows.push([
             secondaryType.label,
-            `${secondaryRemaining.toFixed(0)}%`,
-            formatCompactCountdown(new Date(secondaryWindow.reset_at * 1000).toISOString()),
-            formatQuotaDateForSlot('codex', new Date(secondaryWindow.reset_at * 1000))
+            `${getRemainingPercent(secondaryWindow).toFixed(0)}%`,
+            formatCompactCountdown(secondaryResetDate?.toISOString()),
+            secondaryResetDate ? formatQuotaDateForSlot('codex', secondaryResetDate) : '—'
         ]);
     }
 

@@ -3,10 +3,9 @@
  *  含加油包（boosterWallet）专用货币/状态/时间单位格式化。
  *---------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import { VersionManager } from '../../utils/runtime/versionManager';
 import { t } from '../../utils/runtime/l10n';
-import { formatQuotaDateForSlot, getCurrencySymbol } from '../common';
+import { formatQuotaDateForSlot, getCurrencySymbol, isChineseLocale } from '../common';
 import { QuotaProviderBase } from './base';
 import type { QuotaQueryResult, QuotaTable } from '../types';
 
@@ -89,11 +88,11 @@ export function translateKimiBoosterStatus(status: string): string {
     if (!mapped) {
         return status;
     }
-    return vscode.env.language.toLowerCase().startsWith('zh') ? mapped.zh : mapped.en;
+    return isChineseLocale() ? mapped.zh : mapped.en;
 }
 
 export function formatKimiTimeUnit(timeUnit: string, duration: number): string {
-    const isZh = vscode.env.language.toLowerCase().startsWith('zh');
+    const isZh = isChineseLocale();
     const unitMap: Record<string, { singular: string; plural: string; zh: string }> = {
         TIME_UNIT_SECOND: { singular: 'second', plural: 'seconds', zh: '秒' },
         TIME_UNIT_MINUTE: { singular: 'minute', plural: 'minutes', zh: '分钟' },

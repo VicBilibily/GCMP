@@ -5,9 +5,15 @@
  *  与面板使用的 provider.format 表格是两套独立文案，禁止互相替换。
  *---------------------------------------------------------------------------------------------*/
 
-import { ConfigManager } from '../utils/config/configManager';
 import { t } from '../utils/runtime/l10n';
-import { formatCompactCountdown, formatDateTimeSlash, formatLocaleDateTime, formatQuotaDateForSlot } from './format';
+import {
+    formatCompactCountdown,
+    formatCurrency,
+    formatDateTimeSlash,
+    formatLocaleDateTime,
+    formatQuotaDateForSlot
+} from './format';
+import { resolveQuotaSite } from './common';
 import { buildZhipuUsageSummary, fetchZhipuLimits, getZhipuLimitLabel, type ZhipuLimit } from './providers/zhipu';
 import { fetchMiniMaxLimits, formatMiniMaxQuotaSummary, type MiniMaxLimit } from './providers/minimax';
 import {
@@ -57,7 +63,7 @@ export interface ZhipuStatusData {
 
 export const zhipuStatusAdapter: QuotaStatusAdapter<ZhipuStatusData> = {
     async query(apiKey) {
-        const site = ConfigManager.getZhipuEndpoint() === 'api.z.ai' ? 'api.z.ai' : undefined;
+        const site = resolveQuotaSite('zhipu', undefined) === 'api.z.ai' ? 'api.z.ai' : undefined;
         const limits = await fetchZhipuLimits(apiKey, site);
 
         const resetTimes = limits.filter(l => l.nextResetTime !== undefined).map(l => l.nextResetTime as number);
@@ -84,7 +90,12 @@ export const zhipuStatusAdapter: QuotaStatusAdapter<ZhipuStatusData> = {
             boldColumns: [0]
         }
     ],
-    highlightWarning: (data, threshold) => Math.max(...data.limits.map(l => l.percentage)) >= threshold,
+    highlightWarning: (data, threshold) => {
+        const percentages = data.limits
+            .map(limit => limit.percentage)
+            .filter((value): value is number => Number.isFinite(value));
+        return percentages.length > 0 && Math.max(...percentages) >= threshold;
+    },
     refreshHints: data => (data.nextResetTime ? [data.nextResetTime] : [])
 };
 
@@ -96,7 +107,7 @@ export interface MiniMaxStatusData {
 
 export const minimaxStatusAdapter: QuotaStatusAdapter<MiniMaxStatusData> = {
     async query(apiKey) {
-        const site = ConfigManager.getMinimaxEndpoint() === 'minimax.io' ? 'minimax.io' : undefined;
+        const site = resolveQuotaSite('minimax-token', undefined) === 'minimax.io' ? 'minimax.io' : undefined;
         return { limits: await fetchMiniMaxLimits(apiKey, site) };
     },
     summary: data => formatMiniMaxQuotaSummary(data.limits),
@@ -196,10 +207,7 @@ export const deepseekStatusAdapter: QuotaStatusAdapter<DeepSeekStatusData> = {
         }
         return { primaryBalance, allBalances, lastUpdated: formatLocaleDateTime(new Date()) };
     },
-    summary: data => {
-        const symbol = data.primaryBalance.currency === 'USD' ? '$' : '¥';
-        return `${symbol}${parseFloat(data.primaryBalance.total_balance).toFixed(2)}`;
-    },
+    summary: data => formatCurrency(data.primaryBalance.currency, Number.parseFloat(data.primaryBalance.total_balance)),
     tables: data => [
         {
             columns: [
@@ -263,7 +271,7 @@ export interface ClinePassStatusData {
 
 export const clinepassStatusAdapter: QuotaStatusAdapter<ClinePassStatusData> = {
     async query(apiKey) {
-        return { limits: await fetchClinePassLimits(apiKey), lastUpdated: new Date().toLocaleString() };
+        return { limits: await fetchClinePassLimits(apiKey), lastUpdated: formatLocaleDateTime(new Date()) };
     },
     summary: data => formatClinePassQuotaSummary(data.limits),
     tables: data => [

@@ -81,26 +81,6 @@ export function createKimiStatusBar(): ProviderQuotaStatusBar<KimiStatusData> {
     });
 }
 
-export function createDeepSeekStatusBar(): ProviderQuotaStatusBar<DeepSeekStatusData> {
-    return new ProviderQuotaStatusBar({
-        config: {
-            id: 'gcmp.statusBar.deepseek',
-            name: 'GCMP: DeepSeek Balance',
-            alignment: vscode.StatusBarAlignment.Right,
-            priority: 80,
-            refreshCommand: 'gcmp.deepseek.refreshBalance',
-            apiKeyProvider: 'deepseek',
-            keyDisplayName: 'DeepSeek',
-            cacheKeyPrefix: 'deepseek',
-            logPrefix: 'DeepSeek Status Bar',
-            icon: '$(gcmp-deepseek)'
-        },
-        adapter: deepseekStatusAdapter,
-        title: () => t('DeepSeek Account Balance', 'DeepSeek 用户余额详情'),
-        lastUpdatedOf: data => data.lastUpdated
-    });
-}
-
 export function createMoonshotStatusBar(): ProviderQuotaStatusBar<MoonshotStatusData> {
     return new ProviderQuotaStatusBar({
         config: {
@@ -121,22 +101,23 @@ export function createMoonshotStatusBar(): ProviderQuotaStatusBar<MoonshotStatus
     });
 }
 
-export function createClinePassStatusBar(): ProviderQuotaStatusBar<ClinePassStatusData> {
+export function createDeepSeekStatusBar(): ProviderQuotaStatusBar<DeepSeekStatusData> {
     return new ProviderQuotaStatusBar({
         config: {
-            id: 'gcmp.statusBar.clinepass',
-            name: 'GCMP: ClinePass Usage',
+            id: 'gcmp.statusBar.deepseek',
+            name: 'GCMP: DeepSeek Balance',
             alignment: vscode.StatusBarAlignment.Right,
-            priority: 26,
-            refreshCommand: 'gcmp.clinepass.refreshUsage',
-            apiKeyProvider: 'clinepass',
-            keyDisplayName: 'ClinePass',
-            cacheKeyPrefix: 'clinepass',
-            logPrefix: 'ClinePass Status Bar',
-            icon: '$(gcmp-cline)'
+            priority: 80,
+            refreshCommand: 'gcmp.deepseek.refreshBalance',
+            apiKeyProvider: 'deepseek',
+            keyDisplayName: 'DeepSeek',
+            cacheKeyPrefix: 'deepseek',
+            logPrefix: 'DeepSeek Status Bar',
+            icon: '$(gcmp-deepseek)'
         },
-        adapter: clinepassStatusAdapter,
-        title: () => t('ClinePass Usage', 'ClinePass 使用情况')
+        adapter: deepseekStatusAdapter,
+        title: () => t('DeepSeek Account Balance', 'DeepSeek 用户余额详情'),
+        lastUpdatedOf: data => data.lastUpdated
     });
 }
 
@@ -156,6 +137,26 @@ export function createOpenCodeStatusBar(): ProviderQuotaStatusBar<OpenCodeStatus
         },
         adapter: opencodeStatusAdapter,
         title: () => t('OpenCode Usage', 'OpenCode 使用情况'),
+        lastUpdatedOf: data => data.lastUpdated
+    });
+}
+
+export function createClinePassStatusBar(): ProviderQuotaStatusBar<ClinePassStatusData> {
+    return new ProviderQuotaStatusBar({
+        config: {
+            id: 'gcmp.statusBar.clinepass',
+            name: 'GCMP: ClinePass Usage',
+            alignment: vscode.StatusBarAlignment.Right,
+            priority: 26,
+            refreshCommand: 'gcmp.clinepass.refreshUsage',
+            apiKeyProvider: 'clinepass',
+            keyDisplayName: 'ClinePass',
+            cacheKeyPrefix: 'clinepass',
+            logPrefix: 'ClinePass Status Bar',
+            icon: '$(gcmp-cline)'
+        },
+        adapter: clinepassStatusAdapter,
+        title: () => t('ClinePass Usage', 'ClinePass 使用情况'),
         lastUpdatedOf: data => data.lastUpdated
     });
 }

@@ -88,10 +88,11 @@ export class ProviderQuotaStatusBar<TRaw> extends ProviderStatusBarItem<TRaw> {
 
     /**
      * 缓存刷新：越过任一重置点（缓存写入早于该点）或超过 5 分钟固定阈值
+     * 无缓存数据时刷新（如初始化查询失败后的周期重试，与 Grok/ChatGPT 状态栏行为一致）
      */
     protected shouldRefresh(): boolean {
         if (!this.lastStatusData) {
-            return false;
+            return true;
         }
 
         const dataAge = Date.now() - this.lastStatusData.timestamp;

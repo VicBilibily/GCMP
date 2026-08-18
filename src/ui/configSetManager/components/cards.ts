@@ -100,6 +100,9 @@ export function renderSlotCards(slotState: SlotState): HTMLElement {
         const editBtn = el('button', 'csm-btn csm-btn-sm', t('Edit', '修改'));
         editBtn.disabled = state.busy;
         editBtn.addEventListener('click', () => {
+            if (state.editFormKey !== editKey) {
+                state.editFormDraft = null;
+            }
             state.editFormKey = editKey;
             clearMessage();
             render();
@@ -123,6 +126,7 @@ export function renderSlotCards(slotState: SlotState): HTMLElement {
 
 export function renderAddForm(slotState: SlotState, opt: ProviderOption | undefined): HTMLElement {
     const panel = el('div', 'csm-add-panel');
+    const draft = state.addFormDraft?.slot === slotState.slot ? state.addFormDraft : null;
 
     const slotRow = el('div', 'csm-field');
     slotRow.appendChild(el('label', '', t('Slot', '槽位')));
@@ -134,6 +138,7 @@ export function renderAddForm(slotState: SlotState, opt: ProviderOption | undefi
     const labelInput = el('input', 'csm-input') as HTMLInputElement;
     labelInput.type = 'text';
     labelInput.placeholder = t('e.g. Work, Personal', '如：工作号、个人号');
+    labelInput.value = draft?.label ?? '';
     labelRow.appendChild(labelInput);
     panel.appendChild(labelRow);
 
@@ -148,6 +153,9 @@ export function renderAddForm(slotState: SlotState, opt: ProviderOption | undefi
             o.value = s.value;
             siteSelect.appendChild(o);
         }
+        if (draft?.site) {
+            siteSelect.value = draft.site;
+        }
         siteRow.appendChild(siteSelect);
         panel.appendChild(siteRow);
     }
@@ -157,6 +165,7 @@ export function renderAddForm(slotState: SlotState, opt: ProviderOption | undefi
     const keyInput = el('input', 'csm-input') as HTMLInputElement;
     keyInput.type = 'password';
     keyInput.placeholder = opt?.apiKeyTemplate ?? 'API Key';
+    keyInput.value = draft?.apiKey ?? '';
     keyRow.appendChild(keyInput);
     panel.appendChild(keyRow);
 
@@ -168,13 +177,29 @@ export function renderAddForm(slotState: SlotState, opt: ProviderOption | undefi
         'Optional note (synced to Gist in plaintext)',
         '可选备注（同步至 Gist 时为明文，勿填敏感信息）'
     );
+    noteInput.value = draft?.note ?? '';
     noteRow.appendChild(noteInput);
     panel.appendChild(noteRow);
+
+    const syncAddDraft = (): void => {
+        state.addFormDraft = {
+            slot: slotState.slot,
+            label: labelInput.value,
+            note: noteInput.value,
+            apiKey: keyInput.value,
+            site: siteSelect?.value || undefined
+        };
+    };
+    labelInput.addEventListener('input', syncAddDraft);
+    keyInput.addEventListener('input', syncAddDraft);
+    noteInput.addEventListener('input', syncAddDraft);
+    siteSelect?.addEventListener('change', syncAddDraft);
 
     const actions = el('div', 'csm-add-actions');
     const cancelBtn = el('button', 'csm-btn csm-btn-sm', t('Cancel', '取消'));
     cancelBtn.addEventListener('click', () => {
         state.addFormSlot = null;
+        state.addFormDraft = null;
         render();
     });
     const confirmBtn = el('button', 'csm-btn csm-btn-primary csm-btn-sm', t('Add', '添加'));
@@ -189,6 +214,7 @@ export function renderAddForm(slotState: SlotState, opt: ProviderOption | undefi
             return;
         }
         clearMessage();
+        state.reloadUsageOnNextStates = true;
         state.busy = true;
         render();
         postToVSCode({ command: 'add', slot: slotState.slot, label, note, site, apiKey });
@@ -204,12 +230,14 @@ export function renderAddForm(slotState: SlotState, opt: ProviderOption | undefi
 
 export function renderEditForm(slotState: SlotState, row: ConfigSetRow): HTMLElement {
     const panel = el('div', 'csm-edit-panel');
+    const editKey = `${slotState.slot}:${row.id}`;
+    const draft = state.editFormDraft?.key === editKey ? state.editFormDraft : null;
 
     const labelRow = el('div', 'csm-field');
     labelRow.appendChild(el('label', '', t('Name', '名称')));
     const labelInput = el('input', 'csm-input') as HTMLInputElement;
     labelInput.type = 'text';
-    labelInput.value = row.label;
+    labelInput.value = draft?.label ?? row.label;
     labelRow.appendChild(labelInput);
     panel.appendChild(labelRow);
 
@@ -218,6 +246,7 @@ export function renderEditForm(slotState: SlotState, row: ConfigSetRow): HTMLEle
     const keyInput = el('input', 'csm-input') as HTMLInputElement;
     keyInput.type = 'password';
     keyInput.placeholder = t('Leave empty to keep current key', '留空保持不变');
+    keyInput.value = draft?.apiKey ?? '';
     keyRow.appendChild(keyInput);
     panel.appendChild(keyRow);
 
@@ -225,7 +254,7 @@ export function renderEditForm(slotState: SlotState, row: ConfigSetRow): HTMLEle
     noteRow.appendChild(el('label', '', t('Note', '备注')));
     const noteInput = el('input', 'csm-input') as HTMLInputElement;
     noteInput.type = 'text';
-    noteInput.value = row.note ?? '';
+    noteInput.value = draft?.note ?? row.note ?? '';
     noteInput.placeholder = t(
         'Optional note (synced to Gist in plaintext)',
         '可选备注（同步至 Gist 时为明文，勿填敏感信息）'
@@ -233,10 +262,23 @@ export function renderEditForm(slotState: SlotState, row: ConfigSetRow): HTMLEle
     noteRow.appendChild(noteInput);
     panel.appendChild(noteRow);
 
+    const syncEditDraft = (): void => {
+        state.editFormDraft = {
+            key: editKey,
+            label: labelInput.value,
+            note: noteInput.value,
+            apiKey: keyInput.value
+        };
+    };
+    labelInput.addEventListener('input', syncEditDraft);
+    keyInput.addEventListener('input', syncEditDraft);
+    noteInput.addEventListener('input', syncEditDraft);
+
     const actions = el('div', 'csm-add-actions');
     const cancelBtn = el('button', 'csm-btn csm-btn-sm', t('Cancel', '取消'));
     cancelBtn.addEventListener('click', () => {
         state.editFormKey = null;
+        state.editFormDraft = null;
         render();
     });
     const saveBtn = el('button', 'csm-btn csm-btn-primary csm-btn-sm', t('Save', '保存'));
@@ -250,6 +292,7 @@ export function renderEditForm(slotState: SlotState, row: ConfigSetRow): HTMLEle
             return;
         }
         clearMessage();
+        state.reloadUsageOnNextStates = apiKey !== undefined;
         state.busy = true;
         render();
         postToVSCode({ command: 'edit', slot: slotState.slot, id: row.id, label, note, apiKey });

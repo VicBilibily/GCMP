@@ -103,6 +103,8 @@ export class RateLimiter {
     private static localWaiters = new Map<string, PendingWaiter>();
     /** 活跃 grant 的 lease 续租心跳 */
     private static leaseHeartbeatTimers = new Map<string, NodeJS.Timeout>();
+    /** 活跃 grant 句柄（grantId → handle），失去 Leader 角色时据此对在途权威 grant 立即续租 */
+    private static activeHandles = new Map<string, RateLimitHandle>();
     private static pendingLeaderHandoff:
         | {
               leaderId: string;
@@ -167,6 +169,7 @@ export class RateLimiter {
             }
 
             this.recoverLeaderWaitersAfterRoleChange();
+            this.retainAuthoritativeGrantsAfterRoleLoss();
             this.leaderStore = new RateLimitStore();
             this.pendingLeaderHandoff = undefined;
             StatusLogger.info('[RateLimiter] Lost leader role, pending leader waiters will reacquire');
@@ -188,6 +191,7 @@ export class RateLimiter {
                         clearInterval(timer);
                     }
                     this.leaseHeartbeatTimers.clear();
+                    this.activeHandles.clear();
                     this.leaderChangeSubscription?.dispose();
                     this.clientCore?.dispose();
                     this.pendingLeaderHandoff = undefined;
@@ -771,12 +775,14 @@ export class RateLimiter {
         });
     }
 
-    private static startLeaseHeartbeat(handle: RateLimitHandle): void {
+    private static startLeaseHeartbeat(handle: RateLimitHandle, renewEveryMsOverride?: number): void {
         if (handle.leaseMs <= 0) {
             return;
         }
         this.stopLeaseHeartbeat(handle.grantId);
-        const renewEveryMs = Math.max(MIN_LEASE_RENEW_INTERVAL_MS, Math.floor(handle.leaseMs / 2));
+        this.activeHandles.set(handle.grantId, handle);
+        const renewEveryMs =
+            renewEveryMsOverride ?? Math.max(MIN_LEASE_RENEW_INTERVAL_MS, Math.floor(handle.leaseMs / 2));
         const timer = setInterval(() => {
             if (!this.initialized) {
                 this.stopLeaseHeartbeat(handle.grantId);
@@ -791,12 +797,36 @@ export class RateLimiter {
     }
 
     private static stopLeaseHeartbeat(grantId: string): void {
+        this.activeHandles.delete(grantId);
         const timer = this.leaseHeartbeatTimers.get(grantId);
         if (!timer) {
             return;
         }
         clearInterval(timer);
         this.leaseHeartbeatTimers.delete(grantId);
+    }
+
+    /**
+     * 失去 Leader 角色后：对在途权威 grant 立即续租一次并改用短心跳。
+     * 新 Leader 侧 handoff 宽限仅 5s，而默认心跳间隔 300s，不改短会在途请求被提前回收、并发计数失真。
+     */
+    private static retainAuthoritativeGrantsAfterRoleLoss(): void {
+        const handles = Array.from(this.activeHandles.values());
+        if (handles.length === 0) {
+            return;
+        }
+        const shortRenewIntervalMs = Math.max(
+            MIN_LEASE_RENEW_INTERVAL_MS,
+            Math.floor(LEADER_HANDOFF_OWNERLESS_GRANT_GRACE_MS / 2)
+        );
+        for (const handle of handles) {
+            if (!handle.authoritative) {
+                continue;
+            }
+            this.renewLease(handle);
+            this.startLeaseHeartbeat(handle, shortRenewIntervalMs);
+        }
+        StatusLogger.info(`[RateLimiter] Retained ${handles.length} in-flight authoritative grant(s) after role loss`);
     }
 
     private static renewLease(handle: RateLimitHandle): boolean {

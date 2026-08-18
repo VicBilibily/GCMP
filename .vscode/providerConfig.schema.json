@@ -113,6 +113,7 @@
         "rateLimitConfig": {
             "type": "object",
             "additionalProperties": false,
+            "minProperties": 1,
             "description": "限流配置。所有维度可选，0 或缺省表示该维度不限；任一维度先触顶即自主延迟（匀速 pacing）。",
             "properties": {
                 "rpm": {

@@ -3,8 +3,31 @@
  *  日期/倒计时/货币格式化，无查询域依赖，status 状态栏与 quota 面板共用。
  *---------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import { t } from '../utils/runtime/l10n';
+
+function getQuotaLocale(): string {
+    const envConfig = process.env.VSCODE_NLS_CONFIG;
+    if (envConfig) {
+        try {
+            const parsed = JSON.parse(envConfig) as { locale?: string };
+            if (typeof parsed.locale === 'string' && parsed.locale.trim()) {
+                return parsed.locale;
+            }
+        } catch {
+            // ignore malformed env payload
+        }
+    }
+
+    if (typeof navigator !== 'undefined' && typeof navigator.language === 'string' && navigator.language.trim()) {
+        return navigator.language;
+    }
+
+    return Intl.DateTimeFormat().resolvedOptions().locale || 'en-US';
+}
+
+export function isChineseLocale(): boolean {
+    return getQuotaLocale().toLowerCase().startsWith('zh');
+}
 
 // ============= 日期/倒计时格式化 =============
 
@@ -37,7 +60,7 @@ export function formatDateTimeSlash(date: Date): string {
 
 /** 完整本地化时间（zh-CN / en-US），状态数据 lastUpdated 用 */
 export function formatLocaleDateTime(date: Date): string {
-    return date.toLocaleString(vscode.env.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US');
+    return date.toLocaleString(isChineseLocale() ? 'zh-CN' : 'en-US');
 }
 
 export function formatQuotaDateForSlot(slot: string, date: Date): string {
@@ -46,7 +69,7 @@ export function formatQuotaDateForSlot(slot: string, date: Date): string {
     }
 
     if (slot === 'moonshot' || slot === 'deepseek' || slot === 'codex') {
-        return date.toLocaleString(vscode.env.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US');
+        return date.toLocaleString(isChineseLocale() ? 'zh-CN' : 'en-US');
     }
 
     return formatQuotaDate(date);
@@ -58,7 +81,7 @@ export function formatCompactCountdown(resetsAt?: string): string {
         return '—';
     }
     const diffMs = new Date(resetsAt).getTime() - Date.now();
-    if (diffMs <= 0) {
+    if (!Number.isFinite(diffMs) || diffMs <= 0) {
         return t('Resets soon', '即将重置');
     }
 

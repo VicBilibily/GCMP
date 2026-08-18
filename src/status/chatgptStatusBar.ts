@@ -7,7 +7,15 @@ import * as vscode from 'vscode';
 import { BaseStatusBarItem, StatusBarItemConfig } from './baseStatusBarItem';
 import { StatusLogger } from '../utils/runtime/statusLogger';
 import { t } from '../utils/runtime/l10n';
-import { ChatGPTStatusData, getWindowType, queryCodexUsage, buildCodexUsageSummary } from '../quota/codexQuota';
+import {
+    ChatGPTStatusData,
+    getResetDate,
+    getRemainingPercent,
+    getWindowType,
+    hasValidRateLimitWindow,
+    queryCodexUsage,
+    buildCodexUsageSummary
+} from '../quota/codexQuota';
 import { formatDateTimeSlash } from '../quota/format';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
@@ -55,9 +63,12 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
         md.supportHtml = true;
 
         const primaryWindow = data.rateLimit.primary_window;
-        const secondaryWindow = data.rateLimit.secondary_window;
+        const secondaryWindow =
+            hasValidRateLimitWindow(data.rateLimit.secondary_window) ? data.rateLimit.secondary_window : undefined;
 
-        const primaryType = getWindowType(primaryWindow.limit_window_seconds);
+        const primaryType = getWindowType(
+            hasValidRateLimitWindow(primaryWindow) ? primaryWindow.limit_window_seconds : 0
+        );
         const secondaryType = secondaryWindow ? getWindowType(secondaryWindow.limit_window_seconds) : null;
 
         // 计划类型映射
@@ -77,20 +88,20 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
         md.appendMarkdown('| :----: | ----: | ----: | :------: |\n');
 
         // 主窗口
-        const primaryRemaining = Math.max(0, 100 - primaryWindow.used_percent);
-        const primaryResetDate = new Date(primaryWindow.reset_at * 1000);
-        const primaryResetTimeStr = formatDateTimeSlash(primaryResetDate);
-        const primaryCountdown = this.formatCountdown(new Date(primaryWindow.reset_at * 1000).toISOString());
+        const primaryRemaining = getRemainingPercent(primaryWindow);
+        const primaryResetDate = getResetDate(primaryWindow);
+        const primaryResetTimeStr = primaryResetDate ? formatDateTimeSlash(primaryResetDate) : '—';
+        const primaryCountdown = this.formatCountdown(primaryResetDate?.toISOString());
         md.appendMarkdown(
             `| **${primaryType.label}** | **${primaryRemaining.toFixed(0)}%** | ${primaryCountdown} | ${primaryResetTimeStr} |\n`
         );
 
         // 备用窗口（如果是有效类型）
         if (secondaryWindow && secondaryType) {
-            const secondaryRemaining = Math.max(0, 100 - secondaryWindow.used_percent);
-            const secondaryResetDate = new Date(secondaryWindow.reset_at * 1000);
-            const secondaryResetTimeStr = formatDateTimeSlash(secondaryResetDate);
-            const secondaryCountdown = this.formatCountdown(new Date(secondaryWindow.reset_at * 1000).toISOString());
+            const secondaryRemaining = getRemainingPercent(secondaryWindow);
+            const secondaryResetDate = getResetDate(secondaryWindow);
+            const secondaryResetTimeStr = secondaryResetDate ? formatDateTimeSlash(secondaryResetDate) : '—';
+            const secondaryCountdown = this.formatCountdown(secondaryResetDate?.toISOString());
             md.appendMarkdown(
                 `| **${secondaryType.label}** | **${secondaryRemaining.toFixed(0)}%** | ${secondaryCountdown} | ${secondaryResetTimeStr} |\n`
             );
@@ -121,11 +132,14 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
      */
     protected shouldHighlightWarning(data: ChatGPTStatusData): boolean {
         const primaryWindow = data.rateLimit.primary_window;
-        const secondaryWindow = data.rateLimit.secondary_window;
+        const secondaryWindow =
+            hasValidRateLimitWindow(data.rateLimit.secondary_window) ? data.rateLimit.secondary_window : undefined;
 
         // 检查每周额度的使用率
-        const primaryType = getWindowType(primaryWindow.limit_window_seconds);
-        if (primaryType.type === 'weekly') {
+        const primaryType = getWindowType(
+            hasValidRateLimitWindow(primaryWindow) ? primaryWindow.limit_window_seconds : 0
+        );
+        if (primaryType.type === 'weekly' && hasValidRateLimitWindow(primaryWindow)) {
             return primaryWindow.used_percent >= this.HIGH_USAGE_THRESHOLD;
         }
 

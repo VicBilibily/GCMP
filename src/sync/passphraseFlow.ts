@@ -19,6 +19,17 @@ interface PassphraseReuploadSnapshot {
     configSets?: { gistId: string; data: ConfigSetSyncData };
 }
 
+async function readConfigSetSnapshotForReupload(
+    token: string,
+    gistId: string
+): Promise<{ gistId: string; data: ConfigSetSyncData } | 'blocked' | undefined> {
+    const result = await readRemoteConfigSets(token, gistId);
+    if (result.status !== 'ok') {
+        return result.status === 'not-found' || result.status === 'gist-missing' ? undefined : 'blocked';
+    }
+    return (result.skipped ?? 0) > 0 ? 'blocked' : { gistId, data: result.data };
+}
+
 async function prepareReuploadSnapshot(): Promise<PassphraseReuploadSnapshot | undefined> {
     const userInfo = (await GistSyncService.getUserInfo(true)) ?? (await GistSyncService.getUserInfo(false));
     if (!userInfo) {
@@ -45,30 +56,35 @@ async function prepareReuploadSnapshot(): Promise<PassphraseReuploadSnapshot | u
         configSetCandidates.add(legacyGistId);
     }
 
+    let blockedConfigSetSnapshot = false;
+
     for (const gistId of configSetCandidates) {
-        const result = await readRemoteConfigSets(userInfo.token, gistId);
-        if (result.status === 'ok') {
-            snapshot.configSets = { gistId, data: result.data };
+        const result = await readConfigSetSnapshotForReupload(userInfo.token, gistId);
+        if (result === 'blocked') {
+            blockedConfigSetSnapshot = true;
+            continue;
+        }
+        if (result) {
+            snapshot.configSets = result;
             await GistSyncService.saveConfigSetGistId(gistId);
             break;
-        }
-        if (result.status === 'decrypt-failed' || result.status === 'error') {
-            return undefined;
         }
     }
 
     if (!snapshot.configSets) {
         const discoveredGistId = await findExistingConfigSetGist(userInfo.token);
         if (discoveredGistId && !configSetCandidates.has(discoveredGistId)) {
-            const result = await readRemoteConfigSets(userInfo.token, discoveredGistId);
-            if (result.status !== 'ok') {
-                return undefined;
+            const result = await readConfigSetSnapshotForReupload(userInfo.token, discoveredGistId);
+            if (result === 'blocked') {
+                blockedConfigSetSnapshot = true;
+            } else if (result) {
+                snapshot.configSets = result;
+                await GistSyncService.saveConfigSetGistId(discoveredGistId);
             }
-            snapshot.configSets = { gistId: discoveredGistId, data: result.data };
-            await GistSyncService.saveConfigSetGistId(discoveredGistId);
         }
     }
-    return snapshot;
+
+    return blockedConfigSetSnapshot && !snapshot.configSets ? undefined : snapshot;
 }
 
 async function writeSnapshot(

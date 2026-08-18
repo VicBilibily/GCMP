@@ -58,11 +58,6 @@ import { runStartupUtilityModelWizardIfNeeded } from './wizards/startupUtilityMo
 import { selectVisionModel } from './wizards/visionWizard';
 import { AuxiliaryModelSettingsPanel } from './ui/auxiliaryModelSettings';
 
-/**
- * 全局变量 - 存储已注册的提供商实例，用于扩展卸载时的清理
- */
-const registeredDisposables: vscode.Disposable[] = [];
-
 // 内联补全提供商实例（使用轻量级 Shim，延迟加载真正的补全引擎）
 let inlineCompletionProvider: InlineCompletionShim | undefined;
 
@@ -190,7 +185,6 @@ async function activateProviders(context: vscode.ExtensionContext): Promise<void
     for (const result of results) {
         if (result) {
             registerProvider(result.providerKey, result.provider);
-            registeredDisposables.push(...result.disposables);
         }
     }
 
@@ -210,13 +204,10 @@ async function activateCompatibleProvider(context: vscode.ExtensionContext): Pro
         const providerStartTime = Date.now();
 
         // 创建并激活兼容提供商
-        const result = CompatibleProvider.createAndActivate(context);
-        const provider = result.provider;
-        const disposables = result.disposables;
+        const { provider } = CompatibleProvider.createAndActivate(context);
 
         // 存储注册的提供商和 disposables
         registerProvider('compatible', provider);
-        registeredDisposables.push(...disposables);
 
         const providerTime = Date.now() - providerStartTime;
         Logger.debug(`Compatible provider registered successfully (${providerTime}ms)`);
@@ -236,7 +227,6 @@ async function activateInlineCompletionProvider(context: vscode.ExtensionContext
         // 创建并激活轻量级 Shim（不包含 @vscode/chat-lib 依赖）
         const result = InlineCompletionShim.createAndActivate(context);
         inlineCompletionProvider = result.provider;
-        registeredDisposables.push(...result.disposables);
 
         const providerTime = Date.now() - providerStartTime;
         Logger.debug(`Inline completion provider registered successfully in shim mode (${providerTime}ms)`);
@@ -666,17 +656,6 @@ export async function deactivate() {
             inlineCompletionProvider.dispose();
             Logger.trace('Inline completion provider disposed');
         }
-
-        // 清理所有已注册的 disposables
-        for (const disposable of registeredDisposables) {
-            try {
-                disposable.dispose();
-            } catch (error) {
-                Logger.warn('Failed to dispose registered disposable:', error);
-            }
-        }
-        registeredDisposables.length = 0; // 清空数组
-        Logger.trace('All registered disposables disposed');
 
         clearRegisteredProviders();
         Logger.trace('All registered providers cleared');

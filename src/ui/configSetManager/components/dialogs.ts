@@ -444,6 +444,7 @@ export function renderRestoreDialog(): void {
             if (selections.length === 0) {
                 return t('Select at least one configuration', '请至少选择一项配置');
             }
+            state.reloadUsageOnNextStates = true;
             state.busy = true;
             render();
             postToVSCode({ command: 'restore', selections });
@@ -514,7 +515,7 @@ export function renderUploadDialog(): void {
                     continue;
                 }
                 const selectableIds = snap.items.filter(it => it.hasKey).map(it => it.id);
-                const isFullSlot = picked.length === selectableIds.length;
+                const isFullSlot = selectableIds.length === snap.items.length && picked.length === selectableIds.length;
                 selections.push({
                     slot: snap.slot,
                     itemIds: picked,

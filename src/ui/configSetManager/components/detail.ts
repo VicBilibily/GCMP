@@ -277,7 +277,11 @@ function renderSlotSection(pst: ProviderState, slotState: SlotState, opt: Provid
         state.addFormSlot === slotState.slot ? t('Collapse', '收起') : t('+ Add', '+ 新增')
     );
     addBtn.addEventListener('click', () => {
-        state.addFormSlot = state.addFormSlot === slotState.slot ? null : slotState.slot;
+        const nextAddFormSlot = state.addFormSlot === slotState.slot ? null : slotState.slot;
+        if (nextAddFormSlot !== state.addFormSlot) {
+            state.addFormDraft = null;
+        }
+        state.addFormSlot = nextAddFormSlot;
         clearMessage();
         render();
     });

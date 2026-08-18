@@ -93,6 +93,7 @@ export abstract class BaseStatusBarItem<T> {
     protected isLoading = false;
     protected manualRefreshPending = false;
     protected initialized = false;
+    protected statusBarEligible = false;
 
     // 跨实例事件订阅
     private interInstanceSubscription: vscode.Disposable | undefined;
@@ -278,6 +279,7 @@ export abstract class BaseStatusBarItem<T> {
         this.statusBarItem.hide();
         this.shouldShowStatusBar()
             .then(shouldShow => {
+                this.statusBarEligible = shouldShow;
                 if (shouldShow && this.statusBarItem) {
                     this.statusBarItem.show();
                 } else {
@@ -352,6 +354,7 @@ export abstract class BaseStatusBarItem<T> {
     async checkAndShowStatus(): Promise<void> {
         if (this.statusBarItem) {
             const shouldShow = await this.shouldShowStatusBar();
+            this.statusBarEligible = shouldShow;
             if (shouldShow) {
                 this.statusBarItem.show();
                 this.performInitialUpdate();
@@ -427,6 +430,7 @@ export abstract class BaseStatusBarItem<T> {
         this.lastDelayedUpdateTime = 0;
         this.isLoading = false;
         this.manualRefreshPending = false;
+        this.statusBarEligible = false;
         this.context = undefined;
 
         // 销毁状态栏项
@@ -446,6 +450,7 @@ export abstract class BaseStatusBarItem<T> {
     private async performInitialUpdate(): Promise<void> {
         // 检查是否应该显示状态栏
         const shouldShow = await this.shouldShowStatusBar();
+        this.statusBarEligible = shouldShow;
 
         if (!shouldShow) {
             if (this.statusBarItem) {
@@ -478,6 +483,7 @@ export abstract class BaseStatusBarItem<T> {
 
             // 检查是否应该显示状态栏
             const shouldShow = await this.shouldShowStatusBar();
+            this.statusBarEligible = shouldShow;
 
             if (!shouldShow) {
                 if (this.statusBarItem) {
@@ -743,6 +749,13 @@ export abstract class BaseStatusBarItem<T> {
             if (!this.initialized || !this.context || !this.statusBarItem) {
                 StatusLogger.trace(
                     `[${this.config.logPrefix}] Skipping leader periodic task: not initialized or missing context.`
+                );
+                return;
+            }
+
+            if (!this.statusBarEligible) {
+                StatusLogger.trace(
+                    `[${this.config.logPrefix}] Skipping leader periodic task: display conditions not met.`
                 );
                 return;
             }

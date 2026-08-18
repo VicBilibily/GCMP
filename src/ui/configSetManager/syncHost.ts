@@ -6,7 +6,12 @@
 
 import { ApiKeyManager } from '../../utils/config/apiKeyManager';
 import { ConfigSetStore, type ConfigSetItem } from '../../utils/config/configSetStore';
-import { getSiteOwnerProvider, readCurrentSite, siteLabel } from '../../utils/config/configSetCommands';
+import {
+    enqueueConfigSetMutation,
+    getSiteOwnerProvider,
+    readCurrentSite,
+    siteLabel
+} from '../../utils/config/configSetCommands';
 import { Logger } from '../../utils/runtime/logger';
 import { t } from '../../utils/runtime/l10n';
 import {
@@ -48,6 +53,32 @@ export class ConfigSetSyncHost {
     private pendingPassphraseDownload: { token: string; gistId: string } | undefined;
     /** 当前恢复对话框对应的已解密快照；优先使用它恢复，避免再次依赖网络/口令状态。 */
     private preparedDownloadSlots: Record<string, SyncedSlotConfigSet> | undefined;
+
+    private buildUnreadableRemoteUploadError(skipped?: number): string {
+        return skipped && skipped > 0 ?
+                t(
+                    'Remote sync data still contains {0} undecryptable configuration(s). Upload is blocked until all remote items can be read safely.',
+                    '远端同步数据仍有 {0} 项配置无法解密。为避免覆盖不可读的远端配置，当前已阻止上传。',
+                    skipped
+                )
+            :   t(
+                    'Remote sync data is currently unreadable. Upload is blocked until the remote data can be read safely.',
+                    '远端同步数据暂不可读（网络异常或口令不匹配），为避免覆盖未知远端配置，当前已阻止上传。'
+                );
+    }
+
+    private buildUnreadableRemoteManageError(skipped?: number): string {
+        return skipped && skipped > 0 ?
+                t(
+                    'Remote sync data still contains {0} undecryptable configuration(s). Remote management is blocked until all remote items can be read safely.',
+                    '远端同步数据仍有 {0} 项配置无法解密。为避免误删不可读的远端配置，当前已阻止远端管理。',
+                    skipped
+                )
+            :   t(
+                    'Remote sync data is currently unreadable. Remote management is blocked until the remote data can be read safely.',
+                    '远端同步数据暂不可读（网络异常或口令不匹配），为避免误删未知远端配置，当前已阻止远端管理。'
+                );
+    }
 
     private clearPreparedDownloadState(clearPendingContext = false): void {
         this.preparedDownloadSlots = undefined;
@@ -102,6 +133,16 @@ export class ConfigSetSyncHost {
         return !rollbackFailed;
     }
 
+    private buildSkippedRemoteWarning(skipped: number | undefined): string | undefined {
+        return skipped && skipped > 0 ?
+                t(
+                    'Skipped {0} undecryptable remote configuration(s). Only readable items are shown.',
+                    '有 {0} 项远端配置无法解密，当前仅显示可读取项。',
+                    skipped
+                )
+            :   undefined;
+    }
+
     /** 上传入口：只做预检（收集本地 + 读远端 diff），实际写入由 handleUploadSelected 完成 */
     async handleUpload(): Promise<void> {
         this.ctx.post({ command: 'syncStatus', busy: true });
@@ -128,18 +169,29 @@ export class ConfigSetSyncHost {
             }
             // 读取远端用于增量对比；不可读（网络异常/口令不匹配）时阻止上传
             let remoteSlots: Record<string, SyncedSlotConfigSet> | undefined;
+            let remoteWarning: string | undefined;
             const gistId = await this.resolveGistId(userInfo.token);
             if (gistId) {
                 const { result } = await this.readConfigSetsWithFallback(userInfo.token, gistId);
+                if (result.status === 'ok' && (result.skipped ?? 0) > 0) {
+                    this.ctx.post({ command: 'syncStatus', busy: false });
+                    this.ctx.post({
+                        command: 'uploadResult',
+                        ok: false,
+                        error: this.buildUnreadableRemoteUploadError(result.skipped)
+                    });
+                    return;
+                }
                 if (result.status === 'ok' || result.status === 'not-found') {
                     remoteSlots = result.status === 'ok' ? (result.data.slots ?? {}) : {};
+                    remoteWarning = result.status === 'ok' ? this.buildSkippedRemoteWarning(result.skipped) : undefined;
                 }
             } else {
                 remoteSlots = {};
             }
             // diffConfigSets(A, B) 产出 B 各槽位相对 A 的状态，此处取本地槽位相对远端的状态
             const status = remoteSlots ? diffConfigSets(remoteSlots, local) : undefined;
-            await this.sendUploadPrep(status, remoteSlots !== undefined, remoteSlots);
+            await this.sendUploadPrep(status, remoteSlots !== undefined, remoteSlots, remoteWarning);
         } catch (error) {
             Logger.error('[ConfigSetManager] upload prep failed:', error);
             this.ctx.post({ command: 'syncStatus', busy: false });
@@ -180,6 +232,15 @@ export class ConfigSetSyncHost {
                 const { result, usedGistId } = await this.readConfigSetsWithFallback(userInfo.token, gistId);
                 // 远端 Gist 已被删除时 usedGistId 为空：按无远端数据处理，后续写入走新建 Gist
                 gistId = usedGistId;
+                if (result.status === 'ok' && (result.skipped ?? 0) > 0) {
+                    this.ctx.post({ command: 'syncStatus', busy: false });
+                    this.ctx.post({
+                        command: 'uploadResult',
+                        ok: false,
+                        error: this.buildUnreadableRemoteUploadError(result.skipped)
+                    });
+                    return;
+                }
                 if (result.status === 'ok' || result.status === 'not-found') {
                     remoteSlots = result.status === 'ok' ? (result.data.slots ?? {}) : {};
                 }
@@ -193,6 +254,7 @@ export class ConfigSetSyncHost {
                 removeItemIds: string[];
             }> = [];
             for (const { slot, itemIds, removeItemIds } of selections) {
+                const localItems = ConfigSetStore.list(slot);
                 const localSet = local[slot];
                 if (!localSet) {
                     continue;
@@ -202,7 +264,24 @@ export class ConfigSetSyncHost {
                 if (items.length === 0) {
                     continue;
                 }
-                picked.push({ slot, items, removeItemIds: removeItemIds ?? [] });
+                const normalizedRemoveItemIds = removeItemIds ?? [];
+                const isFullLocalSelection =
+                    localItems.length === localSet.items.length &&
+                    items.length === localSet.items.length &&
+                    wanted.size === localSet.items.length;
+                if (normalizedRemoveItemIds.length > 0 && !isFullLocalSelection) {
+                    this.ctx.post({ command: 'syncStatus', busy: false });
+                    this.ctx.post({
+                        command: 'uploadResult',
+                        ok: false,
+                        error: t(
+                            'The upload selection is outdated. Reopen the upload dialog and retry.',
+                            '上传选择已过期，请重新打开上传对话框后重试。'
+                        )
+                    });
+                    return;
+                }
+                picked.push({ slot, items, removeItemIds: normalizedRemoveItemIds });
             }
             if (picked.length === 0) {
                 this.ctx.post({ command: 'syncStatus', busy: false });
@@ -219,10 +298,7 @@ export class ConfigSetSyncHost {
                 this.ctx.post({
                     command: 'uploadResult',
                     ok: false,
-                    error: t(
-                        'Remote sync data is currently unreadable. Upload is blocked until the remote data can be read safely.',
-                        '远端同步数据暂不可读（网络异常或口令不匹配），为避免覆盖未知远端配置，当前已阻止上传。'
-                    )
+                    error: this.buildUnreadableRemoteUploadError()
                 });
                 return;
             }
@@ -376,7 +452,7 @@ export class ConfigSetSyncHost {
             const remote = result.data.slots;
             this.preparedDownloadSlots = remote;
             const status = diffConfigSets(local, remote);
-            await this.sendDownloadPrep(remote, status);
+            await this.sendDownloadPrep(remote, status, this.buildSkippedRemoteWarning(result.skipped));
         } catch (error) {
             Logger.error('[ConfigSetManager] download failed:', error);
             this.ctx.post({ command: 'syncStatus', busy: false });
@@ -434,7 +510,15 @@ export class ConfigSetSyncHost {
             }
             const normalizedPassphrase = passphrase.trim();
             this.preparedDownloadSlots = retry.data.slots;
-            if (!(await GistSyncService.verifyPassphrase(normalizedPassphrase))) {
+            if ((retry.skipped ?? 0) > 0) {
+                void vscode.window.showWarningMessage(
+                    t(
+                        'The passphrase was not saved because {0} remote configuration(s) are still undecryptable. You can restore the readable items from the current snapshot, but upload and remote management stay blocked until every remote item can be read.',
+                        '由于仍有 {0} 项远端配置无法解密，当前不会保存该口令。你仍可先从当前快照恢复可读项，但在全部远端项可读取前，上传和远端管理仍会被阻止。',
+                        retry.skipped
+                    )
+                );
+            } else if (!(await GistSyncService.verifyPassphrase(normalizedPassphrase))) {
                 const saved = await GistSyncService.setCustomPassphrase(normalizedPassphrase);
                 if (!saved) {
                     Logger.warn(
@@ -449,7 +533,7 @@ export class ConfigSetSyncHost {
                 }
             }
             this.pendingPassphraseDownload = undefined;
-            await this.sendDownloadPrep(retry.data.slots);
+            await this.sendDownloadPrep(retry.data.slots, undefined, this.buildSkippedRemoteWarning(retry.skipped));
         } catch (error) {
             this.pendingPassphraseDownload = undefined;
             Logger.error('[ConfigSetManager] download with passphrase failed:', error);
@@ -504,16 +588,10 @@ export class ConfigSetSyncHost {
                 remote = result.data.slots;
             }
 
-            const restorePlans: Array<{
+            const restoreSelections: Array<{
                 slot: string;
-                items: ConfigSetItem[];
-                keys: Record<string, string | undefined>;
+                selectedItems: (ConfigSetItem & { apiKey: string })[];
                 selectedCount: number;
-                previous: {
-                    items: ConfigSetItem[];
-                    keys: Record<string, string | undefined>;
-                    activeId?: string;
-                };
             }> = [];
             let applied = 0;
             for (const { slot, itemIds } of selections) {
@@ -526,60 +604,66 @@ export class ConfigSetSyncHost {
                 if (selectedItems.length === 0) {
                     continue;
                 }
-                const previous = await this.snapshotSlotState(slot);
-                const mergedItems = new Map(previous.items.map(item => [item.id, item] as const));
-                const mergedKeys: Record<string, string | undefined> = { ...previous.keys };
-                for (const item of selectedItems) {
-                    const { apiKey, ...meta } = item;
-                    mergedItems.set(item.id, meta);
-                    mergedKeys[item.id] = apiKey;
-                }
-                restorePlans.push({
+                restoreSelections.push({
                     slot,
-                    items: Array.from(mergedItems.values()),
-                    keys: mergedKeys,
-                    selectedCount: selectedItems.length,
-                    previous
+                    selectedItems,
+                    selectedCount: selectedItems.length
                 });
             }
 
-            for (const plan of restorePlans) {
-                await ConfigSetStore.writeAll(plan.slot, plan.items, plan.keys, plan.previous.activeId);
-                appliedSnapshots.push({ slot: plan.slot, ...plan.previous });
-                // 激活状态由本地确认：生效 Key 匹配恢复项时补登激活标记，不改动当前生效 Key
-                await this.confirmLocalActive(plan.slot);
-                applied++;
-                Logger.info(`[ConfigSetSync] Restored ${plan.selectedCount} config set(s) for ${plan.slot}`);
-            }
+            // 提交与失败回滚必须占用同一条变更队列，避免恢复半途中被其他本地变更插队。
+            await enqueueConfigSetMutation(async () => {
+                try {
+                    for (const selection of restoreSelections) {
+                        const previous = await this.snapshotSlotState(selection.slot);
+                        const mergedItems = new Map(previous.items.map(item => [item.id, item] as const));
+                        const mergedKeys: Record<string, string | undefined> = { ...previous.keys };
+                        for (const item of selection.selectedItems) {
+                            const { apiKey, ...meta } = item;
+                            mergedItems.set(item.id, meta);
+                            mergedKeys[item.id] = apiKey;
+                        }
+                        await ConfigSetStore.writeAll(
+                            selection.slot,
+                            Array.from(mergedItems.values()),
+                            mergedKeys,
+                            previous.activeId
+                        );
+                        appliedSnapshots.push({ slot: selection.slot, ...previous });
+                        // 激活状态由本地确认：生效 Key 匹配恢复项时补登激活标记，不改动当前生效 Key
+                        await this.confirmLocalActive(selection.slot);
+                        applied += selection.selectedCount;
+                        Logger.info(
+                            `[ConfigSetSync] Restored ${selection.selectedCount} config set(s) for ${selection.slot}`
+                        );
+                    }
+                } catch (error) {
+                    let restoreError = error instanceof Error ? error : new Error(String(error));
+                    if (appliedSnapshots.length > 0) {
+                        const rollbackOk = await this.rollbackRestoreSlots(appliedSnapshots);
+                        if (!rollbackOk) {
+                            restoreError = new Error(
+                                t(
+                                    'Restore failed and local rollback was incomplete. Please review the local configurations before retrying.',
+                                    '恢复失败，且本地回滚未完整完成。请检查当前本地配置后再重试。'
+                                )
+                            );
+                        }
+                    }
+                    throw restoreError;
+                }
+            });
             await this.ctx.sendStates();
             this.ctx.post({ command: 'syncStatus', busy: false });
             this.ctx.post({ command: 'downloadResult', ok: true, appliedCount: applied });
         } catch (error) {
             Logger.error('[ConfigSetManager] restore failed:', error);
-            let restoreError = error instanceof Error ? error : new Error(String(error));
-            try {
-                if (appliedSnapshots.length > 0) {
-                    const rollbackOk = await this.rollbackRestoreSlots(appliedSnapshots);
-                    if (!rollbackOk) {
-                        restoreError = new Error(
-                            t(
-                                'Restore failed and local rollback was incomplete. Please review the local configurations before retrying.',
-                                '恢复失败，且本地回滚未完整完成。请检查当前本地配置后再重试。'
-                            )
-                        );
-                    }
-                }
-            } catch (rollbackError) {
-                Logger.error('[ConfigSetManager] restore rollback failed:', rollbackError);
-                restoreError = new Error(
-                    t(
-                        'Restore failed and local rollback was incomplete. Please review the local configurations before retrying.',
-                        '恢复失败，且本地回滚未完整完成。请检查当前本地配置后再重试。'
-                    )
-                );
-            }
             this.ctx.post({ command: 'syncStatus', busy: false });
-            this.ctx.post({ command: 'downloadResult', ok: false, error: restoreError.message });
+            this.ctx.post({
+                command: 'downloadResult',
+                ok: false,
+                error: error instanceof Error ? error.message : String(error)
+            });
         } finally {
             this.clearPreparedDownloadState();
             await this.postSyncState();
@@ -643,6 +727,15 @@ export class ConfigSetSyncHost {
             }
             const { result } = await this.readConfigSetsWithFallback(userInfo.token, gistId);
             if (result.status === 'ok') {
+                if ((result.skipped ?? 0) > 0) {
+                    this.ctx.post({ command: 'syncStatus', busy: false });
+                    this.ctx.post({
+                        command: 'remoteConfigsResult',
+                        ok: false,
+                        error: this.buildUnreadableRemoteManageError(result.skipped)
+                    });
+                    return;
+                }
                 const ordering = this.managedSlotOrdering();
                 const sortedEntries = Object.entries(result.data.slots ?? {}).sort((a, b) =>
                     ordering.compare(a[0], b[0])
@@ -662,7 +755,11 @@ export class ConfigSetSyncHost {
                     });
                 }
                 this.ctx.post({ command: 'syncStatus', busy: false });
-                this.ctx.post({ command: 'remoteConfigsPrep', snapshots });
+                this.ctx.post({
+                    command: 'remoteConfigsPrep',
+                    snapshots,
+                    warning: this.buildSkippedRemoteWarning(result.skipped)
+                });
                 return;
             }
             if (result.status === 'not-found') {
@@ -719,6 +816,15 @@ export class ConfigSetSyncHost {
             }
             // 重新读取远端作为改写基（对话框打开期间远端可能已变化）
             const { result, usedGistId } = await this.readConfigSetsWithFallback(userInfo.token, gistId);
+            if (result.status === 'ok' && (result.skipped ?? 0) > 0) {
+                this.ctx.post({ command: 'syncStatus', busy: false });
+                this.ctx.post({
+                    command: 'remoteConfigsResult',
+                    ok: false,
+                    error: this.buildUnreadableRemoteManageError(result.skipped)
+                });
+                return;
+            }
             if (result.status !== 'ok' || !result.data.slots) {
                 this.ctx.post({ command: 'syncStatus', busy: false });
                 this.ctx.post({
@@ -827,25 +933,20 @@ export class ConfigSetSyncHost {
     }
 
     private async resolveGistId(token: string): Promise<string | undefined> {
-        let gistId = GistSyncService.getConfigSetGistId();
+        const gistId = GistSyncService.getConfigSetGistId();
         if (gistId) {
             return gistId;
         }
-        gistId = GistSyncService.getGistId();
-        if (gistId) {
-            return gistId;
-        }
-        gistId = await findExistingConfigSetGist(token);
-        if (gistId) {
-            await GistSyncService.saveConfigSetGistId(gistId);
-            return gistId;
+        const discoveredGistId = await findExistingConfigSetGist(token);
+        if (discoveredGistId) {
+            await GistSyncService.saveConfigSetGistId(discoveredGistId);
+            return discoveredGistId;
         }
         return undefined;
     }
 
     /**
-     * 读取远端配置集：先用传入的 gistId，若该 Gist 无配置集文件或已被删除则回退查找配置集专用 Gist。
-     * 避免在同时存在旧版 sync Gist 与配置集 Gist 时读错（resolveGistId 优先返回已保存的旧版 Gist）。
+     * 读取远端配置集：先用传入的 gistId，若该 Gist 无配置集文件或已被删除则回退查找现有配置集 Gist。
      * @returns 读取结果与实际使用的 gistId；Gist 已被删除且无可回退时 usedGistId 为 undefined（调用方走新建）
      */
     private async readConfigSetsWithFallback(
@@ -853,7 +954,19 @@ export class ConfigSetSyncHost {
         gistId: string
     ): Promise<{ result: Exclude<ReadConfigSetResult, { status: 'gist-missing' }>; usedGistId: string | undefined }> {
         const result = await readRemoteConfigSets(token, gistId);
-        if (result.status === 'ok' || result.status === 'decrypt-failed') {
+        if (result.status === 'ok') {
+            await GistSyncService.saveConfigSetGistId(gistId);
+            return { result, usedGistId: gistId };
+        }
+        if (result.status === 'decrypt-failed') {
+            const configSetGistId = await findExistingConfigSetGist(token);
+            if (configSetGistId && configSetGistId !== gistId) {
+                await GistSyncService.saveConfigSetGistId(configSetGistId);
+                const fallbackResult = await readRemoteConfigSets(token, configSetGistId);
+                if (fallbackResult.status === 'ok' || fallbackResult.status === 'decrypt-failed') {
+                    return { result: fallbackResult, usedGistId: configSetGistId };
+                }
+            }
             await GistSyncService.saveConfigSetGistId(gistId);
             return { result, usedGistId: gistId };
         }
@@ -893,7 +1006,8 @@ export class ConfigSetSyncHost {
     private async sendUploadPrep(
         status: Record<string, 'new' | 'update' | 'unchanged'> | undefined,
         remoteReadable: boolean,
-        remoteSlots?: Record<string, SyncedSlotConfigSet>
+        remoteSlots?: Record<string, SyncedSlotConfigSet>,
+        warning?: string
     ): Promise<void> {
         const ordering = this.managedSlotOrdering();
         const snapshots: UploadSlotSnapshot[] = [];
@@ -929,12 +1043,13 @@ export class ConfigSetSyncHost {
             });
         }
         this.ctx.post({ command: 'syncStatus', busy: false });
-        this.ctx.post({ command: 'uploadPrep', snapshots, remoteReadable });
+        this.ctx.post({ command: 'uploadPrep', snapshots, remoteReadable, warning });
     }
 
     private async sendDownloadPrep(
         remote: Record<string, SyncedSlotConfigSet>,
-        status?: Record<string, 'new' | 'update' | 'unchanged'>
+        status?: Record<string, 'new' | 'update' | 'unchanged'>,
+        warning?: string
     ): Promise<void> {
         const local = await collectLocalConfigSets();
         const computedStatus = status ?? diffConfigSets(local, remote);
@@ -956,6 +1071,6 @@ export class ConfigSetSyncHost {
             });
         }
         this.ctx.post({ command: 'syncStatus', busy: false });
-        this.ctx.post({ command: 'downloadPrep', snapshots });
+        this.ctx.post({ command: 'downloadPrep', snapshots, warning });
     }
 }

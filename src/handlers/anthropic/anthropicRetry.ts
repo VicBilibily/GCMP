@@ -6,6 +6,9 @@ function getHeader(error: RetryableError, name: string): string | undefined {
     return value === null || value === undefined ? undefined : value;
 }
 
+/** 服务端提示重试延迟的最小值：避免 retry-after: 0 造成紧重试循环 */
+const MIN_SERVER_RETRY_DELAY_MS = 1_000;
+
 function getStatus(error: RetryableError): number | undefined {
     return error.status ?? error.statusCode;
 }
@@ -42,7 +45,7 @@ export function shouldRetryAnthropicRequest(error: RetryableError, fallback: boo
 export function getAnthropicRetryDelayMs(error: RetryableError): number | undefined {
     const retryAfterMs = Number.parseFloat(getHeader(error, 'retry-after-ms') ?? '');
     if (Number.isFinite(retryAfterMs)) {
-        return Math.max(0, retryAfterMs);
+        return Math.max(MIN_SERVER_RETRY_DELAY_MS, retryAfterMs);
     }
 
     const retryAfter = getHeader(error, 'retry-after');
@@ -50,11 +53,11 @@ export function getAnthropicRetryDelayMs(error: RetryableError): number | undefi
         return undefined;
     }
 
-    const retryAfterSeconds = Number.parseFloat(retryAfter);
+    const retryAfterSeconds = /^\d+$/.test(retryAfter.trim()) ? Number.parseInt(retryAfter.trim(), 10) : NaN;
     if (Number.isFinite(retryAfterSeconds)) {
-        return Math.max(0, retryAfterSeconds * 1000);
+        return Math.max(MIN_SERVER_RETRY_DELAY_MS, retryAfterSeconds * 1000);
     }
 
     const retryAt = Date.parse(retryAfter);
-    return Number.isFinite(retryAt) ? Math.max(0, retryAt - Date.now()) : undefined;
+    return Number.isFinite(retryAt) ? Math.max(MIN_SERVER_RETRY_DELAY_MS, retryAt - Date.now()) : undefined;
 }

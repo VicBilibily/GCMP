@@ -17,7 +17,9 @@ import {
     decryptWithPassphrase as cryptoDecryptWithPassphrase,
     encrypt as cryptoEncrypt,
     createBatchEncryptor as cryptoCreateBatchEncryptor,
-    createBatchDecryptor as cryptoCreateBatchDecryptor
+    createBatchDecryptor as cryptoCreateBatchDecryptor,
+    type BatchDecryptor,
+    type BatchEncryptor
 } from './syncCrypto';
 
 /**
@@ -246,22 +248,6 @@ export class GistSyncService {
             Logger.error('[GistSync] Failed to get GitHub user info:', error);
             return undefined;
         }
-    }
-
-    /**
-     * 一键登录 + 关联已有 Gist（首次配置入口）
-     * @returns 登录成功返回用户信息，失败或取消返回 undefined
-     */
-    static async signIn(): Promise<{ login: string; id: number; token: string } | undefined> {
-        const userInfo = await this.getUserInfo(false);
-        if (!userInfo) {
-            return undefined;
-        }
-        const gistId = await this.findExistingSyncGist(userInfo.token);
-        if (gistId) {
-            await this.saveGistId(gistId);
-        }
-        return userInfo;
     }
 
     // ==================== Gist ID 管理 ====================
@@ -515,13 +501,13 @@ export class GistSyncService {
      * @param passphrase 要尝试的口令
      * @returns 明文，解密失败返回 undefined
      */
-    static decryptWithPassphrase(encryptedPayload: string, passphrase: string): string | undefined {
+    static async decryptWithPassphrase(encryptedPayload: string, passphrase: string): Promise<string | undefined> {
         const githubId = this.getGithubId();
         if (!githubId) {
             Logger.debug('[GistSync] decryptWithPassphrase: GitHub user ID not available');
             return undefined;
         }
-        const result = cryptoDecryptWithPassphrase(githubId, encryptedPayload, passphrase);
+        const result = await cryptoDecryptWithPassphrase(githubId, encryptedPayload, passphrase);
         if (result !== undefined) {
             Logger.debug('[GistSync] decryptWithPassphrase: success');
         } else {
@@ -543,7 +529,7 @@ export class GistSyncService {
         }
 
         const passphrase = await this.getCustomPassphrase();
-        const result = cryptoDecrypt(githubId, encryptedPayload, passphrase);
+        const result = await cryptoDecrypt(githubId, encryptedPayload, passphrase);
         if (result === undefined) {
             // AES-256-GCM 认证失败（tag 不匹配）说明密钥/口令已变更，或数据被篡改
             Logger.warn(
@@ -556,8 +542,9 @@ export class GistSyncService {
     /**
      * 创建批量加密器：同一批明文共享 salt，密钥仅派生一次
      * 用于配置集同步等单文件多条目场景；GitHub 用户 ID 缺失时返回 undefined
+     * 使用完毕后应调用 dispose() 清零内存中的派生密钥
      */
-    static async createBatchEncryptor(): Promise<((plaintext: string) => string) | undefined> {
+    static async createBatchEncryptor(): Promise<BatchEncryptor | undefined> {
         const githubId = this.getGithubId();
         if (!githubId) {
             Logger.error('[GistSync] GitHub user ID not available for encryption');
@@ -569,8 +556,9 @@ export class GistSyncService {
 
     /**
      * 创建批量解密器（使用已存储口令）：按 salt 缓存派生密钥，同一 salt 仅派生一次
+     * 使用完毕后应调用 dispose() 清零缓存的派生密钥
      */
-    static async createBatchDecryptor(): Promise<((encryptedPayload: string) => string | undefined) | undefined> {
+    static async createBatchDecryptor(): Promise<BatchDecryptor | undefined> {
         const githubId = this.getGithubId();
         if (!githubId) {
             Logger.warn('[GistSync] Decryption failed: GitHub user ID not available');
@@ -581,9 +569,9 @@ export class GistSyncService {
     }
 
     /** 使用指定口令创建批量加密器，不修改本地已保存口令。 */
-    static createBatchEncryptorWithPassphrase(
+    static async createBatchEncryptorWithPassphrase(
         passphrase: string | undefined
-    ): ((plaintext: string) => string) | undefined {
+    ): Promise<BatchEncryptor | undefined> {
         const githubId = this.getGithubId();
         if (!githubId) {
             Logger.error('[GistSync] GitHub user ID not available for encryption');
@@ -594,10 +582,9 @@ export class GistSyncService {
 
     /**
      * 创建批量解密器（指定口令）：不依赖已存储的口令，用于口令变更后的兜底
+     * 使用完毕后应调用 dispose() 清零缓存的派生密钥
      */
-    static createBatchDecryptorWithPassphrase(
-        passphrase: string
-    ): ((encryptedPayload: string) => string | undefined) | undefined {
+    static createBatchDecryptorWithPassphrase(passphrase: string): BatchDecryptor | undefined {
         const githubId = this.getGithubId();
         if (!githubId) {
             Logger.debug('[GistSync] createBatchDecryptorWithPassphrase: GitHub user ID not available');
@@ -649,7 +636,7 @@ export class GistSyncService {
             if (!encryptedValue?.trim()) {
                 continue;
             }
-            const plainValue = cryptoDecryptWithPassphrase(githubId, encryptedValue, passphrase);
+            const plainValue = await cryptoDecryptWithPassphrase(githubId, encryptedValue, passphrase);
             if (plainValue === undefined) {
                 return undefined;
             }
@@ -665,20 +652,24 @@ export class GistSyncService {
         data: SyncData,
         passphrase: string | undefined
     ): Promise<boolean> {
-        const encrypt = this.createBatchEncryptorWithPassphrase(passphrase);
+        const encrypt = await this.createBatchEncryptorWithPassphrase(passphrase);
         if (!encrypt) {
             return false;
         }
 
-        const keys: Record<string, string> = {};
-        for (const [keyName, plainValue] of Object.entries(data.keys)) {
-            keys[keyName] = encrypt(plainValue);
+        try {
+            const keys: Record<string, string> = {};
+            for (const [keyName, plainValue] of Object.entries(data.keys)) {
+                keys[keyName] = encrypt(plainValue);
+            }
+            return await this.updateGist(token, gistId, {
+                ...data,
+                timestamp: new Date().toISOString(),
+                keys
+            });
+        } finally {
+            encrypt.dispose();
         }
-        return await this.updateGist(token, gistId, {
-            ...data,
-            timestamp: new Date().toISOString(),
-            keys
-        });
     }
 
     // ==================== 密钥收集与应用 ====================

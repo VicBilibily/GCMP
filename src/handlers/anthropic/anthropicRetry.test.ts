@@ -48,3 +48,12 @@ test('parses Anthropic retry-after headers', () => {
     assert.equal(getAnthropicRetryDelayMs(createError({ headers: new Headers({ 'retry-after': '2' }) })), 2000);
     assert.equal(getAnthropicRetryDelayMs(createError({ headers: new Headers() })), undefined);
 });
+
+test('clamps zero or past retry-after hints to a minimum delay', () => {
+    assert.equal(getAnthropicRetryDelayMs(createError({ headers: new Headers({ 'retry-after-ms': '0' }) })), 1000);
+    assert.equal(getAnthropicRetryDelayMs(createError({ headers: new Headers({ 'retry-after': '0' }) })), 1000);
+    assert.equal(
+        getAnthropicRetryDelayMs(createError({ headers: new Headers({ 'retry-after': '2000-01-01T00:00:00Z' }) })),
+        1000
+    );
+});

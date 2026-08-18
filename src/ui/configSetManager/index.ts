@@ -15,6 +15,7 @@ import { StateHost } from './stateHost';
 import { UsageHost } from './usageHost';
 import { CrudHost } from './crudHost';
 import type { HostMessage, WebViewMessage, PanelContext } from './types';
+import { sanitizeWebViewMessage } from './types';
 
 export class ConfigSetManagerPanel implements PanelContext {
     private static currentPanel: ConfigSetManagerPanel | undefined;
@@ -136,7 +137,12 @@ export class ConfigSetManagerPanel implements PanelContext {
 
     // ============= 消息路由 =============
 
-    private async handleMessage(message: WebViewMessage): Promise<void> {
+    private async handleMessage(rawMessage: WebViewMessage): Promise<void> {
+        const message = sanitizeWebViewMessage(rawMessage);
+        if (!message) {
+            Logger.warn('[ConfigSetManager] Ignored malformed webview message');
+            return;
+        }
         try {
             switch (message.command) {
                 case 'ready':

@@ -14,6 +14,7 @@ import { CompatibleModelManager } from './compatibleModelManager';
 import { ConfigSetItem, ConfigSetStore } from './configSetStore';
 import { StatusBarManager } from '../../status';
 import { t } from '../runtime/l10n';
+import { Logger } from '../runtime/logger';
 import { KNOWN_KEY_LABELS } from '../../sync/gistSyncService';
 import { getRegisteredProvider } from './providerRegistry';
 
@@ -214,7 +215,7 @@ export function listSlots(provider: string): SlotInfo[] {
 /**
  * 将站点值写入现有 endpoint 设置
  */
-export async function applySiteSetting(provider: string, site: string): Promise<void> {
+export async function applySiteSetting(provider: string, site: string | undefined): Promise<void> {
     await writeSiteSetting(provider, site);
 }
 
@@ -227,81 +228,89 @@ export function notifySlotProviderChanged(slot: string): void {
     if (!ownerProviderKey) {
         return;
     }
-    getRegisteredProvider(ownerProviderKey)?.invalidateAndNotify(ownerProviderKey === 'compatible' ? undefined : slot);
+    try {
+        getRegisteredProvider(ownerProviderKey)?.invalidateAndNotify(
+            ownerProviderKey === 'compatible' ? undefined : slot
+        );
+    } catch (error) {
+        Logger.warn(`[ConfigSet] Failed to refresh provider state for ${slot}:`, error);
+    }
 }
 
 /**
  * 应用一套配置到指定槽位：激活标记 + Key 覆盖 + 站点覆盖（仅受接入点影响的槽位）
  * 每个槽位独立切换，互不影响。
  */
+export async function applyConfigSetUnlocked(slot: string, item: ConfigSetItem): Promise<boolean> {
+    const apiKey = await ConfigSetStore.getApiKey(slot, item.id);
+    if (!apiKey) {
+        return false;
+    }
+
+    const siteProvider = getSiteOwnerProvider(slot);
+    const previousKey = await ApiKeyManager.getApiKey(slot);
+    const previousActiveId = ConfigSetStore.getActiveId(slot);
+    const previousSite =
+        siteProvider ? vscode.workspace.getConfiguration(`gcmp.${siteProvider}`).get<string>('endpoint') : undefined;
+    const nextSite = item.site;
+    let siteChanged = false;
+
+    if (nextSite && siteProvider && nextSite !== readCurrentSite(siteProvider)) {
+        // 站点先于 Key 写入：apiKeyChanged 事件触发的状态栏刷新会在事件后读取站点设置
+        await applySiteSetting(siteProvider, nextSite);
+        siteChanged = true;
+    }
+
+    try {
+        await ConfigSetStore.setActive(slot, item.id);
+        await ApiKeyManager.setApiKey(slot, apiKey);
+    } catch (error) {
+        if (previousActiveId) {
+            await ConfigSetStore.setActive(slot, previousActiveId);
+        } else {
+            await ConfigSetStore.clearActive(slot);
+        }
+        if (siteChanged && siteProvider) {
+            await writeSiteSetting(siteProvider, previousSite);
+        }
+        throw error;
+    }
+
+    if (siteChanged && siteProvider && previousKey === apiKey && StatusBarManager.getStatusBar(siteProvider)) {
+        void StatusBarManager.checkAndShowStatus(siteProvider);
+    }
+
+    // setApiKey 命令链路自带的 invalidateAndNotify 只覆盖手动命令，不覆盖面板 apply
+    notifySlotProviderChanged(slot);
+    return true;
+}
+
 export async function applyConfigSet(slot: string, item: ConfigSetItem): Promise<boolean> {
-    return await enqueueConfigSetMutation(async () => {
-        const apiKey = await ConfigSetStore.getApiKey(slot, item.id);
-        if (!apiKey) {
-            return false;
+    return await enqueueConfigSetMutation(() => applyConfigSetUnlocked(slot, item));
+}
+
+export async function deactivateConfigSetUnlocked(slot: string, deleteCurrentKey = true): Promise<void> {
+    const previousActiveId = ConfigSetStore.getActiveId(slot);
+    const previousKey = await ApiKeyManager.getApiKey(slot);
+
+    if (previousActiveId) {
+        await ConfigSetStore.clearActive(slot);
+    }
+
+    try {
+        if (deleteCurrentKey && previousKey) {
+            await ApiKeyManager.deleteApiKey(slot);
         }
-
-        const siteProvider = getSiteOwnerProvider(slot);
-        const previousKey = await ApiKeyManager.getApiKey(slot);
-        const previousActiveId = ConfigSetStore.getActiveId(slot);
-        const previousSite =
-            siteProvider ?
-                vscode.workspace.getConfiguration(`gcmp.${siteProvider}`).get<string>('endpoint')
-            :   undefined;
-        const nextSite = item.site;
-        let siteChanged = false;
-
-        if (nextSite && siteProvider && nextSite !== readCurrentSite(siteProvider)) {
-            // 站点先于 Key 写入：apiKeyChanged 事件触发的状态栏刷新会在事件后读取站点设置
-            await applySiteSetting(siteProvider, nextSite);
-            siteChanged = true;
+    } catch (error) {
+        if (previousActiveId) {
+            await ConfigSetStore.setActive(slot, previousActiveId);
         }
+        throw error;
+    }
 
-        try {
-            await ConfigSetStore.setActive(slot, item.id);
-            await ApiKeyManager.setApiKey(slot, apiKey);
-        } catch (error) {
-            if (previousActiveId) {
-                await ConfigSetStore.setActive(slot, previousActiveId);
-            } else {
-                await ConfigSetStore.clearActive(slot);
-            }
-            if (siteChanged && siteProvider) {
-                await writeSiteSetting(siteProvider, previousSite);
-            }
-            throw error;
-        }
-
-        if (siteChanged && siteProvider && previousKey === apiKey && StatusBarManager.getStatusBar(siteProvider)) {
-            void StatusBarManager.checkAndShowStatus(siteProvider);
-        }
-
-        // setApiKey 命令链路自带的 invalidateAndNotify 只覆盖手动命令，不覆盖面板 apply
-        notifySlotProviderChanged(slot);
-        return true;
-    });
+    notifySlotProviderChanged(slot);
 }
 
 export async function deactivateConfigSet(slot: string, deleteCurrentKey = true): Promise<void> {
-    await enqueueConfigSetMutation(async () => {
-        const previousActiveId = ConfigSetStore.getActiveId(slot);
-        const previousKey = await ApiKeyManager.getApiKey(slot);
-
-        if (previousActiveId) {
-            await ConfigSetStore.clearActive(slot);
-        }
-
-        try {
-            if (deleteCurrentKey && previousKey) {
-                await ApiKeyManager.deleteApiKey(slot);
-            }
-        } catch (error) {
-            if (previousActiveId) {
-                await ConfigSetStore.setActive(slot, previousActiveId);
-            }
-            throw error;
-        }
-
-        notifySlotProviderChanged(slot);
-    });
+    await enqueueConfigSetMutation(() => deactivateConfigSetUnlocked(slot, deleteCurrentKey));
 }

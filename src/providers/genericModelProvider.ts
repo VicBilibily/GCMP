@@ -711,30 +711,16 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                     summaryResponseBuffer = '';
 
                     // 限流闸门：任一维度触顶即自主延迟；重试也会重新取令牌（文档铁律）
-                    let limitHandle: RateLimitHandle | undefined;
-                    try {
-                        limitHandle = await this.acquireRateLimit(
-                            effectiveProviderKey,
-                            modelConfig,
-                            totalInputTokens,
-                            token,
-                            requestId,
-                            () => {
-                                wasThrottled = true;
-                            }
-                        );
-                    } catch (error) {
-                        if (requestId && (token.isCancellationRequested || isCancellationError(error))) {
-                            liveMetrics.emitLiveMetrics({
-                                type: 'streamEnd',
-                                requestId,
-                                requestStartTime: Date.now(),
-                                providerName: this.providerConfig.displayName,
-                                modelName: model.name || modelConfig.name
-                            });
+                    const limitHandle = await this.acquireRateLimit(
+                        effectiveProviderKey,
+                        modelConfig,
+                        totalInputTokens,
+                        token,
+                        requestId,
+                        () => {
+                            wasThrottled = true;
                         }
-                        throw error;
-                    }
+                    );
 
                     try {
                         if (sdkMode === 'anthropic') {

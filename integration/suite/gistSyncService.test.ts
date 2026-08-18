@@ -35,7 +35,7 @@ suite('gistSyncService', () => {
             version: 1,
             timestamp: '2026-08-15T00:00:00.000Z',
             keys: {
-                'valid.apiKey': encrypt('user-1', 'plain-secret', 'passphrase')!,
+                'valid.apiKey': (await encrypt('user-1', 'plain-secret', 'passphrase'))!,
                 'broken.apiKey': 'not-an-encrypted-payload'
             }
         });
@@ -110,7 +110,7 @@ suite('gistSyncService', () => {
             version: 1,
             timestamp: '2026-08-15T00:00:00.000Z',
             keys: {
-                'valid.apiKey': encrypt('user-1', 'plain-secret', 'passphrase')!,
+                'valid.apiKey': (await encrypt('user-1', 'plain-secret', 'passphrase'))!,
                 'empty.apiKey': '',
                 'whitespace.apiKey': '   '
             }

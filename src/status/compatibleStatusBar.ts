@@ -543,6 +543,7 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
         }
 
         const shouldShow = await this.shouldShowStatusBar();
+        this.statusBarEligible = shouldShow;
         if (!shouldShow) {
             this.statusBarItem.hide();
             return;

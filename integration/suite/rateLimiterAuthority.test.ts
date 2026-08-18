@@ -47,6 +47,10 @@ interface RateLimiterInternals {
         | undefined;
     release: (handle: RateLimitHandle, refund?: { requests?: number; tokens?: number }) => void;
     renewLease: (handle: RateLimitHandle) => boolean;
+    startLeaseHeartbeat: (handle: RateLimitHandle, renewEveryMsOverride?: number) => void;
+    stopLeaseHeartbeat: (grantId: string) => void;
+    retainAuthoritativeGrantsAfterRoleLoss: () => void;
+    activeHandles: Map<string, RateLimitHandle>;
     shouldUseIpc: () => boolean;
     sleepOrRefund: (
         waitMs: number,
@@ -531,6 +535,51 @@ suite('RateLimiter authority change', () => {
             rateLimiter.leaderStore = originalLeaderStore;
             rateLimiter.pendingLeaderHandoff = originalPendingLeaderHandoff;
             rateLimiter.clientCore = originalClientCore;
+        }
+    });
+
+    test('role loss immediately renews in-flight authoritative grants and shortens heartbeat', async () => {
+        const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
+        const patchedBus = InterInstanceBus as unknown as PatchedInterInstanceBus;
+        const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
+
+        const handle: RateLimitHandle = {
+            grantId: 'handoff-grant',
+            costs: { requests: 1, tokens: 0 },
+            leaseMs: 600_000,
+            authorityTerm: 'leader-a:1',
+            authoritative: true
+        };
+        const published: Array<{ type: string; payload: unknown }> = [];
+
+        const originalInitialized = rateLimiter.initialized;
+        const originalIsLeader = patchedLeaderElection.isLeader;
+        const originalPublish = patchedBus.publish;
+
+        try {
+            rateLimiter.initialized = true;
+            patchedLeaderElection.isLeader = () => false;
+            patchedBus.publish = ((event: { type: string; payload: unknown }) => {
+                published.push(event);
+            }) as typeof InterInstanceBus.publish;
+
+            rateLimiter.startLeaseHeartbeat(handle);
+            rateLimiter.retainAuthoritativeGrantsAfterRoleLoss();
+
+            const immediateRenewals = published.filter(event => event.type === 'rateLimitLeaseRenewed');
+            assert.equal(immediateRenewals.length, 1);
+            assert.deepEqual(immediateRenewals[0].payload, { authorityTerm: 'leader-a:1', grantId: 'handoff-grant' });
+            assert.equal(rateLimiter.activeHandles.has('handoff-grant'), true);
+
+            // 默认心跳间隔为 leaseMs/2（300s），改短后应在 handoff 宽限（5s）内再次续租
+            await new Promise(resolve => setTimeout(resolve, 2_800));
+            const laterRenewals = published.filter(event => event.type === 'rateLimitLeaseRenewed');
+            assert.ok(laterRenewals.length >= 2, 'shortened heartbeat should renew again within the handoff grace');
+        } finally {
+            rateLimiter.stopLeaseHeartbeat('handoff-grant');
+            rateLimiter.initialized = originalInitialized;
+            patchedLeaderElection.isLeader = originalIsLeader;
+            patchedBus.publish = originalPublish;
         }
     });
 

@@ -40,6 +40,7 @@ export class CliBaseProvider extends GenericModelProvider {
         options: PrepareLanguageModelChatModelOptions & { silent: boolean },
         token: vscode.CancellationToken
     ): Promise<vscode.LanguageModelChatInformation[]> {
+        const originallySilent = options.silent;
         if (options.configuration) {
             // 如果请求中包含 configuration，不返回模型列表
             return [];
@@ -66,11 +67,10 @@ export class CliBaseProvider extends GenericModelProvider {
             // 非静默模式下，直接触发用户交互确保有密钥
             await vscode.commands.executeCommand(`gcmp.${this.providerKey}.configWizard`);
             hasApiKey = await ApiKeyManager.ensureApiKey(this.providerKey, this.providerConfig.displayName, false);
-            options.silent = true; // 后续调用调整为静默模式
         }
         if (!hasApiKey) {
             // 如果是静默模式（如扩展启动时），不触发用户交互，直接返回空列表
-            if (options.silent) {
+            if (originallySilent) {
                 return [];
             }
             try {
@@ -89,6 +89,7 @@ export class CliBaseProvider extends GenericModelProvider {
                 return [];
             }
         }
+        options.silent = true;
         // 调用父类方法返回模型列表
         return super.provideLanguageModelChatInformation(options, token);
     }
@@ -107,19 +108,6 @@ export class CliBaseProvider extends GenericModelProvider {
         // 注册语言模型聊天提供商
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
 
-        // 注册设置API密钥命令
-        const setApiKeyCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.setApiKey`, async () => {
-            await ApiKeyManager.promptAndSetApiKey(
-                providerKey,
-                providerConfig.displayName,
-                providerConfig.apiKeyTemplate
-            );
-            // API 密钥变更后清除缓存
-            await provider.modelInfoCache?.invalidateCache(providerKey);
-            // 触发模型信息变更事件
-            provider._onDidChangeLanguageModelChatInformation.fire();
-        });
-
         // 注册配置向导命令
         const configWizardCommand = vscode.commands.registerCommand(`gcmp.${providerKey}.configWizard`, async () => {
             await CliBaseProvider.startConfigWizard(providerKey, providerConfig.displayName);
@@ -129,7 +117,7 @@ export class CliBaseProvider extends GenericModelProvider {
             provider._onDidChangeLanguageModelChatInformation.fire();
         });
 
-        const disposables = [providerDisposable, setApiKeyCommand, configWizardCommand];
+        const disposables = [providerDisposable, configWizardCommand];
         disposables.forEach(disposable => context.subscriptions.push(disposable));
         return { provider, disposables };
     }

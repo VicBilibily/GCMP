@@ -72,6 +72,11 @@ export class StatusBarManager {
     private static statusBars: Map<string, IStatusBar> = new Map<string, IStatusBar>();
     private static initialized = false;
 
+    /** API Key 槽位名 → 状态栏注册键的别名（槽位名与注册键不一致的专属状态栏） */
+    private static readonly keyAliases: Record<string, string> = {
+        'minimax-token': 'minimax'
+    };
+
     /**
      * 注册所有内置状态栏
      * 在初始化时自动创建和注册所有状态栏实例
@@ -188,7 +193,7 @@ export class StatusBarManager {
     static getStatusBar(key: 'compatible'): ICompatibleStatusBar | undefined;
     static getStatusBar(key: string): IStatusBar | undefined;
     static getStatusBar(key: string): IStatusBar | undefined {
-        return this.statusBars.get(key);
+        return this.statusBars.get(this.keyAliases[key] ?? key);
     }
 
     /**

@@ -5,11 +5,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { randomUUID } from 'crypto';
 import { ApiKeyManager } from '../../utils/config/apiKeyManager';
 import { ConfigSetItem, ConfigSetStore } from '../../utils/config/configSetStore';
 import {
+    applyConfigSetUnlocked,
+    applySiteSetting,
     applyConfigSet,
     deactivateConfigSet,
+    deactivateConfigSetUnlocked,
     enqueueConfigSetMutation,
     getSiteOwnerProvider,
     notifySlotProviderChanged,
@@ -24,7 +28,15 @@ import type { ActiveConfigItemSnapshot, ActiveKeyAction, ActiveSlotSnapshot, Pan
 
 /** 生成新配置 ID */
 function newId(): string {
-    return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    return randomUUID();
+}
+
+interface ActiveStateSnapshot {
+    slot: string;
+    activeId?: string;
+    currentKey?: string;
+    currentSite?: string;
+    siteProvider?: string;
 }
 
 /**
@@ -33,6 +45,54 @@ function newId(): string {
  */
 export class CrudHost {
     constructor(private readonly ctx: PanelContext) {}
+
+    private async sendStatesAfterCommit(action: string): Promise<void> {
+        if (!this.ctx.isAlive()) {
+            return;
+        }
+        try {
+            await this.ctx.sendStates();
+        } catch (error) {
+            Logger.warn(`[ConfigSet] Failed to refresh panel after ${action}:`, error);
+            void vscode.window.showWarningMessage(
+                t(
+                    'The operation succeeded, but the configuration panel could not be refreshed. Reopen the panel to verify the latest state.',
+                    '操作已生效，但配置面板刷新失败。请重新打开面板确认最新状态。'
+                )
+            );
+        }
+    }
+
+    private async snapshotActiveState(slot: string): Promise<ActiveStateSnapshot> {
+        const siteProvider = getSiteOwnerProvider(slot);
+        return {
+            slot,
+            activeId: ConfigSetStore.getActiveId(slot),
+            currentKey: await ApiKeyManager.getApiKey(slot),
+            currentSite: siteProvider ? readCurrentSite(siteProvider) : undefined,
+            siteProvider
+        };
+    }
+
+    private async restoreActiveState(snapshot: ActiveStateSnapshot): Promise<void> {
+        if (snapshot.siteProvider) {
+            await applySiteSetting(snapshot.siteProvider, snapshot.currentSite);
+        }
+
+        if (snapshot.currentKey === undefined) {
+            await ApiKeyManager.deleteApiKey(snapshot.slot);
+        } else {
+            await ApiKeyManager.setApiKey(snapshot.slot, snapshot.currentKey);
+        }
+
+        if (snapshot.activeId) {
+            await ConfigSetStore.setActive(snapshot.slot, snapshot.activeId);
+        } else {
+            await ConfigSetStore.clearActive(snapshot.slot);
+        }
+
+        notifySlotProviderChanged(snapshot.slot);
+    }
 
     private async isActuallyActive(slot: string, id: string): Promise<boolean> {
         const currentKey = await ApiKeyManager.getApiKey(slot);
@@ -65,12 +125,29 @@ export class CrudHost {
             await ConfigSetStore.add(slot, item, apiKey.trim());
             Logger.info(`[ConfigSet] ${slot}: configuration "${item.label}" added`);
 
+            let autoApplyFailed = false;
+
             if (!(await ApiKeyManager.getApiKey(slot))) {
-                await applyConfigSet(slot, item);
+                try {
+                    autoApplyFailed = !(await applyConfigSet(slot, item));
+                } catch (error) {
+                    autoApplyFailed = true;
+                    Logger.error(`[ConfigSet] ${slot}: failed to auto-activate configuration "${item.label}":`, error);
+                }
             }
 
-            await this.ctx.sendStates();
-            this.ctx.post({ command: 'addResult', ok: true, note: t('Added', '已添加') });
+            await this.sendStatesAfterCommit('adding a configuration');
+            this.ctx.post({
+                command: 'addResult',
+                ok: true,
+                note:
+                    autoApplyFailed ?
+                        t(
+                            'Added, but automatic activation failed. Please activate it manually.',
+                            '已添加，但自动激活失败，请手动激活。'
+                        )
+                    :   t('Added', '已添加')
+            });
         } catch (error) {
             Logger.error(`[ConfigSet] ${slot}: failed to add configuration "${label}":`, error);
             this.ctx.post({
@@ -94,7 +171,7 @@ export class CrudHost {
             }
             const ok = await applyConfigSet(slot, item);
             if (ok) {
-                await this.ctx.sendStates();
+                await this.sendStatesAfterCommit('applying a configuration');
                 this.ctx.post({ command: 'applyResult', ok: true });
                 return;
             }
@@ -126,7 +203,7 @@ export class CrudHost {
             const activeLabel = activeId ? ConfigSetStore.list(slot).find(i => i.id === activeId)?.label : undefined;
             await deactivateConfigSet(slot);
             Logger.info(`[ConfigSet] ${slot}: deactivated${activeLabel ? ` (was "${activeLabel}")` : ''}`);
-            await this.ctx.sendStates();
+            await this.sendStatesAfterCommit('deactivating a configuration');
             this.ctx.post({
                 command: 'deactivateResult',
                 ok: true,
@@ -147,10 +224,10 @@ export class CrudHost {
         const snapshots: ActiveSlotSnapshot[] = [];
         for (const { slot, displayName } of collectManagedSlots()) {
             const items = ConfigSetStore.list(slot);
-            if (items.length === 0) {
+            const currentKey = await ApiKeyManager.getApiKey(slot);
+            if (items.length === 0 && !currentKey) {
                 continue;
             }
-            const currentKey = await ApiKeyManager.getApiKey(slot);
             const siteProvider = getSiteOwnerProvider(slot);
             const currentSite = siteProvider ? readCurrentSite(siteProvider) : undefined;
             // 生效配置匹配：Key 相同且（支持站点的槽位）站点与当前 endpoint 一致；
@@ -197,28 +274,72 @@ export class CrudHost {
     async handleApplyActiveKeys(actions: ActiveKeyAction[]): Promise<void> {
         try {
             const changedSlots: string[] = [];
-            for (const action of actions) {
-                if (action.activateId) {
-                    const item = ConfigSetStore.list(action.slot).find(i => i.id === action.activateId);
-                    if (!item) {
-                        continue;
+            const snapshots = new Map<string, ActiveStateSnapshot>();
+            await enqueueConfigSetMutation(async () => {
+                try {
+                    for (const action of actions) {
+                        if (!snapshots.has(action.slot)) {
+                            snapshots.set(action.slot, await this.snapshotActiveState(action.slot));
+                        }
+
+                        if (action.activateId) {
+                            const item = ConfigSetStore.list(action.slot).find(i => i.id === action.activateId);
+                            if (!item) {
+                                continue;
+                            }
+                            const applied = await applyConfigSetUnlocked(action.slot, item);
+                            if (!applied) {
+                                throw new Error(
+                                    t(
+                                        'Configuration has no API key. Please remove and re-add it.',
+                                        '配置缺少 API Key，请删除后重新添加。'
+                                    )
+                                );
+                            }
+                            changedSlots.push(action.slot);
+                            Logger.info(
+                                `[ConfigSet] ${action.slot}: activated "${item.label}" via active keys management`
+                            );
+                            continue;
+                        }
+
+                        const hadKey = !!(await ApiKeyManager.getApiKey(action.slot));
+                        const hadActive = !!ConfigSetStore.getActiveId(action.slot);
+                        const shouldDeleteCurrentKey = hadKey && (hadActive || action.clearOutsideKey);
+                        if (shouldDeleteCurrentKey || hadActive) {
+                            await deactivateConfigSetUnlocked(action.slot, shouldDeleteCurrentKey);
+                            changedSlots.push(action.slot);
+                            Logger.info(`[ConfigSet] ${action.slot}: deactivated via active keys management`);
+                        }
                     }
-                    if (await applyConfigSet(action.slot, item)) {
-                        changedSlots.push(action.slot);
-                        Logger.info(`[ConfigSet] ${action.slot}: activated "${item.label}" via active keys management`);
+                } catch (error) {
+                    let rollbackFailed = false;
+                    for (const slot of [...changedSlots].reverse()) {
+                        try {
+                            const snapshot = snapshots.get(slot);
+                            if (snapshot) {
+                                await this.restoreActiveState(snapshot);
+                            }
+                        } catch (rollbackError) {
+                            rollbackFailed = true;
+                            Logger.error(
+                                `[ConfigSet] Failed to roll back active key changes for ${slot}:`,
+                                rollbackError
+                            );
+                        }
                     }
-                } else {
-                    const hadKey = !!(await ApiKeyManager.getApiKey(action.slot));
-                    const hadActive = !!ConfigSetStore.getActiveId(action.slot);
-                    const shouldDeleteCurrentKey = hadKey && (hadActive || action.clearOutsideKey);
-                    if (shouldDeleteCurrentKey || hadActive) {
-                        await deactivateConfigSet(action.slot, shouldDeleteCurrentKey);
-                        changedSlots.push(action.slot);
-                        Logger.info(`[ConfigSet] ${action.slot}: deactivated via active keys management`);
+                    if (rollbackFailed) {
+                        throw new Error(
+                            t(
+                                'Applying active key changes failed, and rollback was incomplete. Please review the current configurations before retrying.',
+                                '应用生效配置变更失败，且回滚未完整完成。请检查当前配置后再重试。'
+                            )
+                        );
                     }
+                    throw error;
                 }
-            }
-            await this.ctx.sendStates();
+            });
+            await this.sendStatesAfterCommit('applying active key changes');
             this.ctx.post({ command: 'activeKeysResult', ok: true, changedCount: changedSlots.length });
         } catch (error) {
             Logger.error('[ConfigSet] Failed to apply active key changes:', error);
@@ -292,6 +413,14 @@ export class CrudHost {
                         }
 
                         if (rollbackFailed) {
+                            try {
+                                await ConfigSetStore.clearActive(slot);
+                            } catch (clearError) {
+                                Logger.error('[ConfigSet] Failed to clear stale active marker after edit:', clearError);
+                            }
+                        }
+
+                        if (rollbackFailed) {
                             throw new Error(
                                 t(
                                     'Failed to apply the updated API key, and rollback was incomplete. Check the saved configuration before retrying.',
@@ -307,7 +436,7 @@ export class CrudHost {
                 return active;
             });
 
-            await this.ctx.sendStates();
+            await this.sendStatesAfterCommit('editing a configuration');
             this.ctx.post({
                 command: 'editResult',
                 ok: true,
@@ -347,7 +476,7 @@ export class CrudHost {
                         '已删除，当前 Key 将继续生效直至下次切换。'
                     )
                 :   t('Removed', '已删除');
-            await this.ctx.sendStates();
+            await this.sendStatesAfterCommit('removing a configuration');
             this.ctx.post({ command: 'removeResult', ok: true, note });
         } catch (error) {
             Logger.error(`[ConfigSet] ${slot}: failed to remove configuration ${id}:`, error);

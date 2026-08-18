@@ -108,6 +108,9 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
             state.configUsages = {};
             state.syncState = msg.syncState;
             state.busy = false;
+            state.addFormDraft = null;
+            state.editFormDraft = null;
+            state.reloadUsageOnNextStates = false;
             if (msg.states.every(s => s.slots.every(slot => slot.rows.length === 0))) {
                 const firstSlot = msg.states[0]?.slots[0];
                 if (firstSlot) {
@@ -117,12 +120,17 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
             render();
             requestUsageForSelection();
             return;
-        case 'states':
+        case 'states': {
+            const shouldReloadUsage = state.reloadUsageOnNextStates;
             state.states = msg.states;
             state.busy = false;
+            state.reloadUsageOnNextStates = false;
             render();
-            requestUsageForSelection();
+            if (shouldReloadUsage) {
+                requestUsageForSelection();
+            }
             return;
+        }
         case 'cliProviders':
             state.cliProviders = msg.cliProviders;
             render();
@@ -146,6 +154,9 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
             state.busy = false;
             if (msg.ok) {
                 state.addFormSlot = null;
+                state.addFormDraft = null;
+            } else {
+                state.reloadUsageOnNextStates = false;
             }
             render();
             showMessage(msg.ok ? '' : 'error', msg.error);
@@ -170,6 +181,9 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
             state.busy = false;
             if (msg.ok) {
                 state.editFormKey = null;
+                state.editFormDraft = null;
+            } else {
+                state.reloadUsageOnNextStates = false;
             }
             render();
             showMessage(msg.ok ? '' : 'error', msg.error);
@@ -188,6 +202,9 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
         case 'uploadPrep':
             state.uploadSnapshots = msg.snapshots;
             state.uploadRemoteReadable = msg.remoteReadable;
+            if (msg.warning) {
+                showMessage('warning', msg.warning);
+            }
             renderUploadDialog();
             return;
         case 'uploadResult':
@@ -214,6 +231,9 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
             return;
         case 'downloadPrep':
             state.restoreSnapshots = msg.snapshots;
+            if (msg.warning) {
+                showMessage('warning', msg.warning);
+            }
             renderRestoreDialog();
             return;
         case 'clearRestorePrep':
@@ -223,6 +243,9 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
         case 'downloadResult':
             state.busy = false;
             state.restoreSnapshots = null;
+            if (!msg.ok) {
+                state.reloadUsageOnNextStates = false;
+            }
             render();
             if (!msg.ok) {
                 showMessage('error', msg.error);
@@ -251,6 +274,9 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
             return;
         case 'remoteConfigsPrep':
             state.remoteSnapshots = msg.snapshots;
+            if (msg.warning) {
+                showMessage('warning', msg.warning);
+            }
             renderRemoteConfigsDialog();
             return;
         case 'remoteConfigsResult':
