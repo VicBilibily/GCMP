@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.38] - 2026-08-19
+
+### 修复
+
+- **强制思考模型的上下文压缩/子请求不再报错**：[#376](https://github.com/VicBilibily/GCMP/issues/376) 对 `thinking` 不支持 `disabled`、或 `reasoningEffort` 不提供 `none` / `minimal` 的模型（如火山 GLM-5.3、Kimi-K3、Grok 4.x 等），在对话压缩、自动 compact、标题生成等子请求中不再强制附带关闭思考参数；Anthropic 与 OpenAI Responses 两条链路统一改为省略本地禁用参数并沿用服务端默认思考行为，避免 400 错误。
+
+---
+
+### Fixed
+
+- **Conversation compaction and other sub-requests no longer fail on forced-thinking models**: [#376](https://github.com/VicBilibily/GCMP/issues/376) for models that do not support `thinking: disabled`, or whose `reasoningEffort` list does not offer `none` / `minimal` (such as Volcengine GLM-5.3, Kimi-K3, and Grok 4.x), sub-requests like conversation summarization, automatic compact, and title generation no longer force a local “disable thinking” parameter. Both the Anthropic and OpenAI Responses paths now omit the local disable flags and fall back to the server's default thinking behavior, avoiding 400 errors.
+
 ## [0.26.37] - 2026-08-18
 
 ### 新增
