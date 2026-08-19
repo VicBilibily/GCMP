@@ -54,6 +54,37 @@ export class ConfigSetSyncHost {
     /** 当前恢复对话框对应的已解密快照；优先使用它恢复，避免再次依赖网络/口令状态。 */
     private preparedDownloadSlots: Record<string, SyncedSlotConfigSet> | undefined;
 
+    private async maybePersistDownloadedPassphrase(passphrase: string): Promise<void> {
+        const storedPassphrase = await GistSyncService.getCustomPassphrase();
+        if (storedPassphrase === passphrase) {
+            return;
+        }
+        if (!storedPassphrase) {
+            const saveChoice = t('Save passphrase', '保存口令');
+            const choice = await vscode.window.showInformationMessage(
+                t(
+                    'Decryption succeeded. Save this passphrase for future uploads and downloads on this device?',
+                    '解密成功。是否把这个口令保存到当前设备，供以后上传和下载使用？'
+                ),
+                saveChoice,
+                t('Not now', '暂不保存')
+            );
+            if (choice !== saveChoice) {
+                return;
+            }
+        }
+        const saved = await GistSyncService.setCustomPassphrase(passphrase);
+        if (!saved) {
+            Logger.warn('[ConfigSetManager] Failed to persist passphrase, using in-memory restore snapshot only');
+            void vscode.window.showWarningMessage(
+                t(
+                    'The passphrase could not be saved. This restore will use the decrypted snapshot already loaded in memory only.',
+                    '口令未能保存。本次恢复将仅使用当前已解密到内存中的快照。'
+                )
+            );
+        }
+    }
+
     private buildUnreadableRemoteUploadError(skipped?: number): string {
         return skipped && skipped > 0 ?
                 t(
@@ -521,19 +552,8 @@ export class ConfigSetSyncHost {
                         retry.skipped
                     )
                 );
-            } else if (!(await GistSyncService.verifyPassphrase(normalizedPassphrase))) {
-                const saved = await GistSyncService.setCustomPassphrase(normalizedPassphrase);
-                if (!saved) {
-                    Logger.warn(
-                        '[ConfigSetManager] Failed to persist passphrase, using in-memory restore snapshot only'
-                    );
-                    void vscode.window.showWarningMessage(
-                        t(
-                            'The passphrase could not be saved. This restore will use the decrypted snapshot already loaded in memory only.',
-                            '口令未能保存。本次恢复将仅使用当前已解密到内存中的快照。'
-                        )
-                    );
-                }
+            } else {
+                await this.maybePersistDownloadedPassphrase(normalizedPassphrase);
             }
             this.pendingPassphraseDownload = undefined;
             await this.sendDownloadPrep(retry.data.slots, undefined, this.buildSkippedRemoteWarning(retry.skipped));

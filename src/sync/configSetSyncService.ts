@@ -202,9 +202,17 @@ async function encryptSlotKeysWithPassphrase(
     try {
         const slots: Record<string, SyncedSlotConfigSet> = {};
         for (const [slot, set] of Object.entries(data.slots)) {
+            const items: (ConfigSetItem & { apiKey: string })[] = [];
+            for (const item of set.items) {
+                const apiKey = encrypt(item.apiKey);
+                if (apiKey === undefined) {
+                    return undefined;
+                }
+                items.push({ ...item, apiKey });
+            }
             slots[slot] = {
                 ...set,
-                items: set.items.map(item => ({ ...item, apiKey: encrypt(item.apiKey) }))
+                items
             };
         }
         return { ...data, slots };
@@ -267,7 +275,8 @@ export async function readRemoteConfigSetsWithPassphrase(
             Logger.warn(`[ConfigSetSync] Skipped ${result.skipped} undecryptable item(s) during download`);
         }
         return { status: 'ok', data: result.data, skipped: result.skipped };
-    } catch {
+    } catch (error) {
+        Logger.error('[ConfigSetSync] Failed to read config set sync data with explicit passphrase:', error);
         return { status: 'error' };
     } finally {
         decryptor?.dispose();

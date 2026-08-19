@@ -318,19 +318,64 @@ export async function runSetPassphraseFlow(hasGist?: boolean): Promise<void> {
  * 清除自定义加密口令流程（原生确认框）
  */
 export async function runClearPassphraseFlow(): Promise<void> {
+    const currentPassphrase = await GistSyncService.getCustomPassphrase();
+    const clearAndReupload = t('Clear & Re-upload', '清除并重新上传');
+    const clearOnly = t('Clear Only', '仅清除');
+    let rewroteRemoteData = false;
     const proceed = await vscode.window.showWarningMessage(
         t(
-            'Clearing the passphrase will make existing encrypted data on GitHub Gist undecryptable? Continue?',
-            '清除口令将导致已存储在 GitHub Gist 中的加密数据无法解密。是否继续？'
+            'Clearing the passphrase will make existing encrypted data on GitHub Gist undecryptable unless you re-upload it without a passphrase. Continue?',
+            '清除口令会导致 GitHub Gist 上现有的加密数据无法解密，除非你把它们改为无口令重新上传。是否继续？'
         ),
         { modal: true },
-        t('Clear', '清除')
+        clearAndReupload,
+        clearOnly
     );
 
     if (!proceed) {
         return;
     }
 
+    if (proceed === clearAndReupload) {
+        const snapshot = await prepareReuploadSnapshot();
+        if (!snapshot) {
+            vscode.window.showErrorMessage(
+                t(
+                    'Unable to read all existing Gist data. The passphrase was not cleared.',
+                    '无法完整读取现有 Gist 数据，口令未清除。'
+                )
+            );
+            return;
+        }
+
+        rewroteRemoteData = !!snapshot.legacy || !!snapshot.configSets;
+        if (rewroteRemoteData) {
+            const written = await writeSnapshot(snapshot, undefined);
+            if (!written.success) {
+                const rolledBack = await rollbackSnapshot(snapshot, currentPassphrase, written);
+                vscode.window.showErrorMessage(
+                    rolledBack ?
+                        t(
+                            'Failed to re-encrypt all Gist data. The previous passphrase remains active.',
+                            '无法重加密全部 Gist 数据，原口令仍然有效。'
+                        )
+                    :   t(
+                            'Passphrase clearing failed and remote rollback was incomplete. Restore the affected Gist before retrying.',
+                            '清除口令失败，且远端回滚不完整。请先恢复受影响的 Gist 再重试。'
+                        )
+                );
+                return;
+            }
+        }
+    }
+
     await GistSyncService.clearCustomPassphrase();
-    vscode.window.showInformationMessage(t('Encryption passphrase cleared.', '加密口令已清除。'));
+    vscode.window.showInformationMessage(
+        proceed === clearAndReupload && rewroteRemoteData ?
+            t(
+                'Encryption passphrase cleared and existing Gist data was re-uploaded without a passphrase.',
+                '加密口令已清除，现有 Gist 数据也已改为无口令重新上传。'
+            )
+        :   t('Encryption passphrase cleared.', '加密口令已清除。')
+    );
 }

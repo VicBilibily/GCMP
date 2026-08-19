@@ -119,29 +119,36 @@ export class CrudHost {
         apiKey: string
     ): Promise<void> {
         try {
-            const siteProvider = getSiteOwnerProvider(slot);
-            await ConfigSetStore.ensureMigrated(slot, siteProvider ? readCurrentSite(siteProvider) : undefined);
-            const item: ConfigSetItem = { id: newId(), label, site, note };
-            await ConfigSetStore.add(slot, item, apiKey.trim());
-            Logger.info(`[ConfigSet] ${slot}: configuration "${item.label}" added`);
+            const result = await enqueueConfigSetMutation(async () => {
+                const siteProvider = getSiteOwnerProvider(slot);
+                await ConfigSetStore.ensureMigrated(slot, siteProvider ? readCurrentSite(siteProvider) : undefined);
+                const item: ConfigSetItem = { id: newId(), label, site, note };
+                await ConfigSetStore.add(slot, item, apiKey.trim());
+                Logger.info(`[ConfigSet] ${slot}: configuration "${item.label}" added`);
 
-            let autoApplyFailed = false;
+                let autoApplyFailed = false;
 
-            if (!(await ApiKeyManager.getApiKey(slot))) {
-                try {
-                    autoApplyFailed = !(await applyConfigSet(slot, item));
-                } catch (error) {
-                    autoApplyFailed = true;
-                    Logger.error(`[ConfigSet] ${slot}: failed to auto-activate configuration "${item.label}":`, error);
+                if (!(await ApiKeyManager.getApiKey(slot))) {
+                    try {
+                        autoApplyFailed = !(await applyConfigSetUnlocked(slot, item));
+                    } catch (error) {
+                        autoApplyFailed = true;
+                        Logger.error(
+                            `[ConfigSet] ${slot}: failed to auto-activate configuration "${item.label}":`,
+                            error
+                        );
+                    }
                 }
-            }
+
+                return { item, autoApplyFailed };
+            });
 
             await this.sendStatesAfterCommit('adding a configuration');
             this.ctx.post({
                 command: 'addResult',
                 ok: true,
                 note:
-                    autoApplyFailed ?
+                    result.autoApplyFailed ?
                         t(
                             'Added, but automatic activation failed. Please activate it manually.',
                             '已添加，但自动激活失败，请手动激活。'
@@ -457,7 +464,15 @@ export class CrudHost {
 
     async handleRemove(slot: string, id: string): Promise<void> {
         try {
-            const item = ConfigSetStore.list(slot).find(i => i.id === id);
+            const isActive = await this.isActuallyActive(slot, id);
+            const item = await enqueueConfigSetMutation(async () => {
+                const item = ConfigSetStore.list(slot).find(i => i.id === id);
+                if (!item) {
+                    return undefined;
+                }
+                await ConfigSetStore.remove(slot, id);
+                return item;
+            });
             if (!item) {
                 this.ctx.post({
                     command: 'removeResult',
@@ -466,18 +481,19 @@ export class CrudHost {
                 });
                 return;
             }
-            const isActive = await this.isActuallyActive(slot, id);
-            await ConfigSetStore.remove(slot, id);
             Logger.info(`[ConfigSet] ${slot}: configuration "${item.label}" removed`);
-            const note =
-                isActive ?
-                    t(
-                        'Removed. The current key stays in effect until the next switch.',
-                        '已删除，当前 Key 将继续生效直至下次切换。'
-                    )
-                :   t('Removed', '已删除');
             await this.sendStatesAfterCommit('removing a configuration');
-            this.ctx.post({ command: 'removeResult', ok: true, note });
+            this.ctx.post({
+                command: 'removeResult',
+                ok: true,
+                note:
+                    isActive ?
+                        t(
+                            'Removed. The current key stays in effect until the next switch.',
+                            '已删除，当前 Key 将继续生效直至下次切换。'
+                        )
+                    :   t('Removed', '已删除')
+            });
         } catch (error) {
             Logger.error(`[ConfigSet] ${slot}: failed to remove configuration ${id}:`, error);
             this.ctx.post({
@@ -491,6 +507,7 @@ export class CrudHost {
     async handleSetupCli(provider: string): Promise<void> {
         const cli = CliAuthFactory.getSupportedCliTypes().find(c => c.id === provider);
         if (!cli) {
+            this.ctx.post({ command: 'syncStatus', busy: false });
             return;
         }
 

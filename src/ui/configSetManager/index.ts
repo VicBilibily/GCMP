@@ -143,8 +143,9 @@ export class ConfigSetManagerPanel implements PanelContext {
             Logger.warn('[ConfigSetManager] Ignored malformed webview message');
             return;
         }
+        const command = message.command;
         try {
-            switch (message.command) {
+            switch (command) {
                 case 'ready':
                     await this.sendInit();
                     return;
@@ -260,6 +261,9 @@ export class ConfigSetManagerPanel implements PanelContext {
                     }
                     return;
                 }
+                default:
+                    Logger.warn(`[ConfigSetManager] Unhandled webview command: ${command}`);
+                    return;
             }
         } catch (error) {
             Logger.error('[ConfigSetManager] handleMessage error:', error);

@@ -3,6 +3,7 @@
 import * as vscode from 'vscode';
 
 import { GistSyncService } from '../../src/sync/gistSyncService';
+import { runClearPassphraseFlow } from '../../src/sync/passphraseFlow';
 import { runSetPassphraseFlow } from '../../src/sync/passphraseFlow';
 import { StatusBarManager } from '../../src/status';
 import { CrudHost } from '../../src/ui/configSetManager/crudHost';
@@ -123,6 +124,20 @@ suite('config set label behavior', () => {
                 { id: 'b', label: 'duplicate' }
             ]
         );
+    });
+
+    test('ConfigSetStore.updateMeta ignores missing ids without writing orphan secrets', async () => {
+        ConfigSetStore.initialize(createExtensionContext());
+
+        await ConfigSetStore.add('slot-missing', { id: 'existing', label: 'Existing' }, 'existing-key');
+        await ConfigSetStore.updateMeta('slot-missing', 'missing', { label: 'Ignored' }, 'orphan-key');
+
+        assert.deepEqual(
+            ConfigSetStore.list('slot-missing').map(item => ({ id: item.id, label: item.label })),
+            [{ id: 'existing', label: 'Existing' }]
+        );
+        assert.equal(await ConfigSetStore.getApiKey('slot-missing', 'existing'), 'existing-key');
+        assert.equal(await ConfigSetStore.getApiKey('slot-missing', 'missing'), undefined);
     });
 
     test('ConfigSetStore.remove rolls back when clearing active marker fails', async () => {
@@ -906,6 +921,84 @@ suite('config set label behavior', () => {
         assert.match(prep?.warning ?? '', /1/);
     });
 
+    test('ConfigSetSyncHost.handleDownloadWithPassphrase does not save a passphrase unless the user confirms', async () => {
+        const posts: unknown[] = [];
+        const host = new ConfigSetSyncHost({
+            post(msg) {
+                posts.push(msg);
+            },
+            async sendStates(): Promise<void> {}
+        });
+        const mutableHost = host as unknown as {
+            pendingPassphraseDownload?: { token: string; gistId: string };
+            postSyncState: () => Promise<void>;
+        };
+        const mutableGist = GistSyncService as unknown as {
+            createBatchDecryptorWithPassphrase: typeof GistSyncService.createBatchDecryptorWithPassphrase;
+            getCustomPassphrase: typeof GistSyncService.getCustomPassphrase;
+            setCustomPassphrase: typeof GistSyncService.setCustomPassphrase;
+        };
+        const mutableWindow = vscode.window as unknown as {
+            showInformationMessage: typeof vscode.window.showInformationMessage;
+        };
+        const originalFetchWithProxy = ConfigManager.fetchWithProxy;
+        const originalCreateBatchDecryptorWithPassphrase = mutableGist.createBatchDecryptorWithPassphrase;
+        const originalGetCustomPassphrase = mutableGist.getCustomPassphrase;
+        const originalSetCustomPassphrase = mutableGist.setCustomPassphrase;
+        const originalShowInformationMessage = mutableWindow.showInformationMessage;
+        const originalPostSyncState = mutableHost.postSyncState;
+        let savedPassphrase: string | undefined;
+
+        mutableHost.pendingPassphraseDownload = { token: 'token', gistId: 'gist-1' };
+        mutableHost.postSyncState = async () => {};
+        ConfigManager.fetchWithProxy = (async () => ({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                files: {
+                    'gcmp-configsets.json': {
+                        content: JSON.stringify({
+                            version: 1,
+                            timestamp: '2026-08-19T00:00:00.000Z',
+                            slots: {
+                                'slot-sync': {
+                                    items: [{ id: 'remote-a', label: 'Remote A', apiKey: 'enc-ok' }]
+                                }
+                            }
+                        })
+                    }
+                }
+            })
+        })) as unknown as typeof ConfigManager.fetchWithProxy;
+        mutableGist.createBatchDecryptorWithPassphrase = (() =>
+            Object.assign(async () => 'plain-ok', {
+                dispose(): void {}
+            })) as typeof GistSyncService.createBatchDecryptorWithPassphrase;
+        mutableGist.getCustomPassphrase = (async () => undefined) as typeof GistSyncService.getCustomPassphrase;
+        mutableGist.setCustomPassphrase = (async (passphrase: string) => {
+            savedPassphrase = passphrase;
+            return true;
+        }) as typeof GistSyncService.setCustomPassphrase;
+        mutableWindow.showInformationMessage = (async (_message: string, ...args: unknown[]) => {
+            const items = args.filter((item): item is string => typeof item === 'string');
+            return items[1];
+        }) as unknown as typeof vscode.window.showInformationMessage;
+
+        try {
+            await host.handleDownloadWithPassphrase('passphrase');
+        } finally {
+            ConfigManager.fetchWithProxy = originalFetchWithProxy;
+            mutableGist.createBatchDecryptorWithPassphrase = originalCreateBatchDecryptorWithPassphrase;
+            mutableGist.getCustomPassphrase = originalGetCustomPassphrase;
+            mutableGist.setCustomPassphrase = originalSetCustomPassphrase;
+            mutableWindow.showInformationMessage = originalShowInformationMessage;
+            mutableHost.postSyncState = originalPostSyncState;
+        }
+
+        assert.equal(savedPassphrase, undefined);
+        assert.ok(posts.some(msg => (msg as { command?: string }).command === 'downloadPrep'));
+    });
+
     test('ConfigSetSyncHost.readConfigSetsWithFallback switches to another readable gist after decrypt failure', async () => {
         const host = new ConfigSetSyncHost({
             post() {},
@@ -1146,6 +1239,53 @@ suite('config set label behavior', () => {
         assert.ok(errorMessages.some(message => /口令未更改|not changed/i.test(message)));
     });
 
+    test('runClearPassphraseFlow keeps the passphrase when reupload snapshot cannot be prepared', async () => {
+        const mutableGist = GistSyncService as unknown as {
+            clearCustomPassphrase: typeof GistSyncService.clearCustomPassphrase;
+            getCustomPassphrase: typeof GistSyncService.getCustomPassphrase;
+            getUserInfo: typeof GistSyncService.getUserInfo;
+        };
+        const mutableWindow = vscode.window as unknown as {
+            showErrorMessage: typeof vscode.window.showErrorMessage;
+            showWarningMessage: typeof vscode.window.showWarningMessage;
+        };
+        const originalClearCustomPassphrase = mutableGist.clearCustomPassphrase;
+        const originalGetCustomPassphrase = mutableGist.getCustomPassphrase;
+        const originalGetUserInfo = mutableGist.getUserInfo;
+        const originalShowErrorMessage = mutableWindow.showErrorMessage;
+        const originalShowWarningMessage = mutableWindow.showWarningMessage;
+        const errorMessages: string[] = [];
+        let cleared = false;
+
+        mutableGist.getCustomPassphrase = (async () => 'old-passphrase') as typeof GistSyncService.getCustomPassphrase;
+        mutableGist.getUserInfo = (async () => undefined) as typeof GistSyncService.getUserInfo;
+        mutableGist.clearCustomPassphrase = (async () => {
+            cleared = true;
+        }) as typeof GistSyncService.clearCustomPassphrase;
+        mutableWindow.showWarningMessage = (async (
+            _message: string,
+            _options: vscode.MessageOptions | undefined,
+            ...items: string[]
+        ) => items[0]) as typeof vscode.window.showWarningMessage;
+        mutableWindow.showErrorMessage = (async (message: string) => {
+            errorMessages.push(message);
+            return undefined;
+        }) as typeof vscode.window.showErrorMessage;
+
+        try {
+            await runClearPassphraseFlow();
+        } finally {
+            mutableGist.clearCustomPassphrase = originalClearCustomPassphrase;
+            mutableGist.getCustomPassphrase = originalGetCustomPassphrase;
+            mutableGist.getUserInfo = originalGetUserInfo;
+            mutableWindow.showErrorMessage = originalShowErrorMessage;
+            mutableWindow.showWarningMessage = originalShowWarningMessage;
+        }
+
+        assert.equal(cleared, false);
+        assert.ok(errorMessages.some(message => /口令未清除|not cleared/i.test(message)));
+    });
+
     test('ConfigSetSyncHost.resolveGistId ignores the legacy API key gist when no config-set gist exists', async () => {
         const host = new ConfigSetSyncHost({
             post() {},
@@ -1313,6 +1453,45 @@ suite('config set label behavior', () => {
         assert.equal(eventCount, 1);
     });
 
+    test('ApiKeyManager.setApiKey deletes the key when given a blank value', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+
+        await ApiKeyManager.setApiKey('slot-blank', 'runtime-key');
+        await ApiKeyManager.setApiKey('slot-blank', '   ');
+
+        assert.equal(await ApiKeyManager.getApiKey('slot-blank'), undefined);
+    });
+
+    test('ApiKeyManager.ensureApiKey falls back to direct prompt when builtin set command is missing', async () => {
+        const context = createExtensionContext();
+        ApiKeyManager.initialize(context);
+
+        const mutableCommands = vscode.commands as unknown as {
+            getCommands: typeof vscode.commands.getCommands;
+        };
+        const mutableManager = ApiKeyManager as unknown as {
+            promptAndSetApiKey: typeof ApiKeyManager.promptAndSetApiKey;
+        };
+        const originalGetCommands = mutableCommands.getCommands;
+        const originalPromptAndSetApiKey = mutableManager.promptAndSetApiKey;
+        let prompted = false;
+
+        mutableCommands.getCommands = (async () => []) as typeof vscode.commands.getCommands;
+        mutableManager.promptAndSetApiKey = (async () => {
+            prompted = true;
+        }) as typeof ApiKeyManager.promptAndSetApiKey;
+
+        try {
+            await ApiKeyManager.ensureApiKey('zhipu', 'ZhipuAI', false);
+        } finally {
+            mutableCommands.getCommands = originalGetCommands;
+            mutableManager.promptAndSetApiKey = originalPromptAndSetApiKey;
+        }
+
+        assert.equal(prompted, true);
+    });
+
     test('CrudHost.handleListActiveKeys includes outside runtime keys without saved configs', async () => {
         const context = createExtensionContext();
         ApiKeyManager.initialize(context);
@@ -1336,6 +1515,21 @@ suite('config set label behavior', () => {
         assert.ok(zhipu, 'expected zhipu snapshot to be included');
         assert.equal(zhipu?.outsideActive, true);
         assert.deepEqual(zhipu?.items, []);
+    });
+
+    test('CrudHost.handleSetupCli clears busy state when the provider is unsupported', async () => {
+        const posts: unknown[] = [];
+        const host = new CrudHost(createPanelContext(posts));
+
+        await host.handleSetupCli('unsupported-cli');
+
+        assert.ok(
+            posts.some(
+                msg =>
+                    (msg as { command?: string; busy?: boolean }).command === 'syncStatus' &&
+                    (msg as { busy?: boolean }).busy === false
+            )
+        );
     });
 
     test('CrudHost.handleApplyActiveKeys rolls back earlier slots when a later activation fails', async () => {

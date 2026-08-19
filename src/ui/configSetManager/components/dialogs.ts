@@ -293,8 +293,9 @@ function buildSlotSelectionBody(
                 slotCb.checked = selectable.length > 0 && picked.size === selectable.length;
                 slotCb.indeterminate = picked.size > 0 && picked.size < selectable.length;
                 if (warn) {
-                    // 仅整槽全选时提示才生效
-                    warn.style.display = picked.size === selectable.length && selectable.length > 0 ? '' : 'none';
+                    // 仅可选项与总项一致且整槽全选时，远端删除提示才生效
+                    warn.style.display =
+                        picked.size === selectable.length && selectable.length === slot.items.length ? '' : 'none';
                 }
             };
             slotCb.addEventListener('change', () => {
@@ -387,6 +388,54 @@ function openSelectionDialog(options: {
             return;
         }
         overlay.remove();
+    });
+    actions.appendChild(cancelBtn);
+    actions.appendChild(confirmBtn);
+    dialog.appendChild(actions);
+
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+}
+
+function renderClearOutsideKeysDialog(displayNames: string[], onConfirm: () => void): void {
+    document.querySelector('.csm-clear-outside-keys-overlay')?.remove();
+
+    const overlay = el('div', 'csm-restore-overlay csm-clear-outside-keys-overlay');
+    const dialog = el('div', 'csm-restore-dialog csm-confirm-dialog');
+    dialog.appendChild(el('h3', '', t('Confirm key removal', '确认删除')));
+    const copy = el('div', 'csm-dialog-copy csm-confirm-copy');
+    copy.appendChild(
+        el(
+            'div',
+            'csm-dialog-copy-main',
+            t(
+                'This will delete the current API key set outside this panel for: {0}. Continue?',
+                '这将删除以下槽位在面板外设置的当前 API Key：{0}。是否继续？',
+                displayNames.join('、')
+            )
+        )
+    );
+    copy.appendChild(
+        el(
+            'div',
+            'csm-dialog-copy-sub',
+            t(
+                'The current key will be cleared and the saved configuration will remain available.',
+                '当前生效的 Key 将被清除，已保存的配置会继续保留。'
+            )
+        )
+    );
+    const body = el('div', 'csm-dialog-body');
+    body.appendChild(copy);
+    dialog.appendChild(body);
+
+    const actions = el('div', 'csm-restore-actions');
+    const cancelBtn = el('button', 'csm-btn', t('Cancel', '取消'));
+    cancelBtn.addEventListener('click', () => overlay.remove());
+    const confirmBtn = el('button', 'csm-btn csm-btn-danger', t('Delete', '删除'));
+    confirmBtn.addEventListener('click', () => {
+        overlay.remove();
+        onConfirm();
     });
     actions.appendChild(cancelBtn);
     actions.appendChild(confirmBtn);
@@ -644,26 +693,21 @@ export function renderActiveKeysDialog(): void {
             }
             actions.push({ slot: snap.slot, activateId: current });
         }
-        if (
-            outsideSlotsToClear.length > 0 &&
-            !window.confirm(
-                t(
-                    'This will delete the current API key set outside this panel for: {0}. Continue?',
-                    '这将删除以下槽位在面板外设置的当前 API Key：{0}。是否继续？',
-                    outsideSlotsToClear.join('、')
-                )
-            )
-        ) {
+        const submit = (): void => {
+            overlay.remove();
+            state.activeSnapshots = null;
+            if (actions.length === 0) {
+                return;
+            }
+            state.busy = true;
+            render();
+            postToVSCode({ command: 'applyActiveKeys', actions });
+        };
+        if (outsideSlotsToClear.length > 0) {
+            renderClearOutsideKeysDialog(outsideSlotsToClear, submit);
             return;
         }
-        overlay.remove();
-        state.activeSnapshots = null;
-        if (actions.length === 0) {
-            return;
-        }
-        state.busy = true;
-        render();
-        postToVSCode({ command: 'applyActiveKeys', actions });
+        submit();
     });
     actions.appendChild(cancelBtn);
     actions.appendChild(applyBtn);

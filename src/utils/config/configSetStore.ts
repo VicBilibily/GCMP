@@ -171,6 +171,9 @@ export class ConfigSetStore {
             if (!previousItems.length) {
                 return;
             }
+            if (!previousItems.some(item => item.id === id)) {
+                return;
+            }
 
             const nextItems = previousItems.map(item => {
                 if (item.id !== id) {

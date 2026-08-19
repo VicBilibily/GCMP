@@ -11,7 +11,12 @@ import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { configProviders } from '../providers/config';
 import { CompatibleModelManager } from '../utils/config/compatibleModelManager';
-import { listSlots, readCurrentSite, getSiteOwnerProvider } from '../utils/config/configSetCommands';
+import {
+    enqueueConfigSetMutation,
+    listSlots,
+    readCurrentSite,
+    getSiteOwnerProvider
+} from '../utils/config/configSetCommands';
 import { Logger } from '../utils/runtime/logger';
 import { t } from '../utils/runtime/l10n';
 
@@ -229,33 +234,34 @@ export async function migrateLegacyGistToConfigSets(
     }
 
     let migrated = 0;
-    for (const candidate of candidates) {
-        const slot = mapLegacyKeyToSlot(candidate.keyName);
-        if (!slot) {
-            continue;
-        }
-        // 跳过该 Key 已存在于当前槽位的情形（如本机已自动收编同一 Key 为默认配置）
-        let alreadyExists = false;
-        for (const existing of ConfigSetStore.list(slot)) {
-            if ((await ConfigSetStore.getApiKey(slot, existing.id)) === candidate.plainKey) {
-                alreadyExists = true;
-                break;
+    await enqueueConfigSetMutation(async () => {
+        for (const candidate of candidates) {
+            const slot = mapLegacyKeyToSlot(candidate.keyName);
+            if (!slot) {
+                continue;
             }
+            let alreadyExists = false;
+            for (const existing of ConfigSetStore.list(slot)) {
+                if ((await ConfigSetStore.getApiKey(slot, existing.id)) === candidate.plainKey) {
+                    alreadyExists = true;
+                    break;
+                }
+            }
+            if (alreadyExists) {
+                continue;
+            }
+            const siteOwner = getSiteOwnerProvider(slot);
+            const site = siteOwner ? readCurrentSite(siteOwner) : undefined;
+            const item = { id: newConfigId(), label: t('Migrated from legacy Gist', '旧版 Gist 迁移'), site };
+            await ConfigSetStore.add(slot, item, candidate.plainKey);
+            const currentKey = await ApiKeyManager.getApiKey(slot);
+            if (currentKey === candidate.plainKey) {
+                await ConfigSetStore.setActive(slot, item.id);
+            }
+            migrated++;
+            Logger.info(`[LegacyGistMigration] Migrated ${candidate.keyName} -> ${slot}`);
         }
-        if (alreadyExists) {
-            continue;
-        }
-        const siteOwner = getSiteOwnerProvider(slot);
-        const site = siteOwner ? readCurrentSite(siteOwner) : undefined;
-        const item = { id: newConfigId(), label: t('Migrated from legacy Gist', '旧版 Gist 迁移'), site };
-        await ConfigSetStore.add(slot, item, candidate.plainKey);
-        const currentKey = await ApiKeyManager.getApiKey(slot);
-        if (currentKey === candidate.plainKey) {
-            await ConfigSetStore.setActive(slot, item.id);
-        }
-        migrated++;
-        Logger.info(`[LegacyGistMigration] Migrated ${candidate.keyName} -> ${slot}`);
-    }
+    });
 
     if (failed.length === 0) {
         await markMigrationDone(context);

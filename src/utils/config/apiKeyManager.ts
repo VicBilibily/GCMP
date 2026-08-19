@@ -120,14 +120,22 @@ export class ApiKeyManager {
     static async setApiKey(provider: string, apiKey: string): Promise<void> {
         const secretKey = this.getSecretKey(provider);
         const currentKey = await this.context.secrets.get(secretKey);
-        if (currentKey === apiKey) {
+        const normalizedApiKey = apiKey.trim();
+        if (!normalizedApiKey) {
+            if (currentKey === undefined) {
+                return;
+            }
+            await this.deleteApiKey(provider);
+            return;
+        }
+        if (currentKey === normalizedApiKey) {
             // 避免重复写入导致性能问题（OS keychain 写入可能超过 500ms，导致 Promise.race 超时）
             return;
         }
-        await this.context.secrets.store(secretKey, apiKey);
+        await this.context.secrets.store(secretKey, normalizedApiKey);
 
         // 先完成密钥持久化，再以 best-effort 方式刷新派生状态，避免调用方落入半提交事务。
-        const action: 'set' | 'delete' = apiKey ? 'set' : 'delete';
+        const action: 'set' | 'delete' = 'set';
         this.emitApiKeyChanged(provider, action);
         this.publishApiKeyChanged(provider, action);
         await this.refreshApiKeyConsumers(provider);
@@ -171,7 +179,17 @@ export class ApiKeyManager {
         if (builtinProviders.has(provider)) {
             // 内置提供商：触发对应的设置命令，让Provider处理具体配置
             const commandId = `gcmp.${provider}.setApiKey`;
-            await vscode.commands.executeCommand(commandId);
+            const commands = await vscode.commands.getCommands(true);
+            if (commands.includes(commandId)) {
+                await vscode.commands.executeCommand(commandId);
+            } else {
+                const providerConfig = configProviders[provider as keyof typeof configProviders];
+                await this.promptAndSetApiKey(
+                    provider,
+                    displayName,
+                    providerConfig?.apiKeyTemplate ?? 'sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+                );
+            }
         } else {
             // 自定义提供商：直接提示输入API密钥
             await this.promptAndSetApiKey(provider, provider, 'sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
