@@ -457,7 +457,13 @@ export class RateLimitStore {
                 continue;
             }
             affected.add(grant.bucketKey);
-            granted.push(...this.release(grantId, grant.costs, now));
+            this.grants.delete(grantId);
+            const bucket = this.buckets.get(grant.bucketKey);
+            if (!bucket) {
+                continue;
+            }
+            bucket.inflight = Math.max(0, bucket.inflight - 1);
+            granted.push(...this.flushPending(grant.bucketKey, bucket, now));
         }
         return { granted, affectedBucketKeys: [...affected] };
     }

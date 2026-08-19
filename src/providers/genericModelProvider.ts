@@ -550,10 +550,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const modelLimit = modelConfig.limit;
         const hasModelLimitOverride = !!modelLimit && Object.keys(modelLimit).length > 0;
         const sanitized = sanitizeAuthoritativeDims(providerLimit, hasModelLimitOverride ? modelLimit : undefined);
-        const hasAuthoritativePath = RateLimiter.hasAuthoritativePath();
         if (sanitized === undefined) {
             throw new Error(`Invalid rate limit configuration for ${effectiveProviderKey}`);
-        } else if (Object.keys(sanitized).length === 0 && !hasAuthoritativePath) {
+        } else if (Object.keys(sanitized).length === 0) {
             return undefined;
         }
         const dims = sanitized ?? {};

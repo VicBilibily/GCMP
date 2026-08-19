@@ -276,6 +276,42 @@ suite('Coordination regressions', () => {
         }
     });
 
+    test('empty effective rate limit returns undefined without entering the limiter', async () => {
+        const acquireRateLimit = (GenericModelProvider.prototype as unknown as GenericModelProviderPrototypeAccess)
+            .acquireRateLimit;
+        const originalGetProviderRateLimitConfig = ConfigManager.getProviderRateLimitConfig;
+        const originalRateLimiterAcquire = RateLimiter.acquire;
+        let acquireCalled = false;
+
+        try {
+            ConfigManager.getProviderRateLimitConfig = () => undefined;
+            RateLimiter.acquire = async () => {
+                acquireCalled = true;
+                return undefined;
+            };
+
+            const result = await acquireRateLimit.call(
+                {
+                    providerConfig: { displayName: 'Test Provider' }
+                },
+                'compatible',
+                {
+                    ...testModelConfig,
+                    limit: {}
+                },
+                123,
+                {} as vscode.CancellationToken,
+                'request-empty-limit'
+            );
+
+            assert.equal(result, undefined);
+            assert.equal(acquireCalled, false);
+        } finally {
+            ConfigManager.getProviderRateLimitConfig = originalGetProviderRateLimitConfig;
+            RateLimiter.acquire = originalRateLimiterAcquire;
+        }
+    });
+
     test('applyProviderOverrides merges partial model limit with base model limit', () => {
         const originalGetProviderOverrides = ConfigManager.getProviderOverrides;
 

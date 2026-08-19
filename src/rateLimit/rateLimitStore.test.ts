@@ -461,6 +461,22 @@ test('reclaimInstance 回收断线实例的 grant 并放行 FIFO 队首', () => 
     assert.equal(s.stats('k', 100)?.inflight, 1);
 });
 
+test('reclaimInstance 回收断线实例的 grant 时不退款 pacing', () => {
+    const s = store();
+    const dims = { parallel: 1, rpm: 60 };
+    const r1 = s.acquire('r1', 'k', dims, { requests: 1, tokens: 0 }, 0, { ownerInstanceId: 'follower-a' });
+    if (r1.kind !== 'granted') {
+        assert.fail('r1 should be granted');
+    }
+    const r2 = s.acquire('r2', 'k', dims, { requests: 1, tokens: 0 }, 0, { ownerInstanceId: 'follower-b' });
+    assert.equal(r2.kind, 'queued');
+
+    const { granted } = s.reclaimInstance('follower-a', 100);
+    assert.equal(granted.length, 1);
+    assert.equal(granted[0]?.requestId, 'r2');
+    assert.equal(granted[0]?.waitMs, 900);
+});
+
 test('reclaimInstance 移除断线实例的排队项', () => {
     const s = store();
     const dims = { parallel: 1 };
