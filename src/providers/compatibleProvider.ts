@@ -376,6 +376,7 @@ export class CompatibleProvider extends GenericModelProvider {
             // === Token 统计: 记录预估 token ===
             let requestId = '';
             let requestMetricStartTime: number | undefined;
+            let wasThrottled = false;
 
             // 获取实际提供商的 key 和显示名称
             const actualProviderKey = modelConfig.provider || this.providerKey;
@@ -411,16 +412,19 @@ export class CompatibleProvider extends GenericModelProvider {
                     totalInputTokens,
                     attemptStartedAt => {
                         requestMetricStartTime = attemptStartedAt;
+                    },
+                    () => {
+                        wasThrottled = true;
                     }
                 );
             } catch (error) {
                 if (isCancellationError(error)) {
-                    this.reportRequestCancelled(requestId, sessionId, requestMetricStartTime);
+                    this.reportRequestCancelled(requestId, sessionId, requestMetricStartTime, wasThrottled);
                     throw error;
                 }
                 const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
                 Logger.error(errorMessage);
-                this.reportRequestFailure(requestId, sessionId, requestMetricStartTime);
+                this.reportRequestFailure(requestId, sessionId, requestMetricStartTime, wasThrottled);
                 throw error;
             } finally {
                 Logger.info(`✅ Compatible Provider: ${model.name} request completed`);

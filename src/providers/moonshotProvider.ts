@@ -239,6 +239,7 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
         // 注：此处不调用 super.provideLanguageModelChatResponse，而是直接处理
         // 避免双重密钥检查，因为我们已经在 ensureApiKeyForModel 中检查过了
         let requestMetricStartTime: number | undefined;
+        let wasThrottled = false;
         requestId = await this.recordEstimatedRequestTokens({
             providerKey: providerKey,
             displayName: this.providerConfig.displayName,
@@ -273,16 +274,19 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
                 totalInputTokens,
                 attemptStartedAt => {
                     requestMetricStartTime = attemptStartedAt;
+                },
+                () => {
+                    wasThrottled = true;
                 }
             );
         } catch (error) {
             if (isCancellationError(error)) {
-                this.reportRequestCancelled(requestId, sessionId, requestMetricStartTime);
+                this.reportRequestCancelled(requestId, sessionId, requestMetricStartTime, wasThrottled);
                 throw error;
             }
             const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
             Logger.error(errorMessage);
-            this.reportRequestFailure(requestId, sessionId, requestMetricStartTime);
+            this.reportRequestFailure(requestId, sessionId, requestMetricStartTime, wasThrottled);
             throw error;
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);

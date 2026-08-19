@@ -182,6 +182,7 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
 
         let requestId = '';
         let requestMetricStartTime: number | undefined;
+        let wasThrottled = false;
         requestId = await this.recordEstimatedRequestTokens({
             providerKey,
             displayName: this.providerConfig.displayName,
@@ -216,14 +217,17 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
                 totalInputTokens,
                 attemptStartedAt => {
                     requestMetricStartTime = attemptStartedAt;
+                },
+                () => {
+                    wasThrottled = true;
                 }
             );
         } catch (error) {
             if (isCancellationError(error)) {
-                this.reportRequestCancelled(requestId, sessionId, requestMetricStartTime);
+                this.reportRequestCancelled(requestId, sessionId, requestMetricStartTime, wasThrottled);
                 throw error;
             }
-            this.reportRequestFailure(requestId, sessionId, requestMetricStartTime);
+            this.reportRequestFailure(requestId, sessionId, requestMetricStartTime, wasThrottled);
             throw error;
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);

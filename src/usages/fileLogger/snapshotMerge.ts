@@ -21,6 +21,7 @@ export interface SnapshotRequestRecord {
     otelTraceContext?: { traceId: string; spanId: string };
     telemetryTurn?: number;
     requestMetricStartTime?: number;
+    wasThrottled?: boolean;
     streamStartTime?: number;
     streamEndTime?: number;
     actualInput?: number;
@@ -96,6 +97,7 @@ export function mergeSnapshotRecord(
         sessionRecoverySource: preferredRecord.sessionRecoverySource ?? fallbackRecord.sessionRecoverySource,
         telemetryTurn: preferredRecord.telemetryTurn ?? fallbackRecord.telemetryTurn,
         requestMetricStartTime: preferredRecord.requestMetricStartTime ?? fallbackRecord.requestMetricStartTime,
+        wasThrottled: preferredRecord.wasThrottled ?? fallbackRecord.wasThrottled,
         streamStartTime: preferredRecord.streamStartTime ?? fallbackRecord.streamStartTime,
         streamEndTime: preferredRecord.streamEndTime ?? fallbackRecord.streamEndTime,
         actualInput: preferredRecord.actualInput ?? fallbackRecord.actualInput,

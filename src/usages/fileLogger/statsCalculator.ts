@@ -228,6 +228,9 @@ export abstract class StatsCalculator {
                 if (log.requestMetricStartTime !== undefined) {
                     existing.requestMetricStartTime = log.requestMetricStartTime;
                 }
+                if (log.wasThrottled !== undefined) {
+                    existing.wasThrottled = log.wasThrottled;
+                }
                 // 更新流时间信息
                 if (log.streamStartTime !== undefined) {
                     existing.streamStartTime = log.streamStartTime;

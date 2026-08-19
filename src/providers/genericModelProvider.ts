@@ -569,11 +569,15 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             );
             return undefined;
         }
+        let notifiedWaiting = false;
         return RateLimiter.acquire(bucketKey, dims, costs, {
             token,
             onWaiting: event => {
-                // onWaiting 仅在实际等待（waitMs>0 或排队）时触发，标记本请求受过节流控制
-                onThrottled?.();
+                // 首次真正等待就立刻上报，避免先闪 ACTIVE 再等队列更新
+                if (!notifiedWaiting) {
+                    notifiedWaiting = true;
+                    onThrottled?.();
+                }
                 liveMetrics.emitLiveMetrics({
                     type: 'rateLimitWaiting',
                     requestId,
@@ -630,7 +634,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         effectiveProviderKey = modelConfig.provider || this.providerKey,
         requestStartTime = Date.now(),
         totalInputTokens = 0,
-        onAttemptStarted?: (requestMetricStartTime: number) => void
+        onAttemptStarted?: (requestMetricStartTime: number) => void,
+        onThrottled?: () => void
     ): Promise<void> {
         const sdkMode = modelConfig.sdkMode || 'openai';
 
@@ -716,6 +721,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                         requestId,
                         () => {
                             wasThrottled = true;
+                            onThrottled?.();
                         }
                     );
 
@@ -929,6 +935,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         let requestId = '';
         let requestStartTime: number;
         let requestMetricStartTime: number | undefined;
+        let wasThrottled = false;
 
         try {
             // 确保对应提供商的 API 密钥存在
@@ -970,19 +977,22 @@ export class GenericModelProvider implements LanguageModelChatProvider {
                 totalInputTokens,
                 attemptStartedAt => {
                     requestMetricStartTime = attemptStartedAt;
+                },
+                () => {
+                    wasThrottled = true;
                 }
             );
         } catch (error) {
             // 取消请求不应记为失败：handler 已记录 cancelled，或在此兜底记录
             if (isCancellationError(error)) {
-                this.reportRequestCancelled(requestId, sessionId, requestMetricStartTime);
+                this.reportRequestCancelled(requestId, sessionId, requestMetricStartTime, wasThrottled);
                 throw new vscode.CancellationError();
             }
 
             const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
             Logger.error(errorMessage);
             // === Token 统计: 更新失败状态（仅在最终失败时上报）===
-            this.reportRequestFailure(requestId, sessionId, requestMetricStartTime);
+            this.reportRequestFailure(requestId, sessionId, requestMetricStartTime, wasThrottled);
             // 直接抛出错误，让VS Code处理重试
             throw error;
         } finally {
@@ -1218,7 +1228,12 @@ export class GenericModelProvider implements LanguageModelChatProvider {
      * @param requestId 请求ID
      * @param sessionId 会话ID
      */
-    protected reportRequestFailure(requestId: string, sessionId: string, requestMetricStartTime?: number): void {
+    protected reportRequestFailure(
+        requestId: string,
+        sessionId: string,
+        requestMetricStartTime?: number,
+        wasThrottled?: boolean
+    ): void {
         if (!requestId) {
             return;
         }
@@ -1227,7 +1242,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             requestId,
             sessionId,
             status: 'failed',
-            requestMetricStartTime
+            requestMetricStartTime,
+            wasThrottled
         });
     }
 
@@ -1235,7 +1251,12 @@ export class GenericModelProvider implements LanguageModelChatProvider {
      * 上报请求取消状态到 Token 统计系统
      * handler 通常已记录 cancelled；这里作为 Provider 层兜底，避免取消发生在 handler 之外时遗漏状态迁移
      */
-    protected reportRequestCancelled(requestId: string, sessionId: string, requestMetricStartTime?: number): void {
+    protected reportRequestCancelled(
+        requestId: string,
+        sessionId: string,
+        requestMetricStartTime?: number,
+        wasThrottled?: boolean
+    ): void {
         if (!requestId) {
             return;
         }
@@ -1245,7 +1266,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             requestId,
             sessionId,
             status: 'cancelled',
-            requestMetricStartTime
+            requestMetricStartTime,
+            wasThrottled
         });
     }
 

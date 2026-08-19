@@ -42,6 +42,8 @@ export interface UpdateActualTokensParams {
     status: 'completed' | 'failed' | 'cancelled';
     /** 实际发起上游请求的时间戳（不含限流排队） */
     requestMetricStartTime?: number;
+    /** 本次请求是否经历过限流排队/等待 */
+    wasThrottled?: boolean;
     /** 流开始时间 (毫秒时间戳) */
     streamStartTime?: number;
     /** 流结束时间 (毫秒时间戳) */
@@ -246,6 +248,7 @@ export class TokenUsagesManager {
                     rawUsage: normalizedUsage,
                     status: params.status,
                     requestMetricStartTime: params.requestMetricStartTime,
+                    wasThrottled: params.wasThrottled,
                     streamStartTime: params.streamStartTime,
                     streamEndTime: params.streamEndTime,
                     estimatedCost: params.estimatedCost,
@@ -377,9 +380,20 @@ export class TokenUsagesManager {
      */
     async getDateRecords(date: string): Promise<ExtendedTokenRequestLog[]> {
         const details = await this.fileLogger.getRequestDetails(date);
-        this.seedSessionTitlesFromLogs(details);
-        await this.hydrateSessionTitles(this.collectSessionIds(details));
-        return this.enrichSessionTitles(UsageParser.extendLogs(details));
+        // 合并当日内存中的 pending 记录：estimated 写盘是异步的，
+        // 限流 Waiting 事件触发 UI 刷新时新请求可能尚未落盘，需从内存补齐
+        const pendingLogs = this.fileLogger
+            .getPendingLogs()
+            .filter(log => DateUtils.formatDate(new Date(log.timestamp)) === date);
+        let allLogs = details;
+        if (pendingLogs.length > 0) {
+            const pendingRequestIds = new Set(pendingLogs.map(log => log.requestId));
+            allLogs = [...details.filter(log => !pendingRequestIds.has(log.requestId)), ...pendingLogs];
+            allLogs.sort((a, b) => b.timestamp - a.timestamp);
+        }
+        this.seedSessionTitlesFromLogs(allLogs);
+        await this.hydrateSessionTitles(this.collectSessionIds(allLogs));
+        return this.enrichSessionTitles(UsageParser.extendLogs(allLogs));
     }
 
     async hydrateSessionTitle(sessionId: string): Promise<string | undefined> {

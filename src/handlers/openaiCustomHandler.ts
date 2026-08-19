@@ -284,6 +284,7 @@ export class OpenAICustomHandler {
                     sessionId: reporter?.getSessionId(),
                     status: 'cancelled',
                     ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
+                    wasThrottled,
                     streamStartTime: partialStreamStartTime ?? reporter?.getMetricStreamStartTime(),
                     streamEndTime: Date.now()
                 });
@@ -463,6 +464,7 @@ export class OpenAICustomHandler {
             rawUsage: finalUsage,
             status: token.isCancellationRequested ? 'cancelled' : 'completed',
             ...(requestStartTime !== undefined ? { requestMetricStartTime: requestStartTime } : {}),
+            wasThrottled,
             streamStartTime,
             streamEndTime,
             estimatedCost: breakdown?.total,

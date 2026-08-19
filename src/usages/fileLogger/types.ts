@@ -176,6 +176,8 @@ export interface TokenRequestLog {
     telemetryTurn?: number;
     /** 实际发起上游请求的时间戳（用于 TTFT/最终统计，不含限流排队） */
     requestMetricStartTime?: number;
+    /** 本次请求是否经历过限流排队/等待 */
+    wasThrottled?: boolean;
     /** 流开始时间 (毫秒时间戳) */
     streamStartTime?: number;
     /** 流结束时间 (毫秒时间戳) */

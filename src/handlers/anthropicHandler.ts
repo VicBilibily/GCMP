@@ -391,6 +391,7 @@ export class AnthropicHandler {
                     rawUsage: result?.usage,
                     status: token.isCancellationRequested ? 'cancelled' : 'completed',
                     ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
+                    wasThrottled,
                     streamStartTime: result?.streamStartTime,
                     streamEndTime: result?.streamEndTime,
                     estimatedCost: breakdown?.total,
@@ -407,6 +408,7 @@ export class AnthropicHandler {
                         sessionId,
                         status: 'cancelled',
                         ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
+                        wasThrottled,
                         streamStartTime: partialStreamStartTime ?? reporter?.getMetricStreamStartTime(),
                         streamEndTime: partialStreamEndTime ?? Date.now()
                     });

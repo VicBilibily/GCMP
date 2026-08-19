@@ -267,6 +267,7 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
 
         let requestId = '';
         let requestMetricStartTime: number | undefined;
+        let wasThrottled = false;
         requestId = await this.recordEstimatedRequestTokens({
             providerKey: providerKey,
             displayName: this.providerConfig.displayName,
@@ -302,16 +303,19 @@ export class BaiduProvider extends GenericModelProvider implements LanguageModel
                 totalInputTokens,
                 attemptStartedAt => {
                     requestMetricStartTime = attemptStartedAt;
+                },
+                () => {
+                    wasThrottled = true;
                 }
             );
         } catch (error) {
             if (isCancellationError(error)) {
-                this.reportRequestCancelled(requestId, sessionId, requestMetricStartTime);
+                this.reportRequestCancelled(requestId, sessionId, requestMetricStartTime, wasThrottled);
                 throw error;
             }
             const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
             Logger.error(errorMessage);
-            this.reportRequestFailure(requestId, sessionId, requestMetricStartTime);
+            this.reportRequestFailure(requestId, sessionId, requestMetricStartTime, wasThrottled);
             throw error;
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);

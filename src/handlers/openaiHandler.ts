@@ -1173,6 +1173,7 @@ export class OpenAIHandler {
                         rawUsage: finalUsage,
                         status: token.isCancellationRequested ? 'cancelled' : 'completed',
                         ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
+                        wasThrottled,
                         streamStartTime,
                         streamEndTime,
                         estimatedCost: breakdown?.total,
@@ -1190,6 +1191,7 @@ export class OpenAIHandler {
                         sessionId,
                         status: 'cancelled',
                         ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
+                        wasThrottled,
                         streamStartTime,
                         streamEndTime: streamEndTime ?? Date.now()
                     });

@@ -168,7 +168,8 @@ export class OpenAIResponsesHandler {
                     finalUsage,
                     streamStartTime,
                     streamEndTime,
-                    requestStartTime: requestMetricStartTime
+                    requestStartTime: requestMetricStartTime,
+                    wasThrottled
                 });
                 streamStartTime = completionResult.streamStartTime;
             } catch (error) {
@@ -181,7 +182,8 @@ export class OpenAIResponsesHandler {
                         sessionId,
                         requestMetricStartTime,
                         streamStartTime,
-                        streamEndTime
+                        streamEndTime,
+                        wasThrottled
                     });
                     throw new vscode.CancellationError();
                 } else {
@@ -233,6 +235,7 @@ export class OpenAIResponsesHandler {
         streamStartTime?: number;
         streamEndTime?: number;
         requestStartTime?: number;
+        wasThrottled?: boolean;
     }): { streamStartTime?: number } {
         const {
             finishReason,
@@ -245,7 +248,8 @@ export class OpenAIResponsesHandler {
             streamReporter,
             finalUsage,
             streamEndTime,
-            requestStartTime
+            requestStartTime,
+            wasThrottled
         } = params;
 
         let streamStartTime = params.streamStartTime;
@@ -284,6 +288,7 @@ export class OpenAIResponsesHandler {
                 rawUsage: finalUsage,
                 status: token.isCancellationRequested ? 'cancelled' : 'completed',
                 ...(requestStartTime !== undefined ? { requestMetricStartTime: requestStartTime } : {}),
+                wasThrottled,
                 streamStartTime,
                 streamEndTime,
                 estimatedCost: breakdown?.total,
@@ -304,8 +309,17 @@ export class OpenAIResponsesHandler {
         requestMetricStartTime?: number;
         streamStartTime?: number;
         streamEndTime?: number;
+        wasThrottled?: boolean;
     }): void {
-        const { modelName, requestId, sessionId, requestMetricStartTime, streamStartTime, streamEndTime } = params;
+        const {
+            modelName,
+            requestId,
+            sessionId,
+            requestMetricStartTime,
+            streamStartTime,
+            streamEndTime,
+            wasThrottled
+        } = params;
         Logger.info(`${modelName} Responses API request was cancelled by the user`);
         // 记录取消状态（同步调用，内部写盘 fire-and-forget，不阻塞取消链路）
         TokenUsagesManager.instance.updateActualTokens({
@@ -313,6 +327,7 @@ export class OpenAIResponsesHandler {
             sessionId,
             status: 'cancelled',
             ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
+            wasThrottled,
             streamStartTime,
             streamEndTime: streamEndTime ?? Date.now()
         });

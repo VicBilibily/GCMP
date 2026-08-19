@@ -803,6 +803,7 @@ export function createRequestRecordsTable(
         const displayTimeStr = hasMetricTime ? new Date(metricTime).toLocaleTimeString('zh-CN') : timeStr;
         const shouldHighlightMetricTime =
             hasMetricTime &&
+            record.wasThrottled === true &&
             record.timestamp !== undefined &&
             record.requestMetricStartTime !== record.timestamp &&
             (record.status === 'completed' || record.status === 'failed' || record.status === 'cancelled');

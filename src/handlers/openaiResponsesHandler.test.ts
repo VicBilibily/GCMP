@@ -205,6 +205,7 @@ test('handleResponsesRequest：透传 length finishReason 到完成链路', asyn
             rawUsage: { total_tokens: 12 },
             status: 'completed',
             requestMetricStartTime: undefined,
+            wasThrottled: false,
             streamStartTime: 100,
             streamEndTime: 200,
             estimatedCost: undefined,
