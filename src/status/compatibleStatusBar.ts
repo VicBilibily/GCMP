@@ -475,9 +475,16 @@ export class CompatibleStatusBar extends BaseStatusBarItem<CompatibleStatusData>
             });
             this.context.subscriptions.push(disposable);
 
-            this.apiKeySubscription = InterInstanceBus.subscribe('apiKeyChanged', event => {
-                this.handleApiKeyChangedEvent(event as ApiKeyChangedEvent);
-            });
+            this.apiKeySubscription = vscode.Disposable.from(
+                InterInstanceBus.subscribe('apiKeyChanged', event => {
+                    this.handleApiKeyChangedEvent(event as ApiKeyChangedEvent);
+                }),
+                ApiKeyManager.onDidChangeApiKey(({ provider }) => {
+                    this.refreshAfterApiKeyChange(provider).catch(error =>
+                        StatusLogger.error(`[${this.config.logPrefix}] Failed to refresh after API key change`, error)
+                    );
+                })
+            );
             this.context.subscriptions.push(this.apiKeySubscription);
         }
     }

@@ -8,6 +8,7 @@ import * as path from 'node:path';
 
 const EXTENSION_SAFE_NAME = 'gcmp';
 const MAX_UNIX_IPC_PATH_LENGTH = 104; // macOS 实际限制为 104（含终止符），比 Linux 108 更严格
+let rateLimitHandoffFilePathOverride: string | undefined;
 
 /**
  * 获取当前用户的唯一标识，用于隔离多用户场景下的 IPC 路径
@@ -40,6 +41,21 @@ export function getSharedTempDir(): string {
  */
 export function resolveLeaderFilePath(): string {
     return path.join(getSharedTempDir(), `${EXTENSION_SAFE_NAME}-${getUserIdentifier()}-leader.json`);
+}
+
+/**
+ * 解析限流 Leader 交接快照路径
+ * Agents 窗体与普通窗口的 globalState 互相隔离，崩溃切主无法靠 per-window 状态交接桶快照。
+ */
+export function resolveRateLimitHandoffFilePath(): string {
+    if (rateLimitHandoffFilePathOverride) {
+        return rateLimitHandoffFilePathOverride;
+    }
+    return path.join(getSharedTempDir(), `${EXTENSION_SAFE_NAME}-${getUserIdentifier()}-rateLimit-handoff.json`);
+}
+
+export function setRateLimitHandoffFilePathOverride(filePath?: string): void {
+    rateLimitHandoffFilePathOverride = filePath;
 }
 
 /**

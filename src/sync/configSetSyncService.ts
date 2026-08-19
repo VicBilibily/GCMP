@@ -32,6 +32,8 @@ export interface SyncedSlotConfigSet {
 interface GistFileEntry {
     filename: string;
     content?: string;
+    truncated?: boolean;
+    raw_url?: string;
 }
 
 interface GistDetail {
@@ -113,10 +115,14 @@ async function fetchRemoteFileContent(
         }
         const gist = (await response.json()) as GistDetail;
         const file = gist.files?.[CONFIGSET_SYNC_FILENAME];
-        if (!file?.content) {
+        if (!file) {
             return { status: 'not-found' };
         }
-        return { status: 'ok', content: file.content };
+        const content = await GistSyncService.resolveGistFileContent(token, file);
+        if (content === undefined) {
+            return { status: 'error' };
+        }
+        return { status: 'ok', content };
     } catch (error) {
         Logger.error('[ConfigSetSync] Failed to read config set sync data:', error);
         return { status: 'error' };

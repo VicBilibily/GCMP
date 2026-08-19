@@ -12,8 +12,10 @@ function makeCore(overrides?: {
     onGrantEvent?: (handler: (msg: RateLimitGrantMessage) => void) => () => void;
     onQueueUpdateEvent?: (handler: (msg: RateLimitQueueUpdateMessage) => void) => () => void;
     sendCancel?: (msg: { authorityTerm: string; requestId: string; bucketKey: string }) => void;
+    sendRelease?: (msg: { authorityTerm: string; grantId: string }) => void;
     isTransportHealthy?: () => boolean;
     getAuthorityTerm?: () => string | undefined;
+    isAuthorityTransitioning?: () => boolean;
     timeout?: number;
 }) {
     const sent: RateLimitAcquireRequestMessage[] = [];
@@ -23,8 +25,10 @@ function makeCore(overrides?: {
         timeout: overrides?.timeout ?? 50,
         isTransportHealthy: overrides?.isTransportHealthy,
         getAuthorityTerm: overrides?.getAuthorityTerm ?? (() => 'leader-a:1'),
+        isAuthorityTransitioning: overrides?.isAuthorityTransitioning,
         send: msg => sent.push(msg),
         sendCancel: overrides?.sendCancel,
+        sendRelease: overrides?.sendRelease,
         onGrantEvent:
             overrides?.onGrantEvent ??
             (handler => {
@@ -389,5 +393,76 @@ test('stale grant from old authority term is ignored while authority is unavaila
     const outcome = await promise;
     assert.deepEqual(outcome, { status: 'degraded', reason: 'authority-unavailable' });
     assert.deepEqual(cancelled, [{ authorityTerm: 'leader-a:1', requestId, bucketKey: 'bucket' }]);
+    core.dispose();
+});
+
+test('超时后迟到 grant 会 sendRelease', async () => {
+    const released: Array<{ authorityTerm: string; grantId: string }> = [];
+    const { core, sent, grant } = makeCore({
+        timeout: 30,
+        sendRelease: msg => released.push(msg)
+    });
+    const outcome = await core.acquire('bucket', DIMS, COSTS);
+    assert.deepEqual(outcome, { status: 'degraded', reason: 'timeout' });
+    grant({ authorityTerm: 'leader-a:1', requestId: sent[0]!.requestId, waitMs: 0, grantId: 'g-late' });
+    assert.deepEqual(released, [{ authorityTerm: 'leader-a:1', grantId: 'g-late' }]);
+    core.dispose();
+});
+
+test('过期 lateWatch 会在后续 grant 事件中被清理', async () => {
+    const { core, grant } = makeCore({ timeout: 30 });
+    const outcome = await core.acquire('bucket', DIMS, COSTS);
+    assert.deepEqual(outcome, { status: 'degraded', reason: 'timeout' });
+
+    const lateWatch = (
+        core as unknown as {
+            lateWatch: Map<string, { authorityTerm: string; expireAt: number }>;
+        }
+    ).lateWatch;
+    const entry = Array.from(lateWatch.entries())[0];
+    assert.ok(entry);
+    entry[1].expireAt = Date.now() - 1;
+
+    grant({ authorityTerm: 'leader-a:1', requestId: 'other-request', waitMs: 0, grantId: 'g-other' });
+
+    assert.equal(lateWatch.size, 0);
+    core.dispose();
+});
+
+test('transitioning 时 term=undefined 不清排队 waiter', async () => {
+    let authorityTerm: string | undefined = 'leader-a:1';
+    let transitioning = false;
+    const cancelled: Array<{ authorityTerm: string; requestId: string; bucketKey: string }> = [];
+    const { core, sent, grant, queueUpdate } = makeCore({
+        timeout: 10_000,
+        getAuthorityTerm: () => authorityTerm,
+        isAuthorityTransitioning: () => transitioning,
+        sendCancel: msg => cancelled.push(msg)
+    });
+    const promise = core.acquire('bucket', DIMS, COSTS);
+    const requestId = sent[0]!.requestId;
+    queueUpdate({ authorityTerm: 'leader-a:1', requestId, queuePosition: 1 });
+    transitioning = true;
+    authorityTerm = undefined;
+    await new Promise(resolve => setTimeout(resolve, 150));
+    assert.equal(core.pendingCount, 1);
+    assert.deepEqual(cancelled, []);
+
+    authorityTerm = 'leader-a:1';
+    transitioning = false;
+    grant({ authorityTerm: 'leader-a:1', requestId, waitMs: 0, grantId: 'g1' });
+    const outcome = await promise;
+    assert.deepEqual(outcome, { status: 'granted', grantId: 'g1', waitMs: 0, authorityTerm: 'leader-a:1' });
+    core.dispose();
+});
+
+test('transitioning 且无 term 时新 acquire 立即 timeout 降级', async () => {
+    const { core, sent } = makeCore({
+        getAuthorityTerm: () => undefined,
+        isAuthorityTransitioning: () => true
+    });
+    const outcome = await core.acquire('bucket', DIMS, COSTS);
+    assert.deepEqual(outcome, { status: 'degraded', reason: 'timeout' });
+    assert.equal(sent.length, 0);
     core.dispose();
 });

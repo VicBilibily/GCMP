@@ -1,21 +1,17 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 import * as vscode from 'vscode';
 
 import { InterInstanceBus } from '../../src/interInstance';
+import { setRateLimitHandoffFilePathOverride } from '../../src/interInstance/pathResolver';
+import { clearRateLimitLeaderHandoff, writeRateLimitLeaderHandoff } from '../../src/rateLimit/leaderHandoffFile';
 import { RateLimiter, type RateLimitHandle } from '../../src/rateLimit/rateLimiter';
 import { RateLimitStore, type RateLimitStoreSnapshot } from '../../src/rateLimit/rateLimitStore';
 import { LeaderElectionService } from '../../src/status/leaderElectionService';
 
 interface RateLimiterInternals {
-    context:
-        | {
-              globalState: {
-                  get: <T>(key: string) => T | undefined;
-                  update: (key: string, value: unknown) => Thenable<void>;
-              };
-          }
-        | undefined;
     acquireForCurrentRole: (
         bucketKey: string,
         dims: { rpm: number },
@@ -89,12 +85,20 @@ interface RateLimiterInternals {
 interface PatchedInterInstanceBus {
     onAuthorityChanged: typeof InterInstanceBus.onAuthorityChanged;
     getAuthorityTerm: typeof InterInstanceBus.getAuthorityTerm;
+    hasActiveTransport: typeof InterInstanceBus.hasActiveTransport;
     isConnected: typeof InterInstanceBus.isConnected;
     publish: typeof InterInstanceBus.publish;
 }
 
 interface PatchedLeaderElectionService {
     isLeader: typeof LeaderElectionService.isLeader;
+}
+
+function makeTempHandoffFilePath(name: string): string {
+    return path.join(
+        os.tmpdir(),
+        `gcmp-rate-limit-handoff-${name}-${Date.now()}-${Math.random().toString(36).slice(2)}.json`
+    );
 }
 
 suite('RateLimiter authority change', () => {
@@ -166,6 +170,7 @@ suite('RateLimiter authority change', () => {
         const originalAcquireViaLocalStore = rateLimiter.acquireViaLocalStore;
         const originalIsLeader = patchedLeaderElection.isLeader;
         const originalGetAuthorityTerm = patchedBus.getAuthorityTerm;
+        const originalHasActiveTransport = patchedBus.hasActiveTransport;
         const originalIsConnected = patchedBus.isConnected;
 
         let waited = 0;
@@ -193,6 +198,7 @@ suite('RateLimiter authority change', () => {
             };
             patchedLeaderElection.isLeader = () => false;
             patchedBus.getAuthorityTerm = () => authorityTerm;
+            patchedBus.hasActiveTransport = () => connected;
             patchedBus.isConnected = () => connected;
 
             const result = await rateLimiter.acquireForCurrentRole(
@@ -215,6 +221,7 @@ suite('RateLimiter authority change', () => {
             rateLimiter.acquireViaLocalStore = originalAcquireViaLocalStore;
             patchedLeaderElection.isLeader = originalIsLeader;
             patchedBus.getAuthorityTerm = originalGetAuthorityTerm;
+            patchedBus.hasActiveTransport = originalHasActiveTransport;
             patchedBus.isConnected = originalIsConnected;
         }
     });
@@ -228,6 +235,7 @@ suite('RateLimiter authority change', () => {
         const originalAcquireViaLocalStore = rateLimiter.acquireViaLocalStore;
         const originalIsLeader = patchedLeaderElection.isLeader;
         const originalGetAuthorityTerm = patchedBus.getAuthorityTerm;
+        const originalHasActiveTransport = patchedBus.hasActiveTransport;
         const originalIsConnected = patchedBus.isConnected;
         const originalDegraded = rateLimiter.degraded;
         const originalDegradedNotified = rateLimiter.degradedNotified;
@@ -246,6 +254,7 @@ suite('RateLimiter authority change', () => {
             };
             patchedLeaderElection.isLeader = () => false;
             patchedBus.getAuthorityTerm = () => 'leader-a:1';
+            patchedBus.hasActiveTransport = () => true;
             patchedBus.isConnected = () => true;
 
             const result = await rateLimiter.acquireForCurrentRole(
@@ -264,6 +273,7 @@ suite('RateLimiter authority change', () => {
             rateLimiter.acquireViaLocalStore = originalAcquireViaLocalStore;
             patchedLeaderElection.isLeader = originalIsLeader;
             patchedBus.getAuthorityTerm = originalGetAuthorityTerm;
+            patchedBus.hasActiveTransport = originalHasActiveTransport;
             patchedBus.isConnected = originalIsConnected;
             rateLimiter.degraded = originalDegraded;
             rateLimiter.degradedNotified = originalDegradedNotified;
@@ -279,6 +289,7 @@ suite('RateLimiter authority change', () => {
         const originalClientCore = rateLimiter.clientCore;
         const originalIsLeader = patchedLeaderElection.isLeader;
         const originalGetAuthorityTerm = patchedBus.getAuthorityTerm;
+        const originalHasActiveTransport = patchedBus.hasActiveTransport;
         const originalIsConnected = patchedBus.isConnected;
         const originalDegraded = rateLimiter.degraded;
         const originalDegradedNotified = rateLimiter.degradedNotified;
@@ -293,6 +304,7 @@ suite('RateLimiter authority change', () => {
             rateLimiter.lastProbeAt = 0;
             patchedLeaderElection.isLeader = () => false;
             patchedBus.getAuthorityTerm = () => 'leader-a:1';
+            patchedBus.hasActiveTransport = () => true;
             patchedBus.isConnected = () => true;
 
             const result = await rateLimiter.acquireViaIpc('bucket', { rpm: 60 }, { requests: 1, tokens: 0 });
@@ -303,6 +315,7 @@ suite('RateLimiter authority change', () => {
             rateLimiter.clientCore = originalClientCore;
             patchedLeaderElection.isLeader = originalIsLeader;
             patchedBus.getAuthorityTerm = originalGetAuthorityTerm;
+            patchedBus.hasActiveTransport = originalHasActiveTransport;
             patchedBus.isConnected = originalIsConnected;
             rateLimiter.degraded = originalDegraded;
             rateLimiter.degradedNotified = originalDegradedNotified;
@@ -319,6 +332,7 @@ suite('RateLimiter authority change', () => {
         const originalWaitForAuthorityRecovery = rateLimiter.waitForAuthorityRecovery;
         const originalIsLeader = patchedLeaderElection.isLeader;
         const originalGetAuthorityTerm = patchedBus.getAuthorityTerm;
+        const originalHasActiveTransport = patchedBus.hasActiveTransport;
         const originalIsConnected = patchedBus.isConnected;
         const originalDegraded = rateLimiter.degraded;
         const originalDegradedNotified = rateLimiter.degradedNotified;
@@ -334,6 +348,7 @@ suite('RateLimiter authority change', () => {
             rateLimiter.lastProbeAt = 0;
             patchedLeaderElection.isLeader = () => false;
             patchedBus.getAuthorityTerm = () => 'leader-a:1';
+            patchedBus.hasActiveTransport = () => true;
             patchedBus.isConnected = () => true;
 
             const result = await rateLimiter.acquireViaIpc('bucket', { rpm: 60 }, { requests: 1, tokens: 0 });
@@ -345,6 +360,7 @@ suite('RateLimiter authority change', () => {
             rateLimiter.waitForAuthorityRecovery = originalWaitForAuthorityRecovery;
             patchedLeaderElection.isLeader = originalIsLeader;
             patchedBus.getAuthorityTerm = originalGetAuthorityTerm;
+            patchedBus.hasActiveTransport = originalHasActiveTransport;
             patchedBus.isConnected = originalIsConnected;
             rateLimiter.degraded = originalDegraded;
             rateLimiter.degradedNotified = originalDegradedNotified;
@@ -701,8 +717,9 @@ suite('RateLimiter authority change', () => {
         }
     });
 
-    test('leader takeover restores persisted handoff after restart-like gap', () => {
+    test('leader takeover restores persisted handoff after restart-like gap', async () => {
         const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
+        const handoffFilePath = makeTempHandoffFilePath('persisted-restart');
         const source = new RateLimitStore('leader-a');
         const now = Date.now();
         const granted = source.acquire('r1', 'bucket', { parallel: 1 }, { requests: 1, tokens: 0 }, now, {
@@ -715,30 +732,23 @@ suite('RateLimiter authority change', () => {
             ownerInstanceId: 'follower-b'
         });
         const snapshot = source.exportSnapshot(now);
-        const state = new Map<string, unknown>();
-        const fakeContext = {
-            globalState: {
-                get: <T>(key: string) => state.get(key) as T | undefined,
-                update: (key: string, value: unknown) => {
-                    if (value === undefined) {
-                        state.delete(key);
-                    } else {
-                        state.set(key, value);
-                    }
-                    return Promise.resolve();
-                }
-            }
-        };
 
-        const originalContext = rateLimiter.context;
+        const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
         const originalLeaderStore = rateLimiter.leaderStore;
         const originalPendingLeaderHandoff = rateLimiter.pendingLeaderHandoff;
         const originalClientCore = rateLimiter.clientCore;
+        const originalIsLeader = patchedLeaderElection.isLeader;
 
         let settledPending = 0;
 
         try {
-            rateLimiter.context = fakeContext;
+            setRateLimitHandoffFilePathOverride(handoffFilePath);
+            await writeRateLimitLeaderHandoff({
+                leaderId: 'leader-a',
+                authorityTerm: 'leader-a:1',
+                receivedAt: now,
+                snapshot
+            });
             rateLimiter.leaderStore = new RateLimitStore('before');
             rateLimiter.pendingLeaderHandoff = undefined;
             rateLimiter.clientCore = {
@@ -747,30 +757,81 @@ suite('RateLimiter authority change', () => {
                     settledPending += 1;
                 }
             };
+            patchedLeaderElection.isLeader = () => true;
 
-            rateLimiter.handleLeaderResigning({
-                type: 'leaderResigning',
-                timestamp: Date.now(),
-                senderInstanceId: 'leader-a',
-                payload: {
-                    leaderId: 'leader-a',
-                    nextLeaderId: 'leader-b',
-                    rateLimitSnapshot: snapshot
-                }
-            });
-
-            rateLimiter.pendingLeaderHandoff = undefined;
             rateLimiter.becomeLeaderWithFreshState();
+            const deadline = Date.now() + 1_000;
+            while (Date.now() < deadline && rateLimiter.leaderStore.stats('bucket', now)?.inflight !== 1) {
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }
 
             assert.equal(settledPending, 1);
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight, 1);
             assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.pending, 0);
-            assert.equal(state.get('gcmp.rateLimit.handoff.v1'), undefined);
         } finally {
-            rateLimiter.context = originalContext;
+            setRateLimitHandoffFilePathOverride();
+            await clearRateLimitLeaderHandoff(handoffFilePath);
             rateLimiter.leaderStore = originalLeaderStore;
             rateLimiter.pendingLeaderHandoff = originalPendingLeaderHandoff;
             rateLimiter.clientCore = originalClientCore;
+            patchedLeaderElection.isLeader = originalIsLeader;
+        }
+    });
+
+    test('failed in-memory handoff falls back to persisted handoff file', async () => {
+        const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
+        const handoffFilePath = makeTempHandoffFilePath('fallback-after-invalid-memory');
+        const source = new RateLimitStore('leader-b');
+        const now = Date.now();
+        const granted = source.acquire('r1', 'bucket', { parallel: 1 }, { requests: 1, tokens: 0 }, now, {
+            ownerInstanceId: 'follower-a'
+        });
+        if (granted.kind !== 'granted') {
+            assert.fail('r1 should be granted');
+        }
+        const snapshot = source.exportSnapshot(now);
+
+        const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
+        const originalLeaderStore = rateLimiter.leaderStore;
+        const originalPendingLeaderHandoff = rateLimiter.pendingLeaderHandoff;
+        const originalClientCore = rateLimiter.clientCore;
+        const originalIsLeader = patchedLeaderElection.isLeader;
+
+        try {
+            setRateLimitHandoffFilePathOverride(handoffFilePath);
+            await writeRateLimitLeaderHandoff({
+                leaderId: 'leader-b',
+                authorityTerm: 'leader-b:2',
+                receivedAt: now + 1,
+                snapshot
+            });
+            rateLimiter.leaderStore = new RateLimitStore('before');
+            rateLimiter.pendingLeaderHandoff = {
+                leaderId: 'leader-a',
+                snapshot: { invalid: true } as unknown as RateLimitStoreSnapshot,
+                receivedAt: now
+            };
+            rateLimiter.clientCore = {
+                acquire: async () => ({ status: 'cancelled' }),
+                settlePendingAsDegraded: () => undefined
+            };
+            patchedLeaderElection.isLeader = () => true;
+
+            rateLimiter.becomeLeaderWithFreshState();
+            const deadline = Date.now() + 1_000;
+            while (Date.now() < deadline && rateLimiter.leaderStore.stats('bucket', now)?.inflight !== 1) {
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }
+
+            assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.inflight, 1);
+            assert.equal(rateLimiter.leaderStore.stats('bucket', now)?.pending, 0);
+        } finally {
+            setRateLimitHandoffFilePathOverride();
+            await clearRateLimitLeaderHandoff(handoffFilePath);
+            rateLimiter.leaderStore = originalLeaderStore;
+            rateLimiter.pendingLeaderHandoff = originalPendingLeaderHandoff;
+            rateLimiter.clientCore = originalClientCore;
+            patchedLeaderElection.isLeader = originalIsLeader;
         }
     });
 

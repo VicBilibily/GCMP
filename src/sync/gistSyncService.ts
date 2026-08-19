@@ -92,6 +92,9 @@ const USER_PASSPHRASE_KEY = 'gcmp-sync.passphrase';
 /** CLI 专用提供商，同步时排除 */
 const CLI_ONLY_PROVIDERS = new Set(['codex', 'grok']);
 
+/** 允许的 Gist 原始域名 */
+const ALLOWED_GIST_RAW_HOSTS = new Set(['gist.githubusercontent.com', 'api.github.com']);
+
 /** 所有已知密钥的显示名（主 key + 多密钥变体，英文名与 ConfigProvider.displayName 一致） */
 export const KNOWN_KEY_LABELS: Record<string, string> = {
     // ── 主 key ──
@@ -332,6 +335,58 @@ export class GistSyncService {
     }
 
     /**
+     * 解析 Gist 文件正文：截断或缺 content 时按 raw_url 补拉，失败返回 undefined。
+     */
+    static async resolveGistFileContent(
+        token: string,
+        file: { content?: string; truncated?: boolean; raw_url?: string }
+    ): Promise<string | undefined> {
+        if (file.truncated !== true && typeof file.content === 'string') {
+            return file.content;
+        }
+        if (!file.raw_url) {
+            Logger.warn('[GistSync] Gist file is truncated or empty and has no raw_url');
+            return undefined;
+        }
+        let rawUrl: URL;
+        try {
+            rawUrl = new URL(file.raw_url);
+        } catch {
+            Logger.warn('[GistSync] Gist raw_url is invalid');
+            return undefined;
+        }
+        if (rawUrl.protocol !== 'https:') {
+            Logger.warn(`[GistSync] Refusing to fetch gist raw_url over non-HTTPS scheme: ${rawUrl.protocol}`);
+            return undefined;
+        }
+        if (!ALLOWED_GIST_RAW_HOSTS.has(rawUrl.hostname)) {
+            Logger.warn(`[GistSync] Refusing to fetch gist raw_url from unexpected host: ${rawUrl.hostname}`);
+            return undefined;
+        }
+        try {
+            const response = await ConfigManager.fetchWithProxy(
+                rawUrl.toString(),
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        Accept: 'application/vnd.github.v3.raw',
+                        'User-Agent': 'GCMP-VSCode-Extension'
+                    }
+                },
+                { skipHar: true }
+            );
+            if (!response.ok) {
+                Logger.warn(`[GistSync] Fetch gist raw_url failed: ${response.status}`);
+                return undefined;
+            }
+            return await response.text();
+        } catch (error) {
+            Logger.error('[GistSync] Failed to fetch gist raw_url:', error);
+            return undefined;
+        }
+    }
+
+    /**
      * 从 Gist 读取同步数据
      */
     static async readSyncData(token: string, gistId: string): Promise<SyncData | undefined> {
@@ -355,12 +410,17 @@ export class GistSyncService {
 
             const gist = (await response.json()) as GistResponse;
             const file = gist.files?.[SYNC_FILENAME];
-            if (!file?.content) {
+            if (!file) {
                 Logger.warn('[GistSync] Sync file not found in gist');
                 return undefined;
             }
 
-            return JSON.parse(file.content) as SyncData;
+            const content = await this.resolveGistFileContent(token, file);
+            if (content === undefined) {
+                return undefined;
+            }
+
+            return JSON.parse(content) as SyncData;
         } catch (error) {
             Logger.error('[GistSync] Failed to read sync data:', error);
             return undefined;

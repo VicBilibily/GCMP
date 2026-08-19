@@ -8,9 +8,10 @@ import type {
     RateLimitAcquireCancelledEvent,
     RateLimitAcquireGrantedEvent,
     RateLimitAcquireRequestedEvent,
-    RateLimitQueueUpdatedEvent
+    RateLimitQueueUpdatedEvent,
+    RateLimitReleasedEvent
 } from '../interInstance';
-import type { RateLimitCosts, RateLimitDimensions } from './rateLimitStore';
+import { DEFAULT_RATE_LIMIT_LEASE_MS, type RateLimitCosts, type RateLimitDimensions } from './rateLimitStore';
 
 export type RateLimitGrantMessage = RateLimitAcquireGrantedEvent['payload'];
 
@@ -31,10 +32,14 @@ export interface RateLimitClientCoreOptions {
     isTransportHealthy?: () => boolean;
     /** 当前连接到的限流权威任期；缺失时表示当前不可用 */
     getAuthorityTerm?: () => string | undefined;
+    /** 角色/连接切换中：term 短暂缺失时不要把在途请求结算为 authority-unavailable */
+    isAuthorityTransitioning?: () => boolean;
     /** 发送 acquire 请求（完整负载） */
     send: (msg: RateLimitAcquireRequestMessage) => void;
     /** 发送 acquire cancel 请求 */
     sendCancel?: (msg: RateLimitAcquireCancelledEvent['payload']) => void;
+    /** 迟到 grant 到达后立即释放权威槽位，避免超时降级与迟到授予双重计数 */
+    sendRelease?: (msg: RateLimitReleasedEvent['payload']) => void;
     /** 订阅 granted 回执；返回取消订阅函数 */
     onGrantEvent: (handler: (msg: RateLimitGrantMessage) => void) => () => void;
     /** 订阅排队顺位更新；返回取消订阅函数 */
@@ -51,6 +56,12 @@ export interface RateLimitAcquireOptions {
 }
 
 const DEFAULT_ACQUIRE_TIMEOUT_MS = 3_000;
+const LATE_GRANT_WATCH_MS = Math.min(10_000, Math.max(1_000, Math.floor(DEFAULT_RATE_LIMIT_LEASE_MS / 60)));
+
+interface LateGrantWatch {
+    authorityTerm: string;
+    expireAt: number;
+}
 
 interface PendingWaiter {
     bucketKey: string;
@@ -71,6 +82,7 @@ interface PendingWaiter {
  */
 export class RateLimitClientCore {
     private readonly pending = new Map<string, PendingWaiter>();
+    private readonly lateWatch = new Map<string, LateGrantWatch>();
     private readonly unsubscribeGrant: () => void;
     private readonly unsubscribeQueueUpdate?: () => void;
     private requestSeq = 0;
@@ -95,11 +107,15 @@ export class RateLimitClientCore {
         signal?: { isCancelled: () => boolean },
         options?: RateLimitAcquireOptions
     ): Promise<AcquireOutcome> {
+        this.pruneLateGrantWatches();
         if (signal?.isCancelled()) {
             return { status: 'cancelled' };
         }
         const authorityTerm = this.options.getAuthorityTerm?.();
         if (!authorityTerm) {
+            if (this.options.isAuthorityTransitioning?.()) {
+                return { status: 'degraded', reason: 'timeout' };
+            }
             return { status: 'degraded', reason: 'authority-unavailable' };
         }
         const requestId = this.options.nextRequestId?.() ?? `rl-${++this.requestSeq}-${this.options.now()}`;
@@ -142,6 +158,9 @@ export class RateLimitClientCore {
                         !waiter.settled
                     ) {
                         if (!currentAuthorityTerm) {
+                            if (this.options.isAuthorityTransitioning?.()) {
+                                return;
+                            }
                             this.settleAuthorityUnavailable(requestId, waiter);
                         } else {
                             this.settleAuthorityChanged(requestId, waiter);
@@ -149,6 +168,9 @@ export class RateLimitClientCore {
                         return;
                     }
                     if (this.options.isTransportHealthy && !this.options.isTransportHealthy() && !waiter.settled) {
+                        if (this.options.isAuthorityTransitioning?.()) {
+                            return;
+                        }
                         this.settleAuthorityUnavailable(requestId, waiter);
                         return;
                     }
@@ -169,6 +191,7 @@ export class RateLimitClientCore {
             }
             waiter.settled = true;
             this.pending.delete(requestId);
+            this.watchLateGrant(requestId, waiter.authorityTerm);
             if (waiter.cancelCheck) {
                 clearInterval(waiter.cancelCheck);
             }
@@ -185,6 +208,7 @@ export class RateLimitClientCore {
      * 回执处理：首次匹配即 settle，后续重复回执忽略
      */
     private handleGrant(msg: RateLimitGrantMessage): void {
+        this.releaseLateGrantIfNeeded(msg);
         const waiter = this.pending.get(msg.requestId);
         if (!waiter || waiter.settled) {
             return;
@@ -192,6 +216,9 @@ export class RateLimitClientCore {
         const currentAuthorityTerm = this.options.getAuthorityTerm?.();
         if (this.options.getAuthorityTerm && currentAuthorityTerm !== waiter.authorityTerm) {
             if (!currentAuthorityTerm) {
+                if (this.options.isAuthorityTransitioning?.()) {
+                    return;
+                }
                 this.settleAuthorityUnavailable(msg.requestId, waiter);
             } else {
                 this.settleAuthorityChanged(msg.requestId, waiter);
@@ -229,6 +256,9 @@ export class RateLimitClientCore {
         const currentAuthorityTerm = this.options.getAuthorityTerm?.();
         if (this.options.getAuthorityTerm && currentAuthorityTerm !== waiter.authorityTerm) {
             if (!currentAuthorityTerm) {
+                if (this.options.isAuthorityTransitioning?.()) {
+                    return;
+                }
                 this.settleAuthorityUnavailable(msg.requestId, waiter);
             } else {
                 this.settleAuthorityChanged(msg.requestId, waiter);
@@ -278,6 +308,38 @@ export class RateLimitClientCore {
                 bucketKey: waiter.bucketKey
             });
             waiter.resolve({ status: 'degraded', reason: 'timeout' });
+        }
+    }
+
+    private watchLateGrant(requestId: string, authorityTerm: string): void {
+        this.pruneLateGrantWatches();
+        this.lateWatch.set(requestId, {
+            authorityTerm,
+            expireAt: this.options.now() + LATE_GRANT_WATCH_MS
+        });
+    }
+
+    private releaseLateGrantIfNeeded(msg: RateLimitGrantMessage): void {
+        this.pruneLateGrantWatches();
+        const watch = this.lateWatch.get(msg.requestId);
+        if (!watch) {
+            return;
+        }
+        this.lateWatch.delete(msg.requestId);
+        if (this.options.now() > watch.expireAt || !msg.grantId || msg.authorityTerm !== watch.authorityTerm) {
+            return;
+        }
+        this.options.sendRelease?.({
+            authorityTerm: msg.authorityTerm,
+            grantId: msg.grantId
+        });
+    }
+
+    private pruneLateGrantWatches(now: number = this.options.now()): void {
+        for (const [requestId, watch] of this.lateWatch) {
+            if (watch.expireAt <= now) {
+                this.lateWatch.delete(requestId);
+            }
         }
     }
 
@@ -344,6 +406,7 @@ export class RateLimitClientCore {
     dispose(): void {
         this.unsubscribeGrant();
         this.unsubscribeQueueUpdate?.();
+        this.lateWatch.clear();
         this.settlePendingAsDegraded();
     }
 }

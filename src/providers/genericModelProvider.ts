@@ -15,6 +15,7 @@ import {
 } from 'vscode';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { RateLimiter, type RateLimitHandle } from '../rateLimit/rateLimiter';
+import { sanitizeAuthoritativeDims } from '../rateLimit/rateLimitStore';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { ConfigManager } from '../utils/config/configManager';
 import { createLanguageModelChatInformation } from '../utils/model/languageModelInfo';
@@ -548,14 +549,14 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         const providerLimit = ConfigManager.getProviderRateLimitConfig(effectiveProviderKey);
         const modelLimit = modelConfig.limit;
         const hasModelLimitOverride = !!modelLimit && Object.keys(modelLimit).length > 0;
-        if (!providerLimit && !hasModelLimitOverride) {
+        const sanitized = sanitizeAuthoritativeDims(providerLimit, hasModelLimitOverride ? modelLimit : undefined);
+        const hasAuthoritativePath = RateLimiter.hasAuthoritativePath();
+        if (sanitized === undefined) {
+            throw new Error(`Invalid rate limit configuration for ${effectiveProviderKey}`);
+        } else if (Object.keys(sanitized).length === 0 && !hasAuthoritativePath) {
             return undefined;
         }
-        // 字段级合并：model 级覆盖 provider 级同名维度
-        const dims = { ...providerLimit, ...(hasModelLimitOverride ? modelLimit : {}) };
-        if (Object.values(dims).every(value => value === undefined || !Number.isFinite(value) || value <= 0)) {
-            return undefined;
-        }
+        const dims = sanitized ?? {};
         // model 级配置存在时使用独立桶
         const bucketKey = hasModelLimitOverride ? `${effectiveProviderKey}::${modelConfig.id}` : effectiveProviderKey;
         // 边界防御：手写配置缺失/非法产生的 NaN 成本会污染 GCRA 预约队列并导致 sleep 忙循环

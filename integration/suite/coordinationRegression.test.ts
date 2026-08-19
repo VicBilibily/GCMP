@@ -239,6 +239,43 @@ suite('Coordination regressions', () => {
         }
     });
 
+    test('invalid rate limit configuration fails closed even when an authoritative path exists', async () => {
+        const acquireRateLimit = (GenericModelProvider.prototype as unknown as GenericModelProviderPrototypeAccess)
+            .acquireRateLimit;
+        const originalGetProviderRateLimitConfig = ConfigManager.getProviderRateLimitConfig;
+        const originalHasAuthoritativePath = RateLimiter.hasAuthoritativePath;
+        const originalRateLimiterAcquire = RateLimiter.acquire;
+        let acquireCalled = false;
+
+        try {
+            ConfigManager.getProviderRateLimitConfig = () => ({ rpm: Number.NaN });
+            RateLimiter.hasAuthoritativePath = () => true;
+            RateLimiter.acquire = async () => {
+                acquireCalled = true;
+                return undefined;
+            };
+
+            await assert.rejects(
+                acquireRateLimit.call(
+                    {
+                        providerConfig: { displayName: 'Test Provider' }
+                    },
+                    'compatible',
+                    testModelConfig,
+                    123,
+                    {} as vscode.CancellationToken,
+                    'request-2'
+                ),
+                /Invalid rate limit configuration/
+            );
+            assert.equal(acquireCalled, false);
+        } finally {
+            ConfigManager.getProviderRateLimitConfig = originalGetProviderRateLimitConfig;
+            RateLimiter.hasAuthoritativePath = originalHasAuthoritativePath;
+            RateLimiter.acquire = originalRateLimiterAcquire;
+        }
+    });
+
     test('applyProviderOverrides merges partial model limit with base model limit', () => {
         const originalGetProviderOverrides = ConfigManager.getProviderOverrides;
 

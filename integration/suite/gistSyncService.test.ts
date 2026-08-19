@@ -220,16 +220,69 @@ suite('gistSyncService', () => {
         }
     });
 
+    test('resolveGistFileContent fetches raw_url for truncated files', async () => {
+        const originalFetchWithProxy = ConfigManager.fetchWithProxy;
+        let fetchUrl: string | undefined;
+
+        ConfigManager.fetchWithProxy = (async url => {
+            fetchUrl = String(url);
+            return {
+                ok: true,
+                text: async () => '{"version":1}'
+            } as never;
+        }) as typeof ConfigManager.fetchWithProxy;
+
+        try {
+            const content = await GistSyncService.resolveGistFileContent('token', {
+                truncated: true,
+                raw_url: 'https://gist.githubusercontent.com/demo/raw/gcmp-sync.json'
+            });
+
+            assert.equal(content, '{"version":1}');
+            assert.equal(fetchUrl, 'https://gist.githubusercontent.com/demo/raw/gcmp-sync.json');
+        } finally {
+            ConfigManager.fetchWithProxy = originalFetchWithProxy;
+        }
+    });
+
+    test('resolveGistFileContent rejects unexpected raw_url host', async () => {
+        const originalFetchWithProxy = ConfigManager.fetchWithProxy;
+        let fetchCalls = 0;
+
+        ConfigManager.fetchWithProxy = (async () => {
+            fetchCalls += 1;
+            return {
+                ok: true,
+                text: async () => 'unexpected'
+            } as never;
+        }) as typeof ConfigManager.fetchWithProxy;
+
+        try {
+            const content = await GistSyncService.resolveGistFileContent('token', {
+                truncated: true,
+                raw_url: 'https://example.com/raw/gcmp-sync.json'
+            });
+
+            assert.equal(content, undefined);
+            assert.equal(fetchCalls, 0);
+        } finally {
+            ConfigManager.fetchWithProxy = originalFetchWithProxy;
+        }
+    });
+
     test('applyKeysAndNotify uses ApiKeyManager pipeline and notifies only applied keys', async () => {
         const service = GistSyncService as unknown as MockableGistSyncService;
         const mutableKeys = ApiKeyManager as unknown as {
+            getApiKey: typeof ApiKeyManager.getApiKey;
             setApiKey: typeof ApiKeyManager.setApiKey;
         };
+        const originalGetApiKey = mutableKeys.getApiKey;
         const originalSetApiKey = mutableKeys.setApiKey;
         const originalNotifyProviders = service.notifyProviders;
         const applied: Array<{ provider: string; value: string }> = [];
         let notified: string[] | undefined;
 
+        mutableKeys.getApiKey = async () => undefined;
         mutableKeys.setApiKey = async (provider, value) => {
             applied.push({ provider, value });
         };
@@ -247,6 +300,7 @@ suite('gistSyncService', () => {
             assert.deepEqual(applied, [{ provider: 'demo', value: 'demo-secret' }]);
             assert.deepEqual(notified, ['demo.apiKey']);
         } finally {
+            mutableKeys.getApiKey = originalGetApiKey;
             mutableKeys.setApiKey = originalSetApiKey;
             service.notifyProviders = originalNotifyProviders;
         }

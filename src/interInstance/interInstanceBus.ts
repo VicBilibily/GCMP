@@ -61,6 +61,8 @@ export class InterInstanceBus {
     private static authorityChangedEmitter = new vscode.EventEmitter<string | undefined>();
     /** 角色切换串行化：避免 becomeLeader/becomeFollower 并发交错导致 server+client 双活 */
     private static roleSwitchChain: Promise<void> = Promise.resolve();
+    /** becomeFollower / connectToLeader 期间保留旧权威任期，避免在途 acquire 被误判为 authority-unavailable */
+    private static roleTransitioning = 0;
     /** 生命周期代次：dispose/重新 initialize 后作废旧的异步角色切换与重连任务 */
     private static lifecycleGeneration = 0;
 
@@ -100,9 +102,7 @@ export class InterInstanceBus {
                     this.setAuthorityTerm(identity?.authorityTerm);
                     return;
                 }
-                if (identity?.authorityTerm !== this.authorityTerm) {
-                    this.setAuthorityTerm(undefined);
-                }
+                // Follower 保留旧任期，等新连接成功后再切到新 term，避免切主窗口把在途请求打成 unavailable
                 if (this.options.enabled) {
                     this.enqueueRoleSwitch(false);
                 }
@@ -154,6 +154,7 @@ export class InterInstanceBus {
         this.handlers.clear();
         this.context = undefined;
         this.roleSwitchChain = Promise.resolve();
+        this.roleTransitioning = 0;
 
         StatusLogger.info('[InterInstanceBus] Inter-instance bus disposed');
     }
@@ -258,10 +259,22 @@ export class InterInstanceBus {
      * 当前是否通过 IPC 连接
      */
     static isConnected(): boolean {
+        if (this.roleTransitioning > 0) {
+            return true;
+        }
+        return this.hasActiveTransport();
+    }
+
+    static hasActiveTransport(): boolean {
         if (LeaderElectionService.isLeader()) {
             return !!this.server;
         }
         return this.client?.isConnected() === true;
+    }
+
+    /** 角色/连接切换中：term 可能尚未更新，调用方不应把短暂缺失当成权威不可用 */
+    static isAuthorityTransitioning(): boolean {
+        return this.roleTransitioning > 0;
     }
 
     /**
@@ -301,10 +314,15 @@ export class InterInstanceBus {
                     );
                     return;
                 }
-                if (isLeader) {
-                    await this.becomeLeader();
-                } else {
-                    await this.becomeFollower();
+                this.roleTransitioning += 1;
+                try {
+                    if (isLeader) {
+                        await this.becomeLeader();
+                    } else {
+                        await this.becomeFollower();
+                    }
+                } finally {
+                    this.roleTransitioning = Math.max(0, this.roleTransitioning - 1);
                 }
             })
             .catch(error => StatusLogger.error('[InterInstanceBus] Failed to switch role', error));
@@ -376,10 +394,9 @@ export class InterInstanceBus {
 
         await this.stopLeaderFilePublisher();
 
-        // 先停止 server（如果之前是 leader）
+        // 先停止 server（如果之前是 leader）；旧权威任期保留到新连接成功
         await this.server?.stop();
         this.server = undefined;
-        this.setAuthorityTerm(undefined);
 
         if (!this.initialized || !this.context) {
             return;
@@ -421,7 +438,10 @@ export class InterInstanceBus {
                 this.dispatchEvent(event);
             },
             onDisconnect: () => {
-                this.setAuthorityTerm(undefined);
+                // 切角色时主动断开旧 client 是预期行为，保留旧 term 直到新连接落地
+                if (this.roleTransitioning === 0) {
+                    this.setAuthorityTerm(undefined);
+                }
                 // 基础事件为非关键通知；断线后无需补历史，仅尽快重连。
                 // 但 publish() 会基于真实连接状态选择 fallback，从而减少重连窗口内的静默丢失。
                 this.scheduleReconnect();
@@ -447,7 +467,6 @@ export class InterInstanceBus {
                 );
                 await this.client.disconnect();
                 this.client = undefined;
-                this.setAuthorityTerm(undefined);
                 this.scheduleReconnect();
                 return;
             }
