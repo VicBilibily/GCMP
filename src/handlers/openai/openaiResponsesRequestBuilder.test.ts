@@ -169,6 +169,70 @@ test('子请求关闭思考时不注入 nativeTools，但保留显式声明 tool
     assert.deepEqual(requestBody.tools, [declaredTool]);
 });
 
+test('模型不支持关闭思考时子请求省略 thinking/reasoning', async () => {
+    const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
+    const builder = new OpenAIResponsesRequestBuilder('Test Provider', {
+        convertMessagesToOpenAIResponses: () => ({ systemMessage: '', messages: [] }),
+        convertToolsToResponses: () => [],
+        filterExtraBodyParams: (extraBody: Record<string, unknown>) => extraBody
+    } as never);
+
+    const { requestBody } = builder.build({
+        model: { id: 'glm-5.3', name: 'GLM-5.3' } as never,
+        modelConfig: {
+            id: 'glm-5.3',
+            name: 'GLM-5.3',
+            tooltip: 'GLM-5.3',
+            maxInputTokens: 1000,
+            maxOutputTokens: 1000,
+            capabilities: { toolCalling: true, imageInput: false },
+            sdkMode: 'openai-responses',
+            reasoningEffort: ['high', 'max', 'low']
+        } as never,
+        messages: [],
+        options: {
+            modelConfiguration: { reasoningEffort: 'max' },
+            modelOptions: { requestKind: 'summarization' }
+        } as never,
+        sessionId: 'session-123'
+    });
+
+    assert.equal(requestBody.thinking, undefined);
+    assert.equal(requestBody.reasoning, undefined);
+});
+
+test('支持关闭思考的模型子请求降级为 disabled 与最低 effort', async () => {
+    const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
+    const builder = new OpenAIResponsesRequestBuilder('Test Provider', {
+        convertMessagesToOpenAIResponses: () => ({ systemMessage: '', messages: [] }),
+        convertToolsToResponses: () => [],
+        filterExtraBodyParams: (extraBody: Record<string, unknown>) => extraBody
+    } as never);
+
+    const { requestBody } = builder.build({
+        model: { id: 'glm-5.2', name: 'GLM-5.2' } as never,
+        modelConfig: {
+            id: 'glm-5.2',
+            name: 'GLM-5.2',
+            tooltip: 'GLM-5.2',
+            maxInputTokens: 1000,
+            maxOutputTokens: 1000,
+            capabilities: { toolCalling: true, imageInput: false },
+            sdkMode: 'openai-responses',
+            reasoningEffort: ['high', 'max', 'none']
+        } as never,
+        messages: [],
+        options: {
+            modelConfiguration: { reasoningEffort: 'max' },
+            modelOptions: { requestKind: 'summarization' }
+        } as never,
+        sessionId: 'session-123'
+    });
+
+    assert.deepEqual(requestBody.thinking, { type: 'disabled' });
+    assert.deepEqual(requestBody.reasoning, { effort: 'none' });
+});
+
 test('Responses Fast 服务等级发送 priority', async () => {
     const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
     const builder = new OpenAIResponsesRequestBuilder('Test Provider', {

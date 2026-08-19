@@ -4,6 +4,7 @@ import OpenAI from 'openai';
 import { ModelChatResponseOptions, ModelConfig, NativeToolConfig } from '../../types/sharedTypes';
 import { Logger } from '../../utils/runtime/logger';
 import { isSubRequest, type RequestKind } from '../requestClassifier';
+import { canDisableThinking } from '../thinkingSupport';
 import { mergeNativeToolConfigs } from '../nativeToolUtils';
 import { OpenAIResponsesMessageConverter } from './openaiResponsesMessageConverter';
 import { preprocessOpenAIResponsesInputItems } from './openaiResponsesInputPreprocessor';
@@ -237,6 +238,13 @@ export class OpenAIResponsesRequestBuilder {
         }
 
         if (!requestKind || !isSubRequest(requestKind)) {
+            return;
+        }
+
+        if (!canDisableThinking(modelConfig)) {
+            // 模型不支持关闭思考（如 GLM-5.3）：省略思考参数，由服务端默认行为接管
+            customParams.thinking = undefined;
+            customParams.reasoning = undefined;
             return;
         }
 

@@ -19,6 +19,14 @@ const enabledOnlyModel: Pick<ModelConfig, 'thinking'> = {
     thinking: ['enabled']
 };
 
+const disableCapableModel: Pick<ModelConfig, 'thinking'> = {
+    thinking: ['enabled', 'disabled']
+};
+
+const forcedReasoningModel: Pick<ModelConfig, 'reasoningEffort'> = {
+    reasoningEffort: ['high', 'max', 'low']
+};
+
 const builtInAnthropicModels: ModelConfig[] = Object.values(configProviders).flatMap(provider =>
     provider.models.filter(model => model.sdkMode === 'anthropic')
 );
@@ -40,7 +48,7 @@ const builtInThinkingOptions = Array.from(new Set(thinkingOptionModels.flatMap(m
 function applyConfig(
     params: ThinkingParams,
     settings: Pick<ModelChatResponseOptions, 'thinking' | 'reasoningEffort'> | undefined,
-    modelConfig: Pick<ModelConfig, 'thinking'>,
+    modelConfig: Pick<ModelConfig, 'thinking' | 'reasoningEffort'>,
     options?: { disableThinking?: boolean }
 ): ThinkingParams {
     const nextParams: ThinkingParams = {
@@ -214,12 +222,44 @@ describe('applyAnthropicThinkingConfiguration', () => {
                 } as ThinkingParams['output_config']
             },
             undefined,
-            adaptiveModel,
+            disableCapableModel,
             { disableThinking: true }
         );
 
         assert.deepEqual(params.thinking, { type: 'disabled' });
         assert.deepEqual(params.output_config, { format });
+    });
+
+    it('thinking 声明不含 disabled 的模型在子请求中省略 thinking 而非发送 disabled', () => {
+        for (const model of [enabledOnlyModel, adaptiveModel, autoModel]) {
+            const params = applyConfig(
+                {
+                    thinking: { type: 'enabled' } as ThinkingParams['thinking'],
+                    output_config: { effort: 'high' } as ThinkingParams['output_config']
+                },
+                undefined,
+                model,
+                { disableThinking: true }
+            );
+
+            assert.equal(params.thinking, undefined, JSON.stringify(model.thinking));
+            assert.equal(params.output_config, undefined, JSON.stringify(model.thinking));
+        }
+    });
+
+    it('reasoningEffort 不含 none/minimal 的模型在子请求中省略 thinking 而非发送 disabled', () => {
+        const params = applyConfig(
+            {
+                thinking: { type: 'enabled' } as ThinkingParams['thinking'],
+                output_config: { effort: 'max' } as ThinkingParams['output_config']
+            },
+            undefined,
+            forcedReasoningModel,
+            { disableThinking: true }
+        );
+
+        assert.equal(params.thinking, undefined);
+        assert.equal(params.output_config, undefined);
     });
 
     it('thinking=auto 会原样透传，不做本地 adaptive/enabled 映射', () => {
@@ -417,7 +457,7 @@ describe('applyAnthropicThinkingConfiguration', () => {
         }
     });
 
-    it('所有内置 Anthropic 模型在启用思考后，子请求都能安全降级为 disabled', () => {
+    it('所有内置 Anthropic 模型在启用思考后，子请求都能安全关闭思考', () => {
         for (const model of builtInAnthropicModels) {
             const reasoningOption = model.reasoningEffort?.find(option => option !== 'none' && option !== 'minimal');
             const thinkingOption = model.thinking?.find(option => option !== 'disabled');
@@ -435,11 +475,28 @@ describe('applyAnthropicThinkingConfiguration', () => {
                 hadThinking ||
                 (disabledParams.output_config as { effort?: string } | undefined)?.effort !== undefined
             ) {
-                assert.equal(
-                    (disabledParams.thinking as { type?: string } | undefined)?.type,
-                    'disabled',
-                    `${model.id}: sub-request should disable thinking`
-                );
+                // 模型不支持关闭思考时（thinking 声明不含 disabled，或 reasoningEffort 不含 none/minimal）省略 thinking
+                const omitsThinking =
+                    (model.thinking !== undefined &&
+                        model.thinking.length > 0 &&
+                        !model.thinking.includes('disabled')) ||
+                    (model.reasoningEffort !== undefined &&
+                        model.reasoningEffort.length > 0 &&
+                        !model.reasoningEffort.includes('none') &&
+                        !model.reasoningEffort.includes('minimal'));
+                if (omitsThinking) {
+                    assert.equal(
+                        disabledParams.thinking,
+                        undefined,
+                        `${model.id}: sub-request should omit thinking when disabled is unsupported`
+                    );
+                } else {
+                    assert.equal(
+                        (disabledParams.thinking as { type?: string } | undefined)?.type,
+                        'disabled',
+                        `${model.id}: sub-request should disable thinking`
+                    );
+                }
                 assert.equal(
                     (disabledParams.output_config as { effort?: string } | undefined)?.effort,
                     undefined,

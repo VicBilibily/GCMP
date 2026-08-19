@@ -2,6 +2,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import type { ModelChatResponseOptions, ModelConfig } from '../../types/sharedTypes';
+import { canDisableThinking } from '../thinkingSupport';
 
 type AnthropicThinking = Anthropic.MessageCreateParamsStreaming['thinking'];
 type AnthropicOutputConfig = Anthropic.MessageCreateParamsStreaming['output_config'];
@@ -24,7 +25,7 @@ interface ApplyAnthropicThinkingConfigurationOptions {
 export function applyAnthropicThinkingConfiguration(
     params: Pick<Anthropic.MessageCreateParamsStreaming, 'thinking' | 'output_config'>,
     settings: Pick<ModelChatResponseOptions, 'thinking' | 'reasoningEffort'> | undefined,
-    modelConfig: Pick<ModelConfig, 'thinking'>,
+    modelConfig: Pick<ModelConfig, 'thinking' | 'reasoningEffort'>,
     options?: ApplyAnthropicThinkingConfigurationOptions
 ): void {
     if (settings?.thinking) {
@@ -56,7 +57,8 @@ export function applyAnthropicThinkingConfiguration(
     }
 
     if (options?.disableThinking && (params.thinking || getOutputConfigEffort(params.output_config))) {
-        params.thinking = { type: 'disabled' };
+        // 模型不支持关闭思考时省略 thinking，避免端点拒绝 disabled（如 GLM-5.3）
+        params.thinking = canDisableThinking(modelConfig) ? { type: 'disabled' } : undefined;
         params.output_config = removeOutputConfigEffort(params.output_config);
     }
 }
