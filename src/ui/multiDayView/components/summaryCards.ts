@@ -94,6 +94,14 @@ export function createSummaryCards(data: MultiDayAnalysisResult, options: MultiD
     );
     container.appendChild(card4);
 
+    const card5 = makeCard(
+        t('Cache Hit Rate', '缓存命中率'),
+        `${(data.summary.cacheHitRate * 100).toFixed(1)}%`,
+        `${formatTokens(data.summary.totalCache)} ${t('cache', '缓存')} / ${formatTokens(data.summary.totalInput)} ${t('input', '输入')}`,
+        'cache-hit'
+    );
+    container.appendChild(card5);
+
     return container;
 }
 

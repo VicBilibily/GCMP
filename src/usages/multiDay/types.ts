@@ -108,6 +108,8 @@ export interface MultiDayAnalysisResult {
         topProvider: { key: string; name: string; share: number } | null;
         /** 最活跃模型 */
         topModel: { id: string; name: string; share: number } | null;
+        /** 周期内总缓存命中率（cache / input） */
+        cacheHitRate: number;
         /** 环比变化（与上一等长周期对比） */
         tokensChangePct: number | null;
     };

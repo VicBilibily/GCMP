@@ -298,6 +298,8 @@ export class MultiDayAggregator {
                     share: grandRequests > 0 ? modelRanking[0].totalRequests / grandRequests : 0
                 }
             :   null;
+        // 周期总缓存命中率：总缓存 token / 总输入 token，无输入则 0
+        const summaryCacheHitRate = grandInput > 0 ? grandCache / grandInput : 0;
 
         const trendSeries = this.buildTrendSeries(dates);
 
@@ -323,6 +325,7 @@ export class MultiDayAggregator {
                 dailyAvgCostRmb,
                 topProvider,
                 topModel,
+                cacheHitRate: summaryCacheHitRate,
                 tokensChangePct: null
             },
             providerRanking,
@@ -453,6 +456,7 @@ export class MultiDayAggregator {
                 dailyAvgCostRmb: 0,
                 topProvider: null,
                 topModel: null,
+                cacheHitRate: 0,
                 tokensChangePct: null
             },
             providerRanking: [],
