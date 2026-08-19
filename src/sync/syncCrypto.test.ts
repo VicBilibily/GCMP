@@ -19,7 +19,28 @@ test('encrypt produces scrypt payload by default', async () => {
     const payload = JSON.parse(encrypted!);
     assert.strictEqual(payload.algorithm, 'aes-256-gcm');
     assert.strictEqual(payload.kdf, 'scrypt');
+    assert.deepStrictEqual(payload.kdfParams, { N: 131072, r: 8, p: 1 });
+    assert.strictEqual(isCurrentKdf(encrypted!), true);
+});
+
+test('decrypt still handles legacy scrypt params from 0.26.x payloads', async () => {
+    // 旧版（N=16384）加密的数据包：包内 kdfParams 声明旧参数，解密需按包内参数派生
+    const encrypted = await encrypt(GITHUB_ID, PLAINTEXT, 'legacy-pass', { N: 16384, r: 8, p: 1 });
+    assert.ok(encrypted);
+    const payload = JSON.parse(encrypted!);
     assert.deepStrictEqual(payload.kdfParams, { N: 16384, r: 8, p: 1 });
+    assert.strictEqual(isCurrentKdf(encrypted!), false);
+    const decrypted = await decrypt(GITHUB_ID, encrypted!, 'legacy-pass');
+    assert.strictEqual(decrypted, PLAINTEXT);
+});
+
+test('decrypt rejects payload with unsupported scrypt params', async () => {
+    const encrypted = await encrypt(GITHUB_ID, PLAINTEXT, undefined);
+    assert.ok(encrypted);
+    const payload = JSON.parse(encrypted!);
+    payload.kdfParams = { N: 1073741824, r: 8, p: 1 };
+    const decrypted = await decrypt(GITHUB_ID, JSON.stringify(payload), undefined);
+    assert.strictEqual(decrypted, undefined);
 });
 
 test('scrypt roundtrip without passphrase', async () => {

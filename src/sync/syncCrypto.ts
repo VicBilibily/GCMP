@@ -66,12 +66,28 @@ const ENCRYPTION_PEPPER = 'gcmp-sync-aes256-v1';
 /** 加密密钥长度 (AES-256) */
 const KEY_LENGTH = 32;
 
-/** 默认 scrypt 参数 */
-const DEFAULT_SCRYPT_PARAMS: ScryptParams = { N: 16384, r: 8, p: 1 };
+/** 旧版 scrypt 参数（0.27.0 之前加密的数据包，解密时仍需支持） */
+const LEGACY_SCRYPT_PARAMS: ScryptParams = { N: 16384, r: 8, p: 1 };
+
+/** 当前 scrypt 参数（OWASP interactive 下限 N=2^17） */
+const CURRENT_SCRYPT_PARAMS: ScryptParams = { N: 131072, r: 8, p: 1 };
+
+/** 解密允许的 KDF 参数白名单，防止数据包被篡改为任意参数触发高成本派生 */
+const SUPPORTED_SCRYPT_PARAMS: readonly ScryptParams[] = [CURRENT_SCRYPT_PARAMS, LEGACY_SCRYPT_PARAMS];
+
+function isSupportedScryptParams(value: unknown): value is ScryptParams {
+    if (!value || typeof value !== 'object') {
+        return false;
+    }
+    const params = value as ScryptParams;
+    return SUPPORTED_SCRYPT_PARAMS.some(
+        supported => params.N === supported.N && params.r === supported.r && params.p === supported.p
+    );
+}
 
 /**
  * 判断加密数据包是否使用当前推荐的 KDF
- * 用于上传时统一迁移旧格式
+ * 用于上传时统一迁移旧格式（旧参数数据包在重加密后自动升级）
  */
 export function isCurrentKdf(encryptedPayload: string): boolean {
     let payload: EncryptedPayload;
@@ -80,31 +96,40 @@ export function isCurrentKdf(encryptedPayload: string): boolean {
     } catch {
         return false;
     }
-    return payload.algorithm === 'aes-256-gcm' && payload.kdf === 'scrypt';
+    return (
+        payload.algorithm === 'aes-256-gcm' &&
+        payload.kdf === 'scrypt' &&
+        isSupportedScryptParams(payload.kdfParams) &&
+        payload.kdfParams.N === CURRENT_SCRYPT_PARAMS.N
+    );
 }
 
 /**
  * 从 GitHub 用户 ID 派生加密密钥（不依赖 PAT 内容）
  * 如果设置了自定义口令，口令也会参与密钥派生，提供额外保护
+ * 注意：未设置口令时的派生材料（GitHub ID + 内置 pepper）均为公开/可提取信息，
+ * 加密仅提供混淆级保护，需在 UI 中向用户明示
  * 使用异步 scrypt，批量派生时不阻塞事件循环
  * @param githubId GitHub 用户数字 ID
  * @param salt 盐值
  * @param passphrase 可选的自定义口令
+ * @param params scrypt 参数（解密旧数据包时传包内声明的参数）
  * @returns 派生出的密钥，失败返回 undefined
  */
 export async function deriveKey(
     githubId: string,
     salt: Buffer,
-    passphrase: string | undefined
+    passphrase: string | undefined,
+    params: ScryptParams = CURRENT_SCRYPT_PARAMS
 ): Promise<Buffer | undefined> {
     const secret = passphrase ? `${githubId}:${ENCRYPTION_PEPPER}:${passphrase}` : `${githubId}:${ENCRYPTION_PEPPER}`;
 
     try {
         return await scryptAsync(secret, salt, KEY_LENGTH, {
-            N: DEFAULT_SCRYPT_PARAMS.N,
-            r: DEFAULT_SCRYPT_PARAMS.r,
-            p: DEFAULT_SCRYPT_PARAMS.p,
-            maxmem: 128 * 1024 * 1024
+            N: params.N,
+            r: params.r,
+            p: params.p,
+            maxmem: 256 * 1024 * 1024
         });
     } catch {
         return undefined;
@@ -121,22 +146,23 @@ export async function deriveKey(
 export async function encrypt(
     githubId: string,
     plaintext: string,
-    passphrase: string | undefined
+    passphrase: string | undefined,
+    params: ScryptParams = CURRENT_SCRYPT_PARAMS
 ): Promise<string | undefined> {
     const salt = crypto.randomBytes(32);
-    const key = await deriveKey(githubId, salt, passphrase);
+    const key = await deriveKey(githubId, salt, passphrase, params);
     if (!key) {
         return undefined;
     }
     try {
-        return encryptWithKey(plaintext, key, salt);
+        return encryptWithKey(plaintext, key, salt, params);
     } finally {
         key.fill(0);
     }
 }
 
 /** 用已派生的密钥加密单条明文（IV 逐条随机生成） */
-function encryptWithKey(plaintext: string, key: Buffer, salt: Buffer): string {
+function encryptWithKey(plaintext: string, key: Buffer, salt: Buffer, params: ScryptParams): string {
     const iv = crypto.randomBytes(16);
     const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
 
@@ -146,7 +172,7 @@ function encryptWithKey(plaintext: string, key: Buffer, salt: Buffer): string {
     const payload: EncryptedPayload = {
         algorithm: 'aes-256-gcm',
         kdf: 'scrypt',
-        kdfParams: DEFAULT_SCRYPT_PARAMS,
+        kdfParams: params,
         salt: salt.toString('hex'),
         iv: iv.toString('hex'),
         tag: tag.toString('hex'),
@@ -178,7 +204,7 @@ export async function createBatchEncryptor(
         if (disposed) {
             throw new Error('BatchEncryptor has been disposed');
         }
-        return encryptWithKey(plaintext, key, salt);
+        return encryptWithKey(plaintext, key, salt, CURRENT_SCRYPT_PARAMS);
     }) as BatchEncryptor;
     encryptor.dispose = () => {
         disposed = true;
@@ -201,6 +227,7 @@ function parsePayload(encryptedPayload: string): EncryptedPayload | undefined {
         typeof payload !== 'object' ||
         payload.algorithm !== 'aes-256-gcm' ||
         payload.kdf !== 'scrypt' ||
+        !isSupportedScryptParams(payload.kdfParams) ||
         !isHexString(payload.salt, 32) ||
         !isHexString(payload.iv, 16) ||
         !isHexString(payload.tag, 16) ||
@@ -244,7 +271,7 @@ export async function decrypt(
         return undefined;
     }
 
-    const key = await deriveKey(githubId, Buffer.from(payload.salt, 'hex'), passphrase);
+    const key = await deriveKey(githubId, Buffer.from(payload.salt, 'hex'), passphrase, payload.kdfParams);
     if (!key) {
         return undefined;
     }
@@ -273,9 +300,10 @@ export function createBatchDecryptor(githubId: string, passphrase: string | unde
         if (!payload) {
             return undefined;
         }
-        let key = keyCache.get(payload.salt);
+        const cacheKey = `${payload.salt}:${payload.kdfParams.N}`;
+        let key = keyCache.get(cacheKey);
         if (!key) {
-            const derived = await deriveKey(githubId, Buffer.from(payload.salt, 'hex'), passphrase);
+            const derived = await deriveKey(githubId, Buffer.from(payload.salt, 'hex'), passphrase, payload.kdfParams);
             if (!derived) {
                 return undefined;
             }
@@ -284,7 +312,7 @@ export function createBatchDecryptor(githubId: string, passphrase: string | unde
                 return undefined;
             }
             key = derived;
-            keyCache.set(payload.salt, key);
+            keyCache.set(cacheKey, key);
         }
         return decryptPayload(payload, key);
     }) as BatchDecryptor;

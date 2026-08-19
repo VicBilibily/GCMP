@@ -199,7 +199,8 @@ export class ConfigSetStore {
 
             try {
                 if (apiKey !== undefined) {
-                    if (apiKey === null) {
+                    if (apiKey === null || apiKey.trim().length === 0) {
+                        // 空串与 null 同义：删除密钥，与 writeAll/消费端判空保持一致
                         await this.context.secrets.delete(this.secretKey(slot, id));
                     } else {
                         await this.context.secrets.store(this.secretKey(slot, id), apiKey);
@@ -322,6 +323,9 @@ export class ConfigSetStore {
             }
 
             try {
+                // 多键写入无跨键事务：进程崩溃可能停在中间留"有列表无密钥"的不一致（下次上传/下载可自愈）。
+                // 先写 items 后写 secrets，使崩溃残留偏向用户可感知的缺密钥形态而非泄漏面更大的孤儿 secret
+                await this.writeSlotItems(slot, items);
                 for (const item of items) {
                     const key = keys[item.id];
                     if (key === undefined || key.trim().length === 0) {
@@ -330,7 +334,6 @@ export class ConfigSetStore {
                     }
                     await this.context.secrets.store(this.secretKey(slot, item.id), key);
                 }
-                await this.writeSlotItems(slot, items);
                 const activeKey = activeId ? keys[activeId]?.trim() : undefined;
                 if (activeId && incomingIds.has(activeId) && activeKey) {
                     await this.setActiveUnlocked(slot, activeId);

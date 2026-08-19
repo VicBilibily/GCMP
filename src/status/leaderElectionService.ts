@@ -34,6 +34,9 @@ export class LeaderElectionService {
     private static heartbeatTimer: NodeJS.Timeout | undefined;
     private static taskTimer: NodeJS.Timeout | undefined;
     private static _isLeader = false;
+    /** 本实例当选时的 electedAt。心跳写入必须用它而非从共享记录回读，
+     * 否则双 Leader 期间会继承对方的 electedAt，污染 authorityTerm 判定 */
+    private static ownElectedAt = 0;
     private static initialized = false;
     /**
      * 当前是否运行在 Agents 窗体中。
@@ -374,10 +377,24 @@ export class LeaderElectionService {
             StatusLogger.trace(`[LeaderElectionService] Detected another leader: ${leaderInfo.instanceId}`);
             // 如果我之前是 Leader，但现在 globalState 中的 Leader 不是我，说明被其他实例覆盖了
             if (this._isLeader) {
-                this.setLeaderState(false);
-                StatusLogger.warn(
-                    `[LeaderElectionService] Leader role was overridden by instance ${leaderInfo.instanceId}, stepping down`
-                );
+                // 双 Leader 收敛：globalState 写入-读取交错可让双方同时宣布当选。
+                // 按 electedAt LWW（新当选者保留，毫秒同值时按 instanceId 字典序）确定性裁决，
+                // 双方对同一对值判定结果一致，避免"覆盖-退位"随机乒乓导致限流权威反复空桶重建
+                const incumbentNewer =
+                    leaderInfo.electedAt > this.ownElectedAt ||
+                    (leaderInfo.electedAt === this.ownElectedAt && leaderInfo.instanceId > this.instanceId);
+                if (incumbentNewer) {
+                    this.setLeaderState(false);
+                    StatusLogger.warn(
+                        `[LeaderElectionService] Leader role was overridden by instance ${leaderInfo.instanceId} (elected later), stepping down`
+                    );
+                } else {
+                    StatusLogger.warn(
+                        `[LeaderElectionService] Instance ${leaderInfo.instanceId} was elected earlier, reclaiming leadership`
+                    );
+                    await this.updateHeartbeat();
+                    this.setLeaderState(true);
+                }
             }
 
             // 检查该 Leader 是否超时
@@ -536,6 +553,7 @@ export class LeaderElectionService {
 
         if (isWinner && currentInfo.instanceId === this.instanceId) {
             if (!this._isLeader) {
+                this.ownElectedAt = info.electedAt;
                 this.setLeaderState(true);
                 StatusLogger.info('[LeaderElectionService] Election succeeded, current instance is the leader');
             }
@@ -558,14 +576,12 @@ export class LeaderElectionService {
             return;
         }
 
-        // 读取当前 Leader 信息以保留 electedAt
-        const currentInfo = this.context.globalState.get<LeaderInfo>(this.LEADER_KEY);
         const newHeartbeat = Date.now();
 
         const info: LeaderInfo = {
             instanceId: this.instanceId,
             lastHeartbeat: newHeartbeat,
-            electedAt: currentInfo?.electedAt || newHeartbeat
+            electedAt: this.ownElectedAt || newHeartbeat
         };
         StatusLogger.trace(`[LeaderElectionService] Updating heartbeat: lastHeartbeat=${newHeartbeat}`);
         await this.context.globalState.update(this.LEADER_KEY, info);

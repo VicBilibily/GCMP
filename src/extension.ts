@@ -626,6 +626,26 @@ export async function activate(context: vscode.ExtensionContext) {
 
 // This method is called when your extension is deactivated
 export async function deactivate() {
+    // 必须执行的清理（尾部统计落盘与 Logger 句柄）独立成段，
+    // 避免前面任意一步抛错时被整体跳过
+    const disposeEssentials = async (): Promise<void> => {
+        try {
+            // 清理 Token 用量管理器：必须 await，确保写队列中最后一批统计落盘，
+            // 否则窗口关闭/扩展升级时会丢失尾部请求统计
+            await TokenUsagesManager.instance.dispose();
+            Logger.trace('Token usage manager disposed');
+        } catch (error) {
+            Logger.warn('Failed to dispose token usage manager:', error);
+        }
+        try {
+            StatusLogger.dispose(); // 清理状态日志管理器
+            CompletionLogger.dispose(); // 清理内联补全日志管理器
+            Logger.dispose(); // 在扩展销毁时才 dispose Logger
+        } catch (error) {
+            console.warn('Failed to dispose loggers during deactivation:', error);
+        }
+    };
+
     try {
         Logger.info('Starting GCMP extension deactivation...');
 
@@ -673,20 +693,10 @@ export async function deactivate() {
         await closeProxyAgents();
         Logger.trace('Proxy agents disposed');
 
-        // 清理 Token 用量管理器：必须 await，确保写队列中最后一批统计落盘，
-        // 否则窗口关闭/扩展升级时会丢失尾部请求统计
-        try {
-            await TokenUsagesManager.instance.dispose();
-            Logger.trace('Token usage manager disposed');
-        } catch (error) {
-            Logger.warn('Failed to dispose token usage manager:', error);
-        }
-
         Logger.info('GCMP extension deactivated successfully');
-        StatusLogger.dispose(); // 清理状态日志管理器
-        CompletionLogger.dispose(); // 清理内联补全日志管理器
-        Logger.dispose(); // 在扩展销毁时才 dispose Logger
     } catch (error) {
         Logger.error('Error during GCMP extension deactivation:', error);
+    } finally {
+        await disposeEssentials();
     }
 }

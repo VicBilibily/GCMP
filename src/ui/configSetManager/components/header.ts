@@ -138,7 +138,10 @@ function fillPopover(render: () => void, pop: HTMLElement): void {
     const passText =
         sync?.hasCustomPassphrase ?
             t('Passphrase: set', '口令：已设置')
-        :   t('Passphrase: not set (recommended)', '口令：未设置（建议先设置）');
+        :   t(
+                'Passphrase: not set (without a passphrase, encryption is only obfuscation-level; setting one is recommended)',
+                '口令：未设置（未设口令时加密仅为混淆级保护，建议设置）'
+            );
     statusBox.appendChild(el('div', 'csm-gistmenu-status-line', `${gistText} · ${passText}`));
     pop.appendChild(statusBox);
 

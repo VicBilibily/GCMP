@@ -556,7 +556,9 @@ export class RateLimitStore {
         return granted;
     }
 
-    /** 惰性回收过期租约（Follower 崩溃后槽位兜底） */
+    /** 惰性回收过期租约（Follower 崩溃后槽位兜底）。
+     *  过期时请求几乎必然已发出并真实消耗配额，故只回收并发槽位、不退 pacing，
+     *  避免退款导致 tpm/rpm 超发；残留 reservation 由 pruneExpiredReservations 按时自愈 */
     private reclaimExpiredLeases(now: number): void {
         for (const [grantId, grant] of this.grants) {
             if (grant.expiresAt <= now) {

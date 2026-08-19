@@ -709,18 +709,31 @@ export class RateLimiter {
         onCancelled: () => void
     ): Promise<TResult | undefined> {
         return new Promise<TResult | undefined>(resolve => {
-            const cancelSub = token?.onCancellationRequested(() => {
-                waiters.delete(requestId);
-                onCancelled();
-                resolve(undefined);
-            });
-            waiters.set(requestId, {
-                onWaiting,
-                resolve: result => {
-                    cancelSub?.dispose();
-                    resolve(result);
+            let settled = false;
+            // eslint-disable-next-line prefer-const -- 同步取消回调要求赋值前可引用
+            let cancelSub: vscode.Disposable | undefined;
+            const settle = (result: TResult | undefined): void => {
+                if (settled) {
+                    return;
                 }
-            });
+                settled = true;
+                cancelSub?.dispose();
+                waiters.delete(requestId);
+                resolve(result);
+            };
+            // 必须先入表再注册取消监听：onCancellationRequested 对已取消 token 会同步回调，
+            // 先注册后入表会让同步回调里的 delete 落空，随后 set 写入永不 resolve 的死条目
+            waiters.set(requestId, { onWaiting, resolve: settle });
+            const handleCancellation = (): void => {
+                settle(undefined);
+                onCancelled();
+            };
+            cancelSub = token?.onCancellationRequested(handleCancellation);
+            if (token?.isCancellationRequested) {
+                // token 已取消：注册时已同步触发过 handleCancellation，这里补 dispose 防监听器残留
+                handleCancellation();
+                cancelSub?.dispose();
+            }
         });
     }
 

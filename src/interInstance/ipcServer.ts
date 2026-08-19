@@ -5,6 +5,7 @@
 
 import * as net from 'node:net';
 import * as fs from 'node:fs/promises';
+import { StringDecoder } from 'node:string_decoder';
 import { InterInstanceEvent, parseEventsFromBuffer, serializeEvent } from './eventProtocol';
 import { isNamedPipePath } from './pathResolver';
 import { StatusLogger } from '../utils/runtime/statusLogger';
@@ -75,6 +76,9 @@ export class IpcServer {
             const server = net.createServer(socket => {
                 this.sockets.add(socket);
                 let buffer = '';
+                // chunk 边界可能落在多字节 UTF-8 字符中间，必须用 StringDecoder 增量解码，
+                // 直接 toString 会产生不可恢复的 U+FFFD 导致整行事件丢弃
+                const decoder = new StringDecoder('utf8');
                 const cleanupSocket = () => {
                     const instanceId = this.socketInstanceIds.get(socket);
                     this.sockets.delete(socket);
@@ -85,7 +89,7 @@ export class IpcServer {
                 };
 
                 socket.on('data', data => {
-                    buffer += data.toString('utf8');
+                    buffer += decoder.write(data);
                     if (Buffer.byteLength(buffer, 'utf8') > IpcServer.MAX_BUFFER_BYTES) {
                         // 对端持续发送无法解析的数据，判定为异常连接，直接断开
                         StatusLogger.warn('[IpcServer] Socket buffer exceeded limit, destroying connection');

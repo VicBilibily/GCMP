@@ -26,10 +26,41 @@ export abstract class QuotaProviderBase<TRaw> {
         return new Error(t('Invalid response format: {0}', '响应格式错误: {0}', String(parseError)));
     }
 
+    /** 单次配额查询超时，与 codex/grok 对齐；防止网络挂起时状态栏 isLoading 永久占用 */
+    private static readonly FETCH_TIMEOUT_MS = 10000;
+
     /** 查询原始数据：HTTP 执行与 JSON 解析统一在此，业务校验交给子类 */
     async fetch(apiKey: string, site?: string): Promise<TRaw> {
         const { url, init } = this.buildRequest(apiKey, site);
-        const response = await ConfigManager.fetchWithProxy(url, init, { providerKey: this.providerKey });
+
+        // 超时与调用方传入的 signal（如有）合并：任一触发即中断
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), QuotaProviderBase.FETCH_TIMEOUT_MS);
+        const externalSignal = init.signal;
+        if (externalSignal) {
+            if (externalSignal.aborted) {
+                controller.abort();
+            } else {
+                externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+            }
+        }
+
+        let response: Response;
+        try {
+            response = await ConfigManager.fetchWithProxy(
+                url,
+                { ...init, signal: controller.signal },
+                { providerKey: this.providerKey }
+            );
+        } catch (error) {
+            if (controller.signal.aborted && !externalSignal?.aborted) {
+                throw new Error(t('Quota query timed out', '配额查询超时'));
+            }
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+
         const responseText = await response.text();
 
         let payload: unknown;
