@@ -1286,6 +1286,106 @@ suite('config set label behavior', () => {
         assert.ok(errorMessages.some(message => /口令未清除|not cleared/i.test(message)));
     });
 
+    test('runClearPassphraseFlow rolls back remote data when clearing the local passphrase fails', async () => {
+        const mutableGist = GistSyncService as unknown as {
+            clearCustomPassphrase: typeof GistSyncService.clearCustomPassphrase;
+            getConfigSetGistId: typeof GistSyncService.getConfigSetGistId;
+            getCustomPassphrase: typeof GistSyncService.getCustomPassphrase;
+            getGistId: typeof GistSyncService.getGistId;
+            getUserInfo: typeof GistSyncService.getUserInfo;
+            readDecryptedSyncData: typeof GistSyncService.readDecryptedSyncData;
+            writeSyncDataWithPassphrase: typeof GistSyncService.writeSyncDataWithPassphrase;
+        };
+        const mutableWindow = vscode.window as unknown as {
+            showErrorMessage: typeof vscode.window.showErrorMessage;
+            showInformationMessage: typeof vscode.window.showInformationMessage;
+            showWarningMessage: typeof vscode.window.showWarningMessage;
+        };
+        const originalClearCustomPassphrase = mutableGist.clearCustomPassphrase;
+        const originalGetConfigSetGistId = mutableGist.getConfigSetGistId;
+        const originalGetCustomPassphrase = mutableGist.getCustomPassphrase;
+        const originalGetGistId = mutableGist.getGistId;
+        const originalGetUserInfo = mutableGist.getUserInfo;
+        const originalReadDecryptedSyncData = mutableGist.readDecryptedSyncData;
+        const originalWriteSyncDataWithPassphrase = mutableGist.writeSyncDataWithPassphrase;
+        const originalFetchWithProxy = ConfigManager.fetchWithProxy;
+        const originalShowErrorMessage = mutableWindow.showErrorMessage;
+        const originalShowInformationMessage = mutableWindow.showInformationMessage;
+        const originalShowWarningMessage = mutableWindow.showWarningMessage;
+        const errorMessages: string[] = [];
+        const infoMessages: string[] = [];
+        const writePassphrases: Array<string | undefined> = [];
+
+        mutableGist.getCustomPassphrase = (async () => 'old-passphrase') as typeof GistSyncService.getCustomPassphrase;
+        mutableGist.getUserInfo = (async () => ({
+            id: 1,
+            login: 'tester',
+            token: 'token'
+        })) as typeof GistSyncService.getUserInfo;
+        mutableGist.getGistId = () => 'legacy-gist';
+        mutableGist.getConfigSetGistId = () => undefined;
+        mutableGist.readDecryptedSyncData = (async () => ({
+            version: 1,
+            timestamp: '2026-08-18T00:00:00.000Z',
+            keys: {}
+        })) as typeof GistSyncService.readDecryptedSyncData;
+        mutableGist.writeSyncDataWithPassphrase = (async (
+            _token: string,
+            _gistId: string,
+            _data: unknown,
+            passphrase?: string
+        ) => {
+            writePassphrases.push(passphrase);
+            return true;
+        }) as typeof GistSyncService.writeSyncDataWithPassphrase;
+        mutableGist.clearCustomPassphrase = (async () => {
+            throw new Error('secret storage unavailable');
+        }) as typeof GistSyncService.clearCustomPassphrase;
+        ConfigManager.fetchWithProxy = (async url => {
+            const href = String(url);
+            if (href.includes('per_page=100')) {
+                return { ok: true, status: 200, json: async () => [] } as never;
+            }
+            return { ok: true, status: 200, json: async () => ({ files: {} }) } as never;
+        }) as typeof ConfigManager.fetchWithProxy;
+        mutableWindow.showWarningMessage = (async (
+            _message: string,
+            _options: vscode.MessageOptions | undefined,
+            ...items: string[]
+        ) => items[0]) as typeof vscode.window.showWarningMessage;
+        mutableWindow.showErrorMessage = (async (message: string) => {
+            errorMessages.push(message);
+            return undefined;
+        }) as typeof vscode.window.showErrorMessage;
+        mutableWindow.showInformationMessage = (async (message: string) => {
+            infoMessages.push(message);
+            return undefined;
+        }) as typeof vscode.window.showInformationMessage;
+
+        try {
+            await runClearPassphraseFlow();
+        } finally {
+            mutableGist.clearCustomPassphrase = originalClearCustomPassphrase;
+            mutableGist.getConfigSetGistId = originalGetConfigSetGistId;
+            mutableGist.getCustomPassphrase = originalGetCustomPassphrase;
+            mutableGist.getGistId = originalGetGistId;
+            mutableGist.getUserInfo = originalGetUserInfo;
+            mutableGist.readDecryptedSyncData = originalReadDecryptedSyncData;
+            mutableGist.writeSyncDataWithPassphrase = originalWriteSyncDataWithPassphrase;
+            ConfigManager.fetchWithProxy = originalFetchWithProxy;
+            mutableWindow.showErrorMessage = originalShowErrorMessage;
+            mutableWindow.showInformationMessage = originalShowInformationMessage;
+            mutableWindow.showWarningMessage = originalShowWarningMessage;
+        }
+
+        // 远端先被改写为无口令，本地清除失败后必须以旧口令回滚，否则数据不可解密
+        assert.deepEqual(writePassphrases, [undefined, 'old-passphrase']);
+        assert.ok(
+            errorMessages.some(message => /本地清除口令失败|restored with the previous passphrase/i.test(message))
+        );
+        assert.equal(infoMessages.length, 0);
+    });
+
     test('ConfigSetSyncHost.resolveGistId ignores the legacy API key gist when no config-set gist exists', async () => {
         const host = new ConfigSetSyncHost({
             post() {},

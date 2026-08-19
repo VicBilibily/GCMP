@@ -11,7 +11,7 @@ import {
     hasNativeCostSplit,
     mergeNativeCostSplit
 } from './nativeCostSplit';
-import type { BaseStats, TokenRequestLog, TokenUsageStatsFromFile } from './types';
+import type { BaseStats, FileLoggerModelStats, TokenRequestLog, TokenUsageStatsFromFile } from './types';
 import { convertUsdToRmb, sumCosts } from '../../utils/pricing/pricingCurrency';
 
 function addCost(current: number, delta: number | undefined): number {
@@ -57,6 +57,31 @@ function addBreakdownCosts(target: BaseStats, log: TokenRequestLog): void {
         target.cacheWriteCostRmb,
         exactRmb?.cost[3] ?? convertUsdToRmb(breakdown.cost[3] ?? 0)
     );
+}
+
+function createEmptyModelStats(modelName: string): FileLoggerModelStats {
+    return {
+        modelName,
+        estimatedInput: 0,
+        actualInput: 0,
+        cacheTokens: 0,
+        outputTokens: 0,
+        requests: 0,
+        costedRequests: 0,
+        rmbExactRequests: 0,
+        firstTokenLatency: 0,
+        outputSpeeds: 0,
+        estimatedCost: 0,
+        estimatedCostRmb: 0,
+        inputCost: 0,
+        inputCostRmb: 0,
+        outputCost: 0,
+        outputCostRmb: 0,
+        cacheReadCost: 0,
+        cacheReadCostRmb: 0,
+        cacheWriteCost: 0,
+        cacheWriteCostRmb: 0
+    };
 }
 
 /**
@@ -352,12 +377,18 @@ export abstract class StatsCalculator {
                 !!log.rawUsage &&
                 Object.keys(log.rawUsage).length > 0;
             if (!hasFinalUsage) {
-                // completed 但没有 rawUsage 时，仍回退到预估输入
+                // completed 但没有 rawUsage 时，仍回退到预估输入；模型维度同步计入，保持与 provider 合计一致
                 if (log.status === 'completed') {
                     stats.total.estimatedInput += log.estimatedInput;
                     stats.total.actualInput += log.estimatedInput;
                     providerStats.estimatedInput += log.estimatedInput;
                     providerStats.actualInput += log.estimatedInput;
+                    const fallbackModelStats = (providerStats.models[log.modelId] ??= createEmptyModelStats(
+                        log.modelName
+                    ));
+                    fallbackModelStats.estimatedInput += log.estimatedInput;
+                    fallbackModelStats.actualInput += log.estimatedInput;
+                    fallbackModelStats.requests++;
                 }
                 continue;
             }
@@ -381,28 +412,7 @@ export abstract class StatsCalculator {
 
             // 按模型聚合（completed 与带实际 usage 的 cancelled）
             if (!providerStats.models[log.modelId]) {
-                providerStats.models[log.modelId] = {
-                    modelName: log.modelName,
-                    estimatedInput: 0,
-                    actualInput: 0,
-                    cacheTokens: 0,
-                    outputTokens: 0,
-                    requests: 0,
-                    costedRequests: 0,
-                    rmbExactRequests: 0,
-                    firstTokenLatency: 0,
-                    outputSpeeds: 0,
-                    estimatedCost: 0,
-                    estimatedCostRmb: 0,
-                    inputCost: 0,
-                    inputCostRmb: 0,
-                    outputCost: 0,
-                    outputCostRmb: 0,
-                    cacheReadCost: 0,
-                    cacheReadCostRmb: 0,
-                    cacheWriteCost: 0,
-                    cacheWriteCostRmb: 0
-                };
+                providerStats.models[log.modelId] = createEmptyModelStats(log.modelName);
             }
 
             const modelStats = providerStats.models[log.modelId];

@@ -807,6 +807,9 @@ export class RateLimiter {
             let timer: NodeJS.Timeout | undefined;
             let settled = false;
             let authoritySub: vscode.Disposable | undefined;
+            // 先声明后注册：onCancellationRequested 对已取消 token 同步回调，cleanup 必须能安全引用
+            // eslint-disable-next-line prefer-const -- 同步取消回调要求赋值前可引用
+            let cancelSub: vscode.Disposable | undefined;
             const cleanup = () => {
                 if (timer) {
                     clearTimeout(timer);
@@ -843,8 +846,12 @@ export class RateLimiter {
                     schedule();
                 }, delayMs);
             };
-            const cancelSub = token?.onCancellationRequested(() => finish(new vscode.CancellationError()));
-            if (authorityTerm) {
+            cancelSub = token?.onCancellationRequested(() => finish(new vscode.CancellationError()));
+            if (settled) {
+                // token 进入前已取消：同步回调已触发 finish，此处补 dispose 防监听器残留
+                cancelSub?.dispose();
+            }
+            if (authorityTerm && !settled) {
                 authoritySub = InterInstanceBus.onAuthorityChanged(nextAuthorityTerm => {
                     if (nextAuthorityTerm !== authorityTerm) {
                         finish(new AuthorityChangedError());
@@ -1209,16 +1216,11 @@ export class RateLimiter {
         return new Promise<boolean>(resolve => {
             const timerRef: { current?: NodeJS.Timeout } = {};
             let settled = false;
-            const authoritySub = InterInstanceBus.onAuthorityChanged(authorityTerm => {
-                if (authorityTerm && this.hasUsableAuthorityTransport()) {
-                    finish(true);
-                    return;
-                }
-                if (LeaderElectionService.isLeader()) {
-                    finish(true);
-                }
-            });
-            const cancelSub = token?.onCancellationRequested(() => finish(false));
+            // 先声明后注册：onCancellationRequested 对已取消 token 同步回调，finish 必须已定义
+            // eslint-disable-next-line prefer-const -- 同步取消回调要求赋值前可引用
+            let authoritySub: vscode.Disposable | undefined;
+            // eslint-disable-next-line prefer-const -- 同步取消回调要求赋值前可引用
+            let cancelSub: vscode.Disposable | undefined;
             const finish = (value: boolean) => {
                 if (settled) {
                     return;
@@ -1227,10 +1229,25 @@ export class RateLimiter {
                 if (timerRef.current) {
                     clearTimeout(timerRef.current);
                 }
-                authoritySub.dispose();
+                authoritySub?.dispose();
                 cancelSub?.dispose();
                 resolve(value);
             };
+            authoritySub = InterInstanceBus.onAuthorityChanged(authorityTerm => {
+                if (authorityTerm && this.hasUsableAuthorityTransport()) {
+                    finish(true);
+                    return;
+                }
+                if (LeaderElectionService.isLeader()) {
+                    finish(true);
+                }
+            });
+            cancelSub = token?.onCancellationRequested(() => finish(false));
+            if (settled) {
+                // token 进入前已取消：同步回调已结算，补 dispose 且不再启动超时计时
+                cancelSub?.dispose();
+                return;
+            }
             timerRef.current = setTimeout(() => finish(false), AUTHORITY_TRANSITION_TIMEOUT_MS);
         });
     }

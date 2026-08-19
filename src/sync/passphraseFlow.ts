@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { t } from '../utils/runtime/l10n';
+import { Logger } from '../utils/runtime/logger';
 import {
     findExistingConfigSetGist,
     readRemoteConfigSets,
@@ -322,6 +323,8 @@ export async function runClearPassphraseFlow(): Promise<void> {
     const clearAndReupload = t('Clear & Re-upload', '清除并重新上传');
     const clearOnly = t('Clear Only', '仅清除');
     let rewroteRemoteData = false;
+    let uploadedSnapshot: PassphraseReuploadSnapshot | undefined;
+    let uploadedWritten: { legacyWritten: boolean; configSetsWritten: boolean } | undefined;
     const proceed = await vscode.window.showWarningMessage(
         t(
             'Clearing the passphrase will make existing encrypted data on GitHub Gist undecryptable unless you re-upload it without a passphrase. Continue?',
@@ -366,10 +369,34 @@ export async function runClearPassphraseFlow(): Promise<void> {
                 );
                 return;
             }
+            uploadedSnapshot = snapshot;
+            uploadedWritten = written;
         }
     }
 
-    await GistSyncService.clearCustomPassphrase();
+    try {
+        await GistSyncService.clearCustomPassphrase();
+    } catch (error) {
+        Logger.error('[PassphraseFlow] Failed to clear custom passphrase:', error);
+        // 远端已改写为无口令版本时本地清除失败必须回滚，否则旧口令再也无法解密远端数据
+        if (uploadedSnapshot && uploadedWritten) {
+            const rolledBack = await rollbackSnapshot(uploadedSnapshot, currentPassphrase, uploadedWritten);
+            vscode.window.showErrorMessage(
+                rolledBack ?
+                    t(
+                        'Failed to clear the passphrase locally. Remote data was restored with the previous passphrase.',
+                        '本地清除口令失败，远端数据已恢复为原口令加密。'
+                    )
+                :   t(
+                        'Failed to clear the passphrase locally and remote rollback was incomplete. Restore the affected Gist before retrying.',
+                        '本地清除口令失败，且远端回滚不完整。请先恢复受影响的 Gist 再重试。'
+                    )
+            );
+            return;
+        }
+        vscode.window.showErrorMessage(t('Failed to clear the encryption passphrase.', '清除加密口令失败。'));
+        return;
+    }
     vscode.window.showInformationMessage(
         proceed === clearAndReupload && rewroteRemoteData ?
             t(

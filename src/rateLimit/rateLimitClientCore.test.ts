@@ -409,6 +409,52 @@ test('超时后迟到 grant 会 sendRelease', async () => {
     core.dispose();
 });
 
+test('authority-changed 结算后旧任期的迟到 grant 会 sendRelease', async () => {
+    let authorityTerm = 'leader-a:1';
+    const released: Array<{ authorityTerm: string; grantId: string }> = [];
+    const { core, sent, grant, queueUpdate } = makeCore({
+        timeout: 10_000,
+        getAuthorityTerm: () => authorityTerm,
+        sendRelease: msg => released.push(msg)
+    });
+    const promise = core.acquire('bucket', DIMS, COSTS);
+    const requestId = sent[0]!.requestId;
+    queueUpdate({ authorityTerm: 'leader-a:1', requestId, queuePosition: 1 });
+    authorityTerm = 'leader-b:2';
+    queueUpdate({ authorityTerm: 'leader-a:1', requestId, queuePosition: 1 });
+
+    const outcome = await promise;
+    assert.deepEqual(outcome, { status: 'authority-changed' });
+
+    // 旧任期 Leader 未收到 cancel 时授予的槽位必须被自动释放，避免权威槽位泄漏
+    grant({ authorityTerm: 'leader-a:1', requestId, waitMs: 0, grantId: 'g-late' });
+    assert.deepEqual(released, [{ authorityTerm: 'leader-a:1', grantId: 'g-late' }]);
+    core.dispose();
+});
+
+test('authority-unavailable 结算后迟到 grant 会 sendRelease', async () => {
+    let transportHealthy = true;
+    const released: Array<{ authorityTerm: string; grantId: string }> = [];
+    const { core, sent, grant, queueUpdate } = makeCore({
+        timeout: 10_000,
+        isTransportHealthy: () => transportHealthy,
+        sendRelease: msg => released.push(msg)
+    });
+    const promise = core.acquire('bucket', DIMS, COSTS);
+    const requestId = sent[0]!.requestId;
+    queueUpdate({ authorityTerm: 'leader-a:1', requestId, queuePosition: 1 });
+    transportHealthy = false;
+
+    const outcome = await promise;
+    assert.deepEqual(outcome, { status: 'degraded', reason: 'authority-unavailable' });
+
+    // 本地视角传输异常不代表 Leader 侧断连：迟到授予必须被自动释放
+    transportHealthy = true;
+    grant({ authorityTerm: 'leader-a:1', requestId, waitMs: 0, grantId: 'g-late' });
+    assert.deepEqual(released, [{ authorityTerm: 'leader-a:1', grantId: 'g-late' }]);
+    core.dispose();
+});
+
 test('过期 lateWatch 会在后续 grant 事件中被清理', async () => {
     const { core, grant } = makeCore({ timeout: 30 });
     const outcome = await core.acquire('bucket', DIMS, COSTS);

@@ -355,6 +355,8 @@ export class RateLimitClientCore {
             clearInterval(waiter.cancelCheck);
         }
         this.pending.delete(requestId);
+        // cancel 可能丢失：旧任期迟到授予需自动释放，避免权威槽位泄漏
+        this.watchLateGrant(requestId, waiter.authorityTerm);
         this.options.sendCancel?.({
             authorityTerm: waiter.authorityTerm,
             requestId,
@@ -375,6 +377,8 @@ export class RateLimitClientCore {
             clearInterval(waiter.cancelCheck);
         }
         this.pending.delete(requestId);
+        // 本地视角传输异常不代表 Leader 侧断连：迟到授予需自动释放，避免权威槽位泄漏
+        this.watchLateGrant(requestId, waiter.authorityTerm);
         this.options.sendCancel?.({
             authorityTerm: waiter.authorityTerm,
             requestId,
@@ -395,6 +399,7 @@ export class RateLimitClientCore {
             clearInterval(waiter.cancelCheck);
         }
         this.pending.delete(requestId);
+        this.watchLateGrant(requestId, waiter.authorityTerm);
         this.options.sendCancel?.({
             authorityTerm: waiter.authorityTerm,
             requestId,

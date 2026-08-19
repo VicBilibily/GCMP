@@ -287,7 +287,14 @@ test('aggregateLogs falls back to estimated input when completed request has emp
     assert.equal(provider.requests, 1);
     assert.equal(provider.completedRequests, 1);
     assert.equal(provider.actualInput, 90);
-    assert.deepEqual(provider.models, {});
+
+    // 模型维度必须同步计入，保证 provider 合计与 models 求和一致
+    const model = provider.models.model;
+    assert.ok(model);
+    assert.equal(model.requests, 1);
+    assert.equal(model.estimatedInput, 90);
+    assert.equal(model.actualInput, 90);
+    assert.equal(model.outputTokens, 0);
 });
 
 test('mergeLogsByRequestId keeps late session title backfill metadata', () => {

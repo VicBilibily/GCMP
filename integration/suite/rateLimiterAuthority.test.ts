@@ -151,6 +151,64 @@ suite('RateLimiter authority change', () => {
         }
     });
 
+    test('sleepOrRefund rejects with CancellationError for an already-cancelled token', async () => {
+        const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
+        const handle: RateLimitHandle = {
+            grantId: 'g-cancelled',
+            costs: { requests: 1, tokens: 10 },
+            leaseMs: 60_000,
+            authorityTerm: 'leader-a:1',
+            authoritative: true
+        };
+        const releaseCalls: Array<{ handle: RateLimitHandle; refund?: { requests?: number; tokens?: number } }> = [];
+        const originalRelease = rateLimiter.release;
+        const cts = new vscode.CancellationTokenSource();
+        cts.cancel();
+
+        try {
+            rateLimiter.release = (released: RateLimitHandle, refund?: { requests?: number; tokens?: number }) => {
+                releaseCalls.push({ handle: released, refund });
+            };
+
+            // 回归：预取消 token 注册监听时同步回调，不得在 cancelSub 赋值前触发 TDZ ReferenceError
+            await assert.rejects(rateLimiter.sleepOrRefund(1_000, handle, cts.token, 'bucket', { rpm: 60 }), error => {
+                assert.ok(error instanceof vscode.CancellationError);
+                return true;
+            });
+            assert.equal(releaseCalls.length, 1);
+        } finally {
+            rateLimiter.release = originalRelease;
+            cts.dispose();
+        }
+    });
+
+    test('waitForAuthorityRecovery resolves false instead of throwing for an already-cancelled token', async () => {
+        const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
+        const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;
+        const patchedBus = InterInstanceBus as unknown as PatchedInterInstanceBus;
+
+        const originalIsLeader = patchedLeaderElection.isLeader;
+        const originalGetAuthorityTerm = patchedBus.getAuthorityTerm;
+        const originalHasActiveTransport = patchedBus.hasActiveTransport;
+        const cts = new vscode.CancellationTokenSource();
+        cts.cancel();
+
+        try {
+            patchedLeaderElection.isLeader = () => false;
+            patchedBus.getAuthorityTerm = () => undefined;
+            patchedBus.hasActiveTransport = () => false;
+
+            // 回归：预取消 token 的同步回调在 finish 定义前执行会抛 TDZ ReferenceError
+            const result = await rateLimiter.waitForAuthorityRecovery(cts.token);
+            assert.equal(result, false);
+        } finally {
+            patchedLeaderElection.isLeader = originalIsLeader;
+            patchedBus.getAuthorityTerm = originalGetAuthorityTerm;
+            patchedBus.hasActiveTransport = originalHasActiveTransport;
+            cts.dispose();
+        }
+    });
+
     test('requeue acquire waits for authority recovery before using local fallback', async () => {
         const rateLimiter = RateLimiter as unknown as RateLimiterInternals;
         const patchedLeaderElection = LeaderElectionService as unknown as PatchedLeaderElectionService;

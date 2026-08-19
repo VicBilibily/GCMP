@@ -164,7 +164,7 @@ export const kimiStatusAdapter: QuotaStatusAdapter<KimiStatusData> = {
             }
         ];
 
-        const boosterAmount = data.boosterWallet ? parseInt(data.boosterWallet.balance.amountLeft, 10) : 0;
+        const boosterAmount = data.boosterWallet ? parseFloat(data.boosterWallet.balance.amountLeft) : 0;
         if (data.boosterWallet && boosterAmount > 0) {
             const wallet = data.boosterWallet;
             tables.push({
