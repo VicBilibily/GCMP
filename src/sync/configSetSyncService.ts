@@ -355,7 +355,9 @@ export async function writeRemoteConfigSetsWithPassphrase(
         );
         if (!response.ok) {
             const errText = await response.text();
-            Logger.error(`[ConfigSetSync] Update gist with explicit passphrase failed: ${response.status} - ${errText}`);
+            Logger.error(
+                `[ConfigSetSync] Update gist with explicit passphrase failed: ${response.status} - ${errText}`
+            );
         }
         return response.ok;
     } catch (error) {

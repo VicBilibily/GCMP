@@ -39,12 +39,12 @@ export class GrokCliAuth extends BaseCliAuth {
         super(config);
     }
 
-    protected saveCredentials(credentials: {
+    protected async saveCredentials(credentials: {
         access_token?: string;
         refresh_token?: string;
         expiry_date?: number;
         oidc_client_id?: string;
-    }): void {
+    }): Promise<void> {
         const credentialPath = this.resolvePath(this.config.credentialPathPattern);
         const { data, recordKey, record } = this.readAuthFile();
         const canonicalKey = `https://auth.x.ai::${this.config.clientId}`;
@@ -73,7 +73,7 @@ export class GrokCliAuth extends BaseCliAuth {
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
         }
-        this.writeJsonFileAtomically(credentialPath, data);
+        await this.writeJsonFileAtomically(credentialPath, data);
         this.recordKey = finalRecordKey;
     }
 
@@ -154,7 +154,7 @@ export class GrokCliAuth extends BaseCliAuth {
             clientId
         });
 
-        this.saveCredentials(newCredentials);
+        await this.saveCredentials(newCredentials);
         Logger.info('[Grok Build] Token refresh succeeded');
         return newCredentials;
     }

@@ -43,12 +43,12 @@ export class CodexCliAuth extends BaseCliAuth {
     /**
      * 保存凭证到文件（保持 Codex CLI 官方嵌套格式）
      */
-    protected saveCredentials(credentials: {
+    protected async saveCredentials(credentials: {
         access_token?: string;
         refresh_token?: string;
         id_token?: string;
         account_id?: string;
-    }): void {
+    }): Promise<void> {
         const credentialPath = this.resolvePath(this.config.credentialPathPattern);
 
         // 读取现有凭证文件
@@ -103,7 +103,7 @@ export class CodexCliAuth extends BaseCliAuth {
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
         }
-        this.writeJsonFileAtomically(credentialPath, mergedData);
+        await this.writeJsonFileAtomically(credentialPath, mergedData);
     }
 
     /**
@@ -177,7 +177,7 @@ export class CodexCliAuth extends BaseCliAuth {
         };
 
         // 保存刷新后的凭证
-        this.saveCredentials({
+        await this.saveCredentials({
             access_token: accessToken,
             refresh_token: refreshToken,
             id_token: responseData.id_token,

@@ -78,7 +78,7 @@ export abstract class BaseCliAuth {
         const needsRefresh = forceRefresh || this.isExpired(credentials);
         if (needsRefresh && credentials.refresh_token) {
             try {
-                credentials = await this.refreshCredentials(credentials);
+                credentials = await this.refreshCredentials(credentials, forceRefresh);
                 Logger.info(`[${this.config.name}] Token refreshed`);
             } catch (error) {
                 Logger.error(`[${this.config.name}] Failed to refresh token:`, error);
@@ -96,8 +96,10 @@ export abstract class BaseCliAuth {
 
     /**
      * 刷新访问令牌（当前进程内单飞）
+     * @param credentials 可选的已知凭证；缺省时从文件加载
+     * @param forceRefresh 强制走网络刷新，跳过写前双检
      */
-    async refreshCredentials(credentials?: OAuthCredentials): Promise<OAuthCredentials> {
+    async refreshCredentials(credentials?: OAuthCredentials, forceRefresh = false): Promise<OAuthCredentials> {
         const currentCredentials = credentials ?? (await this.loadCredentials());
         if (!currentCredentials?.refresh_token) {
             throw new Error(`${this.config.name} credentials are missing refresh_token and cannot refresh`);
@@ -108,7 +110,20 @@ export abstract class BaseCliAuth {
         }
 
         const refreshPromise = (async () => {
-            const refreshedCredentials = await this.refreshAccessToken(currentCredentials);
+            // 写前双检：跨窗口并发时另一窗口可能已完成刷新并落盘，此时直接复用文件里的新 token，
+            // 避免用旧 refresh_token 重复 POST（服务端轮换/重放防护可能使整族凭证失效）
+            let effectiveCredentials = currentCredentials;
+            if (!forceRefresh) {
+                this.invalidateCredentialCache();
+                const latest = await this.loadCredentials();
+                if (latest && !this.isExpired(latest)) {
+                    return latest;
+                }
+                if (latest?.refresh_token) {
+                    effectiveCredentials = latest;
+                }
+            }
+            const refreshedCredentials = await this.refreshAccessToken(effectiveCredentials);
             this.invalidateCredentialCache();
             const reloadedCredentials = await this.loadCredentials();
             return reloadedCredentials ?? refreshedCredentials;
@@ -237,10 +252,21 @@ export abstract class BaseCliAuth {
         return this.config.cliCommand;
     }
 
+    /** 测试注入用：覆盖所有 CLI 凭证文件的解析路径 */
+    private static credentialPathOverride: string | undefined;
+
+    /** 仅测试使用：固定凭证文件路径，避免读写真实 ~/.codex/auth.json 等文件 */
+    static setCredentialPathOverride(path: string | undefined): void {
+        BaseCliAuth.credentialPathOverride = path;
+    }
+
     /**
      * 解析路径模式，支持 ~ 展开
      */
     protected resolvePath(pattern: string): string {
+        if (BaseCliAuth.credentialPathOverride) {
+            return BaseCliAuth.credentialPathOverride;
+        }
         if (pattern.startsWith('~')) {
             return path.join(os.homedir(), pattern.slice(1));
         }
@@ -250,7 +276,7 @@ export abstract class BaseCliAuth {
     /**
      * 保存凭证到文件（差分更新，保留文件中已有的其他字段）
      */
-    protected saveCredentials(credentials: Partial<OAuthCredentials>): void {
+    protected async saveCredentials(credentials: Partial<OAuthCredentials>): Promise<void> {
         const credentialPath = this.resolvePath(this.config.credentialPathPattern);
 
         // 读取现有凭证文件，保留已有字段
@@ -282,18 +308,31 @@ export abstract class BaseCliAuth {
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
         }
-        this.writeJsonFileAtomically(credentialPath, mergedData);
+        await this.writeJsonFileAtomically(credentialPath, mergedData);
     }
 
     /**
      * 原子写入 JSON 文件，避免半写入导致凭证损坏
      */
-    protected writeJsonFileAtomically(filePath: string, data: unknown): void {
+    protected async writeJsonFileAtomically(filePath: string, data: unknown): Promise<void> {
         const tempPath = `${filePath}.${process.pid}.${Date.now().toString(36)}.${Math.random().toString(36).slice(2)}.tmp`;
 
         try {
             fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf-8');
-            fs.renameSync(tempPath, filePath);
+            // Windows 上目标文件被其他进程短暂占用时 renameSync 会报 EPERM/EBUSY/EACCES，线性退避重试
+            const retryable = new Set(['EPERM', 'EBUSY', 'EACCES', 'EEXIST']);
+            for (let attempt = 0; ; attempt++) {
+                try {
+                    fs.renameSync(tempPath, filePath);
+                    break;
+                } catch (error) {
+                    const code = (error as NodeJS.ErrnoException)?.code;
+                    if (!retryable.has(code ?? '') || attempt >= 4) {
+                        throw error;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 30 * (attempt + 1)));
+                }
+            }
             this.invalidateCredentialCache();
         } catch (error) {
             try {
