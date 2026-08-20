@@ -204,7 +204,8 @@ npm install -g @openai/codex@latest
 ```
 
 - **Supported models**: See [config/codex.json](src/providers/config/codex.json).
-- **Usage tracking**: Status bar displays remaining ChatGPT subscription cycle quota.- **Independent proxy settings**: Codex CLI uses its own proxy configuration (independent of the extension-wide `gcmp.proxy`). You can specify a dedicated proxy for Codex requests via `gcmp.providerOverrides.codex.proxy`.
+- **Usage tracking**: Status bar displays remaining ChatGPT subscription cycle quota.
+- **Independent proxy settings**: Codex CLI uses its own proxy configuration (independent of the extension-wide `gcmp.proxy`). You can specify a dedicated proxy for Codex requests via `gcmp.providerOverrides.codex.proxy`.
 
 ```json
 {

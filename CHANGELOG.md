@@ -2,6 +2,40 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.27.0] - 2026-08-20
+
+### 新增
+
+- **API Key 管理面板**：新命令 `gcmp.configSet.manage` 打开统一面板，按提供商/槽位管理多套配置（站点 + Key + 备注），支持新增、修改、删除、激活与停用；配置可上传 Gist 备份并跨设备恢复。
+- **CLI 认证并入管理面板**：Codex / Grok 的认证状态与订阅余量在面板内展示，支持打开终端登录、导入/刷新凭证；移除认证改为在文件管理器中定位凭证文件，由用户手动删除。
+- **跨实例多维度限流**：provider 配置新增 `limit` 字段，支持 rpm/rps/tpm/parallel 四个维度，可按 provider、子 provider（`limit.xxx`）与模型级逐级覆盖；多个 VS Code 窗口共享 Leader 权威限流桶，维度以 Leader 本机配置为准（配置修改即时生效），超限时 FIFO 排队或匀速延迟（pacing），Leader 不可用时自动降级为单窗口本地桶并每 60 秒探测恢复；窗口实例断线时 Leader 自动回收其排队项与持有的配额，避免幽灵占用阻塞队列。
+- **限流任期机制**：限流桶引入权威任期（Leader ID + 选举时间），Leader 切换时主动清理旧任期的排队请求与流式状态并支持客户端自动重试（连续任期变更超上限自动降级本地桶，避免选举抖动自旋），切换期间旧 Leader 在途请求的并发槽位经快照交接与短心跳续租保持计数直至释放；排队请求收到首个权威顺位确认后持续等待直至授予，IPC 断连时自动降级本地桶；实例断线自动清理其残留的实时指标快照。
+
+### 变更
+
+- **配额查询下沉共享层 `src/quota`**：Codex / Grok 与配置管理面板共用 provider 额度查询与表格构建；MiniMax 状态栏额度窗口判定已与共享层对齐，Grok 响应解析保持纯逻辑模块独立并可单元测试。
+- **API Key 本地变更事件**：`ApiKeyManager` 新增本实例变更通知，面板内激活/停用/编辑 Key 后状态栏即时刷新；模型列表缓存按槽位精确失效。
+- **Leader 切换重连优化**：修复 Leader 切换时的重连逻辑与空限流配置下的处理问题。
+- **旧版密钥同步入口合并**：状态栏 tooltip 的「管理/同步 API Key」入口移除，旧版同步界面并入 API Key 管理面板的「Gist 同步」下拉菜单，保留一个主版本供迁移（将于 0.28 移除）。
+
+---
+
+### Added
+
+- **API Key management panel**: New command `gcmp.configSet.manage` opens a unified panel to manage multiple configurations per provider/slot (site + key + note), with add/edit/delete/activate/deactivate; configurations can be backed up to Gist and restored across devices.
+- **CLI authentication integrated into the panel**: Codex / Grok auth status and subscription quota are shown in the panel, with terminal sign-in and credential import/refresh; removing authentication now locates the credential file in the file manager for manual deletion.
+- **Cross-instance multi-dimensional rate limiting**: providers now accept a `limit` field with rpm/rps/tpm/parallel dimensions, overridable per provider, sub-provider (`limit.xxx`), and model; multiple VS Code windows share a Leader-authoritative bucket whose dimensions always follow the Leader's local configuration (config edits take effect immediately), with FIFO queuing or pacing when limits are hit, automatic fallback to a per-window local bucket when the Leader is unavailable (re-probed every 60s), and automatic reclamation of a disconnected window's queued requests and held quotas so ghost occupancy never blocks the queue.
+- **Rate-limit authority terms**: buckets carry an authority term (Leader ID + election time); on Leader switch, stale queued requests and streaming state are cleaned up with bounded client-side retry (repeated term changes degrade to the local bucket instead of spinning), while in-flight grants from the previous Leader keep their concurrency accounting through snapshot handoff and short-interval lease renewal until released; queued requests keep waiting once the first authoritative queue position arrives, and degrade to the local bucket if the IPC link drops; disconnecting instances have their leftover live-metric snapshots removed automatically.
+
+### Changed
+
+- **Quota queries moved to the shared `src/quota` layer**: Codex / Grok and the configuration panel share provider quota queries and table builders; the MiniMax status bar now follows the same quota-window rules, while Grok response parsing stays in an isolated pure module with unit tests.
+- **Local API key change event**: `ApiKeyManager` now notifies the current instance; the status bar refreshes immediately after activate/deactivate/edit in the panel, and model list caches are invalidated per slot.
+- **Leader switchover reconnection improvements**: Fixed reconnection logic during Leader switches and the handling of empty rate-limit configurations.
+- **Legacy key sync entry merged**: the status bar tooltip's "Manage / Sync API Keys" entry was removed; the legacy sync UI now lives in the API Key management panel's "Gist Sync" dropdown and is kept for one major version for migration (removal in 0.28).
+
+---
+
 ## [0.26.39] - 2026-08-20
 
 ### 新增
