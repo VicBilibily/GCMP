@@ -172,7 +172,7 @@ function fillPopover(render: () => void, pop: HTMLElement): void {
         clearMessage();
         postToVSCode({ command: 'migrateLegacyGist' });
     });
-    addItem(t('Legacy key sync (removed in 0.28)', '旧版密钥同步（0.28 移除）'), () => {
+    addItem(t('Legacy key sync (will remove in 0.28)', '旧版密钥同步（0.28 移除）'), () => {
         clearMessage();
         postToVSCode({ command: 'openLegacySync' });
     });
