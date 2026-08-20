@@ -59,6 +59,19 @@ function formatRequestBreakdown(completed: number, failed: number, cancelled: nu
 }
 
 /**
+ * 格式化缓存命中率（cache / actualInput），无输入返回 '-'。
+ * 分母用 `actualInput`（包含缓存命中），与多日聚合 cacheHitRate 口径一致。
+ */
+function formatCacheHitRate(cacheTokens: number, actualInput: number): string {
+    const safeCache = cacheTokens ?? 0;
+    const safeInput = actualInput ?? 0;
+    if (safeInput <= 0) {
+        return '-';
+    }
+    return `${((safeCache / safeInput) * 100).toFixed(1)}%`;
+}
+
+/**
  * 创建带内联成本的 Tokens 单元格
  * 上方显示 token 数，下方显示预估成本
  */
@@ -132,6 +145,7 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             t('Provider / Model', '提供商/模型'),
             t('Input', '输入Tokens'),
             t('Cache', '缓存命中'),
+            t('Hit Rate', '命中率'),
             t('Output', '输出Tokens'),
             t('Tokens', '消耗Tokens'),
             t('Requests', '请求次数'),
@@ -151,6 +165,7 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
         // 计算合计数据
         let totalInput = 0;
         let totalCache = 0;
+        let totalActualInput = 0;
         let totalOutput = 0;
         let totalRequests = 0;
         let totalCompletedRequests = 0;
@@ -175,6 +190,7 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             const nonCacheInput = Math.max(0, (provider.actualInput || 0) - (provider.cacheTokens || 0));
             const providerSplit = getStatsNativeCostSplit(provider, nativeSplitIndex?.providers[provider.providerKey]);
             totalInput += nonCacheInput;
+            totalActualInput += provider.actualInput || 0;
             totalCache += provider.cacheTokens || 0;
             totalOutput += provider.outputTokens || 0;
             totalRequests += provider.requests || 0;
@@ -221,6 +237,9 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
                     providerSplit?.cacheReadRmb,
                     currency
                 )
+            );
+            providerRow.appendChild(
+                createCell(formatCacheHitRate(provider.cacheTokens, provider.actualInput || 0))
             );
             providerRow.appendChild(
                 createTokensCell(
@@ -290,6 +309,9 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
                     )
                 );
                 modelRow.appendChild(
+                    createCell(formatCacheHitRate(stats.cacheTokens, stats.actualInput || 0))
+                );
+                modelRow.appendChild(
                     createTokensCell(
                         stats.outputTokens,
                         stats.outputCost,
@@ -349,6 +371,7 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
                 currency
             )
         );
+        totalRow.appendChild(createCell(formatCacheHitRate(totalCache, totalActualInput)));
         totalRow.appendChild(
             createTokensCell(
                 totalOutput,
