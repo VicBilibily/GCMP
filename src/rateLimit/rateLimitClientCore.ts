@@ -132,7 +132,18 @@ export class RateLimitClientCore {
             };
             waiter.timeout = this.armTimeout(requestId, waiter);
             this.pending.set(requestId, waiter);
-            this.options.send({ authorityTerm, requestId, bucketKey, dims, costs });
+            try {
+                this.options.send({ authorityTerm, requestId, bucketKey, dims, costs });
+            } catch (error) {
+                // send 同步抛错时必须完整回收 waiter，避免悬挂定时器与 pending 残留被迟到回执命中
+                waiter.settled = true;
+                if (waiter.timeout) {
+                    clearTimeout(waiter.timeout);
+                    waiter.timeout = undefined;
+                }
+                this.pending.delete(requestId);
+                throw error;
+            }
             // 任期切换不会主动推送到此纯逻辑模块，等待中需要本地轮询观察。
             if (signal || this.options.isTransportHealthy || this.options.getAuthorityTerm) {
                 waiter.cancelCheck = setInterval(() => {

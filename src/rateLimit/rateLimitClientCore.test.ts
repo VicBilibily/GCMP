@@ -81,6 +81,22 @@ test('回执超时降级', async () => {
     core.dispose();
 });
 
+test('send 同步抛错会清理 waiter 并向外传播', async () => {
+    const core = new RateLimitClientCore({
+        timeout: 10_000,
+        getAuthorityTerm: () => 'leader-a:1',
+        send: () => {
+            throw new Error('ipc broken');
+        },
+        onGrantEvent: () => () => {},
+        now: () => Date.now()
+    });
+
+    await assert.rejects(core.acquire('bucket', DIMS, COSTS), /ipc broken/);
+    assert.equal(core.pendingCount, 0);
+    core.dispose();
+});
+
 test('单次 acquire 可覆盖默认回执超时', async () => {
     const { core } = makeCore({ timeout: 10_000 });
     const startedAt = Date.now();

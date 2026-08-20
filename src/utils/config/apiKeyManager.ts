@@ -3,6 +3,7 @@
  *  使用 VS Code SecretStorage 安全管理 API密钥
  *--------------------------------------------------------------------------------------------*/
 
+import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
 import { ApiKeyValidation } from '../../types/sharedTypes';
 import { Logger } from '../runtime/logger';
@@ -147,6 +148,7 @@ export class ApiKeyManager {
     static async deleteApiKey(provider: string): Promise<void> {
         const secretKey = this.getSecretKey(provider);
         await this.context.secrets.delete(secretKey);
+        delete this.cachedCliAuthStatus[provider];
 
         this.emitApiKeyChanged(provider, 'delete');
         this.publishApiKeyChanged(provider, 'delete');
@@ -222,7 +224,7 @@ export class ApiKeyManager {
         const apiKey = credentials?.access_token;
         if (apiKey) {
             await this.setApiKey(provider, apiKey);
-            this.cachedCliAuthStatus[provider] = apiKey;
+            this.cachedCliAuthStatus[provider] = this.fingerprintApiKey(apiKey);
             Logger.info(`[ApiKeyManager] Force refreshed ${displayName} CLI authentication`);
             return true;
         }
@@ -230,7 +232,12 @@ export class ApiKeyManager {
         return false;
     }
 
+    /** CLI 凭证去重缓存：只存摘要，避免明文 token 长期驻留进程内存 */
     private static cachedCliAuthStatus: Record<string, string> = {};
+
+    private static fingerprintApiKey(apiKey: string): string {
+        return crypto.createHash('sha256').update(apiKey).digest('hex').slice(0, 16);
+    }
 
     /**
      * 处理 CLI 认证
@@ -246,8 +253,9 @@ export class ApiKeyManager {
             // Cli 访问密钥验证通过后保存到密钥存储
             await this.setApiKey(provider, apiKey);
 
-            if (this.cachedCliAuthStatus[provider] !== apiKey) {
-                this.cachedCliAuthStatus[provider] = apiKey;
+            const fingerprint = this.fingerprintApiKey(apiKey);
+            if (this.cachedCliAuthStatus[provider] !== fingerprint) {
+                this.cachedCliAuthStatus[provider] = fingerprint;
                 Logger.info(`[ApiKeyManager] Loaded credentials from ${displayName} CLI`);
             }
             return true;
