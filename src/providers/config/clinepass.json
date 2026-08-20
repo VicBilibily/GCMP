@@ -4,6 +4,19 @@
     "apiKeyTemplate": "your_cline_api_key_here",
     "models": [
         {
+            "id": "cline-pass/glm-5.3",
+            "name": "GLM-5.3 (ClinePass)",
+            "tooltip": "ClinePass — GLM-5.3。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low"],
+            "reasoningFormat": "nested",
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [1.4, 4.4, 0.26]
+        },
+        {
             "id": "cline-pass/glm-5.2",
             "name": "GLM-5.2 (ClinePass)",
             "tooltip": "ClinePass — GLM-5.2。",

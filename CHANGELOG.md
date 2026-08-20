@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.26.39] - 2026-08-20
+
+### 新增
+
+- **按提供商统计表格新增缓存命中率**：[#374](https://github.com/VicBilibily/GCMP/issues/374) 「缓存命中」列单元格上方左侧内嵌显示缓存命中率（缓存命中 / 含缓存命中的输入总量，与多日聚合口径一致），并按与请求记录明细相同的阈值分档着色（≥90% 绿、≥80% 黄、≥60% 灰、其余红）；无缓存命中时不显示。
+
+---
+
+### Added
+
+- **Cache hit rate in the "By Provider" stats table**: [#374](https://github.com/VicBilibily/GCMP/issues/374) the Cache column now shows the cache hit rate inline at the upper-left of each cell (cache hits / total input including cache hits, same basis as the multi-day aggregation), color-coded with the same thresholds as the request-records detail (≥90% green, ≥80% yellow, ≥60% gray, otherwise red); hidden when there are no cache hits.
+
+---
+
 ## [0.26.38] - 2026-08-19
 
 ### 修复
