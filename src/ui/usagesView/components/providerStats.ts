@@ -59,16 +59,22 @@ function formatRequestBreakdown(completed: number, failed: number, cancelled: nu
 }
 
 /**
- * 格式化缓存命中率（cache / actualInput），无输入返回 '-'。
- * 分母用 `actualInput`（包含缓存命中），与多日聚合 cacheHitRate 口径一致。
+ * 格式化缓存命中率（cache / actualInput），缓存或输入为 0 时返回空文本（不显示）。
+ * 分母用 `actualInput`（包含缓存命中），与多日聚合 cacheHitRate 口径一致；颜色档位与请求记录明细一致。
  */
-function formatCacheHitRate(cacheTokens: number, actualInput: number): string {
+function formatCacheHitRate(cacheTokens: number, actualInput: number): { text: string; cssClass: string } {
     const safeCache = cacheTokens ?? 0;
     const safeInput = actualInput ?? 0;
-    if (safeInput <= 0) {
-        return '-';
+    if (safeCache <= 0 || safeInput <= 0) {
+        return { text: '', cssClass: '' };
     }
-    return `${((safeCache / safeInput) * 100).toFixed(1)}%`;
+    const rate = (safeCache / safeInput) * 100;
+    const cssClass =
+        rate >= 90 ? 'cache-ratio-high'
+        : rate >= 80 ? 'cache-ratio-mid'
+        : rate >= 60 ? 'cache-ratio-low'
+        : 'cache-ratio-none';
+    return { text: `${rate.toFixed(1)}%`, cssClass };
 }
 
 /**
@@ -81,7 +87,8 @@ function createTokensCell(
     rmbCost: number | undefined,
     nativeUsdCost: number | undefined,
     nativeRmbCost: number | undefined,
-    currency: ReturnType<typeof getDisplayCurrency>
+    currency: ReturnType<typeof getDisplayCurrency>,
+    leading?: { text: string; cssClass?: string }
 ): HTMLElement {
     const cell = createElement('td');
     const tokenStr = tokens > 0 ? formatTokens(tokens) : '-';
@@ -94,24 +101,27 @@ function createTokensCell(
         fixedDecimals: 2
     });
     const costStr = costPresentation.text;
-    if (costStr) {
-        const costAttrs = `class="tokens-cost" data-toggle-cost-currency="true" title="${getCurrencyToggleTitle(currency)}"`;
-        const costHtml =
-            currency === 'MIXED' && costPresentation.segments.length > 1 ?
-                `<span class="tokens-cost-group">${costPresentation.segments
-                    .map((segment, index) => {
-                        const separator =
-                            index === 0 ? '' : '<span class="tokens-cost-separator" aria-hidden="true">+</span>';
-                        return `${separator}<span ${costAttrs}>${segment.text}</span>`;
-                    })
-                    .join('')}</span>`
-            :   `<span ${costAttrs}>${costStr}</span>`;
-        cell.innerHTML = [
-            `<div class="tokens-row">${tokenStr}</div>`,
-            '<div class="tokens-detail">',
-            costHtml,
-            '</div>'
-        ].join('');
+    const rowHtml =
+        leading?.text ?
+            `<div class="tokens-row tokens-row-leading"><span class="tokens-leading-text ${leading.cssClass ?? ''}">${leading.text}</span>${tokenStr}</div>`
+        :   `<div class="tokens-row">${tokenStr}</div>`;
+    if (costStr || leading?.text) {
+        const parts = [rowHtml];
+        if (costStr) {
+            const costAttrs = `class="tokens-cost" data-toggle-cost-currency="true" title="${getCurrencyToggleTitle(currency)}"`;
+            const costHtml =
+                currency === 'MIXED' && costPresentation.segments.length > 1 ?
+                    `<span class="tokens-cost-group">${costPresentation.segments
+                        .map((segment, index) => {
+                            const separator =
+                                index === 0 ? '' : '<span class="tokens-cost-separator" aria-hidden="true">+</span>';
+                            return `${separator}<span ${costAttrs}>${segment.text}</span>`;
+                        })
+                        .join('')}</span>`
+                :   `<span ${costAttrs}>${costStr}</span>`;
+            parts.push('<div class="tokens-detail">', costHtml, '</div>');
+        }
+        cell.innerHTML = parts.join('');
     } else {
         cell.textContent = tokenStr;
     }
@@ -145,7 +155,6 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
             t('Provider / Model', '提供商/模型'),
             t('Input', '输入Tokens'),
             t('Cache', '缓存命中'),
-            t('Hit Rate', '命中率'),
             t('Output', '输出Tokens'),
             t('Tokens', '消耗Tokens'),
             t('Requests', '请求次数'),
@@ -235,11 +244,9 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
                     provider.cacheReadCostRmb,
                     providerSplit?.cacheReadUsd,
                     providerSplit?.cacheReadRmb,
-                    currency
+                    currency,
+                    formatCacheHitRate(provider.cacheTokens, provider.actualInput || 0)
                 )
-            );
-            providerRow.appendChild(
-                createCell(formatCacheHitRate(provider.cacheTokens, provider.actualInput || 0))
             );
             providerRow.appendChild(
                 createTokensCell(
@@ -305,11 +312,9 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
                         stats.cacheReadCostRmb,
                         modelSplit?.cacheReadUsd,
                         modelSplit?.cacheReadRmb,
-                        currency
+                        currency,
+                        formatCacheHitRate(stats.cacheTokens, stats.actualInput || 0)
                     )
-                );
-                modelRow.appendChild(
-                    createCell(formatCacheHitRate(stats.cacheTokens, stats.actualInput || 0))
                 );
                 modelRow.appendChild(
                     createTokensCell(
@@ -368,10 +373,10 @@ export function createProviderStats(providers: ProviderData[]): HTMLElement {
                 totalCacheReadCostRmb,
                 totalSplit.cacheReadUsd,
                 totalSplit.cacheReadRmb,
-                currency
+                currency,
+                formatCacheHitRate(totalCache, totalActualInput)
             )
         );
-        totalRow.appendChild(createCell(formatCacheHitRate(totalCache, totalActualInput)));
         totalRow.appendChild(
             createTokensCell(
                 totalOutput,
