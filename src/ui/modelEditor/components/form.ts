@@ -40,7 +40,7 @@ export function createDOM(state: CreateDomState, rootEl?: HTMLElement): void {
             'input',
             {
                 type: 'text',
-                placeholder: t('e.g. zhipu:glm-4.6', '例如: zhipu:glm-4.6'),
+                placeholder: t('e.g. zhipu:glm-4.7', '例如: zhipu:glm-4.7'),
                 value: model.id,
                 readonly: !isCreateMode
             },
@@ -58,7 +58,7 @@ export function createDOM(state: CreateDomState, rootEl?: HTMLElement): void {
             'input',
             {
                 type: 'text',
-                placeholder: t('e.g. GLM-4.6 (Zhipu AI)', '例如: GLM-4.6 (智谱AI)'),
+                placeholder: t('e.g. GLM-4.7 (Zhipu AI)', '例如: GLM-4.7 (智谱AI)'),
                 value: model.name
             },
             t('Name shown in the model picker.', '在模型选择器中显示的名称')

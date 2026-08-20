@@ -191,8 +191,8 @@ function createForm(): HTMLElement {
             t('Used for settings-resolver, explain-code, vscode-qa, etc.', '用于设置搜索、代码解释、VS Code 问答等。'),
             () => true,
             t(
-                'Recommendation: use a capable general-purpose model with tool calling (e.g. DeepSeek-V4-Pro, GLM-5.2, GLM-4.7, Kimi-K2.7-Code).',
-                '建议：选择具备工具调用能力的高级主力模型（如 DeepSeek-V4-Pro、GLM-5.2、GLM-4.7、Kimi-K2.7-Code）。'
+                'Recommendation: use a capable general-purpose model with tool calling (e.g. DeepSeek-V4-Pro, GLM-5.3, Kimi-K2.7-Code, Qwen3.7-Plus).',
+                '建议：选择具备工具调用能力的高级主力模型（如 DeepSeek-V4-Pro、GLM-5.3、Kimi-K2.7-Code、Qwen3.7-Plus）。'
             )
         )
     );
@@ -206,8 +206,8 @@ function createForm(): HTMLElement {
             ),
             () => true,
             t(
-                'Recommendation: use a fast and cost-efficient model (e.g. DeepSeek-V4-Flash, GLM-4.7-Flash, Qwen3.6-Flash).',
-                '建议：选择响应快、成本低的轻量模型（如 DeepSeek-V4-Flash、GLM-4.7-Flash、Qwen3.6-Flash）。'
+                'Recommendation: use a fast and cost-efficient model (e.g. DeepSeek-V4-Flash, GLM-4.7-Flash, Qwen3.7-Flash).',
+                '建议：选择响应快、成本低的轻量模型（如 DeepSeek-V4-Flash、GLM-4.7-Flash、Qwen3.7-Flash）。'
             )
         )
     );
@@ -221,8 +221,8 @@ function createForm(): HTMLElement {
             ),
             () => true,
             t(
-                'Recommendation: use a strong reasoning model with tool calling (e.g. DeepSeek-V4-Pro, GLM-5.2, Kimi-K2.7-Code, Qwen3.7-Plus).',
-                '建议：选择具备工具调用与强推理能力的高级模型（如 DeepSeek-V4-Pro、GLM-5.2、Kimi-K2.7-Code、Qwen3.7-Plus）。'
+                'Recommendation: use a strong reasoning model with tool calling (e.g. DeepSeek-V4-Pro, GLM-5.3, Kimi-K2.7-Code, Qwen3.8-Max).',
+                '建议：选择具备工具调用与强推理能力的高级模型（如 DeepSeek-V4-Pro、GLM-5.3、Kimi-K2.7-Code、Qwen3.8-Max）。'
             )
         )
     );

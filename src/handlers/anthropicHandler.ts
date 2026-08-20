@@ -145,28 +145,8 @@ export class AnthropicHandler {
         }
 
         // 使用模型配置的 baseUrl 或提供商默认的 baseURL
-        let baseUrl = modelConfig?.baseUrl || this.baseURL;
-        if (providerKey === 'minimax-token') {
-            // 针对 MiniMax 国际站进行 baseUrl 覆盖设置
-            const endpoint = ConfigManager.getMinimaxEndpoint();
-            if (baseUrl && endpoint === 'minimax.io') {
-                baseUrl = baseUrl.replace('api.minimaxi.com', 'api.minimax.io');
-            }
-        }
-        if (providerKey === 'zhipu') {
-            // 针对智谱AI国际站进行 baseUrl 覆盖设置
-            const endpoint = ConfigManager.getZhipuEndpoint();
-            if (baseUrl && endpoint === 'api.z.ai') {
-                baseUrl = baseUrl.replace('open.bigmodel.cn', 'api.z.ai');
-            }
-        }
-        if (providerKey === 'xiaomimimo-token') {
-            // 针对 Xiaomi MiMo Token Plan 接入点切换
-            const endpoint = ConfigManager.getXiaomimimoEndpoint();
-            if (baseUrl && endpoint && endpoint !== 'cn') {
-                baseUrl = baseUrl.replace('token-plan-cn', `token-plan-${endpoint}`);
-            }
-        }
+        // 站点/接入点切换已上移至 provider 层的 resolveRequestBaseUrl 统一处理
+        const baseUrl = modelConfig?.baseUrl || this.baseURL;
         Logger.debug(`[${this.displayName}] Creating new Anthropic client (baseUrl: ${baseUrl})`);
 
         // 构建默认头部，包含提供商级别和模型级别的 customHeader

@@ -51,7 +51,7 @@ VS Code uses lightweight background models for **utility tasks** like title gene
     // GCMP built-in commit message generation model
     "gcmp.commit.model": {
         "provider": "zhipu",
-        "model": "glm-4.6"
+        "model": "glm-4.7"
     },
     // GCMP built-in vision analysis model (must support image input)
     "gcmp.vision.model": {
@@ -458,10 +458,10 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
 {
     "gcmp.compatibleModels": [
         {
-            "id": "glm-4.6",
-            "name": "GLM-4.6",
+            "id": "glm-4.7",
+            "name": "GLM-4.7",
             "provider": "zhipu",
-            "model": "glm-4.6",
+            "model": "glm-4.7",
             "sdkMode": "openai",
             "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
             // "proxy": "http://127.0.0.1:7890", // Optional: applies only to this model and to the "Fetch Models" probe request
@@ -659,10 +659,10 @@ FIM and NES completions use separate model configurations, configurable via `gcm
         "provider": "zhipu", // Provider ID; for others, add an OpenAI Compatible custom model provider and set API Key first
         "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4", // OpenAI Chat Completion Endpoint BaseUrl
         // "proxy": "http://127.0.0.1:7890", // Optional: set a dedicated proxy
-        "model": "glm-4.6", // Recommended: use a performant model; check logs for ``` markdown code fences
+        "model": "glm-4.7", // Recommended: use a performant model; check logs for ``` markdown code fences
         "maxTokens": 200,
         "extraBody": {
-            // GLM-4.6 enables thinking by default; disable for faster completion responses
+            // GLM-4.7 enables thinking by default; disable for faster completion responses
             "thinking": { "type": "disabled" }
         }
     }
@@ -877,7 +877,7 @@ This feature calls models via the **VS Code Language Model API**.
     "gcmp.commit.sensitiveFiles": ["*.pem", "**/.env.local", "secrets/**"], // Extra sensitive file path patterns excluded from diff analysis
     "gcmp.commit.model": {
         "provider": "zhipu", // Model provider (providerKey, e.g., zhipu / minimax / compatible)
-        "model": "glm-4.6" // Model ID (corresponding to VS Code Language Model's model.id)
+        "model": "glm-4.7" // Model ID (corresponding to VS Code Language Model's model.id)
     }
 }
 ```

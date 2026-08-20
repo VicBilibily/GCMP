@@ -17,6 +17,7 @@ import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { Logger } from '../utils/runtime/logger';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { ConfigManager } from '../utils/config/configManager';
 import { isCancellationError } from '../utils/text/cancellationError';
 import { XiaomimimoWizard } from '../wizards/xiaomimimoWizard';
 
@@ -249,5 +250,19 @@ export class XiaomimimoProvider extends GenericModelProvider implements Language
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);
         }
+    }
+
+    /**
+     * Token Plan 接入点切换：非 cn 接入点时替换 token-plan-cn 域名
+     */
+    protected override resolveRequestBaseUrl(modelConfig: ModelConfig): string | undefined {
+        const baseUrl = super.resolveRequestBaseUrl(modelConfig);
+        if (baseUrl && this.getProviderKeyForModel(modelConfig) === 'xiaomimimo-token') {
+            const endpoint = ConfigManager.getXiaomimimoEndpoint();
+            if (endpoint && endpoint !== 'cn') {
+                return baseUrl.replace('token-plan-cn', `token-plan-${endpoint}`);
+            }
+        }
+        return baseUrl;
     }
 }

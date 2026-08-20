@@ -223,6 +223,14 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     }
 
     /**
+     * 解析请求最终使用的 baseUrl（含接入点/站点切换）。
+     * 默认合并模型级与提供商级配置；专用 provider 可覆盖以应用站点域名替换。
+     */
+    protected resolveRequestBaseUrl(modelConfig: ModelConfig): string | undefined {
+        return modelConfig.baseUrl || this.providerConfig.baseUrl;
+    }
+
+    /**
      * 静态工厂方法 - 根据配置创建并激活提供商
      */
     static createAndActivate(
@@ -352,7 +360,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
     /**
      * 根据 LanguageModelChatInformation 查找对应的 ModelConfig
-     * 支持带前缀的模型ID解析（如 gcmp.zhipu:::glm-4.6）
+     * 支持带前缀的模型ID解析（如 gcmp.zhipu:::glm-4.7）
      * @param model 从VS Code模型选择器获取的模型信息（model.id 可能带前缀）
      * @returns 找到的ModelConfig，若未找到则返回undefined
      */
@@ -636,6 +644,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
         onAttemptStarted?: (requestMetricStartTime: number) => void,
         onThrottled?: () => void
     ): Promise<void> {
+        // 站点/接入点切换统一在 provider 层解析，经浅拷贝下发避免污染共享配置
+        modelConfig = { ...modelConfig, baseUrl: this.resolveRequestBaseUrl(modelConfig) };
         const sdkMode = modelConfig.sdkMode || 'openai';
 
         // requestStarted 不再在外层发射，而是移入 retry callback 内部，

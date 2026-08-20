@@ -104,7 +104,7 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "RMB": [1, 2, 0.2] }
+            "tokenPricing": { "RMB": [3, 9, 0.1] }
         },
         {
             "id": "ark-code-deepseek-v4-pro",
@@ -279,7 +279,7 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "RMB": [1, 2, 0.2] }
+            "tokenPricing": { "RMB": [3, 9, 0.1] }
         },
         {
             "id": "ark-plan-deepseek-v4-pro",
@@ -432,17 +432,17 @@
             "tokenPricing": { "RMB": [1, 2, 0.2] }
         },
         {
-            "id": "deepseek-v4-pro-ga",
-            "name": "DeepSeek-V4-Pro-260813",
-            "model": "deepseek-v4-pro-ga-260813",
-            "tooltip": "DeepSeek-V4-Pro正式版 是深度求索推出的高效通用模型，Agent能力大幅增强，在代码修改、工具调用、多步骤任务执行等场景表现更优，支持思考与非思考双模式及百万Token上下文。",
-            "reasoningEffort": ["high", "max", "low", "none"],
+            "id": "deepseek-v4-pro",
+            "name": "DeepSeek-V4-Pro-260425",
+            "model": "deepseek-v4-pro-260425",
+            "tooltip": "DeepSeek-V4-Pro 是 DeepSeek 新一代旗舰大模型，采用 MoE 架构，原生支持百万级超长上下文，具备顶尖推理、代码与复杂 Agent 能力，适合高强度复杂任务与专业场景。",
+            "reasoningEffort": ["high", "max", "none"],
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "RMB": [9, 27, 0.3] }
+            "tokenPricing": { "RMB": [12, 24, 1] }
         },
         {
             "id": "deepseek-v4-flash-ga",
@@ -455,20 +455,20 @@
             "maxOutputTokens": 64000,
             "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "RMB": [1, 2, 0.2] }
+            "tokenPricing": { "RMB": [3, 9, 0.1] }
         },
         {
-            "id": "deepseek-v4-pro",
-            "name": "DeepSeek-V4-Pro-260425",
-            "model": "deepseek-v4-pro-260425",
-            "tooltip": "DeepSeek-V4-Pro 是 DeepSeek 新一代旗舰大模型，采用 MoE 架构，原生支持百万级超长上下文，具备顶尖推理、代码与复杂 Agent 能力，适合高强度复杂任务与专业场景。",
-            "reasoningEffort": ["high", "max", "none"],
+            "id": "deepseek-v4-pro-ga",
+            "name": "DeepSeek-V4-Pro-260813",
+            "model": "deepseek-v4-pro-ga-260813",
+            "tooltip": "DeepSeek-V4-Pro正式版 是深度求索推出的高效通用模型，Agent能力大幅增强，在代码修改、工具调用、多步骤任务执行等场景表现更优，支持思考与非思考双模式及百万Token上下文。",
+            "reasoningEffort": ["high", "max", "low", "none"],
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "RMB": [12, 24, 1] }
+            "tokenPricing": { "RMB": [9, 27, 0.3] }
         },
         {
             "id": "glm-5.2",

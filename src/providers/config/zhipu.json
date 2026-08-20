@@ -58,18 +58,6 @@
             "tokenPricing": { "USD": [0.6, 2.2, 0.11], "RMB": [2, 8, 0.4] }
         },
         {
-            "id": "glm-4.6",
-            "name": "GLM-4.6 (CodingPlan)",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://open.bigmodel.cn/api/anthropic",
-            "tooltip": "GLM-4.6 是智谱的语言模型，其总参数量 355B，激活参数 32B。GLM-4.6 所有核心能力上均完成了对 GLM-4.5 的超越",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "thinking": ["disabled", "enabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.6, 2.2, 0.11], "RMB": [2, 8, 0.4] }
-        },
-        {
             "id": "glm-4.6v",
             "model": "glm-4.6v",
             "name": "GLM-4.6V (CodingPlan)",
@@ -82,31 +70,16 @@
             "tokenPricing": { "USD": [0.3, 0.9, 0.05], "RMB": [1, 3, 0.2] }
         },
         {
-            "id": "glm-5.2-billing",
-            "model": "glm-5.2",
-            "name": "GLM-5.2 (PayGo)",
-            "tooltip": "GLM-5.2 是面向长任务时代的旗舰模型。支持真正可用的 1M 上下文，实测可承载项目级工程上下文，长程任务执行更稳定、工程规范遵循更可靠，开发场景成功率进一步提升。一次任务即可完成“从需求到多端可部署产物”的完整开发链路。",
+            "id": "glm-5.3-billing",
+            "model": "glm-5.3",
+            "name": "GLM-5.3 (PayGo)",
+            "tooltip": "GLM-5.3 是智谱最新旗舰模型，复杂软件工程与 Agent 任务能力全面进阶。它使用与 GLM-5.2 相同的基础模型——所有提升均来自后训练。与 GLM-5.2 相比，它在复杂编程和长程任务方面表现更加出色。",
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "reasoningEffort": ["high", "max", "none"],
-            "thinkingFormat": "object-none",
+            "reasoningEffort": ["high", "max", "low"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": { "USD": [1.4, 4.4, 0.26], "RMB": [8, 28, 2] }
-        },
-        {
-            "id": "glm-5.1-billing",
-            "model": "glm-5.1",
-            "name": "GLM-5.1 (PayGo)",
-            "tooltip": "GLM-5.1 是智谱最新旗舰模型，代码能力大大增强，长程任务显著提升，能够在单次任务中持续、自主地工作长达 8 小时，完成从规划、执行到迭代优化的完整闭环，交付工程级成果。",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": { "USD": [1.4, 4.4, 0.26], "RMB": [6, 24, 1.3] },
-                "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [1.4, 4.4, 0.26], "RMB": [8, 28, 2] } }]
-            }
         },
         {
             "id": "glm-5v-turbo-billing",
@@ -137,20 +110,6 @@
             }
         },
         {
-            "id": "glm-5-billing",
-            "model": "glm-5",
-            "name": "GLM-5 (PayGo)",
-            "tooltip": "GLM-5 是智谱新一代的旗舰基座模型，面向 Agentic Engineering 打造，能够在复杂系统工程与长程 Agent 任务中提供可靠生产力。在 Coding 与 Agent 能力上，GLM-5 取得开源 SOTA 表现，在真实编程场景的使用体感逼近 Claude Opus 4.5，擅长复杂系统工程与长程 Agent 任务，是通用 Agent 助手的理想基座。",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": { "USD": [1, 3.2, 0.2], "RMB": [4, 18, 1] },
-                "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [1, 3.2, 0.2], "RMB": [6, 22, 1.5] } }]
-            }
-        },
-        {
             "id": "glm-4.7-billing",
             "model": "glm-4.7",
             "name": "GLM-4.7 (PayGo)",
@@ -158,20 +117,6 @@
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
             "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": { "USD": [0.6, 2.2, 0.11], "RMB": [2, 8, 0.4] },
-                "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [0.6, 2.2, 0.11], "RMB": [4, 16, 0.8] } }]
-            }
-        },
-        {
-            "id": "glm-4.6-billing",
-            "model": "glm-4.6",
-            "name": "GLM-4.6 (PayGo)",
-            "tooltip": "GLM-4.6 是智谱的语言模型，其总参数量 355B，激活参数 32B。GLM-4.6 所有核心能力上均完成了对 GLM-4.5 的超越",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "thinking": ["disabled", "enabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
                 "pricing": { "USD": [0.6, 2.2, 0.11], "RMB": [2, 8, 0.4] },

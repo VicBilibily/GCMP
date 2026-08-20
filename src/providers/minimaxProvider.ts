@@ -17,6 +17,7 @@ import { GenericModelProvider } from './genericModelProvider';
 import { ProviderConfig, ModelConfig } from '../types/sharedTypes';
 import { Logger } from '../utils/runtime/logger';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { ConfigManager } from '../utils/config/configManager';
 import { isCancellationError } from '../utils/text/cancellationError';
 import { MiniMaxWizard } from '../wizards/minimaxWizard';
 import { StatusBarManager } from '../status';
@@ -353,5 +354,18 @@ export class MiniMaxProvider extends GenericModelProvider implements LanguageMod
                 Logger.warn('Failed to update status bar:', err);
             }
         }
+    }
+
+    /**
+     * 国际站切换：Token Plan 接入点为 minimax.io 时将国内站域名替换为国际站域名
+     */
+    protected override resolveRequestBaseUrl(modelConfig: ModelConfig): string | undefined {
+        const baseUrl = super.resolveRequestBaseUrl(modelConfig);
+        if (baseUrl && this.getProviderKeyForModel(modelConfig) === 'minimax-token') {
+            if (ConfigManager.getMinimaxEndpoint() === 'minimax.io') {
+                return baseUrl.replace('api.minimaxi.com', 'api.minimax.io');
+            }
+        }
+        return baseUrl;
     }
 }

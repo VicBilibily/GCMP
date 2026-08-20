@@ -463,10 +463,10 @@ GCMP 提供 **Compatible Provider**，用于支持任何 OpenAI 或 Anthropic �
 {
     "gcmp.compatibleModels": [
         {
-            "id": "glm-4.6",
-            "name": "GLM-4.6",
+            "id": "glm-4.7",
+            "name": "GLM-4.7",
             "provider": "zhipu",
-            "model": "glm-4.6",
+            "model": "glm-4.7",
             "sdkMode": "openai",
             "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
             // "proxy": "http://127.0.0.1:7890", // 可选：仅对该模型生效，也用于“获取模型”探测请求
@@ -664,10 +664,10 @@ FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimC
         "provider": "zhipu", // 提供商ID，其他请先添加 OpenAI Compatible 自定义模型 provider 并设置 ApiKey
         "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4", // OpenAI Chat Completion Endpoint 的 BaseUrl 地址
         // "proxy": "http://127.0.0.1:7890", // 可选：单独设置代理地址
-        "model": "glm-4.6", // 推荐使用性能较好的模型，留意日志输出是否包含 ``` markdown 代码符
+        "model": "glm-4.7", // 推荐使用性能较好的模型，留意日志输出是否包含 ``` markdown 代码符
         "maxTokens": 200,
         "extraBody": {
-            // GLM-4.6 默认启用思考，补全场景建议关闭思考以加快响应
+            // GLM-4.7 默认启用思考，补全场景建议关闭思考以加快响应
             "thinking": { "type": "disabled" }
         }
     }
@@ -881,7 +881,7 @@ GCMP 支持在提交前自动读取当前仓库的改动（已暂存/未暂存/�
     "gcmp.commit.sensitiveFiles": ["*.pem", "**/.env.local", "secrets/**"], // 额外排除在 diff 分析之外的敏感文件路径模式
     "gcmp.commit.model": {
         "provider": "zhipu", // 生成模型的提供商（providerKey，例如 zhipu / minimax / compatible）
-        "model": "glm-4.6" // 生成模型的 ID（对应 VS Code Language Model 的 model.id）
+        "model": "glm-4.7" // 生成模型的 ID（对应 VS Code Language Model 的 model.id）
     }
 }
 ```

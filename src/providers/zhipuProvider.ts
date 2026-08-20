@@ -13,9 +13,10 @@ import {
     Progress,
     CancellationToken
 } from 'vscode';
-import { ProviderConfig } from '../types/sharedTypes';
+import { ModelConfig, ProviderConfig } from '../types/sharedTypes';
 import { Logger } from '../utils/runtime/logger';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
+import { ConfigManager } from '../utils/config/configManager';
 import { ZhipuWizard } from '../wizards/zhipuWizard';
 import { GenericModelProvider } from './genericModelProvider';
 import { StatusBarManager } from '../status/statusBarManager';
@@ -133,6 +134,17 @@ export class ZhipuProvider extends GenericModelProvider implements LanguageModel
                 Logger.warn('Failed to update status bar:', err);
             }
         }
+    }
+
+    /**
+     * 国际站切换：接入点为 api.z.ai 时将国内站域名替换为国际站域名
+     */
+    protected override resolveRequestBaseUrl(modelConfig: ModelConfig): string | undefined {
+        const baseUrl = super.resolveRequestBaseUrl(modelConfig);
+        if (baseUrl && ConfigManager.getZhipuEndpoint() === 'api.z.ai') {
+            return baseUrl.replace('open.bigmodel.cn', 'api.z.ai');
+        }
+        return baseUrl;
     }
 
     static isServerError(error: RetryableError, deep = 0): boolean {
