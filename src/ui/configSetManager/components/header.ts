@@ -131,14 +131,14 @@ function fillPopover(render: () => void, pop: HTMLElement): void {
             'csm-gistmenu-status-line',
             sync?.isLoggedIn ?
                 t('GitHub: @{0}', 'GitHub：@{0}', sync.githubUser ?? '')
-            : t('GitHub: not signed in', 'GitHub：未登录')
+            :   t('GitHub: not signed in', 'GitHub：未登录')
         )
     );
     const gistText = sync?.hasGist ? t('Gist: linked', 'Gist：已关联') : t('Gist: not linked', 'Gist：未关联');
     const passText =
         sync?.hasCustomPassphrase ?
             t('Passphrase: set', '口令：已设置')
-        : t('Passphrase: not set (obfuscation only)', '口令：未设置（仅混淆保护）');
+        :   t('Passphrase: not set (obfuscation only)', '口令：未设置（仅混淆保护）');
     statusBox.appendChild(el('div', 'csm-gistmenu-status-line', `${gistText} · ${passText}`));
     pop.appendChild(statusBox);
 
