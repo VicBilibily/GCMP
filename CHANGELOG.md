@@ -2,6 +2,20 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.27.2] - 2026-08-22
+
+### 新增
+
+- **Kimi-K3 旗舰模型**：DashScope 新增 `kimi-k3` 模型。
+- **DeepSeek-V4-Flash-Vision-Exp 识图模型**：DeepSeek 与 OpenCode Go 套餐新增模型。
+
+---
+
+### Added
+
+- **Kimi-K3 flagship model**: Added `kimi-k3` to DashScope.
+- **DeepSeek-V4-Flash-Vision-Exp**: Added to DeepSeek and OpenCode Go plans.
+
 ## [0.27.1] - 2026-08-20
 
 ### 变更

@@ -280,6 +280,24 @@
             }
         },
         {
+            "id": "deepseek-v4-flash-vision-exp-go",
+            "name": "DeepSeek-V4-Flash-Vision-Exp (Go)",
+            "model": "deepseek-v4-flash-vision-exp",
+            "sdkMode": "openai-sse",
+            "baseUrl": "https://opencode.ai/zen/go/v1",
+            "tooltip": "OpenCode Go 套餐 - DeepSeek V4 Flash-Vision-Exp。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinkingFormat": "object-none",
+            "reasoningEffort": ["high", "max", "low", "none"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": [0.22, 0.66, 0.007],
+                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
+            }
+        },
+        {
             "id": "hy3-go",
             "name": "Hy3 (Go)",
             "model": "hy3",

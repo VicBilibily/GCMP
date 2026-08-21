@@ -20,6 +20,22 @@
             }
         },
         {
+            "id": "deepseek-v4-flash-vision-exp",
+            "name": "DeepSeek-V4-Flash-Vision-Exp",
+            "tooltip": "DeepSeek-V4 识图模式",
+            "sdkMode": "openai-responses",
+            "reasoningEffort": ["high", "max", "low", "none"],
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "webSearchTool": true,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": {
+                "pricing": { "USD": [0.22, 0.66, 0.007], "RMB": [1.5, 4.5, 0.05] },
+                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
+            }
+        },
+        {
             "id": "deepseek-v4-pro",
             "name": "DeepSeek-V4-Pro",
             "tooltip": "DeepSeek-V4 专家模式",
