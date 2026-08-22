@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.27.3] - 2026-08-23
+
+### 变更
+
+- **DeepSeek 峰谷计费规则更新**：周末全天按低谷价收费，DeepSeek 与 OpenCode 接入点的 DeepSeek 模型峰谷 cron 改为仅工作日高峰，并补充时间匹配测试。
+
+### 修复
+
+- **防止 `event:keepalive` 报错**：OpenAI SSE 过滤 keepalive / `codex.rate_limits` 的 event 行改用正则匹配，容忍紧凑格式。
+
+---
+
+### Changed
+
+- **DeepSeek peak/off-peak billing update**: Weekends are now all-day off-peak; DeepSeek models in DeepSeek and OpenCode endpoints only apply peak cron on weekdays, with time-matching tests added.
+
+### Fixed
+
+- **Prevent `event:keepalive` errors**: OpenAI SSE now filters keepalive / `codex.rate_limits` event lines via regex to tolerate compact formats.
+
 ## [0.27.2] - 2026-08-22
 
 ### 新增

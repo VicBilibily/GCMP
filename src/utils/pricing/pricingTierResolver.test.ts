@@ -320,6 +320,103 @@ test('resolveActiveTier: DeepSeek-style cron falls back outside peak hours', () 
     assert.equal(resolveActiveTier(pricing, afterPeak), undefined);
 });
 
+// ============= DeepSeek V4 新规则：工作日限定（周末全天谷时） =============
+// cron "* 9-11,14-17 * * 1-5" 仅工作日 9:00-11:59 与 14:00-17:59 高峰，
+// 周六（6）、周日（0）不在 day-of-week 内 → 全天落谷时（tier 不命中返回 undefined）
+
+test('resolveActiveTier: DeepSeek V4 weekday-only cron matches peak on a Monday morning', () => {
+    // 2026-07-06T01:30:00Z = 北京时间周一 09:30，命中 "* 9-11,14-17 * * 1-5"
+    const mondayPeak = new Date('2026-07-06T01:30:00Z');
+    const pricing: ModelTokenPricing = {
+        inputPrice: 0.14,
+        outputPrice: 0.28,
+        tiers: [{ cron: '* 9-11,14-17 * * 1-5', inputPrice: 0.21, outputPrice: 0.42 }]
+    };
+    const tier = resolveActiveTier(pricing, mondayPeak);
+    assert.ok(tier);
+    assert.equal(tier.inputPrice, 0.21);
+    assert.equal(tier.cron, '* 9-11,14-17 * * 1-5');
+});
+
+test('resolveActiveTier: DeepSeek V4 weekday-only cron matches afternoon peak on a Friday', () => {
+    // 2026-07-10T07:30:00Z = 北京时间周五 15:30，命中下午峰段 14-17
+    const fridayAfternoon = new Date('2026-07-10T07:30:00Z');
+    const pricing: ModelTokenPricing = {
+        inputPrice: 0.14,
+        outputPrice: 0.28,
+        tiers: [{ cron: '* 9-11,14-17 * * 1-5', inputPrice: 0.21, outputPrice: 0.42 }]
+    };
+    const tier = resolveActiveTier(pricing, fridayAfternoon);
+    assert.ok(tier);
+    assert.equal(tier.inputPrice, 0.21);
+});
+
+test('resolveActiveTier: DeepSeek V4 weekend is all off-peak on Saturday (same peak hour)', () => {
+    // 2026-07-04T01:30:00Z = 北京时间周六 09:30，周末全天谷时 → 不命中
+    const saturdayPeakHour = new Date('2026-07-04T01:30:00Z');
+    const pricing: ModelTokenPricing = {
+        inputPrice: 0.14,
+        outputPrice: 0.28,
+        tiers: [{ cron: '* 9-11,14-17 * * 1-5', inputPrice: 0.21, outputPrice: 0.42 }]
+    };
+    assert.equal(resolveActiveTier(pricing, saturdayPeakHour), undefined);
+});
+
+test('resolveActiveTier: DeepSeek V4 weekend is all off-peak on Sunday (7 normalized to 0)', () => {
+    // 2026-07-05T01:30:00Z = 北京时间周日 09:30，周日归一化为 0，不在 1-5 → 谷时
+    const sundayPeakHour = new Date('2026-07-05T01:30:00Z');
+    const pricing: ModelTokenPricing = {
+        inputPrice: 0.14,
+        outputPrice: 0.28,
+        tiers: [{ cron: '* 9-11,14-17 * * 1-5', inputPrice: 0.21, outputPrice: 0.42 }]
+    };
+    assert.equal(resolveActiveTier(pricing, sundayPeakHour), undefined);
+});
+
+test('resolveActiveTier: DeepSeek V4 weekend is off-peak even at late night (whole day)', () => {
+    // 2026-07-04T13:30:00Z = 北京时间周六 21:30，周末全天谷时，即使不在峰段时段
+    const saturdayNight = new Date('2026-07-04T13:30:00Z');
+    const pricing: ModelTokenPricing = {
+        inputPrice: 0.14,
+        outputPrice: 0.28,
+        tiers: [{ cron: '* 9-11,14-17 * * 1-5', inputPrice: 0.21, outputPrice: 0.42 }]
+    };
+    assert.equal(resolveActiveTier(pricing, saturdayNight), undefined);
+});
+
+test('resolveActiveTier: DeepSeek V4 weekend starts off-peak right after midnight on Saturday', () => {
+    // 2026-07-03T16:30:00Z = 北京时间周六 00:30，跨天边界，0 点起即谷时
+    const saturdayMidnight = new Date('2026-07-03T16:30:00Z');
+    const pricing: ModelTokenPricing = {
+        inputPrice: 0.14,
+        outputPrice: 0.28,
+        tiers: [{ cron: '* 9-11,14-17 * * 1-5', inputPrice: 0.21, outputPrice: 0.42 }]
+    };
+    assert.equal(resolveActiveTier(pricing, saturdayMidnight), undefined);
+});
+
+test('resolveActiveTier: DeepSeek V4 weekday-only cron is off-peak during lunch break', () => {
+    // 2026-07-06T05:00:00Z = 北京时间周一 13:00，午休时段 → 谷时
+    const lunchBreak = new Date('2026-07-06T05:00:00Z');
+    const pricing: ModelTokenPricing = {
+        inputPrice: 0.14,
+        outputPrice: 0.28,
+        tiers: [{ cron: '* 9-11,14-17 * * 1-5', inputPrice: 0.21, outputPrice: 0.42 }]
+    };
+    assert.equal(resolveActiveTier(pricing, lunchBreak), undefined);
+});
+
+test('resolveActiveTier: DeepSeek V4 weekday-only cron is off-peak after evening peak ends', () => {
+    // 2026-07-06T10:00:00Z = 北京时间周一 18:00，峰时已结束（17:59 为最后一分钟）→ 谷时
+    const afterEveningPeak = new Date('2026-07-06T10:00:00Z');
+    const pricing: ModelTokenPricing = {
+        inputPrice: 0.14,
+        outputPrice: 0.28,
+        tiers: [{ cron: '* 9-11,14-17 * * 1-5', inputPrice: 0.21, outputPrice: 0.42 }]
+    };
+    assert.equal(resolveActiveTier(pricing, afterEveningPeak), undefined);
+});
+
 // ============= 按服务等级计费（serviceTier 匹配） =============
 
 test('resolveActiveTier: tier with serviceTier only matches when request tier equals', () => {

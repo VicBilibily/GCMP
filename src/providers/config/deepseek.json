@@ -16,7 +16,7 @@
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
                 "pricing": { "USD": [0.22, 0.66, 0.007], "RMB": [1.5, 4.5, 0.05] },
-                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
+                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
             }
         },
         {
@@ -32,7 +32,7 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": { "USD": [0.22, 0.66, 0.007], "RMB": [1.5, 4.5, 0.05] },
-                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
+                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
             }
         },
         {
@@ -48,7 +48,7 @@
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
                 "pricing": { "USD": [0.66, 1.98, 0.022], "RMB": [4.5, 13.5, 0.15] },
-                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
+                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
             }
         }
     ]

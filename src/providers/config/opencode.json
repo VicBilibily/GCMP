@@ -258,7 +258,7 @@
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
                 "pricing": [0.66, 1.98, 0.022],
-                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
+                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
             }
         },
         {
@@ -276,7 +276,7 @@
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
                 "pricing": [0.22, 0.66, 0.007],
-                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
+                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
             }
         },
         {
@@ -294,7 +294,7 @@
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": [0.22, 0.66, 0.007],
-                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
+                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
             }
         },
         {
@@ -324,7 +324,7 @@
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
                 "pricing": [0.22, 0.66, 0.007],
-                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
+                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
             }
         },
         {
@@ -342,7 +342,7 @@
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
                 "pricing": [0.66, 1.98, 0.022],
-                "tiers": [{ "cron": "* 9-11,14-17 * * *", "pricing": 2 }]
+                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
             }
         },
         {
