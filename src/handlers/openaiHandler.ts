@@ -537,10 +537,10 @@ export class OpenAIHandler {
                 // 残留 event 行会让 SDK 组合出空 data 事件并在 JSON.parse('') 时抛错
                 // 上游兼容服务可能发送无空格的紧凑格式（如 "event:keepalive"），用正则容忍任意空白。
                 const trimmedEventLine = normalizedLine.trimStart();
-                if (/^event:\s*keepalive\s*$/.test(trimmedEventLine)) {
+                if (/^event:\s*keepalive/.test(trimmedEventLine)) {
                     return '';
                 }
-                if (/^event:\s*codex\.rate_limits\s*$/.test(trimmedEventLine)) {
+                if (/^event:\s*codex\.rate_limits/.test(trimmedEventLine)) {
                     return '';
                 }
                 return normalizedLine;
