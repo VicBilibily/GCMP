@@ -535,11 +535,12 @@ export class OpenAIHandler {
             if (!normalizedLine.startsWith('data:')) {
                 // 过滤 keepalive 心跳与 codex.rate_limits 的 event 行：后者 data 行会被清空，
                 // 残留 event 行会让 SDK 组合出空 data 事件并在 JSON.parse('') 时抛错
+                // 上游兼容服务可能发送无空格的紧凑格式（如 "event:keepalive"），用正则容忍任意空白。
                 const trimmedEventLine = normalizedLine.trimStart();
-                if (
-                    trimmedEventLine.startsWith('event: keepalive') ||
-                    trimmedEventLine.startsWith('event: codex.rate_limits')
-                ) {
+                if (/^event:\s*keepalive\s*$/.test(trimmedEventLine)) {
+                    return '';
+                }
+                if (/^event:\s*codex\.rate_limits\s*$/.test(trimmedEventLine)) {
                     return '';
                 }
                 return normalizedLine;
