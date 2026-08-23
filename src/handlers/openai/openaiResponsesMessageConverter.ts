@@ -68,6 +68,7 @@ export class OpenAIResponsesMessageConverter {
             }
             const textParts: string[] = [];
             const imageParts: vscode.LanguageModelDataPart[] = [];
+            const fileRefParts: vscode.LanguageModelDataPart[] = [];
             const toolCalls: Array<{ id: string; name: string; args: string }> = [];
             const toolResults: Array<{ callId: string; content: string }> = [];
             const thinkingParts: string[] = [];
@@ -91,6 +92,11 @@ export class OpenAIResponsesMessageConverter {
                     }
                 } else if (part instanceof vscode.LanguageModelTextPart) {
                     textParts.push(part.value);
+                } else if (
+                    part instanceof vscode.LanguageModelDataPart &&
+                    part.mimeType === CustomDataPartMimeTypes.FilesApiFileRef
+                ) {
+                    fileRefParts.push(part);
                 } else if (
                     part instanceof vscode.LanguageModelDataPart &&
                     this.handler.isImageMimeType(part.mimeType)
@@ -206,6 +212,13 @@ export class OpenAIResponsesMessageConverter {
                     contentArray.push({
                         type: 'input_image' as const,
                         image_url: this.handler.createDataUrl(imagePart),
+                        detail: 'auto' as const
+                    });
+                }
+                for (const fileRefPart of fileRefParts) {
+                    contentArray.push({
+                        type: 'input_image' as const,
+                        file_id: new TextDecoder().decode(fileRefPart.data),
                         detail: 'auto' as const
                     });
                 }

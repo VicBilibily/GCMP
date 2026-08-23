@@ -157,6 +157,11 @@ export class AnthropicHandler {
             'anthropic-dangerous-direct-browser-access': 'true'
         };
 
+        // Files API 引用需携带 anthropic-beta 头（DeepSeek Anthropic 兼容端点）
+        if (modelConfig?.filesApi) {
+            defaultHeaders['anthropic-beta'] = 'files-api-2025-04-14';
+        }
+
         // 合并提供商级别和模型级别的 customHeader
         // 模型级别的 customHeader 会覆盖提供商级别的同名头部
         const mergedCustomHeader = {

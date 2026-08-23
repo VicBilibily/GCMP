@@ -186,6 +186,17 @@ export interface ModelConfig {
      */
     nativeTools?: NativeToolConfig[];
     /**
+     * Files API 图片上传支持（可选，仅 DeepSeek 等支持 Files API 的提供商）
+     * - 布尔 true：启用 Files API（TTL 默认 2592000 秒 / 30 天，上传端点默认为对话 baseUrl）
+     * - 对象：ttlSeconds 控制临时保存时长（3600~2592000）；endpoint 单独指定上传端点（相对路径拼 baseUrl，完整 URL 直接用）
+     */
+    filesApi?: boolean | FilesApiConfig;
+    /**
+     * Files API 上传端点（可选，完整请求地址，独立于对话端点）
+     * 完整 URL 直接用，相对路径拼对话 baseUrl；默认 {对话baseUrl}/files
+     */
+    filesApiEndpoint?: string;
+    /**
      * 模型特定的代理服务器地址（可选）
      * 如果提供，将覆盖提供商级别的代理设置
      */
@@ -381,6 +392,16 @@ export interface ModelTokenPricing extends PricingFields {
 export interface PricingTier extends PricingFields, PricingTierMatchFields {}
 
 /**
+ * Files API 图片上传详细配置（仅 DeepSeek 等支持 Files API 的提供商）。
+ */
+export interface FilesApiConfig {
+    /** 临时保存时长（秒），范围 3600~2592000，默认 2592000（30 天） */
+    ttlSeconds?: number;
+    /** 上传端点（可选）：相对路径拼对话 baseUrl，完整 URL 直接用；默认使用对话 baseUrl */
+    endpoint?: string;
+}
+
+/**
  * 联网搜索原生工具详细配置
  */
 export interface WebSearchToolConfig {
@@ -495,6 +516,10 @@ export interface ModelOverride {
     tokenPricing?: ModelTokenPricingInput;
     /** 模型级别的限流配置覆盖（可选），字段级覆盖 provider 级 limit 的同名维度 */
     limit?: RateLimitConfig;
+    /** Files API 图片上传支持（可选，布尔启用或详细配置） */
+    filesApi?: ModelConfig['filesApi'];
+    /** Files API 上传端点覆盖（可选，独立于对话端点） */
+    filesApiEndpoint?: string;
 }
 
 /**

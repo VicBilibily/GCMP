@@ -1173,6 +1173,19 @@ export class ConfigManager {
                 target.limit = target.limit ? { ...target.limit, ...modelOverride.limit } : { ...modelOverride.limit };
                 Logger.debug(`  Model ${modelOverride.id}: override limit = ${JSON.stringify(target.limit)}`);
             }
+            if (modelOverride.filesApi !== undefined) {
+                target.filesApi =
+                    typeof modelOverride.filesApi === 'object' ? { ...modelOverride.filesApi } : modelOverride.filesApi;
+                Logger.debug(
+                    `  Model ${modelOverride.id}: override filesApi = ${JSON.stringify(modelOverride.filesApi)}`
+                );
+            }
+            if (modelOverride.filesApiEndpoint !== undefined) {
+                target.filesApiEndpoint = modelOverride.filesApiEndpoint;
+                Logger.debug(
+                    `  Model ${modelOverride.id}: override filesApiEndpoint = ${modelOverride.filesApiEndpoint}`
+                );
+            }
         };
 
         // 应用提供商级别的覆盖

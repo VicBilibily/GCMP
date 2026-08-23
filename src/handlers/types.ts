@@ -3,7 +3,9 @@ export const CustomDataPartMimeTypes = {
     StatefulMarker: 'stateful_marker',
     ThinkingData: 'thinking',
     ContextManagement: 'context_management',
-    Usage: 'usage'
+    Usage: 'usage',
+    /** GCMP 注入的 Files API 文件引用，data 为 file_id 的 UTF-8 编码 */
+    FilesApiFileRef: 'gcmp_files_api_file_ref'
 } as const;
 
 export const CacheType = 'ephemeral';

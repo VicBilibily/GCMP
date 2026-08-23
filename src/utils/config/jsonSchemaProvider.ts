@@ -167,6 +167,52 @@ export class JsonSchemaProvider {
     }
 
     /**
+     * filesApi schema（root properties 用）：布尔启用或详细配置（TTL / 上传端点）
+     */
+    private static getFilesApiSchema(): Record<string, unknown> {
+        return {
+            oneOf: [
+                {
+                    type: 'boolean',
+                    description: t(
+                        'Enable Files API image upload (default TTL 2592000s / 30 days, default upload endpoint = {chat baseUrl}/files)',
+                        '启用 Files API 图片上传（默认 TTL 2592000 秒 / 30 天，默认上传端点 {对话baseUrl}/files）'
+                    ),
+                    default: false
+                },
+                {
+                    type: 'object',
+                    description: t('Detailed configuration for Files API image upload', 'Files API 图片上传详细配置'),
+                    properties: {
+                        ttlSeconds: {
+                            type: 'integer',
+                            minimum: 3600,
+                            maximum: 2592000,
+                            default: 2592000,
+                            description: t(
+                                'Temporary retention duration in seconds (1 hour ~ 30 days)',
+                                '临时保存时长（秒），范围 1 小时 ~ 30 天'
+                            )
+                        },
+                        endpoint: {
+                            type: 'string',
+                            description: t(
+                                'Optional upload endpoint: relative path appends to chat baseUrl, absolute URL used directly; default {chat baseUrl}/files',
+                                '可选上传端点：相对路径拼对话 baseUrl，完整 URL 直接用；默认 {对话baseUrl}/files'
+                            )
+                        }
+                    },
+                    additionalProperties: false
+                }
+            ],
+            description: t(
+                'Files API image upload support (DeepSeek etc.). Only effective when capabilities.imageInput is true.',
+                'Files API 图片上传支持（DeepSeek 等）。仅当 capabilities.imageInput 为 true 时生效。'
+            )
+        };
+    }
+
+    /**
      * nativeTools 数组 schema（root properties 用）
      */
     private static getNativeToolsArraySchema(): Record<string, unknown> {
@@ -1020,6 +1066,14 @@ export class JsonSchemaProvider {
                                 ],
                                 description: this.getAnthropicWebSearchDescription()
                             },
+                            filesApi: this.getFilesApiSchema(),
+                            filesApiEndpoint: {
+                                type: 'string',
+                                description: t(
+                                    'Optional Files API upload endpoint (full request URL): absolute URL used directly, relative path appends to chat baseUrl; default {chat baseUrl}/files',
+                                    '可选 Files API 上传端点（完整请求地址）：完整 URL 直接用，相对路径拼对话 baseUrl；默认 {对话baseUrl}/files'
+                                )
+                            },
                             nativeTools: this.getNativeToolsArraySchema(),
                             family: this.getFamilySchema(),
                             thinking: {
@@ -1715,6 +1769,14 @@ export class JsonSchemaProvider {
                                     }
                                 ],
                                 description: this.getAnthropicWebSearchDescription()
+                            },
+                            filesApi: this.getFilesApiSchema(),
+                            filesApiEndpoint: {
+                                type: 'string',
+                                description: t(
+                                    'Optional Files API upload endpoint (full request URL): absolute URL used directly, relative path appends to chat baseUrl; default {chat baseUrl}/files',
+                                    '可选 Files API 上传端点（完整请求地址）：完整 URL 直接用，相对路径拼对话 baseUrl；默认 {对话baseUrl}/files'
+                                )
                             },
                             nativeTools: this.getNativeToolsArraySchema(),
                             family: this.getFamilySchema(),

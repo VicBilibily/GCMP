@@ -29,6 +29,7 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "webSearchTool": true,
+            "filesApi": true,
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": {
                 "pricing": { "USD": [0.22, 0.66, 0.007], "RMB": [1.5, 4.5, 0.05] },

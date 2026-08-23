@@ -41,6 +41,9 @@ import { SessionTitleService } from '../usages/sessionTitleService';
 import { SessionRecoveryService } from '../usages/sessionRecoveryService';
 import { VisionCache } from '../tools/vision/cache';
 import { processVisionMessages } from '../tools/vision/messageProcessor';
+import { FilesApiClient } from './files/filesApiClient';
+import { ImageFileResolver } from './files/imageFileResolver';
+import { resolveFilesApiImages } from './files/messagePreprocessor';
 import { StatusBarManager } from '../status/statusBarManager';
 import * as crypto from 'node:crypto';
 import type { SessionRecoverySource } from '../usages/fileLogger/types';
@@ -125,6 +128,8 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     protected configListener?: vscode.Disposable; // 配置监听器
     protected modelInfoCache?: ModelInfoCache; // 模型信息缓存
     protected visionCache?: VisionCache; // 图片缓存服务
+    protected readonly extensionContext: vscode.ExtensionContext;
+    protected filesApiResolver?: ImageFileResolver; // Files API 图片解析器
 
     // 模型信息变更事件
     protected _onDidChangeLanguageModelChatInformation = new vscode.EventEmitter<void>();
@@ -132,6 +137,7 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
     constructor(context: vscode.ExtensionContext, providerKey: string, providerConfig: ProviderConfig) {
         this.providerKey = providerKey;
+        this.extensionContext = context;
         // 保存原始配置（不应用覆盖）
         this.baseProviderConfig = providerConfig;
         // 初始化缓存配置（应用覆盖）
@@ -597,6 +603,59 @@ export class GenericModelProvider implements LanguageModelChatProvider {
     }
 
     /**
+     * 解析 Files API 完整上传地址：endpoint 完整 URL 直接用，相对路径拼 baseUrl，未配置默认 {baseUrl}/files。
+     */
+    private resolveFilesApiUploadUrl(modelConfig: ModelConfig): string | undefined {
+        const filesApi = typeof modelConfig.filesApi === 'object' ? modelConfig.filesApi : undefined;
+        // 顶层 filesApiEndpoint 优先，其次嵌套 filesApi.endpoint
+        const endpoint = modelConfig.filesApiEndpoint ?? filesApi?.endpoint;
+        const baseUrl = (modelConfig.baseUrl || this.providerConfig?.baseUrl)?.replace(/\/$/, '');
+        if (!endpoint) {
+            return baseUrl ? `${baseUrl}/files` : undefined;
+        }
+        if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
+            return endpoint;
+        }
+        if (!baseUrl) {
+            return undefined;
+        }
+        return `${baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+    }
+
+    /**
+     * 解析 Files API 临时保存时长：默认 2592000 秒（30 天），clamp 到 3600~2592000。
+     */
+    private resolveFilesApiTtl(modelConfig: ModelConfig): number {
+        const filesApi = typeof modelConfig.filesApi === 'object' ? modelConfig.filesApi : undefined;
+        const ttl = filesApi?.ttlSeconds ?? 2592000;
+        return Math.min(Math.max(ttl, 3600), 2592000);
+    }
+
+    /**
+     * 懒建 Files API 图片解析器（独立 HTTP 上传客户端，按首次使用的模型配置缓存）。
+     */
+    protected async ensureFilesApiResolver(modelConfig: ModelConfig): Promise<ImageFileResolver> {
+        if (!this.filesApiResolver) {
+            const uploadUrl = this.resolveFilesApiUploadUrl(modelConfig);
+            const apiKey = await ApiKeyManager.getApiKey(modelConfig.provider || this.providerKey);
+            if (!apiKey) {
+                throw new Error(`Missing ${this.providerConfig.displayName} API key for Files API`);
+            }
+            if (!uploadUrl) {
+                throw new Error(`Missing ${this.providerConfig.displayName} baseUrl for Files API upload`);
+            }
+            const proxyUrl = ConfigManager.resolveProxyForModel(modelConfig, this.providerKey);
+            // 独立 HTTP 上传：不走任何 SDK 内置 files API（customFetch 的 SSE 预处理会误判 JSON 响应）
+            const fetchFn = ConfigManager.createProxyAwareFetch({ proxyUrl });
+            this.filesApiResolver = new ImageFileResolver(
+                new FilesApiClient({ apiKey, uploadUrl, fetchFn }),
+                this.extensionContext.workspaceState
+            );
+        }
+        return this.filesApiResolver;
+    }
+
+    /**
      * 获取 SDK 显示名称
      */
     protected getSdkDisplayName(sdkMode: NonNullable<ModelConfig['sdkMode']> | 'openai'): string {
@@ -673,8 +732,17 @@ export class GenericModelProvider implements LanguageModelChatProvider {
 
         const requestKind = this.ensureRequestKind(messages, options);
 
-        // 处理消息中的图片 DataPart（仅对 imageInput: false 的模型生效）
-        if (this.visionCache && !modelConfig.capabilities?.imageInput) {
+        // Files API：imageInput 且 filesApi 启用的模型，图片上传后转为 file_id 引用
+        if (modelConfig.capabilities?.imageInput && modelConfig.filesApi) {
+            try {
+                const resolver = await this.ensureFilesApiResolver(modelConfig);
+                const ttl = this.resolveFilesApiTtl(modelConfig);
+                await resolveFilesApiImages(messages, resolver, ttl, sessionId);
+            } catch (err) {
+                Logger.warn('[FilesAPI] Failed to resolve images:', err instanceof Error ? err.message : String(err));
+            }
+        } else if (this.visionCache && !modelConfig.capabilities?.imageInput) {
+            // 处理消息中的图片 DataPart（仅对 imageInput: false 的模型生效）
             try {
                 await processVisionMessages(messages, sessionId, this.visionCache, modelConfig);
             } catch (err) {

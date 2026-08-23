@@ -1382,13 +1382,16 @@ export class OpenAIHandler {
             part => part instanceof vscode.LanguageModelTextPart
         ) as vscode.LanguageModelTextPart[];
         const imageParts: vscode.LanguageModelDataPart[] = [];
+        const fileRefParts: vscode.LanguageModelDataPart[] = [];
         // 收集图片（如果支持）
         if (modelConfig?.capabilities?.imageInput === true) {
             // Logger.debug('Model supports image input, collecting image parts');
             for (const part of message.content) {
                 if (part instanceof vscode.LanguageModelDataPart) {
                     // Logger.debug(`📷 发现数据部分: MIME=${part.mimeType}, 大小=${part.data.length}字节`);
-                    if (this.isImageMimeType(part.mimeType)) {
+                    if (part.mimeType === CustomDataPartMimeTypes.FilesApiFileRef) {
+                        fileRefParts.push(part);
+                    } else if (this.isImageMimeType(part.mimeType)) {
                         imageParts.push(part);
                         Logger.debug(`✅ Added image: MIME=${part.mimeType}, size=${part.data.length} bytes`);
                     } else {
@@ -1406,14 +1409,14 @@ export class OpenAIHandler {
                 }
             }
         }
-        // 如果没有文本和图片内容，返回 null
-        if (textParts.length === 0 && imageParts.length === 0) {
+        // 如果没有文本、图片和文件引用内容，返回 null
+        if (textParts.length === 0 && imageParts.length === 0 && fileRefParts.length === 0) {
             return null;
         }
-        if (imageParts.length > 0) {
-            // 多模态消息：文本 + 图片
+        if (imageParts.length > 0 || fileRefParts.length > 0) {
+            // 多模态消息：文本 + 图片 / Files API 文件引用
             Logger.debug(
-                `🖼️ Building multimodal message: ${textParts.length} text parts + ${imageParts.length} image parts`
+                `🖼️ Building multimodal message: ${textParts.length} text parts + ${imageParts.length} image parts + ${fileRefParts.length} file refs`
             );
             const contentArray: OpenAI.Chat.ChatCompletionContentPart[] = [];
             if (textParts.length > 0) {
@@ -1431,6 +1434,14 @@ export class OpenAIHandler {
                     image_url: { url: dataUrl }
                 });
                 Logger.trace(`📷 Added image URL: MIME=${imagePart.mimeType}, base64Length=${dataUrl.length} chars`);
+            }
+            for (const fileRefPart of fileRefParts) {
+                const fileId = new TextDecoder().decode(fileRefPart.data);
+                contentArray.push({
+                    type: 'file',
+                    file_id: fileId
+                } as unknown as OpenAI.Chat.ChatCompletionContentPart);
+                Logger.trace(`📷 Added Files API file reference: fileId=${fileId}`);
             }
             Logger.debug(`✅ Multimodal message built: ${contentArray.length} content parts`);
             return { role: 'user', content: contentArray };

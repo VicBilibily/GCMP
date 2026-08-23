@@ -177,6 +177,14 @@ function apiMessageToAnthropicContent(
                 } as ContentBlockParam);
             }
         }
+        // Files API 文件引用（DeepSeek vision）
+        else if (isDataPart(part) && part.mimeType === CustomDataPartMimeTypes.FilesApiFileRef) {
+            const fileId = new TextDecoder().decode(part.data as Uint8Array);
+            otherBlocks.push({
+                type: 'image',
+                source: { type: 'file', file_id: fileId }
+            } as unknown as ImageBlockParam);
+        }
         // 图像数据
         else if (isDataPart(part) && part.mimeType.startsWith('image/')) {
             // 跳过 StatefulMarker
