@@ -33,7 +33,7 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 <details>
 <summary>Click to expand detailed parameter descriptions</summary>
 
-```json
+```jsonc
 {
     // General utility tasks: title generation, summaries, intent classification, rename suggestions, terminal commands/fixes, search, VS Code Q&A
     "chat.utilityModel": "gcmp.deepseek/gcmp.deepseek:::deepseek-v4-pro",
@@ -244,7 +244,7 @@ GCMP supports customizing AI model behavior parameters through VS Code settings 
 
 ### General Model Parameters & Extra Features
 
-```json
+```jsonc
 {
     "gcmp.retry.enabled": true, // Enable auto retry (default true), disable to stop on failure
     "gcmp.retry.maxAttempts": 3 // 1-10, only effective for retryable errors
@@ -261,7 +261,7 @@ GCMP supports customizing AI model behavior parameters through VS Code settings 
 
 Use `gcmp.providerOverrides.{provider}.retry` to set per-provider retry strategies that override global `gcmp.retry.*` behavior. `maxAttempts` is NOT capped at 1-10, allowing any positive integer or `-1` (unlimited retries).
 
-```json
+```jsonc
 {
     "gcmp.providerOverrides": {
         "xfyun": {
@@ -307,7 +307,7 @@ Use `gcmp.providerOverrides.{provider}.limit` to set request rate limits per pro
 | `tpm`      | Max tokens per minute (estimated from input, paced)                          |
 | `parallel` | Max concurrent in-flight requests; excess requests wait FIFO for a free slot |
 
-```json
+```jsonc
 {
     "gcmp.providerOverrides": {
         "dashscope": {
@@ -336,7 +336,7 @@ providerOverrides["limit.{subProvider}"] → providerOverrides.limit → built-i
 
 #### Debugging & HAR Capture
 
-```json
+```jsonc
 {
     "gcmp.debug.captureHar": false, // Capture all HTTP requests as HAR files (default false)
     "gcmp.debug.harRetentionCount": 7 // Number of recent HAR files to keep per VS Code instance (0 = disable count-based cleanup only; 2-hour hard deletion still applies)
@@ -351,7 +351,7 @@ providerOverrides["limit.{subProvider}"] → providerOverrides.limit → built-i
 
 #### Proxy & System Certificate Settings
 
-```json
+```jsonc
 {
     "gcmp.proxy": "http://127.0.0.1:7890", // Optional global proxy, full URL recommended
     "gcmp.tls.useSystemCertificates": true // Append OS root CAs (enabled by default)
@@ -391,7 +391,7 @@ model-level > providerOverrides.{provider} > providerOverrides.compatible
 
 **Configuration example**:
 
-```json
+```jsonc
 {
     "gcmp.providerOverrides": {
         "dashscope": {
@@ -454,7 +454,7 @@ GCMP provides a **Compatible Provider** for any OpenAI or Anthropic API-compatib
 
 **Configuration example**:
 
-```json
+```jsonc
 {
     "gcmp.compatibleModels": [
         {
@@ -629,7 +629,7 @@ FIM and NES completions use separate model configurations, configurable via `gcm
 - **Enable FIM completion mode** (recommended: DeepSeek, Qwen, and other FIM-supporting models):
     - Tested with `DeepSeek`, `SiliconFlow`, and special support for `Alibaba Cloud DashScope`.
 
-```json
+```jsonc
 {
     "gcmp.fimCompletion.enabled": true, // Enable FIM completion
     "gcmp.fimCompletion.debounceMs": 500, // Debounce delay for auto-triggered completion
@@ -649,7 +649,7 @@ FIM and NES completions use separate model configurations, configurable via `gcm
 
 - **Enable NES manual completion mode**:
 
-````json
+````jsonc
 {
     "gcmp.nesCompletion.enabled": true, // Enable NES completion
     "gcmp.nesCompletion.debounceMs": 500, // Debounce delay for auto-triggered completion
@@ -681,7 +681,7 @@ FIM and NES completions use separate model configurations, configurable via `gcm
 
 #### [MistralAI Coding](https://console.mistral.ai/codestral) FIM Configuration Example
 
-```json
+```jsonc
 {
     "gcmp.compatibleModels": [
         {
@@ -737,7 +737,7 @@ When FIM or NES completion requests fail consecutively, the circuit breaker temp
 
 **Configuration**:
 
-```json
+```jsonc
 {
     // FIM circuit breaker settings (enabled by default)
     "gcmp.fimCompletion.circuitBreaker": {
@@ -819,7 +819,7 @@ GCMP includes comprehensive token usage tracking to help you monitor and manage 
 
 ### Configuration
 
-```json
+```jsonc
 {
     "gcmp.usages.retentionDays": 100 // Number of days to retain historical data (0 = permanent)
 }
@@ -868,7 +868,7 @@ This feature calls models via the **VS Code Language Model API**.
 - On first use or when no model is configured, you'll be guided to select a model (or manually run `GCMP: Select Commit Message Model`).
 - Related settings:
 
-```json
+```jsonc
 {
     "gcmp.commit.enabled": true, // Enable built-in commit message generation (default true, will be removed in next major version)
     "gcmp.commit.language": "chinese", // Generation language: chinese / english (fallback when auto mode language is unclear)
