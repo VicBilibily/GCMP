@@ -74,7 +74,10 @@
             "reasoningEffort": ["high", "max"],
             "reasoningFormat": "nested",
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [1.74, 3.48, 0.0145]
+            "tokenPricing": {
+                "pricing": [0.66, 1.98, 0.022],
+                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
+            }
         },
         {
             "id": "cline-pass/deepseek-v4-flash",
@@ -87,7 +90,10 @@
             "reasoningEffort": ["high", "max"],
             "reasoningFormat": "nested",
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.14, 0.28, 0.0028]
+            "tokenPricing": {
+                "pricing": [0.22, 0.66, 0.007],
+                "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
+            }
         },
         {
             "id": "cline-pass/mimo-v2.5",

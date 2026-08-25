@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  腾讯云配置向导
- *  提供交互式向导来配置 Coding Plan、Token Plan、TokenHub 与 Token Plan Enterprise 专用密钥
+ *  提供交互式向导来配置 Token Plan、TokenHub 与 Token Plan Enterprise 专用密钥
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -10,7 +10,6 @@ import { BaseWizard } from './baseWizard';
 
 export class TencentWizard extends BaseWizard {
     private static readonly PROVIDER_KEY = 'tencent';
-    private static readonly CODING_PLAN_KEY = 'tencent-coding';
     private static readonly TOKEN_PLAN_KEY = 'tencent-token';
     private static readonly TOKENHUB_KEY = 'tencent-tokenhub';
     private static readonly TOKEN_ENTERPRISE_KEY = 'tencent-token-enterprise';
@@ -18,17 +17,11 @@ export class TencentWizard extends BaseWizard {
     static async startWizard(
         displayName: string,
         apiKeyTemplate: string,
-        codingKeyTemplate?: string,
         tokenPlanKeyTemplate?: string
     ): Promise<void> {
         try {
             const choice = await vscode.window.showQuickPick(
                 [
-                    {
-                        label: t('$(key) Set Coding Plan API key', '$(key) 设置 Coding Plan 专用密钥'),
-                        detail: t('Used for Tencent Cloud Coding Plan models', '用于腾讯云 Coding Plan 模型'),
-                        value: 'coding'
-                    },
                     {
                         label: t('$(key) Set Token Plan API key', '$(key) 设置 Token Plan 专用密钥'),
                         detail: t('Used for Tencent Cloud Token Plan models', '用于腾讯云 Token Plan 模型'),
@@ -53,8 +46,8 @@ export class TencentWizard extends BaseWizard {
                     {
                         label: t('$(check-all) Configure all items', '$(check-all) 依次配置全部项目'),
                         detail: t(
-                            'Configure the Coding Plan, Token Plan, Token Plan Enterprise, and TokenHub keys in order',
-                            '按顺序配置 Coding Plan 密钥、Token Plan 密钥、Token Plan 企业版密钥和 TokenHub 密钥'
+                            'Configure the Token Plan, Token Plan Enterprise, and TokenHub keys in order',
+                            '按顺序配置 Token Plan 密钥、Token Plan 企业版密钥和 TokenHub 密钥'
                         ),
                         value: 'all'
                     }
@@ -69,9 +62,6 @@ export class TencentWizard extends BaseWizard {
                 return;
             }
 
-            if (choice.value === 'coding' || choice.value === 'all') {
-                await this.setCodingPlanApiKey(codingKeyTemplate || apiKeyTemplate);
-            }
             if (choice.value === 'tokenPlan' || choice.value === 'all') {
                 await this.setTokenPlanApiKey(tokenPlanKeyTemplate || apiKeyTemplate);
             }
@@ -86,20 +76,6 @@ export class TencentWizard extends BaseWizard {
                 `Tencent Cloud config wizard failed: ${error instanceof Error ? error.message : t('Unknown error', '未知错误')}`
             );
         }
-    }
-
-    static async setCodingPlanApiKey(codingKeyTemplate?: string): Promise<void> {
-        await this.promptForApiKey({
-            providerKey: this.CODING_PLAN_KEY,
-            prompt: t(
-                'Enter the Tencent Cloud Coding Plan API key (leave empty to clear)',
-                '请输入 腾讯云 Coding Plan 专用 API Key（留空可清除）'
-            ),
-            title: t('Set Tencent Cloud Coding Plan API key', '设置 腾讯云 Coding Plan 专用 API Key'),
-            placeHolder: codingKeyTemplate,
-            successMessage: t('Tencent Cloud Coding Plan API key set', '腾讯云 Coding Plan 专用 API Key 已设置'),
-            clearMessage: t('Tencent Cloud Coding Plan API key cleared', '腾讯云 Coding Plan 专用 API Key 已清除')
-        });
     }
 
     static async setTokenPlanApiKey(tokenPlanKeyTemplate?: string): Promise<void> {

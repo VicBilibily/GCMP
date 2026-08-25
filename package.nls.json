@@ -18,7 +18,6 @@
     "command.dashscope.setTokenPlanApiKey": "Set DashScope Token Plan (Team) API Key",
     "command.dashscope.setPersonalTokenPlanApiKey": "Set DashScope Token Plan (Personal) API Key",
     "command.dashscope.configWizard": "DashScope Configuration Wizard",
-    "command.tencent.setCodingPlanApiKey": "Set Tencent Cloud Coding Plan API Key",
     "command.tencent.setTokenPlanApiKey": "Set Tencent Cloud Token Plan API Key",
     "command.tencent.setTokenHubApiKey": "Set Tencent Cloud TokenHub API Key",
     "command.tencent.setTokenEnterpriseApiKey": "Set Tencent Cloud Token Plan Enterprise API Key",

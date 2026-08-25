@@ -27,7 +27,7 @@
             "reasoningEffort": ["high", "xhigh", "none"],
             "thinkingFormat": "effort-none",
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.2, 0.4, 0.04]
+            "tokenPricing": [0.44, 1.32, 0.044]
         },
         {
             "id": "deepseek-v4-pro",
@@ -62,7 +62,7 @@
             "maxInputTokens": 236000,
             "maxOutputTokens": 20000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.124, 0.42, 0, 0.062]
+            "tokenPricing": [0.11, 0.408, 0, 0.055]
         },
         {
             "id": "glm-5",
@@ -72,7 +72,7 @@
             "maxInputTokens": 180000,
             "maxOutputTokens": 20000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.76, 2.356, 0, 0.38]
+            "tokenPricing": [0.86, 2.784, 0, 0.43]
         },
         {
             "id": "glm-5.1",
@@ -83,7 +83,7 @@
             "maxOutputTokens": 32000,
             "reasoningEffort": ["max", "high"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [1.5243, 4.7905, 0.2831]
+            "tokenPricing": [1.332, 4.312, 0]
         },
         {
             "id": "glm-5.2",
@@ -95,7 +95,7 @@
             "maxOutputTokens": 64000,
             "reasoningEffort": ["max", "high"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [1.4, 4.4, 0.28]
+            "tokenPricing": [1.52432, 4.79072, 0.152432]
         },
         {
             "id": "gpt-oss-120b",
@@ -106,7 +106,7 @@
             "maxInputTokens": 118000,
             "maxOutputTokens": 10000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.16332, 0.65328, 0.0152432, 0]
+            "tokenPricing": [0.178, 0.68, 0, 0.089]
         },
         {
             "id": "kimi-k2.5",
@@ -116,7 +116,7 @@
             "maxInputTokens": 236000,
             "maxOutputTokens": 20000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.558, 2.94, 0, 0.279]
+            "tokenPricing": [0.5444, 2.855, 0, 0.2722]
         },
         {
             "id": "kimi-k2.6",
@@ -127,7 +127,7 @@
             "maxOutputTokens": 32000,
             "reasoningEffort": ["low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.95, 4.0, 0, 0.16]
+            "tokenPricing": [1.03436, 4.3552, 0.174208, 0]
         },
         {
             "id": "kimi-k2.7-code",
@@ -138,7 +138,7 @@
             "maxOutputTokens": 32000,
             "extraBody": { "enabled_thinking": true },
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.95, 4.0, 0.19]
+            "tokenPricing": [1.03436, 4.3552, 0.206872]
         },
         {
             "id": "kimi-k3",
@@ -149,7 +149,7 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [3, 15, 0, 0.3]
+            "tokenPricing": [3.2664, 16.332, 0.32664, 0]
         },
         {
             "id": "llama-3.3-70b-instruct",
@@ -159,7 +159,7 @@
             "maxInputTokens": 118000,
             "maxOutputTokens": 10000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.608, 0.838, 0, 0.304]
+            "tokenPricing": [0.598, 0.738, 0, 0.299]
         },
         {
             "id": "llama-4-maverick-17b-128e-instruct-fp8",
@@ -179,7 +179,7 @@
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.426, 1.62, 0, 0.213]
+            "tokenPricing": [0.41, 1.52, 0, 0.205]
         },
         {
             "id": "minimax-m3",

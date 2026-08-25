@@ -126,6 +126,21 @@
             "tokenPricing": [0.95, 4.0, 0.16]
         },
         {
+            "id": "longcat-2.0-go",
+            "name": "LongCat-2.0 (Go)",
+            "model": "longcat-2.0",
+            "sdkMode": "openai-sse",
+            "baseUrl": "https://opencode.ai/zen/go/v1",
+            "tooltip": "OpenCode Go 套餐 - LongCat-2.0，高性能 Agentic 模型，1M 上下文。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "thinkingFormat": "object",
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.3, 1.2, 0.006]
+        },
+        {
             "id": "mimo-v2.5-go",
             "name": "MiMo-V2.5 (Go)",
             "model": "mimo-v2.5",

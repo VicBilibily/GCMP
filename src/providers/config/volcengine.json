@@ -5,6 +5,21 @@
     "tokenKeyTemplate": "ark-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx-xxxxx",
     "models": [
         {
+            "id": "ark-code-doubao-seed-evolving",
+            "name": "Doubao-Seed-Evolving (CodingPlan)",
+            "model": "doubao-seed-evolving",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。面向 Coding 与 Agent 场景，持续周级升级，以统一模型 ID 提供最新能力。支持 1M 超长上下文，具备复杂任务编排、长程规划、代码生成与工具调用能力。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "reasoningDefault": "high",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [6, 30, 1.2] }
+        },
+        {
             "id": "ark-code-doubao-seed-2.1-turbo",
             "name": "Doubao-Seed-2.1-turbo (CodingPlan)",
             "model": "doubao-seed-2.1-turbo",
@@ -39,17 +54,17 @@
             }
         },
         {
-            "id": "ark-code-kimi-k2.7-code",
-            "name": "Kimi-K2.7-Code (CodingPlan)",
-            "model": "kimi-k2.7-code",
+            "id": "ark-code-MiniMax-M3",
+            "name": "MiniMax-M3 (CodingPlan)",
+            "model": "MiniMax-M3",
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。Kimi 最新 Coding 模型，在长上下文中更可靠地遵循指令，能以更高的成功率完成编程任务，同时支持文本、图片与视频输入，思考模式，对话与 Agent 任务。",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "extraBody": { "thinking": { "type": "enabled" } },
+            "tooltip": "Coding Plan Code模型。新一代 M 系列语言模型，在编码与智能体评测中达到行业顶尖水平，适用于 Agent 推理、工具调用、代码和长上下文任务。",
+            "contextSize": [512000, 256000, 192000],
+            "maxInputTokens": 448000,
+            "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "RMB": [6.5, 27.0, 1.3] }
+            "tokenPricing": { "RMB": [2.1, 8.4, 0.42] }
         },
         {
             "id": "ark-code-glm-5.3",
@@ -80,19 +95,6 @@
             "tokenPricing": { "RMB": [8, 28, 2] }
         },
         {
-            "id": "ark-code-MiniMax-M3",
-            "name": "MiniMax-M3 (CodingPlan)",
-            "model": "MiniMax-M3",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
-            "tooltip": "Coding Plan Code模型。新一代 M 系列语言模型，在编码与智能体评测中达到行业顶尖水平，适用于 Agent 推理、工具调用、代码和长上下文任务。",
-            "contextSize": [512000, 256000, 192000],
-            "maxInputTokens": 448000,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "RMB": [2.1, 8.4, 0.42] }
-        },
-        {
             "id": "ark-code-deepseek-v4-flash",
             "name": "DeepSeek-V4-Flash (CodingPlan)",
             "model": "deepseek-v4-flash",
@@ -121,35 +123,38 @@
             "tokenPricing": { "RMB": [12, 24, 1] }
         },
         {
-            "id": "ark-plan-doubao-seed-evolving",
-            "name": "Doubao-Seed-Evolving (AgentPlan)",
-            "model": "doubao-seed-evolving",
-            "provider": "volcengine-agent",
+            "id": "ark-code-kimi-k2.7-code",
+            "name": "Kimi-K2.7-Code (CodingPlan)",
+            "model": "kimi-k2.7-code",
             "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
-            "tooltip": "Agent Plan 模型。面向 Coding 与 Agent 场景，持续周级升级，以统一模型 ID 提供最新能力。支持 1M 超长上下文，具备复杂任务编排、长程规划、代码生成与工具调用能力。",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "reasoningEffort": ["minimal", "low", "medium", "high"],
-            "reasoningDefault": "high",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。Kimi 最新 Coding 模型，在长上下文中更可靠地遵循指令，能以更高的成功率完成编程任务，同时支持文本、图片与视频输入，思考模式，对话与 Agent 任务。",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "extraBody": { "thinking": { "type": "enabled" } },
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "RMB": [6, 30, 1.2] }
+            "tokenPricing": { "RMB": [6.5, 27.0, 1.3] }
         },
         {
-            "id": "ark-plan-doubao-seed-2.1-turbo",
-            "name": "Doubao-Seed-2.1-turbo (AgentPlan)",
-            "model": "doubao-seed-2.1-turbo",
+            "id": "ark-plan-doubao-seed-2.0-mini",
+            "name": "Doubao-Seed-2.0-mini (AgentPlan)",
+            "model": "doubao-seed-2.0-mini",
             "provider": "volcengine-agent",
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
-            "tooltip": "Agent Plan模型。效果与成本均衡，全面升级 Coding、Agent 与多模态能力，以更强的自主规划、长链路执行和动态修复能力，胜任企业真实复杂任务。",
+            "tooltip": "Agent Plan 模型。面向低时延、高并发与成本敏感场景，提供极致的模型推理速度，适合成本和速度优先的轻量级任务。默认 thinking，支持关闭深度思考。",
             "contextSize": [256000, 128000],
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "RMB": [3, 15, 0.6] }
+            "tokenPricing": {
+                "pricing": { "RMB": [0.2, 2, 0.04] },
+                "tiers": [
+                    { "contextSizeMin": 128001, "pricing": { "RMB": [0.8, 8, 0.16] } },
+                    { "contextSizeMin": 32001, "pricing": { "RMB": [0.4, 4, 0.08] } }
+                ]
+            }
         },
         {
             "id": "ark-plan-doubao-seed-2.0-lite",
@@ -173,25 +178,49 @@
             }
         },
         {
-            "id": "ark-plan-doubao-seed-2.0-mini",
-            "name": "Doubao-Seed-2.0-mini (AgentPlan)",
-            "model": "doubao-seed-2.0-mini",
+            "id": "ark-plan-doubao-seed-2.1-turbo",
+            "name": "Doubao-Seed-2.1-turbo (AgentPlan)",
+            "model": "doubao-seed-2.1-turbo",
             "provider": "volcengine-agent",
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
-            "tooltip": "Agent Plan 模型。面向低时延、高并发与成本敏感场景，提供极致的模型推理速度，适合成本和速度优先的轻量级任务。默认 thinking，支持关闭深度思考。",
+            "tooltip": "Agent Plan模型。效果与成本均衡，全面升级 Coding、Agent 与多模态能力，以更强的自主规划、长链路执行和动态修复能力，胜任企业真实复杂任务。",
             "contextSize": [256000, 128000],
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": {
-                "pricing": { "RMB": [0.2, 2, 0.04] },
-                "tiers": [
-                    { "contextSizeMin": 128001, "pricing": { "RMB": [0.8, 8, 0.16] } },
-                    { "contextSizeMin": 32001, "pricing": { "RMB": [0.4, 4, 0.08] } }
-                ]
-            }
+            "tokenPricing": { "RMB": [3, 15, 0.6] }
+        },
+        {
+            "id": "ark-plan-doubao-seed-evolving",
+            "name": "Doubao-Seed-Evolving (AgentPlan)",
+            "model": "doubao-seed-evolving",
+            "provider": "volcengine-agent",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
+            "tooltip": "Agent Plan 模型。面向 Coding 与 Agent 场景，持续周级升级，以统一模型 ID 提供最新能力。支持 1M 超长上下文，具备复杂任务编排、长程规划、代码生成与工具调用能力。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["minimal", "low", "medium", "high"],
+            "reasoningDefault": "high",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [6, 30, 1.2] }
+        },
+        {
+            "id": "ark-plan-minimax-m3",
+            "name": "MiniMax-M3 (AgentPlan)",
+            "model": "minimax-m3",
+            "provider": "volcengine-agent",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
+            "tooltip": "Agent Plan 模型。新一代 M 系列语言模型，在编码与智能体评测中达到行业顶尖水平，适用于 Agent 推理、工具调用、代码和长上下文任务。",
+            "contextSize": [512000, 256000, 192000],
+            "maxInputTokens": 448000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [2.1, 8.4, 0.42] }
         },
         {
             "id": "ark-plan-glm-5.3",
@@ -224,18 +253,18 @@
             "tokenPricing": { "RMB": [8, 28, 2] }
         },
         {
-            "id": "ark-plan-minimax-m3",
-            "name": "MiniMax-M3 (AgentPlan)",
-            "model": "minimax-m3",
+            "id": "ark-plan-kimi-k2.7-code",
+            "name": "Kimi-K2.7-Code (AgentPlan)",
+            "model": "kimi-k2.7-code",
             "provider": "volcengine-agent",
             "sdkMode": "anthropic",
             "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
-            "tooltip": "Agent Plan 模型。新一代 M 系列语言模型，在编码与智能体评测中达到行业顶尖水平，适用于 Agent 推理、工具调用、代码和长上下文任务。",
-            "contextSize": [512000, 256000, 192000],
-            "maxInputTokens": 448000,
-            "maxOutputTokens": 64000,
+            "tooltip": "Kimi 最新 Coding 模型，在长上下文中更可靠地遵循指令，能以更高的成功率完成编程任务，同时支持文本、图片与视频输入，思考模式，对话与 Agent 任务。",
+            "maxInputTokens": 224000,
+            "maxOutputTokens": 32000,
+            "extraBody": { "thinking": { "type": "enabled" } },
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "RMB": [2.1, 8.4, 0.42] }
+            "tokenPricing": { "RMB": [6.5, 27.0, 1.3] }
         },
         {
             "id": "ark-plan-kimi-k3",
@@ -251,20 +280,6 @@
             "reasoningEffort": ["max", "high", "low"],
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": { "RMB": [20.0, 100.0, 2.0] }
-        },
-        {
-            "id": "ark-plan-kimi-k2.7-code",
-            "name": "Kimi-K2.7-Code (AgentPlan)",
-            "model": "kimi-k2.7-code",
-            "provider": "volcengine-agent",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
-            "tooltip": "Kimi 最新 Coding 模型，在长上下文中更可靠地遵循指令，能以更高的成功率完成编程任务，同时支持文本、图片与视频输入，思考模式，对话与 Agent 任务。",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "extraBody": { "thinking": { "type": "enabled" } },
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "RMB": [6.5, 27.0, 1.3] }
         },
         {
             "id": "ark-plan-deepseek-v4-flash",

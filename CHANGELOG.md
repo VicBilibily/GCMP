@@ -2,6 +2,26 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.27.4] - 2026-08-25
+
+### 新增
+
+- **OpenCode Go 新增 LongCat-2.0**：Go 套餐加入 LongCat-2.0，1M 上下文高性能 Agentic 模型。
+
+### 变更
+
+- **移除腾讯云 Coding Plan 接入**：删除 `glm-5-coding-plan` 模型、Coding Plan 密钥设置命令、配置向导入口与 Gist 同步标签，相关代码同步清理。
+
+---
+
+### Added
+
+- **LongCat-2.0 on OpenCode Go**: Added the LongCat-2.0 model to the OpenCode Go plan with 1M context.
+
+### Changed
+
+- **Removed Tencent Cloud Coding Plan support**: Deleted the `glm-5-coding-plan` model, the Coding Plan API key command, wizard entry, and Gist sync label, with related code cleaned up.
+
 ## [0.27.3] - 2026-08-23
 
 ### 变更

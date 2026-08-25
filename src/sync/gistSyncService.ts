@@ -119,7 +119,6 @@ export const KNOWN_KEY_LABELS: Record<string, string> = {
     'dashscope-coding': 'DashScope Coding Plan',
     'dashscope-token': 'DashScope Token Plan (Team)',
     'dashscope-token-personal': 'DashScope Token Plan (Personal)',
-    'tencent-coding': 'Tencent Cloud Coding Plan',
     'tencent-token': 'Tencent Cloud Token Plan',
     'tencent-tokenhub': 'Tencent Cloud TokenHub',
     'tencent-token-enterprise': 'Tencent Cloud Token Plan Enterprise',

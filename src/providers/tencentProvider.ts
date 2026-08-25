@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  腾讯云专用 Provider
- *  为腾讯云 Coding Plan、Token Plan、TokenHub 与 Token Plan Enterprise 提供多密钥管理和协议切换功能
+ *  为腾讯云 Token Plan、TokenHub 与 Token Plan Enterprise 提供多密钥管理和协议切换功能
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -35,14 +35,6 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
         const provider = new TencentProvider(context, providerKey, providerConfig);
         const providerDisposable = vscode.lm.registerLanguageModelChatProvider(`gcmp.${providerKey}`, provider);
 
-        const setCodingPlanApiKeyCommand = vscode.commands.registerCommand(
-            `gcmp.${providerKey}.setCodingPlanApiKey`,
-            async () => {
-                await TencentWizard.setCodingPlanApiKey(providerConfig.codingKeyTemplate);
-                provider._onDidChangeLanguageModelChatInformation.fire();
-            }
-        );
-
         const setTokenPlanApiKeyCommand = vscode.commands.registerCommand(
             `gcmp.${providerKey}.setTokenPlanApiKey`,
             async () => {
@@ -72,7 +64,6 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             await TencentWizard.startWizard(
                 providerConfig.displayName,
                 providerConfig.apiKeyTemplate,
-                providerConfig.codingKeyTemplate,
                 providerConfig.tokenKeyTemplate
             );
             provider._onDidChangeLanguageModelChatInformation.fire();
@@ -80,7 +71,6 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
 
         const disposables = [
             providerDisposable,
-            setCodingPlanApiKeyCommand,
             setTokenPlanApiKeyCommand,
             setTokenHubApiKeyCommand,
             setTokenEnterpriseApiKeyCommand,
@@ -103,11 +93,10 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             return [];
         }
 
-        const hasCodingKey = await ApiKeyManager.hasValidApiKey('tencent-coding');
         const hasTokenPlanKey = await ApiKeyManager.hasValidApiKey('tencent-token');
         const hasTokenHubKey = await ApiKeyManager.hasValidApiKey('tencent-tokenhub');
         const hasTokenPlanEnterpriseKey = await ApiKeyManager.hasValidApiKey('tencent-token-enterprise');
-        const hasAnyKey = hasCodingKey || hasTokenPlanKey || hasTokenHubKey || hasTokenPlanEnterpriseKey;
+        const hasAnyKey = hasTokenPlanKey || hasTokenHubKey || hasTokenPlanEnterpriseKey;
 
         if (options.silent && !hasAnyKey) {
             Logger.debug(
@@ -120,15 +109,13 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             await TencentWizard.startWizard(
                 this.providerConfig.displayName,
                 this.providerConfig.apiKeyTemplate,
-                this.providerConfig.codingKeyTemplate,
                 this.providerConfig.tokenKeyTemplate
             );
 
-            const codingKeyValid = await ApiKeyManager.hasValidApiKey('tencent-coding');
             const tokenPlanKeyValid = await ApiKeyManager.hasValidApiKey('tencent-token');
             const tokenHubKeyValid = await ApiKeyManager.hasValidApiKey('tencent-tokenhub');
             const tokenPlanEnterpriseKeyValid = await ApiKeyManager.hasValidApiKey('tencent-token-enterprise');
-            if (!codingKeyValid && !tokenPlanKeyValid && !tokenHubKeyValid && !tokenPlanEnterpriseKeyValid) {
+            if (!tokenPlanKeyValid && !tokenHubKeyValid && !tokenPlanEnterpriseKeyValid) {
                 Logger.warn(
                     `${this.providerConfig.displayName}: user did not configure any keys, returning empty model list`
                 );
@@ -236,8 +223,6 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
 
     private getKeyLabel(providerKey: string): string {
         switch (providerKey) {
-            case 'tencent-coding':
-                return 'Coding Plan dedicated';
             case 'tencent-token':
                 return 'Token Plan dedicated';
             case 'tencent-tokenhub':
@@ -263,9 +248,7 @@ export class TencentProvider extends GenericModelProvider implements LanguageMod
             `Model ${modelConfig.name} is missing the ${this.getKeyLabel(providerKey)} API key, entering setup flow`
         );
 
-        if (providerKey === 'tencent-coding') {
-            await TencentWizard.setCodingPlanApiKey(this.providerConfig.codingKeyTemplate);
-        } else if (providerKey === 'tencent-token') {
+        if (providerKey === 'tencent-token') {
             await TencentWizard.setTokenPlanApiKey(this.providerConfig.tokenKeyTemplate);
         } else if (providerKey === 'tencent-tokenhub') {
             await TencentWizard.setTokenHubApiKey(this.providerConfig.apiKeyTemplate);

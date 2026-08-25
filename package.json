@@ -3,7 +3,7 @@
     "publisher": "vicanent",
     "displayName": "AI Chat Models",
     "description": "%extension.description%",
-    "version": "0.27.3",
+    "version": "0.27.4",
     "license": "MIT",
     "keywords": [
         "ai",
@@ -194,11 +194,6 @@
             {
                 "command": "gcmp.dashscope.configWizard",
                 "title": "%command.dashscope.configWizard%",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.tencent.setCodingPlanApiKey",
-                "title": "%command.tencent.setCodingPlanApiKey%",
                 "category": "GCMP"
             },
             {
