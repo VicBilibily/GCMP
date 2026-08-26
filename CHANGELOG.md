@@ -2,6 +2,22 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.27.6] - 2026-08-26
+
+### 变更
+
+- **新增智谱 GLM-5.3-Flash**：GLM-5 系列首个原生多模态模型，支持 1M 上下文、图片/视频/文件视觉输入与函数调用，同时接入 CodingPlan、OpenCode Go 套餐，并支持 PayGo 按量计费。
+- **清理下架旧模型**：智谱移除 `glm-5v-turbo`、`glm-5-turbo`、`glm-4.7`、`glm-4.6v` 及对应 PayGo 变体；OpenCode 移除 `glm-5.1`。
+
+---
+
+### Changed
+
+- **Added Zhipu GLM-5.3-Flash**: GLM-5 series' first natively multimodal model with 1M context, image/video/file vision input, and function calling, now available via CodingPlan and OpenCode Go subscriptions, with PayGo pay-as-you-go billing.
+- **Removed legacy models**: Dropped `glm-5v-turbo`, `glm-5-turbo`, `glm-4.7`, `glm-4.6v` (and their PayGo variants) from Zhipu; dropped `glm-5.1` from OpenCode.
+
+---
+
 ## [0.27.5] - 2026-08-26
 
 ### 变更

@@ -18,6 +18,20 @@
             "tokenPricing": [2, 6, 0.5]
         },
         {
+            "id": "glm-5.3-flash-go",
+            "name": "GLM-5.3-Flash (Go)",
+            "model": "glm-5.3-flash",
+            "sdkMode": "openai-sse",
+            "baseUrl": "https://opencode.ai/zen/go/v1",
+            "tooltip": "OpenCode Go 套餐 - 智谱 GLM-5.3-Flash 原生多模态视觉模型，支持 1M 上下文。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.15, 0.5, 0.03]
+        },
+        {
             "id": "glm-5.3-go",
             "name": "GLM-5.3 (Go)",
             "model": "glm-5.3",
@@ -28,7 +42,6 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["high", "max", "low"],
-            "thinkingFormat": "object-none",
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [1.4, 4.4, 0.26]
         },
@@ -43,18 +56,6 @@
             "maxOutputTokens": 32000,
             "reasoningEffort": ["high", "max", "none"],
             "thinkingFormat": "object-none",
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [1.4, 4.4, 0.26]
-        },
-        {
-            "id": "glm-5.1-go",
-            "name": "GLM-5.1 (Go)",
-            "model": "glm-5.1",
-            "sdkMode": "openai-sse",
-            "baseUrl": "https://opencode.ai/zen/go/v1",
-            "tooltip": "OpenCode Go 套餐 - 智谱 GLM-5.1，代码能力增强，长程任务显著提升，单次任务可持续工作 8 小时。",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [1.4, 4.4, 0.26]
         },
@@ -360,18 +361,6 @@
                 "pricing": [0.66, 1.98, 0.022],
                 "tiers": [{ "cron": "* 9-11,14-17 * * 1-5", "pricing": 2 }]
             }
-        },
-        {
-            "id": "glm-5.1-zen",
-            "name": "GLM-5.1 (Zen)",
-            "model": "glm-5.1",
-            "sdkMode": "openai-sse",
-            "baseUrl": "https://opencode.ai/zen/v1",
-            "tooltip": "OpenCode Zen - 智谱 GLM-5.1，长程任务显著提升。",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [1.4, 4.4, 0.26]
         },
         {
             "id": "glm-5.2-zen",

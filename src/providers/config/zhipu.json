@@ -19,55 +19,19 @@
             "tokenPricing": { "USD": [1.4, 4.4, 0.26], "RMB": [8, 28, 2] }
         },
         {
-            "id": "glm-5v-turbo",
-            "name": "GLM-5V-Turbo (CodingPlan)",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://open.bigmodel.cn/api/anthropic",
-            "tooltip": "GLM-5V-Turbo 是智谱首个多模态 Coding 基座模型，面向视觉编程任务打造。能够原生处理图片、视频、文本等多模态输入，同时擅长长程规划、复杂编程和动作执行；深度适配 Agent 工作流，能够与 Claude Code、OpenClaw 等 Agent 深度协同，完成”看懂环境→规划动作→执行任务”的完整闭环。",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
+            "id": "glm-5.3-flash",
+            "name": "GLM-5.3-Flash (CodingPlan)",
+            "sdkMode": "openai-responses",
+            "baseUrl": "https://open.bigmodel.cn/api/v1",
+            "tooltip": "GLM-5 系列首个原生多模态模型，视觉能力原生融入 Coding 循环，可主动观察界面、渲染结果与交互反馈并据此持续改进。采用稀疏注意力与线性注意力混合架构，以极致低成本实现超越 GLM-5.2 的更强智能，支持 1M 上下文与图片/视频/文件输入，GLM Coding Plan 可用额度为 GLM-5.3 的 3 倍。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low"],
+            "reasoningDefault": "max",
+            "webSearchTool": true,
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "USD": [1.2, 4, 0.24], "RMB": [5, 22, 1.2] }
-        },
-        {
-            "id": "glm-5-turbo",
-            "name": "GLM-5-Turbo (CodingPlan)",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://open.bigmodel.cn/api/anthropic",
-            "tooltip": "GLM-5-Turbo 是面向 OpenClaw 龙虾场景深度优化的基座模型。 其从训练阶段就针对龙虾任务的核心需求进行专项优化，增强如工具调用、指令遵循、定时与持续性任务、长链路执行等核心能力，使其在复杂、动态、长链路的任务中也真正具备可执行性。",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": { "USD": [1.2, 4, 0.24], "RMB": [5, 22, 1.2] },
-                "tiers": [{ "cron": "* 14-17 * * *", "pricing": 3 }]
-            }
-        },
-        {
-            "id": "glm-4.7",
-            "name": "GLM-4.7 (CodingPlan)",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://open.bigmodel.cn/api/anthropic",
-            "tooltip": "GLM-4.7 是智谱最新旗舰模型，GLM-4.7 面向 Agentic Coding 场景强化了编码能力、长程任务规划与工具协同，并在多个公开基准的当期榜单中取得开源模型中的领先表现。通用能力提升，回复更简洁自然，写作更具沉浸感。在执行复杂智能体任务，在工具调用时指令遵循更强，Artifacts 与 Agentic Coding 的前端美感和长程任务完成效率进一步提升。",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "USD": [0.6, 2.2, 0.11], "RMB": [2, 8, 0.4] }
-        },
-        {
-            "id": "glm-4.6v",
-            "model": "glm-4.6v",
-            "name": "GLM-4.6V (CodingPlan)",
-            "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
-            "tooltip": "ZHIPU GLM-4.6V - 智谱最新视觉推理模型，视觉理解精度达同规模 SOTA，全面支持工具调用，支持 128k 超长上下文，并针对 Coding 场景进行了专项优化。",
-            "maxInputTokens": 112000,
-            "maxOutputTokens": 16000,
-            "thinking": ["disabled", "enabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "USD": [0.3, 0.9, 0.05], "RMB": [1, 3, 0.2] }
+            "tokenPricing": { "USD": [0.15, 0.5, 0.03], "RMB": [0.8, 2.8, 0.23] }
         },
         {
             "id": "glm-5.3-billing",
@@ -82,32 +46,16 @@
             "tokenPricing": { "USD": [1.4, 4.4, 0.26], "RMB": [8, 28, 2] }
         },
         {
-            "id": "glm-5v-turbo-billing",
-            "model": "glm-5v-turbo",
-            "name": "GLM-5V-Turbo (PayGo)",
-            "tooltip": "GLM-5V-Turbo 是智谱首个多模态 Coding 基座模型，面向视觉编程任务打造。能够原生处理图片、视频、文本等多模态输入，同时擅长长程规划、复杂编程和动作执行；深度适配 Agent 工作流，能够与 Claude Code、OpenClaw 等 Agent 深度协同，完成”看懂环境→规划动作→执行任务”的完整闭环。",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
+            "id": "glm-5.3-flash-billing",
+            "model": "glm-5.3-flash",
+            "name": "GLM-5.3-Flash (PayGo)",
+            "tooltip": "GLM-5.3-Flash 是 GLM-5 系列首个原生多模态模型，采用稀疏注意力与线性注意力混合架构，以极致低成本实现超越 GLM-5.2 的更强智能。原生支持图片、视频、文件等视觉输入，支持 1M 上下文与函数调用。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low"],
             "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": {
-                "pricing": { "USD": [1.2, 4, 0.24], "RMB": [5, 22, 1.2] },
-                "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [1.2, 4, 0.24], "RMB": [7, 26, 1.8] } }]
-            }
-        },
-        {
-            "id": "glm-5-turbo-billing",
-            "model": "glm-5-turbo",
-            "name": "GLM-5-Turbo (PayGo)",
-            "tooltip": "GLM-5-Turbo 是面向 OpenClaw 龙虾场景深度优化的基座模型。 其从训练阶段就针对龙虾任务的核心需求进行专项优化，增强如工具调用、指令遵循、定时与持续性任务、长链路执行等核心能力，使其在复杂、动态、长链路的任务中也真正具备可执行性。",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": { "USD": [1.2, 4, 0.24], "RMB": [5, 22, 1.2] },
-                "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [1.2, 4, 0.24], "RMB": [7, 26, 1.8] } }]
-            }
+            "tokenPricing": { "USD": [0.15, 0.5, 0.03], "RMB": [0.8, 2.8, 0.23] }
         },
         {
             "id": "glm-4.7-billing",
@@ -122,17 +70,6 @@
                 "pricing": { "USD": [0.6, 2.2, 0.11], "RMB": [2, 8, 0.4] },
                 "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [0.6, 2.2, 0.11], "RMB": [4, 16, 0.8] } }]
             }
-        },
-        {
-            "id": "glm-4.6v-billing",
-            "model": "glm-4.6v",
-            "name": "GLM-4.6V (PayGo)",
-            "tooltip": "GLM-4.6V - 智谱最新视觉推理模型，视觉理解精度达同规模 SOTA，全面支持工具调用，支持 128k 超长上下文，并针对 Coding 场景进行了专项优化。",
-            "maxInputTokens": 112000,
-            "maxOutputTokens": 16000,
-            "thinking": ["disabled", "enabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "USD": [0.3, 0.9, 0.05], "RMB": [1, 3, 0.2] }
         },
         {
             "id": "glm-4.7-flash",
