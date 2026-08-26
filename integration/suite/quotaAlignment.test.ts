@@ -120,6 +120,40 @@ suite('quota alignment', () => {
         assert.equal(buildCodexUsageSummary(data), '0%');
         assert.doesNotMatch(tooltip, /NaN|Invalid Date/);
         assert.match(tooltip, /\*\*0%\*\*/);
+        assert.match(tooltip, /#### ChatGPT Plus/);
         assert.equal(bar.renderWarning(data), false);
+    });
+
+    test('ChatGPT status bar maps workspace seats to Codex TUI display names', () => {
+        const bar = new TestChatGPTStatusBar();
+        const cases: Array<[string, string]> = [
+            ['self_serve_business_usage_based', 'ChatGPT Business'],
+            ['team', 'ChatGPT Business'],
+            ['business', 'ChatGPT Enterprise']
+        ];
+
+        for (const [planType, heading] of cases) {
+            const data: ChatGPTStatusData = {
+                userId: 'user-1',
+                accountId: 'account-1',
+                email: 'user@example.com',
+                planType,
+                rateLimit: {
+                    allowed: true,
+                    limit_reached: false,
+                    primary_window: {
+                        used_percent: 10,
+                        limit_window_seconds: 7 * 24 * 60 * 60,
+                        reset_after_seconds: 0,
+                        reset_at: Math.floor(Date.now() / 1000) + 3600
+                    }
+                },
+                codeReviewUsedPercent: 0,
+                lastUpdated: '2026/08/16 08:00:00'
+            };
+            const tooltip = bar.renderTooltip(data).value;
+            assert.match(tooltip, new RegExp(`#### ${heading}`));
+            assert.doesNotMatch(tooltip, new RegExp(planType));
+        }
     });
 });

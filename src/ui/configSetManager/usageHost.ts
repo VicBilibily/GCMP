@@ -10,6 +10,7 @@ import { listSlots } from '../../utils/config/configSetCommands';
 import { getKeyDisplayName } from '../../sync/gistSyncService';
 import { t } from '../../utils/runtime/l10n';
 import { buildCodexUsageSummary, buildCodexUsageTable, queryCodexUsage } from '../../quota/codexQuota';
+import { formatChatGPTPlanType } from '../../quota/parsers/chatgptPlanType';
 import { buildGrokUsageSummary, buildGrokUsageTable, queryGrokUsage } from '../../quota/grokQuota';
 import {
     queryProviderQuota,
@@ -101,7 +102,7 @@ export class UsageHost {
             provider,
             usage: {
                 loading: false,
-                planType: data.planType,
+                planType: formatChatGPTPlanType(data.planType),
                 email: data.email,
                 summary: buildCodexUsageSummary(data),
                 table: { columns: table.columns, rows: table.rows },

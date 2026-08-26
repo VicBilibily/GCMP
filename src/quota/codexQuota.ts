@@ -49,7 +49,7 @@ export interface ChatGPTUsageResponse {
     account_id: string;
     /** 邮箱 */
     email: string;
-    /** 计划类型：free, plus, pro 等 */
+    /** 计划类型：free, plus, pro, team, self_serve_business_usage_based 等 */
     plan_type: string;
     /** 速率限制信息 */
     rate_limit: RateLimitInfo;

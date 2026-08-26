@@ -16,6 +16,7 @@ import {
     queryCodexUsage,
     buildCodexUsageSummary
 } from '../quota/codexQuota';
+import { formatChatGPTPlanType } from '../quota/parsers/chatgptPlanType';
 import { formatDateTimeSlash } from '../quota/format';
 import { CliAuthFactory } from '../cli/auth/cliAuthFactory';
 import { CodexCliAuth } from '../cli/auth/codexCliAuth';
@@ -71,15 +72,7 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
         );
         const secondaryType = secondaryWindow ? getWindowType(secondaryWindow.limit_window_seconds) : null;
 
-        // 计划类型映射
-        const planTypeMap: Record<string, string> = {
-            free: 'Free',
-            plus: 'Plus',
-            pro: 'Pro',
-            team: 'Team',
-            enterprise: 'Enterprise'
-        };
-        const planTypeDisplay = planTypeMap[data.planType] || data.planType;
+        const planTypeDisplay = formatChatGPTPlanType(data.planType);
 
         md.appendMarkdown(`#### ChatGPT ${planTypeDisplay}\n\n`);
         md.appendMarkdown(
