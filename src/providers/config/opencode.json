@@ -4,15 +4,16 @@
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
         {
-            "id": "grok-4.5-go",
-            "name": "Grok-4.5 (Go)",
-            "model": "grok-4.5",
-            "sdkMode": "openai-sse",
+            "id": "grok-4.6-go",
+            "name": "Grok-4.6 (Go)",
+            "model": "grok-4.6",
+            "sdkMode": "openai-responses",
             "baseUrl": "https://opencode.ai/zen/go/v1",
-            "tooltip": "OpenCode Go 套餐 - xAI Grok 4.5。",
+            "tooltip": "OpenCode Go 套餐 - xAI Grok 4.6。",
             "maxInputTokens": 224000,
             "maxOutputTokens": 32000,
             "reasoningEffort": ["low", "medium", "high"],
+            "webSearchTool": true,
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [2, 6, 0.5]
         },
@@ -361,18 +362,6 @@
             }
         },
         {
-            "id": "glm-5-zen",
-            "name": "GLM-5 (Zen)",
-            "model": "glm-5",
-            "sdkMode": "openai-sse",
-            "baseUrl": "https://opencode.ai/zen/v1",
-            "tooltip": "OpenCode Zen - 智谱 GLM-5 旗舰代码模型。",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [1.0, 3.2, 0.2]
-        },
-        {
             "id": "glm-5.1-zen",
             "name": "GLM-5.1 (Zen)",
             "model": "glm-5.1",
@@ -398,20 +387,6 @@
             "reasoningEffort": ["high", "max", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [1.4, 4.4, 0.26]
-        },
-        {
-            "id": "kimi-k2.5-zen",
-            "name": "Kimi-K2.5 (Zen)",
-            "model": "kimi-k2.5",
-            "sdkMode": "openai-sse",
-            "baseUrl": "https://opencode.ai/zen/v1",
-            "tooltip": "OpenCode Zen - 月之暗面 Kimi K2.5。",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "thinkingFormat": "object",
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.6, 3.0, 0.1]
         },
         {
             "id": "kimi-k2.6-zen",
@@ -455,55 +430,17 @@
             "tokenPricing": [3, 15, 0.3]
         },
         {
-            "id": "qwen3.5-plus-zen",
-            "name": "Qwen3.5-Plus (Zen)",
-            "model": "qwen3.5-plus",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://opencode.ai/zen",
-            "tooltip": "OpenCode Zen - 通义千问 Qwen3.5 Plus。",
-            "maxInputTokens": 192000,
-            "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.2, 1.2, 0.02, 0.25]
-        },
-        {
-            "id": "qwen3.6-plus-zen",
-            "name": "Qwen3.6-Plus (Zen)",
-            "model": "qwen3.6-plus",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://opencode.ai/zen",
-            "tooltip": "OpenCode Zen - 通义千问 Qwen3.6 Plus。",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": [0.5, 3.0, 0.05, 0.625]
-        },
-        {
-            "id": "grok-build-0.1-zen",
-            "name": "Grok-Build-0.1 (Zen)",
-            "model": "grok-build-0.1",
-            "sdkMode": "openai-sse",
+            "id": "grok-4.6-zen",
+            "name": "Grok-4.6 (Zen)",
+            "model": "grok-4.6",
+            "sdkMode": "openai-responses",
             "baseUrl": "https://opencode.ai/zen/v1",
-            "tooltip": "OpenCode Zen - xAI Grok Build 编程模型。",
-            "maxInputTokens": 192000,
-            "maxOutputTokens": 64000,
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [1.0, 2.0, 0.2]
-        },
-        {
-            "id": "grok-4.5-zen",
-            "name": "Grok-4.5 (Zen)",
-            "model": "grok-4.5",
-            "sdkMode": "openai-sse",
-            "baseUrl": "https://opencode.ai/zen/v1",
-            "tooltip": "OpenCode Zen - xAI Grok 4.5。",
+            "tooltip": "OpenCode Zen - xAI Grok 4.6。",
             "contextSize": [500000, 256000, 192000],
             "maxInputTokens": 436000,
             "maxOutputTokens": 64000,
             "reasoningEffort": ["low", "medium", "high"],
+            "webSearchTool": true,
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
                 "pricing": [2, 6, 0.5],
@@ -511,16 +448,17 @@
             }
         },
         {
-            "id": "minimax-m2.5-zen",
-            "name": "MiniMax-M2.5 (Zen)",
-            "model": "minimax-m2.5",
-            "sdkMode": "openai-sse",
+            "id": "grok-build-0.1-zen",
+            "name": "Grok-Build-0.1 (Zen)",
+            "model": "grok-build-0.1",
+            "sdkMode": "openai-responses",
             "baseUrl": "https://opencode.ai/zen/v1",
-            "tooltip": "OpenCode Zen - MiniMax M2.5，编程、工具调用 SOTA。",
-            "maxInputTokens": 140800,
+            "tooltip": "OpenCode Zen - xAI Grok Build 编程模型。",
+            "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
+            "webSearchTool": true,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.3, 1.2, 0.06]
+            "tokenPricing": [1.0, 2.0, 0.2]
         },
         {
             "id": "minimax-m2.7-zen",

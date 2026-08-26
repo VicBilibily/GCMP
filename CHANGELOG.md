@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.27.5] - 2026-08-26
+
+### 变更
+
+- **ChatGPT 席位名称对接 Codex TUI**：`team` / `self_serve_business_usage_based` 显示为 Business，`self_serve_business_prolite` 显示为 Business Premium，`business` / `enterprise` / `enterprise_cbp_usage_based` 显示为 Enterprise，`enterprise_cbp_automation` 显示为 Enterprise (Automation)，教育系席位统一为 Edu / Edu Plus / Edu Pro。
+
+---
+
+### Changed
+
+- **ChatGPT seat names aligned with Codex TUI**: `team` and `self_serve_business_usage_based` display as Business, `self_serve_business_prolite` as Business Premium, `business`/`enterprise`/`enterprise_cbp_usage_based` as Enterprise, `enterprise_cbp_automation` as Enterprise (Automation), and education plans as Edu/Edu Plus/Edu Pro.
+
 ## [0.27.4] - 2026-08-25
 
 ### 新增
