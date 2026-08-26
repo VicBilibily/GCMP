@@ -33,7 +33,7 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 <details>
 <summary>展开查看各参数详细说明</summary>
 
-```json
+```jsonc
 {
     // 通用实用任务：标题生成、摘要、意图分类、重命名建议、终端命令/修复/解释、搜索助手、VS Code 问答
     "chat.utilityModel": "gcmp.deepseek/gcmp.deepseek:::deepseek-v4-pro",
@@ -244,7 +244,7 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 
 ### 通用模型参数 及 额外支持功能 配置
 
-```json
+```jsonc
 {
     "gcmp.retry.enabled": true, // 启用自动重试（默认 true），关闭后请求失败直接停止
     "gcmp.retry.maxAttempts": 3 // 1-10，仅对可重试错误生效
@@ -261,7 +261,7 @@ GCMP 支持通过 VS Code 设置来自定义AI模型的行为参数，让您获�
 
 通过 `gcmp.providerOverrides.{provider}.retry` 可为每个提供商独立设置重试策略，覆盖全局 `gcmp.retry.*` 行为。`maxAttempts` 不受全局 1-10 上限约束，允许设置为任意正整数或 `-1`（无限重试）。
 
-```json
+```jsonc
 {
     "gcmp.providerOverrides": {
         "xfyun": {
@@ -307,7 +307,7 @@ providerOverrides["retry.{subProvider}"] → providerOverrides.retry → 内置�
 | `tpm`      | 每分钟 token 数上限（按输入估算，匀速 pacing）   |
 | `parallel` | 最大并发在途请求数，超限请求按 FIFO 排队等待槽位 |
 
-```json
+```jsonc
 {
     "gcmp.providerOverrides": {
         "dashscope": {
@@ -335,7 +335,7 @@ providerOverrides["limit.{subProvider}"] → providerOverrides.limit → 内置�
 
 #### 调试与 HAR 录制
 
-```json
+```jsonc
 {
     "gcmp.debug.captureHar": false, // 是否将所有 HTTP 请求记录为 HAR 文件（默认关闭）
     "gcmp.debug.harRetentionCount": 7 // 每个 VS Code 进程保留的最近 HAR 文件数量（0 表示仅禁用按数量清理，2 小时硬删除仍生效）
@@ -350,7 +350,7 @@ providerOverrides["limit.{subProvider}"] → providerOverrides.limit → 内置�
 
 #### 代理与系统证书配置
 
-```json
+```jsonc
 {
     "gcmp.proxy": "http://127.0.0.1:7890", // 全局代理（可选），推荐使用完整 URL
     "gcmp.tls.useSystemCertificates": true // 追加系统根证书（默认开启）
@@ -394,7 +394,7 @@ GCMP 支持通过 `gcmp.providerOverrides` 配置项来覆盖提供商的默认�
 
 **配置示例**：
 
-```json
+```jsonc
 {
     "gcmp.providerOverrides": {
         "dashscope": {
@@ -459,7 +459,7 @@ GCMP 提供 **Compatible Provider**，用于支持任何 OpenAI 或 Anthropic �
 
 **配置示例**：
 
-```json
+```jsonc
 {
     "gcmp.compatibleModels": [
         {
@@ -634,7 +634,7 @@ FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimC
 - **启用 FIM 补全模式**（推荐 DeepSeek、Qwen 等支持 FIM 的模型）：
     - 已测试支持 `DeepSeek`、`硅基流动`，特殊支持 `阿里云百炼`。
 
-```json
+```jsonc
 {
     "gcmp.fimCompletion.enabled": true, // 启用 FIM 补全功能
     "gcmp.fimCompletion.debounceMs": 500, // 自动触发补全的防抖延迟
@@ -654,7 +654,7 @@ FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimC
 
 - **启用 NES 手动补全模式**：
 
-````json
+````jsonc
 {
     "gcmp.nesCompletion.enabled": true, // 启用 NES 补全功能
     "gcmp.nesCompletion.debounceMs": 500, // 自动触发补全的防抖延迟
@@ -686,7 +686,7 @@ FIM 和 NES 补全都使用单独的模型配置，可以分别通过 `gcmp.fimC
 
 #### [MistralAI Coding](https://console.mistral.ai/codestral) FIM 配置示例
 
-```json
+```jsonc
 {
     "gcmp.compatibleModels": [
         {
@@ -742,7 +742,7 @@ FIM 与 NES 补全请求连续失败时，熔断器会暂时停止请求，避�
 
 **配置项**：
 
-```json
+```jsonc
 {
     // FIM 熔断器配置（默认启用）
     "gcmp.fimCompletion.circuitBreaker": {
@@ -823,7 +823,7 @@ GCMP 内置了完整的 Token 消耗统计功能，帮助您追踪和管理 AI �
 
 ### 配置选项
 
-```json
+```jsonc
 {
     "gcmp.usages.retentionDays": 100 // 历史数据保留天数（0表示永久保留）
 }
@@ -872,7 +872,7 @@ GCMP 支持在提交前自动读取当前仓库的改动（已暂存/未暂存/�
 - 第一次使用或未配置模型时，会自动引导选择模型（也可手动运行 `GCMP: 选择 Commit 消息生成模型`）。
 - 相关配置项：
 
-```json
+```jsonc
 {
     "gcmp.commit.enabled": true, // 启用内置提交消息生成功能（默认 true，将在下个主版本移除）
     "gcmp.commit.language": "chinese", // 生成语言：chinese / english（auto 模式语言不明确时的回退值）
