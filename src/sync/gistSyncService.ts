@@ -116,7 +116,6 @@ export const KNOWN_KEY_LABELS: Record<string, string> = {
     clinepass: 'ClinePass',
     // ── 多密钥变体 ──
     'minimax-token': 'MiniMax Token Plan',
-    'dashscope-coding': 'DashScope Coding Plan',
     'dashscope-token': 'DashScope Token Plan (Team)',
     'dashscope-token-personal': 'DashScope Token Plan (Personal)',
     'tencent-token': 'Tencent Cloud Token Plan',
@@ -124,7 +123,6 @@ export const KNOWN_KEY_LABELS: Record<string, string> = {
     'tencent-token-enterprise': 'Tencent Cloud Token Plan Enterprise',
     'volcengine-agent': 'Volcengine Agent Plan',
     'xiaomimimo-token': 'Xiaomi MiMo Token Plan',
-    'baidu-coding': 'Baidu Qianfan Coding Plan',
     'baidu-token': 'Baidu Qianfan Token Plan',
     'baidu-token-enterprise': 'Baidu Qianfan Token Plan Enterprise',
     'xfyun-coding': 'XunFei Astron Coding Plan',
@@ -871,7 +869,7 @@ export class GistSyncService {
 
     /**
      * 按密钥名通知对应提供商刷新模型列表。
-     * 仅对完整命中的已知多密钥变体做映射（如 dashscope-coding → dashscope），
+     * 仅对完整命中的已知多密钥变体做映射（如 dashscope-token → dashscope），
      * kimi 特殊映射到 moonshot；其他未命中的自定义 provider 密钥定向到 compatible。
      * 模型缓存由主 provider 统一管理，映射到 moonshot 后一并刷新。
      */

@@ -215,7 +215,7 @@ export class ConfigManager {
             return Array.from(lookupKeys);
         }
 
-        // 非内置：查找是否属于内置 provider 的子 provider（如 dashscope-coding → dashscope）
+        // 非内置：查找是否属于内置 provider 的子 provider（如 dashscope-token → dashscope）
         for (const [rootProviderKey, providerConfig] of Object.entries(configProviders)) {
             if (providerConfig.models.some(model => model.provider === providerKey)) {
                 lookupKeys.add(rootProviderKey);

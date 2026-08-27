@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Dashscope (阿里云百炼) 配置向导
- *  提供交互式向导来配置普通密钥和 Coding Plan 专用密钥
+ *  提供交互式向导来配置普通密钥和 Token Plan 专用密钥
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -10,19 +10,13 @@ import { BaseWizard } from './baseWizard';
 
 export class DashscopeWizard extends BaseWizard {
     private static readonly PROVIDER_KEY = 'dashscope';
-    private static readonly CODING_PLAN_KEY = 'dashscope-coding';
     private static readonly TOKEN_PLAN_KEY = 'dashscope-token';
     private static readonly PERSONAL_TOKEN_PLAN_KEY = 'dashscope-token-personal';
 
     /**
      * 启动 Dashscope 配置向导
      */
-    static async startWizard(
-        displayName: string,
-        apiKeyTemplate: string,
-        codingKeyTemplate?: string,
-        tokenKeyTemplate?: string
-    ): Promise<void> {
+    static async startWizard(displayName: string, apiKeyTemplate: string, tokenKeyTemplate?: string): Promise<void> {
         try {
             const choice = await vscode.window.showQuickPick(
                 [
@@ -34,11 +28,6 @@ export class DashscopeWizard extends BaseWizard {
                             displayName
                         ),
                         value: 'normal'
-                    },
-                    {
-                        label: t('$(key) Set Coding Plan dedicated key', '$(key) 设置 Coding Plan 专用密钥'),
-                        detail: t('For {0} Coding Plan models', '用于 {0} Coding Plan 模型', displayName),
-                        value: 'coding'
                     },
                     {
                         label: t('$(key) Set Token Plan (Team) dedicated key', '$(key) 设置 Token Plan 团队版专用密钥'),
@@ -60,8 +49,8 @@ export class DashscopeWizard extends BaseWizard {
                     {
                         label: t('$(check-all) Configure all items in sequence', '$(check-all) 依次配置全部项目'),
                         detail: t(
-                            'Configure the standard key, Coding Plan dedicated key, and Token Plan dedicated keys in order',
-                            '按顺序配置普通密钥、Coding Plan 专用密钥与 Token Plan 专用密钥'
+                            'Configure the standard key and Token Plan dedicated keys in order',
+                            '按顺序配置普通密钥与 Token Plan 专用密钥'
                         ),
                         value: 'all'
                     }
@@ -81,19 +70,12 @@ export class DashscopeWizard extends BaseWizard {
                 await this.setNormalApiKey(displayName, apiKeyTemplate);
             }
 
-            if (choice.value === 'coding' || choice.value === 'all') {
-                await this.setCodingPlanApiKey(displayName, codingKeyTemplate || apiKeyTemplate);
-            }
-
             if (choice.value === 'tokenPlan' || choice.value === 'all') {
-                await this.setTokenPlanApiKey(displayName, tokenKeyTemplate || codingKeyTemplate || apiKeyTemplate);
+                await this.setTokenPlanApiKey(displayName, tokenKeyTemplate || apiKeyTemplate);
             }
 
             if (choice.value === 'personalTokenPlan' || choice.value === 'all') {
-                await this.setPersonalTokenPlanApiKey(
-                    displayName,
-                    tokenKeyTemplate || codingKeyTemplate || apiKeyTemplate
-                );
+                await this.setPersonalTokenPlanApiKey(displayName, tokenKeyTemplate || apiKeyTemplate);
             }
         } catch (error) {
             Logger.error(`DashScope setup wizard failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -115,33 +97,6 @@ export class DashscopeWizard extends BaseWizard {
             placeHolder: apiKeyTemplate,
             successMessage: t('{0} API Key configured', '{0} API Key 已设置', displayName),
             clearMessage: t('{0} API Key cleared', '{0} API Key 已清除', displayName),
-            loggerName: displayName
-        });
-    }
-
-    /**
-     * 设置 Dashscope Coding Plan 专用密钥
-     */
-    static async setCodingPlanApiKey(displayName: string, codingKeyTemplate?: string): Promise<void> {
-        await this.promptForApiKey({
-            providerKey: this.CODING_PLAN_KEY,
-            prompt: t(
-                'Enter the Coding Plan dedicated API key for {0} (leave empty to clear)',
-                '请输入 {0} 的 Coding Plan 专用 API Key（留空可清除）',
-                displayName
-            ),
-            title: t('Set {0} Coding Plan dedicated API Key', '设置 {0} Coding Plan 专用 API Key', displayName),
-            placeHolder: codingKeyTemplate,
-            successMessage: t(
-                '{0} Coding Plan dedicated API Key configured',
-                '{0} Coding Plan 专用 API Key 已设置',
-                displayName
-            ),
-            clearMessage: t(
-                '{0} Coding Plan dedicated API Key cleared',
-                '{0} Coding Plan 专用 API Key 已清除',
-                displayName
-            ),
             loggerName: displayName
         });
     }

@@ -119,8 +119,8 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 
 ### [**阿里云百炼**](https://bailian.console.aliyun.com/) - AliDashScope
 
-- **模型列表**：详见 [config/dashscope.json](src/providers/config/dashscope.json)（[Coding Plan](https://www.aliyun.com/benefit/scene/codingplan) / [Token Plan 团队版](https://www.aliyun.com/benefit/scene/tokenplan) / [Token Plan 个人版](https://bailian.console.aliyun.com/cn-beijing?tab=plan#/efm/subscription/overview) / 按量计费）。
-- **搜索功能**：集成 [联网搜索MCP](https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=3023217) 工具（2000次/月），支持通过 `#bailianWebSearch` 进行联网搜索。（使用[阿里云百炼ApiKey](https://bailian.console.aliyun.com/cn-beijing/?tab=model#/api-key)而非编程套餐的ApiKey）
+- **模型列表**：详见 [config/dashscope.json](src/providers/config/dashscope.json)（[Token Plan 团队版](https://www.aliyun.com/benefit/scene/tokenplan) / [Token Plan 个人版](https://bailian.console.aliyun.com/cn-beijing?tab=plan#/efm/subscription/overview) / 按量计费）。
+- **搜索功能**：集成 [联网搜索MCP](https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=3023217) 工具（2000次/月），支持通过 `#bailianWebSearch` 进行联网搜索。（使用[阿里云百炼ApiKey](https://bailian.console.aliyun.com/cn-beijing/?tab=model#/api-key)）
 
 ### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
 
@@ -133,8 +133,8 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 
 ### [**腾讯云**](https://cloud.tencent.com/product/hunyuan) - Tencent
 
-- **模型列表**：详见 [config/tencent.json](src/providers/config/tencent.json)（[Coding Plan](https://console.cloud.tencent.com/tokenhub/codingplan) / [Token Plan](https://console.cloud.tencent.com/tokenhub/tokenplan) / [Token Plan 企业版](https://console.cloud.tencent.com/tokenhub/tokenplan-e) / [TokenHub](https://console.cloud.tencent.com/tokenhub/models)）。
-- **密钥配置**：腾讯云API密钥分为 [Coding Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/codingplan)、[Token Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan)、[Token Plan 企业版 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan-e)、[TokenHub 付费 API Key](https://console.cloud.tencent.com/tokenhub/apikey)，需要进入正确的密钥获取界面生成密钥。
+- **模型列表**：详见 [config/tencent.json](src/providers/config/tencent.json)（[Token Plan](https://console.cloud.tencent.com/tokenhub/tokenplan) / [Token Plan 企业版](https://console.cloud.tencent.com/tokenhub/tokenplan-e) / [TokenHub](https://console.cloud.tencent.com/tokenhub/models)）。
+- **密钥配置**：腾讯云API密钥分为 [Token Plan 专用 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan)、[Token Plan 企业版 API Key](https://console.cloud.tencent.com/tokenhub/tokenplan-e)、[TokenHub 付费 API Key](https://console.cloud.tencent.com/tokenhub/apikey)，需要进入正确的密钥获取界面生成密钥。
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)
 
@@ -145,8 +145,8 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 
 ### [**百度千帆**](https://cloud.baidu.com/product-s/qianfan_home) - Baidu Qianfan
 
-- **模型列表**：详见 [config/baidu.json](src/providers/config/baidu.json)（按量计费 / [Coding Plan 编程套餐](https://cloud.baidu.com/product/codingplan) / [Token Plan](https://cloud.baidu.com/doc/qianfan/s/Dmrabu8b6) / [Token Plan 企业版](https://cloud.baidu.com/doc/qianfan/s/ymq8wwch2)）。
-- **密钥配置**：支持设置 [百度千帆 API Key](https://console.bce.baidu.com/qianfan/ais/console/apiKey)、[Coding Plan 专用 API Key](https://console.bce.baidu.com/qianfan/resource/subscribe)、[Token Plan 专用 API Key](https://console.bce.baidu.com/qianfan/resource/token-plan) 与 [Token Plan 企业专用 API Key](https://console.bce.baidu.com/qianfan/resource/token-plan-enterprise/my-subscription) 分别设置。
+- **模型列表**：详见 [config/baidu.json](src/providers/config/baidu.json)（按量计费 / [Token Plan](https://cloud.baidu.com/doc/qianfan/s/Dmrabu8b6) / [Token Plan 企业版](https://cloud.baidu.com/doc/qianfan/s/ymq8wwch2)）。
+- **密钥配置**：支持设置 [百度千帆 API Key](https://console.bce.baidu.com/qianfan/ais/console/apiKey)、[Token Plan 专用 API Key](https://console.bce.baidu.com/qianfan/resource/token-plan) 与 [Token Plan 企业专用 API Key](https://console.bce.baidu.com/qianfan/resource/token-plan-enterprise/my-subscription) 分别设置。
 
 ### [**阶跃星辰**](https://platform.stepfun.com/?invite_code=VMQHFFSU) - StepFun
 

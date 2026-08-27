@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------
  * 百度千帆配置向导
- * 提供交互式向导来配置普通密钥和 Coding Plan 专用密钥
+ * 提供交互式向导来配置普通密钥和 Token Plan 专用密钥
  *--------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 import { Logger } from '../utils/runtime/logger';
@@ -9,19 +9,13 @@ import { StatusBarManager } from '../status';
 import { BaseWizard } from './baseWizard';
 export class BaiduWizard extends BaseWizard {
     private static readonly PROVIDER_KEY = 'baidu';
-    private static readonly CODING_PLAN_KEY = 'baidu-coding';
     private static readonly TOKEN_KEY = 'baidu-token';
     private static readonly TOKEN_ENTERPRISE_KEY = 'baidu-token-enterprise';
     /**
      * 启动百度千帆配置向导
      * 允许用户选择配置哪种密钥类型
      */
-    static async startWizard(
-        displayName: string,
-        apiKeyTemplate: string,
-        codingKeyTemplate?: string,
-        tokenKeyTemplate?: string
-    ): Promise<void> {
+    static async startWizard(displayName: string, apiKeyTemplate: string, tokenKeyTemplate?: string): Promise<void> {
         try {
             const choice = await vscode.window.showQuickPick(
                 [
@@ -32,11 +26,6 @@ export class BaiduWizard extends BaseWizard {
                             '用于按量计费模型（ERNIE-5.0、GLM-5 等）'
                         ),
                         value: 'normal'
-                    },
-                    {
-                        label: t('$(key) Set Coding Plan API key', '$(key) 设置 Coding Plan 专用密钥'),
-                        detail: t('Used for Coding Plan models', '用于 Coding Plan 编程套餐模型'),
-                        value: 'coding'
                     },
                     {
                         label: t('$(key) Set Token Plan API key', '$(key) 设置 Token Plan 专用密钥'),
@@ -71,15 +60,12 @@ export class BaiduWizard extends BaseWizard {
             }
             if (choice.value === 'normal') {
                 await this.setNormalApiKey(displayName, apiKeyTemplate);
-            } else if (choice.value === 'coding') {
-                await this.setCodingPlanApiKey(displayName, codingKeyTemplate || apiKeyTemplate);
             } else if (choice.value === 'token') {
                 await this.setTokenPlanApiKey(displayName, tokenKeyTemplate || apiKeyTemplate);
             } else if (choice.value === 'token-enterprise') {
                 await this.setTokenEnterpriseApiKey(displayName, apiKeyTemplate);
             } else if (choice.value === 'multiple') {
                 await this.setNormalApiKey(displayName, apiKeyTemplate);
-                await this.setCodingPlanApiKey(displayName, codingKeyTemplate || apiKeyTemplate);
                 await this.setTokenPlanApiKey(displayName, tokenKeyTemplate || apiKeyTemplate);
                 await this.setTokenEnterpriseApiKey(displayName, apiKeyTemplate);
             }
@@ -106,26 +92,6 @@ export class BaiduWizard extends BaseWizard {
             clearMessage: t('{0} standard API key cleared', '{0} 普通 API Key 已清除', displayName),
             loggerName: displayName
         });
-    }
-    /**
-     * 设置 Coding Plan 专用密钥
-     */
-    static async setCodingPlanApiKey(displayName: string, codingKeyTemplate?: string): Promise<void> {
-        await this.promptForApiKey({
-            providerKey: this.CODING_PLAN_KEY,
-            prompt: t(
-                'Enter the Coding Plan API key for {0} (leave empty to clear)',
-                '请输入 {0} 的 Coding Plan 专用 API Key（留空可清除）',
-                displayName
-            ),
-            title: t('Set {0} Coding Plan API key', '设置 {0} Coding Plan 专用 API Key', displayName),
-            placeHolder: codingKeyTemplate,
-            successMessage: t('{0} Coding Plan API key set', '{0} Coding Plan 专用 API Key 已设置', displayName),
-            clearMessage: t('{0} Coding Plan API key cleared', '{0} Coding Plan 专用 API Key 已清除', displayName),
-            loggerName: displayName
-        });
-        // 检查并显示状态栏
-        await StatusBarManager.checkAndShowStatus('baidu');
     }
     /**
      * 设置 Token Plan 专用密钥（个人）

@@ -2,79 +2,8 @@
     "displayName": "AliDashScope",
     "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
     "apiKeyTemplate": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    "codingKeyTemplate": "sk-sp-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "tokenKeyTemplate": "sk-sp-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
-        {
-            "id": "qwen3.7-plus-coding-plan",
-            "name": "Qwen3.7-Plus (CodingPlan)",
-            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
-            "model": "qwen3.7-plus",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": {
-                "pricing": { "USD": [0.276, 1.101, 0.056], "RMB": [2, 8, 0.4] },
-                "tiers": [
-                    { "contextSizeMin": 256001, "pricing": { "USD": [0.826, 3.301, 0.166], "RMB": [6, 24, 1.2] } }
-                ]
-            }
-        },
-        {
-            "id": "qwen3.6-plus-coding-plan",
-            "name": "Qwen3.6-Plus (CodingPlan)",
-            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
-            "model": "qwen3.6-plus",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": {
-                "pricing": { "USD": [0.276, 1.651, 0.055], "RMB": [2, 12, 0.4] },
-                "tiers": [{ "contextSizeMin": 256001, "pricing": { "USD": [1.101, 6.602, 0.22], "RMB": [8, 48, 1.6] } }]
-            }
-        },
-        {
-            "id": "kimi-k2.5-coding-plan",
-            "name": "Kimi-K2.5 (CodingPlan)",
-            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
-            "model": "kimi-k2.5",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": true },
-            "tokenPricing": { "USD": [0.574, 3.011, 0.115], "RMB": [4, 21, 0.8] }
-        },
-        {
-            "id": "glm-5-coding-plan",
-            "name": "GLM-5 (CodingPlan)",
-            "tooltip": "Dashscope Coding Plan 编程套餐专属接入点（Anthropic API 兼容协议）。",
-            "provider": "dashscope-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
-            "model": "glm-5",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": { "USD": [0.573, 2.58, 0.115], "RMB": [4, 18, 0.8] },
-                "tiers": [{ "contextSizeMin": 32001, "pricing": { "USD": [0.86, 3.154, 0.172], "RMB": [6, 22, 1.2] } }]
-            }
-        },
-
         {
             "id": "qwen3.8-max-token-plan",
             "name": "Qwen3.8-Max (TokenPlan)",
@@ -90,6 +19,21 @@
             "reasoningDefault": "xhigh",
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": { "USD": [1.65, 4.951, 0.206], "RMB": [12, 36, 1.5] }
+        },
+        {
+            "id": "qwen3.8-flash-token-plan",
+            "name": "Qwen3.8-Flash (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 团队版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "qwen3.8-flash",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "USD": [0.16, 0.47, 0.0116], "RMB": [0.8, 2.7, 0.1] }
         },
         {
             "id": "qwen3.7-max-token-plan",
@@ -349,6 +293,21 @@
             "tokenPricing": { "USD": [1.65, 4.951, 0.206], "RMB": [12, 36, 1.5] }
         },
         {
+            "id": "qwen3.8-flash-token-plan-personal",
+            "name": "Qwen3.8-Flash (TokenPlan)",
+            "tooltip": "Dashscope Token Plan 个人版专属接入点（Anthropic API 兼容协议）。",
+            "provider": "dashscope-token-personal",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+            "model": "qwen3.8-flash",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "USD": [0.16, 0.47, 0.0116], "RMB": [0.8, 2.7, 0.1] }
+        },
+        {
             "id": "qwen3.7-max-token-plan-personal",
             "name": "Qwen3.7-Max (TokenPlan)",
             "tooltip": "Dashscope Token Plan 个人版专属接入点（Anthropic API 兼容协议）。",
@@ -480,6 +439,19 @@
             "reasoningDefault": "xhigh",
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": { "USD": [1.65, 4.951, 0.206], "RMB": [12, 36, 1.5] }
+        },
+        {
+            "id": "qwen3.8-flash",
+            "name": "Qwen3.8-Flash",
+            "tooltip": "Qwen3.8系列多模态Flash模型，兼具强大的理解与生成能力和出色的响应速度，原生支持百万级上下文窗口，支持图像与视频理解，在编程辅助、智能体协作、图文理解等场景中表现出色，推理成本低，适合高频批量任务。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "sdkMode": "anthropic",
+            "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "USD": [0.16, 0.47, 0.0116], "RMB": [0.8, 2.7, 0.1] }
         },
         {
             "id": "qwen3.7-plus",

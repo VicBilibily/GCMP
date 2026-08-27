@@ -121,7 +121,7 @@ export function listEligibleProviders(): ProviderPick[] {
 }
 
 /**
- * 获取提供商的套餐变体槽位（如 minimax-token、dashscope-coding）
+ * 获取提供商的套餐变体槽位（如 minimax-token、dashscope-token）
  */
 export function getVariantSlots(provider: string): string[] {
     const variants = new Set<string>();

@@ -2,6 +2,24 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.27.7] - 2026-08-27
+
+### 变更
+
+- **移除 DashScope Coding Plan 接入**：DashScope 移除 `glm-5-coding-plan`、`kimi-k2.5-coding-plan`、`qwen3.6-plus-coding-plan`、`qwen3.7-plus-coding-plan` 等 Coding Plan 套餐模型与密钥配置。
+- **移除百度千帆 Coding Plan 接入**：百度千帆移除 `deepseek-v3.2-coding-plan`、`deepseek-v4-flash-coding-plan`、`deepseek-v4-pro-coding-plan`、`glm-5-coding-plan`、`glm-5.1-coding-plan`、`kimi-k2.5-coding-plan` 等 Coding Plan 套餐模型与密钥配置。
+- **DashScope 模型更新**：新增 `qwen3.8-flash`（含 Token Plan 团队版 / 个人版 / PayGo）。
+
+---
+
+### Changed
+
+- **Removed DashScope Coding Plan support**: Dropped Coding Plan models (`glm-5-coding-plan`, `kimi-k2.5-coding-plan`, `qwen3.6-plus-coding-plan`, `qwen3.7-plus-coding-plan`) and key configuration from DashScope.
+- **Removed Baidu Qianfan Coding Plan support**: Dropped Coding Plan models (`deepseek-v3.2-coding-plan`, `deepseek-v4-flash-coding-plan`, `deepseek-v4-pro-coding-plan`, `glm-5-coding-plan`, `glm-5.1-coding-plan`, `kimi-k2.5-coding-plan`) and key configuration from Baidu.
+- **DashScope model updates**: Added `qwen3.8-flash` (Token Plan Team / Personal / PayGo).
+
+---
+
 ## [0.27.6] - 2026-08-26
 
 ### 变更

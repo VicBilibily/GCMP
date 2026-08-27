@@ -120,7 +120,7 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "RMB": [12, 24, 1] }
+            "tokenPricing": { "RMB": [9, 27, 0.3] }
         },
         {
             "id": "ark-code-kimi-k2.7-code",
@@ -309,7 +309,7 @@
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "RMB": [12, 24, 1] }
+            "tokenPricing": { "RMB": [9, 27, 0.3] }
         },
         {
             "id": "doubao-seed-evolving",

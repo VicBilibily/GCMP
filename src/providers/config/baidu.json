@@ -2,104 +2,8 @@
     "displayName": "Baidu Qianfan",
     "baseUrl": "https://qianfan.baidubce.com/v2",
     "apiKeyTemplate": "bce-v3/ALTAK-xxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    "codingKeyTemplate": "bce-v3/ALTAKSP-xxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "tokenKeyTemplate": "bce-v3/ALTAK-xxxxxxxxxxxxxxxxxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "models": [
-        {
-            "id": "deepseek-v4-flash-coding-plan",
-            "name": "DeepSeek-V4-Flash (CodingPlan)",
-            "tooltip": "百度千帆 Coding Plan 专属接入点中的 DeepSeek-V4-Flash。DeepSeek 最新轻量推理模型，适用于通用问答、日常 Agent 任务及基础开发辅助。",
-            "provider": "baidu-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://qianfan.baidubce.com/anthropic/coding",
-            "model": "deepseek-v4-flash",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "RMB": [1, 2, 0.2] }
-        },
-        {
-            "id": "deepseek-v4-pro-coding-plan",
-            "name": "DeepSeek-V4-Pro (CodingPlan)",
-            "tooltip": "百度千帆 Coding Plan 专属接入点中的 DeepSeek-V4-Pro。拥有百万字超长上下文，在 Agent 能力、世界知识和推理性能上均实现国内与开源领域的领先。",
-            "provider": "baidu-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://qianfan.baidubce.com/anthropic/coding",
-            "model": "deepseek-v4-pro",
-            "contextSize": [1000000, 512000, 400000, 256000, 192000],
-            "maxInputTokens": 936000,
-            "maxOutputTokens": 64000,
-            "reasoningEffort": ["high", "max", "none"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "RMB": [12, 24, 1] }
-        },
-        {
-            "id": "deepseek-v3.2-coding-plan",
-            "name": "DeepSeek-V3.2 (CodingPlan)",
-            "tooltip": "百度千帆 Coding Plan 专属接入点中的 DeepSeek-V3.2。兼顾推理效果与响应效率，适用于通用问答、日常 Agent 任务及基础开发辅助。",
-            "provider": "baidu-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://qianfan.baidubce.com/anthropic/coding",
-            "model": "deepseek-v3.2",
-            "maxInputTokens": 112000,
-            "maxOutputTokens": 16000,
-            "thinking": ["disabled", "enabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": { "RMB": [2, 3, 0.4] },
-                "tiers": [{ "contextSizeMin": 32001, "pricing": { "RMB": [4, 6, 0.4] } }]
-            }
-        },
-        {
-            "id": "glm-5.1-coding-plan",
-            "name": "GLM-5.1 (CodingPlan)",
-            "tooltip": "百度千帆 Coding Plan 专属接入点中的 GLM-5.1。智谱新一代旗舰基座，Coding能力和Agent能力进一步提升。抵扣系数较高，仅推荐在复杂任务场景使用。",
-            "provider": "baidu-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://qianfan.baidubce.com/anthropic/coding",
-            "model": "glm-5.1",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": { "RMB": [6, 24, 1.3] },
-                "tiers": [{ "contextSizeMin": 32001, "pricing": { "RMB": [8, 28, 2] } }]
-            }
-        },
-        {
-            "id": "glm-5-coding-plan",
-            "name": "GLM-5 (CodingPlan)",
-            "tooltip": "百度千帆 Coding Plan 专属接入点中的 GLM-5。智谱新一代旗舰基座模型，面向 Agentic Engineering 打造，能够在复杂系统工程与长程 Agent 任务中提供可靠生产力。",
-            "provider": "baidu-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://qianfan.baidubce.com/anthropic/coding",
-            "model": "glm-5",
-            "maxInputTokens": 168000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": { "RMB": [4, 18, 1] },
-                "tiers": [{ "contextSizeMin": 32001, "pricing": { "RMB": [6, 22, 1.5] } }]
-            }
-        },
-        {
-            "id": "kimi-k2.5-coding-plan",
-            "name": "Kimi-K2.5 (CodingPlan)",
-            "tooltip": "百度千帆 Coding Plan 专属接入点中的 Kimi K2.5。Kimi 最新全能模型，原生多模态架构，支持文本输入（暂不支持图像理解），强化基于视觉的编程能力与 Agent 任务协同执行能力。",
-            "provider": "baidu-coding",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://qianfan.baidubce.com/anthropic/coding",
-            "model": "kimi-k2.5",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "RMB": [4, 21, 0.7] }
-        },
         {
             "id": "glm-5.2-token",
             "name": "GLM-5.2 (TokenPlan)",
@@ -148,6 +52,24 @@
             "tokenPricing": { "RMB": [12, 24, 1] }
         },
         {
+            "id": "deepseek-v4-pro-0813-token",
+            "name": "DeepSeek-V4-Pro-0813 (TokenPlan)",
+            "tooltip": "百度千帆 Token Plan 个人专属接入点中的 DeepSeek-V4-Pro-0813（1.8x 抵扣系数）。DeepSeek-V4-Pro 正式版本，大幅增强 Agent 能力，尤其在生产环境中表现突出。",
+            "provider": "baidu-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://qianfan.baidubce.com/anthropic/tokenplan/personal",
+            "model": "deepseek-v4-pro-0813",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low", "none"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": {
+                "pricing": { "RMB": [4.5, 13.5, 0.45] },
+                "tiers": [{ "cron": "* 8-21 * * *", "pricing": { "RMB": [9, 27, 0.9] } }]
+            }
+        },
+        {
             "id": "deepseek-v4-flash-token",
             "name": "DeepSeek-V4-Flash (TokenPlan)",
             "tooltip": "百度千帆 Token Plan 个人专属接入点中的 DeepSeek-V4-Flash。高效轻量化模型，支持百万超长上下文能力。",
@@ -163,6 +85,24 @@
             "tokenPricing": { "RMB": [1, 2, 0.2] }
         },
         {
+            "id": "deepseek-v4-flash-0731-token",
+            "name": "DeepSeek-V4-Flash-0731 (TokenPlan)",
+            "tooltip": "百度千帆 Token Plan 个人专属接入点中的 DeepSeek-V4-Flash-0731。高效轻量化模型，DeepSeek-V4-Flash 官方正式版本，取代预览版，大幅增强 Agent 能力。",
+            "provider": "baidu-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://qianfan.baidubce.com/anthropic/tokenplan/personal",
+            "model": "deepseek-v4-flash-0731",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low", "none"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": {
+                "pricing": { "RMB": [1.5, 4.5, 0.15] },
+                "tiers": [{ "cron": "* 8-21 * * *", "pricing": { "RMB": [3, 9, 0.3] } }]
+            }
+        },
+        {
             "id": "kimi-k2.6-token",
             "name": "Kimi-K2.6 (TokenPlan)",
             "tooltip": "百度千帆 Token Plan 个人专属接入点中的 Kimi-K2.6。具备更强更稳的长程代码编写能力，同时支持文本、图片输入。",
@@ -175,23 +115,6 @@
             "thinking": ["enabled", "disabled"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": { "RMB": [6.5, 27, 1.1] }
-        },
-        {
-            "id": "ernie-5.1-token",
-            "name": "ERNIE-5.1 (TokenPlan)",
-            "tooltip": "百度千帆 Token Plan 个人专属接入点中的 ERNIE-5.1。文心系列最新模型，基础能力全面升级，在智能体、知识、推理、深度搜索等方面均有显著提升。",
-            "provider": "baidu-token",
-            "sdkMode": "anthropic",
-            "baseUrl": "https://qianfan.baidubce.com/anthropic/tokenplan/personal",
-            "model": "ernie-5.1",
-            "maxInputTokens": 112000,
-            "maxOutputTokens": 16000,
-            "thinking": ["enabled", "disabled"],
-            "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": {
-                "pricing": { "RMB": [4, 18] },
-                "tiers": [{ "contextSizeMin": 32001, "pricing": { "RMB": [6, 22] } }]
-            }
         },
         {
             "id": "deepseek-v4-pro-token-enterprise",
@@ -209,6 +132,24 @@
             "tokenPricing": { "RMB": [12, 24, 1] }
         },
         {
+            "id": "deepseek-v4-pro-0813-token-enterprise",
+            "name": "DeepSeek-V4-Pro-0813 (TokenPlanEnterprise)",
+            "tooltip": "百度千帆 Token Plan 企业版专属接入点中的 DeepSeek-V4-Pro-0813（1.8x 抵扣系数）。DeepSeek-V4-Pro 正式版本，大幅增强 Agent 能力，尤其在生产环境中表现突出。",
+            "provider": "baidu-token-enterprise",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://qianfan.baidubce.com/anthropic/tokenplan/team",
+            "model": "deepseek-v4-pro-0813",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low", "none"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": {
+                "pricing": { "RMB": [4.5, 13.5, 0.45] },
+                "tiers": [{ "cron": "* 8-21 * * *", "pricing": { "RMB": [9, 27, 0.9] } }]
+            }
+        },
+        {
             "id": "deepseek-v4-flash-token-enterprise",
             "name": "DeepSeek-V4-Flash (TokenPlanEnterprise)",
             "tooltip": "百度千帆 Token Plan 企业版专属接入点中的 DeepSeek-V4-Flash。高效轻量化模型，支持百万超长上下文能力。",
@@ -224,21 +165,37 @@
             "tokenPricing": { "RMB": [1, 2, 0.2] }
         },
         {
-            "id": "deepseek-v3.2-token-enterprise",
-            "name": "DeepSeek-V3.2 (TokenPlanEnterprise)",
-            "tooltip": "百度千帆 Token Plan 企业版专属接入点中的 DeepSeek-V3.2。兼顾推理效果与响应效率，适用于通用问答、日常 Agent 任务及基础开发辅助。",
+            "id": "deepseek-v4-flash-0731-token-enterprise",
+            "name": "DeepSeek-V4-Flash-0731 (TokenPlanEnterprise)",
+            "tooltip": "百度千帆 Token Plan 企业版专属接入点中的 DeepSeek-V4-Flash-0731。DeepSeek-V4-Flash 官方正式版本，取代预览版，大幅增强 Agent 能力。",
             "provider": "baidu-token-enterprise",
             "sdkMode": "anthropic",
             "baseUrl": "https://qianfan.baidubce.com/anthropic/tokenplan/team",
-            "model": "deepseek-v3.2",
-            "maxInputTokens": 112000,
-            "maxOutputTokens": 16000,
-            "thinking": ["disabled", "enabled"],
+            "model": "deepseek-v4-flash-0731",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low", "none"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
-                "pricing": { "RMB": [2, 3, 0.4] },
-                "tiers": [{ "contextSizeMin": 32001, "pricing": { "RMB": [4, 6, 0.4] } }]
+                "pricing": { "RMB": [1.5, 4.5, 0.15] },
+                "tiers": [{ "cron": "* 8-21 * * *", "pricing": { "RMB": [3, 9, 0.3] } }]
             }
+        },
+        {
+            "id": "glm-5.3-token-enterprise",
+            "name": "GLM-5.3 (TokenPlanEnterprise)",
+            "tooltip": "百度千帆 Token Plan 企业版专属接入点中的 GLM-5.3。智谱AI推出的新一代大语言模型，以极致后训练 Scaling 实现能力跃迁。",
+            "provider": "baidu-token-enterprise",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://qianfan.baidubce.com/anthropic/tokenplan/team",
+            "model": "glm-5.3",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "RMB": [8, 28, 2] }
         },
         {
             "id": "glm-5.2-token-enterprise",
@@ -316,6 +273,21 @@
             "tokenPricing": { "RMB": [1, 2, 0.2] }
         },
         {
+            "id": "deepseek-v4-flash-0731",
+            "name": "DeepSeek-V4-Flash-0731 (PayGo)",
+            "tooltip": "DeepSeek-V4-Flash 官方正式版本，取代预览版，大幅增强 Agent 能力。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low", "none"],
+            "thinkingFormat": "object",
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": {
+                "pricing": { "RMB": [0.5, 1, 0.1] },
+                "tiers": [{ "cron": "* 8-21 * * *", "pricing": { "RMB": [1, 2, 0.2] } }]
+            }
+        },
+        {
             "id": "deepseek-v4-pro",
             "name": "DeepSeek-V4-Pro (PayGo)",
             "tooltip": "DeepSeek-V4 拥有百万字超长上下文，在 Agent 能力、世界知识和推理性能上均实现国内与开源领域的领先。",
@@ -328,17 +300,18 @@
             "tokenPricing": { "RMB": [12, 24, 1] }
         },
         {
-            "id": "deepseek-v3.2",
-            "name": "DeepSeek-V3.2 (PayGo)",
-            "tooltip": "DeepSeek-V3.2 正式版目标是平衡推理能力与输出长度，适合日常使用，例如问答场景和通用 Agent 任务场景。在公开的推理类 Benchmark 测试中，DeepSeek-V3.2 达到了 GPT-5 的水平，仅略低于 Gemini-3.0-Pro；相比 Kimi-K2-Thinking，V3.2 的输出长度大幅降低，显著减少了计算开销与用户等待时间。",
-            "maxInputTokens": 112000,
-            "maxOutputTokens": 16000,
-            "thinking": ["disabled", "enabled"],
+            "id": "deepseek-v4-pro-0813",
+            "name": "DeepSeek-V4-Pro-0813 (PayGo)",
+            "tooltip": "DeepSeek-V4-Pro 正式版本，大幅增强 Agent 能力，尤其在生产环境中表现突出。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low", "none"],
             "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": {
-                "pricing": { "RMB": [2, 3, 0.4] },
-                "tiers": [{ "contextSizeMin": 32001, "pricing": { "RMB": [4, 6, 0.4] } }]
+                "pricing": { "RMB": [6, 12, 0.5] },
+                "tiers": [{ "cron": "* 8-21 * * *", "pricing": { "RMB": [12, 24, 1] } }]
             }
         },
         {
@@ -382,15 +355,15 @@
             "tokenPricing": { "RMB": [8, 28, 2] }
         },
         {
-            "id": "kimi-k2.5",
-            "name": "Kimi-K2.5 (PayGo)",
-            "tooltip": "Kimi-K2.5 是 Kimi 迄今最全能的模型，原生的多模态架构设计，支持文本输入（当前暂不支持图像理解）、思考与非思考模式、对话与 Agent 任务。",
-            "maxInputTokens": 224000,
-            "maxOutputTokens": 32000,
-            "thinking": ["enabled", "disabled"],
-            "thinkingFormat": "object",
+            "id": "glm-5.3",
+            "name": "GLM-5.3 (PayGo)",
+            "tooltip": "GLM-5.3是智谱AI推出的新一代大语言模型，以极致后训练 Scaling 实现能力跃迁。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": { "RMB": [4, 21, 0.7] }
+            "tokenPricing": { "RMB": [8, 28, 2] }
         },
         {
             "id": "kimi-k2.6",

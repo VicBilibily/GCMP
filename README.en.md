@@ -119,8 +119,8 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 
 ### [**Alibaba Cloud DashScope**](https://bailian.console.aliyun.com/) - AliDashScope
 
-- **Model list**: See [config/dashscope.json](src/providers/config/dashscope.json) ([Coding Plan](https://www.aliyun.com/benefit/scene/codingplan) / [Token Plan (Team)](https://www.aliyun.com/benefit/scene/tokenplan) / [Token Plan (Personal)](https://bailian.console.aliyun.com/cn-beijing?tab=plan#/efm/subscription/overview) / PayGo).
-- **Search**: Integrated [Web Search MCP](https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=3023217) tool (2,000/month), supports `#bailianWebSearch`. (Uses [DashScope API Key](https://bailian.console.aliyun.com/cn-beijing/?tab=model#/api-key), not the Coding Plan API Key)
+- **Model list**: See [config/dashscope.json](src/providers/config/dashscope.json) ([Token Plan (Team)](https://www.aliyun.com/benefit/scene/tokenplan) / [Token Plan (Personal)](https://bailian.console.aliyun.com/cn-beijing?tab=plan#/efm/subscription/overview) / PayGo).
+- **Search**: Integrated [Web Search MCP](https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=3023217) tool (2,000/month), supports `#bailianWebSearch`. (Uses [DashScope API Key](https://bailian.console.aliyun.com/cn-beijing/?tab=model#/api-key))
 
 ### [**StreamLake**](https://streamlake.com/product/kat-coder) - Kwai WanQing
 
@@ -133,8 +133,8 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 
 ### [**Tencent Cloud**](https://cloud.tencent.com/product/hunyuan)
 
-- **Model list**: See [config/tencent.json](src/providers/config/tencent.json) ([Coding Plan](https://console.cloud.tencent.com/tokenhub/codingplan) / [Token Plan](https://console.cloud.tencent.com/tokenhub/tokenplan) / [Token Plan Enterprise](https://console.cloud.tencent.com/tokenhub/tokenplan-e) / [TokenHub](https://console.cloud.tencent.com/tokenhub/models)).
-- **Key configuration**: Tencent Cloud API keys are categorized into [Coding Plan API Key](https://console.cloud.tencent.com/tokenhub/codingplan), [Token Plan API Key](https://console.cloud.tencent.com/tokenhub/tokenplan), [Token Plan Enterprise API Key](https://console.cloud.tencent.com/tokenhub/tokenplan-e), and [TokenHub API Key](https://console.cloud.tencent.com/tokenhub/apikey). Each must be generated from the correct key management page.
+- **Model list**: See [config/tencent.json](src/providers/config/tencent.json) ([Token Plan](https://console.cloud.tencent.com/tokenhub/tokenplan) / [Token Plan Enterprise](https://console.cloud.tencent.com/tokenhub/tokenplan-e) / [TokenHub](https://console.cloud.tencent.com/tokenhub/models)).
+- **Key configuration**: Tencent Cloud API keys are categorized into [Token Plan API Key](https://console.cloud.tencent.com/tokenhub/tokenplan), [Token Plan Enterprise API Key](https://console.cloud.tencent.com/tokenhub/tokenplan-e), and [TokenHub API Key](https://console.cloud.tencent.com/tokenhub/apikey). Each must be generated from the correct key management page.
 
 ### [**Xiaomi MiMo**](https://platform.xiaomimimo.com/#/console/api-keys)
 
@@ -145,8 +145,8 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 
 ### [**Baidu Qianfan**](https://cloud.baidu.com/product-s/qianfan_home)
 
-- **Model list**: See [config/baidu.json](src/providers/config/baidu.json) (PayGo / [Coding Plan](https://cloud.baidu.com/product/codingplan) / [Token Plan](https://cloud.baidu.com/doc/qianfan/s/Dmrabu8b6) / [Token Plan Enterprise](https://cloud.baidu.com/doc/qianfan/s/ymq8wwch2)).
-- **Key configuration**: Supports separate [Baidu Qianfan API Key](https://console.bce.baidu.com/qianfan/ais/console/apiKey), [Coding Plan API Key](https://console.bce.baidu.com/qianfan/resource/subscribe), [Token Plan API Key](https://console.bce.baidu.com/qianfan/resource/token-plan), and [Token Plan Enterprise API Key](https://console.bce.baidu.com/qianfan/resource/token-plan-enterprise/my-subscription).
+- **Model list**: See [config/baidu.json](src/providers/config/baidu.json) (PayGo / [Token Plan](https://cloud.baidu.com/doc/qianfan/s/Dmrabu8b6) / [Token Plan Enterprise](https://cloud.baidu.com/doc/qianfan/s/ymq8wwch2)).
+- **Key configuration**: Supports separate [Baidu Qianfan API Key](https://console.bce.baidu.com/qianfan/ais/console/apiKey), [Token Plan API Key](https://console.bce.baidu.com/qianfan/resource/token-plan), and [Token Plan Enterprise API Key](https://console.bce.baidu.com/qianfan/resource/token-plan-enterprise/my-subscription).
 
 ### [**StepFun**](https://platform.stepfun.com/)
 
