@@ -2,6 +2,24 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.27.8] - 2026-08-28
+
+### 新增
+
+- **新增 `effort-only` thinkingFormat**：模型可配置该格式，忽略 thinking 开关并将 reasoningEffort 原样透传（不做值映射），对所有 SDK 模式生效；已适配 OpenAI（含 Responses）与 Anthropic 处理逻辑。
+- **OpenCode Go 新增 Muse Spark 1.2 Contributor**：1M 上下文，支持视觉输入与函数调用，采用 `effort-only` 思考格式（reasoningEffort 支持 high / xhigh / medium / low / minimal）。[#386](https://github.com/VicBilibily/GCMP/issues/386)
+- **腾讯云 TokenHub 新增 Hy4 Preview**：1024k 上下文、960k 最大输入，支持深度思考与函数调用。
+
+---
+
+### Added
+
+- **New `effort-only` thinkingFormat**: Models can opt into this format to ignore the thinking toggle and pass `reasoningEffort` through as-is (no value mapping), effective for all SDK modes; adapted for OpenAI (including Responses) and Anthropic handlers.
+- **Muse Spark 1.2 Contributor on OpenCode Go**: 1M context with vision input and function calling, using the `effort-only` thinking format (reasoningEffort: high/xhigh/medium/low/minimal). [#386](https://github.com/VicBilibily/GCMP/issues/386)
+- **Hy4 Preview on Tencent Cloud TokenHub**: 1024k context, 960k max input, with deep thinking and function calling support.
+
+---
+
 ## [0.27.7] - 2026-08-27
 
 ### 变更

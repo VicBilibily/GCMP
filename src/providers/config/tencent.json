@@ -117,6 +117,21 @@
             "tokenPricing": { "USD": [1.12, 3.92, 0.28], "RMB": [8, 28, 2] }
         },
         {
+            "id": "hy4-preview-tokenhub",
+            "name": "Hy4 Preview (TokenHub)",
+            "tooltip": "腾讯云 TokenHub 按量付费中的 Hy4 Preview。",
+            "provider": "tencent-tokenhub",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://tokenhub.tencentmaas.com",
+            "model": "hy4-preview",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "USD": [0.834, 2.501, 0.042], "RMB": [6, 18, 0.3] }
+        },
+        {
             "id": "hy3-tokenhub",
             "name": "Hy3 (TokenHub)",
             "tooltip": "腾讯云 TokenHub 按量付费中的 Hy3。",

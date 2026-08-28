@@ -29,7 +29,6 @@ import { shouldInjectReasoningPlaceholder } from './reasoningPlaceholder';
 import { CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from './types';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import { isSubRequest, type RequestKind } from './requestClassifier';
-import { canDisableThinking } from './thinkingSupport';
 import { preprocessOpenAIChatRequest } from './openai/openaiChatRequestPreprocessor';
 import { applyOpenAIServiceTier } from './openai/serviceTier';
 
