@@ -210,34 +210,52 @@ export class OpenAIResponsesRequestBuilder {
         const settings = options.modelConfiguration as ModelChatResponseOptions;
         const customParams = requestBody as unknown as {
             thinking?: { type: string };
+            enable_thinking?: boolean;
             reasoning?: { effort: string };
+            reasoning_effort?: string;
         };
 
         applyOpenAIServiceTier(requestBody, modelConfig, settings, this.providerKey);
 
+        const effortOnly = modelConfig.thinkingFormat === 'effort-only';
+        if (effortOnly) {
+            // effort-only 模式下不允许 thinking / enable_thinking 参数
+            customParams.thinking = undefined;
+            customParams.enable_thinking = undefined;
+            delete customParams.reasoning_effort;
+        }
         if (settings) {
-            if (settings.thinking) {
+            if (settings.thinking && !effortOnly) {
                 const thinking: { type: string } = customParams.thinking || { type: 'disabled' };
                 thinking.type = settings.thinking;
                 customParams.thinking = thinking;
             }
             if (settings.reasoningEffort) {
-                const thinking: { type: string } = customParams.thinking || { type: 'enabled' };
-                thinking.type = 'enabled';
-                const reasoning = customParams.reasoning || { effort: 'medium' };
-                reasoning.effort = settings.reasoningEffort;
-                if (settings.reasoningEffort === 'minimal' || settings.reasoningEffort === 'none') {
-                    thinking.type = 'disabled';
-                }
-                customParams.thinking = thinking;
-                customParams.reasoning = reasoning;
-                if (model.id.toLowerCase().includes('gpt')) {
-                    customParams.thinking = undefined;
+                if (effortOnly) {
+                    // effort-only 不做 reasoningEffort 值映射，仅保留 reasoning 其余字段
+                    customParams.reasoning = {
+                        ...(customParams.reasoning || {}),
+                        effort: settings.reasoningEffort
+                    };
+                    delete customParams.reasoning_effort;
+                } else {
+                    const thinking: { type: string } = customParams.thinking || { type: 'enabled' };
+                    thinking.type = 'enabled';
+                    const reasoning = customParams.reasoning || { effort: 'medium' };
+                    reasoning.effort = settings.reasoningEffort;
+                    if (settings.reasoningEffort === 'minimal' || settings.reasoningEffort === 'none') {
+                        thinking.type = 'disabled';
+                    }
+                    customParams.thinking = thinking;
+                    customParams.reasoning = reasoning;
+                    if (model.id.toLowerCase().includes('gpt')) {
+                        customParams.thinking = undefined;
+                    }
                 }
             }
         }
 
-        if (!requestKind || !isSubRequest(requestKind)) {
+        if (effortOnly || !requestKind || !isSubRequest(requestKind)) {
             return;
         }
 

@@ -123,11 +123,14 @@ export interface CompatibleModelConfig {
     /**
      * 思考模式参数的传递格式（可选）
      * - boolean: 使用布尔值格式 { enable_thinking: true/false }
+     * - boolean-none: 仅当 reasoningEffort 为 none 时传递布尔值 { enable_thinking: false }，否则忽略思考参数
      * - object: 使用对象格式 { thinking: { type: 'enabled' | 'disabled' } }
+     * - object-none: 仅当 reasoningEffort 为 none 时传递 object 格式，否则忽略思考参数
      * - effort-none: 当 reasoningEffort 为 none 时直接传递 { reasoning_effort: 'none' }，忽略思考参数
+     * - effort-only: 忽略 thinking 配置，reasoningEffort 原样透传，不做值映射（对所有 sdkMode 生效）
      * 默认值为 'boolean'，仅对 openai/openai-sse 模式生效
      */
-    thinkingFormat?: 'boolean' | 'boolean-none' | 'object' | 'object-none' | 'effort-none';
+    thinkingFormat?: 'boolean' | 'boolean-none' | 'object' | 'object-none' | 'effort-none' | 'effort-only';
     /**
      * reasoning 参数格式（可选）
      * - flat: 使用平铺格式 { reasoning_effort: '...' }（默认行为）

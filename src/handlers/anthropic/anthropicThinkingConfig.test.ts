@@ -48,7 +48,7 @@ const builtInThinkingOptions = Array.from(new Set(thinkingOptionModels.flatMap(m
 function applyConfig(
     params: ThinkingParams,
     settings: Pick<ModelChatResponseOptions, 'thinking' | 'reasoningEffort'> | undefined,
-    modelConfig: Pick<ModelConfig, 'thinking' | 'reasoningEffort'>,
+    modelConfig: Pick<ModelConfig, 'thinking' | 'reasoningEffort' | 'thinkingFormat'>,
     options?: { disableThinking?: boolean }
 ): ThinkingParams {
     const nextParams: ThinkingParams = {
@@ -172,6 +172,50 @@ describe('applyAnthropicThinkingConfiguration', () => {
 
         assert.deepEqual(params.thinking, { type: 'disabled' });
         assert.deepEqual(params.output_config, { format });
+    });
+
+    it('effort-only 模式忽略 thinking 设置，仅按 reasoningEffort 驱动', () => {
+        const params = applyConfig(
+            {},
+            { thinking: 'disabled', reasoningEffort: 'high' },
+            {
+                thinking: ['enabled', 'disabled'],
+                reasoningEffort: ['high', 'none'],
+                thinkingFormat: 'effort-only'
+            }
+        );
+
+        assert.deepEqual(params.thinking, { type: 'enabled' });
+        assert.deepEqual(params.output_config, { effort: 'high' });
+    });
+
+    it('effort-only 模式 reasoningEffort=none 时关闭 thinking', () => {
+        const params = applyConfig(
+            {},
+            { reasoningEffort: 'none' },
+            {
+                thinking: ['enabled', 'disabled'],
+                reasoningEffort: ['high', 'none'],
+                thinkingFormat: 'effort-only'
+            }
+        );
+
+        assert.deepEqual(params.thinking, { type: 'disabled' });
+        assert.equal(params.output_config, undefined);
+    });
+
+    it('非 effort-only 模式 thinking 设置优先于 reasoningEffort', () => {
+        const params = applyConfig(
+            {},
+            { thinking: 'disabled', reasoningEffort: 'high' },
+            {
+                thinking: ['enabled', 'disabled'],
+                reasoningEffort: ['high', 'none']
+            }
+        );
+
+        assert.deepEqual(params.thinking, { type: 'disabled' });
+        assert.equal(params.output_config, undefined);
     });
 
     it('reasoningEffort 会尊重 extraBody 里已有的 enabled+budget_tokens，同时合并 effort', () => {

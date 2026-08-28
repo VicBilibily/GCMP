@@ -25,10 +25,11 @@ interface ApplyAnthropicThinkingConfigurationOptions {
 export function applyAnthropicThinkingConfiguration(
     params: Pick<Anthropic.MessageCreateParamsStreaming, 'thinking' | 'output_config'>,
     settings: Pick<ModelChatResponseOptions, 'thinking' | 'reasoningEffort'> | undefined,
-    modelConfig: Pick<ModelConfig, 'thinking' | 'reasoningEffort'>,
+    modelConfig: Pick<ModelConfig, 'thinking' | 'reasoningEffort' | 'thinkingFormat'>,
     options?: ApplyAnthropicThinkingConfigurationOptions
 ): void {
-    if (settings?.thinking) {
+    const effortOnly = modelConfig.thinkingFormat === 'effort-only';
+    if (settings?.thinking && !effortOnly) {
         const requestedType = settings.thinking;
         params.thinking = buildThinkingConfig(requestedType, params.thinking);
 

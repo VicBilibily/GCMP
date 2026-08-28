@@ -29,6 +29,7 @@ import { shouldInjectReasoningPlaceholder } from './reasoningPlaceholder';
 import { CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from './types';
 import type { GenericModelProvider } from '../providers/genericModelProvider';
 import { isSubRequest, type RequestKind } from './requestClassifier';
+import { canDisableThinking } from './thinkingSupport';
 import { preprocessOpenAIChatRequest } from './openai/openaiChatRequestPreprocessor';
 import { applyOpenAIServiceTier } from './openai/serviceTier';
 
@@ -850,7 +851,18 @@ export class OpenAIHandler {
             reasoning?: { effort?: string };
         };
         const thinkingFormat = modelConfig.thinkingFormat ?? 'boolean';
+        const effortOnly = thinkingFormat === 'effort-only';
         const reasoningFormat = modelConfig.reasoningFormat ?? 'flat';
+        if (effortOnly) {
+            // effort-only 模式下只保留一种 reasoning 形态
+            customParams.thinking = undefined;
+            customParams.enable_thinking = undefined;
+            if (reasoningFormat === 'nested') {
+                delete customParams.reasoning_effort;
+            } else {
+                delete customParams.reasoning;
+            }
+        }
         // 解析最终生效的 thinking / reasoningEffort：
         // 优先使用 Chat UI 传入的 settings；若未传入，则回退到模型配置的默认值。
         // 默认值规则必须与 languageModelInfo.ts 中 schema.default 的逻辑保持一致，
@@ -882,7 +894,21 @@ export class OpenAIHandler {
                 }
             }
             if (effectiveReasoningEffort) {
-                if (effectiveReasoningEffort === 'none') {
+                if (effortOnly) {
+                    // effort-only 不做 reasoningEffort 值映射，仅保留 reasoning 其余字段
+                    if (reasoningFormat === 'nested') {
+                        customParams.reasoning = {
+                            ...(customParams.reasoning || {}),
+                            effort: effectiveReasoningEffort
+                        };
+                        delete customParams.reasoning_effort;
+                    } else {
+                        customParams.reasoning_effort = effectiveReasoningEffort;
+                        delete customParams.reasoning;
+                    }
+                    customParams.thinking = undefined;
+                    customParams.enable_thinking = undefined;
+                } else if (effectiveReasoningEffort === 'none') {
                     if (modelConfig.thinkingFormat === 'effort-none') {
                         // effort-none 模式：直接通过 effort 参数传递 none
                         if (reasoningFormat === 'nested') {
@@ -920,8 +946,9 @@ export class OpenAIHandler {
         // 子请求（提交、标题生成、终端解释等）关闭思考
         const requestKind = (options.modelOptions as { requestKind?: RequestKind })?.requestKind;
         const isDisableThinking =
-            requestKind === 'git-commit-message' ||
-            (settings?.thinking && requestKind !== undefined && isSubRequest(requestKind));
+            !effortOnly &&
+            (requestKind === 'git-commit-message' ||
+                (settings?.thinking && requestKind !== undefined && isSubRequest(requestKind)));
         if (isDisableThinking) {
             if (reasoningFormat === 'nested') {
                 customParams.reasoning = undefined;

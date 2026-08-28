@@ -204,8 +204,8 @@ export class JsonSchemaProvider {
     private static getThinkingFormatDescription(includeModeNote: boolean = false): string {
         return includeModeNote ?
                 t(
-                    'Transmission format for thinking-mode parameters, used to match the API format requirements of different models (only effective for openai/openai-sse)',
-                    '思考模式参数的传递格式，用于兼容不同模型的API格式要求（仅 openai/openai-sse 模式生效）'
+                    'Transmission format for thinking-mode parameters, used to match the API format requirements of different models (other values only for openai/openai-sse; effort-only passes reasoningEffort through as-is for all modes)',
+                    '思考模式参数的传递格式，用于兼容不同模型的API格式要求（其他值仅 openai/openai-sse 模式生效；effort-only 对所有模式生效，reasoningEffort 原样透传）'
                 )
             :   t(
                     'Transmission format for thinking-mode parameters, used to match the API format requirements of different models',
@@ -594,6 +594,10 @@ export class JsonSchemaProvider {
             t(
                 "Effort format (none only): pass { reasoning_effort: 'none' } directly when reasoningEffort is 'none'",
                 "当 reasoningEffort 为 none 时直接传递 { reasoning_effort: 'none' }，忽略思考参数"
+            ),
+            t(
+                'Effort-only: ignore the thinking option and pass reasoningEffort through as-is (all modes)',
+                '忽略 thinking 配置，reasoningEffort 原样透传，不做值映射（对所有模式生效）'
             )
         ];
     }
@@ -1033,7 +1037,14 @@ export class JsonSchemaProvider {
                             },
                             thinkingFormat: {
                                 type: 'string',
-                                enum: ['boolean', 'boolean-none', 'object', 'object-none', 'effort-none'],
+                                enum: [
+                                    'boolean',
+                                    'boolean-none',
+                                    'object',
+                                    'object-none',
+                                    'effort-none',
+                                    'effort-only'
+                                ],
                                 enumDescriptions: this.getThinkingFormatEnumDescriptions(),
                                 default: 'boolean',
                                 description: this.getThinkingFormatDescription(true)
@@ -1315,7 +1326,7 @@ export class JsonSchemaProvider {
                                 }
                             },
                             {
-                                // thinkingFormat / reasoningFormat 仅对 openai/openai-sse 生效
+                                // thinkingFormat / reasoningFormat 其他值仅对 openai/openai-sse 生效（effort-only 对所有模式生效）
                                 if: {
                                     anyOf: [
                                         { not: { required: ['sdkMode'] } },
@@ -1331,7 +1342,14 @@ export class JsonSchemaProvider {
                                     properties: {
                                         thinkingFormat: {
                                             type: 'string',
-                                            enum: ['boolean', 'boolean-none', 'object', 'object-none', 'effort-none'],
+                                            enum: [
+                                                'boolean',
+                                                'boolean-none',
+                                                'object',
+                                                'object-none',
+                                                'effort-none',
+                                                'effort-only'
+                                            ],
                                             enumDescriptions: this.getThinkingFormatEnumDescriptions(),
                                             default: 'boolean',
                                             description: this.getThinkingFormatDescription()
@@ -1349,18 +1367,47 @@ export class JsonSchemaProvider {
                                     }
                                 },
                                 else: {
-                                    properties: {
-                                        thinkingFormat: {
-                                            deprecationMessage: t(
-                                                'thinkingFormat is only effective for openai and openai-sse modes',
-                                                'thinkingFormat 仅对 openai 和 openai-sse 模式生效'
-                                            )
-                                        },
-                                        reasoningFormat: {
-                                            deprecationMessage: t(
-                                                'reasoningFormat is only effective for openai and openai-sse modes',
-                                                'reasoningFormat 仅对 openai 和 openai-sse 模式生效'
-                                            )
+                                    if: {
+                                        anyOf: [
+                                            {
+                                                properties: { sdkMode: { const: 'openai-responses' } },
+                                                required: ['sdkMode']
+                                            },
+                                            {
+                                                properties: { sdkMode: { const: 'anthropic' } },
+                                                required: ['sdkMode']
+                                            }
+                                        ]
+                                    },
+                                    then: {
+                                        properties: {
+                                            thinkingFormat: {
+                                                type: 'string',
+                                                enum: ['effort-only'],
+                                                enumDescriptions: [
+                                                    t(
+                                                        'Effort-only: ignore the thinking option and drive reasoning solely by reasoningEffort',
+                                                        '忽略 thinking 配置，仅按 reasoningEffort 驱动推理参数'
+                                                    )
+                                                ],
+                                                description: this.getThinkingFormatDescription()
+                                            }
+                                        }
+                                    },
+                                    else: {
+                                        properties: {
+                                            thinkingFormat: {
+                                                deprecationMessage: t(
+                                                    'thinkingFormat is only effective for openai/openai-sse modes (effort-only works in all modes)',
+                                                    'thinkingFormat 仅对 openai/openai-sse 模式生效（effort-only 对所有模式生效）'
+                                                )
+                                            },
+                                            reasoningFormat: {
+                                                deprecationMessage: t(
+                                                    'reasoningFormat is only effective for openai and openai-sse modes',
+                                                    'reasoningFormat 仅对 openai 和 openai-sse 模式生效'
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1729,7 +1776,14 @@ export class JsonSchemaProvider {
                             },
                             thinkingFormat: {
                                 type: 'string',
-                                enum: ['boolean', 'boolean-none', 'object', 'object-none', 'effort-none'],
+                                enum: [
+                                    'boolean',
+                                    'boolean-none',
+                                    'object',
+                                    'object-none',
+                                    'effort-none',
+                                    'effort-only'
+                                ],
                                 enumDescriptions: this.getThinkingFormatEnumDescriptions(),
                                 default: 'boolean',
                                 description: this.getThinkingFormatDescription(true)
@@ -1921,7 +1975,14 @@ export class JsonSchemaProvider {
                                     properties: {
                                         thinkingFormat: {
                                             type: 'string',
-                                            enum: ['boolean', 'boolean-none', 'object', 'object-none', 'effort-none'],
+                                            enum: [
+                                                'boolean',
+                                                'boolean-none',
+                                                'object',
+                                                'object-none',
+                                                'effort-none',
+                                                'effort-only'
+                                            ],
                                             enumDescriptions: this.getThinkingFormatEnumDescriptions(),
                                             default: 'boolean',
                                             description: this.getThinkingFormatDescription()
@@ -1939,18 +2000,47 @@ export class JsonSchemaProvider {
                                     }
                                 },
                                 else: {
-                                    properties: {
-                                        thinkingFormat: {
-                                            deprecationMessage: t(
-                                                'thinkingFormat is only effective for openai and openai-sse modes',
-                                                'thinkingFormat 仅对 openai 和 openai-sse 模式生效'
-                                            )
-                                        },
-                                        reasoningFormat: {
-                                            deprecationMessage: t(
-                                                'reasoningFormat is only effective for openai and openai-sse modes',
-                                                'reasoningFormat 仅对 openai 和 openai-sse 模式生效'
-                                            )
+                                    if: {
+                                        anyOf: [
+                                            {
+                                                properties: { sdkMode: { const: 'openai-responses' } },
+                                                required: ['sdkMode']
+                                            },
+                                            {
+                                                properties: { sdkMode: { const: 'anthropic' } },
+                                                required: ['sdkMode']
+                                            }
+                                        ]
+                                    },
+                                    then: {
+                                        properties: {
+                                            thinkingFormat: {
+                                                type: 'string',
+                                                enum: ['effort-only'],
+                                                enumDescriptions: [
+                                                    t(
+                                                        'Effort-only: ignore the thinking option and drive reasoning solely by reasoningEffort',
+                                                        '忽略 thinking 配置，仅按 reasoningEffort 驱动推理参数'
+                                                    )
+                                                ],
+                                                description: this.getThinkingFormatDescription()
+                                            }
+                                        }
+                                    },
+                                    else: {
+                                        properties: {
+                                            thinkingFormat: {
+                                                deprecationMessage: t(
+                                                    'thinkingFormat is only effective for openai/openai-sse modes (effort-only works in all modes)',
+                                                    'thinkingFormat 仅对 openai/openai-sse 模式生效（effort-only 对所有模式生效）'
+                                                )
+                                            },
+                                            reasoningFormat: {
+                                                deprecationMessage: t(
+                                                    'reasoningFormat is only effective for openai and openai-sse modes',
+                                                    'reasoningFormat 仅对 openai 和 openai-sse 模式生效'
+                                                )
+                                            }
                                         }
                                     }
                                 }

@@ -233,6 +233,262 @@ test('支持关闭思考的模型子请求降级为 disabled 与最低 effort', 
     assert.deepEqual(requestBody.reasoning, { effort: 'none' });
 });
 
+test('effort-only 模式仅传递 reasoning，不带 thinking', async () => {
+    const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
+    const builder = new OpenAIResponsesRequestBuilder('Test Provider', {
+        convertMessagesToOpenAIResponses: () => ({ systemMessage: '', messages: [] }),
+        convertToolsToResponses: () => [],
+        filterExtraBodyParams: (extraBody: Record<string, unknown>) => extraBody
+    } as never);
+
+    const { requestBody } = builder.build({
+        model: { id: 'muse-spark-1.2-contributor', name: 'Muse Spark' } as never,
+        modelConfig: {
+            id: 'muse-spark-1.2-contributor-go',
+            name: 'Muse Spark 1.2 Contributor (Go)',
+            tooltip: 'Muse Spark',
+            maxInputTokens: 1000,
+            maxOutputTokens: 1000,
+            capabilities: { toolCalling: true, imageInput: false },
+            sdkMode: 'openai-responses',
+            thinkingFormat: 'effort-only',
+            reasoningEffort: ['high', 'xhigh', 'medium', 'low', 'none']
+        } as never,
+        messages: [],
+        options: { modelConfiguration: { reasoningEffort: 'xhigh' } } as never,
+        sessionId: 'session-123'
+    });
+
+    assert.deepEqual(requestBody.reasoning, { effort: 'xhigh' });
+    assert.equal(requestBody.thinking, undefined);
+    assert.equal(requestBody.enable_thinking, undefined);
+});
+
+test('effort-only 模式 reasoningEffort=none 原样传递，不映射 thinking', async () => {
+    const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
+    const builder = new OpenAIResponsesRequestBuilder('Test Provider', {
+        convertMessagesToOpenAIResponses: () => ({ systemMessage: '', messages: [] }),
+        convertToolsToResponses: () => [],
+        filterExtraBodyParams: (extraBody: Record<string, unknown>) => extraBody
+    } as never);
+
+    const { requestBody } = builder.build({
+        model: { id: 'muse-spark-1.2-contributor', name: 'Muse Spark' } as never,
+        modelConfig: {
+            id: 'muse-spark-1.2-contributor-go',
+            name: 'Muse Spark 1.2 Contributor (Go)',
+            tooltip: 'Muse Spark',
+            maxInputTokens: 1000,
+            maxOutputTokens: 1000,
+            capabilities: { toolCalling: true, imageInput: false },
+            sdkMode: 'openai-responses',
+            thinkingFormat: 'effort-only',
+            reasoningEffort: ['high', 'xhigh', 'medium', 'low', 'none']
+        } as never,
+        messages: [],
+        options: { modelConfiguration: { reasoningEffort: 'none' } } as never,
+        sessionId: 'session-123'
+    });
+
+    assert.deepEqual(requestBody.reasoning, { effort: 'none' });
+    assert.equal(requestBody.thinking, undefined);
+    assert.equal(requestBody.enable_thinking, undefined);
+});
+
+test('effort-only 模式子请求仍原样保留 reasoningEffort', async () => {
+    const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
+    const builder = new OpenAIResponsesRequestBuilder('Test Provider', {
+        convertMessagesToOpenAIResponses: () => ({ systemMessage: '', messages: [] }),
+        convertToolsToResponses: () => [],
+        filterExtraBodyParams: (extraBody: Record<string, unknown>) => extraBody
+    } as never);
+
+    const { requestBody } = builder.build({
+        model: { id: 'muse-spark-1.2-contributor', name: 'Muse Spark' } as never,
+        modelConfig: {
+            id: 'muse-spark-1.2-contributor-go',
+            name: 'Muse Spark 1.2 Contributor (Go)',
+            tooltip: 'Muse Spark',
+            maxInputTokens: 1000,
+            maxOutputTokens: 1000,
+            capabilities: { toolCalling: true, imageInput: false },
+            sdkMode: 'openai-responses',
+            thinkingFormat: 'effort-only',
+            reasoningEffort: ['high', 'xhigh', 'medium', 'low', 'none']
+        } as never,
+        messages: [],
+        options: {
+            modelConfiguration: { reasoningEffort: 'xhigh' },
+            modelOptions: { requestKind: 'summarization' }
+        } as never,
+        sessionId: 'session-123'
+    });
+
+    assert.deepEqual(requestBody.reasoning, { effort: 'xhigh' });
+    assert.equal(requestBody.thinking, undefined);
+});
+
+test('effort-only 模式合并 extraBody.reasoning 的其他字段，仅覆盖 effort', async () => {
+    const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
+    const builder = new OpenAIResponsesRequestBuilder('Test Provider', {
+        convertMessagesToOpenAIResponses: () => ({ systemMessage: '', messages: [] }),
+        convertToolsToResponses: () => [],
+        filterExtraBodyParams: (extraBody: Record<string, unknown>) => extraBody
+    } as never);
+
+    const { requestBody } = builder.build({
+        model: { id: 'muse-spark-1.2-contributor', name: 'Muse Spark' } as never,
+        modelConfig: {
+            id: 'muse-spark-1.2-contributor-go',
+            name: 'Muse Spark 1.2 Contributor (Go)',
+            tooltip: 'Muse Spark',
+            maxInputTokens: 1000,
+            maxOutputTokens: 1000,
+            capabilities: { toolCalling: true, imageInput: false },
+            sdkMode: 'openai-responses',
+            thinkingFormat: 'effort-only',
+            reasoningEffort: ['high', 'xhigh', 'medium', 'low', 'none'],
+            extraBody: { reasoning: { effort: 'low', summary: 'auto' } }
+        } as never,
+        messages: [],
+        options: { modelConfiguration: { reasoningEffort: 'xhigh' } } as never,
+        sessionId: 'session-123'
+    });
+
+    assert.deepEqual(requestBody.reasoning, { effort: 'xhigh', summary: 'auto' });
+});
+
+test('effort-only 模式清除 extraBody 注入的 thinking 参数', async () => {
+    const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
+    const builder = new OpenAIResponsesRequestBuilder('Test Provider', {
+        convertMessagesToOpenAIResponses: () => ({ systemMessage: '', messages: [] }),
+        convertToolsToResponses: () => [],
+        filterExtraBodyParams: (extraBody: Record<string, unknown>) => extraBody
+    } as never);
+
+    const { requestBody } = builder.build({
+        model: { id: 'muse-spark-1.2-contributor', name: 'Muse Spark' } as never,
+        modelConfig: {
+            id: 'muse-spark-1.2-contributor-go',
+            name: 'Muse Spark 1.2 Contributor (Go)',
+            tooltip: 'Muse Spark',
+            maxInputTokens: 1000,
+            maxOutputTokens: 1000,
+            capabilities: { toolCalling: true, imageInput: false },
+            sdkMode: 'openai-responses',
+            thinkingFormat: 'effort-only',
+            reasoningEffort: ['high', 'xhigh', 'medium', 'low', 'minimal'],
+            extraBody: { thinking: { type: 'enabled' }, reasoning: { summary: 'auto' } }
+        } as never,
+        messages: [],
+        options: { modelConfiguration: { reasoningEffort: 'high' } } as never,
+        sessionId: 'session-123'
+    });
+
+    assert.deepEqual(requestBody.reasoning, { summary: 'auto', effort: 'high' });
+    assert.equal(requestBody.thinking, undefined);
+    assert.equal(requestBody.enable_thinking, undefined);
+});
+
+test('effort-only 模式清除 extraBody 注入的 reasoning_effort 参数', async () => {
+    const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
+    const builder = new OpenAIResponsesRequestBuilder('Test Provider', {
+        convertMessagesToOpenAIResponses: () => ({ systemMessage: '', messages: [] }),
+        convertToolsToResponses: () => [],
+        filterExtraBodyParams: (extraBody: Record<string, unknown>) => extraBody
+    } as never);
+
+    const { requestBody } = builder.build({
+        model: { id: 'muse-spark-1.2-contributor', name: 'Muse Spark' } as never,
+        modelConfig: {
+            id: 'muse-spark-1.2-contributor-go',
+            name: 'Muse Spark 1.2 Contributor (Go)',
+            tooltip: 'Muse Spark',
+            maxInputTokens: 1000,
+            maxOutputTokens: 1000,
+            capabilities: { toolCalling: true, imageInput: false },
+            sdkMode: 'openai-responses',
+            thinkingFormat: 'effort-only',
+            reasoningEffort: ['high', 'xhigh', 'medium', 'low', 'minimal'],
+            extraBody: { reasoning_effort: 'low' }
+        } as never,
+        messages: [],
+        options: { modelConfiguration: { reasoningEffort: 'high' } } as never,
+        sessionId: 'session-123'
+    });
+
+    assert.deepEqual(requestBody.reasoning, { effort: 'high' });
+    assert.equal(requestBody.reasoning_effort, undefined);
+    assert.equal(requestBody.thinking, undefined);
+    assert.equal(requestBody.enable_thinking, undefined);
+});
+
+test('effort-only 模式子请求在仅含 minimal 时仍原样传递', async () => {
+    const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
+    const builder = new OpenAIResponsesRequestBuilder('Test Provider', {
+        convertMessagesToOpenAIResponses: () => ({ systemMessage: '', messages: [] }),
+        convertToolsToResponses: () => [],
+        filterExtraBodyParams: (extraBody: Record<string, unknown>) => extraBody
+    } as never);
+
+    const { requestBody } = builder.build({
+        model: { id: 'muse-spark-1.2-contributor', name: 'Muse Spark' } as never,
+        modelConfig: {
+            id: 'muse-spark-1.2-contributor-go',
+            name: 'Muse Spark 1.2 Contributor (Go)',
+            tooltip: 'Muse Spark',
+            maxInputTokens: 1000,
+            maxOutputTokens: 1000,
+            capabilities: { toolCalling: true, imageInput: false },
+            sdkMode: 'openai-responses',
+            thinkingFormat: 'effort-only',
+            reasoningEffort: ['high', 'xhigh', 'medium', 'low', 'minimal']
+        } as never,
+        messages: [],
+        options: {
+            modelConfiguration: { reasoningEffort: 'xhigh' },
+            modelOptions: { requestKind: 'summarization' }
+        } as never,
+        sessionId: 'session-123'
+    });
+
+    assert.deepEqual(requestBody.reasoning, { effort: 'xhigh' });
+    assert.equal(requestBody.thinking, undefined);
+});
+
+test('effort-only 模式子请求在不支持关闭思考时仍原样传递', async () => {
+    const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
+    const builder = new OpenAIResponsesRequestBuilder('Test Provider', {
+        convertMessagesToOpenAIResponses: () => ({ systemMessage: '', messages: [] }),
+        convertToolsToResponses: () => [],
+        filterExtraBodyParams: (extraBody: Record<string, unknown>) => extraBody
+    } as never);
+
+    const { requestBody } = builder.build({
+        model: { id: 'muse-spark-1.2-contributor', name: 'Muse Spark' } as never,
+        modelConfig: {
+            id: 'muse-spark-1.2-contributor-go',
+            name: 'Muse Spark 1.2 Contributor (Go)',
+            tooltip: 'Muse Spark',
+            maxInputTokens: 1000,
+            maxOutputTokens: 1000,
+            capabilities: { toolCalling: true, imageInput: false },
+            sdkMode: 'openai-responses',
+            thinkingFormat: 'effort-only',
+            reasoningEffort: ['high', 'xhigh', 'medium', 'low']
+        } as never,
+        messages: [],
+        options: {
+            modelConfiguration: { reasoningEffort: 'xhigh' },
+            modelOptions: { requestKind: 'summarization' }
+        } as never,
+        sessionId: 'session-123'
+    });
+
+    assert.deepEqual(requestBody.reasoning, { effort: 'xhigh' });
+    assert.equal(requestBody.thinking, undefined);
+});
+
 test('Responses Fast 服务等级发送 priority', async () => {
     const { OpenAIResponsesRequestBuilder } = await getBuilderModule();
     const builder = new OpenAIResponsesRequestBuilder('Test Provider', {
