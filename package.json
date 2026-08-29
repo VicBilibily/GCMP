@@ -84,6 +84,7 @@
         "onLanguageModelProvider:gcmp.opencode",
         "onLanguageModelProvider:gcmp.hyper",
         "onLanguageModelProvider:gcmp.clinepass",
+        "onLanguageModelProvider:gcmp.commandcode",
         "onLanguageModelProvider:gcmp.compatible",
         "onLanguageModelTool:gcmp_zhipuWebSearch",
         "onLanguageModelTool:gcmp_minimaxWebSearch",
@@ -309,6 +310,11 @@
             {
                 "command": "gcmp.clinepass.setApiKey",
                 "title": "%command.clinepass.setApiKey%",
+                "category": "GCMP"
+            },
+            {
+                "command": "gcmp.commandcode.setApiKey",
+                "title": "%command.commandcode.setApiKey%",
                 "category": "GCMP"
             },
             {
@@ -1001,6 +1007,11 @@
                 "vendor": "gcmp.clinepass",
                 "displayName": "GCMP · ClinePass",
                 "managementCommand": "gcmp.clinepass.setApiKey"
+            },
+            {
+                "vendor": "gcmp.commandcode",
+                "displayName": "GCMP · CommandCode",
+                "managementCommand": "gcmp.commandcode.setApiKey"
             },
             {
                 "vendor": "gcmp.codex",

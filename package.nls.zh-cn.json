@@ -43,6 +43,7 @@
     "command.opencode.setApiKey": "设置 OpenCode API 密钥",
     "command.hyper.setApiKey": "设置 Charm Hyper API 密钥",
     "command.clinepass.setApiKey": "设置 ClinePass API 密钥",
+    "command.commandcode.setApiKey": "设置 CommandCode API 密钥",
     "command.compatible.manageModels": "Compatible Provider 设置",
     "command.configSet.manage": "API Key 管理",
     "command.nesCompletion.toggleManual": "切换 NES 手动触发模式",

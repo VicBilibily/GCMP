@@ -147,7 +147,9 @@ export class AnthropicHandler {
         // 使用模型配置的 baseUrl 或提供商默认的 baseURL
         // 站点/接入点切换已上移至 provider 层的 resolveRequestBaseUrl 统一处理
         const baseUrl = modelConfig?.baseUrl || this.baseURL;
-        Logger.debug(`[${this.displayName}] Creating new Anthropic client (baseUrl: ${baseUrl})`);
+        // Anthropic 兼容端点若 baseUrl 以 /v1 结尾则自动去除，避免重复路径
+        const normalizedBaseUrl = baseUrl?.endsWith('/v1') ? baseUrl.slice(0, -3) : baseUrl;
+        Logger.debug(`[${this.displayName}] Creating new Anthropic client (baseUrl: ${normalizedBaseUrl})`);
 
         // 构建默认头部，包含提供商级别和模型级别的 customHeader
         const defaultHeaders: Record<string, string> = {
@@ -177,7 +179,7 @@ export class AnthropicHandler {
         const client = new Anthropic({
             apiKey: currentApiKey,
             maxRetries: 0,
-            baseURL: baseUrl,
+            baseURL: normalizedBaseUrl,
             authToken: currentApiKey, // 解决 Minimax 报错： Please carry the API secret key in the 'Authorization' field of the request header
             defaultHeaders: defaultHeaders,
             fetch: ConfigManager.createProxyAwareFetch({ proxyUrl }) as typeof fetch
