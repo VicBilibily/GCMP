@@ -52,6 +52,10 @@ export async function queryProviderQuota(
             const { queryOpenCodeQuota } = await import('./providers/opencode');
             return await queryOpenCodeQuota(apiKey, lastUpdated);
         }
+        case 'commandcode': {
+            const { queryCommandCodeQuota } = await import('./providers/commandcode');
+            return await queryCommandCodeQuota(apiKey, lastUpdated);
+        }
         default:
             if (BalanceQueryManager.hasHandler(slot) || BalanceQueryManager.hasCustomUsageEntries(slot)) {
                 const { queryCompatibleProviderQuota } = await import('./providers/compatible');

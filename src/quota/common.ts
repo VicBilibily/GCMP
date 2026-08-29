@@ -18,7 +18,8 @@ const SUPPORTED_QUOTA_SLOTS = new Set([
     'kimi',
     'deepseek',
     'clinepass',
-    'opencode'
+    'opencode',
+    'commandcode'
 ]);
 
 // ============= 槽位能力判定 =============

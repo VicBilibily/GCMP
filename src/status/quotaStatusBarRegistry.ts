@@ -10,6 +10,8 @@ import { t } from '../utils/runtime/l10n';
 import {
     clinepassStatusAdapter,
     type ClinePassStatusData,
+    commandcodeStatusAdapter,
+    type CommandCodeStatusData,
     deepseekStatusAdapter,
     type DeepSeekStatusData,
     kimiStatusAdapter,
@@ -157,6 +159,26 @@ export function createClinePassStatusBar(): ProviderQuotaStatusBar<ClinePassStat
         },
         adapter: clinepassStatusAdapter,
         title: () => t('ClinePass Usage', 'ClinePass 使用情况'),
+        lastUpdatedOf: data => data.lastUpdated
+    });
+}
+
+export function createCommandCodeStatusBar(): ProviderQuotaStatusBar<CommandCodeStatusData> {
+    return new ProviderQuotaStatusBar({
+        config: {
+            id: 'gcmp.statusBar.commandcode',
+            name: 'GCMP: CommandCode Usage',
+            alignment: vscode.StatusBarAlignment.Right,
+            priority: 25,
+            refreshCommand: 'gcmp.commandcode.refreshUsage',
+            apiKeyProvider: 'commandcode',
+            keyDisplayName: 'CommandCode',
+            cacheKeyPrefix: 'commandcode',
+            logPrefix: 'CommandCode Status Bar',
+            icon: '$(gcmp-commandcode)'
+        },
+        adapter: commandcodeStatusAdapter,
+        title: () => t('CommandCode Usage', 'CommandCode 使用情况'),
         lastUpdatedOf: data => data.lastUpdated
     });
 }

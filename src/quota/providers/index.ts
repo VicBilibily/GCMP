@@ -11,4 +11,5 @@ export * from './deepseek';
 export * from './kimi';
 export * from './clinepass';
 export * from './opencode';
+export * from './commandcode';
 export * from './compatible';

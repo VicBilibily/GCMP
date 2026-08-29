@@ -12,6 +12,7 @@ import { ContextUsageStatusBar } from './contextUsageStatusBar';
 import { TokenUsageStatusBar } from './tokenUsageStatusBar';
 import {
     createClinePassStatusBar,
+    createCommandCodeStatusBar,
     createDeepSeekStatusBar,
     createKimiStatusBar,
     createMiniMaxStatusBar,
@@ -61,6 +62,8 @@ export class StatusBarManager {
     static opencode: IStatusBar | undefined;
     /** ClinePass 用量查询状态栏 */
     static clinepass: IStatusBar | undefined;
+    /** CommandCode 用量查询状态栏 */
+    static commandcode: IStatusBar | undefined;
     /** Compatible 提供商状态栏 */
     static compatible: ICompatibleStatusBar | undefined;
     /** 模型上下文窗口占用情况状态栏 */
@@ -118,6 +121,10 @@ export class StatusBarManager {
         const clinepassStatusBar = createClinePassStatusBar();
         this.registerStatusBar('clinepass', clinepassStatusBar);
 
+        // 创建并注册 CommandCode 状态栏
+        const commandcodeStatusBar = createCommandCodeStatusBar();
+        this.registerStatusBar('commandcode', commandcodeStatusBar);
+
         // 创建并注册 Compatible 提供商状态栏
         const compatibleStatusBar = new CompatibleStatusBar();
         this.registerStatusBar('compatible', compatibleStatusBar);
@@ -171,6 +178,9 @@ export class StatusBarManager {
                 break;
             case 'clinepass':
                 this.clinepass = statusBar;
+                break;
+            case 'commandcode':
+                this.commandcode = statusBar;
                 break;
             case 'compatible':
                 this.compatible = statusBar as ICompatibleStatusBar;

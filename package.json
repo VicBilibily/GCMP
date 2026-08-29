@@ -1494,6 +1494,13 @@
                     "fontCharacter": "\\e6fc"
                 }
             },
+            "gcmp-commandcode": {
+                "description": "CommandCode",
+                "default": {
+                    "fontPath": "./fonts/commandcode.ttf",
+                    "fontCharacter": "\\e704"
+                }
+            },
             "gcmp-compatible": {
                 "description": "Compatible",
                 "default": {
