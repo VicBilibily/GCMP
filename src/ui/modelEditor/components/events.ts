@@ -9,7 +9,7 @@ import { CLI_RESERVED_PROVIDERS, type ProviderOption, type SdkMode } from '../ty
 import { addNumberValidation, addSimpleValidation, normalizeProxyInput, isValidProxyInput } from '../utils';
 import { formatJSON, clearJSON, validateJSON_UI, autofillBaseUrl } from '../app';
 import { validateForm, showGlobalError, hideGlobalError } from './validation';
-import { applyInitialValues, renderServiceTierOptions } from './form';
+import { applyInitialValues, renderReasoningDefaultOptions, renderServiceTierOptions } from './form';
 
 interface Actions {
     saveModel: () => void;
@@ -255,6 +255,13 @@ export function bindEvents(state: EditorState, actions: Actions): void {
         sdkModeSelect.addEventListener('change', updateSdkSpecificOptionsVisibility);
         webSearchToolToggle?.addEventListener('change', updateSdkSpecificOptionsVisibility);
         updateSdkSpecificOptionsVisibility();
+    }
+
+    // 推理强度多选 → 默认推理强度下拉联动：勾选变化或拖拽排序后重建下拉选项
+    const reasoningEffortContainer = document.getElementById('reasoningEffortOptions');
+    if (reasoningEffortContainer) {
+        reasoningEffortContainer.addEventListener('change', () => renderReasoningDefaultOptions());
+        reasoningEffortContainer.addEventListener('drop', () => renderReasoningDefaultOptions());
     }
 
     // 请求模型 ID 输入联想

@@ -296,8 +296,8 @@ export function createDOM(state: CreateDomState, rootEl?: HTMLElement): void {
             REASONING_EFFORT_OPTIONS.map(opt => ({ value: opt.value, label: opt.label })),
             model.reasoningEffort,
             t(
-                'Selectable reasoning effort levels for the model picker. Default value rules:\n- If "Medium" is included, it is always the default.\n- Otherwise, the first selected item is the default.\nUse drag handle (⠿) to reorder. Leave all unchecked to keep unconfigured.',
-                '模型 picker 的可选推理强度列表。默认值规则：\n- 如果包含 "Medium"，始终以 Medium 为默认值\n- 否则以列表首项为默认值\n使用拖拽手柄 (⠿) 调整顺序。全部不选则保持未配置状态。'
+                'Selectable reasoning effort levels for the model picker, in checked order:\n- The default is set via the "Default Reasoning Effort" dropdown below.\n- When that dropdown is (Auto), "Medium" applies if available, otherwise the first item.\n- Use drag handle (⠿) to reorder. Leave all unchecked to keep unconfigured.',
+                '模型 picker 的可选推理强度列表，按勾选顺序列出：\n- 默认值通过下方“默认推理强度”下拉指定。\n- 该下拉为“自动”时，若包含 Medium 则以 Medium 为默认值，否则取首项。\n- 使用拖拽手柄 (⠿) 调整顺序。全部不选则保持未配置状态。'
             )
         ),
         createFormGroup(
@@ -306,22 +306,11 @@ export function createDOM(state: CreateDomState, rootEl?: HTMLElement): void {
             'reasoningDefault',
             'select',
             {
-                options: [
-                    {
-                        value: '',
-                        label: t('(Auto — follow default rules)', '（自动 — 按默认规则）'),
-                        selected: !model.reasoningDefault
-                    },
-                    ...REASONING_EFFORT_OPTIONS.map(opt => ({
-                        value: opt.value,
-                        label: opt.label,
-                        selected: model.reasoningDefault === opt.value
-                    }))
-                ]
+                options: buildReasoningDefaultOptions(model)
             },
             t(
-                'Override the default reasoning effort. When specified, it takes precedence over the "Medium-first / first-item" rule. The value must be included in the Reasoning Effort Options above.',
-                '覆盖默认推理强度。指定时优先级高于“Medium 优先 / 数组首项”规则。该值必须包含在上方的推理强度选项中。'
+                'Overrides the model picker default. When specified, it takes precedence over the "Medium-first / first-item" rule. Options follow the checked items of the Reasoning Effort Options above.',
+                '覆盖模型 picker 的默认推理强度。指定时优先级高于"Medium 优先 / 数组首项"规则。选项随上方推理强度的勾选结果联动。'
             )
         ),
         createMultiSelectCheckboxFormGroup(
@@ -587,6 +576,64 @@ export function renderServiceTierOptions(
     selectedValues: ServiceTier[]
 ): void {
     renderMultiSelectCheckboxOptions(container, getServiceTierFormOptions(sdkMode), selectedValues);
+}
+
+/**
+ * 推理强度值的显示标签（非标准值原样显示）
+ */
+function reasoningEffortLabel(value: string): string {
+    return REASONING_EFFORT_OPTIONS.find(opt => opt.value === value)?.label ?? value;
+}
+
+/**
+ * 构建"默认推理强度"下拉的初始选项：按推理强度多选的勾选顺序，仅包含已勾选的值
+ */
+function buildReasoningDefaultOptions(model: ModelFormData): SelectOption[] {
+    // 配置值不在勾选列表中时回退为"自动"（保存时后端同样会忽略该值）
+    const selected =
+        model.reasoningDefault && model.reasoningEffort.includes(model.reasoningDefault) ? model.reasoningDefault : '';
+    return [
+        {
+            value: '',
+            label: t('(Auto — follow default rules)', '（自动 — 按默认规则）'),
+            selected: selected === ''
+        },
+        ...model.reasoningEffort.map(value => ({
+            value,
+            label: reasoningEffortLabel(value),
+            selected: value === selected
+        }))
+    ];
+}
+
+/**
+ * 按推理强度多选的勾选状态（DOM 顺序）重建"默认推理强度"下拉选项；
+ * 当前选中值已被取消勾选时回退为"自动"
+ */
+export function renderReasoningDefaultOptions(): void {
+    const container = document.getElementById('reasoningEffortOptions');
+    const select = document.getElementById('reasoningDefault') as HTMLSelectElement | null;
+    if (!container || !select) {
+        return;
+    }
+    const checked = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:checked')).map(
+        input => input.value
+    );
+    const previous = select.value;
+    const nextValue = checked.includes(previous) ? previous : '';
+
+    select.replaceChildren();
+    const autoOption = document.createElement('option');
+    autoOption.value = '';
+    autoOption.textContent = t('(Auto — follow default rules)', '（自动 — 按默认规则）');
+    select.appendChild(autoOption);
+    for (const value of checked) {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = reasoningEffortLabel(value);
+        select.appendChild(option);
+    }
+    select.value = nextValue;
 }
 
 function appendCheckbox(container: HTMLElement, opt: { value: string; label: string }, checked: boolean): void {
