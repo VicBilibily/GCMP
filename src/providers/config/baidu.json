@@ -198,6 +198,21 @@
             "tokenPricing": { "RMB": [8, 28, 2] }
         },
         {
+            "id": "glm-5.3-flash-token-enterprise",
+            "name": "GLM-5.3-Flash (TokenPlanEnterprise)",
+            "tooltip": "百度千帆 Token Plan 企业版专属接入点中的 GLM-5.3-Flash。GLM-5 系列首个原生多模态模型，采用稀疏注意力与线性注意力混合架构，以极致低成本实现超越 GLM-5.2 的更强智能。",
+            "provider": "baidu-token-enterprise",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://qianfan.baidubce.com/anthropic/tokenplan/team",
+            "model": "glm-5.3-flash",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [0.8, 2.8, 0.23] }
+        },
+        {
             "id": "glm-5.2-token-enterprise",
             "name": "GLM-5.2 (TokenPlanEnterprise)",
             "tooltip": "百度千帆 Token Plan 企业版专属接入点中的 GLM-5.2。支持真正可用的 1M 上下文，在长程任务中继续保持领先。",

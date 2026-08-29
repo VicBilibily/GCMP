@@ -339,6 +339,21 @@
             }
         },
         {
+            "id": "hy4-preview-go",
+            "name": "Hy4 Preview (Go)",
+            "model": "hy4-preview",
+            "sdkMode": "openai-sse",
+            "baseUrl": "https://opencode.ai/zen/go/v1",
+            "tooltip": "OpenCode Go 套餐 - 腾讯混元 Hy4 Preview。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "thinkingFormat": "object",
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.834, 2.501, 0.042]
+        },
+        {
             "id": "hy3-go",
             "name": "Hy3 (Go)",
             "model": "hy3",
@@ -347,6 +362,8 @@
             "tooltip": "OpenCode Go 套餐 - 腾讯混元 Hy3，MoE 架构，256K 上下文，快慢思考融合的 Agent 模型。",
             "maxInputTokens": 192000,
             "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "thinkingFormat": "object",
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": [0.14, 0.58, 0.035]
         },
