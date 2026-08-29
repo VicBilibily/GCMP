@@ -191,6 +191,11 @@ LongCat API 开放平台的 Agentic 模型，采用 Anthropic SDK 模式接入�
 - **模型列表**：详见 [config/clinepass.json](src/providers/config/clinepass.json)。
 - **用量查询**：已支持状态栏显示周期剩余用量、重置时间及总利用率。
 
+### [**CommandCode**](https://commandcode.ai/) - 主打开放模型的编程 CLI 与模型订阅服务
+
+- **模型列表**：详见 [config/commandcode.json](src/providers/config/commandcode.json)（[GOAT Plan](https://commandcode.ai/docs/plans/goat) 套餐）。
+- **用量查询**：已支持状态栏显示周期剩余用量、重置时间及账户余额。
+
 ### OAuth 认证编程助手提供商
 
 > ⚠️ **风险警告**：以下提供商通过模拟官方 CLI 工具的 OAuth 身份验证方式来实现对应的 API 访问，**可能涉嫌滥用第三方服务条款，存在被官方检测封禁账号的风险**。请仅在确保知情并自愿承担风险的前提下使用。

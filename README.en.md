@@ -191,6 +191,11 @@ Agentic models from the LongCat API platform, accessed via Anthropic SDK mode.
 - **Model list**: See [config/clinepass.json](src/providers/config/clinepass.json).
 - **Usage tracking**: Status bar displays plan cycle remaining usage, reset time, and total utilization.
 
+### [**CommandCode**](https://commandcode.ai/) - Coding CLI and model subscription focused on open models
+
+- **Model list**: See [config/commandcode.json](src/providers/config/commandcode.json) ([GOAT Plan](https://commandcode.ai/docs/plans/goat)).
+- **Usage tracking**: Status bar displays plan cycle remaining usage, reset time, and account balance.
+
 ### OAuth Coding Assistant Providers
 
 > ⚠️ **Risk Warning**: The following providers access APIs by simulating OAuth authentication of official CLI tools. **This may violate third-party terms of service and carries the risk of account bans.** Use only if you are fully informed and voluntarily accept the risks.

@@ -2,6 +2,30 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.27.9] - 2026-08-29
+
+### 新增
+
+- **新增 CommandCode 提供商**：接入 [CommandCode](https://commandcode.ai/) [GOAT Plan](https://commandcode.ai/docs/plans/goat) 套餐模型，统一使用 OpenAI 兼容端点，支持 `gcmp.commandcode.setApiKey` 密钥管理。
+- **CommandCode 用量查询**：状态栏与 API Key 管理面板支持余额与限频查询，无窗口限额的密钥（如 Provider plan）自动退化为纯余额展示。
+
+### 变更
+
+- **Anthropic 兼容端点优化**：`sdkMode=anthropic` 时若 baseUrl 以 `/v1` 结尾自动去除，避免请求路径重复。
+
+---
+
+### Added
+
+- **New CommandCode provider**: Integrated the [CommandCode](https://commandcode.ai/) [GOAT Plan](https://commandcode.ai/docs/plans/goat) models via the OpenAI-compatible endpoint, with API key management through `gcmp.commandcode.setApiKey`.
+- **CommandCode usage tracking**: The status bar and the API key management panel now support balance and rate-limit queries; keys without window limits (e.g. Provider plan) fall back to balance-only display.
+
+### Changed
+
+- **Anthropic endpoint compatibility**: When `sdkMode=anthropic`, a baseUrl ending in `/v1` is now trimmed automatically to avoid duplicated request paths.
+
+---
+
 ## [0.27.8] - 2026-08-28
 
 ### 新增
