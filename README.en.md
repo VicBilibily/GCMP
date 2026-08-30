@@ -91,6 +91,7 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 - **Model list**: See [config/zhipu.json](src/providers/config/zhipu.json) (Coding Plan / PayGo / Free models).
 - **Plans**: [Coding Plan](https://bigmodel.cn/glm-coding).
     - **Usage tracking**: Status bar displays remaining cycle quota for GLM Coding Plan.
+- **Balance query**: Status bar displays account balance alongside usage; tooltip and config panel show total recharge, granted amount, total spend, and available balance.
 - **International site**: Supports switching to the [international site (z.ai)](https://z.ai/model-api).
 - **Search**: Integrated `Web Search MCP` and `Web Search API`, supports `#zhipuWebSearch` for web searches.
     - `Web Search MCP` mode is enabled by default. Coding Plan includes: Lite (100/month), Pro (1,000/month), Max (4,000/month).

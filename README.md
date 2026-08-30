@@ -91,6 +91,7 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 - **模型列表**：详见 [config/zhipu.json](src/providers/config/zhipu.json)（Coding Plan / 按量计费 / 免费模型）。
 - **套餐类型**：[Coding Plan](https://bigmodel.cn/glm-coding)。
     - **用量查询**：已支持状态栏显示周期剩余用量，可查看 GLM Coding Plan 用量信息。
+- **余额查询**：已支持状态栏显示账户余额，可与用量查询同时显示；tooltip 与配置面板可查看累计充值、赠送金额、消费金额、可用余额明细。
 - **国际站点**：已支持 [国际站(z.ai)](https://z.ai/model-api) 切换设置。
 - **搜索功能**：集成 `联网搜索MCP` 及 `Web Search API`，支持 `#zhipuWebSearch` 进行联网搜索。
     - 默认启用 `联网搜索MCP` 模式，编程套餐支持：Lite(100次/月)、Pro(1000次/月)、Max(4000次/月)。
