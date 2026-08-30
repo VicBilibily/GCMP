@@ -17,7 +17,6 @@
         "minimax",
         "moonshot",
         "deepseek",
-        "streamlake",
         "dashscope",
         "tencent",
         "Xiaomi MiMo",
@@ -33,7 +32,6 @@
         "火山方舟",
         "月之暗面",
         "深度求索",
-        "快手万擎",
         "阿里云百炼",
         "腾讯云",
         "百度千帆",
@@ -70,7 +68,6 @@
         "onLanguageModelProvider:gcmp.moonshot",
         "onLanguageModelProvider:gcmp.deepseek",
         "onLanguageModelProvider:gcmp.dashscope",
-        "onLanguageModelProvider:gcmp.streamlake",
         "onLanguageModelProvider:gcmp.volcengine",
         "onLanguageModelProvider:gcmp.tencent",
         "onLanguageModelProvider:gcmp.xiaomimimo",
@@ -165,11 +162,6 @@
             {
                 "command": "gcmp.volcengine.configWizard",
                 "title": "%command.volcengine.configWizard%",
-                "category": "GCMP"
-            },
-            {
-                "command": "gcmp.streamlake.setApiKey",
-                "title": "%command.streamlake.setApiKey%",
                 "category": "GCMP"
             },
             {
@@ -947,11 +939,6 @@
                 "vendor": "gcmp.dashscope",
                 "displayName": "GCMP · AliDashScope",
                 "managementCommand": "gcmp.dashscope.configWizard"
-            },
-            {
-                "vendor": "gcmp.streamlake",
-                "displayName": "GCMP · StreamLake",
-                "managementCommand": "gcmp.streamlake.setApiKey"
             },
             {
                 "vendor": "gcmp.volcengine",

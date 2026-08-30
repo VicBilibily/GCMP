@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/License-MIT-orange)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
 通过集成国内主流原生大模型提供商，为开发者提供更加丰富、更适合本土需求的 AI 编程助手选择。
-目前已内置支持 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、快手万擎、火山方舟、腾讯云、Xiaomi MiMo、百度千帆、阶跃星辰、蚂蚁百灵、讯飞星辰、LongCat 等**原生大模型**提供商。
+目前已内置支持 智谱AI、MiniMax、MoonshotAI、DeepSeek、阿里云百炼、火山方舟、腾讯云、Xiaomi MiMo、百度千帆、阶跃星辰、蚂蚁百灵、讯飞星辰、LongCat 等**原生大模型**提供商。
 此外，扩展插件已适配支持 OpenAI 与 Anthropic 的 API 接口兼容模型，支持自定义接入任何提供兼容接口的第三方**云服务模型**。
 
 ## 🚀 快速开始
@@ -122,10 +122,6 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 
 - **模型列表**：详见 [config/dashscope.json](src/providers/config/dashscope.json)（[Token Plan 团队版](https://www.aliyun.com/benefit/scene/tokenplan) / [Token Plan 个人版](https://bailian.console.aliyun.com/cn-beijing?tab=plan#/efm/subscription/overview) / 按量计费）。
 - **搜索功能**：集成 [联网搜索MCP](https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=3023217) 工具（2000次/月），支持通过 `#bailianWebSearch` 进行联网搜索。（使用[阿里云百炼ApiKey](https://bailian.console.aliyun.com/cn-beijing/?tab=model#/api-key)）
-
-### [**快手万擎**](https://streamlake.com/product/kat-coder) - StreamLake
-
-- **模型列表**：详见 [config/streamlake.json](src/providers/config/streamlake.json)（[KwaiKAT Coding Plan](https://streamlake.com/marketing/coding-plan) / KAT-Coder 系列）。
 
 ### [**火山方舟**](https://www.volcengine.com/product/ark) - Volcengine
 

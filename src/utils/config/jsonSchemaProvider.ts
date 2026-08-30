@@ -1549,7 +1549,6 @@ export class JsonSchemaProvider {
             )
         };
 
-        // 为 streamlake 的 model 字段添加正则验证
         const modelProperty: JSONSchema7 = {
             type: 'string',
             minLength: 1,
@@ -1558,13 +1557,6 @@ export class JsonSchemaProvider {
                 '覆盖API请求时使用的模型名称或端点ID'
             )
         };
-        if (providerKey === 'streamlake') {
-            modelProperty.pattern = '^ep-[a-zA-Z0-9]{6}-\\d{19}$';
-            modelProperty.description = t(
-                'Must match the format ep-xxxxxx-xxxxxxxxxxxxxxxxxxx',
-                '必须符合格式 ep-xxxxxx-xxxxxxxxxxxxxxxxxxx'
-            );
-        }
 
         return {
             type: 'object',

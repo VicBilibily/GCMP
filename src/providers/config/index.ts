@@ -5,7 +5,6 @@ import volcengine from './volcengine.json';
 import minimax from './minimax.json';
 import moonshot from './moonshot.json';
 import deepseek from './deepseek.json';
-import streamlake from './streamlake.json';
 import dashscope from './dashscope.json';
 import tencent from './tencent.json';
 import xiaomimimo from './xiaomimimo.json';
@@ -27,7 +26,6 @@ const providers = {
     minimax,
     moonshot,
     deepseek,
-    streamlake,
     dashscope,
     tencent,
     xiaomimimo,

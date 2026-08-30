@@ -6,7 +6,7 @@ English | **[中文](README.md)**
 [![License](https://img.shields.io/badge/License-MIT-orange)](https://github.com/VicBilibily/GCMP/blob/main/LICENSE)
 
 Integrates leading Chinese AI model providers into GitHub Copilot Chat, giving developers richer, more locally-tuned AI coding assistant options.
-Currently supports **ZhipuAI**, **MiniMax**, **MoonshotAI**, **DeepSeek**, **Alibaba Cloud DashScope**, **StreamLake**, **Volcengine**, **Tencent Cloud**, **Xiaomi MiMo**, **Baidu Qianfan**, **StepFun**, **Ant Ling**, **XunFei Astron**, and **LongCat** as native providers.
+Currently supports **ZhipuAI**, **MiniMax**, **MoonshotAI**, **DeepSeek**, **Alibaba Cloud DashScope**, **Volcengine**, **Tencent Cloud**, **Xiaomi MiMo**, **Baidu Qianfan**, **StepFun**, **Ant Ling**, **XunFei Astron**, and **LongCat** as native providers.
 Additionally, the extension supports any OpenAI or Anthropic API-compatible models via the **Compatible Provider**.
 
 ## 🚀 Quick Start
@@ -122,10 +122,6 @@ VS Code uses lightweight background models for **utility tasks** like title gene
 
 - **Model list**: See [config/dashscope.json](src/providers/config/dashscope.json) ([Token Plan (Team)](https://www.aliyun.com/benefit/scene/tokenplan) / [Token Plan (Personal)](https://bailian.console.aliyun.com/cn-beijing?tab=plan#/efm/subscription/overview) / PayGo).
 - **Search**: Integrated [Web Search MCP](https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=3023217) tool (2,000/month), supports `#bailianWebSearch`. (Uses [DashScope API Key](https://bailian.console.aliyun.com/cn-beijing/?tab=model#/api-key))
-
-### [**StreamLake**](https://streamlake.com/product/kat-coder) - Kwai WanQing
-
-- **Model list**: See [config/streamlake.json](src/providers/config/streamlake.json) ([KwaiKAT Coding Plan](https://streamlake.com/marketing/coding-plan) / KAT-Coder series).
 
 ### [**Volcengine**](https://www.volcengine.com/product/ark)
 

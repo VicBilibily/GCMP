@@ -102,7 +102,6 @@ export const KNOWN_KEY_LABELS: Record<string, string> = {
     moonshot: 'MoonshotAI',
     kimi: 'Kimi',
     deepseek: 'DeepSeek',
-    streamlake: 'StreamLake',
     minimax: 'MiniMax',
     dashscope: 'AliDashScope',
     tencent: 'Tencent',
