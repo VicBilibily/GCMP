@@ -2,6 +2,28 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.27.10] - 2026-08-30
+
+### 新增
+
+- **智谱余额查询**：配额查询新增账户余额明细，状态栏可与用量查询同时显示账户余额；tooltip 与 API Key 管理面板可查看累计充值、赠送金额、消费金额、可用余额明细。
+
+### 变更
+
+- **移除 StreamLake 提供商**：移除 StreamLake 提供商接入与相关模型、密钥配置。
+
+---
+
+### Added
+
+- **Zhipu balance query**: Quota queries now include account balance details; the status bar can display the balance alongside usage, and the tooltip and API key management panel show total top-up, bonus credits, amount spent, and available balance.
+
+### Changed
+
+- **Removed StreamLake provider**: Dropped the StreamLake provider integration along with its models and key configuration.
+
+---
+
 ## [0.27.9] - 2026-08-29
 
 ### 新增

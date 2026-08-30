@@ -64,11 +64,11 @@ export function formatLocaleDateTime(date: Date): string {
 }
 
 export function formatQuotaDateForSlot(slot: string, date: Date): string {
-    if (slot === 'kimi' || slot === 'grok' || slot === 'opencode') {
+    if (slot === 'kimi' || slot === 'grok' || slot === 'opencode' || slot === 'codex') {
         return formatDateTimeSlash(date);
     }
 
-    if (slot === 'moonshot' || slot === 'deepseek' || slot === 'codex') {
+    if (slot === 'moonshot' || slot === 'deepseek') {
         return date.toLocaleString(isChineseLocale() ? 'zh-CN' : 'en-US');
     }
 

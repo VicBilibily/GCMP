@@ -11,7 +11,7 @@ import { CodexCliAuth } from '../cli/auth/codexCliAuth';
 import { t } from '../utils/runtime/l10n';
 import type { QuotaTable } from './types';
 import { ConfigManager } from '../utils/config/configManager';
-import { formatCompactCountdown, formatQuotaDateForSlot } from './format';
+import { formatCompactCountdown, formatLocaleDateTime, formatQuotaDateForSlot } from './format';
 
 /** ChatGPT 余量查询接口 */
 const USAGE_QUERY_URL = 'https://chatgpt.com/backend-api/wham/usage';
@@ -222,7 +222,7 @@ export async function queryCodexUsage(): Promise<{ success: boolean; data?: Chat
             codeReviewUsedPercent = parsedResponse.code_review_rate_limit.primary_window.used_percent;
         }
 
-        const lastUpdated = formatQuotaDateForSlot('codex', new Date());
+        const lastUpdated = formatLocaleDateTime(new Date());
 
         StatusLogger.debug('[CodexUsageQuery] Usage query succeeded');
 
