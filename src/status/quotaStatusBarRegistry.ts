@@ -42,7 +42,9 @@ export function createZhipuStatusBar(): ProviderQuotaStatusBar<ZhipuStatusData> 
             icon: '$(gcmp-zhipu)'
         },
         adapter: zhipuStatusAdapter,
-        title: () => t('GLM Coding Plan Usage', 'GLM Coding Plan 使用情况')
+        title: () => t('GLM Coding Plan Usage', 'GLM Coding Plan 使用情况'),
+        titleOf: data =>
+            data.limits.length === 0 && data.account ? t('Zhipu Account Balance', '智谱用户账户余额') : undefined
     });
 }
 
