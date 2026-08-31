@@ -111,12 +111,23 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
             state.addFormDraft = null;
             state.editFormDraft = null;
             state.reloadUsageOnNextStates = false;
+            if (msg.initialProvider) {
+                state.selectedProvider = msg.initialProvider;
+            }
             if (msg.states.every(s => s.slots.every(slot => slot.rows.length === 0))) {
                 const firstSlot = msg.states[0]?.slots[0];
                 if (firstSlot) {
                     state.addFormSlot = firstSlot.slot;
                 }
             }
+            render();
+            requestUsageForSelection();
+            return;
+        case 'selectProvider':
+            state.selectedProvider = msg.provider;
+            state.addFormSlot = null;
+            state.editFormKey = null;
+            clearMessage();
             render();
             requestUsageForSelection();
             return;

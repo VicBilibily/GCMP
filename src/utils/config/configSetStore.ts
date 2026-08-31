@@ -441,3 +441,20 @@ export class ConfigSetStore {
         });
     }
 }
+
+/**
+ * 构建状态栏 tooltip 中的"点击进入 API Key 管理页"命令链接。
+ * 仅当槽位配置了多套配置（多于 1 套）时返回链接，否则返回 undefined。
+ * 独立于 status 层，供状态栏在渲染 tooltip 时按需生成可点击链接。
+ */
+export function buildApiKeySwitchLink(slot: string): string | undefined {
+    try {
+        if (ConfigSetStore.list(slot).length <= 1) {
+            return undefined;
+        }
+    } catch {
+        return undefined;
+    }
+    const args = JSON.stringify([slot]);
+    return `[${t('Click to open API Key manager', '点击进入 API Key 管理页')}](command:gcmp.configSet.switchKey?${args})`;
+}

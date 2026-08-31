@@ -545,10 +545,18 @@ export async function activate(context: vscode.ExtensionContext) {
         registerCliAuthCommands(context);
         Logger.trace(`CLI authentication commands registered (${Date.now() - stepStartTime}ms)`);
 
-        // 步骤7.5: 注册提供商配置集管理面板（WebviewPanel，替代旧 QuickPick 命令）
+        // 配置集存储需早于状态栏初始化，避免 tooltip 首次渲染时访问未初始化上下文
         ConfigSetStore.initialize(context);
+
+        // 步骤7.5: 注册提供商配置集管理面板（WebviewPanel，替代旧 QuickPick 命令）
         context.subscriptions.push(
             vscode.commands.registerCommand('gcmp.configSet.manage', () => ConfigSetManagerPanel.createAndShow(context))
+        );
+        // 状态栏"切换 API Key"入口：带 slot 参数打开面板并默认定位到对应 Provider
+        context.subscriptions.push(
+            vscode.commands.registerCommand('gcmp.configSet.switchKey', (slot?: string) =>
+                ConfigSetManagerPanel.createAndShow(context, slot)
+            )
         );
         Logger.trace('Config set manager registered');
 

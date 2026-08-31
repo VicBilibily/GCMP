@@ -252,7 +252,10 @@ export type HostMessage =
           states: ProviderState[];
           cliProviders: CliProviderOption[];
           syncState: GistSyncState;
+          /** 打开面板时默认选中的 provider（来自状态栏切换命令） */
+          initialProvider?: string;
       }
+    | { command: 'selectProvider'; provider: string }
     | { command: 'states'; states: ProviderState[] }
     | { command: 'cliProviders'; cliProviders: CliProviderOption[] }
     | { command: 'cliUsage'; provider: string; usage: CliUsageState }

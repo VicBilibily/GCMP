@@ -14,6 +14,7 @@ import { ConfigSetSyncHost } from './syncHost';
 import { StateHost } from './stateHost';
 import { UsageHost } from './usageHost';
 import { CrudHost } from './crudHost';
+import { findOwnerProviderKey } from '../../utils/config/configSetCommands';
 import type { HostMessage, WebViewMessage, PanelContext } from './types';
 import { sanitizeWebViewMessage } from './types';
 
@@ -29,14 +30,21 @@ export class ConfigSetManagerPanel implements PanelContext {
     /** 面板级订阅：随面板 dispose 清理，不挂 context.subscriptions 累积 */
     private panelDisposables: vscode.Disposable[] = [];
 
-    private constructor(private context: vscode.ExtensionContext) {}
+    private constructor(
+        private context: vscode.ExtensionContext,
+        private readonly initialProvider?: string
+    ) {}
 
-    static createAndShow(context: vscode.ExtensionContext): void {
+    static createAndShow(context: vscode.ExtensionContext, initialSlot?: string): void {
+        const provider = initialSlot ? findOwnerProviderKey(initialSlot) : undefined;
         if (ConfigSetManagerPanel.currentPanel) {
             ConfigSetManagerPanel.currentPanel.panel?.reveal(vscode.ViewColumn.Beside);
+            if (provider) {
+                ConfigSetManagerPanel.currentPanel.post({ command: 'selectProvider', provider });
+            }
             return;
         }
-        const instance = new ConfigSetManagerPanel(context);
+        const instance = new ConfigSetManagerPanel(context, provider);
         instance.show();
     }
 
@@ -276,7 +284,15 @@ export class ConfigSetManagerPanel implements PanelContext {
         const states = await this.stateHost.buildStates();
         const cliProviders = buildCliProviderPlaceholders();
         const syncState = await this.syncHost.buildSyncState();
-        this.post({ command: 'init', locale: vscode.env.language, providers, states, cliProviders, syncState });
+        this.post({
+            command: 'init',
+            locale: vscode.env.language,
+            providers,
+            states,
+            cliProviders,
+            syncState,
+            initialProvider: this.initialProvider
+        });
         void this.refreshCliProviders();
         void this.maybePromptLegacyGistMigration();
     }

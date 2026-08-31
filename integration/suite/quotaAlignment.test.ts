@@ -12,11 +12,84 @@ import {
 } from '../../src/quota/statusAdapters';
 import { ChatGPTStatusBar } from '../../src/status/chatgptStatusBar';
 import { ProviderQuotaStatusBar } from '../../src/status/providerQuotaStatusBar';
+import { ConfigSetStore } from '../../src/utils/config/configSetStore';
+
+function createMemento(): vscode.Memento {
+    const store = new Map<string, unknown>();
+    return {
+        get<T>(key: string, defaultValue?: T): T {
+            return (store.has(key) ? store.get(key) : defaultValue) as T;
+        },
+        keys(): readonly string[] {
+            return Array.from(store.keys());
+        },
+        async update(key: string, value: unknown): Promise<void> {
+            if (value === undefined) {
+                store.delete(key);
+                return;
+            }
+            store.set(key, value);
+        }
+    };
+}
+
+function createSecretStorage(): vscode.SecretStorage {
+    const store = new Map<string, string>();
+    const emitter = new vscode.EventEmitter<vscode.SecretStorageChangeEvent>();
+    return {
+        keys(): Thenable<string[]> {
+            return Promise.resolve(Array.from(store.keys()));
+        },
+        get(key: string): Thenable<string | undefined> {
+            return Promise.resolve(store.get(key));
+        },
+        store(key: string, value: string): Thenable<void> {
+            store.set(key, value);
+            emitter.fire({ key });
+            return Promise.resolve();
+        },
+        delete(key: string): Thenable<void> {
+            store.delete(key);
+            emitter.fire({ key });
+            return Promise.resolve();
+        },
+        onDidChange: emitter.event
+    };
+}
+
+function createExtensionContext(): vscode.ExtensionContext {
+    return {
+        globalState: createMemento(),
+        workspaceState: createMemento(),
+        secrets: createSecretStorage(),
+        subscriptions: [],
+        extensionMode: vscode.ExtensionMode.Test,
+        extensionUri: vscode.Uri.file('v:/GitHub/Copilots/CopilotModel/GCMP'),
+        storageUri: undefined,
+        storagePath: undefined,
+        globalStorageUri: vscode.Uri.file('v:/tmp/gcmp-tests/global'),
+        globalStoragePath: 'v:/tmp/gcmp-tests/global',
+        logUri: vscode.Uri.file('v:/tmp/gcmp-tests/log'),
+        logPath: 'v:/tmp/gcmp-tests/log',
+        extensionPath: 'v:/GitHub/Copilots/CopilotModel/GCMP',
+        environmentVariableCollection: {} as vscode.GlobalEnvironmentVariableCollection,
+        asAbsolutePath(relativePath: string): string {
+            return relativePath;
+        },
+        extension: {} as vscode.Extension<unknown>,
+        languageModelAccessInformation: {} as vscode.LanguageModelAccessInformation,
+        storagePathUri: undefined
+    } as unknown as vscode.ExtensionContext;
+}
 
 /** 暴露 protected 渲染方法的测试壳 */
 class TestStatusBar<T> extends ProviderQuotaStatusBar<T> {
     renderText(data: T): string {
         return this.getDisplayText(data);
+    }
+
+    renderTooltip(data: T): vscode.MarkdownString {
+        return this.generateTooltip(data);
     }
 }
 
@@ -92,6 +165,62 @@ suite('quota alignment', () => {
 
         assert.equal(clinepassStatusAdapter.summary(data), '60% (88%)');
         assert.equal(bar.renderText(data), '$(gcmp-cline) 60% (88%)');
+    });
+
+    test('Provider quota tooltip does not crash before config set store initialization', () => {
+        const data = {} as MiniMaxStatusData;
+        const bar = new TestStatusBar({
+            config: {
+                id: 'test.minimax.tooltip',
+                name: 'Test MiniMax Tooltip',
+                alignment: vscode.StatusBarAlignment.Right,
+                priority: 98,
+                refreshCommand: 'gcmp.refreshMiniMaxUsage',
+                apiKeyProvider: 'minimax-token',
+                cacheKeyPrefix: 'minimax',
+                logPrefix: 'MiniMax Status Bar',
+                icon: '$(gcmp-minimax)'
+            },
+            adapter: {
+                query: async () => data,
+                summary: () => 'ready',
+                tables: () => []
+            },
+            title: () => 'MiniMax Token Plan Usage'
+        });
+
+        assert.doesNotThrow(() => bar.renderTooltip(data));
+    });
+
+    test('Provider quota tooltip shows switch link after config set store initialization', async () => {
+        const context = createExtensionContext();
+        ConfigSetStore.initialize(context);
+        await ConfigSetStore.add('minimax-token', { id: 'a', label: 'A' }, 'key-a');
+        await ConfigSetStore.add('minimax-token', { id: 'b', label: 'B' }, 'key-b');
+
+        const data = {} as MiniMaxStatusData;
+        const bar = new TestStatusBar({
+            config: {
+                id: 'test.minimax.tooltip.link',
+                name: 'Test MiniMax Tooltip Link',
+                alignment: vscode.StatusBarAlignment.Right,
+                priority: 98,
+                refreshCommand: 'gcmp.refreshMiniMaxUsage',
+                apiKeyProvider: 'minimax-token',
+                cacheKeyPrefix: 'minimax',
+                logPrefix: 'MiniMax Status Bar',
+                icon: '$(gcmp-minimax)'
+            },
+            adapter: {
+                query: async () => data,
+                summary: () => 'ready',
+                tables: () => []
+            },
+            title: () => 'MiniMax Token Plan Usage'
+        });
+
+        const tooltip = bar.renderTooltip(data).value;
+        assert.match(tooltip, /command:gcmp\.configSet\.switchKey/);
     });
 
     test('ChatGPT quota rendering tolerates invalid numeric windows', () => {

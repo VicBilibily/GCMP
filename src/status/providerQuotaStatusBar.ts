@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { ProviderStatusBarItem, StatusBarItemConfig } from './providerStatusBarItem';
 import { StatusLogger } from '../utils/runtime/statusLogger';
 import { t } from '../utils/runtime/l10n';
+import { buildApiKeySwitchLink } from '../utils/config/configSetStore';
 import type { QuotaStatusAdapter } from '../quota/statusAdapters';
 import type { QuotaTable } from '../quota/types';
 
@@ -47,6 +48,8 @@ export class ProviderQuotaStatusBar<TRaw> extends ProviderStatusBarItem<TRaw> {
     protected generateTooltip(data: TRaw): vscode.MarkdownString {
         const md = new vscode.MarkdownString();
         md.supportHtml = true;
+        // 仅放行切换命令：配额表格内容来自 provider 响应，不能整体 trusted
+        md.isTrusted = { enabledCommands: ['gcmp.configSet.switchKey'] };
         const heading = this.titleOf?.(data) ?? this.titleText();
         md.appendMarkdown(`#### ${heading}\n\n`);
 
@@ -73,6 +76,13 @@ export class ProviderQuotaStatusBar<TRaw> extends ProviderStatusBarItem<TRaw> {
         if (lastUpdated) {
             md.appendMarkdown('\n---\n');
             md.appendMarkdown(`**${t('Last updated', '最后更新')}** ${lastUpdated}\n`);
+        }
+
+        const slot = this.config.apiKeyProvider;
+        const switchLink = slot ? buildApiKeySwitchLink(slot) : undefined;
+        if (switchLink) {
+            md.appendMarkdown('\n---\n');
+            md.appendMarkdown(`\n${switchLink}\n`);
         }
 
         md.appendMarkdown('\n---\n');

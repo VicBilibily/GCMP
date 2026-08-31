@@ -12,7 +12,7 @@ import { CliAuthFactory } from '../../cli/auth/cliAuthFactory';
 import { ApiKeyManager } from './apiKeyManager';
 import { CompatibleModelManager } from './compatibleModelManager';
 import { ConfigSetItem, ConfigSetStore } from './configSetStore';
-import { StatusBarManager } from '../../status';
+import { StatusBarManager } from '../../status/statusBarManager';
 import { t } from '../runtime/l10n';
 import { Logger } from '../runtime/logger';
 import { KNOWN_KEY_LABELS } from '../../sync/gistSyncService';
