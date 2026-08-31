@@ -19,6 +19,8 @@ export interface ProviderQuotaStatusBarOptions<TRaw> {
     adapter: QuotaStatusAdapter<TRaw>;
     /** Tooltip 标题（延迟求值以跟随语言设置） */
     title: () => string;
+    /** 数据驱动的动态标题（如订阅套餐名）；提供时优先于 title 作为 tooltip 主标题 */
+    titleOf?: (data: TRaw) => string | undefined;
     /** 从数据提取最后更新时间（提供时在 tooltip 尾部展示） */
     lastUpdatedOf?: (data: TRaw) => string | undefined;
 }
@@ -26,12 +28,14 @@ export interface ProviderQuotaStatusBarOptions<TRaw> {
 export class ProviderQuotaStatusBar<TRaw> extends ProviderStatusBarItem<TRaw> {
     private readonly adapter: QuotaStatusAdapter<TRaw>;
     private readonly titleText: () => string;
+    private readonly titleOf?: (data: TRaw) => string | undefined;
     private readonly lastUpdatedOf?: (data: TRaw) => string | undefined;
 
     constructor(options: ProviderQuotaStatusBarOptions<TRaw>) {
         super(options.config);
         this.adapter = options.adapter;
         this.titleText = options.title;
+        this.titleOf = options.titleOf;
         this.lastUpdatedOf = options.lastUpdatedOf;
     }
 
@@ -43,7 +47,8 @@ export class ProviderQuotaStatusBar<TRaw> extends ProviderStatusBarItem<TRaw> {
     protected generateTooltip(data: TRaw): vscode.MarkdownString {
         const md = new vscode.MarkdownString();
         md.supportHtml = true;
-        md.appendMarkdown(`#### ${this.titleText()}\n\n`);
+        const heading = this.titleOf?.(data) ?? this.titleText();
+        md.appendMarkdown(`#### ${heading}\n\n`);
 
         const tables = this.adapter.tables(data);
         for (const [index, table] of tables.entries()) {

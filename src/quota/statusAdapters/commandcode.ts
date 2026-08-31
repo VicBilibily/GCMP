@@ -1,14 +1,15 @@
 /*---------------------------------------------------------------------------------------------
  *  CommandCode 状态栏适配器
+ *  套餐名由状态栏 titleOf 作为 tooltip 主标题，使用情况表格照常跟随。
  *--------------------------------------------------------------------------------------------*/
 
 import { t, type QuotaStatusAdapter, type QuotaTable } from './types';
 import { formatCompactCountdown, formatDateTimeSlash, formatLocaleDateTime } from '../format';
 import {
     buildCommandCodeUsageSummary,
+    buildCommandCodeBalanceRow,
+    buildCommandCodeWindowRows,
     fetchCommandCodeUsageData,
-    getCommandCodeWindowLabel,
-    remainingPercent,
     type CommandCodeUsageData
 } from '../providers/commandcode';
 
@@ -23,36 +24,14 @@ export const commandcodeStatusAdapter: QuotaStatusAdapter<CommandCodeStatusData>
     },
     summary: data => buildCommandCodeUsageSummary(data),
     tables: data => {
-        const windowRows: string[][] = [];
-        if (data.fiveHour) {
-            windowRows.push([
-                getCommandCodeWindowLabel('fiveHour'),
-                `${remainingPercent(data.fiveHour.used, data.fiveHour.cap).toFixed(0)}%`,
-                formatCompactCountdown(data.fiveHour.resetAt),
-                data.fiveHour.resetAt ? formatDateTimeSlash(new Date(data.fiveHour.resetAt)) : '—'
-            ]);
-        }
-        if (data.weekly) {
-            windowRows.push([
-                getCommandCodeWindowLabel('weekly'),
-                `${remainingPercent(data.weekly.used, data.weekly.cap).toFixed(0)}%`,
-                formatCompactCountdown(data.weekly.resetAt),
-                data.weekly.resetAt ? formatDateTimeSlash(new Date(data.weekly.resetAt)) : '—'
-            ]);
-        }
-
         const balanceColumns = [
             t('Monthly', '每月余额'),
             t('Purchased', '充值余额'),
             t('Granted', '赠送余额'),
             t('Available', '可用余额')
         ];
-        const balanceRow = [
-            `$${data.monthlyCredits.toFixed(2)}`,
-            data.purchasedCredits > 0 ? `$${data.purchasedCredits.toFixed(2)}` : '—',
-            data.freeCredits > 0 ? `$${data.freeCredits.toFixed(2)}` : '—',
-            `$${data.totalCredits.toFixed(2)}`
-        ];
+        const windowRows = buildCommandCodeWindowRows(data, formatCompactCountdown, formatDateTimeSlash, '—');
+        const balanceRow = buildCommandCodeBalanceRow(data, '—');
 
         const tables: QuotaTable[] = [];
         if (windowRows.length > 0) {

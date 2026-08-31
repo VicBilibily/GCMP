@@ -7,6 +7,7 @@
 import * as vscode from 'vscode';
 import { ProviderQuotaStatusBar } from './providerQuotaStatusBar';
 import { t } from '../utils/runtime/l10n';
+import { humanizePlanId } from '../quota/providers/commandcode';
 import {
     clinepassStatusAdapter,
     type ClinePassStatusData,
@@ -179,6 +180,7 @@ export function createCommandCodeStatusBar(): ProviderQuotaStatusBar<CommandCode
         },
         adapter: commandcodeStatusAdapter,
         title: () => t('CommandCode Usage', 'CommandCode 使用情况'),
+        titleOf: data => (data.planId ? humanizePlanId(data.planId) : undefined),
         lastUpdatedOf: data => data.lastUpdated
     });
 }
