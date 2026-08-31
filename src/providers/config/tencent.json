@@ -19,6 +19,21 @@
             "tokenPricing": { "USD": [0.132, 0.528, 0.033], "RMB": [1, 4, 0.25] }
         },
         {
+            "id": "hy4-preview-token-plan",
+            "name": "Hy4 Preview (TokenPlan)",
+            "tooltip": "腾讯云 Token Plan 专属接入点中的 Hy4 Preview。",
+            "provider": "tencent-token",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic",
+            "model": "hy4-preview",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "thinking": ["enabled", "disabled"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": { "USD": [0.834, 2.501, 0.042], "RMB": [6, 18, 0.3] }
+        },
+        {
             "id": "deepseek-v4-flash-202605-token-plan",
             "name": "DeepSeek-V4-Flash (TokenPlan)",
             "tooltip": "腾讯云 Token Plan 专属接入点中的 DeepSeek-V4-Flash 正式版 原厂直供。",

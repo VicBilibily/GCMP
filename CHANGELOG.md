@@ -2,6 +2,28 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.27.12] - 2026-08-31
+
+### 新增
+
+- **CommandCode 状态栏显示订阅套餐**：配额查询新增当前订阅套餐信息（soft-fail 获取，失败不影响主查询），状态栏 tooltip 主标题动态显示套餐名称（GOAT / Go / Pro / Max 10× / Max 20× / Team Pro）。
+- **状态栏 tooltip 新增 API Key 切换链接**：配置了多套配置的提供商，tooltip 底部显示"点击进入 API Key 管理页"链接，点击可打开配置集管理面板并自动定位到对应提供商。
+
+### 修复
+
+- **视觉模型选择向导取消判定重构**：向导改为返回布尔结果，取消/关闭时抛出取消错误，替代原先通过对比配置判断是否取消的方式，避免关闭向导后误判为已选择模型。[#390](https://github.com/VicBilibily/GCMP/issues/390)
+
+---
+
+### Added
+
+- **CommandCode subscription plan in status bar**: The quota query now fetches the current subscription plan (soft-fail, never blocks the main query), and the status bar tooltip heading shows the plan name dynamically (GOAT / Go / Pro / Max 10× / Max 20× / Team Pro).
+- **API Key switch link in status bar tooltip**: For providers configured with multiple key sets, the tooltip now shows a "Click to open API Key manager" link that opens the config set manager and auto-locates the provider.
+
+### Fixed
+
+- **Vision model wizard cancellation detection**: The selection wizard now returns a boolean result and throws a cancellation error when dismissed, replacing the previous config-comparison heuristic to avoid misjudging a dismissed wizard as a selection. [#390](https://github.com/VicBilibily/GCMP/issues/390)
+
 ## [0.27.11] - 2026-08-31
 
 ### 新增
@@ -28,8 +50,6 @@
 - **CommandCode model naming shortened**: Model names are simplified from "(CommandCode)" to "(CmdC)".
 - **DashScope Qwen3.8-Flash reasoning effort**: The standard / TokenPlan team / TokenPlan personal variants replace the thinking toggle with reasoning effort selection, defaulting to xhigh.
 
----
-
 ## [0.27.10] - 2026-08-30
 
 ### 新增
@@ -49,8 +69,6 @@
 ### Changed
 
 - **Removed StreamLake provider**: Dropped the StreamLake provider integration along with its models and key configuration.
-
----
 
 ## [0.27.9] - 2026-08-29
 
@@ -74,8 +92,6 @@
 
 - **Anthropic endpoint compatibility**: When `sdkMode=anthropic`, a baseUrl ending in `/v1` is now trimmed automatically to avoid duplicated request paths.
 
----
-
 ## [0.27.8] - 2026-08-28
 
 ### 新增
@@ -91,8 +107,6 @@
 - **New `effort-only` thinkingFormat**: Models can opt into this format to ignore the thinking toggle and pass `reasoningEffort` through as-is (no value mapping), effective for all SDK modes; adapted for OpenAI (including Responses) and Anthropic handlers.
 - **Muse Spark 1.2 Contributor on OpenCode Go**: 1M context with vision input and function calling, using the `effort-only` thinking format (reasoningEffort: high/xhigh/medium/low/minimal). [#386](https://github.com/VicBilibily/GCMP/issues/386)
 - **Hy4 Preview on Tencent Cloud TokenHub**: 1024k context, 960k max input, with deep thinking and function calling support.
-
----
 
 ## [0.27.7] - 2026-08-27
 
@@ -110,8 +124,6 @@
 - **Removed Baidu Qianfan Coding Plan support**: Dropped Coding Plan models (`deepseek-v3.2-coding-plan`, `deepseek-v4-flash-coding-plan`, `deepseek-v4-pro-coding-plan`, `glm-5-coding-plan`, `glm-5.1-coding-plan`, `kimi-k2.5-coding-plan`) and key configuration from Baidu.
 - **DashScope model updates**: Added `qwen3.8-flash` (Token Plan Team / Personal / PayGo).
 
----
-
 ## [0.27.6] - 2026-08-26
 
 ### 变更
@@ -125,8 +137,6 @@
 
 - **Added Zhipu GLM-5.3-Flash**: GLM-5 series' first natively multimodal model with 1M context, image/video/file vision input, and function calling, now available via CodingPlan and OpenCode Go subscriptions, with PayGo pay-as-you-go billing.
 - **Removed legacy models**: Dropped `glm-5v-turbo`, `glm-5-turbo`, `glm-4.7`, `glm-4.6v` (and their PayGo variants) from Zhipu; dropped `glm-5.1` from OpenCode.
-
----
 
 ## [0.27.5] - 2026-08-26
 
