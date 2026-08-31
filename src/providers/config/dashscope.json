@@ -31,7 +31,8 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
+            "reasoningEffort": ["xhigh", "medium", "low", "none"],
+            "reasoningDefault": "xhigh",
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": { "USD": [0.16, 0.47, 0.0116], "RMB": [0.8, 2.7, 0.1] }
         },
@@ -303,7 +304,8 @@
             "contextSize": [1000000, 512000, 400000, 256000, 192000],
             "maxInputTokens": 936000,
             "maxOutputTokens": 64000,
-            "thinking": ["enabled", "disabled"],
+            "reasoningEffort": ["xhigh", "medium", "low", "none"],
+            "reasoningDefault": "xhigh",
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": { "USD": [0.16, 0.47, 0.0116], "RMB": [0.8, 2.7, 0.1] }
         },
@@ -449,7 +451,8 @@
             "maxOutputTokens": 64000,
             "sdkMode": "anthropic",
             "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
-            "thinking": ["enabled", "disabled"],
+            "reasoningEffort": ["xhigh", "medium", "low", "none"],
+            "reasoningDefault": "xhigh",
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": { "USD": [0.16, 0.47, 0.0116], "RMB": [0.8, 2.7, 0.1] }
         },

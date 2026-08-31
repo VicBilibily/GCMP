@@ -2,6 +2,34 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.27.11] - 2026-08-31
+
+### 新增
+
+- **OpenCode Go 新增 Qwen3.8-Flash (Go)**：1M 上下文，支持视觉输入与函数调用。
+- **火山引擎新增 GLM-5.3-Flash**：CodingPlan 与 AgentPlan 套餐同步接入，原生多模态，1M 上下文与函数调用。
+- **Charm Hyper 新增 Qwen3.8 系列模型**：Qwen3.8-2.4T-A95B、Qwen3.8-27B、Qwen3.8-Flash。
+
+### 变更
+
+- **CommandCode 模型命名精简**：模型名称由 "(CommandCode)" 简化为 "(CmdC)"。
+- **DashScope Qwen3.8-Flash 推理强度**：标准版 / TokenPlan 团队版 / 个人版由思考开关改为推理强度选择，默认 xhigh。
+
+---
+
+### Added
+
+- **Qwen3.8-Flash (Go) on OpenCode Go**: 1M context with vision input and function calling.
+- **GLM-5.3-Flash on Volcengine**: Now available on both the CodingPlan and AgentPlan plans, natively multimodal with 1M context and function calling.
+- **Qwen3.8 models on Charm Hyper**: Added Qwen3.8-2.4T-A95B, Qwen3.8-27B and Qwen3.8-Flash.
+
+### Changed
+
+- **CommandCode model naming shortened**: Model names are simplified from "(CommandCode)" to "(CmdC)".
+- **DashScope Qwen3.8-Flash reasoning effort**: The standard / TokenPlan team / TokenPlan personal variants replace the thinking toggle with reasoning effort selection, defaulting to xhigh.
+
+---
+
 ## [0.27.10] - 2026-08-30
 
 ### 新增

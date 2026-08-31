@@ -72,7 +72,7 @@
             "maxInputTokens": 180000,
             "maxOutputTokens": 20000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.86, 2.784, 0, 0.43]
+            "tokenPricing": [0.9, 2.804, 0, 0.45]
         },
         {
             "id": "glm-5.1",
@@ -83,7 +83,7 @@
             "maxOutputTokens": 32000,
             "reasoningEffort": ["max", "high"],
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [1.332, 4.312, 0]
+            "tokenPricing": [1.314, 4.268, 0, 0.657]
         },
         {
             "id": "glm-5.2",
@@ -159,7 +159,7 @@
             "maxInputTokens": 118000,
             "maxOutputTokens": 10000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.598, 0.738, 0, 0.299]
+            "tokenPricing": [0.6066, 1.0386, 0, 0.3033]
         },
         {
             "id": "llama-4-maverick-17b-128e-instruct-fp8",
@@ -169,7 +169,7 @@
             "maxInputTokens": 387000,
             "maxOutputTokens": 43000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.274, 0.8992, 0, 0.137]
+            "tokenPricing": [0.284, 0.934, 0, 0.142]
         },
         {
             "id": "minimax-m2.7",
@@ -179,7 +179,7 @@
             "maxInputTokens": 168000,
             "maxOutputTokens": 32000,
             "capabilities": { "toolCalling": true, "imageInput": false },
-            "tokenPricing": [0.41, 1.52, 0, 0.205]
+            "tokenPricing": [0.404, 1.496, 0, 0.202]
         },
         {
             "id": "minimax-m3",
@@ -257,6 +257,39 @@
             "maxOutputTokens": 64000,
             "capabilities": { "toolCalling": true, "imageInput": true },
             "tokenPricing": [1.2, 4.8, 0.24]
+        },
+        {
+            "id": "qwen3.8-2.4t-a95b",
+            "name": "Qwen3.8-2.4T-A95B (Hyper)",
+            "tooltip": "Charm Hyper — Qwen3.8-2.4T-A95B。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [2.0, 6.0, 0.25]
+        },
+        {
+            "id": "qwen3.8-27b",
+            "name": "Qwen3.8-27B (Hyper)",
+            "tooltip": "Charm Hyper — Qwen3.8-27B。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.5, 3.0, 0.1]
+        },
+        {
+            "id": "qwen3.8-flash",
+            "name": "Qwen3.8-Flash (Hyper)",
+            "tooltip": "Charm Hyper — Qwen3.8-Flash。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.15, 0.47, 0.016]
         },
         {
             "id": "qwen3.8-max",

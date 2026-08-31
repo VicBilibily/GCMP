@@ -237,6 +237,21 @@
             "tokenPricing": [2.0, 6.0, 0.25, 2.5]
         },
         {
+            "id": "qwen3.8-flash-go",
+            "name": "Qwen3.8-Flash (Go)",
+            "model": "qwen3.8-flash",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://opencode.ai/zen/go",
+            "tooltip": "OpenCode Go 套餐 - 通义千问 Qwen3.8 Flash。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["xhigh", "medium", "low", "none"],
+            "reasoningDefault": "xhigh",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.15, 0.47, 0.016, 0.2]
+        },
+        {
             "id": "qwen3.7-max-go",
             "name": "Qwen3.7-Max (Go)",
             "model": "qwen3.7-max",

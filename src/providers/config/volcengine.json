@@ -81,6 +81,21 @@
             "tokenPricing": { "RMB": [8, 28, 2] }
         },
         {
+            "id": "ark-code-glm-5.3-flash",
+            "name": "GLM-5.3-Flash (CodingPlan)",
+            "model": "glm-5.3-flash",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+            "tooltip": "Coding Plan Code模型。GLM-5 系列首个原生多模态模型，采用稀疏注意力与线性注意力混合架构，以极致低成本实现超越 GLM-5.2 的更强智能。原生支持图片、视频、文件等视觉输入，支持 1M 上下文与函数调用。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "reasoningDefault": "max",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [0.8, 2.8, 0.23] }
+        },
+        {
             "id": "ark-code-deepseek-v4-flash",
             "name": "DeepSeek-V4-Flash (CodingPlan)",
             "model": "deepseek-v4-flash",
@@ -222,6 +237,22 @@
             "reasoningEffort": ["high", "max", "low"],
             "capabilities": { "toolCalling": true, "imageInput": false },
             "tokenPricing": { "RMB": [8, 28, 2] }
+        },
+        {
+            "id": "ark-plan-glm-5.3-flash",
+            "name": "GLM-5.3-Flash (AgentPlan)",
+            "model": "glm-5.3-flash",
+            "provider": "volcengine-agent",
+            "sdkMode": "anthropic",
+            "baseUrl": "https://ark.cn-beijing.volces.com/api/plan",
+            "tooltip": "Agent Plan 模型。GLM-5 系列首个原生多模态模型，采用稀疏注意力与线性注意力混合架构，以极致低成本实现超越 GLM-5.2 的更强智能。原生支持图片、视频、文件等视觉输入，支持 1M 上下文与函数调用。",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "reasoningDefault": "max",
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": { "RMB": [0.8, 2.8, 0.23] }
         },
         {
             "id": "ark-plan-kimi-k2.7-code",
