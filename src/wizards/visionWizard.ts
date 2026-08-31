@@ -96,17 +96,19 @@ async function getVisionProviders(): Promise<VisionProviderOption[]> {
     return result;
 }
 
-export async function selectVisionModel(): Promise<void> {
+export async function selectVisionModel(): Promise<boolean> {
     try {
         const config = vscode.workspace.getConfiguration('gcmp');
 
         // 1. 选择支持图像输入的提供商（界面参照 commit 模式）
         const providers = await getVisionProviders();
         if (providers.length === 0) {
-            vscode.window.showWarningMessage(
-                t('No GCMP providers with multimodal models available.', '没有支持多模态模型的 GCMP 提供商。')
+            const message = t(
+                'No GCMP providers with multimodal models available.',
+                '没有支持多模态模型的 GCMP 提供商。'
             );
-            return;
+            vscode.window.showWarningMessage(message);
+            throw new Error(message);
         }
 
         interface ProviderOption extends vscode.QuickPickItem {
@@ -125,7 +127,7 @@ export async function selectVisionModel(): Promise<void> {
             }
         );
         if (!providerPick) {
-            return;
+            return false;
         }
 
         const pickedKey = providerPick.providerKey;
@@ -134,10 +136,12 @@ export async function selectVisionModel(): Promise<void> {
         // 2. 选模型（界面参照 commit 模式，模型已按 imageInput 过滤）
         const visionModels = pickedProvider.models;
         if (visionModels.length === 0) {
-            vscode.window.showWarningMessage(
-                t('No vision-capable models available for this provider.', '该提供商下没有支持视觉的模型。')
+            const message = t(
+                'No vision-capable models available for this provider.',
+                '该提供商下没有支持视觉的模型。'
             );
-            return;
+            vscode.window.showWarningMessage(message);
+            throw new Error(message);
         }
 
         interface ModelOption extends vscode.QuickPickItem {
@@ -158,7 +162,7 @@ export async function selectVisionModel(): Promise<void> {
             }
         );
         if (!modelPick) {
-            return;
+            return false;
         }
 
         // 4. 保存配置
@@ -176,7 +180,9 @@ export async function selectVisionModel(): Promise<void> {
                 modelPick.modelName
             )
         );
+        return true;
     } catch (err) {
-        Logger.error('[VisionWizard] Failed:', err instanceof Error ? err.message : String(err));
+        Logger.error('[VisionWizard] Failed:', err);
+        throw err;
     }
 }

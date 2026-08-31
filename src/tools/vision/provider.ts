@@ -109,15 +109,12 @@ export async function analyzeImagesWithSystem(
             :   'Configured vision model unavailable';
         Logger.warn(`[gcmpVisionTool] ${reason}, launching wizard`);
 
-        const before = JSON.stringify(configuredSelection ?? {});
-        await vscode.commands.executeCommand('gcmp.vision.selectModel');
-
-        const afterSelection = ConfigManager.getConfig().vision.model;
-        const after = JSON.stringify(afterSelection ?? {});
-        if (after === before) {
-            // 用户未更新配置（通常表示取消/关闭了向导）
+        const selectionResult = await vscode.commands.executeCommand<boolean>('gcmp.vision.selectModel');
+        if (!selectionResult) {
             throw new vscode.CancellationError();
         }
+
+        const afterSelection = ConfigManager.getConfig().vision.model;
 
         model = await resolveModel(afterSelection);
         if (!model) {
