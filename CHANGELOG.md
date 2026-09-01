@@ -2,6 +2,18 @@
 
 本文档记录了 GCMP (AI Chat Models) 扩展的最近主要更改。
 
+## [0.27.13] - 2026-09-01
+
+### 新增
+
+- **Charm Hyper 新增 GLM-5.3 系列模型**：接入 GLM-5.3 与 GLM-5.3-Flash。 [#392](https://github.com/VicBilibily/GCMP/issues/392)
+
+---
+
+### Added
+
+- **GLM-5.3 models on Charm Hyper**: Added GLM-5.3 and GLM-5.3-Flash. [#392](https://github.com/VicBilibily/GCMP/issues/392)
+
 ## [0.27.12] - 2026-08-31
 
 ### 新增

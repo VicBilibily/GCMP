@@ -98,6 +98,30 @@
             "tokenPricing": [1.52432, 4.79072, 0.152432]
         },
         {
+            "id": "glm-5.3",
+            "name": "GLM-5.3 (Hyper)",
+            "tooltip": "Charm Hyper — GLM-5.3。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [1.52432, 4.79072, 0.283088]
+        },
+        {
+            "id": "glm-5.3-flash",
+            "name": "GLM-5.3-Flash (Hyper)",
+            "tooltip": "Charm Hyper — GLM-5.3-Flash。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["max", "high", "low"],
+            "capabilities": { "toolCalling": true, "imageInput": true },
+            "tokenPricing": [0.16332, 0.5444, 0.0315752]
+        },
+        {
             "id": "gpt-oss-120b",
             "name": "GPT-OSS-120B (Hyper)",
             "tooltip": "Charm Hyper — GPT-OSS-120B。",
