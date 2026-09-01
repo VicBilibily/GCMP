@@ -20,6 +20,19 @@
             }
         },
         {
+            "id": "deepseek-v4-flash-fast",
+            "name": "DeepSeek V4 Flash Fast (CmdC)",
+            "model": "deepseek/deepseek-v4-flash-fast",
+            "tooltip": "CommandCode GOAT Plan - DeepSeek V4 Flash Fast (latest)。",
+            "sdkMode": "openai-sse",
+            "contextSize": [1000000, 512000, 400000, 256000, 192000],
+            "maxInputTokens": 936000,
+            "maxOutputTokens": 64000,
+            "reasoningEffort": ["high", "max"],
+            "capabilities": { "toolCalling": true, "imageInput": false },
+            "tokenPricing": [0.28, 0.56, 0.07]
+        },
+        {
             "id": "deepseek-v4-flash-vision-exp",
             "name": "DeepSeek V4 Flash Vision (CmdC)",
             "model": "deepseek/deepseek-v4-flash-vision-exp",
