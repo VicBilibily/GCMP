@@ -49,8 +49,8 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
 
     /**
      * 获取显示文本
-     * 格式: "$(icon) 85% (92%)" - 括号内是5小时额度，外面是每周额度
-     * 只显示 300分钟 和 每周 两种窗口
+     * 格式: "$(icon) 85% (92%)" - 括号内是5小时额度，外面是主额度窗口
+     * 主额度窗口支持 每日/每周/每月/每年
      */
     protected getDisplayText(data: ChatGPTStatusData): string {
         return `${this.config.icon} ${buildCodexUsageSummary(data)}`;
@@ -70,7 +70,7 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
         const primaryType = getWindowType(
             hasValidRateLimitWindow(primaryWindow) ? primaryWindow.limit_window_seconds : 0
         );
-        const secondaryType = secondaryWindow ? getWindowType(secondaryWindow.limit_window_seconds) : null;
+        const secondaryType = secondaryWindow ? getWindowType(secondaryWindow.limit_window_seconds, true) : null;
 
         const planTypeDisplay = formatChatGPTPlanType(data.planType);
 
@@ -121,25 +121,25 @@ export class ChatGPTStatusBar extends BaseStatusBarItem<ChatGPTStatusData> {
 
     /**
      * 检查是否需要高亮警告
-     * 当每周使用率超过 80% 时高亮显示
+     * 主额度窗口（5h 之外的长期窗口）使用率超过阈值时高亮显示
      */
     protected shouldHighlightWarning(data: ChatGPTStatusData): boolean {
         const primaryWindow = data.rateLimit.primary_window;
         const secondaryWindow =
             hasValidRateLimitWindow(data.rateLimit.secondary_window) ? data.rateLimit.secondary_window : undefined;
 
-        // 检查每周额度的使用率
+        // 检查主额度窗口（每日/每周/每月/每年）的使用率
         const primaryType = getWindowType(
             hasValidRateLimitWindow(primaryWindow) ? primaryWindow.limit_window_seconds : 0
         );
-        if (primaryType.type === 'weekly' && hasValidRateLimitWindow(primaryWindow)) {
+        if (primaryType.type !== 'hourly' && hasValidRateLimitWindow(primaryWindow)) {
             return primaryWindow.used_percent >= this.HIGH_USAGE_THRESHOLD;
         }
 
-        // 如果主窗口不是每周，检查备用窗口
+        // 主窗口是 5h 短窗时，检查备用长期窗口
         if (secondaryWindow) {
-            const secondaryType = getWindowType(secondaryWindow.limit_window_seconds);
-            if (secondaryType.type === 'weekly') {
+            const secondaryType = getWindowType(secondaryWindow.limit_window_seconds, true);
+            if (secondaryType.type !== 'hourly') {
                 return secondaryWindow.used_percent >= this.HIGH_USAGE_THRESHOLD;
             }
         }

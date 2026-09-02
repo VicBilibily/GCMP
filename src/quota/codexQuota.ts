@@ -81,26 +81,45 @@ export interface ChatGPTStatusData {
     lastUpdated: string;
 }
 
-/** 窗口类型（仅区分 5 小时 / 每周） */
+/** 窗口类型（对齐 openai/codex get_limits_duration：5h / 每日 / 每周 / 每月 / 每年；无法识别为 unknown） */
 export interface WindowType {
-    type: 'hourly' | 'weekly';
+    /** 'hourly' 指 5 小时短窗（历史命名）；unknown 为未识别时长 */
+    type: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'annual' | 'unknown';
     label: string;
+}
+
+/** 窗口时长近似匹配（±5% 容差，对齐 openai/codex is_approximate_window） */
+function isApproximateWindow(valueSeconds: number, expectedSeconds: number): boolean {
+    return valueSeconds >= expectedSeconds * 0.95 && valueSeconds <= expectedSeconds * 1.05;
 }
 
 /**
  * 根据 limit_window_seconds 判断窗口类型
- * 只处理 300 分钟(5 小时) 和 1 周 两种情况
+ * 对齐 openai/codex：5 小时 / 每日(24h) / 每周(7d) / 每月(30d) / 每年(365d)
+ * 无法识别时与官方一致，标为 Usage limit / Secondary usage limit，不归入每周
  */
-export function getWindowType(limitWindowSeconds: number): WindowType {
+export function getWindowType(limitWindowSeconds: number, isSecondary = false): WindowType {
     const FIVE_HOURS = 5 * 60 * 60;
-    const WEEK = 7 * 24 * 60 * 60;
+    const DAY = 24 * 60 * 60;
+    const WEEK = 7 * DAY;
+    const MONTH = 30 * DAY;
+    const YEAR = 365 * DAY;
 
-    if (limitWindowSeconds === FIVE_HOURS) {
+    if (isApproximateWindow(limitWindowSeconds, FIVE_HOURS)) {
         return { type: 'hourly', label: t('5 Hours', '300 分钟') };
-    } else if (limitWindowSeconds === WEEK) {
+    } else if (isApproximateWindow(limitWindowSeconds, DAY)) {
+        return { type: 'daily', label: t('Daily quota', '每日额度') };
+    } else if (isApproximateWindow(limitWindowSeconds, WEEK)) {
         return { type: 'weekly', label: t('Weekly quota', '每周额度') };
+    } else if (isApproximateWindow(limitWindowSeconds, MONTH)) {
+        return { type: 'monthly', label: t('Monthly quota', '每月额度') };
+    } else if (isApproximateWindow(limitWindowSeconds, YEAR)) {
+        return { type: 'annual', label: t('Annual quota', '每年额度') };
     }
-    return { type: 'weekly', label: t('Weekly quota', '每周额度') };
+    return {
+        type: 'unknown',
+        label: isSecondary ? t('Secondary limit', '次要额度') : t('Usage limit', '用量额度')
+    };
 }
 
 export function hasValidRateLimitWindow(window: RateLimitWindow | undefined): window is RateLimitWindow {
@@ -254,34 +273,36 @@ export async function queryCodexUsage(): Promise<{ success: boolean; data?: Chat
 
 /**
  * 构建百分比总览文本（不含图标前缀）
- * 格式：每周剩余 (5 小时剩余)，无 5 小时窗口时仅每周剩余
+ * 格式：主额度剩余 (5 小时剩余)，无 5 小时窗口时仅主额度剩余
+ * 主额度窗口支持 每日/每周/每月/每年，5 小时窗口作为短窗显示
  */
 export function buildCodexUsageSummary(data: ChatGPTStatusData): string {
     const primaryWindow = data.rateLimit.primary_window;
     const secondaryWindow =
         hasValidRateLimitWindow(data.rateLimit.secondary_window) ? data.rateLimit.secondary_window : undefined;
     const primaryType = getWindowType(hasValidRateLimitWindow(primaryWindow) ? primaryWindow.limit_window_seconds : 0);
-    const secondaryType = secondaryWindow ? getWindowType(secondaryWindow.limit_window_seconds) : null;
+    const secondaryType = secondaryWindow ? getWindowType(secondaryWindow.limit_window_seconds, true) : null;
 
-    let weeklyRemaining = 0;
-    let hourlyRemaining = 0;
+    // 主额度窗口（5h 之外的长期窗口）与 5 小时短窗
+    let mainRemaining = 0;
+    let shortWindowRemaining = 0;
 
-    if (primaryType.type === 'weekly') {
-        weeklyRemaining = getRemainingPercent(primaryWindow);
+    if (primaryType.type === 'hourly') {
+        shortWindowRemaining = getRemainingPercent(primaryWindow);
+        if (secondaryType && secondaryType.type !== 'hourly' && secondaryWindow) {
+            mainRemaining = getRemainingPercent(secondaryWindow);
+        }
+    } else {
+        mainRemaining = getRemainingPercent(primaryWindow);
         if (secondaryType && secondaryType.type === 'hourly' && secondaryWindow) {
-            hourlyRemaining = getRemainingPercent(secondaryWindow);
-        }
-    } else if (primaryType.type === 'hourly') {
-        hourlyRemaining = getRemainingPercent(primaryWindow);
-        if (secondaryType && secondaryType.type === 'weekly' && secondaryWindow) {
-            weeklyRemaining = getRemainingPercent(secondaryWindow);
+            shortWindowRemaining = getRemainingPercent(secondaryWindow);
         }
     }
 
-    if (hourlyRemaining > 0) {
-        return `${weeklyRemaining.toFixed(0)}% (${hourlyRemaining.toFixed(0)}%)`;
+    if (shortWindowRemaining > 0) {
+        return `${mainRemaining.toFixed(0)}% (${shortWindowRemaining.toFixed(0)}%)`;
     }
-    return `${weeklyRemaining.toFixed(0)}%`;
+    return `${mainRemaining.toFixed(0)}%`;
 }
 
 /** 面板用窗口表格结构 */
@@ -303,7 +324,7 @@ export function buildCodexUsageTable(data: ChatGPTStatusData): QuotaTable {
     const secondaryWindow =
         hasValidRateLimitWindow(data.rateLimit.secondary_window) ? data.rateLimit.secondary_window : undefined;
     const primaryType = getWindowType(hasValidRateLimitWindow(primaryWindow) ? primaryWindow.limit_window_seconds : 0);
-    const secondaryType = secondaryWindow ? getWindowType(secondaryWindow.limit_window_seconds) : null;
+    const secondaryType = secondaryWindow ? getWindowType(secondaryWindow.limit_window_seconds, true) : null;
     const primaryResetDate = getResetDate(primaryWindow);
 
     rows.push([

@@ -2,7 +2,7 @@
 
 import * as vscode from 'vscode';
 
-import { buildCodexUsageSummary, type ChatGPTStatusData } from '../../src/quota/codexQuota';
+import { buildCodexUsageSummary, getWindowType, type ChatGPTStatusData } from '../../src/quota/codexQuota';
 import { getQuotaMetricType, isQuotaSupportedSlot } from '../../src/quota/common';
 import {
     clinepassStatusAdapter,
@@ -251,6 +251,40 @@ suite('quota alignment', () => {
         assert.match(tooltip, /\*\*0%\*\*/);
         assert.match(tooltip, /#### ChatGPT Plus/);
         assert.equal(bar.renderWarning(data), false);
+    });
+
+    test('ChatGPT monthly (30-day) quota window is classified as monthly, not weekly', () => {
+        assert.equal(getWindowType(2592000).type, 'monthly');
+        assert.equal(getWindowType(7 * 24 * 60 * 60).type, 'weekly');
+        assert.equal(getWindowType(24 * 60 * 60).type, 'daily');
+        assert.equal(getWindowType(2 * 60 * 60).type, 'unknown');
+        assert.equal(getWindowType(0).type, 'unknown');
+
+        const data: ChatGPTStatusData = {
+            userId: 'user-1',
+            accountId: 'account-1',
+            email: 'user@example.com',
+            planType: 'free',
+            rateLimit: {
+                allowed: true,
+                limit_reached: false,
+                primary_window: {
+                    used_percent: 0,
+                    limit_window_seconds: 2592000, // 30 天 = monthly
+                    reset_after_seconds: 2590542,
+                    reset_at: 1790929468
+                }
+            },
+            codeReviewUsedPercent: 0,
+            lastUpdated: '2026/08/16 08:00:00'
+        };
+
+        const bar = new TestChatGPTStatusBar();
+        const tooltip = bar.renderTooltip(data).value;
+
+        assert.equal(buildCodexUsageSummary(data), '100%');
+        assert.match(tooltip, /Monthly quota/);
+        assert.doesNotMatch(tooltip, /Weekly quota/);
     });
 
     test('ChatGPT status bar maps workspace seats to Codex TUI display names', () => {
