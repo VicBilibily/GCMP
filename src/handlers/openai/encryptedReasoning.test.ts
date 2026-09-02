@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
     isEncryptedReasoningEnabled,
+    isEncryptedReasoningOriginMatch,
     isIncludeOverridden,
     isResponsesReasoningId,
     shouldReplayPlainThinking
@@ -111,4 +112,24 @@ test('isResponsesReasoningId：仅接受以 rs 开头的 Responses 签发 id', (
     assert.equal(isResponsesReasoningId('thinking_0'), false);
     assert.equal(isResponsesReasoningId('msg_1'), false);
     assert.equal(isResponsesReasoningId(undefined), false);
+});
+
+test('isEncryptedReasoningOriginMatch：同 provider 跨模型可匹配', () => {
+    assert.equal(
+        isEncryptedReasoningOriginMatch(
+            { provider: 'openai', modelId: 'gpt-5.4' },
+            { provider: 'openai', modelId: 'gpt-5.6' }
+        ),
+        true
+    );
+});
+
+test('isEncryptedReasoningOriginMatch：跨 provider 不匹配', () => {
+    assert.equal(
+        isEncryptedReasoningOriginMatch(
+            { provider: 'anthropic', modelId: 'claude-sonnet-4-5' },
+            { provider: 'openai', modelId: 'gpt-5.6' }
+        ),
+        false
+    );
 });

@@ -7,7 +7,12 @@ import { sanitizeToolSchema } from '../../utils/text/schemaSanitizer';
 import { decodeStatefulMarker } from '../statefulMarker';
 import { CustomDataPartMimeTypes, GCMP_SYSTEM_MESSAGE_NAME } from '../types';
 import type { OpenAIHandler } from '../openaiHandler';
-import { isEncryptedReasoningEnabled, isResponsesReasoningId, shouldReplayPlainThinking } from './encryptedReasoning';
+import {
+    isEncryptedReasoningEnabled,
+    isEncryptedReasoningOriginMatch,
+    isResponsesReasoningId,
+    shouldReplayPlainThinking
+} from './encryptedReasoning';
 import { OpenAIResponsesCallIdResolver } from './openaiResponsesCallIdResolver';
 
 type ResponseInputItem = OpenAI.Responses.ResponseInputItem;
@@ -22,11 +27,36 @@ type FunctionTool = OpenAI.Responses.FunctionTool;
 interface OpenAIResponsesThinkingMetadata {
     redactedData?: string;
     reasoningId?: string;
+    provider?: string;
+    modelId?: string;
 }
 
 interface EncryptedReasoningItem {
     encryptedContent: string;
     reasoningId?: string;
+    provider?: string;
+    modelId?: string;
+}
+
+interface RequestOrigin {
+    provider: string;
+    modelId: string;
+}
+
+function isDataPart(part: unknown): part is vscode.LanguageModelDataPart {
+    return typeof part === 'object' && part !== null && 'mimeType' in part && 'data' in part;
+}
+
+function isTextPart(part: unknown): part is vscode.LanguageModelTextPart {
+    return typeof part === 'object' && part !== null && 'value' in part && !('mimeType' in part);
+}
+
+function isToolCallPart(part: unknown): part is vscode.LanguageModelToolCallPart {
+    return typeof part === 'object' && part !== null && 'callId' in part && 'name' in part && 'input' in part;
+}
+
+function isToolResultPart(part: unknown): part is vscode.LanguageModelToolResultPart {
+    return typeof part === 'object' && part !== null && 'callId' in part && 'content' in part;
 }
 
 export class OpenAIResponsesMessageConverter {
@@ -37,7 +67,8 @@ export class OpenAIResponsesMessageConverter {
 
     convertMessagesToOpenAIResponses(
         messages: readonly vscode.LanguageModelChatMessage[],
-        modelConfig?: ModelConfig
+        modelConfig: ModelConfig | undefined,
+        requestOrigin: RequestOrigin
     ): { systemMessage: string; messages: ResponseInputItem[] } {
         const out: ResponseInputItem[] = [];
         let systemMessage = '';
@@ -59,6 +90,7 @@ export class OpenAIResponsesMessageConverter {
                 requestModel: modelConfig?.model || modelConfig?.id || '',
                 extraBody: modelConfig?.extraBody
             });
+        const currentOrigin = requestOrigin;
 
         for (const [messageIndex, message] of messages.entries()) {
             let role = this.mapRole(message.role);
@@ -72,6 +104,8 @@ export class OpenAIResponsesMessageConverter {
             const toolResults: Array<{ callId: string; content: string }> = [];
             const thinkingParts: string[] = [];
             const encryptedReasonings: EncryptedReasoningItem[] = [];
+            const markerReasonings = this.getEncryptedReasoningFromMarker(message.content);
+            const markerReasoning = markerReasonings[0];
 
             for (const [partIndex, part] of message.content.entries()) {
                 if (part instanceof vscode.LanguageModelThinkingPart) {
@@ -81,7 +115,9 @@ export class OpenAIResponsesMessageConverter {
                     if (metadata?.redactedData && replayEncryptedReasoning) {
                         encryptedReasonings.push({
                             encryptedContent: metadata.redactedData,
-                            reasoningId: metadata.reasoningId
+                            reasoningId: metadata.reasoningId,
+                            provider: metadata.provider ?? markerReasoning?.provider,
+                            modelId: metadata.modelId ?? markerReasoning?.modelId
                         });
                     } else {
                         const content = Array.isArray(part.value) ? part.value.join('') : part.value;
@@ -91,16 +127,13 @@ export class OpenAIResponsesMessageConverter {
                     }
                 } else if (part instanceof vscode.LanguageModelTextPart) {
                     textParts.push(part.value);
-                } else if (
-                    part instanceof vscode.LanguageModelDataPart &&
-                    this.handler.isImageMimeType(part.mimeType)
-                ) {
+                } else if (isDataPart(part) && this.handler.isImageMimeType(part.mimeType)) {
                     if (modelConfig?.capabilities?.imageInput === true) {
                         imageParts.push(part);
                     } else {
                         textParts.push('[Image]');
                     }
-                } else if (part instanceof vscode.LanguageModelToolCallPart) {
+                } else if (isToolCallPart(part)) {
                     let args = '{}';
                     try {
                         args = JSON.stringify(part.input ?? {});
@@ -115,7 +148,7 @@ export class OpenAIResponsesMessageConverter {
                         argumentsJson: args
                     });
                     toolCalls.push({ id, name: part.name, args });
-                } else if (part instanceof vscode.LanguageModelToolResultPart) {
+                } else if (isToolResultPart(part)) {
                     const callId = callIdResolver.resolveToolResultCallId({ callId: part.callId });
                     const content = this.collectToolResultText(part);
                     if (callId) {
@@ -133,8 +166,8 @@ export class OpenAIResponsesMessageConverter {
                     // ThinkingPart 可能被 VS Code 部分或全部剥离：与 StatefulMarker 合并并去重恢复
                     const mergedEncryptedReasonings = this.mergeEncryptedReasonings(
                         encryptedReasonings,
-                        this.getEncryptedReasoningFromMarker(message.content)
-                    );
+                        markerReasonings
+                    ).filter(item => isEncryptedReasoningOriginMatch(item, currentOrigin));
                     for (const { encryptedContent, reasoningId } of mergedEncryptedReasonings) {
                         const reasoningItem: Record<string, unknown> = {
                             type: 'reasoning' as const,
@@ -236,13 +269,17 @@ export class OpenAIResponsesMessageConverter {
     ): EncryptedReasoningItem[] {
         for (const part of content) {
             if (
-                part instanceof vscode.LanguageModelDataPart &&
+                isDataPart(part) &&
                 part.mimeType === CustomDataPartMimeTypes.StatefulMarker &&
                 part.data instanceof Uint8Array
             ) {
                 const marker = decodeStatefulMarker(part.data)?.marker;
                 if (marker?.sdkMode === 'openai-responses' && marker.encryptedReasoning?.length) {
-                    return marker.encryptedReasoning;
+                    return marker.encryptedReasoning.map(item => ({
+                        ...item,
+                        provider: marker.provider,
+                        modelId: marker.modelId
+                    }));
                 }
             }
         }
@@ -257,7 +294,7 @@ export class OpenAIResponsesMessageConverter {
     private getCompleteThinkingFromMarker(content: vscode.LanguageModelChatMessage['content']): string | undefined {
         for (const part of content) {
             if (
-                part instanceof vscode.LanguageModelDataPart &&
+                isDataPart(part) &&
                 part.mimeType === CustomDataPartMimeTypes.StatefulMarker &&
                 part.data instanceof Uint8Array
             ) {
@@ -293,28 +330,33 @@ export class OpenAIResponsesMessageConverter {
         const seenContents = new Set<string>();
 
         for (const [index, item] of extracted.entries()) {
+            const originKey = this.getEncryptedReasoningOriginKey(item);
             if (item.reasoningId) {
-                extractedIndicesById.set(item.reasoningId, index);
+                extractedIndicesById.set(`${originKey}:${item.reasoningId}`, index);
             }
-            extractedIndicesByContent.set(item.encryptedContent, index);
+            extractedIndicesByContent.set(`${originKey}:${item.encryptedContent}`, index);
         }
 
         const pushMergedItem = (item: EncryptedReasoningItem) => {
-            if ((item.reasoningId && seenIds.has(item.reasoningId)) || seenContents.has(item.encryptedContent)) {
+            const originKey = this.getEncryptedReasoningOriginKey(item);
+            const idKey = item.reasoningId ? `${originKey}:${item.reasoningId}` : undefined;
+            const contentKey = `${originKey}:${item.encryptedContent}`;
+            if ((idKey && seenIds.has(idKey)) || seenContents.has(contentKey)) {
                 return;
             }
 
             merged.push(item);
-            if (item.reasoningId) {
-                seenIds.add(item.reasoningId);
+            if (idKey) {
+                seenIds.add(idKey);
             }
-            seenContents.add(item.encryptedContent);
+            seenContents.add(contentKey);
         };
 
         for (const item of restored) {
+            const originKey = this.getEncryptedReasoningOriginKey(item);
             const matchedExtractedIndex =
-                (item.reasoningId ? extractedIndicesById.get(item.reasoningId) : undefined) ??
-                extractedIndicesByContent.get(item.encryptedContent);
+                (item.reasoningId ? extractedIndicesById.get(`${originKey}:${item.reasoningId}`) : undefined) ??
+                extractedIndicesByContent.get(`${originKey}:${item.encryptedContent}`);
 
             if (matchedExtractedIndex !== undefined) {
                 usedExtractedIndices.add(matchedExtractedIndex);
@@ -333,6 +375,10 @@ export class OpenAIResponsesMessageConverter {
         }
 
         return merged;
+    }
+
+    private getEncryptedReasoningOriginKey(item: EncryptedReasoningItem): string {
+        return item.provider ?? '';
     }
 
     convertToolsToResponses(tools: readonly vscode.LanguageModelChatTool[]): FunctionTool[] {
@@ -400,9 +446,9 @@ export class OpenAIResponsesMessageConverter {
 
         const texts: string[] = [];
         for (const item of part.content) {
-            if (item instanceof vscode.LanguageModelTextPart) {
+            if (isTextPart(item)) {
                 texts.push(item.value);
-            } else if (item instanceof vscode.LanguageModelDataPart && this.handler.isImageMimeType(item.mimeType)) {
+            } else if (isDataPart(item) && this.handler.isImageMimeType(item.mimeType)) {
                 texts.push('[Image]');
             }
         }

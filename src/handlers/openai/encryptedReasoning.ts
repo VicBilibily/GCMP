@@ -6,6 +6,11 @@
 /** Responses API include 中用于请求加密思考内容的条目名 */
 export const ENCRYPTED_REASONING_INCLUDE = 'reasoning.encrypted_content';
 
+export interface EncryptedReasoningOrigin {
+    provider?: string;
+    modelId?: string;
+}
+
 /**
  * Responses API 只接受自己签发的 reasoning id（以 `rs` 开头）。
  * 外源 id（如 Anthropic 的 `thinking_0`）原样回传会 400。
@@ -59,4 +64,12 @@ export function shouldReplayPlainThinking(params: {
         return false;
     }
     return true;
+}
+
+/** 同 provider 即可跨模型复用密文推理。 */
+export function isEncryptedReasoningOriginMatch(
+    origin: EncryptedReasoningOrigin | undefined,
+    currentOrigin: Required<EncryptedReasoningOrigin>
+): boolean {
+    return Boolean(origin?.provider && currentOrigin.provider && origin.provider === currentOrigin.provider);
 }

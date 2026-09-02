@@ -74,6 +74,8 @@ test('reportEncryptedThinking：多段摘要直接拼接', async () => {
     assert.equal(thinkingPart.value, '摘要A摘要B');
     assert.deepEqual(thinkingPart.metadata, {
         redactedData: 'cipher-text',
-        reasoningId: 'rsn_1'
+        reasoningId: 'rsn_1',
+        provider: 'test-provider',
+        modelId: 'test-model'
     });
 });

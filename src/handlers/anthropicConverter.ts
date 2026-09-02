@@ -14,6 +14,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { sanitizeToolSchema } from '../utils/text/schemaSanitizer';
 import { decodeStatefulMarker } from './statefulMarker';
 import { shouldInjectReasoningPlaceholder } from './reasoningPlaceholder';
+import { isEncryptedReasoningOriginMatch } from './openai/encryptedReasoning';
 import type {
     ContentBlockParam,
     ThinkingBlockParam,
@@ -33,6 +34,8 @@ interface ThinkingPartMetadata {
     signature?: string;
     data?: string;
     _completeThinking?: string;
+    provider?: string;
+    modelId?: string;
 }
 
 /**
@@ -66,9 +69,16 @@ function getStatefulMarkerThinking(content: vscode.LanguageModelChatMessage['con
     return undefined;
 }
 
-function getCompleteThinkingFromStatefulMarker(
-    content: vscode.LanguageModelChatMessage['content']
-): { thinking?: string; signature: string; redactedData?: string[]; hasToolCalls?: boolean } | undefined {
+function getCompleteThinkingFromStatefulMarker(content: vscode.LanguageModelChatMessage['content']):
+    | {
+          thinking?: string;
+          signature: string;
+          redactedData?: string[];
+          hasToolCalls?: boolean;
+          provider?: string;
+          modelId?: string;
+      }
+    | undefined {
     const marker = getStatefulMarkerThinking(content);
     if (!marker) {
         return undefined;
@@ -77,7 +87,9 @@ function getCompleteThinkingFromStatefulMarker(
         thinking: marker.completeThinking,
         signature: marker.completeSignature || '',
         redactedData: marker.sdkMode === 'anthropic' ? marker.encryptedThinkingData : undefined,
-        hasToolCalls: marker.hasToolCalls
+        hasToolCalls: marker.hasToolCalls,
+        provider: marker.provider,
+        modelId: marker.modelId
     };
 }
 
@@ -97,11 +109,17 @@ function contentBlockSupportsCacheControl(
  */
 function apiMessageToAnthropicContent(
     message: vscode.LanguageModelChatMessage,
-    modelConfig: ModelConfig
+    modelConfig: ModelConfig,
+    providerKey?: string
 ): ContentBlockParam[] {
     const content = message.content;
     const thinkingBlocks: ContentBlockParam[] = [];
     const otherBlocks: ContentBlockParam[] = [];
+    const markerThinking = getCompleteThinkingFromStatefulMarker(content);
+    const currentOrigin = {
+        provider: modelConfig.provider || providerKey || '',
+        modelId: modelConfig.model || modelConfig.id
+    };
 
     // 模型能力：不支持 imageInput 时，必须忽略所有 image/* 数据块。
     const allowImages = modelConfig.capabilities?.imageInput === true;
@@ -113,10 +131,16 @@ function apiMessageToAnthropicContent(
 
             // 如果是加密的思考内容（redacted_thinking）
             if (metadata.data) {
-                thinkingBlocks.push({
-                    type: 'redacted_thinking',
-                    data: metadata.data
-                } as RedactedThinkingBlockParam);
+                const origin = {
+                    provider: metadata.provider ?? markerThinking?.provider,
+                    modelId: metadata.modelId ?? markerThinking?.modelId
+                };
+                if (isEncryptedReasoningOriginMatch(origin, currentOrigin)) {
+                    thinkingBlocks.push({
+                        type: 'redacted_thinking',
+                        data: metadata.data
+                    } as RedactedThinkingBlockParam);
+                }
             } else {
                 // mark: 2025/12/26 官方的数据传递有问题，_completeThinking的内容可能不完整
                 // // 普通思考内容 - 优先使用 _completeThinking（完整思考内容）
@@ -272,9 +296,14 @@ function apiMessageToAnthropicContent(
         // 如果 VS Code 剥离了 ThinkingPart，则从 StatefulMarker 恢复思考内容（对所有模型生效，
         // 服务端对与自身无关的 thinking 块会智能忽略）
         if (thinkingBlocks.length === 0) {
-            const markerThinking = getCompleteThinkingFromStatefulMarker(content);
             // 优先恢复 redacted_thinking 加密块（anthropic 模式），保持加密思维链连续性
-            if (markerThinking?.redactedData?.length) {
+            if (
+                markerThinking?.redactedData?.length &&
+                isEncryptedReasoningOriginMatch(
+                    { provider: markerThinking.provider, modelId: markerThinking.modelId },
+                    currentOrigin
+                )
+            ) {
                 for (const redactedData of markerThinking.redactedData) {
                     thinkingBlocks.push({
                         type: 'redacted_thinking',
@@ -300,7 +329,8 @@ function apiMessageToAnthropicContent(
  */
 export function apiMessageToAnthropicMessage(
     model: ModelConfig,
-    messages: readonly vscode.LanguageModelChatMessage[]
+    messages: readonly vscode.LanguageModelChatMessage[],
+    providerKey?: string
 ): {
     messages: MessageParam[];
     system: TextBlockParam;
@@ -315,7 +345,7 @@ export function apiMessageToAnthropicMessage(
         if (message.role === vscode.LanguageModelChatMessageRole.Assistant) {
             unmergedMessages.push({
                 role: 'assistant',
-                content: apiMessageToAnthropicContent(message, model)
+                content: apiMessageToAnthropicContent(message, model, providerKey)
             });
         } else if (
             message.role === vscode.LanguageModelChatMessageRole.User &&
@@ -333,7 +363,7 @@ export function apiMessageToAnthropicMessage(
         } else if (message.role === vscode.LanguageModelChatMessageRole.User) {
             unmergedMessages.push({
                 role: 'user',
-                content: apiMessageToAnthropicContent(message, model)
+                content: apiMessageToAnthropicContent(message, model, providerKey)
             });
         } else if (message.role === vscode.LanguageModelChatMessageRole.System) {
             systemMessage.text += message.content

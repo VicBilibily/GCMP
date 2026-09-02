@@ -124,7 +124,7 @@ export class OpenAIResponsesHandler {
                 reporter = new StreamReporter({
                     modelName: model.name,
                     modelId: model.id,
-                    provider: this.providerKey,
+                    provider: modelConfig.provider || this.providerKey,
                     sdkMode: 'openai-responses',
                     progress,
                     sessionId,

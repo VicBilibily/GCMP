@@ -84,13 +84,18 @@ export class OpenAIResponsesRequestBuilder {
     build(params: OpenAIResponsesRequestBuilderParams): OpenAIResponsesRequestBuilderResult {
         const { model, modelConfig, messages, options, sessionId } = params;
         const requestModel = modelConfig.model || modelConfig.id;
+        const requestOrigin = {
+            provider: modelConfig.provider || this.providerKey || '',
+            modelId: model.id
+        };
         const requestKind = (options.modelOptions as { requestKind?: string } | undefined)?.requestKind as
             | RequestKind
             | undefined;
         const disableThinkingByRequestKind = requestKind !== undefined && isSubRequest(requestKind);
         const { systemMessage, messages: responsesMessages } = this.messageConverter.convertMessagesToOpenAIResponses(
             messages,
-            modelConfig
+            modelConfig,
+            requestOrigin
         );
 
         const requestBody = initializeResponsesRequestBody({

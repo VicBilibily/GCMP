@@ -388,7 +388,9 @@ export class StreamReporter {
         this.progress.report(
             new vscode.LanguageModelThinkingPart(text, undefined, {
                 redactedData: encryptedContent,
-                reasoningId: reasoningId
+                reasoningId: reasoningId,
+                provider: this.provider,
+                modelId: this.modelId
             })
         );
         this.hasThinkingContent = true;
@@ -408,7 +410,9 @@ export class StreamReporter {
         this.encryptedThinkingData.push(redactedData);
         this.progress.report(
             new vscode.LanguageModelThinkingPart('', undefined, {
-                redactedData
+                redactedData,
+                provider: this.provider,
+                modelId: this.modelId
             })
         );
         this.hasThinkingContent = true;

@@ -216,7 +216,11 @@ export class AnthropicHandler {
 
         try {
             const client = await this.createAnthropicClient(modelConfig);
-            const { messages: anthropicMessages, system } = apiMessageToAnthropicMessage(modelConfig, messages);
+            const { messages: anthropicMessages, system } = apiMessageToAnthropicMessage(
+                modelConfig,
+                messages,
+                modelConfig.provider || this.provider
+            );
 
             // 准备工具定义
             const tools: Anthropic.Messages.ToolUnion[] =
@@ -321,7 +325,7 @@ export class AnthropicHandler {
             reporter = new StreamReporter({
                 modelName: model.name,
                 modelId: model.id,
-                provider: this.provider,
+                provider: modelConfig.provider || this.provider,
                 sdkMode: 'anthropic',
                 progress,
                 sessionId,

@@ -1046,7 +1046,7 @@ export class OpenAIHandler {
                 reporter = new StreamReporter({
                     modelName: model.name,
                     modelId: model.id,
-                    provider: this.provider,
+                    provider: modelConfig.provider || this.provider,
                     sdkMode: 'openai',
                     progress,
                     sessionId,
