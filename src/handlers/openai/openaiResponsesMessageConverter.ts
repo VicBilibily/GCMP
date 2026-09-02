@@ -224,15 +224,6 @@ export class OpenAIResponsesMessageConverter {
             }
         }
 
-        const lastItem = out.at(-1);
-        if (lastItem && typeof lastItem === 'object' && 'type' in lastItem) {
-            const item = lastItem as unknown as Record<string, unknown>;
-            if (item.type === 'message' && item.role === 'user') {
-                item.status = 'incomplete';
-                Logger.trace(`${this.displayName} Responses API: set the last user message status to incomplete`);
-            }
-        }
-
         return { systemMessage, messages: out };
     }
 
