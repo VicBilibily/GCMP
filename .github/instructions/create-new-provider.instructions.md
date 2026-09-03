@@ -8,9 +8,8 @@ description: 创建新模型提供商（provider）时的改动清单与验证�
     - 如支持 Coding Plan 等专用密钥，可添加可选字段 `codingKeyTemplate` 用于指示专用 API Key 格式。
 - 在 `src/providers/config/index.ts` 导入并导出该配置，使 `ConfigManager` 能自动读取。
 - 在 `package.json` 中同步注册：
-    - 在 `activationEvents` 添加 `onLanguageModelProvider:gcmp.<providerKey>`。
+    - 在 `contributes.languageModelChatProviders` 添加对应 vendor 项，使模型选择器显示该提供商（VS Code 会隐式生成 `onLanguageModelChatProvider:gcmp.<providerKey>`，不必再写入 `activationEvents`）。
     - 在 `contributes.commands` 添加 `gcmp.<providerKey>.setApiKey`（用于设置 API Key）。
-    - 在 `contributes.languageModelChatProviders` 添加对应 vendor 项，使模型选择器显示该提供商。
 - 使用现有 `GenericModelProvider` 处理 OpenAI 兼容的运行时代码。
 - 使用 `ApiKeyManager` 提示并保存 API Key，确保在发送请求前已存在有效密钥。
 - 验证要点：
