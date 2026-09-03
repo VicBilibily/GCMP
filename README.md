@@ -120,8 +120,8 @@ VS Code 在后台使用轻量级模型执行标题生成、提交信息创建、
 
 ### [**阿里云百炼**](https://bailian.console.aliyun.com/) - AliDashScope
 
-- **模型列表**：详见 [config/dashscope.json](src/providers/config/dashscope.json)（[Token Plan 团队版](https://www.aliyun.com/benefit/scene/tokenplan) / [Token Plan 个人版](https://bailian.console.aliyun.com/cn-beijing?tab=plan#/efm/subscription/overview) / 按量计费）。
-- **搜索功能**：集成 [联网搜索MCP](https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=3023217) 工具（2000次/月），支持通过 `#bailianWebSearch` 进行联网搜索。（使用[阿里云百炼ApiKey](https://bailian.console.aliyun.com/cn-beijing/?tab=model#/api-key)）
+- **模型列表**：详见 [config/dashscope.json](src/providers/config/dashscope.json)（[Coding Plan](https://www.aliyun.com/benefit/scene/codingplan) / [Token Plan 团队版](https://www.aliyun.com/benefit/scene/tokenplan) / [Token Plan 个人版](https://bailian.console.aliyun.com/cn-beijing?tab=plan#/efm/subscription/overview) / 按量计费）。
+- **搜索功能**：集成 [联网搜索MCP](https://bailian.console.aliyun.com/cn-beijing/?tab=doc#/doc/?type=model&url=3023217) 工具（2000次/月），支持通过 `#bailianWebSearch` 进行联网搜索。（使用[阿里云百炼ApiKey](https://bailian.console.aliyun.com/cn-beijing/?tab=model#/api-key)而非编程套餐的ApiKey）
 
 ### [**火山方舟**](https://www.volcengine.com/product/ark) - Volcengine
 

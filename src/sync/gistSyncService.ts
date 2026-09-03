@@ -115,6 +115,7 @@ export const KNOWN_KEY_LABELS: Record<string, string> = {
     clinepass: 'ClinePass',
     // ── 多密钥变体 ──
     'minimax-token': 'MiniMax Token Plan',
+    'dashscope-coding': 'DashScope Coding Plan',
     'dashscope-token': 'DashScope Token Plan (Team)',
     'dashscope-token-personal': 'DashScope Token Plan (Personal)',
     'tencent-token': 'Tencent Cloud Token Plan',
