@@ -18,6 +18,7 @@ import {
 } from '../utils/pricing/costCalculator';
 import { t } from '../utils/runtime/l10n';
 import { Logger } from '../utils/runtime/logger';
+import { copyFinalStatusRecorded, markFinalStatusRecorded } from '../utils/runtime/finalStatusMarker';
 import { isCancellationError } from '../utils/text/cancellationError';
 import { createOpenCodeHeaders } from '../utils/text/formatUtils';
 import { ModelChatResponseOptions, ModelConfig, ModelTokenPricing } from '../types/sharedTypes';
@@ -187,6 +188,45 @@ export class OpenAIResponsesHandler {
                     });
                     throw new vscode.CancellationError();
                 } else {
+                    streamStartTime ??= streamProcessor?.getStreamStartTime() ?? reporter?.getMetricStreamStartTime();
+                    streamEndTime ??= streamProcessor?.getStreamEndTime() ?? Date.now();
+                    if (requestId && reporter?.hasContent && reporter) {
+                        const finalUsage = streamProcessor?.getFinalUsage();
+                        let costNanoAiu: number | undefined;
+                        let breakdown: ReturnType<typeof calculateCostWithBreakdown> | undefined;
+                        if (modelConfig.tokenPricing) {
+                            const costAt = requestMetricStartTime ? new Date(requestMetricStartTime) : new Date();
+                            const requestServiceTier = (options.modelConfiguration as ModelChatResponseOptions)
+                                ?.serviceTier;
+                            breakdown = calculateCostWithBreakdown(
+                                finalUsage,
+                                modelConfig.tokenPricing,
+                                costAt,
+                                requestServiceTier
+                            );
+                            if (breakdown) {
+                                if (breakdown.total > 0) {
+                                    Logger.debug(formatCostBreakdownLog(reporter.getModelName(), breakdown));
+                                }
+                                costNanoAiu = toNanoAiu(breakdown.total);
+                            }
+                        }
+                        reporter.reportUsage(finalUsage, costNanoAiu);
+                        reporter.flushAll(null, undefined, finalUsage);
+                        TokenUsagesManager.instance.updateActualTokens({
+                            requestId,
+                            sessionId,
+                            rawUsage: finalUsage,
+                            status: 'failed',
+                            ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
+                            wasThrottled,
+                            streamStartTime,
+                            streamEndTime,
+                            estimatedCost: breakdown?.total,
+                            costBreakdown: breakdown ? toCostBreakdownLog(breakdown) : undefined
+                        });
+                        markFinalStatusRecorded(error);
+                    }
                     Logger.error(`${model.name} Responses API stream processing error: ${error}`);
                     throw error;
                 }
@@ -351,6 +391,7 @@ export class OpenAIResponsesHandler {
                 if (causeMessage && causeMessage !== errorMessage) {
                     errorMessage = causeMessage;
                     Logger.debug(`${modelName} Extracted detailed error message from error.cause: ${errorMessage}`);
+                    copyFinalStatusRecorded(error, error.cause);
                     throw error.cause;
                 }
             }
@@ -367,7 +408,9 @@ export class OpenAIResponsesHandler {
                 errorMessage.includes('504') ||
                 errorMessage.includes('Gateway Timeout')
             ) {
-                throw new vscode.LanguageModelError(errorMessage);
+                const wrappedError = new vscode.LanguageModelError(errorMessage);
+                copyFinalStatusRecorded(error, wrappedError);
+                throw wrappedError;
             }
 
             throw error;

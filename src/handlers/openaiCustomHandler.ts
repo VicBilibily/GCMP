@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
 import { Logger } from '../utils/runtime/logger';
+import { hasFinalStatusRecorded, markFinalStatusRecorded } from '../utils/runtime/finalStatusMarker';
 import { createOpenCodeHeaders } from '../utils/text/formatUtils';
 import { isCancellationError } from '../utils/text/cancellationError';
 import {
@@ -289,6 +290,21 @@ export class OpenAICustomHandler {
                     streamEndTime: Date.now()
                 });
                 throw new vscode.CancellationError();
+            }
+            if (requestId && reporter?.hasContent) {
+                if (!hasFinalStatusRecorded(error)) {
+                    reporter.flushAll(null);
+                    TokenUsagesManager.instance.updateActualTokens({
+                        requestId: requestId || '',
+                        sessionId: reporter?.getSessionId(),
+                        status: 'failed',
+                        ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
+                        wasThrottled,
+                        streamStartTime: partialStreamStartTime ?? reporter?.getMetricStreamStartTime(),
+                        streamEndTime: Date.now()
+                    });
+                    markFinalStatusRecorded(error);
+                }
             }
             throw error;
         } finally {

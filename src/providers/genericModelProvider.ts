@@ -21,6 +21,7 @@ import { ConfigManager } from '../utils/config/configManager';
 import { createLanguageModelChatInformation } from '../utils/model/languageModelInfo';
 import { isCancellationError } from '../utils/text/cancellationError';
 import { Logger } from '../utils/runtime/logger';
+import { hasFinalStatusRecorded } from '../utils/runtime/finalStatusMarker';
 import { ModelInfoCache } from '../utils/model/modelInfoCache';
 import { PromptAnalyzer } from '../utils/model/promptAnalyzer';
 import { RetryManager } from '../utils/retry/retryManager';
@@ -1001,7 +1002,9 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
             Logger.error(errorMessage);
             // === Token 统计: 更新失败状态（仅在最终失败时上报）===
-            this.reportRequestFailure(requestId, sessionId, requestMetricStartTime, wasThrottled);
+            if (!this.hasRecordedFinalStatus(error)) {
+                this.reportRequestFailure(requestId, sessionId, requestMetricStartTime, wasThrottled);
+            }
             // 直接抛出错误，让VS Code处理重试
             throw error;
         } finally {
@@ -1278,6 +1281,10 @@ export class GenericModelProvider implements LanguageModelChatProvider {
             requestMetricStartTime,
             wasThrottled
         });
+    }
+
+    protected hasRecordedFinalStatus(error: unknown): boolean {
+        return hasFinalStatusRecorded(error);
     }
 
     /**

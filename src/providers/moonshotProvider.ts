@@ -286,7 +286,9 @@ export class MoonshotProvider extends GenericModelProvider implements LanguageMo
             }
             const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
             Logger.error(errorMessage);
-            this.reportRequestFailure(requestId, sessionId, requestMetricStartTime, wasThrottled);
+            if (!this.hasRecordedFinalStatus(error)) {
+                this.reportRequestFailure(requestId, sessionId, requestMetricStartTime, wasThrottled);
+            }
             throw error;
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);

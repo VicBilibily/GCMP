@@ -245,7 +245,9 @@ export class XiaomimimoProvider extends GenericModelProvider implements Language
                 this.reportRequestCancelled(requestId, sessionId, requestMetricStartTime, wasThrottled);
                 throw error;
             }
-            this.reportRequestFailure(requestId, sessionId, requestMetricStartTime, wasThrottled);
+            if (!this.hasRecordedFinalStatus(error)) {
+                this.reportRequestFailure(requestId, sessionId, requestMetricStartTime, wasThrottled);
+            }
             throw error;
         } finally {
             Logger.info(`✅ ${this.providerConfig.displayName}: ${model.name} request completed`);

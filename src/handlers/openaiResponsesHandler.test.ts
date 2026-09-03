@@ -12,11 +12,25 @@ const NodeModule = require('node:module') as {
 const loggerInfoCalls: string[] = [];
 const updateActualTokensCalls: Array<Record<string, unknown>> = [];
 const consumedStreams: unknown[] = [];
+const reportUsageCalls: Array<{ usage?: unknown; costNanoAiu?: unknown }> = [];
+const flushAllCalls: Array<{ finishReason?: unknown; customStatefulData?: unknown; finalUsage?: unknown }> = [];
 
 class MockStreamReporter {
+    hasContent = true;
+
     constructor(_options: unknown) {}
 
-    reportUsage(_usage?: unknown, _costNanoAiu?: unknown): void {}
+    reportUsage(usage?: unknown, costNanoAiu?: unknown): void {
+        if (usage === undefined && costNanoAiu === undefined) {
+            return;
+        }
+        reportUsageCalls.push({ usage, costNanoAiu });
+    }
+
+    flushAll(finishReason?: unknown, customStatefulData?: unknown, finalUsage?: unknown): boolean {
+        flushAllCalls.push({ finishReason, customStatefulData, finalUsage });
+        return true;
+    }
 
     getMetricStreamStartTime(): number | undefined {
         return undefined;
@@ -38,16 +52,22 @@ class MockOpenAIResponsesRequestBuilder {
 }
 
 class MockOpenAIResponsesStreamProcessor {
+    private finalUsage: { total_tokens: number } | undefined = { total_tokens: 12 };
+
     constructor(_options: unknown) {}
 
     attach(): void {}
 
     async consume(stream: unknown): Promise<void> {
         consumedStreams.push(stream);
+        this.finalUsage = (stream as { noUsage?: boolean }).noUsage ? undefined : { total_tokens: 12 };
+        if ((stream as { shouldFail?: boolean }).shouldFail) {
+            throw new Error('stream failed');
+        }
     }
 
-    getFinalUsage(): { total_tokens: number } {
-        return { total_tokens: 12 };
+    getFinalUsage(): { total_tokens: number } | undefined {
+        return this.finalUsage;
     }
 
     getFinishReason(): string {
@@ -150,6 +170,8 @@ test('handleResponsesRequest：透传 length finishReason 到完成链路', asyn
     loggerInfoCalls.length = 0;
     updateActualTokensCalls.length = 0;
     consumedStreams.length = 0;
+    reportUsageCalls.length = 0;
+    flushAllCalls.length = 0;
 
     const { OpenAIResponsesHandler } = await getOpenAIResponsesHandlerModule();
     const fakeStream = { tag: 'responses-stream' };
@@ -214,4 +236,164 @@ test('handleResponsesRequest：透传 length finishReason 到完成链路', asyn
     );
     assert.equal(typeof updateActualTokensCalls[0]?.requestMetricStartTime, 'number');
     assert.ok(loggerInfoCalls.includes('📊 test-model Responses API request completed with finish reason: length'));
+});
+
+test('handleResponsesRequest：流处理失败时记录 failed 终态', async () => {
+    loggerInfoCalls.length = 0;
+    updateActualTokensCalls.length = 0;
+    consumedStreams.length = 0;
+    reportUsageCalls.length = 0;
+    flushAllCalls.length = 0;
+
+    const { OpenAIResponsesHandler } = await getOpenAIResponsesHandlerModule();
+    const fakeStream = { tag: 'responses-stream', shouldFail: true };
+    const client = {
+        _options: { defaultHeaders: {} as Record<string, string> },
+        responses: {
+            async create(_body: unknown, _options: unknown) {
+                return fakeStream;
+            }
+        }
+    };
+    const handler = new OpenAIResponsesHandler(
+        {
+            provider: 'openai',
+            providerConfig: { displayName: 'Test Provider' }
+        } as never,
+        {
+            async createOpenAIClient() {
+                return client;
+            }
+        } as never
+    );
+
+    await assert.rejects(
+        handler.handleResponsesRequest(
+            { id: 'model-id', name: 'test-model' } as never,
+            {} as never,
+            [] as never,
+            { modelConfiguration: {} } as never,
+            { report() {} } as never,
+            'request-1',
+            'session-1',
+            {
+                isCancellationRequested: false,
+                onCancellationRequested() {
+                    return { dispose() {} };
+                }
+            } as never,
+            123
+        ),
+        (error: unknown) => {
+            assert.ok(error instanceof Error);
+            assert.equal(error.message, 'stream failed');
+            assert.equal((error as { gcmpFinalStatusRecorded?: boolean }).gcmpFinalStatusRecorded, true);
+            return true;
+        }
+    );
+
+    assert.deepEqual(consumedStreams, [fakeStream]);
+    assert.equal(updateActualTokensCalls.length, 1);
+    assert.deepEqual(reportUsageCalls, [{ usage: { total_tokens: 12 }, costNanoAiu: undefined }]);
+    assert.deepEqual(flushAllCalls, [
+        { finishReason: null, customStatefulData: undefined, finalUsage: { total_tokens: 12 } }
+    ]);
+    assert.deepEqual(
+        {
+            ...updateActualTokensCalls[0],
+            requestMetricStartTime: undefined
+        },
+        {
+            requestId: 'request-1',
+            sessionId: 'session-1',
+            rawUsage: { total_tokens: 12 },
+            status: 'failed',
+            requestMetricStartTime: undefined,
+            wasThrottled: false,
+            streamStartTime: 100,
+            streamEndTime: 200,
+            estimatedCost: undefined,
+            costBreakdown: undefined
+        }
+    );
+    assert.equal(typeof updateActualTokensCalls[0]?.requestMetricStartTime, 'number');
+});
+
+test('handleResponsesRequest：流处理失败且无 usage 时仍记录 failed 终态', async () => {
+    loggerInfoCalls.length = 0;
+    updateActualTokensCalls.length = 0;
+    consumedStreams.length = 0;
+    reportUsageCalls.length = 0;
+    flushAllCalls.length = 0;
+
+    const { OpenAIResponsesHandler } = await getOpenAIResponsesHandlerModule();
+    const fakeStream = { tag: 'responses-stream', shouldFail: true, noUsage: true };
+    const client = {
+        _options: { defaultHeaders: {} as Record<string, string> },
+        responses: {
+            async create(_body: unknown, _options: unknown) {
+                return fakeStream;
+            }
+        }
+    };
+    const handler = new OpenAIResponsesHandler(
+        {
+            provider: 'openai',
+            providerConfig: { displayName: 'Test Provider' }
+        } as never,
+        {
+            async createOpenAIClient() {
+                return client;
+            }
+        } as never
+    );
+
+    await assert.rejects(
+        handler.handleResponsesRequest(
+            { id: 'model-id', name: 'test-model' } as never,
+            {} as never,
+            [] as never,
+            { modelConfiguration: {} } as never,
+            { report() {} } as never,
+            'request-1',
+            'session-1',
+            {
+                isCancellationRequested: false,
+                onCancellationRequested() {
+                    return { dispose() {} };
+                }
+            } as never,
+            123
+        ),
+        (error: unknown) => {
+            assert.ok(error instanceof Error);
+            assert.equal(error.message, 'stream failed');
+            assert.equal((error as { gcmpFinalStatusRecorded?: boolean }).gcmpFinalStatusRecorded, true);
+            return true;
+        }
+    );
+
+    assert.deepEqual(consumedStreams, [fakeStream]);
+    assert.equal(updateActualTokensCalls.length, 1);
+    assert.deepEqual(reportUsageCalls, []);
+    assert.deepEqual(flushAllCalls, [{ finishReason: null, customStatefulData: undefined, finalUsage: undefined }]);
+    assert.deepEqual(
+        {
+            ...updateActualTokensCalls[0],
+            requestMetricStartTime: undefined
+        },
+        {
+            requestId: 'request-1',
+            sessionId: 'session-1',
+            rawUsage: undefined,
+            status: 'failed',
+            requestMetricStartTime: undefined,
+            wasThrottled: false,
+            streamStartTime: 100,
+            streamEndTime: 200,
+            estimatedCost: undefined,
+            costBreakdown: undefined
+        }
+    );
+    assert.equal(typeof updateActualTokensCalls[0]?.requestMetricStartTime, 'number');
 });

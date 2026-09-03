@@ -424,7 +424,9 @@ export class CompatibleProvider extends GenericModelProvider {
                 }
                 const errorMessage = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
                 Logger.error(errorMessage);
-                this.reportRequestFailure(requestId, sessionId, requestMetricStartTime, wasThrottled);
+                if (!this.hasRecordedFinalStatus(error)) {
+                    this.reportRequestFailure(requestId, sessionId, requestMetricStartTime, wasThrottled);
+                }
                 throw error;
             } finally {
                 Logger.info(`✅ Compatible Provider: ${model.name} request completed`);

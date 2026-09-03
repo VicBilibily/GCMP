@@ -10,6 +10,7 @@ import { preprocessAnthropicCacheBreakpoints, stripTopLevelCacheControl } from '
 import { apiMessageToAnthropicMessage, convertToAnthropicTools } from './anthropicConverter';
 import { ApiKeyManager } from '../utils/config/apiKeyManager';
 import { Logger } from '../utils/runtime/logger';
+import { hasFinalStatusRecorded, markFinalStatusRecorded } from '../utils/runtime/finalStatusMarker';
 import { ConfigManager } from '../utils/config/configManager';
 import { redactHeaders } from '../utils/net/proxyAgent';
 import { isCancellationError } from '../utils/text/cancellationError';
@@ -400,6 +401,20 @@ export class AnthropicHandler {
                     });
                 }
                 throw new vscode.CancellationError();
+            }
+
+            if (requestId && reporter?.hasContent && !hasFinalStatusRecorded(error)) {
+                reporter.flushAll(null);
+                TokenUsagesManager.instance.updateActualTokens({
+                    requestId,
+                    sessionId,
+                    status: 'failed',
+                    ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
+                    wasThrottled,
+                    streamStartTime: partialStreamStartTime ?? reporter.getMetricStreamStartTime(),
+                    streamEndTime: partialStreamEndTime ?? Date.now()
+                });
+                markFinalStatusRecorded(error);
             }
 
             Logger.error(`[${model.name}] Anthropic SDK error:`, error);

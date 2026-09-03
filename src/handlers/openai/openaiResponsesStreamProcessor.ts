@@ -570,6 +570,10 @@ export class OpenAIResponsesStreamProcessor {
             })
             .on('response.failed', event => {
                 this.streamEndTime ??= Date.now();
+                const usage = (event.response as { usage?: unknown }).usage;
+                if (usage) {
+                    this.finalUsage ??= usage as GenericUsageData;
+                }
                 const errorMessage = event.response.error?.message || t('Response generation failed', '响应生成失败');
                 Logger.warn(`${this.modelName} Responses API response.failed: ${errorMessage}`);
                 this.streamError ??= new Error(errorMessage);

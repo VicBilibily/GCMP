@@ -120,6 +120,31 @@ test('consume：response.failed 缺错误消息时使用通用失败提示', asy
     });
 });
 
+test('consume：response.failed 带 usage 时保留终态 usage', async () => {
+    const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
+    const { processor } = createProcessor(OpenAIResponsesStreamProcessor);
+    const usage = { total_tokens: 7 };
+
+    const stream = eventsFrom([
+        {
+            type: 'response.failed',
+            response: {
+                id: 'resp_1',
+                status: 'failed',
+                error: null,
+                usage
+            }
+        }
+    ]);
+
+    await assert.rejects(processor.consume(stream as never), (error: unknown) => {
+        assert.ok(error instanceof Error);
+        return true;
+    });
+    assert.deepEqual(processor.getFinalUsage(), usage);
+    assert.ok(typeof processor.getStreamEndTime() === 'number');
+});
+
 test('consume：正常事件流完整分发并结束', async () => {
     const { OpenAIResponsesStreamProcessor } = await getProcessorModule();
     const { processor, reported } = createProcessor(OpenAIResponsesStreamProcessor);

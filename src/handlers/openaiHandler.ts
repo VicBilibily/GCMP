@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
 import { Logger } from '../utils/runtime/logger';
+import { copyFinalStatusRecorded, markFinalStatusRecorded } from '../utils/runtime/finalStatusMarker';
 import { VersionManager } from '../utils/runtime/versionManager';
 import { sanitizeToolSchema } from '../utils/text/schemaSanitizer';
 import { createOpenCodeHeaders } from '../utils/text/formatUtils';
@@ -1139,13 +1140,13 @@ export class OpenAIHandler {
                 // 记录流结束时间
                 streamEndTime = Date.now();
 
-                // 流结束，输出所有剩余内容
-                streamReporter.flushAll(null, undefined, finalUsage);
-
                 // 检查是否有流错误
                 if (streamError) {
                     throw streamError;
                 }
+
+                // 流结束，输出所有剩余内容
+                streamReporter.flushAll(null, undefined, finalUsage);
 
                 // 客户端成本估算：仅在模型配置了 tokenPricing 时才执行
                 // 峰谷定价：用请求开始时间匹配 tier，确保整条流式响应按同一档位计费
@@ -1217,6 +1218,43 @@ export class OpenAIHandler {
                     });
                     throw new vscode.CancellationError();
                 } else {
+                    const finalStreamEndTime = streamEndTime ?? Date.now();
+                    if (requestId && reporter?.hasContent) {
+                        let costNanoAiu: number | undefined;
+                        let breakdown: ReturnType<typeof calculateCostWithBreakdown> | undefined;
+                        if (modelConfig.tokenPricing) {
+                            const costAt = requestMetricStartTime ? new Date(requestMetricStartTime) : new Date();
+                            const requestServiceTier = (options.modelConfiguration as ModelChatResponseOptions)
+                                ?.serviceTier;
+                            breakdown = calculateCostWithBreakdown(
+                                finalUsage,
+                                modelConfig.tokenPricing,
+                                costAt,
+                                requestServiceTier
+                            );
+                            if (breakdown) {
+                                if (breakdown.total > 0) {
+                                    Logger.debug(formatCostBreakdownLog(model.name, breakdown));
+                                }
+                                costNanoAiu = toNanoAiu(breakdown.total);
+                            }
+                        }
+                        reporter.reportUsage(finalUsage, costNanoAiu);
+                        reporter.flushAll(null, undefined, finalUsage);
+                        TokenUsagesManager.instance.updateActualTokens({
+                            requestId,
+                            sessionId,
+                            rawUsage: finalUsage,
+                            status: 'failed',
+                            ...(requestMetricStartTime !== undefined ? { requestMetricStartTime } : {}),
+                            wasThrottled,
+                            streamStartTime,
+                            streamEndTime: finalStreamEndTime,
+                            estimatedCost: breakdown?.total,
+                            costBreakdown: breakdown ? toCostBreakdownLog(breakdown) : undefined
+                        });
+                        markFinalStatusRecorded(streamError);
+                    }
                     Logger.error(`${model.name} SDK stream processing error: ${streamError}`);
                     throw streamError;
                 }
@@ -1261,6 +1299,7 @@ export class OpenAIHandler {
                             Logger.debug(
                                 `${model.name} Extracted detailed error message from error.cause: ${errorMessage}`
                             );
+                            copyFinalStatusRecorded(error, error.cause);
                             throw error.cause;
                         }
                     }
@@ -1279,7 +1318,9 @@ export class OpenAIHandler {
                         errorMessage.includes('Gateway Timeout')
                     ) {
                         // 对于服务器错误，直接抛出原始错误以终止对话
-                        throw new vscode.LanguageModelError(errorMessage);
+                        const wrappedError = new vscode.LanguageModelError(errorMessage);
+                        copyFinalStatusRecorded(error, wrappedError);
+                        throw wrappedError;
                     }
 
                     // 对于普通错误，也需要重新抛出
